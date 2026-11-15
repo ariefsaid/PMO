@@ -196,7 +196,7 @@ export const WorkOrdersOrderlessInvoices: React.FC<{
       cell: (invoice) => {
         const notApplicable = invoice.status === 'Draft' || invoice.status === 'Cancelled';
         const paid = invoiceBalanceFigures(invoice).paid;
-        return notApplicable || paid === null ? '—' : <Tooltip content={t('projectDetail.cascade.source.invoicePaid', 'Computed as invoice amount less accounting balance outstanding.')}><span className="cursor-help tabular-nums">{formatNumberWhole(paid)}</span></Tooltip>;
+        return notApplicable || paid === null ? '—' : <Tooltip content={t('projectDetail.cascade.source.invoicePaid', 'Computed as invoice amount including tax, less accounting balance outstanding.')}><span className="cursor-help tabular-nums">{formatNumberWhole(paid)}</span></Tooltip>;
       } },
     { key: 'unpaid', header: t('projectDetail.cascade.unpaid', 'Unpaid'), kind: 'money', align: 'num',
       cell: (invoice) => {

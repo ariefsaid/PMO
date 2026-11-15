@@ -2,7 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import { CircleAlert, CircleCheck, CircleMinus } from 'lucide-react';
-import { CardHead, CardPad, DataTable, Drawer, HelpPopover, ListState, ProgressBar, StatusPill, Tooltip, type Column, type RowMenuItem } from '@/src/components/ui';
+import { CardHead, CardPad, DataTable, Drawer, HelpPopover, ListState, StatusPill, Tooltip, type Column, type RowMenuItem } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
@@ -13,11 +13,11 @@ import { useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import { formatNumberMax2, formatNumberWhole, formatTableMoney, formatTileMoney } from '@/src/lib/format';
-import { selectContractInvoiceFigure } from '@/src/lib/projectFinances';
+import { moneyUnits, selectContractInvoiceFigure } from '@/src/lib/projectFinances';
+import { outstandingIn, settlementFromFinanceBuckets, settlementIn, sumOutstanding } from '@/src/lib/invoiceSettlement';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import ProjectDrawdown from './ProjectDrawdown';
-import { summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
 
 type InvoiceRowWithWorkOrder = SalesInvoiceRow & { work_order_id?: string | null };
 
@@ -68,21 +68,24 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
   const delivered = allocations.reduce((sum, allocation) => sum + (allocation.acceptedQuantity ?? 0) * (rate.get(allocation.boqItemId) ?? 0), 0);
   const notYetOrdered = items.reduce((sum, item) => sum + (facts.get(item.id)?.contractBalance ?? 0) * Number(item.rate), 0);
   const invoiceRows = (invoices.data ?? []) as InvoiceRowWithWorkOrder[];
-  const settlement = summarizeInvoiceSettlement(invoiceRows);
+  // #2204: Paid reads the server projection's per-currency bucket (gross basis); a second or other currency reads unknown.
+  const settlementReading = settlementFromFinanceBuckets(projectFinances.data?.invoices);
+  const settlement = settlementReading ? settlementIn(settlementReading, project.currency) : null;
   const contractInvoiceFigure = selectContractInvoiceFigure(projectFinances.data);
+  // The Paid share is of the signed contract only when that contract is also stated including tax.
+  const paidDenominator = project.tax_treatment === 'inclusive' ? moneyUnits(contractInvoiceFigure.denominator) : null;
+  const paidPercentage = settlement?.settled != null && paidDenominator !== null && paidDenominator > 0n
+    ? Math.max(0, Math.round(settlement.settled * 100 / (Number(paidDenominator) / 100)))
+    : null;
   const showSummary = !isCascadePending && !isCascadeError && canViewMoney && (hasReadingLayer || (
     invoices.isPending || invoices.isError || invoiceRows.length > 0 || Number(project.contract_value) > 0
   ));
   const contractValue = hasReadingLayer
     ? contract
     : (billing.data?.contractNet ?? 0);
-  const contractInvoiceBasis = project.tax_treatment === 'inclusive'
-    ? t('projectDetail.cascade.signedContractInclusive', 'Signed contract · including tax')
-    : project.tax_treatment === 'exclusive'
-      ? t('projectDetail.cascade.signedContractExclusive', 'Signed contract · excluding tax')
-      : t('projectDetail.cascade.signedContractBasisUnknown', 'Signed contract · tax basis unknown');
   const invoiceFiguresMissing = canViewMoney && (
-    invoices.isPending || invoices.isError || settlement.invoiced === null || (!settlement.balancesKnown && invoiceRows.some((invoice) => invoice.status === 'Paid'))
+    invoices.isPending || invoices.isError || (settlement !== null
+      && !settlement.balancesKnown && invoiceRows.some((invoice) => invoice.status === 'Paid'))
   );
   const orderBillingRows = orderBilling.data ?? [];
   const lineCanInvoice = allocations.reduce((sum, allocation) => {
@@ -173,15 +176,30 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
       action: undefined,
     },
   ];
-  // #1457: the one shared overdue rule (status + derived due date + org day) decides each row.
-  const overdue = invoiceRows.reduce((sum, invoice) => {
-    if (clientInvoiceOverdueDays(invoice, orgDay) === null) return sum;
-    const balance = invoice.erp_outstanding_amount;
-    return balance === null ? sum : sum + Math.max(0, balance);
-  }, 0);
+  // #1457: the one shared overdue rule (status + derived due date + org day) decides each row;
+  // #2204: balances add up only within the project currency, otherwise the overdue figure is unknown.
+  const overdueSum = sumOutstanding(invoiceRows.filter((invoice) => clientInvoiceOverdueDays(invoice, orgDay) !== null));
+  const overdue = outstandingIn(overdueSum, project.currency);
+  const overdueUnknown = overdueSum.denomination !== 'none' && overdue === null;
   const percent = (value: number | null) => contractValue > 0 && value !== null
     ? Math.max(0, Math.round(value / contractValue * 100))
     : null;
+  const ofContract = (value: number | null) => value === null
+    ? undefined
+    : t('projectDetail.cascade.percentOfContract', '{{percent}}% of contract', { percent: value });
+  // The bar's percent stays on the contract's own tax basis (calculated server-side); name it when it is not gross.
+  const invoicedSupporting = contractInvoiceFigure.percentage === null
+    ? undefined
+    : project.tax_treatment === 'inclusive'
+      ? ofContract(contractInvoiceFigure.percentage)
+      : project.tax_treatment === 'exclusive'
+        ? t('projectDetail.cascade.percentOfContractExcludingTax', '{{percent}}% of the contract value (before tax)', { percent: contractInvoiceFigure.percentage })
+        : undefined;
+  // Paid is gross; the Invoiced tile is contract-basis billing, so Paid names the gross invoiced it is a part of.
+  const paidSupporting = [
+    ofContract(paidPercentage),
+    settlement?.gross == null ? undefined : t('projectDetail.cascade.paidOfInvoiced', 'of {{amount}} invoiced, including tax', { amount: tileMoney(settlement.gross), interpolation: { escapeValue: false } }),
+  ].filter(Boolean).join(' · ') || undefined;
   const unorderedRows: UnorderedLine[] = items.flatMap((item) => {
     const balance = facts.get(item.id)?.contractBalance ?? 0;
     return balance > 0 ? [{ key: item.id, item, balance, allocations: facts.get(item.id)?.allocations ?? [] }] : [];
@@ -220,13 +238,15 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
           {showSummary && <CardHead
             key="contract-summary-heading"
             id="pd-cascade"
-            subline={project.currency}
             // The heading stays plain text (its accessible name is the title alone); the percentage
             // basis sits behind the card's one help affordance instead of wrapping the title word.
             actions={
-              <HelpPopover subject={t('projectDetail.cascade.title', 'Contract')}>
-                {t('projectDetail.cascade.percentOfContractSource', 'Computed as this stage value divided by the contract value.')}
-              </HelpPopover>
+              // The help target is 44px on touch: pull it into the row's padding so it cannot stretch the heading-to-figures gap.
+              <span className="-my-3 inline-flex">
+                <HelpPopover subject={t('projectDetail.cascade.title', 'Contract')}>
+                  {t('projectDetail.cascade.percentOfContractSource', 'Computed as this stage value divided by the contract value.')}
+                </HelpPopover>
+              </span>
             }
           >
             {t('projectDetail.cascade.title', 'Contract')}
@@ -237,20 +257,28 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
           <ol className="grid min-w-0 grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 lg:grid-cols-5" aria-label={t('projectDetail.cascade.title', 'Contract')}>
             <MoneyStep label={t('projectDetail.cascade.contract', 'Contract value')} value={tileMoney(contractValue)} detail={hasReadingLayer ? t('projectDetail.cascade.source.contract', 'Source: priced contract lines (quantity × rate), excluding tax.') : t('projectDetail.cascade.source.contractFallback', 'Source: the project billing summary, excluding tax.')} />
             {hasReadingLayer && <>
-              <MoneyStep label={t('projectDetail.cascade.ordered', 'Ordered')} value={tileMoney(ordered)} percentage={percent(ordered)} detail={t('projectDetail.cascade.source.ordered', 'Source: contract allocation quantities × contract rates.')} />
-              <MoneyStep label={t('projectDetail.cascade.delivered', 'Delivered')} value={tileMoney(delivered)} percentage={percent(delivered)} detail={t('projectDetail.cascade.source.delivered', 'Source: quantities accepted on confirmed BASTs × contract rates.')} />
+              <MoneyStep label={t('projectDetail.cascade.ordered', 'Ordered')} value={tileMoney(ordered)} supporting={ofContract(percent(ordered))} detail={t('projectDetail.cascade.source.ordered', 'Source: contract allocation quantities × contract rates.')} />
+              <MoneyStep label={t('projectDetail.cascade.delivered', 'Delivered')} value={tileMoney(delivered)} supporting={ofContract(percent(delivered))} detail={t('projectDetail.cascade.source.delivered', 'Source: quantities accepted on confirmed BASTs × contract rates.')} />
             </>}
             {canViewMoney && !projectFinances.isPending && <MoneyStep
               label={t('projectDetail.cascade.invoiced', 'Invoiced')}
               value={contractInvoiceFigure.amount === null ? '—' : tileMoney(Number(contractInvoiceFigure.amount))}
-              percentage={contractInvoiceFigure.percentage}
-              caption={contractInvoiceBasis}
+              supporting={invoicedSupporting}
               detail={t('projectDetail.cascade.source.invoiced', 'Invoices under the signed contract, in the contract currency and tax basis. Shown as unknown when an invoice currency or tax basis differs from the contract. The percentage is of the signed contract value.')}
             />}
-            {canViewMoney && settlement.balancesKnown && !invoices.isPending && !invoices.isError && <>
-              <MoneyStep label={t('projectDetail.cascade.paid', 'Paid')} value={tileMoney(settlement.paid)} percentage={percent(settlement.paid)} detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount less the accounting balance outstanding.')} />
+            {canViewMoney && settlementReading !== null && !projectFinances.isPending && (settlement === null || settlement.balancesKnown) && <>
+              {settlement?.settled == null
+                ? <MoneyStep label={t('projectDetail.cascade.paid', 'Paid')} value="—" detail={t('projectDetail.cascade.source.paidUnknown', 'Unknown: an invoice is in another currency, or its amount or tax basis is missing, so settlement is not added up.')} />
+                : <MoneyStep label={t('projectDetail.cascade.paid', 'Paid')} value={tileMoney(settlement.settled)} supporting={paidSupporting}
+                  detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount including tax, less the accounting balance outstanding.')} />}
             </>}
           </ol>
+          <p className="mt-3 text-sm text-muted-foreground">{project.currency}</p>
+          {canViewMoney && !projectFinances.isPending && settlementReading !== null && settlement === null && (
+            <p role="status" data-testid="contract-mixed-currency" className="mt-1 text-sm text-muted-foreground">
+              {t('projectDetail.cascade.mixedCurrencyNote', 'Invoiced and paid are left out because the invoices are not all in the project currency')}
+            </p>
+          )}
           <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
             {billableAmountUnavailable ? (
               <span className="text-sm text-muted-foreground" role={orderBilling.isError ? 'alert' : 'status'}>
@@ -266,10 +294,12 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
                 <strong className="font-semibold text-foreground">{tableMoney(canInvoice)}</strong>
               </span>
             </Tooltip>}
-            {overdue > 0 && <Tooltip content={t('projectDetail.cascade.source.overdue', 'Sum of positive outstanding balances on invoices past their due date.')}>
-              <span className="inline-flex cursor-help items-center gap-2 text-warning-foreground tabular-nums">
+            {((overdue ?? 0) > 0 || overdueUnknown) && <Tooltip content={overdueUnknown
+              ? t('projectDetail.cascade.source.overdueUnknown', 'Unknown: overdue invoices are in more than one currency, so their balances are not added up.')
+              : t('projectDetail.cascade.source.overdue', 'Sum of positive outstanding balances on invoices past their due date.')}>
+              <span data-testid="contract-overdue" className="inline-flex cursor-help items-center gap-2 text-warning-foreground tabular-nums">
                 <StatusPill variant="overdue">{t('projectDetail.cascade.overdue', 'Overdue')}</StatusPill>
-                <strong className="font-semibold">{tableMoney(overdue)}</strong>
+                <strong className="font-semibold">{overdue === null ? '—' : tableMoney(overdue)}</strong>
               </span>
             </Tooltip>}
           </div>
@@ -421,26 +451,19 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
   );
 };
 
-const MoneyStep: React.FC<{ label: string; value: string; percentage?: number | null; caption?: string; detail: string }> = ({ label, value, percentage, caption, detail }) => {
-  return (
-    <li aria-label={`${label} ${value}${percentage == null ? '' : ` ${percentage}%`}${caption ? ` ${caption}` : ''}`} className="min-w-0 border-l border-border pl-3 first:border-l-0 first:pl-0">
-      <div className="block">
-        <Tooltip content={detail}>
-          <span className="block w-fit cursor-help text-sm text-muted-foreground">{label}</span>
-        </Tooltip>
-      </div>
-      <div className="mt-1 block">
-        <Tooltip content={detail}><span className="block w-fit cursor-help text-lg font-semibold tabular-nums leading-tight text-foreground">{value}</span></Tooltip>
-      </div>
-      {percentage != null && percentage >= 0 && <span className="mt-2 block w-full max-w-36">
-        <ProgressBar value={percentage} showValue compact aria-label={label} tone={percentage > 100 ? 'destructive' : 'neutral'} />
-      </span>}
-      {percentage != null && percentage < 0 && <span className="mt-2 block text-sm tabular-nums text-muted-foreground">{percentage}%</span>}
-      {percentage == null && <span className="mt-2 block text-sm text-muted-foreground">—</span>}
-      {caption && <span className="mt-1 block text-xs text-muted-foreground">{caption}</span>}
-    </li>
-  );
-};
+const MoneyStep: React.FC<{ label: string; value: string; supporting?: string; detail: string }> = ({ label, value, supporting, detail }) => (
+  <li aria-label={`${label} ${value}${supporting ? ` ${supporting}` : ''}`} className="min-w-0 sm:border-l sm:border-border sm:pl-3 sm:first:border-l-0 sm:first:pl-0">
+    <div className="block">
+      <Tooltip content={detail}>
+        <span className="block w-fit cursor-help text-sm text-muted-foreground">{label}</span>
+      </Tooltip>
+    </div>
+    <div className="mt-1 block">
+      <Tooltip content={detail}><span className="block w-fit cursor-help text-lg font-semibold tabular-nums leading-tight text-foreground">{value}</span></Tooltip>
+    </div>
+    {supporting && <p className="mt-1 text-sm text-muted-foreground">{supporting}</p>}
+  </li>
+);
 
 const UnorderedFigure: React.FC<{ label: string; value: string; detail: string }> = ({ label, value, detail }) => (
   <div><dt className="text-sm text-muted-foreground">{label}</dt><dd className="mt-1 w-fit cursor-help font-semibold tabular-nums"><Tooltip content={detail}><span>{value}</span></Tooltip></dd></div>

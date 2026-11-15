@@ -1,6 +1,6 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -15,7 +15,12 @@ const h = vi.hoisted(() => ({
   canViewMoney: true,
   orgDay: '2026-06-01' as string | null,
   drawdown: { data: { committed: 200_000, draft: 50_000, ceiling: 500_000, currency: 'IDR', basis: 'net' }, isPending: false, isError: false, refetch: vi.fn() },
+  finances: null as unknown,
 }));
+// #2204: the server projection's per-currency bucket for the default orphan invoice (12,345.60 of which 2,345.60 owed).
+const orphanBucket = { currency: 'IDR', invoice_count: 1, invoiced: '12345.60', settled: '10000.00', outstanding: '2345.60',
+  missing_amount: 0, missing_outstanding: 0, tax_basis: 'inclusive', work_revenue: '12345.60', missing_work: 0 };
+const bucketOf = (over: Record<string, unknown>) => ({ ...orphanBucket, ...over });
 
 vi.mock('@/src/hooks/useProgressBilling', () => ({
   useBoqItems: () => h.boq,
@@ -27,7 +32,7 @@ vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => h.orde
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.orderBilling, useWorkOrderAcceptanceAge: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useRevenue', () => ({ useSalesInvoices: () => h.invoices }));
 vi.mock('@/src/hooks/useProjectFinances', () => ({
-  useProjectFinances: () => ({ data: { contract_invoiced: '12345.60', remaining_to_invoice: '487654.40' }, isPending: false, isError: false }),
+  useProjectFinances: () => ({ data: h.finances, isPending: false, isError: false }),
 }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canViewMoney }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: null }) }));
@@ -42,10 +47,10 @@ vi.mock('@/src/hooks/useFxOrgDay', () => ({
 }));
 
 import { ContractCascade } from '../ContractCascade';
-import { summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
 import { ToastProvider } from '@/src/components/ui';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n } from '@/test/financeI18nTestInstance';
 
 const project = {
   id: 'p1', code: 'PRJ-1', name: 'Busy project', currency: 'IDR', contract_value: 500_000,
@@ -69,21 +74,79 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     h.billing = { data: { contractLines: [], contractNet: 500_000, dpBilled: 0, dpRecovered: 0 }, isPending: false, isError: false, refetch: vi.fn() };
     h.orders = { data: [], isPending: false, isError: false, refetch: vi.fn() };
     h.orderBilling = { data: [], isPending: false, isError: false, refetch: vi.fn() };
-    h.invoices = { data: [{ id: 'si-orphan', work_order_id: null, status: 'Unpaid', amount: 12_345.6,
+    h.invoices = { data: [{ currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 0, id: 'si-orphan', work_order_id: null, status: 'Unpaid', amount: 12_345.6,
       erp_outstanding_amount: 2_345.6, si_number: 'INV-ORPHAN' }], isPending: false, isError: false, refetch: vi.fn() };
     h.canViewMoney = true;
     h.orgDay = '2026-06-01';
+    h.finances = { contract_invoiced: '12345.60', remaining_to_invoice: '487654.40', invoices: [orphanBucket] };
     h.drawdown = { data: { committed: 200_000, draft: 50_000, ceiling: 500_000, currency: 'IDR', basis: 'net' }, isPending: false, isError: false, refetch: vi.fn() };
   });
 
-  // Payments can land outside the ERP balance (project receipts), so a missing balance is unknown, never "all unpaid".
-  it('AC-1402 leaves paid/unpaid unknown when a submitted invoice has no accounting balance', () => {
-    expect(summarizeInvoiceSettlement([{ status: 'Submitted', amount: 7_700_000, erp_outstanding_amount: null }])).toEqual({
-      invoiced: 7_700_000,
-      paid: 0,
-      unpaid: null,
-      balancesKnown: false,
-    });
+  it('AC-SET-001 Contract Paid reads unknown, never a project-currency sum, when the projection has two currency buckets', () => {
+    h.finances = { contract_invoiced: null, remaining_to_invoice: null, invoices: [orphanBucket, bucketOf({ currency: 'USD', invoiced: '100.00', settled: '100.00', outstanding: '0.00' })] };
+    renderCascade();
+
+    const summary = screen.getByRole('list', { name: 'Contract' });
+    const paid = within(summary).getByRole('listitem', { name: /^Paid / });
+    expect(paid).toHaveAccessibleName(/^Paid —/);
+    expect(paid).not.toHaveTextContent(/IDR/);
+  });
+
+  it('AC-SET-002 Contract Paid reads the projection gross settlement for mixed tax bases', () => {
+    h.finances = { contract_invoiced: '2000000.00', remaining_to_invoice: '0.00', invoices: [bucketOf({
+      invoice_count: 2, invoiced: '2110000.00', settled: '1110000.00', outstanding: '1110000.00', tax_basis: 'mixed' })] };
+    renderCascade();
+
+    const summary = screen.getByRole('list', { name: 'Contract' });
+    // Gross 2.22M less 1.11M still owed: 1.11M settled, shown beside the 2.22M it is a part of.
+    expect(within(summary).getByRole('listitem', { name: /^Paid / })).toHaveAccessibleName(/^Paid IDR\s1\.11M of IDR\s2\.22M invoiced, including tax$/);
+  });
+
+  it('AC-SET-005 a fully paid tax-exclusive invoice never reads Paid above what it invoiced nor a percentage above 100', () => {
+    h.finances = { contract_invoiced: '1000000.00', remaining_to_invoice: '0.00', invoices: [bucketOf({
+      invoiced: '1000000.00', settled: '1110000.00', outstanding: '0.00', tax_basis: 'exclusive' })] };
+    renderCascade();
+
+    const summary = screen.getByRole('list', { name: 'Contract' });
+    const paid = within(summary).getByRole('listitem', { name: /^Paid / });
+    // The contract is excluding tax, the settlement including it: no Paid % against the contract.
+    expect(paid).toHaveAccessibleName('Paid IDR\u00a01.11M of IDR\u00a01.11M invoiced, including tax');
+    expect(summary).not.toHaveTextContent(/(?:10[1-9]|1[1-9][0-9]|[2-9][0-9]{2})%/);
+  });
+
+  it('AC-SET-006 never adds overdue balances in two currencies into one project-currency figure', () => {
+    h.invoices = { data: [
+      { currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 0, id: 'si-idr', work_order_id: null, status: 'Unpaid', amount: 500, erp_outstanding_amount: 300, erp_due_date: '2020-01-01', si_number: 'INV-IDR' },
+      { currency: 'USD', tax_treatment: 'inclusive', tax_amount: 0, id: 'si-usd', work_order_id: null, status: 'Unpaid', amount: 50, erp_outstanding_amount: 20, erp_due_date: '2020-01-01', si_number: 'INV-USD' },
+    ], isPending: false, isError: false, refetch: vi.fn() };
+    renderCascade();
+
+    const section = screen.getByRole('heading', { name: 'Contract' }).closest('section')!;
+    expect(within(section).getByTestId('contract-overdue')).toHaveTextContent(/^Overdue—$/);
+    expect(section).not.toHaveTextContent(/IDR 320|IDR\u00a0320/);
+  });
+
+  it.each([
+    ['en', 'Invoiced and paid are left out because the invoices are not all in the project currency', '99% of the contract value (before tax)'],
+    ['id', 'Difakturkan dan dibayar tidak ditampilkan karena faktur tidak semuanya dalam mata uang proyek', '99% dari nilai kontrak (sebelum pajak)'],
+  ])('#2204 %s: states why Invoiced and Paid are dashes in a mixed-currency project, and words the billing share as before tax', async (lng, reason, share) => {
+    await financeTestI18n.changeLanguage(lng);
+    try {
+      h.finances = { contract_invoiced: null, remaining_to_invoice: null, invoices: [orphanBucket, bucketOf({ currency: 'USD', invoiced: '100.00', settled: '100.00', outstanding: '0.00' })] };
+      renderCascade();
+      const summary = screen.getByRole('list', { name: lng === 'en' ? 'Contract' : 'Kontrak' });
+      expect(within(summary).getAllByText('—')).toHaveLength(2);
+      expect(screen.getByTestId('contract-mixed-currency')).toHaveTextContent(reason);
+
+      cleanup();
+      h.finances = { contract_invoiced: '495000.00', remaining_to_invoice: '5000.00', invoices: [bucketOf({ invoiced: '549450.00', settled: '0.00', outstanding: '549450.00', tax_basis: 'inclusive' })] };
+      h.billing = { data: { contractLines: [], contractNet: 500_000, dpBilled: 0, dpRecovered: 0 }, isPending: false, isError: false, refetch: vi.fn() };
+      renderCascade();
+      expect(screen.queryByTestId('contract-mixed-currency')).not.toBeInTheDocument();
+      expect(screen.getByText(share)).toBeInTheDocument();
+    } finally {
+      await financeTestI18n.changeLanguage('en');
+    }
   });
 
   it('shows the contract → invoiced → paid line when invoices exist without contract lines', () => {
@@ -169,7 +232,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
   it('AC-1402 shows can-invoice and overdue callouts from delivered quantities and ERP balances', () => {
     h.boq = { data: [{ id: 'b1', quantity: 10, rate: 100, item_code: 'L-1', description: 'Line', unit: 'ea' }], isPending: false, isError: false, refetch: vi.fn() };
     h.billing = { data: { contractNet: 1_000, dpBilled: 0, dpRecovered: 0, contractLines: [{ boqItemId: 'b1', contractBalance: 6, allocations: [{ boqItemId: 'b1', workOrderId: 'wo-1', quantity: 4, acceptedQuantity: 4, claimedQuantity: 2 }] }] }, isPending: false, isError: false, refetch: vi.fn() };
-    h.invoices = { data: [{ id: 'si-overdue', work_order_id: 'wo-1', status: 'Unpaid', amount: 500, erp_outstanding_amount: 300, erp_due_date: '2020-01-01', si_number: 'INV-OVERDUE' }], isPending: false, isError: false, refetch: vi.fn() };
+    h.invoices = { data: [{ currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 0, id: 'si-overdue', work_order_id: 'wo-1', status: 'Unpaid', amount: 500, erp_outstanding_amount: 300, erp_due_date: '2020-01-01', si_number: 'INV-OVERDUE' }], isPending: false, isError: false, refetch: vi.fn() };
     renderCascade();
 
     const section = screen.getByRole('heading', { name: 'Contract' }).closest('section')!;
@@ -292,7 +355,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     h.boq = { data: [{ id: 'b1', quantity: 10, rate: 100, item_code: 'L-1', description: 'Line', unit: 'ea' }], isPending: false, isError: false, refetch: vi.fn() };
     h.billing = { data: { contractNet: 1_000, dpBilled: 0, dpRecovered: 0, contractLines: [{ boqItemId: 'b1', contractBalance: 6, allocations: [] }] }, isPending: false, isError: false, refetch: vi.fn() };
     // invoice_date 2026-01-05 + 30 terms = due 2026-02-04; org day 2026-06-01 → 117 days overdue.
-    h.invoices = { data: [{ id: 'si-terms-overdue', work_order_id: null, status: 'Unpaid', amount: 800, erp_outstanding_amount: 450, erp_due_date: null, invoice_date: '2026-01-05', erp_payment_terms_days: 30, si_number: 'INV-TERMS' }], isPending: false, isError: false, refetch: vi.fn() };
+    h.invoices = { data: [{ currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 0, id: 'si-terms-overdue', work_order_id: null, status: 'Unpaid', amount: 800, erp_outstanding_amount: 450, erp_due_date: null, invoice_date: '2026-01-05', erp_payment_terms_days: 30, si_number: 'INV-TERMS' }], isPending: false, isError: false, refetch: vi.fn() };
     renderCascade();
 
     const section = screen.getByRole('heading', { name: 'Contract' }).closest('section')!;
@@ -303,7 +366,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     h.orgDay = null;
     h.boq = { data: [{ id: 'b1', quantity: 10, rate: 100, item_code: 'L-1', description: 'Line', unit: 'ea' }], isPending: false, isError: false, refetch: vi.fn() };
     h.billing = { data: { contractNet: 1_000, dpBilled: 0, dpRecovered: 0, contractLines: [{ boqItemId: 'b1', contractBalance: 6, allocations: [] }] }, isPending: false, isError: false, refetch: vi.fn() };
-    h.invoices = { data: [{ id: 'si-overdue', work_order_id: null, status: 'Unpaid', amount: 500, erp_outstanding_amount: 300, erp_due_date: '2020-01-01', si_number: 'INV-OVERDUE' }], isPending: false, isError: false, refetch: vi.fn() };
+    h.invoices = { data: [{ currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 0, id: 'si-overdue', work_order_id: null, status: 'Unpaid', amount: 500, erp_outstanding_amount: 300, erp_due_date: '2020-01-01', si_number: 'INV-OVERDUE' }], isPending: false, isError: false, refetch: vi.fn() };
     renderCascade();
 
     const section = screen.getByRole('heading', { name: 'Contract' }).closest('section')!;

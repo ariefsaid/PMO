@@ -15,13 +15,13 @@ import { useMilestones } from '@/src/hooks/useMilestones';
 import { completionPct, formatDay, formatDaysOverdue, formatTableMoney } from '@/src/lib/format';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
-import { budgetLeftAfterOrders, deriveMargin } from '@/src/lib/projectFinances';
+import { budgetLeftAfterOrders, deriveMargin, selectContractInvoiceFigure } from '@/src/lib/projectFinances';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import { useProjectCommittedSpend, useProjectProcurements } from '@/src/hooks/useProcurements';
 import { buildBudgetSummaryRows, resolveProjectCommitment } from '@/src/lib/budget/budgetModel';
 import MilestoneStrip from './MilestoneStrip';
 import { useBudgetPosition } from '@/src/hooks/useProjectPosition';
-import { summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
+import { settlementFromFinanceBuckets, settlementIn } from '@/src/lib/invoiceSettlement';
 import ProjectProfitLossSection from './ProjectProfitLossSection';
 import { ProjectFinancesSection } from './ProjectFinancesSection';
 
@@ -103,15 +103,21 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean }> 
   const delivered = hasBoq
     ? allocations.reduce((sum, allocation) => sum + (allocation.acceptedQuantity ?? 0) * (rates.get(allocation.boqItemId) ?? 0), 0)
     : null;
-  const invoicesKnown = !invoices.isPending && !invoices.isError;
-  const invoiceRows = (invoices.data ?? []).filter((invoice) => invoice.currency === project.currency);
-  const settlement = summarizeInvoiceSettlement(invoiceRows.map((invoice) => ({
-    status: invoice.status,
-    amount: invoice.amount,
-    erp_outstanding_amount: invoice.erp_outstanding_amount,
-  })));
-  const invoiced = invoicesKnown ? settlement.invoiced : null;
-  const paid = invoicesKnown && settlement.balancesKnown ? settlement.paid : null;
+  // #2204: Invoiced and Paid read the server projection's per-currency bucket on the gross (incl. tax) basis, so
+  // Paid + outstanding = Invoiced. A second or other currency is unknown, never the project-currency subset.
+  const settlementReading = settlementFromFinanceBuckets(data.invoices);
+  const settlement = settlementReading ? settlementIn(settlementReading, project.currency) : null;
+  const settlementCurrencyUnknown = settlementReading !== null && settlement === null;
+  const invoiced = settlement?.gross ?? null;
+  const paid = settlement?.settled ?? null;
+  // A share of the contract compares like with like: the BoQ is priced excluding tax, so only a recorded
+  // tax-inclusive contract value is on the same basis as these gross figures.
+  const grossComparable = !hasBoq && project.tax_treatment === 'inclusive';
+  const contractInvoiceFigure = selectContractInvoiceFigure(data);
+  // A receipt can settle part of an invoice through withheld tax, which is not cash: with withholding on the
+  // project, settled-but-unmatched cannot be told apart from withheld, so that note is not raised.
+  const withholdingPossible = invoices.isPending || invoices.isError
+    || (invoices.data ?? []).some((invoice) => invoice.project_receipt_withholding_article != null);
   const cash = data.cash_received;
   const cashSum = cash?.state === 'known'
     ? cash.buckets.filter((bucket) => bucket.currency === project.currency).reduce((sum, bucket) => sum + Number(bucket.amount), 0)
@@ -132,8 +138,8 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean }> 
       : t('projectDetail.money.contractSourceRecord', 'Approved contract value from the project record.') },
     { key: 'ordered', label: t('projectDetail.money.ordered', 'Ordered'), value: ordered, source: t('projectDetail.money.orderedSource', 'Sum of issued work-order allocations multiplied by BoQ unit rates.') },
     { key: 'delivered', label: t('projectDetail.money.delivered', 'Delivered'), value: delivered, source: t('projectDetail.money.deliveredSource', 'Sum of accepted quantities multiplied by BoQ unit rates.') },
-    { key: 'invoiced', label: t('projectDetail.money.invoiced', 'Invoiced'), value: invoiced, source: t('projectDetail.money.invoicedSource', 'Sum of non-draft, non-cancelled invoices in the project currency.') },
-    { key: 'paid', label: t('projectDetail.money.paid', 'Paid'), value: paid, source: t('projectDetail.money.paidSource', 'Invoice amount less accounting outstanding balance; this is settlement, not receipt cash.') },
+    { key: 'invoiced', label: t('projectDetail.money.invoiced', 'Invoiced'), value: invoiced, source: t('projectDetail.money.invoicedSource', 'Sum of non-draft, non-cancelled invoices in the project currency, including tax.') },
+    { key: 'paid', label: t('projectDetail.money.paid', 'Paid'), value: paid, source: t('projectDetail.money.paidSource', 'Invoice amount including tax, less accounting outstanding balance; this is settlement, not receipt cash.') },
   ].filter((step): step is { key: string; label: string; value: number; source: string } => step.value !== null);
   const stepLabels = { ordered: t('projectDetail.money.ordered', 'Ordered'), delivered: t('projectDetail.money.delivered', 'Delivered'), invoiced: t('projectDetail.money.invoiced', 'Invoiced'), paid: t('projectDetail.money.paid', 'Paid') };
   const marginHiddenReason = margin?.reason === 'different-currencies'
@@ -149,12 +155,12 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean }> 
     ...(contractValue === null ? [{ label: t('projectDetail.money.contract', 'Contract'), reason: t('projectDetail.money.contractUnavailable', 'Contract value is not recorded.') }] : []),
     ...(ordered === null ? [{ label: stepLabels.ordered, reason: t('projectDetail.money.noBoq', 'Ordered and delivered values are not tracked until the project has a BoQ.') }] : []),
     ...(delivered === null ? [{ label: stepLabels.delivered, reason: t('projectDetail.money.noBoq', 'Ordered and delivered values are not tracked until the project has a BoQ.') }] : []),
-    ...(invoiced === null && !invoices.isPending ? [{ label: stepLabels.invoiced, reason: invoices.isError
-      ? t('projectDetail.money.invoiceError', "Couldn't load invoice settlement.")
-      : t('projectDetail.money.invoicedOut', 'Invoiced is left out until every invoice amount is known.') }] : []),
-    ...(paid === null && !invoices.isPending ? [{ label: stepLabels.paid, reason: invoices.isError
-      ? t('projectDetail.money.invoiceError', "Couldn't load invoice settlement.")
-      : t('projectDetail.money.paidOut', 'Paid is left out until every invoice balance is known.') }] : []),
+    ...(settlementCurrencyUnknown
+      ? [{ label: t('projectDetail.money.invoicedAndPaid', 'Invoiced and paid'), reason: t('projectDetail.money.settlementCurrencyOut', 'Invoiced and paid are left out because the invoices are not all in the project currency.') }]
+      : [
+        ...(invoiced === null ? [{ label: stepLabels.invoiced, reason: t('projectDetail.money.invoicedOut', 'Invoiced is left out until every invoice amount is known.') }] : []),
+        ...(paid === null ? [{ label: stepLabels.paid, reason: t('projectDetail.money.paidOut', 'Paid is left out until every invoice balance is known.') }] : []),
+      ]),
     ...(marginAmount === null ? [{ label: t('projectDetail.money.grossMargin', 'Gross margin'), reason: marginHiddenReason }] : []),
     ...(cashReceived === null ? [{
       label: cashUnconfirmed
@@ -174,17 +180,18 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean }> 
       link: { to: '/finance/receivables?view=payments', label: t('projectDetail.money.matchPayments', 'Match payments') },
     }] : []),
   ];
-  const share = (value: number | null) => value !== null && contractValue !== null && contractValue > 0 ? pctOf(value, contractValue) : null;
-  const invoicedShare = share(invoiced);
+  const share = (value: number | null) => grossComparable && value !== null && contractValue !== null && contractValue > 0 ? pctOf(value, contractValue) : null;
+  // The lead reads the projection's contract-basis billing (the Contract tab's Invoiced figure), never the gross sum.
+  const invoicedShare = contractInvoiceFigure.percentage;
   const paidShare = share(paid);
 
   return (
     <Block id="pd-money" title={title} unit={unit} fillRow={fillRow}>
       <MoneyHiddenFigures figures={hidden} />
       {/* L5: the block's one answer leads, biggest — how much of the contract is billed, then collected. */}
-      {invoicedShare !== null && (
+      {(invoicedShare !== null || cashReceived !== null) && (
         <p className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          {explain(t('projectDetail.money.leadTooltip', 'Invoiced amount as a share of the contract. Source: non-draft, non-cancelled invoices in the project currency.'),
+          {invoicedShare !== null && explain(t('projectDetail.money.leadTooltip', 'Invoiced against the signed contract, in its currency and tax basis, as a share of the contract value.'),
             t('projectDetail.money.leadInvoiced', '{{percent}}% invoiced', { percent: invoicedShare }),
             'text-2xl font-semibold leading-tight tabular-nums text-foreground')}
           {paidShare !== null && <span className="text-sm tabular-nums text-muted-foreground">{t('projectDetail.money.leadPaid', '{{percent}}% paid', { percent: paidShare })}</span>}
@@ -223,7 +230,7 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean }> 
         </dl>
       )}
       {invoices.isError && <Note>{t('projectDetail.money.invoiceError', "Couldn't load invoice settlement.")} <Button variant="ghost" size="sm" onClick={() => void invoices.refetch()}>{t('common.retry', 'Retry')}</Button></Note>}
-      {cashReceived !== null && paid !== null && paid > cashReceived && (
+      {cashReceived !== null && paid !== null && paid > cashReceived && !withholdingPossible && (
         <Note>
           {t('projectDetail.money.paidNotReceived', '{{amount}} is settled in accounting but no receipt is matched to it yet.', { amount: whole(paid - cashReceived) })}{' '}
           <FixLink to="/finance/receivables?view=payments">{t('projectDetail.money.matchPayments', 'Match payments')}</FixLink>

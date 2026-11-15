@@ -23,13 +23,11 @@ export interface PendingTransition {
   to: WorkOrderStatus;
 }
 
+/** One invoice's settlement in its own currency, on the gross basis (#2204); null figures are unknown or not applicable. */
 // eslint-disable-next-line react-refresh/only-export-components -- shared figures/helpers used across the work-orders split.
 export function invoiceBalanceFigures(invoice: InvoiceWithWorkOrder): { paid: number | null; unpaid: number | null } {
-  if (invoice.status === 'Draft' || invoice.status === 'Cancelled') return { paid: null, unpaid: null };
-  if (invoice.amount === null || invoice.erp_outstanding_amount === null) return { paid: null, unpaid: null };
-  if (invoice.status === 'Paid') return { paid: invoice.amount, unpaid: 0 };
-  const balance = summarizeInvoiceSettlement([invoice]);
-  return { paid: balance.paid, unpaid: balance.unpaid };
+  const summary = summarizeInvoiceSettlement([invoice]);
+  return summary.denomination === 'single' ? { paid: summary.settled, unpaid: summary.outstanding } : { paid: null, unpaid: null };
 }
 
 // eslint-disable-next-line react-refresh/only-export-components -- shared figures/helpers used across the work-orders split.
