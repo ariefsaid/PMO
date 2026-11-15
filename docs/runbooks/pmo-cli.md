@@ -218,7 +218,7 @@ node scripts/pmo.mjs get projects --select id,name,status,client_id --filter nam
 node scripts/pmo.mjs stages <project-uuid>
 ```
 
-`pmo load` walks the legal path from `Leads` to the requested stage and writes the contract value through the guarded app RPC. The load's transition dates are load/audit time, not historical pipeline dates. To correct one, inspect the history, then set the date of the most recent matching stage entry:
+`pmo load` walks the legal path from `Leads` to the requested stage and writes the contract value through the guarded app RPC. The pipeline order is `Leads` → `Quotation Submitted` → `PQ Submitted` → `Tender Submitted` → `Negotiation`; a won project goes `Leads` → `Quotation Submitted` → `Won, Pending KoM`, then on to `Ongoing Project`, `On Hold` or `Close Out`. A rerun of a project already part-way continues from its current stage. The load's transition dates are load/audit time, not historical pipeline dates. To correct one, inspect the history, then set the date of the most recent matching stage entry:
 
 ```bash
 node scripts/pmo.mjs stages <project-uuid>
