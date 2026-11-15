@@ -101,14 +101,12 @@ const MeetingCreate: React.FC = () => {
       const submittedGuests = pendingGuest && !guests.some((guest) => guest.trim().toLocaleLowerCase() === pendingGuest.toLocaleLowerCase())
         ? [...guests, pendingGuest]
         : guests;
-      for (const member of members) {
-        try { await addAttendee.mutateAsync({ meetingId, identity: { profile_id: member.value } }); }
-        catch { failedMembers.push(member); }
-      }
-      for (const name of submittedGuests) {
-        try { await addAttendee.mutateAsync({ meetingId, identity: { display_name: name } }); }
-        catch { failedGuests.push(name); }
-      }
+      const [memberResults, guestResults] = await Promise.all([
+        Promise.allSettled(members.map((member) => addAttendee.mutateAsync({ meetingId, identity: { profile_id: member.value } }))),
+        Promise.allSettled(submittedGuests.map((name) => addAttendee.mutateAsync({ meetingId, identity: { display_name: name } }))),
+      ]);
+      memberResults.forEach((r, i) => { if (r.status === 'rejected') failedMembers.push(members[i]); });
+      guestResults.forEach((r, i) => { if (r.status === 'rejected') failedGuests.push(submittedGuests[i]); });
       const liveMinutes = editorRef.current?.getDocument() ?? minutes;
       const minutesChanged = minutesPending || JSON.stringify(liveMinutes) !== JSON.stringify(initialMinutesRef.current);
       if (minutesChanged) {

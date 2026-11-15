@@ -331,6 +331,31 @@ describe('New meeting — floor: capture controls (floor-tests/new-meeting.md)',
     expect(mutations.create.mutateAsync.mock.calls[0][0]).toMatchObject({ project_id: 'p1' });
   });
 
+  it('#2112 adds attendees concurrently and still reports the one that failed', async () => {
+    const started: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    mutations.addAttendee.mutateAsync.mockImplementation(async (a: { identity: { profile_id?: string; display_name?: string } }) => {
+      started.push(a.identity.profile_id ?? a.identity.display_name ?? '');
+      await gate;
+      if (a.identity.display_name) throw new Error('guest write failed');
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    await user.click(screen.getByRole('combobox', { name: 'Add attendee' }));
+    await user.click(await screen.findByRole('option', { name: /Sam Member/ }));
+    await user.type(screen.getByLabelText(/External guest/), 'Guest One');
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+
+    await waitFor(() => expect(started).toEqual(['u2', 'Guest One']));
+    release();
+    expect(await screen.findByText(/some details were not saved/i)).toBeInTheDocument();
+    expect(screen.getByText('Guest One')).toBeVisible();
+    expect(screen.queryByText('Sam Member')).not.toBeInTheDocument();
+    mutations.addAttendee.mutateAsync.mockReset();
+  });
+
   it('floor 9: an organisation member picked from the member picker is saved as an attendee', async () => {
     const user = userEvent.setup();
     renderPage();
