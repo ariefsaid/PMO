@@ -11,7 +11,7 @@
 -- PostgREST sets request.method / request.path / request.headers / request.jwt.claims per request
 -- (transaction-local); this test sets the same settings and calls the function as `authenticated`.
 begin;
-select plan(29 + 3 + 3 + 12 + 3 + 3);
+select plan(29 + 3 + 3 + 12 + 3 + 3 + 17);
 
 create or replace function pg_temp.req(p_claims text, p_method text, p_path text, p_headers text default '{}')
 returns void language sql as $$
@@ -133,6 +133,26 @@ select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a6', 'POST', '/rpc/p
 select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'PATCH', '/rpc/purchase_capture_source_page'), false, 'AC-ROP-012 client: purchase_capture_source_page refused by PATCH even for an active Admin');
 select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'PATCH', '/rpc/purchase_capture_ledger_page'), false, 'AC-ROP-012 client: purchase_capture_ledger_page refused by PATCH even for an active Admin');
 select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'PATCH', '/rpc/purchase_capture_feed_health'), false, 'AC-ROP-012 client: purchase_capture_feed_health refused by PATCH even for an active Admin');
+
+-- ── invoice assignment: the CLI's `pmo purchases assign` (#2195): active Admin only ─────────────────────────
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'POST', '/rpc/assign_capture_invoices'), true, 'AC-ROP-012 client: active Admin POSTs assign_capture_invoices');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'POST', '/rpc/purchase_capture_assignment_report'), true, 'AC-ROP-012 client: active Admin POSTs purchase_capture_assignment_report');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'GET', '/rpc/assign_capture_invoices'), false, 'AC-ROP-012 client: assign_capture_invoices refused by GET even for an active Admin');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'PATCH', '/rpc/assign_capture_invoices'), false, 'AC-ROP-012 client: assign_capture_invoices refused by PATCH even for an active Admin');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'GET', '/rpc/purchase_capture_assignment_report'), false, 'AC-ROP-012 client: purchase_capture_assignment_report refused by GET even for an active Admin');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'PATCH', '/rpc/purchase_capture_assignment_report'), false, 'AC-ROP-012 client: purchase_capture_assignment_report refused by PATCH even for an active Admin');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a2', 'POST', '/rpc/assign_capture_invoices'), false, 'AC-ROP-012 client: Finance is refused assign_capture_invoices');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a2', 'POST', '/rpc/purchase_capture_assignment_report'), false, 'AC-ROP-012 client: Finance is refused purchase_capture_assignment_report');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a3', 'POST', '/rpc/assign_capture_invoices'), false, 'AC-ROP-012 client: Project Manager is refused assign_capture_invoices');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a3', 'POST', '/rpc/purchase_capture_assignment_report'), false, 'AC-ROP-012 client: Project Manager is refused purchase_capture_assignment_report');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a4', 'POST', '/rpc/assign_capture_invoices'), false, 'AC-ROP-012 client: Executive is refused assign_capture_invoices');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a4', 'POST', '/rpc/purchase_capture_assignment_report'), false, 'AC-ROP-012 client: Executive is refused purchase_capture_assignment_report');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a5', 'POST', '/rpc/assign_capture_invoices'), false, 'AC-ROP-012 client: Engineer is refused assign_capture_invoices');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a5', 'POST', '/rpc/purchase_capture_assignment_report'), false, 'AC-ROP-012 client: Engineer is refused purchase_capture_assignment_report');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a6', 'POST', '/rpc/assign_capture_invoices'), false, 'AC-ROP-012 client: a disabled Admin is refused assign_capture_invoices');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a6', 'POST', '/rpc/purchase_capture_assignment_report'), false, 'AC-ROP-012 client: a disabled Admin is refused purchase_capture_assignment_report');
+select pg_temp.req('{"role":"authenticated","session_id":"s1"}', 'GET', '/rpc/assign_capture_invoices');
+select lives_ok('select public.api_client_request_guard()', 'AC-ROP-012 browser session: the assignment RPCs pass the guard (no client_id)');
 
 -- ── everyone else (no client_id): untouched ──────────────────────────────────────────────────────
 select pg_temp.req('{"role":"authenticated","session_id":"s1"}', 'DELETE', '/tasks');
