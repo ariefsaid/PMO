@@ -5,7 +5,9 @@
     "quotationReceived": "Penawaran diterima",
     "quoteChosen": "Penawaran dipilih",
     "returned": "Dikembalikan",
-    "supplierNotChosen": "Pemasok belum dipilih"
+    "supplierNotChosen": "Pemasok belum dipilih",
+    "recordSelected": "Dipilih",
+    "recordPaid": "Dibayar"
   },
   "tabs": {
     "timeline": "Linimasa",
@@ -195,6 +197,10 @@
     "deliveryNotePlaceholder": "mis. DN-44120",
     "invoicePlaceholder": "mis. INV-2291",
     "receiptDate": "Tanggal penerimaan",
-    "refPlaceholder": "mis. SUPPLIER-PO-001"
+    "refPlaceholder": "mis. SUPPLIER-PO-001",
+    "attach": "Lampirkan",
+    "uploading": "Mengunggah…",
+    "attachFile": "Lampirkan berkas",
+    "attachToRecord": "Lampirkan berkas ke dokumen ini"
   }
 }

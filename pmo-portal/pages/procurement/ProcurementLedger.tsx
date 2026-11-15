@@ -35,6 +35,7 @@ import { EfakturModal, type EfakturSaveValues } from '@/src/components/EfakturMo
 import { EfakturCell } from '@/src/components/EfakturCell';
 import { LedgerCaptureRow } from './LedgerCaptureRow';
 import { LedgerFileCell } from './LedgerFileCell';
+import { statusOptionLabel } from './recordCaptureConfig';
 import { WithholdingBreakdown } from './WithholdingBreakdown';
 import { OdooOutcome } from '@/src/components/procurement/OdooOutcome';
 import { odooOutcome } from '@/src/lib/procurement/odooOutcome';
@@ -113,6 +114,12 @@ const EfakturHeader: React.FC = () => {
   return <>{t('efaktur.column', 'e-Faktur')}</>;
 };
 
+/** The record's status in the viewer's language. */
+const LedgerStatusPill: React.FC<{ row: LedgerRow }> = ({ row }) => {
+  const { t } = useTranslation();
+  return <StatusPill variant={row.statusVariant}>{statusOptionLabel(row.status, t)}</StatusPill>;
+};
+
 /** #1505 P8: the record's own status, then what Odoo last said about it and, for a receipt, the quantity Odoo booked (FR-OPP-034/090). */
 const OdooRowStatus: React.FC<{ row: LedgerRow }> = ({ row }) => {
   const { t } = useTranslation(['common', 'procurement']);
@@ -120,7 +127,7 @@ const OdooRowStatus: React.FC<{ row: LedgerRow }> = ({ row }) => {
   const outcome = odooOutcome({ erpState: facts.erpState, erpAttention: facts.erpAttention, erpReadAt: facts.erpReadAt });
   return (
     <div className="inline-flex flex-col items-start gap-1">
-      <StatusPill variant={row.statusVariant}>{row.status}</StatusPill>
+      <StatusPill variant={row.statusVariant}>{statusOptionLabel(row.status, t)}</StatusPill>
       {outcome && <OdooOutcome outcome={outcome} quiet />}
       {facts.paymentView === 'awaiting-odoo' && <span data-testid="odoo-payment-awaiting" className="text-sm text-muted-foreground">{t('procurement:odoo.paymentAwaiting', 'Payment sent, awaiting Odoo')}</span>}
       {facts.booked !== null && (
@@ -195,7 +202,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
   {
     key: 'status',
     header: <LedgerHeader translationKey="procurementLedger.status" fallback="Status" />,
-    cell: (row) => (row.odoo ? <OdooRowStatus row={row} /> : <StatusPill variant={row.statusVariant}>{row.status}</StatusPill>),
+    cell: (row) => (row.odoo ? <OdooRowStatus row={row} /> : <LedgerStatusPill row={row} />),
   },
 ];
 

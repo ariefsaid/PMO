@@ -5,7 +5,9 @@
     "quotationReceived": "Quotation received",
     "quoteChosen": "Quote chosen",
     "returned": "Returned",
-    "supplierNotChosen": "Supplier not chosen yet"
+    "supplierNotChosen": "Supplier not chosen yet",
+    "recordSelected": "Selected",
+    "recordPaid": "Paid"
   },
   "tabs": {
     "timeline": "Timeline",
@@ -195,6 +197,10 @@
     "deliveryNotePlaceholder": "e.g. DN-44120",
     "invoicePlaceholder": "e.g. INV-2291",
     "receiptDate": "Receipt date",
-    "refPlaceholder": "e.g. SUPPLIER-PO-001"
+    "refPlaceholder": "e.g. SUPPLIER-PO-001",
+    "attach": "Attach",
+    "uploading": "Uploading…",
+    "attachFile": "Attach file",
+    "attachToRecord": "Attach a file to this record"
   }
 }

@@ -19,6 +19,7 @@
  * DESIGN.md tokens only; no raw hex/px. WCAG-AA: buttons have aria-label.
  */
 import React, { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Drawer, Icon, useToast } from '@/src/components/ui';
 import { procurementFileTarget } from '@/src/components/documents/targets/procurement';
 import { useViewerOnDemand } from '@/src/components/documents/viewerContext';
@@ -129,6 +130,7 @@ const AttachButton: React.FC<AttachButtonProps> = ({
   procurementId,
   uploadedById,
 }) => {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const failureText = useUploadFailureText();
   const phase = PHASE_BY_TYPE[type];
@@ -164,7 +166,7 @@ const AttachButton: React.FC<AttachButtonProps> = ({
         ref={inputRef}
         type="file"
         accept={FILE_INPUT_ACCEPT}
-        aria-label="Attach a file to this record"
+        aria-label={t('procurementRecord:capture.attachToRecord', 'Attach a file to this record')}
         className="sr-only"
         onChange={onPick}
       />
@@ -172,15 +174,15 @@ const AttachButton: React.FC<AttachButtonProps> = ({
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={upload.isPending || uploadDisabled}
-        aria-label="Attach file"
-        title="Attach file"
+        aria-label={t('procurementRecord:capture.attachFile', 'Attach file')}
+        title={t('procurementRecord:capture.attachFile', 'Attach file')}
         className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-primary disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         <Icon name="upload" className="size-3.5 shrink-0" />
         {upload.isPending ? (
-          <span>Uploading…</span>
+          <span>{t('procurementRecord:capture.uploading', 'Uploading…')}</span>
         ) : (
-          <span>Attach</span>
+          <span>{t('procurementRecord:capture.attach', 'Attach')}</span>
         )}
       </button>
     </>

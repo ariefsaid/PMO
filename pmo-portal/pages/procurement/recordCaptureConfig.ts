@@ -103,6 +103,8 @@ export function statusOptionLabel(value: string, t: (key: string, fallback: stri
     case 'Partial': return t('procurementDetail.statusOption.partial', 'Partial');
     case 'Complete': return t('procurementDetail.statusOption.complete', 'Complete');
     case 'Scheduled': return t('procurementDetail.statusOption.scheduled', 'Scheduled');
+    case 'Selected': return t('procurementRecord:status.recordSelected', 'Selected');
+    case 'Paid': return t('procurementRecord:status.recordPaid', 'Paid');
     default: return value;
   }
 }
