@@ -86,6 +86,8 @@ export interface SalesInvoiceRow {
   odoo_attention?: string | null;
   odoo_sent_total?: number | null;
   odoo_read_at?: string | null;
+  /** #2290 (0883): the accounting date the ledger posted on, when Odoo moved it from `invoice_date` (a locked period). */
+  erp_posting_date?: string | null;
   /** #1825: the receipt references the last Odoo invoice read-back showed matched against this invoice (`account.payment:<id>`); the awaiting-Odoo flag clears on one of them. */
   odoo_matched_payment_refs?: string[] | null;
   /** DD-EFK-1: PMO-owned tax-invoice reference (never mirrored to ERP). */

@@ -70,7 +70,11 @@ export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow; o
           {unreachable && <p role="status" className="text-control text-muted-foreground">{t('finance:odooOutcome.offlineAction', 'Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')}</p>}
           {/* An unsettled command is the Waiting on Odoo card's to show; this block carries what Odoo itself says about the invoice. */}
           {outcome && !latestInvoiceCommand && (
-            <OdooOutcome outcome={outcome} sentTotal={invoice.odoo_sent_total != null ? { amount: invoice.odoo_sent_total, currency: invoice.currency } : null} />
+            <OdooOutcome
+              outcome={outcome}
+              sentTotal={invoice.odoo_sent_total != null ? { amount: invoice.odoo_sent_total, currency: invoice.currency } : null}
+              ledgerDate={invoice.erp_posting_date && invoice.invoice_date && invoice.erp_posting_date !== invoice.invoice_date ? { sent: invoice.invoice_date, posted: invoice.erp_posting_date } : null}
+            />
           )}
           <OdooCaseStatus invoiceId={invoice.id} />
         </div>

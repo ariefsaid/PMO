@@ -2,7 +2,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { StatusPill, type StatusVariant } from '@/src/components/ui';
-import { formatCurrencyCents, formatRelativeTime } from '@/src/lib/format';
+import { formatCurrencyCents, formatDateOnly, formatRelativeTime } from '@/src/lib/format';
 import type { OdooOutcome as Outcome, OdooOutcomeClass } from '@/src/lib/procurement/odooOutcome';
 
 const VARIANT: Record<OdooOutcomeClass, StatusVariant> = {
@@ -26,9 +26,27 @@ const REASON: Record<string, string> = {
   'money-unreadable': 'PMO could not read the amounts from Odoo.',
   'lines-unreadable': 'PMO could not read the invoice lines from Odoo.',
   'advance-account-mismatch': 'A customer advance was posted to a different account than the one chosen in setup.',
+  // #2290: Odoo posts a document dated inside a locked period on another date instead of refusing it.
+  'ledger-date-differs': 'Posted in the ledger on {{posted}}, not {{sent}}. The period you chose is closed in the ledger.',
+  'ledger-date-unreadable': 'PMO could not read the date the ledger posted on.',
+  'ledger-reference-differs': 'The reference in the ledger is not the one PMO sent.',
 };
+const UNDATED_LEDGER_REASON = 'The ledger posted it on another date. The period you chose is closed in the ledger.';
 
-export const OdooOutcome: React.FC<{ outcome: Outcome; unreachable?: boolean; compact?: boolean; sentTotal?: { amount: number; currency: string } | null }> = ({ outcome, unreachable = false, compact = false, sentTotal = null }) => {
+/** The reason in words; a moved date names both dates when the screen has them, and stays words (never a code) when it does not. */
+function reasonText(t: (key: string, fallback: string, values?: Record<string, string>) => string, reason: string, ledgerDate: LedgerDate | null): string {
+  if (reason !== 'ledger-date-differs') return t(`finance:odooOutcome.reason.${reason}`, REASON[reason]);
+  return ledgerDate
+    ? t('finance:odooOutcome.reason.ledger-date-differs', REASON[reason], { posted: formatDateOnly(ledgerDate.posted), sent: formatDateOnly(ledgerDate.sent) })
+    : t('finance:odooOutcome.reason.ledger-date-differs-undated', UNDATED_LEDGER_REASON);
+}
+
+/** The date PMO sent and the date the ledger posted on (`erp_posting_date`), for a document Odoo re-dated. */
+export interface LedgerDate { sent: string; posted: string }
+
+export const OdooOutcome: React.FC<{
+  outcome: Outcome; unreachable?: boolean; compact?: boolean; sentTotal?: { amount: number; currency: string } | null; ledgerDate?: LedgerDate | null;
+}> = ({ outcome, unreachable = false, compact = false, sentTotal = null, ledgerDate = null }) => {
   const { t } = useTranslation();
   const sent = outcome.cls === 'pending' || outcome.cls === 'held' || outcome.cls === 'refused';
   const age = outcome.asOf ? formatRelativeTime(outcome.asOf) : null;
@@ -43,7 +61,7 @@ export const OdooOutcome: React.FC<{ outcome: Outcome; unreachable?: boolean; co
       {age && <p className="text-control text-muted-foreground">{t(sent ? 'finance:odooOutcome.sent' : 'finance:odooOutcome.read', sent ? 'Sent {{age}}' : 'Read {{age}}', { age })}</p>}
       {!compact && outcome.cls === 'needs-attention' && outcome.reason && REASON[outcome.reason] && (
         <p data-testid="odoo-outcome-reason" className="max-w-[65ch] text-control text-foreground">
-          {t(`finance:odooOutcome.reason.${outcome.reason}`, REASON[outcome.reason])}
+          {reasonText(t, outcome.reason, ledgerDate)}
           {outcome.reason === 'total-mismatch' && sentTotal && ` ${t('finance:odooOutcome.sentTotal', 'PMO sent {{amount}}.', { amount: formatCurrencyCents(sentTotal.amount, sentTotal.currency) })}`}
         </p>
       )}

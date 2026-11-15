@@ -4,6 +4,7 @@ import { axe } from 'jest-axe';
 
 vi.mock('@/src/lib/format', async (orig) => ({ ...(await orig<typeof import('@/src/lib/format')>()), formatRelativeTime: (iso: string | null) => (iso ? '3 minutes ago' : '—') }));
 import { OdooOutcome } from './OdooOutcome';
+import { formatDateOnly } from '@/src/lib/format';
 
 afterEach(cleanup);
 const T = '2026-11-03T10:00:00Z';
@@ -64,5 +65,30 @@ describe('AC-OCI-090 review: why an invoice needs a look', () => {
     render(<OdooOutcome outcome={{ cls: 'pending', asOf: T, reason: null }} unreachable compact />);
     expect(screen.queryByTestId('odoo-unreachable')).toBeNull();
     expect(screen.getByText('Sent, waiting for Odoo')).toBeInTheDocument();
+  });
+});
+
+describe('AC-ODR-010 a re-dated invoice says where the ledger posted it', () => {
+  it('names the ledger date and the date PMO sent, in plain words', () => {
+    render(<OdooOutcome outcome={{ cls: 'needs-attention', asOf: T, reason: 'ledger-date-differs' }} ledgerDate={{ sent: '2025-01-20', posted: '2025-02-01' }} />);
+    const reason = screen.getByTestId('odoo-outcome-reason');
+    expect(reason).toHaveTextContent('Posted in the ledger on');
+    expect(reason).toHaveTextContent(formatDateOnly('2025-02-01'));
+    expect(reason).toHaveTextContent(formatDateOnly('2025-01-20'));
+    expect(reason).toHaveTextContent('The period you chose is closed in the ledger.');
+    expect(screen.queryByText(/ledger-date-differs/)).toBeNull();
+  });
+
+  it('an unreadable ledger date and a changed reference each have their own plain reason', () => {
+    render(<OdooOutcome outcome={{ cls: 'needs-attention', asOf: T, reason: 'ledger-date-unreadable' }} />);
+    expect(screen.getByTestId('odoo-outcome-reason')).toHaveTextContent('PMO could not read the date the ledger posted on.');
+    cleanup();
+    render(<OdooOutcome outcome={{ cls: 'needs-attention', asOf: T, reason: 'ledger-reference-differs' }} />);
+    expect(screen.getByTestId('odoo-outcome-reason')).toHaveTextContent('The reference in the ledger is not the one PMO sent.');
+  });
+
+  it('without the two dates the moved-date reason still reads as words, never as a code or a blank', () => {
+    render(<OdooOutcome outcome={{ cls: 'needs-attention', asOf: T, reason: 'ledger-date-differs' }} />);
+    expect(screen.getByTestId('odoo-outcome-reason')).toHaveTextContent('The ledger posted it on another date. The period you chose is closed in the ledger.');
   });
 });

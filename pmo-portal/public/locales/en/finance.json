@@ -799,7 +799,11 @@
       "cost-account-missing": "A posted line has no cost account for the project.",
       "money-unreadable": "PMO could not read the amounts from Odoo.",
       "lines-unreadable": "PMO could not read the invoice lines from Odoo.",
-      "advance-account-mismatch": "A customer advance was posted to a different account than the one chosen in setup."
+      "advance-account-mismatch": "A customer advance was posted to a different account than the one chosen in setup.",
+      "ledger-date-differs": "Posted in the ledger on {{posted}}, not {{sent}}. The period you chose is closed in the ledger.",
+      "ledger-date-differs-undated": "The ledger posted it on another date. The period you chose is closed in the ledger.",
+      "ledger-date-unreadable": "PMO could not read the date the ledger posted on.",
+      "ledger-reference-differs": "The reference in the ledger is not the one PMO sent."
     },
     "sentTotal": "PMO sent {{amount}}."
   },

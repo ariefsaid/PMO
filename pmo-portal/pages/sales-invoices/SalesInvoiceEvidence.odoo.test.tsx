@@ -31,6 +31,7 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-m
 
 import { SalesInvoiceEvidenceSection } from './SalesInvoiceEvidence';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { formatDateOnly } from '@/src/lib/format';
 
 const invoice = (over: Partial<SalesInvoiceRow> = {}) => ({
   id: 'si-1', org_id: 'org-1', project_id: 'p-1', customer_id: 'c-1', customer_name: 'Northwind',
@@ -145,5 +146,15 @@ describe('AC-OCI-082b/083 Tax document absence', () => {
     expect(screen.getByText('Tax documents are unavailable in Odoo.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /download/i })).toBeNull();
     expect(screen.queryByRole('link', { name: /download/i })).toBeNull();
+  });
+});
+
+describe('AC-ODR-010 an invoice Odoo re-dated shows the ledger date on its page', () => {
+  it('names the ledger date beside the entered date in plain words', () => {
+    mount(invoice({ odoo_attention: 'ledger-date-differs', invoice_date: '2026-11-01', erp_posting_date: '2026-12-01' }));
+    const reason = screen.getByTestId('odoo-outcome-reason');
+    expect(reason).toHaveTextContent('Posted in the ledger on');
+    expect(reason).toHaveTextContent(formatDateOnly('2026-12-01'));
+    expect(reason).toHaveTextContent(formatDateOnly('2026-11-01'));
   });
 });
