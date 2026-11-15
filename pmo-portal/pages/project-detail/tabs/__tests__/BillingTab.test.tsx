@@ -86,7 +86,6 @@ vi.mock('@/src/hooks/useTimeAndMaterials', () => ({
   useInvoiceTmClaimNative: () => ({ mutateAsync: h.tmInvoice, isPending: false }),
 }));
 import BillingTab from '../BillingTab';
-import { summarizeInvoiceSettlement } from '../../ContractCascade';
 
 const FACTS = {
   currency: 'IDR', contractNet: 1_000_000, workBilled: 250_000, dpBilled: 200_000, dpRecovered: 40_000, notSubmitted: 40_000,
@@ -189,30 +188,6 @@ describe('BillingTab', () => {
 
     expect(i18n.getResource('id', 'project', 'projectDetail.billing.claims.status.unpaid')).toBe('Belum dibayar');
     expect(screen.getByText('ACC-SINV-1 · Belum dibayar')).toBeInTheDocument();
-  });
-
-  it('AC-1402 counts only fully-paid invoices when any submitted invoice balance is unknown', () => {
-    const invoices = [
-      { status: 'Unpaid', amount: 10_000.01, erp_outstanding_amount: 4_000.01 },
-      { status: 'Paid', amount: 2_000, erp_outstanding_amount: 0 },
-      { status: 'Unpaid', amount: 5_000, erp_outstanding_amount: null },
-      { status: 'Draft', amount: 500, erp_outstanding_amount: null },
-      { status: 'Cancelled', amount: 900, erp_outstanding_amount: 0 },
-    ] as const;
-
-    expect(summarizeInvoiceSettlement(invoices)).toEqual({
-      invoiced: 17_000.01,
-      paid: 2_000,
-      unpaid: null,
-      balancesKnown: false,
-    });
-  });
-
-  it('AC-1402 adds partial payments only when every invoice balance is known', () => {
-    expect(summarizeInvoiceSettlement([
-      { status: 'Unpaid', amount: 10_000.01, erp_outstanding_amount: 4_000.01 },
-      { status: 'Paid', amount: 2_000, erp_outstanding_amount: 0 },
-    ])).toEqual({ invoiced: 12_000.01, paid: 8_000, unpaid: 4_000.01, balancesKnown: true });
   });
 
   it('AC-PB-008 the summary shows contract, billed, assessed, the gap, DP held, not yet billed and not submitted, net of tax', () => {

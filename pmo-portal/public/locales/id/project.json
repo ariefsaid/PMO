@@ -49,7 +49,7 @@
         "ordered": "Sumber: kuantitas yang dialokasikan dalam kontrak × tarif kontrak.",
         "delivered": "Sumber: kuantitas yang diterima pada BAST terkonfirmasi × tarif kontrak.",
         "invoiced": "Faktur berdasarkan kontrak yang ditandatangani, dalam mata uang dan dasar pajak kontrak. Ditampilkan sebagai tidak diketahui jika mata uang atau dasar pajak faktur berbeda dari kontrak. Persentase dihitung dari nilai kontrak yang ditandatangani.",
-        "paid": "Sumber: jumlah faktur dikurangi saldo terutang menurut akuntansi.",
+        "paid": "Sumber: jumlah faktur termasuk pajak, dikurangi saldo terutang menurut akuntansi.",
         "canInvoice": "Kuantitas diterima yang belum diklaim, dihitung dengan tarif kontrak, ditambah sisa nilai pesanan tanpa rincian kuantitas.",
         "overdue": "Jumlah saldo terutang positif pada faktur yang telah melewati tanggal jatuh tempo.",
         "notOrderedValue": "Sumber: kuantitas kontrak yang belum dialokasikan dikalikan tarif kontraknya.",
@@ -66,7 +66,8 @@
         "invoiceUnpaid": "Sumber: saldo faktur ini yang masih terutang menurut akuntansi.",
         "acceptedHistory": "Sumber: kuantitas yang dicatat pada BAST ini.",
         "invoiceAmount": "Sumber: jumlah faktur yang disinkronkan dari akuntansi.",
-        "invoicePaid": "Dihitung dari jumlah faktur dikurangi saldo terutang menurut akuntansi."
+        "invoicePaid": "Dihitung dari jumlah faktur termasuk pajak, dikurangi saldo terutang menurut akuntansi.",
+        "paidUnknown": "Tidak diketahui: ada faktur dalam mata uang lain atau tanpa dasar pajak tercatat, sehingga pelunasan tidak dijumlahkan."
       },
       "ordered": "Dipesan",
       "delivered": "Terkirim",
@@ -477,7 +478,7 @@
       "invoiced": "Ditagih",
       "invoicedSource": "Jumlah faktur dalam mata uang proyek yang bukan draf atau dibatalkan.",
       "paid": "Dibayar",
-      "paidSource": "Jumlah faktur dikurangi saldo terutang menurut akuntansi; ini adalah pelunasan faktur, bukan kas yang diterima.",
+      "paidSource": "Jumlah faktur termasuk pajak, dikurangi saldo terutang menurut akuntansi; ini pelunasan, bukan kas yang diterima.",
       "marginSource": "Pendapatan pekerjaan tertagih dikurangi pengeluaran tercatat yang lengkap dalam mata uang yang sama.",
       "stageAria": "{{label}} sebesar {{percent}}% dari kontrak",
       "noBoq": "Nilai pesanan dan pengiriman tidak dilacak sebelum proyek memiliki daftar kuantitas.",
@@ -507,7 +508,8 @@
       "contractLocked": "hanya baca",
       "cashIncompleteShort": "Kas diterima (kwitansi belum dialokasikan ke faktur)",
       "cashInvalidShort": "Kas diterima (pembacaan kwitansi belum diverifikasi)",
-      "cashUnmatchedShort": "Kas diterima (belum ada penerimaan yang dicocokkan)"
+      "cashUnmatchedShort": "Kas diterima (belum ada penerimaan yang dicocokkan)",
+      "settlementCurrencyOut": "Nilai difakturkan dan dibayar tidak ditampilkan karena faktur tidak semuanya dalam mata uang proyek."
     },
     "cost": {
       "estimateTitle": "Anggaran",

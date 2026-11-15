@@ -14,6 +14,7 @@ import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import { formatNumberMax2, formatNumberWhole, formatTableMoney, formatTileMoney } from '@/src/lib/format';
 import { selectContractInvoiceFigure } from '@/src/lib/projectFinances';
+import { settlementIn, summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import ProjectDrawdown from './ProjectDrawdown';
@@ -25,37 +26,6 @@ interface UnorderedLine {
   item: import('@/src/lib/db/progressBilling').BoqItemRow;
   balance: number;
   allocations: import('@/src/lib/progressBilling').AllocationFacts[];
-}
-
-export interface InvoiceSettlementInput {
-  status: string;
-  amount: number | null;
-  erp_outstanding_amount: number | null;
-}
-
-export interface InvoiceSettlementSummary {
-  invoiced: number | null;
-  paid: number;
-  unpaid: number | null;
-  balancesKnown: boolean;
-}
-
-/** Submitted invoices settle from ERP balances; unknown balances contribute only fully Paid invoices. */
-// eslint-disable-next-line react-refresh/only-export-components -- shared money summary is used by WorkOrdersTab.
-export function summarizeInvoiceSettlement(invoices: readonly InvoiceSettlementInput[]): InvoiceSettlementSummary {
-  const submitted = invoices.filter((invoice) => invoice.status !== 'Draft' && invoice.status !== 'Cancelled');
-  const cents = (value: number | null): number | null => value !== null && Number.isFinite(value) ? Math.round(value * 100) : null;
-  const amounts = submitted.map((invoice) => cents(invoice.amount));
-  const balances = submitted.map((invoice) => cents(invoice.erp_outstanding_amount));
-  const balancesKnown = amounts.every((value) => value !== null) && balances.every((value) => value !== null);
-  const invoiced = amounts.every((value) => value !== null)
-    ? amounts.reduce<number>((sum, value) => sum + (value ?? 0), 0) / 100
-    : null;
-  const paidCents = balancesKnown
-    ? submitted.reduce((sum, invoice) => sum + (cents(invoice.amount) ?? 0) - (cents(invoice.erp_outstanding_amount) ?? 0), 0)
-    : submitted.reduce((sum, invoice) => invoice.status === 'Paid' ? sum + (cents(invoice.amount) ?? 0) : sum, 0);
-  const unpaid = balancesKnown ? balances.reduce<number>((sum, value) => sum + (value ?? 0), 0) / 100 : null;
-  return { invoiced, paid: paidCents / 100, unpaid, balancesKnown };
 }
 
 const qty = (n: number) => formatNumberMax2(n);
@@ -98,7 +68,8 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
   const delivered = allocations.reduce((sum, allocation) => sum + (allocation.acceptedQuantity ?? 0) * (rate.get(allocation.boqItemId) ?? 0), 0);
   const notYetOrdered = items.reduce((sum, item) => sum + (facts.get(item.id)?.contractBalance ?? 0) * Number(item.rate), 0);
   const invoiceRows = (invoices.data ?? []) as InvoiceRowWithWorkOrder[];
-  const settlement = summarizeInvoiceSettlement(invoiceRows);
+  // #2204: settled only within the project currency, on the gross basis; another currency reads unknown.
+  const settlement = settlementIn(summarizeInvoiceSettlement(invoiceRows), project.currency);
   const contractInvoiceFigure = selectContractInvoiceFigure(projectFinances.data);
   const showSummary = !isCascadePending && !isCascadeError && canViewMoney && (hasReadingLayer || (
     invoices.isPending || invoices.isError || invoiceRows.length > 0 || Number(project.contract_value) > 0
@@ -112,7 +83,9 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
       ? t('projectDetail.cascade.signedContractExclusive', 'Signed contract · excluding tax')
       : t('projectDetail.cascade.signedContractBasisUnknown', 'Signed contract · tax basis unknown');
   const invoiceFiguresMissing = canViewMoney && (
-    invoices.isPending || invoices.isError || settlement.invoiced === null || (!settlement.balancesKnown && invoiceRows.some((invoice) => invoice.status === 'Paid'))
+    invoices.isPending || invoices.isError || (settlement !== null && (
+      settlement.documentTotal === null || (!settlement.balancesKnown && invoiceRows.some((invoice) => invoice.status === 'Paid'))
+    ))
   );
   const orderBillingRows = orderBilling.data ?? [];
   const lineCanInvoice = allocations.reduce((sum, allocation) => {
@@ -277,8 +250,10 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
               caption={contractInvoiceBasis}
               detail={t('projectDetail.cascade.source.invoiced', 'Invoices under the signed contract, in the contract currency and tax basis. Shown as unknown when an invoice currency or tax basis differs from the contract. The percentage is of the signed contract value.')}
             />}
-            {canViewMoney && settlement.balancesKnown && !invoices.isPending && !invoices.isError && <>
-              <MoneyStep label={t('projectDetail.cascade.paid', 'Paid')} value={tileMoney(settlement.paid)} percentage={percent(settlement.paid)} detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount less the accounting balance outstanding.')} />
+            {canViewMoney && (settlement === null || settlement.balancesKnown) && !invoices.isPending && !invoices.isError && <>
+              {settlement?.settled == null
+                ? <MoneyStep label={t('projectDetail.cascade.paid', 'Paid')} value="—" detail={t('projectDetail.cascade.source.paidUnknown', 'Unknown: an invoice is in another currency or has no recorded tax basis, so settlement is not added up.')} />
+                : <MoneyStep label={t('projectDetail.cascade.paid', 'Paid')} value={tileMoney(settlement.settled)} percentage={percent(settlement.settled)} detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount including tax, less the accounting balance outstanding.')} />}
             </>}
           </ol>
           <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">

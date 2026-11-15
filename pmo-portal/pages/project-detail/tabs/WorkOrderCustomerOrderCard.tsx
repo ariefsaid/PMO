@@ -24,7 +24,7 @@ import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import type { ProjectBillingSummary } from '@/src/lib/progressBilling';
 import { deriveWorkOrderBillingState, type WorkOrderBillingState } from '@/src/lib/workOrderBilling';
 import { statusLabel } from '@/src/lib/status/statusMap';
-import { summarizeInvoiceSettlement } from '../ContractCascade';
+import { settlementIn, summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
 import WorkOrderAcceptances from '../WorkOrderAcceptances';
 import { WorkOrderCostVariations } from '../WorkOrderCostVariations';
 import { MoneyFigure, type InvoiceWithWorkOrder, type OrderLineView } from './workOrdersTabFigures';
@@ -150,7 +150,16 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
   const orderInvoices = invoicesByWo.get(row.id) ?? [];
   // NFR-BWO-005: no figures until BOTH the invoices and the order billing are read — a pending or failed
   // billing read must not look like an order with nothing invoiced.
-  const settlement = invoiceReadReady && !billingRead.isPending && !billingRead.isError ? summarizeInvoiceSettlement(orderInvoices) : null;
+  // #2204: the order's invoices settle only within the order currency, on the gross basis; another currency reads unknown.
+  const settlementReady = invoiceReadReady && !billingRead.isPending && !billingRead.isError;
+  const orderSettlement = settlementReady ? summarizeInvoiceSettlement(orderInvoices) : null;
+  const settlementFigures = orderSettlement ? settlementIn(orderSettlement, row.currency || currency) : null;
+  const settlement = settlementFigures && {
+    invoiced: settlementFigures.documentTotal,
+    paid: settlementFigures.settled ?? 0,
+    unpaid: settlementFigures.outstanding,
+    balancesKnown: settlementFigures.balancesKnown && settlementFigures.settled !== null,
+  };
   // SUB-C: invoiced / paid / unpaid appear once something has been invoiced.
   const hasInvoiced = (settlement?.invoiced ?? 0) > 0;
   const canPrepare = canPrepareForOrder(row);
@@ -279,7 +288,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
           {hasInvoiced && settlement?.invoiced !== null && settlement?.invoiced !== undefined && billingRow?.figuresComplete !== false && <MoneyFigure label={t('common:projectDetail.workOrders.billing.invoiced', 'Invoiced')} value={formatNumberWhole(settlement.invoiced)} detail={settlement.balancesKnown
             ? t('common:projectDetail.workOrders.billing.lineInvoiced', 'Invoiced {{invoiced}} · paid {{paid}}', { invoiced: formatNumberWhole(settlement.invoiced), paid: formatNumberWhole(settlement.paid) })
             : t('projectDetail.cascade.source.invoiced', 'Source: non-draft, non-cancelled invoice amounts.')} />}
-          {hasInvoiced && settlement?.balancesKnown && billingRow?.figuresComplete !== false && <MoneyFigure label={t('common:projectDetail.workOrders.billing.paid', 'Paid')} value={formatNumberWhole(settlement.paid)} detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount less the accounting balance outstanding.')} />}
+          {hasInvoiced && settlement?.balancesKnown && billingRow?.figuresComplete !== false && <MoneyFigure label={t('common:projectDetail.workOrders.billing.paid', 'Paid')} value={formatNumberWhole(settlement.paid)} detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount including tax, less the accounting balance outstanding.')} />}
           {hasInvoiced && settlement?.unpaid !== null && settlement?.unpaid !== undefined && billingRow?.figuresComplete !== false && <MoneyFigure label={t('projectDetail.cascade.unpaid', 'Unpaid')} value={formatNumberWhole(settlement.unpaid)} detail={t('projectDetail.cascade.source.invoiceUnpaid', 'Source: accounting balance outstanding for this invoice.')} destructive={settlement.unpaid > 0} />}
         </dl>}
 

@@ -5,7 +5,7 @@ import type { WorkOrderRow, WorkOrderStatus } from '@/src/lib/db/workOrders';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { BoqItemRow } from '@/src/lib/db/progressBilling';
 import type { AllocationFacts } from '@/src/lib/progressBilling';
-import { summarizeInvoiceSettlement } from '../ContractCascade';
+import { settlementIn, summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
 
 export type InvoiceWithWorkOrder = SalesInvoiceRow & { work_order_id?: string | null };
 
@@ -23,13 +23,13 @@ export interface PendingTransition {
   to: WorkOrderStatus;
 }
 
+/** One invoice's settlement in its own currency, on the gross basis (#2204); null figures are unknown or not applicable. */
 // eslint-disable-next-line react-refresh/only-export-components -- shared figures/helpers used across the work-orders split.
 export function invoiceBalanceFigures(invoice: InvoiceWithWorkOrder): { paid: number | null; unpaid: number | null } {
-  if (invoice.status === 'Draft' || invoice.status === 'Cancelled') return { paid: null, unpaid: null };
-  if (invoice.amount === null || invoice.erp_outstanding_amount === null) return { paid: null, unpaid: null };
-  if (invoice.status === 'Paid') return { paid: invoice.amount, unpaid: 0 };
-  const balance = summarizeInvoiceSettlement([invoice]);
-  return { paid: balance.paid, unpaid: balance.unpaid };
+  const summary = summarizeInvoiceSettlement([invoice]);
+  if (summary.denomination !== 'single') return { paid: null, unpaid: null };
+  const figures = settlementIn(summary, summary.currency);
+  return { paid: figures?.settled ?? null, unpaid: figures?.outstanding ?? null };
 }
 
 // eslint-disable-next-line react-refresh/only-export-components -- shared figures/helpers used across the work-orders split.

@@ -168,7 +168,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
   });
 
   it('AC-1402 an Engineer can read orders without seeing invoice, rate, or drawdown money', () => {
-    h.invoices = { data: [{ id: 'si-1', work_order_id: 'wo-1', status: 'Unpaid', amount: 100_000, erp_outstanding_amount: 100_000, si_number: 'INV-1' }], isPending: false, isError: false, refetch: vi.fn() };
+    h.invoices = { data: [{ currency: 'USD', tax_treatment: 'inclusive', tax_amount: 0, id: 'si-1', work_order_id: 'wo-1', status: 'Unpaid', amount: 100_000, erp_outstanding_amount: 100_000, si_number: 'INV-1' }], isPending: false, isError: false, refetch: vi.fn() };
     renderTab('Engineer');
 
     expect(screen.getByTestId('customer-order-wo-1')).toBeInTheDocument();
@@ -234,9 +234,9 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
   it('AC-1402 omits aggregate payment figures until every invoice balance is known', async () => {
     h.invoices = {
       data: [
-        { id: 'si-part', work_order_id: 'wo-1', status: 'Unpaid', amount: 330_000, erp_outstanding_amount: 250_000, si_number: 'INV-1' },
-        { id: 'si-unknown', work_order_id: 'wo-1', status: 'Unpaid', amount: 120_000, erp_outstanding_amount: null, si_number: 'INV-2' },
-        { id: 'si-paid', work_order_id: 'wo-1', status: 'Paid', amount: 50_000, erp_outstanding_amount: 0, si_number: 'INV-3' },
+        { currency: 'USD', tax_treatment: 'inclusive', tax_amount: 0, id: 'si-part', work_order_id: 'wo-1', status: 'Unpaid', amount: 330_000, erp_outstanding_amount: 250_000, si_number: 'INV-1' },
+        { currency: 'USD', tax_treatment: 'inclusive', tax_amount: 0, id: 'si-unknown', work_order_id: 'wo-1', status: 'Unpaid', amount: 120_000, erp_outstanding_amount: null, si_number: 'INV-2' },
+        { currency: 'USD', tax_treatment: 'inclusive', tax_amount: 0, id: 'si-paid', work_order_id: 'wo-1', status: 'Paid', amount: 50_000, erp_outstanding_amount: 0, si_number: 'INV-3' },
       ],
       isPending: false,
       isError: false,
@@ -259,7 +259,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
 
   it('AC-1402 sums settled amounts when all submitted invoice balances are known', () => {
     h.invoices = {
-      data: [{ id: 'si-part', work_order_id: 'wo-1', status: 'Unpaid', amount: 330_000, erp_outstanding_amount: 250_000, si_number: 'INV-1' }],
+      data: [{ currency: 'USD', tax_treatment: 'inclusive', tax_amount: 0, id: 'si-part', work_order_id: 'wo-1', status: 'Unpaid', amount: 330_000, erp_outstanding_amount: 250_000, si_number: 'INV-1' }],
       isPending: false,
       isError: false,
       refetch: vi.fn(),
@@ -272,6 +272,42 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(figures.getByText('Unpaid')).toBeInTheDocument();
     expect(figures.getByText('250,000')).toBeInTheDocument();
     expect(screen.queryByText('Invoice figures are incomplete.')).toBeNull();
+  });
+
+  it('AC-SET-001 a customer order holding invoices in two currencies shows no added-up Invoiced, Paid or Unpaid', () => {
+    h.invoices = { data: [
+      { id: 'si-usd', work_order_id: 'wo-1', status: 'Unpaid', currency: 'USD', tax_treatment: 'inclusive', tax_amount: 0, amount: 330_000, erp_outstanding_amount: 250_000, si_number: 'INV-USD' },
+      { id: 'si-eur', work_order_id: 'wo-1', status: 'Unpaid', currency: 'EUR', tax_treatment: 'inclusive', tax_amount: 0, amount: 70_000, erp_outstanding_amount: 70_000, si_number: 'INV-EUR' },
+    ], isPending: false, isError: false, refetch: vi.fn() };
+    renderTab();
+
+    const order = screen.getByTestId('customer-order-wo-1');
+    const money = screen.getByTestId('wo-money-wo-1');
+    expect(money).not.toHaveTextContent(/400,000|320,000/);
+    expect(within(money).queryByText('Invoiced')).not.toBeInTheDocument();
+    expect(within(money).queryByText('Paid')).not.toBeInTheDocument();
+    expect(within(money).queryByText('Unpaid')).not.toBeInTheDocument();
+    expect(within(order).getByText('Invoice figures are incomplete.')).toBeInTheDocument();
+  });
+
+  it('AC-SET-002 customer-order figures settle tax-exclusive and tax-inclusive invoices on one gross basis', async () => {
+    h.invoices = { data: [
+      { id: 'si-excl', work_order_id: 'wo-1', status: 'Unpaid', currency: 'USD', tax_treatment: 'exclusive', tax_amount: 11_000, amount: 100_000, erp_outstanding_amount: 111_000, si_number: 'INV-EXCL' },
+      { id: 'si-incl', work_order_id: 'wo-1', status: 'Paid', currency: 'USD', tax_treatment: 'inclusive', tax_amount: 11_000, amount: 111_000, erp_outstanding_amount: 0, si_number: 'INV-INCL' },
+    ], isPending: false, isError: false, refetch: vi.fn() };
+    renderTab();
+
+    const figures = within(screen.getByTestId('wo-money-wo-1'));
+    // Gross 222,000 less 111,000 owed: 111,000 settled (amount-minus-balance read 100,000).
+    expect(within(figures.getByText('Paid').closest('div')!).getByText('111,000')).toBeInTheDocument();
+    expect(within(figures.getByText('Unpaid').closest('div')!).getByText('111,000')).toBeInTheDocument();
+
+    const order = screen.getByTestId('customer-order-wo-1');
+    await userEvent.click(within(order).getByRole('button', { name: 'Open invoice INV-EXCL' }));
+    const drawer = within(screen.getByRole('dialog'));
+    // The unpaid exclusive invoice reads nothing paid, never a negative tax-sized "paid".
+    expect(within(drawer.getByText('Paid').closest('div')!).getByText(/\$0\b/)).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).not.toHaveTextContent(/-\$11,000|\$-11,000/);
   });
 
   it('M17 empty register explains client PO drawdown without showing zero billing totals', () => {
@@ -303,7 +339,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
 
   it('AC-1402 keeps each order money summary tied to invoice balances', async () => {
     h.invoices = { data: [
-      { id: 'si-paid', work_order_id: 'wo-1', status: 'Paid', amount: 330_000, erp_outstanding_amount: 0, si_number: 'INV-PAID' },
+      { currency: 'USD', tax_treatment: 'inclusive', tax_amount: 0, id: 'si-paid', work_order_id: 'wo-1', status: 'Paid', amount: 330_000, erp_outstanding_amount: 0, si_number: 'INV-PAID' },
     ], isPending: false, isError: false, refetch: vi.fn() };
     h.claims = [{ id: 'si-paid', work_order_id: 'wo-1', kind: 'down_payment', withdrawn_at: null,
       down_payment_amount: 330_000, gross_amount: 330_000, invoice: { status: 'Paid', si_number: 'INV-PAID', amount: 330_000 } }];
@@ -426,7 +462,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
 
   it('AC-1402 keeps orderless invoices visible and opens their detail drawer', async () => {
     h.list.data = [];
-    h.invoices = { data: [{ id: 'si-orphan', work_order_id: null, status: 'Unpaid', amount: 12_345.6,
+    h.invoices = { data: [{ tax_treatment: 'inclusive', tax_amount: 0, id: 'si-orphan', work_order_id: null, status: 'Unpaid', amount: 12_345.6,
       erp_outstanding_amount: 2_345.6, si_number: 'INV-ORPHAN', invoice_date: '2026-10-04', currency: 'USD' }],
     isPending: false, isError: false, refetch: vi.fn() };
     const user = userEvent.setup();
@@ -448,7 +484,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
   });
 
   it('AC-1402 opens the invoice detail drawer from its status pill', async () => {
-    h.invoices = { data: [{ id: 'si-direct', work_order_id: 'wo-1', status: 'Unpaid', amount: 12_000,
+    h.invoices = { data: [{ tax_treatment: 'inclusive', tax_amount: 0, id: 'si-direct', work_order_id: 'wo-1', status: 'Unpaid', amount: 12_000,
       erp_outstanding_amount: 8_000, si_number: 'INV-DIRECT', invoice_date: '2026-10-05', currency: 'USD' }],
     isPending: false, isError: false, refetch: vi.fn() };
     renderTab();
@@ -460,7 +496,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
   });
 
   it('AC-1402 omits unknown invoice figures and offers one retry for the order block', async () => {
-    h.invoices = { data: [{ id: 'si-unknown', work_order_id: 'wo-1', status: 'Unpaid', amount: 12_000,
+    h.invoices = { data: [{ tax_treatment: 'inclusive', tax_amount: 0, id: 'si-unknown', work_order_id: 'wo-1', status: 'Unpaid', amount: 12_000,
       erp_outstanding_amount: null, si_number: 'INV-UNKNOWN', currency: 'USD' }],
     isPending: false, isError: false, refetch: vi.fn() };
     renderTab();
@@ -474,7 +510,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
   });
 
   it('AC-1402 hides invoice rows and every money figure from an Engineer', () => {
-    h.invoices = { data: [{ id: 'si-orphan', work_order_id: null, status: 'Paid', amount: 12_000,
+    h.invoices = { data: [{ tax_treatment: 'inclusive', tax_amount: 0, id: 'si-orphan', work_order_id: null, status: 'Paid', amount: 12_000,
       erp_outstanding_amount: 0, si_number: 'INV-PRIVATE', currency: 'USD' }],
     isPending: false, isError: false, refetch: vi.fn() };
     renderTab('Engineer');
@@ -485,7 +521,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
 
   it('AC-1402 leaves paid and unpaid unknown without offering Retry when accounting has no balance', () => {
     h.list.data = [];
-    h.invoices = { data: [{ id: 'si-orphan', work_order_id: null, status: 'Paid', amount: 12_000,
+    h.invoices = { data: [{ currency: 'USD', tax_treatment: 'inclusive', tax_amount: 0, id: 'si-orphan', work_order_id: null, status: 'Paid', amount: 12_000,
       erp_outstanding_amount: null, si_number: 'INV-ORPHAN' }], isPending: false, isError: false, refetch: vi.fn() };
     renderTab();
 
@@ -518,7 +554,7 @@ describe('WorkOrdersTab — billing by work order: restored oracles (AC-BWO-003/
   // The per-order Invoiced/Paid figures read the project's invoices; this fixture matches the server billing row
   // (invoiced 330,000 · paid 100,000 · draft 90,000 · still to invoice 80,000).
   const invoicesMatchingBill = () => ({
-    data: [{ id: 'si-1', work_order_id: 'wo-1', status: 'Unpaid', amount: 330_000, erp_outstanding_amount: 230_000, si_number: 'INV-1', currency: 'USD' }],
+    data: [{ tax_treatment: 'inclusive', tax_amount: 0, id: 'si-1', work_order_id: 'wo-1', status: 'Unpaid', amount: 330_000, erp_outstanding_amount: 230_000, si_number: 'INV-1', currency: 'USD' }],
     isPending: false, isError: false, refetch: vi.fn(),
   });
 

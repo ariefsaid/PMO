@@ -20,7 +20,7 @@ import { useProjectCommittedSpend, useProjectProcurements } from '@/src/hooks/us
 import { buildBudgetSummaryRows, resolveProjectCommitment } from '@/src/lib/budget/budgetModel';
 import MilestoneStrip from './MilestoneStrip';
 import { useBudgetPosition } from '@/src/hooks/useProjectPosition';
-import { summarizeInvoiceSettlement } from './ContractCascade';
+import { settlementIn, summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
 import ProjectProfitLossSection from './ProjectProfitLossSection';
 import { ProjectFinancesSection } from './ProjectFinancesSection';
 
@@ -103,14 +103,11 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean }> 
     ? allocations.reduce((sum, allocation) => sum + (allocation.acceptedQuantity ?? 0) * (rates.get(allocation.boqItemId) ?? 0), 0)
     : null;
   const invoicesKnown = !invoices.isPending && !invoices.isError;
-  const invoiceRows = (invoices.data ?? []).filter((invoice) => invoice.currency === project.currency);
-  const settlement = summarizeInvoiceSettlement(invoiceRows.map((invoice) => ({
-    status: invoice.status,
-    amount: invoice.amount,
-    erp_outstanding_amount: invoice.erp_outstanding_amount,
-  })));
-  const invoiced = invoicesKnown ? settlement.invoiced : null;
-  const paid = invoicesKnown && settlement.balancesKnown ? settlement.paid : null;
+  // #2204: every invoice counts; a settlement in another or a second currency is unknown, never the project-currency subset.
+  const settlement = settlementIn(summarizeInvoiceSettlement(invoices.data ?? []), project.currency);
+  const settlementCurrencyUnknown = invoicesKnown && settlement === null;
+  const invoiced = invoicesKnown ? settlement?.documentTotal ?? null : null;
+  const paid = invoicesKnown ? settlement?.settled ?? null : null;
   const cash = data.cash_received;
   const cashSum = cash?.state === 'known'
     ? cash.buckets.filter((bucket) => bucket.currency === project.currency).reduce((sum, bucket) => sum + Number(bucket.amount), 0)
@@ -132,7 +129,7 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean }> 
     { key: 'ordered', label: t('projectDetail.money.ordered', 'Ordered'), value: ordered, source: t('projectDetail.money.orderedSource', 'Sum of issued work-order allocations multiplied by BoQ unit rates.') },
     { key: 'delivered', label: t('projectDetail.money.delivered', 'Delivered'), value: delivered, source: t('projectDetail.money.deliveredSource', 'Sum of accepted quantities multiplied by BoQ unit rates.') },
     { key: 'invoiced', label: t('projectDetail.money.invoiced', 'Invoiced'), value: invoiced, source: t('projectDetail.money.invoicedSource', 'Sum of non-draft, non-cancelled invoices in the project currency.') },
-    { key: 'paid', label: t('projectDetail.money.paid', 'Paid'), value: paid, source: t('projectDetail.money.paidSource', 'Invoice amount less accounting outstanding balance; this is settlement, not receipt cash.') },
+    { key: 'paid', label: t('projectDetail.money.paid', 'Paid'), value: paid, source: t('projectDetail.money.paidSource', 'Invoice amount including tax, less accounting outstanding balance; this is settlement, not receipt cash.') },
   ].filter((step): step is { key: string; label: string; value: number; source: string } => step.value !== null);
   const stepLabels = { ordered: t('projectDetail.money.ordered', 'Ordered'), delivered: t('projectDetail.money.delivered', 'Delivered'), invoiced: t('projectDetail.money.invoiced', 'Invoiced'), paid: t('projectDetail.money.paid', 'Paid') };
   const marginHiddenReason = margin?.reason === 'different-currencies'
@@ -150,10 +147,14 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean }> 
     ...(delivered === null ? [{ label: stepLabels.delivered, reason: t('projectDetail.money.noBoq', 'Ordered and delivered values are not tracked until the project has a BoQ.') }] : []),
     ...(invoiced === null && !invoices.isPending ? [{ label: stepLabels.invoiced, reason: invoices.isError
       ? t('projectDetail.money.invoiceError', "Couldn't load invoice settlement.")
-      : t('projectDetail.money.invoicedOut', 'Invoiced is left out until every invoice amount is known.') }] : []),
+      : settlementCurrencyUnknown
+        ? t('projectDetail.money.settlementCurrencyOut', 'Invoiced and paid are left out because the invoices are not all in the project currency.')
+        : t('projectDetail.money.invoicedOut', 'Invoiced is left out until every invoice amount is known.') }] : []),
     ...(paid === null && !invoices.isPending ? [{ label: stepLabels.paid, reason: invoices.isError
       ? t('projectDetail.money.invoiceError', "Couldn't load invoice settlement.")
-      : t('projectDetail.money.paidOut', 'Paid is left out until every invoice balance is known.') }] : []),
+      : settlementCurrencyUnknown
+        ? t('projectDetail.money.settlementCurrencyOut', 'Invoiced and paid are left out because the invoices are not all in the project currency.')
+        : t('projectDetail.money.paidOut', 'Paid is left out until every invoice balance is known.') }] : []),
     ...(marginAmount === null ? [{ label: t('projectDetail.money.grossMargin', 'Gross margin'), reason: marginHiddenReason }] : []),
     ...(cashReceived === null ? [{
       label: cashUnconfirmed
@@ -181,9 +182,9 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean }> 
     <Block id="pd-money" title={title} unit={unit} fillRow={fillRow}>
       <MoneyHiddenFigures figures={hidden} />
       {/* L5: the block's one answer leads, biggest — how much of the contract is billed, then collected. */}
-      {invoicedShare !== null && (
+      {(invoicedShare !== null || cashReceived !== null) && (
         <p className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          {explain(t('projectDetail.money.leadTooltip', 'Invoiced amount as a share of the contract. Source: non-draft, non-cancelled invoices in the project currency.'),
+          {invoicedShare !== null && explain(t('projectDetail.money.leadTooltip', 'Invoiced amount as a share of the contract. Source: non-draft, non-cancelled invoices in the project currency.'),
             t('projectDetail.money.leadInvoiced', '{{percent}}% invoiced', { percent: invoicedShare }),
             'text-2xl font-semibold leading-tight tabular-nums text-foreground')}
           {paidShare !== null && <span className="text-sm tabular-nums text-muted-foreground">{t('projectDetail.money.leadPaid', '{{percent}}% paid', { percent: paidShare })}</span>}

@@ -127,7 +127,7 @@ const budgetPosition = (overrides: Record<string, unknown> = {}) => ({
 
 const invoice = (overrides: Record<string, unknown> = {}) => ({
   id: 'inv-1', status: 'Submitted', invoice_date: '2026-10-01', erp_due_date: '2026-10-20',
-  erp_payment_terms_days: 30, erp_outstanding_amount: '50', grand_total: '9999',
+  erp_payment_terms_days: 30, erp_outstanding_amount: '50', grand_total: '9999', tax_treatment: 'inclusive', tax_amount: 0,
   ...overrides,
 });
 
@@ -626,6 +626,47 @@ describe('contract billing block', () => {
     expect(screen.getByText('$400')).toBeInTheDocument();
     expect(screen.getByText('$250')).toBeInTheDocument();
     expect(screen.getByText('$200')).toBeInTheDocument();
+  });
+
+  it('AC-SET-001 Money position leaves Invoiced and Paid out when invoices use two currencies, never the project-currency subset', async () => {
+    state.boqItems = [{ id: 'boq-1', quantity: 10, rate: 100 }];
+    state.billing = { contractLines: [] };
+    state.invoices = [
+      { ...invoice(), currency: 'USD', tax_treatment: 'inclusive', tax_amount: 0, amount: 250, erp_outstanding_amount: 50 },
+      { ...invoice({ id: 'inv-2' }), currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 0, amount: 900_000, erp_outstanding_amount: 0 },
+    ];
+    state.finances = {
+      contract_invoiced: null, remaining_to_invoice: null, invoices: [],
+      cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '150' }], receipt_count: 1 },
+      actuals: { currency: 'USD', total: '100.00', as_of: null, excludes_restricted_rows: false, categories: [] },
+    };
+
+    renderMoneyPosition();
+    const strip = screen.getByLabelText('Contract to payment');
+    expect(within(strip).queryByText('Invoiced')).not.toBeInTheDocument();
+    expect(within(strip).queryByText('Paid')).not.toBeInTheDocument();
+    expect(screen.queryByText('$250')).not.toBeInTheDocument();
+    // AC-SET-004: cash received stays its own figure from the receipt projection.
+    expect(screen.getByTestId('money-lead-cash')).toHaveTextContent('Received $150');
+    await userEvent.click(within(screen.getByTestId('figures-hidden')).getByText('Why'));
+    expect(screen.getAllByText('Invoiced and paid are left out because the invoices are not all in the project currency.').length).toBeGreaterThan(0);
+  });
+
+  it('AC-SET-002 Money position Paid compares a tax-exclusive invoice on its gross balance', () => {
+    state.boqItems = [{ id: 'boq-1', quantity: 10, rate: 100 }];
+    state.billing = { contractLines: [] };
+    state.invoices = [{ ...invoice(), currency: 'USD', tax_treatment: 'exclusive', tax_amount: 25, amount: 250, erp_outstanding_amount: 275 }];
+    state.finances = {
+      contract_invoiced: '250', remaining_to_invoice: '750', invoices: [],
+      cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '0' }], receipt_count: 0 },
+      actuals: { currency: 'USD', total: '100.00', as_of: null, excludes_restricted_rows: false, categories: [] },
+    };
+
+    renderMoneyPosition();
+    const strip = screen.getByLabelText('Contract to payment');
+    const paidRow = within(strip).getByText('Paid').parentElement!;
+    expect(paidRow).toHaveTextContent('$0');
+    expect(paidRow).not.toHaveTextContent('-');
   });
 
   it('explains settled invoice value that has no matched receipt and links to matching', () => {
