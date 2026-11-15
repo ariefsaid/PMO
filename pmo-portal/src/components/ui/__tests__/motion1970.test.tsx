@@ -47,6 +47,29 @@ describe('#1970 motion', () => {
     }
   });
 
+  it('#2124 vendored popups use the shared transition, not dead tw-animate classes', () => {
+    const popups = [
+      'src/components/shadcn/popover.tsx', 'src/components/shadcn/dropdown-menu.tsx',
+      'src/components/shadcn/context-menu.tsx', 'src/components/shadcn/tooltip.tsx',
+      'src/components/reui/cascader/cascader.tsx', 'src/components/reui/cascader/cascader-footer.tsx',
+      'src/components/reui/event-calendar/event-calendar-ui.tsx',
+    ];
+    for (const f of popups) {
+      const src = readFileSync(f, 'utf8');
+      expect(src, f).not.toMatch(/animate-(in|out)/);
+      expect(src, f).toMatch(/popup-anim|tooltip-anim/);
+    }
+    expect(readFileSync('src/components/shadcn/button.tsx', 'utf8')).not.toContain('transition-all');
+    expect(css).toContain('.popup-anim[data-starting-style]');
+    expect(css).toMatch(/--motion-menu-out:\s*96ms/);
+    // Reduced motion: the global rule zeroes every transition, and .popup-anim has no override that beats it.
+    const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce) {\n    *, *::before'));
+    expect(reduced).toContain('transition-duration: 0.001ms !important;');
+    expect(css).not.toMatch(/\.popup-anim[^{]*\{[^}]*!important/);
+    // Keyboard-opened popups (data-instant) skip the transition.
+    expect(css).toContain('.popup-anim[data-instant] { transition-duration: 0ms; }');
+  });
+
   it('Crossfade keeps the old child while the new one fades in, then drops it', () => {
     vi.useFakeTimers();
     const { rerender } = render(<Crossfade swapKey="a"><i>old</i></Crossfade>);

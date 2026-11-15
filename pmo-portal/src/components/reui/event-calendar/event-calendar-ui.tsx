@@ -34,7 +34,7 @@ function TooltipContent({
         <BaseTooltip.Popup
           data-slot="tooltip-content"
           className={cn(
-            "bg-foreground text-background rounded-md px-2.5 py-1.5 text-xs shadow-md",
+            "tooltip-anim bg-foreground text-background rounded-md px-2.5 py-1.5 text-xs shadow-md",
             className
           )}
         >
@@ -62,7 +62,7 @@ function PopoverContent({
       <BasePopover.Positioner align={align} sideOffset={4} className="z-50">
         <BasePopover.Popup
           className={cn(
-            "bg-popover text-popover-foreground border-border flex flex-col rounded-md border shadow-md outline-hidden",
+            "popup-anim bg-popover text-popover-foreground border-border flex flex-col rounded-md border shadow-md outline-hidden",
             className
           )}
           {...props}
