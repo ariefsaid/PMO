@@ -45,10 +45,8 @@ const facts: ManagementPackFacts = {
 
 const renderPage = () => render(<MemoryRouter><ToastProvider><ManagementPack /></ToastProvider></MemoryRouter>);
 const alphaRow = () => screen.getAllByRole('row').find((r) => within(r).queryByTestId('pack-cell-contract')?.textContent?.includes('1,000,000'))!;
-const leftToBillTile = () => {
-  const figures = screen.getByRole('region', { name: 'Report figures' });
-  return within(figures).getByText('Left to bill').closest<HTMLElement>('div.relative.flex.flex-col')!;
-};
+const leftToBillTile = () =>
+  within(screen.getByRole('region', { name: 'Report figures' })).getByTestId('pack-figure-leftToBill');
 
 beforeEach(() => { h.pack = buildManagementPack(facts); });
 

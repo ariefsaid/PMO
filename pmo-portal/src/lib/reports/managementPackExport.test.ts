@@ -93,18 +93,18 @@ describe('AC-MMP-011 management pack export', () => {
     expect(openingTotal?.[column('Opening invoiced')]).toBe(40);
   });
 
-  it('RF-036: an unreconciled cross-currency backlog exports as blank, not a contract-sized debt', () => {
+  it('RF-036: an unreconciled cross-currency Left to bill exports as blank, not a contract-sized debt', () => {
     const packWithForeignBilling = buildManagementPack({
       ...facts,
       invoiced: [...facts.invoiced, { project_id: 'p1', currency: 'USD', month: '2026-02-01', net: 5, invoice_count: 1 }],
     });
     const exported = buildManagementPackExport(packWithForeignBilling, labels);
-    const backlog = exported.header.indexOf('Left to bill');
-    expect(exported.body[0][backlog]).toBe('');
-    expect(exported.body[1][backlog]).toBe('');
+    const leftToBill = exported.header.indexOf('Left to bill');
+    expect(exported.body[0][leftToBill]).toBe('');
+    expect(exported.body[1][leftToBill]).toBe('');
   });
 
-  it('AC-MIP-007: earlier zero-net foreign invoice presence exports blank backlog cells and subtotal', () => {
+  it('AC-MIP-007: earlier zero-net foreign invoice presence exports blank Left to bill cells and subtotal', () => {
     const packWithEarlierForeignBilling = buildManagementPack({
       ...facts,
       invoiced_before: [earlierInvoice('p1', 'USD', 0, 2)],
@@ -114,12 +114,12 @@ describe('AC-MMP-011 management pack export', () => {
     const projectNumber = exported.header.indexOf('Project number');
     const currency = exported.header.indexOf('Currency');
     const period = exported.header.indexOf('Period');
-    const backlog = exported.header.indexOf('Left to bill');
+    const leftToBill = exported.header.indexOf('Left to bill');
     const invoicedToDate = exported.header.indexOf('Invoiced to date');
     const contractRows = exported.body.filter((row) => row[projectNumber] === 'PRJ-26-0001' && row[currency] === 'IDR');
     const idrTotals = exported.body.filter((row) => row[project] === 'Total' && row[currency] === 'IDR' && /^2026-\d{2}$/u.test(String(row[period])));
-    expect(contractRows.map((row) => row[backlog])).toEqual(['', '']);
-    expect(idrTotals.map((row) => row[backlog])).toEqual(['', '']);
+    expect(contractRows.map((row) => row[leftToBill])).toEqual(['', '']);
+    expect(idrTotals.map((row) => row[leftToBill])).toEqual(['', '']);
     expect(contractRows[1][invoicedToDate]).toBe(100.5);
   });
 

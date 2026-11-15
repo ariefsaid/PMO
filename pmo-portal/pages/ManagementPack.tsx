@@ -560,6 +560,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
             return (
               <KPITile
                 key={spec.key}
+                testId={`pack-figure-${spec.key}`}
                 icon="grid"
                 tone="blue"
                 label={spec.label}
