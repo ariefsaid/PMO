@@ -342,6 +342,20 @@ describe('Admin Users — invite affordance (FR-INV-004/005/006)', () => {
     expect(toast).not.toHaveTextContent(/INVITE_NOT_ADDABLE/);
   });
 
+  it.each([
+    ['already_invited', /already invited/i, /no new email/i],
+    ['resent', /invite sent again/i, /new link/i],
+  ])('an identical repeat invite answered %s tells the admin what happened', async (outcome, headline, detail) => {
+    mutations.invite.mutateAsync.mockResolvedValue(outcome);
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /invite user/i }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText(/email/i), 'someone@example.com');
+    await userEvent.click(within(dialog).getByRole('button', { name: /invite user/i }));
+    const toast = await findToastAnnouncement('status', headline);
+    expect(toast).toHaveTextContent(detail);
+  });
+
   it('a concurrent invite for the same address (INVITE_RETRY) says to try again, not a generic failure', async () => {
     mutations.invite.mutateAsync.mockRejectedValue(new AppError('INVITE_RETRY', 'INVITE_RETRY'));
     renderPage('Admin');

@@ -291,16 +291,37 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
     // A fresh attempt starts clean — an earlier failure never resurfaces in a new dialog.
     setInviteError(null);
     try {
-      await invite.mutateAsync({ email, role, pOrgId });
-      toast(
-        t('admin.users.toast.inviteSent', 'Invite sent'),
-        t('admin.users.toast.inviteSentDetail', {
-          defaultValue: '{{email}} has been invited as {{role}}.',
-          email,
-          role: roleNames.label(role),
-        }),
-        'success',
-      );
+      const outcome = await invite.mutateAsync({ email, role, pOrgId });
+      // #2252: an identical repeat says whether a fresh link went out.
+      if (outcome === 'already_invited') {
+        toast(
+          t('administration:admin.users.toast.alreadyInvited', 'Already invited'),
+          t('administration:admin.users.toast.alreadyInvitedDetail', {
+            defaultValue: '{{email}} already has a valid invite. No new email was sent.',
+            email,
+          }),
+          'success',
+        );
+      } else if (outcome === 'resent') {
+        toast(
+          t('administration:admin.users.toast.inviteResent', 'Invite sent again'),
+          t('administration:admin.users.toast.inviteResentDetail', {
+            defaultValue: 'The earlier link for {{email}} had expired. A new link is on its way.',
+            email,
+          }),
+          'success',
+        );
+      } else {
+        toast(
+          t('admin.users.toast.inviteSent', 'Invite sent'),
+          t('admin.users.toast.inviteSentDetail', {
+            defaultValue: '{{email}} has been invited as {{role}}.',
+            email,
+            role: roleNames.label(role),
+          }),
+          'success',
+        );
+      }
       setInviteOpen(false);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err, {

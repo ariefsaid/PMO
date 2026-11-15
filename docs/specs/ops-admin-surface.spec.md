@@ -202,8 +202,11 @@ When the address already belongs to an account the caller cannot add (another or
 account the auth service already holds), the system shall answer `409 INVITE_NOT_ADDABLE` with the
 same body for every reason and for an org-Admin and an Operator alike. When the caller repeats an
 invite identical to an existing member (same address, organization and role), the system shall
-answer `200 { ok: true, already_invited: true }` without a second email or profile; a repeat with a
-different role keeps `409 DUPLICATE_EMAIL`. When two invites for the same address race and the
+answer `200 { ok: true, already_invited: true }` without a second email or profile while the member's
+invite link is still valid or they have accepted; while the member is still pending and the link has
+expired (the auth service's email-link expiry, counted from `confirmation_sent_at`), the system shall
+issue a fresh link, send one email and answer `200 { ok: true, invite_resent: true }`. A repeat with
+a different role keeps `409 DUPLICATE_EMAIL`. When two invites for the same address race and the
 other wrote the profile first, the system shall answer `409 INVITE_RETRY` with `Retry-After: 1`,
 leave no half-made profile, and the retry shall get the idempotent success.
 
@@ -526,6 +529,15 @@ the same caller invites the same address (any case, padded) with the same role, 
 `200 { ok: true, already_invited: true }`, no second email goes out and one profile exists; with a
 different role the answer stays `409 DUPLICATE_EMAIL`.
 
+**AC-INV-009 [Unit/Deno] — an expired invite is re-sent on an identical repeat.** *Given* a pending
+member whose invite link has expired, *when* the caller repeats the identical invite, *then* the
+answer is `200 { ok: true, invite_resent: true }`, exactly one more email goes out with a fresh link,
+one profile exists, and a repeat with a different role stays `409 DUPLICATE_EMAIL`.
+
+**AC-INV-010 [Unit/Deno] — an accepted invite is never re-sent.** *Given* a member who accepted their
+invite long ago, *when* the caller repeats the identical invite, *then* the answer is
+`200 { ok: true, already_invited: true }` and no email goes out.
+
 **AC-INV-007 [Unit/Deno] — the loser of a race retries to success.** *Given* two invites for one
 address reach the auth service before either profile is written, *when* both complete, *then* one
 gets `200`, the other `409 INVITE_RETRY` with `Retry-After: 1`, its retry gets `200`, and the store
@@ -667,6 +679,8 @@ next shell render hides the Incidents rail item and `/incidents` redirects; re-e
 | AC-INV-006 | Unit/Deno | `supabase/functions/admin-invite-user/index.test.ts` `AC-INV-006 …` |
 | AC-INV-007 | Unit/Deno | `supabase/functions/admin-invite-user/index.test.ts` `AC-INV-007 …` |
 | AC-INV-008 | Unit/Deno | `supabase/functions/admin-invite-user/index.test.ts` `AC-INV-008 …` |
+| AC-INV-009 | Unit/Deno | `supabase/functions/admin-invite-user/index.test.ts` `AC-INV-009 …` |
+| AC-INV-010 | Unit/Deno | `supabase/functions/admin-invite-user/index.test.ts` `AC-INV-010 …` |
 | AC-OPR-001 | pgTAP | `supabase/tests/0NNN_ops_admin_operator_rpc_only.sql` `AC-OPR-001 …` |
 | AC-OPR-002 | pgTAP | `supabase/tests/0NNN_ops_admin_operator_not_role.sql` `AC-OPR-002 …` |
 | AC-OPR-003 | Unit/RTL | `pages/__tests__/Administration.operatorGate.test.tsx` `it('AC-OPR-003 useIsOperator gates affordances')` |

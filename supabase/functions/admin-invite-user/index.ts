@@ -41,6 +41,34 @@ function likePattern(email: string): string {
   return email.trim().replace(/[\\%_]/g, '\\$&');
 }
 
+/**
+ * How long an invite link stays valid. The auth service checks the link against the user's
+ * `confirmation_sent_at` plus its email OTP expiry (`[auth.email] otp_expiry` in supabase/config.toml);
+ * the function cannot read that setting, so it mirrors it here. ponytail: a value shorter than the real
+ * expiry only re-sends early (harmless); keep INVITE_LINK_EXPIRY_SECS equal to the hosted setting.
+ */
+function inviteLinkTtlMs(): number {
+  return (Number(Deno.env.get('INVITE_LINK_EXPIRY_SECS')) || 3600) * 1000;
+}
+
+/**
+ * Classify a repeat invite for an existing member of the target org: 'none' when the role differs (the
+ * caller gets DUPLICATE_EMAIL), 'valid' when the member accepted or their link is still live, 'expired'
+ * when they are still pending and the link has run out.
+ */
+// deno-lint-ignore no-explicit-any
+async function identicalRepeat(service: any, orgId: string, email: string, role: string): Promise<'none' | 'valid' | 'expired'> {
+  const { data: member } = await service
+    .from('profiles').select('id,role').eq('org_id', orgId).ilike('email', likePattern(email)).limit(1);
+  if (!member?.[0] || member[0].role !== role) return 'none';
+  const { data } = await service.auth.admin.getUserById(member[0].id);
+  const user = data?.user as { email_confirmed_at?: string | null; confirmation_sent_at?: string; invited_at?: string } | undefined;
+  // An unreadable account or an accepted invite sends nothing.
+  if (!user || user.email_confirmed_at) return 'valid';
+  const sentAt = Date.parse(user.confirmation_sent_at ?? user.invited_at ?? '');
+  return Date.now() - sentAt > inviteLinkTtlMs() ? 'expired' : 'valid';
+}
+
 /** Auth-service codes meaning the address already belongs to an account. */
 const ADDRESS_IN_USE_CODES = new Set(['email_exists', 'user_already_exists']);
 
@@ -98,6 +126,7 @@ serveWithErrorReporting('admin-invite-user', async (req: Request): Promise<Respo
   // ── 3. Authorize (the caller-JWT client's .rpc/.from run under the caller's RLS — the
   // service-role client below is built ONLY after this succeeds). ──
   let authorized: { targetOrgId: string; role: string };
+  let resend = false;
   try {
     authorized = await authorizeInvite(callerClient as unknown as InviteSupabaseLike, uid, {
       email: body.email ?? '',
@@ -105,20 +134,23 @@ serveWithErrorReporting('admin-invite-user', async (req: Request): Promise<Respo
       p_org_id: body.p_org_id ?? null,
     });
   } catch (err) {
-    // #2252: an identical repeat (same address, same role, same organization) is idempotent: it answers
-    // with success and sends no second email. DUPLICATE_EMAIL is raised only after the caller passed
-    // authorization, so the service-role read below is never reached by an unauthorized caller.
-    if (err instanceof InviteError && err.code === 'DUPLICATE_EMAIL' && err.targetOrgId) {
-      const { data: member } = await createClient(supabaseUrl, serviceRoleKey)
-        .from('profiles').select('role').eq('org_id', err.targetOrgId)
-        .ilike('email', likePattern(body.email ?? '')).limit(1);
-      if (member?.[0]?.role === body.role) return json({ ok: true, already_invited: true }, 200, corsHeaders);
-    }
-    if (err instanceof InviteError) {
+    // #2252: an identical repeat (same address, same role, same organization) is idempotent: no second
+    // email while the link is valid; a fresh link once it has expired. DUPLICATE_EMAIL is raised only
+    // after the caller passed authorization, so the service-role reads are never reached by an
+    // unauthorized caller.
+    const repeat = err instanceof InviteError && err.code === 'DUPLICATE_EMAIL' && err.targetOrgId
+      ? await identicalRepeat(createClient(supabaseUrl, serviceRoleKey), err.targetOrgId, body.email ?? '', body.role ?? '')
+      : 'none';
+    if (repeat === 'valid') return json({ ok: true, already_invited: true }, 200, corsHeaders);
+    if (repeat === 'expired') {
+      resend = true;
+      authorized = { targetOrgId: (err as InviteError).targetOrgId!, role: body.role ?? '' };
+    } else if (err instanceof InviteError) {
       return json({ error: err.code }, err.status, corsHeaders);
+    } else {
+      logStructuredError({ fn: 'admin-invite-user', errorCode: 'INVITE_AUTHORIZE_FAILED' });
+      return json({ error: 'INVITE_FAILED' }, 500, corsHeaders);
     }
-    logStructuredError({ fn: 'admin-invite-user', errorCode: 'INVITE_AUTHORIZE_FAILED' });
-    return json({ error: 'INVITE_FAILED' }, 500, corsHeaders);
   }
 
   // ── 4. Service-role issuance — ONLY reached for an authorized caller. ──
@@ -153,16 +185,18 @@ serveWithErrorReporting('admin-invite-user', async (req: Request): Promise<Respo
   }
 
   const email = (body.email ?? '').trim();
-  const { data: existingProfiles, error: lookupError } = await serviceClient
-    .from('profiles').select('id').ilike('email', likePattern(email)).limit(1);
-  if (lookupError) {
-    logStructuredError({ fn: 'admin-invite-user', errorCode: 'INVITE_ISSUE_FAILED' });
-    return json({ error: 'INVITE_ISSUE_FAILED' }, 502, corsHeaders);
+  if (!resend) {
+    const { data: existingProfiles, error: lookupError } = await serviceClient
+      .from('profiles').select('id').ilike('email', likePattern(email)).limit(1);
+    if (lookupError) {
+      logStructuredError({ fn: 'admin-invite-user', errorCode: 'INVITE_ISSUE_FAILED' });
+      return json({ error: 'INVITE_ISSUE_FAILED' }, 502, corsHeaders);
+    }
+    // An address that already has an account cannot be added here. Same-organization members were
+    // answered by authorizeInvite (DUPLICATE_EMAIL); anything left is one neutral outcome, whatever the
+    // reason, so the response never says where else the address is in use.
+    if (existingProfiles && existingProfiles.length > 0) return notAddable(corsHeaders);
   }
-  // An address that already has an account cannot be added here. Same-organization members were
-  // answered by authorizeInvite (DUPLICATE_EMAIL); anything left is one neutral outcome, whatever the
-  // reason, so the response never says where else the address is in use.
-  if (existingProfiles && existingProfiles.length > 0) return notAddable(corsHeaders);
   // M2 (security review): resolve the redirect origin from a SERVER-CONTROLLED source only — the
   // request `Origin` header is attacker-controllable, and redirectTo is a privilege-bearing URL
   // (the invitee sets their password there). Trusting Origin lets a compromised Operator craft an
@@ -182,12 +216,16 @@ serveWithErrorReporting('admin-invite-user', async (req: Request): Promise<Respo
     data: { invite_pending: true },
   });
   if (inviteError && ADDRESS_IN_USE_CODES.has((inviteError as { code?: string }).code ?? '')) {
+    // A re-send that finds the invitee accepted in the meantime: they are a member, nothing to send.
+    if (resend) return json({ ok: true, already_invited: true }, 200, corsHeaders);
     return notAddable(corsHeaders);
   }
   if (inviteError || !invite?.user) {
     logStructuredError({ fn: 'admin-invite-user', errorCode: 'INVITE_ISSUE_FAILED' });
     return json({ error: 'INVITE_ISSUE_FAILED' }, 502, corsHeaders);
   }
+  // The member's profile already exists; the auth service re-issued the pending invitee's link.
+  if (resend) return json({ ok: true, invite_resent: true }, 200, corsHeaders);
 
   const { error: profileError } = await serviceClient.from('profiles').insert({
     id: invite.user.id,

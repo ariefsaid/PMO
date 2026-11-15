@@ -470,6 +470,12 @@
       "statusError": {
         "seatLimit": "Your plan has no seats left",
         "seatLimitDetail": "Everyone on your plan already has a seat. Ask your Operator to upgrade the plan, then re-enable this user."
+      },
+      "toast": {
+        "alreadyInvited": "Already invited",
+        "alreadyInvitedDetail": "{{email}} already has a valid invite. No new email was sent.",
+        "inviteResent": "Invite sent again",
+        "inviteResentDetail": "The earlier link for {{email}} had expired. A new link is on its way."
       }
     },
     "spendApprovers": {

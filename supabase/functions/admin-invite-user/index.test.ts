@@ -100,7 +100,8 @@ Deno.test({ sanitizeOps: false, sanitizeResources: false, name: 'The profile is 
 
 // ── Shared-state harness: one fake auth + profiles store that every call hits (#2252). ──
 interface Profile { id: string; org_id: string; role: string; email: string }
-interface Store { users: Map<string, string>; profiles: Profile[]; invites: number; arrive?: () => Promise<void> }
+interface AuthUser { confirmation_sent_at: string; email_confirmed_at: string | null }
+interface Store { users: Map<string, string>; auth: Map<string, AuthUser>; profiles: Profile[]; invites: number; arrive?: () => Promise<void> }
 const callers: Record<string, { id: string; operator: boolean; profile: Omit<Profile, 'id'> }> = {
   'Bearer admin-b': { id: 'admin-b', operator: false, profile: { org_id: 'org-b', role: 'Admin', email: 'admin@b.test' } },
   'Bearer operator': { id: 'operator', operator: true, profile: { org_id: 'org-ops', role: 'Engineer', email: 'op@ops.test' } },
@@ -133,7 +134,13 @@ function storeFetch(store: Store): typeof fetch {
       // An unconfirmed invitee is re-invited, not refused: the auth service returns the same user.
       const key = email.toLowerCase();
       if (!store.users.has(key)) store.users.set(key, crypto.randomUUID());
-      return reply({ id: store.users.get(key), created_at: '2026-01-01T00:00:00Z', invited_at: '2026-01-01T00:00:01Z' });
+      const id = store.users.get(key)!; const sentAt = new Date().toISOString();
+      store.auth.set(id, { confirmation_sent_at: sentAt, email_confirmed_at: null });
+      return reply({ id, created_at: '2026-01-01T00:00:00Z', invited_at: sentAt, confirmation_sent_at: sentAt });
+    }
+    if (path.startsWith('/auth/v1/admin/users/') && req.method === 'GET') {
+      const id = path.split('/').pop()!; const user = store.auth.get(id);
+      return user ? reply({ id, ...user }) : reply({ code: 'user_not_found', msg: 'not found' }, 404);
     }
     if (path === '/rest/v1/profiles' && req.method === 'POST') {
       const row = await req.json() as Profile;
@@ -156,7 +163,7 @@ async function invite(caller: string, body: Record<string, unknown>) {
   const response = await handler(new Request('http://localhost/invite', { method: 'POST', headers: { Authorization: caller, 'content-type': 'application/json' }, body: JSON.stringify(body) }));
   return { status: response.status, body: await response.json(), retryAfter: response.headers.get('Retry-After') };
 }
-const newStore = (): Store => ({ users: new Map(), profiles: [], invites: 0 });
+const newStore = (): Store => ({ users: new Map(), auth: new Map(), profiles: [], invites: 0 });
 
 Deno.test({ sanitizeOps: false, sanitizeResources: false, name: 'AC-INV-006 a second identical invite succeeds as already invited, without a second email or profile', fn: async () => {
   const store = newStore();
@@ -202,4 +209,32 @@ Deno.test({ sanitizeOps: false, sanitizeResources: false, name: 'AC-INV-008 an O
     assert(taken.status === takenForAdmin.status && JSON.stringify(taken.body) === JSON.stringify(takenForAdmin.body), 'operator and admin get the same outcome');
   });
   assert(store.invites === 1, `one invite email: ${store.invites}`);
+}});
+
+const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
+Deno.test({ sanitizeOps: false, sanitizeResources: false, name: 'AC-INV-009 an identical repeat after the link expired sends one fresh link and says re-sent', fn: async () => {
+  const store = newStore();
+  await withStore(store, async () => {
+    await invite('Bearer admin-b', { email: 'late@example.test', role: 'Engineer' });
+    const id = store.users.get('late@example.test')!;
+    store.auth.set(id, { confirmation_sent_at: hoursAgo(2), email_confirmed_at: null });
+    const resent = await invite('Bearer admin-b', { email: 'late@example.test', role: 'Engineer' });
+    assert(resent.status === 200 && JSON.stringify(resent.body) === JSON.stringify({ ok: true, invite_resent: true }), `re-sent: ${resent.status} ${JSON.stringify(resent.body)}`);
+    assert(Date.now() - Date.parse(store.auth.get(id)!.confirmation_sent_at) < 60_000, 'a fresh link was issued');
+    const otherRole = await invite('Bearer admin-b', { email: 'late@example.test', role: 'Admin' });
+    assert(otherRole.status === 409 && otherRole.body.error === 'DUPLICATE_EMAIL', `different role unchanged: ${otherRole.status} ${JSON.stringify(otherRole.body)}`);
+  });
+  assert(store.invites === 2, `exactly one more email: ${store.invites}`);
+  assert(store.profiles.length === 1, `one profile: ${store.profiles.length}`);
+}});
+Deno.test({ sanitizeOps: false, sanitizeResources: false, name: 'AC-INV-010 a repeat for someone who already accepted sends nothing, however old the invite', fn: async () => {
+  const store = newStore();
+  await withStore(store, async () => {
+    await invite('Bearer admin-b', { email: 'joined@example.test', role: 'Engineer' });
+    const id = store.users.get('joined@example.test')!;
+    store.auth.set(id, { confirmation_sent_at: hoursAgo(48), email_confirmed_at: hoursAgo(47) });
+    const again = await invite('Bearer admin-b', { email: 'joined@example.test', role: 'Engineer' });
+    assert(again.status === 200 && JSON.stringify(again.body) === JSON.stringify({ ok: true, already_invited: true }), `already invited: ${again.status} ${JSON.stringify(again.body)}`);
+  });
+  assert(store.invites === 1, `no second email: ${store.invites}`);
 }});

@@ -3,7 +3,7 @@ import type { OrgVendorTaxAccounts, OrgWithholdingAccounts, ProjectClassificatio
 import type { SpendApproverRow } from '@/src/lib/db/spendApprovers';
 import type { ProcurementGates } from '@/src/lib/db/orgs';
 import type { ProfileRow } from '@/src/lib/db/profiles';
-import type { UserRow, UserRole, InviteUserInput, SetUserStatusInput, UserDirectoryPage, UserFocusLocation, UserManagerChoice } from '@/src/lib/db/adminUsers';
+import type { UserRow, UserRole, InviteUserInput, InviteOutcome, SetUserStatusInput, UserDirectoryPage, UserFocusLocation, UserManagerChoice } from '@/src/lib/db/adminUsers';
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 import type { UserViewRow, UserViewListRow, UserViewInput } from '@/src/lib/db/userViews';
 import type {
@@ -45,7 +45,7 @@ export interface ProfileRepository {
   /** Assign (or clear, with null) a user's line manager (Admin-only via profiles_admin_write RLS). */
   assignUserManager(id: string, managerId: string | null): Promise<void>;
   /** Invite a new user via the admin-invite-user edge fn (Admin-in-org OR Operator). */
-  inviteUser(input: InviteUserInput): Promise<void>;
+  inviteUser(input: InviteUserInput): Promise<InviteOutcome>;
   /** Disable/re-enable a user via the admin_set_user_status RPC (Admin-in-org OR Operator). */
   setUserStatus(input: SetUserStatusInput): Promise<void>;
 }
