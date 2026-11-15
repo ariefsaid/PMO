@@ -147,6 +147,8 @@ with the (P)/(F) pair in the same PR and say so in the PR body.
    `pages/SalesPipeline.test.tsx`: green.
 
 ### A2 — Project budget tab (`/projects/:id/budget`)
+
+> **Not shipped:** no gain measured; the single-user run could not exercise A18/A19 and the 50-user replay cannot see client-side request order. A19 adds a request. Branch dropped; re-open only with a before/after region-timing run.
 1. (3 min) Create `pages/ProjectBudget.loading.test.tsx`. (P) versions ready, budget pending: header +
    version switcher render, and the summary/forecast figures show `ListState` loading. (P2) procurements
    pending: the commitments column header is present with a loading cell. (F) budget failed: the
@@ -284,6 +286,8 @@ with the (P)/(F) pair in the same PR and say so in the PR body.
 2. (3 min) `YourPlan.tsx:92-93`: one gate per card. Keep `your-plan-loading` on the features card.
 
 ### A18 — Financial statements (`/finance/statements`)
+
+> **Not shipped:** no gain measured; the single-user run could not exercise A18/A19 and the 50-user replay cannot see client-side request order. A19 adds a request. Branch dropped; re-open only with a before/after region-timing run.
 1. (4 min) Create `pages/FinancialStatements.loading.test.tsx`: URL carries `period`, `kind` and
    `statement`, and the catalogue is pending. Assert `useFinancialStatement` was called enabled with the
    URL-derived selection. When the catalogue lands and disagrees, the selection re-keys and the
@@ -298,6 +302,8 @@ with the (P)/(F) pair in the same PR and say so in the PR body.
    retired viewer never reads a cached catalogue.
 
 ### A19 — Project P&L section (`/projects/:id/budget`)
+
+> **Not shipped:** no gain measured; the single-user run could not exercise A18/A19 and the 50-user replay cannot see client-side request order. A19 adds a request. Branch dropped; re-open only with a before/after region-timing run.
 1. (3 min) Create `pages/project-detail/ProjectProfitLossSection.loading.test.tsx`: two mounted
    consumers share one catalogue request (assert the repository mock was called once). The statement
    read starts on the default period before the catalogue answers. Red.
