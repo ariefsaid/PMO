@@ -13,8 +13,6 @@ export interface CompanyCollectionsProps {
 export const CompanyCollections: React.FC<CompanyCollectionsProps> = ({ companyId }) => {
   const { t } = useTranslation();
   const collections = useCompanyCollections([companyId]);
-  // The company's own position is composed from the ageing rows AND the party references, so this card
-  // keeps loading until both answer; consumers that only need the ageing rows read `isPending` alone.
   if (!collections.isEnabled) return null;
 
   const position = collections.byCompany.get(companyId) ?? { state: 'unavailable' as const, positions: [] };
@@ -45,7 +43,7 @@ export const CompanyCollections: React.FC<CompanyCollectionsProps> = ({ companyI
           title={t('dashboard.uxs36CollectionsReadError', 'Customer collections could not be loaded.')}
           onRetry={() => { void collections.refetch(); }}
         />
-      ) : collections.isPending || collections.linksPending ? (
+      ) : collections.isPending ? (
         <ListState variant="loading" shape="cards" rows={3} />
       ) : position.state === 'ambiguous' ? (
         <p role="status" className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">

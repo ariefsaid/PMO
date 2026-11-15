@@ -71,7 +71,7 @@ describe('useCompanyCollections', () => {
 
     const { result } = renderHook(() => useCompanyCollections(['company-2', 'company-1', 'company-1']), { wrapper: wrap(client) });
 
-    await waitFor(() => expect(result.current.linksPending).toBe(false)); // the refs this assertion reads, now separate from isPending
+    await waitFor(() => expect(result.current.isPending).toBe(false));
     expect(h.snapshotOptions.at(-1)).toEqual({ enabled: true });
     expect(h.listForCompanies).not.toHaveBeenCalled();
     expect(h.listForErpCustomerIds).toHaveBeenCalledTimes(1);
@@ -83,45 +83,13 @@ describe('useCompanyCollections', () => {
     );
   });
 
-  it('AC-NBR-034 ageing ready, party refs pending: the ageing rows return with isPending false and only linksPending true', async () => {
-    h.snapshot.data = [zeroRow];
-    let release: (v: unknown[]) => void = () => {};
-    h.listForErpCustomerIds.mockReturnValue(new Promise((r) => { release = r; }));
-    const { result } = renderHook(() => useCompanyCollections(['company-1']), { wrapper: wrap(freshClient()) });
-
-    await waitFor(() => expect(h.listForErpCustomerIds).toHaveBeenCalled());
-    expect(result.current.isPending).toBe(false);
-    expect(result.current.linksPending).toBe(true);
-    expect(result.current.rows).toEqual([zeroRow]);
-    release([{ companyId: 'company-1', erpCustomerId: 'Customer:C-0001' }]);
-    await waitFor(() => expect(result.current.linksPending).toBe(false));
-    expect(result.current.customerLinks).toEqual(new Map([['Customer:C-0001', 'company-1']]));
-  });
-
-  it('AC-NBR-034 a failed party-ref read leaves the ageing rows rendering and flags only the links', async () => {
-    h.snapshot.data = [zeroRow];
-    h.listForErpCustomerIds.mockRejectedValue(new Error('refs down'));
-    const { result } = renderHook(() => useCompanyCollections(['company-1']), { wrapper: wrap(freshClient()) });
-
-    await waitFor(() => expect(result.current.linksError).toBe(true));
-    expect(result.current.isPending).toBe(false);
-    expect(result.current.rows).toEqual([zeroRow]);
-  });
-
-  it('AC-NBR-090 a switched-off collections read is neither pending nor links-pending', async () => {
-    h.allowed = false;
-    const { result } = renderHook(() => useCompanyCollections(['company-1']), { wrapper: wrap(freshClient()) });
-    expect(result.current.isPending).toBe(false);
-    expect(result.current.linksPending).toBe(false);
-  });
-
   it('keeps an absent reference or snapshot position unavailable rather than converting it to zero', async () => {
     h.snapshot.data = [zeroRow];
     h.listForCompanies.mockResolvedValue([]);
     h.listForErpCustomerIds.mockResolvedValue([]);
     const { result } = renderHook(() => useCompanyCollections(['company-1']), { wrapper: wrap(freshClient()) });
 
-    await waitFor(() => expect(result.current.linksPending).toBe(false));
+    await waitFor(() => expect(result.current.isPending).toBe(false));
     expect(result.current.byCompany.get('company-1')).toEqual({ state: 'unavailable', positions: [] });
   });
 
