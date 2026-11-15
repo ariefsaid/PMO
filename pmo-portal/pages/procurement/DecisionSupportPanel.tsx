@@ -83,7 +83,8 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   // panel is not offered to it and its reads are not issued.
   const may = usePermission();
   const readsProjectWideSpend = may('view', 'procurement');
-  const scopedProjectId = readsProjectWideSpend ? projectId : null;
+  // A status the panel hides renders nothing, so its three budget reads are not issued either (#2107).
+  const scopedProjectId = readsProjectWideSpend && PANEL_VISIBLE_STATUSES.includes(status) ? projectId : null;
 
   // Hooks must be called unconditionally; all are no-ops (enabled:false) when
   // the project id is falsy, so the early returns below are safe.

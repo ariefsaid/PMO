@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { toast as sonnerToast } from 'sonner';
@@ -60,6 +61,10 @@ vi.mock('@/src/hooks/useTasks', () => ({
 }));
 
 let currentUserId = 'author-1';
+vi.mock('@/src/hooks/useOrgProfilesLoader', async () => {
+  const { repositories } = await import('@/src/lib/repositories');
+  return { useOrgProfilesLoader: () => () => repositories.profile.listOrgProfiles() };
+});
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: currentUserId, org_id: 'org-1' } }),
 }));
@@ -86,6 +91,8 @@ vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({
 
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
+    // #2106: the minutes' action items now resolve through one batched read from the page's provider.
+    task: { listByIds: vi.fn().mockResolvedValue([]), get: vi.fn().mockResolvedValue(null) },
     profile: {
       listOrgProfiles: vi.fn().mockResolvedValue([
         { id: 'author-1', full_name: 'Ari Author' },
@@ -203,15 +210,19 @@ const baseMeeting = {
   updated_at: '2026-08-20T09:00:00Z',
 };
 
+/** #2106: MeetingMinutes mounts its action-item batch, which needs the app's query client. */
+const withQuery = (ui: React.ReactElement) =>
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider>;
+
 const renderPage = (role: Role = 'Engineer') => {
   realRole = role;
-  return render(
+  return render(withQuery(
     <ToastProvider>
       <MemoryRouter initialEntries={['/meetings/m1']}>
         <MeetingDetail />
       </MemoryRouter>
     </ToastProvider>,
-  );
+  ));
 };
 
 // list-working-set-return (#683): reads the URL a Meetings-index Route landed on, for the
@@ -224,7 +235,7 @@ const MeetingsIndexProbe: React.FC = () => {
 
 const renderRouted = (initialEntry: string | { pathname: string; state?: unknown }, role: Role = 'Engineer') => {
   realRole = role;
-  return render(
+  return render(withQuery(
     <ToastProvider>
       <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
@@ -233,7 +244,7 @@ const renderRouted = (initialEntry: string | { pathname: string; state?: unknown
         </Routes>
       </MemoryRouter>
     </ToastProvider>,
-  );
+  ));
 };
 
 const MeetingDetailWithBreadcrumb: React.FC = () => {
@@ -253,7 +264,7 @@ const MeetingDetailWithBreadcrumb: React.FC = () => {
 
 const renderRoutedWithBreadcrumb = (role: Role = 'Engineer') => {
   realRole = role;
-  return render(
+  return render(withQuery(
     <ToastProvider>
       <MemoryRouter initialEntries={['/meetings/m1']}>
         <Routes>
@@ -262,7 +273,7 @@ const renderRoutedWithBreadcrumb = (role: Role = 'Engineer') => {
         </Routes>
       </MemoryRouter>
     </ToastProvider>,
-  );
+  ));
 };
 
 beforeEach(() => {
@@ -411,7 +422,7 @@ describe('MeetingDetail — unsaved minutes navigation guard', () => {
       return <div data-testid="state-probe">{`${location.search}|${JSON.stringify(location.state)}`}</div>;
     };
     realRole = 'Engineer';
-    render(
+    render(withQuery(
       <ToastProvider>
         <MemoryRouter initialEntries={['/meetings/m1']}>
           <Routes>
@@ -420,7 +431,7 @@ describe('MeetingDetail — unsaved minutes navigation guard', () => {
           </Routes>
         </MemoryRouter>
       </ToastProvider>,
-    );
+    ));
     await screen.findByTestId('stub-editor', {}, { timeout: 10_000 });
     await userEvent.click(screen.getByTestId('stub-type'));
 
@@ -617,7 +628,7 @@ describe('MeetingDetail — the share panel (FR-MTG-032..034)', () => {
 
     attendeesState.data = [];
     attendeesState.isError = false;
-    view.rerender(<ToastProvider><MemoryRouter initialEntries={['/meetings/m1']}><MeetingDetail /></MemoryRouter></ToastProvider>);
+    view.rerender(withQuery(<ToastProvider><MemoryRouter initialEntries={['/meetings/m1']}><MeetingDetail /></MemoryRouter></ToastProvider>));
     expect(await screen.findByTestId('share-suggest-pm')).toBeInTheDocument();
   });
 
@@ -654,7 +665,7 @@ describe('MeetingDetail — the share panel (FR-MTG-032..034)', () => {
       granter: { id: 'author-1', full_name: 'Ari Author' },
     }];
     grantsState.isError = false;
-    view.rerender(<ToastProvider><MemoryRouter initialEntries={['/meetings/m1']}><MeetingDetail /></MemoryRouter></ToastProvider>);
+    view.rerender(withQuery(<ToastProvider><MemoryRouter initialEntries={['/meetings/m1']}><MeetingDetail /></MemoryRouter></ToastProvider>));
     expect(await within(screen.getByTestId('grants-list')).findByText('Paula PM')).toBeInTheDocument();
     expect(screen.queryByTestId('share-suggest-pm')).not.toBeInTheDocument();
   });
@@ -913,7 +924,7 @@ describe('MeetingDetail — states', () => {
     await userEvent.clear(title);
     await userEvent.type(title, 'Typed title in progress');
     meetingState.data = { ...baseMeeting, title: 'Refetched server title' };
-    view.rerender(<ToastProvider><MemoryRouter initialEntries={['/meetings/m1']}><MeetingDetail /></MemoryRouter></ToastProvider>);
+    view.rerender(withQuery(<ToastProvider><MemoryRouter initialEntries={['/meetings/m1']}><MeetingDetail /></MemoryRouter></ToastProvider>));
     expect(screen.getByLabelText(/Title/)).toHaveValue('Typed title in progress');
   });
 

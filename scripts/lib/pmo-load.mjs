@@ -84,14 +84,14 @@ const CLASSIFICATION_FIELDS = Object.freeze(['service_line', 'sector', 'location
 const OPTIONAL_PROJECT_FIELDS = Object.freeze(['start_date', 'end_date', 'project_manager_id', 'short_name', ...CLASSIFICATION_FIELDS]);
 const PROJECT_FIELDS = new Set([
   'code', 'name', 'client', 'end_client', 'stage', 'contract_value', 'tax_treatment', 'tax_amount', 'tax_rate',
-  'tax_base_numerator', 'tax_base_denominator', 'tax_template', 'customer_contract_ref', 'contract_date', 'budget', 'contract_lines',
+  'tax_base_numerator', 'tax_base_denominator', 'tax_template', 'customer_contract_ref', 'contract_date', 'budget', 'contract_lines', 'currency',
   ...OPTIONAL_PROJECT_FIELDS,
 ]);
 const LINE_FIELDS = new Set(['category', 'description', 'budgeted_amount', 'fiscal_year', 'reference']);
 const CONTRACT_LINE_FIELDS = new Set(['key', 'line_no', 'item_code', 'description', 'unit', 'quantity', 'rate', 'basis']);
 const CONTRACT_LINE_BASES = Object.freeze(['unit_rate', 'lump_sum']);
 const COMPANY_FIELDS = new Set(['name', 'short_name', 'type']);
-const PROJECT_SELECT = 'id,code,name,short_name,client_id,status,contract_value,pmo_project_number';
+const PROJECT_SELECT = 'id,code,name,short_name,client_id,status,contract_value,pmo_project_number,currency';
 /** PostgREST answers at most max_rows (1000) rows: a read that fills it cannot prove a key is absent. */
 const READ_CAP = 1000;
 
@@ -175,6 +175,10 @@ export function validateLoadFile(doc) {
     if (!isText(p.client)) add('"client" (the client company\'s legal name) is required');
     if (p.end_client !== undefined && !isText(p.end_client)) add('"end_client" must be a company\'s legal name');
     for (const k of CLASSIFICATION_FIELDS) if (!isOptionalText(p[k])) add(`"${k}" must be text`);
+    // Mirrors the projects.currency CHECK (migration 0187): three capitals, never XXX.
+    if (p.currency !== undefined && !(typeof p.currency === 'string' && /^[A-Z]{3}$/.test(p.currency) && p.currency !== 'XXX')) {
+      add('"currency" must be a three-letter currency code in capitals, such as IDR or USD');
+    }
     if (keys.has(key)) add('appears twice');
     else keys.add(key);
     if (!Object.hasOwn(LOAD_STAGE_PATHS, p.stage)) add(`"stage" must be one of: ${Object.keys(LOAD_STAGE_PATHS).join(', ')}`);
@@ -371,6 +375,7 @@ export async function resolveLoad(doc, api) {
       value: !p.contract_value ? 'none' : current === 0 ? 'set' : current === p.contract_value ? 'same' : 'differs',
       shortName: !p.short_name ? 'none' : p.short_name === (existing?.short_name?.trim() || null) ? 'same' : existing?.short_name?.trim() ? 'differs' : 'set',
       currentShortName: existing?.short_name?.trim() || null,
+      currency: !p.currency ? 'none' : !existing ? 'new' : existing.currency === p.currency ? 'same' : 'differs',
       budget: null,
       contractLines: null,
     };
@@ -428,7 +433,7 @@ function projectPayload(e) {
   const body = { name: p.name, status: 'Leads', client_id: e.client.id };
   if (p.code !== undefined) body.code = p.code;
   if (e.endClient) body.end_client_id = e.endClient.id;
-  for (const k of OPTIONAL_PROJECT_FIELDS) if (p[k] !== undefined) body[k] = p[k];
+  for (const k of [...OPTIONAL_PROJECT_FIELDS, 'currency']) if (p[k] !== undefined) body[k] = p[k];
   return body;
 }
 
@@ -505,6 +510,9 @@ export async function applyLoad(plan, api, { dryRun, batchId = crypto.randomUUID
   }
 
   for (const e of plan.projects) {
+    if (e.currency === 'differs') {
+      note({ kind: 'project.currency_conflict', key: e.key, id: e.id, current: e.existing.currency, file: e.input.currency });
+    }
     if (e.path === null) {
       note({ kind: 'project.diverged', key: e.key, id: e.id, status: e.existing.status, stage: e.input.stage });
       continue;
@@ -512,14 +520,15 @@ export async function applyLoad(plan, api, { dryRun, batchId = crypto.randomUUID
     if (e.existing) {
       note({ kind: 'project.skip', key: e.key, id: e.id, pmo_project_number: e.pmo_project_number });
     } else {
-      await write({ kind: 'project.create', key: e.key }, async () => {
+      await write({ kind: 'project.create', key: e.key, ...(e.input.currency ? { currency: e.input.currency } : {}) }, async () => {
         let row;
         try {
           [row] = await api.post('projects', projectPayload(e));
         } catch (err) {
           // #1325: a short name already used in the org is a conflict to report, not a reason to lose the project.
           if (!isShortNameConflict(err)) throw err;
-          const { short_name: _taken, ...withoutAlias } = projectPayload(e);
+          const withoutAlias = { ...projectPayload(e) };
+          delete withoutAlias.short_name;
           [row] = await api.post('projects', withoutAlias);
           note({ kind: 'project.short_name_conflict', key: e.key, id: row.id, file: e.input.short_name });
         }

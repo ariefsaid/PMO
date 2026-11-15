@@ -86,6 +86,11 @@ export function useDocumentMutations(projectId: string) {
     onSuccess: invalidate,
   });
 
+  // Bulk status change: the writes run together, so each skips its own refetch; the caller refreshes once.
+  const bulkTransition = useMutation({
+    mutationFn: ({ id, status }: TransitionDocumentArgs) => repositories.document.transition(id, status),
+  });
+
   const remove = useMutation({
     mutationFn: (id: string) => repositories.document.delete(id),
     onSuccess: invalidate,
@@ -103,5 +108,5 @@ export function useDocumentMutations(projectId: string) {
     onSuccess: invalidate,
   });
 
-  return { create, update, transition, remove, link, unlink };
+  return { create, update, transition, bulkTransition, refresh: invalidate, remove, link, unlink };
 }

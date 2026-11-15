@@ -141,3 +141,22 @@ export async function mapBounded<T, R>(
   await Promise.all(workers);
   return results;
 }
+
+/**
+ * `mapBounded`, but EVERY item is attempted and each outcome is reported per item (results[i] is the
+ * settled outcome of items[i], input order): a failing job never stops or hides the others. For bulk
+ * writes that must report exactly which items failed, as a one-at-a-time try/catch loop would.
+ */
+export async function mapBoundedSettled<T, R>(
+  items: readonly T[],
+  limit: number,
+  job: (item: T) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+  return mapBounded(items, limit, async (item): Promise<PromiseSettledResult<R>> => {
+    try {
+      return { status: 'fulfilled', value: await job(item) };
+    } catch (reason) {
+      return { status: 'rejected', reason };
+    }
+  });
+}

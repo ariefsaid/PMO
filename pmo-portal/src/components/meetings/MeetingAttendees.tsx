@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
@@ -13,7 +13,8 @@ import {
   type ComboboxOption,
 } from '@/src/components/ui';
 import { useMeetingMutations } from '@/src/hooks/useMeetings';
-import { repositories, type MeetingAttendeeWithRefs } from '@/src/lib/repositories';
+import { useOrgProfilesLoader } from '@/src/hooks/useOrgProfilesLoader';
+import type { MeetingAttendeeWithRefs } from '@/src/lib/repositories';
 
 interface MeetingAttendeesProps {
   meetingId: string;
@@ -34,12 +35,15 @@ const MeetingAttendees: React.FC<MeetingAttendeesProps> = ({ meetingId, canEdit,
   const attendees = attendeesQuery.data ?? [];
   const attendeeProfileIds = new Set(attendees.map((attendee) => attendee.profile_id).filter(Boolean) as string[]);
 
-  const memberOptionsLoader = async (): Promise<ComboboxOption[]> => {
-    const profiles = await repositories.profile.listOrgProfiles();
+  const loadProfiles = useOrgProfilesLoader();
+  const attendeeKey = [...attendeeProfileIds].sort().join(',');
+  const memberOptionsLoader = useCallback(async (): Promise<ComboboxOption[]> => {
+    const taken = new Set(attendeeKey ? attendeeKey.split(',') : []);
+    const profiles = await loadProfiles();
     return profiles
-      .filter((profile) => !attendeeProfileIds.has(profile.id))
+      .filter((profile) => !taken.has(profile.id))
       .map((profile) => ({ value: profile.id, label: profile.full_name }));
-  };
+  }, [loadProfiles, attendeeKey]);
 
   const addMember = async (option: ComboboxOption) => {
     try {

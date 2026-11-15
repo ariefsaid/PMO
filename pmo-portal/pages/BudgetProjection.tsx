@@ -148,7 +148,8 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
   const phasingQuery = useQuery({
     queryKey: ['active-budget-category-phasing', orgId, projectId, budgetVersionId],
     queryFn: () => fetchActiveBudgetCategoryPhasing(projectId),
-    enabled: Boolean(orgId && projectId && budgetVersionId && fiscalYear && budgetMode === 'per_year'),
+    // The key carries no fiscal year, so the read waits for nothing: it starts with the calendar, not after it.
+    enabled: Boolean(orgId && projectId && budgetVersionId && budgetMode === 'per_year'),
   });
   const distributionPhasing = useMemo<ActiveBudgetCategoryPhasing | undefined>(() => {
     if (!wholeProjectMode || !distributionQuery.data) return undefined;

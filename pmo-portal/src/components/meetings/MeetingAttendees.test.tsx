@@ -4,6 +4,8 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import type { MeetingAttendeeWithRefs } from '@/src/lib/repositories';
 import MeetingAttendees from './MeetingAttendees';
 
+vi.mock('@/src/hooks/useOrgProfilesLoader', () => ({ useOrgProfilesLoader: () => async () => [] }));
+
 const h = vi.hoisted(() => ({ remove: vi.fn(), add: vi.fn() }));
 vi.mock('@/src/hooks/useMeetings', () => ({
   useMeetingMutations: () => ({

@@ -29,7 +29,10 @@ async function fetchOnce(fetchImpl: typeof fetch, url: string, init: RequestInit
     controller.abort();
   }, timeoutMs);
   try {
-    return await fetchImpl(url, { ...init, signal: controller.signal });
+    const res = await fetchImpl(url, { ...init, signal: controller.signal });
+    // The deadline also covers the body: a host that sends headers and then stops is as unanswered as one that sends nothing.
+    const text = res.status === 204 ? null : await res.text();
+    return new Response(text, { status: res.status, statusText: res.statusText, headers: res.headers });
   } catch (err) {
     if (timedOut) throw new Error(`ClickUp request exceeded its ${timeoutMs}ms deadline`, { cause: err });
     throw err;

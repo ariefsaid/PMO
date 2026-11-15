@@ -31,12 +31,16 @@ const h = vi.hoisted(() => {
     calls.from.push(table);
     return builder;
   });
-  return { from, calls, result };
+  const authListeners: Array<() => void> = [];
+  const auth = { onAuthStateChange: (cb: () => void) => { authListeners.push(cb); return { data: { subscription: { unsubscribe: () => {} } } }; } };
+  return { from, auth, calls, result, authChange: () => authListeners.forEach((cb) => cb()) };
 });
 
-vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from } }));
+vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, auth: h.auth } }));
 
-import { getOrgDefaultCurrency, getOrgProjectNumberPattern, getOrgProjectNumberTimezone, setOrgProjectNumberPattern } from './orgs';
+beforeEach(() => h.authChange()); // each case starts without a shared org-settings read
+
+import { getOrgDefaultCurrency, getOrgLocaleDefaults, getOrgProjectNumberPattern, getOrgProjectNumberTimezone, setOrgProjectNumberPattern } from './orgs';
 
 describe('getOrgDefaultCurrency — org operating currency for rowless figures (FR-L10N-020, OD-CR-5)', () => {
   beforeEach(() => {
@@ -53,7 +57,7 @@ describe('getOrgDefaultCurrency — org operating currency for rowless figures (
     h.result.value = { data: [{ default_currency: 'IDR' }], error: null };
     await expect(getOrgDefaultCurrency()).resolves.toBe('IDR');
     expect(h.calls.from).toEqual(['organizations']);
-    expect(h.calls.select).toEqual(['default_currency']);
+    expect(h.calls.select).toEqual(['default_currency,default_locale,default_number_locale,default_timezone']);
     expect(h.calls.limit).toEqual([1]);
   });
 
@@ -65,6 +69,40 @@ describe('getOrgDefaultCurrency — org operating currency for rowless figures (
   it('throws on a query error rather than silently formatting in a wrong currency', async () => {
     h.result.value = { data: null, error: { message: 'rls denied' } };
     await expect(getOrgDefaultCurrency()).rejects.toThrow('rls denied');
+  });
+});
+
+describe('#2111 the org settings the app reads on load are one request', () => {
+  beforeEach(() => {
+    h.calls.from.length = 0;
+    h.calls.select.length = 0;
+    h.result.value = { data: [{ default_currency: 'IDR', default_locale: 'id', default_number_locale: 'id-ID', default_timezone: 'Asia/Jakarta' }], error: null };
+  });
+
+  it('serves the currency and the locale defaults that load together from one read', async () => {
+    const [currency, locale] = await Promise.all([getOrgDefaultCurrency(), getOrgLocaleDefaults()]);
+    expect(currency).toBe('IDR');
+    expect(locale).toEqual({ defaultLocale: 'id', defaultNumberLocale: 'id-ID', defaultTimezone: 'Asia/Jakarta' });
+    expect(h.calls.from).toEqual(['organizations']);
+  });
+
+  it('reads again once the share window has passed, and after a failed read', async () => {
+    vi.useFakeTimers();
+    try {
+      await getOrgDefaultCurrency();
+      vi.advanceTimersByTime(6_000);
+      await getOrgDefaultCurrency();
+      expect(h.calls.from).toEqual(['organizations', 'organizations']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('shares nothing after a sign-in change', async () => {
+    await getOrgDefaultCurrency();
+    h.authChange();
+    await getOrgDefaultCurrency();
+    expect(h.calls.from).toEqual(['organizations', 'organizations']);
   });
 });
 

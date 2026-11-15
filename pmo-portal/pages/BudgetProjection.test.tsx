@@ -173,6 +173,12 @@ beforeEach(async () => {
 afterEach(() => resetActiveLocale());
 
 describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
+  it('#2108 the phasing read starts with the calendar read, not after it', async () => {
+    calendarMock.mockImplementation(() => new Promise(() => {}));
+    renderForecast();
+    await waitFor(() => expect(phasingMock).toHaveBeenCalledTimes(1));
+  });
+
   it('renders the category row: budget, recorded spending, projected final and remaining', async () => {
     renderForecast();
     const row = within(await rowFor('Labor'));

@@ -30,6 +30,9 @@ export interface ProcurementFilesSubsectionProps {
    * list query runs (one detail read serves every row); archived rows are hidden here.
    */
   files?: EmbeddedProcurementFile[];
+  /** With `files`: the caller's own read of them has not landed yet / failed (shows the same states a per-row read did). */
+  loading?: boolean;
+  failed?: boolean;
 }
 
 export type EmbeddedProcurementFile = Pick<ProcurementFileRow, 'id' | 'title' | 'file_path' | 'archived_at'> &
@@ -59,6 +62,8 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
   canWrite,
   uploadedById,
   files: embedded,
+  loading,
+  failed,
 }) => {
   const { toast } = useToast();
   const viewer = useViewerOnDemand();
@@ -72,8 +77,8 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
   const files: EmbeddedProcurementFile[] = embedded
     ? embedded.filter((f) => f.archived_at == null)
     : (list.data ?? []);
-  const listPending = embedded === undefined && list.isPending;
-  const listError = embedded === undefined && list.isError;
+  const listPending = embedded === undefined ? list.isPending : Boolean(loading);
+  const listError = embedded === undefined ? list.isError : Boolean(failed);
   const uploading = progress != null;
 
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {

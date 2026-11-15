@@ -270,8 +270,9 @@ jobs:
       - name: Repository script tests (non-DB)
         working-directory: .
         run: |
-          mapfile -t tests < <(find scripts -maxdepth 1 -name '*.test.mjs' ! -name 'financial-statements-publication-race.test.mjs' ! -name 'financial-statements-rollback.test.mjs' ! -name 'financial-statements-nightly-intent-race.test.mjs' ! -name '2195-journal-safety-rollback.test.mjs' ! -name 'ux-proof.test.mjs' ! -name 'stock-connect-race.test.mjs' -print | sort)
-          node --test "${tests[@]}"
+          # #2332: the list lives in the tracked runner (macOS bash 3.2 has no `mapfile`);
+          # --self-test refuses to run when the list is empty or an exclusion went stale.
+          node scripts/run-script-tests.mjs --self-test && node scripts/run-script-tests.mjs
       - name: CI integration-order test
         working-directory: .
         run: |
@@ -311,6 +312,8 @@ jobs:
         run: npm run typecheck
       - name: Lint
         run: npm run lint:ci
+      - name: Lint scripts
+        run: npm run lint:scripts
       - name: Build
         run: npm run build
       - name: Entry preload list excludes recharts/markdown/compiler
@@ -399,6 +402,18 @@ jobs:
       - name: M365 folder-write mutation witness
         working-directory: .
         run: node scripts/m365-record-folder-write-mutation.mjs
+
+      # The Odoo replay-authorization refusal is shared by revenue, procurement and stock recovery (#2283):
+      # disable it and all three domains' tests must go red.
+      - name: Odoo replay-authorization mutation witness
+        working-directory: .
+        run: node scripts/odoo-replay-auth-mutation.mjs
+
+      # The shared replay builder's reissue re-check runs for revenue and stock too, not only
+      # procurement (#2283 review I1): disable it and the four re-check tests must go red.
+      - name: Odoo reissue re-check mutation witness
+        working-directory: .
+        run: node scripts/odoo-replay-recheck-mutation.mjs
 
       # A push to `dev` is the full suite that backstops every PR's narrowed run; when it fails, say
       # which merge it ran on (a squash merge's subject ends in the PR number).
@@ -604,6 +619,10 @@ jobs:
 
       - name: Capture rollback harness
         run: scripts/test-2195-capture-rollback.sh
+
+      # Resets to the migration before 0882 to record the replaced function bodies, then back to head.
+      - name: Assignment rollback harness
+        run: scripts/with-db-lock.sh scripts/test-2195-b1-rollback.sh
 
       # AC-CQ-003 (issue #1281): contract-quantities upgrade/reversal round trip. The harness
       # inlines migration 0337 and its rollback into a generated pgTAP file (deleted on exit)
