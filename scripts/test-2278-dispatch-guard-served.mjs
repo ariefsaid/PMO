@@ -82,6 +82,8 @@ async function oauthToken(email) {
   const authorizationId = new URL(authorize.headers.get('location') ?? '', base).searchParams.get('authorization_id');
   assert.ok(authorizationId, 'the authorize endpoint hands back an authorization_id');
   const userHeaders = { apikey: anon, authorization: `Bearer ${session.access_token}`, 'content-type': 'application/json' };
+  // The consent page reads the authorization first; that read is what ties it to the signed-in user.
+  await request(`${base}/auth/v1/oauth/authorizations/${authorizationId}`, { headers: userHeaders });
   const consent = await request(`${base}/auth/v1/oauth/authorizations/${authorizationId}/consent`, { method: 'POST', headers: userHeaders, body: JSON.stringify({ action: 'approve' }) });
   const code = new URL(consent.redirect_url).searchParams.get('code');
   assert.ok(code, 'the approved consent returns an authorization code');
