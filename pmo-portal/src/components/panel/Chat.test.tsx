@@ -254,3 +254,25 @@ describe('Chat — tool chips and streaming caret', () => {
     expect(container.querySelector('.stream-caret')).toBeNull();
   });
 });
+
+describe('Chat — #2047 trailing row', () => {
+  it('AC-2047-UX-2 the thinking row and the error row are the last items, directly under the newest message', () => {
+    const entries = makeEntries(2);
+    render(
+      <Chat
+        transcript={entries}
+        trailing={
+          <>
+            <div role="status">Working on your answer</div>
+            <div role="alert">Something went wrong</div>
+          </>
+        }
+      />,
+    );
+    const scroll = screen.getByTestId('chat-scroll');
+    const items = [...scroll.children].filter((el) => el.getAttribute('aria-hidden') !== 'true');
+    // [conversation log, status, alert]: the trailing rows come after every message and nothing follows them
+    expect(items[0]).toContainElement(screen.getByText('Entry 1'));
+    expect(items.slice(1)).toEqual([screen.getByRole('status'), screen.getByRole('alert')]);
+  });
+});

@@ -19,5 +19,8 @@
     "companyProjects": "Proyek apa saja yang dimiliki perusahaan ini?",
     "contactActivity": "Ringkas aktivitas terbaru dengan kontak ini.",
     "contactOpenItems": "Item terbuka apa saja yang melibatkan kontak ini?"
+  },
+  "promptBar": {
+    "running": "Sedang menyiapkan jawaban… Tekan Stop untuk bertanya hal lain"
   }
 }

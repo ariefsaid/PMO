@@ -59,7 +59,7 @@ export const FeedbackControl: React.FC<FeedbackControlProps> = ({ eventId, runId
 
   return (
     <div className="mt-1 flex flex-col gap-1" data-feedback-event={anchorId}>
-      <div className="flex items-center gap-1">
+      <div className="-ml-1.5 flex items-center gap-1">
         <button
           type="button"
           onClick={handleUp}

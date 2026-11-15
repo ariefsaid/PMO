@@ -23,7 +23,7 @@ export const Thinking: React.FC<{ label?: string | null }> = ({ label }) => {
   const text = label ? friendlyActivity(label) : 'Working on your answer';
 
   return (
-    <div className="flex items-center gap-2.5 px-4 py-2">
+    <div className="flex items-center gap-2.5 py-1">
       <div role="status" aria-live="polite" aria-atomic="true" className="flex">
         <LoadingState label={text} />
       </div>

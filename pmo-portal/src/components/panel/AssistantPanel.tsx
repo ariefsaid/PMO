@@ -76,11 +76,11 @@ const ErrorCard: React.FC<ErrorCardProps> = ({ onRetry }) => (
   <div
     role="alert"
     aria-live="assertive"
-    className="mx-4 my-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm"
+    className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm"
   >
     <p className="font-medium text-destructive-text">Something went wrong</p>
     <p className="mt-0.5 text-sm text-muted-foreground">
-      The assistant ran into a problem. Try again.
+      Couldn't get an answer. Retry sends your question again.
     </p>
     <button
       type="button"
@@ -474,6 +474,27 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
   const panelStyle: React.CSSProperties | undefined = isDesktop ? { width } : undefined;
 
   // The panel + its mobile scrim wrapper must apply the onKeyDown for focus trap
+  // Rows that belong directly under the newest message (#2047): the live step trail + working cue
+  // while a run is going, the error card when it failed.
+  const trailing =
+    (phase === 'running' && !hasPendingQuestion) || phase === 'error' ? (
+      <>
+        {phase === 'running' && !hasPendingQuestion && (
+          <>
+            {/* The trail is the per-step checklist (done ✓ + the current ⟳ row). */}
+            {activityTrail.length > 0 && <ActivityTrail items={activityTrail} />}
+            {/* The working cue fills the QUIET gaps — before the first step and between tool
+                rounds — and is shown only when NO step is actively spinning (so it never
+                duplicates the trail's current row). */}
+            {!activityTrail.some((s) => !s.done) && (
+              <Thinking label={activityTrail.length === 0 ? currentStep : null} />
+            )}
+          </>
+        )}
+        {phase === 'error' && <ErrorCard onRetry={handleRetry} />}
+      </>
+    ) : null;
+
   const panelContent = (
     <>
       {/* Mobile scrim — only rendered on mobile when open */}
@@ -566,9 +587,10 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
               type="button"
               onClick={handleNewConversation}
               aria-label="New conversation"
+              title="New conversation"
               className="touch-target grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-[17px]"
             >
-              <Icon name="refresh" />
+              <Icon name="plus" />
             </button>
             {/* Close */}
             <button
@@ -628,32 +650,8 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
             onDeny={handleDeny}
             onAnswer={handleAnswer}
             onRate={handleRate}
+            trailing={trailing}
           />
-
-          {/* Streaming indicator / activity trail — shows while run is active or awaiting
-              approval re-POST. Once the first step has landed, the persistent ActivityTrail
-              REPLACES the static "Working…" line: it carries the live spinner on the current
-              row plus the accumulated checklist of done steps, so a slow run is transparent.
-              Before any step (or while waiting on a clarifying question) the neutral
-              StreamingIndicator covers the pre-first-step "Working…" case.
-              Correctness-remediation (finding 3): suppressed while hasPendingQuestion —
-              the model is not "Working…" once it has asked a clarifying question and is
-              waiting on the human; the distinct "A question awaits your answer" status
-              below already covers that paused state without the misleading busy-copy. */}
-          {phase === 'running' && !hasPendingQuestion && (
-            <>
-              {/* The trail is the per-step checklist (done ✓ + the current ⟳ row). */}
-              {activityTrail.length > 0 && <ActivityTrail items={activityTrail} />}
-              {/* A PROMINENT thinking bubble fills the QUIET gaps — before the first step
-                  and between tool rounds while the model is generating — where the old tiny
-                  "Working…" line read as a frozen panel. Shown only when NO step is actively
-                  spinning (so it never duplicates the trail's current row); carries the live
-                  elapsed counter so the run is unmistakably alive, not stuck. */}
-              {!activityTrail.some((s) => !s.done) && (
-                <Thinking label={activityTrail.length === 0 ? currentStep : null} />
-              )}
-            </>
-          )}
 
           {/* NFR-AW-A11Y-003: approval-awaiting status announcement, distinct from the
               streaming "Working…" indicator. SR users learn WHY input is blocked. */}
@@ -681,9 +679,6 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
               A question awaits your answer
             </div>
           )}
-
-          {/* Error card */}
-          {phase === 'error' && <ErrorCard onRetry={handleRetry} />}
 
           {/* Out-of-credits card (FR-AUC-016) — distinct from the generic ErrorCard */}
           {phase === 'out-of-credits' && <OutOfCreditsCard />}

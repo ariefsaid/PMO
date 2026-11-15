@@ -55,6 +55,13 @@ interface ChatProps {
    * assistant rows. Thumbs render only when this is provided.
    */
   onRate?: (eventId: string, rating: 'up' | 'down', reason?: DownvoteReason) => void;
+  /**
+   * Rows that belong under the newest message while a run is live or has failed (working cue,
+   * activity trail, error card). They sit after every message inside the scroll area, so the
+   * user's eye never has to leave the question to see what the assistant is doing. Outside the
+   * log region on purpose: the cue carries its own live region and must not announce twice.
+   */
+  trailing?: React.ReactNode;
 }
 
 /** Consecutive tool events read as one run of chips, not a stack of separate rows. */
@@ -78,7 +85,7 @@ const ToolRun = React.memo(
 );
 ToolRun.displayName = 'ToolRun';
 
-export const Chat: React.FC<ChatProps> = ({ transcript, emptySlot, chipStateMap, answeredMap, phase, onApprove, onDeny, onAnswer, onRate }) => {
+export const Chat: React.FC<ChatProps> = ({ transcript, emptySlot, chipStateMap, answeredMap, phase, onApprove, onDeny, onAnswer, onRate, trailing }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);
@@ -105,7 +112,7 @@ export const Chat: React.FC<ChatProps> = ({ transcript, emptySlot, chipStateMap,
     if (atBottom) {
       bottomRef.current?.scrollIntoView({ behavior: 'instant', block: 'end' });
     }
-  }, [transcript, atBottom]);
+  }, [transcript, atBottom, trailing]);
 
   // NFR-AP-PERF-003: apply the cap unless the user has expanded ("Show earlier")
   const isCapped = !showAll && transcript.length > TRANSCRIPT_CAP;
@@ -122,46 +129,52 @@ export const Chat: React.FC<ChatProps> = ({ transcript, emptySlot, chipStateMap,
   return (
     <div
       ref={containerRef}
-      role="log"
-      aria-label="Conversation"
-      aria-live="polite"
-      aria-relevant="additions"
+      data-testid="chat-scroll"
       className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 py-4"
       onScroll={handleScroll}
     >
-      {transcript.length === 0 && emptySlot}
+      <div
+        role="log"
+        aria-label="Conversation"
+        aria-live="polite"
+        aria-relevant="additions"
+        className="flex flex-col gap-4"
+      >
+        {transcript.length === 0 && emptySlot}
 
-      {/* "Show earlier" affordance — appears at the top when entries are hidden */}
-      {isCapped && (
-        <div className="text-center text-sm text-muted-foreground">
-          <button
-            type="button"
-            onClick={() => setShowAll(true)}
-            className="rounded px-2 py-1 underline hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            Show earlier ({hiddenCount} hidden)
-          </button>
-        </div>
-      )}
+        {/* "Show earlier" affordance — appears at the top when entries are hidden */}
+        {isCapped && (
+          <div className="text-center text-sm text-muted-foreground">
+            <button
+              type="button"
+              onClick={() => setShowAll(true)}
+              className="rounded px-2 py-1 underline hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              Show earlier ({hiddenCount} hidden)
+            </button>
+          </div>
+        )}
 
-      {rows.map((row) =>
-        'tools' in row ? (
-          <ToolRun key={row.key} tools={row.tools} />
-        ) : (
-          <TranscriptItem
-            key={row.key}
-            entry={row.entry}
-            streaming={row.key === streamingKey}
-            chipStateMap={chipStateMap}
-            answeredMap={answeredMap}
-            phase={phase}
-            onApprove={onApprove}
-            onDeny={onDeny}
-            onAnswer={onAnswer}
-            onRate={onRate}
-          />
-        ),
-      )}
+        {rows.map((row) =>
+          'tools' in row ? (
+            <ToolRun key={row.key} tools={row.tools} />
+          ) : (
+            <TranscriptItem
+              key={row.key}
+              entry={row.entry}
+              streaming={row.key === streamingKey}
+              chipStateMap={chipStateMap}
+              answeredMap={answeredMap}
+              phase={phase}
+              onApprove={onApprove}
+              onDeny={onDeny}
+              onAnswer={onAnswer}
+              onRate={onRate}
+            />
+          ),
+        )}
+      </div>
+      {trailing}
       <div ref={bottomRef} aria-hidden />
     </div>
   );

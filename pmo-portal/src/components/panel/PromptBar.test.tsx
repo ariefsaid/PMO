@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PromptBar } from './PromptBar';
@@ -52,5 +52,21 @@ describe('PromptBar — focus through a run (#2047 accessibility audit)', () => 
   it('out of credits still hard-disables the textarea', () => {
     render(<PromptBar value="" onChange={() => {}} running={false} disabled onSend={() => {}} onStop={() => {}} />);
     expect(screen.getByRole('textbox', { name: /ask a question/i })).toBeDisabled();
+  });
+
+  it('AC-2047-UX-1 while a run is active the placeholder says why keys do nothing, and typing changes nothing', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<PromptBar value="" onChange={onChange} running onSend={() => {}} onStop={() => {}} />);
+    const textarea = screen.getByRole('textbox', { name: /ask a question/i });
+    expect(textarea).toHaveAttribute('placeholder', 'Working on your answer… Stop to ask something else');
+    await user.click(textarea);
+    await user.keyboard('abc');
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('keeps the normal placeholder when idle', () => {
+    render(<PromptBar value="" onChange={() => {}} running={false} onSend={() => {}} onStop={() => {}} />);
+    expect(screen.getByRole('textbox', { name: /ask a question/i })).toHaveAttribute('placeholder', 'Ask a question…');
   });
 });

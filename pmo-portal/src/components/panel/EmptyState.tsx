@@ -63,7 +63,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
             key={q}
             type="button"
             onClick={() => onPick(q)}
-            className="rounded-md border border-border px-3 py-2 text-left text-sm text-foreground hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="rounded-md border border-border px-3 py-2 text-left text-sm [text-wrap:pretty] text-foreground hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {q}
           </button>

@@ -11,6 +11,7 @@
  * Adapted from MIT-licensed sources; notice in ./THIRD_PARTY_NOTICE.md.
  */
 import React, { useRef, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
 import { FileInput, TextArea } from '@/src/components/ui/FormFields';
@@ -63,6 +64,7 @@ export const PromptBar: React.FC<PromptBarProps> = ({
   onAttachmentError,
   uploading = false,
 }) => {
+  const { t } = useTranslation('assistantPanel');
   const internalRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const resolvedRef = textareaRef ?? internalRef;
@@ -87,7 +89,7 @@ export const PromptBar: React.FC<PromptBarProps> = ({
     if (!el) return;
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-  }, [value, resolvedRef]);
+  }, [value, running, resolvedRef]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -170,6 +172,8 @@ export const PromptBar: React.FC<PromptBarProps> = ({
 
   const focusRing = 'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
+  // One field. Phone: attach, text and Send share one row (a 69px footer, not 126). From 640px:
+  // the text on top, attach and Send in a row under it.
   return (
     <div
       ref={rootRef}
@@ -177,97 +181,104 @@ export const PromptBar: React.FC<PromptBarProps> = ({
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      <div className="rounded-lg border border-input bg-background focus-within:ring-2 focus-within:ring-ring">
+      <div
+        className={cn(
+          'grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-x-1 rounded-lg border border-input px-2 pb-1.5 focus-within:ring-2 sm:pb-2',
+          running ? 'bg-muted focus-within:ring-ring/40' : 'bg-background focus-within:ring-ring',
+        )}
+      >
         <TextArea
           id={composerId}
           ref={resolvedRef}
           label="Ask a question"
           hideLabel
-          wrapperClassName="min-w-0"
+          wrapperClassName="col-start-2 row-start-1 min-w-0 sm:col-span-3 sm:col-start-1"
           unstyled
           value={value}
           onChange={onChange}
           onKeyDown={handleKeyDown}
           disabled={disabled}
-          // The textarea stays focusable during a run: read-only, not disabled (#2047).
+          // The textarea stays focusable during a run: read-only, not disabled (#2047). The
+          // placeholder says why keys do nothing.
           readOnly={running}
           // NFR-AW-A11Y-003: explicit aria-disabled in needs-approval phase so screen
           // readers can distinguish "awaiting decision" from "streaming" (Blocker-7).
           aria-disabled={needsApproval ? 'true' : undefined}
           maxLength={2000}
-          rows={1}
-          placeholder="Ask a question…"
-          className="block max-h-40 min-h-0 w-full resize-none bg-transparent px-4 pb-1 pt-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          // Two rows while the run-locked placeholder shows, so its second line is not clipped.
+          rows={running && value.length === 0 ? 2 : 1}
+          placeholder={
+            running
+              ? t('promptBar.running', 'Working on your answer… Stop to ask something else')
+              : 'Ask a question…'
+          }
+          className="block max-h-40 min-h-0 w-full resize-none bg-transparent px-2 pb-1 pt-2.5 text-sm text-foreground placeholder:text-muted-foreground read-only:text-muted-foreground focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:pt-3"
           aria-label="Ask a question"
         />
-        <div className="flex items-center justify-between gap-2 px-2 pb-2">
-          {attachmentsEnabled ? (
-            <>
-              <FileInput
-                ref={fileInputRef}
-                accept={AGENT_ATTACHMENT_ACCEPT}
-                // IMPORTANT-4: the visible button is the SOLE accessible "Attach file" control.
-                // The hidden input stays functional (programmatic click + Playwright setInputFiles)
-                // but is removed from the a11y + tab tree so it does not double the accessible name
-                // (Chromium otherwise exposes a file input as role=button, creating two same-named
-                // controls). Keep it out of the tab order; the button focuses+activates it.
-                tabIndex={-1}
-                aria-hidden="true"
-                className="sr-only"
-                disabled={inputDisabled}
-                onChange={handleAttachChange}
-              />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={inputDisabled}
-                aria-label="Attach file"
-                title="Attach file"
-                className={cn(
-                  'touch-target grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:size-4',
-                  focusRing,
-                )}
-              >
-                <Icon name="upload" />
-              </button>
-            </>
-          ) : (
-            <span />
-          )}
-          {running ? (
+        {attachmentsEnabled && (
+          <>
+            <FileInput
+              ref={fileInputRef}
+              accept={AGENT_ATTACHMENT_ACCEPT}
+              // IMPORTANT-4: the visible button is the SOLE accessible "Attach file" control.
+              // The hidden input stays functional (programmatic click + Playwright setInputFiles)
+              // but is removed from the a11y + tab tree so it does not double the accessible name
+              // (Chromium otherwise exposes a file input as role=button, creating two same-named
+              // controls). Keep it out of the tab order; the button focuses+activates it.
+              tabIndex={-1}
+              aria-hidden="true"
+              className="sr-only"
+              disabled={inputDisabled}
+              onChange={handleAttachChange}
+            />
             <button
               type="button"
-              onClick={onStop}
-              aria-label="Stop generating"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={inputDisabled}
+              aria-label="Attach file"
+              title="Attach file"
               className={cn(
-                'shrink-0 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-accent',
+                'touch-target col-start-1 row-start-1 grid size-8 shrink-0 place-items-center self-end rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 sm:row-start-2 [&_svg]:size-4',
                 focusRing,
               )}
             >
-              Stop
+              <Icon name="upload" />
             </button>
-          ) : (
-            <button
-              type="button"
-              onClick={onSend}
-              disabled={value.trim().length === 0 || disabled || uploading}
-              aria-label="Send message"
-              // F1 (Discover finding): the disabled Send button must NOT remain brand-blue at
-              // opacity-50 (`disabled` here is the FR-AUC-016 out-of-credits hard-disable — the
-              // repo's `cn` is clsx-only, no tailwind-merge, so `bg-primary` is conditionally
-              // OMITTED rather than relying on later-cascade `disabled:*` classes to win).
-              className={cn(
-                'shrink-0 rounded-md px-3 py-1.5 text-sm font-medium disabled:cursor-not-allowed',
-                focusRing,
-                disabled
-                  ? 'bg-secondary text-muted-foreground'
-                  : 'bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50',
-              )}
-            >
-              Send
-            </button>
-          )}
-        </div>
+          </>
+        )}
+        {running ? (
+          <button
+            type="button"
+            onClick={onStop}
+            aria-label="Stop generating"
+            className={cn(
+              'col-start-3 row-start-1 shrink-0 self-end rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-accent sm:row-start-2',
+              focusRing,
+            )}
+          >
+            Stop
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onSend}
+            disabled={value.trim().length === 0 || disabled || uploading}
+            aria-label="Send message"
+            // F1 (Discover finding): the disabled Send button must NOT remain brand-blue at
+            // opacity-50 (`disabled` here is the FR-AUC-016 out-of-credits hard-disable — the
+            // repo's `cn` is clsx-only, no tailwind-merge, so `bg-primary` is conditionally
+            // OMITTED rather than relying on later-cascade `disabled:*` classes to win).
+            className={cn(
+              'col-start-3 row-start-1 shrink-0 self-end rounded-md px-3 py-1.5 text-sm font-medium disabled:cursor-not-allowed sm:row-start-2',
+              focusRing,
+              disabled
+                ? 'bg-secondary text-muted-foreground'
+                : 'bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50',
+            )}
+          >
+            Send
+          </button>
+        )}
       </div>
     </div>
   );

@@ -42,7 +42,7 @@ export const ActivityTrail: React.FC<ActivityTrailProps> = ({ items }) => {
       aria-live="polite"
       aria-atomic="false"
       aria-label="Assistant activity"
-      className="space-y-1 px-4 py-1 text-sm text-muted-foreground motion-reduce:animate-none"
+      className="space-y-1 py-1 text-sm text-muted-foreground motion-reduce:animate-none"
     >
       {items.map((step) => (
         <li

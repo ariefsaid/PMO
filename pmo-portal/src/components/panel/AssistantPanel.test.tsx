@@ -332,6 +332,8 @@ describe('AssistantPanel', () => {
     expect(screen.getByRole('textbox', { name: /ask a question/i })).not.toBeDisabled();
     expect(screen.getByRole('textbox', { name: /ask a question/i })).toHaveAttribute('readonly');
     expect(screen.queryByRole('button', { name: /send message/i })).not.toBeInTheDocument();
+    // #2047: the working cue is the chat's last row, directly under the question
+    expect(screen.getByTestId('chat-scroll')).toContainElement(screen.getByText('Working on your answer'));
   });
 
   it('AC-AP-010 after status:completed: textarea + Send enabled; Stop hidden', async () => {
@@ -486,6 +488,9 @@ describe('AssistantPanel', () => {
 
     const retryBtn = screen.getByRole('button', { name: /retry/i });
     expect(retryBtn).toBeInTheDocument();
+
+    // #2047: the error is the chat's last row, under the newest message, not under the scroll area
+    expect(screen.getByTestId('chat-scroll')).toContainElement(screen.getByRole('alert'));
 
     // No raw JSON in any visible element
     const errorText = screen.getByText(/something went wrong/i).textContent ?? '';
