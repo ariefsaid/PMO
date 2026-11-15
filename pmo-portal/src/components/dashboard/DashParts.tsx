@@ -68,9 +68,12 @@ export const WaitsOnYou: React.FC<{
   return (
     <Card data-testid={testId} aria-label={title ?? t('home.waits', 'Waits on you')} className={cn('flex flex-col', !plain && 'bg-waiting-surface', className)}>
       <CardHead level={2} actions={actions}>
-        {title ?? t('home.waits', 'Waits on you')}
-        {/* Every item waiting (each approval, each invoice in a row), so it says "in all"; the header link and the summary count approvals alone. */}
-        {count ? <span data-testid="waits-count" className="ml-2 inline-grid min-w-6 place-items-center rounded-full bg-waiting-surface px-2 align-middle text-control font-medium leading-6 text-warning-foreground tabular">{t('home.waitingItemsAll', { count, defaultValue_one: '{{count}} item in all', defaultValue_other: '{{count}} items in all' })}</span> : null}
+        {/* Title and badge never break inside; on a narrow card the badge drops whole under the title. */}
+        <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="whitespace-nowrap">{title ?? t('home.waits', 'Waits on you')}</span>
+          {/* Every item waiting (each approval, each invoice in a row), so it says "in all"; the header link and the summary count approvals alone. */}
+          {count ? <span data-testid="waits-count" className="inline-grid whitespace-nowrap min-w-6 place-items-center rounded-full bg-waiting-surface px-2 align-middle text-control font-medium leading-6 text-warning-foreground tabular">{t('home.waitingItemsAll', { count, defaultValue_one: '{{count}} item in all', defaultValue_other: '{{count}} items in all' })}</span> : null}
+        </span>
       </CardHead>
       <div className="flex flex-1 flex-col px-[var(--panel-inset)] pb-1">
         {pending ? <ListState variant="loading" shape="items" rows={held} className={bandHold} />

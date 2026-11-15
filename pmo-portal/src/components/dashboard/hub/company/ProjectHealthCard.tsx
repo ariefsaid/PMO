@@ -12,8 +12,8 @@ import type { AttentionProject } from '@/src/lib/db/dashboard';
 import { CardLink } from './OverviewCards';
 import { bulletFor, overBudget, overdueTaskCount, type Bullet, type BulletTone } from './homeHealth';
 
-/** On a phone a project's row wraps to about 150px: the held rows take that height, so the panel keeps its filled size. */
-const PHONE_ROW = 'max-[899px]:[&_[data-skeleton-shape]>div]:min-h-[150px]';
+/** On a phone a project's row wraps to 150px (English) to 190px (Bahasa): the held rows take the longer, so the panel keeps its filled size. */
+const PHONE_ROW = 'max-[899px]:[&_[data-skeleton-shape]>div]:min-h-[190px]';
 
 const FILL: Record<BulletTone, string> = { data: 'bg-primary', ahead: 'bg-warning', over: 'bg-destructive' };
 

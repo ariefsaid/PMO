@@ -26,7 +26,7 @@ import { calendarAgeDays, supplierInvoiceDate } from '@/src/lib/finance/financeP
 
 /** Supplier invoices ready to pay: supplier · procurement · unpaid · invoice age. Blank columns drop out by themselves. */
 /** On a phone a finance table's rows stack as cards (about 600px for a few rows): loading and failed hold that height. */
-export const PHONE_TABLE_HOLD = 'max-[899px]:min-h-[34rem]';
+export const PHONE_TABLE_HOLD = 'max-[899px]:min-h-[36rem]';
 
 export function ReadyToPayCard({ rows, pending, error, retry, unpaidOf, today }: { rows: ProcurementWithRefs[]; pending: boolean; error: boolean; retry: () => void; unpaidOf: (row: ProcurementWithRefs) => number | null; today: string | null }) {
   const { t } = useTranslation('dashboard');
