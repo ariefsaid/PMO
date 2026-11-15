@@ -14,6 +14,25 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 interface RawDocument { id: string; kind: CaptureKind | null }
 function trimDecimal(value: string): string { return value.includes('.') ? value.replace(/0+$/, '').replace(/\.$/, '') : value; }
 
+/** Exact net (debit minus credit) of decimal strings at the finest scale present, never below two places. Null when a value is not a plain decimal. */
+function netTotal(lines: Array<{ debit: string; credit: string }>): string | null {
+  const parts = lines.flatMap(line => [[trimDecimal(line.debit), 1n], [trimDecimal(line.credit), -1n]] as const);
+  const scale = Math.max(2, ...parts.map(([value]) => value.split('.')[1]?.length ?? 0));
+  try {
+    const minor = parts.reduce((sum, [value, sign]) => sum + sign * BigInt(toMinorUnits(value, scale)), 0n);
+    const digits = (minor < 0n ? -minor : minor).toString().padStart(scale + 1, '0');
+    return `${minor < 0n ? '-' : ''}${digits.slice(0, -scale)}.${digits.slice(-scale)}`;
+  } catch { return null; }
+}
+
+/** What the operator should do about a feed that is not current; the last sync is the older of the two completed runs. */
+function feedGuidance(health: { feed_state?: unknown; purchases_started_at?: unknown; ledger_started_at?: unknown } | null): { feed?: { state: string; last_synced_at: string | null; guidance: string } } {
+  if (typeof health?.feed_state !== 'string') return {};
+  const times = [health.purchases_started_at, health.ledger_started_at];
+  const synced = times.every(time => typeof time === 'string') ? (times as string[]).sort()[0] : null;
+  return { feed: { state: health.feed_state, last_synced_at: synced, guidance: health.feed_state === 'running' ? 'sync_running_retry_in_minutes' : 'erpnext_sync_stopped_check_integrations' } };
+}
+
 export async function handlePurchaseCaptureRequest(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') return json('ok');
   if (req.method !== 'POST') return json({ error: 'METHOD_NOT_ALLOWED' }, 405);
@@ -67,8 +86,11 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   }
   const { data: health, error: healthError } = await caller.rpc('purchase_capture_feed_health');
   const missing = [...docs.missing, ...ledger.missing];
-  if (healthError || health?.caught_up !== true) missing.push('feed_not_current');
-  if (typeof health?.ledger_currency !== 'string' || !health.ledger_currency) missing.push('ledger_currency_unknown');
+  const feedNotCurrent = healthError || health?.caught_up !== true;
+  if (feedNotCurrent) missing.push('feed_not_current');
+  if (health?.reason === 'ledger_currency_mismatch') missing.push('ledger_currency_mismatch');
+  else if (typeof health?.ledger_currency !== 'string' || !health.ledger_currency) missing.push('ledger_currency_unknown');
+  const feed = feedNotCurrent && !healthError ? feedGuidance(health) : {};
   const precisionReader = adapter.precision;
   const kinds = new Set(docs.items.map(row => (row.kind === 'order' || row.kind === 'supplier_invoice' ? row.kind : null)).filter((x): x is 'order' | 'supplier_invoice' => x !== null));
   const precision: Partial<Record<'order' | 'supplier_invoice', number>> = {};
@@ -98,7 +120,7 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   const complete = docs.complete && ledger.complete && missing.length === 0;
   const proposals = proposeCapture(sources, projectId as string | null, { sourceId: binding.id, generation: docs.generation ?? '', accountScope: 'budget_map', complete, classifications });
   if (body.action === 'apply') {
-    if (!complete) return json({ complete: false, missing: [...new Set(missing)], proposals, revision: docs.generation, request_id: body.requestId, erp_write: false });
+    if (!complete) return json({ complete: false, missing: [...new Set(missing)], proposals, revision: docs.generation, request_id: body.requestId, ...feed, erp_write: false });
     const families = new Map<string, typeof proposals>();
     for (const proposal of proposals) {
       const source = sources.find(item => item.id === proposal.id);
@@ -155,12 +177,21 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
     };
     return { ...report, itemCoverage: { complete: false, missing: [...new Set([...report.itemCoverage.missing, 'line_evidence'])] }, needsUndo: sources.filter(source => source.projectIds.includes(id)).flatMap(source => (source.needsUndo ?? []).map(hold => ({ sourceId: source.id, ...hold }))), remainder: report.remainder.map(describe), excluded: report.excluded.map(describe) };
   });
-  const unassigned = ledger.items.filter(line => !line.projectId || line.company !== company).map(line => ({ id: line.id, kind: line.kind ?? 'other', source: line.reference, reason: line.company !== company ? 'company_scope_mismatch' : 'project_unmapped' }));
+  // Only lines of purchase documents block a complete preview when they carry no project. Journals, payments,
+  // sales, bank and other lines without a project are listed for information (other_unassigned); a line of
+  // another company blocks whatever its kind.
+  const purchaseKinds = new Set<string>(['order', 'receipt', 'supplier_invoice']);
+  const sourceKinds = new Map(sources.map(source => [source.id, source.kind]));
+  const isPurchaseLine = (line: typeof ledger.items[number]) => purchaseKinds.has(line.kind ?? 'other') || purchaseKinds.has(sourceKinds.get(line.documentId ?? '') ?? 'other');
+  const unassigned = ledger.items.filter(line => line.company !== company || (!line.projectId && isPurchaseLine(line))).map(line => ({ id: line.id, kind: line.kind ?? 'other', source: line.reference, reason: line.company !== company ? 'company_scope_mismatch' : 'project_unmapped' }));
+  const otherByKind = new Map<string, typeof ledger.items>();
+  for (const line of ledger.items) if (line.company === company && !line.projectId && !isPurchaseLine(line)) otherByKind.set(line.kind ?? 'other', [...(otherByKind.get(line.kind ?? 'other') ?? []), line]);
+  const otherUnassigned = [...otherByKind.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([kind, lines]) => ({ kind, count: lines.length, total: netTotal(lines) }));
   const unassignedDocuments = sources.filter(source => source.projectIds.length === 0).map(source => ({ id: source.id,
     kind: source.kind, state: source.state, source: source.reference ?? null,
     reason: proposals.find(proposal => proposal.id === source.id)?.reason ?? 'project_unmapped' }));
   return json({ complete: complete && missing.length === 0 && unassigned.length === 0 && reports.every(report => report.complete), revision: docs.generation,
-    ...(body.action === 'preview' ? { proposals } : {}), reports, unassigned, unassigned_documents: unassignedDocuments, missing: [...new Set(missing)], erp_write: false });
+    ...(body.action === 'preview' ? { proposals } : {}), reports, unassigned, other_unassigned: otherUnassigned, unassigned_documents: unassignedDocuments, missing: [...new Set(missing)], ...feed, erp_write: false });
 }
 
 if (import.meta.main) serveWithErrorReporting('purchase-capture', handlePurchaseCaptureRequest);

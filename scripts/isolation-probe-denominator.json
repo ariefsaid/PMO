@@ -512,6 +512,7 @@
     "reconcile_odoo_links(uuid)",
     "reconcile_procurement_line_totals()",
     "record_capture_feed_completion(uuid,uuid,text,timestamp with time zone,uuid)",
+    "record_capture_feed_completion(uuid,uuid,text,timestamp with time zone,uuid,text)",
     "record_capture_feed_start(uuid,uuid,text,timestamp with time zone,uuid)",
     "record_connect_record_held(uuid,text,text,text,text)",
     "record_connect_review(uuid,text,text,text[],text[],text,text)",

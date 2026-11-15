@@ -2308,6 +2308,28 @@ test('AC-ROP-012 capture routes preview and reviewed apply through the actual co
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
 });
 
+test('AC-ROP-073 preview prints the informational list and the feed guidance without changing the exit status', async () => {
+  const answers = [
+    { complete: true, revision: 'r', other_unassigned: [{ kind: 'journal', count: 2, total: '2.50' }], unassigned: [], erp_write: false },
+    { complete: false, revision: 'r', missing: ['feed_not_current'], feed: { state: 'running', last_synced_at: null, guidance: 'sync_running_retry_in_minutes' }, erp_write: false },
+  ];
+  const fake = await fakeSupabase({ handler: ({ url, send }) => {
+    if (url.pathname !== '/functions/v1/purchase-capture') return false;
+    send(200, answers.shift());
+    return true;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const complete = await runCli(['purchases', 'capture', '--all', '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(complete.code, 0, complete.err);
+    assert.deepEqual(complete.json?.other_unassigned, [{ kind: 'journal', count: 2, total: '2.50' }]);
+    const waiting = await runCli(['purchases', 'capture', '--all', '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(waiting.code, 2, waiting.err);
+    assert.equal(waiting.json?.feed.guidance, 'sync_running_retry_in_minutes');
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
 test('AC-ROP-012 report returns incomplete status and retains named remainder', async () => {
   const fake = await fakeSupabase({ handler: ({ url, body, send }) => {
     if (url.pathname !== '/functions/v1/purchase-capture') return false;

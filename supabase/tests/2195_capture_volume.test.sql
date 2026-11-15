@@ -48,8 +48,8 @@ select '21950650-0000-0000-0000-000000000001','Example',case when n=1 then '2195
 from generate_series(1,5000) n;
 insert into erp_financial_statement_published_context(org_id,company,snapshot_id,source_generation,context)
 values ('21950650-0000-0000-0000-000000000001','Example','21950650-0000-0000-0000-000000000091','21950650-0000-0000-0000-000000000092','{"presentation":{"context":{"raw":{"company":{"name":"Example","currency":"IDR"}}}}}');
-insert into erp_capture_feed_witnesses(org_id,binding_id,feed_kind,started_at)
-  select org_id,id,k.kind,now() from external_org_bindings b cross join (values ('purchases'),('ledger')) k(kind) where b.org_id='21950650-0000-0000-0000-000000000001';
+insert into erp_capture_feed_witnesses(org_id,binding_id,feed_kind,started_at,ledger_currency)
+  select org_id,id,k.kind,now(),case when k.kind='ledger' then 'IDR' end from external_org_bindings b cross join (values ('purchases'),('ledger')) k(kind) where b.org_id='21950650-0000-0000-0000-000000000001';
 select length(set_config('capture.groups',(select jsonb_agg(g)::text from (select jsonb_build_object('project_id','21950650-0000-0000-0000-000000000004','source_ids',jsonb_build_array(id::text)) g
   from erp_purchase_documents where org_id='21950650-0000-0000-0000-000000000001' and erp_doctype='Purchase Order' order by erp_name limit 25) s),true));
 -- One cursor per ledger page boundary, read before the role switch; each page is then its own statement,
