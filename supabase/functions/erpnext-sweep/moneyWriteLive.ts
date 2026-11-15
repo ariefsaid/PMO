@@ -28,7 +28,7 @@ import type { BudgetArchiveCancelIntent } from './budgetArchiveBackstop.ts';
 import { budgetAccountArchiveKey, budgetAccountIdentity, budgetAccountPushKey, budgetLegacyArchiveKey, budgetLegacyIdentity, budgetRangeIdentity, parseBudgetIdentity } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
 import { resolveV16BudgetAccounts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountPlan.ts';
 import { parseExactCents } from '../../../pmo-portal/src/lib/exactDecimal.ts';
-import { type OrgBinding, orgErpFetch } from './sweepShared.ts';
+import { type OrgBinding, orgErpFetch, orgErpTransport } from './sweepShared.ts';
 import { BUDGET_SWEEP_GATE_HELD, readBudgetArchiveLifecycleLive, budgetArchiveTargetStillLiveAndOwnedLive } from './budgetOutboxFacts.ts';
 
 /**
@@ -271,7 +271,7 @@ export async function buildMoneyWriteDepsLive(
   // BLOCK 1 (money double-POST): the recovery probe must not burn the claim budget. withProbeBudget
   // caps it (maxRetries 0 + tighter deadline) so a hung probe surfaces as unreachable instead of
   // consuming the whole 300s quarantine window and letting a claimant POST after its own reissue.
-  const client = withProbeBudget({ fetchImpl: orgErpFetch(org), apiKey, apiSecret, baseUrl: org.siteUrl });
+  const client = withProbeBudget({ ...orgErpTransport(org), apiKey, apiSecret, baseUrl: org.siteUrl });
 
   // ECA-6: a budget replace the sweep finishes names its recorded consent; it is spent once the write lands.
   let occupantConsentId: string | null = null;
@@ -280,7 +280,7 @@ export async function buildMoneyWriteDepsLive(
     orgId: org.orgId,
     actorUserId: args.actorUserId ?? undefined,
     command,
-    fetchImpl: orgErpFetch(org),
+    ...orgErpTransport(org),
     apiKey,
     apiSecret,
     rateLimiter: { acquire: async () => {} },

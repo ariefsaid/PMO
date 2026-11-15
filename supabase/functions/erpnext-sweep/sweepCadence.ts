@@ -14,8 +14,9 @@ export const SWEEP_FULL_INTERVAL_MS = 55 * 60_000;
 export const SWEEP_BACKFILL_EVERY_MINUTES = 5;
 /** Delay before a failed hourly run is retried; a merely truncated run continues on the next tick. */
 export const SWEEP_RETRY_DELAY_SECONDS = 300;
-/** No hourly pass starts this long after the invocation began (the function's wall-clock cap is 150 s). */
-export const HOURLY_INVOCATION_DEADLINE_MS = 120_000;
+/** No hourly pass starts this long after the invocation began. Kept below the last moment a money try can start
+ *  (#2149: `SWEEP_INVOCATION_DEADLINE_MS` − the outcome margin − a minimum try, 115 s), so money keeps priority. */
+export const HOURLY_INVOCATION_DEADLINE_MS = 105_000;
 /** #2149: the one deadline every ERP try in an invocation shares, this long after it began. Under the function's
  *  150 s wall-clock cap; the few seconds left cover the run summary and lock release. Each try is given at most the
  *  time left minus the outcome-write margin, and none starts unless a full minimum try fits (`sweepShared.ts`). */

@@ -380,7 +380,8 @@ export interface ErpSweepCycleDeps {
   markFullSweepDone?: (org: OrgBinding) => Promise<void>;
   /** THEME-BACK-07: an unfinished or failed full run is deferred, not stamped: due again in `dueInSeconds`. */
   deferFullSweep?: (org: OrgBinding, dueInSeconds: number) => Promise<void>;
-  /** Invocation-wide clock and the moment past which no further hourly pass starts (money passes still run). */
+  /** Invocation-wide clock and the moment past which no further hourly pass starts (money rows can still start until no
+   *  full ERP try fits the invocation budget). */
   nowMs?: () => number;
   hourlyDeadlineAtMs?: number;
   /** #2149: the invocation's one deadline (`SWEEP_INVOCATION_DEADLINE_MS` after entry) every ERP try shares. */

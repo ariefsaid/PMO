@@ -19,7 +19,7 @@ import { memoiseExpenseResolveReads, resolveExpensePosting, type ExpenseResolveD
 import { EXPENSE_POSTING_KEY_PREFIX, expenseOutboxIdentity, expensePostingIdentity, expensePostingKey, type ExpensePosting } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingKey.ts';
 import type { ErpAccountFacts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expenseAccountRules.ts';
 import { reconcileOrgExpensePostings, backstopPassResult, type ExpenseBackstopDeps, type ExpenseIntentRow, type ExpenseOutcome } from './expensePostingBackstop.ts';
-import { type OrgBinding, listRetryPendingLive, listCandidatesLive, orgErpFetch, moneyRowsStopped } from './sweepShared.ts';
+import { type OrgBinding, listRetryPendingLive, listCandidatesLive, orgErpTransport, moneyRowsStopped } from './sweepShared.ts';
 import { buildReconcileDepsLive, dispatchMoneyWrite, buildMoneyWriteDepsLive } from './moneyWriteLive.ts';
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -35,7 +35,7 @@ export function expenseResolveDepsLive(serviceClient: SupabaseClient, org: OrgBi
   const client = async (): Promise<ErpClientDeps> => {
     if (!erpClient) {
       const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, org, cache);
-      erpClient = withProbeBudget({ fetchImpl: orgErpFetch(org), apiKey, apiSecret, baseUrl: org.siteUrl });
+      erpClient = withProbeBudget({ ...orgErpTransport(org), apiKey, apiSecret, baseUrl: org.siteUrl });
     }
     return erpClient;
   };

@@ -84,12 +84,16 @@ export const SWEEP_TRY_CAP_MS = ERP_REQUEST_TIMEOUT_MS;
 export const SWEEP_MIN_TRY_MS = ERP_PROBE_TIMEOUT_MS;
 /** #2149: the time kept after every try for writing what it produced (the outbox outcome, a mirror stamp, a hold). */
 export const SWEEP_OUTCOME_WRITE_MARGIN_MS = 10_000;
+/** #2149: the time a durable "write started" stage write may take before its write's try is checked again. */
+export const SWEEP_STAGE_WRITE_ALLOWANCE_MS = 5_000;
 
 /** #2149: one invocation's deadline and clock; `setTimer` is injectable so the budget runs on a fake clock in tests. */
 export interface SweepBudget {
   deadlineAtMs: number;
   nowMs: () => number;
   setTimer?: (fire: () => void, ms: number) => () => void;
+  /** The client's retry wait; injectable for the fake clock. */
+  sleep?: (ms: number) => Promise<void>;
 }
 
 /** #2149: the budget refused or cut a try. Our own stop, not ERPNext's silence; the work is left for the next pass. */
@@ -115,25 +119,34 @@ const realTimer = (fire: () => void, ms: number): (() => void) => {
   return () => clearTimeout(id);
 };
 
-/** Re-wraps a response so `onEnd` runs once its body has been read to the end (no error) or has failed (the error). */
+/** Re-wraps a response so `onEnd` runs exactly once: when its body has been read to the end (no error), has failed
+ *  (the error), or is cancelled by the caller (no error). A redirect, whose body the client never reads, ends at once. */
 function observeBody(res: Response, onEnd: (err?: unknown) => void): Response {
-  // A response with no body (or one the Response constructor cannot rebuild) has nothing left to read.
-  if (!res.body || res.type === 'opaqueredirect' || res.status < 200 || res.status > 599 || [204, 205, 304].includes(res.status)) {
-    onEnd();
+  let ended = false;
+  const end = (err?: unknown) => { if (!ended) { ended = true; onEnd(err); } };
+  // A response with no body to read (or one the Response constructor cannot rebuild) has nothing left to wait for.
+  if (!res.body || res.type === 'opaqueredirect' || res.status < 200 || res.status > 599 || (res.status >= 300 && res.status < 400) ||
+    [204, 205, 304].includes(res.status)) {
+    end();
     return res;
   }
   const reader = res.body.getReader();
+  let cancelled = false;
   const body = new ReadableStream<Uint8Array>({
     async pull(c) {
+      let chunk: ReadableStreamReadResult<Uint8Array>;
       try {
-        const { done, value } = await reader.read();
-        if (done) { onEnd(); c.close(); } else c.enqueue(value);
+        chunk = await reader.read();
       } catch (err) {
-        onEnd(err);
-        c.error(err);
+        end(err);
+        if (!cancelled) c.error(err);
+        return;
       }
+      // A read that lands after the caller cancelled has nowhere to go: the stream is already closed.
+      if (cancelled) return;
+      if (chunk.done) { end(); c.close(); } else c.enqueue(chunk.value);
     },
-    cancel: (reason) => { onEnd(); return reader.cancel(reason); },
+    cancel: (reason) => { cancelled = true; end(); return reader.cancel(reason); },
   });
   return new Response(body, { status: res.status, statusText: res.statusText, headers: res.headers });
 }
@@ -202,6 +215,38 @@ export function watchErpAnswer(inner: typeof fetch, onUnanswered: () => void): t
   };
 }
 
+/**
+ * #2149: the fetch and the retry wait for one ERP client of an org's sweep passes. A wait (backoff or `Retry-After`)
+ * after which no full try would fit is not spent, and from then on this client's tries are refused unsent and its
+ * waits end at once: the invocation is within that wait of its last try, so nothing it could still start would fit
+ * the time the server asked for. Waits therefore never carry the tries past the budget either. `writeMayStart` tells
+ * an adapter, before it records a durable "write started" stage, whether that write would still be sent. One per client.
+ */
+export function orgErpTransport(org: OrgBinding): {
+  fetchImpl: typeof fetch; sleep: (ms: number) => Promise<void>; writeMayStart: () => boolean;
+} {
+  let waitSkipped = false;
+  const fetchImpl = orgErpFetch(org);
+  return {
+    fetchImpl: (input, init) => waitSkipped
+      ? Promise.reject(new SweepDeadlineError('no full ERP try fits after the wait the client asked for'))
+      : fetchImpl(input, init),
+    sleep: (ms) => {
+      const budget = org.sweepBudget;
+      if (waitSkipped || (budget && !sweepTryFits({ ...budget, nowMs: () => budget.nowMs() + ms }))) {
+        waitSkipped = true;
+        return Promise.resolve();
+      }
+      return (budget?.sleep ?? ((t: number) => new Promise<void>((r) => setTimeout(r, t))))(ms);
+    },
+    // A write that records a durable "started" stage first must still get a full try after that stage write.
+    writeMayStart: () => {
+      const budget = org.sweepBudget;
+      return !waitSkipped && (!budget || sweepTryFits({ ...budget, nowMs: () => budget.nowMs() + SWEEP_STAGE_WRITE_ALLOWANCE_MS }));
+    },
+  };
+}
+
 /** #2149: the guarded ERP fetch for one org's sweep passes: it spends the tick's budget, and a request ERPNext does not
  *  answer marks the org for this tick. */
 export function orgErpFetch(org: OrgBinding): typeof fetch {
@@ -228,7 +273,7 @@ export async function erpClientForBinding(
   cache?: ErpAuthPairCache,
 ): Promise<ErpClientDeps> {
   const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, org, cache);
-  return { fetchImpl: orgErpFetch(org), apiKey, apiSecret, baseUrl: org.siteUrl };
+  return { ...orgErpTransport(org), apiKey, apiSecret, baseUrl: org.siteUrl };
 }
 
 /** 0357: the org's `failed` outbox rows still waiting out their retry delay (not due, not exhausted). */

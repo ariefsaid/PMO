@@ -93,10 +93,15 @@ organizations with the feature disabled.
 **When the sweep stops starting money rows (#2149).** One deadline for the whole sweep invocation
 (`SWEEP_INVOCATION_DEADLINE_MS`, `erpnext-sweep/sweepCadence.ts`), spent by the sweep's ERP fetch (`orgErpFetch`,
 `erpnext-sweep/sweepShared.ts`). Each try (one ERP request attempt) gets `min(120 s, time left − SWEEP_OUTCOME_WRITE_MARGIN_MS)`;
-a try that cannot get a full minimum (`SWEEP_MIN_TRY_MS`, one recovery-probe attempt) is refused before anything is sent, so
-the total of all tries never passes the deadline and what a try produced can still be written. A refused or cut try is
-retryable `external-unreachable`: for a create the dispatch marks nothing and the reconciler owns the row, the same path as
-the claim-budget refusal. Separately, a request that gets no complete answer (it failed, the client's own deadline aborted it,
+a try that cannot get a full minimum (`SWEEP_MIN_TRY_MS`, one recovery-probe attempt) is refused before anything is sent.
+The client's retry waits go through the same budget (`orgErpTransport`): a wait after which no full try would fit is not
+spent, and that client's later tries are refused unsent. So every ERP try the sweep's passes make ends by the deadline minus
+the margin, and what it produced can still be written (the connect run and connect sends use their own client, outside this
+budget; they are not money passes). A refused or cut try is retryable `external-unreachable`: for a create the dispatch marks
+nothing and the reconciler owns the row, the same path as the claim-budget refusal. The whole-project budget adapter asks
+`writeMayStart` before it records its `post_started` stage, so a create that would be refused unsent never leaves that stage
+(which holds the next attempt for an operator) behind. A row the budget cuts after it started is recorded exactly as the
+client's own per-attempt timeout would record it. Separately, a request that gets no complete answer (it failed, the client's own deadline aborted it,
 or the body stopped part-way; an error status is an answer, and the budget's own stop is not silence) marks the organisation
 for the rest of the tick. Once the organisation is marked, or no full minimum try fits, the outbox recovery pass and the
 budget, timesheet, expense, site float and budget-archive backstops start no new row, and the hourly passes start nothing

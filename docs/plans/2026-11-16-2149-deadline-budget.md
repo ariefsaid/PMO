@@ -75,3 +75,19 @@ the five backstop cores + live deps (stamp at turn), `docs/money-path-primer.md`
 
 Foreground submit timing (separate ticket); the connect run/sends clients (`_shared/erpClientForOrg.ts`,
 not a money backstop); no schema change.
+
+## Review round (spec, quality, money-safety)
+
+- **Hourly deadline:** the budget's last try start (115 s) fell below the hourly deadline (120 s), so money no longer
+  outlasted the hourly passes. `HOURLY_INVOCATION_DEADLINE_MS` is 105 s, asserted below the last money try start.
+- **Body observer:** `onEnd` runs once; a read landing after the caller cancelled (an over-cap body) is not counted as
+  ERPNext silence; a redirect clears its timer at once.
+- **Client retry waits** (backoff, `Retry-After` up to 15 s) slept outside the budget. `orgErpTransport` gives each sweep
+  ERP client a budget-aware wait: a wait after which no full try fits is skipped and that client's later tries are refused
+  unsent. The dispatch factory forwards `sleep`.
+- **Whole-project budget `post_started`:** the adapter writes that stage before its POST, and a later attempt holds on it.
+  A pre-send refusal right after it would hold a budget nothing was sent for. The adapter now asks `writeMayStart` (the
+  sweep: a full try still fits after a 5 s stage-write allowance) first and, if not, fails retryably with nothing recorded.
+- **Not changed:** a row the budget cuts after it started is recorded as the client's own timeout records it (expense:
+  failed + retry delay). Same outcome as an ERP timeout today; the claim-budget refusal's own `post_started` case is left as
+  it was (foreground timing ticket).

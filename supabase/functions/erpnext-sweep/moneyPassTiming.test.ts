@@ -2,7 +2,9 @@ import "../_shared/testing/publicErpDns.ts";
 
 /**
  * #2149 Part A [Deno] — the sweep's money recovery passes stop starting new rows once this organisation's
- * ERPNext has not answered on this tick, or once the invocation is past the money row-start deadline.
+ * ERPNext has not answered on this tick, or once a full minimum ERP try no longer fits the invocation's one
+ * deadline budget (each try gets min(120 s, time left − the outcome-write margin)); each queue row is stamped
+ * when its turn comes, so a stopped batch is resumed, not re-stamped.
  *
  * Why: every ERP call waits its own deadline (a recovery probe 20 s, a write 120 s), and the function's
  * wall-clock cap is 150 s. Without a stop, one silent ERPNext made each later row wait the same deadline in
@@ -18,11 +20,11 @@ import "../_shared/testing/publicErpDns.ts";
 (Deno as unknown as { serve: (...a: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
 const { reconcileOrgOutbox, runErpSweepCycle, STATEMENT_SWEEP_WALL_CLOCK_CAP_MS } = await import('./index.ts');
 import {
-  erpClientForBinding, watchErpAnswer, moneyRowsStopped, orgErpFetch, sweepTryTimeoutMs, sweepTryFits, SweepDeadlineError,
-  SWEEP_MIN_TRY_MS, SWEEP_OUTCOME_WRITE_MARGIN_MS, SWEEP_TRY_CAP_MS, type OrgBinding, type SweepBudget,
+  erpClientForBinding, watchErpAnswer, moneyRowsStopped, orgErpFetch, orgErpTransport, sweepTryTimeoutMs, sweepTryFits, SweepDeadlineError,
+  SWEEP_MIN_TRY_MS, SWEEP_OUTCOME_WRITE_MARGIN_MS, SWEEP_STAGE_WRITE_ALLOWANCE_MS, SWEEP_TRY_CAP_MS, type OrgBinding, type SweepBudget,
 } from './sweepShared.ts';
 import { readErpFiscalYearsLive } from './moneyWriteLive.ts';
-import { SWEEP_INVOCATION_DEADLINE_MS } from './sweepCadence.ts';
+import { HOURLY_INVOCATION_DEADLINE_MS, SWEEP_INVOCATION_DEADLINE_MS } from './sweepCadence.ts';
 import { reconcileOrgBudgetPushes, type BudgetBackstopDeps } from './budgetBackstop.ts';
 import { reconcileOrgTimesheetPushes, type TimesheetBackstopDeps } from './timesheetBackstop.ts';
 import { reconcileOrgExpensePostings, type ExpenseBackstopDeps } from './expensePostingBackstop.ts';
@@ -224,6 +226,10 @@ Deno.test('#2149: the invocation deadline sits under the wall-clock cap; a minim
   assert(SWEEP_MIN_TRY_MS === ERP_PROBE_TIMEOUT_MS, 'a minimum try is one full recovery-probe attempt');
   assert(SWEEP_TRY_CAP_MS === ERP_REQUEST_TIMEOUT_MS, 'a try is never given more than the client gives one attempt');
   assert(SWEEP_OUTCOME_WRITE_MARGIN_MS > 0, 'the outcome write has a margin');
+  // Money keeps priority: the hourly passes stop starting while money rows still can, so a later organisation's
+  // money still runs after an earlier organisation's hourly work.
+  const lastTryStartMs = SWEEP_INVOCATION_DEADLINE_MS - SWEEP_OUTCOME_WRITE_MARGIN_MS - SWEEP_MIN_TRY_MS;
+  assert(HOURLY_INVOCATION_DEADLINE_MS < lastTryStartMs, `hourly deadline ${HOURLY_INVOCATION_DEADLINE_MS} < last money try start ${lastTryStartMs}`);
 });
 
 // ── the deadline budget: one deadline, each try min(cap, left − margin), no try unless a minimum fits ──
@@ -490,4 +496,85 @@ Deno.test('#2149: a money pass ERP read outside the shared client (the fiscal ca
     f.restore();
   }
   assert(org.erpUnanswered === true, 'the organisation is marked');
+});
+
+Deno.test('#2149: a body the caller cancels while a read is pending clears the timer once and is not counted as no answer', async () => {
+  const clock = { now: SWEEP_INVOCATION_DEADLINE_MS - SWEEP_OUTCOME_WRITE_MARGIN_MS - 40_000 };
+  const timers: Array<{ ms: number; fire: () => void; cancelled: boolean }> = [];
+  const org = { ...bindingOf('cancel'), sweepBudget: budgetAt(clock, timers) };
+  let release: (() => void) | undefined;
+  const f = withFetch(() => Promise.resolve(new Response(new ReadableStream<Uint8Array>({
+    start(c) { c.enqueue(new TextEncoder().encode('{"data":')); },
+    // The next chunk arrives only after the caller has cancelled (an over-cap body is cancelled mid-stream).
+    pull: (c) => new Promise<void>((resolve) => { release = () => { try { c.close(); } catch { /* already cancelled */ } resolve(); }; }),
+  }), { status: 200 })));
+  try {
+    const res = await orgErpFetch(org)('https://erp.example.test/x');
+    const reader = res.body!.getReader();
+    await reader.read();
+    const pending = reader.read();
+    await new Promise((r) => setTimeout(r, 0));
+    await reader.cancel('over the byte cap');
+    release?.();
+    await pending.catch(() => undefined);
+    await new Promise((r) => setTimeout(r, 0));
+  } finally {
+    f.restore();
+  }
+  assert(timers.length === 1 && timers[0]!.cancelled, 'the timer is cleared on cancel');
+  assert(org.erpUnanswered === undefined, 'a body the caller cancelled is an answer, not silence');
+});
+
+Deno.test('#2149: a redirect (never read by the client) clears its timer at once', async () => {
+  const clock = { now: SWEEP_INVOCATION_DEADLINE_MS - SWEEP_OUTCOME_WRITE_MARGIN_MS - 40_000 };
+  const timers: Array<{ ms: number; fire: () => void; cancelled: boolean }> = [];
+  const org = { ...bindingOf('redirect'), sweepBudget: budgetAt(clock, timers) };
+  const f = withFetch(() => Promise.resolve(new Response('moved', { status: 302, headers: { Location: 'https://elsewhere.test/' } })));
+  try {
+    const res = await orgErpFetch(org)('https://erp.example.test/x');
+    assert(res.status === 302, 'the redirect passes through for the client to refuse');
+  } finally {
+    f.restore();
+  }
+  assert(timers.length === 1 && timers[0]!.cancelled, 'no timer is left armed for a body nobody reads');
+});
+
+Deno.test('#2149: a client retry wait that would leave no full try is skipped, so waits never carry tries past the budget', async () => {
+  const clock = { now: SWEEP_INVOCATION_DEADLINE_MS - SWEEP_OUTCOME_WRITE_MARGIN_MS - 25_000 }; // one try fits, not after 15 s
+  const waited: number[] = [];
+  const org = {
+    ...bindingOf('busy'),
+    sweepBudget: { ...budgetAt(clock), sleep: (ms: number) => { waited.push(ms); clock.now += ms; return Promise.resolve(); } },
+  };
+  let calls = 0;
+  const f = withFetch(() => { calls += 1; return Promise.resolve(new Response('busy', { status: 503, headers: { 'Retry-After': '15' } })); });
+  let failure: unknown;
+  try {
+    const client = await erpClientForBinding(null as unknown as SupabaseClient, org, new Map([[org.orgId, Promise.resolve({ apiKey: 'k', apiSecret: 's' })]]) as never);
+    await erpnextRequest(client, { method: 'GET', path: '/api/resource/Budget' });
+  } catch (err) {
+    failure = err;
+  } finally {
+    f.restore();
+  }
+  assert(calls === 1, `the busy answer is not retried once no try would fit after the wait (the retry is refused unsent): ${calls}`);
+  assert(waited.length === 0, `no wait is spent: ${waited.join()}`);
+  assert((failure as { code?: string } | undefined)?.code === 'external-unreachable', `a retryable failure: ${String(failure)}`);
+  // With time for a try after the wait, the client waits and retries as before.
+  clock.now = 0;
+  await orgErpTransport(org).sleep(1_500);
+  assert(waited.join() === '1500', `a wait that leaves a full try is kept: ${waited.join()}`);
+});
+
+Deno.test('#2149: a write that records a "started" stage first may start only while a full try still fits after that stage write', () => {
+  const clock = { now: 0 };
+  const org = { ...bindingOf('stage'), sweepBudget: budgetAt(clock) };
+  const lastTryStart = SWEEP_INVOCATION_DEADLINE_MS - SWEEP_OUTCOME_WRITE_MARGIN_MS - SWEEP_MIN_TRY_MS;
+  const t = orgErpTransport(org);
+  assert(t.writeMayStart(), 'with time left the write may start');
+  clock.now = lastTryStart - SWEEP_STAGE_WRITE_ALLOWANCE_MS;
+  assert(t.writeMayStart(), 'exactly enough for the stage write and a full try');
+  clock.now += 1;
+  assert(!t.writeMayStart(), 'not when the try after the stage write would be refused');
+  assert(orgErpTransport(bindingOf('no-budget')).writeMayStart(), 'outside a sweep tick nothing is withheld');
 });
