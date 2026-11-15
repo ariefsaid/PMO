@@ -25,6 +25,7 @@ import { createClient } from '@supabase/supabase-js';
 import { composeViewHandler } from './handler.ts';
 import { createCreditRateGuard } from '../_shared/creditRateGuard.ts';
 import { checkRequestRate } from '../_shared/requestRateGuard.ts';
+import { readBodyBounded } from '../_shared/readBodyBounded.ts';
 import { OpenRouterModelClient, providerPolicyFromEnv, fallbackModelsFromEnv } from '../_shared/openRouterModelClient.ts';
 import { resolveComposeModel } from '../_shared/modelResolution.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
@@ -51,6 +52,13 @@ function getJwks(supabaseUrl: string): JwksResolver {
 export function setTestJwks(resolver: JwksResolver): void {
   _jwks = resolver;
 }
+
+/**
+ * Request-body cap, enforced on the stream (readBodyBounded) so it holds without a Content-Length.
+ * A compose request is a prompt of at most 2000 characters plus small context hints; 32 KiB leaves
+ * ample room for multi-byte text while bounding what one call can make the function buffer.
+ */
+export const MAX_REQUEST_BODY_BYTES = 32 * 1024;
 
 export const testSupabaseOptions = {
   auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
@@ -181,10 +189,17 @@ export async function handleComposeViewRequest(req: Request): Promise<Response> 
     );
   }
 
-  // ── 4. Parse request body ─────────────────────────────────────────────────
+  // ── 4. Read (bounded) and parse request body ──────────────────────────────
+  const rawBody = await readBodyBounded(req, MAX_REQUEST_BODY_BYTES);
+  if (rawBody === null) {
+    return new Response(
+      JSON.stringify({ status: 413, error: 'PAYLOAD_TOO_LARGE', detail: 'request body too large' }),
+      { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    );
+  }
   let body: ComposeViewRequest;
   try {
-    body = await req.json() as ComposeViewRequest;
+    body = JSON.parse(rawBody) as ComposeViewRequest;
   } catch {
     return new Response(
       JSON.stringify({ status: 400, error: 'BAD_REQUEST', detail: 'invalid JSON body' }),

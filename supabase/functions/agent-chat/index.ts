@@ -31,6 +31,7 @@ import { loadJournaledWrites, loadMaxSeq } from './persistence.ts';
 import { createAttachmentResolver } from './attachments.ts';
 import { createCreditRateGuard } from '../_shared/creditRateGuard.ts';
 import { checkRequestRate } from '../_shared/requestRateGuard.ts';
+import { readBodyBounded } from '../_shared/readBodyBounded.ts';
 import { OpenRouterModelClient, providerPolicyFromEnv, fallbackModelsFromEnv, modelOverrideFromEnv } from '../_shared/openRouterModelClient.ts';
 import { compactionOptionsFromEnv } from '../_shared/transcriptCompaction.ts';
 import { resolveDefaultModel } from '../_shared/modelResolution.ts';
@@ -60,6 +61,14 @@ function getJwks(supabaseUrl: string): JwksResolver {
 export function setTestJwks(resolver: JwksResolver): void {
   _jwks = resolver;
 }
+
+/**
+ * Request-body cap, enforced on the stream (readBodyBounded) so it holds without a Content-Length.
+ * The body is the conversation transcript (user and assistant text plus small tool_use blocks;
+ * attachments travel as ids, never bytes). 1 MiB is over ten times the transcript-compaction trigger,
+ * so a real conversation stays well inside it while one call cannot make the function buffer more.
+ */
+export const MAX_REQUEST_BODY_BYTES = 1024 * 1024;
 
 export const testSupabaseOptions = {
   auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
@@ -232,10 +241,17 @@ export async function handleAgentChatRequest(req: Request): Promise<Response> {
   const model = modelOverride?.model
     ?? resolveDefaultModel({ AGENT_MODEL_DEFAULT: Deno.env.get('AGENT_MODEL_DEFAULT') ?? undefined });
 
-  // ── 5. Parse request body ─────────────────────────────────────────────────
+  // ── 5. Read (bounded) and parse request body ──────────────────────────────
+  const rawBody = await readBodyBounded(req, MAX_REQUEST_BODY_BYTES);
+  if (rawBody === null) {
+    return new Response(
+      JSON.stringify({ status: 413, error: 'PAYLOAD_TOO_LARGE', detail: 'request body too large' }),
+      { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    );
+  }
   let body: AgentChatRequest;
   try {
-    body = await req.json() as AgentChatRequest;
+    body = JSON.parse(rawBody) as AgentChatRequest;
   } catch {
     return new Response(
       JSON.stringify({ status: 400, error: 'BAD_REQUEST', detail: 'invalid JSON body' }),
