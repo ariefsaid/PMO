@@ -233,6 +233,7 @@ from the highest guard on dev). Without it the month stops one click short.
   T&M tier is Admin/Finance; widening it is a guard change for a case nobody has asked for. *Wrong if:* PMs are the ones
   running the agent; then the guard admits PM tokens to `assemble_tm_claim`, `deselect_tm_source`, `prepare_tm_signoff`
   and Draft `withdraw_tm_signoff` (the RPCs already check the project's PM).
+  **Ruling (Director, 2026-11-16): no.** Admin/Finance tokens only in this slice.
 - **OQ-CTM-3 May the CLI confirm a client sign-off?** Recommended: **yes**, as 0518 already planned (confirm is in the
   admitted tier). The confirmer must still be a different Admin/Finance from the assembler and preparer, signed in on
   their own CLI. *Wrong if:* you want a person to look at the signed scan in the app before confirming; then `signoff
@@ -240,6 +241,8 @@ from the highest guard on dev). Without it the month stops one click short.
 - **OQ-CTM-4 Should agents enter their own time from the CLI?** Recommended: **no, not in this issue.** Time is entered by
   each person for themselves; an agent has no week of its own. *Wrong if:* staff want to log hours by command; then a
   follow-up admits `save_timesheet_week` and Submit to the guard for Admin/Executive/PM/Engineer tokens.
+  **Ruling (Director, 2026-11-16): no.** No time entry from the CLI.
 - **OQ-CTM-5 Rates file: one transaction or row by row?** Recommended: **one transaction** (the RPC's array form, as
   the app's Accept proposed). *Wrong if:* you load large cards where one bad row should not block the rest; then the CLI
   sends rows one by one and reports each.
+  **Ruling (Director, 2026-11-16): one transaction**, all or nothing; the dry run shows every row.
