@@ -454,7 +454,7 @@ test('capture surfaces are included in the isolation denominator', () => {
     'capture_history_apply_internal(uuid,uuid,uuid,text,jsonb,jsonb,boolean,boolean)',
     'capture_history_batch(uuid,uuid,uuid,text,jsonb,jsonb)',
     'capture_source_evidence(uuid,uuid,uuid[])',
-    'purchase_capture_feed_health()', 'purchase_capture_ledger_page(uuid,integer,uuid)',
+    'purchase_capture_feed_health()', 'purchase_capture_ledger_page(uuid,integer,uuid,text)',
     'purchase_capture_source_page(uuid,uuid,integer)',
     'record_capture_feed_completion(uuid,uuid,text,timestamp with time zone,uuid)',
     'record_capture_feed_start(uuid,uuid,text,timestamp with time zone,uuid)',
