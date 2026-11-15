@@ -7,7 +7,7 @@ import { Card, CardHead, CardPad } from '@/src/components/ui/Card';
 import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { FigureHiddenLine, FigureScope } from '@/src/components/ui/FigureScope';
 import { Icon } from '@/src/components/ui/icons';
-import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
+import { KPIRow, KPITile, KPITileError } from '@/src/components/ui/KPITile';
 import { LateText } from '@/src/components/ui/LateText';
 import { isMostUrgentLateRow } from '@/src/components/ui/lateTextRows';
 import { ListState } from '@/src/components/ui/ListState';
@@ -179,16 +179,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       : figureStatus;
     if (status.error) {
       // A failed tile keeps the filled tile's three lines (label, value, caption), so the band never changes shape.
-      return (
-        <div key={figure.id} data-testid={`figure-error-${figure.id}`} className="flex min-w-0 flex-col gap-2.5 bg-card px-4 pb-3.5 pt-4">
-          <span className="text-control font-medium text-foreground">{label}</span>
-          <span className="flex min-h-9 flex-wrap items-center gap-x-3 text-control text-muted-foreground">
-            <span>{t('home.figureError', "Couldn't load")}</span>
-            {status.retry && <button type="button" onClick={status.retry} className="font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{t('home.retry', 'Retry')}</button>}
-          </span>
-          {caption !== undefined && <span aria-hidden className="mt-auto text-control text-muted-foreground">{caption || '\u00a0'}</span>}
-        </div>
-      );
+      return <KPITileError key={figure.id} testId={`figure-error-${figure.id}`} label={label} caption={caption} onRetry={status.retry} />;
     }
     // While loading, the caption line is held (a blank line) so the tile is already its filled height.
     return <KPITile key={figure.id} icon="grid" tone="blue" label={label} value={money?.value ?? null} exactValue={money?.exact} unavailableReason={money ? undefined : opts.reason ?? figure.unavailableReason} hiddenLink={opts.link} caption={status.pending && caption !== undefined ? caption || '\u00a0' : caption} to={figure.href} linkLabel={label} loading={status.pending} help={helpText[figure.id]} />;
@@ -306,7 +297,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     <Card id="client-overdue">
       <CardHead level={2} actions={cardLink('/finance/receivables?overdue=true', t('home.allOverdue', 'All overdue'))}>{t('home.overdueFromClients', 'Client overdue')}</CardHead>
       {financePosition.isError && !financePosition.isPending
-        ? <div className="px-[var(--panel-inset)] pb-1"><ListState variant="error" title={t('home.overdueError', "Couldn't load overdue invoices")} onRetry={financePosition.retry} hold={{ shape: 'items', rows: 3 }} className={PHONE_TABLE_HOLD} /></div>
+        ? <div className="px-[var(--panel-inset)] pb-1"><ListState variant="error" title={t('home.overdueError', "Couldn't load overdue invoices")} onRetry={financePosition.retry} quiet /></div>
         : (
           <div className={cn('overflow-x-auto [--table-cell-inset:var(--panel-inset)]', financePosition.isPending && PHONE_TABLE_HOLD)}>
             <DataTable rows={overdueRows} columns={overdueColumns} rowKey={(row) => row.invoice.id} onActivate={() => navigate('/finance/receivables?overdue=true')} rowLabel={(row) => t('home.openInvoiceFor', 'Open overdue invoice for {{name}}', { name: row.invoice.customer_name ?? '' })} state={financePosition.isPending ? 'loading' : overdueRows.length === 0 ? 'empty' : undefined} emptyTitle={t('home.noOverdue', 'No overdue client invoices')} tableId="dashboard-company-overdue-clients" embedded />
@@ -338,7 +329,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     </div>
   );
   // Each tile carries its own error, so one failed read never hides the healthy figures beside it.
-  const tilesRow = (cols: string, tileList: React.ReactNode[]) => <KPIRow aria-label={t('dashboard:hub.company.keyFigures', 'Company figures')} className={cols}>{tileList}</KPIRow>;
+  const tilesRow = (cols: string, tileList: React.ReactNode[]) => <KPIRow panelInset aria-label={t('dashboard:hub.company.keyFigures', 'Company figures')} className={cols}>{tileList}</KPIRow>;
 
   if (overview) {
     // One grid: 12 columns, one gutter (--space-panel-gap, 24px desktop). At 1440 the canvas is 1168px:
@@ -370,7 +361,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     const overdue = needs.overdueInvoices;
     const retryOwed = () => { figures.todayRetry(); figures.periodRetry(); void erpPurchases.refetch(); };
     const owedCard = (
-      <FinancesCard className={cn('max-[899px]:order-5', finance && 'min-[900px]:flex-1')} currency={orgCurrency}
+      <FinancesCard className="max-[899px]:order-5" currency={orgCurrency}
         receivables={figures.receivables} receivablesPending={figures.receivablesPending} receivablesError={figures.receivablesError}
         payables={figures.payables} payablesPending={figures.payablesPending} payablesError={figures.payablesError || erpPurchases.isError}
         retry={retryOwed} />
@@ -397,7 +388,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         <div className={cn('flex min-w-0 flex-col gap-[var(--space-panel-gap)] min-[900px]:col-span-6', 'max-[899px]:contents')}>
           {waits}
           {owedCard}
-          {!finance && <PurchasingCard className="max-[899px]:order-7 min-[900px]:flex-1" counts={stageCounts} stageName={stageName} pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />}
+          {!finance && <PurchasingCard className="max-[899px]:order-7" counts={stageCounts} stageName={stageName} pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />}
         </div>
       </>
     );
@@ -449,7 +440,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
             </div>
           </div>
           {band}
-          <div data-testid="home-grid" className="grid items-stretch gap-[var(--space-panel-gap)] max-[899px]:grid-cols-1 min-[900px]:grid-cols-12">
+          {/* Every card ends at its own content in every state: a column may end higher than its neighbour, never a blank band inside a card. */}
+          <div data-testid="home-grid" className="grid items-start gap-[var(--space-panel-gap)] max-[899px]:grid-cols-1 min-[900px]:grid-cols-12">
             {firstRow}
             {billingBand}
             {lowerRows}

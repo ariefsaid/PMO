@@ -12,8 +12,8 @@ import type { AttentionProject } from '@/src/lib/db/dashboard';
 import { CardLink } from './OverviewCards';
 import { bulletFor, overBudget, overdueTaskCount, type Bullet, type BulletTone } from './homeHealth';
 
-/** On a phone a project's row wraps to 150px (English) to 190px (Bahasa): the held rows take the longer, so the panel keeps its filled size. */
-const PHONE_ROW = 'max-[899px]:[&_[data-skeleton-shape]>div]:min-h-[190px]';
+/** On a phone a project's row wraps to 150px (English) to 190px (Bahasa): loading rows take about the middle, 160px. */
+const PHONE_ROW = 'max-[899px]:[&_[data-skeleton-shape]>div]:min-h-[160px]';
 
 const FILL: Record<BulletTone, string> = { data: 'bg-primary', ahead: 'bg-warning', over: 'bg-destructive' };
 
@@ -48,7 +48,7 @@ export const ProjectHealthCard: React.FC<{
       <CardHead level={2} actions={<CardLink to="/projects">{allLabel}</CardLink>}>{t('home.projectHealth', 'Project health')}</CardHead>
       <div className="flex-1 px-[var(--panel-inset)] pb-2">
         {pending ? <ListState variant="loading" shape="rows" rows={5} className={PHONE_ROW} />
-          : error ? <ListState variant="error" title={t('home.projectsError', "Couldn't load projects")} onRetry={retry} hold={{ shape: 'rows', rows: 5 }} className={PHONE_ROW} />
+          : error ? <ListState variant="error" title={t('home.projectsError', "Couldn't load projects")} onRetry={retry} quiet />
             : rows.length === 0 ? <p className="pb-2 text-control text-muted-foreground">{t('home.noActiveProjects', 'No active projects.')}</p>
               : (
                 <ul className="divide-y divide-border">

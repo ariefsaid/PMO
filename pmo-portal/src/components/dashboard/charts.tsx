@@ -2,7 +2,7 @@ import React from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, CardHead } from '@/src/components/ui/Card';
 import { chartTheme } from '@/src/components/ui/chartTheme';
-import { ListState, type HoldShape } from '@/src/components/ui/ListState';
+import { ListState, type SkeletonSpec } from '@/src/components/ui/ListState';
 import { useFigureReport } from '@/src/components/ui/useFigureScope';
 import { tooltipContentStyle, tooltipCursorFill, tooltipLabelStyle } from '@/src/components/dashboard/chartChrome';
 import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
@@ -131,8 +131,6 @@ const PlainTick: React.FC<{ x?: number; y?: number; payload?: { value: string | 
 
 /** The column chart's top margin: the headroom a value label above the tallest column needs. */
 const COLUMN_PLOT_TOP = 22;
-/** Below this column width a value label is wider than its column. */
-const NARROW_COLUMN_PX = 12;
 
 /** `peak` mode: one label on the tallest column and one on the latest month's first series, nothing else. */
 const peakLabel = (data: Array<{ a: number | null; b?: number | null }>, series: 'a' | 'b') => (props: { x?: number | string; y?: number | string; width?: number | string; index?: number; value?: unknown }) => {
@@ -141,15 +139,10 @@ const peakLabel = (data: Array<{ a: number | null; b?: number | null }>, series:
   const isPeak = peak?.index === index && peak.series === series;
   const isLast = series === 'a' && index === last && !(peak?.index === index && peak.series === 'b');
   if (value == null || value === '' || !(isPeak || isLast)) return null;
-  // Columns narrower than a label (a phone): only the latest month is labelled, in the headroom above the
-  // tallest column, ending at its own column, so it never sits on a neighbour or leaves the plot.
-  if (Number(width) < NARROW_COLUMN_PX) {
-    if (!isLast) return null;
-    return <text x={Number(x) + Number(width)} y={COLUMN_PLOT_TOP - 6} textAnchor="end" style={LABEL_STYLE}>{String(value)}</text>;
-  }
-  // Near the right edge the label ends at the column so it never leaves the plot.
-  const anchor = index >= data.length - 2 ? 'end' : 'middle';
-  const anchorX = anchor === 'end' ? Number(x) + Number(width) : Number(x) + Number(width) / 2;
+  // Each label sits directly above its own column, also where the column is narrower than the label (a phone).
+  // Near an edge it starts or ends at its column so it never leaves the plot.
+  const anchor = index >= data.length - 2 ? 'end' : index === 0 ? 'start' : 'middle';
+  const anchorX = anchor === 'end' ? Number(x) + Number(width) : anchor === 'start' ? Number(x) : Number(x) + Number(width) / 2;
   return <text x={anchorX} y={Number(y) - 5} textAnchor={anchor} style={LABEL_STYLE}>{String(value)}</text>;
 };
 
@@ -304,16 +297,16 @@ export const ChartCard: React.FC<{
   embedded?: boolean;
   /** Height the filled chart takes, so its loading skeleton holds the same space. */
   pendingHeight?: number;
-  /** The filled body's silhouette: loading draws it, a failed read keeps its space (default: a column chart). */
-  skeleton?: HoldShape;
+  /** The filled body's silhouette, drawn while loading (default: a column chart). */
+  skeleton?: SkeletonSpec;
   children: React.ReactNode;
 }> = ({ title, actions, known = true, hiddenReason, pending = false, error, className, testId, embedded = false, pendingHeight, skeleton, children }) => {
   const hide = !pending && !error && !known;
   useFigureReport(hide && hiddenReason ? [{ label: title, reason: hiddenReason }] : []);
   if (hide) return null;
-  const shape: HoldShape = { shape: 'chart', rows: 2, ...skeleton, minHeight: skeleton?.minHeight ?? pendingHeight };
+  const shape: SkeletonSpec = { shape: 'chart', rows: 2, ...skeleton, minHeight: skeleton?.minHeight ?? pendingHeight };
   const loadingBody = <ListState variant="loading" shape={shape.shape} rows={shape.rows} minHeight={shape.minHeight} />;
-  const errorBody = error ? <ListState variant="error" title={error.title} onRetry={error.retry} hold={shape} /> : null;
+  const errorBody = error ? <ListState variant="error" title={error.title} onRetry={error.retry} quiet /> : null;
   const body = pending ? loadingBody : error ? errorBody : children;
   if (embedded) {
     return (

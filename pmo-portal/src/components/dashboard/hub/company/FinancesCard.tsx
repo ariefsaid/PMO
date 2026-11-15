@@ -47,7 +47,7 @@ const OwedFigure: React.FC<{
     <section data-testid={testId} aria-label={title} className="grid min-w-0 content-start gap-2 px-[var(--panel-inset)] py-4">
       <h3 className="text-control font-medium">{title}</h3>
       {pending ? <ListState variant="loading" shape="figure" />
-        : error || !split ? <ListState variant="error" title={errorTitle} onRetry={retry} hold={{ shape: 'figure' }} />
+        : error || !split ? <ListState variant="error" title={errorTitle} onRetry={retry} quiet />
           : (
             <>
               {figure && <div className="text-metric font-semibold tracking-[-0.02em] tabular" title={figure.exact}>{figure.value}</div>}
@@ -65,7 +65,8 @@ const OwedFigure: React.FC<{
                   {shares.overdueAmount > 0 && <span className="inline-flex items-center gap-1.5 text-destructive-text"><span aria-hidden className="size-2.5 rounded-[3px] bg-destructive" />{t('home.overdueShort', 'Overdue')} {money(shares.overdueAmount, barCurrency)}</span>}
                 </div>
               )}
-              <p className="text-control text-muted-foreground">{countLine(split).map((part, index) => <React.Fragment key={index}>{index > 0 && ' · '}<span className="inline-block">{part}</span></React.Fragment>)}</p>
+              <p className="text-control text-muted-foreground">{/* The dot travels with the clause after it, so a wrapped line never ends on a separator. */}
+                {countLine(split).map((part, index) => <React.Fragment key={index}>{index > 0 && ' '}<span className="inline-block">{index > 0 && <span aria-hidden>·&nbsp;</span>}{part}</span></React.Fragment>)}</p>
               {split.unknownBalances > 0 && <p className="-mt-2 text-control text-muted-foreground">{t('home.balancesUnknown', { count: split.unknownBalances, defaultValue_one: '{{count}} balance unknown, not in the total', defaultValue_other: '{{count}} balances unknown, not in the total' })}</p>}
             </>
           )}
@@ -93,7 +94,7 @@ export const LeftToBillSection: React.FC<{
     <section data-testid="left-to-bill-projects" aria-label={leftTitle} className={className}>
       <div className="mb-2 flex items-baseline justify-between gap-3"><h3 className="text-control font-semibold">{leftTitle}</h3><CardLink to="/finance/reports">{t('home.openReports', 'Open reports')}</CardLink></div>
       {pending ? <ListState variant="loading" shape="bars" rows={limit} />
-        : error ? <ListState variant="error" title={t('home.leftToBillError', "Couldn't load what is left to bill")} onRetry={retry} hold={{ shape: 'bars', rows: limit }} />
+        : error ? <ListState variant="error" title={t('home.leftToBillError', "Couldn't load what is left to bill")} onRetry={retry} quiet />
           : <BarList rows={topProjects.map((row) => ({ id: row.id, name: row.name, value: row.amount, label: money(row.amount, currency), tone: 'neutral' }))} ariaLabel={leftTitle} />}
     </section>
   );
@@ -130,7 +131,7 @@ export const FinancesCard: React.FC<{
   return (
     <Card data-testid="finances" className={cn('flex flex-col', className)}>
       <CardHead level={2} className="max-[479px]:flex-wrap max-[479px]:[&>div:last-child]:ml-0 max-[479px]:[&>div:last-child]:basis-full" actions={<span className="flex flex-wrap gap-x-4"><CardLink to="/finance/receivables">{t('home.openReceivables', 'Open receivables')}</CardLink><CardLink to="/finance/payables">{t('home.openPayables', 'Open payables')}</CardLink></span>}>{t('home.finances', 'Finances')}</CardHead>
-      <div className={cn('grid border-t border-border min-[480px]:grid-cols-2', (chart || extra || leftToBill) && 'border-b', 'min-[480px]:divide-x max-[479px]:divide-y divide-border')}>
+      <div className={cn('grid border-border min-[480px]:grid-cols-2', (chart || extra || leftToBill) && 'border-b', 'min-[480px]:divide-x max-[479px]:divide-y divide-border')}>
         <OwedFigure testId="owed-to-us" title={t('home.owedToUs', 'Owed to us')}
           split={receivables} pending={receivablesPending} error={receivablesError} retry={retry} currency={currency} countLine={receivableLine}
           errorTitle={t('home.receivablesError', "Couldn't load client invoices")} />

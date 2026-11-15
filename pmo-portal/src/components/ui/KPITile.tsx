@@ -81,13 +81,21 @@ const Caption: React.FC<{ children: string }> = ({ children }) => (
   <div className="mt-auto break-words text-control text-muted-foreground">{children}</div>
 );
 
-const KPIRowContext = React.createContext(false);
+/** Inside a row: 'tile' (its own 16px inset) or 'panel' (the panels' inset, figures on shared rows). */
+const KPIRowContext = React.createContext<false | 'tile' | 'panel'>(false);
+/** A tile in a panel-inset row lays label, figure and caption on the row's shared lines from 900px up. */
+export const PANEL_TILE_LINES = 'min-[900px]:row-span-3 min-[900px]:grid min-[900px]:grid-rows-subgrid min-[900px]:gap-y-2.5';
 
 export interface KPIRowProps {
   children: React.ReactNode;
   /** Column classes for the strip, e.g. `grid-cols-2 lg:grid-cols-4`. */
   className?: string;
   'aria-label'?: string;
+  /**
+   * Tiles take the panels' inset, so a strip above panels shares their left edge; from 900px each tile's label,
+   * figure and caption sit on lines shared across the row (a label that wraps never drops its figure).
+   */
+  panelInset?: boolean;
 }
 
 /**
@@ -95,15 +103,16 @@ export interface KPIRowProps {
  * so a row of figures reads as one group rather than a grid of identical cards. A last odd cell spans the
  * row on the two-column phone layout instead of leaving a grey hole.
  */
-export const KPIRow: React.FC<KPIRowProps> = ({ children, className, 'aria-label': ariaLabel }) => (
+export const KPIRow: React.FC<KPIRowProps> = ({ children, className, 'aria-label': ariaLabel, panelInset = false }) => (
   <section
     aria-label={ariaLabel}
     className={cn(
       'grid min-w-0 gap-px overflow-hidden rounded-lg border border-border bg-border [&>*]:bg-card max-sm:[&>*:last-child:nth-child(odd)]:col-span-full',
+      panelInset && 'min-[900px]:grid-rows-[auto_auto_auto]',
       className,
     )}
   >
-    <KPIRowContext.Provider value>{children}</KPIRowContext.Provider>
+    <KPIRowContext.Provider value={panelInset ? 'panel' : 'tile'}>{children}</KPIRowContext.Provider>
   </section>
 );
 
@@ -129,7 +138,8 @@ export function KPITile({
   className,
 }: KPITileProps) {
   const { t } = useTranslation();
-  const inRow = React.useContext(KPIRowContext);
+  const row = React.useContext(KPIRowContext);
+  const inRow = row !== false;
   const caption = captionProp ?? vs ?? delta?.text;
   const unknown = !loading && !error && (unavailableReason != null || value == null);
   const hiddenEntry: HiddenFigure[] = unknown
@@ -139,7 +149,8 @@ export function KPITile({
   if (unknown && inScope) return null;
   const isLink = to != null;
   const rootClass = cn(
-    'relative flex min-w-0 flex-col gap-2.5 bg-card px-4 pb-3.5 pt-4',
+    'relative flex min-w-0 flex-col gap-2.5 bg-card pb-3.5 pt-4',
+    row === 'panel' ? cn('px-[var(--panel-inset)]', PANEL_TILE_LINES) : 'px-4',
     !inRow && 'rounded-lg border border-border',
     // Hover-lift is an interaction affordance — only a drillable (link) tile gets it,
     // so a plain tile reads as a static surface and never promises a click it can't honor
@@ -184,7 +195,7 @@ export function KPITile({
           aria-label={linkLabel ?? label}
           className={cn('absolute inset-0 z-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring', inRow ? 'focus-visible:-outline-offset-2' : 'rounded-lg focus-visible:outline-offset-2')}
         />
-        <div className="relative z-10 flex min-w-0 flex-1 flex-col gap-2.5 pointer-events-none">
+        <div className={cn('relative z-10 flex min-w-0 flex-1 flex-col gap-2.5 pointer-events-none', row === 'panel' && PANEL_TILE_LINES)}>
           {head}
           {loading ? (
             <div data-testid="kpi-skeleton" className="skel h-9 w-2/3" />
@@ -222,6 +233,26 @@ export function KPITile({
       )}
 
       {caption && <Caption>{caption}</Caption>}
+    </div>
+  );
+}
+
+/**
+ * A tile whose figure failed to load: its label, one line (warning icon, message, Retry) in the figure's place and
+ * the caption line held, so the strip keeps its shape. The same message pattern as a failed panel.
+ */
+export function KPITileError({ label, caption, onRetry, testId }: { label: string; caption?: string; onRetry?: () => void; testId?: string }) {
+  const { t } = useTranslation('dashboard');
+  const row = React.useContext(KPIRowContext);
+  return (
+    <div data-testid={testId} className={cn('flex min-w-0 flex-col gap-2.5 bg-card pb-3.5 pt-4', row === 'panel' ? cn('px-[var(--panel-inset)]', PANEL_TILE_LINES) : 'px-4')}>
+      <span className="break-words text-control font-medium text-foreground">{label}</span>
+      <span role="alert" className="flex min-h-9 flex-wrap items-center gap-x-2 text-control text-foreground">
+        <Icon name="alert" aria-hidden className="size-5 shrink-0 text-destructive" />
+        <span>{t('home.figureError', "Couldn't load")}</span>
+        {onRetry && <button type="button" onClick={onRetry} className="font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{t('home.retry', 'Retry')}</button>}
+      </span>
+      {caption !== undefined && <span aria-hidden className="mt-auto text-control text-muted-foreground">{caption || '\u00a0'}</span>}
     </div>
   );
 }

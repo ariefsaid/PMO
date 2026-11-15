@@ -77,7 +77,7 @@ export const WaitsOnYou: React.FC<{
       </CardHead>
       <div className="flex flex-1 flex-col px-[var(--panel-inset)] pb-1">
         {pending ? <ListState variant="loading" shape="items" rows={held} className={bandHold} />
-          : error ? <ListState variant="error" title={t('home.waitsError', "Couldn't load what waits on you")} onRetry={onRetry} hold={{ shape: 'items', rows: held }} className={bandHold} />
+          : error ? <ListState variant="error" title={t('home.waitsError', "Couldn't load what waits on you")} onRetry={onRetry} quiet />
             : rows.length === 0 && !lead ? <p className="py-2.5 text-control text-muted-foreground">{emptyLabel ?? t('home.waitsNone', 'Nothing waits on you.')}</p>
               : (
                 <ul className={cn('divide-y divide-border', band && 'min-[900px]:grid min-[900px]:grid-cols-3 min-[900px]:gap-x-[var(--space-panel-gap)] min-[900px]:divide-y-0')}>
@@ -260,7 +260,7 @@ export const ProjectRows: React.FC<{
       <CardHead level={2} actions={allLink ? <Link to={allLink.to} className="inline-flex items-center gap-1 text-control font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{allLink.label}<Icon name="chev" className="size-4" /></Link> : undefined}>{title}</CardHead>
       <div className="px-[var(--panel-inset)] pb-2">
         {pending ? <ListState variant="loading" shape="items" rows={skeletonRows} className="max-[899px]:[&_[data-skeleton-shape]>div]:min-h-24" />
-          : error ? <ListState variant="error" title={t('home.projectsError', "Couldn't load projects")} onRetry={onRetry} hold={{ shape: 'items', rows: skeletonRows }} className="max-[899px]:[&_[data-skeleton-shape]>div]:min-h-24" />
+          : error ? <ListState variant="error" title={t('home.projectsError', "Couldn't load projects")} onRetry={onRetry} quiet />
             : sorted.length === 0 ? <p className="pb-2 text-control text-muted-foreground">{emptyLabel}</p>
               : (
                 <>

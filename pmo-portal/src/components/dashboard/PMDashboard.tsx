@@ -19,7 +19,7 @@ import { Button } from '@/src/components/ui/Button';
 import { Card, CardHead, CardPad } from '@/src/components/ui/Card';
 import { ListState } from '@/src/components/ui/ListState';
 import { FigureHiddenLine, FigureScope } from '@/src/components/ui/FigureScope';
-import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
+import { KPIRow, KPITile, KPITileError } from '@/src/components/ui/KPITile';
 import { PageHeader } from '@/src/components/ui/PageHeader';
 import { Icon } from '@/src/components/ui/icons';
 import { moneyTileValue } from './dashMoney';
@@ -187,15 +187,7 @@ export const PMDashboard: React.FC = () => {
   );
   // A failed read keeps the tile in its place: its label and one line, never a hole in the figure strip.
   const contractTile = projectsError ? (
-    <div data-testid="kpi-my-contract-value-error" className="flex min-w-0 flex-col gap-2.5 bg-card px-4 pb-3.5 pt-4">
-      <span className="text-control font-medium text-foreground">{t('hub.pm.myContractValue', 'My contract value')}</span>
-      {/* The filled tile's three lines: label, value slot, caption slot. */}
-      <span className="flex min-h-9 flex-wrap items-center gap-x-3 text-control text-muted-foreground">
-        <span>{t('home.figureError', "Couldn't load")}</span>
-        <button type="button" onClick={() => void projectsQuery.refetch()} className="font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{t('home.retry', 'Retry')}</button>
-      </span>
-      <span aria-hidden className="mt-auto text-control text-muted-foreground">{'\u00a0'}</span>
-    </div>
+    <KPITileError testId="kpi-my-contract-value-error" label={t('hub.pm.myContractValue', 'My contract value')} caption="" onRetry={() => void projectsQuery.refetch()} />
   ) : (
     <KPITile
       testId="kpi-my-contract-value"
@@ -230,7 +222,7 @@ export const PMDashboard: React.FC = () => {
             </div>
             <div className="min-w-0 min-[900px]:col-span-12 min-[900px]:row-start-2">{projectsEl}</div>
             {/* Read after My projects (and drawn there on a phone); on a wide screen it sits beside Waits on you. */}
-            <KPIRow aria-label={t('hub.pm.kpiBand', 'My project figures')} className="grid-cols-1 min-[900px]:col-span-3 min-[900px]:col-start-10 min-[900px]:row-start-1">
+            <KPIRow panelInset aria-label={t('hub.pm.kpiBand', 'My project figures')} className="grid-cols-1 min-[900px]:col-span-3 min-[900px]:col-start-10 min-[900px]:row-start-1">
               {contractTile}
             </KPIRow>
           </div>
@@ -238,7 +230,7 @@ export const PMDashboard: React.FC = () => {
             <CardHead level={2}>{planTitle}</CardHead>
             <CardPad className="min-w-0">
               {projectsQuery.isPending ? <ListState variant="loading" shape="bars" rows={8} className="max-[899px]:[&_[data-skeleton-shape]>div]:min-h-16" />
-                : projectsQuery.isError ? <ListState variant="error" title={t('home.projectsError', "Couldn't load projects")} onRetry={() => { void projectsQuery.refetch(); }} hold={{ shape: 'bars', rows: 8 }} className="max-[899px]:[&_[data-skeleton-shape]>div]:min-h-16" />
+                : projectsQuery.isError ? <ListState variant="error" title={t('home.projectsError', "Couldn't load projects")} onRetry={() => { void projectsQuery.refetch(); }} quiet />
                   : <PlanVsActualChart dense projects={projects} currency={orgCurrency} />}
             </CardPad>
           </Card>
@@ -253,7 +245,7 @@ export const PMDashboard: React.FC = () => {
         {header}
         {waitsEl}
         {projectsEl}
-        <KPIRow aria-label={t('hub.pm.kpiBand', 'My project figures')} className="grid-cols-1 min-[900px]:max-w-sm">
+        <KPIRow panelInset aria-label={t('hub.pm.kpiBand', 'My project figures')} className="grid-cols-1 min-[900px]:max-w-sm">
           {contractTile}
         </KPIRow>
       </div>

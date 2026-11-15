@@ -92,7 +92,7 @@ export const SalesOverviewCard: React.FC<{
           )}
         </div>
         {pending ? <ListState variant="loading" shape="bars" rows={4} />
-          : error ? <ListState variant="error" title={t('dashboard:hub.company.pipelineError', "Couldn't load pipeline stages")} onRetry={retry} hold={{ shape: 'bars', rows: 4 }} />
+          : error ? <ListState variant="error" title={t('dashboard:hub.company.pipelineError', "Couldn't load pipeline stages")} onRetry={retry} quiet />
             : open.length === 0 ? <ListState variant="empty" icon="pipe" title={t('hub.company.noPipeline', 'No open pipeline stages')} />
               : (
                 // AC-1117: each stage bar is a link to the pipeline filtered to that stage (one scale, weighted value).
@@ -253,7 +253,7 @@ export const LossReasonsCard: React.FC<{ range: WinRateRange; className?: string
   const body = (
     <>
         {isPending ? <ListState variant="loading" shape="bars" rows={3} />
-          : isError ? <ListState variant="error" title={tl('breakdown.errorTitle', "Couldn't load the loss breakdown")} onRetry={() => void refetch()} hold={{ shape: 'bars', rows: 3 }} />
+          : isError ? <ListState variant="error" title={tl('breakdown.errorTitle', "Couldn't load the loss breakdown")} onRetry={() => void refetch()} quiet />
           : (
             <>
               {reasons.length > 0 && <BarList ariaLabel={title} rows={reasons.map((row) => ({ id: row.reason as string, name: lostReasonLabel((key, d) => String(tl(key, d)), row.reason), value: row.total, label: String(row.total), tone: 'accent' as const }))} />}

@@ -14,8 +14,8 @@ interface ActionSpec {
 /** Loading silhouettes shaped like the content they stand in for. */
 export type SkeletonShape = 'lines' | 'table' | 'cards' | 'detail' | 'chart' | 'rows' | 'items' | 'figure' | 'bars';
 
-/** The filled panel's silhouette a failed read keeps, so the page holds its shape (see `hold`). */
-export interface HoldShape { shape: SkeletonShape; rows?: number; columns?: number; minHeight?: number }
+/** A loading silhouette: its shape, row count and least height. */
+export interface SkeletonSpec { shape: SkeletonShape; rows?: number; columns?: number; minHeight?: number }
 
 interface ListStateBaseProps {
   /** Table footer alignment that keeps the continuation action in the familiar centered position. */
@@ -40,11 +40,8 @@ interface ListStateBaseProps {
   shape?: SkeletonShape;
   /** Column count for the `table` silhouette. */
   columns?: number;
-  /**
-   * Error only: keep the filled panel's height. The silhouette of `shape` holds the space (invisible) and one
-   * quiet message sits centred in it: a small warning icon (the only red), one line, a Retry text button.
-   */
-  hold?: HoldShape;
+  /** Error only: one quiet line under a panel's heading (warning icon, message, Retry text button), no tinted box. */
+  quiet?: boolean;
   /** Loading only: the body's least height, so the silhouette matches a filled panel of that height. */
   minHeight?: number;
   /** Screen-reader loading copy (page/section loads keep their own wording). */
@@ -272,7 +269,7 @@ export const ListState: React.FC<ListStateProps> = ({
   loadingLabel,
   loadingRole,
   loadingAriaLabel,
-  hold,
+  quiet = false,
   minHeight,
   className,
   testId,
@@ -337,22 +334,18 @@ export const ListState: React.FC<ListStateProps> = ({
     );
   }
 
-  if (variant === 'error' && hold) {
-    const oneRow = (hold.rows ?? rows) <= 1 && (hold.shape === 'bars' || hold.shape === 'items');
-    // The panel keeps its filled height: the silhouette holds the space, the message sits centred in it.
+  if (variant === 'error' && quiet) {
+    // One line under the panel's heading, where its first row would be: a small warning icon (the only red), the
+    // message, Retry beside it (under it in a narrow cell). The panel ends at the line; it holds no blank space.
     return (
-      <div className={cn('relative', !SHAPES_WITHOUT_INSET.has(hold.shape) && 'py-4', className)} style={hold.minHeight ? { minHeight: hold.minHeight } : undefined}>
-        <div className="invisible" aria-hidden="true"><SkeletonBody shape={hold.shape} rows={hold.rows ?? rows} columns={hold.columns ?? columns} /></div>
-        {/* A one-row cell holds the message on one line (icon, text, Retry); a taller cell stacks it. */}
-        <div role="alert" aria-live="assertive" className={cn('absolute inset-0 flex items-center justify-center px-4 text-center', oneRow ? 'flex-row flex-wrap gap-x-2' : 'flex-col gap-1')}>
-          <Icon name="alert" aria-hidden className="size-5 shrink-0 text-destructive" />
-          {title && (titleAsPageHeading
-            ? <h1 className="text-control text-foreground">{title}</h1>
-            : <div className="text-control text-foreground">{title}</div>)}
-          <button type="button" onClick={onRetry} className="inline-flex min-h-8 items-center text-control font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-            {resolvedRetryLabel}
-          </button>
-        </div>
+      <div role="alert" aria-live="assertive" className={cn('flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 py-2', className)}>
+        <Icon name="alert" aria-hidden className="size-5 shrink-0 text-destructive" />
+        {title && (titleAsPageHeading
+          ? <h1 className="text-control text-foreground">{title}</h1>
+          : <span className="text-control text-foreground">{title}</span>)}
+        <button type="button" onClick={onRetry} className="inline-flex min-h-8 items-center text-control font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+          {resolvedRetryLabel}
+        </button>
       </div>
     );
   }
