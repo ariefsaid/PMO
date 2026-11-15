@@ -93,3 +93,34 @@ test('@layout AC-STOCK-LAYOUT-002 stock ledger @1440: the Value column is inside
   });
   expect(after.right).toBeLessThanOrEqual(Math.min(after.scRight, after.vw) + 1);
 });
+
+// ── Stock ledger at 1440: the Project column is a column, not a line under Item ──
+test('@layout AC-STOCK-LAYOUT-003 stock ledger @1440: the Project column shows and every project value sits inside the panel', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await signIn(page, 'admin@acme.test');
+  await openAppPath(page, '/stock/ledger');
+  await expect(page.getByTestId('stock-ledger-item-code').first()).toBeVisible({ timeout: 20_000 });
+  await settle(page);
+  const m = await page.evaluate(() => {
+    const table = document.querySelector('table');
+    const ths = [...document.querySelectorAll('table th')];
+    const idx = ths.findIndex((h) => /^\s*project\s*$/i.test(h.textContent ?? ''));
+    if (!table || idx < 0) return { found: false } as const;
+    const th = ths[idx] as HTMLElement;
+    const thr = th.getBoundingClientRect();
+    const headShown = getComputedStyle(th).display !== 'none' && thr.width > 0;
+    let sc: Element | null = table.parentElement;
+    while (sc && !/(auto|scroll)/.test(getComputedStyle(sc).overflowX)) sc = sc.parentElement;
+    const scr = sc ? sc.getBoundingClientRect() : { left: 0, right: document.documentElement.clientWidth };
+    const cells = [...document.querySelectorAll('table tbody tr')].map((tr) => tr.children[idx] as HTMLElement | undefined).filter((c): c is HTMLElement => !!c && !!c.textContent?.trim());
+    const outside = cells.filter((c) => { const r = c.getBoundingClientRect(); return r.right > scr.right + 1 || r.left < scr.left - 1 || c.scrollWidth > c.clientWidth + 1; }).length;
+    const rides = [...document.querySelectorAll('[data-testid="stock-ledger-project-fact"]')].filter((e) => getComputedStyle(e).display !== 'none').length;
+    return { found: true, headShown, cells: cells.length, outside, rides, headRight: Math.round(thr.right), scRight: Math.round(scr.right) };
+  });
+  expect(m.found, 'a Project column header must exist').toBe(true);
+  if (!m.found) return;
+  expect(m.headShown, `Project column must be displayed at 1440: ${JSON.stringify(m)}`).toBe(true);
+  expect(m.cells, 'seeded ledger has project rows').toBeGreaterThan(0);
+  expect(m.outside, `every project value inside the panel: ${JSON.stringify(m)}`).toBe(0);
+  expect(m.rides, `the project name must not also ride under Item: ${JSON.stringify(m)}`).toBe(0);
+});
