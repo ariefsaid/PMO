@@ -1,5 +1,5 @@
 -- 0907_credit_allocations.test.sql
--- AC-ALLOC-001..009 [pgTAP]: splitting the org's AI credit pool among users (#564, layer 2 of the
+-- AC-ALLOC-001..009 + AC-ALLOC-012 [pgTAP]: splitting the org's AI credit pool among users (#564, layer 2 of the
 -- credit model) is a REDISTRIBUTION. It never changes the pool's total, and the sum of user
 -- allocations never exceeds it — on the success paths AND the refusal paths.
 --
@@ -13,7 +13,7 @@
 -- Concurrency: two re-splits racing for the same unallocated credit are proven by the two-session
 -- probe scripts/credit-allocation-race.test.mjs (pgTAP runs in one transaction and cannot race).
 begin;
-select plan(28);
+select plan(29);
 
 -- ── Fixtures (as the test superuser): org X (pool 100) + org Y; an Admin, two Engineers in X; one
 --    Engineer in Y.
@@ -160,6 +160,15 @@ select is((select count(*) from public.credit_allocations), 1::bigint,
 set local request.jwt.claims = '{"sub":"09070000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select is((select count(*) from public.credit_allocations), 2::bigint,
   'AC-ALLOC-009 an Admin reads every allocation in their org');
+reset role;
+
+-- ── AC-ALLOC-012: allocation rows are readable by active members only — a disabled member of the
+--    org (here B, who holds a row) reads none, not even their own.
+update profiles set status = 'disabled' where id = '09070000-0000-0000-0000-0000000000b1';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"09070000-0000-0000-0000-0000000000b1","role":"authenticated"}';
+select is((select count(*) from public.credit_allocations), 0::bigint,
+  'AC-ALLOC-012 a disabled member of the org reads no allocation rows');
 reset role;
 select is(pg_temp.pool(), 100::numeric, 'AC-ALLOC-009 after every move and refusal the pool total is still 100');
 

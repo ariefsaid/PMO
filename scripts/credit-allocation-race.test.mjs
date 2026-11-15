@@ -4,6 +4,8 @@
 //      waits for the first, then is refused; the sum stays within the pool.
 //   2. Two direct writes that skip the RPC race the same way: the database's commit-time check
 //      refuses the second.
+//   3. A direct write and an Admin re-split of the same row, in either order: every writer takes the
+//      org's credit lock before any allocation row lock, so the second waits and both commit.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { spawn, spawnSync } from 'node:child_process';
@@ -104,3 +106,27 @@ test('AC-ALLOC-011 two concurrent direct writes are refused at commit past the p
     assert.equal(allocated(), '60');
   } finally { cleanup(); }
 });
+
+const moved = (sql) => `insert into public.credit_allocations(org_id,user_id,amount) values ('${org}','${userB}',50); ${sql}`;
+for (const [order, firstSql, secondSql] of [
+  ['a direct write, then a re-split',
+    `update public.credit_allocations set amount = amount + 5 where org_id='${org}' and user_id='${userB}';`,
+    `${asAdmin} select public.admin_move_credit_allocation('${userB}','${userC}',10);`],
+  ['a re-split, then a direct write',
+    `${asAdmin} select public.admin_move_credit_allocation('${userB}','${userC}',10);`,
+    `update public.credit_allocations set amount = amount + 5 where org_id='${org}' and user_id='${userB}';`],
+]) {
+  test(`AC-ALLOC-013 ${order} on one allocation row both commit, in lock order`, async () => {
+    seed();
+    try {
+      q(moved(''));
+      const [a, b] = await race(firstSql, secondSql, 'credit-allocation-race-order');
+      assert.equal(a.code, 0, a.err);
+      assert.equal(b.code, 0, b.err);
+      assert.equal(q(`select amount from public.credit_allocations where org_id='${org}' and user_id='${userB}';`), '45');
+      assert.equal(q(`select amount from public.credit_allocations where org_id='${org}' and user_id='${userC}';`), '10');
+      assert.equal(allocated(), '55');
+      assert.equal(q(`select sum(amount) from public.credits where org_id='${org}';`), '100');
+    } finally { cleanup(); }
+  });
+}

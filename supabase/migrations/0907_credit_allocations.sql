@@ -22,6 +22,11 @@
 --     concurrent re-splits serialize (the second sees the first's committed rows).
 --   • A deferred constraint trigger re-checks the invariant at commit for ANY write (a privileged
 --     direct write that skips the RPC included), under the same lock.
+--   • Lock order, one for every writer: the org's credit advisory lock FIRST, allocation row locks
+--     after. The RPC takes it before touching a row; a direct INSERT/UPDATE takes it in a BEFORE
+--     STATEMENT trigger, before the statement locks any row (credit_allocations_lock_order). A
+--     DELETE never takes the credit lock (the commit check does not run for it), so it has no order
+--     to keep. Proven by scripts/credit-allocation-race.test.mjs (AC-ALLOC-013).
 --   • Removing a user (profile delete) cascades their row away, which returns it to the pool.
 --   • authenticated may only SELECT (own row, or the whole org for Admin/Executive). No INSERT/UPDATE/
 --     DELETE grant.
@@ -56,6 +61,7 @@ create policy credit_allocations_select on public.credit_allocations for select 
       user_id = (select auth.uid())
       or (select public.auth_role()) in ('Admin','Executive')
     )
+    and (select public.is_active_member())
   );
 
 -- ── The database backstop: Σ allocations ≤ pool total, and the user belongs to the row's org. ─────
@@ -86,6 +92,35 @@ begin
 end $$;
 revoke all on function public.credit_allocations_within_pool() from public, anon, authenticated;
 
+-- ── Lock order for direct writes: the credit lock before any row lock. ─────────────────────────────
+-- A direct INSERT/UPDATE (a privileged maintenance path; no client role holds a write grant) would
+-- otherwise lock its rows when the statement runs and take the credit lock only at commit, in the
+-- deferred check — the reverse of the RPC's order. This BEFORE STATEMENT trigger runs before the
+-- statement locks any row. It cannot know which org's rows the statement will touch, so it takes
+-- every org's credit lock in one fixed (key) order; a direct write then serializes with every credit
+-- writer until it commits, which is the cost of a maintenance path. Inside the RPC, which already
+-- holds its org's lock, it does nothing (the RPC sets the transaction-local flag around its writes).
+create or replace function public.credit_allocations_lock_order() returns trigger
+  language plpgsql security definer set search_path = public as $$
+declare
+  v_key integer;
+begin
+  if coalesce(current_setting('pmo.credit_allocation_move', true), '') = 'on' then
+    return null;
+  end if;
+  for v_key in
+    select distinct hashtext('credits:' || o.id::text) from public.organizations o order by 1
+  loop
+    perform pg_advisory_xact_lock(v_key);
+  end loop;
+  return null;
+end $$;
+revoke all on function public.credit_allocations_lock_order() from public, anon, authenticated;
+
+create trigger credit_allocations_lock_order
+  before insert or update on public.credit_allocations
+  for each statement execute function public.credit_allocations_lock_order();
+
 create constraint trigger credit_allocations_within_pool
   after insert or update on public.credit_allocations
   deferrable initially deferred
@@ -93,6 +128,13 @@ create constraint trigger credit_allocations_within_pool
 
 -- ── The only client writer: move credit between two buckets of one org. ──────────────────────────
 -- p_from_user / p_to_user: a user in the caller's org, or NULL for the org's unallocated pool.
+--
+-- Why SECURITY DEFINER: the caller (an org-Admin) holds only SELECT on credit_allocations, so it
+-- cannot insert, update or delete allocation rows itself. This function does those writes on the
+-- Admin's behalf, after checking the caller is an active Admin of the org and that the move fits,
+-- and it reads every grant and allocation in the org to size the pool, whatever the caller's own
+-- read policy would show. auth_org_id()/auth.uid() still come from the caller's JWT, so it acts only
+-- inside the caller's org.
 create or replace function public.admin_move_credit_allocation(
   p_from_user uuid,
   p_to_user   uuid,
@@ -123,6 +165,8 @@ begin
   end if;
 
   perform pg_advisory_xact_lock(hashtext('credits:' || v_org::text));
+  -- This org's credit lock is held: the lock-order trigger need not take it again for our writes.
+  perform set_config('pmo.credit_allocation_move', 'on', true);
 
   -- Debit the source bucket first; refuse before anything is written.
   if p_from_user is null then
@@ -154,6 +198,7 @@ begin
       set amount = public.credit_allocations.amount + excluded.amount,
           updated_by = excluded.updated_by, updated_at = now();
   end if;
+  perform set_config('pmo.credit_allocation_move', '', true);
 end $$;
 
 revoke all on function public.admin_move_credit_allocation(uuid, uuid, numeric) from public, anon;

@@ -261,7 +261,8 @@ select plan(7);
 -- `record_odoo_asset_created` is service-role only, so neither is listed.
 -- ⚑ AMENDED BY 0907 (#564): `admin_move_credit_allocation` joins the retained set (+1). SECURITY DEFINER writer under a
 -- member's JWT that re-asserts active membership, the Admin role and that both users belong to the caller's org before
--- it moves credit; proven by supabase/tests/0907_credit_allocations.test.sql (AC-ALLOC-001..006).
+-- it moves credit; proven by supabase/tests/0907_credit_allocations.test.sql and
+-- scripts/credit-allocation-race.test.mjs (AC-ALLOC-001..013).
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
 insert into client_callable_rpc_names (proname) values
   ('accept_connect_proposals'),

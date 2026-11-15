@@ -8,4 +8,6 @@
 drop function if exists public.admin_move_credit_allocation(uuid, uuid, numeric);
 drop trigger if exists credit_allocations_within_pool on public.credit_allocations;
 drop function if exists public.credit_allocations_within_pool();
+drop trigger if exists credit_allocations_lock_order on public.credit_allocations;
+drop function if exists public.credit_allocations_lock_order();
 drop table if exists public.credit_allocations;
