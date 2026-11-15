@@ -11,6 +11,10 @@ export const PARTY_FIELDS = ['name', 'vat', 'ref', 'is_company', 'parent_id', 'a
 export const PROJECT_FIELDS = ['name', 'code', 'plan_id', 'company_id', 'active', 'write_date'];
 export const ITEM_FIELDS = ['default_code', 'name', 'uom_id', 'purchase_ok', 'sale_ok', 'active', 'write_date'];
 export const ACCOUNT_FIELDS = ['code', 'name', 'account_type', 'active', 'write_date'];
+/** #1508 stock candidates: a storable product, and internal stock locations (a warehouse enters as its `lot_stock_id`). */
+export const STOCK_ITEM_FIELDS = ['default_code', 'name', 'active'];
+export const STOCK_LOCATION_FIELDS = ['complete_name', 'active'];
+export const STOCK_WAREHOUSE_FIELDS = ['name', 'code', 'lot_stock_id', 'active'];
 
 /** `Vendor:<id>` / `Client:<id>`: the role lives in the external id, so one partner holding both roles is two PMO companies. */
 export const partyExternalId = (role: 'vendor' | 'client', id: number | string) => `${role === 'vendor' ? 'Vendor' : 'Client'}:${id}`;
@@ -34,10 +38,17 @@ export function normaliseParty(r: Raw, own: { company: ReadonlySet<number>; user
   return roles.map((role) => ({ ...base, role, externalId: partyExternalId(role, Number(r.id)) }));
 }
 
-const simple = (kind: 'project' | 'item' | 'account', codeField: string) => (r: Raw): NormalisedMaster =>
+const simple = (kind: 'project' | 'item' | 'account' | 'stock_item', codeField: string) => (r: Raw): NormalisedMaster =>
   ({ kind, externalId: String(r.id), code: str(r[codeField]), name: String(r.name), active: r.active !== false });
 
 /** A cost account (`account.analytic.account` of the chosen plan); its code is the PMO project number. */
 export const normaliseProject = simple('project', 'code');
 export const normaliseItem = simple('item', 'default_code');
 export const normaliseAccount = simple('account', 'code');
+
+/** #1508: a storable product candidate for a PMO stock item. */
+export const normaliseStockItem = simple('stock_item', 'default_code');
+/** #1508: a `stock.location` candidate for a PMO stock warehouse. The location id is what a link saves — never the
+ *  warehouse id; the name is Odoo's full path (`complete_name`), which carries no code. */
+export const normaliseStockLocation = (r: Raw): NormalisedMaster =>
+  ({ kind: 'stock_warehouse' as const, externalId: String(r.id), code: null, name: String(r.complete_name), active: r.active !== false });

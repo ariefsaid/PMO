@@ -238,7 +238,8 @@ describe('AC-BUPOT-018 withholding-slip details', () => {
     fireEvent.change(screen.getByLabelText(/Issued slip number/), { target: { value: 'TAX-DRAFT' } });
     fireEvent.change(screen.getByLabelText(/Correction reason/), { target: { value: 'Fix facts' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
-    expect(await screen.findAllByText('Review the entered facts and try again.')).toHaveLength(2);
+    expect(await screen.findByText('Review the entered facts and try again.')).toBeInTheDocument();
+    expect(screen.getByText('Edit the facts and try again.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Reload' })).not.toBeInTheDocument();
     expect(screen.getByLabelText(/Issued slip number/)).toHaveValue('TAX-DRAFT');
   });

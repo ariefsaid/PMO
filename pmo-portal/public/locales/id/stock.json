@@ -164,7 +164,14 @@
     "STK_KIND_UNAVAILABLE": "Jenis dokumen ini belum tersedia.",
     "STK_IMMUTABLE": "Dokumen yang sudah diposting atau dibatalkan tidak bisa diubah.",
     "STK_STALE": "Draf ini berubah sejak Anda membukanya. Periksa versi terbarunya, lalu posting.",
-    "STK_INSUFFICIENT_DETAIL": "Hanya tersedia {{available}}; Anda meminta {{requested}}."
+    "STK_INSUFFICIENT_DETAIL": "Hanya tersedia {{available}}; Anda meminta {{requested}}.",
+    "STK_ACTOR": "Hanya anggota aktif organisasi ini yang dapat memposting stok.",
+    "STK_COMPANY": "Perusahaan Odoo tidak lagi cocok dengan koneksi ini. Minta Admin memeriksa pengaturan Odoo.",
+    "STK_COMMAND": "Dokumen ini bukan draf terkini yang dapat diposting. Buka lagi dan periksa.",
+    "STK_OWNERSHIP": "Stok tidak dikelola di Odoo untuk organisasi ini.",
+    "STK_PENDING": "Dokumen ini sedang diposting di Odoo, sehingga tidak dapat diubah sekarang.",
+    "STK_COMMANDS_LIVE": "Posting stok masih berjalan di Odoo. Tunggu sampai selesai.",
+    "STK_DRAFTS_EXIST": "Posting atau batalkan draf dokumen stok sebelum menghubungkan stok ke Odoo."
   },
   "actions": {
     "cancel": "Batal",
@@ -289,7 +296,35 @@
       "confirm": "Batalkan draf"
     },
     "overAllowanceFailed": "Tidak dapat memeriksa apakah pengeluaran ini melebihi batas item pekerjaannya.",
-    "costsFailed": "Gagal memuat biaya per baris"
+    "costsFailed": "Gagal memuat biaya per baris",
+    "erp": {
+      "settling": "Dokumen ini sedang diposting di Odoo. Tidak dapat diubah sampai selesai.",
+      "heldNoReason": "Odoo memerlukan orang untuk memeriksa transfer ini.",
+      "release": "Lepas tahanan",
+      "released": "Tahanan dilepas",
+      "releaseConfirm": {
+        "title": "Lepas tahanan ini?",
+        "description": "Lepas hanya setelah memeriksa transfer di Odoo. Posting akan diperiksa lagi dan bisa tertahan lagi."
+      },
+      "fromOdoo": "Diposting ke Odoo sebagai transfer {{ref}}. {{moved}}.",
+      "noValueChange": "Tidak ada perubahan nilai.",
+      "value": "Nilai tercatat: {{value}}.",
+      "heldAdmin": "Setelah memeriksa transfer di Odoo, lepas tahanan agar dapat diposting lagi.",
+      "heldOther": "Minta Admin memeriksanya di Odoo.",
+      "entriesInOdoo": "Entri stok untuk dokumen ini disimpan di Odoo.",
+      "fromOdooNoRef": "Diposting ke Odoo. {{moved}}.",
+      "movedQuantity": "{{quantity}} {{unit}} dipindahkan",
+      "movedLines": "{{count}} baris dipindahkan",
+      "refused": "Belum diposting: {{reason}}",
+      "askAdmin": "Minta Admin memeriksa Pengaturan integrasi.",
+      "checkSetup": "Periksa Pengaturan integrasi",
+      "notice": {
+        "heldTitle": "Ditahan di Odoo",
+        "heldBody": "Odoo menahan transfer ini. Buka dokumen untuk melihat alasannya.",
+        "sentTitle": "Terkirim ke Odoo",
+        "sentBody": "Menunggu jawaban Odoo. Buka dokumen untuk melihat posisinya."
+      }
+    }
   },
   "ledger": {
     "title": "Buku stok",
@@ -549,5 +584,39 @@
       "levelInvalid": "Masukkan level 0 atau lebih, maksimal 3 desimal.",
       "quantityInvalid": "Masukkan jumlah di atas 0, maksimal 3 desimal, atau kosongkan."
     }
+  },
+  "refusal": {
+    "missing-module-stock": "Aplikasi Inventory Odoo belum terpasang. Minta Admin memasangnya, lalu posting lagi.",
+    "missing-module-stock_account": "Aplikasi penilaian stok Odoo (Inventory Accounting) belum terpasang. Minta Admin memasangnya, lalu posting lagi.",
+    "missing-module-project_stock_account": "Aplikasi biaya stok proyek Odoo belum terpasang. Minta Admin memasangnya, lalu posting lagi.",
+    "operation-type-not-found": "Tipe operasi Odoo yang dipilih untuk stok tidak ditemukan.",
+    "operation-type-wrong-company": "Tipe operasi Odoo milik perusahaan lain.",
+    "analytic-costs-disabled": "Biaya proyek dimatikan untuk tipe operasi Odoo ini. Minta Admin menyalakannya di Odoo, lalu posting lagi.",
+    "transfer-operation-type-not-set": "Tipe operasi transfer Odoo belum diatur.",
+    "transfer-operation-type-not-internal": "Tipe operasi transfer Odoo yang dipilih bukan transfer internal.",
+    "operation-type-not-set": "Tipe operasi Odoo untuk pengeluaran belum diatur.",
+    "read-failed": "Odoo tidak dapat dibaca saat ini. Coba lagi sebentar lagi.",
+    "binding-unavailable": "Koneksi Odoo belum siap.",
+    "foreign-company": "Dokumen ini tidak cocok dengan perusahaan Odoo yang terhubung.",
+    "item-unmapped": "Ada barang di dokumen ini yang belum dicocokkan dengan produk Odoo.",
+    "item-ambiguous": "Ada barang di dokumen ini yang cocok dengan lebih dari satu produk Odoo.",
+    "product-unavailable": "Produk Odoo sebuah barang diarsipkan atau milik perusahaan lain.",
+    "warehouse-unmapped": "Ada gudang di dokumen ini yang belum dicocokkan dengan gudang Odoo.",
+    "location-ambiguous": "Lokasi stok Odoo sebuah gudang tidak ada atau ambigu.",
+    "location-unavailable": "Lokasi stok Odoo sebuah gudang tidak ada atau ambigu.",
+    "project-unlinked": "Proyek ini belum terhubung ke proyek Odoo.",
+    "project-ambiguous": "Proyek ini cocok dengan lebih dari satu proyek Odoo.",
+    "project-unavailable": "Proyek Odoo yang terhubung tidak dapat dipakai (diarsipkan atau di perusahaan lain).",
+    "document-not-found": "Dokumen tidak ditemukan. Muat ulang halaman.",
+    "kind-not-connected": "Jenis dokumen ini tidak diposting melalui Odoo.",
+    "lines-invalid": "Setiap baris harus berjumlah di atas nol. Ubah dokumen, lalu posting lagi.",
+    "company-not-set": "Perusahaan Odoo belum diatur.",
+    "other": "Pengaturan Odoo menolak posting ini."
+  },
+  "refusalWarehouse": {
+    "foreign-company": "Gudang {{warehouse}} tidak cocok dengan perusahaan Odoo yang terhubung.",
+    "warehouse-unmapped": "Gudang {{warehouse}} belum dicocokkan dengan gudang Odoo.",
+    "location-ambiguous": "Lokasi stok Odoo gudang {{warehouse}} tidak ada, diarsipkan, atau ambigu.",
+    "location-unavailable": "Lokasi stok Odoo gudang {{warehouse}} tidak ada, diarsipkan, atau ambigu."
   }
 }

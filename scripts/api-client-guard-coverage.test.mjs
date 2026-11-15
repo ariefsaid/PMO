@@ -63,6 +63,7 @@ const KNOWN_UNLISTED = new Map([
   ['table:budget_year_distributions', BUDGET_ONLY],
   ['table:external_org_bindings', SERVICE_ONLY],
   ['rpc:record_connect_review', SERVICE_ONLY],
+  ['rpc:write_stock_erp_mirror', 'service-role only: EXECUTE is revoked from anon and authenticated and granted only to service_role (0879), so it is not reachable by a client token and never meets the guard'],
   ['rpc:org_has_active_erpnext_binding', BUDGET_GATE],
   ['rpc:create_budget_draft_from_erp', BUDGET_ONLY],
   ['rpc:approved_timesheet_for_push', APP_ONLY],

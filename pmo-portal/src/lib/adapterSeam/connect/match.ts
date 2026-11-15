@@ -9,37 +9,48 @@ export function normaliseName(name: string): string {
 }
 const normTax = (t?: string | null) => (t ?? '').replace(/[^0-9a-z]/gi, '').toLowerCase();
 const normCode = (c?: string | null) => (c ?? '').trim().toLowerCase();
+/** #1508 stock kinds: whitespace and case only — a product or location name never has a legal form stripped, and
+ *  punctuation stays, so "Gudang Tbk" never links "Gudang" the way a company name would. */
+const normStockName = (n: string) => n.trim().toLowerCase().replace(/\s+/g, ' ');
 
-/** PD-ECA-4: which outcomes each kind can have. */
-const POLICY: Record<MasterKind, { bringIn: boolean; send: boolean; nameLinks: boolean }> = {
-  party: { bringIn: true, send: true, nameLinks: true }, contact: { bringIn: false, send: false, nameLinks: true },
-  item: { bringIn: false, send: true, nameLinks: true }, project: { bringIn: false, send: true, nameLinks: true },
+/** PD-ECA-4: which outcomes each kind can have. `unmatched` = PMO-only rows are named (stock kinds), `plainNames` = name
+ *  keys normalise on whitespace/case only, never the legal-form stripping a company name gets. */
+const POLICY: Record<MasterKind, { bringIn: boolean; send: boolean; nameLinks: boolean; unmatched: boolean; plainNames: boolean }> = {
+  party: { bringIn: true, send: true, nameLinks: true, unmatched: false, plainNames: false }, contact: { bringIn: false, send: false, nameLinks: true, unmatched: false, plainNames: false },
+  item: { bringIn: false, send: true, nameLinks: true, unmatched: false, plainNames: false }, project: { bringIn: false, send: true, nameLinks: true, unmatched: false, plainNames: false },
   // A person's cost identity and a budget account never link on a name (OQ-TSP-10(C)): a name hit is a review for a person to decide.
-  employee: { bringIn: false, send: true, nameLinks: false }, account: { bringIn: false, send: false, nameLinks: false },
+  employee: { bringIn: false, send: true, nameLinks: false, unmatched: false, plainNames: false }, account: { bringIn: false, send: false, nameLinks: false, unmatched: false, plainNames: false },
+  // #1508 setup stock mapping: the system proposes, the Admin accepts; PMO creates nothing in Odoo and imports nothing.
+  stock_item: { bringIn: false, send: false, nameLinks: true, unmatched: true, plainNames: true }, stock_warehouse: { bringIn: false, send: false, nameLinks: true, unmatched: true, plainNames: true },
 };
 
 type Claim = { erp: NormalisedMaster; pmoIds: string[]; key: 'tax' | 'code' | 'name'; conflict: boolean; nameOnly: boolean };
 
 /** The one matcher (DD-ECA-2, FR-ECA-010/011). Deterministic: tax id, then code, then normalised name. A key that matches
- *  several rows, a name match whose tax ids differ, a name match for a person or an account, or two ERP rows claiming one PMO row is a review. */
-export function proposeMatches(kind: MasterKind, pmo: readonly PmoMaster[], erp: readonly NormalisedMaster[]): MatchOutcome[] {
+ *  several rows, a name match whose tax ids differ, a name match for a person or an account, or two ERP rows claiming one PMO row is a review.
+ *  #1508 stock kinds: `alreadyLinked` drops rows that hold a mapping from both sides, so an accepted pairing is never proposed again,
+ *  and a PMO row that matched nothing comes back as an explicit `unmatched` (never send or bring-in). */
+export function proposeMatches(kind: MasterKind, pmo: readonly PmoMaster[], erp: readonly NormalisedMaster[],
+  alreadyLinked?: { pmoIds?: ReadonlySet<string>; externalIds?: ReadonlySet<string> }): MatchOutcome[] {
   const policy = POLICY[kind];
-  const live = pmo.filter((p) => p.active !== false);
+  const linkedPmo = alreadyLinked?.pmoIds, linkedErp = alreadyLinked?.externalIds;
+  const live = pmo.filter((p) => p.active !== false && !linkedPmo?.has(p.id));
+  const rows = erp.filter((e) => !e.internal && !linkedErp?.has(e.externalId)).sort((a, b) => a.externalId.localeCompare(b.externalId));
   const sameRole = (p: PmoMaster, e: NormalisedMaster) => (p.role ?? null) === (e.role ?? null);
+  const nameKey = (n: string) => (policy.plainNames ? normStockName(n) : normaliseName(n));
   const index = (key: (p: PmoMaster) => string) => {
     const m = new Map<string, PmoMaster[]>();
     for (const p of live) { const k = key(p); if (k) m.set(k, [...(m.get(k) ?? []), p]); }
     return m;
   };
-  const byTax = index((p) => normTax(p.taxId)), byCode = index((p) => normCode(p.code)), byName = index((p) => normaliseName(p.name));
+  const byTax = index((p) => normTax(p.taxId)), byCode = index((p) => normCode(p.code)), byName = index((p) => nameKey(p.name));
   const claims: Claim[] = [];
-  const rows = erp.filter((e) => !e.internal).sort((a, b) => a.externalId.localeCompare(b.externalId));
   for (const e of rows) {
     const pick = (m: Map<string, PmoMaster[]>, k: string) => (k ? (m.get(k) ?? []).filter((p) => sameRole(p, e)) : []);
     const tax = pick(byTax, normTax(e.taxId));
     const code = tax.length ? [] : pick(byCode, normCode(e.code));
     // PQ-ECA-2: an inactive ERP row is a link target for a strong key only.
-    const name = tax.length || code.length || !e.active ? [] : pick(byName, normaliseName(e.name));
+    const name = tax.length || code.length || !e.active ? [] : pick(byName, nameKey(e.name));
     const hit = tax.length ? { c: tax, key: 'tax' as const } : code.length ? { c: code, key: 'code' as const } : { c: name, key: 'name' as const };
     if (hit.c.length === 0) continue;
     // Both tax ids set on a name match means they differ (equal ids would have matched on tax): a review.
@@ -68,6 +79,8 @@ export function proposeMatches(kind: MasterKind, pmo: readonly PmoMaster[], erp:
     externalIds: cs.map((c) => c.erp.externalId).sort(), reason: cs.some((c) => c.conflict) ? 'tax-conflict' : 'ambiguous' });
   if (policy.bringIn) for (const e of rows) if (e.active && !touchedErp.has(e.externalId)) out.push({ outcome: 'bring-in', externalId: e.externalId });
   if (policy.send) for (const p of live) if (!touchedPmo.has(p.id)) out.push({ outcome: 'send', pmoId: p.id });
+  // #1508 stock kinds: with send and bring-in both off, silence would hide a row that matched nothing — name it instead.
+  if (policy.unmatched) for (const p of live) if (!touchedPmo.has(p.id)) out.push({ outcome: 'unmatched', pmoId: p.id });
   return out;
 }
 
