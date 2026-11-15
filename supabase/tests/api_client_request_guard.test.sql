@@ -11,7 +11,7 @@
 -- PostgREST sets request.method / request.path / request.headers / request.jwt.claims per request
 -- (transaction-local); this test sets the same settings and calls the function as `authenticated`.
 begin;
-select plan(29 + 3 + 3 + 12 + 3 + 3 + 17);
+select plan(29 + 3 + 3 + 12 + 3 + 3 + 21 + 17);
 
 create or replace function pg_temp.req(p_claims text, p_method text, p_path text, p_headers text default '{}')
 returns void language sql as $$
@@ -133,6 +133,30 @@ select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a6', 'POST', '/rpc/p
 select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'PATCH', '/rpc/purchase_capture_source_page'), false, 'AC-ROP-012 client: purchase_capture_source_page refused by PATCH even for an active Admin');
 select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'PATCH', '/rpc/purchase_capture_ledger_page'), false, 'AC-ROP-012 client: purchase_capture_ledger_page refused by PATCH even for an active Admin');
 select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'PATCH', '/rpc/purchase_capture_feed_health'), false, 'AC-ROP-012 client: purchase_capture_feed_health refused by PATCH even for an active Admin');
+
+-- ── dispatch-function reads (`pmo purchases receive|pay-captured`, external `pmo companies create`, #2278) ──────────
+-- domain_owned_by_tier / actor_authorization_state: any active member; pre_cutover_procurement: active writer role set.
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'POST', '/rpc/domain_owned_by_tier'), true, 'AC-ROP-012 client: active Admin POSTs domain_owned_by_tier');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a4', 'POST', '/rpc/domain_owned_by_tier'), true, 'AC-ROP-012 client: active Executive POSTs domain_owned_by_tier');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a3', 'POST', '/rpc/domain_owned_by_tier'), true, 'AC-ROP-012 client: active Project Manager POSTs domain_owned_by_tier');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a2', 'POST', '/rpc/domain_owned_by_tier'), true, 'AC-ROP-012 client: active Finance POSTs domain_owned_by_tier');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a5', 'POST', '/rpc/domain_owned_by_tier'), true, 'AC-ROP-012 client: active Engineer POSTs domain_owned_by_tier');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a6', 'POST', '/rpc/domain_owned_by_tier'), false, 'AC-ROP-012 client: disabled Admin is refused domain_owned_by_tier');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'GET', '/rpc/domain_owned_by_tier'), false, 'AC-ROP-012 client: domain_owned_by_tier only by POST, even for an active Admin');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'POST', '/rpc/actor_authorization_state'), true, 'AC-ROP-012 client: active Admin POSTs actor_authorization_state');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a4', 'POST', '/rpc/actor_authorization_state'), true, 'AC-ROP-012 client: active Executive POSTs actor_authorization_state');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a3', 'POST', '/rpc/actor_authorization_state'), true, 'AC-ROP-012 client: active Project Manager POSTs actor_authorization_state');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a2', 'POST', '/rpc/actor_authorization_state'), true, 'AC-ROP-012 client: active Finance POSTs actor_authorization_state');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a5', 'POST', '/rpc/actor_authorization_state'), true, 'AC-ROP-012 client: active Engineer POSTs actor_authorization_state');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a6', 'POST', '/rpc/actor_authorization_state'), false, 'AC-ROP-012 client: disabled Admin is refused actor_authorization_state');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'GET', '/rpc/actor_authorization_state'), false, 'AC-ROP-012 client: actor_authorization_state only by POST, even for an active Admin');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'POST', '/rpc/pre_cutover_procurement'), true, 'AC-ROP-012 client: active Admin POSTs pre_cutover_procurement');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a4', 'POST', '/rpc/pre_cutover_procurement'), true, 'AC-ROP-012 client: active Executive POSTs pre_cutover_procurement');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a3', 'POST', '/rpc/pre_cutover_procurement'), true, 'AC-ROP-012 client: active Project Manager POSTs pre_cutover_procurement');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a2', 'POST', '/rpc/pre_cutover_procurement'), true, 'AC-ROP-012 client: active Finance POSTs pre_cutover_procurement');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a5', 'POST', '/rpc/pre_cutover_procurement'), false, 'AC-ROP-012 client: active Engineer is refused pre_cutover_procurement');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a6', 'POST', '/rpc/pre_cutover_procurement'), false, 'AC-ROP-012 client: disabled Admin is refused pre_cutover_procurement');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'GET', '/rpc/pre_cutover_procurement'), false, 'AC-ROP-012 client: pre_cutover_procurement only by POST, even for an active Admin');
 
 -- ── invoice assignment: the CLI's `pmo purchases assign` (#2195): active Admin only ─────────────────────────
 select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'POST', '/rpc/assign_capture_invoices'), true, 'AC-ROP-012 client: active Admin POSTs assign_capture_invoices');

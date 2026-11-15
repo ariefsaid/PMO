@@ -755,4 +755,98 @@ describe('purchase capture caller authorization', () => {
     });
   });
 
+  // A preview over the whole organization: one placed order and invoice, plus whatever ledger lines the case adds.
+  const previewAll = async (health: Record<string, unknown>, extraLines: Array<Record<string, unknown>> = []) => {
+    const token = await auth.mintJwt({ sub: 'user-1' });
+    const project = '11111111-1111-4111-8111-111111111111';
+    const binding = { id: 'binding-1', org_id: 'org-1', external_tier: 'erpnext', config: { company: 'Example', project_map: { [project]: 'PROJECT' } }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 };
+    const base = { erp_docstatus: 1, erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [project], procurement_id: 'purchase-1', purchase_origin: 'captured', doc_date: null, currency: 'USD', net_total: '100.00', is_return: false, recorded_by_pmo: false };
+    const line = { erp_modified: 'v', company: 'Example', project_id: null, voucher_type: 'Journal Entry', voucher_no: 'X', debit: '0', credit: '0', document_id: null, journal_purchase_id: null, classification: 'unmapped' };
+    let body: Record<string, any> = {};
+    await withFetchMock([
+      jwksRoute(auth),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('external_org_bindings', () => jsonResponse([binding])),
+      supabaseRpc('read_vault_secret', () => jsonResponse('synthetic-key:synthetic-secret')),
+      supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: [
+        { ...base, id: 'order-1', kind: 'order', erp_doctype: 'Purchase Order', erp_name: 'PO-1', erp_status: 'To Bill', purchase_orders: [] },
+        { ...base, id: 'invoice-1', kind: 'supplier_invoice', erp_doctype: 'Purchase Invoice', erp_name: 'INV-1', erp_status: 'Unpaid', purchase_orders: ['PO-1'] },
+      ], revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [
+        { ...line, id: 'gl-1', project_id: project, kind: 'supplier_invoice', voucher_type: 'Purchase Invoice', voucher_no: 'INV-1', debit: '100.00', document_id: 'invoice-1', classification: 'mapped' },
+        ...extraLines.map((extra, i) => ({ ...line, id: `gl-extra-${i}`, ...extra })),
+      ], revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: [] })),
+      supabaseRpc('purchase_capture_feed_health', () => jsonResponse(health)),
+      erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: '2', float_precision: '3', number_format: '#,###.##' } })),
+    ], async () => {
+      body = await (await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'preview', scope: { projectId: null } }, token))).json();
+    });
+    return body;
+  };
+  const healthy = { caught_up: true, ledger_currency: 'USD', ledger_started_at: '2026-11-13T00:00:00Z' };
+
+  it('AC-ROP-072 says a feed run in progress is running and tells the operator to retry', async () => {
+    const body = await previewAll({ caught_up: false, feed_state: 'running', reason: 'feed_not_current', ledger_currency: 'USD' });
+    assertEquals(body.complete, false);
+    assertEquals(body.missing.includes('feed_not_current'), true);
+    assertEquals(body.feed, { state: 'running', last_synced_at: null, guidance: 'sync_running_retry_in_minutes' });
+  });
+  it('AC-ROP-072 names the last sync time and the stopped-sync guidance for a stale feed', async () => {
+    const body = await previewAll({ caught_up: false, feed_state: 'stale', reason: 'feed_not_current', ledger_currency: 'USD', purchases_started_at: '2026-11-15T01:00:00Z', ledger_started_at: '2026-11-15T01:05:00Z' });
+    assertEquals(body.missing.includes('feed_not_current'), true);
+    assertEquals(body.feed, { state: 'stale', last_synced_at: '2026-11-15T01:00:00Z', guidance: 'erpnext_sync_stopped_check_integrations' });
+  });
+  it('AC-ROP-072 says a feed that never ran has never synced', async () => {
+    const body = await previewAll({ caught_up: false, feed_state: 'never', reason: 'feed_not_current' });
+    assertEquals(body.feed, { state: 'never', last_synced_at: null, guidance: 'erpnext_sync_stopped_check_integrations' });
+  });
+  it('AC-ROP-072 reports a currency mismatch as missing, not as an unknown currency', async () => {
+    const body = await previewAll({ caught_up: true, feed_state: 'current', reason: 'ledger_currency_mismatch', ledger_currency: null });
+    assertEquals(body.complete, false);
+    assertEquals(body.missing.includes('ledger_currency_mismatch'), true);
+    assertEquals(body.missing.includes('ledger_currency_unknown'), false);
+    assertEquals(body.feed, undefined);
+  });
+  it('AC-ROP-072 reports a currency mismatch on a stale feed as a mismatch, not as an unknown currency', async () => {
+    const body = await previewAll({ caught_up: false, feed_state: 'stale', reason: 'feed_not_current', ledger_currency: null, ledger_currency_mismatch: true,
+      purchases_started_at: '2026-11-15T01:00:00Z', ledger_started_at: '2026-11-15T01:05:00Z' });
+    assertEquals(body.missing.includes('feed_not_current'), true);
+    assertEquals(body.missing.includes('ledger_currency_mismatch'), true);
+    assertEquals(body.missing.includes('ledger_currency_unknown'), false);
+  });
+  it('AC-ROP-072 still reports an unknown currency on a current feed', async () => {
+    const body = await previewAll({ caught_up: true, feed_state: 'current', ledger_currency: null });
+    assertEquals(body.missing.includes('ledger_currency_unknown'), true);
+  });
+
+  it('AC-ROP-073 lists journal and payment lines without a project as information and stays complete', async () => {
+    const body = await previewAll(healthy, [
+      { kind: 'journal', debit: '5.00', credit: '0' }, { kind: 'journal', debit: '0', credit: '2.50' },
+      { kind: 'supplier_payment', voucher_type: 'Payment Entry', debit: '0', credit: '40.00' }, { kind: 'other', voucher_type: 'Sales Invoice', debit: '7.00', credit: '0' }, { kind: null, debit: '1.00', credit: '0' },
+    ]);
+    assertEquals(body.complete, true);
+    assertEquals(body.unassigned, []);
+    assertEquals(body.other_unassigned, [
+      { kind: 'journal', count: 2, total: '2.50' }, { kind: 'other', count: 2, total: '8.00' }, { kind: 'supplier_payment', count: 1, total: '-40.00' },
+    ]);
+  });
+  it('AC-ROP-073 a ledger line with no debit or credit makes its kind total unknown instead of failing the preview', async () => {
+    const body = await previewAll(healthy, [{ kind: 'journal', debit: '5.00', credit: '0' }, { kind: 'journal', debit: null, credit: null }, { kind: 'other', voucher_type: 'Bank Entry', debit: '1.00', credit: '0' }]);
+    assertEquals(body.complete, true);
+    assertEquals(body.other_unassigned, [{ kind: 'journal', count: 2, total: null }, { kind: 'other', count: 1, total: '1.00' }]);
+  });
+  it('AC-ROP-073 blocks on a purchase invoice line without a project', async () => {
+    const body = await previewAll(healthy, [{ kind: 'journal', debit: '5.00' }, { kind: 'supplier_invoice', voucher_type: 'Purchase Invoice', voucher_no: 'INV-9', debit: '3.00' }]);
+    assertEquals(body.complete, false);
+    assertEquals(body.unassigned, [{ id: 'gl-extra-1', kind: 'supplier_invoice', source: 'INV-9', reason: 'project_unmapped' }]);
+    assertEquals(body.other_unassigned, [{ kind: 'journal', count: 1, total: '5.00' }]);
+  });
+  it('AC-ROP-073 blocks on a line of another company whatever its kind', async () => {
+    const body = await previewAll(healthy, [{ kind: 'journal', company: 'Other', debit: '5.00' }, { kind: 'supplier_payment', voucher_type: 'Payment Entry', company: 'Other', debit: '1.00' }]);
+    assertEquals(body.complete, false);
+    assertEquals(body.unassigned.map((item: { reason: string }) => item.reason), ['company_scope_mismatch', 'company_scope_mismatch']);
+    assertEquals(body.other_unassigned, []);
+  });
 });
