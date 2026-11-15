@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 
 import { run, writeCredentials } from './pmo.mjs';
 import { MAX_CLAIM_RANGE_DAYS, TM_READ_RPCS, explainError, formatAssignees, formatClaims, formatPreview, formatRateCard, validateClaimList, validatePreview, validateRatesList } from './lib/pmo-tm.mjs';
+import { TM_WRITE_RPCS } from './lib/pmo-tm-write.mjs';
 
 const PROJECT = '11111111-1111-1111-1111-111111111111';
 const LINE_KEY = '33333333-3333-3333-3333-333333333333';
@@ -408,4 +409,8 @@ test('AC-TM-017 formatPreview totals an unpriced window and falls back to the id
   assert.match(named, /Siti Engineer\s+no rate line is assigned to this person/);
   assert.match(named, /Total 0\.00/);
   assert.match(formatPreview(only), new RegExp(`^Unrated \\(listed, not billed\\):\\n  .*${ENGINEER}`, 'm'));
+});
+
+test('AC-CTM-016 the CLI T&M writer list is exactly the database tm_write_rpcs tier (latest api_client_request_guard)', () => {
+  assert.deepEqual([...TM_WRITE_RPCS].sort(), guardList('tm_write_rpcs'));
 });
