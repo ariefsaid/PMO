@@ -5,7 +5,8 @@
 -- odoo_stock_cost_lines is a SIDE table, never rows in erp_gl_entry_mirror: every GL reader (statements, finance hub, the hourly
 -- whole-ledger check) keeps reading GL only, so a real-time valuation's COGS journal line and this analytic line are never summed together.
 -- Only the service-role feed writes it, through the definer functions below; no member (Admin included) can create or change a cost.
--- Members read quantities and ties from the table; amounts only through get_project_consumption under stock_can_see_cost().
+-- Members read quantities and ties from the table. Amounts reach a member through get_project_consumption (under stock_can_see_cost()) and, like every
+-- other actual of the organisation, through the published actuals snapshot (erp_actuals_snapshot, any active member).
 -- Rollback: supabase/migrations/rollback/0886_odoo_stock_cost_lines_down.sql
 begin;
 

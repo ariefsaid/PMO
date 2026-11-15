@@ -431,7 +431,9 @@ These outrank the plan's source-read assumptions. Both valuation modes (`periodi
 
 Rulings taken from these facts:
 
-- **Edit of a done move.** Odoo revalues the move (value, quantity) but does **not** touch the analytic line (amount and `unit_amount` unchanged; no new line). The accounting system is the source of truth, so PMO follows the analytic line and does not carry the edit either. (The plan's "an edit rewrites its analytic line" was wrong.)
+- **Edit of a done move.** Odoo revalues the move (value, quantity) but does **not** touch the analytic line (amount and `unit_amount` unchanged; no new line); PMO follows the analytic line and shows no "quantity differs in Odoo" flag, because clients never use the accounting system directly.
 - **Return.** PMO mirrors Odoo. A return credits the project only when Odoo books it, that is when the Receipts operation type has project costs on. Without the flag a returned unit does not lower the project's cost, in Odoo or in PMO. Whether PMO should do more is a product question, filed separately.
 - **Deletion.** The API user can delete an analytic line; the daily census cancels the stored row (kept, `is_cancelled`) and the actual follows.
-- **Product with no category and no expense account.** The stock-cost kind is held (fail closed) as a whole, the GL kind is unaffected. The hold names the products in the sweep response and in one audit event per pass. A per-line hold is a separate ticket.
+- **Product with no category and no expense account.** The stock-cost kind is held (fail closed) as a whole, the GL kind is unaffected. The hold names the products in one audit event of the organisation (written when the held product set changes), never in the sweep response. A per-line hold is a separate ticket.
+
+Re-prove (bed up, bed context file made by `scripts/odoo-bed/make-context.mjs`): `scripts/with-odoo-lock.sh scripts/with-db-lock.sh deno test --config supabase/functions/odoo-sweep/deno.json --allow-env --allow-net --allow-read --allow-run=docker supabase/functions/_shared/odooStockCost.bed.test.ts -- ~/.pmo-odoo-bed-context.json`. The cases: fields on the analytic line and on the related models; one issue through the shipped seam; edit, return (flag off, then on) and deletion; the whole pass in `periodic` and in `real_time`, including a hand-tagged valuation item.

@@ -19,7 +19,7 @@ const client = () => createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KE
 
 interface PageRow { erp_name: string; account: string; project: string | null; fiscal_year: string; debit: string; credit: string; is_cancelled: boolean; posting_date: string }
 interface Page { p_org_id: string; p_rows: PageRow[]; p_cursor: string }
-interface Opts { links?: Record<string, string>; accounts?: Record<string, string>; binding?: Record<string, unknown>; fiscal?: { month: string; day: number }; failApplyAt?: number; switched?: boolean; links2?: Record<string, string>; lastCheckAt?: string; failRecord?: boolean; publishedAt?: string; inventory?: boolean; stockLastCheckAt?: string; stockApplyChanged?: number }
+interface Opts { links?: Record<string, string>; accounts?: Record<string, string>; binding?: Record<string, unknown>; fiscal?: { month: string; day: number }; failApplyAt?: number; switched?: boolean; links2?: Record<string, string>; lastCheckAt?: string; failRecord?: boolean; publishedAt?: string; inventory?: boolean; stockLastCheckAt?: string; stockApplyChanged?: number; stockTie?: string; failStockApplyAt?: number; failSnapshotOnce?: boolean; inventoryCreatedAt?: string; timezone?: string }
 
 const line = (id: number, over: Record<string, unknown> = {}) => ({
   id, move_id: [id, `BILL/${id}`], move_name: `BILL/${id}`, journal_id: [3, 'Bills'], partner_id: [9, 'Vendor'], company_id: [1, 'Main'], currency_id: [1, 'IDR'],
@@ -51,6 +51,10 @@ function harness(prepare: (fake: FakeOdoo) => void, o: Opts = {}) {
   const stockChecks: Array<Record<string, unknown>> = [];
   const doubleMarks: number[][] = [];
   const yearEnds: Array<{ p_org_id: string; p_month: number; p_day: number }> = [];
+  // Any other watermark domain (the stock kind's unpublished and held markers): one value and time each.
+  const otherMarks = new Map<string, { watermark_cursor: string; updated_at: string }>();
+  let failStockApplyAt = o.failStockApplyAt;
+  let failSnapshotOnce = o.failSnapshotOnce === true;
   let links = o.links ?? { [P1]: '101', [P2]: '102', [P3]: '102' };
   const accounts = { ...(o.accounts ?? { '501': '5100' }) } as Record<string, string>;
   const routes: MockRoute[] = [
@@ -58,14 +62,22 @@ function harness(prepare: (fake: FakeOdoo) => void, o: Opts = {}) {
     supabaseSelect('external_sync_watermarks', (c) => {
       if (c.url.searchParams.get('domain') === 'eq.ledger-published:odoo') return jsonResponse(publishedAt ? [{ updated_at: publishedAt }] : []);
       if (c.url.searchParams.get('domain') === 'eq.ledger-stock-cost:odoo') return jsonResponse(stockCursor === undefined ? [] : [{ watermark_cursor: stockCursor }]);
+      const other = otherMarks.get((c.url.searchParams.get('domain') ?? '').replace(/^eq\./, ''));
+      if (other) return jsonResponse([other]);
+      if (/^eq\.ledger-(stock-unpublished|stock-held):odoo$/.test(c.url.searchParams.get('domain') ?? '')) return jsonResponse([]);
       const isFingerprint = c.url.searchParams.get('domain') === 'eq.ledger-links:odoo';
       const value = isFingerprint ? fingerprint : cursor;
       return jsonResponse(value === undefined ? [] : [{ watermark_cursor: value, ...(isFingerprint ? { updated_at: fingerprintUpdatedAt } : {}) }]);
     }),
-    { label: 'watermark-rewind', method: 'DELETE', pathname: '/rest/v1/external_sync_watermarks', response: () => { cursor = undefined; rewinds++; return new Response(null, { status: 204 }); } },
+    { label: 'watermark-rewind', method: 'DELETE', pathname: '/rest/v1/external_sync_watermarks', response: (c) => {
+      const domain = (c.url.searchParams.get('domain') ?? '').replace(/^eq\./, '');
+      if (domain !== 'ledger:odoo') { otherMarks.delete(domain); return new Response(null, { status: 204 }); }
+      cursor = undefined; rewinds++; return new Response(null, { status: 204 });
+    } },
     { label: 'watermark-fingerprint', method: 'POST', pathname: '/rest/v1/external_sync_watermarks', response: (c) => {
       const body = c.bodyJson as { domain: string; watermark_cursor: string };
-      if (body.domain === 'ledger-caught-up:odoo') markers.push(body.watermark_cursor);
+      if (/^ledger-(stock-unpublished|stock-held):odoo$/.test(body.domain)) otherMarks.set(body.domain, { watermark_cursor: body.watermark_cursor, updated_at: (body as unknown as { updated_at: string }).updated_at });
+      else if (body.domain === 'ledger-caught-up:odoo') markers.push(body.watermark_cursor);
       else if (body.domain === 'ledger-published:odoo') publishedAt = (body as unknown as { updated_at: string }).updated_at;
       else { fingerprint = body.watermark_cursor; fingerprintUpdatedAt = (body as unknown as { updated_at: string }).updated_at; }
       return new Response(null, { status: 201 });
@@ -101,12 +113,15 @@ function harness(prepare: (fake: FakeOdoo) => void, o: Opts = {}) {
     supabaseRpc('set_odoo_fiscal_year_end', (c) => { yearEnds.push(c.bodyJson as { p_org_id: string; p_month: number; p_day: number }); return new Response(null, { status: 204 }); }),
     supabaseRpc('mark_odoo_ledger_census_seen', (c) => { census.seen.push((c.bodyJson as { p_line_ids: string[] }).p_line_ids); return jsonResponse(null); }),
     supabaseRpc('finish_odoo_ledger_census', (c) => { census.finish.push({ expected: (c.bodyJson as { p_expected_lines: number | null }).p_expected_lines }); return jsonResponse(0); }),
-    supabaseSelect('external_domain_ownership', () => jsonResponse(o.inventory ? [{ id: 'own-1' }] : [])),
+    supabaseSelect('external_domain_ownership', () => jsonResponse(o.inventory ? [{ created_at: o.inventoryCreatedAt ?? '2026-01-01T00:00:00Z', organizations: { default_timezone: o.timezone ?? 'UTC' } }] : [])),
     supabaseRpc('apply_odoo_stock_cost_page', (c) => {
       const page = c.bodyJson as (typeof stockApplies)[number];
       stockApplies.push(page);
+      if (failStockApplyAt !== undefined && stockApplies.length === failStockApplyAt) return jsonResponse({ code: 'P0001', message: 'apply failed' }, { status: 400 });
       let n = 0;
       for (const r of page.p_rows) {
+        // The database drops lines posted before the inventory ownership start (D10).
+        if (String(r.posting_date) < new Intl.DateTimeFormat('en-CA', { timeZone: o.timezone ?? 'UTC' }).format(new Date(o.inventoryCreatedAt ?? '2026-01-01T00:00:00Z'))) continue;
         const key = String(r.analytic_line_id);
         if (JSON.stringify(stockStore.get(key)) !== JSON.stringify(r)) n++;
         stockStore.set(key, r);
@@ -122,14 +137,19 @@ function harness(prepare: (fake: FakeOdoo) => void, o: Opts = {}) {
     supabaseSelect('odoo_stock_cost_lines', (c) => {
       const after = (c.url.searchParams.get('id') ?? '').replace(/^gt\./, '');
       const rows = [...stockStore.values()].map((r) => ({ id: `sc-${String(r.analytic_line_id).padStart(8, '0')}`, is_cancelled: false, double_count_risk: false,
-        tie_state: 'tied', ...r })).sort((a, b) => (a.id < b.id ? -1 : 1)).filter((r) => !after || r.id > after);
+        tie_state: o.stockTie ?? 'tied', ...r })).sort((a, b) => (a.id < b.id ? -1 : 1)).filter((r) => !after || r.id > after);
       return jsonResponse(rows);
     }),
-    supabaseRpc('replace_erp_snapshot', (c) => { snapshots.push((c.bodyJson as { p_rows: Record<string, unknown>[] }).p_rows); return jsonResponse(null); }),
+    supabaseRpc('replace_erp_snapshot', (c) => {
+      if (failSnapshotOnce) { failSnapshotOnce = false; return jsonResponse({ code: 'P0001', message: 'publish failed' }, { status: 400 }); }
+      snapshots.push((c.bodyJson as { p_rows: Record<string, unknown>[] }).p_rows); return jsonResponse(null);
+    }),
   ];
   return {
     fake, routes, applies, checks, markers, snapshots, census, mirror, yearEnds, stockApplies, stockStore, stockCensus, stockChecks, doubleMarks,
     getStockCursor: () => stockCursor,
+    otherMarks,
+    clearStockFailure: () => { failStockApplyAt = undefined; },
     switchNow: () => { switched = true; },
     getCursor: () => cursor,
     setCursor: (c: string) => { cursor = c; },
@@ -528,6 +548,12 @@ describe('runLedgerPass — #2282 issued material cost kind (AC-IMC-001, 004, 00
     assertEquals(h.stockApplies.length, 0);
   });
 
+  it('AC-IMC-001 a stock line that does not parse is skipped and counted in the result, so the sweep says why the check differs', async () => {
+    const h = harness((fake) => seedStock(fake, [issue(31), issue(33, { name: '' })]), { accounts, inventory: true });
+    const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget()));
+    assertEquals([out.stockRows, out.stockSkipped], [1, 1]);
+  });
+
   it('AC-IMC-001 the issue is sent once on its own cursor, with company, picking, account and amount; a line with a journal item is never sent', async () => {
     const h = harness((fake) => seedStock(fake, [issue(31), issue(32, { move_line_id: [88, 'STJ/1'] })]), { accounts, inventory: true });
     const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget()));
@@ -553,17 +579,32 @@ describe('runLedgerPass — #2282 issued material cost kind (AC-IMC-001, 004, 00
     assertEquals(h.getStockCursor(), undefined);
   });
 
-  it('AC-IMC-003 a product with no category and no expense account holds the stock kind; one audit event names the product and the remedy', async () => {
+  it('AC-IMC-001 a product with no category and no expense account holds the stock kind; one audit event names the product and the remedy', async () => {
     const audits: Array<Record<string, unknown>> = [];
     const h = harness((fake) => { seedStock(fake, [issue(31)]); fake.seed('product.product', [{ id: 77, name: 'Loose Sand', property_account_expense_id: false, categ_id: false }]); }, { accounts, inventory: true });
     const routes = [supabaseRpc('log_audit', (c) => { audits.push(c.bodyJson as Record<string, unknown>); return new Response(null, { status: 204 }); }), ...h.routes];
     const out = await withFetchMock(routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget()));
-    assertEquals([out.stalled, out.held, out.stockCaughtUp, out.heldProducts], ['account', 1, false, ['Loose Sand']]);
+    assertEquals([out.stalled, out.held, out.stockCaughtUp], ['account', 1, false]);
+    // The sweep returns this object in one HTTP response for every organisation: counts and codes only, never a product name.
+    assert(!JSON.stringify(out).includes('Loose Sand'), 'a product name travelled in the pass result');
     assertEquals(audits.length, 1);
     assertEquals([audits[0].p_action, audits[0].p_org_id], ['integration.odoo.stock_cost_held', ORG]);
     const detail = audits[0].p_detail as { products: string[]; held: number; remedy: string };
     assertEquals([detail.products, detail.held], [['Loose Sand'], 1]);
     assert(detail.remedy.includes('category or an expense account'));
+  });
+
+  it('AC-IMC-001 a hold that lasts writes the audit event once, and again only when the held products change', async () => {
+    const audits: Array<Record<string, unknown>> = [];
+    const h = harness((fake) => { seedStock(fake, [issue(31)]); fake.seed('product.product', [{ id: 77, name: 'Loose Sand', property_account_expense_id: false, categ_id: false }]); }, { accounts, inventory: true });
+    const routes = [supabaseRpc('log_audit', (c) => { audits.push(c.bodyJson as Record<string, unknown>); return new Response(null, { status: 204 }); }), ...h.routes];
+    const pass = () => withFetchMock(routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget()));
+    await pass(); await pass(); await pass();
+    assertEquals(audits.length, 1);
+    h.fake.seed('product.product', [{ id: 77, name: 'Loose Sand', property_account_expense_id: false, categ_id: false }, { id: 78, name: 'Gravel', property_account_expense_id: false, categ_id: false }]);
+    h.fake.seed('account.analytic.line', [issue(31), issue(32, { product_id: [78, 'Gravel'], write_date: '2026-11-14 09:00:00' })]);
+    await pass();
+    assertEquals(audits.map((a) => (a.p_detail as { products: string[] }).products), [['Loose Sand'], ['Loose Sand', 'Gravel']]);
   });
 
   it('AC-IMC-005 a caught-up stock kind is compared with Odoo and, with no project-tagged journal item, records "matches"', async () => {
@@ -586,8 +627,14 @@ describe('runLedgerPass — #2282 issued material cost kind (AC-IMC-001, 004, 00
     assertEquals([out.stockCheck, h.stockChecks[0].p_double_counts], ['differs', 1]);
   });
 
-  it('AC-IMC-005 an entry item tagged to another account, or to none, flags nothing and the check says "matches"', async () => {
+  it('AC-IMC-005 an entry item tagged to ANOTHER project is not silent: the check says "differs" and counts it, but excludes nothing (each side is Odoo\'s own attribution)', async () => {
     const h = harness((fake) => { seedStock(fake, [issue(31)], ENTRY); fake.seed('account.move.line', [entryItem(40, { analytic_distribution: { '999': 100 } }), entryItem(41)]); }, { accounts, inventory: true });
+    const out = await stockPass(h);
+    assertEquals([out.stockCheck, h.doubleMarks, h.stockChecks[0].p_status, h.stockChecks[0].p_double_counts], ['differs', [[]], 'differs', 1]);
+  });
+
+  it('AC-IMC-005 an entry with no analytic tag on any item flags nothing and the check says "matches"', async () => {
+    const h = harness((fake) => { seedStock(fake, [issue(31)], ENTRY); fake.seed('account.move.line', [entryItem(40), entryItem(41)]); }, { accounts, inventory: true });
     const out = await stockPass(h);
     assertEquals([out.stockCheck, h.doubleMarks], ['matches', [[]]]);
   });
@@ -625,6 +672,71 @@ describe('runLedgerPass — #2282 issued material cost kind (AC-IMC-001, 004, 00
       assertEquals(h.doubleMarks, []);
     });
   }
+
+  // Review round (#2282): the check covers every counted row, whatever its PMO tie.
+  for (const tie of ['no-document', 'pending', 'ambiguous'] as const) {
+    it(`AC-IMC-005 a ${tie} row whose entry item is tagged to the same project is flagged and the check says "differs", never "matches"`, async () => {
+      const h = harness((fake) => { seedStock(fake, [issue(31)], ENTRY); fake.seed('account.move.line', [entryItem(40, { analytic_distribution: { '101': 100 } })]); }, { accounts, inventory: true, stockTie: tie });
+      const out = await stockPass(h);
+      assertEquals(h.doubleMarks, [[31]]);
+      assertEquals([out.stockCheck, h.stockChecks[0].p_double_counts], ['differs', 1]);
+    });
+  }
+
+  it('AC-IMC-005 a counted row whose picking cannot be found cannot be checked: "not checked" with its own reason, never "matches"', async () => {
+    const h = harness((fake) => { seedStock(fake, [issue(31, { name: 'WH/OUT/GONE' })]); }, { accounts, inventory: true, stockTie: 'no-document' });
+    const out = await stockPass(h);
+    assertEquals([out.stockCheck, h.stockChecks[0].p_status, h.stockChecks[0].p_reason, h.doubleMarks], ['not-checked', 'not-checked', 'double-count-unresolved-picking', [[]]]);
+  });
+
+  // Review round (#2282): rows applied in a pass that does not finish are published, and no check says "matches" over a stale snapshot.
+  const twoIssues = (fake: FakeOdoo) => seedStock(fake, [issue(31), issue(32)]);
+  const stockRowsOf = (snapshot: Array<Record<string, unknown>>) => snapshot.filter((r) => r.source_report === 'Odoo stock issue').map((r) => [r.project_id, r.account, r.net]);
+
+  it('AC-IMC-002 a later page that fails does not strand the rows an earlier page applied: the pass still publishes them, and no check ran', async () => {
+    const h = harness(twoIssues, { accounts, inventory: true, publishedAt: '2026-11-10T00:00:00Z', failStockApplyAt: 2 });
+    await h.primeLinkFingerprint('2026-11-09T00:00:00Z');
+    const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget(), { pageSize: 1 }));
+    assertEquals([out.stockFailed, out.stockCheck, h.stockChecks.length], [true, undefined, 0]);
+    assertEquals(h.snapshots.length, 1);
+    assertEquals(stockRowsOf(h.snapshots[0]), [[P1, '5200', 240]]);
+  });
+
+  it('AC-IMC-002 a publish that fails after the rows were applied is retried by the next pass, which has nothing new to apply, and only then is the check recorded', async () => {
+    const h = harness(twoIssues, { accounts, inventory: true, publishedAt: '2026-11-10T00:00:00Z', failSnapshotOnce: true });
+    await h.primeLinkFingerprint('2026-11-09T00:00:00Z');
+    await assertRejects(() => withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget())));
+    assertEquals([h.snapshots.length, h.stockChecks.length], [0, 0]);
+    const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget()));
+    assertEquals(h.snapshots.length, 1);
+    assertEquals(stockRowsOf(h.snapshots[0]), [[P1, '5200', 480]]);
+    assertEquals([out.stockCheck, h.stockChecks.length], ['matches', 1]);
+  });
+
+  it('AC-IMC-005 the hourly comparison starts at the inventory ownership day, as the feed does: an issue posted before it cannot keep the check at "differs"', async () => {
+    const h = harness((fake) => seedStock(fake, [issue(31), issue(32, { date: '2026-02-10' })]), { accounts, inventory: true, inventoryCreatedAt: '2026-03-01T00:00:00Z' });
+    const out = await stockPass(h);
+    assertEquals(h.stockStore.size, 1);
+    assertEquals([out.stockCheck, h.stockChecks[0].p_status], ['matches', 'matches']);
+  });
+
+  it('AC-IMC-005 the ownership day is read in the organisation\'s time zone, as the database function does', async () => {
+    // 2026-02-28 20:00 UTC is already 1 March in Jakarta: the issue dated 28 February is before the start there.
+    const h = harness((fake) => seedStock(fake, [issue(31), issue(32, { date: '2026-02-28' })]), { accounts, inventory: true, inventoryCreatedAt: '2026-02-28T20:00:00Z', timezone: 'Asia/Jakarta' });
+    assertEquals((await stockPass(h)).stockCheck, 'matches');
+  });
+
+  it('AC-IMC-002 linking a project after its issues were stored republishes, though no line changed and the project has no ledger lines', async () => {
+    const h = harness((fake) => seedStock(fake, [issue(31)]), { accounts, inventory: true, publishedAt: '2026-11-10T00:00:00Z', links: { [P1]: '999' } });
+    await h.primeLinkFingerprint('2026-11-09T00:00:00Z');
+    await stockPass(h);
+    assertEquals(h.snapshots.length, 1);
+    assertEquals(stockRowsOf(h.snapshots[0]).filter(([project]) => project === P1), []);
+    h.relink({ [P1]: '101' });
+    await stockPass(h);
+    assertEquals(h.snapshots.length, 2);
+    assertEquals(stockRowsOf(h.snapshots[1]), [[P1, '5200', 240]]);
+  });
 
   it('AC-IMC-004 a stock kind failure never fails the GL pass', async () => {
     const h = harness((fake) => { fake.seed('account.move.line', [line(1)]); seedStock(fake, [issue(31)]); }, { accounts, inventory: true });

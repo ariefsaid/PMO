@@ -6,7 +6,7 @@
  */
 import type { OdooCall } from '../client.ts';
 import type { DirectoryRow } from '../kinds.ts';
-import { CATEGORY_EXPENSE_FIELDS, PRODUCT_EXPENSE_FIELDS, type StockCostAttrs } from './stockCostFeed.ts';
+import { CATEGORY_EXPENSE_FIELDS, m2o, PRODUCT_EXPENSE_FIELDS, type StockCostAttrs } from './stockCostFeed.ts';
 
 /** `products`: the names of the products no account could be found for (at most MAX_HELD_PRODUCTS, each cut to 120 characters). */
 export const MAX_HELD_PRODUCTS = 20;
@@ -14,7 +14,7 @@ export class StockCostAccountHold extends Error {
   constructor(readonly held: number, readonly products: readonly string[] = []) { super('issued material cost on an account the directory has not mirrored'); }
 }
 
-const m2oId = (v: unknown): string | null => (Array.isArray(v) && typeof v[0] === 'number' ? String(v[0]) : null);
+const m2oId = (v: unknown): string | null => m2o(v) ?? null;
 
 /** analytic line id → account code for every row of the page, or a StockCostAccountHold naming how many rows could not be placed. */
 export async function resolveStockCostAccounts(call: OdooCall, rows: readonly DirectoryRow[], codes: ReadonlyMap<string, string>): Promise<Map<string, string>> {

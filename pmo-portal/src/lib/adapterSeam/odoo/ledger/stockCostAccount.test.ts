@@ -27,7 +27,7 @@ function odoo() {
 }
 const codes = new Map([['510', '5100'], ['520', '5200'], ['530', '5300']]);
 
-describe('issued material account (#2282 D6, AC-IMC-003)', () => {
+describe('issued material account (#2282 D6, AC-IMC-001)', () => {
   it('uses the analytic line\'s own account when the directory has it, without reading products', async () => {
     const o = odoo();
     expect([...await resolveStockCostAccounts(o.call, [row('1', '510', '77')], codes)]).toEqual([['1', '5100']]);
@@ -53,7 +53,7 @@ describe('issued material account (#2282 D6, AC-IMC-003)', () => {
     await expect(resolveStockCostAccounts(o.call, [row('1', null, '77')], new Map())).rejects.toMatchObject({ held: 1 });
   });
 
-  it('AC-IMC-003 the hold names the products that have no category and no expense account, once each', async () => {
+  it('AC-IMC-001 the hold names the products that have no category and no expense account, once each', async () => {
     const o = odoo();
     const err = await resolveStockCostAccounts(o.call, [row('1', null, '79'), row('2', null, '77'), row('3', null, '79')], codes).catch((e) => e);
     expect(err).toBeInstanceOf(StockCostAccountHold);

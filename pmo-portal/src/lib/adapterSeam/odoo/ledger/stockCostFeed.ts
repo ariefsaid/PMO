@@ -10,10 +10,9 @@ import type { KindReaders } from '../sweep.ts';
 import { formatCents, nanoToCents, toNano } from './cents.ts';
 
 /**
- * ⚑ The ONE place Odoo field names for the stock-cost kind live (the feed.ts rule). Bed-verified (report §4): `name`, `category`,
- * `unit_amount`, `amount`, `product_id`, `account_id`. Source-read, bed proof owed (plan Task 1): `move_line_id`, `general_account_id`,
- * `company_id`, `date`, `write_date`; and on the related models `stock.picking.return_id`, `product.product.property_account_expense_id`
- * and `categ_id`, `product.category.property_account_expense_categ_id`, `stock.move.picking_id`, `stock.move.account_move_id`.
+ * ⚑ The ONE place Odoo field names for the stock-cost kind live (the feed.ts rule). Every name here, and on the related models
+ * (`stock.picking.return_id`, `product.product.property_account_expense_id` and `categ_id`, `product.category.property_account_expense_categ_id`,
+ * `stock.move.picking_id`, `stock.move.account_move_id`), is bed-proven (15 Nov 2026, research section 11, `odooStockCost.bed.test.ts`).
  */
 export const STOCK_COST_LINE_FIELDS = [
   'name', 'category', 'move_line_id', 'account_id', 'general_account_id', 'product_id', 'unit_amount', 'amount', 'date', 'company_id', 'write_date',
@@ -28,7 +27,7 @@ export const JOURNAL_ENTRY_OF_MOVE = 'account_move_id';
 type Raw = Record<string, unknown>;
 const WRITE_DATE = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
-const m2o = (v: unknown): string | null | undefined =>
+export const m2o = (v: unknown): string | null | undefined =>
   v === false || v == null ? null : Array.isArray(v) && typeof v[0] === 'number' ? String(v[0]) : undefined;
 
 /** One stored analytic line. `debit`/`credit` are exact two-decimal strings: Odoo's negative amount is a cost (debit). */

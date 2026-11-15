@@ -75,13 +75,30 @@ export interface TiedStockCost { analyticLineId: string; analyticAccount: string
 /** A journal item that values a stock move, with the analytic accounts its distribution names. */
 export interface StockJournalLine { stockMoveId: number; analyticAccounts: readonly string[] }
 
+const taggedByMove = (journal: readonly StockJournalLine[]): Map<number, Set<string>> => {
+  const tagged = new Map<number, Set<string>>();
+  for (const j of journal) tagged.set(j.stockMoveId, new Set([...(tagged.get(j.stockMoveId) ?? []), ...j.analyticAccounts]));
+  return tagged;
+};
+
 /**
  * #2282 D8(c): a customised Odoo could tag the COGS journal item of an issue to the project; the GL kind then already counts the cost,
  * so the analytic line must not count again. Returns the analytic line ids whose picking has such a journal item on the same account.
  */
 export function findDoubleCounts(journal: readonly StockJournalLine[], tied: readonly TiedStockCost[]): string[] {
-  const tagged = new Map<number, Set<string>>();
-  for (const j of journal) tagged.set(j.stockMoveId, new Set([...(tagged.get(j.stockMoveId) ?? []), ...j.analyticAccounts]));
+  const tagged = taggedByMove(journal);
   return tied.filter((t) => t.analyticAccount !== null && t.stockMoveIds.some((m) => tagged.get(m)?.has(t.analyticAccount!)))
     .map((t) => t.analyticLineId).sort();
+}
+
+/**
+ * The same cost tagged to a DIFFERENT account than the analytic line's: each side is Odoo's own attribution, so neither is excluded, but the
+ * organisation's project actuals count it twice. Returns those analytic line ids (never one `findDoubleCounts` already returns).
+ */
+export function findOtherAccountTags(journal: readonly StockJournalLine[], tied: readonly TiedStockCost[]): string[] {
+  const tagged = taggedByMove(journal);
+  return tied.filter((t) => {
+    const accounts = t.stockMoveIds.flatMap((m) => [...(tagged.get(m) ?? [])]);
+    return accounts.length > 0 && (t.analyticAccount === null || !accounts.includes(t.analyticAccount));
+  }).map((t) => t.analyticLineId).sort();
 }

@@ -37,7 +37,7 @@ const FIELDS: Record<string, string[]> = {
   'stock.picking': ['name', 'state', 'partner_id', 'company_id', 'location_id', 'location_dest_id', 'date_done', 'move_ids', 'backorder_id', 'backorder_ids', 'return_id', 'purchase_id', 'picking_type_code', 'write_date'],
   'stock.move': ['name', 'state', 'picking_id', 'account_move_id', 'product_id', 'purchase_line_id', 'quantity', 'product_uom_qty', 'picked', 'value', 'is_valued', 'write_date'],
   'stock.quant': ['product_id', 'quantity', 'write_date'],
-  // #2282: move_line_id, general_account_id, company_id, date are standard Odoo fields, source-read; bed proof owed (plan Task 1).
+  // #2282: bed-proven 15 Nov 2026 (research section 11, odooStockCost.bed.test.ts).
   'account.analytic.line': ['name', 'amount', 'unit_amount', 'category', 'product_id', 'account_id', 'move_line_id', 'general_account_id', 'company_id', 'date', 'write_date'],
   'ir.module.module': ['name', 'state', 'write_date'],
   'stock.picking.type': ['name', 'code', 'company_id', 'analytic_costs', 'default_location_dest_id', 'write_date'],

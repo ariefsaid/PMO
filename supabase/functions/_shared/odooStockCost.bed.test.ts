@@ -344,7 +344,13 @@ async function ledgerCase(valuation: Valuation) {
     // the daily census is due by moving the clock a day on, once, at the end.
     const pass = async (aheadMs = 0) => {
       await sql(`delete from odoo_stock_cost_checks where org_id = '${orgId}'; delete from odoo_ledger_checks where org_id = '${orgId}';`);
-      return await runLedgerPass(sc, orgId, odoo, company.id, budget, { now: () => new Date(Date.now() + aheadMs) });
+      const result = await runLedgerPass(sc, orgId, odoo, company.id, budget, { now: () => new Date(Date.now() + aheadMs) });
+      if (result.stalled && !result.stockCaughtUp) {
+        // The pass reads every picking_entry line of the company, so a product left without a category or expense account by another bed file holds it.
+        const names = await sql(`select detail->'products' from audit_events where org_id = '${orgId}' and action = 'integration.odoo.stock_cost_held' order by created_at desc limit 1;`);
+        throw new Error(`the stock kind is held on ${result.held} line(s) of products with no category and no expense account: bed debris from another test, not this code. Products: ${names || 'none logged'}. Give them a category in the bed.`);
+      }
+      return result;
     };
     const projectNet = async () => {
       const rows = await must(sc.from('erp_actuals_snapshot').select('debit,credit,source_report').eq('org_id', orgId).eq('project_id', projectId));

@@ -396,7 +396,7 @@ describe('#2282 issued material cost from Odoo analytic lines (AC-IMC-002)', () 
     { project: null, account: '1150', debit: '0.00', credit: '240.00' },
   ];
 
-  it('NO-DOUBLE-COUNT: the project total is the expense plus the issue once (340, not 580); the COGS line stays unattributed', async () => {
+  it('AC-IMC-002 NO-DOUBLE-COUNT: the project total is the expense plus the issue once (340, not 580); the COGS line stays unattributed', async () => {
     const c = client(gl, [{ analytic_account_id: '600', account: '5110', debit: '240.00', credit: '0.00' }]);
     await refreshActuals(c.fake as never, 'org-1', { projectMap, stockCost: true });
     const rows = c.published();
@@ -406,7 +406,7 @@ describe('#2282 issued material cost from Odoo analytic lines (AC-IMC-002)', () 
     expect(rows.filter((r) => r.source_report === 'Odoo stock issue')).toEqual([expect.objectContaining({ project_id: P, account: '5110', net: 240 })]);
   });
 
-  it('NO-DOUBLE-COUNT: a material issue already in the ledger (flagged by the check) adds zero; a cancelled line adds zero', async () => {
+  it('AC-IMC-002 NO-DOUBLE-COUNT: a material issue already in the ledger (flagged by the check) adds zero; a cancelled line adds zero', async () => {
     const c = client(gl, [
       { analytic_account_id: '600', account: '5110', debit: '240.00', credit: '0.00', double_count_risk: true },
       { analytic_account_id: '600', account: '5110', debit: '70.00', credit: '0.00', is_cancelled: true },
@@ -416,7 +416,7 @@ describe('#2282 issued material cost from Odoo analytic lines (AC-IMC-002)', () 
     expect(c.published().some((r) => r.source_report === 'Odoo stock issue')).toBe(false);
   });
 
-  it('a return nets against the issue in the same bucket', async () => {
+  it('AC-IMC-002 a return nets against the issue in the same bucket', async () => {
     const c = client([], [
       { analytic_account_id: '600', account: '5110', debit: '240.00', credit: '0.00' },
       { analytic_account_id: '600', account: '5110', debit: '0.00', credit: '120.00' },
@@ -425,7 +425,7 @@ describe('#2282 issued material cost from Odoo analytic lines (AC-IMC-002)', () 
     expect(c.published()).toEqual([expect.objectContaining({ project_id: P, debit: 240, credit: 120, net: 120, source_report: 'Odoo stock issue' })]);
   });
 
-  it('UNCATEGORISED: a cost on an account that maps to no budget category (or none at all) is kept with its amount, never dropped', async () => {
+  it('AC-IMC-002 UNCATEGORISED: a cost on an account that maps to no budget category (or none at all) is kept with its amount, never dropped', async () => {
     const c = client([], [
       { analytic_account_id: '600', account: '5999', debit: '55.00', credit: '0.00' },
       { analytic_account_id: '600', account: null, debit: '5.00', credit: '0.00' },
@@ -434,13 +434,13 @@ describe('#2282 issued material cost from Odoo analytic lines (AC-IMC-002)', () 
     expect(projectTotal(c.published())).toBe(60);
   });
 
-  it('a line on an analytic account no project links waits in the table: never in the unattributed bucket beside the COGS line', async () => {
+  it('AC-IMC-002 a line on an analytic account no project links waits in the table: never in the unattributed bucket beside the COGS line', async () => {
     const c = client(gl, [{ analytic_account_id: '700', account: '5110', debit: '240.00', credit: '0.00' }]);
     await refreshActuals(c.fake as never, 'org-1', { projectMap, stockCost: true });
     expect(c.published().some((r) => r.source_report === 'Odoo stock issue')).toBe(false);
   });
 
-  it('without the stockCost option the refresh never reads the table and publishes GL only (ERPNext unchanged)', async () => {
+  it('AC-IMC-002 without the stockCost option the refresh never reads the table and publishes GL only (ERPNext unchanged)', async () => {
     const c = client(gl, [{ analytic_account_id: '600', account: '5110', debit: '240.00', credit: '0.00' }]);
     await refreshActuals(c.fake as never, 'org-1', { projectMap });
     expect(c.fake.reads.some((r) => r.table === 'odoo_stock_cost_lines')).toBe(false);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compareStockCost, compareTotals, findDoubleCounts, type PmoLine, type StockCostLine } from './ledgerReconcile.ts';
+import { compareStockCost, compareTotals, findDoubleCounts, findOtherAccountTags, type PmoLine, type StockCostLine } from './ledgerReconcile.ts';
 
 const CUTOFF = '2026-03-01 10:00:00';
 const pmo = (account: string, debit: string, credit: string, writeDate = '2026-02-01 00:00:00', cancelled = false): PmoLine =>
@@ -77,5 +77,14 @@ describe('#2282 stock-cost comparison and the no-double-count check (AC-IMC-005)
       [{ analyticLineId: '501', analyticAccount: '600', stockMoveIds: [11] }, { analyticLineId: '502', analyticAccount: '600', stockMoveIds: [12] },
         { analyticLineId: '503', analyticAccount: '601', stockMoveIds: [13] }],
     )).toEqual(['501']);
+  });
+
+  it('findOtherAccountTags returns the lines whose picking is tagged to a different account (or the line has none), never one findDoubleCounts returns', () => {
+    const journal = [{ stockMoveId: 11, analyticAccounts: ['600'] }, { stockMoveId: 12, analyticAccounts: ['999'] }, { stockMoveId: 14, analyticAccounts: ['600', '999'] }];
+    const tied = [{ analyticLineId: '501', analyticAccount: '600', stockMoveIds: [11] }, { analyticLineId: '502', analyticAccount: '600', stockMoveIds: [12] },
+      { analyticLineId: '503', analyticAccount: '601', stockMoveIds: [13] }, { analyticLineId: '504', analyticAccount: null, stockMoveIds: [12] },
+      { analyticLineId: '505', analyticAccount: '600', stockMoveIds: [14] }];
+    expect(findOtherAccountTags(journal, tied)).toEqual(['502', '504']);
+    expect(findDoubleCounts(journal, tied)).toEqual(['501', '505']);
   });
 });
