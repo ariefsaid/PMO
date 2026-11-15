@@ -37,7 +37,7 @@ test('AC-ODC-093: an Odoo with none of the data receives every PMO vendor, clien
   const { orgId, call } = scenario;
   const token = await accessToken(scenario.admin);
 
-  // PMO holds 3 vendors, 1 client, 2 projects and items on 2 open purchases.
+  // PMO holds 3 vendors, 1 client, 2 projects and items on 2 open purchases (Approved: a Draft purchase is not open, so its items are not sent).
   const vendors = [1, 2, 3].map((n) => ({ id: crypto.randomUUID(), name: `${stamp} Sinar Baja ${n}` }));
   const client = { id: crypto.randomUUID(), name: `${stamp} Client` };
   await must('vendors', admin.from('companies').insert(vendors.map((v) => ({ id: v.id, org_id: orgId, name: v.name, type: 'Vendor' as const }))).select('id'));
@@ -51,7 +51,7 @@ test('AC-ODC-093: an Odoo with none of the data receives every PMO vendor, clien
   const purchases = projects.map((p, i) => ({ id: crypto.randomUUID(), project: p, item: `${stamp} item ${i + 1}` }));
   await must('purchases', admin.from('procurements').insert(purchases.map((x, i) => ({
     id: x.id, org_id: orgId, code: `${stamp}-PO${i + 1}`, title: `${stamp} purchase ${i + 1}`, project_id: x.project.id, vendor_id: vendors[i].id,
-    requested_by_id: scenario!.admin.id, total_value: 100000, currency: 'IDR', status: 'Draft' as const,
+    requested_by_id: scenario!.admin.id, total_value: 100000, currency: 'IDR', status: 'Approved' as const,
   }))).select('id'));
   await must('items', admin.from('procurement_items').insert(purchases.map((x) => ({ org_id: orgId, procurement_id: x.id, name: x.item, quantity: 1, rate: 100000 }))).select('id'));
 
