@@ -588,6 +588,27 @@ test('function error: prints code and step in plain words and exits non-zero', a
   }
 });
 
+test('#2264 a taken organization name is refused in plain words', async () => {
+  const server = await fakeServer(async ({ url, body, send }) => {
+    if (url.pathname === '/functions/v1/operator-org' && body.action === 'create') {
+      return send(409, { error: 'ORG_NAME_TAKEN', step: 'operator_create_org' });
+    }
+  });
+
+  try {
+    const res = await runCli(['org', 'add', ...REQUIRED_FLAGS, '--confirm'], server.url);
+    assert.notEqual(res.code, 0);
+    const parsed = JSON.parse(res.err.trim().split('\n')[0]);
+    assert.equal(parsed.error.code, 'ORG_NAME_TAKEN');
+    assert.match(
+      parsed.error.message,
+      /^Another organization already has this name\. Names match ignoring letter case and surrounding spaces; choose a different --name\.$/,
+    );
+  } finally {
+    await server.close();
+  }
+});
+
 // ── Operator RPC allowlist ───────────────────────────────────────────────────────────────────────
 
 test('operator RPCs are not available to `pmo rpc` directly', async () => {

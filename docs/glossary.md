@@ -85,6 +85,8 @@ Service/O&M). Defined in `docs/roadmap-spines.md`.
 
 **Cost attribution rule** — a versioned, effective-dated rule matching external cost attributes to percentage allocations across projects; its targets carry the project shares.
 
+**Organization name** — unique across the deployment. Two names are the same when they match ignoring letter case and surrounding spaces; inner spacing counts. The database enforces it for every writer (unique index `organizations_name_normalized_key`, #2264), so `pmo org add` can re-run safely by name.
+
 **PMO Project Number** — the human-readable identifier PMO assigns to a project. It is unique within the organisation and independent of the organisation's own **Client Project Code** and any identifier assigned by an external system. (OD-ID-1.)
 
 **Client Project Code** — the optional, free-form code the organisation uses for the same project. It is shown and searched alongside the PMO Project Number, but is never used as PMO's identifier. (OD-ID-1.)

@@ -153,7 +153,7 @@ node scripts/pmo.mjs org add \
 - `TIMEZONE_REQUIRED`: The `--timezone` flag value is missing.
 - `PLAN_REQUIRED`: The `--plan` flag value is missing.
 - `UNKNOWN_PLAN`: The specified plan identifier does not exist in the database.
-- `ORG_NAME_TAKEN`: An organization with this name already exists and caller is not its Admin.
+- `ORG_NAME_TAKEN`: Another organization already has this name, and the given Admin is not its Admin. Names match ignoring letter case and surrounding spaces, and the database holds one organization per name (#2264).
 - `ADMIN_HAS_PROFILE`: The specified email address already belongs to an existing organization profile.
 - `ADMIN_ACCOUNT_EXISTS`: An auth account exists for this email with a profile or has signed in.
 - `RATE_LIMITED`: The operator has exceeded the allowed rate of organization creation.
