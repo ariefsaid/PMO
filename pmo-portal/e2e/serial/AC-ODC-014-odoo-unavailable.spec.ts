@@ -17,8 +17,10 @@ const bed = (verb: 'up' | 'down') => {
   try {
     return execFileSync(BED_SCRIPT, [verb], { stdio: 'pipe', timeout: 300_000 });
   } catch (error) {
-    const stderr = String((error as { stderr?: Buffer | string }).stderr ?? '').trim();
-    throw new Error(`odoo-dev-bed.sh ${verb} failed: ${stderr || (error as Error).message}`, { cause: error });
+    const stderr = String((error as { stderr?: Buffer | string }).stderr ?? '');
+    const lastLine = stderr.split('\n').map((l) => l.trim()).filter(Boolean).pop();
+    const firstMessageLine = (error as Error).message.split('\n')[0];
+    throw new Error(`odoo-dev-bed.sh ${verb} failed: ${lastLine ?? 'no output'} (${firstMessageLine})`, { cause: error });
   }
 };
 
@@ -41,11 +43,15 @@ let projectId = '';
 // The bed is brought back even when the journey fails, so the next spec (and the next agent) finds it up.
 test.afterAll(async () => {
   test.setTimeout(300_000);
-  let bedError: unknown;
-  try { bed('up'); } catch (error) { bedError = error; }
-  await scenario?.call('product.product', 'unlink', { ids: [productId] }).catch(() => undefined);
-  await scenario?.cleanup();
-  if (bedError) throw bedError;
+  const errors: unknown[] = [];
+  try { bed('up'); } catch (error) { errors.push(error); }
+  try {
+    await scenario?.call('product.product', 'unlink', { ids: [productId] }).catch(() => undefined);
+    await scenario?.cleanup();
+  } catch (error) { errors.push(error); }
+  // The bed's own failure leads; a cleanup error never masks it.
+  if (errors.length === 1) throw errors[0];
+  if (errors.length > 1) throw new AggregateError(errors, (errors[0] as Error).message);
 });
 
 test('AC-ODC-014: with Odoo down the item directory shows last data and the unavailable notice, nothing is queued, and Re-check clears it once Odoo is back', async ({ page }) => {
