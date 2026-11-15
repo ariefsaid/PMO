@@ -69,6 +69,26 @@ describe('DataTable pagination (#843)', () => {
     expect(screen.getByRole('button', { name: 'Previous page' })).toBeEnabled();
   });
 
+  it('draws the dead end of the pager apart from the live end, and it cannot be clicked or focused (#843)', async () => {
+    const onPageChange = renderPaged(1);
+    const prev = screen.getByRole('button', { name: 'Previous page' });
+    const next = screen.getByRole('button', { name: 'Next page' });
+    expect(prev).toBeDisabled();
+    expect(prev).toHaveClass('text-text-disabled');
+    expect(next).not.toHaveClass('text-text-disabled');
+    await userEvent.click(prev);
+    await userEvent.tab();
+    expect(prev).not.toHaveFocus();
+    expect(onPageChange).not.toHaveBeenCalled();
+    await userEvent.click(next);
+    expect(onPageChange).toHaveBeenCalledWith(2);
+  });
+  it('draws Next as the dead end on the last page', () => {
+    renderPaged(5);
+    expect(screen.getByRole('button', { name: 'Next page' })).toHaveClass('text-text-disabled');
+    expect(screen.getByRole('button', { name: 'Previous page' })).not.toHaveClass('text-text-disabled');
+  });
+
   it('shows no pager when everything fits on one page, only the count', () => {
     renderPaged(1, 12);
     expect(screen.getByText('Showing 1–12 of 12')).toBeInTheDocument();

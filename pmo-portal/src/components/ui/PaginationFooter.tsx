@@ -23,6 +23,8 @@ export const PaginationFooter: React.FC<{ pagination: PaginationState; total: nu
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const from = shown === 0 ? 0 : (page - 1) * pageSize + 1;
   const to = (page - 1) * pageSize + shown;
+  // A dead end (Previous on page 1, Next on the last) wears the disabled ink, not the live one (#843).
+  const dead = 'text-text-disabled disabled:text-text-disabled';
   const cell = 'min-h-11 min-w-11 px-2 sm:min-h-8 sm:min-w-8 tabular-nums';
   return (
     <div className="flex flex-col gap-3 border-t border-border/70 px-[var(--table-cell-inset)] py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -31,7 +33,7 @@ export const PaginationFooter: React.FC<{ pagination: PaginationState; total: nu
       </p>
       {pageCount > 1 && (
         <nav aria-label={t('pagination.label', 'Pagination')} className="flex items-center sm:gap-1">
-          <Button variant="ghost" size="sm" className={cell} disabled={page <= 1}
+          <Button variant="ghost" size="sm" className={`${cell} ${page <= 1 ? dead : ''}`} disabled={page <= 1}
             aria-label={t('pagination.previousAria', 'Previous page')} onClick={() => onPageChange(page - 1)}>
             <Icon name="chev" aria-hidden className="size-3.5 rotate-180 sm:hidden" />
             <span className="hidden sm:inline">{t('pagination.previous', 'Previous')}</span>
@@ -45,7 +47,7 @@ export const PaginationFooter: React.FC<{ pagination: PaginationState; total: nu
                 {p}
               </Button>
             ))}
-          <Button variant="ghost" size="sm" className={cell} disabled={page >= pageCount}
+          <Button variant="ghost" size="sm" className={`${cell} ${page >= pageCount ? dead : ''}`} disabled={page >= pageCount}
             aria-label={t('pagination.nextAria', 'Next page')} onClick={() => onPageChange(page + 1)}>
             <span className="hidden sm:inline">{t('pagination.next', 'Next')}</span>
             <Icon name="chev" aria-hidden className="size-3.5 sm:hidden" />
