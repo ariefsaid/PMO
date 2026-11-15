@@ -77,10 +77,10 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency }) => {
                 value={pct}
                 widthless
                 className="min-w-0 flex-1 [&>span:first-child]:flex-1"
-                aria-label={t('uxs03.spendingContractBar', '{{name}}: {{percent}}% of contract', { name: projectDisplayName(p), percent: pct })}
+                aria-label={t('uxs03.spendingContractBar', '{{name}}: {{percent}}% of contract spent', { name: projectDisplayName(p), percent: pct })}
               />
               <span className="shrink-0 text-[11.5px] tabular text-muted-foreground">
-                {t('dashboard:executive.spendingContractPercent', '{{percent}}% of contract', { percent: pct })}
+                {t('dashboard:executive.spendingContractPercent', '{{percent}}% of contract spent', { percent: pct })}
               </span>
             </div>
           )}

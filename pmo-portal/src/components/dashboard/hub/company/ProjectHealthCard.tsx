@@ -68,7 +68,7 @@ export const ProjectHealthCard: React.FC<{
                     const budgetWords = !bullet
                       ? t('home.noActiveBudget', 'No active budget')
                       : bullet.spent === null
-                        ? `${t('home.noSpendingRecorded', 'No spending recorded')} · ${t('home.budgetOf', '{{amount}} budget', { amount: money(row.budget as number, currency) })}`
+                        ? `${t('home.spendingNotLinked', 'Spending not linked')} · ${t('home.budgetOf', '{{amount}} budget', { amount: money(row.budget as number, currency) })}`
                         : t('home.spentOfBudget', '{{spent}} spent of {{budget}} budget', { spent: money(row.spent as number, currency), budget: money(row.budget as number, currency) });
                     const name = projectDisplayName(row);
                     return (

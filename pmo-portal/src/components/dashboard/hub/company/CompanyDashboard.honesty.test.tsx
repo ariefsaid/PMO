@@ -32,7 +32,7 @@ const base = {
   procurements_by_status: [],
   top_projects: [],
 };
-const h = vi.hoisted(() => ({ pipeline: null as unknown, budgetReviewHangs: false, dash: null as unknown, win: null as unknown, pack: null as unknown, loss: null as unknown, delivery: {} as Record<string, number>, projectsPending: false, invoices: [] as unknown[] }));
+const h = vi.hoisted(() => ({ pipeline: null as unknown, budgetReviewHangs: false, dash: null as unknown, win: null as unknown, pack: null as unknown, loss: null as unknown, delivery: {} as Record<string, number>, projectsPending: false, invoices: [] as unknown[], positions: {} as Record<string, unknown>, positionIds: [] as string[], positionsState: 'ok' as 'ok' | 'pending' | 'error' }));
 const attn = (id: string, name: string, over: Record<string, unknown> = {}) => ({
   id, name, short_name: null, client_name: null, contract_value: 100, currency: 'USD', budget: null, spent: null, actual_complete: true, actual_currency: 'USD', budget_currency: 'USD',
   status: 'Ongoing Project', attention_signals: 0, overdue_items: 0, overdue_tasks: 0, overdue_milestones: 0, overdue_invoices: 0, waiting_approvals: 0, over_budget: false, budget_used_ratio: null, ...over,
@@ -80,6 +80,16 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: h.delivery, isPending: false, isError: false, refetch: vi.fn() }),
 }));
+// The Budget tab's canonical reading (#2132): the dashboard's project spend reads the same source.
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: (ids: string[]) => { h.positionIds = ids; return h.positionsState === 'ok'
+    ? { data: h.positions, isPending: false, isError: false, fetchStatus: 'idle', refetch: vi.fn() }
+    : { data: undefined, isPending: h.positionsState === 'pending', isError: h.positionsState === 'error', fetchStatus: h.positionsState === 'pending' ? 'fetching' : 'idle', refetch: vi.fn() }; },
+}));
+const position = (projectId: string, spent: string | null, over: Record<string, unknown> = {}) => ({
+  projectId, ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: null, spent, openCommitment: null, consumption: spent,
+  complete: spent !== null, usedRatio: null, usedPercent: null, consumptionVariance: null, riskEligible: false, atRisk: null, ...over,
+});
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useErpSnapshots', () => ({
   useActualsSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
@@ -119,6 +129,9 @@ beforeEach(() => {
   h.delivery = {};
   h.projectsPending = false;
   h.invoices = [];
+  h.positions = {};
+  h.positionIds = [];
+  h.positionsState = 'ok';
   h.budgetReviewHangs = false;
   localStorage.removeItem('home-layout');
 });
@@ -147,6 +160,7 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
       ...base,
       attention_projects: [attn('p1', 'River project', { budget: 1_500_000, spent: 900_000, contract_value: 2_000_000 })],
     };
+    h.positions = { p1: position('p1', '900000.00') };
     h.delivery = { p1: 51 };
     renderExec();
     const row = within(screen.getByTestId('project-health')).getByRole('link', { name: /River project/ });
@@ -160,8 +174,60 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     h.dash = { ...base, attention_projects: [attn('p1', 'Quiet project', { budget: 500_000, spent: null, actual_complete: false })] };
     renderExec();
     const row = within(screen.getByTestId('project-health')).getByRole('link', { name: /Quiet project/ });
-    expect(row).toHaveTextContent('No spending recorded · $500K budget');
+    expect(row).toHaveTextContent('Spending not linked · $500K budget');
     expect(row).not.toHaveTextContent('$0 spent');
+  });
+
+  it('AC-2132-SPEND: while the Budget tab reading loads Project health waits; when it fails it says so, never a spend figure of its own', () => {
+    h.dash = { ...base, attention_projects: [attn('p1', 'River project', { budget: 1_000_000, spent: 900_000 })] };
+    h.positionsState = 'pending';
+    const { unmount } = renderExec();
+    expect(within(screen.getByTestId('project-health')).queryByRole('link', { name: /River project/ })).not.toBeInTheDocument();
+    unmount();
+    h.positionsState = 'error';
+    renderExec();
+    const health = screen.getByTestId('project-health');
+    expect(within(health).getByText("Couldn't load projects")).toBeInTheDocument();
+    expect(health).not.toHaveTextContent('$900K');
+  });
+
+  it('AC-2132-SPEND: the focused plan-vs-actual chart reads the Budget tab spending too', () => {
+    localStorage.setItem('home-layout', 'focused');
+    h.dash = {
+      ...base,
+      top_projects: [
+        attn('p1', 'Agreeing project', { contract_value: 2_000_000, spent: 900_000, actual_complete: true }),
+        attn('p2', 'Unlinked project', { contract_value: 1_000_000, spent: 470_000, actual_complete: true }),
+      ],
+    };
+    h.positions = { p1: position('p1', '300000.00'), p2: position('p2', null) };
+    renderExec();
+    const details = screen.getByTestId('dashboard-analysis').querySelector('details') as HTMLDetailsElement;
+    act(() => { details.open = true; details.dispatchEvent(new Event('toggle')); });
+    const table = screen.getByRole('table', { name: 'Plan vs actual by project' });
+    expect(within(table).getByRole('row', { name: /Agreeing project/ })).toHaveTextContent('$300,000');
+    expect(within(table).getByRole('row', { name: /Agreeing project/ })).toHaveTextContent('15%');
+    expect(within(table).getByRole('row', { name: /Unlinked project/ })).not.toHaveTextContent('$470,000');
+    expect(screen.getByTestId('plan-actual-caption')).toHaveTextContent('Spend incomplete: 1 project');
+  });
+
+  it('AC-2132-SPEND: a project row states the Budget tab spending, not a figure of its own', () => {
+    h.dash = {
+      ...base,
+      attention_projects: [
+        attn('p1', 'Agreeing project', { budget: 1_000_000, spent: 900_000, actual_complete: true }),
+        attn('p2', 'Unlinked project', { budget: 1_000_000, spent: 470_000, actual_complete: true }),
+      ],
+    };
+    // The Budget tab states $300K for p1 and cannot state p2's spending.
+    h.positions = { p1: position('p1', '300000.00'), p2: position('p2', null) };
+    renderExec();
+    const health = screen.getByTestId('project-health');
+    expect(h.positionIds).toEqual(expect.arrayContaining(['p1', 'p2']));
+    expect(within(health).getByRole('link', { name: /Agreeing project/ })).toHaveTextContent('$300K spent of $1M budget');
+    const unlinked = within(health).getByRole('link', { name: /Unlinked project/ });
+    expect(unlinked).toHaveTextContent('Spending not linked · $1M budget');
+    expect(unlinked).not.toHaveTextContent('$470K');
   });
 
   it('AC-IXD-DASH-002: no figure carries the ambiguous "Projected margin" name; forecast margin appears once, on the weighted pipeline', () => {
