@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import test from 'node:test';
+import { EXCLUDED } from './run-script-tests.mjs';
 
 const workflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
 // #2332: non-database script-test discovery lives in the tracked runner, so its invariants
@@ -35,7 +36,7 @@ test('every scripts/*.test.mjs file is assigned to a CI test step', () => {
   for (const file of scriptTests) {
     if (databaseTests.includes(file)) {
       assert.ok(workflow.includes(`scripts/${file}`), `${file} must run after Supabase starts`);
-      assert.ok(runner.includes(`'${file}'`), `${file} must not be run before Supabase starts (it must sit in the runner's EXCLUDED list)`);
+      assert.ok(EXCLUDED.includes(file), `${file} must not be run before Supabase starts (it must sit in the runner's EXCLUDED list)`);
     }
   }
   const provesCoverage = (text) => {
@@ -601,7 +602,7 @@ test('rendered proof self-test runs after Chromium installation in the browser g
   assert.ok(install !== -1 && proof > install, 'browser job must run the proof self-test after installing Chromium');
   // #2332: the exclusion moved into the runner's EXCLUDED list (its --self-test proves the
   // name stays live), so ux-proof cannot run in the pre-Chromium script step.
-  assert.match(runner, /'ux-proof\.test\.mjs'/, "ux-proof.test.mjs must sit in the runner's EXCLUDED list");
+  assert.ok(EXCLUDED.includes('ux-proof.test.mjs'), "ux-proof.test.mjs must sit in the runner's EXCLUDED list");
   assert.ok(browser.includes('node --test scripts/ux-proof.test.mjs'), 'browser job must run the proof contract test');
   assert.match(packageJson.scripts['check:ux-proof'], /ux-proof\.mjs --self-test/);
   assert.doesNotMatch(packageJson.scripts['check:guards'], /ux-proof/);
