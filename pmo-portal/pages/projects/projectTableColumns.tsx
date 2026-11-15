@@ -307,7 +307,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       // The header names the denominator: a share of budget, not of the Contract beside it.
       header: <span tabIndex={0} title={t('projects:budgetUsedHelp', 'Spent as a share of budget, before tax')}>{t('projects:columns.budgetUsedShare', '% of budget used')}</span>,
       kind: 'percent',
-      size: 136,
+      size: 160,
       minSize: 128,
       maxSize: 320,
       cell: (p) => {

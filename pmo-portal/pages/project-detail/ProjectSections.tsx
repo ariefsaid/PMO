@@ -76,6 +76,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
     : null, [isPipeline, project.id]);
   const openBudget = useCallback(() => onOpen('budget'), [onOpen]);
   const canSeeMoney = may('view', 'salesInvoice');
+  const calm = !attention.isPending && !attention.error && attention.items.length === 0;
   if (isPipeline) {
     if (lens === 'delivery') {
       return (
@@ -124,10 +125,11 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
             then Budget and the Phase timeline span the canvas on one shared row grid. Each panel names its own figures that
             cannot be computed yet, so nothing sits bare between the tabs and the panels.
             Grid at xl (1440): canvas ≈ 1440 − 224 sidebar − 2×24 gutters = 1168; 2fr + 3fr with one 24px gap = 458 + 686. */}
+        {/* Nothing needs you: Needs attention becomes a slim full-width band, so it never stretches beside Money position. */}
         <div className={`grid min-w-0 gap-[var(--space-panel-gap)] ${canSeeMoney ? 'xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]' : 'xl:grid-cols-2'}`}>
-          <ProjectAttention items={attention.items} isPending={attention.isPending} error={attention.error} fillRow={canSeeMoney} className="min-w-0 xl:col-start-1 xl:row-start-1" />
-          {canSeeMoney && <div className="min-w-0 xl:col-start-2 xl:row-start-1"><MoneyBlock project={project} fillRow footer={<BillingMilestonesBlock projectId={project.id} empty="line" />} /></div>}
-          <div className={`min-w-0 ${canSeeMoney ? 'xl:col-span-2 xl:col-start-1 xl:row-start-2' : ''}`}><CostBlock project={project} onOpenBudget={openBudget} showUnit={!canSeeMoney} /></div>
+          <ProjectAttention items={attention.items} isPending={attention.isPending} error={attention.error} fillRow={canSeeMoney && !calm} className={`min-w-0 xl:col-start-1 xl:row-start-1 ${calm ? 'xl:col-span-2' : ''}`} />
+          {canSeeMoney && <div className={`min-w-0 ${calm ? 'xl:col-span-2 xl:col-start-1 xl:row-start-2' : 'xl:col-start-2 xl:row-start-1'}`}><MoneyBlock project={project} fillRow={!calm} footer={<BillingMilestonesBlock projectId={project.id} empty="line" />} /></div>}
+          <div className={`min-w-0 ${canSeeMoney ? `xl:col-span-2 xl:col-start-1 ${calm ? 'xl:row-start-3' : 'xl:row-start-2'}` : ''}`}><CostBlock project={project} onOpenBudget={openBudget} showUnit={!canSeeMoney} /></div>
         </div>
         {/* An empty milestones slot (its line lives in Money position) takes no gap. */}
         <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)] [&>[data-near-viewport=seen]:empty]:hidden">
