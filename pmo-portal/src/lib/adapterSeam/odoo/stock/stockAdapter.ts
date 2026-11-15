@@ -25,15 +25,17 @@ export { INVENTORY_DOMAIN };
 
 export type StockIntentResult =
   | { ok: true; intent: StockIntent }
-  | { ok: false; reason: StockCapabilityRefusalReason | StockMappingRefusalReason | string; message: string };
+  | { ok: false; reason: StockCapabilityRefusalReason | StockMappingRefusalReason | string; message: string; subjectId?: string };
 
 export interface OdooStockDeps {
   call: OdooCall;
   loadIntent: () => Promise<StockIntentResult>;
 }
 
-/** A refusal before anything was written: the row fails and the keeper retries. `reason` is the typed setup condition the keeper is told. */
-const refuse = (message: string, reason?: string): never => { throw Object.assign(new AppError(message, 'commit-rejected'), reason ? { refusalReason: reason } : {}); };
+/** A refusal before anything was written: the row fails and the keeper retries. `reason` is the typed setup condition the keeper is told; `subjectId` the record it names, when it knows one. */
+const refuse = (message: string, reason?: string, subjectId?: string): never => {
+  throw Object.assign(new AppError(message, 'commit-rejected'), reason ? { refusalReason: reason } : {}, subjectId ? { refusalSubject: subjectId } : {});
+};
 
 /** `call` is the raw Odoo client: `picking.ts` reads an Odoo refusal (a 4xx) apart from a lost answer, which a pre-wrapped error would hide. */
 export function createOdooStockAdapter({ call, loadIntent }: OdooStockDeps): Adapter {
@@ -44,7 +46,7 @@ export function createOdooStockAdapter({ call, loadIntent }: OdooStockDeps): Ada
     async commit(cmd: AdapterCommand): Promise<CommandResult> {
       if (cmd.domain !== INVENTORY_DOMAIN || cmd.operation !== 'create') refuse(`unsupported command ${cmd.domain}/${cmd.operation}`);
       const loaded = await loadIntent();
-      if (!loaded.ok) return refuse(loaded.message, loaded.reason);
+      if (!loaded.ok) return refuse(loaded.message, loaded.reason, loaded.subjectId);
       const { intent } = loaded;
       if (intent.documentId !== cmd.record.id) refuse('document-mismatch');
 

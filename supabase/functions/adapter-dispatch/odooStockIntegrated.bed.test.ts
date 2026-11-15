@@ -130,6 +130,12 @@ describe({ name: 'AC-OSP-002 / AC-OSP-003 / AC-OSP-006 Round 7.1: integrated pro
     const [customer] = await odoo<number[]>('stock.location', 'create', { vals_list: [{ name: `${stamp} Customer`, usage: 'customer', company_id: COMPANY, valuation_account_id: 152 }] });
     const [type] = await odoo<Array<{ default_location_dest_id: [number, string]; analytic_costs: boolean }>>('stock.picking.type', 'read', { ids: [2], fields: ['default_location_dest_id', 'analytic_costs'] });
     restoreType = { dest: type.default_location_dest_id[0], analytic: type.analytic_costs };
+    // A run that died before its afterAll leaves the type pointing at its own company-owned customer location; the next run would "restore" that.
+    // Restore to the shared Customers location (no company) instead, so a dead run cannot poison the bed for the protocol facts test.
+    if (/^INT-\d+ Customer$/.test(type.default_location_dest_id[1])) {
+      const [shared] = await odoo<Array<{ id: number }>>('stock.location', 'search_read', { domain: [['usage', '=', 'customer'], ['company_id', '=', false], ['name', '=', 'Customers']], fields: ['id'], order: 'id asc', limit: 1 });
+      restoreType = { dest: shared.id, analytic: false };
+    }
     await odoo('stock.picking.type', 'write', { ids: [2], vals: { analytic_costs: true, default_location_dest_id: customer } });
 
     await psql(`

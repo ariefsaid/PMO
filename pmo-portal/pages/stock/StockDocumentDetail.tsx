@@ -12,6 +12,7 @@ import { STOCK_COMMAND_IN_FLIGHT, useProjectConsumption, useStockDocument, useSt
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { formatQuantity, formatStockValue, stockValuePreview, subtractDecimal } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { isSetupRefusal, parseRefusalEvidence } from '@/src/lib/adapterSeam/odoo/stock/refusal';
 import { formatDay } from '@/src/lib/format';
 import type { StockDocumentLine } from '@/src/lib/db/stockDocuments';
 import type { StockLedgerRow } from '@/src/lib/db/stockReports';
@@ -45,7 +46,7 @@ const OverAllowanceNotice: React.FC<{ projectId: string; on: string; lines: Stoc
 };
 
 const StockDocumentDetail: React.FC = () => {
-  const { t } = useTranslation('stock');
+  const { t, i18n } = useTranslation('stock');
   const { documentId } = useParams<{ documentId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -70,13 +71,20 @@ const StockDocumentDetail: React.FC = () => {
   const held = command?.state === 'held';
   const settling = STOCK_COMMAND_IN_FLIGHT.includes(command?.state ?? '');
   // The last post was refused before anything reached Odoo: the mirror holds the reason code; the copy names the setup step.
-  const refusal = command?.state === 'failed' && evidence?.state === 'failed' ? evidence.exception : null;
+  const refusal = command?.state === 'failed' && evidence?.state === 'failed' && evidence.exception ? parseRefusalEvidence(evidence.exception) : null;
 
   const d = doc.data;
+  // The warehouse a refusal names, when it is one of this document's two.
+  const refusedWarehouse = refusal?.subjectId === undefined ? null : refusal.subjectId === d?.warehouse_id ? d?.warehouse : refusal.subjectId === d?.to_warehouse_id ? d?.to_warehouse : null;
+  const refusalFact = !refusal ? '' : refusedWarehouse && i18n.exists(`stock:refusalWarehouse.${refusal.reason}`)
+    ? t(`refusalWarehouse.${refusal.reason}`, { warehouse: refusedWarehouse.code })
+    : t(`refusal.${refusal.reason}`, { defaultValue: t('refusal.other') });
+  const refusalIsSetup = !refusal || !i18n.exists(`stock:refusal.${refusal.reason}`) || isSetupRefusal(refusal.reason);
+  const canOpenSetup = may('manage', 'integration');
   const postedFromOdoo = d?.status === 'Posted' && evidence?.state === 'confirmed';
   // Odoo's number is a sum across items: it reads as a quantity only when every line shares one unit, else the lines are counted.
   const units = new Set((d?.lines ?? []).map((l) => l.item?.unit.code));
-  const moved = units.size === 1 ? t('detail.erp.movedQuantity', { quantity: formatQuantity(evidence?.completedQuantity ?? '0', loc) }) : t('detail.erp.movedLines', { count: d?.lines.length ?? 0 });
+  const moved = units.size === 1 ? t('detail.erp.movedQuantity', { quantity: formatQuantity(evidence?.completedQuantity ?? '0', loc), unit: [...units][0] }) : t('detail.erp.movedLines', { count: d?.lines.length ?? 0 });
   // The valuation is the project's material cost: the database answers it only to the roles that see stock costs.
   const value = evidence?.completedValue ?? null;
   const awaitingEvidence = connected && d?.status === 'Posted' && erp.isPending;
@@ -202,7 +210,7 @@ const StockDocumentDetail: React.FC = () => {
             className="!mb-4"
             name={<span className="font-mono">{d.number}</span>}
             meta={`${t(`kinds.${d.kind}`)} · ${formatDay(d.occurred_on)}`}
-            status={<StatusPill record="stockDocument" state={d.status} />}
+            status={<StatusPill record="stockDocument" state={d.status === 'Draft' && held ? 'On hold' : d.status} />}
             primaryAction={canPost
               ? <Button variant="primary" size="sm" loading={m.post.isPending} onClick={() => setConfirmPost(true)}>{t('detail.post')}</Button>
               : canEdit ? <Button variant="primary" size="sm" onClick={() => navigate(`/stock/documents/${d.id}/edit`)}>{t('count.editDraft')}</Button> : undefined}
@@ -214,7 +222,9 @@ const StockDocumentDetail: React.FC = () => {
           {d.status === 'Draft' && settling && <p role="status" className="rounded-md border border-border bg-muted px-3 py-2 text-sm">{t('detail.erp.settling')}</p>}
           {d.status === 'Draft' && refusal && !settling && !held && (
             <p role="alert" className="rounded-md border border-warning/40 bg-warning/12 px-3 py-2 text-sm text-warning-foreground">
-              {t('detail.erp.refused', { reason: t(`refusal.${refusal}`, { defaultValue: t('refusal.other') }) })}
+              {t('detail.erp.refused', { reason: refusalFact })}{refusalIsSetup && (
+                <>{' '}{canOpenSetup ? <Link className="font-medium underline" to="/administration/integrations">{t('detail.erp.checkSetup')}</Link> : t('detail.erp.askAdmin')}</>
+              )}
             </p>
           )}
           {d.status === 'Draft' && held && (

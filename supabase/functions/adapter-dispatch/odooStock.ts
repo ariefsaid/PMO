@@ -21,6 +21,7 @@ import {
 } from '../../../pmo-portal/src/lib/adapterSeam/odoo/stock/constants.ts';
 import { recoverStockPicking } from '../../../pmo-portal/src/lib/adapterSeam/odoo/stock/recovery.ts';
 import { isHoldCause, plainHoldReason, type HoldCause } from '../../../pmo-portal/src/lib/adapterSeam/odoo/stock/holdReason.ts';
+import { refusalEvidence } from '../../../pmo-portal/src/lib/adapterSeam/odoo/stock/refusal.ts';
 import { odooClientForOrg, type OdooClientForOrgResult } from '../_shared/odooClientForOrg.ts';
 import { withOdooCallBudget, countOdooCalls } from '../_shared/odooCallBudget.ts';
 import { resolveOdooStockMappings } from '../_shared/odooStockMappings.ts';
@@ -103,7 +104,7 @@ async function resolveIntent(ctx: AdapterSelectContext, resolved: Resolved, call
     ...(doc.kind === 'issue' ? { operationTypeId: typeId } : {}),
     ...(doc.project_id ? { projectId: doc.project_id } : {}),
   });
-  if (!mapped.ok) return refuse(mapped.reason, mapped.message);
+  if (!mapped.ok) return { ...refuse(mapped.reason, mapped.message), ...(mapped.subjectId ? { subjectId: mapped.subjectId } : {}) };
   if (mapped.lines.length !== lines.length || mapped.lines.some((l, i) => l.stockItemId !== lines[i].item_id)) {
     return refuse('read-failed', 'The mapped lines do not match the document.');
   }
@@ -228,9 +229,9 @@ export async function recordStockHold(sc: SupabaseClient, orgId: string, command
   });
 }
 
-/** A refusal before anything reached Odoo: the document's mirror says which setup condition refused it (the reason code; the page words it). */
+/** A refusal before anything reached Odoo: the document's mirror says which setup condition refused it (the reason code, then the id of the record it names when it knows one; the page words it). */
 export async function recordStockRefusal(sc: SupabaseClient, orgId: string, command: { domain: string; record: { id: string } }, failure: AppError): Promise<void> {
-  const reason = (failure as AppError & { refusalReason?: unknown }).refusalReason;
+  const { refusalReason: reason, refusalSubject: subject } = failure as AppError & { refusalReason?: unknown; refusalSubject?: unknown };
   if (command.domain !== INVENTORY_DOMAIN || failure.code !== 'commit-rejected' || typeof reason !== 'string') return;
   const documentId = String(command.record.id);
   try {
@@ -240,7 +241,7 @@ export async function recordStockRefusal(sc: SupabaseClient, orgId: string, comm
     if (typeof row?.id !== 'string' || typeof row.claim_generation !== 'number' || row.state !== 'failed') return;
     await writeStockEvidence(sc, orgId, documentId, row.id, row.claim_generation, {
       state: 'failed', externalModel: null, externalId: null, externalReference: null, completedQuantity: null, completedValue: null, currency: null,
-      sourceWrittenAt: null, exception: reason.slice(0, 500),
+      sourceWrittenAt: null, exception: refusalEvidence(reason, typeof subject === 'string' ? subject : undefined).slice(0, 500),
     });
   } catch (err) {
     console.error('[adapter-dispatch] the refused stock evidence was not recorded:', err instanceof Error ? err.message : String(err));

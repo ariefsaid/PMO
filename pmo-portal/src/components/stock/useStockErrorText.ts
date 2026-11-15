@@ -5,6 +5,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { parseStockError } from '@/src/lib/stockErrors';
 import { formatQuantity } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { isSetupRefusal } from '@/src/lib/adapterSeam/odoo/stock/refusal';
 
 /** One line of plain words for a failed stock RPC: the stable `STK_*` copy, a connected post's refusal reason, else the shared classifier. */
 export function useStockErrorText(): (err: unknown) => string {
@@ -13,7 +14,12 @@ export function useStockErrorText(): (err: unknown) => string {
     const s = parseStockError(err);
     if (!s) {
       // A connected post refused for a setup condition: the server names the reason, the copy names the step and who does it.
-      if (err instanceof AppError && err.code === 'commit-rejected' && err.details) return t(`refusal.${err.details}`, { defaultValue: t('refusal.other') });
+      if (err instanceof AppError && err.code === 'commit-rejected' && err.details) {
+        const reason = String(err.details);
+        const known = t(`refusal.${reason}`, { defaultValue: '' });
+        const fact = known || t('refusal.other');
+        return !known || isSetupRefusal(reason) ? `${fact} ${t('detail.erp.askAdmin')}` : fact;
+      }
       return classifyMutationError(err, undefined, { operation: 'create', suppressCapture: true }).headline;
     }
     if (s.code === 'STK_INSUFFICIENT' && s.numbers.available !== undefined && s.numbers.requested !== undefined) {

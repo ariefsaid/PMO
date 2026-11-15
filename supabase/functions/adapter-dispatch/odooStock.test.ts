@@ -266,7 +266,7 @@ describe('AC-OSP-007 a hold writes its reason on the document evidence at the ge
 });
 
 describe('AC-OSP-007 a refusal before anything reached Odoo is written on the document so the Draft says why', () => {
-  const refused = (reason: unknown = 'analytic-costs-disabled') => Object.assign(new AppError('Project costs are off', 'commit-rejected'), reason === undefined ? {} : { refusalReason: reason });
+  const refused = (reason: unknown = 'analytic-costs-disabled', subject?: string) => Object.assign(new AppError('Project costs are off', 'commit-rejected'), reason === undefined ? {} : { refusalReason: reason }, subject ? { refusalSubject: subject } : {});
   const run = async (failure: AppError, row: Record<string, unknown>, domain = 'inventory') => {
     let mirror: Record<string, unknown> | undefined;
     await withFetchMock([
@@ -279,6 +279,11 @@ describe('AC-OSP-007 a refusal before anything reached Odoo is written on the do
   it('the mirror receives state failed with the reason code, at the failed row\'s generation', async () => {
     const mirror = await run(refused(), {});
     assertEquals([mirror?.p_state, mirror?.p_exception, mirror?.p_generation, mirror?.p_external_id], ['failed', 'analytic-costs-disabled', 5, null]);
+  });
+
+  it('a refusal that names a record keeps its id after the reason, for the page to name it', async () => {
+    const mirror = await run(refused('foreign-company', 'wh-9'), {});
+    assertEquals(mirror?.p_exception, 'foreign-company wh-9');
   });
 
   it('nothing is written for a refusal without a reason, another domain, or a row that is not failed', async () => {

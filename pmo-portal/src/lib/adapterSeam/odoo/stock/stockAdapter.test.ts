@@ -17,6 +17,13 @@ const failing = (match: (model: string, method: string) => boolean, error: Error
   }) as OdooCall;
 
 describe('AC-OSP-002 createOdooStockAdapter commits a stock document through the one picking writer', () => {
+  it('AC-OSP-007 a mapping refusal carries the id of the record it names', async () => {
+    const { call } = stockBed();
+    const adapter = createOdooStockAdapter({ call, loadIntent: async (): Promise<StockIntentResult> => ({ ok: false, reason: 'warehouse-unmapped', message: 'Match the warehouse.', subjectId: 'wh-9' }) });
+
+    await expect(adapter.commit(command())).rejects.toMatchObject({ refusalReason: 'warehouse-unmapped', refusalSubject: 'wh-9' });
+  });
+
   it('AC-OSP-001 a capability or mapping refusal rejects with zero ERP writes', async () => {
     const { call, seen } = stockBed();
     const adapter = createOdooStockAdapter({ call, loadIntent: async (): Promise<StockIntentResult> => ({ ok: false, reason: 'item-unmapped', message: 'Match the item in Integration setup.' }) });

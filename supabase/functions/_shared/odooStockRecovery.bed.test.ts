@@ -59,6 +59,9 @@ function getBedConfig(): BedConfig {
   return { baseUrl: baseUrl!, database: database!, apiKey: apiKey! };
 }
 
+/** A stock document's anchor key as the handler builds it: `stock:<document uuid>` (one fresh document per case). */
+const stockDocumentKey = (): string => `stock:${crypto.randomUUID()}`;
+
 export type StockProbeVerdict =
   | { status: 'adopted'; externalRecordId: string; state: string; completedQuantity?: number }
   | { status: 'hold'; reason: 'absent-anchor' | 'ambiguous-anchor' | 'missing-target' | 'wrong-company' | 'mismatched-intent' };
@@ -159,7 +162,7 @@ Deno.test({
       });
 
       // Probe using our intended anchor key
-      const anchorKey = `stock:${stamp}-lost-create`;
+      const anchorKey = stockDocumentKey();
       const verdict = await probeStockPicking(odoo, anchorKey, { companyId: company.id, productId, srcLocId, destLocId });
 
       // Binding rule: Absent anchor MUST NOT guess look-alikes; it must HOLD
@@ -219,7 +222,7 @@ Deno.test({
       });
 
       // 2. Anchor is written successfully right after create
-      const anchorKey = `stock:${stamp}-anchored-draft`;
+      const anchorKey = stockDocumentKey();
       const { module, name } = stockExternalIdentifier(anchorKey);
       const [ancId] = await odoo<number[]>('ir.model.data', 'create', {
         vals_list: [{ module, name, model: 'stock.picking', res_id: draftPickId, noupdate: true }],
@@ -280,7 +283,7 @@ Deno.test({
         vals_list: [{ picking_id: validatedPickId, product_id: productId, product_uom_qty: 6, location_id: srcLocId, location_dest_id: destLocId, company_id: company.id }],
       });
 
-      const anchorKey = `stock:${stamp}-validated-loss`;
+      const anchorKey = stockDocumentKey();
       const { module, name } = stockExternalIdentifier(anchorKey);
       const [ancId] = await odoo<number[]>('ir.model.data', 'create', {
         vals_list: [{ module, name, model: 'stock.picking', res_id: validatedPickId, noupdate: true }],
@@ -349,7 +352,7 @@ Deno.test({
       const [mv1] = await odoo<number[]>('stock.move', 'create', {
         vals_list: [{ picking_id: ourPickId, product_id: productId, product_uom_qty: 10, location_id: srcLocId, location_dest_id: destLocId, company_id: company.id }],
       });
-      const ourKey = `stock:${stamp}-our-transfer`;
+      const ourKey = stockDocumentKey();
       const { module: ourMod, name: ourName } = stockExternalIdentifier(ourKey);
       const [anc1] = await odoo<number[]>('ir.model.data', 'create', {
         vals_list: [{ module: ourMod, name: ourName, model: 'stock.picking', res_id: ourPickId, noupdate: true }],
@@ -380,7 +383,7 @@ Deno.test({
       }
 
       // Subcase 5B: If our anchor is missing, probing refuses to guess the look-alike transfer
-      const missingKey = `stock:${stamp}-lost-against-lookalike`;
+      const missingKey = stockDocumentKey();
       const probeLost = await probeStockPicking(odoo, missingKey, { companyId: company.id, productId, srcLocId, destLocId });
       assertEquals(probeLost.status, 'hold', 'probe without anchor must hold, never adopt look-alike');
       if (probeLost.status === 'hold') {
@@ -388,7 +391,7 @@ Deno.test({
       }
 
       // Subcase 5C: Corrupted/edited anchor pointing to non-existent target or wrong company
-      const corruptedKey = `stock:${stamp}-corrupted`;
+      const corruptedKey = stockDocumentKey();
       const { module: corMod, name: corName } = stockExternalIdentifier(corruptedKey);
       const [corAncId] = await odoo<number[]>('ir.model.data', 'create', {
         vals_list: [{ module: corMod, name: corName, model: 'stock.picking', res_id: 9999999, noupdate: true }],
@@ -402,7 +405,7 @@ Deno.test({
       }
 
       // Subcase 5D: Anchor edited to point to a picking in a different/unmatched location
-      const wrongLocKey = `stock:${stamp}-wrong-loc`;
+      const wrongLocKey = stockDocumentKey();
       const { module: wlMod, name: wlName } = stockExternalIdentifier(wrongLocKey);
       const [wlAncId] = await odoo<number[]>('ir.model.data', 'create', {
         vals_list: [{ module: wlMod, name: wlName, model: 'stock.picking', res_id: ourPickId, noupdate: true }],
@@ -454,7 +457,7 @@ Deno.test({
 
     let productId = 0;
     let pickingId = 0;
-    const anchorKey = `stock:${stamp}-atomic`;
+    const anchorKey = stockDocumentKey();
     const { module, name: anchorName } = stockExternalIdentifier(anchorKey);
     const xmlId = `${module}.${anchorName}`;
 
@@ -560,7 +563,7 @@ Deno.test({
       assertEquals(anchorRowsAfter2.length, 1, 'ir.model.data row remains exactly one');
 
       // 5. Failure inside the call leaves neither record nor identifier (atomic rollback)
-      const failKey = `stock:${stamp}-fail`;
+      const failKey = stockDocumentKey();
       const { module: failMod, name: failName } = stockExternalIdentifier(failKey);
       const failXmlId = `${failMod}.${failName}`;
 

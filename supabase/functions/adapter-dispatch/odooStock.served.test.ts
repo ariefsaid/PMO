@@ -181,6 +181,7 @@ describe({ name: 'AC-OSP-006 a connected stock post against the real database', 
     assertEquals(odoo.rows('stock.picking').length, pickings);
     assertEquals(await one(`select status from public.stock_documents where id='${DOC_FOREIGN}'`), 'Draft');
     assertEquals(await one(`select state from public.external_command_outbox where pmo_record_id='${DOC_FOREIGN}'`), 'failed');
+    assertEquals(await one(`select exception from public.stock_erp_mirror where stock_document_id='${DOC_FOREIGN}'`), `foreign-company ${WH_BAD}`, 'the Draft can name the warehouse that does not match');
   });
 
   it('AC-OSP-006 a retry after the keeper repairs the mapping and edits the document refreshes the failed row and posts', async () => {
