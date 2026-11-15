@@ -20,8 +20,8 @@ export function classifyMigrationCount({ repoCount, remoteCount }) {
 }
 
 export function classifyOrgAdminExistence({ orgCount, adminProfileCount, adminOrgIdMatches }) {
-  if (orgCount === 1 && adminProfileCount >= 1 && adminOrgIdMatches) {
-    return { healthy: true, detail: 'exactly one org row and ≥1 linked Admin profile exist' };
+  if (orgCount >= 1 && adminProfileCount >= 1 && adminOrgIdMatches) {
+    return { healthy: true, detail: '≥1 org row and ≥1 linked Admin profile exist' };
   }
   return { healthy: false, detail: `orgCount=${orgCount}, adminProfileCount=${adminProfileCount}, adminOrgIdMatches=${adminOrgIdMatches}` };
 }

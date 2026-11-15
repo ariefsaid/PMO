@@ -486,6 +486,10 @@ verify_jwt = false
 [functions.admin-invite-user]
 verify_jwt = false
 
+# The handler verifies the caller JWT and active Operator before using the service key.
+[functions.operator-org]
+verify_jwt = false
+
 # ── Edge Function: telegram-notify ────────────────────────────────────────────
 # verify_jwt = false: invoked every 2 minutes by the pg_cron job (migration 0071) via
 # net.http_post — the caller is Postgres, not a browser/end-user JWT. The handler verifies

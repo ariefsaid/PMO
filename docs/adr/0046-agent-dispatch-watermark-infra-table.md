@@ -51,6 +51,13 @@ create table agent_dispatch_watermarks (
   and RLS-protected at its source. Adding an `org_id` here would imply a per-org watermark, which is
   not the model (the dispatcher polls one source table across all tenants each tick and filters
   matches to each automation's own tenant via the automation row's `org_id`, not via the watermark).
+  **⚠ Amended 2026-11-14 (issue 2255, under ADR-0101's shared-resource fairness rule):** once the
+  project hosts several organizations, the cursor IS kept per source AND per organization — the
+  table's primary key is now `(source, org_id)` (migration 0867) — so one organization's progress
+  can never walk over another organization's unread event window, and the dispatcher's per-tick
+  event budget (`MAX_TRIGGER_EVENTS_PER_TICK`) is shared fairly across the organizations with
+  pending events. The advance-per-attempted-event rule is unchanged. The original text above is
+  preserved as the decision as made for the single-tenant project.
 
 ## Consequences
 

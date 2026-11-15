@@ -1013,7 +1013,7 @@ test('AC-CLI-014: profiles cannot be created or updated from the CLI', async () 
 // ── AC-CLI-007: no delete ────────────────────────────────────────────────────────────────────────
 
 test('AC-CLI-007: the CLI offers no delete — no verb, no DELETE request, a clear refusal', async () => {
-  assert.deepEqual([...COMMANDS].sort(), ['accounts', 'attribution', 'budgets', 'create', 'documents', 'equipment', 'erp', 'get', 'load', 'login', 'logout', 'm365', 'purchases', 'rpc', 'stage-date', 'stages', 'tm', 'update', 'whoami']);
+  assert.deepEqual([...COMMANDS].sort(), ['accounts', 'attribution', 'budgets', 'create', 'documents', 'equipment', 'erp', 'get', 'load', 'login', 'logout', 'm365', 'org', 'purchases', 'rpc', 'stage-date', 'stages', 'tm', 'update', 'whoami']);
   const fake = await fakeSupabase();
   const configDir = tmpDir();
   try {
@@ -2411,5 +2411,60 @@ test('AC-ROP-062 capture apply survives unavailable report', async () => {
     assert.equal(result.code, 0, result.err);
     assert.equal(result.json.results[0].procurement_id, 'saved');
     assert.deepEqual(result.json.report, { complete: false, missing: ['report_unavailable'] });
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('AC-ROP-024 pay captured invoice through CLI', async () => {
+  const fake = await fakeSupabase({ handler: ({ url, send }) => {
+    if (url.pathname === '/functions/v1/adapter-dispatch') { send(200, { outcome: 'confirmed' }); return true; }
+    return false;
+  } });
+  const configDir = tmpDir();
+  const purchase = '11111111-1111-4111-8111-111111111111';
+  const invoice = '22222222-2222-4222-8222-222222222222';
+  const intent = '33333333-3333-4333-8333-333333333333';
+  const args = ['purchases', 'pay-captured', purchase, '--invoice-document', invoice, '--amount', '25.00', '--date', '2026-11-15', '--intent', intent];
+  const expected = { domain: 'procurement', operation: 'create', idempotencyKey: intent, record: { id: intent, procurementId: purchase, erp_doc_kind: 'payment', capturedInvoiceDocumentId: invoice, paid_amount: 25, date: '2026-11-15' } };
+  try {
+    seedCredentials(configDir, fake.url);
+    const dry = await runCli([...args, '--url', fake.url], { configDir });
+    assert.equal(dry.code, 0, dry.err);
+    assert.deepEqual(dry.json.request, expected);
+    assert.equal(dry.json.dry_run, true);
+    assert.equal(fake.requests.length, 0);
+    const sent = await runCli([...args, '--confirm', '--url', fake.url], { configDir });
+    assert.equal(sent.code, 0, sent.err);
+    const writes = fake.requests.filter(r => r.path === '/functions/v1/adapter-dispatch');
+    assert.equal(writes.length, 1);
+    assert.deepEqual(JSON.parse(writes[0].body), expected);
+    for (const bad of [
+      ['purchases', 'pay-captured', 'not-a-uuid', ...args.slice(3)],
+      ['purchases', 'pay-captured', purchase, '--invoice-document', 'INV-RAW', '--amount', '25', '--date', '2026-11-15', '--intent', intent],
+      ['purchases', 'pay-captured', purchase, '--invoice-document', invoice, '--amount', '-1', '--date', '2026-11-15', '--intent', intent],
+      ['purchases', 'pay-captured', purchase, '--invoice-document', invoice, '--amount', 'NaN', '--date', '2026-11-15', '--intent', intent],
+      ['purchases', 'pay-captured', purchase, '--invoice-document', invoice, '--amount', '25', '--date', '2026-02-30', '--intent', intent],
+      ['purchases', 'pay-captured', purchase, '--invoice-document', invoice, '--amount', '25', '--date', '2026-11-15'],
+      [...args, '--invoice-id', invoice],
+      [...args, '--invoice-document', invoice],
+    ]) {
+      const count = fake.requests.length;
+      const result = await runCli([...bad, '--confirm', '--url', fake.url], { configDir });
+      assert.equal(result.code, 2, bad.join(' '));
+      assert.equal(fake.requests.length, count);
+    }
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('AC-ROP-024 pay captured invoice refuses more than two decimal places before preview or send', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const args = ['purchases', 'pay-captured', '11111111-1111-4111-8111-111111111111', '--invoice-document', '22222222-2222-4222-8222-222222222222', '--amount', '25.001', '--date', '2026-11-15', '--intent', '33333333-3333-4333-8333-333333333333', '--url', fake.url];
+    for (const extra of [[], ['--confirm']]) {
+      const result = await runCli([...args, ...extra], { configDir });
+      assert.equal(result.code, 2, result.out);
+      assert.equal(fake.requests.length, 0);
+    }
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
 });

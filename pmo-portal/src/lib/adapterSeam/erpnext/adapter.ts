@@ -968,7 +968,10 @@ async function commitCreate(command: AdapterCommand, deps: ErpAdapterDeps): Prom
   }
 
   // R9 two-step (FR-ENA-044): the create-commit window is separate from the submit window.
-  await submitDoc(deps.client, entry.doctype, created.name);
+  // A lost submit response leaves the payment outcome unknown; never retry that write in transport.
+  const capturedPayment = command.domain === 'procurement' && kind === 'payment'
+    && typeof command.record.capturedInvoiceDocumentId === 'string';
+  await submitDoc(capturedPayment ? { ...deps.client, maxRetries: 0 } : deps.client, entry.doctype, created.name);
   // ⚑ PAST THIS LINE THE DOCUMENT IS SUBMITTED (Luna round-2 BLOCK 2) — see `postSubmitUnknown`.
   try {
     await deps.afterSubmitHook?.();

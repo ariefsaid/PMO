@@ -330,4 +330,26 @@ describe('describePushError — the register and maintenance refusals (#1511 F4)
       expect(copy.remedy).not.toBeNull();
     }
   });
+
+  // #2174 — the two refusals the Odoo 20 mapping added: a duration with no window to derive it from, and a request state
+  // Odoo 20 does not offer. Both are fixed on the form, so neither is retryable.
+  it('names a duration with no scheduled start, and a request state Odoo does not offer, as sentences with a route out', () => {
+    for (const code of ['schedule-date-required', 'request-state-invalid']) {
+      const copy = describePushError(code);
+      expect(copy.code).toBe(code);
+      expect(copy.message).not.toMatch(/could not be classified/i);
+      expect(copy.message).not.toMatch(RAW_ADAPTER_TOKEN);
+      expect(copy.retryable).toBe(false);
+      expect(copy.remedy).not.toBeNull();
+    }
+  });
+
+  // #2174 (review Minor-3): Odoo 20 keeps five request states — a remedy naming four of them steers the person to a
+  // pick-list offering a fifth the copy never mentions. The copy ships in English only (no translation layer here).
+  it('the request-state remedy names every maintenance state Odoo keeps, in plain words', () => {
+    const remedy = describePushError('request-state-invalid').remedy ?? '';
+    for (const word of ['in progress', 'changes requested', 'approved', 'done', 'cancelled']) {
+      expect(remedy).toContain(word);
+    }
+  });
 });

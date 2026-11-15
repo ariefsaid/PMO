@@ -97,25 +97,69 @@ All write files below are illustrative JSON shapes. Replace placeholders in a pr
 
 ### 1. Seed a new client organization
 
-**Goal:** create an organization, its operating currency, and its first Admin together.
+**Goal:** create an organization, its operating currency, assigned plan, and its first Admin together in the shared project.
 
-**Exact commands:** organization creation is not a `pmo` CLI command. For a deployment that already has an active platform Operator, use the guarded `operator_create_org` RPC. There is no dry-run variant; do not run it until the owner has approved the target and values. The request shape is:
-
-First create the intended Admin's auth user through the approved Auth Admin process, for example `supabase auth-admin invite <admin-email> --project-ref <project-ref>`, and obtain that user's UUID through the authorized admin path. The user must not already have an organization profile.
+**Exact commands:** use `pmo org add`. Run without `--confirm` first to preview the planned steps (dry run), then re-run with `--confirm`.
 
 ```bash
-curl --fail-with-body -X POST '<approved PMO API URL>/rest/v1/rpc/operator_create_org' \
-  -H 'apikey: <publishable key>' \
-  -H 'Authorization: Bearer <active Operator session token>' \
-  -H 'Content-Type: application/json' \
-  --data '{"p_name":"<organization display name>","p_admin_user_id":"<existing auth user UUID>","p_admin_full_name":"<Admin display name>","p_default_currency":"IDR"}'
+# Preview the numbered actions (dry run — zero writes):
+node scripts/pmo.mjs org add \
+  --name "<organization display name>" \
+  --admin-email "<admin@example.test>" \
+  --admin-name "<Admin display name>" \
+  --currency IDR \
+  --locale id-ID \
+  --timezone Asia/Jakarta \
+  --plan <plan-id> \
+  [--number-locale <locale>] \
+  [--feature <key>=on|off ...] \
+  [--state live|demo|test]
+
+# Execute with confirmation:
+node scripts/pmo.mjs org add \
+  --name "<organization display name>" \
+  --admin-email "<admin@example.test>" \
+  --admin-name "<Admin display name>" \
+  --currency IDR \
+  --locale id-ID \
+  --timezone Asia/Jakarta \
+  --plan <plan-id> \
+  --confirm
 ```
 
-Use the supported provisioning procedure for the first organization on a new deployment; the Operator RPC cannot bootstrap an Operator that does not exist. The intended first Admin's auth user must exist and have no organization profile. Follow [Creating an org (Operator)](../environments.md#creating-an-org-operator--operator_create_org-dd-org-1--484) for prerequisites and companion setup; do not run SQL inserts.
+**Flags:**
+- Required: `--name`, `--admin-email`, `--admin-name`, `--currency` (ISO-4217, e.g. IDR, USD), `--locale`, `--timezone`, `--plan`. Missing any required flag produces a usage error naming it.
+- Optional: `--number-locale`, repeatable `--feature <key>=on|off`, `--state live|demo|test` (default `live`).
+- Safety: `--confirm`. Without this flag, the command prints the planned numbered sequence with given values, makes zero writing requests, and prints `Dry run. Add --confirm to run.`
 
-**How to verify:** the RPC returns the new organization UUID. Confirm its Admin membership and currency through the authorized operator read path, then sign in as that Admin and run `node scripts/pmo.mjs whoami`.
+**Workflow when confirmed:**
+1. Calls edge function `operator-org` (`action: "create"`) to invite the first Admin and create the organization.
+2. Checks status via `operator-org` (`action: "status"`). If `plan_id` is null, assigns `--plan` via RPC `operator_set_org_plan`. If an existing plan differs from `--plan`, execution stops without making further changes.
+3. Applies any requested `--feature` flags via RPC `operator_toggle_feature`, skipping flags that match existing status.
+4. Checks status again and classifies organization readiness (`organization`, `plan`, `admin`, `stage-config`).
+5. If healthy, sets lifecycle state via RPC `operator_set_org_lifecycle_state` (if not already that value). If unhealthy, leaves lifecycle state unset, reports failed checks, and exits non-zero.
+6. Prints the summary: organization id, plan, Admin active/pending counts, and state.
 
-**Common errors:** `42501` means the caller is not an active Operator; `23503` means the auth user is unknown; `23505` means the organization name already exists or the user already has a profile; blank required fields and malformed currency are rejected. Each refusal leaves no partial organization. A new deployment without an Operator must use the controlled provisioning procedure.
+**How to verify:** the command prints the organization UUID, plan, Admin status, and lifecycle state. Verify via `node scripts/pmo.mjs whoami` after signing in as the invited Admin.
+
+**Failure codes:**
+- `OPERATOR_ONLY`: The caller is not an active platform Operator.
+- `ORG_NAME_REQUIRED`: The `--name` flag value is missing.
+- `BAD_ORG_NAME`: The `--name` contains a character that is not allowed (an asterisk).
+- `BAD_EMAIL`: The `--admin-email` is malformed or uses wildcard characters.
+- `ADMIN_NAME_REQUIRED`: The `--admin-name` flag value is missing.
+- `CURRENCY_REQUIRED`: The `--currency` flag value is missing.
+- `LOCALE_REQUIRED`: The `--locale` flag value is missing.
+- `TIMEZONE_REQUIRED`: The `--timezone` flag value is missing.
+- `PLAN_REQUIRED`: The `--plan` flag value is missing.
+- `UNKNOWN_PLAN`: The specified plan identifier does not exist in the database.
+- `ORG_NAME_TAKEN`: An organization with this name already exists and caller is not its Admin.
+- `ADMIN_HAS_PROFILE`: The specified email address already belongs to an existing organization profile.
+- `ADMIN_ACCOUNT_EXISTS`: An auth account exists for this email with a profile or has signed in.
+- `RATE_LIMITED`: The operator has exceeded the allowed rate of organization creation.
+- `ORG_CREATE_FAILED`: Server-side organization creation step failed.
+- `PLAN_ASSIGN_FAILED`: Server-side plan assignment step failed.
+- Function errors report the code (and step if present) in the JSON error on stderr and exit non-zero.
 
 ### 2. Add a new client company
 
@@ -320,6 +364,25 @@ Reconcile the migration ledger through the approved change procedure; a ledger e
 
 `history.json` is an array of groups, each with a stable `request_id` UUID, `project_id`, `vendor_id`, `title`, optional `reference`, and `journal_lines`. Each line carries the `erp_doctype`, `voucher_no`, `project_id`, and `account` returned by `purchases journals`. A file may contain at most 500 lines. Keep the same request IDs and payloads on retries, including when the response is unknown. The report identifies created, skipped, and refused groups. Undo unlinks the source and cancels the historical wrapper; it does not delete the purchase or change the ERP ledger.
 
+Pay a captured unpaid supplier invoice through the connected accounting system. Use the captured invoice's PMO mirror UUID, the purchase UUID, a positive amount in the invoice currency, the business date and a new intent UUID for each distinct payment. Active Admin, Executive, Project Manager and Finance users may request payment, subject to the purchase's approval and separation-of-duties rules. The server checks the invoice, current mirrored balance, currency and supplier before sending the payment.
+
+```bash
+node scripts/pmo.mjs purchases pay-captured <purchase-uuid> --invoice-document <mirror-uuid> --amount 25.00 --date 2026-11-15 --intent <intent-uuid>
+node scripts/pmo.mjs purchases pay-captured <purchase-uuid> --invoice-document <mirror-uuid> --amount 25.00 --date 2026-11-15 --intent <intent-uuid> --confirm
+```
+
+The first command prints the exact request without sending it; review it, then add `--confirm` to send once. Keep the same intent and request if the result is unknown; inspect the purchase and payment status before deciding on any further action. For a definitive rejection, refresh the invoice balance and use a new intent for a new payment. A partial payment leaves the purchase invoiced until the invoice is fully settled and the mirrored balance is zero.
+
+Refusals and next steps:
+
+- `step_already_recorded`: the requested step is already linked; inspect its existing document instead of creating another.
+- `history_complete`: the captured history is already settled; inspect the invoice and payment history.
+- `capture_lines_required`: the earlier step needs source lines; inspect the linked documents and use the supported purchase workflow.
+- `capture_invoice_unavailable`: the linked invoice is missing, ambiguous, cancelled, has no usable positive balance or has a currency mismatch; check the link, capture the invoice if it is not actively captured, and refresh or correct the source before retrying.
+- `capture_tier_unsupported`: this connected accounting tier does not support captured-invoice payment; use its accounting system to settle the invoice and refresh the mirror.
+- `captured_invoice_payment_rejected`: the accounting system refused the allocation; refresh the outstanding balance, correct the amount, and use a new intent for a new request.
+- Approval or role refusal: ask an authorized active user to complete the required approval and payment; the approver cannot pay their own approved purchase. If a ceiling or currency check refuses, resolve the invoice or approval first.
+
 Record a goods receipt for a purchase (same command the app sends; connected organisations send the app's accounting-system command; a PMO-only organisation, with no accounting system, records it through the app's own receipt function). Roles: Admin, Executive, Project Manager, Finance on a connected organisation; **Admin and Project Manager only** on a PMO-only one.
 
 ```bash
@@ -417,6 +480,6 @@ After the app correction, rerun the original load with `--dry-run`; verify it pl
 
 ## Command scope and current constraints
 
-The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `purchases record-only`, `purchases undo-record-only`, `purchases receive`, `documents link`, `accounts map set`, and `attribution set` do support previews. No command deletes records.
+The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `purchases record-only`, `purchases undo-record-only`, `purchases receive`, `purchases pay-captured`, `documents link`, `accounts map set`, and `attribution set` do support previews. No command deletes records.
 
 The CLI does not create an ERP company directly as a separate ad hoc step, activate a budget, author T&M data, upload a document, or overwrite a loaded project/contract/budget line. Use the recipes above for their app screens and tracked enhancements: [budget activation](https://github.com/ariefsaid/PMO/issues/1859), [T&M operations](https://github.com/ariefsaid/PMO/issues/1856), [document register and upload](https://github.com/ariefsaid/PMO/issues/1857), [purchase history import](https://github.com/ariefsaid/PMO/issues/1855), and [loader corrections](https://github.com/ariefsaid/PMO/issues/1858).
