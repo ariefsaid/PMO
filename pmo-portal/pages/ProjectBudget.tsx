@@ -52,6 +52,7 @@ import type { BudgetDistributionPlan, BudgetVersionWithItems } from '@/src/lib/d
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useBudgetPosition } from '@/src/hooks/useProjectPosition';
 import { useFxIdrRate } from '@/src/hooks/useFxIdrRate';
+import { statusLabel } from '@/src/lib/status/statusMap';
 import { idrPosition } from '@/src/lib/budget/idrPosition';
 import { formatFxEquivalent, formatIdrApprox, fxRateCaption, fxRateSourceNote } from '@/src/lib/fxEquivalent';
 import BudgetVersionsDrawer from './project-detail/budget/BudgetVersionsDrawer';
@@ -184,6 +185,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const mutations = useBudgetMutations(projectId);
   const position = useBudgetPosition(project, true, { refetchOnMount: false });
   const { t: tCommon } = useTranslation(['common', 'finance']);
+  const { t: tStatus } = useTranslation('status');
   const idrRate = useFxIdrRate();
   const procurementsQuery = useProjectProcurements(canReadProcurements ? projectId : null);
   const pushStatusQuery = useQuery<BudgetPushStatusRow[]>({
@@ -831,7 +833,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         : <Tooltip content={categoryUtilizationFormula}><span tabIndex={0}><ProgressBar compact value={Math.round(row.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} percent used', { category: budgetCategoryLabel(row.category, t) })} /></span></Tooltip>,
     },
     {
-      key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', size: 140, minSize: 120,
+      key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', size: 175, minSize: 150,
       cell: (row) => {
         // The remainder row is not a planning category, so it claims no "Not budgeted" status.
         if (isNotSplitRow(row)) return null;
@@ -1124,7 +1126,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
             <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <span>{t('projectDetail.budget.version', 'Version')}</span>
               <select aria-label={t('projectDetail.budget.version', 'Version')} value={selectedVersion?.id ?? ''} disabled={view === 'forecast'} onChange={(event) => { setSelectedVersionId(event.target.value); setDraftEditorOpen(false); }} className="touch-target h-[var(--control-height-sm)] max-w-52 rounded-md border border-input bg-background px-2 text-sm text-foreground disabled:opacity-70">
-                {versions.map((version) => <option key={version.id} value={version.id}>v{version.version} · {version.status}</option>)}
+                {versions.map((version) => <option key={version.id} value={version.id}>v{version.version} · {statusLabel('budgetVersion', version.status, tStatus)}</option>)}
               </select>
             </label>
             <div className="h-4 w-px bg-border" aria-hidden="true" />
