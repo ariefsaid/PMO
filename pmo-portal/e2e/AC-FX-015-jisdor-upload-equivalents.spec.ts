@@ -153,6 +153,8 @@ test('AC-FX-015 Finance uploads isolated JISDOR rates, sees equivalents, and can
     await expect(budgetEquivalent).toBeVisible();
     // The card's caption is one element: what a person reads is exactly what a screen reader reads.
     await expect(budgetEquivalent).toHaveText('≈ IDR 16,300,000 (using IDR 16,300 rate)');
+    // Beside the visible line sits a screen-reader note naming the rate's source date; it is not shown.
+    await expect(budgetEquivalent.locator('..')).toHaveText(/^≈ IDR 16,300,000 \(using IDR 16,300 rate\) \(JISDOR rate of .+\)$/);
   } finally {
     await admin.from('budget_line_items').delete().eq('budget_version_id', budgetId);
     await admin.from('budget_versions').delete().eq('id', budgetId);

@@ -58,6 +58,8 @@ export interface KPITileProps {
   helpLabel?: string;
   /** The tile's ONE caption (short; may wrap to two lines and is never cut — a caption that explains a figure must be readable in full). */
   caption?: string;
+  /** Screen-reader text read beside the caption (e.g. the rate's source date); not shown. */
+  captionNote?: string;
   /** @deprecated Use `caption`. */
   vs?: string;
   /** @deprecated A tile has one caption; the text is used as `caption` when none is given. */
@@ -82,9 +84,10 @@ export interface KPITileProps {
 
 /** Inside a KPIRow the tiles become cells of one joined strip: no own frame, no decorative icon tile. */
 /** The tile's one caption: it wraps (at most two lines on a figure card) and is never truncated. */
-const Caption: React.FC<{ children: string; action?: { to: string; label: string } }> = ({ children, action }) => (
+const Caption: React.FC<{ children: string; note?: string; action?: { to: string; label: string } }> = ({ children, note, action }) => (
   <div className="mt-auto text-control text-muted-foreground">
-    {children}
+    <span>{children}</span>
+    {note && <span className="sr-only">{` (${note})`}</span>}
     {action && <>{' · '}<Link to={action.to} className="pointer-events-auto font-medium text-primary-text underline-offset-4 hover:underline">{action.label}</Link></>}
   </div>
 );
@@ -128,6 +131,7 @@ export function KPITile({
   help,
   helpLabel,
   caption: captionProp,
+  captionNote,
   vs,
   delta,
   loading = false,
@@ -211,7 +215,7 @@ export function KPITile({
               <FigureContent value={shownValue} exactValue={exactValue} unavailableReason={shownReason} />
             </div>
           )}
-          {caption && <Caption action={kept ? hiddenLink : undefined}>{caption}</Caption>}
+          {caption && <Caption note={captionNote} action={kept ? hiddenLink : undefined}>{caption}</Caption>}
         </div>
       </div>
     );
@@ -234,7 +238,7 @@ export function KPITile({
         </div>
       )}
 
-      {caption && <Caption action={kept ? hiddenLink : undefined}>{caption}</Caption>}
+      {caption && <Caption note={captionNote} action={kept ? hiddenLink : undefined}>{caption}</Caption>}
     </div>
   );
 }
