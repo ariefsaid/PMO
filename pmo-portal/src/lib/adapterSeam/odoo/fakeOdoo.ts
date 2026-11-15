@@ -435,7 +435,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
         }
 
         const id = existingId ?? newId(m);
-        const vals: Record<string, unknown> = { id, write_date: fmt(++clock), active: true };
+        const vals: Record<string, unknown> = { id, write_date: fmt(++clock), active: true, ...(m === 'stock.picking' && !existingId ? { name: `WH/MOVE/${String(id).padStart(5, '0')}` } : {}) };
         const moveVals: Record<string, unknown> = {};
 
         fields.forEach((field, idx) => {

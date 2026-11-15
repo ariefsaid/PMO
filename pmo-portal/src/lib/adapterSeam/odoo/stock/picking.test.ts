@@ -152,6 +152,17 @@ describe('AC-OSP-004 a call whose outcome is not known is never reported as fail
     expect(seen.filter((c) => c.method === 'write' || c.method === 'button_validate')).toHaveLength(0);
   });
 
+  it('AC-OSP-004 a move whose demanded quantity differs from the line is held with no write', async () => {
+    const { call, seen } = setup();
+    const sent = await sendStockPicking(call, SEND);
+    if (sent.outcome !== 'sent') throw new Error('unreachable');
+
+    const result = await completeStockPicking(call, sent.pickingId, [{ productId: 101, quantity: 9 }, { productId: 102, quantity: 3 }]);
+
+    expect(result.outcome).toBe('held');
+    expect(seen.filter((c) => c.method === 'write' || c.method === 'button_validate')).toHaveLength(0);
+  });
+
   it('AC-OSP-004 a backorder wizard after load is held with no further call', async () => {
     const { call, seen } = setup((inner) => (async <T>(model: string, method: string, body?: Record<string, unknown>) => {
       if (method === 'button_validate') return { type: 'ir.actions.act_window', res_model: 'stock.backorder.confirmation' } as T;

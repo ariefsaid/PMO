@@ -101,18 +101,18 @@ export async function completeStockPicking(
     ? { outcome: 'held', message: `Odoo refused ${what} on stock picking ${pickingId}: ${reason(err)}` }
     : { outcome: 'unknown', message: `${what} on stock picking ${pickingId} did not answer: ${reason(err)}` };
 
-  let moves: Array<{ id: number; product_id: unknown }>;
+  let moves: Array<{ id: number; product_id: unknown; product_uom_qty?: unknown }>;
   try {
-    moves = await call<Array<{ id: number; product_id: unknown }>>('stock.move', 'search_read', {
+    moves = await call<Array<{ id: number; product_id: unknown; product_uom_qty?: unknown }>>('stock.move', 'search_read', {
       domain: [['picking_id', '=', pickingId]],
-      fields: ['id', 'product_id'],
+      fields: ['id', 'product_id', 'product_uom_qty'],
       order: 'id asc',
     });
   } catch (err) {
     return classify('the move lookup', err);
   }
-  if (!Array.isArray(moves) || moves.length !== lines.length || moves.some((m, i) => idOf(m.product_id) !== lines[i].productId)) {
-    return { outcome: 'held', message: `The moves of stock picking ${pickingId} do not match the document's lines.` };
+  if (!Array.isArray(moves) || moves.length !== lines.length || moves.some((m, i) => idOf(m.product_id) !== lines[i].productId || Number(m.product_uom_qty) !== lines[i].quantity)) {
+    return { outcome: 'held', message: `The moves of stock picking ${pickingId} do not match the document's lines (product or demanded quantity).` };
   }
 
   for (let i = 0; i < moves.length; i++) {
