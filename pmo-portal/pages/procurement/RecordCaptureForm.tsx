@@ -199,7 +199,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
 }) => {
   const { toast } = useToast();
   const { t } = useTranslation();
-  const cfg = kindConfig(kind);
+  const cfg = kindConfig(kind, t);
   // #910 (DD-VPAY-8): the payment capture NEVER asks for a status — the form's `{Pending, Processed,
   // Cleared}` options are illegal against the `payments.status ('Scheduled','Paid')` CHECK (0035), so
   // every native form capture from this form failed (0178). The native RPC coalesces a null status to
@@ -433,13 +433,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           htmlFor={`${formId}-ref`}
           className="text-sm font-semibold text-muted-foreground"
         >
-          {kind === 'payment'
-            ? t('procurementDetail.externalRefOptional', 'External ref (optional)')
-            : kind === 'vendor_invoice'
-              ? t('procurementDetail.vendorInvoice.invoiceNumber', 'Invoice #')
-              : kind === 'goods_receipt'
-                ? t('procurementRecord:capture.deliveryNote', 'Delivery note')
-                : t('procurementRecord:capture.externalRef', 'External ref')} {kind !== 'payment' && <span className="font-normal">({t('procurementDetail.vendorInvoice.optional', 'optional')})</span>}
+          {cfg.refLabel} {kind !== 'payment' && <span className="font-normal">({t('procurementDetail.vendorInvoice.optional', 'optional')})</span>}
         </label>
         <Input
           id={`${formId}-ref`}
@@ -488,11 +482,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
             htmlFor={`${formId}-date`}
             className="text-sm font-semibold text-muted-foreground"
           >
-            {kind === 'vendor_invoice'
-              ? t('procurementDetail.vendorInvoice.invoiceDate', 'Invoice date')
-              : kind === 'goods_receipt'
-                ? t('procurementRecord:capture.receiptDate', 'Receipt date')
-                : t('procurementDetail.dateLabel', 'Date')}
+            {cfg.dateLabel}
           </label>
           <Input
             id={`${formId}-date`}
@@ -638,7 +628,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           disabled={taxIncomplete || (isSubcontractInvoice && !subcontractBill?.lines.length) || receiptBlockedByFeature}
           data-testid={cfg.saveTestId}
         >
-          {kind === 'payment' ? t('procurementDetail.savePayment', 'Save Payment') : kind === 'vendor_invoice' ? t('procurementDetail.confirm.saveVI', 'Save supplier invoice') : kind === 'goods_receipt' ? t('procurementDetail.confirm.saveGR', cfg.saveLabel) : t('procurementRecord:capture.saveRecord', 'Save {{record}}', { record: label })}
+          {cfg.saveLabel}
         </Button>
         <Button
           type="button"
