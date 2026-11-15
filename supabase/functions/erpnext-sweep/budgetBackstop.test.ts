@@ -10,7 +10,7 @@
  *
  * `stubDb` is an in-memory double satisfying `BudgetBackstopDeps` (the outbound backstop), plus
  * test-only introspection (`rows`/`erpCreateCount`/`finalizedWithNullActor`/`lastQueryLimit`) — the REAL
- * production wiring (`erpnext-sweep/index.ts`'s `reconcileOrgBudgetPushesLive` +
+ * production wiring (`erpnext-sweep/budgetBackstopLive.ts`'s `reconcileOrgBudgetPushesLive`, called from `erpnext-sweep/index.ts`, +
  * `_shared/erpnextFeedDeps.ts`'s budget branches) is Deno-integration-only (verified by `deno check` +
  * the boot-smoke), exactly like every other `*Live` pass in this function — this file proves the PURE
  * orchestration `budgetBackstop.ts` owns.
