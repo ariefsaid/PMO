@@ -186,12 +186,26 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return previous.dialog === next.dialog && previous.drawerInset === next.drawerInset ? previous : next;
       });
     };
-    sync();
-    const observer = new MutationObserver(sync);
+    // The header can wrap taller after the resize event (fonts, reflow), so its own size is observed too.
+    let sizeObserver: ResizeObserver | undefined;
+    let observed: Element | null = null;
+    const watchHeader = () => {
+      const header = document.querySelector('[data-drawer-panel][aria-modal="true"] > [data-drawer-header]');
+      if (header === observed || typeof ResizeObserver === 'undefined') return;
+      sizeObserver?.disconnect();
+      observed = header;
+      if (!header) return;
+      sizeObserver ??= new ResizeObserver(sync);
+      sizeObserver.observe(header);
+    };
+    const onMutation = () => { sync(); watchHeader(); };
+    onMutation();
+    const observer = new MutationObserver(onMutation);
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-modal'] });
     window.addEventListener('resize', sync);
     return () => {
       observer.disconnect();
+      sizeObserver?.disconnect();
       window.removeEventListener('resize', sync);
     };
   }, []);
