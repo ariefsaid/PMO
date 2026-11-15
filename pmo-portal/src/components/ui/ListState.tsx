@@ -344,7 +344,7 @@ export const ListState: React.FC<ListStateProps> = ({
         <span className="flex h-lh shrink-0 items-center"><Icon name="alert" aria-hidden className="size-5 text-destructive" /></span>
         <div className="min-w-0 flex-1 text-foreground">
           {title && (titleAsPageHeading ? <h1 className="inline">{title}</h1> : <span>{title}</span>)}{' '}
-          <button type="button" onClick={onRetry} className="-my-1.5 ms-1 inline-block whitespace-nowrap py-1.5 font-medium text-primary-text hover:underline pointer-coarse:-my-3 pointer-coarse:py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+          <button type="button" onClick={onRetry} className="-my-1.5 ms-1 inline-block whitespace-nowrap py-1.5 font-medium text-primary-text hover:underline max-[640px]:-my-3 max-[640px]:py-3 pointer-coarse:-my-3 pointer-coarse:py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
             {resolvedRetryLabel}
           </button>
         </div>

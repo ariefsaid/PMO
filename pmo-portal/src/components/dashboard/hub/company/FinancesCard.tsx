@@ -134,10 +134,10 @@ export const FinancesCard: React.FC<{
       <div className={cn('grid border-border min-[480px]:grid-cols-2', (chart || extra || leftToBill) && 'border-b', 'min-[480px]:divide-x max-[479px]:divide-y divide-border')}>
         <OwedFigure testId="owed-to-us" title={t('home.owedToUs', 'Owed to us')}
           split={receivables} pending={receivablesPending} error={receivablesError} retry={retry} currency={currency} countLine={receivableLine}
-          errorTitle={t('home.receivablesError', "Couldn't load client invoices")} />
+          errorTitle={t('home.receivablesError', "Couldn't load invoices")} />
         <OwedFigure testId="owed-to-suppliers" title={t('home.owedToSuppliers', 'Owed to suppliers')}
           split={payables} pending={payablesPending} error={payablesError} retry={retry} currency={currency} countLine={payableLine}
-          errorTitle={t('home.payablesError', "Couldn't load supplier invoices")} />
+          errorTitle={t('home.payablesError', "Couldn't load invoices")} />
       </div>
       {(chart || extra || leftToBill) && (
         <div className="flex flex-col gap-5 px-[var(--panel-inset)] pb-4 pt-4">

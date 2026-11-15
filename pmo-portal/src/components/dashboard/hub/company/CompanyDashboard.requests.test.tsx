@@ -123,7 +123,7 @@ describe('company dashboard procurement reads (PERF-FIN-1)', () => {
     renderExec('Executive');
     const suppliers = screen.getByTestId('owed-to-suppliers');
 
-    expect(await within(suppliers).findByText("Couldn't load supplier invoices")).toBeInTheDocument();
+    expect(await within(suppliers).findByText("Couldn't load invoices")).toBeInTheDocument();
     await waitFor(() => expect(h.erpPurchases).toHaveBeenCalledTimes(1));
 
     await userEvent.click(within(suppliers).getByRole('button', { name: 'Retry' }));

@@ -129,7 +129,7 @@ describe('company home loading gates: one read failed', () => {
   it('failed client invoices say so in Owed to us; the figures band and the supplier side show', () => {
     h.reads.invoices = failed;
     renderExec();
-    expect(screen.getByTestId('owed-to-us')).toHaveTextContent("Couldn't load client invoices");
+    expect(screen.getByTestId('owed-to-us')).toHaveTextContent("Couldn't load invoices");
     expect(tile('Contract on hand · excl. tax')).toHaveTextContent('$8M');
     expect(screen.getByTestId('owed-to-suppliers')).toHaveTextContent('No supplier invoice to pay');
   });
