@@ -5,7 +5,7 @@ import type { WorkOrderRow, WorkOrderStatus } from '@/src/lib/db/workOrders';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { BoqItemRow } from '@/src/lib/db/progressBilling';
 import type { AllocationFacts } from '@/src/lib/progressBilling';
-import { settlementIn, summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
+import { summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
 
 export type InvoiceWithWorkOrder = SalesInvoiceRow & { work_order_id?: string | null };
 
@@ -27,9 +27,7 @@ export interface PendingTransition {
 // eslint-disable-next-line react-refresh/only-export-components -- shared figures/helpers used across the work-orders split.
 export function invoiceBalanceFigures(invoice: InvoiceWithWorkOrder): { paid: number | null; unpaid: number | null } {
   const summary = summarizeInvoiceSettlement([invoice]);
-  if (summary.denomination !== 'single') return { paid: null, unpaid: null };
-  const figures = settlementIn(summary, summary.currency);
-  return { paid: figures?.settled ?? null, unpaid: figures?.outstanding ?? null };
+  return summary.denomination === 'single' ? { paid: summary.settled, unpaid: summary.outstanding } : { paid: null, unpaid: null };
 }
 
 // eslint-disable-next-line react-refresh/only-export-components -- shared figures/helpers used across the work-orders split.

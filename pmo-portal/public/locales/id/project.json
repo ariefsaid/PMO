@@ -67,7 +67,8 @@
         "acceptedHistory": "Sumber: kuantitas yang dicatat pada BAST ini.",
         "invoiceAmount": "Sumber: jumlah faktur yang disinkronkan dari akuntansi.",
         "invoicePaid": "Dihitung dari jumlah faktur termasuk pajak, dikurangi saldo terutang menurut akuntansi.",
-        "paidUnknown": "Tidak diketahui: ada faktur dalam mata uang lain atau tanpa dasar pajak tercatat, sehingga pelunasan tidak dijumlahkan."
+        "paidUnknown": "Tidak diketahui: ada faktur dalam mata uang lain, atau jumlah maupun dasar pajaknya tidak tercatat, sehingga pelunasan tidak dijumlahkan.",
+        "overdueUnknown": "Tidak diketahui: faktur yang jatuh tempo menggunakan lebih dari satu mata uang, sehingga saldonya tidak dijumlahkan."
       },
       "ordered": "Dipesan",
       "delivered": "Terkirim",
@@ -143,7 +144,8 @@
       "noLineSplit": "Riwayat alokasi pesanan tidak tersedia.",
       "noConfirmedBastHistory": "Belum ada riwayat kuantitas BAST terkonfirmasi.",
       "invoiceDueDate": "Tenggat",
-      "invoiceDateSource": "Sumber: tanggal faktur dari akuntansi."
+      "invoiceDateSource": "Sumber: tanggal faktur dari akuntansi.",
+      "paidOfInvoiced": "dari {{amount}} difakturkan, termasuk pajak"
     },
     "billing": {
       "sources": {
@@ -476,7 +478,7 @@
       "delivered": "Terkirim",
       "deliveredSource": "Jumlah kuantitas yang diterima dikalikan harga satuan daftar kuantitas.",
       "invoiced": "Ditagih",
-      "invoicedSource": "Jumlah faktur dalam mata uang proyek yang bukan draf atau dibatalkan.",
+      "invoicedSource": "Jumlah faktur yang bukan draf dan tidak dibatalkan dalam mata uang proyek, termasuk pajak.",
       "paid": "Dibayar",
       "paidSource": "Jumlah faktur termasuk pajak, dikurangi saldo terutang menurut akuntansi; ini pelunasan, bukan kas yang diterima.",
       "marginSource": "Pendapatan pekerjaan tertagih dikurangi pengeluaran tercatat yang lengkap dalam mata uang yang sama.",
@@ -494,7 +496,7 @@
       "marginOutRestricted": "Margin kotor disembunyikan karena ada pengeluaran terbatas.",
       "marginOutActuals": "Margin kotor tidak ditampilkan sampai pengeluaran tertaut untuk setiap kategori anggaran.",
       "marginOutNoInvoices": "Margin kotor mulai dihitung sejak faktur pertama dalam mata uang proyek.",
-      "leadTooltip": "Jumlah yang sudah difakturkan sebagai porsi dari kontrak. Sumber: faktur yang bukan draf dan tidak dibatalkan dalam mata uang proyek.",
+      "leadTooltip": "Nilai yang difakturkan terhadap kontrak yang ditandatangani, dalam mata uang dan dasar pajaknya, sebagai porsi dari nilai kontrak.",
       "leadInvoiced": "{{percent}}% difakturkan",
       "leadPaid": "{{percent}}% dibayar",
       "cascadeLabel": "Kontrak hingga pembayaran",
@@ -509,7 +511,8 @@
       "cashIncompleteShort": "Kas diterima (kwitansi belum dialokasikan ke faktur)",
       "cashInvalidShort": "Kas diterima (pembacaan kwitansi belum diverifikasi)",
       "cashUnmatchedShort": "Kas diterima (belum ada penerimaan yang dicocokkan)",
-      "settlementCurrencyOut": "Nilai difakturkan dan dibayar tidak ditampilkan karena faktur tidak semuanya dalam mata uang proyek."
+      "settlementCurrencyOut": "Nilai difakturkan dan dibayar tidak ditampilkan karena faktur tidak semuanya dalam mata uang proyek.",
+      "invoicedAndPaid": "Difakturkan dan dibayar"
     },
     "cost": {
       "estimateTitle": "Anggaran",
@@ -1019,7 +1022,8 @@
         "figuresIncomplete": "Angka faktur belum lengkap.",
         "retryFigures": "Coba lagi memuat angka faktur",
         "orderlessHeading": "Faktur tanpa pesanan pelanggan",
-        "orderlessFiguresIncomplete": "Jumlah yang sudah dan belum dibayar akan muncul setelah sistem akuntansi melaporkan saldo faktur."
+        "orderlessFiguresIncomplete": "Jumlah yang sudah dan belum dibayar akan muncul setelah sistem akuntansi melaporkan saldo faktur.",
+        "mixedCurrency": "Faktur pada pesanan ini menggunakan lebih dari satu mata uang, sehingga tidak dijumlahkan."
       },
       "delivery": {
         "chooseOrder": "Pilih pesanan pelanggan yang menerima pengiriman ini."

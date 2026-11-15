@@ -82,7 +82,9 @@ const position = (overrides: Record<string, unknown> = {}) => ({
 
 const reading = (overrides: Partial<ProjectFinances> = {}): ProjectFinances => ({
   project_id: project.id,
-  cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '0.00' }, { currency: 'IDR', amount: '7.50' }], receipt_count: 1 },
+  // #2204: Invoiced now reads this projection's bucket (25 settled), so project-currency cash is the 25 received; a bare
+  // zero beside known invoicing is the "no receipt matched yet" case, which another test owns.
+  cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '25.00' }, { currency: 'IDR', amount: '7.50' }], receipt_count: 1 },
   contract_invoiced: '25.00',
   remaining_to_invoice: '75.00',
   invoices: [{ currency: 'USD', invoice_count: 1, invoiced: '25.00', settled: '25.00', outstanding: '0.00', missing_amount: 0, missing_outstanding: 0, tax_basis: 'exclusive', work_revenue: '20.00', missing_work: 0 }],
@@ -91,13 +93,13 @@ const reading = (overrides: Partial<ProjectFinances> = {}): ProjectFinances => (
   ...overrides,
 } as ProjectFinances);
 
-const renderOverviewMoney = () => {
+const renderOverviewMoney = (value: ProjectWithRefs = project) => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter><ToastProvider>
-        <CostBlock project={project} />
-        <MoneyBlock project={project} />
+        <CostBlock project={value} />
+        <MoneyBlock project={value} />
       </ToastProvider></MemoryRouter>
     </QueryClientProvider>,
   );
@@ -140,20 +142,21 @@ describe('project money position consumer parity (AC-PMP-003)', () => {
     const expectedRecorded = formatExactMoney('10.10', 'USD', numberLocale, { wholeUnits: true, omitCurrency: true }) ?? 'invalid expected format';
     const expectedRemaining = formatExactMoney('89.90', 'USD', numberLocale, { wholeUnits: true, omitCurrency: true }) ?? 'invalid expected format';
     const expectedSettled = formatExactMoney('25.00', 'USD', numberLocale, { wholeUnits: true, omitCurrency: true }) ?? 'invalid expected format';
-    const expectedProjectCash = formatExactMoney('0', 'USD', numberLocale, { wholeUnits: true, omitCurrency: true }) ?? 'invalid expected format';
+    const expectedProjectCash = formatExactMoney('25', 'USD', numberLocale, { wholeUnits: true, omitCurrency: true }) ?? 'invalid expected format';
     const expectedForeignCash = formatExactMoney('7.50', 'IDR', numberLocale, { wholeUnits: true }) ?? 'invalid expected format';
     const recordedHeading = within(section).getByRole('heading', { name: 'Recorded spending · USD' });
     // The amount is the paragraph's direct text; the following span is the separate Updated date.
     expect(recordedHeading.nextElementSibling?.firstChild?.textContent).toBe(expectedRecorded);
     expect(definitionValueText(section, 'Contract remaining after cost')).toBe(expectedRemaining);
     expect(definitionValueText(within(section).getByTestId('project-finances-USD'), 'Settled')).toBe(expectedSettled);
-    // Project-currency receipt cash stays a known 0 in the strip; foreign receipt cash remains separate from settlement.
+    // Project-currency receipt cash stays its own known figure in the strip; foreign receipt cash remains separate from settlement.
     expect(screen.getByTestId('money-lead-cash')).toHaveTextContent(new RegExp(`${expectedProjectCash}$`));
     expect(definitionValueText(section, 'Cash received')).toBe(expectedForeignCash);
   });
 
   it('draws only invoiced and paid bars; contract remains a plain figure', async () => {
-    renderOverviewMoney();
+    // #2204: the bars compare gross invoicing with the contract, so the contract is stated including tax here.
+    renderOverviewMoney({ ...project, tax_treatment: 'inclusive' } as ProjectWithRefs);
     const money = await screen.findByRole('region', { name: /Money position/ });
     expect(await within(money).findByTestId('contract-value-amount')).toHaveTextContent('$100');
     expect(within(money).getAllByRole('progressbar')).toHaveLength(2);

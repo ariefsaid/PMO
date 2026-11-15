@@ -13,8 +13,8 @@ import { useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import { formatNumberMax2, formatNumberWhole, formatTableMoney, formatTileMoney } from '@/src/lib/format';
-import { selectContractInvoiceFigure } from '@/src/lib/projectFinances';
-import { settlementIn, summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
+import { moneyUnits, selectContractInvoiceFigure } from '@/src/lib/projectFinances';
+import { outstandingIn, settlementFromFinanceBuckets, settlementIn, sumOutstanding } from '@/src/lib/invoiceSettlement';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import ProjectDrawdown from './ProjectDrawdown';
@@ -68,9 +68,15 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
   const delivered = allocations.reduce((sum, allocation) => sum + (allocation.acceptedQuantity ?? 0) * (rate.get(allocation.boqItemId) ?? 0), 0);
   const notYetOrdered = items.reduce((sum, item) => sum + (facts.get(item.id)?.contractBalance ?? 0) * Number(item.rate), 0);
   const invoiceRows = (invoices.data ?? []) as InvoiceRowWithWorkOrder[];
-  // #2204: settled only within the project currency, on the gross basis; another currency reads unknown.
-  const settlement = settlementIn(summarizeInvoiceSettlement(invoiceRows), project.currency);
+  // #2204: Paid reads the server projection's per-currency bucket (gross basis); a second or other currency reads unknown.
+  const settlementReading = settlementFromFinanceBuckets(projectFinances.data?.invoices);
+  const settlement = settlementReading ? settlementIn(settlementReading, project.currency) : null;
   const contractInvoiceFigure = selectContractInvoiceFigure(projectFinances.data);
+  // The Paid share is of the signed contract only when that contract is also stated including tax.
+  const paidDenominator = project.tax_treatment === 'inclusive' ? moneyUnits(contractInvoiceFigure.denominator) : null;
+  const paidPercentage = settlement?.settled != null && paidDenominator !== null && paidDenominator > 0n
+    ? Math.max(0, Math.round(settlement.settled * 100 / (Number(paidDenominator) / 100)))
+    : null;
   const showSummary = !isCascadePending && !isCascadeError && canViewMoney && (hasReadingLayer || (
     invoices.isPending || invoices.isError || invoiceRows.length > 0 || Number(project.contract_value) > 0
   ));
@@ -83,9 +89,8 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
       ? t('projectDetail.cascade.signedContractExclusive', 'Signed contract · excluding tax')
       : t('projectDetail.cascade.signedContractBasisUnknown', 'Signed contract · tax basis unknown');
   const invoiceFiguresMissing = canViewMoney && (
-    invoices.isPending || invoices.isError || (settlement !== null && (
-      settlement.documentTotal === null || (!settlement.balancesKnown && invoiceRows.some((invoice) => invoice.status === 'Paid'))
-    ))
+    invoices.isPending || invoices.isError || (settlement !== null
+      && !settlement.balancesKnown && invoiceRows.some((invoice) => invoice.status === 'Paid'))
   );
   const orderBillingRows = orderBilling.data ?? [];
   const lineCanInvoice = allocations.reduce((sum, allocation) => {
@@ -176,12 +181,11 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
       action: undefined,
     },
   ];
-  // #1457: the one shared overdue rule (status + derived due date + org day) decides each row.
-  const overdue = invoiceRows.reduce((sum, invoice) => {
-    if (clientInvoiceOverdueDays(invoice, orgDay) === null) return sum;
-    const balance = invoice.erp_outstanding_amount;
-    return balance === null ? sum : sum + Math.max(0, balance);
-  }, 0);
+  // #1457: the one shared overdue rule (status + derived due date + org day) decides each row;
+  // #2204: balances add up only within the project currency, otherwise the overdue figure is unknown.
+  const overdueSum = sumOutstanding(invoiceRows.filter((invoice) => clientInvoiceOverdueDays(invoice, orgDay) !== null));
+  const overdue = outstandingIn(overdueSum, project.currency);
+  const overdueUnknown = overdueSum.denomination !== 'none' && overdue === null;
   const percent = (value: number | null) => contractValue > 0 && value !== null
     ? Math.max(0, Math.round(value / contractValue * 100))
     : null;
@@ -250,10 +254,12 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
               caption={contractInvoiceBasis}
               detail={t('projectDetail.cascade.source.invoiced', 'Invoices under the signed contract, in the contract currency and tax basis. Shown as unknown when an invoice currency or tax basis differs from the contract. The percentage is of the signed contract value.')}
             />}
-            {canViewMoney && (settlement === null || settlement.balancesKnown) && !invoices.isPending && !invoices.isError && <>
+            {canViewMoney && settlementReading !== null && !projectFinances.isPending && (settlement === null || settlement.balancesKnown) && <>
               {settlement?.settled == null
-                ? <MoneyStep label={t('projectDetail.cascade.paid', 'Paid')} value="—" detail={t('projectDetail.cascade.source.paidUnknown', 'Unknown: an invoice is in another currency or has no recorded tax basis, so settlement is not added up.')} />
-                : <MoneyStep label={t('projectDetail.cascade.paid', 'Paid')} value={tileMoney(settlement.settled)} percentage={percent(settlement.settled)} detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount including tax, less the accounting balance outstanding.')} />}
+                ? <MoneyStep label={t('projectDetail.cascade.paid', 'Paid')} value="—" detail={t('projectDetail.cascade.source.paidUnknown', 'Unknown: an invoice is in another currency, or its amount or tax basis is missing, so settlement is not added up.')} />
+                : <MoneyStep label={t('projectDetail.cascade.paid', 'Paid')} value={tileMoney(settlement.settled)} percentage={paidPercentage}
+                  caption={settlement.gross === null ? undefined : t('projectDetail.cascade.paidOfInvoiced', 'of {{amount}} invoiced, including tax', { amount: tileMoney(settlement.gross), interpolation: { escapeValue: false } })}
+                  detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount including tax, less the accounting balance outstanding.')} />}
             </>}
           </ol>
           <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
@@ -271,10 +277,12 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
                 <strong className="font-semibold text-foreground">{tableMoney(canInvoice)}</strong>
               </span>
             </Tooltip>}
-            {overdue > 0 && <Tooltip content={t('projectDetail.cascade.source.overdue', 'Sum of positive outstanding balances on invoices past their due date.')}>
-              <span className="inline-flex cursor-help items-center gap-2 text-warning-foreground tabular-nums">
+            {((overdue ?? 0) > 0 || overdueUnknown) && <Tooltip content={overdueUnknown
+              ? t('projectDetail.cascade.source.overdueUnknown', 'Unknown: overdue invoices are in more than one currency, so their balances are not added up.')
+              : t('projectDetail.cascade.source.overdue', 'Sum of positive outstanding balances on invoices past their due date.')}>
+              <span data-testid="contract-overdue" className="inline-flex cursor-help items-center gap-2 text-warning-foreground tabular-nums">
                 <StatusPill variant="overdue">{t('projectDetail.cascade.overdue', 'Overdue')}</StatusPill>
-                <strong className="font-semibold">{tableMoney(overdue)}</strong>
+                <strong className="font-semibold">{overdue === null ? '—' : tableMoney(overdue)}</strong>
               </span>
             </Tooltip>}
           </div>

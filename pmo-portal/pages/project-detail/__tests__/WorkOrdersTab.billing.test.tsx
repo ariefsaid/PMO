@@ -282,12 +282,37 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     renderTab();
 
     const order = screen.getByTestId('customer-order-wo-1');
-    const money = screen.getByTestId('wo-money-wo-1');
-    expect(money).not.toHaveTextContent(/400,000|320,000/);
-    expect(within(money).queryByText('Invoiced')).not.toBeInTheDocument();
-    expect(within(money).queryByText('Paid')).not.toBeInTheDocument();
-    expect(within(money).queryByText('Unpaid')).not.toBeInTheDocument();
-    expect(within(order).getByText('Invoice figures are incomplete.')).toBeInTheDocument();
+    const money = within(screen.getByTestId('wo-money-wo-1'));
+    expect(screen.getByTestId('wo-money-wo-1')).not.toHaveTextContent(/400,000|320,000/);
+    // Unknown reads "—" with its reason, never a blank or an added-up figure.
+    for (const label of ['Invoiced', 'Paid', 'Unpaid']) {
+      expect(money.getByText(label).closest('div')!).toHaveTextContent(new RegExp(`^${label}—$`));
+    }
+    expect(within(order).getByText('Invoices on this order are in more than one currency, so they are not added up.')).toBeInTheDocument();
+  });
+
+  it('AC-SET-005 a fully paid tax-exclusive order invoice reads Paid + Unpaid = Invoiced, all including tax', () => {
+    h.invoices = { data: [
+      { id: 'si-excl', work_order_id: 'wo-1', status: 'Paid', currency: 'USD', tax_treatment: 'exclusive', tax_amount: 11_000, amount: 100_000, erp_outstanding_amount: 0, si_number: 'INV-EXCL' },
+    ], isPending: false, isError: false, refetch: vi.fn() };
+    renderTab();
+
+    const figures = within(screen.getByTestId('wo-money-wo-1'));
+    expect(within(figures.getByText('Invoiced').closest('div')!).getByText('111,000')).toBeInTheDocument();
+    expect(within(figures.getByText('Paid').closest('div')!).getByText('111,000')).toBeInTheDocument();
+    expect(within(figures.getByText('Unpaid').closest('div')!).getByText('0')).toBeInTheDocument();
+  });
+
+  it('AC-SET-006 a customer order never adds overdue balances in two currencies', () => {
+    h.invoices = { data: [
+      { id: 'si-usd', work_order_id: 'wo-1', status: 'Unpaid', currency: 'USD', tax_treatment: 'inclusive', tax_amount: 0, amount: 330_000, erp_outstanding_amount: 250_000, erp_due_date: '2020-01-01', si_number: 'INV-USD' },
+      { id: 'si-eur', work_order_id: 'wo-1', status: 'Unpaid', currency: 'EUR', tax_treatment: 'inclusive', tax_amount: 0, amount: 70_000, erp_outstanding_amount: 70_000, erp_due_date: '2020-01-01', si_number: 'INV-EUR' },
+    ], isPending: false, isError: false, refetch: vi.fn() };
+    renderTab();
+
+    const order = screen.getByTestId('customer-order-wo-1');
+    expect(within(order).getByTestId('wo-overdue-wo-1')).toHaveTextContent(/^Overdue—$/);
+    expect(order).not.toHaveTextContent('320,000');
   });
 
   it('AC-SET-002 customer-order figures settle tax-exclusive and tax-inclusive invoices on one gross basis', async () => {
@@ -299,6 +324,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
 
     const figures = within(screen.getByTestId('wo-money-wo-1'));
     // Gross 222,000 less 111,000 owed: 111,000 settled (amount-minus-balance read 100,000).
+    expect(within(figures.getByText('Invoiced').closest('div')!).getByText('222,000')).toBeInTheDocument();
     expect(within(figures.getByText('Paid').closest('div')!).getByText('111,000')).toBeInTheDocument();
     expect(within(figures.getByText('Unpaid').closest('div')!).getByText('111,000')).toBeInTheDocument();
 

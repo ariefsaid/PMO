@@ -12,9 +12,16 @@
  *   `mixed` result that carries no amount, and `settlementIn` hands figures to a caller only for the
  *   exact currency the result is in, so a sum is never relabelled as the project currency.
  *
- * Settlement is not cash received (that is the receipt projection's `cash_received`), and the
- * document total is not contract-normalised billing (`contract_invoiced`). Each stays its own figure.
+ * Wherever Invoiced, Paid and Unpaid stand together they all read gross, so Paid + Unpaid = Invoiced.
+ * Project-scope figures come from the server projection (`settlementFromFinanceBuckets`); the row rule
+ * (`summarizeInvoiceSettlement`) is for per-order and per-invoice figures and mirrors it.
+ *
+ * Settlement is not cash received (that is the receipt projection's `cash_received`), and gross invoiced is
+ * not contract-normalised billing (`contract_invoiced`, on the contract's own tax basis). Each stays its own figure.
  */
+
+import { parseExactCents } from './exactDecimal';
+import type { InvoiceFinanceBucket } from './projectFinances';
 
 /** One invoice as the settlement rule reads it. Every field is the invoice's own. */
 export interface SettlementInvoice {
@@ -31,15 +38,10 @@ export interface SettlementInvoice {
   erp_cancelled_at?: string | null;
 }
 
-export type DocumentBasis = 'inclusive' | 'exclusive' | 'mixed';
-
-/** Figures for one currency. `null` = unknown, never zero. */
+/** Figures for one currency, all on the gross basis so settled + outstanding = gross. `null` = unknown, never zero. */
 export interface CurrencySettlement {
   currency: string;
-  /** Σ document amounts as stated (null when one is missing); `documentBasis` says which tax basis they are on. */
-  documentTotal: number | null;
-  documentBasis: DocumentBasis | null;
-  /** Σ gross amounts — the comparable basis for outstanding and settled. */
+  /** Σ gross amounts: what was invoiced, including tax. */
   gross: number | null;
   /** Σ accounting balances outstanding (gross); null when any balance is unknown. */
   outstanding: number | null;
@@ -74,52 +76,99 @@ function grossCents(invoice: SettlementInvoice): number | null {
   return tax === null ? null : amount + tax;
 }
 
-const sumOrNull = (values: Array<number | null>): number | null =>
-  values.every((value) => value !== null) ? values.reduce<number>((sum, value) => sum + (value ?? 0), 0) / 100 : null;
+const sumCents = (values: Array<number | null>): number | null =>
+  values.every((value) => value !== null) ? values.reduce<number>((sum, value) => sum + (value ?? 0), 0) : null;
 
-export function summarizeInvoiceSettlement(invoices: readonly SettlementInvoice[]): InvoiceSettlement {
-  const counted = invoices.filter(countsTowardSettlement);
-  if (counted.length === 0) return { denomination: 'none' };
+/** One denomination from a list of currencies; a missing currency is unknown, never the caller's (FR-SET-002). */
+function denominationOf(currencies: Array<string | null | undefined>): { currency: string } | { currencies: string[] } {
+  const distinct = [...new Set(currencies.map((currency) => currency || ''))];
+  return distinct.length === 1 && distinct[0] !== '' ? { currency: distinct[0] } : { currencies: distinct.filter(Boolean).sort() };
+}
 
-  // FR-SET-002: a missing currency is unknown denomination, never the caller's currency.
-  const currencies = [...new Set(counted.map((invoice) => invoice.currency || ''))];
-  if (currencies.length !== 1 || currencies[0] === '') {
-    return { denomination: 'mixed', currencies: currencies.filter(Boolean).sort() };
-  }
-
-  const amounts = counted.map((invoice) => cents(invoice.amount));
-  const grosses = counted.map(grossCents);
-  const balances = counted.map((invoice) => cents(invoice.erp_outstanding_amount));
-  const treatments = new Set(counted.map((invoice) => invoice.tax_treatment));
-  const documentBasis: DocumentBasis = treatments.size === 1 && (treatments.has('inclusive') || treatments.has('exclusive'))
-    ? (counted[0].tax_treatment as 'inclusive' | 'exclusive')
-    : 'mixed';
-  const gross = sumOrNull(grosses);
-  const outstanding = sumOrNull(balances);
-  const settledCents = gross !== null && outstanding !== null
-    ? grosses.reduce<number>((sum, value) => sum + (value ?? 0), 0) - balances.reduce<number>((sum, value) => sum + (value ?? 0), 0)
-    : null;
+function fromCents(currency: string, gross: number | null, outstanding: number | null): InvoiceSettlement {
   return {
     denomination: 'single',
-    currency: currencies[0],
-    documentTotal: sumOrNull(amounts),
-    documentBasis,
-    gross,
-    outstanding,
-    settled: settledCents === null ? null : settledCents / 100,
+    currency,
+    gross: gross === null ? null : gross / 100,
+    outstanding: outstanding === null ? null : outstanding / 100,
+    settled: gross === null || outstanding === null ? null : (gross - outstanding) / 100,
     balancesKnown: outstanding !== null,
   };
 }
 
+/** Row-level rule, for per-order and per-invoice figures. It mirrors the server projection's rule. */
+export function summarizeInvoiceSettlement(invoices: readonly SettlementInvoice[]): InvoiceSettlement {
+  const counted = invoices.filter(countsTowardSettlement);
+  if (counted.length === 0) return { denomination: 'none' };
+  const denomination = denominationOf(counted.map((invoice) => invoice.currency));
+  if ('currencies' in denomination) return { denomination: 'mixed', currencies: denomination.currencies };
+  return fromCents(
+    denomination.currency,
+    sumCents(counted.map(grossCents)),
+    sumCents(counted.map((invoice) => cents(invoice.erp_outstanding_amount))),
+  );
+}
+
+const exactCents = (value: string | null | undefined): number | null => {
+  if (typeof value !== 'string') return null;
+  const units = parseExactCents(value);
+  return units === null || units > BigInt(Number.MAX_SAFE_INTEGER) || units < -BigInt(Number.MAX_SAFE_INTEGER) ? null : Number(units);
+};
+
 /**
- * FR-SET-007: the settlement figures in `currency`, or null when the result is in any other currency or
- * mixed. With nothing counted the figures are zero in whichever currency is asked.
+ * Project-level figures read from the server projection (`get_project_finances`, 0791): one bucket per invoice
+ * currency, `settled` and `outstanding` already gross. Gross invoiced is settled + outstanding, or the stated total
+ * when every invoice in the bucket is tax-inclusive. A missing reading (undefined) is unknown.
+ */
+export function settlementFromFinanceBuckets(buckets: readonly InvoiceFinanceBucket[] | null | undefined): InvoiceSettlement | null {
+  if (!Array.isArray(buckets)) return null;
+  if (buckets.length === 0) return { denomination: 'none' };
+  const denomination = denominationOf(buckets.map((bucket) => bucket.currency));
+  if (buckets.length > 1 || 'currencies' in denomination) {
+    return { denomination: 'mixed', currencies: 'currencies' in denomination ? denomination.currencies : [denomination.currency] };
+  }
+  const [bucket] = buckets;
+  const settled = exactCents(bucket.settled);
+  const outstanding = exactCents(bucket.outstanding);
+  const gross = settled !== null && outstanding !== null
+    ? settled + outstanding
+    : bucket.tax_basis === 'inclusive' ? exactCents(bucket.invoiced) : null;
+  return fromCents(denomination.currency, gross, outstanding);
+}
+
+/**
+ * FR-SET-007: the figures to show in `currency` — only when the result is denominated in exactly that currency;
+ * a mixed or foreign-currency result gives null. With nothing counted the figures are zero in any currency.
  */
 export function settlementIn(settlement: InvoiceSettlement, currency: string): CurrencySettlement | null {
-  if (settlement.denomination === 'none') {
-    return { currency, documentTotal: 0, documentBasis: null, gross: 0, outstanding: 0, settled: 0, balancesKnown: true };
-  }
+  if (settlement.denomination === 'none') return { currency, gross: 0, outstanding: 0, settled: 0, balancesKnown: true };
   if (settlement.denomination === 'mixed' || settlement.currency !== currency) return null;
   const { denomination: _denomination, ...figures } = settlement;
   return figures;
+}
+
+export type OutstandingSum =
+  | { denomination: 'none' }
+  | { denomination: 'mixed'; currencies: string[] }
+  | { denomination: 'single'; currency: string; amount: number };
+
+/**
+ * Σ positive known balances within one currency (the overdue callout). Invoices without a balance add nothing;
+ * balances in two currencies are never added (FR-SET-010).
+ */
+export function sumOutstanding(invoices: ReadonlyArray<Pick<SettlementInvoice, 'currency' | 'erp_outstanding_amount'>>): OutstandingSum {
+  const known = invoices.flatMap((invoice) => {
+    const balance = cents(invoice.erp_outstanding_amount);
+    return balance === null ? [] : [{ currency: invoice.currency, balance: Math.max(0, balance) }];
+  });
+  if (known.length === 0) return { denomination: 'none' };
+  const denomination = denominationOf(known.map((row) => row.currency));
+  if ('currencies' in denomination) return { denomination: 'mixed', currencies: denomination.currencies };
+  return { denomination: 'single', currency: denomination.currency, amount: known.reduce((sum, row) => sum + row.balance, 0) / 100 };
+}
+
+/** The outstanding sum in `currency`, or null when it is mixed or in another currency. */
+export function outstandingIn(sum: OutstandingSum, currency: string): number | null {
+  if (sum.denomination === 'none') return 0;
+  return sum.denomination === 'single' && sum.currency === currency ? sum.amount : null;
 }
