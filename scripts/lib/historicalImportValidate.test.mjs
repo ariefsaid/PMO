@@ -19,8 +19,7 @@ test('AC-HIST-002: a projects.csv row with a terminal status (Close Out) is acce
 });
 
 test('AC-HIST-002: a procurement_cases.csv case row with a non-terminal terminal_status is rejected', () => {
-  // 'Ordered' IS a terminal-eligible committed status per COMMITTED_STATUSES — use a genuinely
-  // non-terminal status (e.g. 'Draft') for the negative case:
+  // 'Draft' is not terminal-eligible ('Ordered' would be, per COMMITTED_STATUSES).
   const nonTerminal = validateCaseRow({ case_ref: 'C-2', type: 'PO', terminal_status: 'Draft', total_value: '5000' });
   assert.equal(nonTerminal.valid, false);
   assert.match(nonTerminal.errors[0], /terminal/i);
