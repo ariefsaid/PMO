@@ -52,7 +52,7 @@ test('@layout AC-FAA-010: long Indonesian money values stay fully visible in Exe
   const expectedShortAmount = expectedShortIdUsd(33_050_000);
   const expectedExactAmount = formatExactMoney('33050000', 'USD', 'id-ID', { wholeUnits: true })!;
   const companyFigures = page.getByRole('region', { name: 'Angka perusahaan' });
-  const desktopTile = companyFigures.getByText('Kontrak berjalan', { exact: true }).locator('xpath=../..');
+  const desktopTile = companyFigures.getByText('Kontrak berjalan · di luar pajak', { exact: true }).locator('xpath=../..');
   const visibleAmount = desktopTile.locator('div.tabular > span[aria-hidden="true"]');
   await expect(desktopTile).toBeVisible();
   await expectMoneyFits(desktopTile, visibleAmount, expectedShortAmount, expectedExactAmount);
