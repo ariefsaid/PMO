@@ -536,6 +536,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
       expect(within(row).getByText(entry.erp)).toBeInTheDocument();
       const reference = within(row).getByTestId('record-reference');
       expect(reference).toHaveTextContent(entry.externalId);
+      expect(reference.querySelector('code')).toHaveClass('record-id');
       fireEvent.click(within(card).getByRole('button', { name: 'Close list' }));
     }
   });
