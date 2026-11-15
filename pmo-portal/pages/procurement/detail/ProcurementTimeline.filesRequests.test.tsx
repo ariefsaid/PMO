@@ -135,4 +135,21 @@ describe('AC-PERF-2106-2 the Timeline reads every record’s files in one reques
     await user.click(summaryOf(row));
     expect(await within(row).findByText(/load attachments/)).toBeInTheDocument();
   });
+
+  it('AC-PERF-2106-2 one phase failing shows the error only on that phase’s entries; other phases keep their files', async () => {
+    const user = userEvent.setup();
+    // PR (purchase_request) read failed; every other phase answered. The batch reports a failed phase as null.
+    h.listForParents.mockImplementation(async (parents: { phase: string; parentId: string }[]) =>
+      Object.fromEntries(parents.map((p) => [`${p.phase}:${p.parentId}`,
+        p.phase === 'purchase_request' ? null : p.parentId === 'rec-3' ? [fileRow('rec-3')] : []])));
+    renderTimeline();
+    await waitFor(() => expect(h.listForParents).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 20));
+    const trows = screen.getAllByTestId('procurement-timeline-row');
+    await user.click(summaryOf(trows[1])); // PR record — its phase failed
+    expect(await within(trows[1]).findByText(/load attachments/)).toBeInTheDocument();
+    await user.click(summaryOf(trows[4])); // PO record (rec-3) — its phase succeeded
+    expect(await within(trows[4]).findByText('spec-rec-3.pdf')).toBeInTheDocument();
+    expect(within(trows[4]).queryByText(/load attachments/)).not.toBeInTheDocument();
+  });
 });

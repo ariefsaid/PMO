@@ -5,7 +5,7 @@ import { procurementFileParentKey, type ProcurementFileParent, type ProcurementF
 /** The files of every given record in ONE read (the timeline's entries), keyed by `procurementFileParentKey`. */
 export function useProcurementFilesBatch(procurementId: string, parents: readonly ProcurementFileParent[]) {
   const keys = parents.map((p) => procurementFileParentKey(p.phase, p.parentId)).sort();
-  return useQuery<Record<string, ProcurementFileRow[]>>({
+  return useQuery<Record<string, ProcurementFileRow[] | null>>({
     queryKey: ['procurement-files-batch', procurementId, keys],
     queryFn: () => repositories.procurementFiles.listForParents(parents),
     enabled: parents.length > 0,

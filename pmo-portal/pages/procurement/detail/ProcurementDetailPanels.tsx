@@ -436,7 +436,7 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
                       {(() => {
                         const phase = phaseByType[entry.ledger.type];
                         const files = filesBatch.data?.[procurementFileParentKey(phase, entry.ledger.recordId)];
-                        return <ProcurementFilesSubsection phase={phase} parentId={entry.ledger.recordId} procurementId={procurement.id} canWrite={canWriteFiles} uploadedById={uploadedById} files={files ?? []} loading={files === undefined && !filesBatch.isError} failed={files === undefined && filesBatch.isError} />;
+                        return <ProcurementFilesSubsection phase={phase} parentId={entry.ledger.recordId} procurementId={procurement.id} canWrite={canWriteFiles} uploadedById={uploadedById} files={files ?? []} loading={files === undefined && !filesBatch.isError} failed={files === null || (files === undefined && filesBatch.isError)} />;
                       })()}
                     </>}
                   </div>

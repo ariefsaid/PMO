@@ -198,8 +198,8 @@ export interface ProcurementRepository {
 export interface ProcurementFileRepository {
   /** Non-archived files for a phase parent (quotation/receipt/invoice), newest first. */
   list(phase: ProcPhase, parentId: string): Promise<ProcurementFileRow[]>;
-  /** Non-archived files of many records in one call, keyed `${phase}:${parentId}` (empty list = no files). */
-  listForParents(parents: readonly ProcurementFileParent[]): Promise<Record<string, ProcurementFileRow[]>>;
+  /** Non-archived files of many records in one call, keyed `${phase}:${parentId}` (empty list = no files; null = that record's phase read failed). */
+  listForParents(parents: readonly ProcurementFileParent[]): Promise<Record<string, ProcurementFileRow[] | null>>;
   /**
    * Prepare a signed upload URL + a minted file path (DAL validates the extension).
    * org_id is fetched server-side from the procurement row — never passed by the caller

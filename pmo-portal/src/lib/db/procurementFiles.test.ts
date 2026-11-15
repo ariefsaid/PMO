@@ -125,7 +125,7 @@ describe('AC-PERF-2106-2 listProcurementFilesForParents', () => {
     expect(h.calls.in).toContainEqual(['quotation_id', ['q1', 'q2']]);
     expect(h.calls.in).toContainEqual(['receipt_id', ['r1']]);
     expect(h.calls.is).toContainEqual(['archived_at', null]);
-    expect(out['quotation:q1'].map((r) => r.id)).toEqual(['f1']);
+    expect(out['quotation:q1']?.map((r) => r.id)).toEqual(['f1']);
     expect(out['quotation:q2']).toEqual([]);
     expect(out['receipt:r1']).toEqual([]);
   });

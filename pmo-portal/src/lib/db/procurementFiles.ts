@@ -261,36 +261,42 @@ export interface ProcurementFileParent {
 /**
  * The non-archived files of MANY records in one call (newest first per record): one `.in(parent, ids)` read per
  * phase present, run together, instead of one read per record. The result is keyed `${phase}:${parentId}`; a record
- * with no files has an empty list. Same RLS scoping and ordering as `listProcurementFiles`.
+ * with no files has an empty list; a record whose phase's read failed is `null`. Same RLS scoping and ordering as `listProcurementFiles`.
  */
 export async function listProcurementFilesForParents(
   parents: readonly ProcurementFileParent[],
-): Promise<Record<string, ProcurementFileRow[]>> {
+): Promise<Record<string, ProcurementFileRow[] | null>> {
   const idsByPhase = new Map<ProcPhase, Set<string>>();
-  const out: Record<string, ProcurementFileRow[]> = {};
+  const out: Record<string, ProcurementFileRow[] | null> = {};
   for (const { phase, parentId } of parents) {
     if (!idsByPhase.has(phase)) idsByPhase.set(phase, new Set());
     idsByPhase.get(phase)!.add(parentId);
     out[procurementFileParentKey(phase, parentId)] = [];
   }
+  // One failing phase must not fail the others: it is reported as `null` on that phase's keys only.
   await Promise.all(
-    [...idsByPhase].flatMap(([phase, idSet]) => {
+    [...idsByPhase].map(async ([phase, idSet]) => {
       const ids = [...idSet];
       const chunks: string[][] = [];
       for (let i = 0; i < ids.length; i += BY_IDS_CHUNK) chunks.push(ids.slice(i, i + BY_IDS_CHUNK));
-      return chunks.map(async (chunk) => {
-        const { data, error } = await supabase
-          .from(FILE_TABLE_BY_PHASE[phase])
-          .select('*')
-          .in(PARENT_COL_BY_PHASE[phase] as never, chunk)
-          .is('archived_at', null)
-          .order('created_at', { ascending: false });
-        if (error) throwWrite(error);
-        for (const row of (data ?? []) as unknown as Record<string, unknown>[]) {
+      try {
+        const rowsByChunk = await Promise.all(chunks.map(async (chunk) => {
+          const { data, error } = await supabase
+            .from(FILE_TABLE_BY_PHASE[phase])
+            .select('*')
+            .in(PARENT_COL_BY_PHASE[phase] as never, chunk)
+            .is('archived_at', null)
+            .order('created_at', { ascending: false });
+          if (error) throwWrite(error);
+          return (data ?? []) as unknown as Record<string, unknown>[];
+        }));
+        for (const row of rowsByChunk.flat()) {
           const normalized = normalizeRow(phase, row);
           out[procurementFileParentKey(phase, normalized.parent_id)]?.push(normalized);
         }
-      });
+      } catch {
+        for (const parentId of idSet) out[procurementFileParentKey(phase, parentId)] = null;
+      }
     }),
   );
   return out;
