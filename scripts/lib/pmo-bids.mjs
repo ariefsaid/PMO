@@ -8,8 +8,18 @@
 /** The outcome → target status. */
 export const BID_OUTCOMES = Object.freeze({ win: 'Won, Pending KoM', lose: 'Loss Tender', decline: 'Declined' });
 
-/** The stages a bid can be decided from (the app's pipeline). */
-export const OPEN_BID_STATUSES = Object.freeze(['Leads', 'PQ Submitted', 'Quotation Submitted', 'Tender Submitted', 'Negotiation']);
+/**
+ * The stages each outcome can be recorded from. These are exactly the source stages whose legal moves in
+ * transition_project (the v_legal map in migration 0534) include the outcome's target status: won only from a
+ * submitted quotation or tender or a negotiation; lost and declined from any open bid stage.
+ */
+export const OUTCOME_FROM_STATUSES = Object.freeze({
+  win: Object.freeze(['Quotation Submitted', 'Tender Submitted', 'Negotiation']),
+  lose: Object.freeze(['Leads', 'PQ Submitted', 'Quotation Submitted', 'Tender Submitted', 'Negotiation']),
+  decline: Object.freeze(['Leads', 'PQ Submitted', 'Quotation Submitted', 'Tender Submitted', 'Negotiation']),
+});
+
+const OUTCOME_VERB = Object.freeze({ win: 'won', lose: 'lost', decline: 'declined' });
 
 /** transition_project's lost/declined reasons (pinned to the latest migration by AC-1789-006). */
 export const LOST_REASONS = Object.freeze(['price', 'competitor', 'scope_fit', 'timing', 'capacity', 'relationship', 'client_cancelled', 'no_decision', 'other']);
@@ -36,8 +46,10 @@ export function planBidOutcome(outcome, input, project, { today }) {
   const to = BID_OUTCOMES[outcome];
   const problems = [];
   const stored = project.contract_value === null || project.contract_value === undefined ? null : Number(project.contract_value);
-  if (!OPEN_BID_STATUSES.includes(project.status)) {
-    problems.push(`The project is '${project.status}', not an open bid (${OPEN_BID_STATUSES.join(', ')}); a decided project changes in the app.`);
+  const from = OUTCOME_FROM_STATUSES[outcome];
+  if (!from.includes(project.status)) {
+    problems.push(`The project is '${project.status}' and cannot be recorded as ${OUTCOME_VERB[outcome]} from there; ` +
+      `that is only possible from an open bid at ${from.join(', ')}. Move it on in the app first.`);
   }
   let rpc;
   if (outcome === 'win') {

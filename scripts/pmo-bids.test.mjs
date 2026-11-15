@@ -82,6 +82,19 @@ test('AC-1789-005: only an open bid can be decided, and win-only flags are refus
   assert.match(plan('win', { ref: 'SO-77', date: '2026-09-12', value: '125000', reason: 'price' }).problems.join('\n'), /--reason/);
 });
 
+test('AC-1789-005: a win previewed from a stage the server cannot win from is refused in plain words', () => {
+  for (const status of ['Leads', 'PQ Submitted']) {
+    const result = plan('win', { ref: 'SO-77', date: '2026-09-12', value: '125000' }, { ...BID, status });
+    assert.equal(result.rpc, null, status);
+    assert.match(result.problems.join('\n'), new RegExp(`'${status}'.*cannot be recorded as won`));
+  }
+  for (const outcome of ['lose', 'decline']) {
+    for (const status of ['Leads', 'PQ Submitted']) {
+      assert.deepEqual(plan(outcome, { reason: 'price' }, { ...BID, status }).problems, [], `${outcome} from ${status}`);
+    }
+  }
+});
+
 test('AC-1789-006: the CLI lost reasons match the latest transition_project', () => {
   const dir = path.join(ROOT, 'supabase', 'migrations');
   const latest = fs.readdirSync(dir).filter((f) => f.endsWith('.sql')).sort()
