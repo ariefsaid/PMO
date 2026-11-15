@@ -607,13 +607,16 @@ describe('revenue by project goals carried over to the report', () => {
       org_currency: 'USD',
       projects: [{ ...project('p1', 'Alpha', 'u-pm'), currency: 'USD', contract_net: 1 }],
       invoiced: [{ project_id: 'p1', currency: 'USD', month: '2026-04-01', net: 0.4, invoice_count: 1 }],
+      invoiced_before: [earlierInvoice(null, 'USD', 0.4, 1)],
       progress: [{ project_id: 'p1', month: '2026-04-01', pct_complete: 40, entered_at: '2026-04-20T10:00:00Z', entered_by_name: 'Finance' }],
     });
     renderPage();
     const figures = screen.getByRole('region', { name: 'Report figures' });
     const tileForLabel = (label: string) => within(figures).getByText(label).closest<HTMLElement>('div.relative.flex.flex-col')!;
-    expect(tileForLabel('Invoiced to date')).toHaveTextContent('$0.40');
     expect(tileForLabel('Invoiced in period')).toHaveTextContent('$0.40');
+    expect(tileForLabel('Opening invoiced')).toHaveTextContent('$0.40');
+    // 0.80 is at least half a unit, so whole units round it up to $1 (non-zero either way).
+    expect(tileForLabel('Invoiced to date')).toHaveTextContent('$1');
     // The earned tile's caption is this month's change: 40% of a $1 contract, never "This month $0".
     expect(tileForLabel('Earned to date')).toHaveTextContent('This month $0.40');
     const row = within(projectCell('Alpha').closest('tr')!);
