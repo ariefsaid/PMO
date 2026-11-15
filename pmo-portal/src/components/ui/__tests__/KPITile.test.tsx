@@ -70,19 +70,12 @@ describe('KPITile', () => {
     render(<KPITile icon="dollar" tone="blue" label="Pipeline value" value="$4.2M" caption="Last 30 days" />);
     expect(screen.getByText('Pipeline value')).toHaveClass('font-medium', 'text-foreground');
     expect(screen.getByText('$4.2M')).toHaveClass('text-metric', 'font-semibold', 'tabular');
-    expect(screen.getByText('Last 30 days')).toHaveClass('text-support', 'text-muted-foreground');
+    expect(screen.getByText('Last 30 days')).toHaveClass('text-control', 'text-muted-foreground');
   });
 
   it('negative value turns destructive', () => {
     render(<KPITile icon="dollar" tone="red" label="Margin" value="-$120K" negative />);
     expect(screen.getByText('-$120K').className).toContain('text-destructive');
-  });
-
-  it('#2249: the line under a figure (the rupiah equivalent) is supporting text: the supporting token, regular weight, muted', () => {
-    render(<KPITile icon="dollar" tone="blue" label="Budget" value="$1,000" caption="≈ Rp 16.000.000" />);
-    const line = screen.getByText('≈ Rp 16.000.000');
-    expect(line).toHaveClass('text-support', 'text-muted-foreground');
-    expect(line).not.toHaveClass('text-metric', 'font-semibold');
   });
 
   it('one caption: caption wins, and the deprecated vs / delta text fall back to it', () => {

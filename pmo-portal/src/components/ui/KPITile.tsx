@@ -83,7 +83,7 @@ export interface KPITileProps {
 /** Inside a KPIRow the tiles become cells of one joined strip: no own frame, no decorative icon tile. */
 /** The tile's one caption: it wraps (at most two lines on a figure card) and is never truncated. */
 const Caption: React.FC<{ children: string; action?: { to: string; label: string } }> = ({ children, action }) => (
-  <div className="mt-auto text-support text-muted-foreground">
+  <div className="mt-auto text-control text-muted-foreground">
     {children}
     {action && <>{' · '}<Link to={action.to} className="pointer-events-auto font-medium text-primary-text underline-offset-4 hover:underline">{action.label}</Link></>}
   </div>
