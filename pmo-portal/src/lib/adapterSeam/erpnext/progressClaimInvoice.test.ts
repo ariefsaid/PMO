@@ -32,13 +32,13 @@ const EVIDENCE: Row[] = [{ id: 'ev-1', org_id: ORG, claim_id: 'claim-1' }];
 
 /** PostgREST boundary fake: enforces filters and selected columns (a missing column throws). */
 function serviceClient(claim: Row | null, evidence: Row[] = EVIDENCE, workOrderTax: Row = {}, projectTax: Row = {},
-  timeMaterials: { claims?: Row[]; lines?: Row[]; rateLines?: Row[]; progressLines?: Row[] } = {}): DispatchServiceClient {
+  timeMaterials: { claims?: Row[]; lines?: Row[]; rateLines?: Row[]; progressLines?: Row[] } = {}, versionMajor = 15): DispatchServiceClient {
   const rateLines = timeMaterials.rateLines ?? (timeMaterials.lines ?? TM_LINES).map((line) => ({
     org_id: line.org_id, project_id: 'proj-1', line_key: line.line_key, is_current: true,
     version: line.rate_version, sales_item_code: 'SERVICE-LABOUR',
   }));
   const rows: Record<string, Row[]> = {
-    external_org_bindings: [{ org_id: ORG, external_tier: 'erpnext', site_url: 'https://erp.example.test', version_major: 15, activated_at: '2026-09-01', config: { company: 'Synthetic Co', project_map: { 'proj-1': 'ERP-PROJ-001', 'proj-2': 'ERP-PROJ-002' }, item_map: { 'Site engineer': 'SERVICE-LABOUR', 'Rounding case': 'SERVICE-LABOUR' } } }],
+    external_org_bindings: [{ org_id: ORG, external_tier: 'erpnext', site_url: 'https://erp.example.test', version_major: versionMajor, activated_at: '2026-09-01', config: { company: 'Synthetic Co', project_map: { 'proj-1': 'ERP-PROJ-001', 'proj-2': 'ERP-PROJ-002' }, item_map: { 'Site engineer': 'SERVICE-LABOUR', 'Rounding case': 'SERVICE-LABOUR' } } }],
     companies: [{ id: 'cust-1', org_id: ORG }, { id: 'cust-2', org_id: ORG }, { id: 'cust-org2', org_id: 'org-2' }],
     external_refs: [
       { org_id: ORG, domain: 'companies', pmo_record_id: 'cust-1', external_record_id: 'Customer:Synthetic Customer' },
@@ -110,7 +110,7 @@ function command(record: Row, operation: AdapterCommand['operation'] = 'create',
 
 const TAX_TEMPLATE = { name: 'Synthetic Sales Tax', taxes: [{ charge_type: 'On Net Total', account_head: 'VAT - SC', rate: 10, description: 'VAT' }] };
 
-function erpFetch(opts: { negativeRates?: boolean; template?: unknown; settingsDenied?: boolean; systemSettings?: Row | 'denied'; customerCurrency?: string | null; companyCurrency?: string } = {}) {
+function erpFetch(opts: { versionMajor?: number; currencyNumberFormat?: string | null; negativeRates?: boolean; template?: unknown; settingsDenied?: boolean; systemSettings?: Row | 'denied'; customerCurrency?: string | null; companyCurrency?: string } = {}) {
   const { systemSettings, negativeRates = true, template = TAX_TEMPLATE, settingsDenied = false, customerCurrency = 'IDR', companyCurrency = 'IDR' } = opts;
   const sent: { body: Row; bodyText: string } = { body: {}, bodyText: '' };
   const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
@@ -119,6 +119,7 @@ function erpFetch(opts: { negativeRates?: boolean; template?: unknown; settingsD
       return Response.json({ data: ['SURVEY', 'STATION', 'DP-ITEM', 'OWN-ITEM', 'SERVICE-LABOUR', 'ERP-LABOUR-001', 'ERP-LABOUR-002'].map((name) => ({ name, item_name: name, disabled: 0, is_sales_item: 1, is_purchase_item: 0 })) });
     }
     if (path === '/api/resource/Customer/Synthetic Customer') return Response.json({ data: { name: 'Synthetic Customer', default_currency: customerCurrency } });
+    if (path === '/api/resource/Currency/USD') return opts.currencyNumberFormat === undefined ? Response.json({ exc_type: 'PermissionError' }, { status: 403 }) : Response.json({ data: { name: 'USD', number_format: opts.currencyNumberFormat } });
     if (path === '/api/resource/Company/Synthetic Co') return Response.json({ data: { name: 'Synthetic Co', default_currency: companyCurrency } });
     if (path === '/api/resource/System Settings/System Settings') return systemSettings === 'denied' ? Response.json({ exc_type: 'PermissionError' }, { status: 403 }) : Response.json({ data: systemSettings ?? { float_precision: '3', currency_precision: '2', number_format: '#,###.##' } });
     if (path === '/api/resource/Selling Settings/Selling Settings' && settingsDenied) return Response.json({ exc_type: 'PermissionError' }, { status: 403 });
@@ -137,7 +138,7 @@ async function push(record: Row, claim: Row | null = CLAIM, erp: Parameters<type
   const cmd = command(record, 'create', idempotencyKey);
   const { sent, fetchImpl } = erpFetch(erp);
   const adapter = await resolveErpDispatchAdapter({
-    serviceClient: serviceClient(claim, EVIDENCE, workOrderTax, projectTax, timeMaterials), orgId: ORG, command: cmd,
+    serviceClient: serviceClient(claim, EVIDENCE, workOrderTax, projectTax, timeMaterials, erp.versionMajor), orgId: ORG, command: cmd,
     fetchImpl: fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
     doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
   });
@@ -150,7 +151,7 @@ function refused(cmd: AdapterCommand, claim: Row | null = CLAIM, evidence: Row[]
   projectTax: Row = {}, timeMaterials: { claims?: Row[]; lines?: Row[]; rateLines?: Row[]; progressLines?: Row[] } = {}) {
   const { fetchImpl } = erpFetch(erp);
   const attempt = resolveErpDispatchAdapter({
-    serviceClient: serviceClient(claim, evidence, {}, projectTax, timeMaterials), orgId: ORG, command: cmd,
+    serviceClient: serviceClient(claim, evidence, {}, projectTax, timeMaterials, erp.versionMajor), orgId: ORG, command: cmd,
     fetchImpl: fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
     doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
   });
@@ -186,6 +187,48 @@ describe('billing claim invoice (AC-PB-006)', () => {
     expect((floatThree.body.items as Row[])[1]).toMatchObject({ qty: 0.333, rate: 1000.01 });
     const unreadable = await run('denied');
     expect((unreadable.body.items as Row[]).map((i) => [i.qty, i.rate])).toEqual([[4, 50000], [1, 333]]);
+  });
+
+  describe('AC-2323 the claim-line rounding follows the ERP major version', () => {
+    // 3 x 333.335 = 1000.005, signed at 1000.01: the line needs decimals.
+    const decimals = { org_id: ORG, claim_id: 'claim-1', boq_item_id: 'boq-a', item_code: 'SURVEY', description: 'Decimals', unit: 'km', quantity: '3.000', rate: '333.335', amount: '1000.01' };
+    const claim = { ...CLAIM, currency: 'USD', gross_amount: '1000.01', dp_recovery_amount: '0.00' };
+    const attempt = async (erp: Parameters<typeof erpFetch>[0] & { versionMajor: number }) => {
+      const cmd = command({});
+      const { sent, fetchImpl } = erpFetch({ customerCurrency: 'USD', companyCurrency: 'USD', ...erp });
+      // The line is judged while the invoice is built, before any ERP write: the refusal surfaces from resolve.
+      const commit = resolveErpDispatchAdapter({
+        serviceClient: serviceClient(claim, EVIDENCE, {}, {}, { progressLines: [decimals] }, erp.versionMajor), orgId: ORG, command: cmd,
+        fetchImpl: fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
+        doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
+      }).then((adapter) => adapter.commit(cmd));
+      return { commit, sent };
+    };
+    const settings = (over: Row) => ({ float_precision: '3', currency_precision: '', number_format: '#,###.##', use_number_format_from_currency: 0, ...over });
+
+    it('AC-2323-001 ERPNext 16 with Currency Precision 0 refuses a line that needs decimals, and sends nothing', async () => {
+      const { commit, sent } = await attempt({ versionMajor: 16, systemSettings: settings({ currency_precision: '0' }) });
+      await expect(commit).rejects.toMatchObject({ code: 'commit-rejected', message: expect.stringContaining('more decimals than ERPNext holds for this currency (0)') });
+      expect(sent.bodyText).toBe('');
+    });
+
+    it('AC-2323-002 ERPNext 15 with Currency Precision 0 or blank is unchanged: the number format decides, the line is sent as 1 x the signed amount', async () => {
+      for (const currency_precision of ['0', '']) {
+        const { commit, sent } = await attempt({ versionMajor: 15, systemSettings: settings({ currency_precision }) });
+        await commit;
+        expect((sent.body.items as Row[]).map((i) => [i.qty, i.rate])).toEqual([[1, 1000.01]]);
+      }
+    });
+
+    it('AC-2323-003 ERPNext 16 with "use number format from currency" on takes the claim currency\'s own precision', async () => {
+      const on = settings({ use_number_format_from_currency: 1 });
+      const whole = await attempt({ versionMajor: 16, systemSettings: on, currencyNumberFormat: '#,###' });
+      await expect(whole.commit).rejects.toMatchObject({ code: 'commit-rejected' });
+      expect(whole.sent.bodyText).toBe('');
+      const cents = await attempt({ versionMajor: 16, systemSettings: on, currencyNumberFormat: '#,###.##' });
+      await cents.commit;
+      expect((cents.sent.body.items as Row[]).map((i) => [i.qty, i.rate])).toEqual([[1, 1000.01]]);
+    });
   });
 
   it('AC-TM-014 carries signed T&M claim lines and their frozen amounts into the canonical invoice lines', async () => {

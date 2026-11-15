@@ -11,20 +11,76 @@ import { formatTimeMaterialsDescription } from './dispatchRevenueFormatting.ts';
 
 export interface ErpPrecision { float: number; currency: number }
 
+/** Why the Currency Precision rule gives no scale. Capture adds its own 'source_precision_exceeds_mirror' on top. */
+export type CurrencyPrecisionRefusal = 'source_precision_unknown' | 'source_settings_unreadable' | 'source_precision_per_currency';
+export type CurrencyPrecision = { ok: true; scale: number } | { ok: false; reason: CurrencyPrecisionRefusal };
+
+/** A System Settings Check field: true / false, or null when the value is absent or not a check value. */
+function checkValue(value: unknown): boolean | null {
+  if (value === 1 || value === '1' || value === true) return true;
+  if (value === 0 || value === '0' || value === false) return false;
+  return null;
+}
+
 /**
- * System Settings precision. System Settings is System-Manager-only, which the API user is not, so null (unknown) is the
- * normal case and every line is then judged precision-free. No other non-admin source exists: the Currency doctype's
- * number_format / fraction_units do not feed field precision (get_field_precision reads only System Settings).
+ * The shared rule: the decimals ERPNext gives a Currency field, from System Settings, the way Frappe's get_field_precision
+ * decides it on the binding's major version (the revenue reader and the purchase-capture reader both call it):
+ * - an explicit positive Currency Precision wins on both;
+ * - an explicit 0 is a real scale on version 16 and later (get_currency_precision returns None only for None or ''), and
+ *   behaves as blank on version 15;
+ * - blank on version 16 and later with "use number format from currency" on takes each document currency's own format:
+ *   source_precision_per_currency, for the caller to resolve or refuse;
+ * - otherwise blank takes the System Settings number format's decimals; a format PMO does not know is unknown.
+ * A major that is not known is source_settings_unreadable. Nothing defaults here: each caller picks its own default or refusal.
  */
-export async function readErpPrecision(client: ErpClientDeps): Promise<ErpPrecision | null> {
+export function currencyPrecisionFromSettings(settings: Record<string, unknown>, versionMajor: number | null | undefined): CurrencyPrecision {
+  if (typeof versionMajor !== 'number' || !Number.isInteger(versionMajor) || versionMajor < 15) return { ok: false, reason: 'source_settings_unreadable' };
+  const v16 = versionMajor >= 16;
+  const raw = settings.currency_precision;
+  let explicit: number | null = null;
+  if (raw !== undefined && raw !== null && raw !== '') {
+    if (!((typeof raw === 'number' || typeof raw === 'string') && /^\d+$/.test(String(raw)) && Number.isSafeInteger(Number(raw)))) {
+      return { ok: false, reason: 'source_precision_unknown' };
+    }
+    explicit = Number(raw);
+  }
+  if (explicit !== null && (explicit > 0 || v16)) return { ok: true, scale: explicit };
+  if (v16) {
+    const perCurrency = checkValue(settings.use_number_format_from_currency);
+    if (perCurrency === null) return { ok: false, reason: 'source_precision_unknown' };
+    if (perCurrency) return { ok: false, reason: 'source_precision_per_currency' };
+  }
+  const scale = numberFormatPrecision(settings.number_format);
+  return scale === null ? { ok: false, reason: 'source_precision_unknown' } : { ok: true, scale };
+}
+
+/**
+ * System Settings precision for the progress-claim reader, on the binding's stored ERP major. System Settings is
+ * System-Manager-only, which the API user is not, so null (unknown) is the normal case and every line is then judged
+ * precision-free; a major that is not known is the same. This reader's own choices over the shared rule: a number format
+ * PMO does not know takes 2 decimals, and "use number format from currency" resolves to the claim currency's own format
+ * (Frappe get_precision_from_currency_format: the Currency's number_format when set, else System Settings'), unreadable → null.
+ */
+export async function readErpPrecision(client: ErpClientDeps, versionMajor: number | null | undefined, currency?: string): Promise<ErpPrecision | null> {
   try {
-    const doc = (await getDoc(client, 'System Settings', 'System Settings')) as Record<string, unknown> | null;
-    // Frappe (model/meta.py get_field_precision) reads cint(...) so '0' and blank both mean unset: float falls back to 3,
-    // currency to the System Settings number format's decimals.
-    const digits = (v: unknown) => Number(v) || null;
-    const float = digits(doc?.float_precision) ?? 3;
-    const currency = digits(doc?.currency_precision) ?? numberFormatPrecision(doc?.number_format ?? '#,###.##') ?? 2;
-    return Number.isInteger(float) && Number.isInteger(currency) && float >= 0 && currency >= 0 ? { float, currency } : null;
+    const doc = await getDoc(client, 'System Settings', 'System Settings');
+    if (doc === null || typeof doc !== 'object' || Array.isArray(doc)) return null;
+    const settings = doc as Record<string, unknown>;
+    // Frappe (model/meta.py get_field_precision) reads cint(...) so '0' and blank both mean unset: float falls back to 3.
+    const float = Number(settings.float_precision) || 3;
+    const rule = currencyPrecisionFromSettings(settings, versionMajor);
+    let currencyScale: number;
+    if (rule.ok) {
+      currencyScale = rule.scale;
+    } else if (rule.reason === 'source_precision_unknown') {
+      currencyScale = 2;
+    } else if (rule.reason === 'source_precision_per_currency' && currency) {
+      const own = (await getDoc(client, 'Currency', currency)) as Record<string, unknown> | null;
+      currencyScale = numberFormatPrecision(own?.number_format) ?? numberFormatPrecision(settings.number_format) ?? 2;
+    } else {
+      return null;
+    }
+    return Number.isInteger(float) && Number.isInteger(currencyScale) && float >= 0 && currencyScale >= 0 ? { float, currency: currencyScale } : null;
   } catch {
     return null;
   }

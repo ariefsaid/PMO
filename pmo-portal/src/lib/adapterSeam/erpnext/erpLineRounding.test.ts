@@ -59,24 +59,38 @@ describe('AC-1820 progress-claim lines keep the signed amount', () => {
 });
 
 describe('readErpPrecision', () => {
-  const deps = (doc: unknown, status = 200) => ({
+  const deps = (doc: unknown, status = 200, currencyFormat?: string) => ({
     baseUrl: 'https://erp.example.test', apiKey: 'k', apiSecret: 's',
-    fetchImpl: vi.fn(async () => Response.json({ data: doc }, { status })),
+    fetchImpl: vi.fn(async (url: RequestInfo | URL) => String(url).includes('/Currency/')
+      ? Response.json(currencyFormat === undefined ? {} : { data: { number_format: currencyFormat } }, { status: currencyFormat === undefined ? 403 : 200 })
+      : Response.json({ data: doc }, { status })),
   }) as unknown as ErpClientDeps;
 
   it('reads System Settings float and currency precision', async () => {
-    expect(await readErpPrecision(deps({ float_precision: '2', currency_precision: '4', number_format: '#,###.##' })))
+    expect(await readErpPrecision(deps({ float_precision: '2', currency_precision: '4', number_format: '#,###.##' }), 15))
       .toEqual({ float: 2, currency: 4 });
   });
-  it('treats an explicit 0 precision as unset, as Frappe does (cint(...) or fallback)', async () => {
-    expect(await readErpPrecision(deps({ float_precision: '0', currency_precision: '0', number_format: '#,###.##' })))
+  it('treats an explicit 0 precision as unset on version 15, as Frappe does (cint(...) or fallback)', async () => {
+    expect(await readErpPrecision(deps({ float_precision: '0', currency_precision: '0', number_format: '#,###.##' }), 15))
       .toEqual({ float: 3, currency: 2 });
   });
-  it('defaults float to 3 and derives currency precision from the number format', async () => {
-    expect(await readErpPrecision(deps({ float_precision: '', currency_precision: '', number_format: '#.###' })))
+  it('AC-2323 treats an explicit 0 precision as whole numbers on version 16', async () => {
+    expect(await readErpPrecision(deps({ float_precision: '0', currency_precision: '0', number_format: '#,###.##' }), 16))
       .toEqual({ float: 3, currency: 0 });
   });
+  it('defaults float to 3 and derives currency precision from the number format', async () => {
+    expect(await readErpPrecision(deps({ float_precision: '', currency_precision: '', number_format: '#.###' }), 15))
+      .toEqual({ float: 3, currency: 0 });
+  });
+  it('AC-2323 version 16 with "use number format from currency" on and a blank precision takes the currency\'s own format', async () => {
+    const settings = { currency_precision: '', number_format: '#,###.##', use_number_format_from_currency: 1 };
+    expect(await readErpPrecision(deps(settings, 200, '#,###'), 16, 'IDR')).toEqual({ float: 3, currency: 0 });
+    expect(await readErpPrecision(deps(settings), 16, 'IDR')).toBeNull();
+  });
+  it('AC-2323 a binding major that is not known judges the settings unreadable', async () => {
+    expect(await readErpPrecision(deps({ currency_precision: '2', number_format: '#,###.##' }), null)).toBeNull();
+  });
   it('returns null when System Settings cannot be read', async () => {
-    expect(await readErpPrecision(deps({}, 403))).toBeNull();
+    expect(await readErpPrecision(deps({}, 403), 15)).toBeNull();
   });
 });
