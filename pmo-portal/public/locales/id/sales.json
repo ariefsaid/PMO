@@ -66,7 +66,7 @@
     "figuresLabel": "Angka pipeline",
     "idleReason": "Tidak disentuh selama {{days}} hari",
     "lastUpdate": "Pembaruan terakhir",
-    "mixAria": "Perkiraan tertimbang per tahap",
+    "mixAria": "Proyeksi tertimbang per tahap",
     "needsYou": "Perlu perhatian",
     "needsYouHeading": "Perlu Anda · {{n}}",
     "nothingStale": "Tidak ada yang usang",
@@ -89,7 +89,7 @@
     "stageNav": "Tahap pipeline",
     "staleReason": "Di {{stage}} selama {{days}} hari",
     "viewByStage": "Per tahap",
-    "weightedForecast": "Perkiraan tertimbang",
+    "weightedForecast": "Proyeksi tertimbang",
     "weightedNote": "Nilai × peluang menang"
   }
 }

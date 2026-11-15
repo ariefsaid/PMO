@@ -825,6 +825,193 @@ describe('purchase capture caller authorization', () => {
     });
   });
 
+  describe('AC-ROP-008 retry of a request that already finished (#2258)', () => {
+    const requestId = '22222222-2222-4222-8222-222222222222';
+    const project = '11111111-1111-4111-8111-111111111111';
+    const binding = { id: 'binding-1', org_id: 'org-1', external_tier: 'erpnext', config: { company: 'Example' }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 };
+    const results = [{ outcome: 'created', project_id: project, source_ids: ['order-1'], erp_write: false }];
+    const base = () => [
+      jwksRoute(auth),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('external_org_bindings', () => jsonResponse([binding])),
+      supabaseRpc('read_vault_secret', () => jsonResponse('synthetic-key:synthetic-secret')),
+      supabaseRpc('service_feature_enabled', call => { assertEquals((call.bodyJson as { p_key: string }).p_key, 'procurement'); return jsonResponse(true); }),
+    ];
+    const down = () => [
+      supabaseRpc('purchase_capture_source_page', () => jsonResponse({ message: 'down' }, { status: 500 })),
+      supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ message: 'down' }, { status: 500 })),
+      supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ message: 'down' }, { status: 500 })),
+    ];
+    const retry = async (token: string) => handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'apply', scope: { projectId: project }, expectedRevision: 'reviewed', requestId }, token));
+
+    it('returns the stored result of a completed request while the fresh read fails', async () => {
+      const token = await auth.mintJwt({ sub: 'user-1' });
+      await withFetchMock([
+        ...base(),
+        supabaseRpc('purchase_capture_source_page', () => jsonResponse({ message: 'down' }, { status: 500 })),
+        supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ message: 'down' }, { status: 500 })),
+        supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ message: 'down' }, { status: 500 })),
+        supabaseRpc('capture_history_batch_result', call => {
+          assertEquals(call.bodyJson, { p_actor_id: 'user-1', p_project_id: project, p_request_id: requestId, p_revision: 'reviewed' });
+          return jsonResponse({ found: true, complete: true, results });
+        }),
+      ], async ({ calls }) => {
+        const body = await (await retry(token)).json();
+        assertEquals(body.complete, true);
+        assertEquals(body.results, results);
+        assertEquals(body.request_id, requestId);
+        assertEquals(body.revision, 'reviewed');
+        assertEquals(body.erp_write, false);
+        assertEquals(calls.some(call => call.url.pathname.endsWith('/capture_history_batch')), false);
+      });
+    });
+
+    it('refuses a partly finished request while the fresh read fails', async () => {
+      const token = await auth.mintJwt({ sub: 'user-1' });
+      await withFetchMock([
+        ...base(),
+        supabaseRpc('purchase_capture_source_page', () => jsonResponse({ message: 'down' }, { status: 500 })),
+        supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ message: 'down' }, { status: 500 })),
+        supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ message: 'down' }, { status: 500 })),
+        supabaseRpc('capture_history_batch_result', () => jsonResponse({ found: true, complete: false, results })),
+      ], async ({ calls }) => {
+        const body = await (await retry(token)).json();
+        assertEquals(body.complete, false);
+        assertEquals(body.results, undefined);
+        assertEquals(body.missing.includes('source_read_failed'), true);
+        assertEquals(calls.some(call => call.url.pathname.endsWith('/capture_history_batch')), false);
+      });
+    });
+
+    it('returns the stored result of a completed request when the read is over the per-run bound', async () => {
+      const token = await auth.mintJwt({ sub: 'user-1' });
+      await withFetchMock([
+        ...base(),
+        supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: [], revision: 'gen', next_cursor: null })),
+        supabaseRpc('purchase_capture_ledger_page', call => {
+          const cursor = (call.bodyJson as { p_cursor: string | null }).p_cursor;
+          const page = cursor === null ? 0 : Number(cursor);
+          return jsonResponse({ lines: Array.from({ length: 500 }, (_, i) => ({ id: `line-${page * 500 + i}` })), revision: 'gen', next_cursor: String(page + 1) });
+        }),
+        supabaseRpc('capture_history_batch_result', () => jsonResponse({ found: true, complete: true, results })),
+      ], async ({ calls }) => {
+        const body = await (await retry(token)).json();
+        assertEquals(body.complete, true);
+        assertEquals(body.results, results);
+        assertEquals(body.missing, undefined);
+        assertEquals(calls.some(call => call.url.pathname.endsWith('/capture_history_batch')), false);
+      });
+    });
+
+    it('keeps the bound refusal when the request has not finished', async () => {
+      const token = await auth.mintJwt({ sub: 'user-1' });
+      await withFetchMock([
+        ...base(),
+        supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: [], revision: 'gen', next_cursor: null })),
+        supabaseRpc('purchase_capture_ledger_page', call => {
+          const cursor = (call.bodyJson as { p_cursor: string | null }).p_cursor;
+          const page = cursor === null ? 0 : Number(cursor);
+          return jsonResponse({ lines: Array.from({ length: 500 }, (_, i) => ({ id: `line-${page * 500 + i}` })), revision: 'gen', next_cursor: String(page + 1) });
+        }),
+        supabaseRpc('capture_history_batch_result', () => jsonResponse({ found: false })),
+      ], async () => {
+        const body = await (await retry(token)).json();
+        assertEquals(body.complete, false);
+        assertEquals(body.missing, ['ledger_limit_exceeded']);
+      });
+    });
+
+    it('answers a retry with the same sources and next_index the first apply listed, never as nothing to do', async () => {
+      const token = await auth.mintJwt({ sub: 'user-1' });
+      const order = (n: number) => ({ id: `order-${n}`, kind: 'order', erp_doctype: 'Purchase Order', erp_name: `PO-${n}`, erp_docstatus: 1, erp_status: 'To Bill', erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [project], purchase_orders: [], procurement_id: null, purchase_origin: null, recorded_by_pmo: false, doc_date: null, currency: 'USD', net_total: '100.00', is_return: false });
+      const groupResults = [1, 2].map(n => ({ outcome: 'create', procurement_id: `purchase-${n}`, project_id: project, source_ids: [`order-${n}`], erp_write: false }));
+      let first: Record<string, unknown> = {};
+      await withFetchMock([...base(),
+        supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: [order(1), order(2)], revision: 'reviewed', next_cursor: null })),
+        supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [], revision: 'reviewed', next_cursor: null })),
+        supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD', ledger_started_at: '2026-11-13T00:00:00Z' })),
+        supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: [] })),
+        erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: '2' } })),
+        supabaseRpc('capture_history_batch', () => jsonResponse({ complete: true, resume: false, next_index: 2, results: groupResults, erp_write: false }))], async () => {
+        first = await (await retry(token)).json();
+      });
+      const firstProposals = first.proposals as Array<{ id: string }>;
+      assertEquals(firstProposals.length, 2);
+      await withFetchMock([...base(), ...down(), supabaseRpc('capture_history_batch_result', () => jsonResponse({ found: true, complete: true, results: groupResults }))], async () => {
+        const again = await (await retry(token)).json();
+        assertEquals(again.complete, true);
+        assertEquals(again.results, first.results);
+        assertEquals(again.next_index, first.next_index);
+        assertEquals(again.already_completed, true);
+        assertEquals((again.proposals as Array<{ id: string }>).map(item => item.id).sort(), firstProposals.map(item => item.id).sort());
+        assertEquals((again.proposals as Array<{ purchaseId?: string }>).map(item => item.purchaseId).sort(), ['purchase-1', 'purchase-2']);
+      });
+    });
+
+    it('reports a stored result with a refused group as not complete', async () => {
+      const token = await auth.mintJwt({ sub: 'user-1' });
+      const refusedResults = [...results, { outcome: 'refused', project_id: project, source_ids: ['order-2'], erp_write: false }];
+      await withFetchMock([...base(), ...down(), supabaseRpc('capture_history_batch_result', () => jsonResponse({ found: true, complete: true, results: refusedResults }))], async () => {
+        const body = await (await retry(token)).json();
+        assertEquals(body.complete, false);
+        assertEquals(body.refused, 1);
+        assertEquals(body.results, refusedResults);
+      });
+    });
+
+    it('keeps the refusal when the stored-result read itself fails', async () => {
+      const token = await auth.mintJwt({ sub: 'user-1' });
+      await withFetchMock([...base(), ...down(), supabaseRpc('capture_history_batch_result', () => jsonResponse({ message: 'down' }, { status: 500 }))], async () => {
+        const body = await (await retry(token)).json();
+        assertEquals(body.complete, false);
+        assertEquals(body.results, undefined);
+        assertEquals(body.missing.includes('source_read_failed'), true);
+      });
+    });
+
+    it('keeps the refusal when the procurement feature is off, as the normal retry does', async () => {
+      const token = await auth.mintJwt({ sub: 'user-1' });
+      await withFetchMock([...base().filter(route => route.label !== 'supabase-rpc-service_feature_enabled'), supabaseRpc('service_feature_enabled', () => jsonResponse(false)), ...down(),
+        supabaseRpc('capture_history_batch_result', () => jsonResponse({ found: true, complete: true, results }))], async ({ calls }) => {
+        const body = await (await retry(token)).json();
+        assertEquals(body.complete, false);
+        assertEquals(body.results, undefined);
+        assertEquals(calls.some(call => call.url.pathname.endsWith('/capture_history_batch_result')), false);
+      });
+    });
+
+    it('asks for the stored result as the signed-in Admin, so a second Admin of the same org gets what the database returns for them', async () => {
+      const token = await auth.mintJwt({ sub: 'user-2' });
+      await withFetchMock([...base(), ...down(), supabaseRpc('capture_history_batch_result', call => {
+        assertEquals((call.bodyJson as { p_actor_id: string }).p_actor_id, 'user-2');
+        return jsonResponse({ found: false });
+      })], async () => {
+        const body = await (await retry(token)).json();
+        assertEquals(body.complete, false);
+        assertEquals(body.results, undefined);
+      });
+    });
+
+    it('does not report complete when the ERP precision changed since the request', async () => {
+      const token = await auth.mintJwt({ sub: 'user-1' });
+      const mixed = [{ id: 'order-1', kind: 'order', erp_doctype: 'Purchase Order', erp_name: 'PO-1', erp_docstatus: 1, erp_status: 'To Bill', erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [project], purchase_orders: [], procurement_id: null, purchase_origin: null, recorded_by_pmo: false, doc_date: null, currency: 'USD', net_total: '100.00', is_return: false },
+        { id: 'invoice-1', kind: 'supplier_invoice', erp_doctype: 'Purchase Invoice', erp_name: 'PI-1', erp_docstatus: 1, erp_status: 'Unpaid', erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [project], purchase_orders: [], procurement_id: null, purchase_origin: null, recorded_by_pmo: false, doc_date: null, currency: 'USD', net_total: '100.00', is_return: false }];
+      let precisionReads = 0;
+      await withFetchMock([...base(),
+        supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: mixed, revision: 'gen', next_cursor: null })),
+        supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [], revision: 'gen', next_cursor: null })),
+        supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD', ledger_started_at: '2026-11-13T00:00:00Z' })),
+        erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: precisionReads++ === 0 ? '2' : '1' } })),
+        supabaseRpc('capture_history_batch_result', () => jsonResponse({ found: true, complete: true, results }))], async () => {
+        const body = await (await retry(token)).json();
+        assertEquals(body.complete, false);
+        assertEquals(body.missing.includes('precision_changed'), true);
+        assertEquals(body.results, undefined);
+      });
+    });
+  });
+
   it('AC-ROP-017 refuses an oversized scoped ledger without an apply', async () => {
     const token = await auth.mintJwt({ sub: 'user-1' });
     const project = '11111111-1111-4111-8111-111111111111';

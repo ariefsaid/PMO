@@ -182,7 +182,7 @@ describe('DraggableSalesBoard', () => {
     ['en', 'stage-Negotiation', 'Moved to Negotiation', 'Project updated'],
     ['en', 'stage-PQ Submitted', 'Moved back to PQ Submitted', 'Project updated'],
     ['id', 'stage-Negotiation', 'Dipindahkan ke Negosiasi', 'Proyek diperbarui'],
-    ['id', 'stage-PQ Submitted', 'Dipindahkan kembali ke Pra-kualifikasi diajukan', 'Proyek diperbarui'],
+    ['id', 'stage-PQ Submitted', 'Dipindahkan kembali ke Prakualifikasi diajukan', 'Proyek diperbarui'],
   ] as const)('#1683/#1684: board status toasts localize direction and stage copy (%s / %s)', async (locale, targetColumn, expectedBody, expectedTitle) => {
     const user = userEvent.setup();
     renderBoard(projects, locale);
