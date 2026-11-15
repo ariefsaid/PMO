@@ -112,6 +112,7 @@ function fakeDb(gl: Row[]) {
 function stubErp(voucherRead: () => Response) {
   const original = globalThis.fetch;
   const voucherReads: unknown[][] = [];
+  const journalReads: unknown[][] = [];
   globalThis.fetch = ((input: string | URL | Request) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
     const doctype = decodeURIComponent(url.pathname.replace('/api/resource/', ''));
@@ -122,9 +123,11 @@ function stubErp(voucherRead: () => Response) {
       return Promise.resolve(json(ERP_CURRENT.slice(1)));
     }
     if (doctype === 'Payment Ledger Entry') return Promise.resolve(json([]));
+    // The feed reads a journal's user_remark once per page for journal rows whose ledger remarks are empty.
+    if (doctype === 'Journal Entry') { journalReads.push(filters); return Promise.resolve(json([{ name: JV.voucher_no, user_remark: 'reposted' }])); }
     return Promise.resolve(new Response('{"exc":"not in this test"}', { status: 403 }));
   }) as typeof fetch;
-  return { voucherReads, restore: () => { globalThis.fetch = original; } };
+  return { voucherReads, journalReads, restore: () => { globalThis.fetch = original; } };
 }
 
 const ORG_BINDING = { orgId: ORG, siteUrl: 'https://erp.example.test', secretRef: 'r', company: COMPANY, config: {}, ownedDomains: [], versionMajor: 15 };
@@ -147,6 +150,7 @@ Deno.test('a voucher reposted twice leaves exactly ERPNext\'s current rows, so t
     assert(JSON.stringify(erp.voucherReads[0]) === JSON.stringify([['company', '=', COMPANY], ['voucher_type', '=', JV.voucher_type], ['voucher_no', '=', JV.voucher_no]]),
       'the voucher read is company-scoped and carries no modified cursor');
     assert(db.watermarks[0].watermark_cursor === '2026-10-25 08:32:12.251858|ACC-GLE-2026-01438', 'the cursor advances past the batch');
+    assert(erp.journalReads.length > 0 && erp.journalReads.every((f) => JSON.stringify(f) === JSON.stringify([['name', 'in', [JV.voucher_no]]])), 'journal remarks are read in batched name-in reads, one journal name');
   } finally {
     erp.restore();
   }

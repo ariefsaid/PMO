@@ -10,6 +10,8 @@ vi.mock('@/src/lib/db/expenseReceipts');
 describe('expenseClaimRepository', () => {
   itDelegates(expenseClaimRepository as never, claims, [
     ['list', 'listExpenseClaims', [{ status: 'draft' }]],
+    ['page', 'listExpenseClaimsPage', [{ status: 'draft' }, 3]],
+    ['count', 'countExpenseClaims', [{ status: 'draft' }]],
     ['get', 'getExpenseClaim', ['c1']],
     ['lines', 'listExpenseClaimLines', ['c1']],
     ['create', 'createExpenseClaim', [{ kind: 'reimbursement' }]],
