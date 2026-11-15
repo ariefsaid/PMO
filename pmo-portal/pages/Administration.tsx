@@ -209,14 +209,12 @@ const UsagePanel: React.FC = () => {
           }}
         />
       </div>
-      <div data-testid="usage-table">
       <AdministrationUsage
         rows={usageQuery.data ?? []}
         isPending={usageQuery.isPending}
         isError={usageQuery.isError}
         onRetry={() => void usageQuery.refetch()}
       />
-      </div>
     </>
   );
 };

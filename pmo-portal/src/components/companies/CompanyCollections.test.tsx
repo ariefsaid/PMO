@@ -20,7 +20,7 @@ const row: ErpAgingSnapshotRow = {
 const baseResult = (overrides: Partial<CompanyCollectionsHookResult> = {}): CompanyCollectionsHookResult => ({
   rows: [row], refsBySnapshotCustomer: [],
   byCompany: new Map([['company-1', { state: 'known', positions: [row] }]]),
-  customerLinks: new Map(), isEnabled: true, isPending: false, linksPending: false, linksError: false, isError: false,
+  customerLinks: new Map(), isEnabled: true, isPending: false, isError: false,
   error: null, refetch: vi.fn(async () => undefined), ...overrides,
 });
 
