@@ -217,9 +217,9 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       ...(requestInOtherCurrency ? { sub: t('decisionSupport.notCompared', 'In a different currency: not compared with the budget') } : {}),
     },
     {
-      label: 'Reserved',
+      label: t('decisionSupport.reserved', 'Reserved'),
       value: formatCurrency(otherReserved, budgetCurrency),
-      sub: otherCurrencyReserved ? t('decisionSupport.otherReservedCurrencies', { defaultValue: 'Approved, not yet ordered. Other currencies: {{amounts}}', amounts: otherCurrencyReserved }) : 'approved, not yet ordered',
+      sub: otherCurrencyReserved ? t('decisionSupport.otherReservedCurrencies', { defaultValue: 'Approved, not yet ordered. Other currencies: {{amounts}}', amounts: otherCurrencyReserved }) : t('decisionSupport.reservedSub', 'Approved, not yet ordered'),
     },
     {
       // The budget less commitments and reservations, before actual spend: not a cash balance, so it is not called "Available".
@@ -229,7 +229,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       // 0373: committed spend in another currency is not subtracted (no conversion); say so rather than hide it.
       sub: otherCurrencyCommitted ? `Not counting commitments in other currencies: ${otherCurrencyCommitted}` : t('decisionSupport.actualsNotCounted', 'Actual spend not counted'),
     },
-    { label: 'Project budget', value: formatCurrency(budgetAmount, budgetCurrency) },
+    { label: t('decisionSupport.projectBudget', 'Project budget'), value: formatCurrency(budgetAmount, budgetCurrency) },
     ...(requestInOtherCurrency ? [] : [{
       label: t('decisionSupport.afterThisProcurement', 'After this procurement'),
       value: formatCurrency(afterRequest, currency),
