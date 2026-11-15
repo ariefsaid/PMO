@@ -173,6 +173,78 @@ describe('AC-MMP-008 unbilled (DD-MMP-3)', () => {
   });
 });
 
+describe('AC-2201 billed work counts every project and never reads an unpriced invoice as zero', () => {
+  const closedHistory = { invoiced_history: [{ currency: 'IDR', net: 50, invoice_count: 1 }] };
+
+  it('AC-2201-01: a closed or archived project\'s earlier billing stays in cumulative and opening billed work', () => {
+    const pack = buildManagementPack(facts({
+      from: '2026-11-01', to: '2026-11-01',
+      invoiced_before: [before('p1', 'IDR', 40, 1)],
+      invoiced: [inv('p1', 'IDR', '2026-11-01', 60)],
+      ...closedHistory,
+    }));
+    expect(selectBilledWorkCumulative(pack, '2026-11')).toEqual([{ currency: 'IDR', amount: 150 }]);
+    expect(selectBilledWorkOpening(pack, '2026-11')).toEqual([{ currency: 'IDR', amount: 90 }]);
+  });
+
+  it('AC-2201-01: history in a currency with no listed row still counts', () => {
+    const pack = buildManagementPack(facts({
+      from: '2026-11-01', to: '2026-11-01', projects: [],
+      invoiced_history: [{ currency: 'USD', net: 25, invoice_count: 1 }],
+    }));
+    expect(selectBilledWorkCumulative(pack, '2026-11')).toEqual([{ currency: 'USD', amount: 25 }]);
+    expect(selectBilledWorkOpening(pack, '2026-11')).toEqual([{ currency: 'USD', amount: 25 }]);
+  });
+
+  it('AC-2201-02: an unpriced dated invoice makes the billed figures that include its month unavailable, never zero', () => {
+    const pack = buildManagementPack(facts({
+      from: '2026-10-01', to: '2026-11-01',
+      invoiced: [inv('p1', 'IDR', '2026-10-01', 60)],
+      unpriced: [{ currency: 'IDR', month: '2026-11-01', invoice_count: 1 }],
+    }));
+    expect(selectBilledWorkInPeriod(pack, '2026-11', '2026-11')).toEqual([{ currency: 'IDR', amount: null }]);
+    expect(selectBilledWorkInPeriod(pack, '2026-10', '2026-10')).toEqual([{ currency: 'IDR', amount: 60 }]);
+    expect(selectBilledWorkCumulative(pack, '2026-11')).toEqual([{ currency: 'IDR', amount: null }]);
+    expect(selectBilledWorkOpening(pack, '2026-11')).toEqual([{ currency: 'IDR', amount: 60 }]);
+    expect(pack.unpricedInvoiceCount).toBe(1);
+  });
+
+  it('AC-2201-02: a period whose only invoice is unpriced, in a currency with no row, reads unavailable', () => {
+    const pack = buildManagementPack(facts({
+      from: '2026-11-01', to: '2026-11-01', projects: [],
+      unpriced: [{ currency: 'USD', month: '2026-11-01', invoice_count: 2 }],
+    }));
+    expect(selectBilledWorkInPeriod(pack, '2026-11', '2026-11')).toEqual([{ currency: 'USD', amount: null }]);
+    expect(selectBilledWorkCumulative(pack, '2026-11')).toEqual([{ currency: 'USD', amount: null }]);
+    expect(pack.unpricedInvoiceCount).toBe(2);
+  });
+
+  it('AC-2201-03: history and unpriced facts leave every row, total and other figure identical', () => {
+    const base = facts({
+      invoiced_before: [before('p1', 'IDR', 100_000, 1)],
+      invoiced: [inv('p1', 'IDR', '2026-01-01', 200_000), inv('p1', 'IDR', '2026-03-01', 300_000)],
+      progress: [prog('2026-02-01', 40), prog('2026-04-01', 55)],
+    });
+    const plain = buildManagementPack(base);
+    const withFacts = buildManagementPack({
+      ...base,
+      invoiced_history: [{ currency: 'IDR', net: 50, invoice_count: 1 }],
+      unpriced: [{ currency: 'IDR', month: '2026-02-01', invoice_count: 1 }],
+    });
+    expect(withFacts.rows).toEqual(plain.rows);
+    expect(withFacts.totals).toEqual(plain.totals);
+    expect(selectLeftToBillTotals(withFacts)).toEqual(selectLeftToBillTotals(plain));
+    expect(selectBilledWorkByMonth(withFacts, '2026-01', '2026-04', 'IDR')).toEqual(selectBilledWorkByMonth(plain, '2026-01', '2026-04', 'IDR'));
+    expect(selectBilledWorkInPeriod(withFacts, '2026-03', '2026-04')).toEqual(selectBilledWorkInPeriod(plain, '2026-03', '2026-04'));
+  });
+
+  it('AC-2201-03: a pre-0908 server without the new keys reads as before', () => {
+    const pack = buildManagementPack(facts({ invoiced: [inv('p1', 'IDR', '2026-01-01', 10)] }));
+    expect(selectBilledWorkCumulative(pack, '2026-04')).toEqual([{ currency: 'IDR', amount: 10 }]);
+    expect(pack.unpricedInvoiceCount).toBe(0);
+  });
+});
+
 describe('AC-MMP-009 backlog (DD-MMP-3)', () => {
   it('AC-MMP-009: net contract minus recognised to date, per month', () => {
     const row = buildManagementPack(scenario).rows[0];

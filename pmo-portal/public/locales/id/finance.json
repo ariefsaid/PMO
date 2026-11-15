@@ -99,6 +99,7 @@
     "overdue": "Terlambat",
     "dueNext30": "Jatuh tempo dalam 30 hari",
     "receivedThisMonth": "Diterima bulan ini",
+    "invoiceTotal": "Total faktur",
     "receivedVsLastMonth": "dibanding bulan lalu",
     "otherCurrencies": "{{amounts}} dalam mata uang lain",
     "otherCurrencyDeltas": "{{amounts}} dibanding bulan lalu",
