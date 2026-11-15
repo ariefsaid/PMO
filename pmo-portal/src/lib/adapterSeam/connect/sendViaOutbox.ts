@@ -7,7 +7,7 @@ import type { Adapter, AdapterCommand, CommandResult } from '../contract.ts';
 import { dispatchMoneyWrite, type DispatchMoneyWriteDeps } from '../dispatch.ts';
 import type { ConnectAdapter, MasterKind, PmoMaster } from './types.ts';
 
-export type SendKind = Exclude<MasterKind, 'contact' | 'account'>;
+export type SendKind = Exclude<MasterKind, 'contact' | 'account' | 'stock_item' | 'stock_warehouse'>;
 export const SEND_DOMAIN: Record<SendKind, string> = { party: 'companies', project: 'projects', item: 'items', employee: 'employees' };
 export const sendKey = (kind: MasterKind, pmoId: string) => `seed:${kind}:${pmoId}`;
 

@@ -199,7 +199,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
         >
           <span className="flex-1 text-sm text-muted-foreground">
             {compactWhenEmpty
-              ? t('projectDetail.milestones.prewinPlaceholder', 'Phase planning starts once this is won')
+              ? t('projectDetail.milestones.prewinPlaceholder', 'Delivery planning starts once this is won')
               : t('projectDetail.milestones.emptyReadOnly', 'No delivery phases yet')}
           </span>
           {canCreate && (

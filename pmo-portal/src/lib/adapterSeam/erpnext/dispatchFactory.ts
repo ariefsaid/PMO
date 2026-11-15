@@ -18,7 +18,7 @@
  * product-adapter port was introduced (ADR-0055).
  */
 import { createErpAdapter, ERPNEXT_TIER, type BudgetRangeOutbox, type BudgetRangeOperationState, type ErpAdapterDeps } from './adapter.ts';
-import { listErpItems, validateItemLines } from './itemCatalog.ts';
+import { findErpItemsByCode, validateItemLines } from './itemCatalog.ts';
 import { resolveExternalRef, type ExternalRefsLookupClient } from '../refs.ts';
 import type { Adapter } from '../contract.ts';
 import { AppError } from '../../appError.ts';
@@ -185,8 +185,11 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
       record.items = lines;
       validateAuthoringItems = async (command, client) => {
         if (!buildsSalesInvoiceBody({ operation: command.operation, record: { verb: command.record.verb } })) return;
-        const catalog = await listErpItems(client, itemKind === 'sales-invoice' ? 'sales' : 'purchase');
-        validateItemLines(Array.isArray(command.record.items) ? command.record.items : [], catalog);
+        const commandLines = Array.isArray(command.record.items) ? command.record.items : [];
+        // #2116: read only this command's codes (not the whole catalogue), still before the create.
+        const catalog = await findErpItemsByCode(client, itemKind === 'sales-invoice' ? 'sales' : 'purchase',
+          commandLines.map((line) => (line as { item_code?: unknown } | null)?.item_code));
+        validateItemLines(commandLines, catalog);
       };
     }
   }

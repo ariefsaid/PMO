@@ -53,7 +53,7 @@ const DEFAULT_DEPS: AccountingRefreshDeps = { refreshActuals, refreshAging };
 
 /**
  * Fan out accounting-snapshot refresh across the employing orgs. Per org (sequentially, isolated):
- * refreshActuals → refreshAging(AP) → refreshAging(AR). An org's failure is recorded in its result and
+ * refreshActuals, then refreshAging(AP) and refreshAging(AR) together. An org's failure is recorded in its result and
  * does NOT abort the loop. Slice 8 runs this AFTER the ledger-mirror feed so the refreshers read the
  * freshly-fed mirrored rows.
  */
@@ -66,8 +66,14 @@ export async function refreshAccountingSnapshots(
   for (const org of orgs) {
     try {
       const actuals = await deps.refreshActuals(serviceClient, org.orgId, org.actualsScope);
-      await deps.refreshAging(serviceClient, org.client, org.orgId, org.apAgingScope);
-      await deps.refreshAging(serviceClient, org.client, org.orgId, org.arAgingScope);
+      // #2120: AP and AR read different reports and write different tables, so they run together. Both are
+      // awaited before the org is reported; when both fail the AP error is the one recorded, as when they ran in turn.
+      const [ap, ar] = await Promise.allSettled([
+        deps.refreshAging(serviceClient, org.client, org.orgId, org.apAgingScope),
+        deps.refreshAging(serviceClient, org.client, org.orgId, org.arAgingScope),
+      ]);
+      if (ap.status === 'rejected') throw ap.reason;
+      if (ar.status === 'rejected') throw ar.reason;
       results.push({ orgId: org.orgId, actuals });
     } catch (err) {
       results.push({ orgId: org.orgId, error: err instanceof Error ? err.message : String(err) });

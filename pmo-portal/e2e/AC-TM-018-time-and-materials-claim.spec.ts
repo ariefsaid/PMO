@@ -20,6 +20,8 @@ const LINE_LABEL = 'Field engineer';
 const ITEM_NAME = 'Professional services';
 const RATE = 50_000;
 const HOURS = 8;
+// AC-TSE-021 starts one week ahead and walks at most 26 weeks (its `stepToEmptyWeek` window).
+const TSE_021_WINDOW_WEEKS = 27;
 
 let admin: SupabaseClient | null = null;
 let orgId = '';
@@ -115,7 +117,10 @@ test.beforeEach(async () => {
   const occupiedWeeks = new Set((existingSheets.data ?? []).map((sheet) => sheet.week_start_date));
   const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   dayStart.setUTCDate(dayStart.getUTCDate() - ((dayStart.getUTCDay() + 6) % 7));
-  for (let offset = 0; offset < 52; offset += 1) {
+  // #1882: AC-TSE-021 uses the SAME engineer and walks forward from next week (at most 26 weeks), so
+  // both specs, run in parallel, picked the same "first empty" week and wrote over each other. This
+  // spec searches only the weeks beyond that window, so the two can never choose the same one.
+  for (let offset = TSE_021_WINDOW_WEEKS + 1; offset < TSE_021_WINDOW_WEEKS + 53; offset += 1) {
     const candidate = new Date(dayStart);
     candidate.setUTCDate(candidate.getUTCDate() + (offset * 7));
     const candidateWeek = candidate.toISOString().slice(0, 10);

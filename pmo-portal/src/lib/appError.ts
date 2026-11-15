@@ -38,6 +38,11 @@ export class AppError extends Error {
 export interface CommandHeldOutboxMarker {
   heldOutboxId?: string;
   heldClaimGeneration?: number;
+  /** Why the hold was raised, where the raiser knows (stock: a `HoldCause`); the dispatcher's own holds name theirs. */
+  heldCause?: string;
+  /** The ERP document's own reference and database id, when a hold concerns one that exists. */
+  heldReference?: string | null;
+  heldPickingId?: number | null;
 }
 
 /**
