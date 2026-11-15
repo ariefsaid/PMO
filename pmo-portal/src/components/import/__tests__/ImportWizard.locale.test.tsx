@@ -250,6 +250,8 @@ describe('#1278 round C', () => {
       // the heading already says the code and the description: the card does not repeat them
       expect(screen.queryByText(lng === 'en' ? 'Item code' : 'Kode item', { selector: 'dt' })).toBeNull();
       expect(screen.getAllByText(lng === 'en' ? 'Quantity' : 'Kuantitas', { selector: 'dt' }).length).toBeGreaterThan(0);
+      // an optional field the sheet leaves empty is not listed with a bare dash
+      expect(screen.queryByText(lng === 'en' ? 'Line number' : 'Nomor baris', { selector: 'dt' })).toBeNull();
     });
   });
 });

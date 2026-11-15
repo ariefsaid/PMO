@@ -424,12 +424,13 @@ function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
         <dl className="grid grid-cols-[minmax(6.5rem,auto)_minmax(0,1fr)] gap-x-3 gap-y-1.5">
           {wideColumns
             .filter((col) => col.key !== 'row' && !descriptor.fields.some((field) => field.key === col.key && field.inRowTitle))
-            .map((col) => (
+            // A field the row leaves empty ("—") is not listed: a label with nothing to say is noise on a phone.
+            .flatMap((col) => (col.cell(v) === '—' ? [] : [(
               <React.Fragment key={col.key}>
                 <dt className="self-start text-control font-semibold text-muted-foreground">{col.header}</dt>
                 <dd className="min-w-0 break-words text-control text-foreground">{col.cell(v)}</dd>
               </React.Fragment>
-            ))}
+            )]))}
         </dl>
       )
     : undefined;
