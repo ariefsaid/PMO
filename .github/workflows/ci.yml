@@ -255,6 +255,7 @@ jobs:
           cache-dependency-path: pmo-portal/package-lock.json
       - name: Refuse attribution in PR commits
         if: github.event_name == 'pull_request'
+        working-directory: .
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
