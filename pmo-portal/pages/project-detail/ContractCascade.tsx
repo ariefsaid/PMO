@@ -439,12 +439,16 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
 };
 
 const MoneyStep: React.FC<{ label: string; value: string; supporting?: string; detail: string }> = ({ label, value, supporting, detail }) => (
-  <li aria-label={`${label} ${value}${supporting ? ` ${supporting}` : ''}`} className="min-w-0 border-l border-border pl-3 first:border-l-0 first:pl-0">
-    <Tooltip content={detail}>
-      <span className="block w-fit cursor-help text-sm text-muted-foreground">{label}</span>
-    </Tooltip>
-    <Tooltip content={detail}><span className="mt-1 block w-fit cursor-help text-lg font-semibold tabular-nums leading-tight text-foreground">{value}</span></Tooltip>
-    {supporting && <span className="mt-1 block text-sm text-muted-foreground">{supporting}</span>}
+  <li aria-label={`${label} ${value}${supporting ? ` ${supporting}` : ''}`} className="min-w-0 sm:border-l sm:border-border sm:pl-3 sm:first:border-l-0 sm:first:pl-0">
+    <div className="block">
+      <Tooltip content={detail}>
+        <span className="block w-fit cursor-help text-sm text-muted-foreground">{label}</span>
+      </Tooltip>
+    </div>
+    <div className="mt-1 block">
+      <Tooltip content={detail}><span className="block w-fit cursor-help text-lg font-semibold tabular-nums leading-tight text-foreground">{value}</span></Tooltip>
+    </div>
+    {supporting && <p className="mt-1 text-sm text-muted-foreground">{supporting}</p>}
   </li>
 );
 
