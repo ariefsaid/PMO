@@ -82,10 +82,10 @@ select is((select count(*)::int from equipment_usage_entries), 2, 'AC-EQU-012 an
 select is((select count(*)::int from equipment_assets), 4, 'AC-EQU-012 every active member reads the org''s asset reference');
 select throws_ok($$ insert into equipment_usage_entries (org_id, asset_id, project_id, work_date, quantity, unit, status, author_id)
   values ('15190000-0000-0000-0000-00000000000a','15190000-0000-0000-0000-0000000000d1','15190000-0000-0000-0000-0000000000c1',
-          '2026-09-01', 1, 'hours', 'Approved', '15190000-0000-0000-0000-0000000000a6') $$, '42501', null,
+          '2026-09-01', 1, 'hours', 'Approved', '15190000-0000-0000-0000-0000000000a6') $$, '42501', 'permission denied for table equipment_usage_entries',
   'AC-EQU-012 no direct INSERT on entries');
-select throws_ok($$ update equipment_usage_entries set status = 'Approved' $$, '42501', null, 'AC-EQU-012 no direct UPDATE of status');
-select throws_ok($$ insert into equipment_assets (code, name) values ('ENG-1','x') $$, '42501', null,
+select throws_ok($$ update equipment_usage_entries set status = 'Approved' $$, '42501', 'permission denied for table equipment_usage_entries', 'AC-EQU-012 no direct UPDATE of status');
+select throws_ok($$ insert into equipment_assets (code, name) values ('ENG-1','x') $$, '42501', 'new row violates row-level security policy for table "equipment_assets"',
   'AC-EQU-012 an Engineer cannot create an asset reference');
 select is(pg_temp.rows($$ update equipment_assets set name = 'renamed' $$), 0, 'AC-EQU-012 an Engineer cannot edit an asset reference');
 select is(pg_temp.rows($$ delete from equipment_usage_entries $$), 0, 'AC-EQU-012 an Engineer cannot delete entries');
@@ -110,9 +110,9 @@ select is((select count(*)::int from equipment_usage_entries), 0, 'AC-EQU-012 an
 select is((select count(*)::int from equipment_assets where org_id = '15190000-0000-0000-0000-00000000000a'), 0,
   'AC-EQU-012 another org reads no asset');
 select throws_ok($$ select transition_equipment_usage((select v from _e where k = 'p1'), 'Approved') $$,
-  '42501', null, 'AC-EQU-012 another org cannot move an entry (the definer re-asserts the org)');
+  '42501', 'not authorized', 'AC-EQU-012 another org cannot move an entry (the definer re-asserts the org)');
 select throws_ok($$ select transition_equipment_usage((select v from _e where k = 's1'), 'Approved') $$,
-  '42501', null, 'AC-EQU-012 another org''s Admin cannot approve a submitted entry');
+  '42501', 'not authorized', 'AC-EQU-012 another org''s Admin cannot approve a submitted entry');
 select throws_ok($$ select save_equipment_usage('{"asset_id":"15190000-0000-0000-0000-0000000000d9","project_id":"15190000-0000-0000-0000-0000000000c1","work_date":"2026-09-01","quantity":1,"unit":"hours"}') $$,
   'P0002', null, 'AC-EQU-012 a foreign project cannot be targeted');
 select throws_ok($$ select archive_equipment_usage((select v from _e where k = 's1')) $$,
@@ -137,10 +137,10 @@ select throws_ok($$ select save_equipment_usage(jsonb_build_object('id',(select 
 select lives_ok($$ select save_equipment_usage('{"asset_id":"15190000-0000-0000-0000-0000000000d2","project_id":"15190000-0000-0000-0000-0000000000c1","work_date":"2026-09-05","quantity":1,"unit":"days"}') $$,
   'AC-EQU-012 a new entry on the archived row''s asset, project, date and kind saves');
 select throws_ok($$ select archive_equipment_usage((select v from _e where k = 's1')) $$,
-  '42501', null, 'AC-EQU-012 the author cannot archive a submitted entry');
+  '42501', 'not authorized', 'AC-EQU-012 the author cannot archive a submitted entry');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a7');
 select throws_ok($$ select archive_equipment_usage((select v from _e where k = 'a2')) $$,
-  '42501', null, 'AC-EQU-012 another Engineer cannot archive someone''s draft');
+  '42501', 'not authorized', 'AC-EQU-012 another Engineer cannot archive someone''s draft');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a1');   -- Admin
 select throws_ok($$ select archive_equipment_usage((select v from _e where k = 'p1')) $$,
   '22023', 'reopen approved usage before archiving it', 'AC-EQU-012 approved usage is not archived, even by an Admin');
@@ -163,7 +163,7 @@ insert into _e select 'g1', id from equipment_usage_entries where author_id = '1
 set local role authenticated;
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a8');
 select throws_ok($$ select archive_equipment_usage((select v from _e where k = 'g1')) $$,
-  '42501', null, 'AC-EQU-012 a disabled author cannot archive their draft');
+  '42501', 'your account is not an active member of this organisation, so it cannot write — an offboarded or suspended account is refused even while its session token is still valid', 'AC-EQU-012 a disabled author cannot archive their draft');
 
 reset role;
 select throws_ok($$ update equipment_usage_entries set approver_id = author_id where id = (select v from _e where k = 'p1') $$,
@@ -200,7 +200,7 @@ select throws_ok($$ select save_equipment_costing('{"asset_id":"15190000-0000-00
   '42501', 'not authorized', 'AC-EQU-012 an Engineer cannot save a costing setting');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a8');   -- disabled Engineer
 select throws_ok($$ select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d4","basis":"none","effective_from":"2026-01-01"}') $$,
-  '42501', null, 'AC-EQU-012 a disabled member cannot save a costing setting');
+  '42501', 'your account is not an active member of this organisation, so it cannot write — an offboarded or suspended account is refused even while its session token is still valid', 'AC-EQU-012 a disabled member cannot save a costing setting');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a2');   -- Finance
 select lives_ok($$ insert into _k select 'f', save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d4","basis":"hire_rate","work_rate":50,"rate_unit":"hours","effective_from":"2026-01-01"}') $$,
   'AC-EQU-012 Finance saves a costing setting');
@@ -209,9 +209,9 @@ select lives_ok($$ select save_equipment_costing('{"asset_id":"15190000-0000-000
   'AC-EQU-012 an Admin saves a costing setting');
 select throws_ok($$ insert into equipment_costing_settings (org_id, asset_id, setting_key, version, basis, effective_from)
   values ('15190000-0000-0000-0000-00000000000a','15190000-0000-0000-0000-0000000000d1',gen_random_uuid(),1,'none','2026-01-01') $$,
-  '42501', null, 'AC-EQU-012 no direct INSERT on settings, even for an Admin');
-select throws_ok($$ update equipment_costing_settings set work_rate = 1 $$, '42501', null, 'AC-EQU-012 no direct UPDATE on settings');
-select throws_ok($$ delete from equipment_costing_settings $$, '42501', null, 'AC-EQU-012 no direct DELETE on settings');
+  '42501', 'permission denied for table equipment_costing_settings', 'AC-EQU-012 no direct INSERT on settings, even for an Admin');
+select throws_ok($$ update equipment_costing_settings set work_rate = 1 $$, '42501', 'permission denied for table equipment_costing_settings', 'AC-EQU-012 no direct UPDATE on settings');
+select throws_ok($$ delete from equipment_costing_settings $$, '42501', 'permission denied for table equipment_costing_settings', 'AC-EQU-012 no direct DELETE on settings');
 
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a3');   -- PM1
 select throws_ok($$ select end_equipment_costing((select (v->>'setting_key')::uuid from _k where k='f'),'2026-12-31',1) $$,
