@@ -173,7 +173,7 @@ export const PromptBar: React.FC<PromptBarProps> = ({
   return (
     <div
       ref={rootRef}
-      className="border-t border-border p-3"
+      className="border-t border-border p-4"
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >

@@ -40,12 +40,12 @@ export const ThreadList: React.FC<ThreadListProps> = ({ threads, onOpen }) => {
               <button
                 type="button"
                 onClick={() => onOpen(thread.id, thread.latestRunId)}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {thread.pinned_at !== null && (
                   <span
                     data-pinned-marker
-                    className="shrink-0 text-xs font-medium text-muted-foreground"
+                    className="shrink-0 text-sm font-medium text-muted-foreground"
                   >
                     Pinned
                     {/* Separator so the accessible name reads "Pinned. <title>" instead of
@@ -56,7 +56,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({ threads, onOpen }) => {
                 <span className="flex min-w-0 flex-col">
                   <span className="truncate">{thread.title}</span>
                   {label !== null && (
-                    <span className="truncate text-xs text-muted-foreground">{label}</span>
+                    <span className="truncate text-sm text-muted-foreground">{label}</span>
                   )}
                 </span>
               </button>
@@ -65,7 +65,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({ threads, onOpen }) => {
         })}
       </ul>
       {threads.length === 0 && (
-        <p className="px-2 py-1.5 text-xs text-muted-foreground">No conversations yet.</p>
+        <p className="px-2 py-1.5 text-sm text-muted-foreground">No conversations yet.</p>
       )}
     </div>
   );

@@ -24,7 +24,7 @@ export const Thinking: React.FC<{ label?: string | null }> = ({ label }) => {
 
   return (
     <div className="flex items-center gap-2.5 px-4 py-2">
-      <div role="status" aria-live="polite" aria-atomic="true">
+      <div role="status" aria-live="polite" aria-atomic="true" className="flex">
         <LoadingState label={text} />
       </div>
       {/* Only after a few seconds: no clutter on a fast reply, reassurance on a slow one. */}

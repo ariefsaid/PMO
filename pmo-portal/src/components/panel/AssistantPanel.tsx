@@ -78,15 +78,15 @@ const ErrorCard: React.FC<ErrorCardProps> = ({ onRetry }) => (
     aria-live="assertive"
     className="mx-4 my-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm"
   >
-    <p className="font-medium text-destructive">Something went wrong</p>
-    <p className="mt-0.5 text-xs text-muted-foreground">
+    <p className="font-medium text-destructive-text">Something went wrong</p>
+    <p className="mt-0.5 text-sm text-muted-foreground">
       The assistant ran into a problem. Try again.
     </p>
     <button
       type="button"
       onClick={onRetry}
       aria-label="Retry"
-      className="mt-2 rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
+      className="mt-2 rounded-md border border-border px-3 py-1 text-sm font-medium text-foreground hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       Retry
     </button>
@@ -520,7 +520,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
             onPointerDown={handleResizePointerDown}
             onPointerMove={handleResizePointerMove}
             onPointerUp={handleResizePointerUp}
-            className="absolute left-0 top-0 z-10 h-full w-1.5 -translate-x-1/2 cursor-ew-resize touch-none rounded-full bg-transparent hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
+            className="absolute left-0 top-0 z-10 h-full w-1.5 -translate-x-1/2 cursor-ew-resize touch-none rounded-full bg-transparent hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         )}
 
@@ -546,7 +546,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
                 onClick={handleToggleMode}
                 aria-label={mode === 'overlay' ? 'Dock assistant panel' : 'Switch to overlay'}
                 aria-pressed={mode === 'docked'}
-                className="touch-target grid h-8 place-items-center rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                className="touch-target grid h-8 place-items-center rounded-md px-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {mode === 'overlay' ? 'Dock' : 'Overlay'}
               </button>
@@ -557,7 +557,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
               onClick={toggleHistory}
               aria-label="History"
               aria-expanded={historyOpen}
-              className="touch-target grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring [&_svg]:size-[17px]"
+              className="touch-target grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-[17px]"
             >
               <Icon name="clock" />
             </button>
@@ -566,7 +566,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
               type="button"
               onClick={handleNewConversation}
               aria-label="New conversation"
-              className="touch-target grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring [&_svg]:size-[17px]"
+              className="touch-target grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-[17px]"
             >
               <Icon name="refresh" />
             </button>
@@ -575,7 +575,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
               type="button"
               onClick={closePanel}
               aria-label="Close assistant"
-              className="touch-target grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring [&_svg]:size-[17px]"
+              className="touch-target grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-[17px]"
             >
               <Icon name="x" />
             </button>
@@ -591,7 +591,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
               </div>
             )}
             {threadsError && (
-              <p role="alert" className="border-b border-border px-4 py-2 text-xs text-destructive">
+              <p role="alert" className="border-b border-border px-4 py-2 text-sm text-destructive-text">
                 Couldn&apos;t load your conversations.
               </p>
             )}
@@ -662,7 +662,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
               role="status"
               aria-live="polite"
               aria-atomic="true"
-              className="px-4 py-1 text-xs text-muted-foreground"
+              className="px-4 py-1 text-sm text-muted-foreground"
             >
               A write action awaits your decision
             </div>
@@ -676,7 +676,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
               role="status"
               aria-live="polite"
               aria-atomic="true"
-              className="px-4 py-1 text-xs text-muted-foreground"
+              className="px-4 py-1 text-sm text-muted-foreground"
             >
               A question awaits your answer
             </div>
@@ -693,7 +693,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
           <div
             role={attachments.error ? 'alert' : 'status'}
             aria-live={attachments.error ? 'assertive' : 'polite'}
-            className="border-t border-border px-3 py-2 text-xs text-muted-foreground"
+            className="border-t border-border px-3 py-2 text-sm text-muted-foreground"
           >
             {attachments.error
               ? attachments.error.message

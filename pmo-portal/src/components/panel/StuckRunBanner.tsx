@@ -65,7 +65,7 @@ export const StuckRunBanner: React.FC<StuckRunBannerProps> = ({
           type="button"
           onClick={onCancel}
           aria-label="Stop"
-          className="h-8 rounded-md border border-transparent bg-primary px-3 py-0 text-xs font-medium text-primary-foreground hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring"
+          className="h-8 rounded-md border border-transparent bg-primary px-3 py-0 text-xs font-medium text-primary-foreground hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           Stop
         </button>
@@ -73,7 +73,7 @@ export const StuckRunBanner: React.FC<StuckRunBannerProps> = ({
           type="button"
           onClick={onRetry}
           aria-label="Retry"
-          className="h-8 rounded-md border border-border px-3 py-0 text-xs font-medium text-foreground hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
+          className="h-8 rounded-md border border-border px-3 py-0 text-xs font-medium text-foreground hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           Retry
         </button>

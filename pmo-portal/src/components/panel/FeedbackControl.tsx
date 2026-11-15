@@ -30,7 +30,7 @@ interface FeedbackControlProps {
 }
 
 const thumbButtonClasses =
-  'rounded-md px-1.5 py-0.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring';
+  'rounded-md px-1.5 py-0.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 export const FeedbackControl: React.FC<FeedbackControlProps> = ({ eventId, runId, onRate }) => {
   const [rating, setRating] = useState<'up' | 'down' | null>(null);
@@ -87,7 +87,7 @@ export const FeedbackControl: React.FC<FeedbackControlProps> = ({ eventId, runId
               key={r.value}
               type="button"
               onClick={() => handleReason(r.value)}
-              className="rounded-md border border-border px-2 py-0.5 text-xs text-foreground hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
+              className="rounded-md border border-border px-2 py-0.5 text-sm text-foreground hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {r.label}
             </button>

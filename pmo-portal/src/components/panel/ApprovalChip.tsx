@@ -86,7 +86,7 @@ export const ApprovalChip: React.FC<ApprovalChipProps> = ({
               // h-8 = 32px: DESIGN.md §5 Buttons "32px tall" rule (Blocker-9).
               'h-8 rounded-md border border-transparent px-3 py-0 text-xs font-medium',
               'bg-primary text-primary-foreground',
-              'hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring',
+              'hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               'disabled:cursor-not-allowed disabled:opacity-50',
             ].join(' ')}
           >
@@ -101,7 +101,7 @@ export const ApprovalChip: React.FC<ApprovalChipProps> = ({
               // h-8 = 32px: DESIGN.md §5 Buttons "32px tall" rule (Blocker-9).
               'h-8 rounded-md border border-border px-3 py-0 text-xs font-medium',
               'text-foreground',
-              'hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring',
+              'hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               'disabled:cursor-not-allowed disabled:opacity-50',
             ].join(' ')}
           >

@@ -144,7 +144,7 @@ export const ArtifactSlot: React.FC<ArtifactSlotProps> = ({ payload, runId }) =>
                 value={viewName}
                 onChange={(e) => setViewName(e.target.value)}
                 disabled={isSaving}
-                className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
               />
             </label>
             <div className="flex flex-wrap items-center gap-2">
@@ -155,7 +155,7 @@ export const ArtifactSlot: React.FC<ArtifactSlotProps> = ({ payload, runId }) =>
                 aria-busy={isSaving}
                 disabled={isSaving || !viewName.trim()}
                 onClick={() => void save(viewName.trim())}
-                className="h-8 rounded-md border border-border bg-primary px-3 py-0 text-xs font-medium text-primary-foreground hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-8 rounded-md border border-border bg-primary px-3 py-0 text-xs font-medium text-primary-foreground hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isSaving ? 'Saving…' : 'Save to My Views'}
               </button>
@@ -175,7 +175,7 @@ export const ArtifactSlot: React.FC<ArtifactSlotProps> = ({ payload, runId }) =>
                 to={`/views/${savedViewId}`}
                 /* Blocker-2 / DESIGN.md Blocker-9: Open-view link chip MUST be h-8 (32px).
                    py-1 alone gives ~28-30px and violates the app-wide control height rule. */
-                className="h-8 rounded-md border border-border px-2 py-0 text-xs text-foreground hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring inline-flex items-center"
+                className="h-8 rounded-md border border-border px-2 py-0 text-xs text-foreground hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring inline-flex items-center"
               >
                 Open view →
               </Link>

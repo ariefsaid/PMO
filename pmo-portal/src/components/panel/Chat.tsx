@@ -133,7 +133,7 @@ export const Chat: React.FC<ChatProps> = ({ transcript, emptySlot, chipStateMap,
 
       {/* "Show earlier" affordance — appears at the top when entries are hidden */}
       {isCapped && (
-        <div className="text-center text-xs text-muted-foreground">
+        <div className="text-center text-sm text-muted-foreground">
           <button
             type="button"
             onClick={() => setShowAll(true)}

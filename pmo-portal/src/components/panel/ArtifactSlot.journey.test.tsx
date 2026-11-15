@@ -60,7 +60,8 @@ describe('AC-CV-015 compose and save view', () => {
     await user.type(screen.getByRole('textbox', { name: /ask a question/i }), 'show me active projects by status{Enter}');
     try {
       expect(await screen.findByRole('button', { name: /stop generating/i })).toBeVisible();
-      expect(screen.getByRole('textbox', { name: /ask a question/i })).toBeDisabled();
+      // #2047: locked against edits during the run, but read-only (not disabled) so focus stays put.
+      expect(screen.getByRole('textbox', { name: /ask a question/i })).toHaveAttribute('readonly');
     } finally { release(); }
     expect(await screen.findByText(/here is a dashboard/i)).toBeVisible();
     const artifact = await screen.findByRole('region', { name: /active projects by status/i });

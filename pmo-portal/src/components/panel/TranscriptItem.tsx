@@ -155,7 +155,7 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = React.memo(({
         return (
           <div
             role="status"
-            className="rounded-md border border-border bg-secondary/40 px-3 py-2 text-xs text-muted-foreground"
+            className="rounded-md border border-border bg-secondary/40 px-3 py-2 text-sm text-muted-foreground"
           >
             I&apos;ve reached my step limit for this question — you can follow up to continue.
           </div>
@@ -178,11 +178,11 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = React.memo(({
         const label =
           sysPayload.decision === 'approved' ? 'Write approved ✓' : 'Write denied';
         return (
-          <div className="text-center text-xs text-muted-foreground">{label}</div>
+          <div className="text-center text-sm text-muted-foreground">{label}</div>
         );
       }
       return (
-        <div className="text-center text-xs text-muted-foreground">{event.text}</div>
+        <div className="text-center text-sm text-muted-foreground">{event.text}</div>
       );
     }
 

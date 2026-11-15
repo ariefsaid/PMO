@@ -63,14 +63,14 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
             key={q}
             type="button"
             onClick={() => onPick(q)}
-            className="rounded-md border border-border px-3 py-2 text-left text-sm text-foreground hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
+            className="rounded-md border border-border px-3 py-2 text-left text-sm text-foreground hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {q}
           </button>
         ))}
       </div>
 
-      <p className="text-xs text-muted-foreground">{t('readOnly', 'Answers are read-only for now.')}</p>
+      <p className="text-sm text-muted-foreground">{t('readOnly', 'Answers are read-only for now.')}</p>
     </div>
   );
 };

@@ -77,7 +77,7 @@ export const QuestionChips: React.FC<QuestionChipsProps> = ({
                   isSelected
                     ? 'border-primary text-primary-text'
                     : 'border-border text-foreground',
-                  'hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring',
+                  'hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   'disabled:cursor-not-allowed disabled:opacity-50',
                 ].join(' ')}
               >
@@ -113,7 +113,7 @@ export const QuestionChips: React.FC<QuestionChipsProps> = ({
             onKeyDown={(e) => {
               if (e.key === 'Enter') submitFreeText();
             }}
-            className="h-8 flex-1 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            className="h-8 flex-1 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
             placeholder="Type an answer…"
           />
           <button
@@ -121,7 +121,7 @@ export const QuestionChips: React.FC<QuestionChipsProps> = ({
             disabled={controlsDisabled}
             onClick={submitFreeText}
             aria-label="Submit"
-            className="h-8 rounded-md border border-border px-3 py-0 text-xs font-medium text-foreground hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            className="h-8 rounded-md border border-border px-3 py-0 text-xs font-medium text-foreground hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
           >
             Submit
           </button>

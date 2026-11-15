@@ -20,7 +20,7 @@ interface ActivityTrailProps {
   items: TrailStep[];
 }
 
-/** A small inline spinner (matches Button.tsx's Spinner, sized to text-xs). aria-hidden. */
+/** A small inline spinner (matches Button.tsx's Spinner, sized to text-sm). aria-hidden. */
 const Spinner: React.FC = () => (
   <svg
     aria-hidden="true"
@@ -42,7 +42,7 @@ export const ActivityTrail: React.FC<ActivityTrailProps> = ({ items }) => {
       aria-live="polite"
       aria-atomic="false"
       aria-label="Assistant activity"
-      className="space-y-1 px-4 py-1 text-xs text-muted-foreground motion-reduce:animate-none"
+      className="space-y-1 px-4 py-1 text-sm text-muted-foreground motion-reduce:animate-none"
     >
       {items.map((step) => (
         <li
