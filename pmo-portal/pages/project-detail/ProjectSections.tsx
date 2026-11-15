@@ -327,13 +327,13 @@ const RaiseInvoiceAction: React.FC<{ project: ProjectWithRefs; mobileBar: boolea
 const HeldActionButton: React.FC<{ mobileBar: boolean; unavailable: boolean; children: React.ReactNode }> = ({ mobileBar, unavailable, children }) => {
   const { t } = useTranslation('project');
   const button = (
-    <Button variant="primary" size={mobileBar ? 'default' : 'sm'} className={mobileBar ? 'touch-target w-full' : undefined} disabled>
+    <Button variant="primary" size={mobileBar ? 'default' : 'sm'} className={mobileBar ? 'touch-target w-full' : undefined} disabled data-testid={unavailable ? 'primary-action' : undefined}>
       {children}
     </Button>
   );
   const held = unavailable
     ? <Tooltip content={t('projectDetail.billing.summary.unavailable', 'Billing summary is unavailable.')}>{button}</Tooltip>
-    : <span aria-busy="true" className="inline-flex">{button}</span>;
+    : <span aria-busy="true" data-testid="primary-action" className="inline-flex">{button}</span>;
   return mobileBar
     ? (
       <>
@@ -347,7 +347,7 @@ const HeldActionButton: React.FC<{ mobileBar: boolean; unavailable: boolean; chi
 const ProjectActionButton: React.FC<{ mobileBar: boolean; to: string; children: React.ReactNode }> = ({ mobileBar, to, children }) => {
   const navigate = useNavigate();
   const button = (
-    <Button variant="primary" size={mobileBar ? 'default' : 'sm'} className={mobileBar ? 'touch-target w-full' : undefined} onClick={() => navigate(to)}>
+    <Button variant="primary" size={mobileBar ? 'default' : 'sm'} className={mobileBar ? 'touch-target w-full' : undefined} onClick={() => navigate(to)} data-testid="primary-action">
       {children}
     </Button>
   );

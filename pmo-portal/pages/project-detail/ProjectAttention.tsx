@@ -22,7 +22,7 @@ export const ProjectAttention: React.FC<{
   // Rows already derived from settled sources stay on screen; only an empty card falls back to the whole skeleton / error.
   if (isPending && !hasRows) {
     return (
-      <section aria-labelledby="pd-attention" className={cn(className, fillRow && 'h-full')}>
+      <section data-testid="needs-attention" aria-labelledby="pd-attention" className={cn(className, fillRow && 'h-full')}>
         <Card className={fillRow ? 'flex h-full flex-col' : undefined}>
           <CardHead id="pd-attention">{t('projectDetail.attention.title', 'Needs attention')}</CardHead>
           <CardPad className={fillRow ? 'flex flex-1 flex-col' : undefined}><ListState variant="loading" shape="cards" rows={2} /></CardPad>
@@ -32,7 +32,7 @@ export const ProjectAttention: React.FC<{
   }
   if (error && !hasRows) {
     return (
-      <section aria-labelledby="pd-attention" className={cn(className, fillRow && 'h-full')}>
+      <section data-testid="needs-attention" aria-labelledby="pd-attention" className={cn(className, fillRow && 'h-full')}>
         <Card className={fillRow ? 'flex h-full flex-col' : undefined}>
           <CardHead id="pd-attention">{t('projectDetail.attention.title', 'Needs attention')}</CardHead>
           <CardPad className={fillRow ? 'flex flex-1 flex-col' : undefined}>
@@ -49,7 +49,7 @@ export const ProjectAttention: React.FC<{
   if (excludeKeys && visibleItems.length === 0) return null;
   if (visibleItems.length === 0) {
     return (
-      <section aria-labelledby="pd-attention" className={cn(className, fillRow && 'h-full')}>
+      <section data-testid="needs-attention" aria-labelledby="pd-attention" className={cn(className, fillRow && 'h-full')}>
         <Card className={fillRow ? 'flex h-full flex-col' : undefined}>
           <CardHead id="pd-attention">{t('projectDetail.attention.title', 'Needs attention')}</CardHead>
           <CardPad className={fillRow ? 'flex flex-1 flex-col' : undefined}>
@@ -64,7 +64,7 @@ export const ProjectAttention: React.FC<{
   }
   // Flat rows: the status word sits in `what`; its size carries the status colour (UX SD1). No stripes, no pills.
   return (
-    <section aria-labelledby="pd-attention" className={cn(className, fillRow && 'h-full')}>
+    <section data-testid="needs-attention" aria-labelledby="pd-attention" className={cn(className, fillRow && 'h-full')}>
       <Card className={fillRow ? 'flex h-full flex-col' : undefined}>
         <CardHead id="pd-attention" actions={<Tooltip content={t('projectDetail.attention.countTooltip', 'Count of current project items that need follow-up.')}>
           <span tabIndex={0} className="font-normal text-muted-foreground">{visibleItems.length}</span>
@@ -72,7 +72,7 @@ export const ProjectAttention: React.FC<{
           {t('projectDetail.attention.title', 'Needs attention')}
         </CardHead>
         <CardPad className={fillRow ? 'flex flex-1 flex-col' : undefined}>
-          <ul className={cn('divide-y divide-border/70', fillRow && 'flex flex-1 flex-col')}>
+          <ul data-testid="needs-attention-rows" className={cn('divide-y divide-border/70', fillRow && 'flex flex-1 flex-col')}>
         {visibleItems.map((item) => (
           <li key={item.key} className={fillRow ? 'flex flex-1' : undefined}>
             <Tooltip content={item.explanation ?? t('projectDetail.attention.rowTooltip', 'Status is based on project records and their current workflow state.')} block>
