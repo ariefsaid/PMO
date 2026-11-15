@@ -1,5 +1,5 @@
-// Unit tests and their fixtures: everything tsconfig.json checks except the app (read from the
-// declarations tsconfig.app.json emits) and the files tsconfig.tooling.json owns.
+// Unit tests and their fixtures: everything tsconfig.json checks except the app and server projects
+// (read from their emitted declarations) and the files tsconfig.tooling.json owns.
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
@@ -21,6 +21,9 @@
   "references": [
     {
       "path": "./tsconfig.app.json"
+    },
+    {
+      "path": "./tsconfig.server.json"
     }
   ]
 }

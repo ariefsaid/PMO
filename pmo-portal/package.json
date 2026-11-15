@@ -8,7 +8,7 @@
     "build": "vite build",
     "postbuild": "node ../scripts/upload-sourcemaps.mjs",
     "preview": "vite preview",
-    "typecheck": "node --max-old-space-size=8192 ./node_modules/typescript/bin/tsc -b tsconfig.app.json && node --max-old-space-size=8192 ./node_modules/typescript/bin/tsc -b tsconfig.test.json && node --max-old-space-size=8192 ./node_modules/typescript/bin/tsc -b tsconfig.tooling.json",
+    "typecheck": "node --max-old-space-size=8192 ./node_modules/typescript/bin/tsc -b tsconfig.app.json && node --max-old-space-size=8192 ./node_modules/typescript/bin/tsc -b tsconfig.server.json && node --max-old-space-size=8192 ./node_modules/typescript/bin/tsc -b tsconfig.test.json && node --max-old-space-size=8192 ./node_modules/typescript/bin/tsc -b tsconfig.tooling.json",
     "lint": "eslint .",
     "lint:ci": "eslint . --max-warnings=0",
     "lint:scripts": "cd ../scripts && ../pmo-portal/node_modules/.bin/eslint --max-warnings=0 .",
