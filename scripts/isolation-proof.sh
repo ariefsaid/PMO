@@ -10,9 +10,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROBE="$SCRIPT_DIR/isolation-probe.sh"
 A_ORG=a6120000-0000-4000-8000-00000000000a
 B_ORG=a6120000-0000-4000-8000-00000000000b
-# Exact skips per mode (probes the fixtures cannot fill: no seed row, or a table the copy could not write) and a floor
-# on checks per mode. A change either way fails the run: a rise or a shrinking probe is lost coverage; a drop is
-# better coverage, so lower the number to match.
+# A floor on checks and a ceiling on skips, per mode (skips are probes the fixtures cannot fill: no seed row, or a
+# table the copy could not write). More checks or fewer skips pass; a shrunk probe or more skips fail. Add probes
+# for new or uncovered tables; never raise a bound.
 SKIPS_READ=392 SKIPS_WRITE=273 MIN_CHECKS_READ=472 MIN_CHECKS_WRITE=591
 
 # judge <read|write> <probe exit code> <probe output file>: print the counts, return 0 only for a clean run.
@@ -22,10 +22,10 @@ judge(){
   [ -n "$line" ] || { echo "isolation-proof[$mode]: probe printed no summary (rc=$rc): crashed or refused to run" >&2; return 1; }
   read -r checks leaks errors skipped <<< "$(sed -E 's/^=== checks: ([0-9]+) +leaks: ([0-9]+) +probe_errors: ([0-9]+) +skipped: ([0-9]+).*/\1 \2 \3 \4/' <<< "$line")"
   echo "isolation-proof[$mode]: checks=$checks leaks=$leaks probe_errors=$errors skipped=$skipped (probe rc=$rc)"
-  local want_skips=$SKIPS_READ min_checks=$MIN_CHECKS_READ
-  if [ "$mode" = write ]; then want_skips=$SKIPS_WRITE min_checks=$MIN_CHECKS_WRITE; fi
-  [ "$checks" -ge "$min_checks" ] || { echo "  FAIL: $checks checks, floor is $min_checks (the probe shrank)" >&2; bad=1; }
-  [ "$skipped" -eq "$want_skips" ] || { echo "  FAIL: $skipped skips, expected exactly $want_skips (update the number if fixtures improved)" >&2; bad=1; }
+  local max_skips=$SKIPS_READ min_checks=$MIN_CHECKS_READ
+  if [ "$mode" = write ]; then max_skips=$SKIPS_WRITE min_checks=$MIN_CHECKS_WRITE; fi
+  [ "$checks" -ge "$min_checks" ] || { echo "  FAIL: $mode: $checks checks, below the floor of $min_checks. Add probes for the new or uncovered tables; do not raise the bound." >&2; bad=1; }
+  [ "$skipped" -le "$max_skips" ] || { echo "  FAIL: $mode: $skipped skipped, above the ceiling of $max_skips. Add probes for the new or uncovered tables; do not raise the bound." >&2; bad=1; }
   [ "$leaks" = 0 ] || { echo "  FAIL: $leaks leak(s)" >&2; bad=1; }
   [ "$errors" = 0 ] || { echo "  FAIL: $errors probe error(s)" >&2; bad=1; }
   [ "$rc" = 0 ] || { echo "  FAIL: probe exit code $rc" >&2; bad=1; }
@@ -54,12 +54,12 @@ self_test(){
     judge "$2" "$3" "$d/$n" >/dev/null 2>&1; local got=$?
     if { [ "$1" = pass ] && [ $got != 0 ]; } || { [ "$1" = fail ] && [ $got = 0 ]; }; then echo "self-test FAIL: $2 rc=$3 checks=$4 leaks=$5 errors=$6 skips=$7 expected $1" >&2; fails=1; fi
   }
-  t pass read 0 40 0 0 3;  t pass write 0 40 0 0 5; t pass read 0 900 0 0 3
+  t pass read 0 40 0 0 3;  t pass write 0 40 0 0 5; t pass read 0 41 0 0 3; t pass write 0 41 0 0 5
   t fail read 1 40 1 0 3;  t fail write 0 40 1 0 5          # leak
   t fail read 4 40 0 2 3;  t fail read 0 40 0 2 3           # probe error
   t fail read 0 0 0 0 3;   t fail read 0 39 0 0 3; t fail write 0 39 0 0 5   # no checks / the probe shrank
-  t fail read 0 40 0 0 4;  t fail read 0 40 0 0 2           # skips off the exact count, both directions
-  t fail write 0 40 0 0 6; t fail write 0 40 0 0 4
+  t fail read 0 40 0 0 4;  t pass read 0 40 0 0 2           # a skip above the ceiling fails, below passes
+  t fail write 0 40 0 0 6; t pass write 0 40 0 0 4
   t fail read 3 40 0 0 3                                    # probe exit code
   t fail write 0 40 0 0 5 '  SKIPPED  t update - needs disposable tenant A\n'; t pass read 0 40 0 0 3 '  SKIPPED  t update - needs disposable tenant A\n'
   printf 'curl: (7) refused\n' > "$d/none"; judge read 2 "$d/none" >/dev/null 2>&1 && { echo 'self-test FAIL: crashed probe passed' >&2; fails=1; }
@@ -73,7 +73,7 @@ self_test(){
   lo pass db postgresql://postgres:postgres@127.0.0.1:54322/postgres;  lo pass db 'postgres://u@[::1]:54322/postgres'
   lo fail db postgresql://postgres:pw@db.example.supabase.co:5432/postgres;  lo fail db 'postgresql://postgres@127.0.0.1:54322/postgres?host=other.example'
   lo fail db postgresql://127.0.0.1:x@other.example:5432/postgres;  lo fail db ''
-  [ "$fails" = 0 ] && echo "isolation-proof self-test: ok (verdicts redden on leak, error, crash, shrunk probe, skip count off in either direction, skipped write probes; host guard refuses non-loopback)"
+  [ "$fails" = 0 ] && echo "isolation-proof self-test: ok (verdicts redden on leak, error, crash, shrunk probe, check below the floor, skip above the ceiling, skipped write probes; host guard refuses non-loopback)"
   return $fails
 }
 
