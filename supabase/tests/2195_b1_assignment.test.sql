@@ -2,7 +2,7 @@
 -- The applied path of the public RPC is not built yet (source validation, wrapper and mark arrive in round 2); the
 -- claim helper it will call is exercised directly. The race section uses committed fixtures in a second session.
 begin;
-select plan(119);
+select plan(125);
 create extension if not exists dblink;
 insert into organizations(id,name,default_currency) values
  ('21951001-0000-0000-0000-000000000001','Assignment org A','USD'),
@@ -152,6 +152,8 @@ insert into erp_account_mirror(org_id,company,erp_name,account_name,root_type,re
  ('21951003-0000-0000-0000-000000000001','Example','Fixed Assets','Fixed Assets','Asset','Balance Sheet',false,'USD',5,6,'21951003-0000-0000-0000-000000000099'),
  ('21951003-0000-0000-0000-000000000001','Example','Creditors','Creditors','Liability','Balance Sheet',false,'USD',7,8,'21951003-0000-0000-0000-000000000099');
 create or replace function public.purchase_capture_feed_health() returns jsonb language sql stable as $$ select jsonb_build_object('caught_up',true,'ledger_currency','USD') $$;
+-- the organization's latest tagged snapshot is newer than every ledger row seeded below, so a placement is not held back by the freshness guard
+insert into erp_actuals_snapshot(org_id,snapshot_id,as_of,created_at) values ('21951003-0000-0000-0000-000000000001','21951003-0000-0000-0000-0000000000e1',now()+interval '1 day',now());
 create function pg_temp.inv(n integer,p_supplier text default 'SUP-1',p_currency text default 'USD',p_status smallint default 1,p_return boolean default false,p_project text default null,p_bill text default null,p_ids uuid[] default '{}') returns void language sql as $$
  insert into erp_purchase_documents(id,org_id,erp_doctype,erp_name,supplier,supplier_name,currency,grand_total,net_total,erp_status,erp_docstatus,is_return,erp_project,project_ids,bill_no,erp_modified)
  values (('21951003-1000-0000-0000-'||lpad(n::text,12,'0'))::uuid,'21951003-0000-0000-0000-000000000001','Purchase Invoice','INV-'||n,p_supplier,'Supplier C',p_currency,100,100,'Unpaid',p_status,p_return,p_project,p_ids,p_bill,'1') $$;
@@ -231,6 +233,28 @@ select is((select count(*)::int from external_command_outbox where org_id='21951
 select is((select count(*)::int from erp_purchase_document_marks where org_id='21951003-0000-0000-0000-000000000001'),0,'AC-ROP-007 an unmarked invoice gains no mark');
 set local role authenticated;
 select is(pg_temp.reason(1),'source_already_decided','AC-ROP-007 a placed invoice cannot be decided again');
+-- AC-ROP-011: a placement waits for a tagged snapshot at least as new as the invoice's newest ledger row
+reset role;
+select pg_temp.inv(90); select pg_temp.gl(90,'Cost',100);
+update erp_gl_entry_mirror set as_of = now()+interval '2 days' where org_id='21951003-0000-0000-0000-000000000001' and voucher_no='INV-90';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21951003-0000-0000-0000-000000000002","role":"authenticated"}';
+select is(pg_temp.reason(90),'snapshot_refresh_required','AC-ROP-011 a ledger row newer than the latest tagged snapshot refuses the placement');
+select is(pg_temp.call(90,'project',true)#>>'{results,0,message}','retry after the next ledger refresh','AC-ROP-011 the refusal says to retry after the next ledger refresh');
+select is(pg_temp.call(90,'project',false)#>>'{results,0,reason}','snapshot_refresh_required','AC-ROP-011 an applied request is refused the same way');
+reset role;
+select is((select count(*)::int from erp_capture_invoice_assignments where source_document_id='21951003-1000-0000-0000-000000000090')+(select count(*)::int from procurement_erp_links where erp_purchase_document_id='21951003-1000-0000-0000-000000000090'),0,'AC-ROP-011 a refused placement writes no decision and no link');
+-- a newer generation lets it through
+insert into erp_actuals_snapshot(org_id,snapshot_id,as_of,created_at) values ('21951003-0000-0000-0000-000000000001','21951003-0000-0000-0000-0000000000e2',now()+interval '3 days',now()+interval '1 second');
+set local role authenticated;
+select is(pg_temp.call(90,'project',true)#>>'{results,0,outcome}','create','AC-ROP-011 a newer tagged snapshot lets the placement through');
+reset role;
+create temp table snap_keep on commit drop as select * from erp_actuals_snapshot where org_id='21951003-0000-0000-0000-000000000001';
+delete from erp_actuals_snapshot where org_id='21951003-0000-0000-0000-000000000001';
+set local role authenticated;
+select is(pg_temp.reason(90),'snapshot_unavailable','AC-ROP-011 an organization with no tagged snapshot cannot be placed');
+reset role;
+insert into erp_actuals_snapshot select * from snap_keep;
 -- the ordinary linker keeps refusing an unprojected invoice for everyone else
 select is((public.link_erp_purchase_documents(jsonb_build_array(jsonb_build_object('erp_name','INV-16','erp_doctype','Purchase Invoice','project_id','21951003-0000-0000-0000-000000000003')),true))#>>'{results,0,reason}','document_has_no_project','AC-ROP-007 the ordinary linker still refuses an invoice with no project');
 reset role;
