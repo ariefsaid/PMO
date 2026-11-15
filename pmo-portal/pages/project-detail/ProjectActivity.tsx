@@ -169,7 +169,7 @@ export const ActivityFooter: React.FC<{ projectId: string; initialOpen?: boolean
   return (
     <>
       {/* A heading-only panel like every other block on the page: Activity, and its count as the way in. */}
-      <RecordSection title={label} className="mt-[var(--space-panel-gap)]" actions={(
+      <RecordSection title={label} actions={(
         <Tooltip content={t('projectDetail.activity.countTooltip', 'Count of project comments. Open Activity to read comments and recorded changes.')}>
           <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog"
             aria-label={`${label} · ${t('projectDetail.activity.count', '{{count}} comments', { count })}`}

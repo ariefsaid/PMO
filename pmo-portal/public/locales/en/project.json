@@ -510,6 +510,11 @@
       "cashUnmatchedShort": "Cash received (no receipt matched yet)"
     },
     "cost": {
+      "colCategory": "Category",
+      "colBudget": "Budget",
+      "colSpentOfBudget": "Spent of budget",
+      "colShare": "Share of budget",
+      "colUsed": "Used",
       "estimateTitle": "Budget",
       "estimateTooltip": "Estimated budget from the project record; not an active budget version.",
       "noEstimate": "No estimated budget yet",
@@ -595,6 +600,16 @@
       "invoiceThisLabel": "Invoice {{order}}"
     },
     "delivery": {
+      "colPhase": "Phase",
+      "colDue": "Due",
+      "colLateBy": "Late by",
+      "colWeight": "Weight",
+      "colTasks": "Tasks",
+      "colProgress": "Progress",
+      "lateByDays_one": "{{count}} day",
+      "lateByDays_other": "{{count}} days",
+      "weightPct": "{{pct}}%",
+      "tasksOf": "{{done}} of {{total}}",
       "timelineTitle": "Phase timeline",
       "emptyPipeline": "Phases are planned once the deal is won.",
       "doneManaging": "Done",

@@ -510,6 +510,11 @@
       "cashUnmatchedShort": "Kas diterima (belum ada penerimaan yang dicocokkan)"
     },
     "cost": {
+      "colCategory": "Kategori",
+      "colBudget": "Anggaran",
+      "colSpentOfBudget": "Terpakai dari anggaran",
+      "colShare": "Bagian anggaran",
+      "colUsed": "Persen terpakai",
       "estimateTitle": "Anggaran",
       "estimateTooltip": "Anggaran perkiraan dari catatan proyek; bukan versi anggaran aktif.",
       "noEstimate": "Belum ada anggaran perkiraan",
@@ -595,6 +600,16 @@
       "invoiceThisLabel": "Tagih {{order}}"
     },
     "delivery": {
+      "colPhase": "Fase",
+      "colDue": "Jatuh tempo",
+      "colLateBy": "Terlambat",
+      "colWeight": "Bobot",
+      "colTasks": "Tugas",
+      "colProgress": "Progres",
+      "lateByDays_one": "{{count}} hari",
+      "lateByDays_other": "{{count}} hari",
+      "weightPct": "{{pct}}%",
+      "tasksOf": "{{done}} dari {{total}}",
       "timelineTitle": "Linimasa tahapan",
       "emptyPipeline": "Tahapan direncanakan setelah peluang dimenangkan.",
       "doneManaging": "Selesai",

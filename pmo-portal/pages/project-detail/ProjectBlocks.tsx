@@ -221,15 +221,16 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean; /*
         </Note>
       )}
       {/* The figures this panel cannot compute yet are named here, beside the ones it shows. */}
-      {hidden.length > 0 && <FigureHiddenLine compact figures={hidden} className="mt-4 text-control text-muted-foreground" />}
-      {footer && <div className="mt-3">{footer}</div>}
-      <div className="mt-5 border-t border-border/70 pt-3" data-testid="money-position-details">
+      {hidden.length > 0 && <FigureHiddenLine compact figures={hidden.map((figure) => ({ ...figure, label: figure.label.replace(/\s*\(.*\)$/u, '') }))} className="mt-4 text-control text-muted-foreground" />}
+      {/* Details and the empty-milestones line share one row: the panel ends level with Needs attention. */}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 border-t border-border/70 pt-3" data-testid="money-position-details">
         <button type="button" aria-expanded={financeDetailsOpen} onClick={() => setFinanceDetailsOpen((open) => !open)}
           className="touch-target inline-flex items-center gap-2 cursor-pointer text-sm font-semibold text-muted-foreground hover:text-foreground">
           <Icon name="chev" className={`size-3.5 transition-transform duration-100 motion-reduce:transition-none ${financeDetailsOpen ? 'rotate-90' : ''}`} />
           {t('projectDetail.money.details', 'Details')}
         </button>
-        {financeDetailsOpen && <div className="space-y-4 pt-4"><ProjectFinancesSection project={project} /></div>}
+        {footer}
+        {financeDetailsOpen && <div className="basis-full space-y-4 pt-4"><ProjectFinancesSection project={project} /></div>}
       </div>
       <ProjectProfitLossSection projectId={project.id} />
     </Block>
@@ -495,8 +496,8 @@ const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children
         <div role="table" aria-label={title} className="mt-4 text-sm">
           <div role="row" className={cn(PHASE_GRID, 'max-md:sr-only border-b border-border/70 pb-2 text-control text-muted-foreground')}>
             <span role="columnheader">{t('projectDetail.delivery.colPhase', 'Phase')}</span>
-            <span role="columnheader">{t('projectDetail.delivery.colDue', 'Due')}</span>
-            <span role="columnheader">{t('projectDetail.delivery.colLateBy', 'Late by')}</span>
+            <span role="columnheader" className="md:text-right">{t('projectDetail.delivery.colDue', 'Due')}</span>
+            <span role="columnheader" className="md:text-right">{t('projectDetail.delivery.colLateBy', 'Late by')}</span>
             <span role="columnheader" className="md:text-right">{t('projectDetail.delivery.colWeight', 'Weight')}</span>
             <span role="columnheader" className="md:text-right">{t('projectDetail.delivery.colTasks', 'Tasks')}</span>
             <span role="columnheader">{t('projectDetail.delivery.colProgress', 'Progress')}</span>
@@ -516,10 +517,10 @@ const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children
                   {milestone.name}
                   {blockingTasks.length > 0 && <span className="mt-0.5 flex flex-wrap gap-x-3">{blockingTasks.map((task) => <Link key={task.id} to={`/projects/${projectId}/tasks?open=${encodeURIComponent(task.id)}`} className="font-medium text-primary-text hover:underline">{task.name}</Link>)}</span>}
                 </span>
-                <span role="cell" className="tabular-nums text-muted-foreground max-md:col-span-2 max-md:row-start-2 max-md:inline">
+                <span role="cell" className="tabular-nums text-muted-foreground md:text-right max-md:col-span-2 max-md:row-start-2 max-md:inline">
                   {milestone.target_date ? <>{cue(t('projectDetail.delivery.colDue', 'Due'))}{formatDayYear(milestone.target_date)}</> : '—'}
                 </span>
-                <span role="cell" className={cn('tabular-nums max-md:hidden', lateDays === null ? 'text-muted-foreground' : milestone.id === worstLate.id ? 'font-medium text-destructive-text' : 'text-foreground')}>
+                <span role="cell" className={cn('tabular-nums md:text-right max-md:hidden', lateDays === null ? 'text-muted-foreground' : milestone.id === worstLate.id ? 'font-medium text-destructive-text' : 'text-foreground')}>
                   {lateDays === null ? '—' : t('projectDetail.delivery.lateByDays', '{{count}} days', { count: lateDays })}
                 </span>
                 <span role="cell" className="tabular-nums text-muted-foreground md:text-right max-md:hidden">{t('projectDetail.delivery.weightPct', '{{pct}}%', { pct: String(weightShare) })}</span>

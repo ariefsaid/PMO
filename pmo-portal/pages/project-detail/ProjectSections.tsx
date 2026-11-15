@@ -60,7 +60,7 @@ const PipelineRecordBlocks: React.FC<{ project: ProjectWithRefs }> = ({ project 
 };
 
 /** The overview, led by the approved role-specific composition: money cockpit for finance roles, task lead for engineers. */
-const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean; onOpen: (a: Area) => void }> = ({ project, isPipeline, onOpen }) => {
+const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean; onOpen: (a: Area) => void; /** The Activity panel (delivery projects only). */ activity?: React.ReactNode }> = ({ project, isPipeline, onOpen, activity }) => {
   const lens = useLens();
   const may = usePermission();
   const attention = useProjectAttention(project, lens);
@@ -116,6 +116,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
             <BillingMilestonesBlock projectId={project.id} />
           </WhenNearViewport>
         </div>
+        {activity}
       </div>
     ) : (
       <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
@@ -134,6 +135,8 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
           <WhenNearViewport>
             <BillingMilestonesBlock projectId={project.id} empty={canSeeMoney ? 'none' : 'panel'} />
           </WhenNearViewport>
+          {/* Activity closes the overview: present, but never competing with the work above (Lessons). */}
+          {activity}
         </div>
       </div>
     )
@@ -270,12 +273,12 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
       <div role="tabpanel" id={tabPanelId('project-detail', panel)} aria-labelledby={tabId('project-detail', panel)} className="pt-4 md:pt-6">
         <Suspended>
           {panel === 'overview'
-            ? <OverviewContent project={project} isPipeline={isPipeline} onOpen={setArea} />
+            ? <OverviewContent project={project} isPipeline={isPipeline} onOpen={setArea}
+                activity={isPipeline ? null : <ActivityFooter projectId={project.id} initialOpen={area === 'activity'} />} />
             : <AreaContent project={project} area={panel} onCountChange={onCountChange} />}
         </Suspended>
       </div>
-      {/* Activity is about the project as a whole, so it lives on Overview only (owner, 2026-10-27). */}
-      {panel === 'overview' && !isPipeline && <ActivityFooter projectId={project.id} initialOpen={area === 'activity'} />}
+      {/* Activity is about the project as a whole, so it lives on Overview only (owner, 2026-10-27), placed inside it. */}
     </>
   );
 };
