@@ -289,9 +289,10 @@ export const AppShell: React.FC<AppShellProps> = ({
       >
         {banner}
         {/* Page gutters come from the shared token: 24px on wide screens, 16px below 922px.
-            #2061: on a phone the fixed bottom bar reserves its own height (token is 0px above
-            the phone breakpoint), so the last row is never hidden behind it. */}
-        <div className="mx-auto max-w-[1600px] px-[var(--space-page-gutter)] pb-[var(--space-page-gutter)] pt-5 max-[921px]:pt-4 max-[639px]:pb-[calc(var(--phone-nav-height)+var(--space-page-gutter))]">
+            #2061: THE one bottom inset. On a phone the page pads by the bar's measured height
+            (`--phone-nav-height`, safe area included) plus any page action bar stacked on it
+            (`--mobile-action-bar-height`); no screen adds its own. Both are 0 above the phone breakpoint. */}
+        <div className="mx-auto max-w-[1600px] px-[var(--space-page-gutter)] pb-[var(--space-page-gutter)] pt-5 max-[921px]:pt-4 max-[639px]:pb-[calc(var(--phone-nav-height)+var(--mobile-action-bar-height,0px)+var(--space-page-gutter))]">
           {children}
         </div>
       </main>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useLayoutEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/src/components/ui/cn';
@@ -29,6 +29,32 @@ const asRole = (role: string | null): UserRole | null => (role && ROLES.has(role
 const isActive = (pathname: string, to: string) =>
   to === '/' ? pathname === '/' : pathname === to || pathname.startsWith(`${to}/`);
 
+/**
+ * The shell's one bottom inset. The bar publishes its real rendered height (border, label row and the
+ * device safe-area padding) as `--phone-nav-height`; the shell pads the page by it and every stacked
+ * bar and toast sits on it. The stylesheet's nominal value only covers the first paint.
+ */
+function usePublishNavHeight(ref: React.RefObject<HTMLElement | null>, active: boolean): void {
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const bar = ref.current;
+    if (!active || !bar) return;
+    const publish = () => {
+      const height = bar.getBoundingClientRect().height;
+      if (height > 0) root.style.setProperty('--phone-nav-height', `${height}px`);
+    };
+    publish();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(publish);
+    observer?.observe(bar);
+    if (!observer) window.addEventListener('resize', publish);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', publish);
+      root.style.removeProperty('--phone-nav-height');
+    };
+  }, [ref, active]);
+}
+
 const PhoneNavBarContent: React.FC<PhoneNavBarProps & { hasEligibleDecisions: boolean }> = ({
   onOpenMore,
   onOpenSearch,
@@ -38,6 +64,8 @@ const PhoneNavBarContent: React.FC<PhoneNavBarProps & { hasEligibleDecisions: bo
   const { t } = useTranslation('home');
     const { pathname } = useLocation();
   const isNarrow = useIsNarrow();
+  const navRef = useRef<HTMLElement>(null);
+  usePublishNavHeight(navRef, isNarrow);
   const { effectiveRole, realRole } = useEffectiveRole();
   const { data: orgFeatures } = useOrgFeatures();
 
@@ -83,10 +111,10 @@ const PhoneNavBarContent: React.FC<PhoneNavBarProps & { hasEligibleDecisions: bo
 
   return (
     <nav
+      ref={navRef}
       data-testid="phone-nav"
       aria-label={t('nav.label', 'Phone navigation')}
       className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card pb-[env(safe-area-inset-bottom)]"
-      style={{ height: 'var(--phone-nav-height)' }}
     >
       <ul className="mx-auto flex h-14 max-w-[560px] items-stretch gap-0.5 px-1">
         {destinations.map((destination) => {

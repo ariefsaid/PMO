@@ -273,10 +273,7 @@ const TimesheetsPage: React.FC = () => {
         />
       )}
 
-      <Card
-        clip
-        className={editable ? 'pb-[calc(8rem+env(safe-area-inset-bottom))] md:pb-0' : undefined}
-      >
+      <Card clip>
         <div className="border-b border-border px-3.5 py-2.5">
           <div data-testid="timesheets-entry-header" className="flex min-w-0 flex-wrap items-center gap-2">
             <StatusPill record="timesheet" state={status ?? TimesheetStatus.Draft} />

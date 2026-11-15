@@ -274,7 +274,7 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
       {!pending && loadError && <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={retry} />}
       {!pending && !loadError && usable.length === 0 && <ListState variant="empty" icon="folder" title={t('form.noWarehouse.title')} sub={t('form.noWarehouse.sub')} />}
       {!pending && !loadError && usable.length > 0 && (
-        <form onSubmit={(e) => { e.preventDefault(); void submit(selfPostable); }} noValidate className="space-y-4 pb-24 md:pb-0">
+        <form onSubmit={(e) => { e.preventDefault(); void submit(selfPostable); }} noValidate className="space-y-4">
           {viewOnly && <p className="text-sm text-muted-foreground">{t('form.viewOnly')}</p>}
           <FormSection legend={t('form.sections.where')}>
             <FormGrid>

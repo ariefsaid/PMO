@@ -472,6 +472,6 @@ describe('AC-IXD-MOBILE-W4-C3 C3-13: content gutter uses the page-gutter token',
     const contentDiv = main.querySelector('div');
     expect(contentDiv).not.toBeNull();
     expect(contentDiv!.className).toContain('px-[var(--space-page-gutter)]');
-    expect(contentDiv!.className).toContain('max-[639px]:pb-[calc(var(--phone-nav-height)+var(--space-page-gutter))]');
+    expect(contentDiv!.className).toContain('max-[639px]:pb-[calc(var(--phone-nav-height)+var(--mobile-action-bar-height,0px)+var(--space-page-gutter))]');
   });
 });
