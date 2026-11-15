@@ -44,6 +44,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { RecordCaptureForm, RecordCaptureTrigger } from './RecordCaptureForm';
+import { BahasaProvider } from '@/test/bahasa';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
@@ -315,5 +316,32 @@ describe('RecordCaptureTrigger — GR/VI label + testid overrides', () => {
     const trigger = screen.getByTestId('btn-create-vi');
     expect(trigger).toHaveTextContent(/record supplier invoice/i);
     expect(trigger.className).not.toContain('bg-primary');
+  });
+});
+
+describe('RecordCaptureForm — Bahasa capture labels (#2345 row 11)', () => {
+  // One locale test per fix, rendered under id: the capture form's ref label, placeholder, date label
+  // and save label come from the catalogue (procurement.json, en + id) — never the hard-coded English.
+  it('the goods-receipt and request forms read their labels from the catalogue under id', () => {
+    render(
+      <ToastProvider>
+        <BahasaProvider locale="id">
+          <RecordCaptureForm kind="goods_receipt" onCreate={vi.fn().mockResolvedValue(undefined)} onClose={vi.fn()} />
+          <RecordCaptureForm kind="purchase_request" onCreate={vi.fn().mockResolvedValue(undefined)} onClose={vi.fn()} />
+        </BahasaProvider>
+      </ToastProvider>,
+    );
+
+    const gr = screen.getByTestId('form-create-gr');
+    expect(within(gr).getByText('Surat jalan')).toBeInTheDocument();
+    expect(within(gr).getByTestId('gr-ref-input')).toHaveAttribute('placeholder', 'cth. DN-44120');
+    expect(within(gr).getByText('Tanggal penerimaan')).toBeInTheDocument();
+    expect(within(gr).getByRole('button', { name: 'Simpan penerimaan' })).toBeInTheDocument();
+
+    // The generic ERP-canonical kinds were hard-coded the same way (ref label, placeholder, save label).
+    const pr = screen.getByTestId('form-capture-purchase_request');
+    expect(within(pr).getByText('Referensi eksternal')).toBeInTheDocument();
+    expect(within(pr).getByTestId('purchase_request-ref-input')).toHaveAttribute('placeholder', 'mis. SUPPLIER-PO-001');
+    expect(within(pr).getByRole('button', { name: 'Simpan permintaan pembelian' })).toBeInTheDocument();
   });
 });

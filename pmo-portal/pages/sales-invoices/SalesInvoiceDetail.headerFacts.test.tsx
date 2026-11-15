@@ -128,3 +128,32 @@ it('keeps the invoice number in one unbreakable text node in the record title', 
   expect(invoiceNumber.firstChild?.nodeType).toBe(Node.TEXT_NODE);
   expect(invoiceNumber).toHaveStyle({ whiteSpace: 'nowrap' });
 });
+
+it('a paid invoice no longer prompts "Ready to send" — per the status rules a paid invoice is delivered (#2345 row 2)', () => {
+  const paidTarget = { ...target, status: 'Paid' as const, erp_outstanding_amount: 0, received_date: null };
+  render(
+    <FinanceI18nTestProvider>
+      <MemoryRouter>
+        <SalesInvoiceDetail
+          viewTarget={paidTarget}
+          projectName="Northwind Build"
+          isPending={false}
+          isError={false}
+          data={[paidTarget]}
+          mode="erp"
+          organizationToday="2026-10-16"
+          onBack={vi.fn()}
+          refetch={vi.fn()}
+          recordPrimaryAction={null}
+          invoiceDisplayLabel={() => 'SI-2026-0001'}
+          may={(() => false) as never}
+          pdfDownload={{ download: vi.fn(), inFlightIds: new Set<string>() } as never}
+          dialogs={null}
+        />
+      </MemoryRouter>
+    </FinanceI18nTestProvider>,
+  );
+
+  expect(screen.queryByText('Ready to send')).not.toBeInTheDocument();
+  expect(screen.queryByText('Download the PDF and send it to your client yourself.')).not.toBeInTheDocument();
+});

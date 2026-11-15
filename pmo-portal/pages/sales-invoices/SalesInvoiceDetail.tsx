@@ -103,7 +103,11 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
               aria-label={t('finance:invoiceTimeline.label', 'Invoice status timeline')}
               className="mb-5 [&_[data-testid=stepper-scroll-container]>[role=list]]:gap-0 [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep]:min-w-0 [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep>span:first-child]:rounded-none [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep:first-child>span:first-child]:rounded-l-full [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep:last-child>span:first-child]:rounded-r-full [&_[data-testid=stepper-fade]]:hidden"
             />}
-            {viewTarget.erp_docstatus === 1 && (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid' || viewTarget.status === 'Paid') && (
+            {/* #2345 row 2: the manual-handoff prompt shows only while the invoice can still be sent.
+                The status rules (invoiceTimelineSteps) complete "Delivered to client" at Paid, so a
+                Paid invoice without a recorded receipt neither claims "Ready to send" nor offers the
+                handoff download; with a receipt the section still reports the recorded date. */}
+            {viewTarget.erp_docstatus === 1 && (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid' || viewTarget.status === 'Paid') && (viewTarget.received_date || viewTarget.status !== 'Paid') && (
               <section aria-label={t('uxs17.deliverySection', 'Client delivery')} className="mb-5 space-y-2 border-b border-border pb-4">
                 <div>
                   <h2 className="text-base font-semibold">
