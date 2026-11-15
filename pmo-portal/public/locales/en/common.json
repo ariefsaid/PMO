@@ -847,7 +847,6 @@
       "confirmErpButton": "Confirm what ERPNext holds",
       "errorDocumentHeld": "Already in ERP: this week cannot be re-opened yet.",
       "errorGeneric": "Could not re-open",
-      "errorGenericNextStep": "Check your connection and try again. If it keeps failing, contact your administrator.",
       "errorOutcomeUnknown": "This week’s ERP result is unknown. An administrator must confirm what ERPNext holds before it can be re-opened.",
       "errorPushInFlight": "A push is in flight for this week. Try again shortly.",
       "heading": "Approved history and corrections",

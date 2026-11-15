@@ -226,7 +226,7 @@ export function ReopenableApprovedSection({ hasPending }: { hasPending: boolean 
                             const classified = classifyMutationError(err);
                             toast(
                               classified.classification === 'unclassified'
-                                ? `${t('approvals.reopen.errorGeneric', 'Could not re-open')}. ${t('approvals.reopen.errorGenericNextStep', 'Check your connection and try again. If it keeps failing, contact your administrator.')}`
+                                ? `${t('approvals.reopen.errorGeneric', 'Could not re-open')}. ${t('timesheets:reopenErrorNextStep', 'Check your connection and try again. If it keeps failing, contact your administrator.')}`
                                 : `${t('approvals.reopen.errorGeneric', 'Could not re-open')}: ${classified.detail}`,
                               'error',
                             );

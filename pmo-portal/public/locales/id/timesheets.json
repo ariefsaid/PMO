@@ -1,4 +1,5 @@
 {
+  "reopenErrorNextStep": "Periksa koneksi Anda lalu coba lagi. Jika terus gagal, hubungi administrator Anda.",
   "submitWeek": "Ajukan minggu ini",
   "approvalQueue": {
     "unknownProject": "Proyek tidak diketahui",
