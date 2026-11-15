@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   EntityFormModal, FormGrid, FormSection, NumberField, TextArea, TextField, type SubmitError,
@@ -37,6 +37,11 @@ const ProgressAssessmentModal: React.FC<ProgressAssessmentModalProps> = ({
       : line.earning_basis === 'lump_sum' ? fractionToPercentInput(assessedByBoqItem[line.id]) : formatMoneyInputValue(assessedByBoqItem[line.id])]),
   ));
   const [note, setNote] = useState('');
+  const initial = useRef({ month: defaultMonth, quantities, note: '' });
+  // Starting values come from the latest assessment: only a change from them is unsaved work (#2080).
+  const dirty = month !== initial.current.month || note !== initial.current.note
+    || Object.keys({ ...quantities, ...initial.current.quantities })
+      .some((id) => (quantities[id] ?? '') !== (initial.current.quantities[id] ?? ''));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
@@ -88,7 +93,7 @@ const ProgressAssessmentModal: React.FC<ProgressAssessmentModalProps> = ({
       submitError={saveError}
       onClose={onClose}
       loading={saving}
-      dirty
+      dirty={dirty}
     >
       <FormSection legend={t('projectDetail.billing.assessment.title', 'Record progress')}>
         <FormGrid>

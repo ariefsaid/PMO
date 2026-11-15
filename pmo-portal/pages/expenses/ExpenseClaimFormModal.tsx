@@ -245,7 +245,14 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
         ? t('uxs29.expenseCapture.retryReceipt', 'Retry receipt')
         : initial ? t('expenses.form.submitSave', 'Save') : t('expenses.form.submitCreate', 'Create')}
       onSubmit={handleSubmit}
-      onClose={() => { if (!recoveryPending) onClose(); }}
+      onClose={() => {
+        if (!recoveryPending) { onClose(); return; }
+        // #2080: closing is held while the receipt is unfinished; say so instead of ignoring the click.
+        setSaveError({
+          headline: t('expenseClaims:new.closeBlocked', 'Finish the receipt or open the saved draft first'),
+          detail: t('expenseClaims:new.closeBlockedDetail', 'Your draft is saved. Retry the receipt, or open the draft and attach it later.'),
+        });
+      }}
       loading={form.isSubmitting}
       dirty={form.isDirty || receiptFile !== null}
       submitDisabled={!form.isComplete || advancesNotReady || projectsNotReady}

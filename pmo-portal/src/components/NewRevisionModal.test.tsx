@@ -147,4 +147,23 @@ describe('NewRevisionModal', () => {
     expect(screen.queryByText(/can be uploaded once the revision is created/)).not.toBeInTheDocument();
     expect(screen.getByText('Create the next revision of this document. It links to the latest Microsoft file, so there is nothing to upload.')).toBeInTheDocument();
   });
+
+  it('AC-WIG-2080 Esc on an untouched revision closes without a discard prompt; an edit asks first', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<NewRevisionModal parent={baseDoc} onSubmit={vi.fn()} onClose={onClose} loading={false} />);
+    await user.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
+  it('AC-WIG-2080 Esc after editing the title asks to discard and Keep editing keeps the form open', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<NewRevisionModal parent={baseDoc} onSubmit={vi.fn()} onClose={onClose} loading={false} />);
+    await user.type(screen.getByRole('textbox', { name: 'Title' }), ' v2');
+    await user.keyboard('{Escape}');
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });

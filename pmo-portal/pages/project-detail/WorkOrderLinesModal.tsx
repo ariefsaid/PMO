@@ -130,6 +130,14 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
       submitLabel={t('projectTabs:contractQuantities.workOrders.contractLines.done', 'Done')}
       onSubmit={(e) => {
         e.preventDefault();
+        // #2080: Enter inside a quantity field saves that row; only Done asks about the rest.
+        const focused = document.activeElement;
+        const rowId = focused instanceof HTMLInputElement && focused.id.startsWith('wo-line-') ? focused.id.slice('wo-line-'.length) : null;
+        const rowItem = rowId ? boqItems.find((item) => item.id === rowId) : undefined;
+        if (rowItem) {
+          if (busy === null) void save(rowItem);
+          return;
+        }
         if (dirty) setDoneConfirmOpen(true);
         else onClose();
       }}

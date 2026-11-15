@@ -1,5 +1,5 @@
 import { Avatar } from '@/src/components/ui/Avatar';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/src/auth/useAuth';
 import { useComments, useCommentMutations } from '@/src/hooks/useComments';
@@ -68,13 +68,15 @@ export interface CommentsSectionProps {
   entityId: string;
   /** Omit the section title when the host already names the area (e.g. the project Activity tab). */
   hideTitle?: boolean;
+  /** Reports whether a draft is typed, so a host that can unmount the section (a drawer) can ask first (#2080). */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 /**
  * Plain-text comments on a project or task (#790): newest last, author + relative time, `@` picks an
  * org member. RLS is the authority (readers of the parent read/post; only the author deletes).
  */
-export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, entityId, hideTitle = false }) => {
+export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, entityId, hideTitle = false, onDirtyChange }) => {
   const { t } = useTranslation();
   const { currentUser } = useAuth();
   const comments = useComments(entityType, entityId);
@@ -114,6 +116,9 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, en
   const tooLong = body.length > MAX_LEN;
   const canPost = body.trim().length > 0 && !tooLong && !post.isPending;
   const dirty = body.length > 0 || mentions.length > 0;
+
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
 
   useUnsavedChangesGuard({
     dirty,

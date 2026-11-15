@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   EntityFormModal,
@@ -67,6 +67,11 @@ export const NewRevisionModal: React.FC<NewRevisionModalProps> = ({
   const [revision, setRevision] = useState(bumpRevision(parent.revision));
   const [docDate, setDocDate] = useState('');
 
+  const initial = useRef({ title: parent.title, code: parent.code ?? '', category: parent.category, revision: bumpRevision(parent.revision) });
+  // Pre-filled values are not the user's work: only a change from them is worth a discard prompt (#2080).
+  const dirty = title !== initial.current.title || code !== initial.current.code
+    || category !== initial.current.category || revision !== initial.current.revision || docDate !== '';
+
   const canSubmit = title.trim().length > 0 && category.trim().length > 0;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -95,7 +100,7 @@ export const NewRevisionModal: React.FC<NewRevisionModalProps> = ({
       onSubmit={handleSubmit}
       onClose={onClose}
       loading={loading}
-      dirty={true}
+      dirty={dirty}
       submitDisabled={readOnly || !canSubmit}
     >
       {error && (
