@@ -2127,9 +2127,16 @@ export async function feedOrgLedgersLive(serviceClient: SupabaseClient, org: Org
     statementErrors.length === 0 && glCaughtUp && pleCaughtUp && !rawError,
   );
   if (statementReady && org.bindingId) {
+    // The ledger amounts are in the ERP company's currency. A failed or blank read records an unknown
+    // currency (capture then refuses it by name); it never stops the completion from being recorded.
+    let ledgerCurrency: string | null = null;
+    try {
+      const company = await getDoc(withProbeBudget(client), 'Company', org.company) as { default_currency?: unknown } | null;
+      ledgerCurrency = typeof company?.default_currency === 'string' && company.default_currency.trim() ? company.default_currency.trim() : null;
+    } catch { /* unknown currency */ }
     try {
       const { error } = await serviceClient.rpc('record_capture_feed_completion', {
-        p_org_id: org.orgId, p_binding_id: org.bindingId, p_kind: 'ledger', p_started_at: attemptAt, p_run_id: captureRunId,
+        p_org_id: org.orgId, p_binding_id: org.bindingId, p_kind: 'ledger', p_started_at: attemptAt, p_run_id: captureRunId, p_currency: ledgerCurrency,
       });
       if (error) statementErrors.push('Could not record ledger feed completion');
     } catch { statementErrors.push('Could not record ledger feed completion'); }
