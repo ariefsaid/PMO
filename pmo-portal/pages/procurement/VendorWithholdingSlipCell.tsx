@@ -29,7 +29,7 @@ export function VendorWithholdingSlipCell({ row, isLoading = false, isError = fa
   return <div className="flex max-w-[14rem] flex-col items-end gap-0.5 text-right text-sm">
     <span className={row.coverage_state === 'needs-review' ? 'font-medium text-foreground' : 'text-muted-foreground'}>{labels[row.coverage_state] ?? labels.unavailable}</span>
     {isActive && <>
-      <span className="max-w-full break-all font-mono">{row.slip_number ?? ''}</span>
+      <span className="max-w-full break-all record-id">{row.slip_number ?? ''}</span>
       {row.slip_date && <span className="text-muted-foreground">{formatDay(row.slip_date)}</span>}
       <button type="button" className="touch-target inline-flex items-center justify-center underline underline-offset-2 max-[767px]:min-h-11" onClick={() => onView?.(row.active_slip_id!)}>{t('bupot.view', 'View bukti potong')}</button>
     </>}

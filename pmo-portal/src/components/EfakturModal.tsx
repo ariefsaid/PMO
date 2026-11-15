@@ -101,7 +101,6 @@ export const EfakturModal: React.FC<EfakturModalProps> = ({
           value={numberDraft}
           onChange={setNumberDraft}
           maxLength={32}
-          mono
           placeholder="010.000-26.12345678"
           autoComplete="off"
           error={numberError}

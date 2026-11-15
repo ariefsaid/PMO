@@ -274,7 +274,7 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
               label={t('erpLinks.selectOne', 'Select {{name}}', { name: r.name })}
             />
           )}
-          <span className="font-mono">{r.name}</span>
+          <span className="record-id font-semibold text-foreground">{r.name}</span>
         </span>
       ),
       secondaryCell: (r) => <span className={canLink ? 'pl-6 max-[767px]:pl-8' : undefined}>{erpDoctypeLabel(t, r.doctype)}</span>,

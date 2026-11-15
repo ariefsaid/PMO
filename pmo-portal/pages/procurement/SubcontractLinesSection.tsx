@@ -157,7 +157,7 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
                   return (
                     <tr key={r.boq_item_id} className="border-b border-border/60 last:border-0">
                       <th scope="row" className="py-1.5 pr-3 text-left font-normal">
-                        <span className="font-mono">{r.item_code}</span>
+                        <span className="record-id font-semibold text-foreground">{r.item_code}</span>
                         <span className="ml-2 text-muted-foreground">{r.description}</span>
                       </th>
                       <td className="py-1.5 pr-3">{r.unit}</td>
@@ -217,7 +217,7 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
               {exceptionRows.map((e) => (
                 <li key={e.invoice_id} className="flex flex-wrap items-center gap-2">
                   <span>
-                    <span className="font-mono">{e.number}</span> ({formatCurrency(e.amount, currency)}): {reasonLabel(e.reason)}
+                    <span className="record-id text-foreground">{e.number}</span> ({formatCurrency(e.amount, currency)}): {reasonLabel(e.reason)}
                   </span>
                   {e.reason === 'no_lines' && canEditLines && (
                     <Button variant="outline" size="sm" onClick={() => setAttribute(e)}>

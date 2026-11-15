@@ -67,10 +67,10 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
         : preErp;
       return (
         <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-          {embedded ? <span className={draftLabel ? 'min-w-0 break-words text-control text-foreground' : 'min-w-0 break-all font-mono text-control text-foreground'}>{draftLabel ?? number ?? '—'}</span> : <Link
+          {embedded ? <span className={draftLabel ? 'min-w-0 break-words text-control font-semibold text-foreground' : 'min-w-0 break-all record-id font-semibold text-foreground'}>{draftLabel ?? number ?? '—'}</span> : <Link
             to={`/sales-invoices/${encodeURIComponent(inv.id)}${location.search}`}
             state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }}
-            className={draftLabel ? 'truncate text-control text-foreground underline-offset-2 hover:underline focus-visible:underline' : 'truncate font-mono text-control text-foreground underline-offset-2 hover:underline focus-visible:underline'}
+            className={draftLabel ? 'truncate text-control font-semibold text-foreground underline-offset-2 hover:underline focus-visible:underline' : 'truncate record-id font-semibold text-foreground underline-offset-2 hover:underline focus-visible:underline'}
             title={draftLabel ?? number ?? ''}
           >{draftLabel ?? number ?? '—'}</Link>}
           {/* #784 AC-NAR-004 (DD-NAR-11): a PMO invoice from before the ERP took revenue over is history. */}

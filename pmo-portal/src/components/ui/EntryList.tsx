@@ -48,7 +48,7 @@ export const EntryList: React.FC<EntryListProps> = ({ entries }) => {
               <div className="flex items-baseline gap-1.5 min-w-0">
                 <span className="min-w-0 break-words text-control font-semibold">{entry.project?.name ?? t('dashboard.engineer.unknownProject', 'Unknown')}</span>
                 {entry.project?.code && (
-                  <span className="shrink-0 break-words font-mono text-control text-muted-foreground">
+                  <span className="shrink-0 break-words record-id">
                     {entry.project.code}
                   </span>
                 )}

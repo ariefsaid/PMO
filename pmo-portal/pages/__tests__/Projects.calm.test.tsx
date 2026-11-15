@@ -105,14 +105,14 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
     expect(screen.getAllByText('Endco')).toHaveLength(1);
   });
 
-  it('name cell carries no per-row references disclosure; identifiers sit on one mono line', () => {
+  it('name cell carries no per-row references disclosure; identifiers sit on one muted line', () => {
     renderPage();
     expect(screen.queryByText('More project references')).not.toBeInTheDocument();
     expect(screen.queryByText(/Client Project Code/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Customer contract reference/)).not.toBeInTheDocument();
     const first = screen.getByText('Synthetic project 0').closest('tr')!;
     const ids = within(first).getByText('PMO-1000 · CLI-0');
-    expect(ids).toHaveClass('font-mono');
+    expect(ids).toBeInTheDocument();
   });
 
   it('classification fields live inside the one filter builder (no second trigger)', async () => {

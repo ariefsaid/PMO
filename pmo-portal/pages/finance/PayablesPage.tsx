@@ -98,7 +98,7 @@ const PayablesPage: React.FC = () => {
       header: t('financeHub:hub.fix.payables.procurement', 'Procurement'),
       kind: 'text',
       size: 210,
-      cell: (row) => <div className="min-w-0"><div className="min-w-0 whitespace-normal break-words font-medium" title={row.procurement.title}>{row.procurement.title}</div><div className={row.procurement.code ? 'font-mono text-control text-muted-foreground' : 'text-control text-muted-foreground'}>{procurementReference(row)}</div></div>,
+      cell: (row) => <div className="min-w-0"><div className="min-w-0 whitespace-normal break-words font-medium" title={row.procurement.title}>{row.procurement.title}</div><div className={row.procurement.code ? 'record-id' : 'text-control text-muted-foreground'}>{procurementReference(row)}</div></div>,
       exportValue: (row) => `${row.procurement.title} · ${procurementReference(row)}`,
     },
     {

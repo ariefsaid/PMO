@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next';
 export interface HoursBarProps {
   /** Project name (displayed as body text). */
   label: string;
-  /** Machine identifier — rendered in mono when present. */
+  /** Machine identifier — rendered as the shared record-id role when present. */
   code: string | null;
   /** This project's value (hours by default; any quantity when `formatValue` is set). */
   hours: number;
@@ -46,7 +46,7 @@ export const HoursBar: React.FC<HoursBarProps> = ({
         <div className="flex items-baseline gap-1.5 min-w-0">
           <span className="min-w-0 break-words text-control font-semibold">{label}</span>
           {code && (
-            <span className="shrink-0 break-words font-mono text-control text-muted-foreground">{code}</span>
+            <span className="shrink-0 break-words record-id">{code}</span>
           )}
         </div>
         <span

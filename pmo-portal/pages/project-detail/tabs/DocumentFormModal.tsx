@@ -168,7 +168,6 @@ export const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
             <TextField
               id={codeField.id}
               label={t('projectDetail.documents.form.code', 'Code')}
-              mono
               value={codeField.value}
               onChange={codeField.onChange}
               onBlur={codeField.onBlur}

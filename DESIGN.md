@@ -68,7 +68,8 @@ typography:
   control: { size: "14px", weight: 400, lineHeight: 1.43, floor: "job text" }
   supporting: { size: "14px", weight: 400, lineHeight: 1.43, color: "muted-foreground", use: "captions, meta, table header labels" }
   metric: { size: "30px", weight: 600, lineHeight: 1.2, numeric: "tabular", use: "key figures" }
-  mono: "Tailwind v4 font-mono stack — identifiers only"
+  record-id: { size: "14px", weight: 400, color: "muted-foreground", numeric: "tabular", use: "record numbers, codes, references" }
+  code-font: "mono stack — rendered assistant answers only (.prose-pmo code/pre); no UI surface"
 rounded:
   sm: "4px"
   control: "6px"
@@ -220,9 +221,10 @@ Hanken Grotesk remains self-hosted and is used without stylistic alternates. The
 | Control/body | 14px / 20.02px | 400 |
 | Secondary | 14px / 20.02px | 400, muted-foreground |
 | Key figure | 30px / 36px | 600, tabular |
+| Record id | 14px / 20.02px | 400, muted-foreground, tabular |
 | Micro (restricted) | 12px / 16.08px | 400 |
 
-14px is the floor for job text, secondary copy, and table labels. 12px is limited to chart ticks, count badges, shortcut hints, timestamps, and the app-version footer; nothing renders below 12px. Mono remains for identifiers only.
+14px is the floor for job text, secondary copy, and table labels. 12px is limited to chart ticks, count badges, shortcut hints, timestamps, and the app-version footer; nothing renders below 12px. Record numbers, codes and references share ONE type role (`.record-id`): the app's normal family, 14px, regular, muted-foreground, tabular figures, no letter-spacing change. The mono family is reserved for code blocks and inline code inside rendered assistant answers (`.prose-pmo`); no other surface uses a second typeface. In a table row the primary name is medium, everything else regular, secondary lines muted.
 
 ## 4. Geometry, motion, and elevation
 
@@ -317,7 +319,7 @@ Header and row geometry follow the shared table tokens. Header cells use a 52px 
   and retain at least 100px for each value cell at a 390px viewport. Desktop headers keep their full
   date and currency captions. Amounts may wrap when longer than the available width; they must not
   be clipped or reduced to one digit per line.
-- **In-cell:** project cell (28px mono icon + 2-line name/code, code in `font-mono`); money (`tabular`,
+- **In-cell:** project cell (28px monoline icon + 2-line name/code, code in `record-id`); money (`tabular`,
   sub-values `muted`); win-% bar (track `secondary`, fill `success`/`warning`/`destructive` by
   threshold); age chip (turns `warning`/`destructive` when aging/stale).
 - **Footer:** totals row, `secondary/40%` bg, 1.5px top border, `tabular` values.
@@ -463,14 +465,14 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
   groups one job's content, never a card inside a card.
 - **Do** apply `tabular-nums` to every figure (currency, %, counts, deltas, ages).
 - **Do** use 38px default and 30px compact controls, with 6px and 4px control radii; retain 44px coarse-pointer targets.
-- **Do** use `font-mono` only for machine IDs/codes and the `⌘K` chip; other UI text uses default Hanken Grotesk forms.
+- **Do** render every record number, code or reference as the shared `record-id` role — normal family, 14px, regular, muted-foreground, tabular figures (a Copy button carries exactness, not a second typeface). The mono family stays only in rendered assistant answers (`.prose-pmo` code/pre).
 - **Do** expose the global `:focus-visible` ring on every focusable element; keep `role`/`aria-*` on tabs,
   checkboxes, nav, dialogs.
 - **Do** reserve violet/status hues for non-interactive meaning — never as action colors.
 - **Do** route every status/severity/category pill through `src/lib/status/statusVariants.ts`.
 - **Do** open every primary entity as a routable `/x/:id` page (The Record-Open Rule, §7).
 - **Do** give every item of a responsive `grid`/`flex` layout an explicit `min-w-0` the moment ANY
-  descendant is intrinsically wide and un-wrappable (a `LifecycleStepper`-style scroll row, a mono id,
+  descendant is intrinsically wide and un-wrappable (a `LifecycleStepper`-style scroll row, a record id,
   `whitespace-nowrap`): the CSS default `min-width: auto` floors the shared track/item at that
   descendant's content-based minimum, overflowing a narrow viewport, even when a nested
   `overflow-hidden` sits several levels further down (AC-RAM-003, #688 — `PipelineLens`'s two-card

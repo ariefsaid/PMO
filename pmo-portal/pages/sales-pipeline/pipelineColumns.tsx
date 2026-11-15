@@ -56,7 +56,7 @@ export function buildPipelineColumns({
       primaryTitle: (r) => r.name,
       secondaryCell: (r) =>
         identifiers(r).length > 0 ? (
-          <span className="font-mono" title={identifierLabels(r)}>
+          <span className="record-id" title={identifierLabels(r)}>
             {identifiers(r).join(' · ')}
           </span>
         ) : undefined,

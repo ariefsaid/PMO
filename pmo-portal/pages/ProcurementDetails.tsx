@@ -496,7 +496,7 @@ const ProcurementDetails: React.FC = () => {
   // The separator goes BETWEEN present parts only — a purchase with no request number (e.g. one created from an ERPNext
   // document) must not start with a stray "·".
   const meta = [
-    p.code ? <span key="code" className="font-mono">{p.code}</span> : null,
+    p.code ? <span key="code" className="record-id">{p.code}</span> : null,
     p.project?.name ? <ProjectNameLink key="proj" projectId={p.project_id} name={projectDisplayName(p.project)} legalName={p.project.name} /> : null,
     p.vendor?.name ? <CompanyNameLink key="supplier" companyId={p.vendor_id} name={p.vendor.name} /> : <span key="supplier-missing">{t('procurementRecord:status.supplierNotChosen', 'Supplier not chosen yet')}</span>,
     p.requested_by?.full_name ? <span key="req" className="inline-flex items-center gap-1.5"><Avatar name={p.requested_by.full_name} decorative /><span>{t('procurementRecord:meta.raisedBy', 'Raised by')} {p.requested_by.full_name}</span></span> : null,

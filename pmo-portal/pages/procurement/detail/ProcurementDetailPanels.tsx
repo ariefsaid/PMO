@@ -412,7 +412,7 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
                     </span>
                     <span className="whitespace-nowrap text-sm text-muted-foreground max-[640px]:col-start-2 max-[640px]:row-start-1">{showDate(entry.date, t('timeline.dateMissing', 'Date not recorded'))}</span>
                     <span className="min-w-0 max-[640px]:col-start-2">
-                      <span className="block text-sm font-medium">{entry.label}{entry.number ? <span className="ml-1 font-mono text-sm">{entry.number}</span> : null}</span>
+                      <span className="block text-sm font-medium">{entry.label}{entry.number ? <span className="ml-1 record-id text-foreground">{entry.number}</span> : null}</span>
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
                         {entry.actor && <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
                           <Avatar name={entry.actor} size="xs" decorative fallback="" />

@@ -543,7 +543,6 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
               onChange={codeField.onChange}
               onBlur={codeField.onBlur}
               helper={t('projects:projectForm.clientCode.helper', 'Optional code your organization uses for this client project.')}
-              mono
             />
           ) : (
             <>
@@ -570,7 +569,6 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                   : numberProposal.status === 'success'
                     ? t('projects:projectForm.projectNumber.assignedAndEditable', 'Assigned once you choose a client. You can change it before creating.')
                     : t('projects:projectForm.projectNumber.assignedOnChooseClient', 'Assigned automatically once you choose a client.')}
-                mono
               />
               {numberProposal.status === 'loading' && (
                 <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
@@ -584,7 +582,6 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 onChange={codeField.onChange}
                 onBlur={codeField.onBlur}
                 helper={t('projects:projectForm.clientCode.helper', 'Optional code your organization uses for this client project.')}
-                mono
               />
               <SelectField
                 id={statusField.id}

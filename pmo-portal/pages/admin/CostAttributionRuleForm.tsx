@@ -139,16 +139,15 @@ const CostAttributionRuleForm: React.FC<Props> = ({ rule, projects, currency, on
             {...form.fieldProps('matchValue')}
             label={v.matchBy === 'account' ? t('costAttribution:form.account', 'ERP account') : t('costAttribution:form.accountGroup', 'ERP account group')}
             required
-            mono
           />
         </FormGrid>
       </FormSection>
 
       <FormSection legend={t('costAttribution:form.narrowLegend', 'Narrow to (optional)')}>
         <FormGrid>
-          <TextField {...form.fieldProps('costCenter')} label={t('costAttribution:form.costCenter', 'Cost centre')} mono />
+          <TextField {...form.fieldProps('costCenter')} label={t('costAttribution:form.costCenter', 'Cost centre')} />
           <TextField {...form.fieldProps('partyType')} label={t('costAttribution:form.partyType', 'Party type')} placeholder={t('costAttribution:form.partyTypePlaceholder', 'e.g. Employee')} />
-          <TextField {...form.fieldProps('party')} label={t('costAttribution:form.party', 'Party')} mono />
+          <TextField {...form.fieldProps('party')} label={t('costAttribution:form.party', 'Party')} />
         </FormGrid>
       </FormSection>
 

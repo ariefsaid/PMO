@@ -62,7 +62,7 @@ export const SalesInvoiceApprovalPreview: React.FC<{
                 <span className="min-w-[12rem] flex-1 break-words">
                   <span className="block">{line.description ?? line.item_code ?? '—'}</span>
                   {line.description && line.item_code && (
-                    <span className="block font-mono text-control text-muted-foreground">{line.item_code}</span>
+                    <span className="block record-id">{line.item_code}</span>
                   )}
                 </span>
                 <span className="ml-auto shrink-0 tabular text-muted-foreground">

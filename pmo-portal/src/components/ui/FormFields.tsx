@@ -207,8 +207,6 @@ export interface TextFieldProps
    * hand-rolled one shipped with no `aria-invalid`/`aria-describedby` at all.
    */
   hideLabel?: boolean;
-  /** Render the value in SF Mono (codes/refs). */
-  mono?: boolean;
 }
 
 export const TextField: React.FC<TextFieldProps> = ({
@@ -220,7 +218,6 @@ export const TextField: React.FC<TextFieldProps> = ({
   error,
   fullWidth,
   hideLabel,
-  mono,
   wrapperClassName,
   className,
   type = 'text',
@@ -257,7 +254,6 @@ export const TextField: React.FC<TextFieldProps> = ({
             className={cn(
               formControlShell,
               error && formControlInvalid,
-              mono && 'font-mono',
               isSecret && 'pr-8',
               className,
             )}
@@ -281,7 +277,7 @@ export const TextField: React.FC<TextFieldProps> = ({
 
 // ---- NumberField ----------------------------------------------------------
 
-export interface NumberFieldProps extends Omit<TextFieldProps, 'mono' | 'type'> {
+export interface NumberFieldProps extends Omit<TextFieldProps, 'type'> {
   /** Leading adornment (e.g. "$"). */
   prefix?: string;
   /** Group valid money drafts using the active number locale while preserving partial decimals. */

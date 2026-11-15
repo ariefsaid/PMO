@@ -146,7 +146,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
             {clientName && ids && <span aria-hidden className="shrink-0">·</span>}
             {ids && <>
               {p.pmo_project_number && <span className="sr-only">{t('projects.identifiers.pmo', 'PMO Project Number')}: </span>}
-              <span className="shrink-0 whitespace-nowrap font-mono" title={ids}>{ids}</span>
+              <span className="shrink-0 whitespace-nowrap record-id" title={ids}>{ids}</span>
             </>}
             {ids && endClientName && <span aria-hidden className="shrink-0">·</span>}
             {endClientName && <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-muted-foreground">{endClientName}</span>}
@@ -350,7 +350,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
         {(p.client || ids || p.end_client) && (
           <div className="mt-1 flex min-w-0 flex-wrap gap-x-3 break-words text-sm font-normal text-muted-foreground" onClick={(event) => event.stopPropagation()}>
             {p.client && <CompanyNameLink companyId={p.client_id} name={companyDisplayName(p.client)} className="inline" />}
-            {ids && <span className="whitespace-nowrap font-mono" title={ids}>{ids}</span>}
+            {ids && <span className="whitespace-nowrap record-id" title={ids}>{ids}</span>}
             {p.end_client && <span>{companyDisplayName(p.end_client)}</span>}
           </div>
         )}
