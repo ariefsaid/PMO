@@ -112,7 +112,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const [withdrawFor, setWithdrawFor] = useState<ProgressClaimWithInvoice | null>(null);
 
   const boqRows = useMemo(() => boq.data ?? [], [boq.data]);
-  const boqImportDescriptor = useMemo(() => makeContractLineImportDescriptor(projectId), [projectId]);
+  const boqImportDescriptor = useMemo(() => makeContractLineImportDescriptor(projectId, t), [projectId, t]);
   const claimRows = useMemo(() => claims.data ?? [], [claims.data]);
   const canViewMoney = may('view', 'salesInvoice');
   const openRecordId = searchParams.get('open');

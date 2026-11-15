@@ -104,3 +104,14 @@ describe('a key repeated within one sheet (#1278)', () => {
     expect(sent.map((r) => rows[r.index][0])).toEqual(['A', 'B']);
   });
 });
+
+describe('contract-line import labels (#1278)', () => {
+  it('are read from the import catalogue, so Bahasa Indonesia shows Indonesian column names', async () => {
+    const { readFileSync } = await import('node:fs');
+    const id = JSON.parse(readFileSync('public/locales/id/import.json', 'utf8'));
+    const lookup = ((key: string, fallback: string) => key.split(':')[1].split('.').reduce((o: unknown, k) => (o as Record<string, unknown> | undefined)?.[k], id) ?? fallback) as never;
+    const labels = makeContractLineImportDescriptor('p1', lookup).fields.map((f) => f.label);
+    expect(labels).toEqual(['Kunci', 'Kode item', 'Deskripsi', 'Satuan', 'Kuantitas', 'Harga satuan', 'No. baris', 'Dasar perolehan']);
+    expect(makeContractLineImportDescriptor('p1').fields[0].label).toBe('Key');
+  });
+});

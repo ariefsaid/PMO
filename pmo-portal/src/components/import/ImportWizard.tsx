@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useId, useRef } from 'react';
 import { Dialog } from '@base-ui/react/dialog';
 import { Button, DataTable, Icon, StatusPill, UnsavedChangesDialog, type Column, type StatusVariant } from '@/src/components/ui';
-import { FileInput, SelectField } from '@/src/components/ui/FormFields';
+import { FileInput, SelectField, TextArea } from '@/src/components/ui/FormFields';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/src/components/ui/cn';
 import { overlayBackdropClassName, overlayBackdropStyle } from '@/src/components/ui/OverlaySurface';
@@ -214,6 +214,8 @@ type Wiz<Input> = ReturnType<typeof useImportWizard<Input>>;
 
 function UploadStep<Input>({ wiz }: { wiz: Wiz<Input> }) {
   const inputId = useId();
+  const { t } = useTranslation();
+  const [pasted, setPasted] = React.useState('');
   return (
     <div className="flex flex-col gap-3">
       <label
@@ -238,6 +240,19 @@ function UploadStep<Input>({ wiz }: { wiz: Wiz<Input> }) {
           }}
         />
       </label>
+      <TextArea
+        label={t('import:paste.label', 'Or paste rows copied from a spreadsheet')}
+        helper={t('import:paste.helper', 'Include the header row. Columns separated by tabs, as copied from a sheet.')}
+        value={pasted}
+        onChange={setPasted}
+        rows={4}
+        fullWidth
+      />
+      <div>
+        <Button variant="outline" size="sm" onClick={() => wiz.selectPaste(pasted)} disabled={pasted.trim() === ''}>
+          {t('import:paste.use', 'Use pasted rows')}
+        </Button>
+      </div>
       {wiz.parsing && <p role="status">Reading file…</p>}
       {wiz.parseError && (
         <p role="alert" className="flex items-start gap-1.5 text-control text-destructive">

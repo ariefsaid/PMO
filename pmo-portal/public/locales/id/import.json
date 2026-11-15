@@ -5,5 +5,20 @@
     "valid": "Valid",
     "skipped": "Dilewati",
     "tableName": "Pratinjau baris impor"
+  },
+  "paste": {
+    "label": "Atau tempel baris yang disalin dari spreadsheet",
+    "helper": "Sertakan baris judul kolom. Kolom dipisah tab, seperti saat disalin dari lembar kerja.",
+    "use": "Gunakan baris yang ditempel"
+  },
+  "contractLines": {
+    "key": "Kunci",
+    "itemCode": "Kode item",
+    "description": "Deskripsi",
+    "unit": "Satuan",
+    "quantity": "Kuantitas",
+    "rate": "Harga satuan",
+    "lineNo": "No. baris",
+    "earningBasis": "Dasar perolehan"
   }
 }

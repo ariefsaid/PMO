@@ -5,5 +5,20 @@
     "valid": "Valid",
     "skipped": "Skipped",
     "tableName": "Import row preview"
+  },
+  "paste": {
+    "label": "Or paste rows copied from a spreadsheet",
+    "helper": "Include the header row. Columns separated by tabs, as copied from a sheet.",
+    "use": "Use pasted rows"
+  },
+  "contractLines": {
+    "key": "Key",
+    "itemCode": "Item code",
+    "description": "Description",
+    "unit": "Unit",
+    "quantity": "Quantity",
+    "rate": "Rate",
+    "lineNo": "Line no",
+    "earningBasis": "Basis"
   }
 }

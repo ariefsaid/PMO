@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import i18next from 'i18next';
 import { readFileSync } from 'node:fs';
@@ -690,9 +690,29 @@ describe('BillingTab', () => {
     expect(h.createBoq).toHaveBeenCalledWith('p1', expect.objectContaining({ importKey: 'L-1', quantity: 12.5, rate: 40 }));
   });
 
-  it('AC-1278 offers the import only to a role that may create contract lines', () => {
+  it('AC-1278 offers the import to a role that may create contract lines, and hides it from a Viewer', () => {
+    h.role = 'Project Manager';
+    const first = renderTab();
+    expect(screen.getByRole('button', { name: 'Import lines' })).toBeInTheDocument();
+    cleanup();
     h.role = 'Viewer';
     renderTab();
     expect(screen.queryByRole('button', { name: 'Import lines' })).toBeNull();
+    void first;
+  });
+
+  it('AC-1278 pasted rows import through the same preview-then-apply path as an upload', async () => {
+    h.createBoq.mockResolvedValue({ id: 'new' });
+    const user = renderTab();
+    await user.click(screen.getByRole('button', { name: 'Import lines' }));
+    await user.click(screen.getByLabelText(/paste rows copied/i));
+    await user.paste('Key\tItem code\tDescription\tUnit\tQuantity\tRate\nL-1\tSVC-1\tTrenching\tm\t12.5\t40\nL-2\tSVC-2\tCabling\tm\t0\t40');
+    await user.click(screen.getByRole('button', { name: /use pasted rows/i }));
+    await user.click(await screen.findByRole('button', { name: /^next/i }));
+    expect(await screen.findByText(/"quantity" must be a positive number/)).toBeInTheDocument();
+    expect(h.createBoq).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: /^import 1 /i }));
+    await waitFor(() => expect(h.createBoq).toHaveBeenCalledTimes(1));
+    expect(h.createBoq).toHaveBeenCalledWith('p1', expect.objectContaining({ importKey: 'L-1' }));
   });
 });

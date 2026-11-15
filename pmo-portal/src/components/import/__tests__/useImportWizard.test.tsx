@@ -88,6 +88,45 @@ describe('useImportWizard', () => {
     expect(create).toHaveBeenCalledWith({ name: 'Acme', type: 'Client' });
   });
 
+  it('AC-1278 descriptor.validateSheet runs in the wizard: a row it rejects is never sent to create', async () => {
+    (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue({
+      headers: ['Company name', 'Type'],
+      rows: [['Acme', 'Client'], ['Acme', 'Vendor']],
+    });
+    const create = vi.fn().mockResolvedValue({ id: '1' });
+    const descriptor: ImportDescriptor<Co> = {
+      ...makeDescriptor(create),
+      validateSheet: (rows) => rows.map((_, i) => (i === 1 ? { name: 'repeated' } : {})),
+    };
+    const { result } = renderHook(() => useImportWizard(descriptor));
+    await act(async () => { await result.current.selectFile(file()); });
+    act(() => result.current.goPreview());
+    expect(result.current.validation[1].errors.name).toBe('repeated');
+    await act(async () => { await result.current.commit(); });
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it('AC-1278 pasted rows go through the same mapping and validation as an upload, with zero writes until commit', async () => {
+    const create = vi.fn().mockResolvedValue({ id: '1' });
+    const { result } = renderHook(() => useImportWizard(makeDescriptor(create)));
+    act(() => result.current.selectPaste('Company name\tType\nAcme\tClient\nBad\tNope\n'));
+    expect(result.current.step).toBe('mapping');
+    expect(result.current.mapping).toEqual({ name: 0, type: 1 });
+    act(() => result.current.goPreview());
+    expect(result.current.counts).toMatchObject({ valid: 1, invalid: 1, total: 2 });
+    expect(create).not.toHaveBeenCalled();
+    await act(async () => { await result.current.commit(); });
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledWith({ name: 'Acme', type: 'Client' });
+  });
+
+  it('AC-1278 pasting only a header row is refused with no step change', () => {
+    const { result } = renderHook(() => useImportWizard(makeDescriptor(vi.fn())));
+    act(() => result.current.selectPaste('Company name\tType'));
+    expect(result.current.step).toBe('upload');
+    expect(result.current.parseError).toMatch(/no data rows/);
+  });
+
   it('AC-IMP-005a: commit creates one record per VALID row via descriptor.create, skips invalid rows, and reports created/failed counts', async () => {
     (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue({
       headers: ['Company name', 'Type'],

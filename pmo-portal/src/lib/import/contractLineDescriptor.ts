@@ -1,3 +1,4 @@
+import type { TFunction } from 'i18next';
 import { repositories } from '@/src/lib/repositories';
 import { parseNeutralMoneyInputAtScale } from '@/src/lib/format';
 import { AppError } from '@/src/lib/appError';
@@ -45,15 +46,19 @@ function lineFromCells(c: Record<string, string>) {
  * `contract-line-rules` module `pmo load` uses, so the preview refuses exactly what the CLI refuses. A key already
  * on the project is skipped, never updated (DD-CQ-7): the `boq_items` unique import key answers 23505.
  */
-export function makeContractLineImportDescriptor(projectId: string): ImportDescriptor<ContractLineImportInput> {
+export function makeContractLineImportDescriptor(projectId: string, t?: TFunction): ImportDescriptor<ContractLineImportInput> {
+  // LITERAL keys only (the i18n completeness gate scans for them); English fallback when no `t` is given (CLI-parity tests).
+  const label = (key: string, fallback: string) => (t ? String(t(key, fallback)) : fallback);
   const noCellRule = () => null; // rules run in validateRow: they read several cells (unit → basis → quantity).
   const field = (key: Key, label: string, required: boolean) => ({ key, label, required, validate: noCellRule });
   return {
     entity: 'Contract lines',
     fields: [
-      field('importKey', 'Key', true), field('itemCode', 'Item code', true), field('description', 'Description', true),
-      field('unit', 'Unit', true), field('quantity', 'Quantity', true), field('rate', 'Rate', true),
-      field('lineNo', 'Line no', false), field('earningBasis', 'Basis', false),
+      field('importKey', label('import:contractLines.key', 'Key'), true), field('itemCode', label('import:contractLines.itemCode', 'Item code'), true),
+      field('description', label('import:contractLines.description', 'Description'), true),
+      field('unit', label('import:contractLines.unit', 'Unit'), true), field('quantity', label('import:contractLines.quantity', 'Quantity'), true),
+      field('rate', label('import:contractLines.rate', 'Rate'), true),
+      field('lineNo', label('import:contractLines.lineNo', 'Line no'), false), field('earningBasis', label('import:contractLines.earningBasis', 'Basis'), false),
     ],
     validateRow: (cells) => {
       const out: Partial<Record<Key, string>> = {};

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   autoMap,
   parseWorkbook,
+  parsePastedRows,
   rowToCells,
   validateRows,
   ImportParseError,
@@ -39,6 +40,8 @@ export interface UseImportWizard {
   progress: CommitProgress;
   result: ImportResult | null;
   selectFile: (file: File) => Promise<void>;
+  /** Rows pasted from a spreadsheet: the same parse → map → validate path as an upload. */
+  selectPaste: (text: string) => void;
   setFieldMapping: (fieldKey: string, headerIndex: number | null) => void;
   goPreview: () => void;
   back: () => void;
@@ -122,6 +125,24 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
     [descriptor.fields],
   );
 
+  const selectPaste = useCallback(
+    (text: string) => {
+      parseGeneration.current++;
+      setParseError(null);
+      try {
+        const sheet = parsePastedRows(text);
+        setParsed(sheet);
+        setFileName(null);
+        setMapping(autoMap(sheet.headers, descriptor.fields));
+        setStep('mapping');
+      } catch (err) {
+        setParsed(null);
+        setParseError(err instanceof ImportParseError ? err.message : 'Could not read the pasted rows.');
+      }
+    },
+    [descriptor.fields],
+  );
+
   const setFieldMapping = useCallback((fieldKey: string, headerIndex: number | null) => {
     setMapping((prev) => ({ ...prev, [fieldKey]: headerIndex }));
   }, []);
@@ -194,6 +215,7 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
     progress,
     result,
     selectFile,
+    selectPaste,
     setFieldMapping,
     goPreview,
     back,
