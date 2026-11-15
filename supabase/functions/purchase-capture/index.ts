@@ -7,8 +7,6 @@ import { collectPages, proposeCapture, reconcileCapture, toMinorUnits, type Capt
 
 
 let jwks: JwksResolver | null = null;
-/** The most sources one capture_history_batch call applies (its 500-source bound); reported so a stopped apply can say so. */
-const BATCH_SOURCES_PER_CALL = 500;
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' },
 });
@@ -214,8 +212,8 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
       if (batch?.resume !== true) break;
     }
     const refused = batch?.results?.filter(result => result.outcome === 'refused').length ?? 0;
-    // FR-CAPV-005: a stopped batch carries next_index and group_count from the batch; one batch call takes up to 500 sources.
-    return json({ ...batch, complete: batch?.complete === true && refused === 0, refused, proposals, sources_per_call: BATCH_SOURCES_PER_CALL,
+    // FR-CAPV-005: a stopped batch's next_index, group_count and sources_per_call come from the batch itself.
+    return json({ ...batch, complete: batch?.complete === true && refused === 0, refused, proposals,
       request_id: body.requestId, revision: body.expectedRevision, erp_write: false });
   }
   // PMO-side placements, from the database's own ledger reading (an invoice no ERP project carries, placed on a project by an Admin).

@@ -14,11 +14,11 @@ export async function captureHistory(api, { projectId = null, dryRun, revision, 
   return { ...result, report };
 }
 
-/** FR-CAPV-005: for an apply that stopped before its batch completed, how far it got and the exact command that continues it; else null. */
+/** FR-CAPV-005: for an apply that stopped before its batch completed, how far it got (processed counts refused groups too) and the exact command that continues it; else null. */
 export function captureProgressNote(result, { projectId = null, revision, requestId }) {
   if (result?.resume !== true) return null;
   const counted = [result.next_index, result.group_count, result.sources_per_call].every(Number.isInteger);
-  const progress = counted ? `groups ${result.next_index} of ${result.group_count} applied (up to ${result.sources_per_call} sources per call)`
+  const progress = counted ? `groups ${result.next_index} of ${result.group_count} processed (up to ${result.sources_per_call} sources per call)`
     : 'the apply stopped before the batch completed';
   const scope = projectId === null ? '--all' : `--project ${quote(projectId)}`;
   return `${progress}\ncontinue with: ${CLI} purchases capture ${scope} --apply --revision ${quote(revision)} --request ${quote(requestId)}`;

@@ -1,6 +1,6 @@
 -- #2286 PR B: the down for 0905 restores the 0866 batch, the 0868 group apply and the 0866 fence trigger (organizations back on
 -- fence_capture_source_change, fence_capture_org_change gone); a batch then answers what 0905's answered, apart from 0905's
--- group_count and its revision count; the up then applies again.
+-- group_count, sources_per_call and its revision count; the up then applies again.
 -- scripts/test-2286-capture-apply-rollback.sh inlines the down and the up. One transaction; nothing is left behind.
 begin;
 select plan(13);
@@ -50,16 +50,16 @@ select is(to_regprocedure('public.fence_capture_org_change()'),null,'#2286 fence
 select ok(has_function_privilege('service_role','public.capture_history_batch(uuid,uuid,uuid,text,jsonb,jsonb)','execute')
   and not has_function_privilege('authenticated','public.capture_history_batch(uuid,uuid,uuid,text,jsonb,jsonb)','execute'),'#2286 the restored batch keeps its grants');
 select throws_ok($$select public.capture_history_batch('22860900-0000-0000-0000-000000000002','22860900-0000-0000-0000-000000000003','22860900-0000-0000-0000-000000000011','r',null,null)$$,
-  '22023',null,'#2286 the restored batch has no probe: a call with no precision is an invalid request, as before 0905');
+  '22023',null,'#2286 the restored batch refuses a call with no precision as an invalid request, as 0905''s does');
 select set_config('rb.revision',public.capture_revision('22860900-0000-0000-0000-000000000001'),true) is not null;
 select set_config('rb.calls',pg_temp.revisions()::text,true) is not null;
 insert into answers values ('down',pg_temp.batch('D',current_setting('rb.revision')));
 insert into answers values ('down_calls',to_jsonb(pg_temp.revisions() - current_setting('rb.calls')::bigint));
 select is((select jsonb_path_query_array(value,'$.results[*].outcome') from answers where name='down'),(select jsonb_path_query_array(value,'$.results[*].outcome') from answers where name='up'),
   '#2286 the restored batch creates what 0905''s created');
-select is((select value - 'results' - 'group_count' from answers where name='down'),(select value - 'results' - 'group_count' from answers where name='up'),
-  '#2286 the restored batch answers what 0905''s answered, apart from group_count');
-select is((select value->'group_count' from answers where name='up'),'3'::jsonb,'#2286 0905''s batch answered its group count');
+select is((select value - 'results' - 'group_count' - 'sources_per_call' from answers where name='down'),(select value - 'results' - 'group_count' - 'sources_per_call' from answers where name='up'),
+  '#2286 the restored batch answers what 0905''s answered, apart from group_count and sources_per_call');
+select is((select jsonb_build_object('group_count',value->'group_count','sources_per_call',value->'sources_per_call') from answers where name='up'),'{"group_count":3,"sources_per_call":500}'::jsonb,'#2286 0905''s batch answered its group count and per-call bound');
 select is((select value from answers where name='up_calls'),'2'::jsonb,'#2286 0905''s new batch computed the revision twice');
 select is((select value from answers where name='down_calls'),'3'::jsonb,'#2286 the restored new batch computes it three times, as before');
 -- An organization write takes the shared fence through the restored trigger.

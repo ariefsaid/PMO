@@ -1,7 +1,7 @@
 -- #2286 PR B AC-CAPV-010: the capture fence trigger reads the org column directly instead of serializing the row. The same 22
 -- tables, the same shared capture-fence:<org> lock for the old and the new org, and organizations fenced on its own id.
 begin;
-select plan(12);
+select plan(14);
 -- The 0866 list minus the three statement snapshot tables 0873 dropped, plus 0882's invoice assignments.
 create temp table fenced(name text primary key);
 insert into fenced values ('erp_purchase_documents'),('procurement_erp_links'),('erp_purchase_document_marks'),('erp_gl_entry_mirror'),
@@ -57,5 +57,13 @@ select is(pg_temp.fenced_orgs(),array['22860333-0000-0000-0000-00000000000a','22
 insert into organizations (id,name,default_currency) values ('22860333-0000-0000-0000-00000000000e','Fence e','USD');
 select is(pg_temp.fenced_orgs(),array['22860333-0000-0000-0000-00000000000a','22860333-0000-0000-0000-00000000000b','22860333-0000-0000-0000-00000000000c','22860333-0000-0000-0000-00000000000d','22860333-0000-0000-0000-00000000000e']::uuid[],
   'AC-CAPV-010 a new organization takes the fence of its new id');
+-- A row with no org takes no fence lock and the trigger does not fail (unchanged): every fenced table's org_id is NOT NULL, so a
+-- nullable temp table carries the same trigger function under another trigger name.
+create temp table fence_null(id integer primary key, org_id uuid);
+create trigger fence_null_probe before insert or update or delete on pg_temp.fence_null for each row execute function public.fence_capture_source_change();
+select set_config('fence.locks_before',(select count(*) from pg_locks where locktype='advisory' and pid=pg_backend_pid())::text,true) is not null;
+select lives_ok($$insert into pg_temp.fence_null values (1,null)$$,'AC-CAPV-010 an insert with no org passes the fence trigger');
+select is((select count(*) from pg_locks where locktype='advisory' and pid=pg_backend_pid()),current_setting('fence.locks_before')::bigint,
+  'AC-CAPV-010 an insert with no org takes no advisory lock');
 select * from finish();
 rollback;

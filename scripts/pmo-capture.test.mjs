@@ -146,9 +146,9 @@ test('AC-CAPV-007 an apply that stops part-way reads no report and says how far 
   assert.deepEqual(calls.map(call => call.action), ['apply']);
   assert.deepEqual(result, stopped);
   assert.equal(captureProgressNote(result, { projectId: null, revision: 'rev-1', requestId: 'req-1' }),
-    "groups 25 of 30 applied (up to 500 sources per call)\ncontinue with: node scripts/pmo.mjs purchases capture --all --apply --revision 'rev-1' --request 'req-1'");
+    "groups 25 of 30 processed (up to 500 sources per call)\ncontinue with: node scripts/pmo.mjs purchases capture --all --apply --revision 'rev-1' --request 'req-1'");
   assert.equal(captureProgressNote(result, { projectId: 'project-1', revision: "it's", requestId: 'req-1' }),
-    "groups 25 of 30 applied (up to 500 sources per call)\ncontinue with: node scripts/pmo.mjs purchases capture --project 'project-1' --apply --revision 'it'\\''s' --request 'req-1'");
+    "groups 25 of 30 processed (up to 500 sources per call)\ncontinue with: node scripts/pmo.mjs purchases capture --project 'project-1' --apply --revision 'it'\\''s' --request 'req-1'");
 });
 
 test('AC-CAPV-007 only a stopped apply prints a continue command, with its counts when the reply has them', async () => {

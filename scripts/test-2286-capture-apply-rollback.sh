@@ -18,6 +18,15 @@ def body(path, name):
     end = s.index(';', s.index(tag.group(1), st + tag.end()) + len(tag.group(1))) + 1
     return re.sub(r'^create (or replace )?function', 'create or replace function', s[st:end], flags=re.I)
 down = 'supabase/migrations/rollback/0905_capture_volume_apply_down.sql'
+# The down restores these sources, so each must still be the latest definition before 0905: a later migration that redefines
+# one of them would make the down restore a stale body.
+earlier = sorted(f for f in Path('supabase/migrations').glob('[0-9][0-9][0-9][0-9]_*.sql') if int(f.name[:4]) < 905)
+for name, source in [('capture_history_batch', '0866_erp_purchase_capture.sql'), ('capture_history_apply_internal', '0868_captured_invoice_payment.sql'),
+                     ('fence_capture_source_change', '0866_erp_purchase_capture.sql')]:
+    pattern = re.compile(r'create (or replace )?function public\.' + re.escape(name) + r'\(', re.I)
+    latest = [f.name for f in earlier if pattern.search(f.read_text())][-1:]
+    if latest != [source]: sys.exit(f'{name}: the latest definition before 0905 is {latest}, not {source}; rebuild the 0905 down from it')
+    print(f'ok {name}: latest before 0905 = {source}')
 for name, source in [('capture_history_batch', 'supabase/migrations/0866_erp_purchase_capture.sql'),
                      ('capture_history_apply_internal', 'supabase/migrations/0868_captured_invoice_payment.sql'),
                      ('fence_capture_source_change', 'supabase/migrations/0866_erp_purchase_capture.sql')]:

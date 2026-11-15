@@ -1096,7 +1096,7 @@ describe('#2286 the capture-scope ledger read', () => {
 });
 
 describe('#2286 PR B the apply reply says how far a stopped batch got', () => {
-  it('FR-CAPV-005 an apply that stops before the batch completes returns resume, next_index, group_count and sources_per_call 500', async () => {
+  it('FR-CAPV-005 an apply that stops before the batch completes passes on resume, next_index, group_count and sources_per_call from the batch', async () => {
     const token = await auth.mintJwt({ sub: 'user-1' });
     const project = '11111111-1111-4111-8111-111111111111';
     const binding = { id: 'binding-1', org_id: 'org-1', external_tier: 'erpnext', config: { company: 'Example' }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 };
@@ -1111,8 +1111,9 @@ describe('#2286 PR B the apply reply says how far a stopped batch got', () => {
       supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: [source], revision: 'gen', next_cursor: null })),
       supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [], revision: 'gen', next_cursor: null })),
       supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD', ledger_started_at: '2026-11-13T00:00:00Z' })),
-      // The batch never finishes inside this request: every call reports more work.
-      supabaseRpc('capture_history_batch', () => { batchCalls++; return jsonResponse({ complete: false, resume: true, next_index: 25 * batchCalls, group_count: 1000, results: [], erp_write: false }); }),
+      // The batch never finishes inside this request: every call reports more work. The per-call bound is the batch's to state
+      // (a value other than the shipped 500 proves the edge passes it on rather than inventing it).
+      supabaseRpc('capture_history_batch', () => { batchCalls++; return jsonResponse({ complete: false, resume: true, next_index: 25 * batchCalls, group_count: 1000, sources_per_call: 400, results: [], erp_write: false }); }),
       erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: '2' } })),
     ], async () => {
       const body = await (await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'apply', scope: { projectId: project }, expectedRevision: 'gen', requestId: '22222222-2222-4222-8222-222222222222' }, token))).json();
@@ -1120,7 +1121,7 @@ describe('#2286 PR B the apply reply says how far a stopped batch got', () => {
       assertEquals(body.resume, true);
       assertEquals(body.next_index, 25 * batchCalls);
       assertEquals(body.group_count, 1000);
-      assertEquals(body.sources_per_call, 500);
+      assertEquals(body.sources_per_call, 400);
       assertEquals(body.erp_write, false);
     });
   });

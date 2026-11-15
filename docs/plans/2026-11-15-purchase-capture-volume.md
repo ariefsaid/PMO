@@ -386,6 +386,7 @@ Add the progress line to the formatter, and document it in `docs/runbooks/pmo-cl
 
 **B6 — mutation check.** Temporarily change the resume revision comparison in the batch to `if false and v_current is distinct from …`.
 `2195_capture_batch.test.sql` and `2286_capture_batch_resume.test.sql` (d) must go red. Revert the change and record the red output in the PR body.
+*As built:* only `2286_capture_batch_resume.test.sql` (d) goes red; `2195_capture_batch.test.sql` never changes the revision between resume calls, so it stays green.
 
 **B7 — feed completion (only if owner question 2 is approved).** In `supabase/functions/erpnext-sweep/index.test.ts`, add AC-CAPV-011:
 with GL and payment ledger caught up and the statement publish failing, `record_capture_feed_completion` is called for `ledger`; with
@@ -400,13 +401,13 @@ which must stay unchanged and green, and the local final gate. Hand over to the 
 
 | Call (10x seed, median of 5) | Before | After A | After B |
 |---|---|---|---|
-| Source page ×N (ms each / total) | ×2: 486 max / 948 | ×2: 472 max / 932 | ×2: 474 max / 927 (unchanged; PR A) |
-| Ledger page ×N (ms each / total) | ×53: about 435 each, 577 max / 23,041 | ×16 (`'capture'`): about 420 each, 547 max (page 1, with the summary) / 6,816 | ×16: 495 max / 6,714 (unchanged; PR A) |
-| `capture_revision` (ms; calls per preview) | 449; 56 calls | 381; 19 calls | 375; 19 calls |
-| Whole-org preview, DB total (ms) | 24,415 | **8,123** (runs 7,818–8,313) | 8,147 (runs 7,444–8,362; PR B does not touch the reads) |
-| Batch, new 25 groups (ms = fence hold) | 1,848 (`capture_revision` 5 and feed health 63 calls across new + resume) | 1,824 (unchanged; PR B) | **1,286** (runs 1,268–1,462); `capture_revision` 4 and feed health 32 calls across new + resume |
-| Batch resume (ms) and edge time before the first batch RPC | 950 (last 5 groups); edge time not measured in PR A | 894 (last 5 groups; same 2 revisions as before); the probe a resume starts with: 1.0 ms. Edge time before the first batch RPC: not changed, see the PR B note |
-| GL upsert 15k rows: fence trigger time (ms) | 714 (30,000 calls; upsert 1,976) | **180** (30,000 calls; upsert 1,390) |
+| Source page ×N (ms each / total) | ×2: 486 max / 948 | ×2: 472 max / 932 | unchanged (PR B does not touch the reads) |
+| Ledger page ×N (ms each / total) | ×53: about 435 each, 577 max / 23,041 | ×16 (`'capture'`): about 420 each, 547 max (page 1, with the summary) / 6,816 | ×16: 498 max / 6,552 (unchanged) |
+| `capture_revision` (ms; calls per preview) | 449; 56 calls | 381; 19 calls | about 375; 19 calls (unchanged) |
+| Whole-org preview, DB total (ms) | 24,415 | **8,123** (runs 7,818–8,313) | 7,873 (runs 7,718–7,950; PR B does not touch the reads) |
+| Batch, new 25 groups (ms = fence hold) | 1,848 (`capture_revision` 5 and feed health 63 calls across new + resume) | 1,824 (unchanged; PR B) | **1,378** (runs 1,245–1,568); `capture_revision` 4 and feed health 32 calls across new + resume |
+| Batch resume (ms) and edge time before the first batch RPC | 950 (last 5 groups); edge time not measured in PR A | 876 (last 5 groups; same 2 revisions as before). Edge time before the first batch RPC: **not changed** (a resume still re-reads; NFR-CAPV-002's 1 s is not met, see the PR B note) |
+| GL upsert 15k rows: fence trigger time (ms) | 714 (30,000 calls; upsert 1,976) | **194** (30,000 calls; upsert 1,385) |
 | Edge in-process preview (ms, `deno bench`) | 243 avg (1,000 sources, 9,616 lines); the 14,816-line fixture stops at the 20-page ledger limit | 41 avg on both fixtures (unchanged) |
 
 Seed and method: `scripts/bench/2286-capture-volume-seed.sql` is the `2195_capture_volume.test.sql` fixture plus 11,000 unrelated
@@ -445,35 +446,44 @@ and the preview stays about 21 revision computations' worth. The 8 s target rema
 unchanged batch (PR B) measured 2,130 ms median against 1,824 ms earlier; that is run noise on code this PR does not touch, but it
 shows the fence target is borderline.
 
-**After B (PR B, migration 0905), against the targets.** "Before B" is PR A's tip re-measured on the same machine in the same
-round (median of 5): batch new 25 groups 1,798 ms, resume 879 ms, fence trigger 659 ms (upsert 1,837 ms), preview 7,960 ms,
-`capture_revision` 382 ms; call counts as in the After A column.
+**After B (PR B, migration 0905), against the targets (AC-CAPV-009 results).** "Before B" is PR A's tip re-measured on the
+same machine (median of 5): batch new 25 groups 1,798 ms, resume 879 ms, fence trigger 659 ms (upsert 1,837 ms), preview 7,960 ms,
+`capture_revision` 382 ms; call counts as in the After A column. "After B" is the fix-round build (median of 5); the first build
+measured within run noise of it (batch new 1,286, trigger 180, preview 8,147).
 
 | Target at 10x | Before B (PR A tip) | After B | Met? |
 |---|---|---|---|
-| Whole-org preview ≤ 8 s of database time | 7,960 ms median | 8,147 ms median (runs 7,444–8,362) | **No, borderline**: PR B does not touch the read path; the preview is still 19 revision computations (one per page, kept on purpose) and sits on the 8 s line from run to run. |
-| No single capture call over 2 s | slowest 1,954 ms (a new batch) | slowest 1,462 ms (a new batch); slowest page 642 ms | Yes |
-| Fence held ≤ 2 s per batch call | 1,798 ms new, 879 ms resume | **1,286 ms** new, 894 ms resume; the probe holds it shared for 1 ms | Yes |
-| Fence trigger on a 15k-row GL upsert: ≥ 50% less (NFR-CAPV-004) | 659 ms | **180 ms** (−73%) | Yes |
-| Apply read count (revision computations per batch call) | new 3, resume 2; feed health 52 and 11 | new 2, resume 2; feed health 26 and 6 | Yes (AC-CAPV-008) |
+| Whole-org preview ≤ 8 s of database time (NFR-CAPV-001) | 7,960 ms median | 7,873 ms median (runs 7,718–7,950) | **Borderline**: PR B does not touch the read path; the preview is 19 revision computations (one per page, kept on purpose) and has measured 7.4–8.4 s across rounds. |
+| No single capture call over 2 s (NFR-CAPV-001) | slowest 1,954 ms (a new batch) | slowest 1,568 ms (a new batch); slowest page 532 ms | Yes |
+| Fence held ≤ 2 s per batch call (NFR-CAPV-002) | 1,798 ms new, 879 ms resume | **1,378 ms** new, 876 ms resume | Yes |
+| Resume ≤ 1 s in the edge before its first batch RPC (NFR-CAPV-002) | full re-read, about 8 s of database time | unchanged | **No: not built (deferred, see below)** |
+| Fence trigger on a 15k-row GL upsert: ≥ 50% less (NFR-CAPV-004) | 659 ms | **194 ms** (−71%) | Yes |
+| Revision computations per batch call (AC-CAPV-008) | new 3, resume 2; feed health 52 and 11 | new 2, resume 2; feed health 26 and 6 | Yes |
 
 A new batch now computes the revision twice (before its first group, after its last) instead of three times, and reads feed health
-once per group instead of twice: about 510 ms off the exclusive fence. The resume already computed it twice, so its time is unchanged.
-The trigger no longer serializes each row to JSON or runs a query per row; it reads the org column and takes the same shared locks
-in the same order through plain expressions (the plan's loop form cut it to 354 ms, −46%, short of the target, so the build uses the
-equivalent `least`/`greatest` form).
+once per group instead of twice: about 420–510 ms off the exclusive fence. The resume already computed it twice, so its time is
+unchanged. The trigger no longer serializes each row to JSON or runs a query per row; it reads the org column and takes the same
+shared locks in the same order through plain expressions (the plan's loop form cut it to 354 ms, −46%, short of the target, so the
+build uses the equivalent `least`/`greatest` form).
 
-*Not built in PR B: the edge function's resume without a re-read (task B5's probe-first flow, AC-CAPV-004, and NFR-CAPV-002's
-1 s before the first batch RPC).* The database half is built: a batch call with no precision and no groups is a probe
-(`batch_found` with `precision_kinds`, or `batch_not_found`), proven by `2286_capture_batch_resume.test.sql`. Calling it before the
-read conflicts with unchanged assertions of `supabase/functions/purchase-capture/index.test.ts` that an apply whose read is
-incomplete makes no batch call at all (the settings-unreadable, per-currency-precision, source-limit and ledger-limit cases) and
-that a retry of a completed batch makes exactly one batch call (AC-ROP-008 `completed`). Which of those journeys changes is the
-Director's decision, so a resume still re-reads the census and ledger (about 8 s of database time at 10x) before it continues.
+*As built in PR B:* tasks B1–B4, B6 and B8, B5's CLI half, and FR-CAPV-005's reply fields. The batch reply carries `group_count` and
+`sources_per_call` (the per-call source bound, one named local in the batch); the edge passes both on. The CLI skips the report
+only when `resume` is true (the plan's `|| complete !== true` would have dropped the reconciliation after refusals that AC-ROP-062
+requires) and prints `groups N of M processed (up to 500 sources per call)` ("processed": `next_index` counts refused groups too)
+with the continue command.
+
+*Deferred to a follow-up: the edge resume without a re-read (B5's probe-first flow, AC-CAPV-004, and NFR-CAPV-002's 1 s edge
+target).* Calling a probe before the read contradicts unchanged assertions of `supabase/functions/purchase-capture/index.test.ts`:
+an apply whose read is incomplete makes no batch call (settings-unreadable, per-currency-precision, source-limit and ledger-limit
+cases), and a retry of a completed batch makes exactly one (AC-ROP-008 `completed`). The first build had added the database probe
+(a call with no precision and no groups); the fix round **removed it**: it had no caller, it changed the old contract (that input
+was, and is again, `invalid request`, 22023), and it answered without checking the batch's actor and project. The follow-up makes the
+resume opt-in, so the read-before-apply journeys stay as they are. Until then a resume re-reads the census and ledger (about 8 s of
+database time at 10x) before it continues.
 
 *EXPLAIN, after B:* the new 25-group batch runs 1,401 ms under EXPLAIN ANALYZE (2,000 ms before B); its only nested statements
 over 5 ms are the two `capture_revision` computations (407 and 378 ms), and the 25 group applies share the remaining ~616 ms. The
-GL upsert reports `Trigger capture_census_fence: time=180 calls=30000` (median; 659 before B).
+GL upsert reports `Trigger capture_census_fence: time=194 calls=30000` (median; 659 before B).
 
 **EXPLAIN excerpts** (`-v explain=1`, `explain (analyze, buffers)` through auto_explain; nested statements over 5 ms).
 
@@ -502,7 +512,7 @@ GL upsert reports `Trigger capture_census_fence: time=180 calls=30000` (median; 
 | AC-CAPV-001 | pgTAP | `supabase/tests/2286_capture_ledger_scope.test.sql` |
 | AC-CAPV-002 | Unit (Deno) | `supabase/functions/purchase-capture/volume.test.ts` (golden) |
 | AC-CAPV-003 | pgTAP | `supabase/tests/2286_capture_ledger_scope.test.sql` |
-| AC-CAPV-004 | Unit (Deno) | `supabase/functions/purchase-capture/index.test.ts` |
+| AC-CAPV-004 | Deferred (follow-up: opt-in resume) | none in PR B; see §8 "Deferred" |
 | AC-CAPV-005 | pgTAP | `supabase/tests/2286_capture_batch_resume.test.sql` |
 | AC-CAPV-006 | pgTAP | `supabase/tests/2286_capture_batch_resume.test.sql` |
 | AC-CAPV-007 | Unit (node:test) | `scripts/pmo-capture.test.mjs` |

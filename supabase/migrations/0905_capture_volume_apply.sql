@@ -1,10 +1,9 @@
 -- #2286 PR B — purchase capture apply, lock and resume at ten times today's volume. Same RPC names and signatures; the
 -- request guard is untouched. Money tier: every check of the batch stays (actor, request conflict, precision, undone capture,
 -- revision against the batch's current revision, feed health); nothing is written to the ERP.
--- (1) capture_history_batch: body from 0866 with these changes, each marked 0905. A call with no precision and no groups is a
---     probe: it holds the fence shared and answers batch_not_found, or batch_found with the kinds of the stored precision. The
---     revision is read with capture_revision (the value the one-row source page reported). A batch inserted by this call is not
---     checked a second time (the exclusive fence is held between the two checks). The reply carries group_count.
+-- (1) capture_history_batch: body from 0866 with these changes, each marked 0905. The revision is read with capture_revision
+--     (the value the one-row source page reported). A batch inserted by this call is not checked a second time (the exclusive
+--     fence is held between the two checks). The reply carries group_count and sources_per_call (the per-call bound, one local).
 -- (2) capture_history_apply_internal: body from 0868, reading feed health once per group instead of twice.
 -- (3) The capture fence trigger reads the org column directly instead of serializing the row to JSON: fence_capture_source_change
 --     for every fenced table but organizations, which gets fence_capture_org_change (its own id). Same lock keys, same order.
@@ -17,31 +16,23 @@ declare
   v_org uuid; v_claims text := current_setting('request.jwt.claims',true); v_batch public.erp_capture_batches%rowtype;
   v_current text; v_health jsonb; v_group jsonb; v_result jsonb; v_group_project uuid; v_group_request uuid;
   v_processed integer := 0; v_processed_sources integer := 0; v_group_count integer; v_total_sources integer;
-  v_probe boolean := p_precision is null and p_groups is null; v_created boolean := false;  -- 0905
+  v_created boolean := false; v_sources_per_call constant integer := 500;  -- 0905: the most sources one call applies
 begin
   if coalesce(auth.jwt()->>'role','') <> 'service_role' then raise exception 'not authorized' using errcode='42501'; end if;
   select p.org_id into v_org from public.profiles p join auth.users u on u.id=p.id
     where p.id=p_actor_id and p.status='active' and p.role::text='Admin'
       and (u.banned_until is null or u.banned_until <= now());
   if v_org is null then raise exception 'not authorized' using errcode='42501'; end if;
-  -- 0905: a probe (no precision, no groups) only reads one batch row, so it holds the fence shared; every other call holds it exclusively.
-  if v_probe then perform pg_advisory_xact_lock_shared(hashtextextended('capture-fence:' || v_org::text,0));
-  else perform pg_advisory_xact_lock(hashtextextended('capture-fence:' || v_org::text,0)); end if;
+  perform pg_advisory_xact_lock(hashtextextended('capture-fence:' || v_org::text,0));
   perform 1 from public.profiles p join auth.users u on u.id=p.id where p.id=p_actor_id and p.org_id=v_org
     and p.status='active' and p.role::text='Admin' and (u.banned_until is null or u.banned_until <= now()) for share of p,u;
   if not found then raise exception 'not authorized' using errcode='42501'; end if;
   perform public.assert_feature_on(v_org,'procurement');
-  if p_request_id is null or nullif(btrim(p_revision),'') is null or (not v_probe and jsonb_typeof(p_precision) is distinct from 'object') then  -- 0905
+  if p_request_id is null or nullif(btrim(p_revision),'') is null or jsonb_typeof(p_precision) is distinct from 'object' then
     raise exception 'invalid request' using errcode='22023';
   end if;
   if p_project_id is not null and not exists(select 1 from public.projects where id=p_project_id and org_id=v_org) then
     return jsonb_build_object('complete',false,'reason','project_not_found','erp_write',false);
-  end if;
-  -- 0905: the probe answers whether the request has a batch and which kinds its stored precision names; it changes nothing.
-  if v_probe then
-    select * into v_batch from public.erp_capture_batches where org_id=v_org and request_id=p_request_id;
-    if not found then return jsonb_build_object('complete',false,'resume',false,'reason','batch_not_found','erp_write',false); end if;
-    return jsonb_build_object('reason','batch_found','precision_kinds',(select coalesce(jsonb_agg(k order by k),'[]'::jsonb) from jsonb_object_keys(v_batch.precision) k),'erp_write',false);
   end if;
   perform pg_advisory_xact_lock(hashtextextended(v_org::text || ':batch:' || p_request_id::text,0));
   select * into v_batch from public.erp_capture_batches where org_id=v_org and request_id=p_request_id for update;
@@ -99,7 +90,7 @@ begin
   v_group_count := jsonb_array_length(v_batch.groups);
   while v_batch.next_index < v_group_count and v_processed < 25 loop
     v_group := v_batch.groups->v_batch.next_index;
-    if v_processed_sources + jsonb_array_length(v_group->'source_ids') > 500 then exit; end if;
+    if v_processed_sources + jsonb_array_length(v_group->'source_ids') > v_sources_per_call then exit; end if;  -- 0905: named
     v_processed_sources := v_processed_sources + jsonb_array_length(v_group->'source_ids');
     begin v_group_project := (v_group->>'project_id')::uuid;
     exception when invalid_text_representation then raise exception 'invalid group project' using errcode='22023'; end;
@@ -113,7 +104,7 @@ begin
   update public.erp_capture_batches set next_index=v_batch.next_index,current_revision=v_batch.current_revision,results=v_batch.results
     where org_id=v_org and request_id=p_request_id;
   return jsonb_build_object('complete',v_batch.next_index >= v_group_count,'resume',v_batch.next_index < v_group_count,
-    'next_index',v_batch.next_index,'group_count',v_group_count,'results',v_batch.results,'erp_write',false);  -- 0905: group_count
+    'next_index',v_batch.next_index,'group_count',v_group_count,'sources_per_call',v_sources_per_call,'results',v_batch.results,'erp_write',false);  -- 0905
 end $$;
 revoke all on function public.capture_history_batch(uuid,uuid,uuid,text,jsonb,jsonb) from public,anon,authenticated;
 grant execute on function public.capture_history_batch(uuid,uuid,uuid,text,jsonb,jsonb) to service_role;

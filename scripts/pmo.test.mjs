@@ -2543,7 +2543,7 @@ test('AC-CAPV-007 an apply that stops part-way prints its progress and the conti
     const result = await runCli(['purchases', 'capture', '--all', '--apply', '--revision', 'review-1', '--request', request, '--url', fake.url], { configDir });
     assert.equal(result.code, 2);
     assert.deepEqual(calls, ['apply']);
-    assert.match(result.err, /groups 25 of 30 applied \(up to 500 sources per call\)\ncontinue with: node scripts\/pmo\.mjs purchases capture --all --apply --revision 'review-1' --request '11111111-1111-4111-8111-111111111111'/);
+    assert.match(result.err, /groups 25 of 30 processed \(up to 500 sources per call\)\ncontinue with: node scripts\/pmo\.mjs purchases capture --all --apply --revision 'review-1' --request '11111111-1111-4111-8111-111111111111'/);
     assert.equal(result.json?.resume, true);
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
 });

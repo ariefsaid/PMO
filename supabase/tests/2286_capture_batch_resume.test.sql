@@ -1,7 +1,7 @@
--- #2286 PR B: a batch call with no precision is a probe; a resume with no groups continues the stored batch and keeps every check.
+-- #2286 PR B: a resume with no groups continues the stored batch and keeps every check; a call with no precision stays an invalid request.
 -- AC-CAPV-005 (a fingerprinted change between calls refuses the resume), AC-CAPV-006 (a precision change refuses the resume).
 begin;
-select plan(16);
+select plan(13);
 insert into organizations (id,name,default_currency) values ('22860111-0000-0000-0000-000000000001','Capture resume test','USD');
 insert into auth.users (id,email) values ('22860111-0000-0000-0000-000000000002','capture-resume@example.test');
 insert into profiles (id,org_id,full_name,email,role,status) values ('22860111-0000-0000-0000-000000000002','22860111-0000-0000-0000-000000000001','Admin','capture-resume@example.test','Admin','active');
@@ -46,20 +46,17 @@ create function pg_temp.keep(p_name text, p_value jsonb) returns jsonb language 
   insert into replies values (p_name,p_value) on conflict (name) do update set value=excluded.value returning value
 $$;
 
--- (a) The probe before any batch exists.
+-- (a) A call with no precision and no groups is an invalid request, as before #2286 (no probe).
 select set_config('capture.revision_a',pg_temp.revision(),true) is not null;
-select set_config('capture.before_probe',jsonb_build_object('purchases',pg_temp.purchases(),'batches',(select count(*) from erp_capture_batches where org_id='22860111-0000-0000-0000-000000000001'))::text,true) is not null;
-select is(pg_temp.keep('probe_none',pg_temp.batch('A',current_setting('capture.revision_a'),null,null))->>'reason','batch_not_found','#2286 (a) a probe for a request with no batch answers batch_not_found');
-select is(jsonb_build_object('purchases',pg_temp.purchases(),'batches',(select count(*) from erp_capture_batches where org_id='22860111-0000-0000-0000-000000000001')),
-  current_setting('capture.before_probe')::jsonb,'#2286 (a) the probe creates no batch and no purchase');
-select is((select value->>'erp_write' from replies where name='probe_none'),'false','#2286 (a) the probe writes nothing to the ERP');
+select throws_ok($$select pg_temp.batch('A',current_setting('capture.revision_a'),null,null)$$,'22023',null,
+  '#2286 (a) a call with no precision and no groups is an invalid request before the batch exists');
 
--- (b) A new batch of 30 groups processes 25; the probe then finds it and names the kinds of its stored precision.
+-- (b) A new batch of 30 groups processes 25 and says how many groups it has and how many sources one call takes.
 select is(pg_temp.keep('a_first',pg_temp.batch('A',current_setting('capture.revision_a'),'{"order":2,"supplier_invoice":2}',pg_temp.groups('A')))->>'next_index','25','#2286 (b) the first call processes 25 groups');
 select is((select value->>'group_count' from replies where name='a_first'),'30','#2286 (b) the reply carries the batch group count');
-select is(pg_temp.keep('probe_found',pg_temp.batch('A',current_setting('capture.revision_a'),null,null))->>'reason','batch_found','#2286 (b) the probe finds the stored batch');
-select is((select value->'precision_kinds' from replies where name='probe_found'),'["order","supplier_invoice"]'::jsonb,'#2286 (b) the probe names the kinds of the stored precision');
-select is((select next_index from erp_capture_batches where org_id='22860111-0000-0000-0000-000000000001' and request_id=pg_temp.request('A')),25,'#2286 (b) the probe does not move the batch');
+select is((select value->>'sources_per_call' from replies where name='a_first'),'500','#2286 (b) the reply carries the most sources one call applies');
+select throws_ok($$select pg_temp.batch('A',current_setting('capture.revision_a'),null,null)$$,'22023',null,
+  '#2286 (b) a call with no precision and no groups is an invalid request once the batch exists');
 
 -- (c) A resume with no groups processes the remaining 5 with the stored groups.
 select is(pg_temp.keep('a_resume',pg_temp.batch('A',current_setting('capture.revision_a'),'{"order":2,"supplier_invoice":2}',null))->>'next_index','30','#2286 (c) the resume processes the remaining 5 groups');
