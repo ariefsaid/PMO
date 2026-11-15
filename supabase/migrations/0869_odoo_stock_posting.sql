@@ -20,10 +20,11 @@ for each row execute function public.guard_stock_employment();
 
 create function public.guard_stock_command() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
-declare d public.stock_documents; v_rank integer; v_keeper boolean; v_company text;
+declare d public.stock_documents; v_rank integer; v_keeper boolean; v_company text; v_refresh boolean := false;
 begin
   if new.domain <> 'inventory' then return new; end if;
   if tg_op='UPDATE' and (new.payload is distinct from old.payload or new.actor_user_id is distinct from old.actor_user_id) then
+    v_refresh := true;
     -- A keeper pressing Post again refreshes a failed command: only the revision and the actor may change, then the full guard runs on the new row.
     if old.state is distinct from 'failed' then
       raise exception 'STK_COMMAND: a command is refreshed only while failed' using errcode='P0001';
@@ -31,7 +32,10 @@ begin
     if (new.payload - 'documentRevision') is distinct from (old.payload - 'documentRevision') then
       raise exception 'STK_COMMAND: a refresh changes only the document revision and the actor' using errcode='P0001';
     end if;
-  elsif tg_op='UPDATE' and new.claim_generation <= old.claim_generation and not (new.state='committing' and old.state is distinct from 'committing') then return new;
+  elsif tg_op='UPDATE' and not (new.state='committing' and old.state in ('pending','failed')) then
+    -- The full rule set decides who may START a post (insert, refresh, a claim from pending or failed). Recovery steps (quarantine,
+    -- the probe's claim of a quarantined row, releasing a hold) never re-judge: the transfer may already be in Odoo and must be adoptable.
+    return new;
   end if;
   select * into d from public.stock_documents where id::text=new.pmo_record_id for update;
   if not found or d.org_id is distinct from new.org_id then
@@ -65,14 +69,14 @@ begin
   if exists (select 1 from public.stock_warehouses w where w.id in (d.warehouse_id,coalesce(d.to_warehouse_id,d.warehouse_id)) and w.archived_at is not null)
      or exists (select 1 from public.stock_document_lines l join public.stock_items i on i.id=l.item_id where l.document_id=d.id and i.archived_at is not null) then
     raise exception 'STK_ARCHIVED: a warehouse or item on this document was archived' using errcode='P0001'; end if;
-  if tg_op='INSERT' and not v_keeper then
+  if (tg_op='INSERT' or v_refresh) and not v_keeper then
     perform public.log_audit('stock.admin_post',d.org_id,new.actor_user_id,d.id,jsonb_build_object('kind',d.kind,'warehouse_id',d.warehouse_id,'number',d.number));
   end if;
   return new;
 end $$;
 revoke all on function public.guard_stock_command() from public, anon, authenticated, service_role;
 create trigger external_command_outbox_zz_stock_command before insert or update of claim_generation, state, payload, actor_user_id on public.external_command_outbox
-for each row execute function public.guard_stock_command();
+for each row when (new.domain = 'inventory') execute function public.guard_stock_command();
 
 -- ERP evidence is a side mirror of the immutable stock intent.
 create unique index stock_documents_org_id_id_uniq on public.stock_documents (org_id,id);
@@ -83,6 +87,7 @@ create table public.stock_erp_mirror (
   company_id integer not null,
   external_model text,
   external_id text,
+  external_reference text,
   state text not null check (state in ('pending','held','failed','stale','confirmed')),
   completed_quantity numeric,
   completed_value numeric,
@@ -105,11 +110,35 @@ alter table public.stock_erp_mirror force row level security;
 create policy stock_erp_mirror_select on public.stock_erp_mirror for select using
   (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
 revoke all on public.stock_erp_mirror from public, anon, authenticated, service_role;
-grant select on public.stock_erp_mirror to authenticated, service_role;
+-- The value is Odoo's valuation of the movement, i.e. the material cost: members read it only through get_stock_erp_value
+-- (the cost permission of the stock module), never from the table.
+grant select (org_id, stock_document_id, external_tier, company_id, external_model, external_id, external_reference, state, completed_quantity,
+  currency, source_written_at, fetched_at, exception, command_generation, created_at, updated_at) on public.stock_erp_mirror to authenticated;
+grant select on public.stock_erp_mirror to service_role;
+
+-- A connected stock command is "live" for a document while it is anything but failed, when a failed command was released from a
+-- hold, or when the Odoo transfer is known (a mirror row that names it): in every one of those the transfer may exist in Odoo.
+create function public.stock_command_live(p_org uuid, p_doc uuid) returns boolean
+language sql stable security definer set search_path = public, pg_temp as $$
+  select exists (select 1 from public.external_command_outbox o
+                  where o.org_id=p_org and o.domain='inventory' and o.pmo_record_id=p_doc::text
+                    and (o.state<>'failed' or o.last_error like 'hold released by operator%'))
+      or exists (select 1 from public.stock_erp_mirror m where m.org_id=p_org and m.stock_document_id=p_doc and m.external_id is not null)
+$$;
+revoke all on function public.stock_command_live(uuid,uuid) from public, anon, authenticated, service_role;
+
+create function public.get_stock_erp_value(p_document_id uuid) returns numeric
+language sql stable security definer set search_path = public, pg_temp as $$
+  select m.completed_value from public.stock_erp_mirror m
+   where m.org_id = (select public.auth_org_id()) and m.stock_document_id = p_document_id
+     and (select public.is_active_member()) and public.stock_can_see_cost()
+$$;
+revoke all on function public.get_stock_erp_value(uuid) from public, anon, authenticated, service_role;
+grant execute on function public.get_stock_erp_value(uuid) to authenticated;
 
 create function public.write_stock_erp_mirror(
   p_org_id uuid, p_document_id uuid, p_company_id integer, p_generation integer,
-  p_state text, p_external_model text, p_external_id text, p_completed_quantity numeric,
+  p_state text, p_external_model text, p_external_id text, p_external_reference text, p_completed_quantity numeric,
   p_completed_value numeric, p_currency text, p_source_written_at timestamptz,
   p_fetched_at timestamptz, p_exception text
 ) returns void language plpgsql security definer set search_path = public, pg_temp as $$
@@ -132,25 +161,28 @@ begin
        or p_completed_quantity is null or p_completed_value is null or p_source_written_at is null or p_exception is not null) then
     raise exception 'STK_MIRROR_EVIDENCE: confirmed evidence is incomplete' using errcode='P0001';
   end if;
+  if p_state='confirmed' and v_command.state not in ('committed','confirmed') then
+    raise exception 'STK_MIRROR_STATE: confirmed evidence needs a committed command' using errcode='P0001';
+  end if;
   select m.state into v_previous from public.stock_erp_mirror m where m.org_id=p_org_id and m.stock_document_id=p_document_id for update;
   if v_previous='confirmed' and p_state is distinct from 'confirmed' then
     raise exception 'STK_MIRROR_CONFIRMED: confirmed evidence cannot be downgraded' using errcode='P0001';
   end if;
-  insert into public.stock_erp_mirror (org_id,stock_document_id,external_tier,company_id,external_model,external_id,state,
+  insert into public.stock_erp_mirror (org_id,stock_document_id,external_tier,company_id,external_model,external_id,external_reference,state,
       completed_quantity,completed_value,currency,source_written_at,fetched_at,exception,command_generation)
-  values (p_org_id,p_document_id,'odoo',p_company_id,p_external_model,p_external_id,p_state,
+  values (p_org_id,p_document_id,'odoo',p_company_id,p_external_model,p_external_id,p_external_reference,p_state,
       p_completed_quantity,p_completed_value,p_currency,p_source_written_at,p_fetched_at,p_exception,p_generation)
   on conflict (org_id,stock_document_id) do update set company_id=excluded.company_id, external_model=excluded.external_model,
-      external_id=excluded.external_id, state=excluded.state, completed_quantity=excluded.completed_quantity,
+      external_id=excluded.external_id, external_reference=excluded.external_reference, state=excluded.state, completed_quantity=excluded.completed_quantity,
       completed_value=excluded.completed_value, currency=excluded.currency, source_written_at=excluded.source_written_at,
       fetched_at=excluded.fetched_at, exception=excluded.exception, command_generation=excluded.command_generation, updated_at=now();
 end $$;
-revoke all on function public.write_stock_erp_mirror(uuid,uuid,integer,integer,text,text,text,numeric,numeric,text,timestamptz,timestamptz,text) from public, anon, authenticated, service_role;
-grant execute on function public.write_stock_erp_mirror(uuid,uuid,integer,integer,text,text,text,numeric,numeric,text,timestamptz,timestamptz,text) to service_role;
+revoke all on function public.write_stock_erp_mirror(uuid,uuid,integer,integer,text,text,text,text,numeric,numeric,text,timestamptz,timestamptz,text) from public, anon, authenticated, service_role;
+grant execute on function public.write_stock_erp_mirror(uuid,uuid,integer,integer,text,text,text,text,numeric,numeric,text,timestamptz,timestamptz,text) to service_role;
 
 create function public.guard_stock_command_document() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
-declare v_doc uuid; v_org uuid; v_confirmed boolean;
+declare v_doc uuid; v_org uuid; v_confirmed boolean; v_posting boolean;
 begin
   if tg_table_name='stock_documents' then v_doc:=old.id; v_org:=old.org_id;
   else
@@ -158,7 +190,7 @@ begin
     if tg_op='UPDATE' then
       perform 1 from public.stock_documents where id in (old.document_id,new.document_id) order by id for update;
       if (new.document_id,new.org_id) is distinct from (old.document_id,old.org_id)
-         and exists(select 1 from public.external_command_outbox o where o.domain='inventory' and o.org_id=(select d.org_id from public.stock_documents d where d.id=new.document_id) and o.pmo_record_id=new.document_id::text and o.state<>'failed') then
+         and public.stock_command_live((select d.org_id from public.stock_documents d where d.id=new.document_id), new.document_id) then
         raise exception 'STK_PENDING: a connected stock command is live' using errcode='P0001';
       end if;
     else
@@ -166,7 +198,13 @@ begin
     end if;
     select d.org_id into v_org from public.stock_documents d where d.id=v_doc;
   end if;
-  if exists(select 1 from public.external_command_outbox o where o.domain='inventory' and o.org_id=v_org and o.pmo_record_id=v_doc::text and o.state<>'failed') then
+  -- Draft to Posted in an organisation whose inventory an ERP employs is the handler's write after the transfer is confirmed, never anyone else's.
+  v_posting := false;
+  if tg_table_name='stock_documents' and tg_op='UPDATE' then
+    v_posting := old.status='Draft' and new.status='Posted'
+      and exists (select 1 from public.external_domain_ownership w where w.org_id=v_org and w.domain='inventory');
+  end if;
+  if v_posting or public.stock_command_live(v_org, v_doc) then
     if tg_table_name='stock_documents' and tg_op='UPDATE' then
       select exists(select 1 from public.external_command_outbox o where o.domain='inventory' and o.org_id=v_org and o.pmo_record_id=v_doc::text and o.state in ('committed','confirmed') and o.actor_user_id=new.posted_by) into v_confirmed;
       if v_confirmed and exists (select 1 from public.stock_erp_mirror m where m.org_id=v_org and m.stock_document_id=v_doc and m.state='confirmed') and old.status='Draft' and new.status='Posted' and new.posted_at is not null
@@ -185,13 +223,14 @@ grant update (status, posted_by, posted_at) on public.stock_documents to service
 create trigger stock_document_lines_command_guard before insert or update or delete on public.stock_document_lines for each row execute function public.guard_stock_command_document();
 
 -- Releasing inventory ownership is a delete of the ownership row (every release and disconnect path): refused while any
--- inventory command of the organisation is in a state other than failed or confirmed.
+-- inventory command of the organisation is live (see stock_command_live; a confirmed command never blocks).
 create function public.guard_stock_release() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin
   if old.domain='inventory' and (tg_op='DELETE' or new.domain is distinct from old.domain or new.org_id is distinct from old.org_id or new.external_tier is distinct from old.external_tier)
      and exists (select 1 from public.organizations o where o.id=old.org_id)
-     and exists (select 1 from public.external_command_outbox c where c.org_id=old.org_id and c.domain='inventory' and c.state not in ('failed','confirmed')) then
+     and exists (select 1 from public.external_command_outbox c where c.org_id=old.org_id and c.domain='inventory' and c.state<>'confirmed'
+                 and public.stock_command_live(c.org_id, c.pmo_record_id::uuid)) then
     raise exception 'STK_COMMANDS_LIVE: resolve live inventory commands before releasing inventory' using errcode='P0001';
   end if;
   if tg_op='DELETE' then return old; end if;

@@ -6,11 +6,11 @@ const container = process.env.SUPABASE_DB_CONTAINER || 'supabase_db_pmo-portal';
 const args = ['exec', '-i', container, 'psql', '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '-U', 'postgres', '-d', 'postgres'];
 const down = readFileSync('supabase/migrations/rollback/0870_stock_connect_refs_down.sql', 'utf8');
 const up = readFileSync('supabase/migrations/0870_stock_connect_refs.sql', 'utf8');
-const names = ['apply_connect_link', 'accept_connect_proposals', 'unlink_connect_match', 'list_unlinkable_connect_matches', 'decide_connect_review'];
-const sources = ['0750_party_link_rereads_revenue.sql', '0590_erp_connect_review_list.sql', '0496_odoo_project_links_config.sql', '0590_erp_connect_review_list.sql', '0590_erp_connect_review_list.sql'];
+const names = ['connect_link_in_use', 'apply_connect_link', 'accept_connect_proposals', 'unlink_connect_match', 'list_unlinkable_connect_matches', 'decide_connect_review'];
+const sources = ['0480_erp_connect_setup.sql', '0750_party_link_rereads_revenue.sql', '0590_erp_connect_review_list.sql', '0496_odoo_project_links_config.sql', '0590_erp_connect_review_list.sql', '0590_erp_connect_review_list.sql'];
 const previous = names.map((name, i) => {
   const text = readFileSync(`supabase/migrations/${sources[i]}`, 'utf8');
-  const body = text.match(new RegExp(`create(?: or replace)? function public\\.${name}\\([\\s\\S]*?\\nend \\$\\$;`, 'i'))?.[0];
+  const body = text.match(new RegExp(`create(?: or replace)? function public\\.${name}\\([\\s\\S]*?\\n(?:end )?\\$\\$;`, 'i'))?.[0];
   assert.ok(body, `missing predecessor for ${name}`);
   return body.replace(/^create function/i, 'create or replace function');
 }).join('\n');
@@ -41,7 +41,7 @@ create temp table before_functions as ${catalogue};
 ${up}
 ${down}
 do $$ begin
- if (select count(*) from before_functions) <> 5 or exists ((select * from before_functions except ${catalogue}) union all (${catalogue} except select * from before_functions)) then
+ if (select count(*) from before_functions) <> ${names.length} or exists ((select * from before_functions except ${catalogue}) union all (${catalogue} except select * from before_functions)) then
    raise exception 'rollback did not restore predecessor function bodies and grants';
  end if;
  if exists (select 1 from pg_constraint where conname in ('erp_connect_staged_kind_check','erp_connect_proposals_kind_check') and pg_get_constraintdef(oid) like '%stock_%') then

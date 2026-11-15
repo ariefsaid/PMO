@@ -3,6 +3,49 @@ alter table public.erp_connect_staged add constraint erp_connect_staged_kind_che
 alter table public.erp_connect_proposals drop constraint erp_connect_proposals_kind_check;
 alter table public.erp_connect_proposals add constraint erp_connect_proposals_kind_check check (kind in ('party','item','project','employee','account','stock_item','stock_warehouse'));
 
+-- A stock link is in use while a live inventory command's document names the item or warehouse.
+create or replace function public.connect_link_in_use(p_org_id uuid, p_domain text, p_pmo_record_id text) returns boolean
+language sql security definer set search_path = public, pg_temp as $$
+  select case p_domain
+    when 'companies' then exists (
+        select 1 from public.procurements p
+         where p.org_id = p_org_id and p.vendor_id::text = p_pmo_record_id
+           and public.procurement_case_has_external_evidence(p_org_id, p.id))      -- outbox, #1319 links, any ref (0393)
+      or exists (select 1 from public.sales_invoices si where si.org_id = p_org_id and si.customer_id::text = p_pmo_record_id
+                    and (not si.pmo_native and si.erp_docstatus is not null
+                         or exists (select 1 from public.external_refs r where r.org_id = p_org_id and r.domain = 'revenue'
+                                       and r.pmo_record_id = si.id::text)))
+    when 'projects' then exists (
+        select 1 from public.procurements p
+         where p.org_id = p_org_id and p.project_id::text = p_pmo_record_id
+           and public.procurement_case_has_external_evidence(p_org_id, p.id))
+      or exists (select 1 from public.sales_invoices si where si.org_id = p_org_id and si.project_id::text = p_pmo_record_id
+                    and (not si.pmo_native and si.erp_docstatus is not null
+                         or exists (select 1 from public.external_refs r where r.org_id = p_org_id and r.domain = 'revenue'
+                                       and r.pmo_record_id = si.id::text)))
+      or exists (select 1 from public.budget_version_account_erp_mirror m join public.budget_versions v on v.id = m.budget_version_id
+                  where m.org_id = p_org_id and v.project_id::text = p_pmo_record_id)
+    when 'employees' then exists (
+        select 1 from public.timesheets t join public.external_refs r
+          on r.org_id = t.org_id and r.domain = 'timesheets' and r.pmo_record_id = t.id::text
+         where t.org_id = p_org_id and t.user_id::text = p_pmo_record_id)
+    when 'accounts' then exists (
+        select 1 from public.budget_version_account_erp_mirror m join public.budget_category_account_map a
+          on a.org_id = m.org_id and a.erp_account = m.erp_account
+         where m.org_id = p_org_id and a.category::text = p_pmo_record_id)
+    when 'stock_items' then exists (
+        select 1 from public.stock_document_lines l join public.stock_documents d on d.id = l.document_id and d.org_id = l.org_id
+          join public.external_command_outbox o on o.org_id = d.org_id and o.domain = 'inventory' and o.pmo_record_id = d.id::text
+         where l.org_id = p_org_id and l.item_id::text = p_pmo_record_id
+           and o.state <> 'confirmed' and public.stock_command_live(d.org_id, d.id))
+    when 'stock_warehouses' then exists (
+        select 1 from public.stock_documents d
+          join public.external_command_outbox o on o.org_id = d.org_id and o.domain = 'inventory' and o.pmo_record_id = d.id::text
+         where d.org_id = p_org_id and p_pmo_record_id in (d.warehouse_id::text, d.to_warehouse_id::text)
+           and o.state <> 'confirmed' and public.stock_command_live(d.org_id, d.id))
+    else false end   -- items: a pushed line carries its code; unlinking changes only future lines
+$$;
+
 create or replace function public.apply_connect_link(p_org uuid, p_tier text, p_kind text, p_pmo text, p_ext text, p_snapshot jsonb, p_actor uuid) returns text
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_uuid uuid; v_n int; v_ref public.external_refs%rowtype; v_emp public.erp_employees%rowtype; v_email text; v_emps int;

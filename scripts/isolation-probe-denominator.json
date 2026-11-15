@@ -167,7 +167,7 @@
     {"table":"stock_balances","has_org":true,"pk":"item_id","columns":"*","b_read":"none","by_id":"applicable"},
     {"table":"stock_document_lines","has_org":true,"pk":"id","columns":"id,org_id,document_id,line_no,item_id,quantity,counted_quantity,expected_quantity,direction,boq_item_id,source_line_id","b_read":"own-org-only","by_id":"applicable"},
     {"table":"stock_documents","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"stock_erp_mirror","has_org":true,"pk":"org_id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"stock_erp_mirror","has_org":true,"pk":"org_id","columns":"org_id,stock_document_id,external_tier,company_id,external_model,external_id,external_reference,state,completed_quantity,currency,source_written_at,fetched_at,exception,command_generation,created_at,updated_at","b_read":"own-org-only","by_id":"applicable"},
     {"table":"stock_items","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"stock_ledger","has_org":true,"pk":"seq","columns":"*","b_read":"none","by_id":"applicable"},
     {"table":"stock_reorder_levels","has_org":true,"pk":"item_id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
@@ -358,6 +358,7 @@
     "get_reorder_suggestions(uuid,uuid)",
     "get_stock_below_reorder()",
     "get_stock_document_costs(uuid)",
+    "get_stock_erp_value(uuid)",
     "get_stock_ledger(uuid,uuid,uuid,uuid,uuid,date,date,bigint,integer)",
     "get_stock_on_hand(uuid,uuid,boolean)",
     "grant_sales_invoice_submit_clearance(uuid,uuid,uuid)",
@@ -617,6 +618,7 @@
     "stock_assert_standalone(uuid)",
     "stock_assert_writeoff_approver(stock_documents,uuid)",
     "stock_command_actor_rank(uuid,uuid)",
+    "stock_command_live(uuid,uuid)",
     "stock_insert_lines(stock_documents,jsonb)",
     "stock_lock_for_document(stock_documents)",
     "stock_org_today(uuid)",
@@ -660,7 +662,7 @@
     "withdraw_work_order_acceptance(uuid)",
     "work_order_issue_eligibility(uuid[])",
     "write_connect_census(uuid,text,jsonb)",
-    "write_stock_erp_mirror(uuid,uuid,integer,integer,text,text,text,numeric,numeric,text,timestamp with time zone,timestamp with time zone,text)"
+    "write_stock_erp_mirror(uuid,uuid,integer,integer,text,text,text,text,numeric,numeric,text,timestamp with time zone,timestamp with time zone,text)"
   ],
   "edge_functions": [
     "adapter-dispatch",

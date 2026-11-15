@@ -108,6 +108,31 @@ set local request.jwt.claims = '{"sub":"a8700000-0000-0000-0000-0000000000a2","r
 select throws_ok($$select public.unlink_connect_match('a8700000-0000-0000-0000-000000000041')$$,'P0002','link not found','AC-OSP-006 other organization cannot unlink');
 set local request.jwt.claims = '{"sub":"a8700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select is(cardinality(public.list_unlinkable_connect_matches(array['a8700000-0000-0000-0000-000000000041'::uuid,'a8700000-0000-0000-0000-000000000042'::uuid])),2,'AC-OSP-006 both stock links are offered for unlink');
+reset role;
+-- A live inventory command whose document names the item or warehouse keeps the link in use; the command guard is stepped past (the fixture is not a post).
+alter table public.external_command_outbox disable trigger external_command_outbox_zz_stock_command;
+insert into stock_documents (id,org_id,number,kind,warehouse_id,to_warehouse_id,occurred_on,created_by) values ('a8700000-0000-0000-0000-000000000051','a8700000-0000-0000-0000-000000000001','T51','transfer','a8700000-0000-0000-0000-000000000021','a8700000-0000-0000-0000-000000000022',current_date,'a8700000-0000-0000-0000-0000000000a1');
+insert into stock_document_lines (org_id,document_id,line_no,item_id,quantity) values ('a8700000-0000-0000-0000-000000000001','a8700000-0000-0000-0000-000000000051',1,'a8700000-0000-0000-0000-000000000011',1);
+insert into external_command_outbox (org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state,actor_user_id,payload)
+values ('a8700000-0000-0000-0000-000000000001','inventory','a8700000-0000-0000-0000-000000000051','stock:a8700000-0000-0000-0000-000000000051','odoo','create','held','a8700000-0000-0000-0000-0000000000a1','{}');
+select ok(public.connect_link_in_use('a8700000-0000-0000-0000-000000000001','stock_items','a8700000-0000-0000-0000-000000000011'),'AC-OSP-006 a held command keeps its stock item link in use');
+select ok(public.connect_link_in_use('a8700000-0000-0000-0000-000000000001','stock_warehouses','a8700000-0000-0000-0000-000000000021'),'AC-OSP-006 a held command keeps its warehouse link in use');
+select ok(not public.connect_link_in_use('a8700000-0000-0000-0000-000000000001','stock_items','a8700000-0000-0000-0000-000000000012'),'AC-OSP-006 an item no command names is not in use');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a8700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok($$select public.unlink_connect_match('a8700000-0000-0000-0000-000000000041')$$,'P0001','link in use','AC-OSP-006 a stock item link in use cannot be unlinked');
+select is(cardinality(public.list_unlinkable_connect_matches(array['a8700000-0000-0000-0000-000000000041'::uuid,'a8700000-0000-0000-0000-000000000042'::uuid])),0,'AC-OSP-006 links in use are not offered for unlink');
+reset role;
+update external_command_outbox set state='confirmed' where pmo_record_id='a8700000-0000-0000-0000-000000000051';
+select ok(not public.connect_link_in_use('a8700000-0000-0000-0000-000000000001','stock_items','a8700000-0000-0000-0000-000000000011'),'AC-OSP-006 a confirmed command no longer holds the link');
+update external_command_outbox set state='failed' where pmo_record_id='a8700000-0000-0000-0000-000000000051';
+select ok(not public.connect_link_in_use('a8700000-0000-0000-0000-000000000001','stock_warehouses','a8700000-0000-0000-0000-000000000021'),'AC-OSP-006 a plain failed command does not hold the link');
+delete from external_command_outbox where pmo_record_id='a8700000-0000-0000-0000-000000000051';
+delete from stock_document_lines where document_id='a8700000-0000-0000-0000-000000000051';
+delete from stock_documents where id='a8700000-0000-0000-0000-000000000051';
+alter table public.external_command_outbox enable trigger external_command_outbox_zz_stock_command;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a8700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok($$select public.unlink_connect_match('a8700000-0000-0000-0000-000000000041')$$,'AC-OSP-006 Admin unlinks stock item');
 reset role;
 select is((select count(*)::int from external_refs where org_id='a8700000-0000-0000-0000-000000000001' and domain like 'stock_%'),3,'AC-OSP-006 unlink removes only one row');
