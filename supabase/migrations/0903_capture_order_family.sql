@@ -505,7 +505,7 @@ begin
    where a.org_id = v_org and a.undone_at is null and (p_project_id is null or a.project_id = p_project_id)), '[]'::jsonb));
 end $$;
 
--- §6 Undo (0882's body, plus the lines marked 0903). Without an attachment named, every active decision on the purchase is undone and the purchase
+-- §6 Undo (0896's body, plus the lines marked 0903; its kind read keeps 0896's order: the first capture decides). Without an attachment named, every active decision on the purchase is undone and the purchase
 -- is cancelled. With one named, only that attachment's decisions and links go, its stage (and, with no invoice left, its status) comes back,
 -- and the purchase and its order stay. One function, so the API sees one signature; the command line calls it by named arguments.
 drop function public.undo_captured_purchase(uuid,text,boolean);
@@ -519,8 +519,7 @@ begin
   -- The caller is checked before anything about the purchase or an attachment is read or said.  -- 0903
   perform public.assert_is_active_member();  -- 0903
   if public.auth_role()::text is distinct from 'Admin' then raise exception 'not authorized' using errcode='42501'; end if;  -- 0903
-  -- A purchase may now hold several capture rows (an order, then the invoices attached to it).  -- 0903
-  select case when bool_or(kind='journal') then 'journal' else min(kind) end into v_kind from public.erp_purchase_captures where org_id=v_org and procurement_id=p_procurement_id;  -- 0903
+  select kind into v_kind from public.erp_purchase_captures where org_id=v_org and procurement_id=p_procurement_id order by captured_at, request_id limit 1;  -- 0896
   if v_kind is null or v_kind='journal' then
     if p_attach_request_id is not null then raise exception 'attachment_not_found' using errcode='P0002'; end if;  -- 0903
     return public.undo_captured_journal_purchase(p_procurement_id,p_reason,p_dry_run);

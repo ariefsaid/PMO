@@ -406,9 +406,9 @@ does. Verify red (the 4-argument call does not exist).
 ### T16 — green: `undo_captured_purchase` (FR-015–FR-017)
 `drop function public.undo_captured_purchase(uuid,text,boolean);` then create
 `undo_captured_purchase(p_procurement_id uuid, p_reason text, p_dry_run boolean default false, p_attach_request_id uuid default null)`
-with 0882's body plus lines marked `-- NNNN`:
-- kind lookup becomes `select case when bool_or(kind = 'journal') then 'journal' else min(kind) end into v_kind …` (several
-  capture rows now exist on one purchase);
+with 0896's body (#2259) plus lines marked `-- NNNN`:
+- kind lookup stays 0896's ordered read (`order by captured_at, request_id limit 1`: the first capture decides); a family
+  purchase's first capture is its order or original invoice, and a journal purchase takes no family invoices (`family_conflict`);
 - the decision lookup becomes a loop over `select * from erp_capture_invoice_assignments where org_id = v_org and
   procurement_id = p_procurement_id and decision = 'project' and undone_at is null and (p_attach_request_id is null or
   family_request_id = p_attach_request_id) order by source_document_id for update`; every mark is checked before any is
@@ -441,12 +441,12 @@ with the md5 taken from a reset at 0882 in T19's harness. Verify:
 ### T19 — rollback (AC-020, NFR-003)
 `supabase/migrations/rollback/NNNN_capture_order_family_down.sql`: refuse with `raise exception 'family_history_exists'`
 when any decision has `family_request_id`; drop `capture_assignment_family`, the 4-argument undo and the 6-argument
-validate; restore 0882's `assign_capture_invoices`, `capture_assignment_claim`, `capture_assignment_validate`,
-`undo_captured_purchase` (3-argument, with its grants) and `purchase_capture_assignment_report` verbatim; drop the index,
+validate; restore 0882's `assign_capture_invoices`, `capture_assignment_claim`, `capture_assignment_validate` and
+`purchase_capture_assignment_report`, and 0896's `undo_captured_purchase` (3-argument, with its grants), verbatim; drop the index,
 constraint and columns. Copy `scripts/test-2195-b1-rollback.sh` → `scripts/test-2195-order-family-rollback.sh` and
 `scripts/2195-b1-rollback.test.sql` → `scripts/2195-order-family-rollback.test.sql`, with the static list
-`[(name, '0882_capture_invoice_assignment.sql') for name in ('assign_capture_invoices','capture_assignment_claim',
-'capture_assignment_validate','undo_captured_purchase','purchase_capture_assignment_report')]`. Add after
+of each replaced function and its previous body (`0896_undo_capture_kind_order.sql` for `undo_captured_purchase`,
+`0882_capture_invoice_assignment.sql` for the others). Add after
 `.github/workflows/ci.yml:610`:
 ```yaml
       - name: 2277 order-family rollback proof

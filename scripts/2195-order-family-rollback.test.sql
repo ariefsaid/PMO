@@ -1,4 +1,4 @@
--- #2277: the down for 0903 restores every replaced function to its exact 0882 body and grants, refuses while any order-family placement exists,
+-- #2277: the down for 0903 restores every replaced function to its exact previous body and grants (0896 for undo, else 0882), refuses while any order-family placement exists,
 -- and removes what 0903 added. The script substitutes the (signature, body hash, grants) of each replaced function and the request guard's body
 -- hash, as recorded in a database reset to the migration before 0903, and the down file. One transaction; nothing is left behind.
 begin;

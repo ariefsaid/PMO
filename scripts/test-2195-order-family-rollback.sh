@@ -7,8 +7,8 @@ PATH="/opt/homebrew/opt/libpq/bin:$PATH"
 test_file="supabase/tests/2195_order_family_rollback.generated.test.sql"
 hashes="$(mktemp)"
 trap 'rm -f "$test_file" "$hashes" "$hashes.csv"' EXIT
-# Static proof: each function 0903 replaces is 0882's body less the lines it replaces (counted below) plus only lines marked "-- 0903",
-# the down restores 0882's body verbatim, and 0903 does not touch the request guard.
+# Static proof: each function 0903 replaces is its previous body (0896's for undo_captured_purchase, else 0882's) less the lines it replaces
+# (counted below) plus only lines marked "-- 0903", the down restores that previous body verbatim, and 0903 does not touch the request guard.
 python3 - <<'PY'
 from pathlib import Path
 import difflib, re, sys
@@ -22,19 +22,20 @@ def body(path, name):
     return re.sub(r'^create (or replace )?function', 'create or replace function', s[st:end], flags=re.I)
 up = 'supabase/migrations/0903_capture_order_family.sql'
 down = 'supabase/migrations/rollback/0903_capture_order_family_down.sql'
-source = 'supabase/migrations/0882_capture_invoice_assignment.sql'
+sources = {'undo_captured_purchase': 'supabase/migrations/0896_undo_capture_kind_order.sql'}
 if 'api_client_request_guard' in Path(up).read_text(): sys.exit('0903 must not replace api_client_request_guard')
-# name -> the number of 0882 lines 0903 replaces (each replacement is marked "-- 0903" in 0903's body)
+# name -> the number of previous-body lines 0903 replaces (each replacement is marked "-- 0903" in 0903's body)
 replaced = {'capture_assignment_claim': 2, 'capture_assignment_validate': 2, 'assign_capture_invoices': 7,
-            'purchase_capture_assignment_report': 0, 'undo_captured_purchase': 17}
+            'purchase_capture_assignment_report': 0, 'undo_captured_purchase': 16}
 for name, count in replaced.items():
+    source = sources.get(name, 'supabase/migrations/0882_capture_invoice_assignment.sql')
     previous = body(source, name).split('\n')
     stripped = [l for l in body(up, name).split('\n') if not l.rstrip().endswith('-- 0903')]
     ops = [op for op in difflib.SequenceMatcher(a=previous, b=stripped, autojunk=False).get_opcodes() if op[0] != 'equal']
     if any(op[0] != 'delete' for op in ops):
-        sys.exit(f'{name}: 0903 adds or changes an unmarked line of 0882')
+        sys.exit(f'{name}: 0903 adds or changes an unmarked line of {source}')
     deleted = sum(op[2] - op[1] for op in ops)
-    if deleted != count: sys.exit(f'{name}: 0903 replaces {deleted} lines of 0882, expected {count}')
+    if deleted != count: sys.exit(f'{name}: 0903 replaces {deleted} lines of {source}, expected {count}')
     if body(down, name) != body(source, name): sys.exit(f'{name}: the down does not restore the body of {source} verbatim')
     print(f'ok {name}: 0903 = {source} - {count} replaced lines + marked lines; down = {source}')
 PY

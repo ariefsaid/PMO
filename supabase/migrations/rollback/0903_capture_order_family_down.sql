@@ -1,5 +1,6 @@
 -- Down for 0903 (#2277). Run this whole file in ONE transaction. Pause assignment and capture traffic first; on lock-not-available, retry.
--- It restores every function 0903 replaced to its exact 0882 body, then removes what 0903 added. It refuses while any order-family placement
+-- It restores every function 0903 replaced to its exact previous body (0896's for undo_captured_purchase, 0882's for the others), then
+-- removes what 0903 added. It refuses while any order-family placement
 -- exists (a family decision, or the capture row of a family placement), because the 0882 functions cannot read or undo one.
 lock table public.erp_capture_invoice_assignments in access exclusive mode nowait;
 lock table public.erp_purchase_captures in access exclusive mode nowait;
@@ -16,14 +17,14 @@ drop function public.capture_assignment_family(uuid,uuid,uuid,jsonb,text,boolean
 drop function public.capture_family_stage(uuid,uuid);
 drop index public.erp_purchase_documents_purchase_orders_idx;
 
--- restored: 0882 undo
+-- restored: 0896 undo
 drop function public.undo_captured_purchase(uuid,text,boolean,uuid);
 create or replace function public.undo_captured_purchase(p_procurement_id uuid,p_reason text,p_dry_run boolean default false)
 returns jsonb language plpgsql security definer set search_path=public,pg_catalog as $$
 declare v_org uuid := public.auth_org_id(); v_kind text; v_proc public.procurements%rowtype; v_history jsonb;
   v_asg public.erp_capture_invoice_assignments%rowtype; v_mark public.erp_purchase_document_marks%rowtype; v_has_mark boolean; v_restored boolean := false; v_before jsonb;
 begin
-  select kind into v_kind from public.erp_purchase_captures where org_id=v_org and procurement_id=p_procurement_id;
+  select kind into v_kind from public.erp_purchase_captures where org_id=v_org and procurement_id=p_procurement_id order by captured_at, request_id limit 1;  -- 0896
   if v_kind is null or v_kind='journal' then
     return public.undo_captured_journal_purchase(p_procurement_id,p_reason,p_dry_run);
   end if;
