@@ -779,8 +779,8 @@
     "overdueFromClients": "Client overdue",
     "overdueItems_one": "{{count}} overdue",
     "overdueItems_other": "{{count}} overdue",
-    "overdueTasks_one": "{{count}} overdue task",
-    "overdueTasks_other": "{{count}} overdue tasks",
+    "overdueTasks_one": "{{count}} task overdue",
+    "overdueTasks_other": "{{count}} tasks overdue",
     "owedByClients": "Owed by clients",
     "pipelineWeighted": "Weighted pipeline",
     "pm": {

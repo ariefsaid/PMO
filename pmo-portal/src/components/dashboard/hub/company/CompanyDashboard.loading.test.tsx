@@ -81,7 +81,7 @@ beforeEach(() => {
 });
 
 describe('company home loading gates: one read pending', () => {
-  it('the management pack still loading holds only Invoiced and Left to bill; Contract on hand, Project health and Owed to us show', () => {
+  it('the management pack still loading holds only Invoiced and Left to bill; Contract on hand, Project health and Owed by clients show', () => {
     h.reads.pack = pending;
     renderExec();
     expect(tile('Contract on hand')).toHaveTextContent('$8M');
@@ -90,7 +90,7 @@ describe('company home loading gates: one read pending', () => {
     expect(screen.getByTestId('owed-to-us')).toHaveTextContent('$40K');
   });
 
-  it('client invoices still loading hold only Owed to us; the figures band and the supplier side show', () => {
+  it('client invoices still loading hold only Owed by clients; the figures band and the supplier side show', () => {
     h.reads.invoices = pending;
     renderExec();
     expect(tile('Contract on hand')).toHaveTextContent('$8M');
@@ -117,7 +117,7 @@ describe('company home loading gates: one read failed', () => {
     expect(screen.getByTestId('owed-to-us')).toHaveTextContent('$40K');
   });
 
-  it('a failed dashboard read says so on Contract on hand and in Project health; Invoiced and Owed to us show', () => {
+  it('a failed dashboard read says so on Contract on hand and in Project health; Invoiced and Owed by clients show', () => {
     h.reads.dashboard = failed;
     renderExec();
     expect(tile('Contract on hand')).toHaveTextContent("Couldn't load");
@@ -126,7 +126,7 @@ describe('company home loading gates: one read failed', () => {
     expect(screen.getByTestId('owed-to-us')).toHaveTextContent('$40K');
   });
 
-  it('failed client invoices say so in Owed to us; the figures band and the supplier side show', () => {
+  it('failed client invoices say so in Owed by clients; the figures band and the supplier side show', () => {
     h.reads.invoices = failed;
     renderExec();
     expect(screen.getByTestId('owed-to-us')).toHaveTextContent("Couldn't load client invoices");

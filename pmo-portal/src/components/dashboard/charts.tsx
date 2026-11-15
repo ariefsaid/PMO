@@ -7,6 +7,7 @@ import { useFigureReport } from '@/src/components/ui/useFigureScope';
 import { tooltipContentStyle, tooltipCursorFill, tooltipLabelStyle } from '@/src/components/dashboard/chartChrome';
 import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
 import { PAIRED_TOP_MARGIN, pairedLabelY, peakLabelIndexes } from './chartLabels';
+import { wrapProjectName } from './hub/company/projectName';
 
 /**
  * Home graphics (screen-rules "Graphics"): bars carry their value as a direct label, one neutral series colour,
@@ -39,14 +40,16 @@ export interface BarRow {
   tone2?: ChartTone;
 }
 
-const truncate = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
-
-const NameTick: React.FC<{ x?: number; y?: number; payload?: { value: string }; max: number }> = ({ x = 0, y = 0, payload, max }) => (
-  <text x={x - 6} y={y} dy={5} textAnchor="end" style={{ fontSize: 14, fill: INK }}>
-    <title>{payload?.value}</title>
-    {truncate(payload?.value ?? '', max)}
-  </text>
-);
+/** A name on up to two lines (names are read whole; only a name longer than two lines ends in an ellipsis). */
+const NameTick: React.FC<{ x?: number; y?: number; payload?: { value: string }; max: number }> = ({ x = 0, y = 0, payload, max }) => {
+  const lines = wrapProjectName(payload?.value ?? '', max);
+  return (
+    <text x={x - 6} y={y} dy={lines.length > 1 ? -3 : 5} textAnchor="end" style={{ fontSize: 14, fill: INK }}>
+      <title>{payload?.value}</title>
+      {lines.map((line, index) => <tspan key={index} x={x - 6} dy={index === 0 ? 0 : 16}>{line}</tspan>)}
+    </text>
+  );
+};
 
 /**
  * Horizontal bars, one row per item (a comparison, a ranking, a funnel on one scale). Pass `value2` for paired bars
@@ -63,12 +66,14 @@ export const BarList: React.FC<{
   /** Row pitch for single bars (default 34px). */
   rowPitch?: number;
 }> = ({ rows, ariaLabel, seriesNames, nameWidth: fixedNameWidth, domainMax, rowPitch = 34 }) => {
-  // The name column fits the longest name (up to 22 characters; longer names end in an ellipsis).
+  // The name column fits the longest name (up to 22 characters a line); a longer name takes a second line.
   const nameWidth = fixedNameWidth ?? Math.min(190, Math.max(96, Math.ceil(Math.max(0, ...rows.map((row) => row.name.length)) * 8.4)));
+  const nameChars = Math.floor(nameWidth / 8.4);
+  const wraps = rows.some((row) => wrapProjectName(row.name, nameChars).length > 1);
   const reduced = usePrefersReducedMotion();
   const paired = rows.some((row) => row.value2 !== undefined);
   const data = rows.map((row) => ({ ...row, a: row.value, b: row.value2 ?? null }));
-  const rowHeight = paired ? 62 : rowPitch;
+  const rowHeight = paired ? 62 : wraps ? Math.max(rowPitch, 44) : rowPitch;
   const max = domainMax ?? Math.max(1, ...rows.flatMap((row) => [row.value ?? 0, row.value2 ?? 0]));
   return (
     <div>
@@ -76,7 +81,7 @@ export const BarList: React.FC<{
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} layout="vertical" margin={{ top: 2, right: 80, bottom: 2, left: 0 }} barCategoryGap="20%" barGap={4} barSize={paired ? 16 : 18}>
             <XAxis type="number" hide domain={[0, max]} />
-            <YAxis type="category" dataKey="name" width={nameWidth} tick={<NameTick max={Math.floor(nameWidth / 8.4)} />} tickLine={false} axisLine={false} interval={0} />
+            <YAxis type="category" dataKey="name" width={nameWidth} tick={<NameTick max={nameChars} />} tickLine={false} axisLine={false} interval={0} />
             <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(_value, key, item) => [(key === 'a' ? item.payload.label : item.payload.label2) ?? '', key === 'a' ? seriesNames?.[0] ?? '' : seriesNames?.[1] ?? '']} />
             <Bar dataKey="a" radius={[0, 4, 4, 0]} isAnimationActive={!reduced} minPointSize={2}>
               {data.map((row) => <Cell key={row.id} fill={toneFill[row.tone ?? 'neutral']} />)}
@@ -124,6 +129,11 @@ const PlainTick: React.FC<{ x?: number; y?: number; payload?: { value: string | 
   </text>
 );
 
+/** The column chart's top margin: the headroom a value label above the tallest column needs. */
+const COLUMN_PLOT_TOP = 22;
+/** Below this column width a value label is wider than its column. */
+const NARROW_COLUMN_PX = 12;
+
 /** `peak` mode: one label on the tallest column and one on the latest month's first series, nothing else. */
 const peakLabel = (data: Array<{ a: number | null; b?: number | null }>, series: 'a' | 'b') => (props: { x?: number | string; y?: number | string; width?: number | string; index?: number; value?: unknown }) => {
   const { x = 0, y = 0, width = 0, index = 0, value } = props;
@@ -131,6 +141,12 @@ const peakLabel = (data: Array<{ a: number | null; b?: number | null }>, series:
   const isPeak = peak?.index === index && peak.series === series;
   const isLast = series === 'a' && index === last && !(peak?.index === index && peak.series === 'b');
   if (value == null || value === '' || !(isPeak || isLast)) return null;
+  // Columns narrower than a label (a phone): only the latest month is labelled, in the headroom above the
+  // tallest column, ending at its own column, so it never sits on a neighbour or leaves the plot.
+  if (Number(width) < NARROW_COLUMN_PX) {
+    if (!isLast) return null;
+    return <text x={Number(x) + Number(width)} y={COLUMN_PLOT_TOP - 6} textAnchor="end" style={LABEL_STYLE}>{String(value)}</text>;
+  }
   // Near the right edge the label ends at the column so it never leaves the plot.
   const anchor = index >= data.length - 2 ? 'end' : 'middle';
   const anchorX = anchor === 'end' ? Number(x) + Number(width) : Number(x) + Number(width) / 2;
@@ -185,10 +201,10 @@ export const MonthColumns: React.FC<{
   const two = points.some((point) => point.b !== undefined);
   // A value axis with paired-on-bar labels: the axis reads every month, only the latest month's pair is labelled.
   const pairedOnAxis = Boolean(valueAxis) && pairedLabelsOnBars && two;
-  // The value axis is as wide as its longest label (about 7px a character at 12px), never narrower than 52px,
+  // The value axis is as wide as its longest label (about 7px a character at 12px), never narrower than 76px,
   // so a longer local unit ("US$1,65 jt") is not clipped at the card edge.
   const axisMax = Math.max(0, ...points.flatMap((point) => [point.a ?? 0, point.b ?? 0]));
-  const axisWidth = valueAxis ? Math.max(52, Math.ceil(valueAxis(axisMax * 1.1).length * 7) + 10) : 0;
+  const axisWidth = valueAxis ? Math.max(76, Math.ceil(valueAxis(axisMax * 1.1).length * 7) + 10) : 0;
   const data = points.map((point) => ({ ...point }));
   const legendItems = two && seriesNames?.[0] && seriesNames[1]
     ? [
@@ -203,7 +219,7 @@ export const MonthColumns: React.FC<{
         <div role="img" className={fill ? 'flex-1' : undefined} aria-label={`${ariaLabel}. ${points.map((point) => `${point.tick}: ${[point.labelA && `${two && seriesNames?.[0] ? `${seriesNames[0]} ` : ''}${point.labelA}`, point.labelB && `${seriesNames?.[1] ? `${seriesNames[1]} ` : ''}${point.labelB}`].filter(Boolean).join(', ')}`).join('; ')}`} style={fill ? { minHeight: height, minWidth } : { height, minWidth }}>
           {/* `fill` without a definite parent height (a single-column phone layout) still draws at its minimum. */}
           <ResponsiveContainer width="100%" height="100%" minHeight={fill ? height : undefined}>
-            <BarChart data={data} margin={{ top: pairedLabelsOnBars && two ? PAIRED_TOP_MARGIN : 22, right: pairedOnAxis ? 24 : two && !valueAxis ? 40 : 4, bottom: 0, left: 4 }} barGap={2} barCategoryGap="14%">
+            <BarChart data={data} margin={{ top: pairedLabelsOnBars && two ? PAIRED_TOP_MARGIN : COLUMN_PLOT_TOP, right: pairedOnAxis ? 24 : two && !valueAxis ? 40 : 4, bottom: 0, left: 4 }} barGap={2} barCategoryGap="14%">
               {valueAxis && <CartesianGrid vertical={false} stroke={chartTheme.grid} strokeOpacity={0.6} />}
               <XAxis dataKey="tick" tick={<PlainTick anchor="middle" dy={14} />} tickLine={false} stroke={chartTheme.grid} interval={tickInterval} />
               {valueAxis
