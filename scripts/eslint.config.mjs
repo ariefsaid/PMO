@@ -11,7 +11,10 @@ const js = requireFromApp('@eslint/js');
 const globals = requireFromApp('globals');
 
 export default [
-  { ignores: ['**/node_modules/**'] },
+  {
+    // wf/jtbd-consumers.mjs is an Orca workflow DSL definition (top-level `phase`/`agent`/`return`), not runnable ESM.
+    ignores: ['**/node_modules/**', 'wf/jtbd-consumers.mjs'],
+  },
   {
     files: ['**/*.mjs'],
     ...js.configs.recommended,

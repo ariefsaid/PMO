@@ -23,12 +23,22 @@ export async function readErpPrecision(client: ErpClientDeps): Promise<ErpPrecis
     // currency to the System Settings number format's decimals.
     const digits = (v: unknown) => Number(v) || null;
     const float = digits(doc?.float_precision) ?? 3;
-    const currency = digits(doc?.currency_precision)
-      ?? STATEMENT_FORMAT_PRECISION[String(doc?.number_format ?? '#,###.##')] ?? 2;
+    const currency = digits(doc?.currency_precision) ?? numberFormatPrecision(doc?.number_format ?? '#,###.##') ?? 2;
     return Number.isInteger(float) && Number.isInteger(currency) && float >= 0 && currency >= 0 ? { float, currency } : null;
   } catch {
     return null;
   }
+}
+
+/**
+ * The decimals Frappe gives a Currency field when System Settings Currency Precision is blank (or 0 on version 15; on
+ * version 16 and later 0 is a real setting): the System Settings number format's (frappe/model/meta.py
+ * get_field_precision → frappe/utils/data.py get_number_format_info). Null when the format is not one the shared
+ * table knows; each caller decides what an unknown format means.
+ */
+export function numberFormatPrecision(numberFormat: unknown): number | null {
+  return typeof numberFormat === 'string' && Object.prototype.hasOwnProperty.call(STATEMENT_FORMAT_PRECISION, numberFormat)
+    ? STATEMENT_FORMAT_PRECISION[numberFormat] : null;
 }
 
 interface Dec { n: bigint; s: number }
