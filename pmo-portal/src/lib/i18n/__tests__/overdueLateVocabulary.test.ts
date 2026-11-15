@@ -61,7 +61,8 @@ const TASK_KEYS = [
   // vocabulary so the catalogue keeps no task-side "late".
   'status:age.late_one',
   'status:age.late_other',
-  'project:projectDetail.myTasks.overdue',
+  'project:projectDetail.myTasks.overdue_one',
+  'project:projectDetail.myTasks.overdue_other',
   'project:projectDetail.myTasks.overdueCount',
   'project:projectDetail.attention.taskOverdue',
   'project:projectDetail.attention.taskBlockedOverdue',

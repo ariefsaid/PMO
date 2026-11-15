@@ -4,6 +4,7 @@ import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { EntryList } from '../EntryList';
 import type { TimesheetEntryWithProject } from '@/src/lib/db/timesheets';
+import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const makeEntry = (
   id: string,
@@ -73,5 +74,15 @@ describe('T6 — EntryList', () => {
     // Standardized to the sibling cards' copy — not the old "No timesheet entries yet".
     expect(screen.getByText(/No hours logged this week/i)).toBeInTheDocument();
     expect(screen.queryByText(/No timesheet entries yet/i)).not.toBeInTheDocument();
+  });
+
+  it('#2089: entry hours render in the viewer locale (id: 7,5), never a raw dot decimal', () => {
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'UTC' });
+    try {
+      render(<EntryList entries={[makeEntry('e9', 7.5, '2026-06-02', 'Alpha Project', 'A001', null)]} />);
+      expect(screen.getByText(/^7,5\s?h$/)).toBeInTheDocument();
+    } finally {
+      resetActiveLocale();
+    }
   });
 });

@@ -64,7 +64,7 @@ import { NativeWithholdingField, TaxSuggestedFrom } from './VendorBillTaxFields'
 import { itemsNetTotal } from '@/src/lib/vendorWithholding';
 import { SubcontractBillLines } from './SubcontractBillLines';
 import type { SubcontractBillLineInput } from '@/src/lib/db/subcontracts';
-import { formatMoneyInputValue } from '@/src/lib/format';
+import { formatMoneyInputValue, numberSymbols } from '@/src/lib/format';
 
 /**
  * What the inline VI capture hands up to the page (#505). Derived from the DAL's
@@ -573,7 +573,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
             readOnly={bill !== null}
             aria-invalid={amtError ? true : undefined}
             aria-describedby={amtError ? amtErrorId : undefined}
-            placeholder="0.00"
+            placeholder={`0${numberSymbols().decimal}00`}
             data-testid={VI_FIELD_TEST_IDS.amount}
             className="h-8 w-28 rounded-md border border-input bg-background px-2 text-sm tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           />
@@ -637,7 +637,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
             value={taxAmtStr}
             readOnly={taxFields.hasRate}
             onChange={taxAmtMask.onChange}
-            placeholder="0.00"
+            placeholder={`0${numberSymbols().decimal}00`}
             data-testid={VI_FIELD_TEST_IDS.taxAmount}
             aria-describedby={nativeTax.vatSuggestion ? 'vi-inline-tax-amount-basis' : undefined}
             className="h-8 w-28 rounded-md border border-input bg-background px-2 text-sm tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"

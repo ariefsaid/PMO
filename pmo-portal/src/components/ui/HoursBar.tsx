@@ -8,6 +8,7 @@
  */
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { formatNumberMax2 } from '@/src/lib/format';
 
 export interface HoursBarProps {
   /** Project name (displayed as body text). */
@@ -35,10 +36,12 @@ export const HoursBar: React.FC<HoursBarProps> = ({
 }) => {
   const { t } = useTranslation();
   const pct = maxHours > 0 ? (hours / maxHours) * 100 : 0;
-  const display = formatValue ? formatValue(hours) : t('dashboard.engineer.hoursShort', '{{hours}}h', { hours });
+  // #2089: the hours figure renders in the viewer's locale, and the unit stays on one line with it.
+  const formattedHours = formatNumberMax2(hours);
+  const display = formatValue ? formatValue(hours) : t('dashboard.engineer.hoursShort', '{{hours}}h', { hours: formattedHours });
   // When a custom formatter is given, the formatted string is the a11y suffix;
   // otherwise fall back to the "N hours" phrasing.
-  const ariaValue = formatValue ? display : t('dashboard.engineer.hoursSpoken', '{{hours}} {{unit}}', { hours, unit: t('dashboard.engineer.hoursUnit', 'hours') });
+  const ariaValue = formatValue ? display : t('dashboard.engineer.hoursSpoken', '{{hours}} {{unit}}', { hours: formattedHours, unit: t('dashboard.engineer.hoursUnit', 'hours') });
 
   return (
     <div className="flex items-center gap-2.5 py-[5px]">

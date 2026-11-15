@@ -45,4 +45,11 @@ describe('ProgressBar', () => {
     const v = screen.getByText('62%');
     expect(v.className).toContain('tabular');
   });
+
+  it('#2089: a fractional share shows a rounded percent, never the raw float', () => {
+    render(<ProgressBar value={100 / 3} showValue />);
+    expect(screen.getByText('33%')).toBeInTheDocument();
+    expect(screen.queryByText(/33\.333/)).not.toBeInTheDocument();
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', '33%');
+  });
 });

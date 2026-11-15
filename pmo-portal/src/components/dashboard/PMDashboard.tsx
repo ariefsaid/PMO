@@ -159,7 +159,7 @@ export const PMDashboard: React.FC = () => {
       id: item.id,
       count: item.countLabel ?? item.count,
       label: item.label,
-      amount: item.id === 'team-timesheets' && approvedHours !== null ? `${formatHours(approvedHours)} ${t('home.hoursUnit', 'h')}` : undefined,
+      amount: item.id === 'team-timesheets' && approvedHours !== null ? `${formatHours(approvedHours)}\u00a0${t('home.hoursUnit', 'h')}` : undefined,
       href: item.href,
       tone: item.tone === 'lost' ? 'lost' as const : item.tone === 'neutral' ? 'neutral' as const : 'warn' as const,
     }));
@@ -244,7 +244,7 @@ export const PMDashboard: React.FC = () => {
               tone="blue"
               icon="grid"
               label={t('home.teamHours', 'Team hours to approve')}
-              value={approvedHours === null || hoursItem === undefined ? null : `${formatHours(approvedHours)} ${t('home.hoursUnit', 'h')}`}
+              value={approvedHours === null || hoursItem === undefined ? null : `${formatHours(approvedHours)}\u00a0${t('home.hoursUnit', 'h')}`}
               unavailableReason={approvedHours === null || hoursItem === undefined ? t('home.reasonTeamHours', 'team timesheets could not be read') : undefined}
               to={hoursItem?.href}
               linkLabel={t('home.teamHours', 'Team hours to approve')}

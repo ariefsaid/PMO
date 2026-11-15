@@ -24,6 +24,34 @@ import { chartTheme } from '@/src/components/ui/chartTheme';
 import { registry } from '@/src/lib/viewspec/registry';
 import type { CompiledPanel } from '@/src/lib/viewspec/types';
 import type { IconName } from '@/src/components/ui/icons';
+import { formatDateOnly, formatNumber } from '@/src/lib/format';
+
+/** A date-only ISO string — the one string shape a built view renders as a date. */
+const ISO_DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * #2089 (WIG, Locale & i18n) — a built view's values go through the app's formatters: a number
+ * renders grouped in the viewer's locale, a date-only ISO string renders as a date, and anything
+ * else (names, codes, numeric-looking code strings) stays verbatim — a code like `4100` must
+ * never be regrouped into `4,100` by a value-shape guess.
+ */
+function formatPrimitiveCellValue(value: unknown): string {
+  if (value == null) return '';
+  if (typeof value === 'number' && Number.isFinite(value)) return formatNumber(value);
+  if (typeof value === 'string' && ISO_DATE_ONLY.test(value)) return formatDateOnly(value);
+  return String(value);
+}
+
+/** True when the column has at least one value and every recorded value is a finite number. */
+function isNumberColumn(rows: Record<string, unknown>[], column: string): boolean {
+  const values = rows.map((row) => row[column]).filter((value) => value != null);
+  return values.length > 0 && values.every((value) => typeof value === 'number' && Number.isFinite(value));
+}
+
+/** #2089: a DB column name is not a heading — `total_value` reads "total value". */
+function humaniseColumnHeader(column: string): string {
+  return column.replace(/_/g, ' ');
+}
 
 /**
  * Derives the category (label) and metric (value) columns from the compiled query.
@@ -82,11 +110,10 @@ export function HydratedPrimitive({
       const columns: Column<Record<string, unknown>>[] =
         panel.compiledQuery.resolvedSelect.map((col) => ({
           key: col,
-          header: col,
-          cell: (row) => {
-            const v = row[col];
-            return v == null ? '' : String(v);
-          },
+          header: humaniseColumnHeader(col),
+          // A column whose every recorded value is a number right-aligns as a figure column.
+          ...(isNumberColumn(rows, col) ? { kind: 'number' as const } : {}),
+          cell: (row) => formatPrimitiveCellValue(row[col]),
         }));
       return (
         <DataTable
@@ -100,7 +127,7 @@ export function HydratedPrimitive({
       const { labelCol, valueCol } = categoryMetricCols(panel);
       const tiles = (data as Record<string, unknown>[]).map((row) => ({
         label: String(row[labelCol] ?? ''),
-        value: String(row[valueCol] ?? ''),
+        value: formatPrimitiveCellValue(row[valueCol]),
       }));
       return <StatTiles tiles={tiles} columns={props.columns as number | undefined} />;
     }
@@ -172,8 +199,8 @@ export function HydratedPrimitive({
           <dl className="flex flex-col gap-1 text-[13px]">
             {panel.compiledQuery.resolvedSelect.map((col) => (
               <div key={col} className="flex justify-between gap-3">
-                <dt className="text-muted-foreground">{col}</dt>
-                <dd className="font-medium text-foreground">{String(first[col] ?? '')}</dd>
+                <dt className="text-muted-foreground">{humaniseColumnHeader(col)}</dt>
+                <dd className="font-medium text-foreground">{formatPrimitiveCellValue(first[col])}</dd>
               </div>
             ))}
           </dl>

@@ -4,6 +4,7 @@ import { SelectField } from '@/src/components/ui';
 import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
 import { OdooTaxPicker } from '@/src/components/procurement/OdooDirectoryPickers';
 import { VI_FIELD_TEST_IDS } from './vendorInvoiceTestIds';
+import { numberSymbols } from '@/src/lib/format';
 import { TAX_TREATMENT_OPTIONS, VI_TAX_REQUIRED_HINT } from './vendorInvoiceTax';
 import { ErpTaxAmountFields, NativeWithholdingField, TaxSuggestedFrom } from './VendorBillTaxFields';
 import type { VendorInvoiceCapture } from './useVendorInvoiceCapture';
@@ -78,7 +79,7 @@ export const VendorInvoiceCaptureFields: React.FC<{ formId: string; capture: Ven
             value={taxAmountStr}
             readOnly={taxFields.hasRate}
             onChange={taxAmountMask.onChange}
-            placeholder="0.00"
+            placeholder={`0${numberSymbols().decimal}00`}
             data-testid={VI_FIELD_TEST_IDS.taxAmount}
             aria-describedby={nativeTax.vatSuggestion ? `${formId}-tax-amount-basis` : undefined}
             className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-sm tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"

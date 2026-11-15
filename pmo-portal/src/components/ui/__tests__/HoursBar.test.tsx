@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { HoursBar } from '../HoursBar';
+import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
 
 describe('T5 — HoursBar', () => {
   it('renders with correct aria-label on the progressbar (T5 a11y)', () => {
@@ -52,5 +53,16 @@ describe('T5 — HoursBar', () => {
     const bar = screen.getByRole('progressbar');
     expect(bar).toHaveAttribute('aria-label', 'Materials: $2,000,000');
     expect(bar.getAttribute('aria-label')).not.toContain('hours');
+  });
+
+  it('#2089: hours render in the viewer locale (id: 7,5) in the figure and its spoken name', () => {
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'UTC' });
+    try {
+      render(<HoursBar label="Alpha" code={null} hours={7.5} maxHours={10} />);
+      expect(screen.getByText('7,5h')).toBeInTheDocument();
+      expect(screen.getByRole('progressbar')).toHaveAttribute('aria-label', 'Alpha: 7,5 hours');
+    } finally {
+      resetActiveLocale();
+    }
   });
 });

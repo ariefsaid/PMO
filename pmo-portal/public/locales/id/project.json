@@ -414,7 +414,8 @@
       "all": "Semua tugas",
       "empty": "Tidak ada tugas yang ditugaskan kepada Anda di sini.",
       "dueTooltip": "Status dan tenggat tugas berasal dari catatan tugas ini; jumlah hari keterlambatan dihitung dari hari ini.",
-      "overdue": "Terlambat · {{days}} hari"
+      "overdue_one": "Terlambat · {{count}} hari",
+      "overdue_other": "Terlambat · {{count}} hari"
     },
     "attention": {
       "title": "Perlu perhatian",
