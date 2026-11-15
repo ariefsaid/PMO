@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   repositories,
   type ExpenseClaimFilters, type ExpenseClaimInput, type ExpenseClaimPatch, type ExpenseClaimRoute,
@@ -30,6 +30,33 @@ export function useExpenseClaims(filters: ExpenseClaimFilters = {}) {
     queryFn: () => repositories.expenseClaim.list(filters),
     enabled: Boolean(orgId),
   });
+}
+
+/**
+ * One numbered page of the Expenses list (#843), plus a server count for the same filters so the list reads
+ * "Showing 1–50 of 205". The previous page stays on screen while the next one loads. A failed count leaves `total`
+ * unknown rather than claiming the loaded rows are all there are.
+ */
+export function useExpenseClaimPages(filters: ExpenseClaimFilters = {}, page = 1) {
+  const orgId = useOrgId();
+  const pages = useQuery({
+    queryKey: ['expense-claims', orgId, filters, 'pages', page],
+    queryFn: () => repositories.expenseClaim.page(filters, page),
+    placeholderData: keepPreviousData,
+    enabled: Boolean(orgId),
+  });
+  const count = useQuery({
+    queryKey: ['expense-claims', orgId, filters, 'count'],
+    queryFn: async () => {
+      try {
+        return await repositories.expenseClaim.count(filters);
+      } catch {
+        return undefined;
+      }
+    },
+    enabled: Boolean(orgId),
+  });
+  return { ...pages, total: count.data };
 }
 
 export function useExpenseClaim(id: string | undefined) {
