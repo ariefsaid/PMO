@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { MemoryRouter, useLocation } from 'react-router';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
@@ -29,10 +30,10 @@ const overdueInvoice: ErpPurchaseRow = {
 describe('procurement record panels', () => {
   it('L6 + C6: overdue is said once, and record figures show their currency', () => {
     render(
-      <>
+      <MemoryRouter>
         <ProcurementMoneySummary procurement={procurement} linkedDocuments={[overdueInvoice]} isEngineer={false} budgetSignal={null} />
         <ProcurementTimeline procurement={procurement} ledgerRows={[]} linkedDocuments={[overdueInvoice]} isEngineer={false} canWriteFiles={false} uploadedById={null} onFullHistory={vi.fn()} />
-      </>,
+      </MemoryRouter>,
     );
 
     const money = screen.getByTestId('procurement-money-summary');
@@ -63,7 +64,7 @@ describe('procurement record panels', () => {
 
   it('P5: the timeline note and the Full history link are both reachable and the link still works', async () => {
     const onFullHistory = vi.fn();
-    render(<ProcurementTimeline procurement={procurement} ledgerRows={[]} linkedDocuments={[]} isEngineer={false} canWriteFiles={false} uploadedById={null} onFullHistory={onFullHistory} />);
+    render(<MemoryRouter><ProcurementTimeline procurement={procurement} ledgerRows={[]} linkedDocuments={[]} isEngineer={false} canWriteFiles={false} uploadedById={null} onFullHistory={onFullHistory} /></MemoryRouter>);
 
     await userEvent.click(screen.getByRole('button', { name: 'Full history' }));
     expect(onFullHistory).toHaveBeenCalledTimes(1);
@@ -79,5 +80,21 @@ describe('procurement budget signal currency', () => {
   it('does not compare a foreign request with project headroom', () => {
     render(<ProcurementBudgetSignal projectId="p-1" totalValue={50} status="Requested" currency="EUR" />);
     expect(screen.getByText(/comparison unavailable/i)).toBeInTheDocument();
+  });
+
+  it('#2078 the timeline filter lives in the URL: a link opens filtered, the choice is written back, All clears it', async () => {
+    const Probe = () => <output data-testid="loc">{useLocation().search}</output>;
+    render(
+      <MemoryRouter initialEntries={['/?timeline=has-file']}>
+        <ProcurementTimeline procurement={procurement} ledgerRows={[]} linkedDocuments={[]} isEngineer={false} canWriteFiles={false} uploadedById={null} onFullHistory={() => undefined} />
+        <Probe />
+      </MemoryRouter>,
+    );
+    const filters = within(screen.getByRole('group', { name: 'Timeline filter' }));
+    expect(filters.getByRole('button', { name: 'Has file' })).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(filters.getByRole('button', { name: 'Financial' }));
+    expect(screen.getByTestId('loc')).toHaveTextContent('?timeline=financial');
+    await userEvent.click(filters.getByRole('button', { name: 'All' }));
+    expect(screen.getByTestId('loc')).toBeEmptyDOMElement();
   });
 });

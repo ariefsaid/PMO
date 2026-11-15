@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, within, act } from '@testing-library/react';
+import { MemoryRouter, useLocation } from 'react-router';
 import { WinRateCard } from './WinRateCard';
 import i18next from 'i18next';
 import idDashboard from '../../../public/locales/id/dashboard.json';
@@ -51,7 +52,7 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
   });
 
   it('AC-1117: defaults to count basis and uses the RPC currency row for value basis', () => {
-    render(<WinRateCard currency="USD" />);
+    render(<MemoryRouter><WinRateCard currency="USD" /></MemoryRouter>);
     expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
     expect(screen.getAllByRole('progressbar')[0].firstElementChild).toHaveClass('bg-primary');
     fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
@@ -76,7 +77,7 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
         { currency: 'USD', wins_count: 1, losses_count: 0, open_count: 0, wins_value: 1_000, losses_value: 0, open_value: 0 },
       ],
     };
-    render(<WinRateCard currency="USD" />);
+    render(<MemoryRouter><WinRateCard currency="USD" /></MemoryRouter>);
 
     expect(screen.getByTestId('win-rate-currency-IDR')).toBeInTheDocument();
     expect(screen.getByTestId('win-rate-currency-USD')).toHaveTextContent(/1 won of 1 decided/i);
@@ -98,7 +99,7 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
   it('retains aggregate value-rate rendering for legacy RPC payloads without currency rows', () => {
     const { value_by_currency: _rows, bids_by_currency: _bids, open_count: _open, stale_count: _stale, ...legacyPayload } = populatedOracle;
     oracle = legacyPayload;
-    render(<WinRateCard currency="USD" />);
+    render(<MemoryRouter><WinRateCard currency="USD" /></MemoryRouter>);
     fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
     expect(screen.getByTestId('win-rate-currency-USD')).toHaveTextContent('92.5%');
     expect(screen.getAllByRole('progressbar')).toHaveLength(2);
@@ -119,7 +120,7 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
         { currency: 'USD', wins_count: 1, losses_count: 0, open_count: 0, wins_value: 0, losses_value: 0, open_value: 0 },
       ],
     };
-    render(<WinRateCard currency="USD" />);
+    render(<MemoryRouter><WinRateCard currency="USD" /></MemoryRouter>);
     expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
     fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
     expect(within(screen.getByTestId('win-rate-currency-IDR')).getByTestId('kpi-win-rate')).toHaveTextContent('92.5%');
@@ -131,7 +132,7 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
     i18next.addResourceBundle('id', 'dashboard', idDashboard, true, true);
     await act(async () => { await i18next.changeLanguage('id'); });
     oracle = populatedOracle;
-    render(<WinRateCard currency="USD" />);
+    render(<MemoryRouter><WinRateCard currency="USD" /></MemoryRouter>);
     expect(screen.getByText('2 menang dari 3 yang diputuskan')).toBeInTheDocument();
     const decidedRate = screen.getByRole('progressbar', { name: 'Tingkat kemenangan USD dari tender yang diputuskan' });
     expect(decidedRate).toHaveAttribute('aria-valuetext', '66.7%');
@@ -156,7 +157,7 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
         { currency: 'USD', wins_count: 1, losses_count: 0, open_count: 0, wins_value: 0, losses_value: 0, open_value: 0 },
       ],
     };
-    render(<WinRateCard currency="USD" />);
+    render(<MemoryRouter><WinRateCard currency="USD" /></MemoryRouter>);
     fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
     expect(screen.getByTestId('win-rate-currency-IDR')).toHaveTextContent('92.5%');
     expect(screen.getByTestId('win-rate-reason-USD')).toHaveTextContent(/Nilai tender yang diputuskan tidak tercatat/i);
@@ -167,7 +168,7 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
   });
 
   it('AC-1117: changing the period re-queries with a new range key', () => {
-    render(<WinRateCard currency="USD" />);
+    render(<MemoryRouter><WinRateCard currency="USD" /></MemoryRouter>);
     const initial = lastRange?.key;
     fireEvent.click(screen.getByTestId('win-rate-period-q'));
     expect(lastRange?.key).not.toBe(initial);
@@ -175,7 +176,7 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
 
   it('keeps the redesign heading and embedded frame while honoring a parent period range', () => {
     const parentRange = { key: 'company-period:2026-01:2026-10' };
-    const { container } = render(<WinRateCard currency="USD" embedded range={parentRange} hidePeriodControl />);
+    const { container } = render(<MemoryRouter><WinRateCard currency="USD" embedded range={parentRange} hidePeriodControl /></MemoryRouter>);
     const section = screen.getByRole('region', { name: 'Win rate' });
     expect(section).not.toHaveClass('rounded-lg', 'border');
     expect(screen.getByRole('heading', { name: 'Win rate', level: 3 })).toBeInTheDocument();
@@ -185,7 +186,7 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
   });
 
   it('announces the rate politely and groups the basis + frame segs for a11y', () => {
-    render(<WinRateCard currency="USD" />);
+    render(<MemoryRouter><WinRateCard currency="USD" /></MemoryRouter>);
     expect(screen.getByTestId('kpi-win-rate')).toHaveAttribute('aria-live', 'polite');
     // W2-10: WinRateCard uses semantics="toggle" (no tabpanel) → role="group" + aria-pressed
     expect(screen.getByRole('group', { name: /Win-rate basis/i })).toBeInTheDocument();
@@ -193,7 +194,7 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
   });
 
   it('AC-1441: keeps decided rate distinct from conversion across all bids', () => {
-    render(<WinRateCard currency="USD" />);
+    render(<MemoryRouter><WinRateCard currency="USD" /></MemoryRouter>);
     expect(screen.getByText(/2 won of 3 decided/i)).toBeInTheDocument();
     expect(screen.getByText(/2 won of 6 bids/i)).toBeInTheDocument();
     expect(screen.getByText('Won')).toBeInTheDocument();
@@ -204,33 +205,33 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
   // AC-DEC-002 (#774): declined-to-bid deals sit outside both denominators but are still reported.
   it('AC-DEC-002: shows the declined count beside the rate without changing the rate', () => {
     oracle = { ...populatedOracle, declined_count: 3 };
-    render(<WinRateCard currency="USD" />);
+    render(<MemoryRouter><WinRateCard currency="USD" /></MemoryRouter>);
     expect(screen.getByTestId('win-rate-declined')).toHaveTextContent('3 declined to bid');
     expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
   });
 
   it('AC-DEC-002: when ONLY declined deals exist in the window, the declined count shows instead of being hidden', () => {
     oracle = { ...zeroOracle, declined_count: 2 };
-    render(<WinRateCard currency="USD" />);
+    render(<MemoryRouter><WinRateCard currency="USD" /></MemoryRouter>);
     expect(screen.getByText(/No closed projects in this window/i)).toBeInTheDocument();
     expect(screen.getByTestId('win-rate-declined')).toHaveTextContent('2 declined to bid');
   });
 
   it('AC-DEC-002: no declined line when there are none', () => {
-    render(<WinRateCard currency="USD" />);
+    render(<MemoryRouter><WinRateCard currency="USD" /></MemoryRouter>);
     expect(screen.queryByTestId('win-rate-declined')).toBeNull();
   });
 
   it('shows an empty message (not a fabricated 0%) when there are no closed projects', () => {
     oracle = zeroOracle;
-    render(<WinRateCard currency="USD" />);
+    render(<MemoryRouter><WinRateCard currency="USD" /></MemoryRouter>);
     expect(screen.getByText(/No closed projects in this window/i)).toBeInTheDocument();
     expect(screen.queryByTestId('kpi-win-rate')).toBeNull();
   });
 
   it('shows loading, not the empty message, until the win-rate query settles', () => {
     pending = true;
-    render(<WinRateCard currency="USD" />);
+    render(<MemoryRouter><WinRateCard currency="USD" /></MemoryRouter>);
     expect(screen.queryByText(/No closed projects in this window/i)).toBeNull();
     expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
   });
@@ -239,7 +240,7 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
     vi.useFakeTimers();
     try {
       vi.setSystemTime(new Date(2026, 5, 10, 23, 59, 0));
-      render(<WinRateCard currency="USD" />);
+      render(<MemoryRouter><WinRateCard currency="USD" /></MemoryRouter>);
       fireEvent.click(screen.getByTestId('win-rate-period-t12'));
       const before = lastRange?.key;
       expect(before).toContain('2026-06-10');
@@ -249,5 +250,17 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('#2078 the basis and period toggles live in the URL: a link restores them and a click writes them back', () => {
+    const Probe = () => <output data-testid="loc">{useLocation().search}</output>;
+    render(<MemoryRouter initialEntries={['/?wrBasis=value&wrPeriod=ytd']}><WinRateCard currency="USD" /><Probe /></MemoryRouter>);
+    expect(screen.getByTestId('win-rate-toggle-value')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('win-rate-period-ytd')).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByTestId('win-rate-toggle-count'));
+    fireEvent.click(screen.getByTestId('win-rate-period-all'));
+    expect(screen.getByTestId('loc')).toBeEmptyDOMElement();
+    fireEvent.click(screen.getByTestId('win-rate-period-q'));
+    expect(screen.getByTestId('loc')).toHaveTextContent('wrPeriod=q');
   });
 });

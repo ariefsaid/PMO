@@ -1,7 +1,7 @@
 import { Avatar } from '@/src/components/ui/Avatar';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Card, CardHead, CardPad, Icon, useFigureReport, type HiddenFigure } from '@/src/components/ui';
+import { Card, CardHead, CardPad, Icon, useFigureReport, useUrlFilters, type HiddenFigure } from '@/src/components/ui';
 import { formatCurrency, formatDay } from '@/src/lib/format';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { LedgerRow } from '@/src/lib/db/procurementLedger';
@@ -323,7 +323,10 @@ export interface ProcurementTimelineProps {
 
 export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procurement, ledgerRows, linkedDocuments, isEngineer, canWriteFiles, uploadedById, onFullHistory }) => {
   const { t } = useTranslation('procurementRecord');
-  const [filter, setFilter] = useState<'all' | 'financial' | 'has-file'>('all');
+  // URL-owned (?timeline=financial|has-file; 'all' omitted) so the filter survives reload, Back and a shared link.
+  const { values: urlValues, setFilter: setUrlFilter } = useUrlFilters(['timeline']);
+  const filter: 'all' | 'financial' | 'has-file' = urlValues.timeline === 'financial' || urlValues.timeline === 'has-file' ? urlValues.timeline : 'all';
+  const setFilter = (value: 'all' | 'financial' | 'has-file') => setUrlFilter('timeline', value === 'all' ? '' : value);
   const entries = useMemo(() => {
     const raisedEntry: TimelineEntry = {
       id: `raised-${procurement.id}`,

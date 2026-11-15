@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useUrlFilters } from '@/src/components/ui/useUrlFilters';
 import { useWinRate, type WinRateRange } from '@/src/hooks/useDashboard';
 import { ViewToggle, type ViewOption } from '@/src/components/ui/ViewToggle';
 import { ListState } from '@/src/components/ui/ListState';
@@ -147,8 +148,12 @@ export interface WinRateCardProps {
 }
 
 export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = false, range: externalRange, hidePeriodControl = false, helpInPage = false }) => {
-  const [mode, setMode] = useState<'count' | 'value'>('count');
-  const [period, setPeriod] = useState<PeriodKey>('all');
+  // URL-owned (?wrBasis=value, ?wrPeriod=ytd|q|t12; defaults omitted) so reload, Back and a shared link restore the card.
+  const { values: urlValues, setFilter: setUrlFilter } = useUrlFilters(['wrBasis', 'wrPeriod']);
+  const mode: 'count' | 'value' = urlValues.wrBasis === 'value' ? 'value' : 'count';
+  const period: PeriodKey = urlValues.wrPeriod === 'ytd' || urlValues.wrPeriod === 'q' || urlValues.wrPeriod === 't12' ? urlValues.wrPeriod : 'all';
+  const setMode = (value: 'count' | 'value') => setUrlFilter('wrBasis', value === 'count' ? '' : value);
+  const setPeriod = (value: PeriodKey) => setUrlFilter('wrPeriod', value === 'all' ? '' : value);
   // Re-derive the window when the local date rolls over in a long-lived session.
   const [today, setToday] = useState(() => toIso(new Date()));
   useEffect(() => {

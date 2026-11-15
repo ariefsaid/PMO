@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { MemoryRouter } from 'react-router';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
@@ -21,7 +22,7 @@ const accountingInvoice: ErpPurchaseRow = {
 
 describe('Procurement timeline floor controls', () => {
   it('floor: All timeline filter restores status and accounting records', async () => {
-    render(<ProcurementTimeline
+    render(<MemoryRouter><ProcurementTimeline
       procurement={procurement}
       ledgerRows={[]}
       linkedDocuments={[accountingInvoice]}
@@ -29,7 +30,7 @@ describe('Procurement timeline floor controls', () => {
       canWriteFiles={false}
       uploadedById={null}
       onFullHistory={() => undefined}
-    />);
+    /></MemoryRouter>);
     const filters = within(screen.getByRole('group', { name: 'Timeline filter' }));
     await userEvent.click(filters.getByRole('button', { name: 'Financial' }));
     expect(screen.queryByText('Approved')).not.toBeInTheDocument();

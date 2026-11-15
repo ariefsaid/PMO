@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { useSearchParams } from 'react-router';
 
 /** URL-backed filter values; empty values are omitted and unrelated query parameters survive. */
@@ -6,13 +7,20 @@ export function useUrlFilters(keys: readonly string[]) {
   const values = Object.fromEntries(keys.map((key) => [key, params.get(key) ?? '']));
   // react-router 8: setSearchParams calls in the same tick do NOT queue — each event must be
   // ONE setParams call. setFilters batches multi-key writes; setFilter is the single-key form.
+  // Router updates commit as transitions, so `current` (captured at render) can lag a write that is
+  // still in flight and drop it. Each write builds on the latest URL this hook wrote, until the
+  // committed URL catches up.
+  const committed = params.toString();
+  const latest = useRef({ committed, written: committed });
+  if (latest.current.committed !== committed) latest.current = { committed, written: committed };
   const apply = (partial: Record<string, string>, options?: { replace?: boolean }) => {
-    setParams((current) => {
-      const next = new URLSearchParams(current);
+    setParams(() => {
+      const next = new URLSearchParams(latest.current.written);
       for (const [key, value] of Object.entries(partial)) {
         if (!keys.includes(key)) continue;
         if (value) next.set(key, value); else next.delete(key);
       }
+      latest.current.written = next.toString();
       return next;
     }, options);
   };

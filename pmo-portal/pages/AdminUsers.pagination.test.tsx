@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
@@ -161,6 +161,7 @@ function makeUsers(count: number): DirectoryUser[] {
   });
 }
 
+const LocationProbe = () => <output data-testid="loc">{useLocation().search}</output>;
 const renderPage = (entry = '/') => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -168,6 +169,7 @@ const renderPage = (entry = '/') => {
       <ToastProvider>
         <MemoryRouter initialEntries={[entry]}>
           <AdminUsers />
+          <LocationProbe />
         </MemoryRouter>
       </ToastProvider>
     </QueryClientProvider>,
@@ -220,9 +222,11 @@ describe('directory server pagination', () => {
     expect(range()).toHaveTextContent('51–100 of 120');
     await userEvent.click(screen.getByRole('button', { name: /Next page/i }));
     expect(range()).toHaveTextContent('101–120 of 120');
+    expect(screen.getByTestId('loc')).toHaveTextContent('?page=3');
     await userEvent.click(screen.getByRole('button', { name: /Previous page/i }));
     await userEvent.click(screen.getByRole('button', { name: /Previous page/i }));
     expect(range()).toHaveTextContent('1–50 of 120');
+    expect(screen.getByTestId('loc')).toBeEmptyDOMElement();
   });
 
   it('#2078 a copied link carries the search term into the box and the server read', () => {

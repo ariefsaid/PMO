@@ -20,9 +20,10 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   useLossBreakdown: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
 }));
 
+import { MemoryRouter } from 'react-router';
 import { WinRateCard } from '../WinRateCard';
 
-const renderCard = () => render(<WinRateCard currency="USD" />);
+const renderCard = () => render(<MemoryRouter><WinRateCard currency="USD" /></MemoryRouter>);
 
 describe('WinRateCard — error state (AC-W2-4-02)', () => {
   beforeEach(() => {
