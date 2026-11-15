@@ -6,6 +6,7 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 const h = vi.hoisted(() => ({
@@ -66,7 +67,8 @@ function mount(role: 'Admin' | 'Engineer' = 'Admin') {
       })}
     >
       <ImpersonationProvider realRole={role}>
-        <ProjectErpLink projectId='project-1' />
+        {/* #2077: the setup handoff is a router Link, so the page mounts inside a router as in the app. */}
+        <MemoryRouter><ProjectErpLink projectId='project-1' /></MemoryRouter>
       </ImpersonationProvider>
     </QueryClientProvider>,
   );

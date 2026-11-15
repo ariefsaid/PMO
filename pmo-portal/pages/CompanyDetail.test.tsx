@@ -230,7 +230,8 @@ describe('CompanyDetail', () => {
   it('CW-4b: a contact in the Contacts section navigates to its routable /contacts/:id page (the master-data graph is navigable)', async () => {
     contactsState.data = [{ id: 'ct1', full_name: 'Jane Doe', title: 'Procurement Lead' }];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /open jane doe/i }));
+    // #2077: the contact row is a real link (was a navigate() button).
+    await userEvent.click(screen.getByRole('link', { name: /open jane doe/i }));
     expect(screen.getByText('Contact page')).toBeInTheDocument();
   });
 

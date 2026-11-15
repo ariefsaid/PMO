@@ -609,7 +609,8 @@ describe('company home — finance (one question: what must I collect, pay and i
     expect(screen.queryByRole('columnheader', { name: 'Supplier' })).not.toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Invoice age' })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Due state' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Open Supplier invoice 42' }));
+    // #2077: the row opens through a real link (was a button), so it is found by the link role.
+    fireEvent.click(screen.getByRole('link', { name: 'Open Supplier invoice 42' }));
     expect(screen.getByTestId('location')).toHaveTextContent('/procurement/procurement-1');
   });
 
