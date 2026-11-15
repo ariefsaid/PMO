@@ -306,7 +306,8 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
           </p>
         </div>
         {/* The strip's column queries resolve against the nearest ANCESTOR container, so give it one. */}
-        <div className="@container"><StatTiles tiles={tiles} columns={tiles.length >= 6 ? 6 : 5} variant="bare" /></div>
+        {/* Six tiles go 2 rows of 3: six abreast crowd to 3-4px gaps in Bahasa at 1440. */}
+        <div className="@container"><StatTiles tiles={tiles} columns={tiles.length >= 6 ? 3 : 5} variant="bare" /></div>
 
         {/* Over-available advisory — non-blocking. ErrBanner is role="status" (gentle,
             not an alert) and carries the dollar overage in text (WCAG SC 1.4.1, not
