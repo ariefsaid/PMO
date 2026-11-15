@@ -109,6 +109,7 @@ import { createInFlightAnchorProbe, type InFlightAnchorProbe } from '../_shared/
 import {
   type ErpSweepCadence, fullSweepDue, HOURLY_INVOCATION_DEADLINE_MS, SWEEP_BACKFILL_EVERY_MINUTES, SWEEP_FULL_INTERVAL_MS,
   SWEEP_RETRY_DELAY_SECONDS, statementPassDue, STATEMENT_PASS_INTERVAL_MS, STATEMENT_PASS_RETRY_DELAY_SECONDS, sweepCadenceAt,
+  sweepRetryDelaySeconds,
 } from './sweepCadence.ts';
 export {
   type ErpSweepCadence, fullSweepDue, SWEEP_BACKFILL_EVERY_MINUTES, SWEEP_FULL_INTERVAL_MS, SWEEP_RETRY_DELAY_SECONDS,
@@ -670,7 +671,7 @@ export async function runErpSweepCycle(
       const unfinished = truncated || walkIncomplete || ledgerBehind;
       // An org whose hourly work never started keeps its marker: a defer would reset how long it has waited
       // and let a slow earlier org go first again on every tick.
-      const settle = !hourlyStarted ? undefined : unfinished || failed ? deps.deferFullSweep?.bind(null, org, failed ? SWEEP_RETRY_DELAY_SECONDS : 0) : deps.markFullSweepDone?.bind(null, org);
+      const settle = !hourlyStarted ? undefined : unfinished || failed ? deps.deferFullSweep?.bind(null, org, failed ? sweepRetryDelaySeconds(org.fullSweepFailures ?? 0) : 0) : deps.markFullSweepDone?.bind(null, org);
       if (settle) {
         try {
           await settle();
@@ -768,15 +769,17 @@ export async function listEmployingOrgsLive(serviceClient: SupabaseClient): Prom
   // 0358: each org's last completed full run. A failed read leaves every org unknown, i.e. due — the
   // hourly work then runs rather than silently stopping (logged).
   const lastFullByOrg = new Map<string, string>();
+  const fullFailuresByOrg = new Map<string, number>();
   {
     const { data: runs, error: runsError } = await serviceClient.from('erp_sweep_full_run')
-      .select('org_id, completed_at')
+      .select('org_id, completed_at, consecutive_failures')
       .in('org_id', activated.map((r) => r.org_id));
     if (runsError) {
       console.error(`[erpnext-sweep] erp_sweep_full_run load failed: code=${runsError.code ?? 'none'} message=${runsError.message}`);
     } else {
-      for (const row of (runs as Array<{ org_id: string; completed_at: string }> | null) ?? []) {
+      for (const row of (runs as Array<{ org_id: string; completed_at: string; consecutive_failures?: number }> | null) ?? []) {
         lastFullByOrg.set(row.org_id, row.completed_at);
+        fullFailuresByOrg.set(row.org_id, row.consecutive_failures ?? 0);
       }
     }
   }
@@ -802,6 +805,7 @@ export async function listEmployingOrgsLive(serviceClient: SupabaseClient): Prom
     orgId: r.org_id,
     bindingId: r.id ?? null,
     lastFullSweepAt: lastFullByOrg.get(r.org_id) ?? null,
+    fullSweepFailures: fullFailuresByOrg.get(r.org_id) ?? 0,
     lastStatementPassAt: lastStatementByOrg.get(r.org_id) ?? null,
     siteUrl: r.site_url,
     secretRef: r.secret_ref,

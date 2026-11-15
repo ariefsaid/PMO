@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon } from './icons';
 import { Button } from './Button';
@@ -26,11 +27,21 @@ export interface AccessDeniedProps {
  * Strictly DESIGN.md tokens — mirrors the `ListState` empty surface (lock glyph + muted copy +
  * a primary action), so the three page gates read identically.
  */
-export const AccessDenied: React.FC<AccessDeniedProps> = ({
-  title = "You don't have access to this page",
-  sub = 'This area is limited to roles that need it. If you think this is a mistake, contact your administrator.',
+export const AccessDenied: React.FC<AccessDeniedProps> = (props) => {
+  const { t } = useTranslation('common');
+  return <AccessDeniedView
+    {...props}
+    title={props.title ?? t('ui.accessDenied.title', "You don't have access to this page")}
+    sub={props.sub ?? t('ui.accessDenied.sub', 'This area is limited to roles that need it. If you think this is a mistake, contact your administrator.')}
+    backLabel={props.backLabel ?? t('notFound.back', 'Back to Dashboard')}
+  />;
+};
+
+const AccessDeniedView: React.FC<AccessDeniedProps> = ({
+  title,
+  sub,
   onBack,
-  backLabel = 'Back to Dashboard',
+  backLabel,
   className,
 }) => (
   <section

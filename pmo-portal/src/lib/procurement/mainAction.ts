@@ -186,14 +186,20 @@ export function stateMainAction(
 }
 
 /** Whether the effective role/identity may not yet advance — drives the SoD gate copy. */
-export function sodGateMessage(p: ProcurementDetail, role: string, isRequester: boolean): string | null {
+export function sodGateMessage(p: ProcurementDetail, role: string, isRequester: boolean, t?: TFunction): string | null {
   // Approval gate: a Requested PR awaiting a non-requester approver.
   if (p.status === 'Requested' && isRequester) {
-    return `This procurement was raised by ${p.requested_by?.full_name ?? 'you'}. A different user holding the Project-Manager, Finance, or Executive role must review it — the requester cannot self-approve their own procurement.`;
+    const name = p.requested_by?.full_name;
+    if (t) return name
+      ? t('procurement:detail.sodRequester', { defaultValue: 'This procurement was raised by {{name}}. A different user holding the Project-Manager, Finance, or Executive role must review it — the requester cannot self-approve their own procurement.', name })
+      : t('procurement:detail.sodRequesterYou', 'This procurement was raised by you. A different user holding the Project-Manager, Finance, or Executive role must review it — the requester cannot self-approve their own procurement.');
+    return `This procurement was raised by ${name ?? 'you'}. A different user holding the Project-Manager, Finance, or Executive role must review it — the requester cannot self-approve their own procurement.`;
   }
   // Receipt gate: an Ordered PR where the viewer cannot confirm receipt.
   if (p.status === 'Ordered' && !(isRequester || RECEIPT_ROLES.has(role))) {
-    return 'To advance from Purchase Order to Goods Receipt, the requester or a Project-Manager must confirm receipt of the goods.';
+    return t
+      ? t('procurement:detail.sodReceipt', 'To advance from Purchase Order to Goods Receipt, the requester or a Project-Manager must confirm receipt of the goods.')
+      : 'To advance from Purchase Order to Goods Receipt, the requester or a Project-Manager must confirm receipt of the goods.';
   }
   return null;
 }

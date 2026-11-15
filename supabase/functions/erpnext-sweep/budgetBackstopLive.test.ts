@@ -94,3 +94,50 @@ Deno.test('rm-1472 an unsettled cancellation keeps the units waiting and writes 
   const outcome = await budgetArchiveWaitResumeLive(client, RESUME_ORG)(VERSION, 'project-1', ACTIVATED_AT);
   assert(outcome === 'waiting' && updates.length === 0, `${outcome} ${JSON.stringify(updates)}`);
 });
+
+/** A recording client for the whole live pass: `outbox_reconcile_candidates` answers `candidates`, every
+ *  mirror/archive queue is empty, and each `budget_versions` read (the per-queued-row re-read) is recorded
+ *  by the version id it asked for. A version that does not exist skips the row, so nothing is driven. */
+function candidatePassClient(candidates: Array<Record<string, unknown>>) {
+  const versionReads: string[] = [];
+  const client = {
+    from(table: string) {
+      // deno-lint-ignore no-explicit-any
+      const q: any = new Proxy({}, {
+        get: (_t, prop) => {
+          if (prop === 'then') return (resolve: (v: unknown) => unknown) => resolve({ data: [], error: null });
+          if (prop === 'maybeSingle') return () => Promise.resolve({ data: null, error: null });
+          if (prop === 'eq') return (column: string, value: unknown) => {
+            if (table === 'budget_versions' && column === 'id') versionReads.push(String(value));
+            return q;
+          };
+          return () => q;
+        },
+      });
+      return q;
+    },
+    rpc: (fn: string) => Promise.resolve({
+      data: fn === 'outbox_reconcile_candidates' ? candidates : [],
+      error: null,
+    }),
+  } as never;
+  return { client, versionReads };
+}
+
+Deno.test('H-1 the budget pass queues EVERY budget-domain candidate the RPC admits (any state or attempt count) and nothing else', async () => {
+  const v = (n: number) => `0000000${n}-0000-4000-8000-000000000000`;
+  const row = (n: number, state: string, attempts: number, domain = 'budget') => ({
+    id: `outbox-${n}`, domain, pmo_record_id: budgetAccountIdentity(v(n), 'FY 2027', 'Travel - C'),
+    idempotency_key: `k${n}`, state, attempt_count: attempts,
+  });
+  const { client, versionReads } = candidatePassClient([
+    row(1, 'pending', 0), row(2, 'failed', 4), row(3, 'quarantined', 9), row(4, 'committing', 1),
+    row(5, 'pending', 0, 'timesheets'),
+  ]);
+  const result = await reconcileOrgBudgetPushesLive(client, { ...ORG, activatedAt: '2026-01-01T00:00:00Z' });
+  assert(result.error === undefined, JSON.stringify(result));
+  assert(
+    JSON.stringify([...versionReads].sort()) === JSON.stringify([v(1), v(2), v(3), v(4)]),
+    `every budget candidate (and no other domain's) must be queued: ${JSON.stringify(versionReads)}`,
+  );
+});

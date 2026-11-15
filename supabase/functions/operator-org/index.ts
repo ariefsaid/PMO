@@ -156,11 +156,16 @@ serveWithErrorReporting('operator-org', async (req: Request) => {
     // Escape SQL pattern metacharacters; * is separately refused by validation.
     const escape = (value: string) => value.replace(/[\\%_]/g, '\\$&');
     const email = get('admin_email');
-    const existing = await service.from('organizations').select('id').ilike('name', escape(get('name')))
-      .order('created_at').order('id').limit(1);
-    if (existing.error) return fail('LOOKUP_FAILED', 502);
-    if (existing.data?.length) {
-      const id = existing.data[0].id;
+    // #2264: the database decides "the same name" (org_name_key: case and any whitespace ignored), so a
+    // re-run with a spacing variant is the safe repeat or ORG_NAME_TAKEN, decided before any invitation.
+    const existing = await service.rpc('organization_id_by_name', { p_name: get('name') });
+    if (existing.error) {
+      return existing.error.message?.includes('org_name_required')
+        ? fail('ORG_NAME_REQUIRED', 400)
+        : fail('LOOKUP_FAILED', 502);
+    }
+    if (existing.data) {
+      const id = existing.data as string;
       const admin = await service.from('profiles').select('id').eq('org_id', id).eq('role', 'Admin').ilike(
         'email',
         escape(email),
