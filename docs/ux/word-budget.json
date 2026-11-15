@@ -10,8 +10,8 @@
   "/finance@1440@exec@acme.test": 150,
   "/sales@390@exec@acme.test": 56,
   "/sales@1440@exec@acme.test": 59,
-  "/approvals@390@exec@acme.test": 127,
-  "/approvals@1440@exec@acme.test": 133,
+  "/approvals@390@exec@acme.test": 134,
+  "/approvals@1440@exec@acme.test": 140,
   "/companies@390@exec@acme.test": 11,
   "/companies@1440@exec@acme.test": 13,
   "/timesheets@390@exec@acme.test": 33,
@@ -249,6 +249,7 @@
   "/my-tasks@390@finance@acme.test": 21,
   "/my-tasks@1440@finance@acme.test": 20,
   "notes": {
+    "/approvals": "Budget used tile on the approval panel (S05, 2026-11-16): 140/134 en at 1440/390 measured on this branch; dev measured 138/132 en, 153/146 id before it, so the old 133/127 was already stale. Bahasa on this branch 152/145.",
     "/projects/41000000-0000-0000-0000-000000000002": "The old @1440 exec budget of 4 words came from a blank render, not a real baseline; the screen renders 116 words once loaded. Every budget here is measured chrome-only (record rows excluded).",
     "/finance": "Chart minimum 3 (exec): 4 was measured on test-leftover IDR rows; base and branch both draw 3 on the clean seed (2026-11-12).",
     "/finance/reports": "Chart minimum 1 (exec): 2 was measured on test-leftover IDR rows (second-currency group); head draws 1 on the clean seed, dev draws 0 (chart sweep, 2026-11-12).",
