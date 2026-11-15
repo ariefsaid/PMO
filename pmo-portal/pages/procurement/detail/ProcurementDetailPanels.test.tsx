@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
 import { ProcurementBudgetSignal, ProcurementMoneySummary, ProcurementTimeline } from './ProcurementDetailPanels';
@@ -29,10 +30,10 @@ const overdueInvoice: ErpPurchaseRow = {
 describe('procurement record panels', () => {
   it('L6 + C6: overdue is said once, and record figures show their currency', () => {
     render(
-      <>
+      <MemoryRouter>
         <ProcurementMoneySummary procurement={procurement} linkedDocuments={[overdueInvoice]} isEngineer={false} budgetSignal={null} />
         <ProcurementTimeline procurement={procurement} ledgerRows={[]} linkedDocuments={[overdueInvoice]} isEngineer={false} canWriteFiles={false} uploadedById={null} onFullHistory={vi.fn()} />
-      </>,
+      </MemoryRouter>,
     );
 
     const money = screen.getByTestId('procurement-money-summary');
@@ -63,7 +64,7 @@ describe('procurement record panels', () => {
 
   it('P5: the timeline note and the Full history link are both reachable and the link still works', async () => {
     const onFullHistory = vi.fn();
-    render(<ProcurementTimeline procurement={procurement} ledgerRows={[]} linkedDocuments={[]} isEngineer={false} canWriteFiles={false} uploadedById={null} onFullHistory={onFullHistory} />);
+    render(<MemoryRouter><ProcurementTimeline procurement={procurement} ledgerRows={[]} linkedDocuments={[]} isEngineer={false} canWriteFiles={false} uploadedById={null} onFullHistory={onFullHistory} /></MemoryRouter>);
 
     await userEvent.click(screen.getByRole('button', { name: 'Full history' }));
     expect(onFullHistory).toHaveBeenCalledTimes(1);

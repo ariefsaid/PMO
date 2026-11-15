@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter, useLocation } from 'react-router';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
 import { ProcurementTimeline } from './ProcurementDetailPanels';
@@ -19,9 +20,11 @@ const accountingInvoice: ErpPurchaseRow = {
   projectIds: [], procurementId: 'proc-1', linkId: 'link-1',
 };
 
-describe('Procurement timeline floor controls', () => {
-  it('floor: All timeline filter restores status and accounting records', async () => {
-    render(<ProcurementTimeline
+function Query() { return <output data-testid="query">{useLocation().search}</output>; }
+const renderTimeline = (entry = '/') => render(
+  <MemoryRouter initialEntries={[entry]}>
+    <Query />
+    <ProcurementTimeline
       procurement={procurement}
       ledgerRows={[]}
       linkedDocuments={[accountingInvoice]}
@@ -29,13 +32,36 @@ describe('Procurement timeline floor controls', () => {
       canWriteFiles={false}
       uploadedById={null}
       onFullHistory={() => undefined}
-    />);
+    />
+  </MemoryRouter>,
+);
+
+describe('Procurement timeline floor controls', () => {
+  it('floor: All timeline filter restores status and accounting records', async () => {
+    renderTimeline();
     const filters = within(screen.getByRole('group', { name: 'Timeline filter' }));
     await userEvent.click(filters.getByRole('button', { name: 'Financial' }));
     expect(screen.queryByText('Approved')).not.toBeInTheDocument();
     expect(screen.getByText('PINV-1')).toBeInTheDocument();
     await userEvent.click(filters.getByRole('button', { name: 'All' }));
     expect(screen.getByText('Approved')).toBeInTheDocument();
+    expect(screen.getByText('PINV-1')).toBeInTheDocument();
+  });
+
+  it('#2078 the timeline filter is written to the URL, and All leaves it out', async () => {
+    renderTimeline();
+    const filters = within(screen.getByRole('group', { name: 'Timeline filter' }));
+    expect(screen.getByTestId('query').textContent).toBe('');
+    await userEvent.click(filters.getByRole('button', { name: 'Financial' }));
+    expect(screen.getByTestId('query').textContent).toBe('?timeline=financial');
+    await userEvent.click(filters.getByRole('button', { name: 'All' }));
+    expect(screen.getByTestId('query').textContent).toBe('');
+  });
+
+  it('#2078 a copied link opens the timeline on the filter it names', () => {
+    renderTimeline('/?timeline=financial');
+    expect(within(screen.getByRole('group', { name: 'Timeline filter' })).getByRole('button', { name: 'Financial' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByText('Approved')).not.toBeInTheDocument();
     expect(screen.getByText('PINV-1')).toBeInTheDocument();
   });
 });

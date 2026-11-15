@@ -1,6 +1,7 @@
 import { Avatar } from '@/src/components/ui/Avatar';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router';
 import { Card, CardHead, CardPad, Icon, useFigureReport, type HiddenFigure } from '@/src/components/ui';
 import { formatCurrency, formatDay } from '@/src/lib/format';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
@@ -323,7 +324,15 @@ export interface ProcurementTimelineProps {
 
 export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procurement, ledgerRows, linkedDocuments, isEngineer, canWriteFiles, uploadedById, onFullHistory }) => {
   const { t } = useTranslation('procurementRecord');
-  const [filter, setFilter] = useState<'all' | 'financial' | 'has-file'>('all');
+  // ?timeline= holds the filter (default 'all' omitted) so Back, reload and a shared link keep it.
+  const [timelineParams, setTimelineParams] = useSearchParams();
+  const requestedFilter = timelineParams.get('timeline');
+  const filter = requestedFilter === 'financial' || requestedFilter === 'has-file' ? requestedFilter : 'all';
+  const setFilter = (next: 'all' | 'financial' | 'has-file') => setTimelineParams((current) => {
+    const params = new URLSearchParams(current);
+    if (next === 'all') params.delete('timeline'); else params.set('timeline', next);
+    return params;
+  }, { replace: true });
   const entries = useMemo(() => {
     const raisedEntry: TimelineEntry = {
       id: `raised-${procurement.id}`,

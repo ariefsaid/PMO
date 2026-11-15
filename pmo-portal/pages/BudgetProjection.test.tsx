@@ -10,7 +10,7 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, renderHook, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 import type { BudgetProjectionCellRow } from '@/src/lib/repositories/budgetProjection';
@@ -81,10 +81,12 @@ const setTwoYearCurrentCalendar = (names: [string, string] = ['FY-A', 'FY-B']) =
   });
 };
 
-type ForecastRenderOptions = { canEdit?: boolean; budgetCurrency?: string; onExport?: (payload: BudgetProjectionExport) => void; orgId?: string; projectId?: string; budgetVersionId?: string; budgetMode?: string; approvedBudgetYears?: string[]; projectStartDate?: string; projectEndDate?: string | null };
+type ForecastRenderOptions = { entry?: string; canEdit?: boolean; budgetCurrency?: string; onExport?: (payload: BudgetProjectionExport) => void; orgId?: string; projectId?: string; budgetVersionId?: string; budgetMode?: string; approvedBudgetYears?: string[]; projectStartDate?: string; projectEndDate?: string | null };
+function Query() { return <output data-testid="query">{useLocation().search}</output>; }
 const forecastTree = (options: Required<ForecastRenderOptions>, queryClient: QueryClient) => (
   <FinanceI18nTestProvider>
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[options.entry]}>
+      <Query />
       <QueryClientProvider client={queryClient}>
         <ToastProvider>
           <BudgetProjection
@@ -110,6 +112,7 @@ const forecastTree = (options: Required<ForecastRenderOptions>, queryClient: Que
 );
 const renderForecast = (input: ForecastRenderOptions = {}) => {
   const options: Required<ForecastRenderOptions> = {
+    entry: input.entry ?? '/',
     canEdit: input.canEdit ?? true,
     budgetCurrency: input.budgetCurrency ?? 'USD',
     onExport: input.onExport ?? vi.fn<(payload: BudgetProjectionExport) => void>(),
@@ -633,6 +636,39 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
     await user.click(screen.getByRole('button', { name: 'Export' }));
     expect(csv[1]).toContain('"Fiscal year","FY-C","Equipment","","Active budget version","7000","ERP ledger","2026-03-04T09:00:00.000Z","0","7000",""');
     expect(csv[1]).not.toContain('"-7000"');
+  });
+
+  it('#2078 a picked fiscal year is written to the URL; the default leaves it out', async () => {
+    yearsMock.mockResolvedValue([
+      { fiscalYear: 'FY-A', hasActiveBudget: true },
+      { fiscalYear: 'FY-B', hasActiveBudget: false },
+    ]);
+    comparisonMock.mockResolvedValue([{ category: 'Labor', budgetTotal: 10, recorded: 2, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: 8, percentUsed: 0.2 }]);
+    renderForecast();
+    await rowFor('Labor');
+    expect(screen.getByTestId('query').textContent).not.toContain('fy=');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), JSON.stringify({ kind: 'all' }));
+    await waitFor(() => expect(screen.getByTestId('query').textContent).toBe('?fy=all'));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), JSON.stringify({ kind: 'year', year: 'FY-B' }));
+    await waitFor(() => expect(screen.getByTestId('query').textContent).toBe('?fy=FY-B'));
+  });
+
+  it('#2078 a copied link opens on the fiscal year it names', async () => {
+    yearsMock.mockResolvedValue([
+      { fiscalYear: 'FY-A', hasActiveBudget: true },
+      { fiscalYear: 'FY-B', hasActiveBudget: false },
+    ]);
+    comparisonMock.mockResolvedValue([{ category: 'Labor', budgetTotal: 10, recorded: 2, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: 8, percentUsed: 0.2 }]);
+    renderForecast({ entry: '/?fy=FY-B' });
+    await rowFor('Labor');
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue(JSON.stringify({ kind: 'year', year: 'FY-B' })));
+    expect(fetchMock).toHaveBeenCalledWith('proj-1', 'FY-B');
+  });
+
+  it('#2078 a link naming a year the project does not have falls back to the default year', async () => {
+    renderForecast({ entry: '/?fy=FY-unknown' });
+    await rowFor('Labor');
+    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue(JSON.stringify({ kind: 'year', year: ERP_FISCAL_YEAR }));
   });
 
   it('resets the scope to the new project default after project identity changes', async () => {
