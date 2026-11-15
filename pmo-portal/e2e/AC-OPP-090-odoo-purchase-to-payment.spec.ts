@@ -427,8 +427,8 @@ test('AC-OPP-090: an approved purchase reaches Paid through Odoo with VAT, withh
     await expect.poll(() => billCommands.length).toBe(1);
     await expect(billForm.getByTestId('btn-save-vi')).toBeEnabled();
 
-    // Odoo committed the bill before the response was cut; the user retries the same capture intent.
-    await billForm.getByTestId('btn-save-vi').click();
+    // Odoo committed the bill before the response was cut; the confirmation stays open with the error, and the user retries the same capture intent from it.
+    await expect(page.getByRole('dialog', { name: 'Record this supplier invoice?' })).toBeVisible();
     await confirm(page, 'Save supplier invoice');
     await expect.poll(() => billCommands.length).toBe(2);
     await page.unroute('**/functions/v1/adapter-dispatch', billRoute);
