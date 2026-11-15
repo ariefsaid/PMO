@@ -36,7 +36,7 @@ import { useProjectBudget } from '@/src/hooks/useBudget';
 import { useProjectCommittedSpend, useProjectReservedSpend } from '@/src/hooks/useProcurements';
 import { usePermission } from '@/src/auth/usePermission';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatNumberExact } from '@/src/lib/format';
 import { computeBudgetSignal } from './computeBudgetSignal';
 import { AT_RISK_THRESHOLD } from '@/src/lib/dashboardConstants';
 
@@ -233,7 +233,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       label: t('decisionSupport.afterThisProcurement', 'After this procurement'),
       value: formatCurrency(afterRequest, currency),
       // Whole percent and its exact complement to used always total 100.
-      sub: t('decisionSupport.headroom', { defaultValue: '{{pct}}% headroom left', pct: roundedHeadroomPct }),
+      sub: t('decisionSupport.headroom', { defaultValue: '{{pct}}% headroom left', pct: formatNumberExact(roundedHeadroomPct) }),
       tone: afterRequest < 0 ? ('neg' as const) : undefined,
     }]),
   ];
@@ -260,7 +260,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             <span className={impactTone} style={{ width: `${thisPct}%` }} />
           </div>
           <p className="mt-1 text-control text-muted-foreground tabular">
-            {t('decisionSupport.barCaption', { defaultValue: 'Budget in use with this purchase: {{pct}}%', pct: Math.round(usedAfterPct) })}
+            {t('decisionSupport.barCaption', { defaultValue: 'Budget in use with this purchase: {{pct}}%', pct: formatNumberExact(Math.round(usedAfterPct)) })}
           </p>
         </div>
         {/* The strip's column queries resolve against the nearest ANCESTOR container, so give it one. */}

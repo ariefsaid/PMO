@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { EntityFormModal, FormGrid, TextField, useEntityForm, useToast, type SubmitError } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { parseMoneyInputAtScale } from '@/src/lib/format';
+import { formatNumberExact, parseMoneyInputAtScale } from '@/src/lib/format';
 import { monthInputToIso } from '@/src/lib/reports/months';
 import { useRecordProjectProgress } from '@/src/hooks/useManagementPack';
 
@@ -92,7 +92,7 @@ export const RecordProgressModal: React.FC<RecordProgressModalProps> = ({
           required
           helper={
             deliveryPct != null
-              ? t('managementPack.progressModal.pctHelper', 'Phase delivery: {{pct}}%', { pct: Math.round(deliveryPct) })
+              ? t('managementPack.progressModal.pctHelper', 'Phase delivery: {{pct}}%', { pct: formatNumberExact(Math.round(deliveryPct)) })
               : undefined
           }
           {...form.fieldProps('pct')}
