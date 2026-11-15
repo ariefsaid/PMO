@@ -154,8 +154,11 @@ describe('AC-ODA-024 Odoo ledger basis: budget, spend and project in one currenc
     renderPage(projectIn('IDR'));
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
     // Spent and Left read — with a short caption; no amount of the cached position leaks through.
-    expect(within(figures).getAllByText('Spending is not linked').length).toBeGreaterThanOrEqual(1);
-    expect(figures.textContent).not.toMatch(/1,500|4,500/);
+    // The cause is said once, on the Spent card where it is fixed; Budget used and Left both say the same
+    // short thing in words, so an unknown percentage and an unknown amount never read differently.
+    expect(within(figures).getAllByText('Spending is not linked')).toHaveLength(1);
+    expect(within(figures).getAllByText('Shown once spending is linked')).toHaveLength(2);
+    expect(figures.textContent).not.toMatch(/1,500|4,500|≈\s*0%/);
   });
 
   it('Spent and Left cards equal the table totals, not "unknown"', async () => {
@@ -191,7 +194,7 @@ describe('AC-ODA-024 Odoo ledger basis: budget, spend and project in one currenc
     renderPage(projectIn('IDR'));
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
     // Spent is withheld, never a zero: its own card reads — and says why in one short caption; no notice row.
-    expect(within(figures).getAllByText('Spending is not linked').length).toBeGreaterThanOrEqual(1);
+    expect(within(figures).getAllByText('Spending is not linked')).toHaveLength(1);
     expect(within(figures).getAllByText('—').length).toBeGreaterThanOrEqual(1);
     expect(figures.textContent).not.toMatch(/Spent\s*0\b/);
     expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
@@ -312,7 +315,7 @@ describe('AC-ODA-024 PMO basis is unchanged (#2066)', () => {
   it('one unknown category still makes Spent and Left unknown, in the project currency', async () => {
     renderPage();
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
-    expect(within(figures).getAllByText('Spending is not linked').length).toBeGreaterThanOrEqual(1);
+    expect(within(figures).getAllByText('Spending is not linked')).toHaveLength(1);
     expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
     expect(figures.textContent).toMatch(/\$/);
     expect(figures.textContent).not.toMatch(/IDR|Spent excludes/);

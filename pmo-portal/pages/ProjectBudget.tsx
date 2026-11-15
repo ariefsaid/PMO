@@ -679,10 +679,13 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const equivalentNote = (amount: number | null, currency: string): string | undefined =>
     amount !== null && currency === 'USD' && fxMatch ? sourceNote : undefined;
   const spentUnknownCaption = t('projectDetail.budget.captionSpendingUnlinked', 'Spending is not linked');
-  const unknownCaption = totalSpent === null ? spentUnknownCaption
+  // The cause is said once, on the Spent card where it is fixed; the figures that depend on it say the same short thing.
+  const dependsOnSpending = t('projectDetail.budget.captionNeedsSpending', 'Shown once spending is linked');
+  const unknownCaption = totalSpent === null ? dependsOnSpending
     : totalCommitted === null ? t('projectDetail.budget.captionCommitmentsUnknown', 'Open orders are unknown')
       : !budgetAvailable ? t('projectDetail.budget.captionBudgetUnavailable', 'Budget is unavailable') : rateReason;
-  const usedPercentShown = sameCurrencies ? position.usedPercent : idr.usedPercent;
+  // With spending unknown there is no percentage: never a cached one.
+  const usedPercentShown = totalSpent === null ? null : sameCurrencies ? position.usedPercent : idr.usedPercent;
   const usedApproximate = !sameCurrencies && idr.usedApproximate && usedPercentShown !== null;
   const usedValue = usedPercentShown === null ? null : `${usedApproximate ? '≈ ' : ''}${usedPercentShown}%`;
   const usedCaption = usedPercentShown === null ? unknownCaption : usedApproximate && fxMatch ? fxRateCaption(fxMatch, tCommon) : undefined;
@@ -999,10 +1002,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
 
       <KPIRow aria-label={t('projectDetail.budget.figures', 'Budget figures')} className="grid-cols-[repeat(auto-fit,minmax(9rem,1fr))]">
         <KPITile icon="dollar" tone="blue" label={t('projectDetail.budget.budgetBeforeTax', 'Budget')} {...tileAmount(totalBudget, activeBudgetCurrency)} caption={totalBudget === null ? t('projectDetail.budget.captionBudgetUnavailable', 'Budget is unavailable') : equivalentCaption(totalBudget, activeBudgetCurrency)} captionNote={equivalentNote(totalBudget, activeBudgetCurrency)} keepWhenUnknown help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items before tax, grouped by category.')} />
-        <KPITile icon="chart-column" tone="violet" label={t('projects:columns.budgetUsed', 'Budget used')} value={usedValue} caption={usedCaption} keepWhenUnknown help={withDetail(canonicalUtilizationFormula, usedValue === null)} />
+        <KPITile icon="chart-column" tone="violet" label={t('projects:columns.budgetUsed', 'Budget used')} value={usedValue} caption={usedCaption} nowrapLabel keepWhenUnknown help={withDetail(canonicalUtilizationFormula, usedValue === null)} />
         <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} {...tileAmount(totalSpent, totalSpentCurrency)} captionNote={equivalentNote(totalSpent, totalSpentCurrency)} caption={[spentExcludedNote, totalSpent === null ? spentUnknownCaption : equivalentCaption(totalSpent, totalSpentCurrency)].filter(Boolean).join(' · ') || undefined} hiddenLink={spendingSetupLink} keepWhenUnknown help={withDetail(actualSource, totalSpent === null)} />
         <KPITile icon="invoices" tone="amber" label={t('projectDetail.budget.committed', 'Committed')} {...tileAmount(totalCommitted)} captionNote={equivalentNote(totalCommitted, project.currency)} caption={totalCommitted === null ? t('projectDetail.budget.captionCommitmentsUnknown', 'Open orders are unknown') : equivalentCaption(totalCommitted, project.currency)} keepWhenUnknown help={withDetail(t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.'), totalCommitted === null)} />
-        <KPITile icon="down" tone={leftValueNegative ? 'red' : 'green'} label={totalLeftLabel} {...leftTile} caption={leftCaption} negative={leftValueNegative} keepWhenUnknown help={withDetail(totalLeftFormula, leftTile.value === null)} />
+        <KPITile icon="down" tone={leftValueNegative ? 'red' : 'green'} label={totalLeftLabel} {...leftTile} caption={leftCaption} negative={leftValueNegative} nowrapLabel keepWhenUnknown help={withDetail(totalLeftFormula, leftTile.value === null)} />
       </KPIRow>
 
       {/* Parts of a whole: where the budget sits, drawn so the shares read at a glance. */}

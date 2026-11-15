@@ -58,6 +58,8 @@ export interface KPITileProps {
   helpLabel?: string;
   /** The tile's ONE caption (short; may wrap to two lines and is never cut — a caption that explains a figure must be readable in full). */
   caption?: string;
+  /** Keep the label on one line (a money card's label never wraps). */
+  nowrapLabel?: boolean;
   /** Screen-reader text read beside the caption (e.g. the rate's source date); not shown. */
   captionNote?: string;
   /** @deprecated Use `caption`. */
@@ -84,9 +86,19 @@ export interface KPITileProps {
 
 /** Inside a KPIRow the tiles become cells of one joined strip: no own frame, no decorative icon tile. */
 /** The tile's one caption: it wraps (at most two lines on a figure card) and is never truncated. */
+const UNBREAKABLE = /(≈ IDR [\d.,]+|\([^)]*\))/;
 const Caption: React.FC<{ children: string; note?: string; action?: { to: string; label: string } }> = ({ children, note, action }) => (
   <div className="mt-auto text-control text-muted-foreground">
-    <span>{children}</span>
+    {UNBREAKABLE.test(children) ? (
+      <>
+        {/* The sentence is read once in full; the pieces below are only drawn, so a line can break between the
+            rupiah equivalent and its rate phrase but never inside either. */}
+        <span className="sr-only">{children}</span>
+        <span aria-hidden="true">
+          {children.split(UNBREAKABLE).map((part, i) => UNBREAKABLE.test(part) ? <span key={i} className="whitespace-nowrap">{part}</span> : part)}
+        </span>
+      </>
+    ) : children}
     {note && <span className="sr-only">{` (${note})`}</span>}
     {action && <>{' · '}<Link to={action.to} className="pointer-events-auto font-medium text-primary-text underline-offset-4 hover:underline">{action.label}</Link></>}
   </div>
@@ -131,6 +143,7 @@ export function KPITile({
   help,
   helpLabel,
   caption: captionProp,
+  nowrapLabel = false,
   captionNote,
   vs,
   delta,
@@ -175,7 +188,7 @@ export function KPITile({
       >
         <Icon name={icon} />
       </span>}
-      <span className="break-words text-control font-medium text-foreground">{label}</span>
+      <span className={cn('text-control font-medium text-foreground', nowrapLabel ? 'whitespace-nowrap' : 'break-words')}>{label}</span>
       {/* Legacy: outside a FigureScope the help stays a per-tile "?" until the page adopts the scope. */}
       {help && !inScope && (
         <Tooltip content={help} title={helpLabel}>

@@ -743,6 +743,7 @@
       "byCategory": "Anggaran per kategori",
       "otherCategories": "Lainnya",
       "captionSpendingUnlinked": "Pengeluaran belum terhubung",
+      "captionNeedsSpending": "Tampil setelah pengeluaran terhubung",
       "captionCommitmentsUnknown": "Pesanan terbuka belum diketahui",
       "captionBudgetUnavailable": "Anggaran tidak tersedia"
     },

@@ -743,6 +743,7 @@
       "byCategory": "Budget by category",
       "otherCategories": "Other",
       "captionSpendingUnlinked": "Spending is not linked",
+      "captionNeedsSpending": "Shown once spending is linked",
       "captionCommitmentsUnknown": "Open orders are unknown",
       "captionBudgetUnavailable": "Budget is unavailable"
     },

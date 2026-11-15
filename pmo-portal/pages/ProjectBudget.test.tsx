@@ -510,7 +510,9 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     // No notice row: each figure that cannot be shown reads — on its own card with one short caption.
     expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
     const cards = screen.getByRole('region', { name: 'Budget figures' });
-    expect(within(cards).getAllByText('Spending is not linked')).toHaveLength(3);
+    // The cause is said once (Spent, where it is fixed); Budget used and Left say the same short thing.
+    expect(within(cards).getAllByText('Spending is not linked')).toHaveLength(1);
+    expect(within(cards).getAllByText('Shown once spending is linked')).toHaveLength(2);
     expect(within(cards).getAllByText('—').length).toBeGreaterThanOrEqual(3);
   });
 
