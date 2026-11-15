@@ -74,10 +74,10 @@ select throws_like($$ select transition_equipment_usage((select v from _e where 
   '%separation of duties%', 'AC-EQU-007 the author cannot approve their own entry');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a4');   -- PM2 does not manage P1
 select throws_ok($$ select transition_equipment_usage((select v from _e where k='e1'), 'Approved') $$,
-  '42501', null, 'AC-EQU-007 a PM of another project cannot approve');
+  '42501', 'not authorized', 'AC-EQU-007 a PM of another project cannot approve');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a7');   -- Engineer
 select throws_ok($$ select transition_equipment_usage((select v from _e where k='e1'), 'Approved') $$,
-  '42501', null, 'AC-EQU-007 an Engineer cannot approve');
+  '42501', 'not authorized', 'AC-EQU-007 an Engineer cannot approve');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a3');   -- PM1 manages P1
 select lives_ok($$ select transition_equipment_usage((select v from _e where k='e1'), 'Approved') $$,
   'AC-EQU-007 the project''s PM approves');
@@ -89,7 +89,7 @@ select throws_ok($$ select save_equipment_usage(jsonb_build_object('id',(select 
   'work_date','2026-09-10','quantity',7,'unit','hours')) $$, '22023', null, 'AC-EQU-007 an approved entry is immutable');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a3');
 select throws_ok($$ select transition_equipment_usage((select v from _e where k='e1'), 'Draft') $$,
-  '42501', null, 'AC-EQU-007 only an Admin reopens an approved entry');
+  '42501', 'only an Admin reopens approved usage', 'AC-EQU-007 only an Admin reopens an approved entry');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a1');
 select lives_ok($$ select transition_equipment_usage((select v from _e where k='e1'), 'Draft', 'wrong project') $$,
   'AC-EQU-007 an Admin (not the author) reopens');
@@ -126,13 +126,13 @@ select ok((save_equipment_usage('{"asset_id":"15190000-0000-0000-0000-0000000000
   'AC-EQU-007 usage saves with no rate or costing setting (FR-EQU-004)');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a8');
 select throws_ok($$ select save_equipment_usage('{"asset_id":"15190000-0000-0000-0000-0000000000d1","project_id":"15190000-0000-0000-0000-0000000000c1","work_date":"2026-09-02","quantity":1,"unit":"hours"}') $$,
-  '42501', null, 'AC-EQU-007 a disabled member cannot log usage');
+  '42501', 'your account is not an active member of this organisation, so it cannot write — an offboarded or suspended account is refused even while its session token is still valid', 'AC-EQU-007 a disabled member cannot log usage');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a7');   -- Eng2 touches Eng1's draft
 select throws_ok($$ select save_equipment_usage(jsonb_build_object('id',(select v from _e where k='e1'),
   'asset_id','15190000-0000-0000-0000-0000000000d1','project_id','15190000-0000-0000-0000-0000000000c1',
-  'work_date','2026-09-10','quantity',2,'unit','hours')) $$, '42501', null, 'AC-EQU-007 only the author edits an entry');
+  'work_date','2026-09-10','quantity',2,'unit','hours')) $$, '42501', 'only the author edits an entry', 'AC-EQU-007 only the author edits an entry');
 select throws_ok($$ select transition_equipment_usage((select v from _e where k='e1'), 'Submitted') $$,
-  '42501', null, 'AC-EQU-007 only the author submits an entry');
+  '42501', 'not authorized', 'AC-EQU-007 only the author submits an entry');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a1');
 select throws_ok($$ select transition_equipment_usage((select v from _e where k='e2'), 'Approved') $$,
   '22023', null, 'AC-EQU-007 a draft cannot jump to Approved');
@@ -142,10 +142,10 @@ select pg_temp.act_as('15190000-0000-0000-0000-0000000000a6');
 select transition_equipment_usage((select v from _e where k='e2'), 'Submitted');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a8');   -- disabled Finance
 select throws_ok($$ select transition_equipment_usage((select v from _e where k='e2'), 'Approved') $$,
-  '42501', null, 'AC-EQU-007 a disabled approver cannot approve');
+  '42501', 'your account is not an active member of this organisation, so it cannot write — an offboarded or suspended account is refused even while its session token is still valid', 'AC-EQU-007 a disabled approver cannot approve');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a7');
 select throws_ok($$ select transition_equipment_usage((select v from _e where k='e2'), 'Rejected') $$,
-  '42501', null, 'AC-EQU-007 an Engineer cannot reject');
+  '42501', 'not authorized', 'AC-EQU-007 an Engineer cannot reject');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a5');   -- Exec
 select lives_ok($$ select transition_equipment_usage((select v from _e where k='e2'), 'Rejected', 'wrong asset') $$,
   'AC-EQU-007 an Executive rejects with a reason');
@@ -153,7 +153,7 @@ select is((select status || '/' || decision_notes from equipment_usage_entries w
   'Rejected/wrong asset', 'AC-EQU-007 the reject reason is kept');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a1');
 select throws_ok($$ select transition_equipment_usage((select v from _e where k='e2'), 'Draft') $$,
-  '42501', null, 'AC-EQU-007 only the author returns a rejected entry to draft');
+  '42501', 'not authorized', 'AC-EQU-007 only the author returns a rejected entry to draft');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a6');
 select lives_ok($$ select save_equipment_usage(jsonb_build_object('id',(select v from _e where k='e2'),
   'asset_id','15190000-0000-0000-0000-0000000000d1','project_id','15190000-0000-0000-0000-0000000000c2',
@@ -198,7 +198,7 @@ select transition_equipment_usage((save_equipment_usage('{"asset_id":"15190000-0
   "project_id":"15190000-0000-0000-0000-0000000000c1","work_date":"2026-09-21","quantity":2,"unit":"hours"}')->>'id')::uuid, 'Submitted');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a8');
 select throws_ok($$ select approve_equipment_usage_week('15190000-0000-0000-0000-0000000000d3', '2026-09-14') $$,
-  '42501', null, 'AC-EQU-007 a disabled approver cannot bulk-approve');
+  '42501', 'your account is not an active member of this organisation, so it cannot write — an offboarded or suspended account is refused even while its session token is still valid', 'AC-EQU-007 a disabled approver cannot bulk-approve');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a7');
 select is(approve_equipment_usage_week('15190000-0000-0000-0000-0000000000d3', '2026-09-14'),
   '{"approved":0,"skipped_own":0,"skipped_not_permitted":3}'::jsonb, 'AC-EQU-007 an Engineer bulk-approves nothing');
