@@ -97,6 +97,7 @@
   "cancelProcurement": "Batalkan pengadaan",
   "erpLinked": "Dokumen sistem akuntansi ditautkan",
   "stage": {
+    "trackerLabel": "Tahap pengadaan",
     "request": "Permintaan",
     "order": "Pesanan",
     "receive": "Penerimaan",
@@ -154,6 +155,7 @@
     }
   },
   "timeline": {
+    "filterLabel": "Filter linimasa",
     "overdue": "Terlambat {{days}} hari",
     "title": "Linimasa",
     "inDateOrder": "berdasarkan tanggal · langkah yang tidak tercatat tidak diwajibkan perusahaan",
@@ -187,5 +189,41 @@
       "Invoice": "Faktur pemasok",
       "Payment": "Pembayaran"
     }
+  },
+  "files": {
+    "heading": "Lampiran",
+    "attach": "Lampirkan file",
+    "attachInput": "Lampirkan file",
+    "uploading": "Mengunggah {{progress}}%",
+    "loading": "Memuat lampiran…",
+    "loadError": "Lampiran tidak dapat dimuat.",
+    "empty": "Belum ada file terlampir.",
+    "attached": "File terlampir",
+    "removed": "File dihapus",
+    "preview": "Pratinjau",
+    "previewNamed": "Pratinjau file {{name}}",
+    "download": "Unduh",
+    "downloadNamed": "Unduh file {{name}}",
+    "remove": "Hapus",
+    "removeNamed": "Hapus file {{name}}",
+    "removeTitle": "Hapus lampiran ini?",
+    "removeBody": "Lampiran \"{{name}}\" akan dihapus dari catatan ini. File dapat diunggah ulang bila perlu."
+  },
+  "recordStatus": {
+    "draft": "Draf",
+    "submitted": "Diajukan",
+    "approved": "Disetujui",
+    "rejected": "Ditolak",
+    "issued": "Diterbitkan",
+    "received": "Diterima",
+    "partial": "Sebagian",
+    "selected": "Dipilih",
+    "closed": "Ditutup",
+    "cancelled": "Dibatalkan",
+    "paid": "Dibayar",
+    "unpaid": "Belum dibayar",
+    "pending": "Menunggu",
+    "open": "Terbuka",
+    "sent": "Terkirim"
   }
 }
