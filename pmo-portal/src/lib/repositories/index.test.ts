@@ -672,7 +672,7 @@ describe('delegation — methods pass args through and return the DAL result', (
   });
 
   it('AC-INV/OPR: profile.inviteUser and profile.setUserStatus delegate to the adminUsers DAL', async () => {
-    vi.mocked(adminUsersDal.inviteUser).mockResolvedValue(undefined);
+    vi.mocked(adminUsersDal.inviteUser).mockResolvedValue('sent');
     vi.mocked(adminUsersDal.setUserStatus).mockResolvedValue(undefined);
 
     await repositories.profile.inviteUser({ email: 'new@example.com', role: 'Engineer' as never });

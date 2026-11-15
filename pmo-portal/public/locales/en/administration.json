@@ -463,12 +463,22 @@
         "currentUnavailable": "Current manager (name unavailable)"
       },
       "inviteError": {
+        "notAddable": "This address can't be invited",
+        "notAddableDetail": "Ask the person for a different address, then invite again.",
+        "retry": "This address is already being invited",
+        "retryDetail": "Try again in a moment.",
         "seatLimit": "Your plan has no seats left",
         "seatLimitDetail": "Everyone on your plan already has a seat. Ask your Operator to upgrade the plan, then invite again."
       },
       "statusError": {
         "seatLimit": "Your plan has no seats left",
         "seatLimitDetail": "Everyone on your plan already has a seat. Ask your Operator to upgrade the plan, then re-enable this user."
+      },
+      "toast": {
+        "alreadyInvited": "Already invited",
+        "alreadyInvitedDetail": "{{email}} already has a valid invite. No new email was sent.",
+        "inviteResent": "Invite sent again",
+        "inviteResentDetail": "The earlier link for {{email}} had expired. A new link is on its way."
       }
     },
     "spendApprovers": {

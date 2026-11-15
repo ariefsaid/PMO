@@ -36,28 +36,48 @@ function makeTask(overrides: Partial<TaskWithRefs> & { id: string; name: string 
 }
 
 describe('ProjectGantt task-table date rendering follows the configured date locale', () => {
-  it('OE07-004: renders the compact range in the active locale (id: "1 Jan – 11 Jan")', () => {
+  it('OE07-004: renders the compact range in the active locale (id: "1 Jan 2020 – 11 Jan 2020")', () => {
     setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'UTC' });
     render(
       <ProjectGantt
-        tasks={[makeTask({ id: 'a', name: 'Survey the site', start_date: '2026-01-01', end_date: '2026-01-11' })]}
+        tasks={[makeTask({ id: 'a', name: 'Survey the site', start_date: '2020-01-01', end_date: '2020-01-11' })]}
         milestones={[]}
         onSwitchView={vi.fn()}
       />,
     );
     const grid = document.querySelector('[data-gantt-row-id="a"][data-slot="gantt-row-group"]') as HTMLElement;
-    expect(within(grid).getByText('1 Jan – 11 Jan')).toBeInTheDocument();
+    // A past year keeps the year on (formatDay's rule), in the reader's locale order.
+    expect(within(grid).getByText('1 Jan 2020 – 11 Jan 2020')).toBeInTheDocument();
+  });
+
+  /**
+   * #2088 (WIG, Locale & i18n) — the Dates column drops the year for a cross-year or old task,
+   * making an old phase read as if it were this year. The shared `formatDay` keeps the weekday
+   * compact form but shows the year whenever it differs from the current one.
+   */
+  it('#2088: a phase outside the current year shows its year in the Dates column', () => {
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+    render(
+      <ProjectGantt
+        tasks={[makeTask({ id: 'y', name: 'Old campaign', start_date: '2020-05-04', end_date: '2020-06-19' })]}
+        milestones={[]}
+        onSwitchView={vi.fn()}
+      />,
+    );
+    const grid = document.querySelector('[data-gantt-row-id="y"][data-slot="gantt-row-group"]') as HTMLElement;
+    expect(within(grid).getByText('4 May 2020 – 19 Jun 2020')).toBeInTheDocument();
   });
 
   it('OE07-004: keeps the null handling — a missing date renders the em-dash placeholder', () => {
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
     render(
       <ProjectGantt
-        tasks={[makeTask({ id: 'p', name: 'Point task', start_date: '2026-01-05', end_date: null })]}
+        tasks={[makeTask({ id: 'p', name: 'Point task', start_date: '2020-01-05', end_date: null })]}
         milestones={[]}
         onSwitchView={vi.fn()}
       />,
     );
     const grid = document.querySelector('[data-gantt-row-id="p"][data-slot="gantt-row-group"]') as HTMLElement;
-    expect(within(grid).getByText('Jan 5 – —')).toBeInTheDocument();
+    expect(within(grid).getByText('5 Jan 2020 – —')).toBeInTheDocument();
   });
 });

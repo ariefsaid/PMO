@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Card, CardHead, CardPad, ConfirmDialog, ListState, StatusPill, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatDay, formatNumberExact } from '@/src/lib/format';
 import {
@@ -53,6 +54,8 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
   const [acceptance, setAcceptance] = useState<{ draft: SubcontractAcceptanceWithLines | null } | null>(null);
   const [attribute, setAttribute] = useState<SubcontractCapExceptionRow | null>(null);
   const [variation, setVariation] = useState<{ row: SubcontractPoPositionRow; origin: 'pre_work' | 'post_work' } | null>(null);
+  // #2088: the acceptance's default date is the organization's business day, never the UTC day.
+  const orgToday = useOrgToday();
 
   const canEditLines = may('edit', 'subcontractLines');
   const canPrepare = may('prepare', 'subcontractAcceptance', { currentUserId, record: { project_manager_id: projectManagerId } });
@@ -298,7 +301,7 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
           acceptances={acceptances.data ?? []}
           documents={documents.data ?? []}
           draft={acceptance.draft}
-          today={new Date().toISOString().slice(0, 10)}
+          today={orgToday}
           onClose={() => setAcceptance(null)}
           preparedByMe={Boolean(currentUserId) && acceptance.draft?.prepared_by === currentUserId}
           canConfirm={may('confirm', 'subcontractAcceptance')}
