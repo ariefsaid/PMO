@@ -24,6 +24,7 @@ import type { PmoRecord } from '../contract.ts';
 import { AppError } from '../../appError.ts';
 import { erpnextRequest, type ErpClientDeps, type ErpFilter } from './client.ts';
 import { scanByKeyset, type KeysetRow } from './keysetScan.ts';
+import { mapInOrderBounded } from './boundedPool.ts';
 
 export interface SweepCursorDeps {
   client: ErpClientDeps;
@@ -71,6 +72,8 @@ export interface SweepCursorDeps {
 }
 
 const DEFAULT_PAGE_SIZE = 500;
+/** #2120: how many changed rows are filtered + hydrated at once (each hydrate is one full ERP GET). */
+export const HYDRATE_CONCURRENCY = 4;
 
 /** Fields the routing + dedupe rely on — unioned into whatever the caller's `fields` request. The
  *  list endpoint must return these so each `SweepChange` carries them on its canonical record. */
@@ -147,11 +150,13 @@ export async function listErpChangesSinceWatermark(
     if (!existing || row.modified > existing.modified) byName.set(row.name, { row, modified: row.modified });
   }
 
-  const changes: SweepChange[] = [];
-  for (const { row, modified } of byName.values()) {
+  // #2120: rows are filtered and hydrated HYDRATE_CONCURRENCY at a time (a 100-receipt backfill was 100 serial full
+  // GETs inside the tick deadline). Output order is the listed order, and a failing row fails the whole poll with the
+  // earliest failure, exactly as the serial walk did (`mapInOrderBounded`).
+  const perRow = await mapInOrderBounded([...byName.values()], HYDRATE_CONCURRENCY, async ({ row, modified }): Promise<SweepChange | null> => {
     // Luna BLOCK A1 defense-in-depth: skip a doc that fails the kind's discriminator even if it
     // somehow surfaced past the server-side extraFilters — never adopted into the wrong kind.
-    if (deps.filterRow && !(await deps.filterRow(row))) continue;
+    if (deps.filterRow && !(await deps.filterRow(row))) return null;
     // Luna BLOCK 6: for a child-table-dependent kind, map the FULL doc, not the list projection —
     // otherwise the canonical silently loses the child data (e.g. the PE→SI reference) and the mirror
     // is written with a NULL money link. The list row still owns the routing fields + the cursor.
@@ -164,7 +169,8 @@ export async function listErpChangesSinceWatermark(
       erp_docstatus: row.docstatus ?? null,
       erp_amended_from: row.amended_from ?? null,
     };
-    changes.push({ record: enriched, sourceModMs: Date.parse(modified) });
-  }
+    return { record: enriched, sourceModMs: Date.parse(modified) };
+  });
+  const changes = perRow.filter((change): change is SweepChange => change !== null);
   return { changes, nextCursor, listedCount, caughtUp: scan.caughtUp };
 }

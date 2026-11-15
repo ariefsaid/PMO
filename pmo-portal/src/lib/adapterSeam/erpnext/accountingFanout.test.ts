@@ -24,6 +24,8 @@ const NO_GAPS: ActualsRefreshSummary = { rows: 0, undatedRows: 0 };
 const refreshActuals = vi.fn(async (): Promise<ActualsRefreshSummary> => NO_GAPS);
 const refreshAging = vi.fn(async () => {});
 const deps = { refreshActuals, refreshAging };
+/** The aging scope a `refreshAging(svc, client, orgId, scope)` call was given. */
+const reportOf = (args: unknown[]) => args[3] as { reportName: string };
 
 /** A DISTINCT project_map per org — the scope must arrive at the refresher exactly as authored. */
 const projectMapFor = (orgId: string) => ({ [`proj-${orgId}`]: `PROJ-${orgId.toUpperCase()}` });
@@ -94,5 +96,42 @@ describe('erpnext/accountingFanout — refreshAccountingSnapshots (task 7.5)', (
     expect(results).toEqual([]);
     expect(refreshActuals).not.toHaveBeenCalled();
     expect(refreshAging).not.toHaveBeenCalled();
+  });
+  it('AC-2120-3 an hourly refresh runs AP and AR aging concurrently, after actuals', async () => {
+    const order: string[] = [];
+    const release: Array<() => void> = [];
+    refreshActuals.mockImplementationOnce(async () => { order.push('actuals'); return NO_GAPS; });
+    refreshAging.mockImplementation(async (...args: unknown[]) => {
+      const scope = reportOf(args);
+      order.push(`start ${scope.reportName}`);
+      await new Promise<void>((r) => release.push(r));
+      order.push(`end ${scope.reportName}`);
+    });
+    const run = refreshAccountingSnapshots({ from: async () => {} } as never, [org('org-1')], deps);
+    await vi.waitFor(() => expect(release).toHaveLength(2), { timeout: 500 });
+    // Both reports are in flight before either finishes.
+    expect(order).toEqual(['actuals', 'start Accounts Payable', 'start Accounts Receivable']);
+    release.forEach((r) => r());
+    expect(await run).toEqual([{ orgId: 'org-1', actuals: NO_GAPS }]);
+    refreshAging.mockReset();
+    refreshAging.mockImplementation(async () => {});
+  });
+
+  it('AC-2120-3 an aging failure is recorded as the org error exactly as before (AP first when both fail); actuals failing skips aging', async () => {
+    refreshAging.mockImplementation(async (...args: unknown[]) => {
+      const scope = reportOf(args); throw new Error(`${scope.reportName} down`); });
+    expect(await refreshAccountingSnapshots({ from: async () => {} } as never, [org('org-1')], deps))
+      .toEqual([{ orgId: 'org-1', error: 'Accounts Payable down' }]);
+    refreshAging.mockImplementation(async (...args: unknown[]) => {
+      const scope = reportOf(args); if (scope.reportName === 'Accounts Receivable') throw new Error('AR down'); });
+    expect(await refreshAccountingSnapshots({ from: async () => {} } as never, [org('org-1')], deps))
+      .toEqual([{ orgId: 'org-1', error: 'AR down' }]);
+    refreshAging.mockClear();
+    refreshActuals.mockImplementationOnce(async () => { throw new Error('GL down'); });
+    expect(await refreshAccountingSnapshots({ from: async () => {} } as never, [org('org-1')], deps))
+      .toEqual([{ orgId: 'org-1', error: 'GL down' }]);
+    expect(refreshAging).not.toHaveBeenCalled();
+    refreshAging.mockReset();
+    refreshAging.mockImplementation(async () => {});
   });
 });
