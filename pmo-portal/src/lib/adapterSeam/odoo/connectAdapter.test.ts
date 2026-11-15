@@ -199,6 +199,81 @@ describe('odoo ConnectAdapter — sendMaster (lookup-then-create)', () => {
   });
 });
 
+describe('AC-OSP-001 Odoo stock candidates are company-scoped (#1508)', () => {
+  it('stock items are active storable products of the bound company only — never a shared or foreign one', async () => {
+    const { fake, adapter, bodies } = setup();
+    fake.seed('product.product', [
+      { id: 1, default_code: 'SMN-50', name: 'Semen 50 kg', is_storable: true, company_id: [1, 'C'], active: true },
+      { id: 2, default_code: 'OLD', name: 'Archived', is_storable: true, company_id: [1, 'C'], active: false },
+      { id: 3, default_code: 'SVC', name: 'Service', is_storable: false, company_id: [1, 'C'], active: true },
+      { id: 4, default_code: 'OTH', name: 'Other company', is_storable: true, company_id: [2, 'C2'], active: true },
+      { id: 5, default_code: 'SHR', name: 'Shared', is_storable: true, company_id: false, active: true },
+    ]);
+    expect(await adapter.listMasters('stock_item', null)).toEqual({
+      rows: [{ kind: 'stock_item', externalId: '1', code: 'SMN-50', name: 'Semen 50 kg', active: true }],
+      nextCursor: null,
+    });
+    const read = bodies.find((b) => b.model === 'product.product' && b.method === 'search_read')!;
+    expect(read.body.domain).toEqual([['company_id', '=', 1], ['is_storable', '=', true], ['active', '=', true], ['id', '>', 0]]);
+  });
+
+  it('a warehouse is offered as its main stock location (warehouse code and name, location id), named internal locations join it, each location once', async () => {
+    const { fake, adapter, bodies } = setup();
+    fake.seed('stock.location', [
+      { id: 10, complete_name: 'WH/Stock', usage: 'internal', company_id: [1, 'C'], active: true },
+      { id: 11, complete_name: 'WH/Stock/Shelf A', usage: 'internal', company_id: [1, 'C'], active: true },
+      { id: 12, complete_name: 'WH', usage: 'view', company_id: [1, 'C'], active: true },
+      { id: 13, complete_name: 'Other/Stock', usage: 'internal', company_id: [2, 'C2'], active: true },
+      { id: 14, complete_name: 'Gone', usage: 'internal', company_id: [1, 'C'], active: false },
+      { id: 15, complete_name: 'Transit', usage: 'transit', company_id: [1, 'C'], active: true },
+    ]);
+    fake.seed('stock.warehouse', [
+      { id: 5, code: 'WH', name: 'Gudang Utama', lot_stock_id: [10, 'WH/Stock'], view_location_id: [9, 'WH'], company_id: [1, 'C'], active: true },
+      { id: 6, code: 'W2', name: 'Other co', lot_stock_id: [13, 'Other/Stock'], company_id: [2, 'C2'], active: true },
+      { id: 7, code: 'GONE', name: 'Lost root', lot_stock_id: [14, 'Gone'], company_id: [1, 'C'], active: true },
+    ]);
+    // 10 once, carrying the warehouse's code and name; 11 by its full path; no warehouse id, no view location,
+    // nothing of another company, nothing archived — and the warehouse without a live root proposes nothing.
+    expect(await adapter.listMasters('stock_warehouse', null)).toEqual({
+      rows: [
+        { kind: 'stock_warehouse', externalId: '10', code: 'WH', name: 'Gudang Utama', active: true },
+        { kind: 'stock_warehouse', externalId: '11', code: null, name: 'WH/Stock/Shelf A', active: true },
+      ],
+      nextCursor: null,
+    });
+    const read = bodies.find((b) => b.model === 'stock.location' && b.method === 'search_read')!;
+    expect(read.body.domain).toEqual([['usage', '=', 'internal'], ['company_id', '=', 1], ['active', '=', true], ['id', '>', 0]]);
+    const wh = bodies.find((b) => b.model === 'stock.warehouse' && b.method === 'search_read')!;
+    expect(wh.body.domain).toEqual([['company_id', '=', 1], ['active', '=', true]]);
+  });
+
+  it('pages locations by id with the same overlay on every page, and reads the warehouses once per adapter', async () => {
+    const { fake, adapter } = setup();
+    fake.seed('stock.location', Array.from({ length: LIST_PAGE + 1 }, (_, i) =>
+      ({ id: i + 1, complete_name: `Loc ${i + 1}`, usage: 'internal', company_id: [1, 'C'], active: true })));
+    fake.seed('stock.warehouse', [{ id: 5, code: 'WH', name: 'Gudang Utama', lot_stock_id: [LIST_PAGE + 1, 'Loc 201'], company_id: [1, 'C'], active: true }]);
+    const first = await adapter.listMasters('stock_warehouse', null);
+    expect(first.rows).toHaveLength(LIST_PAGE);
+    expect(first.nextCursor).toBe(String(LIST_PAGE));
+    const second = await adapter.listMasters('stock_warehouse', first.nextCursor);
+    expect(second.rows).toEqual([{ kind: 'stock_warehouse', externalId: String(LIST_PAGE + 1), code: 'WH', name: 'Gudang Utama', active: true }]);
+    expect(second.nextCursor).toBeNull();
+    expect(fake.calls.filter((c) => c.model === 'stock.warehouse')).toHaveLength(1);
+  });
+
+  it('the setup adapter lists stock candidates but proposes no send for them', async () => {
+    const { fake, adapter } = (() => {
+      const f = createFakeOdoo({ key: 'k' });
+      const c = bindCall({ baseUrl: 'https://odoo.example.test', apiKey: 'k', database: 'db1', fetchImpl: f.fetch });
+      return { fake: f, adapter: createOdooSetupAdapter(c, CTX) };
+    })();
+    fake.seed('product.product', [{ id: 1, default_code: 'SMN-50', name: 'Semen 50 kg', is_storable: true, company_id: [1, 'C'], active: true }]);
+    expect((await adapter.listMasters('stock_item', null)).rows).toHaveLength(1);
+    expect(adapter.canSend?.('stock_item')).toBe(false);
+    expect(adapter.canSend?.('stock_warehouse')).toBe(false);
+  });
+});
+
 describe('odoo setup adapter (what the shared census and run see)', () => {
   const setupOf = (ctx: OdooConnectCtx = CTX) => {
     const fake = createFakeOdoo({ key: 'k' });

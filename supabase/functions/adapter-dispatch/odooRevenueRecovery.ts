@@ -11,8 +11,8 @@ import { getReadModelWriter } from './readModelWriters.ts';
 import { resolveOdooRevenueMoneyOutboxDeps } from './odooRevenueOutbox.ts';
 import { resolveOdooRevenueAdapter } from './odooAdapters.ts';
 import type { AdapterSelectContext } from './dispatchAdapters.ts';
-import { reservedOdooCallBudget, type OdooCallBudget, type ReservedOdooCallBudget } from '../_shared/odooCallBudget.ts';
-import { parseOdooOutboxRecoveryCandidates, type OdooOutboxRecoveryCandidate } from '../_shared/odooOutboxRecovery.ts';
+import type { OdooCallBudget, ReservedOdooCallBudget } from '../_shared/odooCallBudget.ts';
+import { parseOdooOutboxRecoveryCandidates, reconcileOdooOutboxCandidates, type OdooOutboxRecoveryCandidate } from '../_shared/odooOutboxRecovery.ts';
 
 export type OdooRevenueCandidate = OdooOutboxRecoveryCandidate;
 
@@ -33,65 +33,14 @@ const isInvoiceSubmit = (candidate: OdooRevenueCandidate): boolean =>
   && candidate.payload?.erp_doc_kind === 'sales-invoice' && candidate.payload.verb === 'submit';
 
 /** Bounded Odoo invoice recovery using the same fenced dispatcher as the foreground command. */
-export async function reconcileOdooRevenueCandidates(
+export function reconcileOdooRevenueCandidates(
   candidates: OdooRevenueCandidate[],
   options: { orgId: string; ownsRevenue: boolean; maxCandidates?: number; deadlineAt?: number; callBudget?: OdooCallBudget },
   buildDeps: BuildOdooRevenueRecoveryDeps,
   dispatch: DispatchOdooRevenueRecovery = dispatchMoneyWrite,
 ): Promise<OdooRevenueRecoveryResult> {
-  const eligible = candidates.filter(isInvoiceSubmit).sort((a, b) => {
-    const time = Date.parse(a.updatedAt) - Date.parse(b.updatedAt);
-    return Number.isNaN(time) || time === 0 ? a.row.id.localeCompare(b.row.id) : time;
-  });
-  const errors: OdooRevenueRecoveryResult['errors'] = [];
-  if (!options.ownsRevenue) {
-    for (const candidate of eligible) errors.push({ id: candidate.row.id, error: 'domain-not-owned' });
-    return { reconciled: 0, errors };
-  }
-
-  let reconciled = 0;
-  for (const candidate of eligible.slice(0, options.maxCandidates ?? 100)) {
-    if (options.deadlineAt !== undefined && Date.now() >= options.deadlineAt) break;
-    if (options.callBudget && !(options.callBudget.canSpend?.(ODOO_REVENUE_RECOVERY_CALL_RESERVATION) ?? options.callBudget.left())) break;
-    const candidateBudget = options.callBudget ? reservedOdooCallBudget(ODOO_REVENUE_RECOVERY_CALL_RESERVATION) : undefined;
-    let built: DispatchMoneyWriteDeps;
-    try {
-      built = await buildDeps(candidate, candidateBudget);
-      if (candidateBudget?.exhausted()) {
-        const used = candidateBudget.used();
-        if (used > 0) options.callBudget?.spend(used);
-        errors.push({ id: candidate.row.id, error: 'external-unreachable' });
-        break;
-      }
-      if (options.callBudget && !options.callBudget.spend(ODOO_REVENUE_RECOVERY_CALL_RESERVATION)) {
-        const used = candidateBudget?.used() ?? 0;
-        if (used > 0) options.callBudget.spend(used);
-        break;
-      }
-    } catch (error) {
-      const used = candidateBudget?.used() ?? 0;
-      if (used > 0) options.callBudget?.spend(used);
-      errors.push({ id: candidate.row.id, error: error instanceof Error ? error.message : String(error) });
-      if (candidateBudget?.exhausted() || (options.callBudget && !options.callBudget.left())) break;
-      continue;
-    }
-    let stopAfterDispatch = false;
-    try {
-      await dispatch(built);
-      reconciled += 1;
-    } catch (error) {
-      errors.push({ id: candidate.row.id, error: error instanceof Error ? error.message : String(error) });
-    } finally {
-      if (options.callBudget && candidateBudget) {
-        const used = candidateBudget.used();
-        if (used < ODOO_REVENUE_RECOVERY_CALL_RESERVATION) options.callBudget.refund?.(ODOO_REVENUE_RECOVERY_CALL_RESERVATION - used);
-        else if (used > ODOO_REVENUE_RECOVERY_CALL_RESERVATION) options.callBudget.spend(used - ODOO_REVENUE_RECOVERY_CALL_RESERVATION);
-        stopAfterDispatch = candidateBudget.exhausted() || !options.callBudget.left();
-      }
-    }
-    if (stopAfterDispatch) break;
-  }
-  return { reconciled, errors };
+  const { ownsRevenue, ...rest } = options;
+  return reconcileOdooOutboxCandidates(candidates, isInvoiceSubmit, ODOO_REVENUE_RECOVERY_CALL_RESERVATION, { ...rest, owns: ownsRevenue }, buildDeps, dispatch);
 }
 
 async function buildOdooRevenueRecoveryDeps(
