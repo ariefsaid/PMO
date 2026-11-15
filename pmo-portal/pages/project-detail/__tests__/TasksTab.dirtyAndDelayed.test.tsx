@@ -8,6 +8,7 @@ import { ToastProvider } from '@/src/components/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import type { TaskWithRefs } from '@/src/lib/db/tasks';
+import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
 import {
   clearOwnershipCache,
   setProjectBindings,
@@ -301,5 +302,46 @@ describe('TasksTab delayed scroll (PGB-024) and phase/parent dirty warnings (PGB
 
     // Confirmation dialog for unsaved changes must appear
     expect(await screen.findByText(/Discard your changes/i)).toBeInTheDocument();
+  });
+});
+
+/**
+ * #2088 (WIG, Locale & i18n) — the workspace's date-only "today" (the late-day comparison in the
+ * task list's due-date cell) must be the ORGANIZATION's day (useOrgToday), never the viewer
+ * device's day. The fx org-day read is unavailable here, so the synchronous org-day fallback is
+ * what decides — exactly the path a slow or failed fx read takes in production.
+ */
+describe('#2088 TasksTab — the due-date comparison uses the organization day', () => {
+  beforeEach(() => {
+    cleanup();
+    clearOwnershipCache();
+    setTaskOwnership([]);
+    setProjectBindings([]);
+    vi.clearAllMocks();
+    listState.isPending = false;
+    listState.isError = false;
+    milestoneState.data = seedMilestones;
+    milestoneState.isPending = false;
+    milestoneState.isError = false;
+    realRole = 'Project Manager';
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    resetActiveLocale();
+  });
+
+  it('#2088: a task due before the org day reads one day overdue even though the device day says today', () => {
+    // 2026-06-01 12:00 UTC: the org day in Pacific/Kiritimati (UTC+14) is already Jun 2, while the
+    // viewer device's day (the machine's local zone, UTC+7 here) is still Jun 1.
+    vi.setSystemTime(new Date('2026-06-01T12:00:00Z'));
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Pacific/Kiritimati' });
+    listState.data = [{ ...seedTasks[0], end_date: '2026-06-01' }];
+
+    renderTab();
+
+    // Org day Jun 2 > due Jun 1 → one day overdue. The device day (Jun 1) would render no flag.
+    expect(screen.getByText(/1 day overdue/i)).toBeInTheDocument();
   });
 });

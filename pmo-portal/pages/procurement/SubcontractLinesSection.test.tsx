@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { ToastProvider } from '@/src/components/ui';
+import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
 import { formatCurrency } from '@/src/lib/format';
 import type { SubcontractPoPositionRow, SubcontractCapExceptionRow } from '@/src/lib/db/subcontracts';
 import enProcurement from '@/public/locales/en/procurement.json';
@@ -175,6 +176,29 @@ describe('SubcontractLinesSection', () => {
     renderSection();
     await screen.findByRole('row', { name: /L1/ });
     expect(screen.queryByRole('button', { name: /record acceptance/i })).toBeNull();
+  });
+
+  /**
+   * #2088 (WIG, Locale & i18n) — the acceptance's default date is the ORGANIZATION's day
+   * (useOrgToday), never the UTC day: at 03:00 org-local on the 2nd in UTC+7 the old
+   * `new Date().toISOString()` default still named the 1st.
+   */
+  it('#2088: the acceptance default date is the organization day, not the UTC day', () => {
+    vi.useFakeTimers();
+    try {
+      // 2026-06-01 20:00 UTC == 2026-06-02 03:00 in Asia/Jakarta (UTC+7).
+      vi.setSystemTime(new Date('2026-06-01T20:00:00Z'));
+      setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+      renderSection();
+
+      fireEvent.click(screen.getByRole('button', { name: /record acceptance/i }));
+
+      // The UTC day is still Jun 1; the org day is Jun 2.
+      expect(screen.getByLabelText('Period date')).toHaveValue('2026-06-02');
+    } finally {
+      vi.useRealTimers();
+      resetActiveLocale();
+    }
   });
 
   it('FR-SCA-034 offers a post-work variation from verified excess and bounds its quantity', async () => {
