@@ -212,8 +212,7 @@ select lives_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'PO
   'AC-CLIG-006 an update made inside an rpc call (path /rpc/…) is not limited by the column trigger');
 select is((select category::text from budget_line_items where id = '08990000-0000-0000-0000-0000000000f1'), 'Labor', 'AC-CLIG-006 the rpc-path update was written');
 
--- AC-CLIG-007: one row per request in the database, whatever the Prefer header says (the guard sees only the last of several Prefer
--- headers, PostgREST honours the first, so a valid-looking header here stands for 'lenient first, strict last') (7).
+-- AC-CLIG-007: one row per request in the database, whatever the Prefer header says: each request below carries a valid header (7).
 select throws_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'PATCH', '/boq_items', 'handling=strict,max-affected=1'); update public.boq_items set rate = rate + 1 where project_id = '08990000-0000-0000-0000-0000000000c1'$$,
   '42501', 'OAuth API clients may change one boq_items row per request', 'AC-CLIG-007 a token UPDATE of two contract lines is refused even with a valid Prefer');
 select throws_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'PATCH', '/budget_line_items', 'handling=strict,max-affected=1'); update public.budget_line_items set budgeted_amount = budgeted_amount + 1 where budget_version_id = '08990000-0000-0000-0000-0000000000d1'$$,

@@ -10,8 +10,7 @@
 --    Trigger name `<table>_00_api_client_columns` sorts before every other BEFORE UPDATE trigger on these tables, so it compares the row
 --    as the client sent it; none of those triggers assigns a column to NEW today (checked at 0898).
 --    `api_client_limit_patch_rows()` is an AFTER UPDATE statement trigger (transition table) that refuses (42501) a command-line token
---    that changed more than one row, whatever the Prefer header said: the guard sees only the last of several Prefer headers while
---    PostgREST honours the first, so the header alone is not a cap.
+--    that changed more than one row, whatever the Prefer header says: the database decides the cap, not the header.
 -- Known limit: the `id=eq.<uuid>` filter is in the query string, which the guard cannot see; one row is changed per request, but
 -- which row is the caller's filter.
 -- Body of the api_client_request_guard() from 0894 copied verbatim; the only additions are the lines marked 0899.
@@ -327,7 +326,7 @@ begin
     end if;  -- 0884
     -- One row per request: PostgREST enforces `max-affected=1` only under `handling=strict`, and the guard cannot see the filter,  -- 0899
     -- so both tokens must be present exactly once, spelled exactly (a repeated or larger `max-affected` is refused). The statement  -- 0899
-    -- trigger above is the backstop (the guard sees only the last of several Prefer headers).  -- 0899
+    -- trigger above enforces the one-row cap itself.  -- 0899
     if method = 'PATCH' and target = any (correction_patch_tables) then  -- 0899
       if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false)  -- 0899
          and (select count(*) from unnest(prefer_tokens) t where t like 'handling%') = 1 and 'handling=strict' = any (prefer_tokens)  -- 0899
