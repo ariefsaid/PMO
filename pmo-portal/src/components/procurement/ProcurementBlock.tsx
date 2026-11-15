@@ -637,7 +637,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
               // on title.
               <span className="flex min-w-0 items-baseline text-sm text-muted-foreground">
                 {row.code && <span className="record-id shrink-0">{row.code}</span>}
-                {row.code && row.vendor?.name && <span>{' · '}</span>}
+                {row.code && row.vendor?.name && <span aria-hidden="true" className="px-1">·</span>}
                 {row.vendor?.name && <span className="min-w-0 truncate font-normal" title={row.vendor.name}>{row.vendor.name}</span>}
               </span>
             )}

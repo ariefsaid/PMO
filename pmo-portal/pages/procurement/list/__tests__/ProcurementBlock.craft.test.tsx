@@ -72,7 +72,7 @@ describe('ProcurementBlock craft rulings', () => {
     renderBlock();
 
     const identity = screen.getByText('PROC-2026-001').parentElement as HTMLElement;
-    expect(identity).toHaveTextContent('PROC-2026-001 · RackMount Systems International');
+    expect(identity).toHaveTextContent('PROC-2026-001·RackMount Systems International');
     expect(identity.className).not.toMatch(/\btruncate\b|\bline-clamp\b/);
   });
 
@@ -88,5 +88,14 @@ describe('ProcurementBlock craft rulings', () => {
     expect(code.className).toMatch(/\brecord-id\b/);
     expect(code.className).toMatch(/\bshrink-0\b/); // the number keeps its width: it never truncates
     expect(code.className).not.toMatch(/\btruncate\b/);
+  });
+
+  it('one-type r4: the separator between number and supplier carries its own spacing (a flex item trims white space)', () => {
+    procState.data = [{ ...row('a', 'Requested'), code: 'PROC-2026-001', vendor: { name: 'VoltEdge Inverters' } }];
+    renderBlock();
+
+    const sep = screen.getByText('·');
+    expect(sep.className).toMatch(/\bpx-1\b/);
+    expect(sep).toHaveAttribute('aria-hidden', 'true');
   });
 });
