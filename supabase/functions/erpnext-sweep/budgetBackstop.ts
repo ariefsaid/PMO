@@ -87,6 +87,9 @@ export interface BudgetBackstopDeps {
    *  failing rows rotates behind the rest instead of hiding every newer eligible push. Rows with no
    *  mirror row of their own (`absent` outbox orphans) are skipped by the live implementation. */
   markAttempted?(orgId: string, rows: BudgetMirrorCandidateRow[]): Promise<void>;
+  /** #2149: true once this tick must start no new row (the org's ERPNext did not answer, or the invocation is past its
+   *  money deadline). A row not started is left exactly as it is; the next tick takes it. */
+  stopNewRows?(): boolean;
 }
 
 export interface ReconcileOrgBudgetPushesResult {
@@ -118,6 +121,7 @@ export async function reconcileOrgBudgetPushes(
   let skipped = 0;
   const errors: Array<{ budgetVersionId: string; error: string }> = [];
   for (const row of candidates) {
+    if (deps.stopNewRows?.()) break;
     // ⚑ NEW-3 (audit r4) — PER-ROW containment, the same rule `reconcileOrgOutbox` already applies and
     // the same class as HIGH-A (one bad row wedging a whole pass). Without it, a row that throws BEFORE
     // any outbox claim (e.g. its recorded actor was deactivated, so re-authorization refuses) never

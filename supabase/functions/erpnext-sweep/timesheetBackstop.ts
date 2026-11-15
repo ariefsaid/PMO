@@ -101,6 +101,9 @@ export interface TimesheetBackstopDeps {
    *  never-attempted rows first, then the longest-waiting, so a page of refused / failing sheets rotates
    *  behind the rest. The live implementation skips synthetic `absent` rows (no mirror row to stamp). */
   markAttempted?(orgId: string, rows: TimesheetMirrorCandidateRow[]): Promise<void>;
+  /** #2149: true once this tick must start no new row (the org's ERPNext did not answer, or the invocation is past its
+   *  money deadline). A row not started is left exactly as it is; the next tick takes it. */
+  stopNewRows?(): boolean;
 }
 
 export interface ReconcileOrgTimesheetPushesResult {
@@ -129,6 +132,7 @@ export async function reconcileOrgTimesheetPushes(
   let skipped = 0;
   const errors: Array<{ timesheetId: string; error: string }> = [];
   for (const row of candidates) {
+    if (deps.stopNewRows?.()) break;
     // ⚑ NEW-3 — per-row containment (see the module header). Record and continue: the row is surfaced,
     // and the rest of the queue still drains.
     try {

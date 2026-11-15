@@ -7,7 +7,6 @@ import type { OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch
 import type { AdapterCommand } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { ErpError, getDoc, withProbeBudget, type ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { lookupConfirmedErpEmployee } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
-import { guardedErpFetch } from '../_shared/erpHostGuard.ts';
 import { resolveErpAuthPair, type ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 import { checkErpnextCommandAuthorization, replayMayIssueErpWrite } from '../adapter-dispatch/authGuard.ts';
 import { erpDatetime } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
@@ -20,7 +19,7 @@ import { memoiseExpenseResolveReads, resolveExpensePosting, type ExpenseResolveD
 import { EXPENSE_POSTING_KEY_PREFIX, expenseOutboxIdentity, expensePostingIdentity, expensePostingKey, type ExpensePosting } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingKey.ts';
 import type { ErpAccountFacts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expenseAccountRules.ts';
 import { reconcileOrgExpensePostings, backstopPassResult, type ExpenseBackstopDeps, type ExpenseIntentRow, type ExpenseOutcome } from './expensePostingBackstop.ts';
-import { type OrgBinding, listRetryPendingLive, listCandidatesLive } from './sweepShared.ts';
+import { type OrgBinding, listRetryPendingLive, listCandidatesLive, orgErpFetch, moneyRowsStopped } from './sweepShared.ts';
 import { buildReconcileDepsLive, dispatchMoneyWrite, buildMoneyWriteDepsLive } from './moneyWriteLive.ts';
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -36,7 +35,7 @@ export function expenseResolveDepsLive(serviceClient: SupabaseClient, org: OrgBi
   const client = async (): Promise<ErpClientDeps> => {
     if (!erpClient) {
       const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, org, cache);
-      erpClient = withProbeBudget({ fetchImpl: guardedErpFetch(org.siteUrl), apiKey, apiSecret, baseUrl: org.siteUrl });
+      erpClient = withProbeBudget({ fetchImpl: orgErpFetch(org), apiKey, apiSecret, baseUrl: org.siteUrl });
     }
     return erpClient;
   };
@@ -164,6 +163,7 @@ export function expensePostingBackstopDepsLive(
       if (error) throw new AppError(error.message, error.code);
       return (data as ExpenseIntentRow[] | null) ?? [];
     },
+    stopNewRows: () => moneyRowsStopped(org),
     markAttempted: async (orgId, intentIds) => {
       const { error } = await serviceClient.from('expense_posting_erp_mirror')
         .update({ last_attempt_at: new Date().toISOString() }).eq('org_id', orgId).in('id', intentIds);

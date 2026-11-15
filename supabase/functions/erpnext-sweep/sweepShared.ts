@@ -69,6 +69,55 @@ export interface OrgBinding {
   /** 0642: when this org's native statement pass last PUBLISHED (its own marker, independent of the
    *  full run); null = never / unknown. Optional so existing cycle fixtures stay byte-for-byte. */
   lastStatementPassAt?: string | null;
+  /** #2149, this tick only: an ERP request for this org failed or its answer stopped part-way (set by `orgErpFetch`). */
+  erpUnanswered?: boolean;
+  /** #2149, this tick only (set by `runErpSweepCycle`): true once the money passes must start no new row for this
+   *  org — its ERPNext did not answer, or the invocation is past `MONEY_ROW_START_DEADLINE_MS`. */
+  stopNewMoneyRows?: () => boolean;
+}
+
+/** #2149: whether the money passes may start no new row for this org on this tick (see `OrgBinding.stopNewMoneyRows`). */
+export function moneyRowsStopped(org: { stopNewMoneyRows?: () => boolean }): boolean {
+  return org.stopNewMoneyRows?.() === true;
+}
+
+/**
+ * #2149: wraps an ERP fetch so a request that gets no complete answer calls `onUnanswered`: the request itself failed
+ * (network failure, or its deadline aborted it), or the body stopped before its end. An answer with an error status is
+ * an answer. A destination refusal is our own check, not ERPNext's silence. The caller sees exactly the same response
+ * or failure.
+ */
+export function watchErpAnswer(inner: typeof fetch, onUnanswered: () => void): typeof fetch {
+  return async (input, init) => {
+    let res: Response;
+    try {
+      res = await inner(input, init);
+    } catch (err) {
+      if (!(err instanceof Error && err.message === 'ERPNext destination is not permitted')) onUnanswered();
+      throw err;
+    }
+    // A response with no body (or one the Response constructor cannot rebuild) has nothing left to stop.
+    if (!res.body || res.type === 'opaqueredirect' || res.status < 200 || res.status > 599 || [204, 205, 304].includes(res.status)) return res;
+    const reader = res.body.getReader();
+    const body = new ReadableStream<Uint8Array>({
+      async pull(c) {
+        try {
+          const { done, value } = await reader.read();
+          if (done) c.close(); else c.enqueue(value);
+        } catch (err) {
+          onUnanswered();
+          c.error(err);
+        }
+      },
+      cancel: (reason) => reader.cancel(reason),
+    });
+    return new Response(body, { status: res.status, statusText: res.statusText, headers: res.headers });
+  };
+}
+
+/** #2149: the guarded ERP fetch for one org's sweep passes; a request ERPNext does not answer marks the org for this tick. */
+export function orgErpFetch(org: OrgBinding): typeof fetch {
+  return watchErpAnswer(guardedErpFetch(org.siteUrl), () => { org.erpUnanswered = true; });
 }
 
 /** Re-read ONE ERP doc in full (Luna BLOCK 6) — the list endpoint omits child tables, and a Receive
@@ -90,7 +139,7 @@ export async function erpClientForBinding(
   cache?: ErpAuthPairCache,
 ): Promise<ErpClientDeps> {
   const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, org, cache);
-  return { fetchImpl: guardedErpFetch(org.siteUrl), apiKey, apiSecret, baseUrl: org.siteUrl };
+  return { fetchImpl: orgErpFetch(org), apiKey, apiSecret, baseUrl: org.siteUrl };
 }
 
 /** 0357: the org's `failed` outbox rows still waiting out their retry delay (not due, not exhausted). */

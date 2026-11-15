@@ -16,6 +16,11 @@ export const SWEEP_BACKFILL_EVERY_MINUTES = 5;
 export const SWEEP_RETRY_DELAY_SECONDS = 300;
 /** No hourly pass starts this long after the invocation began (the function's wall-clock cap is 150 s). */
 export const HOURLY_INVOCATION_DEADLINE_MS = 120_000;
+/** #2149: no money row (outbox recovery, budget / timesheet / expense / site float backstops) starts this long after
+ *  the invocation began. Later than the hourly deadline, so money keeps priority; early enough that a row started
+ *  just before it can still finish its recovery probe (`ERP_PROBE_TIMEOUT_MS`) inside the 150 s cap. A row not
+ *  started is left exactly as it is and runs on the next tick. */
+export const MONEY_ROW_START_DEADLINE_MS = 125_000;
 
 /** Whether an org's hourly work is due: never run, unreadable, or completed at least 55 minutes ago. */
 export function fullSweepDue(lastFullSweepAt: string | null | undefined, nowMs: number): boolean {

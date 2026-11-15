@@ -44,6 +44,9 @@ export interface BudgetArchiveBackstopDeps {
    *  never-attempted jobs first, then the longest-waiting, so jobs waiting out an outbox retry rotate
    *  behind the rest instead of hiding every later cancellation. */
   markAttempted?(orgId: string, jobs: BudgetArchiveCancelIntent[]): Promise<void>;
+  /** #2149: true once this tick must start no new row (the org's ERPNext did not answer, or the invocation is past its
+   *  money deadline). A row not started is left exactly as it is; the next tick takes it. */
+  stopNewRows?(): boolean;
 }
 
 export interface ReconcileBudgetArchiveCancellationsResult {
@@ -72,6 +75,7 @@ export async function reconcileOrgBudgetArchiveCancellations(
   const errors: Array<{ id: string; error: string }> = [];
 
   for (const job of jobs) {
+    if (deps.stopNewRows?.()) break;
     try {
       const lifecycle = await deps.readLifecycle(job);
       if (!lifecycle || lifecycle.status !== 'Archived' || lifecycle.activatedAt !== job.activated_at_witness) {

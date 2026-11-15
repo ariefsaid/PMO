@@ -74,6 +74,9 @@ export interface ExpenseBackstopDeps<Row extends { id: string } = ExpenseIntentR
   markAttempted(orgId: string, intentIds: string[]): Promise<void>;
   /** Outbox commands left `committed` whose intent is already `pushed` — finished by a finalize-only replay. */
   listStranded(orgId: string): Promise<Array<{ row: Row; outbox: ExpenseOutboxRef }>>;
+  /** #2149: true once this tick must start no new row (the org's ERPNext did not answer, or the invocation is past its
+   *  money deadline). A row not started is left exactly as it is; the next tick takes it. */
+  stopNewRows?(): boolean;
 }
 
 export interface ReconcileOrgExpensePostingsResult {
@@ -96,6 +99,7 @@ export async function reconcileOrgExpensePostings<Row extends { id: string } = E
 ): Promise<ReconcileOrgExpensePostingsResult> {
   const result: ReconcileOrgExpensePostingsResult = { finished: 0, driven: 0, replayed: 0, waiting: 0, held: 0, refused: 0, failed: 0, errors: [] };
   for (const { row, outbox } of await deps.listStranded(org.orgId)) {
+    if (deps.stopNewRows?.()) return result;
     try {
       // Only a completed finish counts; a not-due or recorded outcome is retried next tick.
       if ((await deps.replay(row, outbox)) === 'completed') result.finished += 1;
@@ -107,6 +111,7 @@ export async function reconcileOrgExpensePostings<Row extends { id: string } = E
   const rows = await deps.listPending(org.orgId, EXPENSE_BACKSTOP_TICK_LIMIT);
   if (rows.length > 0) await deps.markAttempted(org.orgId, rows.map((r) => r.id));
   for (const row of rows) {
+    if (deps.stopNewRows?.()) break;
     try {
       const outbox = await deps.findOutbox(row);
       if (outbox) {

@@ -90,6 +90,14 @@ migration backfills the pre-rollout confirmed history, so the first scan reports
 the scan is fenced by the same 0685 lease/binding machinery as every other writer and is a no-op for
 organizations with the feature disabled.
 
+**When the sweep stops starting money rows (#2149).** The sweep's ERP fetch (`orgErpFetch`, `erpnext-sweep/sweepShared.ts`)
+marks the organisation for the rest of the tick when an ERP request gets no complete answer (the request failed, its deadline
+aborted it, or the body stopped part-way; an error status is an answer). From then on, and for every organisation once the
+invocation passes `MONEY_ROW_START_DEADLINE_MS`, the outbox recovery pass and the budget, timesheet, expense, site float and
+budget-archive backstops start no new row, and a silent organisation runs no further pass that tick (its hourly marker is
+left as it is). A row not started is left exactly as it is (no claim, no outcome, attempts unchanged) and runs on the next
+tick. The stop only ever withholds a start; it never marks, fails or reissues anything.
+
 **The parked-unit resume (202 `budget-cancellation-pending`).** A v16 whole-project range activation whose
 *predecessor* still has an unsettled ERPNext archive cancellation is PARKED, not pushed: the budget gate
 writes `push_error='waiting-for-budget-archive-cancellation'` on each account unit and returns 202 with
@@ -110,6 +118,9 @@ re-check the others and assert the relationship in a test:
 - per-attempt ERP deadline × max attempts **<** the window any lock/clearance guarding it is given
 - SoD clearance TTL **>** the longest an ERP submit can still be in flight
 - any PostgREST read cap **<** `max_rows` (1000) — a `limit(1001)` saturation check can never fire
+- sweep money row-start deadline (`MONEY_ROW_START_DEADLINE_MS`) + recovery-probe deadline (`ERP_PROBE_TIMEOUT_MS`)
+  **<** the function's 150 s wall-clock cap, and the row-start deadline **>** the hourly deadline (money keeps
+  priority). Asserted in `erpnext-sweep/moneyPassTiming.test.ts`.
 
 ## How to verify (and what each gate does NOT prove)
 
