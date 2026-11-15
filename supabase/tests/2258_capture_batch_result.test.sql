@@ -1,6 +1,6 @@
 -- AC-ROP-008 (#2258): a retry reads the stored result of a finished capture request, and only that.
 begin;
-select plan(17);
+select plan(16);
 insert into organizations (id,name,default_currency) values
  ('22580000-0000-0000-0000-000000000001','Stored A','USD'),('22580000-0000-0000-0000-000000000002','Stored B','USD');
 insert into auth.users (id,email,banned_until) values
@@ -12,7 +12,7 @@ insert into auth.users (id,email,banned_until) values
 insert into profiles (id,org_id,full_name,email,role,status) values
  ('22580000-0000-0000-0000-000000000011','22580000-0000-0000-0000-000000000001','Admin A','stored-admin-a@example.test','Admin','active'),
  ('22580000-0000-0000-0000-000000000012','22580000-0000-0000-0000-000000000001','Finance A','stored-finance-a@example.test','Finance','active'),
- ('22580000-0000-0000-0000-000000000013','22580000-0000-0000-0000-000000000001','Inactive A','stored-inactive-a@example.test','Admin','inactive'),
+ ('22580000-0000-0000-0000-000000000013','22580000-0000-0000-0000-000000000001','Inactive A','stored-inactive-a@example.test','Admin','disabled'),
  ('22580000-0000-0000-0000-000000000014','22580000-0000-0000-0000-000000000001','Banned A','stored-banned-a@example.test','Admin','active'),
  ('22580000-0000-0000-0000-000000000021','22580000-0000-0000-0000-000000000002','Admin B','stored-admin-b@example.test','Admin','active');
 insert into projects (id,org_id,name,status) values ('22580000-0000-0000-0000-000000000031','22580000-0000-0000-0000-000000000001','Project A','Ongoing Project');
