@@ -106,3 +106,41 @@ describe('OdooOutcome — revise refusal plain-words reason in en and id (#1998)
   });
 });
 
+
+describe('AC-ODR-010 a bill the ledger re-dated says so in plain words, en and id (#2290)', () => {
+  function renderLedger(reason: string, lng: 'en' | 'id', ledgerDate: { sent: string; posted: string } | null = null) {
+    const i18n = createInstance();
+    void i18n.init({
+      lng, fallbackLng: 'en', ns: ['procurement'], defaultNS: 'procurement', interpolation: { escapeValue: false },
+      resources: { en: { procurement: enProcurement }, id: { procurement: idProcurement } },
+    });
+    return render(<I18nextProvider i18n={i18n}><OdooOutcome outcome={{ cls: 'needs-attention', asOf: T, reason }} ledgerDate={ledgerDate} /></I18nextProvider>);
+  }
+  const dates = { sent: '2026-12-05', posted: '2027-01-01' };
+
+  it('names where the ledger posted it and what to do, with no code on screen (en)', () => {
+    renderLedger('ledger-date-differs', 'en', dates);
+    expect(screen.getByTestId('odoo-outcome-reason')).toHaveTextContent(/^Posted in the ledger on .*2027.*, not .*2026.*\. The period you chose is closed in the ledger\.$/);
+    expect(screen.getByTestId('odoo-outcome-next')).toHaveTextContent('Check the bill in Odoo before paying it.');
+    expect(document.body).not.toHaveTextContent(/ledger-|different total/);
+  });
+
+  it('says the same in Indonesian', () => {
+    renderLedger('ledger-date-differs', 'id', dates);
+    expect(screen.getByTestId('odoo-outcome-reason')).toHaveTextContent(/^Dicatat di buku besar pada .*2027.*, bukan .*2026.*\. Periode yang Anda pilih sudah ditutup di buku besar\.$/);
+    expect(screen.getByTestId('odoo-outcome-next')).toHaveTextContent('Periksa tagihan di Odoo sebelum membayarnya.');
+  });
+
+  it.each([
+    ['ledger-date-differs', 'en', 'The ledger posted it on another date. The period you chose is closed in the ledger.'],
+    ['ledger-date-unreadable', 'en', 'PMO could not read the date the ledger posted on.'],
+    ['ledger-reference-differs', 'en', 'The reference in the ledger is not the one PMO sent.'],
+    ['ledger-date-differs', 'id', 'Buku besar mencatatnya pada tanggal lain. Periode yang Anda pilih sudah ditutup di buku besar.'],
+    ['ledger-date-unreadable', 'id', 'PMO tidak dapat membaca tanggal pencatatan di buku besar.'],
+    ['ledger-reference-differs', 'id', 'Referensi di buku besar tidak sama dengan yang dikirim PMO.'],
+  ] as const)('%s (%s) reads as plain words', (reason, lng, text) => {
+    renderLedger(reason, lng);
+    expect(screen.getByTestId('odoo-outcome-reason')).toHaveTextContent(text);
+    expect(document.body).not.toHaveTextContent(new RegExp(reason));
+  });
+});

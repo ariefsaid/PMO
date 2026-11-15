@@ -633,14 +633,19 @@
         "po_has_submitted_bill": "Pesanan pembelian ini memiliki tagihan yang sudah diajukan di ERP.",
         "revision_not_issued": "Revisi pesanan pembelian ini belum diterbitkan.",
         "po_not_found": "Pesanan pembelian tidak ditemukan.",
-        "below-received": "Jumlah tidak dapat dikurangi di bawah jumlah yang sudah diterima atau ditagihkan."
+        "below-received": "Jumlah tidak dapat dikurangi di bawah jumlah yang sudah diterima atau ditagihkan.",
+        "ledger-date-differs": "Dicatat di buku besar pada {{posted}}, bukan {{sent}}. Periode yang Anda pilih sudah ditutup di buku besar.",
+        "ledger-date-differs-undated": "Buku besar mencatatnya pada tanggal lain. Periode yang Anda pilih sudah ditutup di buku besar.",
+        "ledger-date-unreadable": "PMO tidak dapat membaca tanggal pencatatan di buku besar.",
+        "ledger-reference-differs": "Referensi di buku besar tidak sama dengan yang dikirim PMO."
       },
       "next": {
         "pending": "Odoo belum mengonfirmasi. PMO memeriksa lagi sendiri; tidak ada yang perlu dilakukan.",
         "held": "PMO tidak dapat memastikan apakah Odoo sudah membuatnya. Admin atau Keuangan memeriksa Odoo lalu memutuskan.",
         "attention": "Odoo menunjukkan total yang berbeda dari yang dikirim PMO. Periksa tagihan di Odoo sebelum membayarnya.",
         "approval": "Penyetuju di Odoo perlu menyetujui pesanan ini. Tidak ada yang perlu dilakukan di PMO.",
-        "refused": "Periksa yang Anda masukkan, lalu catat lagi."
+        "refused": "Periksa yang Anda masukkan, lalu catat lagi.",
+        "attentionLedger": "Periksa tagihan di Odoo sebelum membayarnya."
       },
       "read": "Dibaca {{age}}",
       "sent": "Dikirim {{age}}"

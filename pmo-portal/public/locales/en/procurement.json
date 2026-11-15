@@ -633,14 +633,19 @@
         "po_has_submitted_bill": "This purchase order has a submitted bill in the ERP.",
         "revision_not_issued": "This purchase order revision has not been issued yet.",
         "po_not_found": "The purchase order could not be found.",
-        "below-received": "Quantity cannot be reduced below the quantity already received or billed."
+        "below-received": "Quantity cannot be reduced below the quantity already received or billed.",
+        "ledger-date-differs": "Posted in the ledger on {{posted}}, not {{sent}}. The period you chose is closed in the ledger.",
+        "ledger-date-differs-undated": "The ledger posted it on another date. The period you chose is closed in the ledger.",
+        "ledger-date-unreadable": "PMO could not read the date the ledger posted on.",
+        "ledger-reference-differs": "The reference in the ledger is not the one PMO sent."
       },
       "next": {
         "pending": "Odoo has not confirmed it yet. PMO checks again by itself; there is nothing to do.",
         "held": "PMO cannot tell whether Odoo already made it. An Admin or Finance user checks Odoo and decides.",
         "attention": "Odoo shows a different total than PMO sent. Check the bill in Odoo before paying it.",
         "approval": "An approver in Odoo has to approve the order. Nothing to do in PMO.",
-        "refused": "Check what you entered, then record it again."
+        "refused": "Check what you entered, then record it again.",
+        "attentionLedger": "Check the bill in Odoo before paying it."
       },
       "read": "Read {{age}}",
       "sent": "Sent {{age}}"

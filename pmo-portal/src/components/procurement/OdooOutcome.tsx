@@ -2,7 +2,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { StatusPill } from '@/src/components/ui';
-import { formatRelativeTime } from '@/src/lib/format';
+import { formatDateOnly, formatRelativeTime } from '@/src/lib/format';
 import { matchRefusalReasonKey, type OdooOutcome as Outcome, type OdooOutcomeClass } from '@/src/lib/procurement/odooOutcome';
 
 /** The copy key of each state (the pill's own name comes from the shared status map). */
@@ -25,14 +25,34 @@ const DEFAULT_REASON: Record<string, string> = {
   'below-received': 'Quantity cannot be reduced below the quantity already received or billed.',
 };
 
+/** #2290: the codes a bill's read-back raises when the ledger posted it on another date or reference (plain words, never the code). */
+const LEDGER_REASON: Record<string, string> = {
+  'ledger-date-differs': 'Posted in the ledger on {{posted}}, not {{sent}}. The period you chose is closed in the ledger.',
+  'ledger-date-differs-undated': 'The ledger posted it on another date. The period you chose is closed in the ledger.',
+  'ledger-date-unreadable': 'PMO could not read the date the ledger posted on.',
+  'ledger-reference-differs': 'The reference in the ledger is not the one PMO sent.',
+};
+const LEDGER_NEXT = 'Check the bill in Odoo before paying it.';
+/** The first ledger code in an attention value (it may carry several, comma-joined), else null. */
+const ledgerCode = (reason: string | null): string | null =>
+  reason?.split(/[\s,]+/).find((code) => code === 'ledger-date-differs' || code === 'ledger-date-unreadable' || code === 'ledger-reference-differs') ?? null;
+
+/** The date PMO sent and the date the ledger posted on (`erp_posting_date`), for a bill Odoo re-dated. */
+export interface LedgerDate { sent: string; posted: string }
+
 /** `quiet`: a settled record in a dense table reads as one muted line, not a second pill (the attention classes always keep theirs). */
-export const OdooOutcome: React.FC<{ outcome: Outcome; quiet?: boolean }> = ({ outcome, quiet = false }) => {
+export const OdooOutcome: React.FC<{ outcome: Outcome; quiet?: boolean; ledgerDate?: LedgerDate | null }> = ({ outcome, quiet = false, ledgerDate = null }) => {
   const { t } = useTranslation('procurement');
   const { cls, asOf } = outcome;
   const reasonKey = matchRefusalReasonKey(outcome.reason);
+  const ledger = cls === 'needs-attention' ? ledgerCode(outcome.reason) : null;
   const approval = cls === 'pending' && outcome.reason === 'awaiting-approval';
-  const next = approval ? 'An approver in Odoo has to approve the order. Nothing to do in PMO.' : NEXT[cls];
-  const nextKey = approval ? 'approval' : COPY_KEY[cls];
+  const next = approval ? 'An approver in Odoo has to approve the order. Nothing to do in PMO.' : ledger ? LEDGER_NEXT : NEXT[cls];
+  const nextKey = approval ? 'approval' : ledger ? 'attentionLedger' : COPY_KEY[cls];
+  // A moved date names both dates when the screen has them, and stays words when it does not.
+  const ledgerKey = ledger === 'ledger-date-differs' && !ledgerDate ? 'ledger-date-differs-undated' : ledger;
+  const ledgerText = ledgerKey ? t(`odoo.outcome.reason.${ledgerKey}`, LEDGER_REASON[ledgerKey], ledgerKey === 'ledger-date-differs' && ledgerDate
+    ? { posted: formatDateOnly(ledgerDate.posted), sent: formatDateOnly(ledgerDate.sent) } : {}) : null;
   // A mirror read has an age of its own; a command that is still in flight only has the time it was sent.
   const sent = (cls === 'pending' && !approval) || cls === 'held' || cls === 'refused';
   if (quiet && cls === 'confirmed') {
@@ -52,6 +72,7 @@ export const OdooOutcome: React.FC<{ outcome: Outcome; quiet?: boolean }> = ({ o
           {sent ? t('odoo.outcome.sent', 'Sent {{age}}', { age: formatRelativeTime(asOf) }) : t('odoo.outcome.read', 'Read {{age}}', { age: formatRelativeTime(asOf) })}
         </span>
       )}
+      {ledgerText && <span data-testid="odoo-outcome-reason" className="text-sm text-foreground">{ledgerText}</span>}
       {reasonKey && (
         <span data-testid="odoo-outcome-reason" className="text-sm text-foreground">
           {t(`odoo.outcome.reason.${reasonKey}`, DEFAULT_REASON[reasonKey])}
