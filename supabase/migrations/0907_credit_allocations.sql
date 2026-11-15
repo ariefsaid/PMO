@@ -34,7 +34,9 @@ create table public.credit_allocations (
   org_id      uuid not null references public.organizations(id),
   user_id     uuid not null references public.profiles(id) on delete cascade,
   amount      numeric not null check (amount > 0),
-  updated_by  uuid references public.profiles(id) on delete set null,
+  -- who last moved credit into or out of this row. A plain uuid, not a second profiles FK: one FK
+  -- keeps PostgREST embeds of profiles unambiguous (postgrest_embed_ambiguity_guard).
+  updated_by  uuid,
   updated_at  timestamptz not null default now(),
   primary key (org_id, user_id)
 );
