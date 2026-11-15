@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useAuth } from '@/src/auth/useAuth';
 import { useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -20,6 +21,7 @@ import {
 import { Constants } from '@/src/lib/supabase/database.types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { usePermission } from '@/src/auth/usePermission';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
   listBudgetCategoryAccountMap,
@@ -68,6 +70,10 @@ const BudgetAccountMap: React.FC = () => {
   const categoryLabel = (value: string) => accountMapCategoryLabel(value, t);
   const may = usePermission();
   const canManage = may('manage', 'integration');
+  // Finance and Executive are shown the suggestions block while categories are unmapped, so their chart read
+  // starts WITH the map read (as before #2114), not after it. Other roles wait for the map.
+  const { realRole } = useEffectiveRole();
+  const readsChartWithMap = realRole === 'Finance' || realRole === 'Executive';
   const { toast } = useToast();
   const qc = useQueryClient();
   const sectionRef = useRef<HTMLElement>(null);
@@ -76,19 +82,22 @@ const BudgetAccountMap: React.FC = () => {
     queryKey: ['budget-category-account-map'],
     queryFn: listBudgetCategoryAccountMap,
   });
-  const catalogueQuery = useQuery({
-    queryKey: ['budget-posting-account-catalogue'],
-    queryFn: listBudgetPostingAccountCatalogue,
-  });
-
   const rows = useMemo(() => data ?? [], [data]);
-  const catalogue = catalogueQuery.data;
   const categoriesNeedingPosting = useMemo(
     () => BUDGET_CATEGORIES.filter((category) =>
       !(data ?? []).some((row) => row.category === category && row.isPushTarget),
     ),
     [data],
   );
+  // Same cache entry as the other Accounting panels. Read for anyone who can change the map, and for
+  // anyone who is shown the suggestions block (categories still unmapped); nobody else sees any of it.
+  const orgId = useAuth().currentUser?.org_id;
+  const catalogueQuery = useQuery({
+    queryKey: ['uxs11', 'account-catalogue', orgId],
+    queryFn: listBudgetPostingAccountCatalogue,
+    enabled: canManage || readsChartWithMap || (data !== undefined && categoriesNeedingPosting.length > 0),
+  });
+  const catalogue = catalogueQuery.data;
   const proposals = useMemo(
     () => proposeBudgetAccountMap(catalogue?.accounts ?? [], categoriesNeedingPosting, rows.map((row) => row.erpAccount)),
     [catalogue?.accounts, categoriesNeedingPosting, rows],
@@ -346,7 +355,7 @@ const BudgetAccountMap: React.FC = () => {
             </Button>
           )}
         </div>
-        {catalogueQuery.isPending && <p className="mt-2 text-control text-muted-foreground" role="status">{t('uxs10.catalogueLoading', 'Loading the account chart…')}</p>}
+        {catalogueQuery.isLoading && <p className="mt-2 text-control text-muted-foreground" role="status">{t('uxs10.catalogueLoading', 'Loading the account chart…')}</p>}
         {catalogueQuery.isError && <div className="mt-2"><ListState variant="error" title={t('uxs10.catalogueError', 'The account chart is unavailable.')} retryLabel={t('admin.retry', 'Retry')} onRetry={() => void catalogueQuery.refetch()} /></div>}
         {catalogue?.source === 'erp-fallback' && <p className="mt-2 text-control text-muted-foreground">{t('uxs10.catalogueFallback', 'The saved account chart is empty; choices come from the current ERP chart.')}</p>}
         {catalogue && proposals.length === 0 && <p className="mt-2 text-control text-muted-foreground">{t('uxs10.noProposal', 'No clear direct-cost match. Resolve it with your operator.')}</p>}

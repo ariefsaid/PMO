@@ -27,6 +27,10 @@ const { mutations, permission, projectsState, editorConfig } = vi.hoisted(() => 
 }));
 
 vi.mock('@/src/hooks/useMeetings', () => ({ useMeetingMutations: () => mutations }));
+vi.mock('@/src/hooks/useOrgProfilesLoader', async () => {
+  const { repositories } = await import('@/src/lib/repositories');
+  return { useOrgProfilesLoader: () => () => repositories.profile.listOrgProfiles() };
+});
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => permission.allowed }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: projectsState.data }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org1' } }) }));
@@ -113,6 +117,25 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     expect(mutations.create.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ title: 'Design review' }));
     expect(mutations.addAttendee.mutateAsync).toHaveBeenCalledWith({ meetingId: 'meeting-new', identity: { display_name: 'Guest One' } });
     expect(mutations.update.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ id: 'meeting-new', patch: { notes: expect.any(Array) } }));
+  });
+
+  it('keeps failed guests in the order they were picked even when a later one settles first', async () => {
+    mutations.addAttendee.mutateAsync.mockImplementation(({ identity }: { identity: { display_name?: string } }) => {
+      if (identity.display_name === 'Guest A') return new Promise((_, reject) => setTimeout(() => reject(new Error('a')), 20));
+      if (identity.display_name === 'Guest C') return Promise.reject(new Error('c'));
+      return Promise.resolve({});
+    });
+    renderPage();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    for (const name of ['Guest A', 'Guest B', 'Guest C']) {
+      await user.type(screen.getByLabelText(/External guest/), name);
+      await user.click(screen.getByRole('button', { name: 'Add' }));
+    }
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+    expect(await screen.findByText(/some details were not saved/i)).toBeInTheDocument();
+    const remaining = screen.getAllByRole('button', { name: /^Remove attendee: / }).map((b) => b.getAttribute('aria-label'));
+    expect(remaining).toEqual(['Remove attendee: Guest A', 'Remove attendee: Guest C']);
   });
 
   it('AC-MTG1-003 a pristine editor baseline can be left without a discard dialog', async () => {
@@ -329,6 +352,38 @@ describe('New meeting — floor: capture controls (floor-tests/new-meeting.md)',
 
     await waitFor(() => expect(mutations.create.mutateAsync).toHaveBeenCalled());
     expect(mutations.create.mutateAsync.mock.calls[0][0]).toMatchObject({ project_id: 'p1' });
+  });
+
+  it('#2112 writes attendees in pick order, one at a time, and still reports the one that failed', async () => {
+    const started: string[] = [];
+    let inFlight = 0; let maxInFlight = 0;
+    mutations.addAttendee.mutateAsync.mockImplementation(async (a: { identity: { profile_id?: string; display_name?: string } }) => {
+      const key = a.identity.profile_id ?? a.identity.display_name ?? '';
+      inFlight++; maxInFlight = Math.max(maxInFlight, inFlight);
+      try {
+      // earlier picks are slower: a concurrent writer would land later picks first
+      await new Promise((r) => setTimeout(r, key === 'Guest One' ? 30 : 5));
+      started.push(key);
+      if (key === 'Guest Two') throw new Error('guest write failed');
+      } finally { inFlight--; }
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    await user.click(screen.getByRole('combobox', { name: 'Add attendee' }));
+    await user.click(await screen.findByRole('option', { name: /Sam Member/ }));
+    for (const name of ['Guest One', 'Guest Two', 'Guest Three']) {
+      await user.type(screen.getByLabelText(/External guest/), name);
+      await user.click(screen.getByRole('button', { name: 'Add' }));
+    }
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+
+    expect(await screen.findByText(/some details were not saved/i)).toBeInTheDocument();
+    expect(started).toEqual(['u2', 'Guest One', 'Guest Two', 'Guest Three']);
+    expect(maxInFlight).toBe(1);
+    expect(screen.getByText('Guest Two')).toBeVisible();
+    expect(screen.queryByText('Sam Member')).not.toBeInTheDocument();
+    mutations.addAttendee.mutateAsync.mockReset();
   });
 
   it('floor 9: an organisation member picked from the member picker is saved as an attendee', async () => {

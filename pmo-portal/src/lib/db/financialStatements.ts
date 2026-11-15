@@ -190,8 +190,12 @@ async function readStatement(input: NormalizedSelection): Promise<FinancialState
 export async function getFinancialStatement(value: GetFinancialStatementInput): Promise<FinancialStatementRead> {
   const input = normalizeSelection(value);
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const catalogue = await readCatalogue(input.projectId);
-    const read = await readStatement(input);
+    // Independent reads, started together; a failed catalogue still surfaces first.
+    const [catalogueResult, readResult] = await Promise.allSettled([readCatalogue(input.projectId), readStatement(input)]);
+    if (catalogueResult.status === 'rejected') throw catalogueResult.reason;
+    if (readResult.status === 'rejected') throw readResult.reason;
+    const catalogue = catalogueResult.value;
+    const read = readResult.value;
     if (sameGeneration(catalogue.generation, read.generation) && catalogue.companyLabel === read.companyLabel &&
         completeReadBelongsToCatalogue(catalogue, read)) return read;
   }
