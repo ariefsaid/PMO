@@ -49,6 +49,7 @@ const stableProps = {
   onUpdateLineItem: vi.fn(),
   onSaveSuccess: vi.fn(),
   onOpenBuffersChange: vi.fn(),
+  onDirtyChange: vi.fn(),
   onSaveError: undefined,
   fiscalYearNames: ['FY2026'] as string[] | null,
   budgetMode: 'per_year' as const,
