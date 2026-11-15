@@ -8,7 +8,7 @@ import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
  * link, a confirmed link's email changing). Best-effort: a notification failure is logged, never
  * propagated — the caller's own write (the mint/update/tombstone) must never be lost to it.
  *
- * Exported (P3c slice 5): `erpnext-sweep/index.ts`'s `reconcileOrgBudgetPushesLive` surfaces its own
+ * Exported (P3c slice 5): `erpnext-sweep/budgetBackstopLive.ts`'s `budgetBackstopDepsLive` surfaces its own
  * `'budget-push-no-outbox-candidate'` reason through this SAME surface, rather than a second one.
  */
 export async function surfaceActionRequired(

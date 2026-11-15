@@ -1,0 +1,785 @@
+{
+ "_meta": {
+  "bed": "local ERPNext dev bed, v15.94.3 (frappe 15.96.0), Standard chart of accounts, IDR",
+  "recorded": "2026-11-16",
+  "ticket": "#1599",
+  "about": "ECX5-T0: Fiscal Year create, overlap and lookup",
+  "names": "synthetic: company \"ECX Probe Co\" (abbr EPC), parties and employees named \"ECX Probe ...\" / \"Probe ...\", bed users replaced by role labels",
+  "apiUsers": {
+   "apiUserWithSystemManager": "token-auth API user holding the 901-bot role set (Accounts Manager/User, Purchase Manager/User, Stock Manager/User, Sales Manager/User, Projects Manager/User, System Manager) plus HR Manager/User and, from the Supplier probe on, Purchase Master Manager",
+   "apiUserWithoutSystemManager": "same roles minus System Manager (and without Purchase Master Manager)"
+  },
+  "notes": [
+   "POST /api/resource/Fiscal Year {year, year_start_date, year_end_date, companies:[{company}]}; name = year. A year with no companies rows is global (the bed has global years 2026 and 2027).",
+   "Create needs System Manager: a user with Accounts Manager but without System Manager gets 403 PermissionError. Read works for both.",
+   "Refused: end before start (417 InvalidDates), not one year (417 InvalidDates \"should be one year after\", unless is_short_year=1), duplicate name (409 DuplicateEntryError), missing year name (417 ValidationError \"Year Name is required\"), unknown company row (417 LinkValidationError).",
+   "Overlap: a new year whose dates overlap an existing year is refused with 409 NameError \"Year start date or end date is overlapping with <year>. To avoid please set company\" when it has no company rows OR shares a company with the other year; identical start+end dates are refused with 417 ValidationError \"... are already set in Fiscal Year <year>\" even for a different company. A partial overlap for a DIFFERENT company, with company rows on both, is accepted.",
+   "Lookup: filtering through the child table finds only company-scoped years; a global year has no child row. Use a date-range filter (year_start_date <= d and year_end_date >= d) and check the companies child rows, not the child-table filter alone.",
+   "Posting into a date with no covering year is refused at SUBMIT with FiscalYearError (see openingEntry.json)."
+  ],
+  "v16": "differs: overlap rules looser (identical dates for another company, company-scoped year beside a global year); HTML link in the overlap message"
+ },
+ "observations": [],
+ "cases": [
+  {
+   "label": "create year w/ company row (accept)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Fiscal Year",
+    "body": {
+     "year": "ECX 2031",
+     "year_start_date": "2031-01-01",
+     "year_end_date": "2031-12-31",
+     "companies": [
+      {
+       "company": "ECX Probe Co"
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX 2031",
+     "year": "ECX 2031",
+     "year_start_date": "2031-01-01",
+     "year_end_date": "2031-12-31",
+     "companies": [
+      {
+       "company": "ECX Probe Co",
+       "idx": 1
+      }
+     ],
+     "disabled": 0,
+     "is_short_year": 0,
+     "auto_created": 0
+    }
+   }
+  },
+  {
+   "label": "create duplicate name",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Fiscal Year",
+    "body": {
+     "year": "ECX 2031",
+     "year_start_date": "2031-01-01",
+     "year_end_date": "2031-12-31",
+     "companies": [
+      {
+       "company": "ECX Probe Co"
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 409,
+   "response": {
+    "exception": "frappe.exceptions.DuplicateEntryError: ('Fiscal Year', 'ECX 2031', IntegrityError(1062, \"Duplicate entry 'ECX 2031' for key 'PRIMARY'\"))",
+    "exc_type": "DuplicateEntryError",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Fiscal Year <strong>ECX 2031</strong> already exists\\\", \\\"title\\\": \\\"Duplicate Name\\\", \\\"indicator\\\": \\\"red\\\"}\"]"
+   }
+  },
+  {
+   "label": "overlap same company, other name",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Fiscal Year",
+    "body": {
+     "year": "ECX 2031 b",
+     "year_start_date": "2031-06-01",
+     "year_end_date": "2032-05-31",
+     "companies": [
+      {
+       "company": "ECX Probe Co"
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 409,
+   "response": {
+    "exception": "frappe.exceptions.NameError: Year start date or end date is overlapping with ECX 2031. To avoid please set company",
+    "exc_type": "NameError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Year start date or end date is overlapping with ECX 2031. To avoid please set company\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "overlap same company, exact same dates other name",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Fiscal Year",
+    "body": {
+     "year": "ECX 2031 c",
+     "year_start_date": "2031-01-01",
+     "year_end_date": "2031-12-31",
+     "companies": [
+      {
+       "company": "ECX Probe Co"
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 409,
+   "response": {
+    "exception": "frappe.exceptions.NameError: Year start date or end date is overlapping with ECX 2031. To avoid please set company",
+    "exc_type": "NameError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Year start date or end date is overlapping with ECX 2031. To avoid please set company\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "same dates different company (accept?)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Fiscal Year",
+    "body": {
+     "year": "ECX 2031 d",
+     "year_start_date": "2031-01-01",
+     "year_end_date": "2031-12-31",
+     "companies": [
+      {
+       "company": "Other Co"
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Fiscal Year Start Date and Fiscal Year End Date are already set in Fiscal Year ECX 2031",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Fiscal Year Start Date and Fiscal Year End Date are already set in Fiscal Year ECX 2031\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "overlap global year 2027 with company row",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Fiscal Year",
+    "body": {
+     "year": "ECX 2027 co",
+     "year_start_date": "2027-01-01",
+     "year_end_date": "2027-12-31",
+     "companies": [
+      {
+       "company": "ECX Probe Co"
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Fiscal Year Start Date and Fiscal Year End Date are already set in Fiscal Year 2027",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Fiscal Year Start Date and Fiscal Year End Date are already set in Fiscal Year 2027\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "overlap global year, no company row",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Fiscal Year",
+    "body": {
+     "year": "ECX 2027 g",
+     "year_start_date": "2027-03-01",
+     "year_end_date": "2028-02-29"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 409,
+   "response": {
+    "exception": "frappe.exceptions.NameError: Year start date or end date is overlapping with 2027. To avoid please set company",
+    "exc_type": "NameError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Year start date or end date is overlapping with 2027. To avoid please set company\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "create next year no company row (global)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Fiscal Year",
+    "body": {
+     "year": "ECX 2032",
+     "year_start_date": "2032-01-01",
+     "year_end_date": "2032-12-31"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX 2032",
+     "year": "ECX 2032",
+     "year_start_date": "2032-01-01",
+     "year_end_date": "2032-12-31",
+     "companies": [],
+     "disabled": 0,
+     "is_short_year": 0,
+     "auto_created": 0
+    }
+   }
+  },
+  {
+   "label": "end before start",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Fiscal Year",
+    "body": {
+     "year": "ECX bad1",
+     "year_start_date": "2040-12-31",
+     "year_end_date": "2040-01-01",
+     "companies": [
+      {
+       "company": "ECX Probe Co"
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.InvalidDates: <strong>Year End Date</strong> must be after <strong>Year Start Date</strong>",
+    "exc_type": "InvalidDates",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"<strong>Year End Date</strong> must be after <strong>Year Start Date</strong>\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "not one year",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Fiscal Year",
+    "body": {
+     "year": "ECX bad2",
+     "year_start_date": "2040-01-01",
+     "year_end_date": "2040-06-30",
+     "companies": [
+      {
+       "company": "ECX Probe Co"
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.InvalidDates: Fiscal Year End Date should be one year after Fiscal Year Start Date",
+    "exc_type": "InvalidDates",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Fiscal Year End Date should be one year after Fiscal Year Start Date\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "short year flag",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Fiscal Year",
+    "body": {
+     "year": "ECX short",
+     "year_start_date": "2040-01-01",
+     "year_end_date": "2040-06-30",
+     "is_short_year": 1,
+     "companies": [
+      {
+       "company": "ECX Probe Co"
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX short",
+     "year": "ECX short",
+     "year_start_date": "2040-01-01",
+     "year_end_date": "2040-06-30",
+     "companies": [
+      {
+       "company": "ECX Probe Co",
+       "idx": 1
+      }
+     ],
+     "disabled": 0,
+     "is_short_year": 1,
+     "auto_created": 0
+    }
+   }
+  },
+  {
+   "label": "non-calendar year",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Fiscal Year",
+    "body": {
+     "year": "ECX FY34",
+     "year_start_date": "2034-04-01",
+     "year_end_date": "2035-03-31",
+     "companies": [
+      {
+       "company": "ECX Probe Co"
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX FY34",
+     "year": "ECX FY34",
+     "year_start_date": "2034-04-01",
+     "year_end_date": "2035-03-31",
+     "companies": [
+      {
+       "company": "ECX Probe Co",
+       "idx": 1
+      }
+     ],
+     "disabled": 0,
+     "is_short_year": 0,
+     "auto_created": 0
+    }
+   }
+  },
+  {
+   "label": "missing year name",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Fiscal Year",
+    "body": {
+     "year_start_date": "2036-01-01",
+     "year_end_date": "2036-12-31",
+     "companies": [
+      {
+       "company": "ECX Probe Co"
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Year Name is required",
+    "exc_type": "ValidationError",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Year Name is required\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "unknown company row",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Fiscal Year",
+    "body": {
+     "year": "ECX bad3",
+     "year_start_date": "2037-01-01",
+     "year_end_date": "2037-12-31",
+     "companies": [
+      {
+       "company": "No Such Co"
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.LinkValidationError: Could not find Row #1: Company: No Such Co",
+    "exc_type": "LinkValidationError",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Could not find Row #1: Company: No Such Co\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "nosm create",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Fiscal Year",
+    "body": {
+     "year": "ECX nosm",
+     "year_start_date": "2038-01-01",
+     "year_end_date": "2038-12-31",
+     "companies": [
+      {
+       "company": "ECX Probe Co"
+      }
+     ]
+    },
+    "as": "apiUserWithoutSystemManager"
+   },
+   "status": 403,
+   "response": {
+    "exc_type": "PermissionError",
+    "_server_messages": "[\"{\\\"message\\\": \\\"User <strong><api-user></strong> does not have doctype access via role permission for document <strong>Fiscal Year</strong>\\\", \\\"title\\\": \\\"Message\\\"}\"]",
+    "_error_message": "No permission for Fiscal Year"
+   }
+  },
+  {
+   "label": "lookup by company child row + date",
+   "request": {
+    "method": "GET",
+    "path": "/api/resource/Fiscal Year?filters=[[\"Fiscal Year Company\", \"company\", \"=\", \"ECX Probe Co\"], [\"year_start_date\", \"<=\", \"2031-06-15\"], [\"year_end_date\", \">=\", \"2031-06-15\"]]&fields=[\"name\", \"year_start_date\", \"year_end_date\", \"disabled\"]",
+    "body": null,
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": [
+     {
+      "name": "ECX 2031",
+      "year_start_date": "2031-01-01",
+      "year_end_date": "2031-12-31",
+      "disabled": 0
+     }
+    ]
+   }
+  },
+  {
+   "label": "lookup overlap range (covers or intersects)",
+   "request": {
+    "method": "GET",
+    "path": "/api/resource/Fiscal Year?filters=[[\"year_start_date\", \"<=\", \"2031-12-31\"], [\"year_end_date\", \">=\", \"2031-01-01\"]]&fields=[\"name\", \"year_start_date\", \"year_end_date\", \"disabled\"]",
+    "body": null,
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": [
+     {
+      "name": "ECX 2031",
+      "year_start_date": "2031-01-01",
+      "year_end_date": "2031-12-31",
+      "disabled": 0
+     }
+    ]
+   }
+  },
+  {
+   "label": "lookup absent (no year for date)",
+   "request": {
+    "method": "GET",
+    "path": "/api/resource/Fiscal Year?filters=[[\"year_start_date\", \"<=\", \"2060-06-15\"], [\"year_end_date\", \">=\", \"2060-06-15\"]]&fields=[\"name\", \"year_start_date\", \"year_end_date\", \"disabled\"]",
+    "body": null,
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": []
+   }
+  },
+  {
+   "label": "nosm lookup",
+   "request": {
+    "method": "GET",
+    "path": "/api/resource/Fiscal Year?fields=[\"name\", \"year_start_date\", \"year_end_date\", \"disabled\"]",
+    "body": null,
+    "as": "apiUserWithoutSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": [
+     {
+      "name": "2026",
+      "year_start_date": "2026-01-01",
+      "year_end_date": "2026-12-31",
+      "disabled": 0
+     },
+     {
+      "name": "2027",
+      "year_start_date": "2027-01-01",
+      "year_end_date": "2027-12-31",
+      "disabled": 0
+     },
+     {
+      "name": "ECX 2031",
+      "year_start_date": "2031-01-01",
+      "year_end_date": "2031-12-31",
+      "disabled": 0
+     },
+     {
+      "name": "ECX 2032",
+      "year_start_date": "2032-01-01",
+      "year_end_date": "2032-12-31",
+      "disabled": 0
+     },
+     {
+      "name": "ECX FY34",
+      "year_start_date": "2034-04-01",
+      "year_end_date": "2035-03-31",
+      "disabled": 0
+     },
+     {
+      "name": "ECX short",
+      "year_start_date": "2040-01-01",
+      "year_end_date": "2040-06-30",
+      "disabled": 0
+     }
+    ]
+   }
+  },
+  {
+   "label": "partial overlap OTHER company",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Fiscal Year",
+    "body": {
+     "year": "ECX 2031 oc",
+     "year_start_date": "2031-06-01",
+     "year_end_date": "2032-05-31",
+     "companies": [
+      {
+       "company": "Other Co"
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX 2031 oc",
+     "year_start_date": "2031-06-01",
+     "year_end_date": "2032-05-31",
+     "companies": [
+      {
+       "company": "Other Co",
+       "idx": 1
+      }
+     ]
+    }
+   }
+  },
+  {
+   "label": "overlap existing year, no company row, existing has company row",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Fiscal Year",
+    "body": {
+     "year": "ECX 2031 g",
+     "year_start_date": "2031-03-01",
+     "year_end_date": "2032-02-29"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 409,
+   "response": {
+    "exception": "frappe.exceptions.NameError: Year start date or end date is overlapping with ECX 2032. To avoid please set company",
+    "exc_type": "NameError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Year start date or end date is overlapping with ECX 2032. To avoid please set company\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "adjacent year same company (accept)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Fiscal Year",
+    "body": {
+     "year": "ECX 2032 co",
+     "year_start_date": "2032-01-01",
+     "year_end_date": "2032-12-31",
+     "companies": [
+      {
+       "company": "ECX Probe Co"
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Fiscal Year Start Date and Fiscal Year End Date are already set in Fiscal Year ECX 2032",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Fiscal Year Start Date and Fiscal Year End Date are already set in Fiscal Year ECX 2032\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  }
+ ],
+ "v16": {
+  "bed": "local ERPNext dev bed, v16: erpnext 16.53.0, frappe 16.54.0, Standard chart of accounts, IDR (same probe sets as the v15 cases)",
+  "notes": [
+   "v16 is MORE permissive than v15: a year for one company may have identical dates to a year of another company (v15: 417 \"already set in Fiscal Year\"), and a company-scoped year may sit beside a global year (identical dates v15: 417; v16 200; a partial overlap with a global year is also 200).",
+   "Unchanged: a year that overlaps another year sharing the same company -> 409 NameError \"Year start date or end date is overlapping with <link>. To avoid please set company\"; a new global year (no company rows) overlapping any year -> 409; end<start, not-one-year, duplicate name, missing name, unknown company: same statuses. Create without System Manager: 403 in both. Non-calendar and short years accepted in both.",
+   "The overlap message now carries an HTML link: \"...overlapping with <a href=\\\"/desk/fiscal-year/ECX%202031\\\" ...>Fiscal Year ECX 2031</a>. To avoid please set company\".",
+   "The v16 bed has global years 2026, 2027 and 2028 (v15 bed: 2026, 2027). Lookup by date range plus an inspection of the companies child rows works the same; the company child filter still misses global years.",
+   "A partial overlap between years of two different companies is accepted on v16 as on v15 (case \"partial overlap OTHER company vs company-scoped year only\", status 200); the main-run 409 on that label came from also overlapping the same-company year \"ECX 2031 d\" and is not a version difference.",
+   "Error text: v16 sends _server_messages as compact JSON with an extra \"as_table\": false key per message; the parsed message text and exc_type/status are what the cases compare. HTML links in messages point at /desk/... (v15: /app/...).",
+   "GL Entry list order is not stable across versions; compare rows by content, not position.",
+   "Another company on the v16 bed supplied the \"other company\" cases (named Other Co here)."
+  ],
+  "cases": [
+   {
+    "label": "same dates different company (accept?)",
+    "request": {
+     "method": "POST",
+     "path": "/api/resource/Fiscal Year",
+     "body": {
+      "year": "ECX 2031 d",
+      "year_start_date": "2031-01-01",
+      "year_end_date": "2031-12-31",
+      "companies": [
+       {
+        "company": "Other Co"
+       }
+      ]
+     },
+     "as": "apiUserWithSystemManager"
+    },
+    "status": 200,
+    "response": {
+     "data": {
+      "name": "ECX 2031 d",
+      "year": "ECX 2031 d",
+      "year_start_date": "2031-01-01",
+      "year_end_date": "2031-12-31",
+      "companies": [
+       {
+        "company": "Other Co",
+        "idx": 1
+       }
+      ],
+      "disabled": 0,
+      "is_short_year": 0,
+      "auto_created": 0
+     }
+    }
+   },
+   {
+    "label": "overlap global year 2027 with company row",
+    "request": {
+     "method": "POST",
+     "path": "/api/resource/Fiscal Year",
+     "body": {
+      "year": "ECX 2027 co",
+      "year_start_date": "2027-01-01",
+      "year_end_date": "2027-12-31",
+      "companies": [
+       {
+        "company": "ECX Probe Co"
+       }
+      ]
+     },
+     "as": "apiUserWithSystemManager"
+    },
+    "status": 200,
+    "response": {
+     "data": {
+      "name": "ECX 2027 co",
+      "year": "ECX 2027 co",
+      "year_start_date": "2027-01-01",
+      "year_end_date": "2027-12-31",
+      "companies": [
+       {
+        "company": "ECX Probe Co",
+        "idx": 1
+       }
+      ],
+      "disabled": 0,
+      "is_short_year": 0,
+      "auto_created": 0
+     }
+    }
+   },
+   {
+    "label": "adjacent year same company (accept)",
+    "request": {
+     "method": "POST",
+     "path": "/api/resource/Fiscal Year",
+     "body": {
+      "year": "ECX 2032 co",
+      "year_start_date": "2032-01-01",
+      "year_end_date": "2032-12-31",
+      "companies": [
+       {
+        "company": "ECX Probe Co"
+       }
+      ]
+     },
+     "as": "apiUserWithSystemManager"
+    },
+    "status": 200,
+    "response": {
+     "data": {
+      "name": "ECX 2032 co",
+      "year": "ECX 2032 co",
+      "year_start_date": "2032-01-01",
+      "year_end_date": "2032-12-31",
+      "companies": [
+       {
+        "company": "ECX Probe Co",
+        "idx": 1
+       }
+      ],
+      "disabled": 0,
+      "is_short_year": 0,
+      "auto_created": 0
+     }
+    }
+   },
+   {
+    "label": "company-scoped PARTIAL overlap with a global year",
+    "request": {
+     "method": "POST",
+     "path": "/api/resource/Fiscal Year",
+     "body": {
+      "year": "ECX 2028 co",
+      "year_start_date": "2028-06-01",
+      "year_end_date": "2029-05-31",
+      "companies": [
+       {
+        "company": "ECX Probe Co"
+       }
+      ]
+     },
+     "as": "apiUserWithSystemManager"
+    },
+    "status": 200,
+    "response": {
+     "data": {
+      "name": "ECX 2028 co",
+      "year_start_date": "2028-06-01",
+      "year_end_date": "2029-05-31",
+      "companies": [
+       {
+        "company": "ECX Probe Co",
+        "idx": 1
+       }
+      ]
+     }
+    }
+   },
+   {
+    "label": "overlap same company, other name",
+    "request": {
+     "method": "POST",
+     "path": "/api/resource/Fiscal Year",
+     "body": {
+      "year": "ECX 2031 b",
+      "year_start_date": "2031-06-01",
+      "year_end_date": "2032-05-31",
+      "companies": [
+       {
+        "company": "ECX Probe Co"
+       }
+      ]
+     },
+     "as": "apiUserWithSystemManager"
+    },
+    "status": 409,
+    "response": {
+     "exception": "frappe.exceptions.NameError: Year start date or end date is overlapping with <a href=\"/desk/fiscal-year/ECX%202031\" target=\"_blank\" style=\"font-weight: bold;\">Fiscal Year ECX 2031</a>. To avoid please set company",
+     "exc_type": "NameError",
+     "_exc_source": "erpnext (app)",
+     "_server_messages": "[\"{\\\"message\\\":\\\"Year start date or end date is overlapping with <a href=\\\\\\\"/desk/fiscal-year/ECX%202031\\\\\\\" rel=\\\\\\\"noopener noreferrer\\\\\\\">Fiscal Year ECX 2031</a>. To avoid please set company\\\",\\\"as_table\\\":false,\\\"title\\\":\\\"Message\\\",\\\"indicator\\\":\\\"red\\\",\\\"raise_exception\\\":1,\\\"__frappe_exc_id\\\":\\\"c749f213b54504c54f7c7014bfb8d79968988470cd62897a0d8091a9\\\"}\"]"
+    }
+   }
+  ]
+ }
+}

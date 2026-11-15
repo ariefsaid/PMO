@@ -206,6 +206,11 @@ test('flag validation: invalid --state, --feature k=maybe, --feature =on, pmo or
       match: /--feature must be <key>=on\|off/,
     },
     {
+      name: '--feature repeated with both values',
+      args: ['org', 'add', ...REQUIRED_FLAGS, '--feature', 'crm=on', '--feature', 'crm=off', '--confirm'],
+      match: /--feature crm is given more than once/,
+    },
+    {
       name: 'pmo org unknown',
       args: ['org', 'unknown'],
       match: /Unknown org command 'unknown'/,
@@ -229,53 +234,31 @@ test('flag validation: invalid --state, --feature k=maybe, --feature =on, pmo or
 
 // ── AC-ONB-010: Confirmed healthy flow ─────────────────────────────────────────────────────────────
 
-test('AC-ONB-010: healthy → lifecycle RPC called exactly once, AFTER the second status call (assert call order)', async () => {
-  let statusCallCount = 0;
+test('AC-ONB-010: healthy → one create call carrying plan, features and state, then one status read; no direct RPC (#2280)', async () => {
   const callSequence = [];
+  let createBody;
 
   const server = await fakeServer(async ({ url, body, send }) => {
     if (url.pathname === '/functions/v1/operator-org') {
       if (body.action === 'create') {
         callSequence.push('create');
+        createBody = body;
         return send(200, { ok: true, org_id: 'org-uuid-1', created: true });
       }
       if (body.action === 'status') {
-        statusCallCount++;
-        callSequence.push(`status-${statusCallCount}`);
-        if (statusCallCount === 1) {
-          return send(200, {
-            exists: true,
-            name: 'Acme Corp',
-            lifecycle_state: 'demo',
-            plan_id: null, // trigger operator_set_org_plan
-            admins: { active: 0, pending: 1 },
-            stage_config_count: 1,
-            features: [],
-          });
-        }
+        callSequence.push('status');
         return send(200, {
           exists: true,
           name: 'Acme Corp',
-          lifecycle_state: 'demo',
+          lifecycle_state: 'live',
           plan_id: 'pro',
-          admins: { active: 1, pending: 0 },
+          admins: { active: 0, pending: 1 },
           stage_config_count: 2,
           features: [{ key: 'equipment_tracking', enabled: true }],
         });
       }
     }
-    if (url.pathname === '/rest/v1/rpc/operator_set_org_plan') {
-      callSequence.push('set_plan');
-      return send(200, null);
-    }
-    if (url.pathname === '/rest/v1/rpc/operator_toggle_feature') {
-      callSequence.push(`toggle_feature:${body.p_key}=${body.p_enabled}`);
-      return send(200, null);
-    }
-    if (url.pathname === '/rest/v1/rpc/operator_set_org_lifecycle_state') {
-      callSequence.push(`lifecycle_state:${body.p_lifecycle_state}`);
-      return send(200, null);
-    }
+    callSequence.push(`unexpected:${url.pathname}`);
   });
 
   try {
@@ -288,14 +271,10 @@ test('AC-ONB-010: healthy → lifecycle RPC called exactly once, AFTER the secon
     ], server.url);
 
     assert.equal(res.code, 0, `Command failed: ${res.err}`);
-    assert.deepEqual(callSequence, [
-      'create',
-      'status-1',
-      'set_plan',
-      'toggle_feature:equipment_tracking=true',
-      'status-2',
-      'lifecycle_state:live',
-    ]);
+    assert.deepEqual(callSequence, ['create', 'status']);
+    assert.equal(createBody.plan_id, 'pro');
+    assert.deepEqual(createBody.features, [{ key: 'equipment_tracking', enabled: true }]);
+    assert.equal(createBody.lifecycle_state, 'live');
     assert.match(res.out, /created/i);
     assert.match(res.out, /org-uuid-1/);
     assert.match(res.out, /live/);
@@ -306,17 +285,15 @@ test('AC-ONB-010: healthy → lifecycle RPC called exactly once, AFTER the secon
 
 // ── AC-ONB-011: Unhealthy cases ──────────────────────────────────────────────────────────────────
 
-test('AC-ONB-011: unhealthy (no plan after assignment failed) → lifecycle RPC never called, failed names printed, exit code non-zero', async () => {
-  let statusCallCount = 0;
+test('AC-ONB-011: unhealthy (no plan) → no RPC is called, failed names printed, exit code non-zero', async () => {
   const lifecycleCalls = [];
   const server = await fakeServer(async ({ url, body, send }) => {
     if (url.pathname === '/functions/v1/operator-org') {
       if (body.action === 'create') return send(200, { ok: true, org_id: 'org-uuid-2', created: true });
       if (body.action === 'status') {
-        statusCallCount++;
         return send(200, {
           exists: true,
-          lifecycle_state: 'demo',
+          lifecycle_state: 'live',
           plan_id: null, // still null
           admins: { active: 1, pending: 0 },
           stage_config_count: 1,
@@ -352,7 +329,7 @@ test('AC-ONB-011: unhealthy (no Admin) → lifecycle RPC never called, failed na
       if (body.action === 'status') {
         return send(200, {
           exists: true,
-          lifecycle_state: 'demo',
+          lifecycle_state: 'live',
           plan_id: 'pro',
           admins: { active: 0, pending: 0 }, // no admin
           stage_config_count: 1,
@@ -385,7 +362,7 @@ test('AC-ONB-011: unhealthy (no stage config) → lifecycle RPC never called, fa
       if (body.action === 'status') {
         return send(200, {
           exists: true,
-          lifecycle_state: 'demo',
+          lifecycle_state: 'live',
           plan_id: 'pro',
           admins: { active: 1, pending: 0 },
           stage_config_count: 0, // no stage config
@@ -491,6 +468,40 @@ test('plus: plan differs → stops, no writes after', async () => {
   }
 });
 
+test('#2280: an existing organization whose features or state differ is reported, never changed → no RPC, non-zero exit', async () => {
+  let rpcCalls = 0;
+  const server = await fakeServer(async ({ url, body, send }) => {
+    if (url.pathname === '/functions/v1/operator-org') {
+      if (body.action === 'create') return send(200, { ok: true, org_id: 'org-uuid-differs', created: false });
+      if (body.action === 'status') {
+        return send(200, {
+          exists: true,
+          name: 'Acme Corp',
+          lifecycle_state: 'demo', // asked for test
+          plan_id: 'pro',
+          admins: { active: 1, pending: 0 },
+          stage_config_count: 2,
+          features: [{ key: 'f1', enabled: false }], // asked for on
+        });
+      }
+    }
+    if (url.pathname.startsWith('/rest/v1/')) {
+      rpcCalls++;
+      return send(200, null);
+    }
+  });
+
+  try {
+    const res = await runCli(['org', 'add', ...REQUIRED_FLAGS, '--feature', 'f1=on', '--state', 'test', '--confirm'], server.url);
+    assert.notEqual(res.code, 0);
+    assert.equal(rpcCalls, 0, 'The command line never changes an existing organization');
+    assert.match(res.err + res.out, /different feature f1, state/);
+    assert.match(res.err + res.out, /in the app/);
+  } finally {
+    await server.close();
+  }
+});
+
 test('stop early when organization is missing: status says exists: false → zero RPC calls, non-zero exit', async () => {
   let rpcCalls = 0;
   const server = await fakeServer(async ({ url, body, send }) => {
@@ -577,9 +588,31 @@ test('function error: prints code and step in plain words and exits non-zero', a
   }
 });
 
+test('#2264 a taken organization name is refused in plain words', async () => {
+  const server = await fakeServer(async ({ url, body, send }) => {
+    if (url.pathname === '/functions/v1/operator-org' && body.action === 'create') {
+      return send(409, { error: 'ORG_NAME_TAKEN', step: 'operator_create_org' });
+    }
+  });
+
+  try {
+    const res = await runCli(['org', 'add', ...REQUIRED_FLAGS, '--confirm'], server.url);
+    assert.notEqual(res.code, 0);
+    const parsed = JSON.parse(res.err.trim().split('\n')[0]);
+    assert.equal(parsed.error.code, 'ORG_NAME_TAKEN');
+    assert.match(
+      parsed.error.message,
+      /^Another organization already has this name\. Names match ignoring letter case and spacing; choose a different --name\.$/,
+    );
+  } finally {
+    await server.close();
+  }
+});
+
 // ── Operator RPC allowlist ───────────────────────────────────────────────────────────────────────
 
 test('operator RPCs are not available to `pmo rpc` directly', async () => {
+  assert.ok(OPERATOR_ORG_RPCS.includes('operator_create_org_with_setup'));
   assert.ok(OPERATOR_ORG_RPCS.includes('operator_set_org_plan'));
   assert.ok(OPERATOR_ORG_RPCS.includes('operator_toggle_feature'));
   assert.ok(OPERATOR_ORG_RPCS.includes('operator_set_org_lifecycle_state'));

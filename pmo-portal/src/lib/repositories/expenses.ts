@@ -1,6 +1,8 @@
 /** Expense claim and receipt repository implementations (#775). */
 import {
   listExpenseClaims,
+  listExpenseClaimsPage,
+  countExpenseClaims,
   getExpenseClaim,
   listExpenseClaimLines,
   createExpenseClaim,
@@ -28,6 +30,8 @@ import type { ExpenseClaimRepository, ExpenseReceiptRepository } from './contrac
 
 export const expenseClaimRepository: ExpenseClaimRepository = {
   list: (filters) => wrap(() => listExpenseClaims(filters)),
+  page: (filters, page) => wrap(() => listExpenseClaimsPage(filters, page)),
+  count: (filters) => wrap(() => countExpenseClaims(filters)),
   get: (id) => wrap(() => getExpenseClaim(id)),
   lines: (claimId) => wrap(() => listExpenseClaimLines(claimId)),
   create: (input) => wrap(() => createExpenseClaim(input)),

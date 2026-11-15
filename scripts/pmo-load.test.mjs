@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 
-import { classifyBudgetLineCategory, defaultContractLineBasis, LOAD_STAGE_PATHS, remainingPath, validateLoadFile } from './lib/pmo-load.mjs';
+import { classifyBudgetLineCategory, defaultContractLineBasis, LOAD_STAGE_PATHS, remainingPath, validateLoadFile, WON_STAGES } from './lib/pmo-load.mjs';
 
 const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
 
@@ -62,33 +62,32 @@ test('AC-CSD-002: a won project needs a value, and a date must be a real calenda
 });
 
 test('AC-CSD-009: remainingPath resumes from the current stage and returns null off the path', () => {
-  assert.deepEqual(remainingPath('Ongoing Project', 'Leads'), ['PQ Submitted', 'Quotation Submitted', 'Won, Pending KoM', 'Ongoing Project']);
+  assert.deepEqual(remainingPath('Ongoing Project', 'Leads'), ['Quotation Submitted', 'Won, Pending KoM', 'Ongoing Project']);
   assert.deepEqual(remainingPath('Ongoing Project', 'Quotation Submitted'), ['Won, Pending KoM', 'Ongoing Project']);
   assert.deepEqual(remainingPath('Ongoing Project', 'Ongoing Project'), []);
   assert.equal(remainingPath('Ongoing Project', 'Loss Tender'), null);
+  assert.deepEqual(remainingPath('Negotiation', 'PQ Submitted'), ['Tender Submitted', 'Negotiation']);
+  assert.deepEqual(remainingPath('Close Out', 'Won, Pending KoM'), ['Close Out']);
+  for (const [target, steps] of Object.entries(LOAD_STAGE_PATHS)) {
+    for (const [i, from] of ['Leads', ...steps].entries()) {
+      assert.deepEqual(remainingPath(target, from), steps.slice(i), `${target} from ${from}`);
+    }
+  }
   assert.equal(remainingPath('Quotation Submitted', 'Ongoing Project'), null);
 });
 
-test('AC-CSD-014: every step of every load path is legal in the latest transition_project map', () => {
-  const dir = path.join(ROOT, 'supabase', 'migrations');
-  const latest = fs
-    .readdirSync(dir)
-    .filter((f) => f.endsWith('.sql'))
-    .sort()
-    .filter((f) => /create or replace function (public\.)?transition_project\(/.test(fs.readFileSync(path.join(dir, f), 'utf8')))
-    .pop();
-  const sql = fs.readFileSync(path.join(dir, latest), 'utf8');
-  const legal = {};
-  for (const m of sql.matchAll(/'([^']+)',\s+jsonb_build_array\(([^)]*)\)/g)) {
-    legal[m[1]] = [...m[2].matchAll(/'([^']+)'/g)].map((x) => x[1]);
-  }
-  assert.ok(Object.keys(legal).length >= 10, `parsed the transition map from ${latest}`);
+test('AC-CSD-014: the pgTAP walk (the real transition_project) lists exactly LOAD_STAGE_PATHS', () => {
+  const sql = fs.readFileSync(path.join(ROOT, 'supabase', 'tests', 'pmo_load_stage_paths.test.sql'), 'utf8');
+  const json = sql.match(/\$paths\$([\s\S]*?)\$paths\$/)?.[1];
+  assert.ok(json, 'the pgTAP file carries its path list between $paths$ markers');
+  assert.deepEqual(JSON.parse(json), JSON.parse(JSON.stringify(LOAD_STAGE_PATHS)));
+});
+
+test('AC-CSD-014: every path starts at Leads, ends at its target and a won stage passes through the win step', () => {
   for (const [target, steps] of Object.entries(LOAD_STAGE_PATHS)) {
-    const walk = ['Leads', ...steps];
-    assert.equal(walk.at(-1), target, `${target}: the path ends at the target`);
-    for (let i = 1; i < walk.length; i += 1) {
-      assert.ok(legal[walk[i - 1]]?.includes(walk[i]), `${target}: ${walk[i - 1]} -> ${walk[i]} is legal`);
-    }
+    assert.equal(steps.at(-1) ?? 'Leads', target, `${target}: the path ends at the target`);
+    assert.equal(new Set(steps).size, steps.length, `${target}: no stage is visited twice`);
+    if (WON_STAGES.includes(target)) assert.ok(steps.includes('Won, Pending KoM'), `${target}: wins first`);
   }
 });
 
@@ -313,7 +312,7 @@ test('AC-CSD-006/007: a fresh load creates companies, projects as Leads, sets th
   assert.deepEqual(w.map((c) => `${c.kind} ${c.target}`), [
     'post companies', 'post companies',
     'post projects', 'rpc set_project_contract_value',
-    'rpc transition_project', 'rpc transition_project', 'rpc transition_project', 'rpc transition_project',
+    'rpc transition_project', 'rpc transition_project', 'rpc transition_project',
     'post budget_versions', 'rpc import_budget_line_v2', 'rpc import_budget_line_v2',
     'post projects', 'rpc set_project_contract_value',
     'rpc transition_project', 'rpc transition_project', 'rpc transition_project',
@@ -326,14 +325,13 @@ test('AC-CSD-006/007: a fresh load creates companies, projects as Leads, sets th
     service_line: 'Engineering', sector: 'Energy', location: 'Riau', award_type: 'direct', bidding_entity: 'Own',
   });
   assert.deepEqual(w[3].body, { p_id: 'projects-3', p_value: 1000000, p_tax_treatment: 'exclusive', p_tax_amount: 110000 });
-  assert.deepEqual(w.slice(4, 8).map((c) => c.body), [
-    { p_id: 'projects-3', p_to: 'PQ Submitted' },
+  assert.deepEqual(w.slice(4, 7).map((c) => c.body), [
     { p_id: 'projects-3', p_to: 'Quotation Submitted' },
     { p_id: 'projects-3', p_to: 'Won, Pending KoM', p_customer_contract_ref: 'PO-1', p_contract_date: '2025-02-01' },
     { p_id: 'projects-3', p_to: 'Ongoing Project' },
   ]);
-  assert.deepEqual(w.slice(13).map((c) => c.body.p_to), ['PQ Submitted', 'Quotation Submitted', 'Tender Submitted']);
-  assert.ok(w.slice(13).every((c) => !('p_customer_contract_ref' in c.body)), 'a bid carries no win artifacts');
+  assert.deepEqual(w.slice(12).map((c) => c.body.p_to), ['Quotation Submitted', 'PQ Submitted', 'Tender Submitted']);
+  assert.ok(w.slice(12).every((c) => !('p_customer_contract_ref' in c.body)), 'a bid carries no win artifacts');
 });
 
 test('AC-CSD-010: a budget becomes one Draft "Imported" version; lines carry the app key and never a status, activation or actual', async () => {
@@ -423,7 +421,7 @@ test('AC-CSD-003: a dry run plans the same actions and writes nothing', async ()
   assert.deepEqual(actions.map((a) => a.kind), [
     'company.create', 'company.create',
     'project.create', 'project.contract_value',
-    'project.transition', 'project.transition', 'project.transition', 'project.transition',
+    'project.transition', 'project.transition', 'project.transition',
     'budget.version', 'budget.lines',
     'project.create', 'project.contract_value',
     'project.transition', 'project.transition', 'project.transition',
@@ -437,7 +435,7 @@ test('AC-CSD-012: the first refusal stops the load and reports what was done and
     assert.equal(e.code, '42501');
     assert.deepEqual(e.loadReport.failed, { kind: 'project.transition', key: 'ORG-001', to: 'Won, Pending KoM' });
     assert.deepEqual(e.loadReport.done.map((a) => a.kind), [
-      'company.create', 'company.create', 'project.create', 'project.contract_value', 'project.transition', 'project.transition',
+      'company.create', 'company.create', 'project.create', 'project.contract_value', 'project.transition',
     ]);
     return true;
   });

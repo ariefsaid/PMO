@@ -451,6 +451,165 @@ describe('purchase capture caller authorization', () => {
     });
   });
 
+  // #2195: a stock ERPNext leaves Currency Precision blank; Frappe then books at the number format's decimals.
+  const settingsScenario = async (action: 'preview' | 'apply' | 'report', settings: () => Response, netTotal: string, versionMajor: number | null) => {
+    const token = await auth.mintJwt({ sub: 'user-1' });
+    const project = '11111111-1111-4111-8111-111111111111';
+    const binding = { id: 'binding-1', org_id: 'org-1', external_tier: 'erpnext', config: { company: 'Example' }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: versionMajor };
+    const base = { erp_docstatus: 1, erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [project], procurement_id: null, purchase_origin: null, doc_date: null, currency: 'USD', net_total: netTotal, is_return: false, recorded_by_pmo: false };
+    let result: { status: number; body: Record<string, any>; batchCalls: number; settingsCalls: number } = { status: 0, body: {}, batchCalls: 0, settingsCalls: 0 };
+    await withFetchMock([
+      jwksRoute(auth),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('external_org_bindings', () => jsonResponse([binding])),
+      supabaseRpc('read_vault_secret', () => jsonResponse('synthetic-key:synthetic-secret')),
+      supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: [
+        { ...base, id: 'order-1', kind: 'order', erp_doctype: 'Purchase Order', erp_name: 'PO-1', erp_status: 'To Bill', purchase_orders: [] },
+      ], revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [
+        { id: 'gl-1', erp_modified: 'v1', company: 'Example', project_id: project, kind: 'supplier_invoice', voucher_type: 'Purchase Invoice', voucher_no: 'INV-9', debit: '40.00', credit: '0', document_id: null, journal_purchase_id: null, classification: 'mapped' },
+      ], revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD', ledger_started_at: '2026-11-13T00:00:00Z' })),
+      supabaseRpc('capture_history_batch', () => jsonResponse({ complete: true, results: [] })),
+      // the ledger report also reads invoice assignments
+      supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: [] })),
+      erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', settings),
+    ], async ({ calls }) => {
+      const response = await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action, scope: { projectId: project }, ...(action === 'apply' ? { expectedRevision: 'gen', requestId: '22222222-2222-4222-8222-222222222222' } : {}) }, token));
+      result = { status: response.status, body: await response.json(), batchCalls: calls.filter(call => call.url.pathname.endsWith('/capture_history_batch')).length, settingsCalls: calls.filter(call => call.url.href.includes('/System%20Settings/System%20Settings')).length };
+    });
+    return result;
+  };
+
+  it('#2195 version 15: a blank or 0 Currency Precision with a known number format previews a ready proposal', async () => {
+    for (const settings of [{ currency_precision: '', float_precision: '', number_format: '#,###.##' }, { currency_precision: 0, number_format: '#,###.##' }, { number_format: '#,###.##' }]) {
+      const { status, body } = await settingsScenario('preview', () => jsonResponse({ data: settings }), '100.00', 15);
+      assertEquals(status, 200);
+      assertEquals(body.complete, true, JSON.stringify(settings));
+      assertEquals(body.missing ?? [], []);
+      assertEquals(body.proposals[0].id, 'order-1');
+      assertEquals(body.proposals[0].outcome, 'propose');
+      assertEquals(body.proposals.some((item: { reason?: string }) => item.reason === 'evidence_incomplete'), false);
+    }
+  });
+
+  it('#2195 a blank Currency Precision scales the ledger report from the number format', async () => {
+    const { body } = await settingsScenario('report', () => jsonResponse({ data: { currency_precision: '', number_format: '#,###.##' } }), '100.00', 15);
+    assertEquals(body.complete, true);
+    assertEquals((body.missing ?? []).includes('ledger_scope_unknown'), false);
+    assertEquals(body.reports[0].ledgerMinor, '4000');
+  });
+
+  it('#2195 a 3-decimal amount under a 2-decimal number-format scale is not offered as ready', async () => {
+    const { body } = await settingsScenario('preview', () => jsonResponse({ data: { currency_precision: '', number_format: '#,###.##' } }), '100.005', 15);
+    assertEquals(body.proposals[0].id, 'order-1');
+    assertEquals(body.proposals[0].outcome === 'propose', false);
+  });
+
+  it('#2195 a blank Currency Precision with an unknown number format stays source_precision_unknown', async () => {
+    const { body } = await settingsScenario('preview', () => jsonResponse({ data: { currency_precision: '', number_format: '#.########' } }), '100.00', 15);
+    assertEquals(body.complete, false);
+    assertEquals(body.missing.includes('source_precision_unknown'), true);
+    assertEquals(body.proposals.some((item: { outcome: string }) => item.outcome === 'propose'), false);
+  });
+
+  it('#2195 unreadable System Settings names source_settings_unreadable and offers nothing as ready', async () => {
+    for (const status of [401, 403, 404]) {
+      const { body } = await settingsScenario('preview', () => jsonResponse({ exc_type: 'PermissionError' }, { status }), '100.00', 15);
+      assertEquals(body.complete, false);
+      assertEquals(body.missing.includes('source_settings_unreadable'), true, String(status));
+      assertEquals(body.missing.includes('source_precision_unknown'), false);
+      assertEquals(body.proposals.some((item: { outcome: string }) => item.outcome === 'propose'), false);
+    }
+    const applied = await settingsScenario('apply', () => jsonResponse({ exc_type: 'PermissionError' }, { status: 403 }), '100.00', 15);
+    assertEquals(applied.body.complete, false);
+    assertEquals(applied.body.missing.includes('source_settings_unreadable'), true);
+    assertEquals(applied.batchCalls, 0);
+  });
+
+  // #2349: the unreadable entry carries its cause class and, for a refusal, what the integration user needs. No ERP detail.
+  const unreadableCause = async (settings: () => Response, versionMajor: number | null, cause: string, guidance: string) => {
+    for (const action of ['preview', 'apply', 'report'] as const) {
+      const logged: unknown[] = [];
+      const original = { error: console.error, warn: console.warn, log: console.log };
+      console.error = (...args: unknown[]) => { logged.push(args); };
+      console.warn = console.error; console.log = console.error;
+      let scenario: Awaited<ReturnType<typeof settingsScenario>>;
+      try { scenario = await settingsScenario(action, settings, '100.00', versionMajor); }
+      finally { Object.assign(console, original); }
+      const { body, batchCalls, settingsCalls } = scenario;
+      assertEquals(settingsCalls, 1, `${action}: the System Settings read makes exactly one attempt`);
+      assertEquals(/secret detail|8\.8\.8\.8|System%20Settings/.test(JSON.stringify(logged)), false, `${action} logged ERP detail`);
+      assertEquals(body.complete, false, action);
+      assertEquals(body.missing.includes('source_settings_unreadable'), true, action);
+      assertEquals(body.source_settings, { cause, guidance }, action);
+      assertEquals(batchCalls, 0, action);
+      assertEquals((body.proposals ?? []).some((item: { outcome: string }) => item.outcome === 'propose'), false, action);
+      assertEquals(/secret detail|PermissionError|8\.8\.8\.8|synthetic/.test(JSON.stringify(body)), false, action);
+    }
+  };
+  const permissionReply = (status: number) => () => jsonResponse({ exc_type: 'PermissionError', _server_messages: JSON.stringify([JSON.stringify({ message: 'secret detail' })]) }, { status });
+
+  it('#2349 refused System Settings names the cause refused and the read access the integration user needs', async () => {
+    for (const status of [401, 403]) await unreadableCause(permissionReply(status), 15, 'refused', 'grant_integration_user_read_system_settings');
+  });
+
+  it('#2349 a System Settings address the ERP does not know names the cause not_found', async () => {
+    await unreadableCause(() => jsonResponse({ exc_type: 'DoesNotExistError', exception: 'secret detail' }, { status: 404 }), 15, 'not_found', 'check_erp_site_address_and_product');
+  });
+
+  it('#2349 an unreachable or timed-out ERP names the cause unreachable', async () => {
+    await unreadableCause(() => { throw new TypeError('connection refused secret detail'); }, 15, 'unreachable', 'check_erp_reachable_then_retry');
+    await unreadableCause(() => { throw new DOMException('secret detail deadline', 'TimeoutError'); }, 15, 'unreachable', 'check_erp_reachable_then_retry');
+    await unreadableCause(() => jsonResponse({ exc_type: 'secret detail' }, { status: 503 }), 15, 'unreachable', 'check_erp_reachable_then_retry');
+  });
+
+  it('#2349 a malformed System Settings reply names the cause malformed_reply', async () => {
+    await unreadableCause(() => new Response('<html>secret detail</html>', { status: 200, headers: { 'content-type': 'text/html' } }), 15, 'malformed_reply', 'check_erp_system_settings_reply_then_retry');
+    await unreadableCause(() => jsonResponse({ exc_type: 'ValidationError', exception: 'secret detail' }, { status: 417 }), 15, 'malformed_reply', 'check_erp_system_settings_reply_then_retry');
+  });
+
+  it('#2349 an unknown binding version names the cause version_unknown', async () => {
+    await unreadableCause(() => jsonResponse({ data: { currency_precision: '2', number_format: '#,###.##' } }), null, 'version_unknown', 'rerun_integration_version_check');
+  });
+
+  it('#2349 a readable System Settings carries no source_settings entry', async () => {
+    const { body } = await settingsScenario('preview', () => jsonResponse({ data: { currency_precision: '2', number_format: '#,###.##' } }), '100.00', 15);
+    assertEquals(body.complete, true);
+    assertEquals('source_settings' in body, false);
+  });
+
+  it('#2195 version 16 with "use number format from currency" on names source_precision_per_currency and offers nothing as ready', async () => {
+    const settings = () => jsonResponse({ data: { currency_precision: '', number_format: '#,###.##', use_number_format_from_currency: 1 } });
+    const { body } = await settingsScenario('preview', settings, '100.00', 16);
+    assertEquals(body.complete, false);
+    assertEquals(body.missing.includes('source_precision_per_currency'), true);
+    assertEquals(body.missing.includes('source_precision_unknown'), false);
+    assertEquals(body.proposals[0].id, 'order-1');
+    assertEquals(body.proposals.some((item: { outcome: string }) => item.outcome === 'propose'), false);
+    const applied = await settingsScenario('apply', settings, '100.00', 16);
+    assertEquals(applied.body.complete, false);
+    assertEquals(applied.body.missing.includes('source_precision_per_currency'), true);
+    assertEquals(applied.batchCalls, 0);
+  });
+
+  it('#2195 version 16 explicit Currency Precision 0 books at scale 0, so a cents amount is not offered as ready', async () => {
+    const settings = () => jsonResponse({ data: { currency_precision: 0, number_format: '#,###.##', use_number_format_from_currency: 0 } });
+    const whole = await settingsScenario('preview', settings, '100', 16);
+    assertEquals(whole.body.complete, true);
+    assertEquals(whole.body.proposals[0].outcome, 'propose');
+    const cents = await settingsScenario('preview', settings, '100.50', 16);
+    assertEquals(cents.body.proposals[0].outcome === 'propose', false);
+  });
+
+  it('#2195 an unknown binding version names source_settings_unreadable', async () => {
+    const { body } = await settingsScenario('preview', () => jsonResponse({ data: { currency_precision: '2', number_format: '#,###.##' } }), '100.00', null);
+    assertEquals(body.complete, false);
+    assertEquals(body.missing.includes('source_settings_unreadable'), true);
+    assertEquals(body.proposals.some((item: { outcome: string }) => item.outcome === 'propose'), false);
+  });
+
   it('AC-ROP-018 withholds a report when the generation changes after its pages', async () => {
     const token = await auth.mintJwt({ sub: 'user-1' });
     const project = '11111111-1111-4111-8111-111111111111';

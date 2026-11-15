@@ -13,9 +13,7 @@ serveWithErrorReporting('operator-org', async (req: Request) => {
     new Response(JSON.stringify(value), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
   const fail = (code: string, status: number, extra: Record<string, unknown> = {}) => {
     if (
-      ['MISCONFIGURED', 'LOOKUP_FAILED', 'INVITE_FAILED', 'ORG_CREATE_FAILED', 'PLAN_ASSIGN_FAILED'].includes(
-        code,
-      )
+      ['MISCONFIGURED', 'LOOKUP_FAILED', 'INVITE_FAILED', 'ORG_CREATE_FAILED'].includes(code)
     ) {
       logStructuredError({ fn: 'operator-org', errorCode: code });
     }
@@ -122,6 +120,15 @@ serveWithErrorReporting('operator-org', async (req: Request) => {
     }
     // PostgREST treats * as a wildcard even when SQL pattern characters are escaped.
     if (get('name').includes('*')) return fail('BAD_ORG_NAME', 400);
+    const features = body.features ?? [];
+    if (
+      !Array.isArray(features) ||
+      !features.every((f) =>
+        f && typeof f === 'object' && typeof f.key === 'string' && f.key.trim() !== '' && typeof f.enabled === 'boolean'
+      )
+    ) return fail('BAD_FEATURES', 400);
+    const lifecycleState = get('lifecycle_state');
+    if (lifecycleState && !['live', 'demo', 'test'].includes(lifecycleState)) return fail('BAD_STATE', 400);
     if (!serviceKey) return fail('MISCONFIGURED', 500);
     const service = getService();
     const rate = await checkRequestRate(service as never, {
@@ -149,11 +156,16 @@ serveWithErrorReporting('operator-org', async (req: Request) => {
     // Escape SQL pattern metacharacters; * is separately refused by validation.
     const escape = (value: string) => value.replace(/[\\%_]/g, '\\$&');
     const email = get('admin_email');
-    const existing = await service.from('organizations').select('id').ilike('name', escape(get('name')))
-      .order('created_at').order('id').limit(1);
-    if (existing.error) return fail('LOOKUP_FAILED', 502);
-    if (existing.data?.length) {
-      const id = existing.data[0].id;
+    // #2264: the database decides "the same name" (org_name_key: case and any whitespace ignored), so a
+    // re-run with a spacing variant is the safe repeat or ORG_NAME_TAKEN, decided before any invitation.
+    const existing = await service.rpc('organization_id_by_name', { p_name: get('name') });
+    if (existing.error) {
+      return existing.error.message?.includes('org_name_required')
+        ? fail('ORG_NAME_REQUIRED', 400)
+        : fail('LOOKUP_FAILED', 502);
+    }
+    if (existing.data) {
+      const id = existing.data as string;
       const admin = await service.from('profiles').select('id').eq('org_id', id).eq('role', 'Admin').ilike(
         'email',
         escape(email),
@@ -200,8 +212,9 @@ serveWithErrorReporting('operator-org', async (req: Request) => {
       adminId = invite.data.user.id;
     }
     // Never delete or alter an account as compensation if a later write fails.
-    // Use the caller client so the database enforces Operator checks and records the actor.
-    const created = await caller.rpc('operator_create_org', {
+    // One call on the caller client: the database creates the organisation and sets its plan, features and starting
+    // state in a single transaction, each step behind its own Operator check, and records the actor. A failure leaves nothing.
+    const created = await caller.rpc('operator_create_org_with_setup', {
       p_name: get('name'),
       p_admin_user_id: adminId,
       p_admin_full_name: get('admin_full_name'),
@@ -209,18 +222,15 @@ serveWithErrorReporting('operator-org', async (req: Request) => {
       p_default_locale: get('default_locale'),
       p_default_number_locale: get('default_number_locale') || null,
       p_default_timezone: get('default_timezone'),
+      p_plan_id: get('plan_id'),
+      p_features: features,
+      p_lifecycle_state: lifecycleState || null,
     });
     if (created.error) {
       return created.error.message.includes('org_name_taken')
         ? fail('ORG_NAME_TAKEN', 409)
         : fail('ORG_CREATE_FAILED', 502, { step: 'create_org' });
     }
-    // Keep the caller client for the database's Operator checks and audit actor.
-    const assigned = await caller.rpc('operator_set_org_plan', {
-      p_org_id: created.data,
-      p_plan_id: get('plan_id'),
-    });
-    if (assigned.error) return fail('PLAN_ASSIGN_FAILED', 502, { step: 'assign_plan', org_id: created.data });
     return json({ ok: true, org_id: created.data, created: true }, 200);
   };
   if (body.action === 'status') return handleStatus();

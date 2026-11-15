@@ -70,8 +70,8 @@ Out of scope, refused with the app's own pointer: project `code`, `client`, `end
 - **AC-CLICOR-013** *Given* a new value equal to the current one, *Then* the field shows `unchanged`, no request is sent, exit 0.
 - **AC-CLICOR-014** *Given* a corrected contract line or budget line, *When* the original load file is re-run with `--dry-run`, *Then* the line is reported as already loaded (skip), not created.
 - **AC-CLICOR-015** *Given* an API-client token, *Then* the database guard allows `PATCH` on `boq_items` and `budget_line_items` for an active Admin only (pgTAP; every other role, method and table stays refused).
-  **Owner:** the guard pgTAP that ships with the combined guard migration (not in this branch yet; this row stays open until it lands). The CLI-side list
-  (`CORRECT_ADMIN_PATCH_TABLES`) is checked in `scripts/pmo-correct.test.mjs` and against the migration's `admin_patch_tables` by the `AC-CSD-014` parity test.
+  **Owner:** pgTAP `supabase/tests/0899_cli_guard_history_corrections.test.sql` (AC-CLIG-001..009; migration 0899, on dev). The CLI side
+  (`CORRECT_ADMIN_PATCH_TABLES` and the corrected columns) is checked against 0899's `correction_patch_tables` and column triggers by the `AC-CLICOR-015` test in `scripts/pmo.test.mjs`.
 
 ## 5. Non-goals
 

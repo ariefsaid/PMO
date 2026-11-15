@@ -4,6 +4,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { useFxRate } from '@/src/hooks/useFxRates';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
+import { formatDay } from '@/src/lib/format';
 import { formatFxEquivalent } from '@/src/lib/fxEquivalent';
 
 export type FxEquivalentDate = string | 'latest' | null;
@@ -54,7 +55,7 @@ const FxEquivalent: React.FC<FxEquivalentProps> = ({ amount, currency, date, com
   if (!rate.data) {
     return (
       <span className="block min-w-0 break-words text-control font-normal tabular text-muted-foreground">
-        {t('fx.noRateForDate', 'No JISDOR rate for {{date}}.', { date: requestedDay ?? '' })}
+        {t('fx.noRateForDate', 'No JISDOR rate for {{date}}.', { date: requestedDay ? formatDay(requestedDay) : '' })}
       </span>
     );
   }

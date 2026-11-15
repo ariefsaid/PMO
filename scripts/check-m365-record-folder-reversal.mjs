@@ -15,9 +15,7 @@ function psql(sql) {
 export function run() {
   if (process.env.PMO_DB_LOCK_HELD !== '1') throw new Error('Run under scripts/with-db-lock.sh.');
   const {up,down}=readPair();
-  const names=['m365_link_record_folder','m365_record_folder_created','m365_record_folder_candidates','m365_record_folder_default_matches'];
   const indexes=['project_documents_folder_parent_idx','procurement_documents_folder_parent_idx','m365_folder_created_identity_idx'];
-  const exists = names.map(n=>`to_regprocedure('public.${n}(text,uuid,jsonb,text,text,timestamptz)')`).join(',');
   const sql=`begin;
 create temporary table before_state as select (select count(*) from public.project_documents) p,(select count(*) from public.procurement_documents) c,(select count(*) from public.audit_events) a;
 ${down}

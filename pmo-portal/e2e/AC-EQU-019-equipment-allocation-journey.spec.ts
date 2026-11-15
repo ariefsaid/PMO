@@ -126,9 +126,11 @@ test('AC-EQU-019 log on two projects, approve, set actual-cost basis, see both a
 
   // 4. Goal oracle: each project's Finances panel carries its own allocated amount.
   await signIn(page, 'finance@acme.test');
-  for (const [projectId, amount] of [[projectA, /600/], [projectB, /200/]] as const) {
+  for (const [projectId, amount] of [[projectA, /^\D*600(?:[.,]0+)?\D*$/], [projectB, /^\D*200(?:[.,]0+)?\D*$/]] as const) {
     await page.goto(`/projects/${projectId}`);
     await page.getByRole('region', { name: 'Money position' }).getByRole('button', { name: 'Details', exact: true }).click();
-    await expect(page.getByTestId('project-equipment-panel').getByText(amount)).toBeVisible({ timeout: 20_000 });
+    // The figure lives in this machine's own row, in the Allocated cell: an exact cell match, so a digit run inside a random asset id cannot match.
+    const machineRow = page.getByTestId('project-equipment-panel').getByRole('row', { name: new RegExp(run) });
+    await expect(machineRow.getByRole('cell', { name: amount })).toBeVisible({ timeout: 20_000 });
   }
 });

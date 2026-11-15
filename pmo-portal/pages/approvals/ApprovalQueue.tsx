@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Badge, Checkbox, ListState } from '@/src/components/ui';
-import { formatTableMoney } from '@/src/lib/format';
+import { formatNumberExact, formatTableMoney } from '@/src/lib/format';
 import { ageInDays, urgencyOf } from '@/src/lib/selectors/approvalUrgency';
 import { weekLabel, type BulkController } from '../timesheets/TimesheetBulkApprove';
 import type { ProcurementBulkController } from './useProcurementBulkApprove';
@@ -106,7 +106,7 @@ export function QueueButton({
             ? t('approvals.entryOne', 'entry')
             : t('approvals.entryOther', 'entries')}
         </span>
-        <span className="tabular font-medium text-foreground">{sumHours(row).toFixed(1)} h</span>
+        <span className="tabular font-medium text-foreground">{formatNumberExact(sumHours(row))} h</span>
       </div>
     </button>
   );

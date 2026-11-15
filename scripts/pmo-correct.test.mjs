@@ -1,6 +1,6 @@
 /**
  * pmo-correct.test.mjs — `pmo correct` (#1858). Run: node --test scripts/pmo-correct.test.mjs
- * A fake API (no HTTP, no DB). The database half is pgTAP: api_client_request_guard.test.sql (AC-CLICOR-015).
+ * A fake API (no HTTP, no DB). The database half is pgTAP: supabase/tests/0899_cli_guard_history_corrections.test.sql (AC-CLICOR-015).
  * Spec: docs/specs/cli-loader-corrections.spec.md
  */
 import assert from 'node:assert/strict';
@@ -280,7 +280,7 @@ test('AC-CLICOR-010: a budget line whose category the loader moved is matched on
   assert.equal(r.id, 'b-9');
 });
 
-test('AC-CLICOR-015 (CLI list half; the guard itself is the pgTAP in the combined guard migration): the tables a correction PATCHes beyond the ordinary write tables are the Admin PATCH list', () => {
+test('AC-CLICOR-015 (CLI list half; the guard itself is pgTAP 0899_cli_guard_history_corrections.test.sql): the tables a correction PATCHes beyond the ordinary write tables are the Admin PATCH list', () => {
   assert.deepEqual([...CORRECT_ADMIN_PATCH_TABLES], ['boq_items', 'budget_line_items']);
   assert.deepEqual(Object.values(CORRECTABLE).map((s) => s.table).sort(), ['boq_items', 'budget_line_items', 'projects']);
 });

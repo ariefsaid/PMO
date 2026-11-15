@@ -349,11 +349,23 @@ describe('WIRE P3B: the `timesheets` domain resolves an ERPNext adapter and ride
 // Vitest project rooted in supabase/.
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 
-const SWEEP = readFileSync(
-  resolve(dirname(fileURLToPath(import.meta.url)), '../../../../supabase/functions/erpnext-sweep/index.ts'),
-  'utf8',
-);
-const SWEEP_CODE = SWEEP.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+// The live backstop wiring left `erpnext-sweep/index.ts` for its own modules (#1643); scan the files that now hold it.
+const readSweepCode = (file: string) =>
+  readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../../../supabase/functions/erpnext-sweep', file), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+const SWEEP_CODE = ['budgetBackstopLive.ts', 'timesheetBackstopLive.ts'].map(readSweepCode).join('\n');
+
+/** The body of one top-level function, from its declaration to its own closing brace at column 0. Fails
+ *  loudly when the anchor or the end moved, so a rename cannot silently turn the assertions into no-ops. */
+function sliceFunction(code: string, name: string): string {
+  const start = code.search(new RegExp(`\\bfunction ${name}\\(`));
+  expect(start, `${name} not found — the anchor moved`).toBeGreaterThan(-1);
+  const rest = code.slice(start);
+  const end = rest.search(/\n\}/);
+  expect(end, `${name} has no closing brace at column 0 — the layout moved`).toBeGreaterThan(-1);
+  return rest.slice(0, end + 2);
+}
 
 describe('H-1: the budget backstop gates its re-POST on outbox eligibility', () => {
   it('driveBudgetPush checks eligibility BEFORE dispatchMoneyWrite (never re-POSTs a terminal row)', () => {
@@ -366,10 +378,25 @@ describe('H-1: the budget backstop gates its re-POST on outbox eligibility', () 
     expect(postAt, 'dispatchMoneyWrite call not found — the anchor moved').toBeGreaterThan(-1);
     expect(guardAt, 'H-1: the guard must run BEFORE the POST, or a terminal row is re-sent').toBeLessThan(postAt);
   });
+});
 
-  it('the eligible set comes from the outbox_reconcile_candidates SoT, not a duplicated predicate', () => {
-    // A hand-rolled state/attempt filter here would be the "second door" 0131 exists to prevent.
-    expect(SWEEP_CODE).toMatch(/eligibleOutboxIds[\s\S]{0,400}listCandidatesLive\(/);
+// What this text scan binds, per backstop module: the live pass function takes its eligible set from the
+// `outbox_reconcile_candidates` call (never a hand-rolled predicate) and hands THAT set to its consumers. It
+// is scoped to the module's own pass function, so neither module's text can satisfy the other's check. That
+// every candidate the RPC admits actually reaches the consumers un-narrowed is proven behaviourally in
+// `supabase/functions/erpnext-sweep/{budget,timesheet}BackstopLive.test.ts` (Deno, real shipped pass).
+describe('H-1: the budget and timesheet backstops each take their eligible set from the candidates SoT', () => {
+  it('budget: the pass reads eligibleBudgetCandidates from listCandidatesLive and hands it to the deps and the archive pass', () => {
+    const pass = sliceFunction(readSweepCode('budgetBackstopLive.ts'), 'reconcileOrgBudgetPushesLive');
+    expect(pass).toMatch(/eligibleBudgetCandidates\s*=\s*\(await listCandidatesLive\(/);
+    expect(pass).toMatch(/budgetBackstopDepsLive\(\s*serviceClient,\s*org,\s*eligibleBudgetCandidates\b/);
+    expect(pass).toMatch(/reconcileOrgBudgetArchiveCancellationsLive\(\s*serviceClient,\s*org,\s*[^;]*\beligibleBudgetCandidates\b/);
+  });
+
+  it('timesheet: the pass reads its eligible set via timesheetEligibility(listCandidatesLive) and hands it to the deps', () => {
+    const pass = sliceFunction(readSweepCode('timesheetBackstopLive.ts'), 'reconcileOrgTimesheetPushesLive');
+    expect(pass).toMatch(/timesheetEligibility\(\s*await listCandidatesLive\(/);
+    expect(pass).toMatch(/timesheetBackstopDepsLive\(\s*serviceClient,\s*org,\s*eligibleOutboxIds\b/);
   });
 });
 

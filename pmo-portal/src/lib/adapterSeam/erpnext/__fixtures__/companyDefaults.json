@@ -1,0 +1,852 @@
+{
+ "_meta": {
+  "bed": "local ERPNext dev bed, v15.94.3 (frappe 15.96.0), Standard chart of accounts, IDR",
+  "recorded": "2026-11-16",
+  "ticket": "#1599",
+  "about": "ECX3-T0: PUT on Company default accounts and cost centre",
+  "names": "synthetic: company \"ECX Probe Co\" (abbr EPC), parties and employees named \"ECX Probe ...\" / \"Probe ...\", bed users replaced by role labels",
+  "apiUsers": {
+   "apiUserWithSystemManager": "token-auth API user holding the 901-bot role set (Accounts Manager/User, Purchase Manager/User, Stock Manager/User, Sales Manager/User, Projects Manager/User, System Manager) plus HR Manager/User and, from the Supplier probe on, Purchase Master Manager",
+   "apiUserWithoutSystemManager": "same roles minus System Manager (and without Purchase Master Manager)"
+  },
+  "notes": [
+   "Request is PUT /api/resource/Company/<name> with a partial body; the response is {data:{...whole Company doc}} (trimmed here to the five default fields and modified).",
+   "The bed accepts a PUT from a user WITHOUT System Manager (Accounts Manager is enough).",
+   "Refused: a group account (417 ValidationError \"... is a group account.\"), an account of another company (417 ValidationError \"Account X does not belong to company: Y\"), an unknown account/cost centre (417 LinkValidationError \"Could not find ...\"), a stale modified (417 TimestampMismatchError). The income-group case labelled expense<-Income is refused because Direct Income is a GROUP, not because of its type; see expense<-Income leaf.",
+   "NOT refused (the plan assumed account types are enforced): payable<-Receivable, payable<-Cash, bank<-Cash, bank<-Receivable, cash<-Bank, expense<-Receivable, expense<-Income leaf, payable<-Income leaf. Company save checks only that the account exists, is a leaf and belongs to the company. Type matching must be done by PMO before the PUT.",
+   "NOT refused: cost_center that is a GROUP, and cost_center of another company (200, stored as given).",
+   "An unknown body field is dropped silently (200). Setting null or \"\" clears a default (200).",
+   "Labels in the case list: the field default_expense_account is reported by the ERP as \"Default Cost of Goods Sold Account\" in the link error."
+  ],
+  "v16": "differs: text of one error only (stale modified); behaviour identical"
+ },
+ "observations": [],
+ "cases": [
+  {
+   "label": "bank<-Bank leaf (accept)",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_bank_account": "Probe Bank A - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX Probe Co",
+     "default_bank_account": "Probe Bank A - EPC",
+     "default_cash_account": "Cash - EPC",
+     "default_payable_account": "Creditors - EPC",
+     "default_expense_account": "Cost of Goods Sold - EPC",
+     "cost_center": "Main - EPC",
+     "modified": "2026-11-16 00:16:45.851944"
+    }
+   }
+  },
+  {
+   "label": "bank<-Cash type",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_bank_account": "Cash - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX Probe Co",
+     "default_bank_account": "Cash - EPC",
+     "default_cash_account": "Cash - EPC",
+     "default_payable_account": "Creditors - EPC",
+     "default_expense_account": "Cost of Goods Sold - EPC",
+     "cost_center": "Main - EPC",
+     "modified": "2026-11-16 00:16:47.554035"
+    }
+   }
+  },
+  {
+   "label": "bank<-group",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_bank_account": "Bank Accounts - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: <strong>Default Bank Account</strong>: <strong>Bank Accounts - EPC</strong> is a group account.",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"<strong>Default Bank Account</strong>: <strong>Bank Accounts - EPC</strong> is a group account.\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "bank<-Receivable",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_bank_account": "Debtors - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX Probe Co",
+     "default_bank_account": "Debtors - EPC",
+     "default_cash_account": "Cash - EPC",
+     "default_payable_account": "Creditors - EPC",
+     "default_expense_account": "Cost of Goods Sold - EPC",
+     "cost_center": "Main - EPC",
+     "modified": "2026-11-16 00:16:49.659921"
+    }
+   }
+  },
+  {
+   "label": "cash<-Cash (accept)",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_cash_account": "Cash - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX Probe Co",
+     "default_bank_account": "Debtors - EPC",
+     "default_cash_account": "Cash - EPC",
+     "default_payable_account": "Creditors - EPC",
+     "default_expense_account": "Cost of Goods Sold - EPC",
+     "cost_center": "Main - EPC",
+     "modified": "2026-11-16 00:16:52.264145"
+    }
+   }
+  },
+  {
+   "label": "cash<-Bank type",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_cash_account": "Probe Bank A - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX Probe Co",
+     "default_bank_account": "Debtors - EPC",
+     "default_cash_account": "Probe Bank A - EPC",
+     "default_payable_account": "Creditors - EPC",
+     "default_expense_account": "Cost of Goods Sold - EPC",
+     "cost_center": "Main - EPC",
+     "modified": "2026-11-16 00:16:53.217575"
+    }
+   }
+  },
+  {
+   "label": "cash<-Receivable",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_cash_account": "Debtors - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX Probe Co",
+     "default_bank_account": "Debtors - EPC",
+     "default_cash_account": "Debtors - EPC",
+     "default_payable_account": "Creditors - EPC",
+     "default_expense_account": "Cost of Goods Sold - EPC",
+     "cost_center": "Main - EPC",
+     "modified": "2026-11-16 00:16:54.287598"
+    }
+   }
+  },
+  {
+   "label": "cash<-group",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_cash_account": "Cash In Hand - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: <strong>Default Cash Account</strong>: <strong>Cash In Hand - EPC</strong> is a group account.",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"<strong>Default Cash Account</strong>: <strong>Cash In Hand - EPC</strong> is a group account.\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "payable<-Payable (accept)",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_payable_account": "Creditors - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX Probe Co",
+     "default_bank_account": "Debtors - EPC",
+     "default_cash_account": "Debtors - EPC",
+     "default_payable_account": "Creditors - EPC",
+     "default_expense_account": "Cost of Goods Sold - EPC",
+     "cost_center": "Main - EPC",
+     "modified": "2026-11-16 00:16:57.664520"
+    }
+   }
+  },
+  {
+   "label": "payable<-Receivable",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_payable_account": "Debtors - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX Probe Co",
+     "default_bank_account": "Debtors - EPC",
+     "default_cash_account": "Debtors - EPC",
+     "default_payable_account": "Debtors - EPC",
+     "default_expense_account": "Cost of Goods Sold - EPC",
+     "cost_center": "Main - EPC",
+     "modified": "2026-11-16 00:16:58.862571"
+    }
+   }
+  },
+  {
+   "label": "payable<-Cash",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_payable_account": "Cash - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX Probe Co",
+     "default_bank_account": "Debtors - EPC",
+     "default_cash_account": "Debtors - EPC",
+     "default_payable_account": "Cash - EPC",
+     "default_expense_account": "Cost of Goods Sold - EPC",
+     "cost_center": "Main - EPC",
+     "modified": "2026-11-16 00:16:59.737134"
+    }
+   }
+  },
+  {
+   "label": "payable<-group",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_payable_account": "Accounts Payable - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: <strong>Default Payable Account</strong>: <strong>Accounts Payable - EPC</strong> is a group account.",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"<strong>Default Payable Account</strong>: <strong>Accounts Payable - EPC</strong> is a group account.\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "payable<-expense plain",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_payable_account": "Probe Expense Plain - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX Probe Co",
+     "default_bank_account": "Debtors - EPC",
+     "default_cash_account": "Debtors - EPC",
+     "default_payable_account": "Probe Expense Plain - EPC",
+     "default_expense_account": "Cost of Goods Sold - EPC",
+     "cost_center": "Main - EPC",
+     "modified": "2026-11-16 00:17:02.168053"
+    }
+   }
+  },
+  {
+   "label": "expense<-COGS (accept)",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_expense_account": "Cost of Goods Sold - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX Probe Co",
+     "default_bank_account": "Debtors - EPC",
+     "default_cash_account": "Debtors - EPC",
+     "default_payable_account": "Probe Expense Plain - EPC",
+     "default_expense_account": "Cost of Goods Sold - EPC",
+     "cost_center": "Main - EPC",
+     "modified": "2026-11-16 00:17:04.916928"
+    }
+   }
+  },
+  {
+   "label": "expense<-Chargeable (accept?)",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_expense_account": "Marketing Expenses - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX Probe Co",
+     "default_bank_account": "Debtors - EPC",
+     "default_cash_account": "Debtors - EPC",
+     "default_payable_account": "Probe Expense Plain - EPC",
+     "default_expense_account": "Marketing Expenses - EPC",
+     "cost_center": "Main - EPC",
+     "modified": "2026-11-16 00:17:06.610705"
+    }
+   }
+  },
+  {
+   "label": "expense<-plain expense no type",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_expense_account": "Probe Expense Plain - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX Probe Co",
+     "default_bank_account": "Debtors - EPC",
+     "default_cash_account": "Debtors - EPC",
+     "default_payable_account": "Probe Expense Plain - EPC",
+     "default_expense_account": "Probe Expense Plain - EPC",
+     "cost_center": "Main - EPC",
+     "modified": "2026-11-16 00:17:07.949411"
+    }
+   }
+  },
+  {
+   "label": "expense<-Debtors",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_expense_account": "Debtors - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX Probe Co",
+     "default_bank_account": "Debtors - EPC",
+     "default_cash_account": "Debtors - EPC",
+     "default_payable_account": "Probe Expense Plain - EPC",
+     "default_expense_account": "Debtors - EPC",
+     "cost_center": "Main - EPC",
+     "modified": "2026-11-16 00:17:08.899630"
+    }
+   }
+  },
+  {
+   "label": "expense<-Income",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_expense_account": "Direct Income - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: <strong>Default Expense Account</strong>: <strong>Direct Income - EPC</strong> is a group account.",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"<strong>Default Expense Account</strong>: <strong>Direct Income - EPC</strong> is a group account.\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "expense<-group",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_expense_account": "Indirect Expenses - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: <strong>Default Expense Account</strong>: <strong>Indirect Expenses - EPC</strong> is a group account.",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"<strong>Default Expense Account</strong>: <strong>Indirect Expenses - EPC</strong> is a group account.\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "expense<-nonexistent",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_expense_account": "No Such Account - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.LinkValidationError: Could not find Default Cost of Goods Sold Account: No Such Account - EPC",
+    "exc_type": "LinkValidationError",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Could not find Default Cost of Goods Sold Account: No Such Account - EPC\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "cc<-leaf (accept)",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "cost_center": "Probe CC - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX Probe Co",
+     "default_bank_account": "Debtors - EPC",
+     "default_cash_account": "Debtors - EPC",
+     "default_payable_account": "Probe Expense Plain - EPC",
+     "default_expense_account": "Debtors - EPC",
+     "cost_center": "Probe CC - EPC",
+     "modified": "2026-11-16 00:17:10.258315"
+    }
+   }
+  },
+  {
+   "label": "cc<-group",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "cost_center": "ECX Probe Co - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX Probe Co",
+     "default_bank_account": "Debtors - EPC",
+     "default_cash_account": "Debtors - EPC",
+     "default_payable_account": "Probe Expense Plain - EPC",
+     "default_expense_account": "Debtors - EPC",
+     "cost_center": "ECX Probe Co - EPC",
+     "modified": "2026-11-16 00:17:12.297406"
+    }
+   }
+  },
+  {
+   "label": "cc<-nonexistent",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "cost_center": "No Such CC - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.LinkValidationError: Could not find Default Cost Center: No Such CC - EPC",
+    "exc_type": "LinkValidationError",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Could not find Default Cost Center: No Such CC - EPC\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "cc<-other company cc",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "cost_center": "Main - OTH"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX Probe Co",
+     "default_bank_account": "Debtors - EPC",
+     "default_cash_account": "Debtors - EPC",
+     "default_payable_account": "Probe Expense Plain - EPC",
+     "default_expense_account": "Debtors - EPC",
+     "cost_center": "Main - OTH",
+     "modified": "2026-11-16 00:17:14.511315"
+    }
+   }
+  },
+  {
+   "label": "payable<-other company acct",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_payable_account": "Creditors - OTH"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Account Creditors - OTH does not belong to company: ECX Probe Co",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Account Creditors - OTH does not belong to company: ECX Probe Co\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "bank<-clear to empty",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_bank_account": ""
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX Probe Co",
+     "default_bank_account": "",
+     "default_cash_account": "Debtors - EPC",
+     "default_payable_account": "Probe Expense Plain - EPC",
+     "default_expense_account": "Debtors - EPC",
+     "cost_center": "Main - OTH",
+     "modified": "2026-11-16 00:17:15.434072"
+    }
+   }
+  },
+  {
+   "label": "bank<-null",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_bank_account": null
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX Probe Co",
+     "default_bank_account": null,
+     "default_cash_account": "Debtors - EPC",
+     "default_payable_account": "Probe Expense Plain - EPC",
+     "default_expense_account": "Debtors - EPC",
+     "cost_center": "Main - OTH",
+     "modified": "2026-11-16 00:17:16.193388"
+    }
+   }
+  },
+  {
+   "label": "idempotent re-put same",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "cost_center": "Probe CC - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX Probe Co",
+     "default_bank_account": null,
+     "default_cash_account": "Debtors - EPC",
+     "default_payable_account": "Probe Expense Plain - EPC",
+     "default_expense_account": "Debtors - EPC",
+     "cost_center": "Probe CC - EPC",
+     "modified": "2026-11-16 00:17:17.463320"
+    }
+   }
+  },
+  {
+   "label": "multi-field one call",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_bank_account": "Probe Bank A - EPC",
+     "default_cash_account": "Cash - EPC",
+     "default_payable_account": "Creditors - EPC",
+     "default_expense_account": "Cost of Goods Sold - EPC",
+     "cost_center": "Main - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX Probe Co",
+     "default_bank_account": "Probe Bank A - EPC",
+     "default_cash_account": "Cash - EPC",
+     "default_payable_account": "Creditors - EPC",
+     "default_expense_account": "Cost of Goods Sold - EPC",
+     "cost_center": "Main - EPC",
+     "modified": "2026-11-16 00:17:19.027992"
+    }
+   }
+  },
+  {
+   "label": "stale modified",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "cost_center": "Main - EPC",
+     "modified": "2020-01-01 00:00:00"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.TimestampMismatchError: Error: Document has been modified after you have opened it (2026-11-16 00:17:19.027992, 2026-11-16 00:17:21.517101). Please refresh to get the latest document.",
+    "exc_type": "TimestampMismatchError",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Error: Document has been modified after you have opened it (2026-11-16 00:17:19.027992, 2026-11-16 00:17:21.517101). Please refresh to get the latest document.\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "unknown field",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_nonsense": "x"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX Probe Co",
+     "default_bank_account": "Probe Bank A - EPC",
+     "default_cash_account": "Cash - EPC",
+     "default_payable_account": "Creditors - EPC",
+     "default_expense_account": "Cost of Goods Sold - EPC",
+     "cost_center": "Main - EPC",
+     "modified": "2026-11-16 00:17:21.653879"
+    }
+   }
+  },
+  {
+   "label": "nosm PUT bank",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_bank_account": "Probe Bank A - EPC"
+    },
+    "as": "apiUserWithoutSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX Probe Co",
+     "default_bank_account": "Probe Bank A - EPC",
+     "default_cash_account": "Cash - EPC",
+     "default_payable_account": "Creditors - EPC",
+     "default_expense_account": "Cost of Goods Sold - EPC",
+     "cost_center": "Main - EPC",
+     "modified": "2026-11-16 00:17:22.501505"
+    }
+   }
+  },
+  {
+   "label": "nosm GET company defaults",
+   "request": {
+    "method": "GET",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": null,
+    "as": "apiUserWithoutSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX Probe Co",
+     "default_bank_account": "Probe Bank A - EPC",
+     "default_cash_account": "Cash - EPC",
+     "default_payable_account": "Creditors - EPC",
+     "default_expense_account": "Cost of Goods Sold - EPC",
+     "cost_center": "Main - EPC",
+     "modified": "2026-11-16 00:17:22.501505",
+     "default_currency": "IDR",
+     "default_finance_book": null
+    }
+   }
+  },
+  {
+   "label": "setup income leaf",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Account",
+    "body": {
+     "account_name": "Probe Income",
+     "parent_account": "Direct Income - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Income"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "Probe Income - EPC",
+     "account_type": "",
+     "root_type": "Income"
+    }
+   }
+  },
+  {
+   "label": "expense<-Income leaf",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_expense_account": "Probe Income - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "default_expense_account": "Probe Income - EPC"
+    }
+   }
+  },
+  {
+   "label": "payable<-Income leaf",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_payable_account": "Probe Income - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "default_payable_account": "Probe Income - EPC"
+    }
+   }
+  },
+  {
+   "label": "restore",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Company/ECX Probe Co",
+    "body": {
+     "default_bank_account": "Probe Bank A - EPC",
+     "default_cash_account": "Cash - EPC",
+     "default_payable_account": "Creditors - EPC",
+     "default_expense_account": "Cost of Goods Sold - EPC",
+     "cost_center": "Main - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "default_bank_account": "Probe Bank A - EPC",
+     "default_cash_account": "Cash - EPC",
+     "default_payable_account": "Creditors - EPC",
+     "default_expense_account": "Cost of Goods Sold - EPC",
+     "cost_center": "Main - EPC"
+    }
+   }
+  }
+ ],
+ "v16": {
+  "bed": "local ERPNext dev bed, v16: erpnext 16.53.0, frappe 16.54.0, Standard chart of accounts, IDR (same probe sets as the v15 cases)",
+  "notes": [
+   "Only a text difference: the stale-modified message names the document (\"ECX Probe Co (Company) has been modified after you have opened it\") instead of the generic text. Statuses and the no-type-check behaviour are identical to v15 for every other case (all 37 cases compared).",
+   "Error text: v16 sends _server_messages as compact JSON with an extra \"as_table\": false key per message; the parsed message text and exc_type/status are what the cases compare. HTML links in messages point at /desk/... (v15: /app/...).",
+   "GL Entry list order is not stable across versions; compare rows by content, not position.",
+   "Another company on the v16 bed supplied the \"other company\" cases (named Other Co here)."
+  ],
+  "cases": [
+   {
+    "label": "stale modified",
+    "request": {
+     "method": "PUT",
+     "path": "/api/resource/Company/ECX Probe Co",
+     "body": {
+      "cost_center": "Main - EPC",
+      "modified": "2020-01-01 00:00:00"
+     },
+     "as": "apiUserWithSystemManager"
+    },
+    "status": 417,
+    "response": {
+     "exception": "frappe.exceptions.TimestampMismatchError: Error: ECX Probe Co (Company) has been modified after you have opened it (2026-11-15 12:33:11.366954, 2026-11-15 12:33:15.223377). Please refresh to get the latest document.",
+     "exc_type": "TimestampMismatchError",
+     "_server_messages": "[\"{\\\"message\\\":\\\"Error: ECX Probe Co (Company) has been modified after you have opened it (2026-11-15 12:33:11.366954, 2026-11-15 12:33:15.223377). Please refresh to get the latest document.\\\",\\\"as_table\\\":false,\\\"title\\\":\\\"Message\\\",\\\"indicator\\\":\\\"red\\\",\\\"raise_exception\\\":1,\\\"__frappe_exc_id\\\":\\\"ec8d2d6c1ffbcb2f341fcff1443cd87ce9f30df7c49c7be94eed4fe9\\\"}\"]"
+    }
+   }
+  ]
+ }
+}
