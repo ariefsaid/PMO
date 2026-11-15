@@ -47,7 +47,8 @@ begin
   v_window := greatest(v_since,now()-interval '2 hours');
   v_caught := coalesce(v_purchase.completed and v_ledger.completed and v_purchase.started_at >= v_window and v_ledger.started_at >= v_window,false);
   v_state := case when v_purchase.binding_id is null or v_ledger.binding_id is null then 'never'
-    when not v_purchase.completed or not v_ledger.completed then 'running'
+    -- An unfinished run counts as running only inside the freshness window; a crashed run then reads stale.
+    when (not v_purchase.completed and v_purchase.started_at >= v_window) or (not v_ledger.completed and v_ledger.started_at >= v_window) then 'running'
     when v_caught then 'current' else 'stale' end;
   if v_ledger.completed then
     v_currency := case when v_ledger.ledger_currency = (select o.default_currency from public.organizations o where o.id=v_org) then v_ledger.ledger_currency end;
@@ -57,5 +58,7 @@ begin
     'purchases_started_at',case when v_purchase.completed then v_purchase.started_at end,
     'ledger_started_at',case when v_ledger.completed then v_ledger.started_at end,
     'ledger_currency',v_currency,
+    -- Named on its own so a mismatch on a stale feed is still reported as a mismatch, not as an unknown currency.
+    'ledger_currency_mismatch',coalesce(v_mismatch,false),
     'reason',case when not v_caught then 'feed_not_current' when coalesce(v_mismatch,false) then 'ledger_currency_mismatch' end);
 end $$;

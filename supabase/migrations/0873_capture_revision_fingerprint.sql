@@ -3,6 +3,16 @@
 -- rewrite that changes no deciding fact (chart refresh stamps, as-of stamps, statement publication, feed
 -- witnesses, statement attempt stamp) leaves it alone. Feed freshness is re-checked at apply under the capture
 -- fence, so witnesses are not part of it. Every table fingerprinted here stays covered by capture_census_fence.
+-- Each section is one JSON value (an object per row or one array of ids), so a row or id can never move from one
+-- section to the next without changing the text that is hashed.
+-- Two kinds of section, two rules:
+--   * Whole-row sections (to_jsonb of the row, minus named stamps) include every future column automatically. That is
+--     safe for money (no deciding column can be missed) but a new non-deciding column re-stales open previews until it
+--     is subtracted here.
+--   * Column-list sections (external_org_bindings, companies, procurements, organizations, and the id-only sections)
+--     miss future columns. A new column on those tables that decides a capture must be added to its list here.
+-- To add a table: append one coalesce((select ...)::text, '') section in a fixed position, keep each section a single
+-- JSON value, add its capture_census_fence trigger, and add a moved-revision case to 2195_capture_revision.test.sql.
 -- Rollback: rollback/0873_capture_revision_fingerprint_down.sql
 create function public.capture_revision(p_org uuid) returns text
 language sql stable set search_path = public, pg_catalog as $$
@@ -21,14 +31,14 @@ language sql stable set search_path = public, pg_catalog as $$
       where x.org_id = p_org and x.domain in ('companies', 'procurement')), ''),
     coalesce((select string_agg(jsonb_build_object('id', c.id, 'type', c.type, 'archived_at', c.archived_at, 'name', c.name, 'erp_supplier_name', c.erp_supplier_name)::text, E'\n' order by c.id)
       from public.companies c where c.org_id = p_org), ''),
-    coalesce((select string_agg(p.id::text, E'\n' order by p.id) from public.projects p where p.org_id = p_org), ''),
+    coalesce((select jsonb_agg(p.id order by p.id)::text from public.projects p where p.org_id = p_org), '[]'),
     coalesce((select string_agg(jsonb_build_object('id', p.id, 'project_id', p.project_id, 'vendor_id', p.vendor_id, 'currency', p.currency,
         'status', p.status, 'record_only', p.record_only, 'record_only_stage', p.record_only_stage, 'origin', p.origin)::text, E'\n' order by p.id)
       from public.procurements p where p.org_id = p_org), ''),
-    coalesce((select string_agg(t.id::text, E'\n' order by t.id) from public.purchase_orders t where t.org_id = p_org), ''),
-    coalesce((select string_agg(t.id::text, E'\n' order by t.id) from public.procurement_receipts t where t.org_id = p_org), ''),
-    coalesce((select string_agg(t.id::text, E'\n' order by t.id) from public.procurement_invoices t where t.org_id = p_org), ''),
-    coalesce((select string_agg(t.id::text, E'\n' order by t.id) from public.payments t where t.org_id = p_org), ''),
+    coalesce((select jsonb_agg(t.id order by t.id)::text from public.purchase_orders t where t.org_id = p_org), '[]'),
+    coalesce((select jsonb_agg(t.id order by t.id)::text from public.procurement_receipts t where t.org_id = p_org), '[]'),
+    coalesce((select jsonb_agg(t.id order by t.id)::text from public.procurement_invoices t where t.org_id = p_org), '[]'),
+    coalesce((select jsonb_agg(t.id order by t.id)::text from public.payments t where t.org_id = p_org), '[]'),
     coalesce((select string_agg(to_jsonb(c)::text, E'\n' order by c.procurement_id, c.request_id) from public.erp_purchase_captures c where c.org_id = p_org), ''),
     coalesce((select string_agg(to_jsonb(o)::text, E'\n' order by o.id) from public.external_domain_ownership o where o.org_id = p_org), ''),
     coalesce((select jsonb_build_object('id', o.id, 'default_currency', o.default_currency)::text from public.organizations o where o.id = p_org), '')

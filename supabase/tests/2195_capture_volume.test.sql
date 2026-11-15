@@ -1,7 +1,7 @@
 -- AC-ROP-065 / AC-ROP-066: the census, the ledger pages, the health read and a batch stay inside the
 -- database's statement limit at ten times a real organization's volume, including bulky statement rows.
 begin;
-select plan(40);
+select plan(42);
 insert into organizations (id, name, default_currency) values ('21950650-0000-0000-0000-000000000001','Volume test','IDR');
 insert into auth.users (id, email) values ('21950650-0000-0000-0000-000000000002','volume-admin@example.test');
 insert into profiles (id, org_id, full_name, email, role, status) values
@@ -50,8 +50,12 @@ insert into erp_financial_statement_published_context(org_id,company,snapshot_id
 values ('21950650-0000-0000-0000-000000000001','Example','21950650-0000-0000-0000-000000000091','21950650-0000-0000-0000-000000000092','{"presentation":{"context":{"raw":{"company":{"name":"Example","currency":"IDR"}}}}}');
 insert into erp_capture_feed_witnesses(org_id,binding_id,feed_kind,started_at,ledger_currency)
   select org_id,id,k.kind,now(),case when k.kind='ledger' then 'IDR' end from external_org_bindings b cross join (values ('purchases'),('ledger')) k(kind) where b.org_id='21950650-0000-0000-0000-000000000001';
-select length(set_config('capture.groups',(select jsonb_agg(g)::text from (select jsonb_build_object('project_id','21950650-0000-0000-0000-000000000004','source_ids',jsonb_build_array(id::text)) g
-  from erp_purchase_documents where org_id='21950650-0000-0000-0000-000000000001' and erp_doctype='Purchase Order' order by erp_name limit 25) s),true));
+-- 25 groups, each an order with its invoice, so every group is a whole purchase family and creates.
+select length(set_config('capture.groups',(select jsonb_agg(g order by o.erp_name)::text from (select o.erp_name,jsonb_build_object('project_id','21950650-0000-0000-0000-000000000004','source_ids',jsonb_build_array(o.id::text,i.id::text)) g
+  from erp_purchase_documents o join erp_purchase_documents i on i.org_id=o.org_id and i.erp_doctype='Purchase Invoice' and i.purchase_orders=array[o.erp_name]
+  where o.org_id='21950650-0000-0000-0000-000000000001' and o.erp_doctype='Purchase Order' order by o.erp_name limit 25) o),true));
+-- The census page-two cursor: the 500th purchase document id.
+select set_config('capture.census_cursor',(select id::text from erp_purchase_documents where org_id='21950650-0000-0000-0000-000000000001' order by id offset 499 limit 1),true);
 -- One cursor per ledger page boundary, read before the role switch; each page is then its own statement,
 -- as it is when the served function calls them.
 select set_config('capture.cursors',(select string_agg(id::text,',' order by id) from (select id,row_number() over (order by id) rn
@@ -63,6 +67,7 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"21950650-0000-0000-0000-000000000002","role":"authenticated"}';
 set local statement_timeout = '8s';
 select lives_ok($$select public.purchase_capture_source_page(null,null,500)$$,'AC-ROP-065 the census read finishes inside the statement limit');
+select lives_ok(format($$select public.purchase_capture_source_page(%L,null,500)$$,current_setting('capture.census_cursor')),'AC-ROP-065 census page two finishes inside the statement limit');
 select lives_ok($$select public.purchase_capture_feed_health()$$,'AC-ROP-065 the health read finishes inside the statement limit');
 select set_config('capture.t0',clock_timestamp()::text,true);
 select lives_ok($$select public.purchase_capture_source_page(null,null,1)$$,'AC-ROP-065 the revision witness read finishes inside the statement limit');
@@ -76,9 +81,11 @@ reset role;
 set local role service_role;
 set local request.jwt.claims = '{"role":"service_role"}';
 select lives_ok($$select set_config('capture.batch',public.capture_history_batch('21950650-0000-0000-0000-000000000002','21950650-0000-0000-0000-000000000004','21950650-0000-0000-0000-000000000012',
-  current_setting('capture.revision'),'{"order":2}'::jsonb,current_setting('capture.groups')::jsonb)::text,true)$$,'AC-ROP-066 a 25-group batch call finishes inside the statement limit');
+  current_setting('capture.revision'),'{"order":2,"supplier_invoice":2}'::jsonb,current_setting('capture.groups')::jsonb)::text,true)$$,'AC-ROP-066 a 25-group batch call finishes inside the statement limit');
 select is(current_setting('capture.batch')::jsonb->>'next_index','25','AC-ROP-066 the batch call processed the whole page of groups');
 select is(current_setting('capture.batch')::jsonb->>'complete','true','AC-ROP-066 the batch is complete');
+select is((select count(*)::int from jsonb_array_elements(current_setting('capture.batch')::jsonb->'results') r where r->>'outcome'='create'),25,
+  'AC-ROP-066 every one of the 25 groups creates its purchase');
 reset role;
 select * from finish();
 rollback;

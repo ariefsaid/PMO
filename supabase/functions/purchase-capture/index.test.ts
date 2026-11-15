@@ -602,6 +602,13 @@ describe('purchase capture caller authorization', () => {
     assertEquals(body.missing.includes('ledger_currency_unknown'), false);
     assertEquals(body.feed, undefined);
   });
+  it('AC-ROP-072 reports a currency mismatch on a stale feed as a mismatch, not as an unknown currency', async () => {
+    const body = await previewAll({ caught_up: false, feed_state: 'stale', reason: 'feed_not_current', ledger_currency: null, ledger_currency_mismatch: true,
+      purchases_started_at: '2026-11-15T01:00:00Z', ledger_started_at: '2026-11-15T01:05:00Z' });
+    assertEquals(body.missing.includes('feed_not_current'), true);
+    assertEquals(body.missing.includes('ledger_currency_mismatch'), true);
+    assertEquals(body.missing.includes('ledger_currency_unknown'), false);
+  });
   it('AC-ROP-072 still reports an unknown currency on a current feed', async () => {
     const body = await previewAll({ caught_up: true, feed_state: 'current', ledger_currency: null });
     assertEquals(body.missing.includes('ledger_currency_unknown'), true);
@@ -617,6 +624,11 @@ describe('purchase capture caller authorization', () => {
     assertEquals(body.other_unassigned, [
       { kind: 'journal', count: 2, total: '2.50' }, { kind: 'other', count: 2, total: '8.00' }, { kind: 'supplier_payment', count: 1, total: '-40.00' },
     ]);
+  });
+  it('AC-ROP-073 a ledger line with no debit or credit makes its kind total unknown instead of failing the preview', async () => {
+    const body = await previewAll(healthy, [{ kind: 'journal', debit: '5.00', credit: '0' }, { kind: 'journal', debit: null, credit: null }, { kind: 'other', voucher_type: 'Bank Entry', debit: '1.00', credit: '0' }]);
+    assertEquals(body.complete, true);
+    assertEquals(body.other_unassigned, [{ kind: 'journal', count: 2, total: null }, { kind: 'other', count: 1, total: '1.00' }]);
   });
   it('AC-ROP-073 blocks on a purchase invoice line without a project', async () => {
     const body = await previewAll(healthy, [{ kind: 'journal', debit: '5.00' }, { kind: 'supplier_invoice', voucher_type: 'Purchase Invoice', voucher_no: 'INV-9', debit: '3.00' }]);

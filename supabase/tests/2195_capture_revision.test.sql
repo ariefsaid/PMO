@@ -1,7 +1,7 @@
 -- AC-ROP-063 / AC-ROP-064: the capture revision is a fingerprint of the facts that decide a capture.
 -- A hourly feed rewrite that changes nothing leaves it alone; every deciding fact moves it.
 begin;
-select plan(32);
+select plan(43);
 insert into organizations (id, name, default_currency) values
   ('21950630-0000-0000-0000-000000000001','Revision test','USD');
 insert into auth.users (id, email) values ('21950630-0000-0000-0000-000000000002','revision-admin@example.test');
@@ -10,7 +10,8 @@ insert into profiles (id, org_id, full_name, email, role, status) values
 insert into projects (id, org_id, name, status) values
   ('21950630-0000-0000-0000-000000000004','21950630-0000-0000-0000-000000000001','Project','Ongoing Project');
 insert into companies (id, org_id, name, type) values
-  ('21950630-0000-0000-0000-000000000005','21950630-0000-0000-0000-000000000001','Supplier','Vendor');
+  ('21950630-0000-0000-0000-000000000005','21950630-0000-0000-0000-000000000001','Supplier','Vendor'),
+  ('21950630-0000-0000-0000-000000000007','21950630-0000-0000-0000-000000000001','Second supplier','Vendor');
 insert into external_org_bindings (id, org_id, external_tier, site_url, secret_ref, config, activated_at, status) values
   ('21950630-0000-0000-0000-000000000003','21950630-0000-0000-0000-000000000001','erpnext','https://example.test','test-ref',
    '{"company":"Example","project_map":{"21950630-0000-0000-0000-000000000004":"PROJECT"}}',now(),'active');
@@ -23,7 +24,8 @@ insert into erp_account_mirror(org_id,company,erp_name,account_name,root_type,re
 insert into erp_gl_entry_mirror(org_id,erp_name,company,account,project,voucher_type,voucher_no,posting_date,debit,credit,is_cancelled,erp_modified) values
  ('21950630-0000-0000-0000-000000000001','GL-1','Example','Cost','PROJECT','Purchase Invoice','INVOICE-1','2026-02-01',100,0,false,'2026-02-01');
 insert into procurements(id,org_id,title,requested_by_id,project_id,currency,total_value,status) values
- ('21950630-0000-0000-0000-000000000010','21950630-0000-0000-0000-000000000001','Ordinary','21950630-0000-0000-0000-000000000002','21950630-0000-0000-0000-000000000004','USD',0,'Draft');
+ ('21950630-0000-0000-0000-000000000010','21950630-0000-0000-0000-000000000001','Ordinary','21950630-0000-0000-0000-000000000002','21950630-0000-0000-0000-000000000004','USD',0,'Draft'),
+ ('21950630-0000-0000-0000-000000000011','21950630-0000-0000-0000-000000000001','Second','21950630-0000-0000-0000-000000000002','21950630-0000-0000-0000-000000000004','USD',0,'Draft');
 set local request.jwt.claims = '{"sub":"21950630-0000-0000-0000-000000000002","role":"authenticated"}';
 
 -- Runs one statement and says whether the revision moved. The page is read as the Admin caller.
@@ -95,6 +97,34 @@ select ok(pg_temp.moved($$insert into payments(id,org_id,procurement_id) values 
 select ok(pg_temp.moved($$insert into erp_purchase_captures(procurement_id,org_id,binding_id,request_id,payload,kind,stage,captured_by)
   values ('21950630-0000-0000-0000-000000000010','21950630-0000-0000-0000-000000000001','21950630-0000-0000-0000-000000000003','21950630-0000-0000-0000-000000000050','{}','order','ordered','21950630-0000-0000-0000-000000000002')$$),'AC-ROP-064 a capture record moves it');
 select ok(pg_temp.moved($$insert into external_domain_ownership(org_id,external_tier,domain) values ('21950630-0000-0000-0000-000000000001','erpnext','purchases')$$),'AC-ROP-064 domain ownership moves it');
+-- AC-ROP-064: an id moved from one id list to the next is a change (each list is one JSON array).
+-- A lower order id stays behind, so both lists stay non-empty and the bare-id text would be identical before and after.
+insert into purchase_orders(id,org_id,procurement_id) values ('21950630-0000-0000-0000-00000000003f','21950630-0000-0000-0000-000000000001','21950630-0000-0000-0000-000000000010');
+select ok(pg_temp.moved($$with d as (delete from purchase_orders where id='21950630-0000-0000-0000-000000000040' returning id,org_id,procurement_id)
+  insert into procurement_receipts(id,org_id,procurement_id,status) select id,org_id,procurement_id,'Complete' from d$$),'AC-ROP-064 an id moved from the order list to the receipt list moves it');
+-- Runs one statement, says whether the revision moved, then undoes the statement so each case starts from the same state.
+create function pg_temp.moved_alone(p_sql text) returns boolean language plpgsql as $f$
+declare v_moved boolean;
+begin
+  begin
+    v_moved := pg_temp.moved(p_sql);
+    raise exception using errcode = 'RV195', message = v_moved::text;
+  exception when sqlstate 'RV195' then return sqlerrm::boolean;
+  end;
+end $f$;
+-- AC-ROP-064: one case per column that 0873 names in a column-list section.
+select ok(pg_temp.moved_alone(c.statement), 'AC-ROP-064 a ' || c.label || ' change moves it') from (values
+  ($c$update external_org_bindings set status='disconnected' where id='21950630-0000-0000-0000-000000000003'$c$,'binding status'),
+  ($c$update external_org_bindings set activated_at=activated_at-interval '1 day' where id='21950630-0000-0000-0000-000000000003'$c$,'binding activation time'),
+  ($c$update external_org_bindings set external_tier='odoo' where id='21950630-0000-0000-0000-000000000003'$c$,'binding accounting tier'),
+  ($c$update companies set type='Client' where id='21950630-0000-0000-0000-000000000007'$c$,'company type'),
+  ($c$update procurements set project_id='21950630-0000-0000-0000-000000000030' where id='21950630-0000-0000-0000-000000000011'$c$,'purchase project'),
+  ($c$update procurements set vendor_id='21950630-0000-0000-0000-000000000007' where id='21950630-0000-0000-0000-000000000011'$c$,'purchase vendor'),
+  ($c$update procurements set currency='EUR' where id='21950630-0000-0000-0000-000000000011'$c$,'purchase currency'),
+  ($c$update procurements set record_only=true where id='21950630-0000-0000-0000-000000000011'$c$,'purchase record-only flag'),
+  ($c$update procurements set record_only_stage='ordered' where id='21950630-0000-0000-0000-000000000011'$c$,'purchase record-only stage'),
+  ($c$update procurements set origin='erp_link' where id='21950630-0000-0000-0000-000000000011'$c$,'purchase origin')
+) c(statement,label);
 select ok(pg_temp.moved($$update organizations set default_currency='IDR' where id='21950630-0000-0000-0000-000000000001'$$),'AC-ROP-064 the organization currency moves it');
 select * from finish();
 rollback;

@@ -282,7 +282,7 @@ Common refusals (exit 2) and what to do:
 |---|---|---|
 | `403 FORBIDDEN` | not an active Admin | sign in as an active Admin (`whoami` shows the role) |
 | `binding_unavailable` | no single active accounting-system connection | finish the connection in **Administration → Integrations** |
-| `feed_not_current` | the accounting-system sync is running, or has not finished within the last two hours | read `feed`: `sync_running_retry_in_minutes` means run the preview again in a few minutes; `erpnext_sync_stopped_check_integrations` means check the sync in **Administration → Integrations** (`feed.last_synced_at` is when it last finished) |
+| `feed_not_current` | the accounting-system sync is running, or has not finished within the last two hours | read `feed`: `sync_running_retry_in_minutes` means run the preview again in a few minutes; `erpnext_sync_stopped_check_integrations` means check the sync in **Administration → Integrations** (`feed.last_synced_at` is the start time of the last completed sync) |
 | `generation_changed` | the mirrored data changed while reading | run a new preview and use its revision |
 | `ledger_currency_mismatch` | the currency read from the accounting company differs from the organization's currency | correct the currency in one of the two before capturing |
 | `source_limit_exceeded`, `ledger_limit_exceeded`, `run_per_project` | scope too large | repeat per `--project` |
@@ -292,7 +292,7 @@ Common refusals (exit 2) and what to do:
 For release operations, apply migrations `0866`, `0873` and `0874` before deploying either `erpnext-sweep` or `purchase-capture`. Follow the target-specific approval, deployment and verification procedure in [Environments](../environments.md); the migration source alone does not show what is deployed. For production, check the actual migration ledger with:
 
 ```bash
-scripts/prod-read.sh -c "select version from supabase_migrations.schema_migrations where version = '0866'"
+scripts/prod-read.sh -c "select version from supabase_migrations.schema_migrations where version in ('0866','0873','0874') order by version"
 ```
 
 Stop if the target or its migration state cannot be verified. After the database is ready, deploy the approved function builds and verify the actual versions and hosted grants using the environment procedure.

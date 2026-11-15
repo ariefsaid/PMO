@@ -2,6 +2,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
+import { ERP_PROBE_TIMEOUT_MS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { withFetchMock, supabaseSelect, supabaseRpc, jsonResponse, erp, type MockRoute } from '../_shared/testing/edgeTestKit.ts';
 
 (Deno as unknown as { serve: (...args: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
@@ -66,8 +67,17 @@ describe('AC-ROP-018 purchase feed completion witness', () => {
 
 // AC-ROP-071 the ledger feed run records the ERPNext company currency with its completion witness.
 type LedgerCall = { name: string; args: Record<string, unknown> };
-async function runLedgerFeed(companyResponse: () => Response, replayNeeded = true): Promise<{ calls: LedgerCall[]; result: { error?: string; statementReady?: boolean } }> {
+async function runLedgerFeed(companyResponse: () => Response, replayNeeded = true): Promise<{ calls: LedgerCall[]; result: { error?: string; statementReady?: boolean }; companyTimeouts: number[] }> {
   const calls: LedgerCall[] = [];
+  // The client arms its per-attempt deadline timer just before each fetch, so the last timer delay seen when the
+  // Company request arrives is that request's deadline.
+  const companyTimeouts: number[] = [];
+  let lastTimerDelay = -1;
+  const previousSetTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = ((...args: Parameters<typeof setTimeout>) => {
+    lastTimerDelay = args[1] ?? 0;
+    return previousSetTimeout(...args);
+  }) as typeof setTimeout;
   const serviceClient = {
     from() {
       const builder: Record<string, unknown> = {
@@ -89,7 +99,7 @@ async function runLedgerFeed(companyResponse: () => Response, replayNeeded = tru
   const previousFetch = globalThis.fetch;
   globalThis.fetch = ((input: RequestInfo | URL) => {
     const url = String(input);
-    if (url.includes('/Company/')) return Promise.resolve(companyResponse());
+    if (url.includes('/Company/')) { companyTimeouts.push(lastTimerDelay); return Promise.resolve(companyResponse()); }
     if (url.includes('/Account?') || url.includes('/GL%20Entry?') || url.includes('/Payment%20Ledger%20Entry?')) return Promise.resolve(ok([]));
     if (url.includes('/System%20Settings/')) return Promise.resolve(ok({ currency_precision: 2, float_precision: 3, rounding_method: "Banker's Rounding" }));
     throw new Error(`Unexpected ERP request ${url}`);
@@ -98,8 +108,8 @@ async function runLedgerFeed(companyResponse: () => Response, replayNeeded = tru
   try {
     Deno.resolveDns = (async () => ['8.8.8.8']) as unknown as typeof Deno.resolveDns;
     const result = await feedOrgLedgersLive(serviceClient as never, { ...org, statementReplayNeeded: replayNeeded }, pair);
-    return { calls, result };
-  } finally { globalThis.fetch = previousFetch; Deno.resolveDns = originalResolver; }
+    return { calls, result, companyTimeouts };
+  } finally { globalThis.fetch = previousFetch; Deno.resolveDns = originalResolver; globalThis.setTimeout = previousSetTimeout; }
 }
 const completion = (calls: LedgerCall[]) => calls.filter((call) => call.name === 'record_capture_feed_completion');
 
@@ -117,6 +127,11 @@ describe('AC-ROP-071 ledger feed completion carries the ledger currency', () => 
     const { calls } = await runLedgerFeed(() => new Response('{}', { status: 500 }));
     assertEquals(completion(calls).length, 1);
     assertEquals(completion(calls)[0].args.p_currency, null);
+  });
+  it('reads the company currency on the probe budget: one attempt, the probe deadline, well under the run cap', async () => {
+    const { calls, companyTimeouts } = await runLedgerFeed(() => new Response('{}', { status: 503 }));
+    assertEquals(companyTimeouts, [ERP_PROBE_TIMEOUT_MS]);
+    assertEquals(completion(calls).length, 1);
   });
   it('sends no currency when the company has a blank one, and still records the completion', async () => {
     const { calls } = await runLedgerFeed(() => new Response(JSON.stringify({ data: { name: 'Example', default_currency: '  ' } }), { status: 200 }));

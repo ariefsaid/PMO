@@ -1,6 +1,6 @@
 -- AC-ROP-017: an authorized census must not truncate purchase history.
 begin;
-select plan(21);
+select plan(26);
 insert into organizations (id, name, default_currency) values
   ('21950110-0000-0000-0000-000000000001','Capture test','USD');
 insert into auth.users (id, email) values
@@ -125,6 +125,26 @@ update erp_capture_feed_witnesses set started_at=now()-interval '5 minutes',comp
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"21950110-0000-0000-0000-000000000002","role":"authenticated"}';
 select is(public.purchase_capture_feed_health()->>'feed_state','running','AC-ROP-069 a run in progress is running and still blocks');
+reset role;
+-- AC-ROP-069: an unfinished run older than the freshness window is a crashed run and reads stale, not running.
+update erp_capture_feed_witnesses set started_at=now()-interval '121 minutes',completed=false where binding_id=current_setting('capture.binding')::uuid and feed_kind='purchases';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21950110-0000-0000-0000-000000000002","role":"authenticated"}';
+select is(public.purchase_capture_feed_health()->>'feed_state','stale','AC-ROP-069 an unfinished run older than two hours is stale, not running');
+select is(public.purchase_capture_feed_health()->>'caught_up','false','AC-ROP-069 a crashed run still blocks');
+reset role;
+update erp_capture_feed_witnesses set started_at=now()-interval '119 minutes',completed=false where binding_id=current_setting('capture.binding')::uuid and feed_kind='purchases';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21950110-0000-0000-0000-000000000002","role":"authenticated"}';
+select is(public.purchase_capture_feed_health()->>'feed_state','running','AC-ROP-069 an unfinished run inside the window is still running');
+reset role;
+-- AC-ROP-068: a changed accounting currency on a stale feed is still named as a mismatch.
+update erp_capture_feed_witnesses set started_at=now()-interval '3 hours',completed=true,ledger_currency=case when feed_kind='ledger' then 'EUR' end
+  where binding_id=current_setting('capture.binding')::uuid;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21950110-0000-0000-0000-000000000002","role":"authenticated"}';
+select is(public.purchase_capture_feed_health()->>'reason','feed_not_current','AC-ROP-068 a stale feed with another currency is refused as not current');
+select is(public.purchase_capture_feed_health()->>'ledger_currency_mismatch','true','AC-ROP-068 a stale feed with another currency still names the mismatch');
 reset role;
 select * from finish();
 rollback;

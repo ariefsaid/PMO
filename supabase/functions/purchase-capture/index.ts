@@ -15,8 +15,10 @@ interface RawDocument { id: string; kind: CaptureKind | null }
 function trimDecimal(value: string): string { return value.includes('.') ? value.replace(/0+$/, '').replace(/\.$/, '') : value; }
 
 /** Exact net (debit minus credit) of decimal strings at the finest scale present, never below two places. Null when a value is not a plain decimal. */
-function netTotal(lines: Array<{ debit: string; credit: string }>): string | null {
-  const parts = lines.flatMap(line => [[trimDecimal(line.debit), 1n], [trimDecimal(line.credit), -1n]] as const);
+function netTotal(lines: Array<{ debit: string | null; credit: string | null }>): string | null {
+  // Ledger debit and credit are nullable columns: a missing amount makes the total unknown, never an error.
+  if (lines.some(line => typeof line.debit !== 'string' || typeof line.credit !== 'string')) return null;
+  const parts = lines.flatMap(line => [[trimDecimal(line.debit as string), 1n], [trimDecimal(line.credit as string), -1n]] as const);
   const scale = Math.max(2, ...parts.map(([value]) => value.split('.')[1]?.length ?? 0));
   try {
     const minor = parts.reduce((sum, [value, sign]) => sum + sign * BigInt(toMinorUnits(value, scale)), 0n);
@@ -88,7 +90,7 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   const missing = [...docs.missing, ...ledger.missing];
   const feedNotCurrent = healthError || health?.caught_up !== true;
   if (feedNotCurrent) missing.push('feed_not_current');
-  if (health?.reason === 'ledger_currency_mismatch') missing.push('ledger_currency_mismatch');
+  if (health?.reason === 'ledger_currency_mismatch' || health?.ledger_currency_mismatch === true) missing.push('ledger_currency_mismatch');
   else if (typeof health?.ledger_currency !== 'string' || !health.ledger_currency) missing.push('ledger_currency_unknown');
   const feed = feedNotCurrent && !healthError ? feedGuidance(health) : {};
   const precisionReader = adapter.precision;
@@ -185,7 +187,10 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   const isPurchaseLine = (line: typeof ledger.items[number]) => purchaseKinds.has(line.kind ?? 'other') || purchaseKinds.has(sourceKinds.get(line.documentId ?? '') ?? 'other');
   const unassigned = ledger.items.filter(line => line.company !== company || (!line.projectId && isPurchaseLine(line))).map(line => ({ id: line.id, kind: line.kind ?? 'other', source: line.reference, reason: line.company !== company ? 'company_scope_mismatch' : 'project_unmapped' }));
   const otherByKind = new Map<string, typeof ledger.items>();
-  for (const line of ledger.items) if (line.company === company && !line.projectId && !isPurchaseLine(line)) otherByKind.set(line.kind ?? 'other', [...(otherByKind.get(line.kind ?? 'other') ?? []), line]);
+  for (const line of ledger.items) if (line.company === company && !line.projectId && !isPurchaseLine(line)) {
+    const group = otherByKind.get(line.kind ?? 'other');
+    if (group) group.push(line); else otherByKind.set(line.kind ?? 'other', [line]);
+  }
   const otherUnassigned = [...otherByKind.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([kind, lines]) => ({ kind, count: lines.length, total: netTotal(lines) }));
   const unassignedDocuments = sources.filter(source => source.projectIds.length === 0).map(source => ({ id: source.id,
     kind: source.kind, state: source.state, source: source.reference ?? null,

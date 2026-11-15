@@ -2129,7 +2129,7 @@ export async function feedOrgLedgersLive(serviceClient: SupabaseClient, org: Org
     // currency (capture then refuses it by name); it never stops the completion from being recorded.
     let ledgerCurrency: string | null = null;
     try {
-      const company = await getDoc({ ...client, maxRetries: 0 }, 'Company', org.company) as { default_currency?: unknown } | null;
+      const company = await getDoc(withProbeBudget(client), 'Company', org.company) as { default_currency?: unknown } | null;
       ledgerCurrency = typeof company?.default_currency === 'string' && company.default_currency.trim() ? company.default_currency.trim() : null;
     } catch { /* unknown currency */ }
     try {
