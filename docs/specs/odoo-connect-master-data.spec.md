@@ -95,7 +95,7 @@ A mirrored copy is never a second source of truth (ADR-0094). Edits made in Odoo
 - **FR-ODC-008** — The system SHALL refuse to connect Odoo while the org has an active binding for another ERP tier (OQ-ODC-8).
 - **FR-ODC-009** — While the operator kill-switch is off, no PMO path SHALL call Odoo for any org (fail closed, ADR-0061 §2); the per-org binding, not a deployment flag, is otherwise the enablement authority.
 - **FR-ODC-010** — The credential for any Odoo call SHALL be resolved from the active, activated binding and its vault secret at call time; a missing, ambiguous or unresolvable credential SHALL fail closed with a classified refusal (ADR-0072 stance), never fall back to another org's or a global credential.
-- **FR-ODC-011** — Every connect, reconnect, activate, disconnect, credential-rejected transition and discovery change SHALL write an audit row carrying actor, org, tier and outcome class, and never a secret or upstream body (ADR-0060 §8 principle).
+- **FR-ODC-011** — Every connect, reconnect, activate, disconnect, credential-rejected transition and discovery change, and every refused connect attempt, SHALL write an audit row carrying actor, org, tier and a classified outcome (never a raw database error code), and never a secret or upstream body (ADR-0060 §8 principle). The audit write is best effort: a failed write never changes the answer to the caller.
 
 ### 5.2 Capability discovery
 
@@ -264,7 +264,7 @@ Layer key (ADR-0010): **U** = unit (Vitest/RTL; Deno for edge functions), **P** 
 - **AC-ODC-006 (FR-006; B)** — *Given* an activated binding with a mirror, *when* the Admin pastes a new valid key, *then* the old secret is revoked only after the new binding commits and the mirror, mappings and watermarks are unchanged; *when* the new key belongs to another database or company, *then* it is refused unless the discard is confirmed, and refused outright once an external document reference exists.
 - **AC-ODC-007 (FR-007; P)** — *Given* an activated binding, *when* disconnect is called twice, *then* the secret is gone, status is `disconnected`, ownership released, sweeps skip the org, mirror rows remain flagged disconnected, and the second call succeeds without effect.
 - **AC-ODC-008 (FR-009, 010; U)** — *Given* the kill-switch off, a missing secret, two secrets for one reference, or another org's binding, *when* an Odoo client is requested, *then* a classified refusal results and no request is made.
-- **AC-ODC-009 (§8; P)** — *Given* each non-Admin role and an Operator, *when* connect, disconnect and reset RPCs are called with a user JWT, *then* only Admin and Operator succeed; a spoofed `org_id` is ignored; the vault-reference column is unreadable by non-admins.
+- **AC-ODC-009 (§8; P)** — *Given* any user JWT, *when* a connect-custody RPC (finalize, activate, assert-activated) is called directly, *then* it is not executable by `authenticated` or `anon` and is executable only by the service role; only an Admin or Operator is authorised, by the edge function, to start a connect, and the caller's org comes from their profile, never from the request; the vault-reference column is unreadable by non-admins.
 
 ### Capability and state
 
