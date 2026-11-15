@@ -534,9 +534,11 @@ jobs:
       # config.toml. Also exclude CI-unused containers to shave the stack-up time:
       # studio (web UI — headless CI), realtime (app has 0 realtime usage), vector (log
       # shipper). Mirrors the `integration` job's stack trim (pgTAP doesn't need
-      # storage/inbucket — those are e2e-only concerns).
+      # storage/inbucket — those are e2e-only concerns). Also mailpit, imgproxy, logflare, supavisor
+      # (as scripts/supabase-start-lean.sh): no step here uses mail, images, analytics or the pooler, and
+      # mailpit's host port 54324 sits in the runner's ephemeral range ('address already in use', run 43675525098).
       - name: Start local Supabase stack
-        run: supabase start -x studio,realtime,vector
+        run: supabase start -x studio,realtime,vector,mailpit,imgproxy,logflare,supavisor
 
       - name: Financial statement script tests (local Supabase required)
         env:
