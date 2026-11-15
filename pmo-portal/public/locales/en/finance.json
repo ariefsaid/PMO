@@ -95,6 +95,8 @@
   },
   "receivables": {
     "title": "Receivables",
+    "receiptUnknown_one": "{{count}} receipt amount unknown",
+    "receiptUnknown_other": "{{count}} receipt amounts unknown",
     "owed": "Owed to you",
     "overdue": "Overdue",
     "dueNext30": "Due in next 30 days",

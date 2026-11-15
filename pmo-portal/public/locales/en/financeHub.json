@@ -129,6 +129,8 @@
         "procurement": "Procurement",
         "supplierCount_one": "{{count}} supplier",
         "supplierCount_other": "{{count}} suppliers",
+        "unknownSupplierInvoices_one": "{{count}} invoice, supplier not recorded",
+        "unknownSupplierInvoices_other": "{{count}} invoices, supplier not recorded",
         "oldestMeaning": "Calendar days since the supplier invoice date",
         "unknownCount_one": "{{count}} balance unknown",
         "unknownCount_other": "{{count}} balances unknown",

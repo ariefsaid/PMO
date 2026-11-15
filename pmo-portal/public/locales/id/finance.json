@@ -95,6 +95,8 @@
   },
   "receivables": {
     "title": "Piutang",
+    "receiptUnknown_one": "{{count}} jumlah penerimaan tidak diketahui",
+    "receiptUnknown_other": "{{count}} jumlah penerimaan tidak diketahui",
     "owed": "Piutang kepada Anda",
     "overdue": "Terlambat",
     "dueNext30": "Jatuh tempo dalam 30 hari",

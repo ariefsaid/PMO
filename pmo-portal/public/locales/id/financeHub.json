@@ -129,6 +129,8 @@
         "procurement": "Pengadaan",
         "supplierCount_one": "{{count}} pemasok",
         "supplierCount_other": "{{count}} pemasok",
+        "unknownSupplierInvoices_one": "{{count}} faktur, pemasok belum dicatat",
+        "unknownSupplierInvoices_other": "{{count}} faktur, pemasok belum dicatat",
         "oldestMeaning": "Hari kalender sejak tanggal faktur pemasok",
         "unknownCount_one": "{{count}} saldo tidak diketahui",
         "unknownCount_other": "{{count}} saldo tidak diketahui",

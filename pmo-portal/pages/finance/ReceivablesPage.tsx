@@ -107,7 +107,7 @@ export default function ReceivablesPage() {
   const cashDelta = (() => {
     if (!today || cashPending || cashError || thisMonthCash.unknown || lastMonthCash.unknown) return undefined;
     const amount = formatTileMoney(Math.abs(cashDeltaCents) / 100, orgCurrency);
-    return amount === null ? undefined : cashDeltaCents > 0 ? `+${amount}` : cashDeltaCents < 0 ? `−${amount}` : amount;
+    return amount === null ? undefined : Math.sign(cashDeltaCents) === 1 ? `+${amount}` : Math.sign(cashDeltaCents) === -1 ? `−${amount}` : amount;
   })();
   const owedTile = receivablesPending || receivablesError || (owedUnknown > 0 && !owed[orgCurrency]) ? null : moneyTileProps(position.receivablesCount === 0 ? { [orgCurrency]: 0 } : owed, orgCurrency);
   const overdueTile = receivablesPending || receivablesError || (overdueUnknown > 0 && !position.overdueTotals[orgCurrency]) ? null : moneyTileProps(position.overdue.length === 0 ? { [orgCurrency]: 0 } : position.overdueTotals, orgCurrency);
