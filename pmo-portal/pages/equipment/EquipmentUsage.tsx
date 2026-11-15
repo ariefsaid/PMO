@@ -18,7 +18,8 @@ import { type EquipmentAssetRow, type EquipmentUsageWithRejecter as EquipmentUsa
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatDay, formatNumberMax2, formatWeekdayDay } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
-import { addDays, fromIso, mondayOf, toIso, weekDays } from './equipmentWeek';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
+import { addDays, fromIso, mondayOf, weekDays } from './equipmentWeek';
 
 type Field = 'quantity' | 'fuel_litres' | 'trips';
 type Kind = 'work' | 'standby';
@@ -59,7 +60,7 @@ const EquipmentUsagePage: React.FC = () => {
   const canLog = may('create', 'equipmentUsage', writeCtx);
   const canCreateAsset = may('create', 'equipmentAsset', writeCtx);
   const userId = useAuth().currentUser?.id ?? null;
-  const today = toIso(new Date());
+  const today = useOrgToday();
   // R2: week/tab/asset are URL-owned (`?week=YYYY-MM-DD`, the same deep-link contract) so
   // Back/refresh return to them; defaults (this week, My usage, all assets) stay out of the URL.
   const { values, setFilter } = useUrlFilters(['week', 'tab', 'asset']);

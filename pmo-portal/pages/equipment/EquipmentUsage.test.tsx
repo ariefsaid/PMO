@@ -9,6 +9,7 @@ import type { Role } from '@/src/auth/AuthContext';
 import { ImpersonationProvider, useEffectiveRole } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 import { formatDay } from '@/src/lib/format';
+import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
 
 type Entry = {
   id: string; asset_id: string; project_id: string; work_date: string; quantity: number; unit: 'hours' | 'days'; kind: 'work' | 'standby';
@@ -103,6 +104,18 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
   it('C8 EquipmentUsage.tsx:83,101 scopes the bounded week read to the selected asset', () => {
     renderPage('Engineer', '/equipment/usage?week=2026-09-07&asset=a1');
     expect(h.usageArgs.at(-1)).toMatchObject({ from: '2026-09-07', to: '2026-09-13', assetId: 'a1' });
+  });
+
+  it('#2088: the default week is the organization week, not the UTC week', () => {
+    try {
+      // 2026-11-29 20:00 UTC (Sun) is already Mon 2026-11-30 in Asia/Jakarta.
+      vi.setSystemTime(new Date('2026-11-29T20:00:00Z'));
+      setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+      renderPage();
+      expect(h.usageArgs.at(-1)).toMatchObject({ from: '2026-11-30', to: '2026-12-06' });
+    } finally {
+      resetActiveLocale();
+    }
   });
 
   it('C8b F2 counts the machines the picker has loaded and can load the rest', async () => {

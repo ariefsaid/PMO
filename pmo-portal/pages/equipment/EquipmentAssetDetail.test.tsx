@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const ok = (data: unknown) => ({ data, isPending: false, isError: false, refetch: vi.fn() });
 const h = vi.hoisted(() => ({
@@ -185,6 +186,23 @@ describe('/equipment/assets/:assetId (AC-EQU-001 FE reference, FR-EQU-044/071)',
     expect(h.save).not.toHaveBeenCalled();
     await user.click(within(dialog).getByRole('button', { name: 'Save costing' }));
     await waitFor(() => expect(h.save).toHaveBeenCalledWith(draftSent));
+  });
+
+  it('#2088: a new costing starts on the first of the organization month, not the UTC month', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      // 2026-11-30 20:00 UTC is already 2026-12-01 in Asia/Jakarta.
+      vi.setSystemTime(new Date('2026-11-30T20:00:00Z'));
+      setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+      renderPage();
+      await userEvent.setup().click(screen.getByRole('button', { name: 'Change costing' }));
+      const dialog = await screen.findByRole('dialog');
+      await userEvent.setup().click(within(dialog).getByRole('button', { name: 'Preview' }));
+      expect(h.preview.mock.calls[0][0].effective_from).toBe('2026-12-01');
+    } finally {
+      vi.useRealTimers();
+      resetActiveLocale();
+    }
   });
 
   it('AC-EQU-070 a preview with an unallocated pool names the reason', async () => {
