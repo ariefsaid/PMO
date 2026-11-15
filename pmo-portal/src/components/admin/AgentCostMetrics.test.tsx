@@ -6,7 +6,8 @@
  * division-guard "—" fallback on empty denominators, the loading/error(+retry)/empty
  * ListState variants, and an axe-core zero-blocking-violations check per state.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
@@ -135,6 +136,7 @@ const defaultProps = {
 };
 
 describe('AgentCostMetrics', () => {
+  afterEach(() => resetActiveLocale());
   it('AC-ACD-010: usage displays the derived cache hit rate and metric labels', () => {
     render(<AgentCostMetrics {...defaultProps}
       summaryRows={[{ ...summaryRows[0], prompt_tokens: 1000, cached_tokens: 600 }]}
@@ -142,7 +144,7 @@ describe('AgentCostMetrics', () => {
     expect(screen.getByRole('heading', { name: /agent cost overview/i })).toBeVisible();
     const tiles = within(screen.getByTestId('stat-tiles'));
     expect(tiles.getByText('Cache hit-rate')).toBeVisible();
-    expect(tiles.getByText('60.0%')).toBeVisible();
+    expect(tiles.getByText('60%')).toBeVisible();
     expect(tiles.getByText('Reasoning share')).toBeVisible();
     expect(tiles.getByText(/Cost \/ run \(p50/i)).toBeVisible();
     expect(tiles.getByText(/Cost \/ run \(p95/i)).toBeVisible();
@@ -182,12 +184,12 @@ describe('AgentCostMetrics', () => {
 
   it('renders the overall cache hit-rate (100·Σcached/Σprompt = 1400/4000 = 35.0%)', () => {
     render(<AgentCostMetrics {...defaultProps} />);
-    expect(screen.getByText('35.0%')).toBeInTheDocument();
+    expect(screen.getByText('35%')).toBeInTheDocument();
   });
 
   it('renders the overall reasoning share (100·Σreasoning/Σcompletion = 400/2000 = 20.0%)', () => {
     render(<AgentCostMetrics {...defaultProps} />);
-    expect(screen.getByText('20.0%')).toBeInTheDocument();
+    expect(screen.getByText('20%')).toBeInTheDocument();
   });
 
   it('renders cost/run p50 weighted by runs ((0.02*10 + 0.04*30)/40 = 0.035)', () => {
@@ -273,7 +275,13 @@ describe('AgentCostMetrics', () => {
     // formatMonthTick, just wrapped for the Tooltip's wider signature).
     const epochMs = monthToUtcEpoch('2026-06-01');
     expect(capturedTooltipLabelFormatter!(epochMs)).toBe(capturedXAxisTickFormatter!(epochMs));
-    expect(capturedTooltipFormatter!(40)).toEqual(['40.0%', 'Cache hit-rate']);
+    expect(capturedTooltipFormatter!(40)).toEqual(['40%', 'Cache hit-rate']);
+  });
+
+  it('#2089: percents and latency render in the viewer locale (id: comma decimal)', () => {
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'UTC' });
+    render(<AgentCostMetrics {...defaultProps} />);
+    expect(capturedTooltipFormatter!(35.5)).toEqual(['35,5%', 'Cache hit-rate']);
   });
 
   // ── a11y ───────────────────────────────────────────────────────────────────
