@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { supabase } from '@/src/lib/supabase/client';
+import { readOrgSettings } from '@/src/lib/db/orgs';
 import type {
   FxCommitCounts,
   FxRateInput,
@@ -80,12 +81,8 @@ export async function upsertFxRates(rows: FxRateInput[]): Promise<FxCommitCounts
 }
 
 export async function fxContext(): Promise<{ currency: string; timezone: string }> {
-  const { data, error } = await supabase
-    .from('organizations')
-    .select('default_currency,default_timezone')
-    .single();
-  if (error) throw error;
-  return toFxContext(data.default_currency, data.default_timezone);
+  const row = (await readOrgSettings())[0];
+  return toFxContext(row?.default_currency ?? null, row?.default_timezone ?? null);
 }
 
 /** Shared by the per-endpoint read and the Overview read-model. */

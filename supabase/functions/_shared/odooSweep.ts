@@ -5,7 +5,7 @@
  * apply_odoo_master_page / finish_odoo_census, so any failure leaves them in place.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { bindCall, OdooError, type OdooCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
+import { allowsParallelCalls, bindCall, OdooError, type OdooCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
 import { fetchOdooVersionMajor } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connect.ts';
 import { discoverCapabilities, DISCOVERY_BUDGET_MS, type CapabilitySnapshot } from '../../../pmo-portal/src/lib/adapterSeam/odoo/discovery.ts';
 import { KIND_SPECS, type DirectoryKind, type DirectoryRow, type KindSpec } from '../../../pmo-portal/src/lib/adapterSeam/odoo/kinds.ts';
@@ -317,14 +317,14 @@ export async function sweepOdooOrg(
         }
       }
       await runAfterSweep();
-      // Daily re-discovery (FR-ODC-021) runs outside the sweep's call budget; it is ~60 calls once a day.
+      // Daily re-discovery (FR-ODC-021) runs outside the sweep's call budget; it is ~90 calls once a day.
       const stale = !capabilities?.observed_at || Date.now() - Date.parse(capabilities.observed_at) > DAY_MS;
       let snapshot: CapabilitySnapshot | undefined;
       if (stale && budget.left()) {
         // As recheck: a failed version probe falls back to the stored version; with none it is a failure.
         const versionMajor = (await fetchOdooVersionMajor(r.client)) ?? capabilities?.version_major ?? null;
         if (versionMajor === null) throw new OdooError('unreachable');
-        snapshot = await discoverCapabilities(call, { versionMajor, now: new Date(), deadlineAt: Date.now() + Math.min(DISCOVERY_BUDGET_MS, timeBudget - (Date.now() - started)) });
+        snapshot = await discoverCapabilities(call, { versionMajor, now: new Date(), deadlineAt: Date.now() + Math.min(DISCOVERY_BUDGET_MS, timeBudget - (Date.now() - started)), parallel: allowsParallelCalls(r.client.baseUrl) });
       }
       await recordOdooProbe(sc, orgId, r.config, { ok: true, missing: (snapshot ?? capabilities)?.missing ?? [] }, snapshot);
       return {

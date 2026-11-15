@@ -204,7 +204,7 @@ The dry run lists `company.create` and sends nothing. The apply uses the same sy
 
 **Goal:** load projects at the correct stage, set contract details, and correct the recorded date of the latest matching stage.
 
-**Exact commands:** prepare the private load file with `projects` entries. Required fields include `name`, `client` (the company's exact legal name), and `stage`. A won-stage project also needs `contract_value`, `tax_treatment`, `tax_amount`, `customer_contract_ref`, and `contract_date` (`YYYY-MM-DD`). Optional contract quantities use `contract_lines` with stable `key`, `item_code`, `description`, `unit`, `quantity`, and `rate`; `basis` may be `unit_rate` or `lump_sum`.
+**Exact commands:** prepare the private load file with `projects` entries. Required fields include `name`, `client` (the company's exact legal name), and `stage`. A won-stage project also needs `contract_value`, `tax_treatment`, `tax_amount`, `customer_contract_ref`, and `contract_date` (`YYYY-MM-DD`). An optional `currency` (three capitals, e.g. `USD`) sets a new project's currency; left out, the project takes the organization's. A project that already exists in another currency is reported as `project.currency_conflict` (both values shown) and never changed; the other fields still apply and the run exits 0, so read the report. Optional contract quantities use `contract_lines` with stable `key`, `item_code`, `description`, `unit`, `quantity`, and `rate`; `basis` may be `unit_rate` or `lump_sum`.
 
 ```bash
 node scripts/pmo.mjs load <load-file.json> --dry-run
@@ -320,6 +320,35 @@ node scripts/pmo.mjs purchases undo-record-only <purchase-uuid> --reason "Incorr
 ```
 
 For a capture report that names a purchase requiring undo, use the displayed `undo-record-only` command with a reason; after undo, start a fresh capture request with a new request ID.
+
+### Import purchase history into a client with no accounting system (`purchases import-history`)
+
+Who: an active Admin, in an organization whose purchasing PMO owns (an organization whose accounting system owns purchasing is refused with `procurement_externally_owned`; it uses capture below). What it does: turns each row of a private JSON file into an ordinary PMO purchase that starts at its furthest document (order, receipt, vendor invoice, payment), counts toward actual spend, and never writes to an accounting system. The importing Admin is recorded as requester. No approver or approved amount is invented, so an unpaid purchase is paid later by a real approver. Each row must say who approved it outside PMO; that note goes to the audit trail. A row whose project or vendor does not exist is refused: create the company first (recipe 2a) and read project ids with `pmo get`.
+
+```bash
+node scripts/pmo.mjs purchases import-history <history.json> --dry-run   # preview: writes nothing
+node scripts/pmo.mjs purchases import-history <history.json>             # apply the identical file
+```
+
+Row shape (one JSON array, at most 200 rows per call; larger files are sent in pages):
+
+```json
+{ "import_key": "H-0001", "title": "Pump spares",
+  "project_id": "<project-uuid>", "vendor_id": "<vendor-company-uuid>",
+  "approved_outside_pmo_by": "<name>, <date>",
+  "budget_category": "Materials",
+  "lines": [{ "name": "Pump", "quantity": 2, "rate": 500 }],
+  "order":   { "number": "PO-9", "date": "2025-02-01", "amount": 1000 },
+  "receipt": { "number": "GR-1", "date": "2025-02-10", "status": "Complete" },
+  "invoice": { "number": "INV-2", "date": "2025-02-20", "amount": 1000, "tax_treatment": "exclusive", "tax_amount": 110 },
+  "payment": { "number": "PAY-1", "date": "2025-03-01", "amount": 1110 } }
+```
+
+Give at least one of `order`, `receipt`, `invoice`, `payment`; the purchase takes the furthest one. A payment must equal the invoice's gross (amount plus exclusive tax) and marks it paid; leave `payment` out for an unpaid invoice. A part payment is refused; record it in the app. A payment with no invoice is refused (`payment_needs_invoice`: a payment needs its invoice). `import_key` is your own stable id for the row: sending the same row again reports `skip` and creates nothing, so a rerun after a failure is safe; the same key with a changed row is refused (`import_key_payload_changed`).
+
+The result lists every row as `create`, `skip` or `refused` with a reason, plus `status` and `payable`. Exit 1 when an apply refused a row or the call failed (after a failure, `not_saved_import_keys` may include rows that were saved when the reply was lost; rerunning the same file is safe); exit 2 when the caller is not an Admin or the file is malformed (nothing sent). If the organization requires approval before payment, an unpaid row is imported but the preview and the report warn `not_payable:gate_approval_before_payment` and count it (`counts.not_payable`): it cannot be paid until that setting is turned off. A row with a payment is refused while that setting is on (`approval_before_payment_on`: "approval before payment is on: record an approved amount or turn it off for the import"); an Admin turns it off for the import and back on afterwards. Check the preview carefully: an applied row can only be corrected in the app. Imported purchases carry no ERP link; correct one in the app.
+
+**How to verify:** the purchase shows in **Procurement** at its step with its documents; the project's actual spend includes it; a second run of the same file reports every row `skip`.
 
 ### Capture existing purchases from the connected accounting system (`purchases capture`)
 
@@ -457,7 +486,7 @@ Each run prints an `intent` before it sends anything, so a run that hangs still 
 
 **How to verify:** linked documents leave the default orphan list; a receipt shows under the purchase in **Procurement**. Read `pmo purchases orphans --include-set-aside` to confirm overhead rows are marked; compare the link command's `link`, `skip`, and `refused` counts with its row details.
 
-**Common errors:** an unknown ERP document or an invalid project/procurement reference is refused by the server. Correct the row using the read result and inspect the existing procurement in **Procurement** before rerunning. In a client with no ERP, create purchases through **Procurement → New**; the CLI does not import PMO-native purchase history yet. Enhancement: [CLI purchase history import](https://github.com/ariefsaid/PMO/issues/1855).
+**Common errors:** an unknown ERP document or an invalid project/procurement reference is refused by the server. Correct the row using the read result and inspect the existing procurement in **Procurement** before rerunning. In a client with no ERP, import purchase history with `purchases import-history` (above) or create single purchases through **Procurement → New**.
 
 ### 7. Time and materials
 
@@ -578,6 +607,6 @@ After the app correction, rerun the original load with `--dry-run`; verify it pl
 
 ## Command scope and current constraints
 
-The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `purchases record-only`, `purchases undo-record-only`, `purchases receive`, `purchases pay-captured`, `documents link`, `accounts map set`, and `attribution set` do support previews. No command deletes records.
+The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `purchases record-only`, `purchases undo-record-only`, `purchases import-history`, `purchases receive`, `purchases pay-captured`, `documents link`, `accounts map set`, and `attribution set` do support previews. No command deletes records.
 
-The CLI does not create an ERP company directly as a separate ad hoc step, activate a budget, author T&M data, upload a document, or overwrite a loaded project/contract/budget line. Use the recipes above for their app screens and tracked enhancements: [budget activation](https://github.com/ariefsaid/PMO/issues/1859), [T&M operations](https://github.com/ariefsaid/PMO/issues/1856), [document register and upload](https://github.com/ariefsaid/PMO/issues/1857), [purchase history import](https://github.com/ariefsaid/PMO/issues/1855), and [loader corrections](https://github.com/ariefsaid/PMO/issues/1858).
+The CLI does not create an ERP company directly as a separate ad hoc step, activate a budget, author T&M data, upload a document, or overwrite a loaded project/contract/budget line. Use the recipes above for their app screens and tracked enhancements: [budget activation](https://github.com/ariefsaid/PMO/issues/1859), [T&M operations](https://github.com/ariefsaid/PMO/issues/1856), [document register and upload](https://github.com/ariefsaid/PMO/issues/1857), and [loader corrections](https://github.com/ariefsaid/PMO/issues/1858).

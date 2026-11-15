@@ -14,7 +14,12 @@
 import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router';
 import type { RunContext } from '../runtime/port';
-import { AgentContextContext, AgentContextPublisherContext, type AgentContextValue } from './agentContextInternal';
+import {
+  AgentContextChangeContext,
+  AgentContextContext,
+  AgentContextPublisherContext,
+  type AgentContextValue,
+} from './agentContextInternal';
 
 interface AgentContextProviderProps {
   children: React.ReactNode;
@@ -22,8 +27,7 @@ interface AgentContextProviderProps {
 
 export const AgentContextProvider: React.FC<AgentContextProviderProps> = ({ children }) => {
   const location = useLocation();
-  const [, setEntityState] = useState<{ type: string; id: string; label: string } | undefined>(undefined);
-  const [, setSelectionState] = useState<unknown>(undefined);
+  const [changes, setChanges] = useState(0);
   const routeRef = useRef(location.pathname);
   const entityRef = useRef<{ type: string; id: string; label: string } | undefined>(undefined);
   const selectionRef = useRef<unknown>(undefined);
@@ -32,12 +36,14 @@ export const AgentContextProvider: React.FC<AgentContextProviderProps> = ({ chil
   }, [location.pathname]);
 
   const setEntity = useCallback((next: { type: string; id: string; label: string } | undefined) => {
+    const previous = entityRef.current;
     entityRef.current = next;
-    setEntityState(next);
+    // Re-publishing the same entity (every detail mount does) is not a change.
+    if (JSON.stringify(previous) !== JSON.stringify(next)) setChanges((count) => count + 1);
   }, []);
   const setSelection = useCallback((next: unknown) => {
     selectionRef.current = next;
-    setSelectionState(next);
+    setChanges((count) => count + 1);
   }, []);
 
   // getContext is called imperatively (not a subscribed value) — it always
@@ -51,15 +57,17 @@ export const AgentContextProvider: React.FC<AgentContextProviderProps> = ({ chil
     return ctx;
   }, []);
 
-  // A fresh value notifies consumers after the state setters above trigger a
-  // provider render; getContext itself stays stable and safe for stale callers.
-  const value: AgentContextValue = { getContext, setEntity, setSelection };
+  // The value is stable: readers that render from the context subscribe to `change` instead.
+  const value = useMemo<AgentContextValue>(() => ({ getContext, setEntity, setSelection }), [getContext, setEntity, setSelection]);
+  const change = `${location.pathname}#${changes}`;
 
   const publisher = useMemo(() => ({ setEntity, setSelection }), [setEntity, setSelection]);
 
   return (
     <AgentContextPublisherContext.Provider value={publisher}>
-      <AgentContextContext.Provider value={value}>{children}</AgentContextContext.Provider>
+      <AgentContextContext.Provider value={value}>
+        <AgentContextChangeContext.Provider value={change}>{children}</AgentContextChangeContext.Provider>
+      </AgentContextContext.Provider>
     </AgentContextPublisherContext.Provider>
   );
 };

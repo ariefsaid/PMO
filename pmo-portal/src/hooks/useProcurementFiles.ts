@@ -44,6 +44,7 @@ export function useProcurementFiles(
   const queryKey = ['procurement-files', phase, parentId] as const;
   const invalidate = () => {
     qc.invalidateQueries({ queryKey });
+    qc.invalidateQueries({ queryKey: ['procurement-files-batch', procurementId] });
     // The detail query embeds each row's files, so a change must refetch it too.
     qc.invalidateQueries({
       predicate: (q) => q.queryKey[0] === 'procurement' && q.queryKey[2] === procurementId,

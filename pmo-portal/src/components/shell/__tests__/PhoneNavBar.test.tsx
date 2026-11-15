@@ -27,8 +27,7 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
   useOrgFeatures: () => ({ data: state.features, isPending: false, isError: false }),
 }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
-  useTimesheetsAwaitingApproval: () => ({ data: state.eligibleDecisions ? [{}] : [], isPending: false, isError: false }),
-  useReopenableApprovedTimesheets: () => ({ data: [], isPending: false, isError: false }),
+  useHasTimesheetApprovalWork: () => ({ data: state.eligibleDecisions, isPending: false, isError: false }),
 }));
 
 const renderBar = (entry = '/', moreOpen = false) => {

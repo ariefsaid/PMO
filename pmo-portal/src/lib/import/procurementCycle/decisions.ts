@@ -19,9 +19,13 @@ export function caseDecider(lookup: ImportSkipLookup, keys: string[], _batch: st
   type Snapshot = { normalized: Map<string, string>; index: Map<string, ImportRecordMatch[]> };
   let snapshot: Promise<Snapshot> | undefined;
   const load = async (refs: string[]): Promise<Snapshot> => {
-    const normalized = lookup.normalizeCases ? await lookup.normalizeCases(refs) : new Map(refs.map(key => [key, key]));
+    // Independent reads, so they go together.
+    const [normalized, listed] = await Promise.all([
+      lookup.normalizeCases ? lookup.normalizeCases(refs) : new Map(refs.map(key => [key, key])),
+      lookup.listCases!(refs),
+    ]);
     const index = new Map<string, ImportRecordMatch[]>();
-    for (const row of await lookup.listCases!(refs)) {
+    for (const row of listed) {
       const key = row.normalized_ref ?? row.import_key;
       const matches = index.get(key) ?? [];
       matches.push(row);
@@ -31,8 +35,8 @@ export function caseDecider(lookup: ImportSkipLookup, keys: string[], _batch: st
   };
   return async (key: string, fresh = false): Promise<ImportDecision> => {
     if (!lookup.listCases) throw new Error('Normalized case lookup is unavailable.');
-    snapshot ??= load(keys);
-    const { normalized, index } = fresh ? await load([key]) : await snapshot;
+    if (!fresh) snapshot ??= load(keys);
+    const { normalized, index } = fresh ? await load([key]) : await snapshot!;
     const matches = index.get(normalized.get(key) ?? key) ?? [];
     if (matches.length > 1) return { kind: 'ambiguous', ids: matches.map(row => row.id) };
     if (matches.length === 1) return { kind: 'same', id: matches[0].id };
@@ -54,25 +58,28 @@ export function recordDecider(lookup: ImportSkipLookup, caseId: string, _batch: 
   const indexes = new Map<RecordTableName, Promise<Map<string, ImportRecordMatch[]>>>();
   return async (table: RecordTableName, row: CycleRow, fresh = false, invoiceId: string | null = null, symbolicInvoice = false): Promise<Exclude<ImportDecision, { kind: 'ambiguous' }>> => {
     if (lookup.listCaseRecords) {
-      let index = indexes.get(table);
-      if (!index) {
-        index = lookup.listCaseRecords(table, caseId, keys.get(table) ?? []).then(rows => {
-          const grouped = new Map<string, ImportRecordMatch[]>();
-          for (const row of rows) {
-            const matches = grouped.get(row.import_key);
-            if (matches) matches.push(row);
-            else grouped.set(row.import_key, [row]);
-          }
-          return grouped;
-        });
-        indexes.set(table, index);
-      }
+      // The table's snapshot is built only when a non-fresh decision needs it (#2113): a fresh decision reads for itself.
+      const snapshotOf = (): Promise<Map<string, ImportRecordMatch[]>> => {
+        let index = indexes.get(table);
+        if (!index) {
+          index = lookup.listCaseRecords!(table, caseId, keys.get(table) ?? []).then(rows => {
+            const grouped = new Map<string, ImportRecordMatch[]>();
+            for (const row of rows) {
+              const matches = grouped.get(row.import_key);
+              if (matches) matches.push(row);
+              else grouped.set(row.import_key, [row]);
+            }
+            return grouped;
+          });
+          indexes.set(table, index);
+        }
+        return index;
+      };
       const key = computeLegacyRecordImportKey(row);
       const facts = projectRecordFacts(row, vendorLookup && row.vendor ? refId(vendorLookup, row.vendor) : null, invoiceId);
       const v2Key = computeRecordImportKey(row, facts);
-      const snapshot = await index;
       const dynamicPayment = row.type === 'Payment' && invoiceId !== null && !row.externalRef?.trim();
-      const matches = fresh || dynamicPayment ? await lookup.listCaseRecords(table, caseId, [key, v2Key]) : [...(snapshot.get(key) ?? []), ...(snapshot.get(v2Key) ?? [])];
+      const matches = fresh || dynamicPayment ? await lookup.listCaseRecords(table, caseId, [key, v2Key]) : (snapshot => [...(snapshot.get(key) ?? []), ...(snapshot.get(v2Key) ?? [])])(await snapshotOf());
       const relevant = symbolicInvoice && !row.externalRef?.trim() ? matches.filter(match => match.import_key === key) : matches;
       const unknown = relevant.find(match => match.import_identity_version !== 2 || !Array.isArray(match.import_identity_facts));
       if (unknown) return { kind: 'other', id: unknown.id, batch: unknown.import_batch_id };

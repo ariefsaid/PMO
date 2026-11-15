@@ -5,7 +5,7 @@ import type { WorkOrderRow, WorkOrderStatus } from '@/src/lib/db/workOrders';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { BoqItemRow } from '@/src/lib/db/progressBilling';
 import type { AllocationFacts } from '@/src/lib/progressBilling';
-import { summarizeInvoiceSettlement } from '../ContractCascade';
+import { summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
 
 export type InvoiceWithWorkOrder = SalesInvoiceRow & { work_order_id?: string | null };
 

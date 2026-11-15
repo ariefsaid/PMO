@@ -170,7 +170,8 @@ export interface DrainDeps {
   recordSendAhead: (orgId: string | null, errorCode: string, atIso: string) => Promise<{ error: unknown }>;
   /** Written ONLY after sendTelegram resolves ok (C1) — never before, never on a failed send. */
   markDelivered: (orgId: string | null, errorCode: string, atIso: string) => Promise<{ error: unknown }>;
-  sendTelegram: (payload: TelegramPayload) => Promise<{ ok: boolean }>;
+  /** `unreachable`: Telegram gave no answer (network failure or deadline), as opposed to an HTTP error response. */
+  sendTelegram: (payload: TelegramPayload) => Promise<{ ok: boolean; unreachable?: boolean }>;
   stampNotified: (orgId: string | null, ids: string[], atIso: string) => Promise<{ error: unknown }>;
   readHeartbeat: (job: string) => Promise<HeartbeatRow | null>;
   /**
@@ -286,6 +287,8 @@ async function drainLocked(deps: DrainDeps): Promise<DrainResult> {
       const res = await deps.sendTelegram(buildTelegramPayload(group));
       if (!res.ok) {
         result.sendFailures += 1;
+        // Telegram gave no answer; each later group would wait the same deadline, so they send next run.
+        if (res.unreachable) break;
         continue; // leave notified_at NULL — retried next tick (FR-OF-007)
       }
       result.sent += 1;

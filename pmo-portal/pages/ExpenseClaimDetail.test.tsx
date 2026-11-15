@@ -17,7 +17,7 @@ const h = vi.hoisted(() => ({
   projects: [] as Array<{ id: string; name: string; short_name?: string | null }>,
   agingRows: [] as Array<Record<string, unknown>>,
   floats: [] as Array<Record<string, unknown>>,
-  floatState: 'ready' as 'ready' | 'loading',
+  floatReads: 0,
   userId: 'eng',
   realRole: 'Engineer',
   m: {
@@ -27,7 +27,7 @@ const h = vi.hoisted(() => ({
   },
 }));
 vi.mock('@/src/hooks/useExpenseClaims', () => ({
-  useExpenseClaim: () => ({ data: h.claim, isPending: false, isError: false, refetch: vi.fn() }),
+  useExpenseClaim: () => ({ data: h.claim && { ...(h.claim as Record<string, unknown>), float: h.floats.find((f) => f.id === (h.claim as Record<string, unknown>).imprest_float_id) ?? null }, isPending: false, isError: false, refetch: vi.fn() }),
   useExpenseClaimLines: () => ({ data: [], isPending: false, isError: false }),
   useExpenseClaimRoute: () => ({ data: h.route }),
   useExpenseAdvanceOutstanding: () => ({ data: h.outstanding, isPending: h.outstandingState === 'loading', isError: h.outstandingState === 'error' }),
@@ -42,9 +42,7 @@ vi.mock('@/src/hooks/useExpenseReceipts', () => ({
 }));
 vi.mock('@/src/hooks/useImprest', () => ({
   useImprestFloatChoices: () => ({ data: [] }),
-  useImprestFloat: (id?: string | null) => ({
-    data: h.floatState === 'loading' ? undefined : h.floats.find((f) => f.id === id) ?? null, isPending: h.floatState === 'loading',
-  }),
+  useImprestFloat: () => { h.floatReads += 1; return { data: undefined, isPending: false }; },
 }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: h.projects }) }));
 vi.mock('@/src/hooks/useExpensePostingReadiness', () => ({ useExpensePostingReadiness: () => ({ state: 'inactive', retry: vi.fn() }) }));
@@ -80,7 +78,7 @@ beforeEach(() => {
   h.projects = [];
   h.agingRows = [];
   h.floats = [];
-  h.floatState = 'ready';
+  h.floatReads = 0;
   h.m.update.mutateAsync.mockReset();
   h.m.update.mutateAsync.mockResolvedValue(undefined);
   h.m.transition.mutateAsync.mockReset();
@@ -244,17 +242,16 @@ describe('ExpenseClaimDetail', () => {
       renderAt();
       expect(screen.queryByTestId('imprest-exception-note')).toBeNull();
     });
-    it('AC-IMP-084 Pay is withheld while the float is still loading, then follows the custodian rule', () => {
+    it('#2109 the custodian rule reads the float embedded in the claim: no separate float request', () => {
       h.claim = { ...floatClaim, status: 'Approved', approved_by_id: 'pm' };
-      h.floatState = 'loading';
       as('fin', 'Finance');
       const { unmount } = renderAt();
       expect(screen.queryByRole('button', { name: 'Mark paid' })).toBeNull();
       unmount();
-      h.floatState = 'ready';
       as('cust', 'Finance');
       renderAt();
       expect(screen.getByRole('button', { name: 'Mark paid' })).toBeInTheDocument();
+      expect(h.floatReads).toBe(0);
     });
   });
 

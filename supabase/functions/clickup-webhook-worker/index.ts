@@ -31,6 +31,7 @@ import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 import { clickUpGetTaskRaw } from '../../../pmo-portal/src/lib/adapterSeam/clickup/reads.ts';
+import { ClickUpHttpError } from '../../../pmo-portal/src/lib/adapterSeam/clickup/client.ts';
 import { applyWebhookEvent, type WebhookApplyDeps } from '../../../pmo-portal/src/lib/adapterSeam/clickup/webhookApply.ts';
 import type { ApplyOutcome } from '../../../pmo-portal/src/lib/adapterSeam/applyEngine.ts';
 import type { ClickUpHistoryItem, ClickUpTask, ClickUpWebhookEvent } from '../../../pmo-portal/src/lib/adapterSeam/clickup/types.ts';
@@ -117,12 +118,15 @@ export async function processInboxRow(row: InboxRow, deps: ProcessRowDeps): Prom
 
 export interface WorkerBatchDeps {
   claimPending: (batchSize: number) => Promise<InboxRow[]>;
+  /** Marks one row `processing` when its turn comes. */
+  markProcessing: (id: string) => Promise<void>;
   markDone: (id: string) => Promise<void>;
   markFailed: (id: string, error: string) => Promise<void>;
   markHeld: (id: string, reason: string) => Promise<void>;
   /** Record a binding miss on the inbox row while acknowledging it; this is the P4 health signal. */
   markUnresolvable: (id: string, reason: string) => Promise<void>;
   processRow: (row: InboxRow) => Promise<ProcessOutcome>;
+  nowMs?: () => number;
 }
 
 export interface WorkerBatchResult {
@@ -140,10 +144,15 @@ export interface WorkerBatchResult {
  */
 export async function runWorkerBatch(deps: WorkerBatchDeps, batchSize = 25): Promise<WorkerBatchResult> {
   const rows = await deps.claimPending(batchSize);
+  const now = deps.nowMs ?? Date.now;
+  const startedAt = now();
   let processed = 0;
   let failed = 0;
   for (const row of rows) {
+    // A row this run does not reach keeps its status, attempts and place; the next run takes it.
+    if (now() - startedAt >= CLICKUP_WORKER_TIME_BUDGET_MS) break;
     try {
+      await deps.markProcessing(row.id);
       const outcome = await deps.processRow(row);
       if (outcome.kind === 'held') {
         await deps.markHeld(row.id, outcome.reason);
@@ -166,6 +175,8 @@ export async function runWorkerBatch(deps: WorkerBatchDeps, batchSize = 25): Pro
       console.error(`[clickup-webhook-worker] row failed: id=${row.id} task=${row.task_id} event=${row.event} detail=${message}`);
       await deps.markFailed(row.id, message);
       failed += 1;
+      // ClickUp gave no answer at all; each later row would wait the same deadline, so they run next time.
+      if (err instanceof ClickUpHttpError && err.status === 0) break;
     }
   }
   return { claimed: rows.length, processed, failed };
@@ -325,13 +336,18 @@ export function buildApplyDepsLive(serviceClient: SupabaseClient, binding: Resol
   };
 }
 
+/** No new row starts this long after the batch began (the function's wall-clock cap is 150 s). */
+export const CLICKUP_WORKER_TIME_BUDGET_MS = 80_000;
+/** A row still `processing` this long after its last attempt time was left by a run that ended early; the next claim takes it. */
+export const CLICKUP_PROCESSING_STALE_MS = 10 * 60_000;
+
 /** A failed row is reclaimed until it has failed this many times, then it stays `failed` for an operator.
  *  ponytail: no per-row backoff (reclaimed every tick) — add `processed_at` spacing if a long outage burns the cap. */
 export const MAX_INBOX_ATTEMPTS = 5;
 
 export async function claimPendingLive(serviceClient: SupabaseClient, batchSize: number): Promise<InboxRow[]> {
-  // Pending rows plus failed rows still under the attempt cap, oldest first. Two reads (not one `or`) so
-  // each stays a plain filter. Fresh rows (processed_at IS NULL) take priority, then retried rows rotate
+  // Pending rows, failed rows still under the attempt cap, and stale `processing` rows, oldest first. One read
+  // per status so each stays a plain filter. Fresh rows (processed_at IS NULL) take priority, then retried rows rotate
   // by their latest attempt time; original received_at is retained as the stable tie-breaker.
   const cols = 'id, event, task_id, team_id, history_items, received_at, processed_at';
   const pendingRead = await serviceClient
@@ -351,20 +367,35 @@ export async function claimPendingLive(serviceClient: SupabaseClient, batchSize:
     .order('received_at', { ascending: true })
     .limit(batchSize);
   if (failedRead.error) throw new AppError(failedRead.error.message, failedRead.error.code);
-  const rows = [...((pendingRead.data as Array<InboxRow & { received_at: string; processed_at: string | null }> | null) ?? []), ...((failedRead.data as Array<InboxRow & { received_at: string; processed_at: string | null }> | null) ?? [])]
+  // Rows left `processing` by a run that ended early: `processed_at` is the latest attempt time, so a row marked
+  // more recently than the cutoff belongs to a run still working.
+  const staleBefore = new Date(Date.now() - CLICKUP_PROCESSING_STALE_MS).toISOString();
+  const staleRead = await serviceClient
+    .from('clickup_webhook_inbox')
+    .select(cols)
+    .eq('status', 'processing')
+    .or(`processed_at.is.null,processed_at.lt.${staleBefore}`)
+    .order('processed_at', { ascending: true, nullsFirst: true })
+    .order('received_at', { ascending: true })
+    .limit(batchSize);
+  if (staleRead.error) throw new AppError(staleRead.error.message, staleRead.error.code);
+  type ClaimRow = InboxRow & { received_at: string; processed_at: string | null };
+  const rows = [...((pendingRead.data as ClaimRow[] | null) ?? []), ...((failedRead.data as ClaimRow[] | null) ?? []), ...((staleRead.data as ClaimRow[] | null) ?? [])]
     .sort((a, b) => (a.processed_at ?? '').localeCompare(b.processed_at ?? '') || a.received_at.localeCompare(b.received_at))
     .slice(0, batchSize)
     .map(({ received_at: _receivedAt, processed_at: _processedAt, ...row }) => row);
-  // Best-effort claim: mark processing before working the batch (not a fenced/SKIP LOCKED claim — the
-  // apply path is idempotent under a rare double-dequeue by a second concurrent tick, so at-least-once
-  // is acceptable here; see the plan's "simplest thing that survives a >7s budget" stance).
-  if (rows.length > 0) {
-    await serviceClient
-      .from('clickup_webhook_inbox')
-      .update({ status: 'processing' })
-      .in('id', rows.map((r) => r.id));
-  }
+  // Each row is marked processing when its turn comes (markProcessingLive). The claim takes no lock: two
+  // overlapping runs may both take a row, and applying a task's current state twice gives the same result.
   return rows;
+}
+
+async function markProcessingLive(serviceClient: SupabaseClient, id: string): Promise<void> {
+  // `processed_at` is the latest attempt time; stamping it here is also what a stale claim is measured from.
+  const { error } = await serviceClient
+    .from('clickup_webhook_inbox')
+    .update({ status: 'processing', processed_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw new AppError(error.message, error.code);
 }
 
 async function markDoneLive(serviceClient: SupabaseClient, id: string): Promise<void> {
@@ -439,6 +470,7 @@ export const jobHandler = withJobRun('clickup-webhook-worker', async (req: Reque
 
   const result = await runWorkerBatch({
     claimPending: (batchSize) => claimPendingLive(serviceClient, batchSize),
+    markProcessing: (id) => markProcessingLive(serviceClient, id),
     markDone: (id) => markDoneLive(serviceClient, id),
     markFailed: (id, message) => markFailedLive(serviceClient, id, message),
     markHeld: (id, reason) => markHeldLive(serviceClient, id, reason),

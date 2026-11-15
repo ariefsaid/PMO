@@ -652,7 +652,8 @@ export async function getRevenueByProject(): Promise<RevenueByProjectRow[]> {
   // (`src/lib/pagedRead.ts`). The cursor names the row to RESUME AFTER, so a concurrent insert can
   // neither duplicate nor skip an already-scanned invoice. S1: a total ORDER BY id makes it repeatable.
   type WorkRow = { id: string; project_id: string | null; currency: string | null; net: number | null; recovery: number | null };
-  const work = await fetchAllRowsByKeyset<WorkRow>((afterId, limit) => {
+  // The two scans are independent: start them together, then fold each in the same order as before.
+  const workScan = fetchAllRowsByKeyset<WorkRow>((afterId, limit) => {
     let query = supabase
       .from('sales_invoice_work_billed')
       .select('id, project_id, currency, net, recovery')
@@ -662,14 +663,9 @@ export async function getRevenueByProject(): Promise<RevenueByProjectRow[]> {
     if (afterId !== null) query = query.gt('id', afterId);
     return query.limit(limit) as unknown as PromiseLike<PageResult<WorkRow>>;
   });
-  for (const row of work) {
-    if (row.net === null || row.net === undefined) continue;
-    const entry = bucket(row.project_id, row.currency ?? '');
-    entry.total_amount += Number(row.net) + Number(row.recovery ?? 0);
-  }
 
   type ArRow = { id: string; project_id: string | null; currency: string | null; erp_outstanding_amount: number | null };
-  const ar = await fetchAllRowsByKeyset<ArRow>((afterId, limit) => {
+  const arScan = fetchAllRowsByKeyset<ArRow>((afterId, limit) => {
     let query = supabase
       .from('sales_invoices')
       .select('id, project_id, currency, erp_outstanding_amount')
@@ -679,6 +675,13 @@ export async function getRevenueByProject(): Promise<RevenueByProjectRow[]> {
     if (afterId !== null) query = query.gt('id', afterId);
     return query.limit(limit) as unknown as PromiseLike<PageResult<ArRow>>;
   });
+  const [work, ar] = await Promise.all([workScan, arScan]);
+  for (const row of work) {
+    if (row.net === null || row.net === undefined) continue;
+    const entry = bucket(row.project_id, row.currency ?? '');
+    entry.total_amount += Number(row.net) + Number(row.recovery ?? 0);
+  }
+
   for (const row of ar) {
     // Every submitted invoice counts (down payments and all) so the count matches the Sales Invoices list.
     const entry = bucket(row.project_id, row.currency ?? '');

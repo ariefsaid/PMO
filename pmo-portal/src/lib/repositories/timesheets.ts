@@ -17,6 +17,7 @@ import {
   reopenTimesheet,
   attestTimesheetNoErpDocument,
   listReopenableApprovedTimesheets,
+  hasTimesheetApprovalWork,
 } from '@/src/lib/db/timesheetTransition';
 import {
   approvedTimesheetForPush,
@@ -33,6 +34,7 @@ export const timesheetRepository: TimesheetRepository = {
   reopen: reopenTimesheet,
   attestNoErpDocument: attestTimesheetNoErpDocument,
   listReopenableApproved: listReopenableApprovedTimesheets,
+  hasApprovalWork: (selfId, viewerRole) => wrap(() => hasTimesheetApprovalWork(selfId, viewerRole)),
   listPushesNeedingAttention,
   confirmEmployeeLink,
   getPushState,

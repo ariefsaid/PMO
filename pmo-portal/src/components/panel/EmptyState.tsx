@@ -6,7 +6,7 @@
  */
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
+import { useAgentContext, useAgentContextChange } from '@/src/lib/agent/context/useAgentContext';
 import { EXAMPLE_QUESTIONS } from './emptyState.constants';
 import { SUGGESTION_CHIPS } from './suggestionChips.constants';
 
@@ -17,6 +17,7 @@ interface EmptyStateProps {
 
 export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
   const { getContext } = useAgentContext();
+  useAgentContextChange(); // re-render when the route or published entity changes
   const { t } = useTranslation('assistantPanel');
   const entityType = getContext().entity?.type;
   const examples = [
