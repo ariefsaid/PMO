@@ -31,10 +31,10 @@ const FIELDS: Record<string, string[]> = {
   'account.move': ['name', 'move_type', 'state', 'partner_id', 'ref', 'invoice_date', 'invoice_date_due', 'invoice_line_ids', 'amount_untaxed', 'amount_tax', 'amount_total', 'amount_residual', 'payment_state', 'reversed_entry_id', 'currency_id', 'company_id', 'invoice_origin', 'create_date', 'write_date'],
   'account.move.line': ['move_id', 'move_name', 'journal_id', 'company_id', 'currency_id', 'amount_currency', 'date', 'parent_state', 'debit', 'credit', 'display_type', 'product_id', 'product_uom_id', 'quantity', 'price_unit', 'tax_ids', 'tax_line_id', 'tax_base_amount', 'analytic_distribution', 'purchase_line_id', 'account_id', 'account_type', 'partner_id', 'balance', 'amount_residual', 'reconciled', 'write_date'],
   'account.tax.repartition.line': ['tax_id', 'document_type', 'repartition_type', 'account_id', 'write_date'],
-  'stock.picking': ['name', 'state', 'partner_id', 'move_ids', 'backorder_id', 'backorder_ids', 'purchase_id', 'picking_type_code', 'write_date'],
-  'stock.move': ['name', 'state', 'picking_id', 'product_id', 'purchase_line_id', 'quantity', 'product_uom_qty', 'picked', 'write_date'],
+  'stock.picking': ['name', 'state', 'partner_id', 'company_id', 'location_id', 'location_dest_id', 'date_done', 'move_ids', 'backorder_id', 'backorder_ids', 'purchase_id', 'picking_type_code', 'write_date'],
+  'stock.move': ['name', 'state', 'picking_id', 'product_id', 'purchase_line_id', 'quantity', 'product_uom_qty', 'picked', 'value', 'write_date'],
   'stock.quant': ['product_id', 'quantity', 'write_date'],
-  'account.analytic.line': ['name', 'write_date'],
+  'account.analytic.line': ['name', 'amount', 'unit_amount', 'category', 'product_id', 'account_id', 'write_date'],
   'ir.module.module': ['name', 'state', 'write_date'],
   'stock.picking.type': ['name', 'code', 'company_id', 'analytic_costs', 'default_location_dest_id', 'write_date'],
   // Fleet and maintenance (#1511; bed claims V-OFM-1..10, field names as Odoo 20 has them — #2174). A request has no archive
