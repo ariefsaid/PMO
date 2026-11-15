@@ -19,9 +19,6 @@
     "all": "Semua",
     "orphans": "Belum masuk pengadaan"
   },
-  "summary": {
-    "label": "Ringkasan pengadaan"
-  },
   "stage": {
     "request": "Permintaan",
     "order": "Pesanan",
@@ -38,9 +35,7 @@
   },
   "count": {
     "one": "pengadaan",
-    "many": "pengadaan",
-    "procurements_one": "{{count}} pengadaan",
-    "procurements_other": "{{count}} pengadaan"
+    "many": "pengadaan"
   },
   "money": {
     "mostReal": "Nilai paling nyata per pengadaan: nilai dibayar, jika tidak ada gunakan faktur pemasok, lalu pesanan pembelian, lalu permintaan pembelian. Total dipisahkan menurut mata uang.",
@@ -164,12 +159,12 @@
   },
   "kpi": {
     "unpaid": "Tagihan pemasok belum dibayar",
-    "ordered": "Dipesan, belum ditagih",
-    "notRecorded": "jumlah belum dicatat",
     "partial_one": "{{count}} belum dicatat",
     "partial_other": "{{count}} belum dicatat",
     "invoiceAge_one": "Usia tagihan {{count}} hari",
-    "invoiceAge_other": "Usia tagihan {{count}} hari"
+    "invoiceAge_other": "Usia tagihan {{count}} hari",
+    "stageUnpaid": "{{amount}} belum dibayar",
+    "unpaidNotRecorded": "sisa tagihan belum dicatat"
   },
   "references": {
     "loading": "Memuat referensi…",

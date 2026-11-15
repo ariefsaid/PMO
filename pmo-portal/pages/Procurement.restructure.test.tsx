@@ -282,7 +282,9 @@ describe('Procurement list restructure', () => {
     expect(page).not.toHaveTextContent('$500');
     expect(page).not.toHaveTextContent('$300');
     expect(page).not.toHaveTextContent('$200');
-    expect(screen.getByTestId('summary-total-ordered')).toHaveAttribute('title', expect.stringMatching(/supplier invoice and payment amounts are not shown/i));
+    // #2134: the strip's stage total (formerly the Ordered tile) names the request-only basis.
+    expect(screen.getByTestId('stage-total-Pay')).toHaveTextContent('$1K');
+    expect(screen.getByTestId('stage-total-Pay')).toHaveAttribute('title', expect.stringMatching(/supplier invoice and payment amounts are not shown/i));
   });
 
   it('Finance can open the Not in a procurement tab', () => {
@@ -350,7 +352,8 @@ describe('Procurement list restructure', () => {
       row({ id: 'c', status: 'Ordered', purchase_orders: [{ amount: 9_000 }] }),
     ];
     erpState.data = [{ id: 'orphan-1', currency: 'USD', grandTotal: 700 }];
-    renderPage();
+    // #2134: the summary is the All tab's stage strip (Needs you hides it); the tab labels read the same.
+    renderPage('/procurement?tab=all');
 
     expect(screen.getByRole('tab', { name: /Needs you/i })).toHaveTextContent('2');
     expect(screen.getByRole('tab', { name: /Needs you/i })).toHaveTextContent('$2.43M');
@@ -359,9 +362,10 @@ describe('Procurement list restructure', () => {
     expect(screen.queryByTestId('summary-cell-needs-you')).toBeNull();
     expect(screen.queryByTestId('summary-cell-orphans')).toBeNull();
     expect(screen.getByTestId('summary-total-unpaid')).toHaveTextContent('$2.43M');
-    expect(screen.getByTestId('summary-total-unpaid')).toHaveAttribute('aria-label', expect.stringContaining('$2,433,500'));
-    expect(screen.getByText(/^2 procurements/)).toBeInTheDocument();
-    expect(screen.getByText(/^1 procurement/)).toBeInTheDocument();
+    expect(screen.getByTestId('summary-total-unpaid')).toHaveAttribute('title', expect.stringContaining('$2,433,500'));
+    const strip = screen.getByRole('group', { name: 'Procurement stages' });
+    expect(within(strip).getByRole('button', { name: /^Pay/ })).toHaveTextContent(/^Pay\s*2/);
+    expect(within(strip).getByRole('button', { name: /^Order/ })).toHaveTextContent(/^Order\s*1/);
   });
 
   it('L12c: the unpaid tile shows the recorded balance and says how many have none, instead of "amount not recorded" alone', () => {
@@ -382,14 +386,37 @@ describe('Procurement list restructure', () => {
   it('C4: a known zero reads 0 and an Engineer gets no supplier-invoice tile', () => {
     roleState.role = 'Engineer';
     authState.userId = 'u-engineer';
-    procState.data = [row({ id: 'mine', requested_by_id: 'u-engineer', status: 'Requested' })];
+    // #2134: a zero-row stage is not drawn, so the known zero is a request recorded at 0 on the strip.
+    procState.data = [row({ id: 'mine', requested_by_id: 'u-engineer', status: 'Requested', total_value: 0 })];
     renderPage('/procurement?tab=all');
 
     expect(screen.queryByTestId('summary-total-unpaid')).toBeNull();
-    const ordered = screen.getByTestId('summary-total-ordered');
-    expect(ordered).toHaveTextContent('0');
+    const ordered = screen.getByTestId('stage-total-Request');
+    expect(ordered).toHaveTextContent('$0');
     expect(ordered).not.toHaveTextContent(/no amount/i);
     expect(screen.queryByText('No amount')).toBeNull();
+  });
+
+  it('#2134: Needs you shows no org-wide summary; All shows one stage strip that carries the unpaid balance', () => {
+    roleState.role = 'Finance';
+    authState.userId = 'u-finance';
+    procState.data = [
+      row({ id: 'a', status: 'Vendor Invoiced', procurement_invoices: [{ amount: 2_400_000, erp_outstanding_amount: 2_400_000, invoice_date: daysAgo(4) }] }),
+      row({ id: 'c', status: 'Ordered', purchase_orders: [{ amount: 9_000 }] }),
+    ];
+    const view = renderPage();
+
+    expect(screen.getByRole('tab', { name: /Needs you/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByRole('group', { name: 'Procurement stages' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Procurement summary' })).toBeNull();
+    expect(screen.queryByTestId('summary-total-unpaid')).toBeNull();
+    view.unmount();
+
+    renderPage('/procurement?tab=all');
+    const strip = screen.getByRole('group', { name: 'Procurement stages' });
+    expect(within(strip).getByTestId('summary-total-unpaid')).toHaveTextContent('$2.4M unpaid');
+    expect(within(strip).getByRole('button', { name: /^Order/ })).toHaveTextContent('$9K');
+    expect(screen.queryByRole('region', { name: 'Procurement summary' })).toBeNull();
   });
 
   it('/erp-purchases redirects to the Procurement orphans tab', () => {

@@ -6,6 +6,7 @@ import { StatusPill } from '@/src/components/ui';
  * reads "Returned" on every procurement screen (it can be resubmitted; display only: the stored value and
  * the transition call are unchanged).
  */
-export const ProcurementStatusPill: React.FC<{ status: string }> = ({ status }) => (
-  <StatusPill record="procurement" state={status} />
+export const ProcurementStatusPill: React.FC<{ status: string; truncate?: boolean }> = ({ status, truncate = false }) => (
+  // `truncate`: a narrow table cell shows one line ending in an ellipsis; the caller carries the full name in a title.
+  <StatusPill record="procurement" state={status} className={truncate ? '[&>span]:truncate' : undefined} />
 );

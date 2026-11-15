@@ -118,7 +118,8 @@ describe('Procurement list — inline preview (fix #5)', () => {
     expect(within(row as HTMLElement).getByText('Requested')).toBeInTheDocument();
     // Raised by the signed-in user, so the approval is waiting on someone else.
     expect(within(row as HTMLElement).getByText('Waiting on approver')).toBeInTheDocument();
-    expect(within(row as HTMLElement).getByText('Alice Engineer')).toBeInTheDocument();
+    // #2134: the raiser is an avatar with initials; the full name is its accessible name.
+    expect(within(row as HTMLElement).getByRole('img', { name: 'Alice Engineer' })).toBeInTheDocument();
   });
   it('UIP-007: rows with a missing requester and a long title still list and stay openable', () => {
     const longTitle = 'Cable supply for the extended site commissioning works';

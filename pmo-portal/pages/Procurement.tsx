@@ -34,7 +34,6 @@ import { withLinkedDocuments } from '@/src/lib/procurement/procurementMoney';
 import { useProjects } from '@/src/hooks/useProjects';
 import { trackProcurementDetailOpened, trackFilterApplied, trackEmptyStateSeen } from '@/src/lib/analytics';
 import { ProcurementBlock } from '@/src/components/procurement';
-import { ProcurementKpiRow, type ProcurementTab } from './procurement/list/ProcurementKpiRow';
 import { formatDay, formatMoneyLines } from '@/src/lib/format';
 import { externalRefsOf, type ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
@@ -52,6 +51,7 @@ import { tabId, tabPanelId } from '@/src/components/ui/tabIds';
 
 type StatusFilter = 'All' | 'Needs approval' | 'Open' | 'Ordered' | 'Vendor Invoiced' | 'Paid';
 type ProcurementRouteView = ProcurementView | 'grouped';
+type ProcurementTab = 'needs-you' | 'all' | 'orphans';
 
 const OPEN_STATUSES = new Set<string>(['Draft', 'Requested', 'Approved', 'Vendor Quoted', 'Quote Selected']);
 const ORDERED_STATUSES = new Set<string>(['Ordered', 'Received', 'Vendor Invoiced']);
@@ -586,14 +586,10 @@ const ProcurementPage: React.FC = () => {
           )}
 
           {ready && tab !== 'orphans' && tabRows.length > 0 && currentView === 'table' && (
-            <ProcurementBlock rowFilter={rowFilter} rowOrder={tab === 'needs-you' ? needsYouOrder : undefined} showCreate={false} toolbarExtra={blockFilterControlsElement} onClearFilters={clearFilters} />
+            // #2134: one summary strip (the block's stage strip); Needs you hides it, its tab already carrying the count and money.
+            <ProcurementBlock rowFilter={rowFilter} rowOrder={tab === 'needs-you' ? needsYouOrder : undefined} showCreate={false} toolbarExtra={blockFilterControlsElement} onClearFilters={clearFilters} showStageStrip={tab !== 'needs-you'} />
           )}
         </div>
-
-        {/* Position figures come after the rows that wait on the person (screen rule: order). */}
-        {ready && (
-          <ProcurementKpiRow rows={all} role={realRole as ProcurementListRole} />
-        )}
 
         {importKind === 'bulk' && userId && canCreate && <ImportWizard descriptor={importDescriptor} onClose={(didImport) => { setImportKind(null); if (didImport) void refetch(); }} />}
         {importKind === 'cycle' && userId && canCreate && (
