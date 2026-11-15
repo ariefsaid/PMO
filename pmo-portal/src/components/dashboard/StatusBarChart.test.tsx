@@ -35,6 +35,8 @@ describe('StatusBarChart (new AC — status-toned procurement chart)', () => {
     expect(within(table).getByText('Paid')).toBeInTheDocument();
     expect(within(table).getByText('5')).toBeInTheDocument();
     expect(within(table).getByRole('row', { name: 'Paid 5' })).toBeInTheDocument();
+    // a11y(#2086): each bar segment names its status and count even when it is not a link.
+    expect(screen.getByRole('img', { name: 'Paid: 5' })).toBeInTheDocument();
   });
 
   it('DA-2: exposes only the visual as an image and keeps drill-down legend links independently reachable', () => {

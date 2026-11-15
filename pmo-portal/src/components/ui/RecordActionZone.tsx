@@ -37,6 +37,7 @@ export const RecordActionZone: React.FC<RecordActionZoneProps> = ({
   sticky = true,
 }) => (
   <div
+    role="group"
     data-testid="record-action-zone"
     aria-label={ariaLabel}
     className={cn(

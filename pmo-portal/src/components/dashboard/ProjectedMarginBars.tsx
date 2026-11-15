@@ -51,7 +51,7 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({ stages
             <Link
               key={s.status as string}
               to={`/sales?status=${encodeURIComponent(s.status as string)}`}
-              aria-label={statusLabel(s.status as string)}
+              aria-label={`${statusLabel(s.status as string)}: ${fullMoney(s.weighted_value)}`}
               className="flex items-center gap-2.5 py-[5px] rounded hover:bg-secondary/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
             >
               <span className="w-[88px] shrink-0 text-[12px] text-muted-foreground">{statusLabel(s.status as string)}</span>

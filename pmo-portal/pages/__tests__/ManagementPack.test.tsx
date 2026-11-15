@@ -98,6 +98,12 @@ describe('AC-MMP-012 who sees the pack and who records progress', () => {
     expect(within(screen.getByTestId('list-page-header')).getByRole('button', { name: 'Board pack' })).toBeInTheDocument();
   });
 
+  it('a11y(#2086): the invoice-count loading dash is announced through a live status role', () => {
+    h.salesInvoices = undefined as unknown as never[];
+    renderPage();
+    expect(screen.getByRole('status', { name: 'Loading invoice counts' })).toBeInTheDocument();
+  });
+
   it('AC-MMP-012: an Engineer gets the no-access message', () => {
     h.role = 'Engineer';
     renderPage();

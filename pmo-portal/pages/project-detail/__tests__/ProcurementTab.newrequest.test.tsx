@@ -253,7 +253,9 @@ describe('project procurement tab', () => {
     expect(screen.getByText('supplier invoice')).toBeInTheDocument();
     expect(screen.getByText('Supplier invoice')).toBeInTheDocument();
     expect(screen.queryByText('awaiting review')).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Clear stage filter' }));
+    // a11y(#2085/#2086): the clear chip names both the action and the stage it clears.
+    expect(screen.getByRole('button', { name: /^Clear stage filter — Pay$/ })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /^Clear stage filter/ }));
     expect(screen.getByText('awaiting review')).toBeInTheDocument();
   });
 

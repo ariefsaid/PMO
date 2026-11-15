@@ -253,7 +253,8 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
         return (
           <div className={tint(d.weekend)} style={{ minHeight: 54 }}>
             <div
-              aria-label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: d.label })}
+              role="img"
+              aria-label={t('timesheets.hoursCell', '{{project}}, {{day}}: {{hours}} hours', { project: r.project, day: d.label, hours: filled ? formatNumberExact(h) : 0 })}
               className={cn(
                 'mx-auto grid h-9 min-w-[44px] place-items-center rounded-md text-control tabular',
                 filled ? 'bg-primary/[0.07] font-semibold text-foreground' : 'text-muted-foreground/45'
@@ -495,7 +496,8 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                       <span className="ml-1 font-normal tabular">{day.dateNum}</span>
                     </span>
                     <div
-                      aria-label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: day.label })}
+                      role="img"
+                      aria-label={t('timesheets.hoursCell', '{{project}}, {{day}}: {{hours}} hours', { project: r.project, day: day.label, hours: filled ? formatNumberExact(h) : 0 })}
                       className={cn(
                         'flex h-9 flex-1 items-center rounded-md px-3 text-control tabular',
                         filled

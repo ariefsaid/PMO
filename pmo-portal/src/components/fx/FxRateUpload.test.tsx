@@ -113,6 +113,10 @@ describe('AC-FX-007 JISDOR upload preview', () => {
     expect(screen.getAllByText(/Correct rejected rows and upload again/i)).toHaveLength(1);
     expect(screen.getByText(/1 new/i)).toBeInTheDocument();
     expect(screen.getByText(/1 identical duplicate/i)).toBeInTheDocument();
+    // a11y(#2086/#2087): the preview summary is a named group and the row table a focusable region.
+    expect(screen.getByRole('group', { name: 'Import preview summary' })).toBeInTheDocument();
+    const region = screen.getByRole('region', { name: 'Normalized rate preview' });
+    expect(region).toHaveAttribute('tabindex', '0');
     expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
     expect(h.upsert).not.toHaveBeenCalled();
   });

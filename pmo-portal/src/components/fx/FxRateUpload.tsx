@@ -282,6 +282,7 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
             {state === 'preview' && preview && (
               <div className="space-y-3">
                 <div
+                  role="group"
                   aria-label={t('fx.previewSummary', 'Import preview summary')}
                   className="flex flex-wrap gap-x-4 gap-y-1 text-sm"
                 >
@@ -349,6 +350,8 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
                   </div>
                 )}
                 <div
+                  role="region"
+                  tabIndex={0}
                   className="max-h-72 overflow-auto rounded-md border border-border"
                   aria-label={t('fx.previewRows', 'Normalized rate preview')}
                 >

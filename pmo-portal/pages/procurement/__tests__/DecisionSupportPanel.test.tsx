@@ -124,6 +124,8 @@ describe('AC-JR-W1-06: DecisionSupportPanel heading project name links', () => {
     );
     // Loading skeleton is rendered; no "Open project budget" link yet
     expect(screen.getByLabelText('Loading budget impact')).toBeDefined();
+    // a11y(#2086): the loading container is a status region, so its label is announced.
+    expect(screen.getByRole('status', { name: 'Loading budget impact' })).toBeDefined();
     expect(screen.queryByRole('link', { name: /open project/i })).toBeNull();
   });
 

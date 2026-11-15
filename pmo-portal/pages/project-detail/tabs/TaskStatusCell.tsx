@@ -26,7 +26,7 @@ export const TaskStatusCell: React.FC<TaskStatusCellProps> = ({ task, editable, 
   const [editing, setEditing] = useState(false);
   const selectContainerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const label = `${t('projectDetail.tasks.statusFor', 'Status for')} ${task.name}`;
+  const label = `${t('projectDetail.tasks.statusFor', 'Status for')} ${task.name}: ${task.status}`;
 
   useEffect(() => {
     if (editing) selectContainerRef.current?.querySelector('select')?.focus();

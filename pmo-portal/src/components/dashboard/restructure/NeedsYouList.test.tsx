@@ -28,6 +28,8 @@ describe('NeedsYouList', () => {
     expect(overdue).toHaveTextContent('client invoice overdue');
     expect(overdue).not.toHaveTextContent(/1 client invoice overdue/);
     expect(overdue).toHaveTextContent('USD 1,250');
+    // a11y(#2086): the count is announced with its unit through a role that can carry the name.
+    expect(within(approvals).getByRole('img', { name: '2 items' })).toBeInTheDocument();
     expect(screen.getByText('Needs attention')).toBeInTheDocument();
     expect(screen.getByText('Overdue')).toBeInTheDocument();
   });

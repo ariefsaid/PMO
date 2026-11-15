@@ -25,4 +25,9 @@ describe('SectionHeader', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Credits' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Grant credits' })).toBeInTheDocument();
   });
+
+  it('a11y(#2086): accepts an id so callers can aria-labelledby its heading', () => {
+    render(<SectionHeader title="Usage" id="usage-heading" />);
+    expect(screen.getByRole('heading', { name: 'Usage' })).toHaveAttribute('id', 'usage-heading');
+  });
 });

@@ -37,7 +37,8 @@ const doneOf = (name: string) => within(item(name)).queryByText('Done') !== null
 it('FR-ODC-110 an Odoo org lists the Odoo steps and none of ERPNext\'s activity-type or budget-category items', () => {
   h.conn.data = read({});
   render(<OdooSetupChecklist />);
-  const names = screen.getAllByRole('listitem').map((li) => li.getAttribute('aria-label'));
+  // a11y(#2086): the list items carry no aria-label — their step name is their content.
+  const names = screen.getAllByRole('listitem').map((li) => li.querySelector('span.font-medium')?.textContent);
   expect(names).toEqual(['Odoo connected', 'Company chosen', 'Odoo apps available', 'Map once', 'Payment journal', 'Customer-advance account', 'Tax-prepaid account', 'Sends finished', 'Vendors and clients managed in Odoo', 'Purchases go to Odoo']);
   expect(screen.queryByText(/activity type/i)).not.toBeInTheDocument();
   expect(screen.queryByText(/budget categor/i)).not.toBeInTheDocument();
@@ -80,7 +81,7 @@ it('FR-ODC-113 Finance (may set values, may not manage) is not shown the Admin-o
   try {
     render(<OdooSetupChecklist />);
     expect(screen.queryByRole('listitem', { name: 'Sends finished' })).not.toBeInTheDocument();
-    expect(screen.getByRole('listitem', { name: 'Payment journal' })).toBeInTheDocument();
+    expect(screen.getByRole('listitem', { name: /^Payment journal/ })).toBeInTheDocument();
   } finally { h.can.manage = true; }
 });
 

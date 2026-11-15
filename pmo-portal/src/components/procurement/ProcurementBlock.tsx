@@ -1033,7 +1033,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
               </select>
               </div>
               {selectedStage && (
-                <Button variant="ghost" size="sm" aria-label={t('projectDetail.procurement.filter.clearStage', 'Clear stage filter')} onClick={() => setSelectedStage(null)}>
+                <Button variant="ghost" size="sm" aria-label={t('projectDetail.procurement.filter.clearStageOne', 'Clear stage filter — {{stage}}', { stage: stageText(selectedStage, t) })} onClick={() => setSelectedStage(null)}>
                   <Badge active>{stageText(selectedStage, t)} <Icon name="x" className="ml-1 size-3" /></Badge>
                 </Button>
               )}

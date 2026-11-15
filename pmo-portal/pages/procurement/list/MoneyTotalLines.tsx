@@ -44,6 +44,7 @@ export const MoneyTotalLines: React.FC<MoneyTotalLinesProps> = ({ totals: allTot
 
   return (
     <span
+      role="img"
       data-testid={testId}
       title={tooltip}
       aria-label={`${valueLabel}. ${tooltip}`}

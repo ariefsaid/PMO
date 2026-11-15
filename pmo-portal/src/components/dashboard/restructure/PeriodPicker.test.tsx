@@ -28,6 +28,7 @@ describe('PeriodPicker', () => {
   it('shows two labeled month inputs for a custom range', () => {
     render(<MemoryRouter initialEntries={['/dashboard?period=custom&from=2026-02&to=2026-04']}><Harness /></MemoryRouter>);
 
+    expect(screen.getByRole('group', { name: 'Custom month range' })).toBeInTheDocument();
     expect(screen.getByLabelText('From month')).toHaveValue('2026-02');
     expect(screen.getByLabelText('To month')).toHaveValue('2026-04');
     fireEvent.change(screen.getByLabelText('To month'), { target: { value: '2026-05' } });

@@ -55,7 +55,7 @@ export const NeedsYouList: React.FC<NeedsYouListProps> = ({
             data-testid={`needs-row-${item.id}`}
             className="flex min-h-11 items-center gap-3 py-2.5 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
-            <span className="w-10 shrink-0 text-right text-[18px] font-bold tabular" aria-label={t('needs.count', '{{count}} items', { count: item.count })}>
+            <span role="img" className="w-10 shrink-0 text-right text-[18px] font-bold tabular" aria-label={t('needs.count', '{{count}} items', { count: item.count })}>
               {item.count}
             </span>
             <span className="flex min-w-0 flex-1 items-center gap-2.5">

@@ -157,7 +157,7 @@ export function OdooSetupChecklist() {
       <h4 id="odoo-checklist-title" className="mb-1.5 text-sm font-semibold text-foreground">{t('administration:odoo.checklist.title', 'Odoo setup')}</h4>
       <ol className="space-y-1.5">
         {steps.map((s) => (
-          <li key={s.name} aria-label={s.name} className="flex items-start gap-2 text-sm">
+          <li key={s.name} className="flex items-start gap-2 text-sm">
             <Icon name={s.done ? 'check' : 'info'} className={`mt-0.5 size-3.55 shrink-0 ${s.done ? 'text-success' : 'text-muted-foreground'}`} aria-hidden="true" />
             <span className="min-w-0 flex-1">
               <span className="font-medium text-foreground">{s.name}</span>{' '}

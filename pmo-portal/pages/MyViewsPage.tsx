@@ -128,7 +128,6 @@ const MyViewsPage: React.FC = () => {
             <Button
               variant="outline"
               onClick={() => setAIComposerOpen(true)}
-              aria-label={t('financeCopy.composeViewWithAI', "Compose view with AI")}
             >
               {t('financeCopy.composeWithAI', "Compose with AI")}</Button>
           )}

@@ -211,7 +211,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
       return editable && editingId === it.id ? <div className="space-y-1"><CellInput disabled={!valuesEditable} numeric aria-label={`Edit unit price for ${it.name}`} ref={editRateMask.ref} value={editDraft.rate} onChange={editRateMask.onChange} /><FieldError>{editErrors.rate}</FieldError></div> : currencyKnown ? formatCurrency(Number(it.rate), currency) : unknownAmount;
     } },
     { key: 'amount', header: t('lineItems.lineTotal', 'Line total'), kind: 'money', align: 'num', size: createFormLayout ? 140 : 150, cell: (row) => {
-      if (row.kind === 'add') return <span aria-label={t('lineItems.newLineTotal', 'New line total')} className="tabular text-muted-foreground">{addLineAmountLabel}</span>;
+      if (row.kind === 'add') return <span className="tabular text-muted-foreground"><span className="sr-only">{t('lineItems.newLineTotal', 'New line total')} </span>{addLineAmountLabel}</span>;
       const it = row.item;
       const amount = editable && editingId === it.id
         ? itemsNetTotal([{ quantity: parseMoneyInputAtScale(editDraft.quantity, 2), rate: parseMoneyInputAtScale(editDraft.rate, 2) }])

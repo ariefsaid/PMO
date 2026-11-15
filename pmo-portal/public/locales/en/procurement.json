@@ -241,7 +241,8 @@
         "allCategories": "Category",
         "owner": "Filter by owner",
         "allOwners": "Owner",
-        "clearStage": "Clear stage filter"
+        "clearStage": "Clear stage filter",
+        "clearStageOne": "Clear stage filter — {{stage}}"
       },
       "confirm": {
         "approveTitle": "Approve this procurement?",

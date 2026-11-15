@@ -84,6 +84,13 @@ describe('AC-PLN-013 — Your plan is read-only', () => {
     expect(screen.getAllByText(/usage not tracked yet/i)).toHaveLength(1);
   });
 
+  it('a11y(#2086): both plan sections are named regions — their headings carry the ids', async () => {
+    renderPage();
+    await screen.findByText('Starter');
+    expect(screen.getByRole('region', { name: 'Limits' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Features on this plan' })).toBeInTheDocument();
+  });
+
   it('AC-PLN-013: lists which switches are on, from the resolved set', async () => {
     renderPage();
     // On is plain text (read as ": On"); only an Off feature carries a mark, so a full plan repeats nothing.

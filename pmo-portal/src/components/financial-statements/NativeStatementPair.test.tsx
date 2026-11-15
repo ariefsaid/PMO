@@ -229,6 +229,8 @@ describe('NativeStatementPair — statement format (AC-008)', () => {
     expect(within(sectionTotal).getAllByText('–')).toHaveLength(2);
     expect(within(sectionTotal).getAllByText('0.00')).toHaveLength(2);
     expect(within(sectionTotal).getByLabelText('Not provided: Closing Debit')).toHaveTextContent('—');
+    // a11y(#2086): the not-provided dash is announced through a role that can carry its name.
+    expect(within(sectionTotal).getByRole('img', { name: 'Not provided: Closing Debit' })).toBeInTheDocument();
     expect(screen.queryByText('0.0')).not.toBeInTheDocument();
   });
 

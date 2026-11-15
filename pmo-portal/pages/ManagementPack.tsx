@@ -341,7 +341,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
           {invoiceCountStatus === 'error' ? (
             invoiceCountsUnavailableLabel
           ) : invoiceCountStatus === 'loading' ? (
-            <span aria-label={invoiceCountsLoadingLabel}>—</span>
+            <span role="status" aria-label={invoiceCountsLoadingLabel}>—</span>
           ) : (
             invoiceCountFor(row)
           )}
@@ -408,7 +408,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
           invoiceCountStatus === 'error' ? (
             invoiceCountsUnavailableLabel
           ) : invoiceCountStatus === 'loading' ? (
-            <span aria-label={invoiceCountsLoadingLabel}>—</span>
+            <span role="status" aria-label={invoiceCountsLoadingLabel}>—</span>
           ) : (
             filteredRows.reduce((total, row) => total + invoiceCountFor(row), 0)
           ),

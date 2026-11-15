@@ -24,6 +24,8 @@ describe('ProcurementKpiRow (memoised) data contract', () => {
     const { rerender } = render(<ProcurementKpiRow rows={oneUnpaid} role="Finance" />);
     expect(screen.getByText(/^1 procurement/)).toBeInTheDocument();
     expect(screen.getByTestId('summary-total-unpaid')).toHaveTextContent('$5K');
+    // a11y(#2086): the figure span can carry its accessible name (a role, not a bare span).
+    expect(screen.getByRole('img', { name: /\$5,000/ })).toBeInTheDocument();
 
     // The query settles again with a second supplier invoice in scope.
     rerender(<ProcurementKpiRow rows={[...oneUnpaid, row('b', 'Vendor Invoiced', 7_000)]} role="Finance" />);

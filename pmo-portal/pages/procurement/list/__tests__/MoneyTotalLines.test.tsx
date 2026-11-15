@@ -10,6 +10,8 @@ describe('MoneyTotalLines', () => {
     ]} />);
     expect(screen.getByTestId('m').textContent).not.toMatch(/IDR/);
     expect(screen.getByTestId('m').textContent).toMatch(/30,000/);
+    // a11y(#2086): the focusable figure exposes its value + basis through a role that can carry a name.
+    expect(screen.getByRole('img', { name: /tip/ })).toBeInTheDocument();
   });
 
   it('keeps one zero line when everything is zero', () => {
