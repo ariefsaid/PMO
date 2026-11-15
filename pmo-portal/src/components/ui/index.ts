@@ -129,3 +129,4 @@ export {
 } from './useEntityForm';
 export { FilterBar, type FilterBarProps, type FilterBarFilter } from './FilterBar';
 export { useUrlFilters } from './useUrlFilters';
+export { parsePageParam, useClampPage } from './usePageParam';

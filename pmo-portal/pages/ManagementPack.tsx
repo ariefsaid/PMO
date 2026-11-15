@@ -23,6 +23,7 @@ import {
   selectBilledWorkCumulative,
   selectBilledWorkInPeriod,
   selectBilledWorkOpening,
+  unpricedIn,
   type BilledWorkTotal,
   type PackMonth,
   type PackRow,
@@ -157,6 +158,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
         : undefined;
   const invalidRange = (error as { code?: string } | null)?.code === '22023';
   const leftToBillCellReason = t('financeHub:managementPack.figures.leftToBillUnknownReason', 'A foreign-currency invoice needs reconciliation before this amount can be known.');
+  const unpricedReason = t('financeHub:managementPack.figures.unpricedReason', 'An invoice in this period has no amount yet.');
 
   const setMonth = (key: 'from' | 'to', value: string) => {
     const next = new URLSearchParams(params);
@@ -227,6 +229,15 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       </span>
     ),
     [leftToBillCellReason],
+  );
+  // An invoiced total that includes an invoice with no amount yet is unknown: an explained dash, never a partial sum.
+  const unpricedUnknown = useMemo(
+    () => (
+      <span title={unpricedReason}>
+        —<span className="sr-only"> {unpricedReason}</span>
+      </span>
+    ),
+    [unpricedReason],
   );
 
   const last = pack ? pack.months.length - 1 : -1;
@@ -395,7 +406,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       values: {
         contract: contracts.length > 0 ? money(contractTotal, currency) : null,
         recognisedToDate: money(sum('recognisedToDate'), currency),
-        invoicedToDate: money(sum('invoicedToDate'), currency),
+        invoicedToDate: pack && unpricedIn(pack, currency, null, pack.to.slice(0, 7)) ? unpricedUnknown : money(sum('invoicedToDate'), currency),
         unbilled: money(sum('unbilled'), currency),
         leftToBill: leftToBill === null ? leftToBillUnknown : money(leftToBill, currency),
         invoiceCount:
@@ -436,7 +447,9 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       size: 140,
       cell: (r) => (
         <span className="tabular text-right text-control">
-          {k === 'leftToBill' && r.leftToBill === null ? leftToBillUnknown : money(r[k], r.currency)}
+          {k === 'leftToBill' && r.leftToBill === null
+            ? leftToBillUnknown
+            : k === 'invoiced' && pack && unpricedIn(pack, r.currency, r.month.slice(0, 7), r.month.slice(0, 7)) ? unpricedUnknown : money(r[k], r.currency)}
         </span>
       ),
     })),
@@ -501,16 +514,21 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   /** One row of four tiles: the home currency is the figure, another currency a second line; unknown in the home currency hides the tile. */
   const tileFor = (spec: (typeof figureSpecs)[number]) => {
     const byCurrency: Record<string, number> = {};
-    for (const { currency, month } of latestTotals) {
+    // A reading may report a currency with no totals series (billed only on unlisted projects, or only unpriced).
+    const currencies = [...new Set([...latestTotals.map(({ currency }) => currency), ...(spec.reading ?? []).map((row) => row.currency)])];
+    for (const currency of currencies) {
       const reading = spec.reading?.find((row) => row.currency === currency)?.amount;
+      const month = latestTotals.find((row) => row.currency === currency)?.month;
       const cents = spec.reading
-        ? reading === undefined ? null : Math.round(reading * 100)
-        : spec.amount?.(month) ?? null;
+        ? reading === undefined || reading === null ? null : Math.round(reading * 100)
+        : month ? spec.amount?.(month) ?? null : null;
       if (cents === null) { if (currency === homeCurrency) return null; continue; }
       byCurrency[currency] = Math.round(cents);
     }
     return Object.keys(byCurrency).length > 0 ? moneyTileProps(byCurrency, homeCurrency) : null;
   };
+  /** A billed-work reading with a currency whose invoice has no amount yet. */
+  const unpricedSpec = (spec: (typeof figureSpecs)[number]) => spec.reading?.some((row) => row.amount === null) ?? false;
   const homeMonth = latestTotals.find(({ currency }) => currency === homeCurrency)?.month ?? latestTotals[0]?.month;
   const leftToBillUnknownSomewhere = latestTotals.some(({ month }) => month.leftToBill === null)
     || filteredRows.some((row) => row.kind === 'contract' && latestMonth(row)?.leftToBill === null);
@@ -526,6 +544,9 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     ...(leftToBillUnknownSomewhere && !leftToBillFigureHidden
       ? [{ label: t('financeHub:managementPack.figures.leftToBill', 'Left to bill'), reason: leftToBillReason, link: reviewInvoices }]
       : []),
+    // A shown billed figure that leaves out a currency whose invoice has no amount yet; a hidden one reports itself.
+    ...figureSpecs.filter((spec) => unpricedSpec(spec) && tileFor(spec) !== null)
+      .map((spec) => ({ label: spec.label, reason: unpricedReason, link: reviewInvoices })),
     ...(pack && pack.undatedInvoiceCount > 0
       ? [{ label: t('finance:receivables.invoiceDate', 'Invoice date'), reason: t('managementPack.undated', '{{count}} undated invoices are excluded', { count: pack.undatedInvoiceCount }) }]
       : []),
@@ -565,8 +586,8 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
                 value={tile?.value ?? null}
                 exactValue={tile?.exactValue}
                 caption={spec.caption && tile ? spec.caption(homeMonth, homeCurrency) : undefined}
-                unavailableReason={tile ? undefined : spec.key === 'leftToBill' ? leftToBillReason : t('financeHub:managementPack.figures.unknownReason', 'a foreign-currency invoice needs reconciliation')}
-                hiddenLink={spec.key === 'leftToBill' ? reviewInvoices : { to: '/finance/receivables', label: t('financeHub:managementPack.figures.reconcile', 'Open invoices') }}
+                unavailableReason={tile ? undefined : spec.key === 'leftToBill' ? leftToBillReason : unpricedSpec(spec) ? unpricedReason : t('financeHub:managementPack.figures.unknownReason', 'a foreign-currency invoice needs reconciliation')}
+                hiddenLink={spec.key === 'leftToBill' || unpricedSpec(spec) ? reviewInvoices : { to: '/finance/receivables', label: t('financeHub:managementPack.figures.reconcile', 'Open invoices') }}
               />
             );
           })}

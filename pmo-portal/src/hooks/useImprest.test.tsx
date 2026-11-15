@@ -10,7 +10,7 @@ const { imprest, orgSettings } = vi.hoisted(() => ({
     listPlanLines: vi.fn(), listReplenishments: vi.fn(), listCounts: vi.fn(), createPlan: vi.fn(), savePlanLine: vi.fn(),
     deletePlanLine: vi.fn(), setProcurementLimit: vi.fn(), establishFloat: vi.fn(), proposeFloatAmount: vi.fn(),
     decideFloatChange: vi.fn(), transitionPlan: vi.fn(), requestReplenishment: vi.fn(), transitionReplenishment: vi.fn(),
-    recordCount: vi.fn(), listPostingStates: vi.fn(), setCashAccount: vi.fn(),
+    recordCount: vi.fn(), listPostingStates: vi.fn(), setCashAccount: vi.fn(), countFloats: vi.fn(),
   },
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { imprest, orgSettings } }));
@@ -18,7 +18,7 @@ let org: string | undefined = 'org-1';
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: org } }) }));
 
 import {
-  IMPREST_QUERY_ROOTS, useImprestFloats, useImprestPosition, useImprestPlanUsage, useImprestPlans, useImprestReplenishments,
+  IMPREST_QUERY_ROOTS, useImprestFloats, useImprestFloatPages, useImprestPosition, useImprestPlanUsage, useImprestPlans, useImprestReplenishments,
   useImprestCounts, useImprestFloatChoices, useImprestFloat, useRequestReplenishment, useTransitionPlan, useRecordCount, useEstablishFloat,
   useImprestPostingStates, useSetCashAccount,
 } from './useImprest';
@@ -36,6 +36,20 @@ beforeEach(() => {
   for (const fn of Object.values(imprest)) fn.mockReset().mockResolvedValue([]);
   imprest.getPosition.mockResolvedValue(null);
   imprest.requestReplenishment.mockResolvedValue('r1');
+});
+
+describe('AC-PAGE-024 useImprestFloatPages', () => {
+  it('AC-PAGE-024 reads the numbered page asked for and carries the server total', async () => {
+    imprest.listFloats.mockResolvedValue({ rows: [{ id: 'f2' }], truncated: false });
+    imprest.countFloats.mockResolvedValue(120);
+    const client = fresh();
+    const { result, rerender } = renderHook(({ page }) => useImprestFloatPages(page), { wrapper: wrap(client), initialProps: { page: 1 } });
+    await waitFor(() => expect(result.current.total).toBe(120));
+    expect(imprest.listFloats).toHaveBeenLastCalledWith(1);
+    rerender({ page: 3 });
+    await waitFor(() => expect(imprest.listFloats).toHaveBeenLastCalledWith(3));
+    expect(client.getQueryCache().getAll().every((q) => q.queryKey[0] === 'imprest-floats' && q.queryKey[1] === 'org-1')).toBe(true);
+  });
 });
 
 describe('AC-IMP-083 imprest hooks', () => {

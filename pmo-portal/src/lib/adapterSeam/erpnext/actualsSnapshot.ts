@@ -90,6 +90,15 @@ export interface ActualsScope {
    * from the dimension ERP itself states on the GL row, so there is no scope left to lie.
    */
   projectMap?: Readonly<Record<string, unknown>>;
+  /**
+   * #2282 D7 (Odoo only): also sum the issued-material cost Odoo books as `picking_entry` analytic lines (`odoo_stock_cost_lines`,
+   * migration 0886). They have no journal item, so the GL mirror never sees them; under real-time valuation the matching COGS journal
+   * line IS in the mirror but carries no project, so it stays in the unattributed bucket. Stock-cost rows are PROJECT rows only (a line
+   * on an unlinked analytic account waits in the table for its link), written with `source_report='Odoo stock issue'`. Cancelled rows
+   * and rows the no-double-count check flagged never count. They are kept whatever their account maps to: a cost on an account with no
+   * budget category is still the project's cost (project_uncategorised_actuals reads it).
+   */
+  stockCost?: boolean;
 }
 
 interface MirrorRow {
@@ -104,7 +113,22 @@ interface MirrorRow {
   credit: string | null;
 }
 
+interface StockCostRow {
+  id: string;
+  analytic_account_id: string | null;
+  account: string | null;
+  fiscal_year: string | null;
+  debit: string | null;
+  credit: string | null;
+}
+
+/** The snapshot rows' source, one bucket set each so a reader can tell GL truth from issued material. */
+const GL_SOURCE = 'GL Entry';
+export const STOCK_COST_SOURCE = 'Odoo stock issue';
+const STOCK_COST_COLUMNS = 'id,analytic_account_id,account,fiscal_year,debit:debit::text,credit:credit::text';
+
 interface SumBucket {
+  source: string;
   /** The resolved PMO project uuid, or `null` for the explicit UNATTRIBUTED bucket. */
   projectId: string | null;
   costCenter: string | null;
@@ -154,8 +178,8 @@ function fromNanoRounded2(value: bigint): number {
 /** NUL: cannot occur in an ERPNext name/account/cost-centre, so no two distinct groups collide. */
 const SEP = String.fromCharCode(0);
 
-function groupKey(projectId: string | null, costCenter: string | null, account: string | null, fiscalYear: string | null): string {
-  return [projectId ?? '', costCenter ?? '', account ?? '', fiscalYear ?? ''].join(SEP);
+function groupKey(source: string, projectId: string | null, costCenter: string | null, account: string | null, fiscalYear: string | null): string {
+  return [source, projectId ?? '', costCenter ?? '', account ?? '', fiscalYear ?? ''].join(SEP);
 }
 
 /**
@@ -223,16 +247,38 @@ export async function refreshActuals(
   // (2) Attribute from the dimension ERP states, then sum per (project, cost_center, account, FY).
   const erpNameToPmoProject = invertProjectMap(scope.projectMap);
   const buckets = new Map<string, SumBucket>();
-  for (const row of rows) {
-    const projectId = row.project ? (erpNameToPmoProject.get(row.project) ?? null) : null;
-    const key = groupKey(projectId, row.cost_center, row.account, row.fiscal_year);
+  const add = (source: string, projectId: string | null, costCenter: string | null, account: string | null, fiscalYear: string | null, debit: string | null, credit: string | null) => {
+    const key = groupKey(source, projectId, costCenter, account, fiscalYear);
     let b = buckets.get(key);
     if (!b) {
-      b = { projectId, costCenter: row.cost_center, account: row.account, fiscalYear: row.fiscal_year, debit: 0n, credit: 0n };
+      b = { source, projectId, costCenter, account, fiscalYear, debit: 0n, credit: 0n };
       buckets.set(key, b);
     }
-    b.debit += toNano(row.debit);
-    b.credit += toNano(row.credit);
+    b.debit += toNano(debit);
+    b.credit += toNano(credit);
+  };
+  for (const row of rows) {
+    const projectId = row.project ? (erpNameToPmoProject.get(row.project) ?? null) : null;
+    add(GL_SOURCE, projectId, row.cost_center, row.account, row.fiscal_year, row.debit, row.credit);
+  }
+  if (scope.stockCost) {
+    // Read in full before the replace, like the GL mirror: a failed page throws and the prior snapshot stays.
+    const stockRows = await fetchAllRowsByKeyset<StockCostRow>((afterId, limit) => {
+      const q = serviceClient
+        .from('odoo_stock_cost_lines')
+        .select(STOCK_COST_COLUMNS)
+        .eq('org_id', orgId)
+        .eq('is_cancelled', false)
+        .eq('double_count_risk', false)                                                  // mut:osc_double_count
+        .order('id', { ascending: true });
+      return (afterId === null ? q : q.gt('id', afterId))
+        .limit(limit) as PromiseLike<{ data: StockCostRow[] | null; error: { message: string; code?: string } | null }>;
+    });
+    for (const row of stockRows) {
+      const projectId = row.analytic_account_id ? (erpNameToPmoProject.get(row.analytic_account_id) ?? null) : null;
+      if (projectId === null) continue;
+      add(STOCK_COST_SOURCE, projectId, null, row.account, row.fiscal_year, row.debit, row.credit);
+    }
   }
 
   const snapshotId = crypto.randomUUID();
@@ -248,7 +294,7 @@ export async function refreshActuals(
     credit: fromNanoRounded2(b.credit),
     net: fromNanoRounded2(b.debit - b.credit),
     as_of: asOf,
-    source_report: 'GL Entry',
+    source_report: b.source,
     snapshot_id: snapshotId,
   }));
 

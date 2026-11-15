@@ -144,3 +144,25 @@ describe('AC-MMP-011 management pack export', () => {
     expect(managementPackFileStem(pack)).toBe('Management-pack_2026-02');
   });
 });
+
+describe('AC-2201-02 management pack export with an invoice that has no amount', () => {
+  const pack = buildManagementPack({ ...facts, unpriced: [{ currency: 'IDR', month: '2026-02-01', invoice_count: 1 }] });
+  const table = buildManagementPackExport(pack, labels);
+  const col = (name: string) => table.header.indexOf(name);
+  const total = (period: string) => table.body.find((row) => row[col('Period')] === period && row[col('Project')] === 'Total')!;
+
+  it('AC-2201-02: the total row of the month with the unpriced invoice leaves invoiced and invoiced to date blank, never a partial sum', () => {
+    expect(total('2026-02')[col('Invoiced')]).toBe('');
+    expect(total('2026-02')[col('Invoiced to date')]).toBe('');
+  });
+
+  it('AC-2201-03: an earlier month without one keeps its invoiced figures', () => {
+    expect(total('2026-01')[col('Invoiced')]).toBe(100.5);
+    expect(total('2026-01')[col('Invoiced to date')]).toBe(100.5);
+  });
+
+  it('AC-2201-02: the selected-period summary is blank for that currency', () => {
+    const summary = table.body.find((row) => row[col('Period')] === 'Selected period total')!;
+    expect(summary[col('Invoiced in period')]).toBe('');
+  });
+});
