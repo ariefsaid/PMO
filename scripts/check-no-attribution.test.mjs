@@ -58,3 +58,30 @@ test('AC-NOATTR-004: the CLI exits 1 on an offender and 0 when clean; --self-tes
     execFileSync('node', [script, '--self-test'], { stdio: 'pipe' });
   } finally { rmSync(bad.dir, { recursive: true, force: true }); rmSync(ok.dir, { recursive: true, force: true }); }
 });
+
+const T = 'clau' + 'de';
+const V = 'anthro' + 'pic';
+const withDir = (messages, env, fn) => {
+  const { dir, baseSha } = repo(messages, env);
+  try { return fn(findOffenders(baseSha, 'HEAD', dir)); } finally { rmSync(dir, { recursive: true, force: true }); }
+};
+
+test('AC-NOATTR-005: ordinary mentions of the tool name in a message pass', () => {
+  withDir(['docs: update ' + T.toUpperCase() + '.md and .' + T + '/settings.json'], {}, (o) => assert.deepEqual(o, []));
+});
+
+test('AC-NOATTR-006: each attribution form in a message fails', () => {
+  const forms = [
+    'Co-Authored' + '-By: Someone <a@b.test>',
+    T[0].toUpperCase() + T.slice(1) + '-Session: https://example.test/x',
+    'Generated' + ' with a tool',
+    'contact noreply@' + V + '.com',
+    'see https://' + T + '.ai/code/session_1',
+  ];
+  for (const f of forms) withDir(['x\n\n' + f], {}, (o) => assert.equal(o.length, 1, f));
+});
+
+test('AC-NOATTR-007: tool-named author and vendor-domain committer email fail', () => {
+  withDir(['one'], { GIT_AUTHOR_NAME: T }, (o) => assert.ok(o[0].matched[0].startsWith('author name')));
+  withDir(['one'], { GIT_COMMITTER_EMAIL: 'noreply@' + V + '.com' }, (o) => assert.ok(o[0].matched[0].startsWith('committer email')));
+});

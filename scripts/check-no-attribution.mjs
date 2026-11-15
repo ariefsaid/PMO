@@ -6,7 +6,21 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-export const PATTERN = new RegExp(['clau' + 'de', 'anthro' + 'pic', 'co-authored' + '-by', 'generated' + ' with'].join('|'), 'i');
+const TOOL = 'clau' + 'de';
+const VENDOR = 'anthro' + 'pic';
+// Identity fields: the tool or vendor name anywhere is an offence.
+export const PATTERN = new RegExp([TOOL, VENDOR].join('|'), 'i');
+// Message lines: only attribution forms, so "update CLAUDE.md" or ".claude/" paths are fine.
+export const MESSAGE_PATTERN = new RegExp(
+  [
+    '^\\s*co-authored' + '-by\\s*:',
+    '^\\s*' + TOOL + '-session\\s*:',
+    'generated' + ' with',
+    'noreply@' + VENDOR + '\\.com',
+    TOOL + '\\.ai/code',
+  ].join('|'),
+  'i',
+);
 
 const git = (args, cwd) => execFileSync('git', args, { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 
@@ -20,7 +34,7 @@ export function findOffenders(base, head = 'HEAD', cwd = process.cwd()) {
     for (const [label, value] of [['author name', an], ['author email', ae], ['committer name', cn], ['committer email', ce]]) {
       if (PATTERN.test(value)) matched.push(`${label}: ${value}`);
     }
-    for (const line of message.split('\n')) if (PATTERN.test(line)) matched.push(`message line: ${line}`);
+    for (const line of message.split('\n')) if (MESSAGE_PATTERN.test(line)) matched.push(`message line: ${line}`);
     if (matched.length) offenders.push({ hash, matched });
   }
   return offenders;
@@ -45,6 +59,8 @@ export function selfTest() {
     if (found.length !== 1) throw new Error(`expected 1 offender, got ${found.length}`);
     commit('another', { GIT_AUTHOR_EMAIL: 'noreply@anthro' + 'pic.com' });
     if (findOffenders(base, 'HEAD', dir).length !== 2) throw new Error('author email not flagged');
+    commit('docs: update ' + TOOL.toUpperCase() + '.md and .' + TOOL + '/settings.json');
+    if (findOffenders(base, 'HEAD', dir).length !== 2) throw new Error('ordinary mention was flagged');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
