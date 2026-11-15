@@ -349,6 +349,9 @@
     "returnedDetail": "{{title}} has been returned"
   },
   "decisionSupport": {
+    "reserved": "Reserved",
+    "reservedSub": "approved, not yet ordered",
+    "projectBudget": "Project budget",
     "thisProcurement": "Procurement total",
     "notCompared": "In a different currency: not compared with the budget",
     "afterThisProcurement": "After this procurement",

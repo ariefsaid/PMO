@@ -349,6 +349,9 @@
     "returnedDetail": "{{title}} telah dikembalikan"
   },
   "decisionSupport": {
+    "reserved": "Dicadangkan",
+    "reservedSub": "disetujui, belum dipesan",
+    "projectBudget": "Anggaran proyek",
     "thisProcurement": "Total pengadaan",
     "notCompared": "Mata uang berbeda: tidak dibandingkan dengan anggaran",
     "afterThisProcurement": "Setelah pengadaan ini",

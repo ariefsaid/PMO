@@ -381,8 +381,9 @@ test(
 
     // The Select button is only shown when there are approvable rows — its presence confirms at
     // least one Submitted sheet is in the queue. The exact owned count is asserted structurally
-    // below (and again via the "Approve N" label).
-    const selectBtn = tsSection.getByRole('button', { name: /^(select items|pilih item)$/i });
+    // below (and again via the "Approve N" label). #design-1115 (journey step, deliberate UX change):
+    // the list header carries ONE "Select" for bulk work.
+    const selectBtn = tsSection.getByRole('button', { name: /^(select|pilih)$/i });
     await expect(selectBtn).toBeVisible({ timeout: 15_000 });
 
     // Enter Select mode.

@@ -159,11 +159,11 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
               </div>
             </div>
             {!isInline && (
-              <div className="flex flex-wrap items-center justify-end gap-2">
+              <div className={isSheet ? 'flex w-full items-center' : 'flex flex-wrap items-center justify-end gap-2'}>
                 <Link
                   to={`/procurement/${row.id}`}
                   aria-label={t('approvalRow.open', 'Open procurement')}
-                  className="inline-flex min-h-11 items-center gap-1 rounded-md px-2.5 py-1.5 text-control text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring lg:min-h-0"
+                  className={`inline-flex min-h-11 items-center gap-1 rounded-md py-1.5 ${isSheet ? 'px-0' : 'px-2.5'} text-control text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring lg:min-h-0`}
                 >
                   {t('approvalRow.open', 'Open procurement')}
                 </Link>

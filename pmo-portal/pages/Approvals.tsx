@@ -369,8 +369,9 @@ const ApprovalsPage: React.FC = () => {
             className="min-w-0"
           >
             {/* One calm control for bulk work; how many wait is on the tab, not repeated here. */}
-            <div data-testid="approvals-list-header" className="mb-3 flex min-h-8 items-center justify-between gap-3">
-              <h2 className="flex items-center gap-2 text-base font-semibold">
+            <div data-testid="approvals-list-header" className={['mb-3 flex min-h-8 items-center gap-3', hasTabs ? 'justify-end' : 'justify-between'].join(' ')}>
+              {/* With tabs, the selected tab already names this list; the heading stays for screen readers. */}
+              <h2 className={hasTabs ? 'sr-only' : 'flex items-center gap-2 text-base font-semibold'}>
                 {activeScope === 'all' ? t('procurement:approvalQueue.headingAll', 'Purchases and timesheets') : scopeLabels[activeScope]}
                 {/* With no tabs there is nowhere else to say how many wait. */}
                 {!hasTabs && <Badge>{queueItems.length}</Badge>}
