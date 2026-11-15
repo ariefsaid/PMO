@@ -55,7 +55,7 @@ import { useFxIdrRate } from '@/src/hooks/useFxIdrRate';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { statusLabel } from '@/src/lib/status/statusMap';
 import { idrPosition } from '@/src/lib/budget/idrPosition';
-import { formatFxEquivalent, formatIdrApprox, fxRateCaption, fxRateSourceNote } from '@/src/lib/fxEquivalent';
+import { formatFxEquivalent, formatFxEquivalentCompact, formatIdrLine, fxRateCaption, fxRateSourceNote } from '@/src/lib/fxEquivalent';
 import BudgetVersionsDrawer from './project-detail/budget/BudgetVersionsDrawer';
 import BudgetErpNotice from './project-detail/budget/BudgetErpNotice';
 import { BUDGET_ACTION_PARAM } from './project-detail/budget/BudgetHeaderAction';
@@ -710,11 +710,23 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const rateReason = idrRate.status === 'none' ? tCommon('finance:fx.noRate', 'No exchange rate uploaded')
     : idrRate.status === 'error' ? tCommon('fx.rateError', 'Could not load JISDOR rate.') : undefined;
   const sourceNote = fxMatch ? fxRateSourceNote(fxMatch, tCommon) ?? undefined : undefined;
-  /** `≈ IDR … (using IDR … rate)` under a card whose own figure is in USD; nothing for a rupiah figure or without a rate. */
-  const equivalentCaption = (amount: number | null, currency: string): string | undefined => {
+  /**
+   * The rupiah line ADDED under a card whose own figure is a USD amount; the figure itself never changes currency.
+   * Under a compact figure ($6K) the line is compact too (`≈ IDR 111M`) with the full line as its title and
+   * screen-reader text; under a full figure ($0) it is the full `≈ IDR … (using IDR … rate)` line.
+   */
+  const equivalentLine = (amount: number | null, currency: string): { text: string; exact?: string } | undefined => {
     if (amount === null || currency !== 'USD' || idrRate.status === 'off') return undefined;
-    if (!fxMatch) return rateReason;
-    return formatFxEquivalent(amount, fxMatch, tCommon);
+    if (!fxMatch) return rateReason ? { text: rateReason } : undefined;
+    const full = formatFxEquivalent(amount, fxMatch, tCommon);
+    return tileAmount(amount, currency).exactValue ? { text: formatFxEquivalentCompact(amount, fxMatch), exact: full } : { text: full };
+  };
+  /** A card's one caption: its notes joined with the rupiah line, the full form kept behind a compact one. */
+  const figureCaption = (notes: Array<string | null | undefined>, line?: { text: string; exact?: string }) => {
+    const parts = notes.filter((note): note is string => Boolean(note));
+    const caption = [...parts, line?.text].filter(Boolean).join(' · ') || undefined;
+    const captionExact = line?.exact ? [...parts, line.exact].join(' · ') : undefined;
+    return { caption, captionExact };
   };
   // The ledger's figure is in another currency than the project's: the card says so rather than leave it to be read as a slip.
   const spentLedgerCurrencyCaption = t('projectDetail.budget.captionSpentLedgerCurrency', 'Recorded in {{currency}} by the ledger', { currency: totalSpentCurrency });
@@ -726,13 +738,16 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const usedApproximate = !sameCurrencies && idr.usedApproximate && usedPercentShown !== null;
   const usedValue = usedPercentShown === null ? null : `${usedApproximate ? '≈ ' : ''}${usedPercentShown}%`;
   const usedCaption = usedPercentShown === null ? unknownCaption : usedApproximate && fxMatch ? fxRateCaption(fxMatch, tCommon) : undefined;
-  const leftApproximate = !sameCurrencies && hasForeign && idr.left !== null;
-  const leftTile = sameCurrencies || !hasForeign
-    ? tileAmount(totalLeft)
-    : idr.left === null ? { value: null as string | null } : { value: `≈ ${formatBudgetTile(idr.left, 'IDR')}`, exactValue: `${formatIdrApprox(idr.left)} (${sourceNote ?? ''})` };
-  const leftValueNegative = sameCurrencies || !hasForeign ? totalLeft !== null && totalLeft < 0 : idr.left !== null && idr.left < 0;
-  const leftCaption = leftTile.value === null ? unknownCaption
-    : [spentExcludedNote, sameCurrencies || !hasForeign ? equivalentCaption(totalLeft, project.currency) : leftApproximate && fxMatch ? fxRateCaption(fxMatch, tCommon) : null].filter(Boolean).join(' · ') || undefined;
+  // Left is a project-currency figure. When its parts sit in different currencies it cannot be computed in the
+  // project's currency without converting rupiah, so the figure reads — and the rupiah position is its added line.
+  const mixedLeft = !sameCurrencies && hasForeign;
+  const leftTile = mixedLeft ? { value: null as string | null } : tileAmount(totalLeft);
+  const leftValueNegative = !mixedLeft && totalLeft !== null && totalLeft < 0;
+  const leftFigure = mixedLeft
+    ? idr.left === null || !fxMatch
+      ? { caption: unknownCaption }
+      : figureCaption([spentExcludedNote], { text: formatIdrLine(idr.left, fxMatch, tCommon), exact: sourceNote ? `${formatIdrLine(idr.left, fxMatch, tCommon)} (${sourceNote})` : undefined })
+    : leftTile.value === null ? { caption: unknownCaption } : figureCaption([spentExcludedNote], equivalentLine(totalLeft, project.currency));
   /** The card's help carries the longer reason when the figure cannot be shown. */
   const withDetail = (text: string, unknown: boolean) => unknown && hiddenFiguresNotice ? `${text} ${hiddenFiguresNotice}` : text;
   const exportRows = (rows: BudgetSummaryRow[], filename: string) => {
@@ -1010,11 +1025,11 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       {budgetHeading}
       {activeVersion
         ? <KPIRow aligned flush aria-label={t('projectDetail.budget.figures', 'Budget figures')} className="grid-cols-[repeat(auto-fit,minmax(9rem,1fr))]">
-            <KPITile icon="dollar" tone="blue" label={t('projectDetail.budget.budgetBeforeTax', 'Budget')} {...tileAmount(totalBudget, activeBudgetCurrency)} caption={totalBudget === null ? t('projectDetail.budget.captionBudgetUnavailable', 'Budget is unavailable') : equivalentCaption(totalBudget, activeBudgetCurrency)} keepWhenUnknown help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items before tax, grouped by category.')} />
-            <KPITile icon="chart-column" tone="violet" label={t('projects:columns.budgetUsed', 'Budget used')} value={usedValue} caption={usedCaption} keepWhenUnknown help={withDetail(canonicalUtilizationFormula, usedValue === null)} />
-            <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} {...tileAmount(totalSpent, totalSpentCurrency)} caption={[spentExcludedNote, totalSpent === null ? spentUnknownCaption : totalSpentCurrency !== project.currency ? (spentExcludedNote ? null : spentLedgerCurrencyCaption) : equivalentCaption(totalSpent, totalSpentCurrency)].filter(Boolean).join(' · ') || undefined} hiddenLink={spendingSetupLink} keepWhenUnknown help={withDetail(actualSource, totalSpent === null)} />
-            <KPITile icon="invoices" tone="amber" label={t('projectDetail.budget.committed', 'Committed')} {...tileAmount(totalCommitted)} caption={totalCommitted === null ? t('projectDetail.budget.captionCommitmentsUnknown', 'Open orders are unknown') : equivalentCaption(totalCommitted, project.currency)} keepWhenUnknown help={withDetail(t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.'), totalCommitted === null)} />
-            <KPITile icon="down" tone={leftValueNegative ? 'red' : 'green'} label={totalLeftLabel} {...leftTile} caption={leftCaption} negative={leftValueNegative} keepWhenUnknown help={withDetail(totalLeftFormula, leftTile.value === null)} />
+            <KPITile icon="dollar" tone="blue" label={t('projectDetail.budget.budgetBeforeTax', 'Budget')} testId="budget-figure-budget" {...tileAmount(totalBudget, activeBudgetCurrency)} {...(totalBudget === null ? { caption: t('projectDetail.budget.captionBudgetUnavailable', 'Budget is unavailable') } : figureCaption([], equivalentLine(totalBudget, activeBudgetCurrency)))} keepWhenUnknown help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items before tax, grouped by category.')} />
+            <KPITile icon="chart-column" tone="violet" label={t('projects:columns.budgetUsed', 'Budget used')} testId="budget-figure-used" value={usedValue} caption={usedCaption} keepWhenUnknown help={withDetail(canonicalUtilizationFormula, usedValue === null)} />
+            <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} testId="budget-figure-spent" {...tileAmount(totalSpent, totalSpentCurrency)} {...(totalSpent === null ? figureCaption([spentExcludedNote, spentUnknownCaption]) : totalSpentCurrency !== project.currency ? figureCaption([spentExcludedNote ?? spentLedgerCurrencyCaption]) : figureCaption([spentExcludedNote], equivalentLine(totalSpent, totalSpentCurrency)))} hiddenLink={spendingSetupLink} keepWhenUnknown help={withDetail(actualSource, totalSpent === null)} />
+            <KPITile icon="invoices" tone="amber" label={t('projectDetail.budget.committed', 'Committed')} testId="budget-figure-committed" {...tileAmount(totalCommitted)} {...(totalCommitted === null ? { caption: t('projectDetail.budget.captionCommitmentsUnknown', 'Open orders are unknown') } : figureCaption([], equivalentLine(totalCommitted, project.currency)))} keepWhenUnknown help={withDetail(t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.'), totalCommitted === null)} />
+            <KPITile icon="down" tone={leftValueNegative ? 'red' : 'green'} label={totalLeftLabel} testId="budget-figure-left" {...leftTile} {...leftFigure} negative={leftValueNegative} keepWhenUnknown help={withDetail(totalLeftFormula, leftTile.value === null)} />
           </KPIRow>
         : <p role="status" className="text-sm text-muted-foreground">{t('projectDetail.budget.noActiveBudget', 'No active budget')}</p>}
       {findingLine}

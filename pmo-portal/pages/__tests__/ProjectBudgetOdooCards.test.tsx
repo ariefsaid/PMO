@@ -214,6 +214,71 @@ describe('AC-ODA-024 an all-USD project in a rupiah organisation (#2249)', () =>
   });
 });
 
+/** One figure card by its test id: its figure, its added line and the line's full form (title). */
+const figureCard = (figures: HTMLElement, id: string) => {
+  const card = within(figures).getByTestId(`budget-figure-${id}`);
+  return { card, text: card.textContent ?? '' };
+};
+
+describe('care-07b: every Budget-tab figure is in the project currency; the rupiah equivalent is an added line only', () => {
+  it('names every figure: Budget, Budget used, Spent, Committed and Left read in USD; each USD amount adds its rupiah line, compact under a compact figure', async () => {
+    fxIdr.state = { status: 'ready', match: { rate: 18500, rate_date: '2026-11-14' } };
+    ACTIVE.currency = 'USD';
+    state.ledgerCurrency = 'USD';
+    state.spendCurrency = 'USD';
+    state.rows = ROWS.map((r) => ({ ...r, actual: r.actual ?? 0 }));
+    renderPage(projectIn('USD'));
+    const figures = await screen.findByRole('region', { name: 'Budget figures' });
+
+    const budget = figureCard(figures, 'budget');
+    expect(within(budget.card).getByText('$6K')).toBeInTheDocument();
+    expect(within(budget.card).getByText('≈ IDR 111M')).toHaveAttribute('title', '≈ IDR 111,000,000 (using IDR 18,500 rate)');
+
+    const used = figureCard(figures, 'used');
+    expect(within(used.card).getByText('25%')).toBeInTheDocument();
+    expect(used.text).not.toMatch(/IDR/);
+
+    const spent = figureCard(figures, 'spent');
+    expect(within(spent.card).getByText('$1.5K')).toBeInTheDocument();
+    expect(within(spent.card).getByText('≈ IDR 27.8M')).toHaveAttribute('title', '≈ IDR 27,750,000 (using IDR 18,500 rate)');
+
+    // A figure that is not compact keeps the full line.
+    const committed = figureCard(figures, 'committed');
+    expect(within(committed.card).getByText('$0')).toBeInTheDocument();
+    expect(within(committed.card).getByText('≈ IDR 0 (using IDR 18,500 rate)')).toBeInTheDocument();
+
+    const left = figureCard(figures, 'left');
+    expect(within(left.card).getByText('$4.5K')).toBeInTheDocument();
+    expect(within(left.card).getByText('≈ IDR 83.3M')).toHaveAttribute('title', '≈ IDR 83,250,000 (using IDR 18,500 rate)');
+
+    // No figure itself is a rupiah amount.
+    for (const id of ['budget', 'used', 'spent', 'committed', 'left']) {
+      const figure = figureCard(figures, id).card.querySelector('[data-figure]');
+      expect(figure, id).not.toBeNull();
+      expect(figure!.textContent, id).not.toMatch(/IDR/);
+    }
+  });
+
+  it('mixed currencies: Left stays a project-currency figure (unknown, never a rupiah figure) and the rupiah position is its added full line', async () => {
+    fxIdr.state = { status: 'ready', match: { rate: 18500, rate_date: '2026-11-14' } };
+    ACTIVE.currency = 'USD';
+    state.spendCurrency = 'IDR';
+    state.rows = ROWS.map((r) => ({ ...r, actual: null }));
+    state.spendRows = ROWS.map((r) => ({ ...r, actual: r.actual ?? 0 }));
+    state.currencyDiffers = true;
+    state.position = { ...state.position, spent: null, consumption: '1500.00', consumptionVariance: null, budgetComparisonKnown: false, usedPercent: null };
+    state.displaySpent = { amount: 55500000, currency: 'IDR' };
+    renderPage(projectIn('USD'));
+    const figures = await screen.findByRole('region', { name: 'Budget figures' });
+    const left = figureCard(figures, 'left');
+    expect(left.text).toMatch(/^Left after committed—/);
+    expect(within(left.card).queryByText('≈ IDR 55.5M')).toBeNull();
+    expect(within(left.card).getByText('≈ IDR 55,500,000 (using IDR 18,500 rate)')).toBeInTheDocument();
+    // Budget used is a share, not an amount: approximate, captioned with the rate.
+    expect(within(figureCard(figures, 'used').card).getByText('≈ 50%')).toBeInTheDocument();
+  });
+});
+
 describe('AC-ODA-024 Odoo ledger basis: a USD budget against IDR Odoo spend (#2066)', () => {
   beforeEach(() => {
     ACTIVE.currency = 'USD';
@@ -253,18 +318,21 @@ describe('AC-ODA-024 Odoo ledger basis: a USD budget against IDR Odoo spend (#20
     expect(within(figures).getByText('≈ IDR 111,000,000 (using IDR 18,500 rate)')).toBeInTheDocument();
     expect(figures.textContent).toMatch(/Spent.*IDR\s*55,500,000/);
     expect(figures.textContent).toMatch(/≈ 50%/);
-    expect(figures.textContent).toMatch(/≈ IDR 55,500,000/);
     expect(within(figures).getByText('using IDR 18,500 rate')).toBeInTheDocument(); // under Budget used
-    expect(within(figures).getByText(/·\s*using IDR 18,500 rate$/)).toBeInTheDocument(); // under Left
+    // care-07b (owner): Left stays a project-currency figure; the rupiah position is its added line, with the rate.
+    expect(within(figureCard(figures, 'left').card).getByText(/≈ IDR 55,500,000 \(using IDR 18,500 rate\)$/)).toBeInTheDocument();
   });
 
-  it('design-1115: the rupiah Left figure reads in the compact card form like every other card; the exact amount stays with it', async () => {
+  // care-07b (owner, supersedes design-1115's rupiah Left figure): the figure is never a rupiah amount; the
+  // exact rupiah position stays on the card as its added line, and its rate date stays in the line's title.
+  it('care-07b: the Left figure is never a rupiah amount; the exact rupiah position stays with it as its added line', async () => {
     fxIdr.state = { status: 'ready', match: { rate: 18500, rate_date: '2026-11-14' } };
     state.displaySpent = { amount: 55500000, currency: 'IDR' };
     renderPage(projectIn('USD'));
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
-    expect(within(figures).getByText('≈ IDR 55.5M')).toBeInTheDocument();
-    expect(figures.textContent).toMatch(/≈ IDR 55,500,000/);
+    const left = figureCard(figures, 'left').card;
+    expect(left.querySelector('[data-figure]')?.textContent).toBe('—');
+    expect(within(left).getByText(/≈ IDR 55,500,000 \(using IDR 18,500 rate\)$/)).toHaveAttribute('title', expect.stringMatching(/JISDOR rate of/));
   });
 
   it('with no rate uploaded Budget used and Left read — and say so on their own cards', async () => {

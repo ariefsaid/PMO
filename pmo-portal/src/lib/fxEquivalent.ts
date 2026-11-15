@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next';
-import { formatDateOnly, formatNumberMax2, formatNumberWhole } from './format';
+import { formatDateOnly, formatNumberMax2, formatNumberWhole, formatTileMoney } from './format';
 import type { FxRateMatch } from './repositories/types';
 
 /** THE USD→IDR conversion (display only). Null for any unusable amount or rate; every caller goes through here. */
@@ -31,11 +31,28 @@ export function formatFxEquivalent(
 ): string {
   const converted = convertUsdToIdr(amount, match.rate);
   if (converted === null) throw new RangeError('Equivalent is unavailable');
-  const whole = formatIdr(converted).slice('IDR '.length);
   if (options.eachDate) {
+    const whole = formatIdr(converted).slice('IDR '.length);
     return t('finance:fx.equivalentEachDate', '≈ IDR {{amount}} (using IDR rate of each date)', { amount: whole });
   }
+  return formatIdrLine(converted, match, t);
+}
+
+/** The full line for an amount already in rupiah (converted at `match`): `≈ IDR 55,500,000 (using IDR 18,500 rate)`. */
+export function formatIdrLine(idrAmount: number, match: FxRateMatch, t: TFunction): string {
+  const whole = formatIdr(idrAmount).slice('IDR '.length);
   return t('finance:fx.equivalent', '≈ IDR {{amount}} (using IDR {{rate}} rate)', { amount: whole, rate: formatFxRate(match.rate) });
+}
+
+/**
+ * The compact rupiah line under a compact figure (`≈ IDR 111M`), the same conversion as the full line. Only a
+ * figure that is itself compact takes it; the full `≈ IDR … (using IDR … rate)` line goes in its title.
+ */
+export function formatFxEquivalentCompact(amount: number, match: FxRateMatch): string {
+  const converted = convertUsdToIdr(amount, match.rate);
+  const compact = converted === null ? null : formatTileMoney(converted, 'IDR', { code: true });
+  if (compact === null) throw new RangeError('Equivalent is unavailable');
+  return `≈ ${compact}`;
 }
 
 /** The same approximate amount in IDR with no rate wording (a card puts the rate in its caption). */

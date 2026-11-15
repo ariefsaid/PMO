@@ -58,6 +58,8 @@ export interface KPITileProps {
   helpLabel?: string;
   /** The tile's ONE caption (short; may wrap to two lines and is never cut — a caption that explains a figure must be readable in full). */
   caption?: string;
+  /** The caption's full form behind a compact one (hover title and screen-reader text), e.g. the full rupiah line. */
+  captionExact?: string;
   /** @deprecated Use `caption`. */
   vs?: string;
   /** @deprecated A tile has one caption; the text is used as `caption` when none is given. */
@@ -82,9 +84,9 @@ export interface KPITileProps {
 
 /** Inside a KPIRow the tiles become cells of one joined strip: no own frame, no decorative icon tile. */
 /** The tile's one caption: it wraps (at most two lines on a figure card) and is never truncated. */
-const Caption: React.FC<{ children: string; action?: { to: string; label: string }; aligned?: boolean }> = ({ children, action, aligned = false }) => (
+const Caption: React.FC<{ children: string; exact?: string; action?: { to: string; label: string }; aligned?: boolean }> = ({ children, exact, action, aligned = false }) => (
   <div className={cn('text-support font-normal text-muted-foreground', !aligned && 'mt-auto')}>
-    {children}
+    {exact ? <><span aria-hidden="true" title={exact}>{children}</span><span className="sr-only">{exact}</span></> : children}
     {action && <>{' · '}<Link to={action.to} className="pointer-events-auto font-medium text-primary-text underline-offset-4 hover:underline">{action.label}</Link></>}
   </div>
 );
@@ -145,6 +147,7 @@ export function KPITile({
   help,
   helpLabel,
   caption: captionProp,
+  captionExact,
   vs,
   delta,
   loading = false,
@@ -224,6 +227,7 @@ export function KPITile({
             <div data-testid="kpi-skeleton" className="skel h-9 w-2/3" />
           ) : error ? null : (
             <div
+              data-figure
               className={cn(
                 'min-w-0 break-words text-metric font-semibold tracking-[-0.02em] tabular',
                 negative ? 'text-destructive' : 'text-foreground'
@@ -232,7 +236,7 @@ export function KPITile({
               <FigureContent value={shownValue} exactValue={exactValue} unavailableReason={shownReason} />
             </div>
           )}
-          {caption && <Caption action={kept ? hiddenLink : undefined}>{caption}</Caption>}
+          {caption && <Caption exact={captionExact} action={kept ? hiddenLink : undefined}>{caption}</Caption>}
         </div>
       </div>
     );
@@ -246,6 +250,7 @@ export function KPITile({
         <div data-testid="kpi-skeleton" className="skel h-9 w-2/3" />
       ) : error ? null : (
         <div
+          data-figure
           className={cn(
             'min-w-0 break-words text-metric font-semibold tracking-[-0.02em] tabular',
             negative ? 'text-destructive' : 'text-foreground'
@@ -255,7 +260,7 @@ export function KPITile({
         </div>
       )}
 
-      {caption ? <Caption aligned={alignedTile} action={kept ? hiddenLink : undefined}>{caption}</Caption> : alignedTile && <div aria-hidden="true" />}
+      {caption ? <Caption exact={captionExact} aligned={alignedTile} action={kept ? hiddenLink : undefined}>{caption}</Caption> : alignedTile && <div aria-hidden="true" />}
     </div>
   );
 }
