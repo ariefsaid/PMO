@@ -222,7 +222,7 @@ export async function buildOdooProcurementRecoveryDeps(
   authorizeReplay: ReplayAuthorizer = checkOutboxReplayAuthorization,
   resolvers: RecoveryResolvers = {},
 ): Promise<DispatchMoneyWriteDeps> {
-  return buildOdooReplayDeps(sc, orgId, candidate, callBudget, {
+  return await buildOdooReplayDeps(sc, orgId, candidate, callBudget, {
     label: 'procurement', domain: 'procurement', ownsTier: odooOwnsProcurementTier,
     isFrozen: (stored, payload) => stored.operation === candidate.operation
       && isProcurementCandidate({ ...candidate, externalTier: stored.external_tier, payload }),

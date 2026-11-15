@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import process from 'node:process';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SOURCE = resolve(REPO, 'supabase/functions/adapter-dispatch/odooReplayDeps.ts');
