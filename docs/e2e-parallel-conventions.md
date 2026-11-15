@@ -92,15 +92,17 @@ reproduces that run locally for diagnosis — e.g. when a CI job timed out befor
 failures. It follows CI's order and semantics — guards, typecheck, lint, the unit suite once under
 coverage + changed-lines ≥80, build, repo contract tests, Deno boot-smoke + unit suites, a DB reset
 (`--fresh-stack` also restarts the shared stack), complete pgTAP, the whole Playwright portfolio
-under `CI=true` (`chromium` parallel then `serial --workers=1`, no retries), and the
-served-function smoke **last**.
+under `CI=true` (`chromium` parallel, served-function smoke, consent, then
+`serial --workers=1`, no retries).
 
 Why the ordering is load-bearing: `scripts/serve-functions.sh` tears down its temporary
 edge-runtime container on exit, but **Kong keeps routing `functions/v1/*` to the vanished upstream
-until the stack restarts** — so any e2e that runs *after* a served lane hangs on
-`functions.invoke`. That mis-ordering in CI is what kept the 2026-07 dev→main promote (#370) red;
-`scripts/ci-integration-order.test.mjs` now asserts the order in **both** `ci.yml` and
-`verify-main-pr.sh`, so neither can regress silently.
+until the stack restarts**. The release lanes restart Supabase immediately after the smoke and
+before consent/serial; the wrapper exports `SUPABASE_FUNCTIONS_URL` only to its child, so those
+later invocations do not inherit the removed functions endpoint. Running the smoke before the
+long serial lane makes its result visible earlier without leaving later tests against stale Kong
+routing. `scripts/ci-integration-order.test.mjs` asserts the lane order and restart placement in
+both `ci.yml` and `verify-main-pr.sh`.
 
 ### ⚑ Edge functions are NOT served in either environment by default
 
