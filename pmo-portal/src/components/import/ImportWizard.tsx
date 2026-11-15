@@ -33,11 +33,12 @@ type PendingImportExit = { kind: 'close' | 'leave'; run: () => void };
 // "Import budgets" and being met with "Import companies" is unmissable.
 // #1278 round A item 4: every string below reads its catalogue key (`import` namespace, fetched when
 // the wizard mounts), so Bahasa Indonesia reads Bahasa. The defaults are the English catalogue text.
-const stepTitle = (step: Exclude<WizardStep, 'upload'>, t: TFunction): string => {
+const stepTitle = (step: Exclude<WizardStep, 'upload'>, t: TFunction, someNotImported: boolean): string => {
   // LITERAL keys per step — the i18n completeness gate scans for them.
   if (step === 'mapping') return t('import:wizard.step.mapping', 'Match columns');
   if (step === 'preview') return t('import:wizard.step.preview', 'Review before importing');
   if (step === 'committing') return t('import:wizard.step.committing', 'Importing…');
+  if (someNotImported) return t('import:wizard.step.resultPartial', 'Some lines were not imported');
   return t('import:wizard.step.result', 'Import complete');
 };
 
@@ -65,6 +66,9 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
   // missing-key handler's on-demand fetch + re-render.
   const { t } = useTranslation('import');
   const wiz = useImportWizard(descriptor);
+  // "Complete" only when every line became a record. A line already there is not a failure; a line the write refused,
+  // or the preview refused for its errors, is a line not imported.
+  const someNotImported = (wiz.result?.failed.length ?? 0) > 0 || wiz.validation.some((v) => !v.valid && !v.already);
   const subId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
   const [pendingExit, setPendingExit] = React.useState<PendingImportExit | null>(null);
@@ -138,7 +142,7 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
                 <Dialog.Title className="text-[16px] font-bold tracking-[-0.01em] text-popover-foreground">
                   {wiz.step === 'upload'
                     ? t('import:wizard.title', 'Import {{entity}}', { entity: entityWord(descriptor) })
-                    : stepTitle(wiz.step, t)}
+                    : stepTitle(wiz.step, t, someNotImported)}
                 </Dialog.Title>
                 <Dialog.Description render={<p />} id={subId} className="mt-px text-control text-muted-foreground">
                   {stepSubtitle(wiz.step, t)}

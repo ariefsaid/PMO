@@ -14,7 +14,8 @@
       "mapping": "Cocokkan kolom",
       "preview": "Tinjau sebelum mengimpor",
       "committing": "Mengimpor…",
-      "result": "Impor selesai"
+      "result": "Impor selesai",
+      "resultPartial": "Sebagian baris tidak diimpor"
     },
     "subtitle": {
       "upload": "Unggah file .xlsx (hingga {{max}} baris).",

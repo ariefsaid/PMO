@@ -14,7 +14,8 @@
       "mapping": "Match columns",
       "preview": "Review before importing",
       "committing": "Importing…",
-      "result": "Import complete"
+      "result": "Import complete",
+      "resultPartial": "Some lines were not imported"
     },
     "subtitle": {
       "upload": "Upload an .xlsx file (up to {{max}} rows).",

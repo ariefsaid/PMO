@@ -342,3 +342,40 @@ describe('#1278 round E item a: a failed row says it was not created, in the rea
     expect(list).not.toHaveTextContent(/Update failed/);
   });
 });
+
+describe('#1278 round E: the result title says "complete" only when every line was created', () => {
+  const rows = [['L-1', 'SVC-1', 'Trenching', 'm', '5', '10'], ['L-2', 'SVC-2', 'Cabling', 'm', '5', '10']];
+  const T = {
+    en: { done: 'Import complete', some: 'Some lines were not imported', btn: 'Import 2 contract lines', btn1: 'Import 1 contract line' },
+    id: { done: 'Impor selesai', some: 'Sebagian baris tidak diimpor', btn: 'Impor 2 baris kontrak', btn1: 'Impor 1 baris kontrak' },
+  } as const;
+  beforeEach(() => {
+    vi.clearAllMocks();
+    listBoq.mockResolvedValue([]);
+    createBoq.mockResolvedValue({ id: 'b' });
+  });
+  afterEach(() => setActiveLocale({ locale: 'en', numberLocale: 'en', timezone: 'UTC' }));
+
+  it.each(['en', 'id'] as const)('%s: every line created: "complete"', async (lng) => {
+    const user = await toPreview(lng, rows);
+    await user.click(await screen.findByRole('button', { name: T[lng].btn }));
+    expect(await screen.findByRole('heading', { name: T[lng].done })).toBeInTheDocument();
+  });
+
+  it.each(['en', 'id'] as const)('%s: created + already there (not a failure): still "complete"', async (lng) => {
+    listBoq.mockResolvedValue([{ import_key: 'L-2' }]);
+    const user = await toPreview(lng, rows);
+    await user.click(await screen.findByRole('button', { name: T[lng].btn1 }));
+    expect(await screen.findByRole('heading', { name: T[lng].done })).toBeInTheDocument();
+  });
+
+  it.each(['en', 'id'] as const)('%s: created + one failed: "%s"', async (lng) => {
+    createBoq.mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce({ id: 'b' });
+    const user = await toPreview(lng, rows);
+    await user.click(await screen.findByRole('button', { name: T[lng].btn }));
+    expect(await screen.findByRole('heading', { name: T[lng].some })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: T[lng].done })).toBeNull();
+    // the sub-line is unchanged
+    expect(screen.getByText(lng === 'en' ? 'Here is what happened.' : 'Begini hasilnya.')).toBeInTheDocument();
+  });
+});
