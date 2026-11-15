@@ -2,7 +2,7 @@ import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import React, { useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, CardPad, Icon, ListState, ProgressBar, TaxBasisLabel, Tooltip, useFigureReport, type HiddenFigure } from '@/src/components/ui';
+import { Button, Icon, ListState, ProgressBar, RecordSection, TaxBasisLabel, Tooltip, useFigureReport, type HiddenFigure } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
@@ -38,12 +38,9 @@ export const BlockAction: React.FC<{ onClick?: () => void; to?: string; children
 
 /** Block chrome: heading, its unit/basis once, an optional action on the same baseline. */
 export const Block: React.FC<{ id: string; title: string; unit?: React.ReactNode; action?: React.ReactNode; fillRow?: boolean; children: React.ReactNode }> = ({ id, title, unit, action, fillRow = false, children }) => (
-  <section aria-labelledby={id} className={cn('min-w-0', fillRow && 'h-full')}>
-    <Card className={fillRow ? 'flex h-full flex-col' : undefined}>
-      <CardHead id={id} subline={unit} actions={action} className="pb-2">{title}</CardHead>
-      <CardPad className={cn('pt-2', fillRow && 'flex flex-1 flex-col')}>{children}</CardPad>
-    </Card>
-  </section>
+  <RecordSection headingId={id} title={title} subline={unit} actions={action} className={cn('min-w-0', fillRow && 'flex h-full flex-col')} bodyClassName={fillRow ? 'flex flex-1 flex-col' : undefined}>
+    {children}
+  </RecordSection>
 );
 
 const Headline: React.FC<{ tone?: 'danger'; tooltip?: string; children: React.ReactNode }> = ({ tone, tooltip, children }) => (

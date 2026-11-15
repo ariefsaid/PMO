@@ -218,7 +218,7 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
               button carries the accessible name "Read-only" and discloses the segregation-of-
               duties reason in place (read-only-distinction: never a dead input). */}
           {!valueEditing && !(canEditValue && isFinanceForward) && isOnHand && (
-            <button type="button" aria-label={t('projectDetail.header.readOnly', 'Read-only')} aria-expanded={lockReasonOpen}
+            <button type="button" title={t('projectDetail.header.contractLocked', 'Contract value is locked for your role')} aria-label={t('projectDetail.header.contractLocked', 'Contract value is locked for your role')} aria-expanded={lockReasonOpen}
               aria-controls="contract-value-lock-reason" onClick={onToggleLockReason}
               className="grid size-6 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
               <Icon name="lock" className="size-3.5" />
@@ -587,7 +587,8 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const orgToday = useOrgToday();
   // The Projects list's "late" reads this same rule (projectLateDays).
   const pastEndDays = projectLateDays(project, orgToday);
-  const hasDetails = compact && Boolean(menuContent || taxLabel);
+  const phoneLockNote = compact && !isDesktopHeader && showCompactContractLock;
+  const hasDetails = compact && Boolean(menuContent || taxLabel || phoneLockNote);
   // The project's codes, status control and accounting link: a Base UI popover, not part of the action menu.
   const detailsPanel = hasDetails ? (
     <Popover>
@@ -609,6 +610,11 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
             </div>
           </>
         )}
+        {phoneLockNote && (
+          <p className="px-3 py-2 text-control text-muted-foreground" data-testid="phone-contract-lock-note">
+            {t('projectDetail.header.contractLocked', 'Contract value is locked for your role')}. {t('projectDetail.header.sodLockedNote', 'Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.')}
+          </p>
+        )}
         {taxLabel && (
           <div className="px-3 py-2">
             <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate}
@@ -621,27 +627,40 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   ) : undefined;
   const statusPill = <StatusPill record="project" state={status} />;
   const statusWithEndDate = (
-    <span className="flex min-w-0 flex-wrap items-center gap-2">
+    <span className="flex min-w-0 items-center gap-2 max-md:shrink-0 md:flex-wrap">
       {statusPill}
       {pastEndDays !== null && pastEndDays > 0 && (
-        <StatusPill variant="warn">{t('projectDetail.header.daysLate', '{{count}} days late', { count: pastEndDays })}</StatusPill>
+        <StatusPill variant="warn">{t('projectDetail.header.daysLate', { count: pastEndDays, defaultValue_one: '{{count}} day late', defaultValue_other: '{{count}} days late' })}</StatusPill>
       )}
     </span>
   );
   // Phone: the status pill joins the action row (one row less above the work).
   const statusOnPhoneRow = compact && !isDesktopHeader;
-  const actions = compact ? (
-    <>
-      {statusOnPhoneRow && statusWithEndDate}
-      {secondaryAction}
-      {detailsPanel}
-      {showCompactContractLock && (
-        <button type="button" aria-label={t('projectDetail.header.readOnly', 'Read-only')} aria-expanded={lockReasonOpen}
+  const compactLock = showCompactContractLock && !statusOnPhoneRow ? (
+        <button type="button" title={t('projectDetail.header.contractLocked', 'Contract value is locked for your role')} aria-label={t('projectDetail.header.contractLocked', 'Contract value is locked for your role')} aria-expanded={lockReasonOpen}
           aria-controls="contract-value-lock-reason" onClick={() => setLockReasonOpen(open => !open)}
           className="grid size-6 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
           <Icon name="lock" className="size-3.5" />
         </button>
-      )}
+  ) : null;
+  // Phone: the status row holds status, late pill and menu only; Project details sits at the end of the customer line (no row of its own), and the lock's words live inside it.
+  const phoneMeta = statusOnPhoneRow && detailsPanel && (customerName || facts)
+    ? (
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
+        <span className="flex w-full items-center justify-between gap-2">
+          <span className="min-w-0">{customerName}</span>
+          <span className="-my-3 -mr-1.5 shrink-0">{detailsPanel}</span>
+        </span>
+        {facts}
+      </div>
+    )
+    : meta;
+  const actions = compact ? (
+    <>
+      {statusOnPhoneRow && statusWithEndDate}
+      {secondaryAction}
+      {phoneMeta === meta && detailsPanel}
+      {!statusOnPhoneRow && compactLock}
       {extraEdit}
     </>
   ) : extraEdit;
@@ -769,15 +788,17 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         name={<span title={project.name}>{projectDisplayName(project)}</span>}
         status={statusOnPhoneRow ? undefined : statusWithEndDate}
         statusBelowMetaOnMobile
+        titleInAppBarOnPhone
+        // Phone: the app bar carries the one visible title, so the h1 stays for assistive tech only.
         // Phone keeps identity/status; the persistent Details rail below the
         // selected work already carries these codes, customer and PO facts.
-        meta={meta}
+        meta={phoneMeta}
         metaFullWidth={compact && isDesktopHeader}
         actions={actions}
         primaryAction={headerPrimary}
         menuItems={menuItems}
         menuLabel={t('projectDetail.header.projectActions', 'Project actions')}
-        className="mb-3! max-md:mb-2! max-md:!border-0 max-md:!bg-transparent max-md:!p-0 max-md:[&_[data-testid=record-header-actions]]:gap-1 max-md:[&_[data-testid=record-header-actions]]:flex-nowrap"
+        className="mb-3! max-md:mb-2! max-md:!border-0 max-md:!bg-transparent max-md:!p-0 max-md:[&_[data-testid=record-header-actions]]:w-full max-md:[&_[data-testid=record-header-actions]]:justify-between max-md:[&_[data-testid=record-header-actions]]:gap-1 max-md:[&_[data-testid=record-header-actions]]:flex-nowrap"
       />
 
       {showCompactContractLock && (

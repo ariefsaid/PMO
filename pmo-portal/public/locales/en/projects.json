@@ -94,6 +94,7 @@
     "spent": "Spent"
   },
   "card": {
+    "contractInline": "{{amount}} contract",
     "spentInline": "{{amount}} spent"
   },
   "contractBasisNote": "Contract amounts are {{basis}}.",

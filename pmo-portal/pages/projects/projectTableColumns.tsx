@@ -151,15 +151,15 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
         const endClientName = p.end_client ? companyDisplayName(p.end_client) : null;
         const metadata = [clientName, ids, endClientName].filter(Boolean).join(' · ');
         return (
-          <span className="flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap" title={metadata} onClick={(event) => event.stopPropagation()}>
-            {clientName && <span className="min-w-0 max-w-[44%] overflow-hidden text-ellipsis whitespace-nowrap"><CompanyNameLink companyId={p.client_id} name={clientName} className="inline" /></span>}
+          <span className="flex min-w-0 flex-wrap items-baseline gap-x-1" title={metadata} onClick={(event) => event.stopPropagation()}>
+            {clientName && <span className="min-w-0 break-words"><CompanyNameLink companyId={p.client_id} name={clientName} className="inline" /></span>}
             {clientName && ids && <span aria-hidden className="shrink-0">·</span>}
             {ids && <>
               {p.pmo_project_number && <span className="sr-only">{t('projects.identifiers.pmo', 'PMO Project Number')}: </span>}
-              <span className="shrink-0 whitespace-nowrap font-mono" title={ids}>{ids}</span>
+              <span className="shrink-0 whitespace-nowrap tabular-nums" title={ids}>{ids}</span>
             </>}
             {ids && endClientName && <span aria-hidden className="shrink-0">·</span>}
-            {endClientName && <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-muted-foreground">{endClientName}</span>}
+            {endClientName && <span className="min-w-0 break-words text-muted-foreground">{endClientName}</span>}
           </span>
         );
       },
@@ -183,7 +183,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
                   e.stopPropagation();
                   onOpen(p);
                 }}
-                className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left font-semibold hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                className="min-w-0 flex-1 break-words text-left font-semibold hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                 title={p.name}
                 aria-describedby={projectDisplayName(p) !== p.name ? `project-legal-${p.id}` : undefined}
               >
@@ -393,7 +393,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
         {(p.client || ids || p.end_client) && (
           <div className="mt-1 flex min-w-0 flex-wrap gap-x-3 break-words text-sm font-normal text-muted-foreground" onClick={(event) => event.stopPropagation()}>
             {p.client && <CompanyNameLink companyId={p.client_id} name={companyDisplayName(p.client)} className="inline" />}
-            {ids && <span className="whitespace-nowrap font-mono" title={ids}>{ids}</span>}
+            {ids && <span className="whitespace-nowrap tabular-nums" title={ids}>{ids}</span>}
             {p.end_client && <span>{companyDisplayName(p.end_client)}</span>}
           </div>
         )}
@@ -415,7 +415,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
         </div>
         {canViewMoney && (
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-            <span className="tabular tabular-nums">{contractAbsent(p) ? '—' : formatCurrency(p.contract_value, p.currency)}</span>
+            <span className="tabular tabular-nums">{contractAbsent(p) ? '—' : t('projects:card.contractInline', '{{amount}} contract', { amount: formatCurrency(p.contract_value, p.currency) })}</span>
             {!sharedBasis && !contractAbsent(p) && <TaxBasisLabel treatment={p.tax_treatment} showDetails={false} className="leading-tight" />}
             {actual && <span className="tabular tabular-nums text-muted-foreground">{t('projects:card.spentInline', '{{amount}} spent', { amount: actual })}</span>}
             {budgetUsed && <span className="min-w-[7rem] max-w-[10rem] flex-1">{budgetUsed}</span>}

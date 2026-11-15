@@ -325,9 +325,26 @@ describe('project money position', () => {
     expect(result.current.items.find((item) => item.key === 'phases')?.tone).toBe('danger');
     expect(result.current.items.slice(0, 2).every((item) => item.tone === 'danger')).toBe(true);
     expect(result.current.items[0]).toMatchObject({ what: 'Project over on spending', to: '/projects/p1/budget' });
-    expect(result.current.items[1]?.size).toContain('40 USD unpaid');
+    expect(result.current.items[1]?.size).toContain('$40 unpaid');
     expect(result.current.items[2]?.what).toContain('Design');
     expect(result.current.items[3]?.what).toBe('Procurement waiting for your approval');
+  });
+
+  it('says which lateness figure a several-phase row carries: the count, and the latest by N days', () => {
+    const daysAgo = (n: number) => {
+      const d = new Date(`${state.orgDay}T00:00:00Z`);
+      d.setUTCDate(d.getUTCDate() - n);
+      return d.toISOString().slice(0, 10);
+    };
+    state.milestones = [
+      { id: 'm1', name: 'Design', target_date: daysAgo(288), effective_pct: 40, task_count: 2 },
+      { id: 'm2', name: 'Build', target_date: daysAgo(30), effective_pct: 10, task_count: 3 },
+      { id: 'm3', name: 'Test', target_date: daysAgo(5), effective_pct: 10, task_count: 1 },
+    ];
+    const { result } = renderHook(() => useProjectAttention(project(), 'pm'));
+    const phases = result.current.items.find((item) => item.key === 'phases');
+    expect(phases?.what).toBe('3 phases late, the latest by 288 days');
+    expect(phases?.size).toBeUndefined();
   });
 
   it('shows the Engineer only their overdue or blocked task attention', () => {

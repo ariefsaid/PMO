@@ -5,7 +5,7 @@ import { useProjectProcurements } from '@/src/hooks/useProcurements';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
-import { formatNumberWhole } from '@/src/lib/format';
+import { formatCurrency } from '@/src/lib/format';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
@@ -240,8 +240,8 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
           : t('projectDetail.attention.categoryOver', '{{category}} over on spending', { category: budgetCategoryLabel(worst.category, t) }),
         // The amount is the cost block's headline; here only where it comes from.
         size: budget.projectOver !== null
-          ? t('projectDetail.attention.projectOverSize', '{{amount}} {{currency}} over', { amount: formatNumberWhole(budget.projectOver), currency: project.currency })
-          : t('projectDetail.attention.categoryOverSize', '{{amount}} {{currency}} over', { amount: formatNumberWhole(worst.actual! - worst.budget), currency: project.currency }),
+          ? t('projectDetail.attention.projectOverSize', '{{amount}} over', { amount: formatCurrency(budget.projectOver, project.currency) })
+          : t('projectDetail.attention.categoryOverSize', '{{amount}} over', { amount: formatCurrency(worst.actual! - worst.budget, project.currency) }),
         explanation: t('projectDetail.attention.budgetTooltip', 'Compared mapped spending with the active budget before tax; see Budget for category detail.'),
         action: t('projectDetail.attention.budgetAction', 'Review budget') });
     }
@@ -250,7 +250,7 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
         what: receivables.data.count === 1 ? t('projectDetail.attention.arWhatOne', 'Customer invoice overdue') : t('projectDetail.attention.arWhatMany', '{{count}} customer invoices overdue', { count: receivables.data.count }),
         // Only a known balance is a figure; an unsynced balance shows age only, never the invoice total.
         size: receivables.data.balance !== null
-          ? t('projectDetail.attention.arSize', '{{amount}} {{currency}} unpaid · {{days}} days', { amount: formatNumberWhole(receivables.data.balance), currency: project.currency, days: receivables.data.oldest })
+          ? t('projectDetail.attention.arSize', '{{amount}} unpaid · {{days}} days', { amount: formatCurrency(receivables.data.balance, project.currency), days: receivables.data.oldest })
           : t('projectDetail.attention.arSizeNoBalance', '{{days}} days past due', { days: receivables.data.oldest }),
         explanation: t('projectDetail.attention.arTooltip', 'Invoice status, due date, and any known unpaid balance come from project invoices and accounting sync.'),
         action: receivables.data.count === 1 ? t('projectDetail.attention.arActionOne', 'See invoice') : t('projectDetail.attention.arActionMany', 'See invoices') });
@@ -262,8 +262,9 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
       out.push({ key: 'phases', tone: 'danger', to: `${base}/tasks`,
         what: late.length === 1
           ? t('projectDetail.attention.phaseWhat', '{{name}} is late', { name: worst.name })
-          : t('projectDetail.attention.phasesWhat', '{{count}} phases late', { count: late.length }),
-        size: t('projectDetail.attention.phaseSize', '{{days}} days late', { days: lateDays(worst.target_date!, today) }),
+          : t('projectDetail.attention.phasesWhat', '{{count}} phases late, the latest by {{days}} days', { count: late.length, days: lateDays(worst.target_date!, today) }),
+        // Several phases: the one sentence carries the figure; a second "days late" beside the header's would read as a contradiction.
+        size: late.length === 1 ? t('projectDetail.attention.phaseSize', '{{days}} days late', { days: lateDays(worst.target_date!, today) }) : undefined,
         action: t('projectDetail.attention.phaseAction', 'See tasks'),
         explanation: t('projectDetail.attention.phaseTooltip', 'Phase target dates and completion come from the project phase plan.') });
     }

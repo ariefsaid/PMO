@@ -21,6 +21,8 @@ export interface RecordHeaderProps {
   status: React.ReactNode;
   /** Keep a long record name full width on mobile, with status below its identity line. */
   statusBelowMetaOnMobile?: boolean;
+  /** Phone: the shell's app bar already shows the name, so the h1 stays for assistive tech only (one visible title). */
+  titleInAppBarOnPhone?: boolean;
   /** Quiet identity line under the title (reference number, client). Not a sentence. */
   meta?: React.ReactNode;
   metaId?: string;
@@ -74,6 +76,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
   name,
   status,
   statusBelowMetaOnMobile = false,
+  titleInAppBarOnPhone = false,
   meta,
   metaId,
   metaFullWidth = false,
@@ -132,16 +135,17 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
               statusBelowMetaOnMobile
                 ? 'col-span-2 row-start-1 break-words sm:col-span-1 sm:row-start-auto sm:flex-[0_1_auto]'
                 : 'flex-[0_1_auto] truncate',
+              titleInAppBarOnPhone && 'max-md:sr-only',
               !isDrawer && 'sm:truncate',
             )}>{name}</h1>
-            <span className={cn(
+            {status != null && status !== false && <span className={cn(
               'shrink-0 self-baseline',
               statusBelowMetaOnMobile && 'col-span-2 row-start-3 justify-self-start sm:col-span-1 sm:row-start-auto',
-            )}>{status}</span>
+            )}>{status}</span>}
           </div>
           {meta && !metaFullWidth && <div id={metaId} className={cn(
             'mt-1 text-control font-normal text-muted-foreground',
-            statusBelowMetaOnMobile && 'col-span-2 row-start-2 sm:row-start-auto',
+            statusBelowMetaOnMobile && (titleInAppBarOnPhone ? 'col-span-2 row-start-1 sm:row-start-auto' : 'col-span-2 row-start-2 sm:row-start-auto'),
           )}>{meta}</div>}
         </div>
         {zone && <div className={cn('flex shrink-0 items-center gap-2', actionsOnTitleRow ? 'ml-auto max-w-full' : cn('w-full', !isDrawer && 'ml-auto sm:w-auto'))}>{zone}</div>}

@@ -94,6 +94,7 @@
     "spent": "Terpakai"
   },
   "card": {
+    "contractInline": "{{amount}} kontrak",
     "spentInline": "{{amount}} terpakai"
   },
   "contractBasisNote": "Nilai kontrak {{basis}}.",

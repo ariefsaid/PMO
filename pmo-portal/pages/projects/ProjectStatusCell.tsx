@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { StatusPill } from '@/src/components/ui';
 import { statusLabel } from '@/src/lib/status/statusMap';
 
-/** The row's one status mark: lifecycle name, exception tone, lateness beneath. */
+/** The row's one status mark: lifecycle name, exception tone, lateness beneath (same amber pill as the record). */
 export function ProjectStatusCell({ state, exception, lateDays }: {
   state: string;
   exception: 'overBudget' | 'atRisk' | null;
@@ -23,7 +23,10 @@ export function ProjectStatusCell({ state, exception, lateDays }: {
           </StatusPill>
         )}
       {lateDays !== null && (
-        <span className="text-control text-foreground">{tp('health.daysLate', '{{count}} days late', { count: lateDays })}</span>
+        // The record's mark (amber pill). Exception colour once per row: over budget (red) wins, so late drops to plain text.
+        exception === 'overBudget'
+          ? <span className="text-control text-foreground">{tp('health.daysLate', '{{count}} days late', { count: lateDays })}</span>
+          : <StatusPill variant="warn" wrap className="py-1">{tp('health.daysLate', '{{count}} days late', { count: lateDays })}</StatusPill>
       )}
     </div>
   );
