@@ -17,7 +17,7 @@ const TypingDots: React.FC = () => (
     {[0, 1, 2].map((i) => (
       <span
         key={i}
-        className="size-1.5 rounded-full bg-muted-foreground/70 motion-safe:animate-[thinking-dot_1.2s_ease-in-out_infinite]"
+        className="size-1.5 rounded-full bg-muted-foreground/70 thinking-dot"
         style={{ animationDelay: `${i * 160}ms` }}
       />
     ))}

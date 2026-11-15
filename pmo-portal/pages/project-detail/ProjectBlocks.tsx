@@ -231,7 +231,7 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean }> 
       <div className="mt-5 border-t border-border/70 pt-3" data-testid="money-position-details">
         <button type="button" aria-expanded={financeDetailsOpen} onClick={() => setFinanceDetailsOpen((open) => !open)}
           className="touch-target inline-flex items-center gap-2 cursor-pointer text-sm font-semibold text-muted-foreground hover:text-foreground">
-          <Icon name="chev" className={`size-3.5 transition-transform duration-100 motion-reduce:transition-none ${financeDetailsOpen ? 'rotate-90' : ''}`} />
+          <Icon name="chev" className={`size-3.5 transition-transform motion-reduce:transition-none ${financeDetailsOpen ? 'rotate-90' : ''}`} />
           {t('projectDetail.money.details', 'Details')}
         </button>
         {financeDetailsOpen && <div className="space-y-4 pt-4"><ProjectFinancesSection project={project} /></div>}

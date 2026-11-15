@@ -47,6 +47,34 @@ describe('#1970 motion', () => {
     }
   });
 
+  it('#2128 no exit eases in; Tailwind defaults and keyframes use the house tokens', () => {
+    expect(css).not.toMatch(/ease-in forwards/);
+    expect(css).not.toMatch(/\b(?:ease-out|ease-in)\s*;/);
+    expect(css).toContain('--default-transition-timing-function: var(--ease-out)');
+    expect(css).toContain('--default-transition-duration: var(--motion-hover)');
+    expect(css).toMatch(/--motion-hover:\s*120ms/);
+    expect(css).not.toContain('transition: transform 120ms cubic-bezier');
+  });
+
+  it('#2128 the thinking dots animate only when reduced motion is not requested', () => {
+    const rule = /@media \(prefers-reduced-motion: no-preference\)\s*\{\s*\.thinking-dot\s*\{[^}]*animation:\s*thinking-dot/;
+    expect(css).toMatch(rule);
+    expect(css).not.toMatch(/^\.thinking-dot\s*\{/m);
+  });
+
+  it('#2128 Crossfade holds the old child for the --motion-icon-swap token, not a literal', () => {
+    document.documentElement.style.setProperty('--motion-icon-swap', '400ms');
+    vi.useFakeTimers();
+    const { rerender } = render(<Crossfade swapKey="a"><i>old</i></Crossfade>);
+    rerender(<Crossfade swapKey="b"><i>new</i></Crossfade>);
+    act(() => { vi.advanceTimersByTime(250); });
+    expect(screen.getByText('old')).toBeTruthy();
+    act(() => { vi.advanceTimersByTime(200); });
+    expect(screen.queryByText('old')).toBeNull();
+    vi.useRealTimers();
+    document.documentElement.style.removeProperty('--motion-icon-swap');
+  });
+
   it('Crossfade keeps the old child while the new one fades in, then drops it', () => {
     vi.useFakeTimers();
     const { rerender } = render(<Crossfade swapKey="a"><i>old</i></Crossfade>);
