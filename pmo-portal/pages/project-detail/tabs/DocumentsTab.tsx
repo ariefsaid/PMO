@@ -22,7 +22,7 @@ import { useDocuments, useDocumentMutations } from '@/src/hooks/useDocuments';
 import { useDocumentVerification } from '@/src/hooks/useDocumentVerification';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import { useRevision } from '@/src/hooks/useRevision';
-import { RecordFolderAction } from '@/src/components/m365/RecordFolderAction';
+import { useRecordFolderAction } from '@/src/components/m365/useRecordFolderAction';
 import { MicrosoftEntry } from './ProjectDocumentMicrosoft';
 import { LinkedDocumentCell } from '@/src/components/m365/LinkedDocumentCell';
 import { projectOwner } from '@/src/lib/m365/reference';
@@ -34,10 +34,11 @@ import type {
   DocStatus,
 } from '@/src/lib/db/documents';
 import { toCsv } from '@/src/lib/export/toCsv';
+import { statusLabel } from '@/src/lib/status/statusMap';
 import { createDocumentRegisterCells } from './documentRegisterCells';
-import { buildDocumentRegisterColumns } from './documentRegisterColumns';
+import { buildDocumentRegisterColumns, buildDocumentMobileCardDetails } from './documentRegisterColumns';
 import { buildDocumentRowMenu } from './documentRowMenu';
-import DocumentsToolbar from './DocumentsToolbar';
+import DocumentsToolbar, { type DocumentAddOption } from './DocumentsToolbar';
 import DocumentsBulkBar from './DocumentsBulkBar';
 import DocumentsDialogs, { transitionActionLabel } from './DocumentsDialogs';
 
@@ -173,14 +174,26 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   const drawerDoc = drawerId ? (documentsById.get(drawerId) ?? null) : null;
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    // One field finds a document by name, number, category, status (in the reader's language) or revision.
+    const matches = (d: ProjectDocumentRow) => [
+      d.title,
+      d.code ?? '',
+      categoryName(d),
+      isMicrosoftFolder(d) ? '' : statusLabel('document', d.status, t),
+      isMicrosoftFolder(d) ? '' : String(d.status),
+      d.revision ? `${t('projectDetail.documents.revLabel', 'Rev')} ${d.revision}` : '',
+    ].some((value) => value.toLowerCase().includes(q));
     return all.filter(
       (d) =>
-        (!q || d.title.toLowerCase().includes(q) || (d.code ?? '').toLowerCase().includes(q) || categoryName(d).toLowerCase().includes(q)) &&
+        (!q || matches(d)) &&
         (!categoryFilter || categoryName(d) === categoryFilter) &&
         (!statusFilter || (!isMicrosoftFolder(d) && d.status === statusFilter)) &&
         (!sourceFilter || (sourceFilter === 'onedrive' ? d.source === 'onedrive' : d.source !== 'onedrive')),
     );
-  }, [all, search, categoryFilter, statusFilter, sourceFilter, categoryName]);
+  }, [all, search, categoryFilter, statusFilter, sourceFilter, categoryName, t]);
+  // A row is an earlier revision when a later revision of it is in the register. Earlier
+  // revisions stay listed (never hidden), but each sits under its latest so the latest is read first.
+  const isEarlierRevision = useCallback((doc: ProjectDocumentRow) => childDocumentsByParentId.has(doc.id), [childDocumentsByParentId]);
 
   const documentsView = searchParams.get('documentsView') === 'grouped' ? 'grouped' : 'register';
   const setDocumentsView = (view: 'register' | 'grouped') => {
@@ -204,9 +217,11 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       const groupOrder = documentsView === 'grouped' ? categoryName(a).localeCompare(categoryName(b)) : 0;
       if (groupOrder !== 0) return groupOrder;
       const sorted = compareValue(a).localeCompare(compareValue(b), undefined, { numeric: true, sensitivity: 'base' });
-      return sort.dir === 'asc' ? sorted : -sorted;
+      if (sorted !== 0) return sort.dir === 'asc' ? sorted : -sorted;
+      // Same document name: the latest revision first, its earlier revisions under it.
+      return Number(isEarlierRevision(a)) - Number(isEarlierRevision(b));
     });
-  }, [filtered, categoryName, documentsView, sort]);
+  }, [filtered, categoryName, documentsView, sort, isEarlierRevision]);
 
   // The register and its open preview share one display-triggered verification batch. Include the
   // live drawer row even when filters hide it, and deduplicate it against the visible register.
@@ -265,6 +280,32 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   const columns = buildDocumentRegisterColumns({
     t, documentsById, childDocumentsByParentId, setDrawerDoc, categoryName, filtered, cells, microsoftCell,
   });
+  const mobileCardDetails = buildDocumentMobileCardDetails({ categoryName, cells, microsoftCell, canEditDoc });
+
+  const folder = useRecordFolderAction({
+    target: { kind: 'project', id: projectId },
+    hasFolder: all.some((d) => d.source === 'onedrive' && d.ms_item_kind === 'folder'),
+    onChooseExisting: () => { if (canCreateMicrosoftReference) setMicrosoftEntry({ kind: 'create' }); },
+  });
+  // Every way to add a document sits inside the tab's one "Add document" control.
+  const addOptions: DocumentAddOption[] = [
+    ...(canCreate ? [{
+      key: 'upload',
+      label: t('projectDetail.documents.add.upload', 'Upload a document'),
+      onSelect: () => setFormTarget({ doc: null }),
+    }] : []),
+    ...(canCreateMicrosoftReference ? [{
+      key: 'link',
+      label: t('m365Documents.link', 'Link from Microsoft 365'),
+      onSelect: () => setMicrosoftEntry({ kind: 'create' }),
+    }] : []),
+    ...(folder.allowed && !all.some((d) => d.source === 'onedrive' && d.ms_item_kind === 'folder') ? [{
+      key: 'folder',
+      label: folder.pending ? t('projectDetail.documents.add.folderPending', 'Creating folder…') : folder.label,
+      onSelect: () => { void folder.start(); },
+      disabled: !folder.canStart,
+    }] : []),
+  ];
   const selectedDocumentsHaveFile = selectedDocuments.some(documentHasFile);
 
   const bulkStatusTargets = selectedDocuments.length > 0
@@ -429,11 +470,6 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
 
   return (
     <div>
-      <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-[16px] font-bold tracking-[-0.01em]">
-          {t('projectDetail.documents.heading', 'Document register')}
-        </h2>
-      </div>
 
       {microsoftEntry && (
         <MicrosoftEntry code={projectCode} onClose={() => setMicrosoftEntry(null)} onSelect={onSelectReference} />
@@ -468,6 +504,15 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         </GateNotice>
       )}
 
+      {/* The folder step's progress, result and remedy (it is started from the Add document menu). */}
+      {folder.allowed && (
+        <div data-testid="record-folder-action" className={folder.hasNotice ? 'mb-3 min-w-0 space-y-2' : 'contents'}>
+          {folder.outcome}
+          {folder.remedies && <div className="flex flex-wrap items-center gap-2">{folder.remedies}</div>}
+          {folder.reconnectError}
+        </div>
+      )}
+
       {/* Selection actions and their failure report sit above the assembly, so the assembly stays one
           unbroken surface (toolbar seamed to its rows) whatever the selection is. */}
       {bulkFailure && <div role="alert" className="mb-3 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">
@@ -495,9 +540,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       {/* One card assembly (DESIGN.md §3): the register toolbar seams to the rows below it, so the
           filters and the register read as one surface in every state, like the record's other tabs. */}
       <div className="min-w-0" data-testid="documents-register-assembly">
-        {/* The folder action shares the toolbar row with the other create/link controls (empty for non-writers). */}
         <DocumentsToolbar
-          registerSize={all.length}
           search={search}
           setSearch={setSearch}
           categories={categories}
@@ -509,17 +552,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
           setSourceFilter={setSourceFilter}
           documentsView={documentsView}
           setDocumentsView={setDocumentsView}
-          canCreateMicrosoftReference={canCreateMicrosoftReference}
-          canCreate={canCreate}
-          folderAction={(
-            <RecordFolderAction
-              target={{ kind: 'project', id: projectId }}
-              hasFolder={all.some((d) => d.source === 'onedrive' && d.ms_item_kind === 'folder')}
-              onChooseExisting={() => { if (canCreateMicrosoftReference) setMicrosoftEntry({ kind: 'create' }); }}
-            />
-          )}
-          onLinkMicrosoft={() => setMicrosoftEntry({ kind: 'create' })}
-          onAddDocument={() => setFormTarget({ doc: null })}
+          addOptions={addOptions}
         />
 
         {state === 'loading' && (
@@ -543,21 +576,26 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         )}
 
         {state === 'empty' && (
-          <div className="rounded-b-lg border border-border bg-card">
-            <ListState
-              variant="empty"
-              icon="doc"
-              title={t('projectDetail.documents.emptyTitle', 'No documents yet')}
-              sub={t(
-                'projectDetail.documents.emptySub',
-                "Add a drawing, specification, or transmittal to start the project's document register.",
-              )}
-            />
+          // The empty register is one row in the same card, where the first row would be: what is
+          // missing and how to start, on the heading's left edge. No second Add control (the toolbar's
+          // is the one), no centred block floating in the card.
+          <div className="rounded-b-lg border border-border bg-card px-4 py-4" data-testid="documents-register-empty">
+            <div className="min-w-0">
+              <div className="text-group font-semibold">{t('projectDetail.documents.emptyTitle', 'No documents yet')}</div>
+              <div className="text-control text-muted-foreground">
+                {t(
+                  'projectDetail.documents.emptySub',
+                  "Add a drawing, specification, or transmittal to start the project's document register.",
+                )}
+              </div>
+            </div>
           </div>
         )}
 
         {state === undefined && (
+          <div className="overflow-hidden rounded-b-lg border border-border bg-card">
           <DataTable<ProjectDocumentRow>
+            embedded
             rows={sortedFiltered}
             columns={columns}
             rowKey={(d) => d.id}
@@ -568,11 +606,21 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
             sort={sort}
             onSort={setSortBy}
             groupBy={documentsView === 'grouped' ? categoryName : undefined}
-            state={filtered.length === 0 ? 'empty' : undefined}
+            state={sortedFiltered.length === 0 ? 'empty' : undefined}
+            mobileCardDetails={mobileCardDetails}
             emptyTitle={t('projectDetail.documents.noSearchMatch', 'No documents match your search')}
             emptySub={t('projectDetail.documents.noSearchMatchSub', 'Try a different title, code, or category.')}
             tableId="project-detail-tabs-documentstab-table"
           />
+          {/* The floor: the rows end in one count line inside the card, at the panel inset. */}
+          <div
+            data-testid="documents-register-floor"
+            role="status"
+            className="border-t border-border/70 px-4 py-2.5 text-control tabular-nums text-muted-foreground"
+          >
+            {t('ui.listPage.showingOf', { ns: 'common', defaultValue: 'Showing {{count}} of {{total}}', count: sortedFiltered.length, total: all.length })}
+          </div>
+          </div>
         )}
       </div>
 
@@ -594,6 +642,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
           onEdit={editPreview}
           onDelete={deletePreview}
           onDownload={() => void handleDownload(drawerDoc)}
+          onView={documentHasFile(drawerDoc) ? () => openPreview(drawerDoc) : undefined}
           onViewDocument={setDrawerDoc}
           microsoftFile={microsoftCell(drawerDoc)}
         />

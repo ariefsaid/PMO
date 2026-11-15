@@ -19,7 +19,9 @@ const h = vi.hoisted(() => ({
 }));
 
 // The register mounts RecordFolderAction (own coverage: DocumentsTab.record-folder.test).
-vi.mock('@/src/components/m365/RecordFolderAction', () => ({ RecordFolderAction: () => null }));
+vi.mock('@/src/components/m365/useRecordFolderAction', () => ({
+  useRecordFolderAction: () => ({ allowed: false, hasNotice: false, canStart: false, pending: false, start: () => {}, label: '', outcome: null, remedies: null, reconnectError: null }),
+}));
 vi.mock('@/src/hooks/useDocuments', () => ({
   useDocuments: () => ({ data: h.docs.data, isPending: false, isError: false, refetch: vi.fn() }),
   useDocumentMutations: () => ({
@@ -57,6 +59,7 @@ vi.mock('@/src/lib/m365/graphClient', async () => ({
   getItem: h.getItem,
 }));
 
+import { chooseAddOption } from './addDocumentMenu';
 import DocumentsTab from '../DocumentsTab';
 
 const renderAs = (role: Role) =>
@@ -108,7 +111,7 @@ describe('DocumentsTab — create with a Microsoft reference (AC-M365DOC-011/040
 
   it('keeps a pending reference form read-only after a view-as change', async () => {
     render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter><ImpersonationProvider realRole="Admin" demoEligibility="eligible"><ToastProvider><ViewAsControl /><DocumentsTab projectId="p1" projectCode="PRJ-1" /></ToastProvider></ImpersonationProvider></MemoryRouter></QueryClientProvider>);
-    await userEvent.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
+    await chooseAddOption(userEvent, 'Link from Microsoft 365');
     await userEvent.click(screen.getByRole('button', { name: 'Select synthetic item' }));
     const form = screen.getByRole('dialog');
     await userEvent.click(screen.getByText('View as Engineer'));
@@ -119,7 +122,7 @@ describe('DocumentsTab — create with a Microsoft reference (AC-M365DOC-011/040
 
   it('AC-M365DOC-011: pick first, then the ordinary form; ONE create call carries the reference (no empty intermediate row)', async () => {
     renderAs('Project Manager');
-    await userEvent.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
+    await chooseAddOption(userEvent, 'Link from Microsoft 365');
     await userEvent.click(screen.getByRole('button', { name: 'Select synthetic item' }));
     // The picker closed before the form opened: one modal at a time, and nothing written yet.
     expect(screen.queryByRole('dialog', { name: 'Synthetic picker' })).not.toBeInTheDocument();
@@ -136,7 +139,7 @@ describe('DocumentsTab — create with a Microsoft reference (AC-M365DOC-011/040
 
   it('AC-M365DOC-040: the original metadata-only path is unchanged (no source, no reference)', async () => {
     renderAs('Project Manager');
-    await userEvent.click(screen.getByRole('button', { name: 'Add document' }));
+    await chooseAddOption(userEvent, 'Upload a document');
     const form = screen.getByRole('dialog');
     await userEvent.type(within(form).getByRole('textbox', { name: /Title/ }), 'Plain');
     await userEvent.click(within(form).getByRole('button', { name: 'Add document' }));
@@ -147,8 +150,9 @@ describe('DocumentsTab — create with a Microsoft reference (AC-M365DOC-011/040
 
   it('AC-M365DOC-040: a role that cannot create documents is offered neither entry point', () => {
     renderAs('Engineer');
-    expect(screen.queryByRole('button', { name: 'Link from Microsoft 365' })).not.toBeInTheDocument();
+    // No Add document control at all, so neither way to add (upload nor link) is offered.
     expect(screen.queryByRole('button', { name: 'Add document' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Link from Microsoft 365' })).not.toBeInTheDocument();
   });
 });
 

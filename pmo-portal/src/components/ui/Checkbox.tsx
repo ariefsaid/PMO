@@ -61,7 +61,7 @@ export const Checkbox: React.FC<CheckboxProps> = ({
     className={cn(
       children
         ? 'touch-target inline-flex min-h-11 w-auto shrink-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent p-0 text-left text-sm text-foreground transition-colors [&_svg]:size-3'
-        : 'touch-target inline-grid size-4 shrink-0 cursor-pointer place-items-center rounded-sm border-[1.5px] border-input bg-background p-0 transition-colors [&_svg]:size-3',
+        : 'touch-target touch-target-overlay inline-grid size-4 shrink-0 cursor-pointer place-items-center rounded-sm border-[1.5px] border-input bg-background p-0 transition-colors [&_svg]:size-3',
       !children && 'data-[checked]:border-primary data-[checked]:bg-primary data-[checked]:text-primary-foreground',
       !children && 'data-[indeterminate]:border-primary data-[indeterminate]:bg-primary data-[indeterminate]:text-primary-foreground',
       'data-[disabled]:cursor-not-allowed data-[disabled]:opacity-45',

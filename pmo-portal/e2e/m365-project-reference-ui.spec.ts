@@ -56,7 +56,8 @@ test('AC-M365DOC-011/040/058: a PM adds a project document from a OneDrive folde
   await login(page, 'pm@acme.test');
   await openDocumentsTab(page);
 
-  await page.getByRole('button', { name: 'Link from Microsoft 365', exact: true }).click();
+  await page.getByRole('button', { name: 'Add document', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Link from Microsoft 365' }).click();
   const picker = page.getByRole('dialog', { name: /Choose a Microsoft document/ });
   await picker.getByRole('button', { name: 'My OneDrive' }).click();
   await picker.getByRole('button', { name: `Link this folder ${FOLDER_NAME}` }).click();
