@@ -105,6 +105,38 @@ describe('purchase capture caller authorization', () => {
     });
   });
 
+  it('AC-ROP-012 served assignment never calls ERP', async () => {
+    const token = await auth.mintJwt({ sub: 'user-1' });
+    const rows = [{ request_id: '22222222-2222-4222-8222-222222222222', source_id: '33333333-3333-4333-8333-333333333333', decision: 'project', project_id: '44444444-4444-4444-8444-444444444444' },
+      { request_id: '22222222-2222-4222-8222-222222222223', source_id: '33333333-3333-4333-8333-333333333334', decision: 'set_aside' }];
+    const results = [{ request_id: rows[0].request_id, outcome: 'create', erp_write: false }, { request_id: rows[1].request_id, outcome: 'refused', reason: 'source_tagged', erp_write: false }];
+    for (const tier of ['erpnext', 'odoo']) {
+      for (const dryRun of [true, false]) {
+        await withFetchMock([
+          jwksRoute(auth),
+          supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+          supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+          supabaseSelect('external_org_bindings', () => jsonResponse([{ id: 'binding-1', external_tier: tier, config: { company: 'Example' }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 }])),
+          supabaseRpc('read_vault_secret', () => jsonResponse('synthetic-key:synthetic-secret')),
+          supabaseRpc('assign_capture_invoices', () => jsonResponse({ complete: true, revision: 'rev', results })),
+        ], async ({ calls }) => {
+          const response = await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'assign', rows, expectedRevision: 'rev', dryRun }, token));
+          const body = await response.json();
+          assertEquals(body.erp_write, false, `${tier} dryRun=${dryRun}`);
+          if (tier === 'erpnext') {
+            assertEquals(response.status, 200);
+            assertEquals(body.results.map((r: { outcome: string }) => r.outcome), ['create', 'refused']);
+          } else {
+            assertEquals(response.status, 409);
+          }
+          assertEquals(calls.some(call => call.url.host === '8.8.8.8' || call.url.pathname.startsWith('/api/')), false, 'no call to the ERP');
+          assertEquals(calls.some(call => /outbox|dispatch/i.test(call.url.pathname)), false, 'nothing queued for dispatch');
+          assertEquals(calls.some(call => call.method !== 'GET' && !/\/rpc\//.test(call.url.pathname)), false, 'no write except the named RPC');
+        });
+      }
+    }
+  });
+
   it('AC-ROP-021 reports unsupported Odoo capability rather than an empty census', async () => {
     const token = await auth.mintJwt({ sub: 'user-1' });
     await withFetchMock([
