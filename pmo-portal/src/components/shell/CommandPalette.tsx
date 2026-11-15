@@ -34,6 +34,8 @@ interface CommandPaletteProps {
   returnFocusTo?: HTMLElement | null;
   /** Record lists are still fetching → show skeleton rows (not a spinner). */
   loading?: boolean;
+  /** Some record sources have answered (their rows show) while others are still in flight. */
+  loadingMore?: boolean;
   /** A record list query failed → show the inline retry note. */
   error?: boolean;
   /** Re-run the failed record-list queries (wired to the retry affordance). */
@@ -112,6 +114,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onClose,
   returnFocusTo,
   loading = false,
+  loadingMore = false,
   error = false,
   onRetry,
   onAskAi,
@@ -189,7 +192,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   }, [debouncedQuery, items, navigate, referenceHits, t]);
   const referenceError = searchSettled && debouncedQuery.length >= 2 && referenceSearch.isError;
   const showError = error || referenceError;
-  const showLoading = loading || (searchSettled && debouncedQuery.length >= 2 && referenceSearch.isFetching);
+  const showLoading = loading || loadingMore || (searchSettled && debouncedQuery.length >= 2 && referenceSearch.isFetching);
 
   // Debounce the query before the record/reference search reacts so typing across a large
   // record index stays smooth (ui-ux-pro-max debounce-throttle). Static commands filter live.
@@ -380,6 +383,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               </div>
               <Command.List
                 label={t('shell.palette.resultsLabel', 'Command results')}
+                data-testid="palette-results"
                 className="max-h-[380px] overflow-y-auto p-1.5"
               >
                 {/* A record list failed — keep module nav working, offer a retry. */}
@@ -398,25 +402,6 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                         {t('shell.palette.retry', 'Retry')}
                       </button>
                     )}
-                  </div>
-                )}
-
-                {/* Records still fetching — skeleton rows matching the 44px row geometry. */}
-                {showLoading && (
-                  <div aria-hidden>
-                    <span className="block px-2.5 pb-[5px] pt-2.5 text-control font-bold text-muted-foreground">
-                      {t('shell.palette.recordsGroup', 'Records')}
-                    </span>
-                    {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
-                      <div
-                        key={i}
-                        data-testid="cmdk-skeleton-row"
-                        className="cmdk-row flex items-center gap-3 rounded-[7px] px-3 py-2"
-                      >
-                        <span className="cmdk-skeleton size-7 shrink-0 rounded-[7px] bg-secondary" />
-                        <span className="cmdk-skeleton h-3.5 flex-1 rounded-[4px] bg-secondary" />
-                      </div>
-                    ))}
                   </div>
                 )}
 
@@ -465,6 +450,25 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                       </Command.Item>
                     )}
                   </Command.Group>
+                )}
+
+                {/* Records still fetching — skeleton rows matching the 44px row geometry, below any rows already answered. */}
+                {showLoading && (
+                  <div aria-hidden>
+                    <span className="block px-2.5 pb-[5px] pt-2.5 text-control font-bold text-muted-foreground">
+                      {t('shell.palette.recordsGroup', 'Records')}
+                    </span>
+                    {Array.from({ length: loadingMore && !loading && recordResults.items.length > 0 ? 1 : SKELETON_COUNT }).map((_, i) => (
+                      <div
+                        key={i}
+                        data-testid="cmdk-skeleton-row"
+                        className="cmdk-row flex items-center gap-3 rounded-[7px] px-3 py-2"
+                      >
+                        <span className="cmdk-skeleton size-7 shrink-0 rounded-[7px] bg-secondary" />
+                        <span className="cmdk-skeleton h-3.5 flex-1 rounded-[4px] bg-secondary" />
+                      </div>
+                    ))}
+                  </div>
                 )}
 
                 {/* Zero-result Ask AI fallback (when the agent assistant is enabled). It must sit

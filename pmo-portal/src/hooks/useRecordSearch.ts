@@ -210,18 +210,28 @@ export function useRecordSearch(
     mayViewContacts,
   ]);
 
+  const sourceStates: Array<[string, boolean, boolean]> = [
+    ['projects', true, projects.isPending],
+    ['procurements', mayViewProcurement, procurements.isPending],
+    ['pipeline', mayViewPipeline, pipeline.isPending],
+    ['companies', mayViewCompanies, companies.isPending],
+    ['contacts', mayViewContacts, contacts.isPending],
+    ['incidents', incidentsEnabled, incidents.isPending],
+  ];
+  const enabledSourceCount = sourceStates.filter(([, on]) => on).length;
+  const pendingSources = sourceStates.filter(([, on, pending]) => on && pending).map(([name]) => name);
+
   return {
     records,
     // A disabled query idles with status "pending" in TanStack, so the aggregate covers only the
     // sources this viewer actually has enabled — a denied source's in-flight/failed state never
     // surfaces as palette skeletons or a failure it cannot resolve.
-    isPending:
-      projects.isPending ||
-      (mayViewProcurement && procurements.isPending) ||
-      (mayViewPipeline && pipeline.isPending) ||
-      (mayViewCompanies && companies.isPending) ||
-      (mayViewContacts && contacts.isPending) ||
-      (incidentsEnabled && incidents.isPending),
+    // Unchanged contract: true while ANY enabled source is still fetching. Consumers that render rows
+    // as sources land read `pendingSources` / `nothingAnswered` instead.
+    isPending: pendingSources.length > 0,
+    /** Every enabled source is still in flight: there is nothing to show yet. */
+    nothingAnswered: pendingSources.length > 0 && pendingSources.length === enabledSourceCount,
+    pendingSources,
     isError:
       projects.isError ||
       (mayViewProcurement && procurements.isError) ||

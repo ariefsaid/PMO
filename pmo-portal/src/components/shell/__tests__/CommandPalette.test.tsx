@@ -243,6 +243,20 @@ describe('CommandPalette', () => {
     expect(screen.getByText('Sales Pipeline')).toBeInTheDocument();
   });
 
+  // AC-NBR-034: rows from sources that have answered render while the rest load; the skeleton sits below them.
+  it('AC-NBR-034: loadingMore keeps the answered record rows and puts the loading row below them', async () => {
+    const records: PaletteItem[] = [
+      ...items,
+      { id: 'projects:p1', group: 'Records', title: 'Harbour Works', sub: 'Project', icon: 'projects', run: vi.fn() },
+    ];
+    render(<CommandPalette open items={records} onClose={vi.fn()} loadingMore />);
+    await userEvent.type(screen.getByRole('combobox'), 'harbour');
+    const row = await screen.findByText('Harbour Works');
+    const skeleton = screen.getAllByTestId('cmdk-skeleton-row')[0];
+    expect(row.compareDocumentPosition(skeleton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByText(/No results for/)).not.toBeInTheDocument();
+  });
+
   // AC-CMDK-005: a record list errored → inline retry note + Navigate still works.
   it('AC-CMDK-005: error shows an inline retry note and Navigate still renders', async () => {
     const onRetry = vi.fn();
