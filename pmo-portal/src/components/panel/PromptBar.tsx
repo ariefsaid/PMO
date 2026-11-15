@@ -5,9 +5,11 @@
  * Enter-to-send, Shift+Enter for newline (FR-AP-009).
  * Single button slot: Send or Stop (FR-AP-010/011/012).
  *
- * Focus (#2047 accessibility audit): the textarea stays in the tab order through a run (read-only,
- * not disabled) and focus returns to it when the run starts or ends, so a keyboard user never
- * lands on <body> after sending. Only the hard out-of-credits state disables it.
+ * Focus (#2047 accessibility audit): the textarea stays editable through a run (neither read-only
+ * nor disabled) so people can type their next question while the answer streams; sending waits
+ * for the end of the run or Stop and is never automatic. Focus returns to it when the run starts
+ * or ends, so a keyboard user never lands on <body> after sending. Only the hard out-of-credits
+ * state disables it.
  * Adapted from MIT-licensed sources; notice in ./THIRD_PARTY_NOTICE.md.
  */
 import React, { useRef, useEffect, useCallback } from 'react';
@@ -93,7 +95,9 @@ export const PromptBar: React.FC<PromptBarProps> = ({
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
-      if (!running && !disabled && !uploading && value.trim().length > 0) {
+      // While the answer streams Enter does nothing: no send, and no stray newline in the draft.
+      if (running) e.preventDefault();
+      else if (!disabled && !uploading && value.trim().length > 0) {
         e.preventDefault();
         onSend();
       }
@@ -184,7 +188,7 @@ export const PromptBar: React.FC<PromptBarProps> = ({
       <div
         className={cn(
           'grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-x-1 rounded-lg border border-input px-2 pb-1.5 focus-within:ring-2 sm:pb-2',
-          running ? 'bg-muted focus-within:ring-ring/40' : 'bg-background focus-within:ring-ring',
+          'bg-background focus-within:ring-ring',
         )}
       >
         <TextArea
@@ -198,21 +202,18 @@ export const PromptBar: React.FC<PromptBarProps> = ({
           onChange={onChange}
           onKeyDown={handleKeyDown}
           disabled={disabled}
-          // The textarea stays focusable during a run: read-only, not disabled (#2047). The
-          // placeholder says why keys do nothing.
-          readOnly={running}
           // NFR-AW-A11Y-003: explicit aria-disabled in needs-approval phase so screen
           // readers can distinguish "awaiting decision" from "streaming" (Blocker-7).
           aria-disabled={needsApproval ? 'true' : undefined}
           maxLength={2000}
-          // Two rows while the run-locked placeholder shows, so its second line is not clipped.
+          // Two rows while the run placeholder shows, so its second line is not clipped.
           rows={running && value.length === 0 ? 2 : 1}
           placeholder={
             running
-              ? t('promptBar.running', 'Working on your answer… Stop to ask something else')
+              ? t('promptBar.running', 'Working on your answer… you can type your next question')
               : 'Ask a question…'
           }
-          className="block max-h-40 min-h-0 w-full resize-none bg-transparent px-2 pb-1 pt-2.5 text-sm text-foreground placeholder:text-muted-foreground read-only:text-muted-foreground focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:pt-3"
+          className="block max-h-40 min-h-0 w-full resize-none bg-transparent px-2 pb-1 pt-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:pt-3"
           aria-label="Ask a question"
         />
         {attachmentsEnabled && (

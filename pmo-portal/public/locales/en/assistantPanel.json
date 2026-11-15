@@ -21,6 +21,6 @@
     "contactOpenItems": "What open items involve this contact?"
   },
   "promptBar": {
-    "running": "Working on your answer… Stop to ask something else"
+    "running": "Working on your answer… you can type your next question"
   }
 }

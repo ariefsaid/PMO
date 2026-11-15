@@ -328,9 +328,14 @@ describe('AssistantPanel', () => {
       const stopBtn = screen.queryByRole('button', { name: /stop generating/i });
       expect(stopBtn).toBeInTheDocument();
     });
-    // #2047: read-only, not disabled, so focus never drops to <body> during a run.
-    expect(screen.getByRole('textbox', { name: /ask a question/i })).not.toBeDisabled();
-    expect(screen.getByRole('textbox', { name: /ask a question/i })).toHaveAttribute('readonly');
+    // #2047 round 3: editable (not read-only, not disabled) during a run; the next question can be
+    // typed, Enter sends nothing, and the text stays for the user to send after the answer.
+    const live = screen.getByRole('textbox', { name: /ask a question/i });
+    expect(live).not.toBeDisabled();
+    expect(live).not.toHaveAttribute('readonly');
+    await user.type(live, 'next question{Enter}');
+    expect(live).toHaveValue('next question');
+    expect(runtime.createRunSpy).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('button', { name: /send message/i })).not.toBeInTheDocument();
     // #2047: the working cue is the chat's last row, directly under the question
     expect(screen.getByTestId('chat-scroll')).toContainElement(screen.getByText('Working on your answer'));
