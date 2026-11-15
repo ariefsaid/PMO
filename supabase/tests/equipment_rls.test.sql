@@ -241,7 +241,7 @@ select ok(pg_get_function_result('list_equipment_usage_totals(uuid,uuid,date,dat
   'AC-EQU-012 the usage totals an Engineer reads carry no amount column');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a8');   -- disabled
 select throws_ok($$ select * from list_equipment_usage_totals('15190000-0000-0000-0000-0000000000c1', null, '2026-09-01', '2026-09-30') $$,
-  '42501', null, 'AC-EQU-012 a disabled member reads no usage totals');
+  '42501', 'not authorized', 'AC-EQU-012 a disabled member reads no usage totals');
 
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000b1');   -- another org's Admin
 select is((select count(*)::int from list_equipment_costing(true)), 0, 'AC-EQU-012 another org lists no settings');
@@ -263,7 +263,7 @@ select throws_ok($$ select save_equipment_costing(jsonb_build_object('setting_ke
   'P0002', null, 'AC-EQU-012 another org cannot version this org''s setting');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a9');   -- disabled Finance
 select throws_ok($$ select end_equipment_costing((select (v->>'setting_key')::uuid from _k where k='f'),'2026-12-31',1) $$,
-  '42501', null, 'AC-EQU-012 a disabled Finance member cannot end a costing setting');
+  '42501', 'your account is not an active member of this organisation, so it cannot write — an offboarded or suspended account is refused even while its session token is still valid', 'AC-EQU-012 a disabled Finance member cannot end a costing setting');
 reset role;
 
 select * from finish();

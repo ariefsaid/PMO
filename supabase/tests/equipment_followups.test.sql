@@ -2,7 +2,7 @@
 -- validation codes, the asset audit trail, a draft on an archived asset, the delete-audit search_path.
 begin;
 create extension if not exists pgtap;
-select plan(16);
+select plan(17);
 
 insert into organizations (id, name, default_currency, default_timezone) values ('16490000-0000-0000-0000-00000000000a', 'FU Org', 'IDR', 'UTC');
 insert into auth.users (id, email) values
@@ -71,6 +71,8 @@ set local role authenticated;
 select pg_temp.act_as('16490000-0000-0000-0000-0000000000a6');
 insert into _e select 'd2', (save_equipment_usage('{"asset_id":"16490000-0000-0000-0000-0000000000d2",
   "project_id":"16490000-0000-0000-0000-0000000000c1","work_date":"2026-09-12","quantity":2,"unit":"hours"}'::jsonb)->>'id')::uuid;
+insert into _e select 'd3', (save_equipment_usage('{"asset_id":"16490000-0000-0000-0000-0000000000d1",
+  "project_id":"16490000-0000-0000-0000-0000000000c1","work_date":"2026-09-14","quantity":1,"unit":"hours"}'::jsonb)->>'id')::uuid;
 reset role;
 update equipment_assets set archived_at = now() where id = '16490000-0000-0000-0000-0000000000d2';
 set local role authenticated;
@@ -85,6 +87,11 @@ select lives_ok($$ select transition_equipment_usage((select v from _e where k='
 select throws_ok($$ select save_equipment_usage('{"asset_id":"16490000-0000-0000-0000-0000000000d2","project_id":"16490000-0000-0000-0000-0000000000c1",
   "work_date":"2026-09-13","quantity":1,"unit":"hours"}') $$, 'P0002', 'asset not found',
   'AC-EQU-007 #1649 new usage on an archived asset is still refused');
+
+select throws_ok($$ select save_equipment_usage(jsonb_build_object('id',(select v from _e where k='d3'),
+  'asset_id','16490000-0000-0000-0000-0000000000d2','project_id','16490000-0000-0000-0000-0000000000c1',
+  'work_date','2026-09-14','quantity',1,'unit','hours')) $$, 'P0002', 'asset not found',
+  'AC-EQU-007 #1649 moving an existing draft onto an archived asset is still refused');
 
 -- ── item 6: search_path ──
 reset role;
