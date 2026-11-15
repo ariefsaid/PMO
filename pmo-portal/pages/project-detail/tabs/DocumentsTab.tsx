@@ -242,7 +242,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     });
   }, [filtered, categoryName, documentsView, sort, isEarlierRevision]);
 
-  useClampPage(page, sortedFiltered.length, DOCUMENT_PAGE_SIZE, setPage);
+  useClampPage(page, isPending ? undefined : sortedFiltered.length, DOCUMENT_PAGE_SIZE, setPage);
   const pagedRows = useMemo(
     () => sortedFiltered.slice((page - 1) * DOCUMENT_PAGE_SIZE, page * DOCUMENT_PAGE_SIZE),
     [sortedFiltered, page],

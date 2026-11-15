@@ -1366,6 +1366,48 @@ describe('DocumentsTab — the register floor (care-10c)', () => {
     expect(within(screen.getByTestId('documents-register-assembly')).getByRole('status')).toHaveTextContent(/Showing 1–50 of 1\d\d/);
   });
 
+  it('care-10g (a): opening on ?page=2 while the rows are still loading keeps ?page=2 and shows page 2 once they arrive', () => {
+    const tree = () => (
+      <QueryClientProvider client={testQueryClient}><ToastProvider>
+        <MemoryRouter initialEntries={['/?page=2']}>
+          <RouteSearch />
+          <DocumentViewerProvider><DocumentsTab projectId="p1" /></DocumentViewerProvider>
+        </MemoryRouter>
+      </ToastProvider></QueryClientProvider>
+    );
+    listState.data = undefined as never;
+    listState.isPending = true;
+    const view = render(tree());
+    expect(screen.getByTestId('route-search')).toHaveTextContent('page=2');
+    listState.data = withDocumentCount(120);
+    listState.isPending = false;
+    view.rerender(tree());
+    expect(screen.getByTestId('route-search')).toHaveTextContent('page=2');
+    expect(within(screen.getByTestId('documents-register-assembly')).getByRole('status')).toHaveTextContent('Showing 51–100 of 120');
+  });
+
+  it('care-10g (b): the drawer shows the code in the app font, not the code typeface', () => {
+    renderTab('Admin', 'admin-1', '/projects/p1?open=d1');
+    const code = within(screen.getByRole('dialog', { name: 'Site Plan' })).getByText('DOC-001');
+    expect(code).not.toHaveClass('font-mono');
+  });
+
+  it('care-10g (b): the Code field of the document form keeps no-spell-check and no auto-capitalise', async () => {
+    renderTab('Admin');
+    await chooseAddOption(userEvent, 'Upload a document');
+    const field = await screen.findByLabelText(/^Code/);
+    expect(field).toHaveAttribute('spellcheck', 'false');
+    expect(field).toHaveAttribute('autocapitalize', 'off');
+  });
+
+  it('care-10g: a search with no match shows the message and no "Showing 0–0 of 0" count', async () => {
+    renderTab('Admin');
+    await userEvent.type(screen.getByLabelText(/Search documents/i), 'zzzz-no-match');
+    const assembly = screen.getByTestId('documents-register-assembly');
+    expect(within(assembly).getByText('No documents match your search')).toBeInTheDocument();
+    expect(within(assembly).queryByText(/^Showing/)).not.toBeInTheDocument();
+  });
+
   it('care-10c: searching narrows the count to what the person sees', async () => {
     listState.data = withDocumentCount(11);
     renderTab();
