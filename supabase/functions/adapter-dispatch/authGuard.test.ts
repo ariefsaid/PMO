@@ -623,7 +623,7 @@ Deno.test('AC-OCI-062: an Odoo sweep replay reauthorizes against Odoo ownership'
   assertEquals(res.ok, true, res.message);
 });
 
-// #1508 — connected stock: `inventory` is owned by the Odoo tier alone, keeper is not a role (the 0869 outbox guard decides it
+// #1508 — connected stock: `inventory` is owned by the Odoo tier alone, keeper is not a role (the 0879 outbox guard decides it
 // from the stored actor), and the `stock-document` kind belongs to the `inventory` domain only.
 Deno.test('#1508 inventory: an active Engineer passes the role half under Odoo ownership; the keeper rule is the DB guard\'s', async () => {
   const res = await checkCommandAuthorization(

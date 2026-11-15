@@ -625,7 +625,7 @@ jobs:
       - name: Watermarks per-org rollback harness
         run: scripts/test-watermarks-per-org-rollback.sh
 
-      # AC-OSP-005/006: reversing 0869 removes the stock-command guard objects and re-applying restores
+      # AC-OSP-005/006: reversing 0879 removes the stock-command guard objects and re-applying restores
       # them (generated pgTAP file, deleted on exit); the race script then proves the two-session
       # interleavings of a stock command against a document edit on the reset database.
       - name: Stock posting rollback harness

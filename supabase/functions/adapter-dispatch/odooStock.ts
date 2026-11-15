@@ -145,7 +145,7 @@ export async function resolveOdooStockAdapter(ctx: AdapterSelectContext): Promis
 }
 
 /**
- * The outbox deps: the shared outbox, claim, fence and finalize. A `STK_*` raise from the 0869 guard (insert or claim) is classified;
+ * The outbox deps: the shared outbox, claim, fence and finalize. A `STK_*` raise from the 0879 guard (insert or claim) is classified;
  * a failed row whose document was edited, or that another keeper re-posts, is refreshed (revision and actor only; the trigger decides).
  */
 export async function resolveOdooStockMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<DispatchMoneyOutboxDeps> {
@@ -183,7 +183,7 @@ export async function resolveOdooStockMoneyOutboxDeps(ctx: AdapterSelectContext)
       throw err;
     }
   };
-  /** A person pressing Post again on a failed command: this WRITES (revision and actor only; the 0869 trigger decides), so it is named, not hidden in a read. */
+  /** A person pressing Post again on a failed command: this WRITES (revision and actor only; the 0879 trigger decides), so it is named, not hidden in a read. */
   const refreshFailedCommand = async (row: OutboxRow): Promise<boolean> => {
     const { data, error } = await sc.from('external_command_outbox').select('payload,actor_user_id').eq('id', row.id).maybeSingle();
     if (error) throw new AppError(error.message, error.code);

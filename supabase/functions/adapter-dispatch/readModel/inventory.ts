@@ -1,7 +1,7 @@
 /**
  * The stock document's read-model writer (#1508). A confirmed Odoo picking converges in two fenced steps, in this order:
  * (1) the evidence mirror (`write_stock_erp_mirror`, fenced on the outbox row's claim generation), then (2) the Draft → Posted flip
- * with the stored actor as poster (0869's document guard accepts it only when that mirror is confirmed). A replay finds the document
+ * with the stored actor as poster (0879's document guard accepts it only when that mirror is confirmed). A replay finds the document
  * already Posted (0 rows) and converges. A `STK_*` refusal is classified, never retried: `stock-actor-refused` (403) or `stock-command-refused` (422).
  */
 import { AppError } from '../../../../pmo-portal/src/lib/appError.ts';

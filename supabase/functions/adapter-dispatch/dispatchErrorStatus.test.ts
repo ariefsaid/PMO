@@ -70,7 +70,7 @@ Deno.test('AC-BWO-002 the withdrawn-claim refusal (55000) is a 422 business reje
   assert(isBusinessRejectionCode('55000'), '55000 is a classified business rejection');
 });
 
-// #1508: the stock command guard (0869) raises `STK_*` rules from the outbox insert and claim; the route classifies them. A rule on the
+// #1508: the stock command guard (0879) raises `STK_*` rules from the outbox insert and claim; the route classifies them. A rule on the
 // document is a 422 (never the 500 fallback); a refusal about WHO is posting is a 403.
 Deno.test('#1508 stock-command-refused is a 422 business rejection at both exits; stock-actor-refused is a 403', () => {
   assert(dispatchErrorStatus('stock-command-refused', 500) === 422, 'a rule on the document is a 422');

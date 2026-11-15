@@ -41,7 +41,7 @@ export interface ConnectCtx {
 function rpcFailure(e: { code?: string; message?: string }): AppError {
   if (e.code === '42501') return new AppError('Not allowed for your role', 'FORBIDDEN');
   if (e.code === 'P0002') return new AppError(e.message ?? 'Not found', 'NOT_FOUND');
-  // The raisers in migration 0480 and 0870 speak plain words; anything else is not ours to explain.
+  // The raisers in migration 0480 and 0880 speak plain words; anything else is not ours to explain.
   if (e.code === 'P0001' || e.code === '22023' || (e.message && /^Stock\s/i.test(e.message))) return new AppError(e.message ?? 'The request was refused', 'BAD_REQUEST');
   return new AppError('The request could not be completed', 'INTERNAL');
 }

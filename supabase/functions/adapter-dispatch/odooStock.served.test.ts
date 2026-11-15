@@ -1,6 +1,6 @@
 // #1508 Round 6.2 (AC-OSP-004, AC-OSP-006, AC-OSP-007): the SHIPPED handler (`./index.ts`) against the LOCAL database with its real
 // grants, triggers and RPCs (real PostgREST and GoTrue; the JWT is a real sign-in). Only Odoo is fake. A mock cannot accept what the
-// 0869 guard refuses, so who may post, what is written and what is posted are the database's answers here.
+// 0879 guard refuses, so who may post, what is written and what is posted are the database's answers here.
 //
 // Run (one lock hold; the wrapper hands the local keys in, nothing is read from a file):
 //   scripts/with-db-lock.sh bash -c 'supabase db reset && eval "$(supabase status -o env | grep -E "^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=")" && \

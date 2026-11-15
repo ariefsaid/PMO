@@ -1,6 +1,6 @@
 // #1508 (AC-OSP-004, AC-OSP-006, AC-OSP-007): a connected stock post goes through the SHIPPED handler (`./index.ts`, fetch mocked) and the
 // shared money outbox. The command names only the document and the viewed revision; the org, actor, company and key are the server's.
-// Who may post is the 0869 outbox guard's decision (proved in pgTAP): here the guard's refusals are mocked at the insert, and the route
+// Who may post is the 0879 outbox guard's decision (proved in pgTAP): here the guard's refusals are mocked at the insert, and the route
 // must classify them (STK_NOT_KEEPER / STK_ACTOR 403, any other STK_ 422 naming the rule), leave no row, and never reach Odoo.
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertRejects } from '@std/assert';
@@ -123,7 +123,7 @@ describe('AC-OSP-006 the post command: document id and viewed revision only', ()
   });
 });
 
-describe('AC-OSP-006 the 0869 guard decides who posts; the route classifies its refusals', () => {
+describe('AC-OSP-006 the 0879 guard decides who posts; the route classifies its refusals', () => {
   it('a non-keeper is refused 403 naming the rule: no outbox row, no Odoo request, the DB guard is what refused', async () => {
     const r = await dispatch(postCommand(), STRANGER_ID, { role: 'Engineer', insert: () => refusal('STK_NOT_KEEPER: you do not keep this warehouse', 'P0001') });
     assertEquals(r.status, 403, JSON.stringify(r.body));

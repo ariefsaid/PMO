@@ -36,7 +36,7 @@ import { moneyWriteRolesForDomain } from '../_shared/moneyWriteRoles.ts';
  */
 // #775 phase B: `expenses` — the approver (approval rank) or payer (Finance/Admin) is re-checked by
 // expense_posting_for_push (0270 §5) against the recorded actor's CURRENT role before every fresh posting.
-// #1508: `inventory` — keeper is not a role; the 0869 outbox guard decides it from the stored actor against the document's warehouse.
+// #1508: `inventory` — keeper is not a role; the 0879 outbox guard decides it from the stored actor against the document's warehouse.
 const ROLE_RULE_DELEGATED_TO_DB_GATE = new Set(['timesheets', 'expenses', 'inventory']);
 
 /**

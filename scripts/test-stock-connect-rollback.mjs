@@ -53,7 +53,7 @@ do $$ begin
  if exists ((select * from up_functions except ${catalogue}) union all (${catalogue} except select * from up_functions)) then raise exception 'up function bodies or grants differ'; end if;
  if exists ((select * from up_checks except ${checks}) union all (${checks} except select * from up_checks)) then raise exception 'up checks differ'; end if;
 end $$;
-select 'AC-OSP-006 empty rollback restores predecessors and reapply restores 0870';`;
+select 'AC-OSP-006 empty rollback restores predecessors and reapply restores 0880';`;
 const result = q(proof);
 if (result.status !== 0) {
   const recovery = q(up);
