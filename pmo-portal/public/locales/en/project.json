@@ -195,6 +195,7 @@
         "empty": "No bill of quantities yet",
         "overClaimed": "Over-claimed",
         "add": "Add line",
+        "import": "Import lines",
         "delete": "Delete"
       },
       "claims": {

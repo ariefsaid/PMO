@@ -24,3 +24,4 @@ export {
   BUDGET_CATEGORIES,
   type BudgetImportInput,
 } from './budgetDescriptor';
+export { makeContractLineImportDescriptor, type ContractLineImportInput } from './contractLineDescriptor';

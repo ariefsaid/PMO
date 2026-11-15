@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import i18next from 'i18next';
 import { readFileSync } from 'node:fs';
@@ -28,6 +28,7 @@ const h = vi.hoisted(() => ({
   connected: true,
   revenueMode: null as 'native' | 'erp' | null,
   tmInvoice: vi.fn(),
+  createBoq: vi.fn(),
   loadItems: vi.fn(),
   routeReady: true,
   billing: { data: null as unknown, isPending: false, isError: false, refetch: vi.fn() },
@@ -85,6 +86,13 @@ vi.mock('@/src/hooks/useTimeAndMaterials', () => ({
   useConfirmTmSignoff: () => ({ mutateAsync: h.tmMutation, isPending: false }),
   useInvoiceTmClaimNative: () => ({ mutateAsync: h.tmInvoice, isPending: false }),
 }));
+// #1278: the import wizard parses a real .xlsx; the journey drives the preview -> apply steps from a parsed sheet.
+vi.mock('@/src/lib/import', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/src/lib/import')>()), parseWorkbook: vi.fn() }));
+vi.mock('@/src/lib/repositories', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/repositories')>();
+  return { repositories: { ...actual.repositories, progressBilling: { ...actual.repositories.progressBilling, createBoq: h.createBoq } } };
+});
+import { parseWorkbook } from '@/src/lib/import';
 import BillingTab from '../BillingTab';
 import { summarizeInvoiceSettlement } from '../../ContractCascade';
 
@@ -663,5 +671,28 @@ describe('BillingTab', () => {
       expect(within(summaryHeader!).queryByRole('button', { name: 'Raise invoice' })).toBeNull();
       expect(screen.getByRole('button', { name: 'New claim' })).toBeInTheDocument();
     });
+  });
+
+  it('AC-1278 imports contract lines from a sheet: preview refuses the bad row with zero writes, apply writes only the valid one', async () => {
+    (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue({
+      headers: ['Key', 'Item code', 'Description', 'Unit', 'Quantity', 'Rate'],
+      rows: [['L-1', 'SVC-1', 'Trenching', 'm', '12.5', '40'], ['L-2', 'SVC-2', 'Cabling', 'm', '0', '40']],
+    });
+    h.createBoq.mockResolvedValue({ id: 'new' });
+    const user = renderTab();
+    await user.click(screen.getByRole('button', { name: 'Import lines' }));
+    await user.upload(screen.getByLabelText(/choose an \.xlsx file/i), new File(['x'], 'lines.xlsx'));
+    await user.click(await screen.findByRole('button', { name: /^next/i }));
+    expect(await screen.findByText(/"quantity" must be a positive number/)).toBeInTheDocument();
+    expect(h.createBoq).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: /^import 1 /i }));
+    await waitFor(() => expect(h.createBoq).toHaveBeenCalledTimes(1));
+    expect(h.createBoq).toHaveBeenCalledWith('p1', expect.objectContaining({ importKey: 'L-1', quantity: 12.5, rate: 40 }));
+  });
+
+  it('AC-1278 offers the import only to a role that may create contract lines', () => {
+    h.role = 'Viewer';
+    renderTab();
+    expect(screen.queryByRole('button', { name: 'Import lines' })).toBeNull();
   });
 });

@@ -195,6 +195,7 @@
         "empty": "Belum ada bill of quantities",
         "overClaimed": "Melebihi tagihan",
         "add": "Tambah baris",
+        "import": "Impor baris",
         "delete": "Hapus"
       },
       "claims": {

@@ -18,6 +18,8 @@ import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useProjectWorkOrderLines } from '@/src/hooks/useWorkOrderAcceptances';
 import { useDocuments } from '@/src/hooks/useDocuments';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
+import { ImportButton } from '@/src/components/import';
+import { makeContractLineImportDescriptor } from '@/src/lib/import';
 import BoqItemFormModal from '../BoqItemFormModal';
 import MaterialAllowanceModal from '../MaterialAllowanceModal';
 import ProgressAssessmentModal from '../ProgressAssessmentModal';
@@ -110,6 +112,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const [withdrawFor, setWithdrawFor] = useState<ProgressClaimWithInvoice | null>(null);
 
   const boqRows = useMemo(() => boq.data ?? [], [boq.data]);
+  const boqImportDescriptor = useMemo(() => makeContractLineImportDescriptor(projectId), [projectId]);
   const claimRows = useMemo(() => claims.data ?? [], [claims.data]);
   const canViewMoney = may('view', 'salesInvoice');
   const openRecordId = searchParams.get('open');
@@ -413,6 +416,9 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
                 {t('projectDetail.billing.assessment.record', 'Record progress')}
               </Button>
             )}
+            {/* #1278: ImportButton is itself gated on can('create','boqItem'); RLS stays the authority. */}
+            <ImportButton entity="boqItem" descriptor={boqImportDescriptor} label={t('projectDetail.billing.boq.import', 'Import lines')}
+              onImported={() => { void boq.refetch(); void billing.refetch(); }} />
             {may('create', 'boqItem') && (
               <Button variant="primary" size="sm" onClick={() => setBoqFormFor(null)}>{t('projectDetail.billing.boq.add', 'Add line')}</Button>
             )}
