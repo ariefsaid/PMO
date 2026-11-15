@@ -18,6 +18,7 @@ import { purchaseDomainsReadable, purchaseFeedEmployed, runPurchasePass } from '
 import { revenueDomainsReadable, revenueFeedEmployed, runRevenuePass } from './odooRevenueFeed.ts';
 import { reconcileOdooRevenueOutbox } from '../adapter-dispatch/odooRevenueRecovery.ts';
 import { reconcileOdooProcurementOutbox } from '../adapter-dispatch/odooProcurementRecovery.ts';
+import { reconcileOdooStockOutbox, stockRecoveryEmployed } from '../adapter-dispatch/odooStockRecovery.ts';
 import { odooClientForOrg, recordOdooProbe, type OdooClientRefusal } from './odooClientForOrg.ts';
 import { parseOdooOutboxRecoveryCandidates } from './odooOutboxRecovery.ts';
 import { sendAcceptedOdoo } from './odooConnectSends.ts';
@@ -66,6 +67,8 @@ export type OdooSweepResult =
     failed?: string; purchase_hold?: PurchaseHold;
     /** Counts only (#1507): lines applied this tick, whether the feed caught up, lines skipped as unparseable. */
     ledger?: LedgerPassResult;
+    /** Stock recovery (#1508): present only when the org employs inventory under Odoo. */
+    outbox_stock?: { reconciled: number; errors: Array<{ id: string; error: string }> };
   };
 
 /** Why this tick mirrors no purchase document (FR-PLN-006 at pass start, #1783 item 4). Reported, never logged with data. */
@@ -178,6 +181,7 @@ export async function sweepOdooOrg(
     let procurementOutboxSkipped = 0;
     let procurementOutboxBudgetExhausted = false;
     let procurementOutboxErrors: Array<{ id: string; error: string }> = [];
+    let stockOutbox: { reconciled: number; errors: Array<{ id: string; error: string }> } | undefined;
     let hold: PurchaseHold | null = null;
     let ledgerResult: LedgerPassResult | undefined;
     try {
@@ -208,8 +212,11 @@ export async function sweepOdooOrg(
       ));
       const recoverRevenue = revenue.includes('sales-invoice');
       const recoverProcurement = purchase.length > 0;
+      // Stock recovery settles what a keeper started; read failure reports and never fails the tick.
+      let recoverStock = false;
+      try { recoverStock = await stockRecoveryEmployed(sc, orgId); } catch { stockOutbox = { reconciled: 0, errors: [{ id: 'inventory', error: 'recovery-unavailable' }] }; }
       let recoveryCandidates: ReturnType<typeof parseOdooOutboxRecoveryCandidates> | undefined;
-      if (recoverRevenue || recoverProcurement) {
+      if (recoverRevenue || recoverProcurement || recoverStock) {
         try {
           const { data, error } = await sc.rpc('outbox_reconcile_candidates', { p_org_id: orgId });
           if (error) throw error;
@@ -217,6 +224,7 @@ export async function sweepOdooOrg(
         } catch {
           if (recoverRevenue) outboxErrors = [{ id: 'revenue', error: 'recovery-unavailable' }];
           if (recoverProcurement) procurementOutboxErrors = [{ id: 'procurement', error: 'recovery-unavailable' }];
+          if (recoverStock) stockOutbox = { reconciled: 0, errors: [{ id: 'inventory', error: 'recovery-unavailable' }] };
         }
       }
       if (recoverProcurement && recoveryCandidates) {
@@ -253,6 +261,15 @@ export async function sweepOdooOrg(
           outboxErrors = recovery.errors;
         } catch {
           outboxErrors = [{ id: 'revenue', error: 'recovery-unavailable' }];
+        }
+      }
+      if (recoverStock && recoveryCandidates) {
+        try {
+          stockOutbox = await reconcileOdooStockOutbox(sc, orgId, {
+            timeBudgetMs: Math.max(0, recoveryDeadlineAt - Date.now()), callBudget: recoveryBudget, candidates: recoveryCandidates, owns: true,
+          });
+        } catch {
+          stockOutbox = { reconciled: 0, errors: [{ id: 'inventory', error: 'recovery-unavailable' }] };
         }
       }
       for (const [i, kind] of kinds.entries()) {
@@ -315,6 +332,7 @@ export async function sweepOdooOrg(
         outbox_procurement_reconciled: procurementOutboxReconciled, outbox_procurement_skipped: procurementOutboxSkipped,
         outbox_procurement_budget_exhausted: procurementOutboxBudgetExhausted,
         outbox_procurement_errors: procurementOutboxErrors, ...(hold ? { purchase_hold: hold } : {}), ...(ledgerResult ? { ledger: ledgerResult } : {}),
+        ...(stockOutbox ? { outbox_stock: stockOutbox } : {}),
       };
     } catch (err) {
       if (!(err instanceof OdooError)) throw err;
@@ -325,6 +343,7 @@ export async function sweepOdooOrg(
         outbox_procurement_reconciled: procurementOutboxReconciled, outbox_procurement_skipped: procurementOutboxSkipped,
         outbox_procurement_budget_exhausted: procurementOutboxBudgetExhausted,
         outbox_procurement_errors: procurementOutboxErrors, failed: err.errorClass, ...(hold ? { purchase_hold: hold } : {}), ...(ledgerResult ? { ledger: ledgerResult } : {}),
+        ...(stockOutbox ? { outbox_stock: stockOutbox } : {}),
       };
     }
   } finally {
