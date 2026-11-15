@@ -117,9 +117,9 @@ test('AC-1461: overdue and supplier-payable rows drill to lists whose count equa
 
   // ── Supplier invoices to pay → the exact Vendor Invoiced procurement segment ──
   await page.goto('/');
-  // ux/1110 copy: the supplier-invoice row now reads "Payables" (the finance section's own word),
-  // instead of "N supplier invoices to pay". Same row, same drill to the Vendor Invoiced segment.
-  const supplier = await rowCount(/payables/i);
+  // design-1115: the supplier-invoice row names the work again ("N supplier invoices to pay").
+  // Same row, same drill to the Vendor Invoiced segment.
+  const supplier = await rowCount(/supplier invoices? to pay/i);
   expect(supplier.count, 'seed has awaiting-payment supplier invoices').not.toBe('');
   await supplier.row.click();
   await expect(page).toHaveURL(/[?&]status=Vendor\+Invoiced/);
