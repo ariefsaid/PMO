@@ -1,0 +1,1368 @@
+{
+ "_meta": {
+  "bed": "local ERPNext dev bed, v15.94.3 (frappe 15.96.0), Standard chart of accounts, IDR",
+  "recorded": "2026-11-16",
+  "ticket": "#1599",
+  "about": "ECX8-T0: Payment Entry against a party balance created by an opening entry, with no invoice",
+  "names": "synthetic: company \"ECX Probe Co\" (abbr EPC), parties and employees named \"ECX Probe ...\" / \"Probe ...\", bed users replaced by role labels",
+  "apiUsers": {
+   "apiUserWithSystemManager": "token-auth API user holding the 901-bot role set (Accounts Manager/User, Purchase Manager/User, Stock Manager/User, Sales Manager/User, Projects Manager/User, System Manager) plus HR Manager/User and, from the Supplier probe on, Purchase Master Manager",
+   "apiUserWithoutSystemManager": "same roles minus System Manager (and without Purchase Master Manager)"
+  },
+  "notes": [
+   "Body: POST /api/resource/Payment Entry {payment_type:\"Pay\", company, posting_date, party_type, party, paid_from, paid_to, paid_amount, received_amount, reference_no:<key>, reference_date}, then PUT {docstatus:1}. No references rows.",
+   "Confirmed: an unallocated payment against supplier A (opening credit 5000000, payment 2000000) leaves get_balance_on = -3000000: the opening party balance falls by exactly the payment. Its Payment Ledger Entry is against the Payment Entry itself (an advance), GL rows: credit bank, debit Creditors with the party, is_opening No.",
+   "Alternative: references:[{reference_doctype:\"Journal Entry\", reference_name:<opening JE>, allocated_amount}] is accepted; the Payment Ledger Entry is then against the Journal Entry, unallocated_amount 0, and the balance falls by the same amount. Allocation above the entry outstanding -> 417 ValidationError \"Row #1: Allocated Amount cannot be greater than outstanding amount.\"",
+   "Paying more than the balance is NOT refused: supplier B, opening 700000, 200000 allocated to the JE then 900000 unallocated: balance +400000 (a debit balance).",
+   "Employee party on a Creditors account works: opening 300000 credit, payment 100000: balance -200000.",
+   "Bank paid_from: reference_no and reference_date are mandatory at save (417 ValidationError \"Reference No and Reference Date is mandatory for Bank transaction\"); a Cash paid_from needs neither.",
+   "Save is permissive: a non-bank paid_from, a non-payable paid_to, missing paid_to, paid vs received mismatch (same currency), a Customer party on a payable account and a posting date outside any year all SAVE as drafts. Submit refuses: P&L paid_from without a cost centre (417 \"Cost Center is required for Profit and Loss account\"), paid_to a Cash account with a party (417 \"Party Type and Party can only be set for Receivable / Payable account\"), no covering year (FiscalYearError). Missing paid_to, mismatch and Customer-on-payable SUBMIT fine: PMO must send paid_to, equal amounts and the right party type itself.",
+   "reference_no is NOT unique (a second payment with the same reference_no saves and submits). Lookup before create: GET Payment Entry with filters [company, reference_no].",
+   "Missing party -> 417 \"Party is mandatory\"; unknown party -> 417 LinkValidationError; zero paid_amount -> 417 \"Paid Amount is mandatory\".",
+   "Payment Entry create and submit work for a user without System Manager."
+  ],
+  "v16": "identical in behaviour; read-back method differs (get_balance_on not whitelisted); remarks text differs"
+ },
+ "observations": [
+  "supplier A balance before -5000000, after unallocated 2000000 payment -3000000",
+  "supplier B: opening 700000 credit; after 200000 allocated to the opening entry -500000; after a further 900000 unallocated +400000",
+  "employee: opening 300000 credit; after 100000 unallocated -200000"
+ ],
+ "cases": [
+  {
+   "label": "balance before",
+   "request": {
+    "method": "GET",
+    "path": "/api/method/erpnext.accounts.utils.get_balance_on?account=Creditors - EPC&date=2026-12-31&party_type=Supplier&party=ECX Probe Supplier A&company=ECX Probe Co",
+    "body": null,
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "message": -5000000.0
+   }
+  },
+  {
+   "label": "settle unallocated, no references (accept)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Payment Entry",
+    "body": {
+     "payment_type": "Pay",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-11-16",
+     "party_type": "Supplier",
+     "party": "ECX Probe Supplier A",
+     "paid_from": "Probe Bank A - EPC",
+     "paid_to": "Creditors - EPC",
+     "paid_amount": 2000000,
+     "received_amount": 2000000,
+     "reference_no": "pmo-settle:key-1",
+     "reference_date": "2026-11-16"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00315",
+     "payment_type": "Pay",
+     "party_type": "Supplier",
+     "party": "ECX Probe Supplier A",
+     "paid_from": "Probe Bank A - EPC",
+     "paid_to": "Creditors - EPC",
+     "paid_amount": 2000000.0,
+     "received_amount": 2000000.0,
+     "unallocated_amount": 2000000.0,
+     "difference_amount": 0.0,
+     "docstatus": 0,
+     "reference_no": "pmo-settle:key-1",
+     "reference_date": "2026-11-16",
+     "posting_date": "2026-11-16",
+     "references": [],
+     "remarks": "Amount IDR 2000000 to ECX Probe Supplier A\nTransaction reference no pmo-settle:key-1 dated 2026-11-16",
+     "company": "ECX Probe Co",
+     "mode_of_payment": null,
+     "status": "Draft"
+    }
+   }
+  },
+  {
+   "label": "submit PE",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Payment Entry/ACC-PAY-2026-00315",
+    "body": {
+     "docstatus": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00315",
+     "payment_type": "Pay",
+     "party_type": "Supplier",
+     "party": "ECX Probe Supplier A",
+     "paid_from": "Probe Bank A - EPC",
+     "paid_to": "Creditors - EPC",
+     "paid_amount": 2000000.0,
+     "received_amount": 2000000.0,
+     "unallocated_amount": 2000000.0,
+     "difference_amount": 0.0,
+     "docstatus": 1,
+     "reference_no": "pmo-settle:key-1",
+     "reference_date": "2026-11-16",
+     "posting_date": "2026-11-16",
+     "references": [],
+     "remarks": "Amount IDR 2000000.0 to ECX Probe Supplier A\nTransaction reference no pmo-settle:key-1 dated 2026-11-16",
+     "company": "ECX Probe Co",
+     "mode_of_payment": null,
+     "status": "Submitted"
+    }
+   }
+  },
+  {
+   "label": "balance after",
+   "request": {
+    "method": "GET",
+    "path": "/api/method/erpnext.accounts.utils.get_balance_on?account=Creditors - EPC&date=2026-12-31&party_type=Supplier&party=ECX Probe Supplier A&company=ECX Probe Co",
+    "body": null,
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "message": -3000000.0
+   }
+  },
+  {
+   "label": "GL entries of PE",
+   "request": {
+    "method": "GET",
+    "path": "/api/resource/GL Entry?filters=[[\"voucher_no\", \"=\", \"ACC-PAY-2026-00315\"]]&fields=[\"account\", \"party_type\", \"party\", \"debit\", \"credit\", \"is_opening\", \"voucher_type\", \"against_voucher_type\", \"against_voucher\"]&limit_page_length=10",
+    "body": null,
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": [
+     {
+      "account": "Probe Bank A - EPC",
+      "party_type": null,
+      "party": null,
+      "debit": 0.0,
+      "credit": 2000000.0,
+      "is_opening": "No",
+      "voucher_type": "Payment Entry",
+      "against_voucher_type": null,
+      "against_voucher": null
+     },
+     {
+      "account": "Creditors - EPC",
+      "party_type": "Supplier",
+      "party": "ECX Probe Supplier A",
+      "debit": 2000000.0,
+      "credit": 0.0,
+      "is_opening": "No",
+      "voucher_type": "Payment Entry",
+      "against_voucher_type": null,
+      "against_voucher": null
+     }
+    ]
+   }
+  },
+  {
+   "label": "PLE of PE",
+   "request": {
+    "method": "GET",
+    "path": "/api/resource/Payment Ledger Entry?filters=[[\"voucher_no\", \"=\", \"ACC-PAY-2026-00315\"]]&fields=[\"account\", \"party_type\", \"party\", \"amount\", \"against_voucher_type\", \"against_voucher_no\", \"voucher_type\", \"delinked\"]&limit_page_length=10",
+    "body": null,
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": [
+     {
+      "account": "Creditors - EPC",
+      "party_type": "Supplier",
+      "party": "ECX Probe Supplier A",
+      "amount": -2000000.0,
+      "against_voucher_type": "Payment Entry",
+      "against_voucher_no": "ACC-PAY-2026-00315",
+      "voucher_type": "Payment Entry",
+      "delinked": 0
+     }
+    ]
+   }
+  },
+  {
+   "label": "lookup by reference_no",
+   "request": {
+    "method": "GET",
+    "path": "/api/resource/Payment Entry?filters=[[\"reference_no\", \"=\", \"pmo-settle:key-1\"], [\"company\", \"=\", \"ECX Probe Co\"]]&fields=[\"name\", \"docstatus\", \"unallocated_amount\", \"party\", \"paid_amount\"]",
+    "body": null,
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": [
+     {
+      "name": "ACC-PAY-2026-00315",
+      "docstatus": 1,
+      "unallocated_amount": 2000000.0,
+      "party": "ECX Probe Supplier A",
+      "paid_amount": 2000000.0
+     }
+    ]
+   }
+  },
+  {
+   "label": "bank paid_from without reference_no/date",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Payment Entry",
+    "body": {
+     "payment_type": "Pay",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-11-16",
+     "party_type": "Supplier",
+     "party": "ECX Probe Supplier B",
+     "paid_from": "Probe Bank A - EPC",
+     "paid_to": "Creditors - EPC",
+     "paid_amount": 200000,
+     "received_amount": 200000
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Reference No and Reference Date is mandatory for Bank transaction",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Reference No and Reference Date is mandatory for Bank transaction\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "cash paid_from without reference (accept?)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Payment Entry",
+    "body": {
+     "payment_type": "Pay",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-11-16",
+     "party_type": "Supplier",
+     "party": "ECX Probe Supplier B",
+     "paid_from": "Cash - EPC",
+     "paid_to": "Creditors - EPC",
+     "paid_amount": 200000,
+     "received_amount": 200000
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00316",
+     "paid_amount": 200000.0,
+     "unallocated_amount": 200000.0,
+     "docstatus": 0,
+     "references": [],
+     "status": "Draft",
+     "payment_type": "Pay",
+     "party": "ECX Probe Supplier B",
+     "reference_no": null
+    }
+   }
+  },
+  {
+   "label": "paid_from a non-bank account (Expense leaf)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Payment Entry",
+    "body": {
+     "payment_type": "Pay",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-11-16",
+     "party_type": "Supplier",
+     "party": "ECX Probe Supplier B",
+     "paid_from": "Probe Expense Plain - EPC",
+     "paid_to": "Creditors - EPC",
+     "paid_amount": 200000,
+     "received_amount": 200000,
+     "reference_no": "pmo-settle:key-b",
+     "reference_date": "2026-11-16"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00317",
+     "paid_amount": 200000.0,
+     "unallocated_amount": 200000.0,
+     "docstatus": 0,
+     "references": [],
+     "status": "Draft",
+     "payment_type": "Pay",
+     "party": "ECX Probe Supplier B",
+     "reference_no": "pmo-settle:key-b"
+    }
+   }
+  },
+  {
+   "label": "paid_to a non-payable (Cash)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Payment Entry",
+    "body": {
+     "payment_type": "Pay",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-11-16",
+     "party_type": "Supplier",
+     "party": "ECX Probe Supplier B",
+     "paid_from": "Probe Bank A - EPC",
+     "paid_to": "Cash - EPC",
+     "paid_amount": 200000,
+     "received_amount": 200000,
+     "reference_no": "pmo-settle:key-b",
+     "reference_date": "2026-11-16"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00318",
+     "paid_amount": 200000.0,
+     "unallocated_amount": 200000.0,
+     "docstatus": 0,
+     "references": [],
+     "status": "Draft",
+     "payment_type": "Pay",
+     "party": "ECX Probe Supplier B",
+     "reference_no": "pmo-settle:key-b"
+    }
+   }
+  },
+  {
+   "label": "paid_to missing",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Payment Entry",
+    "body": {
+     "payment_type": "Pay",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-11-16",
+     "party_type": "Supplier",
+     "party": "ECX Probe Supplier B",
+     "paid_from": "Probe Bank A - EPC",
+     "paid_amount": 200000,
+     "received_amount": 200000,
+     "reference_no": "pmo-settle:key-b",
+     "reference_date": "2026-11-16"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00319",
+     "paid_amount": 200000.0,
+     "unallocated_amount": 200000.0,
+     "docstatus": 0,
+     "references": [],
+     "status": "Draft",
+     "payment_type": "Pay",
+     "party": "ECX Probe Supplier B",
+     "reference_no": "pmo-settle:key-b"
+    }
+   }
+  },
+  {
+   "label": "party missing",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Payment Entry",
+    "body": {
+     "payment_type": "Pay",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-11-16",
+     "party_type": "Supplier",
+     "paid_from": "Probe Bank A - EPC",
+     "paid_to": "Creditors - EPC",
+     "paid_amount": 200000,
+     "received_amount": 200000,
+     "reference_no": "pmo-settle:key-b",
+     "reference_date": "2026-11-16"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Party is mandatory",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Party is mandatory\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "party unknown",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Payment Entry",
+    "body": {
+     "payment_type": "Pay",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-11-16",
+     "party_type": "Supplier",
+     "party": "No Such Supplier",
+     "paid_from": "Probe Bank A - EPC",
+     "paid_to": "Creditors - EPC",
+     "paid_amount": 200000,
+     "received_amount": 200000,
+     "reference_no": "pmo-settle:key-b",
+     "reference_date": "2026-11-16"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.LinkValidationError: Could not find Party: No Such Supplier",
+    "exc_type": "LinkValidationError",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Could not find Party: No Such Supplier\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "zero amount",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Payment Entry",
+    "body": {
+     "payment_type": "Pay",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-11-16",
+     "party_type": "Supplier",
+     "party": "ECX Probe Supplier B",
+     "paid_from": "Probe Bank A - EPC",
+     "paid_to": "Creditors - EPC",
+     "paid_amount": 0,
+     "received_amount": 0,
+     "reference_no": "pmo-settle:key-b",
+     "reference_date": "2026-11-16"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Paid Amount is mandatory",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Paid Amount is mandatory\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "amount mismatch paid vs received",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Payment Entry",
+    "body": {
+     "payment_type": "Pay",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-11-16",
+     "party_type": "Supplier",
+     "party": "ECX Probe Supplier B",
+     "paid_from": "Probe Bank A - EPC",
+     "paid_to": "Creditors - EPC",
+     "paid_amount": 200000,
+     "received_amount": 150000,
+     "reference_no": "pmo-settle:key-b",
+     "reference_date": "2026-11-16"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00320",
+     "paid_amount": 200000.0,
+     "unallocated_amount": 200000.0,
+     "docstatus": 0,
+     "references": [],
+     "status": "Draft",
+     "payment_type": "Pay",
+     "party": "ECX Probe Supplier B",
+     "reference_no": "pmo-settle:key-b"
+    }
+   }
+  },
+  {
+   "label": "posting date outside fiscal year",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Payment Entry",
+    "body": {
+     "payment_type": "Pay",
+     "company": "ECX Probe Co",
+     "posting_date": "2019-01-01",
+     "party_type": "Supplier",
+     "party": "ECX Probe Supplier B",
+     "paid_from": "Probe Bank A - EPC",
+     "paid_to": "Creditors - EPC",
+     "paid_amount": 200000,
+     "received_amount": 200000,
+     "reference_no": "pmo-settle:key-b",
+     "reference_date": "2026-11-16"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00321",
+     "paid_amount": 200000.0,
+     "unallocated_amount": 200000.0,
+     "docstatus": 0,
+     "references": [],
+     "status": "Draft",
+     "payment_type": "Pay",
+     "party": "ECX Probe Supplier B",
+     "reference_no": "pmo-settle:key-b"
+    }
+   }
+  },
+  {
+   "label": "wrong party_type for payable account (Customer)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Payment Entry",
+    "body": {
+     "payment_type": "Pay",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-11-16",
+     "party_type": "Customer",
+     "party": "ECX Probe Customer A",
+     "paid_from": "Probe Bank A - EPC",
+     "paid_to": "Creditors - EPC",
+     "paid_amount": 200000,
+     "received_amount": 200000,
+     "reference_no": "pmo-settle:key-b",
+     "reference_date": "2026-11-16"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00322",
+     "paid_amount": 200000.0,
+     "unallocated_amount": 200000.0,
+     "docstatus": 0,
+     "references": [],
+     "status": "Draft",
+     "payment_type": "Pay",
+     "party": "ECX Probe Customer A",
+     "reference_no": "pmo-settle:key-b"
+    }
+   }
+  },
+  {
+   "label": "missing company",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Payment Entry",
+    "body": {
+     "payment_type": "Pay",
+     "posting_date": "2026-11-16",
+     "party_type": "Supplier",
+     "party": "ECX Probe Supplier B",
+     "paid_from": "Probe Bank A - EPC",
+     "paid_to": "Creditors - EPC",
+     "paid_amount": 200000,
+     "received_amount": 200000,
+     "reference_no": "pmo-settle:key-b",
+     "reference_date": "2026-11-16"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00323",
+     "paid_amount": 200000.0,
+     "unallocated_amount": 200000.0,
+     "docstatus": 0,
+     "references": [],
+     "status": "Draft",
+     "payment_type": "Pay",
+     "party": "ECX Probe Supplier B",
+     "reference_no": "pmo-settle:key-b"
+    }
+   }
+  },
+  {
+   "label": "settle ALLOCATED against opening JE (accept?)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Payment Entry",
+    "body": {
+     "payment_type": "Pay",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-11-16",
+     "party_type": "Supplier",
+     "party": "ECX Probe Supplier B",
+     "paid_from": "Probe Bank A - EPC",
+     "paid_to": "Creditors - EPC",
+     "paid_amount": 200000,
+     "received_amount": 200000,
+     "reference_no": "pmo-settle:key-b",
+     "reference_date": "2026-11-16",
+     "references": [
+      {
+       "reference_doctype": "Journal Entry",
+       "reference_name": "ACC-JV-2026-00030",
+       "allocated_amount": 200000
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00324",
+     "paid_amount": 200000.0,
+     "unallocated_amount": 0.0,
+     "docstatus": 0,
+     "references": [
+      {
+       "reference_doctype": "Journal Entry",
+       "reference_name": "ACC-JV-2026-00030",
+       "total_amount": 700000.0,
+       "outstanding_amount": 700000.0,
+       "allocated_amount": 200000.0
+      }
+     ],
+     "status": "Draft",
+     "payment_type": "Pay",
+     "party": "ECX Probe Supplier B",
+     "reference_no": "pmo-settle:key-b"
+    }
+   }
+  },
+  {
+   "label": "submit ACC-PAY-2026-00324",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Payment Entry/ACC-PAY-2026-00324",
+    "body": {
+     "docstatus": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00324",
+     "paid_amount": 200000.0,
+     "unallocated_amount": 0.0,
+     "docstatus": 1,
+     "references": [
+      {
+       "reference_doctype": "Journal Entry",
+       "reference_name": "ACC-JV-2026-00030",
+       "total_amount": 700000.0,
+       "outstanding_amount": 500000.0,
+       "allocated_amount": 200000.0
+      }
+     ],
+     "status": "Submitted",
+     "payment_type": "Pay",
+     "party": "ECX Probe Supplier B",
+     "reference_no": "pmo-settle:key-b"
+    }
+   }
+  },
+  {
+   "label": "PLE of allocated PE",
+   "request": {
+    "method": "GET",
+    "path": "/api/resource/Payment Ledger Entry?filters=[[\"voucher_no\", \"=\", \"ACC-PAY-2026-00324\"]]&fields=[\"party\", \"amount\", \"against_voucher_type\", \"against_voucher_no\", \"delinked\"]&limit_page_length=10",
+    "body": null,
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": [
+     {
+      "party": "ECX Probe Supplier B",
+      "amount": -200000.0,
+      "against_voucher_type": "Journal Entry",
+      "against_voucher_no": "ACC-JV-2026-00030",
+      "delinked": 0
+     }
+    ]
+   }
+  },
+  {
+   "label": "allocate more than the JE outstanding",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Payment Entry",
+    "body": {
+     "payment_type": "Pay",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-11-16",
+     "party_type": "Supplier",
+     "party": "ECX Probe Supplier B",
+     "paid_from": "Probe Bank A - EPC",
+     "paid_to": "Creditors - EPC",
+     "paid_amount": 900000,
+     "received_amount": 900000,
+     "reference_no": "pmo-settle:key-c",
+     "reference_date": "2026-11-16",
+     "references": [
+      {
+       "reference_doctype": "Journal Entry",
+       "reference_name": "ACC-JV-2026-00030",
+       "allocated_amount": 900000
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Row #1: Allocated Amount cannot be greater than outstanding amount.",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Row #1: Allocated Amount cannot be greater than outstanding amount.\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "pay more than owed, unallocated (accept?)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Payment Entry",
+    "body": {
+     "payment_type": "Pay",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-11-16",
+     "party_type": "Supplier",
+     "party": "ECX Probe Supplier B",
+     "paid_from": "Probe Bank A - EPC",
+     "paid_to": "Creditors - EPC",
+     "paid_amount": 900000,
+     "received_amount": 900000,
+     "reference_no": "pmo-settle:key-d",
+     "reference_date": "2026-11-16"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00325",
+     "paid_amount": 900000.0,
+     "unallocated_amount": 900000.0,
+     "docstatus": 0,
+     "references": [],
+     "status": "Draft",
+     "payment_type": "Pay",
+     "party": "ECX Probe Supplier B",
+     "reference_no": "pmo-settle:key-d"
+    }
+   }
+  },
+  {
+   "label": "submit ACC-PAY-2026-00325",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Payment Entry/ACC-PAY-2026-00325",
+    "body": {
+     "docstatus": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00325",
+     "paid_amount": 900000.0,
+     "unallocated_amount": 900000.0,
+     "docstatus": 1,
+     "references": [],
+     "status": "Submitted",
+     "payment_type": "Pay",
+     "party": "ECX Probe Supplier B",
+     "reference_no": "pmo-settle:key-d"
+    }
+   }
+  },
+  {
+   "label": "Employee settlement unallocated (accept?)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Payment Entry",
+    "body": {
+     "payment_type": "Pay",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-11-16",
+     "party_type": "Employee",
+     "party": "HR-EMP-00005",
+     "paid_from": "Probe Bank A - EPC",
+     "paid_to": "Creditors - EPC",
+     "paid_amount": 100000,
+     "received_amount": 100000,
+     "reference_no": "pmo-settle:key-e",
+     "reference_date": "2026-11-16"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00326",
+     "paid_amount": 100000.0,
+     "unallocated_amount": 100000.0,
+     "docstatus": 0,
+     "references": [],
+     "status": "Draft",
+     "payment_type": "Pay",
+     "party": "HR-EMP-00005",
+     "reference_no": "pmo-settle:key-e"
+    }
+   }
+  },
+  {
+   "label": "submit ACC-PAY-2026-00326",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Payment Entry/ACC-PAY-2026-00326",
+    "body": {
+     "docstatus": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00326",
+     "paid_amount": 100000.0,
+     "unallocated_amount": 100000.0,
+     "docstatus": 1,
+     "references": [],
+     "status": "Submitted",
+     "payment_type": "Pay",
+     "party": "HR-EMP-00005",
+     "reference_no": "pmo-settle:key-e"
+    }
+   }
+  },
+  {
+   "label": "same reference_no again (dup allowed?)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Payment Entry",
+    "body": {
+     "payment_type": "Pay",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-11-16",
+     "party_type": "Supplier",
+     "party": "ECX Probe Supplier B",
+     "paid_from": "Probe Bank A - EPC",
+     "paid_to": "Creditors - EPC",
+     "paid_amount": 200000,
+     "received_amount": 200000,
+     "reference_no": "pmo-settle:key-b",
+     "reference_date": "2026-11-16"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00327",
+     "paid_amount": 200000.0,
+     "unallocated_amount": 200000.0,
+     "docstatus": 0,
+     "references": [],
+     "status": "Draft",
+     "payment_type": "Pay",
+     "party": "ECX Probe Supplier B",
+     "reference_no": "pmo-settle:key-b"
+    }
+   }
+  },
+  {
+   "label": "nosm create PE",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Payment Entry",
+    "body": {
+     "payment_type": "Pay",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-11-16",
+     "party_type": "Supplier",
+     "party": "ECX Probe Supplier B",
+     "paid_from": "Probe Bank A - EPC",
+     "paid_to": "Creditors - EPC",
+     "paid_amount": 200000,
+     "received_amount": 200000,
+     "reference_no": "pmo-settle:key-n",
+     "reference_date": "2026-11-16"
+    },
+    "as": "apiUserWithoutSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00328",
+     "paid_amount": 200000.0,
+     "unallocated_amount": 200000.0,
+     "docstatus": 0,
+     "references": [],
+     "status": "Draft",
+     "payment_type": "Pay",
+     "party": "ECX Probe Supplier B",
+     "reference_no": "pmo-settle:key-n"
+    }
+   }
+  },
+  {
+   "label": "lookup PE by reference_no (all docstatus)",
+   "request": {
+    "method": "GET",
+    "path": "/api/resource/Payment Entry?filters=[[\"company\", \"=\", \"ECX Probe Co\"], [\"reference_no\", \"like\", \"pmo-settle:%\"]]&fields=[\"name\", \"docstatus\", \"reference_no\", \"party\", \"paid_amount\"]&limit_page_length=50",
+    "body": null,
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": [
+     {
+      "name": "ACC-PAY-2026-00315",
+      "docstatus": 1,
+      "reference_no": "pmo-settle:key-1",
+      "party": "ECX Probe Supplier A",
+      "paid_amount": 2000000.0
+     },
+     {
+      "name": "ACC-PAY-2026-00317",
+      "docstatus": 0,
+      "reference_no": "pmo-settle:key-b",
+      "party": "ECX Probe Supplier B",
+      "paid_amount": 200000.0
+     },
+     {
+      "name": "ACC-PAY-2026-00318",
+      "docstatus": 0,
+      "reference_no": "pmo-settle:key-b",
+      "party": "ECX Probe Supplier B",
+      "paid_amount": 200000.0
+     },
+     {
+      "name": "ACC-PAY-2026-00319",
+      "docstatus": 0,
+      "reference_no": "pmo-settle:key-b",
+      "party": "ECX Probe Supplier B",
+      "paid_amount": 200000.0
+     },
+     {
+      "name": "ACC-PAY-2026-00320",
+      "docstatus": 0,
+      "reference_no": "pmo-settle:key-b",
+      "party": "ECX Probe Supplier B",
+      "paid_amount": 200000.0
+     },
+     {
+      "name": "ACC-PAY-2026-00321",
+      "docstatus": 0,
+      "reference_no": "pmo-settle:key-b",
+      "party": "ECX Probe Supplier B",
+      "paid_amount": 200000.0
+     },
+     {
+      "name": "ACC-PAY-2026-00322",
+      "docstatus": 0,
+      "reference_no": "pmo-settle:key-b",
+      "party": "ECX Probe Customer A",
+      "paid_amount": 200000.0
+     },
+     {
+      "name": "ACC-PAY-2026-00324",
+      "docstatus": 1,
+      "reference_no": "pmo-settle:key-b",
+      "party": "ECX Probe Supplier B",
+      "paid_amount": 200000.0
+     },
+     {
+      "name": "ACC-PAY-2026-00325",
+      "docstatus": 1,
+      "reference_no": "pmo-settle:key-d",
+      "party": "ECX Probe Supplier B",
+      "paid_amount": 900000.0
+     },
+     {
+      "name": "ACC-PAY-2026-00326",
+      "docstatus": 1,
+      "reference_no": "pmo-settle:key-e",
+      "party": "HR-EMP-00005",
+      "paid_amount": 100000.0
+     },
+     {
+      "name": "ACC-PAY-2026-00327",
+      "docstatus": 0,
+      "reference_no": "pmo-settle:key-b",
+      "party": "ECX Probe Supplier B",
+      "paid_amount": 200000.0
+     },
+     {
+      "name": "ACC-PAY-2026-00328",
+      "docstatus": 0,
+      "reference_no": "pmo-settle:key-n",
+      "party": "ECX Probe Supplier B",
+      "paid_amount": 200000.0
+     }
+    ]
+   }
+  },
+  {
+   "label": "SUBMIT cash paid_from, no reference (ACC-PAY-2026-00316)",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Payment Entry/ACC-PAY-2026-00316",
+    "body": {
+     "docstatus": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00316",
+     "docstatus": 1,
+     "paid_from": "Cash - EPC",
+     "paid_to": "Creditors - EPC",
+     "unallocated_amount": 200000.0
+    }
+   }
+  },
+  {
+   "label": "  cancel ACC-PAY-2026-00316",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Payment Entry/ACC-PAY-2026-00316",
+    "body": {
+     "docstatus": 2
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00316",
+     "docstatus": 2
+    }
+   }
+  },
+  {
+   "label": "SUBMIT paid_from non-bank expense leaf (ACC-PAY-2026-00317)",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Payment Entry/ACC-PAY-2026-00317",
+    "body": {
+     "docstatus": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Payment Entry ACC-PAY-2026-00317: Cost Center is required for 'Profit and Loss' account Probe Expense Plain - EPC. Please set the cost center field in Payment Entry or setup a default Cost Center for the Company.",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Payment Entry ACC-PAY-2026-00317: Cost Center is required for 'Profit and Loss' account Probe Expense Plain - EPC. Please set the cost center field in Payment Entry or setup a default Cost Center for the Company.\\\", \\\"title\\\": \\\"Missing Cost Center\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "SUBMIT paid_to Cash (non-payable) (ACC-PAY-2026-00318)",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Payment Entry/ACC-PAY-2026-00318",
+    "body": {
+     "docstatus": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Party Type and Party can only be set for Receivable / Payable account<br><br>Cash - EPC",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Party Type and Party can only be set for Receivable / Payable account<br><br>Cash - EPC\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "SUBMIT paid_to missing (ACC-PAY-2026-00319)",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Payment Entry/ACC-PAY-2026-00319",
+    "body": {
+     "docstatus": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00319",
+     "docstatus": 1,
+     "paid_from": "Probe Bank A - EPC",
+     "paid_to": "Creditors - EPC",
+     "unallocated_amount": 200000.0
+    }
+   }
+  },
+  {
+   "label": "  cancel ACC-PAY-2026-00319",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Payment Entry/ACC-PAY-2026-00319",
+    "body": {
+     "docstatus": 2
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00319",
+     "docstatus": 2
+    }
+   }
+  },
+  {
+   "label": "SUBMIT paid vs received mismatch (ACC-PAY-2026-00320)",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Payment Entry/ACC-PAY-2026-00320",
+    "body": {
+     "docstatus": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00320",
+     "docstatus": 1,
+     "paid_from": "Probe Bank A - EPC",
+     "paid_to": "Creditors - EPC",
+     "unallocated_amount": 200000.0
+    }
+   }
+  },
+  {
+   "label": "  cancel ACC-PAY-2026-00320",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Payment Entry/ACC-PAY-2026-00320",
+    "body": {
+     "docstatus": 2
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00320",
+     "docstatus": 2
+    }
+   }
+  },
+  {
+   "label": "SUBMIT posting date outside fiscal year (ACC-PAY-2026-00321)",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Payment Entry/ACC-PAY-2026-00321",
+    "body": {
+     "docstatus": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "erpnext.accounts.utils.FiscalYearError: Date 01-01-2019 is not in any active Fiscal Year for <strong>ECX Probe Co</strong>",
+    "exc_type": "FiscalYearError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Date 01-01-2019 is not in any active Fiscal Year for <strong>ECX Probe Co</strong>\\\", \\\"title\\\": \\\"Message\\\"}\"]"
+   }
+  },
+  {
+   "label": "SUBMIT Customer party on payable account (ACC-PAY-2026-00322)",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Payment Entry/ACC-PAY-2026-00322",
+    "body": {
+     "docstatus": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00322",
+     "docstatus": 1,
+     "paid_from": "Probe Bank A - EPC",
+     "paid_to": "Creditors - EPC",
+     "unallocated_amount": 200000.0
+    }
+   }
+  },
+  {
+   "label": "  cancel ACC-PAY-2026-00322",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Payment Entry/ACC-PAY-2026-00322",
+    "body": {
+     "docstatus": 2
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00322",
+     "docstatus": 2
+    }
+   }
+  },
+  {
+   "label": "SUBMIT same reference_no again (ACC-PAY-2026-00327)",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Payment Entry/ACC-PAY-2026-00327",
+    "body": {
+     "docstatus": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00327",
+     "docstatus": 1,
+     "paid_from": "Probe Bank A - EPC",
+     "paid_to": "Creditors - EPC",
+     "unallocated_amount": 200000.0
+    }
+   }
+  },
+  {
+   "label": "  cancel ACC-PAY-2026-00327",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Payment Entry/ACC-PAY-2026-00327",
+    "body": {
+     "docstatus": 2
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00327",
+     "docstatus": 2
+    }
+   }
+  },
+  {
+   "label": "SUBMIT nosm draft submit (ACC-PAY-2026-00328)",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Payment Entry/ACC-PAY-2026-00328",
+    "body": {
+     "docstatus": 1
+    },
+    "as": "apiUserWithoutSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00328",
+     "docstatus": 1,
+     "paid_from": "Probe Bank A - EPC",
+     "paid_to": "Creditors - EPC",
+     "unallocated_amount": 200000.0
+    }
+   }
+  },
+  {
+   "label": "  cancel ACC-PAY-2026-00328",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Payment Entry/ACC-PAY-2026-00328",
+    "body": {
+     "docstatus": 2
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-PAY-2026-00328",
+     "docstatus": 2
+    }
+   }
+  }
+ ],
+ "v16": {
+  "bed": "local ERPNext dev bed, v16: erpnext 16.53.0, frappe 16.54.0, Standard chart of accounts, IDR (same probe sets as the v15 cases)",
+  "notes": [
+   "Behaviour identical to v15 for all 45 comparable cases: unallocated settlement leaves the party balance down by exactly the payment (-5,000,000 -> -3,000,000); allocation to the opening Journal Entry works and caps at its outstanding (417 \"Allocated Amount cannot be greater than outstanding amount\"); overpaying is not refused (supplier B -> +400,000); Employee party works (-200,000); bank paid_from needs reference_no and reference_date; reference_no is not unique; the same save-lax / submit-strict split (non-bank paid_from, Cash paid_to with a party and no fiscal year are refused at submit; missing paid_to, paid!=received and Customer-on-payable submit).",
+   "Balance read-back uses the GL aggregate (cases below) because get_balance_on is not whitelisted on v16 (see openingEntry v16 notes).",
+   "Only text differences: the auto remarks read \"Amount IDR 2000000.0 paid to <party>\" (v15: \"Amount IDR 2000000 to <party>\") and, for an allocated payment, add \"Amount IDR 200000.0 adjusted against Journal Entry <name>\".",
+   "Error text: v16 sends _server_messages as compact JSON with an extra \"as_table\": false key per message; the parsed message text and exc_type/status are what the cases compare. HTML links in messages point at /desk/... (v15: /app/...).",
+   "GL Entry list order is not stable across versions; compare rows by content, not position.",
+   "Another company on the v16 bed supplied the \"other company\" cases (named Other Co here)."
+  ],
+  "cases": [
+   {
+    "label": "balance before",
+    "request": {
+     "method": "GET",
+     "path": "/api/resource/GL Entry?filters=[[\"company\", \"=\", \"ECX Probe Co\"], [\"account\", \"=\", \"Creditors - EPC\"], [\"party_type\", \"=\", \"Supplier\"], [\"party\", \"=\", \"ECX Probe Supplier A\"], [\"is_cancelled\", \"=\", 0]]&fields=[{\"SUM\": \"debit\", \"as\": \"debit\"}, {\"SUM\": \"credit\", \"as\": \"credit\"}]",
+     "body": null,
+     "as": "apiUserWithSystemManager"
+    },
+    "status": 200,
+    "response": {
+     "data": [
+      {
+       "debit": 0.0,
+       "credit": 5000000.0
+      }
+     ]
+    }
+   },
+   {
+    "label": "balance after",
+    "request": {
+     "method": "GET",
+     "path": "/api/resource/GL Entry?filters=[[\"company\", \"=\", \"ECX Probe Co\"], [\"account\", \"=\", \"Creditors - EPC\"], [\"party_type\", \"=\", \"Supplier\"], [\"party\", \"=\", \"ECX Probe Supplier A\"], [\"is_cancelled\", \"=\", 0]]&fields=[{\"SUM\": \"debit\", \"as\": \"debit\"}, {\"SUM\": \"credit\", \"as\": \"credit\"}]",
+     "body": null,
+     "as": "apiUserWithSystemManager"
+    },
+    "status": 200,
+    "response": {
+     "data": [
+      {
+       "debit": 2000000.0,
+       "credit": 5000000.0
+      }
+     ]
+    }
+   }
+  ]
+ }
+}
