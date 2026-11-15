@@ -4,17 +4,22 @@
 -- AC ids owned here:
 --   AC-CLIG-001  an active Admin token passes the guard for POST rpc/import_purchase_history and PATCH boq_items / budget_line_items.
 --   AC-CLIG-002  PM, Finance, Executive, Engineer, a disabled Admin and an anonymous token are refused, per target.
---   AC-CLIG-003  PATCH without `Prefer: handling=strict` AND `max-affected=1` (missing, no strict, max-affected=10, repeated,
---                lenient) is refused; the existing upsert refusal and the DELETE / other-table refusals still hold.
---   AC-CLIG-004  the column trigger lets a token change only the allowed columns and refuses any other (42501), comparing the whole row.
+--   AC-CLIG-003  PATCH without `Prefer: handling=strict` AND `max-affected=1`, spelled exactly as PostgREST reads them (missing, no
+--                strict, max-affected=10, repeated, lenient first, any other case, inner spaces) is refused; the existing upsert
+--                refusal and the DELETE / other-table refusals still hold.
+--   AC-CLIG-004  the column trigger lets a token change only the allowed columns and refuses EVERY other column of both tables (the
+--                list is read from the catalogue), including a column added later (42501); the whole row is compared.
+--   AC-CLIG-007  a token UPDATE that changes more than one row is refused by the statement trigger whatever the Prefer header says;
+--                an app session, a zero-row update and an /rpc/ update are not limited.
 --   AC-CLIG-005  an app session (no client_id) is not limited, whatever its headers say; a spoofed marker does not turn the trigger off.
 --   AC-CLIG-006  a budget line on a non-Draft version is still refused by the existing Draft guard; a definer RPC's own update is not limited.
 --
 -- ⚑ pgTAP runs as the migration superuser; the authz assertions run under `set local role` + a JWT claim.
 -- MUTATION-CHECKED (evidence file): drop the Admin check in the 0899 guard lines → AC-CLIG-002 red; drop the column trigger → AC-CLIG-004
--- red; accept max-affected=10 (substring match) → AC-CLIG-003 red; add a disallowed column to a trigger's list → AC-CLIG-004 red.
+-- red; accept max-affected=10 (substring match) → AC-CLIG-003 red; add a disallowed column to a trigger's list → AC-CLIG-004 red;
+-- drop the statement trigger → AC-CLIG-007 red; read Prefer loosely (lower case, inner spaces stripped) → AC-CLIG-003 red.
 begin;
-select plan(83);
+select plan(106);
 
 insert into organizations (id, name, default_currency) values ('08990000-0000-0000-0000-0000000000a0', 'CLI guard org', 'IDR');
 insert into auth.users (id, email) values
@@ -44,7 +49,8 @@ insert into budget_versions (id, org_id, project_id, version, name, status) valu
   ('08990000-0000-0000-0000-0000000000d2', '08990000-0000-0000-0000-0000000000a0', '08990000-0000-0000-0000-0000000000c2', 1, 'Active v1', 'Draft');
 insert into budget_line_items (id, org_id, budget_version_id, category, description, budgeted_amount, actual_amount, fiscal_year) values
   ('08990000-0000-0000-0000-0000000000f1', '08990000-0000-0000-0000-0000000000a0', '08990000-0000-0000-0000-0000000000d1', 'Labor', 'Draft line', 500, 0, '2026'),
-  ('08990000-0000-0000-0000-0000000000f2', '08990000-0000-0000-0000-0000000000a0', '08990000-0000-0000-0000-0000000000d2', 'Labor', 'Active line', 700, 0, '2026');
+  ('08990000-0000-0000-0000-0000000000f2', '08990000-0000-0000-0000-0000000000a0', '08990000-0000-0000-0000-0000000000d2', 'Labor', 'Active line', 700, 0, '2026'),
+  ('08990000-0000-0000-0000-0000000000f3', '08990000-0000-0000-0000-0000000000a0', '08990000-0000-0000-0000-0000000000d1', 'Materials', 'Second draft line', 300, 0, '2026');
 update budget_versions set status = 'Active' where id = '08990000-0000-0000-0000-0000000000d2';
 
 -- A request as PostgREST would present it: p_client false = an app session (no client_id claim).
@@ -72,7 +78,10 @@ insert into bad_prefer values
   ('no Prefer header', null), ('max-affected only', 'max-affected=1'), ('strict only', 'handling=strict'),
   ('max-affected=10', 'handling=strict,max-affected=10'), ('max-affected=100', 'handling=strict, max-affected=100'),
   ('max-affected repeated', 'handling=strict,max-affected=1,max-affected=10'), ('handling repeated', 'handling=strict,handling=lenient,max-affected=1'),
-  ('lenient', 'handling=lenient,max-affected=1'), ('return only', 'return=representation');
+  ('lenient', 'handling=lenient,max-affected=1'), ('return only', 'return=representation'),
+  ('mixed-case tokens', 'Handling=Strict, Max-Affected=1'), ('upper-case value', 'handling=STRICT,max-affected=1'),
+  ('inner spaces', 'handling = strict, max-affected = 1'), ('space before value', 'handling= strict,max-affected=1'),
+  ('lenient first', 'handling=lenient,handling=strict,max-affected=1'), ('max-affected with a leading zero', 'handling=strict,max-affected=01');
 create temp table cols(tbl text, id uuid, col text, val text) on commit drop;
 insert into cols values
   ('boq_items', '08990000-0000-0000-0000-0000000000e1', 'description', '''Survey (fixed)'''),
@@ -82,16 +91,37 @@ insert into cols values
   ('boq_items', '08990000-0000-0000-0000-0000000000e1', 'earning_basis', '''unit_rate'''),
   ('budget_line_items', '08990000-0000-0000-0000-0000000000f1', 'budgeted_amount', '650'),
   ('budget_line_items', '08990000-0000-0000-0000-0000000000f1', 'description', '''Draft line (fixed)''');
-create temp table refused_cols(tbl text, id uuid, col text, val text) on commit drop;
-insert into refused_cols values
-  ('boq_items', '08990000-0000-0000-0000-0000000000e1', 'item_code', '''CG-1X'''),
-  ('boq_items', '08990000-0000-0000-0000-0000000000e1', 'line_no', '9'),
-  ('budget_line_items', '08990000-0000-0000-0000-0000000000f1', 'actual_amount', '99'),
-  ('budget_line_items', '08990000-0000-0000-0000-0000000000f1', 'category', '''Materials'''),
-  ('budget_line_items', '08990000-0000-0000-0000-0000000000f1', 'fiscal_year', '''2027'''),
-  ('budget_line_items', '08990000-0000-0000-0000-0000000000f1', 'import_key', '''x-1'''),
-  ('budget_line_items', '08990000-0000-0000-0000-0000000000f1', 'imported_at', 'now()'),
-  ('budget_line_items', '08990000-0000-0000-0000-0000000000f1', 'org_id', '''08990000-0000-0000-0000-0000000000a9''');
+-- Every column of both tables that is not allowed, read from the catalogue (so a column added later is covered): the statement that
+-- changes it, whether `authenticated` holds UPDATE on it (no grant = refused before the trigger), and the refusal expected.
+create or replace function pg_temp.bump(p_col text, p_type text, p_udt text) returns text language sql as $$
+select case
+  when p_type in ('text', 'character varying') then format('coalesce(%I, '''') || ''x''', p_col)
+  when p_type in ('numeric', 'integer', 'bigint', 'smallint', 'double precision', 'real') then format('coalesce(%I, 0) + 1', p_col)
+  when p_type = 'uuid' then 'gen_random_uuid()'
+  when p_type like 'timestamp%' then format('coalesce(%I, now()) + interval ''1 day''', p_col)
+  when p_type = 'date' then format('coalesce(%I, current_date) + 1', p_col)
+  when p_type = 'boolean' then format('not coalesce(%I, false)', p_col)
+  when p_type = 'USER-DEFINED' then format('(select e from unnest(enum_range(null::public.%I)) e where e is distinct from %I limit 1)', p_udt, p_col)
+  when p_type in ('jsonb', 'json') then format('coalesce(%I, ''{}''::jsonb) || ''{"zz":1}''', p_col)
+end $$;
+create temp table refused_cols on commit drop as
+select c.table_name::text as tbl, c.column_name::text as col, pg_temp.bump(c.column_name::text, c.data_type::text, c.udt_name::text) as expr,
+  has_column_privilege('authenticated', format('public.%I', c.table_name), c.column_name::text, 'update') as granted,
+  case c.table_name when 'boq_items' then '08990000-0000-0000-0000-0000000000e1' else '08990000-0000-0000-0000-0000000000f1' end::uuid as id,
+  '42501: OAuth API clients may change only ' || case c.table_name when 'boq_items' then 'description, unit, quantity, rate, earning_basis'
+    else 'budgeted_amount, description' end || ' on ' || c.table_name as expected
+from information_schema.columns c
+where c.table_schema = 'public' and c.table_name in ('boq_items', 'budget_line_items')
+  and c.column_name::text <> all (case c.table_name when 'boq_items' then array['description', 'unit', 'quantity', 'rate', 'earning_basis']
+    else array['budgeted_amount', 'description'] end);
+-- Runs one change as the caller inside a sub-transaction and reports the outcome ('updated' or sqlstate: message).
+create or replace function pg_temp.try_col(p_tbl text, p_col text, p_expr text, p_id uuid) returns text language plpgsql as $$
+begin
+  execute format('update public.%I set %I = %s where id = %L', p_tbl, p_col, p_expr, p_id);
+  return 'updated';
+exception when others then return sqlstate || ': ' || sqlerrm;
+end $$;
+grant all on function pg_temp.try_col(text, text, text, uuid) to public;
 grant select on subjects, targets, bad_prefer, cols, refused_cols to public;
 set local role authenticated;
 
@@ -99,9 +129,16 @@ set local role authenticated;
 select lives_ok(
   format($f$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', %L, %L, %L); select public.api_client_request_guard()$f$, method, path, prefer),
   'AC-CLIG-001 active Admin token passes the guard for ' || method || ' ' || path) from targets order by path;
--- Prefer spelled with spaces, upper case and extra tokens still passes (1).
-select lives_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'PATCH', '/boq_items', 'return=representation, Handling=Strict, Max-Affected=1'); select public.api_client_request_guard()$$,
-  'AC-CLIG-001 Prefer tokens are matched by token, case and spacing aside');
+-- Spaces around a token are trimmed, as PostgREST trims them, and extra tokens are fine (1).
+select lives_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'PATCH', '/boq_items', E'return=representation,  handling=strict ,\tmax-affected=1 '); select public.api_client_request_guard()$$,
+  'AC-CLIG-001 Prefer tokens trimmed at their ends and extra tokens still pass');
+-- The exact header #1858's command sends, and the same with ', ' separators, on both tables (4).
+select lives_ok(
+  format($f$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'PATCH', %L, %L); select public.api_client_request_guard()$f$, t.path, h.prefer),
+  'AC-CLIG-001 Prefer ' || h.label || ' passes for PATCH ' || t.path)
+from (values ('/boq_items'), ('/budget_line_items')) t(path)
+cross join (values ('as the correction command sends it (no spaces after commas)', 'return=representation,handling=strict,max-affected=1'),
+  ('with spaces after commas', 'return=representation, handling=strict, max-affected=1')) h(label, prefer) order by t.path, h.prefer;
 
 -- AC-CLIG-002: every other subject, per target (6 x 3 = 18).
 select throws_ok(
@@ -109,7 +146,7 @@ select throws_ok(
   '42501', null, 'AC-CLIG-002 ' || s.label || ' token is refused for ' || t.method || ' ' || t.path)
 from subjects s cross join targets t order by s.label, t.path;
 
--- AC-CLIG-003: the Prefer rule, both tables (9 x 2 = 18).
+-- AC-CLIG-003: the Prefer rule, both tables (15 x 2 = 30).
 select throws_ok(
   format($f$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'PATCH', %L, %L); select public.api_client_request_guard()$f$, t.path, b.prefer),
   '42501', null, 'AC-CLIG-003 Admin PATCH ' || t.path || ' with ' || b.label || ' is refused')
@@ -135,12 +172,17 @@ select lives_ok(
   'AC-CLIG-004 an Admin token may change ' || tbl || '.' || col) from cols order by tbl, col;
 select is((select rate from boq_items where id = '08990000-0000-0000-0000-0000000000e1'), 1500::numeric, 'AC-CLIG-004 the allowed change was written (boq_items.rate)');
 select is((select budgeted_amount from budget_line_items where id = '08990000-0000-0000-0000-0000000000f1'), 650::numeric, 'AC-CLIG-004 the allowed change was written (budget_line_items.budgeted_amount)');
--- Any other column is refused with the trigger's own message, whichever column it is: the whole row is compared (8).
-select throws_ok(
-  format($f$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'PATCH', %L, 'handling=strict,max-affected=1'); update public.%I set %I = %s where id = %L$f$,
-    '/' || tbl, tbl, col, val, id),
-  '42501', 'OAuth API clients may change only ' || case tbl when 'boq_items' then 'description, unit, quantity, rate, earning_basis' else 'budgeted_amount, description' end || ' on ' || tbl,
-  'AC-CLIG-004 an Admin token may not change ' || tbl || '.' || col) from refused_cols order by tbl, col;
+-- Every other column, read from the catalogue, is refused with the trigger's own message (a column without an UPDATE grant is
+-- refused by permission, before the trigger) (4). Each outcome that differs is listed in the failure output.
+select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'PATCH', '/boq_items', 'handling=strict,max-affected=1');
+select cmp_ok((select count(*)::int from refused_cols where granted), '>=', 8, 'AC-CLIG-004 the catalogue lists the refused columns (granted)');
+select is((select count(*)::int from refused_cols where expr is null), 0, 'AC-CLIG-004 every refused column has a type this test can change');
+select is((select string_agg(tbl || '.' || col || ' -> ' || o, '; ' order by tbl, col) from
+  (select tbl, col, expected, pg_temp.try_col(tbl, col, expr, id) as o from refused_cols where granted) r where o is distinct from expected),
+  null, 'AC-CLIG-004 an Admin token may not change any column outside the allowed list (whole row compared)');
+select is((select string_agg(tbl || '.' || col || ' -> ' || o, '; ' order by tbl, col) from
+  (select tbl, col, pg_temp.try_col(tbl, col, expr, id) as o from refused_cols where not granted) r where o not like '42501: permission denied%'),
+  null, 'AC-CLIG-004 a column without an UPDATE grant is refused before the trigger');
 -- An allowed and a refused column in one request: refused, and the allowed one is not written (2).
 select throws_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'PATCH', '/boq_items', 'handling=strict,max-affected=1'); update public.boq_items set rate = 7777, line_no = 8 where id = '08990000-0000-0000-0000-0000000000e1'$$,
   '42501', null, 'AC-CLIG-004 a PATCH mixing an allowed and a refused column is refused');
@@ -169,6 +211,38 @@ select is((select budgeted_amount from budget_line_items where id = '08990000-00
 select lives_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'POST', '/rpc/recategorise_budget_lines', null); update public.budget_line_items set category = 'Labor', actual_amount = 3 where id = '08990000-0000-0000-0000-0000000000f1'$$,
   'AC-CLIG-006 an update made inside an rpc call (path /rpc/…) is not limited by the column trigger');
 select is((select category::text from budget_line_items where id = '08990000-0000-0000-0000-0000000000f1'), 'Labor', 'AC-CLIG-006 the rpc-path update was written');
+
+-- AC-CLIG-007: one row per request in the database, whatever the Prefer header says (the guard sees only the last of several Prefer
+-- headers, PostgREST honours the first, so a valid-looking header here stands for 'lenient first, strict last') (7).
+select throws_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'PATCH', '/boq_items', 'handling=strict,max-affected=1'); update public.boq_items set rate = rate + 1 where project_id = '08990000-0000-0000-0000-0000000000c1'$$,
+  '42501', 'OAuth API clients may change one boq_items row per request', 'AC-CLIG-007 a token UPDATE of two contract lines is refused even with a valid Prefer');
+select throws_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'PATCH', '/budget_line_items', 'handling=strict,max-affected=1'); update public.budget_line_items set budgeted_amount = budgeted_amount + 1 where budget_version_id = '08990000-0000-0000-0000-0000000000d1'$$,
+  '42501', 'OAuth API clients may change one budget_line_items row per request', 'AC-CLIG-007 a token UPDATE of two budget lines is refused even with a valid Prefer');
+select is((select string_agg(rate::text, ',' order by id) from boq_items where project_id = '08990000-0000-0000-0000-0000000000c1'), '1500.00,2000.00', 'AC-CLIG-007 the refused two-row UPDATE wrote nothing');
+select lives_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'PATCH', '/boq_items', 'handling=strict,max-affected=1'); update public.boq_items set rate = rate + 1 where project_id = '08990000-0000-0000-0000-0000000000c1' and false$$,
+  'AC-CLIG-007 a token UPDATE that matches no row is not limited');
+select lives_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'PATCH', '/boq_items', null, false); update public.boq_items set line_no = coalesce(line_no, 0) + 100 where project_id = '08990000-0000-0000-0000-0000000000c1'$$,
+  'AC-CLIG-007 an app session may update several rows in one statement');
+select lives_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'POST', '/rpc/recategorise_budget_lines', null); update public.budget_line_items set description = description where budget_version_id = '08990000-0000-0000-0000-0000000000d1'$$,
+  'AC-CLIG-007 an update of several rows inside an rpc call (path /rpc/…) is not limited');
+select is((select count(*)::int from pg_trigger where tgname in ('boq_items_01_api_client_one_row', 'budget_line_items_01_api_client_one_row')
+  and tgtype & 1 = 0 and tgtype & 2 = 0 and tgtype & 16 = 16), 2, 'AC-CLIG-007 the one-row triggers are AFTER UPDATE statement triggers on both tables');
+
+-- AC-CLIG-004 (added column): a column added later is refused to a token by default; an app session can still change it (4).
+-- DDL is rolled back with the test; the column is granted to authenticated as a migration that adds a column would grant it.
+reset role;
+alter table public.boq_items add column zz_probe int;
+alter table public.budget_line_items add column zz_probe int;
+grant update (zz_probe) on public.boq_items, public.budget_line_items to authenticated;
+set local role authenticated;
+select throws_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'PATCH', '/boq_items', 'handling=strict,max-affected=1'); update public.boq_items set zz_probe = 1 where id = '08990000-0000-0000-0000-0000000000e1'$$,
+  '42501', 'OAuth API clients may change only description, unit, quantity, rate, earning_basis on boq_items', 'AC-CLIG-004 a column added to boq_items later is refused to a token');
+select throws_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'PATCH', '/budget_line_items', 'handling=strict,max-affected=1'); update public.budget_line_items set zz_probe = 1 where id = '08990000-0000-0000-0000-0000000000f1'$$,
+  '42501', 'OAuth API clients may change only budgeted_amount, description on budget_line_items', 'AC-CLIG-004 a column added to budget_line_items later is refused to a token');
+select lives_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'PATCH', '/boq_items', null, false); update public.boq_items set zz_probe = 1 where id = '08990000-0000-0000-0000-0000000000e1'$$,
+  'AC-CLIG-004 an app session may change the added column of boq_items');
+select lives_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'PATCH', '/budget_line_items', null, false); update public.budget_line_items set zz_probe = 1 where id = '08990000-0000-0000-0000-0000000000f1'$$,
+  'AC-CLIG-004 an app session may change the added column of budget_line_items');
 
 -- The trigger sorts first among the BEFORE UPDATE triggers of both tables (2).
 select is((select tgname from pg_trigger where tgrelid = 'public.boq_items'::regclass and not tgisinternal and tgtype & 2 = 2 and tgtype & 16 = 16 order by tgname limit 1),

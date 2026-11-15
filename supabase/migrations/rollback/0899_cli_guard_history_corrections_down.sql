@@ -1,7 +1,10 @@
--- Down for 0899 (#1855, #1858): drops the two column triggers and their function and restores api_client_request_guard() to its 0894 body, verbatim.
+-- Down for 0899 (#1855, #1858): drops the column and one-row triggers and their functions and restores api_client_request_guard() to its 0894 body, verbatim.
 drop trigger if exists boq_items_00_api_client_columns on public.boq_items;
 drop trigger if exists budget_line_items_00_api_client_columns on public.budget_line_items;
+drop trigger if exists boq_items_01_api_client_one_row on public.boq_items;
+drop trigger if exists budget_line_items_01_api_client_one_row on public.budget_line_items;
 drop function if exists public.api_client_restrict_patch_columns();
+drop function if exists public.api_client_limit_patch_rows();
 create or replace function public.api_client_request_guard()
   returns void
   language plpgsql

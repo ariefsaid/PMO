@@ -1,14 +1,19 @@
 -- 0899 (#1855, #1858): the command line may import purchase history and correct two loader-written tables, as an active Admin.
 -- 1. `import_purchase_history` (POST rpc) joins the guard in the active-Admin tier (the function checks Admin itself).
 -- 2. PATCH on `boq_items` and `budget_line_items` is admitted for an active Admin only, and only with `Prefer: handling=strict,
---    max-affected=1` (one row per request, enforced by PostgREST). The guard sees method, path, headers and claims, not the body or
---    the query string, so the columns are limited in the database instead: `api_client_restrict_patch_columns()` runs BEFORE UPDATE on
+--    max-affected=1`, read the way PostgREST reads it (split on commas, each token trimmed at its ends only, case-sensitive; no
+--    other spelling is admitted). The guard sees method, path, headers and claims, not the body or the query string, so the columns
+--    and the row count are limited in the database instead: `api_client_restrict_patch_columns()` runs BEFORE UPDATE on
 --    both tables and refuses (42501) a change to any column outside the allowed list when the request is a command-line token
 --    (the verified `client_id` claim, read exactly as the guard reads it) and not an `/rpc/` call (definer RPCs update these tables
 --    by their own rules). It compares the WHOLE row, so a column added later is refused by default.
 --    Trigger name `<table>_00_api_client_columns` sorts before every other BEFORE UPDATE trigger on these tables, so it compares the row
 --    as the client sent it; none of those triggers assigns a column to NEW today (checked at 0898).
--- Known limit: the `id=eq.<uuid>` filter is in the query string, which the guard cannot see; `max-affected=1` caps any PATCH to one row.
+--    `api_client_limit_patch_rows()` is an AFTER UPDATE statement trigger (transition table) that refuses (42501) a command-line token
+--    that changed more than one row, whatever the Prefer header said: the guard sees only the last of several Prefer headers while
+--    PostgREST honours the first, so the header alone is not a cap.
+-- Known limit: the `id=eq.<uuid>` filter is in the query string, which the guard cannot see; one row is changed per request, but
+-- which row is the caller's filter.
 -- Body of the api_client_request_guard() from 0894 copied verbatim; the only additions are the lines marked 0899.
 create or replace function public.api_client_restrict_patch_columns()
   returns trigger
@@ -32,8 +37,7 @@ begin
   return new;
 end;
 $$;
-revoke all on function public.api_client_restrict_patch_columns() from public, anon;
-grant execute on function public.api_client_restrict_patch_columns() to authenticated;
+revoke all on function public.api_client_restrict_patch_columns() from public, anon;  -- a trigger function is not called through the API
 
 drop trigger if exists boq_items_00_api_client_columns on public.boq_items;
 create trigger boq_items_00_api_client_columns before update on public.boq_items
@@ -41,6 +45,37 @@ create trigger boq_items_00_api_client_columns before update on public.boq_items
 drop trigger if exists budget_line_items_00_api_client_columns on public.budget_line_items;
 create trigger budget_line_items_00_api_client_columns before update on public.budget_line_items
   for each row execute function public.api_client_restrict_patch_columns('budgeted_amount', 'description');
+
+create or replace function public.api_client_limit_patch_rows()
+  returns trigger
+  language plpgsql
+  security invoker
+  set search_path = ''
+as $$
+declare
+  claims jsonb := nullif(current_setting('request.jwt.claims', true), '')::jsonb;
+begin
+  if claims is null or not (claims ? 'client_id') then
+    return null; -- an app session: unchanged
+  end if;
+  if coalesce(current_setting('request.path', true), '') like '/rpc/%' then
+    return null; -- a definer RPC's own update
+  end if;
+  if (select count(*) from (select 1 from new_rows limit 2) two) > 1 then
+    raise exception using errcode = '42501',
+      message = format('OAuth API clients may change one %s row per request', tg_table_name);
+  end if;
+  return null;
+end;
+$$;
+revoke all on function public.api_client_limit_patch_rows() from public, anon;
+
+drop trigger if exists boq_items_01_api_client_one_row on public.boq_items;
+create trigger boq_items_01_api_client_one_row after update on public.boq_items
+  referencing new table as new_rows for each statement execute function public.api_client_limit_patch_rows();
+drop trigger if exists budget_line_items_01_api_client_one_row on public.budget_line_items;
+create trigger budget_line_items_01_api_client_one_row after update on public.budget_line_items
+  referencing new table as new_rows for each statement execute function public.api_client_limit_patch_rows();
 
 create or replace function public.api_client_request_guard()
   returns void
@@ -116,7 +151,8 @@ declare
   headers jsonb := coalesce(nullif(current_setting('request.headers', true), '')::jsonb, '{}'::jsonb);
   method text := current_setting('request.method', true);
   path text := coalesce(current_setting('request.path', true), '');
-  prefer_tokens text[] := string_to_array(lower(replace(coalesce(headers ->> 'prefer', ''), ' ', '')), ',');  -- 0899
+  -- Prefer tokens as PostgREST reads them: split on commas, each trimmed at its ends only, case-sensitive.  -- 0899
+  prefer_tokens text[] := (select coalesce(array_agg(btrim(t, E' \t\n\v\f\r')), '{}') from unnest(string_to_array(coalesce(headers ->> 'prefer', ''), ',')) t);  -- 0899
   target text;
 begin
   if claims is null or not (claims ? 'client_id') then
@@ -290,7 +326,8 @@ begin
       end if;  -- 0884
     end if;  -- 0884
     -- One row per request: PostgREST enforces `max-affected=1` only under `handling=strict`, and the guard cannot see the filter,  -- 0899
-    -- so both tokens must be present exactly once (a repeated or larger `max-affected` is refused).  -- 0899
+    -- so both tokens must be present exactly once, spelled exactly (a repeated or larger `max-affected` is refused). The statement  -- 0899
+    -- trigger above is the backstop (the guard sees only the last of several Prefer headers).  -- 0899
     if method = 'PATCH' and target = any (correction_patch_tables) then  -- 0899
       if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false)  -- 0899
          and (select count(*) from unnest(prefer_tokens) t where t like 'handling%') = 1 and 'handling=strict' = any (prefer_tokens)  -- 0899
