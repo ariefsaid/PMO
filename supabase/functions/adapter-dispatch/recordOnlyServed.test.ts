@@ -21,7 +21,7 @@ const receipt = 'e6050000-0000-4000-8000-000000000004';
 const key = 'e6050000-0000-4000-8000-000000000005';
 const raw = { id: receipt, procurementId: purchase, erp_doc_kind: 'goods-receipt', receiptDate: '2026-10-29' };
 
-async function dispatch(record: Record<string, unknown>, corruptDigest = false, fresh = false) {
+async function dispatch(record: Record<string, unknown>, corruptDigest = false, fresh = false, tier = 'erpnext') {
   const rawDigest = await canonicalCommandDigest({ domain: 'procurement', operation: 'create', record: raw });
   const payload = { ...raw, items: [{ item_code: 'Original item', qty: 2, rate: 10, po_item_child_name: 'original-child' }],
     pmo_gr_snapshot: { supplier: 'Original supplier', po: 'Original PO', raw_digest: rawDigest } };
@@ -35,9 +35,10 @@ async function dispatch(record: Record<string, unknown>, corruptDigest = false, 
     const table = path.split('/').at(-1);
     if (path.startsWith('/rest/v1/rpc/')) {
       if (table === 'actor_authorization_state') return jsonResponse({ role: 'Project Manager', active: true });
-      if (table === 'domain_owned_by_tier' || table === 'org_has_active_erpnext_binding') return jsonResponse(true);
+      if (table === 'domain_owned_by_tier') return jsonResponse((call.bodyJson as { p_tier: string }).p_tier === tier);
+      if (table === 'org_has_active_erpnext_binding') return jsonResponse(true);
       if (table === 'pre_cutover_procurement') return jsonResponse(false); // ECA-4: a purchase ordered after the connection
-      if (table === 'record_only_step_refusal') return jsonResponse('record_only_forward_step_refused');
+      if (table === 'record_only_step_refusal') return jsonResponse(tier === 'odoo' ? null : 'history_complete');
       if (table === 'procurement_gate_violation' || table === 'procurement_create_refusal' || table === 'read_vault_secret') return jsonResponse(null);
       if (table === 'insert_procurement_outbox_pending') return jsonResponse({ ...row, state: 'pending', external_record_id: null, canonical: null });
       if (table === 'claim_outbox_for_commit') return jsonResponse({ code: 'P0001', message: 'synthetic refusal' }, { status: 400 });
@@ -68,19 +69,27 @@ async function dispatch(record: Record<string, unknown>, corruptDigest = false, 
 Deno.test('AC-ROP-004 served dispatch refuses a captured purchase before queuing an ERP command', async () => {
   const result = await dispatch(raw, false, true);
   assertEquals(result.status, 422, result.body);
-  assert(result.body.includes('record_only_forward_step_refused'), result.body);
+  assert(result.body.includes('history_complete'), result.body);
   assertEquals(result.calls.filter((call) => call.url.pathname.endsWith('/rpc/insert_procurement_outbox_pending')).length, 0);
   assertEquals(result.calls.filter((call) => call.url.host === 'erp.example.test' && call.method !== 'GET').length, 0);
 });
 Deno.test('AC-ROP-004 a retry for a captured purchase is refused before ERP work', async () => {
   const result = await dispatch(raw);
   assertEquals(result.status, 422, result.body);
-  assert(result.body.includes('record_only_forward_step_refused'), result.body);
+  assert(result.body.includes('history_complete'), result.body);
   assertEquals(result.calls.filter((call) => call.url.host === 'erp.example.test' && call.method !== 'GET').length, 0);
 });
 Deno.test('AC-ROP-004 a captured purchase cannot dispatch a quotation', async () => {
   const result = await dispatch({ ...raw, erp_doc_kind: 'quotation' }, false, true);
   assertEquals(result.status, 422, result.body);
-  assert(result.body.includes('record_only_forward_step_refused'), result.body);
+  assert(result.body.includes('history_complete'), result.body);
   assertEquals(result.calls.filter((call) => call.url.host === 'erp.example.test' && call.method !== 'GET').length, 0);
+});
+
+Deno.test('AC-ROP-024 Odoo captured payment refused', async () => {
+  const result = await dispatch({ id: receipt, procurementId: purchase, erp_doc_kind: 'payment', capturedInvoiceDocumentId: key, paid_amount: 25, date: '2026-11-15' }, false, true, 'odoo');
+  assertEquals(result.status, 422, result.body);
+  assert(result.body.includes('capture_tier_unsupported'), result.body);
+  assertEquals(result.calls.filter((call) => call.url.pathname.includes('external_command_outbox') || call.url.pathname.endsWith('/rpc/insert_procurement_outbox_pending')).length, 0);
+  assertEquals(result.calls.filter((call) => call.url.host === 'erp.example.test').length, 0);
 });

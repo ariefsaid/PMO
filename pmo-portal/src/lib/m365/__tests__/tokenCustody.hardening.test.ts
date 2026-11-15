@@ -34,7 +34,7 @@ describe('M3 — refresh re-validates the DB-sourced tenant before the token URL
     const service = mockClient();
     const fetch = vi.fn();
 
-    const ok = await refreshAccessToken(conn, deps({ service, fetch }));
+    const ok = await refreshAccessToken(conn, deps({ service, fetch, env: { m365TenantId: conn.entra_tenant_id } }));
 
     expect(ok).toBe(false);
     // No token URL constructed with the bad tenant.
@@ -52,7 +52,7 @@ describe('M3 — refresh re-validates the DB-sourced tenant before the token URL
       json: async () => ({ access_token: 'NEW-A', refresh_token: 'NEW-R', expires_in: 3600 }),
     });
 
-    const ok = await refreshAccessToken(conn, deps({ service, fetch }));
+    const ok = await refreshAccessToken(conn, deps({ service, fetch, env: { m365TenantId: conn.entra_tenant_id } }));
 
     expect(ok).toBe(true);
     expect(fetch).toHaveBeenCalledWith(
@@ -143,7 +143,7 @@ describe('Luna-Med — refresh reports failure (not success) when token persiste
       json: async () => ({ access_token: 'NEW-A', refresh_token: 'NEW-R', expires_in: 3600 }),
     });
 
-    const ok = await refreshAccessToken(conn, deps({ service, fetch }));
+    const ok = await refreshAccessToken(conn, deps({ service, fetch, env: { m365TenantId: conn.entra_tenant_id } }));
 
     // NOT reported as success.
     expect(ok).toBe(false);
@@ -165,7 +165,7 @@ describe('Luna-Med — refresh reports failure (not success) when token persiste
       json: async () => ({ access_token: 'NEW-A', refresh_token: 'NEW-R', expires_in: 3600 }),
     });
 
-    const ok = await refreshAccessToken(conn, deps({ service, fetch }));
+    const ok = await refreshAccessToken(conn, deps({ service, fetch, env: { m365TenantId: conn.entra_tenant_id } }));
 
     expect(ok).toBe(false);
     expect(service.rpc).not.toHaveBeenCalledWith('audit_m365_event', expect.objectContaining({ p_action: 'm365.token.refreshed' }));
@@ -251,7 +251,7 @@ describe('Luna round-4 MED-3 — status-RPC failure ignores the returned identit
       json: async () => ({ error: 'invalid_grant', error_description: 'token reuse detected' }),
     });
 
-    const ok = await refreshAccessToken(conn, deps({ service, fetch }));
+    const ok = await refreshAccessToken(conn, deps({ service, fetch, env: { m365TenantId: conn.entra_tenant_id } }));
 
     expect(ok).toBe(false);
     // CRUCIAL: no reuse_detected state-change audit for a row that was NOT marked revoked.
@@ -272,7 +272,7 @@ describe('Luna round-4 MED-3 — status-RPC failure ignores the returned identit
       json: async () => ({ error: 'invalid_grant', error_description: 'token reuse detected' }),
     });
 
-    const ok = await refreshAccessToken(conn, deps({ service, fetch }));
+    const ok = await refreshAccessToken(conn, deps({ service, fetch, env: { m365TenantId: conn.entra_tenant_id } }));
 
     expect(ok).toBe(false);
     expect(service.rpc).not.toHaveBeenCalledWith('audit_m365_event', expect.objectContaining({ p_action: 'm365.token.reuse_detected' }));
@@ -290,7 +290,7 @@ describe('Luna round-4 MED-3 — status-RPC failure ignores the returned identit
       json: async () => ({ error: 'invalid_grant', error_description: 'consent revoked' }),
     });
 
-    const ok = await refreshAccessToken(conn, deps({ service, fetch }));
+    const ok = await refreshAccessToken(conn, deps({ service, fetch, env: { m365TenantId: conn.entra_tenant_id } }));
 
     expect(ok).toBe(false);
     // CRUCIAL: no refresh_failed state-change audit for a row that was NOT marked stale.

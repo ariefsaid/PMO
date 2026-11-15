@@ -128,6 +128,8 @@ import type {
 import type { PreviewDocumentRequest } from "../_shared/microsoftDocumentPreview.ts";
 
 export type M365Request =
+  | { action: "save_org_app"; tenantId: string; clientId: string; clientSecret?: string }
+  | { action: "org_app_info" | "clear_org_app" }
   | InitiateConnectRequest
   | InitiateOrgApprovalRequest
   | GraphProxyRequest
@@ -148,6 +150,10 @@ export interface M365ErrorResponse {
 }
 
 export type M365ErrorCode =
+  | "M365_APP_NOT_CONFIGURED"
+  | "APP_REJECTED"
+  | "TENANT_REJECTED"
+  | "MICROSOFT_UNREACHABLE"
   | "UNAUTHORIZED"
   | "FORBIDDEN"
   | "NOT_ENTITLED"
@@ -169,6 +175,10 @@ export type M365ErrorCode =
   | "INTERNAL_ERROR";
 
 export const ERROR_STATUS: Record<M365ErrorCode, number> = {
+  M365_APP_NOT_CONFIGURED: 409,
+  APP_REJECTED: 422,
+  TENANT_REJECTED: 422,
+  MICROSOFT_UNREACHABLE: 502,
   UNAUTHORIZED: 401,
   FORBIDDEN: 403,
   NOT_ENTITLED: 403,

@@ -20,12 +20,17 @@ import { AppError } from '../../appError.ts';
 export class ErpError extends AdapterError {
   readonly status: number;
   readonly retryable: boolean;
+  errorType?: string;
   constructor(status: number, code: 'commit-rejected' | 'external-unreachable' | 'destination_not_permitted', message: string, retryable = true) {
     super(code, message);
     this.name = 'ErpError';
     this.status = status;
     this.retryable = retryable;
   }
+}
+
+function safeErpErrorType(type: string | undefined): string | undefined {
+  return type && ['TypeError', 'ValidationError', 'MandatoryError', 'PermissionError', 'DoesNotExistError', 'LinkValidationError', 'SyntheticFailure'].includes(type) ? type : undefined;
 }
 
 /** A modest per-org token bucket (FR-ENA-014 — "Frappe rate-limiting is off by default"; this is a
@@ -589,14 +594,18 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
           await (safeMode ? pause : sleep)(retryDelayMs(res.headers.get('Retry-After'), attempt));
           continue;
         }
-        if (!safeMode) console.error(`[erpnext-client] upstream status=${res.status} code=external-unreachable type=${parsed.excType ?? 'unknown'}`);
-        throw new ErpError(res.status, 'external-unreachable', safeMode ? 'Statement report request failed' : parsed.message ?? `ERPNext request failed with status ${res.status}`, true);
+        if (!safeMode) console.error(`[erpnext-client] upstream status=${res.status} code=external-unreachable type=${safeErpErrorType(parsed.excType) ?? 'unknown'}`);
+        const error = new ErpError(res.status, 'external-unreachable', safeMode ? 'Statement report request failed' : parsed.message ?? `ERPNext request failed with status ${res.status}`, true);
+        error.errorType = safeErpErrorType(parsed.excType);
+        throw error;
       }
 
       const body = await waitForDiagnostic(safeParseBody(res, maxBodyBytes, opts.responseNumbers));
       if (res.status >= 400) {
         const parsed = parseFrappeErrorBody(body);
-        throw new ErpError(res.status, 'commit-rejected', safeMode ? 'Statement report request failed' : parsed.message ?? `ERPNext request failed with status ${res.status}`, true);
+        const error = new ErpError(res.status, 'commit-rejected', safeMode ? 'Statement report request failed' : parsed.message ?? `ERPNext request failed with status ${res.status}`, true);
+        error.errorType = safeErpErrorType(parsed.excType);
+        throw error;
       }
       return body;
     } catch (err) {

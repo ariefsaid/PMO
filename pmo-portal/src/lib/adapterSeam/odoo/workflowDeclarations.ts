@@ -56,3 +56,6 @@ export const ODOO_WORKFLOWS: TierWorkflows = {
   'equipment.push': { status: 'pending', version: 1, issue: ODOO_EQUIPMENT },
   'equipment.read': { status: 'pending', version: 1, issue: ODOO_EQUIPMENT },
 };
+
+/** Captured-purchase behavior declared by this tier. */
+export const CAPTURED_PURCHASE_CAPABILITIES = { payCapturedInvoice: false, applyStepPolicy: false } as const;
