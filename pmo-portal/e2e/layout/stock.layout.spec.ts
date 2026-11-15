@@ -104,7 +104,7 @@ test('@layout AC-STOCK-LAYOUT-003 stock ledger @1440: the Project column shows a
   const m = await page.evaluate(() => {
     const table = document.querySelector('table');
     const ths = [...document.querySelectorAll('table th')];
-    const idx = ths.findIndex((h) => /^\s*project\s*$/i.test(h.textContent ?? ''));
+    const idx = ths.findIndex((h) => /^\s*project\b/i.test(h.textContent ?? ''));
     if (!table || idx < 0) return { found: false } as const;
     const th = ths[idx] as HTMLElement;
     const thr = th.getBoundingClientRect();
