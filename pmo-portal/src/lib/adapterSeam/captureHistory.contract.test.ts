@@ -42,7 +42,7 @@ it('AC-ROP-018 and AC-ROP-021 compose nonempty ERPNext sources without claiming 
 it('AC-ROP-021 binding adapters expose explicit capability and require a witnessed company', async () => {
   const { createCaptureAdapter: erpBinding } = await import('./erpnext/captureAdapter');
   const { createCaptureAdapter: odooBinding } = await import('./odoo/captureAdapter');
-  const resolve = async () => ({ client: { fetchImpl: fetch, apiKey: 'synthetic', apiSecret: 'synthetic', baseUrl: 'https://example.test' }, config: { company: 'Example' } });
+  const resolve = async () => ({ client: { fetchImpl: fetch, apiKey: 'synthetic', apiSecret: 'synthetic', baseUrl: 'https://example.test', versionMajor: 15 }, config: { company: 'Example' } });
   expect(await erpBinding({}, resolve)).toMatchObject({ supported: false, missing: ['company_unknown'] });
   expect(await erpBinding({ company: 'Another' }, resolve)).toMatchObject({ supported: false, missing: ['erp_reader_unavailable'] });
   expect(await erpBinding({ company: 'Example' }, resolve)).toMatchObject({ supported: true, company: 'Example' });
