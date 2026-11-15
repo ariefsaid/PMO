@@ -217,6 +217,8 @@ export const PAYMENT_LEDGER_ENTRY_DOCTYPE = 'Payment Ledger Entry';
 export const LEDGER_MIRROR_DOCTYPES: readonly string[] = [GL_ENTRY_DOCTYPE, PAYMENT_LEDGER_ENTRY_DOCTYPE];
 
 const JOURNAL_ENTRY_DOCTYPE = 'Journal Entry';
+/** Remarks text, or null when absent, empty or whitespace-only (v16 writes ""). */
+const remarksOf = (v: unknown): string | null => (str(v)?.trim() ? str(v) : null);
 /** ERPNext 15 writes a journal's ledger remarks as "Note: <user_remark>"; the fallback reproduces that text so both shapes mirror one reference. */
 const JOURNAL_REMARK_PREFIX = 'Note: ';
 /** Journal names per batched read — keeps the request URL well under proxy limits. */
@@ -238,7 +240,7 @@ async function journalRemarks(client: ErpClientDeps, names: string[]): Promise<M
     if (!Array.isArray(data)) throw malformedLedgerResponse();
     for (const j of data) {
       if (isRecord(j) && typeof j.name === 'string') {
-        const remark = str(j.user_remark);
+        const remark = remarksOf(j.user_remark);
         if (remark !== null) out.set(j.name, `${JOURNAL_REMARK_PREFIX}${remark}`);
       }
     }
@@ -261,7 +263,7 @@ export async function fetchGlEntries(client: ErpClientDeps, opts: LedgerFetchOpt
   const result = await fetchAllPages(client, GL_ENTRY_DOCTYPE, scopeFilters(opts), opts.since, GL_FIELDS, pageSize, maxPages, 'ledger_decimal_text');
   const needJournal = [...new Set(
     result.rows
-      .filter((r) => r.voucher_type === JOURNAL_ENTRY_DOCTYPE && str(r.remarks) === null && str(r.voucher_no) !== null)
+      .filter((r) => r.voucher_type === JOURNAL_ENTRY_DOCTYPE && remarksOf(r.remarks) === null && str(r.voucher_no) !== null)
       .map((r) => String(r.voucher_no)),
   )];
   const fromJournal = needJournal.length > 0 ? await journalRemarks(client, needJournal) : new Map<string, string>();
@@ -269,7 +271,7 @@ export async function fetchGlEntries(client: ErpClientDeps, opts: LedgerFetchOpt
     ...result,
     rows: result.rows.map((r) => {
       const docstatus = docstatusOf(r.docstatus);
-      const rowRemarks = str(r.remarks);
+      const rowRemarks = remarksOf(r.remarks);
       return {
         name: String(r.name),
         company: String(r.company ?? opts.company),

@@ -116,6 +116,31 @@ describe('erpnext/ledgerFetch — fetchGlEntries', () => {
     expect(decodeURIComponent(je[0])).toContain('user_remark');
   });
 
+  it('#2356 a Journal Entry read answering 5xx rejects the whole ledger fetch (no partial rows)', async () => {
+    const fetchImpl = async (url: string) =>
+      url.includes('/api/resource/Journal%20Entry')
+        ? jsonResponse({ exception: 'boom' }, 503)
+        : jsonResponse({ data: [{ name: 'G1', account: 'A', modified: '2026-10-07', voucher_type: 'Journal Entry', voucher_no: 'JV-1', remarks: '', docstatus: 1 }] });
+    await expect(fetchGlEntries({ ...client(fetchImpl), maxRetries: 0 }, { company: 'Acme' })).rejects.toThrow('boom');
+  });
+
+  it('#2356 a malformed Journal Entry body rejects the whole ledger fetch', async () => {
+    const fetchImpl = async (url: string) =>
+      url.includes('/api/resource/Journal%20Entry')
+        ? jsonResponse({ data: 'not-a-list' })
+        : jsonResponse({ data: [{ name: 'G1', account: 'A', modified: '2026-10-07', voucher_type: 'Journal Entry', voucher_no: 'JV-1', remarks: '', docstatus: 1 }] });
+    await expect(fetchGlEntries(client(fetchImpl), { company: 'Acme' })).rejects.toMatchObject({ message: 'ERPNext ledger response was malformed' });
+  });
+
+  it('#2356 whitespace-only row remarks count as empty and are filled from the Journal Entry', async () => {
+    const fetchImpl = async (url: string) =>
+      url.includes('/api/resource/Journal%20Entry')
+        ? jsonResponse({ data: [{ name: 'JV-1', user_remark: 'ref' }] })
+        : jsonResponse({ data: [{ name: 'G1', account: 'A', modified: '2026-10-07', voucher_type: 'Journal Entry', voucher_no: 'JV-1', remarks: '  ', docstatus: 1 }] });
+    const { rows } = await fetchGlEntries(client(fetchImpl), { company: 'Acme' });
+    expect(rows[0].remarks).toBe('Note: ref');
+  });
+
   it('#2356 rows that already carry remarks trigger no Journal Entry read', async () => {
     const urls: string[] = [];
     const fetchImpl = async (url: string) => {

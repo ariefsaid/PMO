@@ -90,11 +90,10 @@ export const mirrorJournalReference: NonNullable<ErpHarness['mirrorJournalRefere
   const v16 = glFixtureRows((fixture as unknown as { v16: { cases: FixtureCase[] } }).v16.cases);
   const rows = (shape === 'remarks-on-row' ? v15 : v16).map((r, i) => ({
     ...r, name: `GLE-${i}`, company: 'Example Co', voucher_no: 'JV-1', modified: '2026-01-01 00:00:00.000000', docstatus: 1,
-    ...(shape === 'remarks-on-row' ? { remarks: String(r.remarks).replace(/key-0001$/, key.split(':').pop()!) } : {}),
   }));
   const fetchImpl = (async (url: string) => {
     const journal = decodeURIComponent(url).includes('/api/resource/Journal Entry');
-    const data = journal ? [{ name: 'JV-1', user_remark: key }] : rows;
+    const data = journal ? (decodeURIComponent(url).includes('"JV-1"') ? [{ name: 'JV-1', user_remark: key }] : []) : rows;
     return new Response(JSON.stringify({ data }), { status: 200, headers: { 'content-type': 'application/json' } });
   }) as unknown as typeof fetch;
   const { rows: fetched } = await fetchGlEntries({ fetchImpl, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.test', maxRetries: 0 }, { company: 'Example Co' });
