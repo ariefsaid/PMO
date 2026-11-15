@@ -182,6 +182,18 @@ describe('SalesInvoiceApprovalSection (#784)', () => {
     expect(p.getByText('Tax').closest('div')).toHaveTextContent(/110,000/);
     expect(p.getByText('Total due').closest('div')).toHaveTextContent(/1,110,000/);
   });
+  it('a paid invoice reads its gross as the invoice total, not "Total due" (#2345 row 2)', () => {
+    render(
+      <FinanceI18nTestProvider>
+        <MemoryRouter>
+          <SalesInvoiceApprovalPreview inv={draft({ status: 'Paid', erp_outstanding_amount: 0 })} />
+        </MemoryRouter>
+      </FinanceI18nTestProvider>,
+    );
+    expect(screen.getByText('Invoice total').closest('div')).toHaveTextContent(/1,110,000/);
+    expect(screen.queryByText('Total due')).not.toBeInTheDocument();
+  });
+
   it('D4: shows minor units on an invoice preview when its currency uses them', () => {
     render(
       <FinanceI18nTestProvider>
