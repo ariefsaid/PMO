@@ -281,7 +281,7 @@
       "accountsSubmit": "Simpan akun perusahaan",
       "accountsChoose": "Pilih…",
       "accountsFailed": "Akun perusahaan tidak dapat diatur. Coba lagi.",
-      "accountsUnavailable": "Daftar akun tidak dapat dibaca. Coba lagi.",
+      "accountsUnavailable": "Daftar akun tidak dapat dibaca.",
       "accountsPending": "Perubahan akun perusahaan masih sedang disimpan. Muat ulang dalam beberapa menit untuk melihatnya.",
       "noBankAccount": "Perusahaan belum memiliki akun bank, jadi belum ada yang bisa dipilih. Buat akun bank terlebih dahulu; akun itu lalu tercantum di sini.",
       "accountSlots": {
@@ -290,6 +290,37 @@
         "cash": "Akun kas",
         "bank": "Akun bank",
         "costCentre": "Pusat biaya"
+      },
+      "accountsRefused": "Akun perusahaan tidak dapat diatur.",
+      "accountsRetry": "Coba lagi",
+      "slotInSentence": {
+        "payable": "akun utang vendor",
+        "expense": "akun beban default",
+        "cash": "akun kas",
+        "bank": "akun bank",
+        "costCentre": "pusat biaya"
+      },
+      "refusal": {
+        "notInChart": "{{name}} tidak ada dalam bagan akun ERP yang dibaca PMO, jadi tidak dapat menjadi {{slot}}. Muat ulang daftar lalu pilih lagi.",
+        "otherCompany": "{{name}} milik perusahaan lain, jadi tidak dapat menjadi {{slot}}.",
+        "group": "{{name}} adalah grup, jadi tidak dapat menjadi {{slot}}. Pilih akun atau pusat biaya di bawahnya.",
+        "disabled": "{{name}} dinonaktifkan, jadi tidak dapat menjadi {{slot}}.",
+        "notPayable": "{{name}} bukan akun utang, jadi tidak dapat menjadi {{slot}}.",
+        "notCash": "{{name}} bukan akun kas, jadi tidak dapat menjadi {{slot}}.",
+        "notBank": "{{name}} bukan akun bank, jadi tidak dapat menjadi {{slot}}.",
+        "notExpense": "{{name}} bukan akun beban, jadi tidak dapat menjadi {{slot}}.",
+        "connectFirst": "Hubungkan ERP dan pilih perusahaannya terlebih dahulu.",
+        "chooseOne": "Pilih setidaknya satu akun perusahaan.",
+        "unknownDefault": "Akun perusahaan tidak dikenal: {{name}}.",
+        "chooseValue": "Pilih nilai untuk setiap akun perusahaan yang Anda ubah.",
+        "notAvailable": "Akun perusahaan belum dapat diatur dari PMO untuk ERP ini.",
+        "connectionChangedReload": "Koneksi ERP berubah; muat ulang lalu coba lagi.",
+        "erpRefused": "ERP menolak perubahan ini.",
+        "readBackFailed": "Perusahaan di ERP tidak dapat dibaca ulang, jadi tidak ada yang dicatat. Coba lagi.",
+        "notKept": "ERP tidak menyimpan semua akun yang dipilih, jadi tidak ada yang dicatat. Coba lagi.",
+        "newerSaved": "Perubahan akun perusahaan yang lebih baru sudah disimpan untuk koneksi ini, jadi perubahan ini tidak dicatat.",
+        "connectionChanged": "Koneksi ERP berubah saat perubahan ini sedang diatur, jadi tidak ada yang dicatat.",
+        "notRecorded": "Perubahan tidak dicatat. Coba lagi."
       }
     },
     "personalM365": {

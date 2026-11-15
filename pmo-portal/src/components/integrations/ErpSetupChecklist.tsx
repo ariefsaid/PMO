@@ -10,6 +10,7 @@ import {
   ListState,
   SelectField,
   TextField,
+  type SubmitError,
 } from '@/src/components/ui';
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { domainLabel } from './integrationLabels';
@@ -21,6 +22,7 @@ import { ProjectMatchReview } from './ProjectMatchReview';
 import { ConnectProposalReview } from './ConnectProposalReview';
 import { AppError } from '@/src/lib/appError';
 import type { CompanyDefaultSlot } from '@/src/lib/repositories/types';
+import { matchCompanyDefaultsRefusal } from '@/src/lib/i18n/companyDefaultsRefusal';
 
 /** #1599 ECX-3: the company defaults PMO sets in the ERP, and the readiness key each one fills. */
 const ACCOUNT_SLOTS: ReadonlyArray<{ slot: CompanyDefaultSlot; key: string }> = [
@@ -41,7 +43,7 @@ export function ErpSetupChecklist(
     onRefreshCompany: () => void;
   },
 ) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const setup = useQuery({
     queryKey: ['integrations', 'setup', orgId],
@@ -53,6 +55,7 @@ export function ErpSetupChecklist(
   const [matchReviewOpen, setMatchReviewOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [accountsError, setAccountsError] = useState<SubmitError | null>(null);
   const defaults = useEntityForm({
     initialValues: { activityType: '', receivableAccount: '' },
     requiredFields: ['activityType', 'receivableAccount'],
@@ -77,6 +80,7 @@ export function ErpSetupChecklist(
   const openAccounts = () => {
     accounts.reset(Object.fromEntries(ACCOUNT_SLOTS.map(({ slot, key }) => [slot, currentAccount(key)])) as Record<CompanyDefaultSlot, string>);
     setError(null);
+    setAccountsError(null);
     setEditing('accounts');
   };
   const slotLabels: Record<CompanyDefaultSlot, string> = {
@@ -86,6 +90,26 @@ export function ErpSetupChecklist(
     bank: t('administration:integrations.companyAccounts.accountSlots.bank', 'Bank account'),
     cost_centre: t('administration:integrations.companyAccounts.accountSlots.costCentre', 'Cost centre'),
   };
+  const slotInSentence: Record<CompanyDefaultSlot, string> = {
+    payable: t('administration:integrations.companyAccounts.slotInSentence.payable', 'vendor payable account'),
+    expense: t('administration:integrations.companyAccounts.slotInSentence.expense', 'default expense account'),
+    cash: t('administration:integrations.companyAccounts.slotInSentence.cash', 'cash account'),
+    bank: t('administration:integrations.companyAccounts.slotInSentence.bank', 'bank account'),
+    cost_centre: t('administration:integrations.companyAccounts.slotInSentence.costCentre', 'cost centre'),
+  };
+  /** A refusal in plain words, in the person's language: a known sentence by its key; the ERP's own words as they came in
+   *  English and as "the ERP refused this change" in any other language. */
+  const refusalText = (raw: string) => {
+    const match = matchCompanyDefaultsRefusal(raw);
+    if (!match) {
+      return (i18n.resolvedLanguage ?? i18n.language ?? 'en').startsWith('en')
+        ? raw
+        : t('administration:integrations.companyAccounts.refusal.erpRefused', 'The ERP refused this change.');
+    }
+    return t(`administration:integrations.companyAccounts.refusal.${match.key}`, {
+      defaultValue: raw, name: match.name, slot: match.slot ? slotInSentence[match.slot] : undefined,
+    });
+  };
   const accountsPendingText = t('administration:integrations.companyAccounts.accountsPending', 'A change to the company accounts is still being saved. Reload in a few minutes to see it.');
   const saveAccounts = async () => {
     const changed = Object.fromEntries(ACCOUNT_SLOTS
@@ -93,14 +117,15 @@ export function ErpSetupChecklist(
       .map(({ slot }) => [slot, accounts.values[slot]]));
     if (Object.keys(changed).length === 0) { setEditing(null); return; }
     setBusy(true);
+    setAccountsError(null);
     try {
       await repositories.integrations.setCompanyDefaults(changed);
       setEditing(null);
       await refresh();
     } catch (err) {
-      setError(err instanceof AppError && PLAIN_REFUSALS.has(String(err.code)) && err.message
-        ? err.message
-        : t('administration:integrations.companyAccounts.accountsFailed', 'Could not set the company accounts. Try again.'));
+      setAccountsError(err instanceof AppError && PLAIN_REFUSALS.has(String(err.code)) && err.message
+        ? { headline: t('administration:integrations.companyAccounts.accountsRefused', 'Could not set the company accounts.'), detail: refusalText(err.message) }
+        : { headline: t('administration:integrations.companyAccounts.accountsFailed', 'Could not set the company accounts. Try again.') });
     } finally {
       setBusy(false);
     }
@@ -286,18 +311,18 @@ export function ErpSetupChecklist(
                     </p>
                   ))(missingAccountCategories(setup.data))}
                 </div>
-                <div className='flex flex-wrap gap-2'>
-                  {setup.data.defaults.company && (
-                    <Button variant='outline' size='sm' onClick={openAccounts}>
-                      {t('administration:integrations.companyAccounts.accountsAction', 'Set company accounts')}
-                    </Button>
-                  )}
+                <div className='grid gap-2 sm:flex sm:flex-wrap sm:justify-end'>
                   <Button variant='outline' size='sm' onClick={onRefreshCompany}>
                     {t(
                       'uxs08.companyAction',
                       'Review company settings',
                     )}
                   </Button>
+                  {setup.data.defaults.company && (
+                    <Button variant='ghost' size='sm' onClick={openAccounts}>
+                      {t('administration:integrations.companyAccounts.accountsAction', 'Set company accounts')}
+                    </Button>
+                  )}
                 </div>
               </li>
               <li id='erp-setup-activity-defaults' hidden={!incomplete?.activity} className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
@@ -434,16 +459,21 @@ export function ErpSetupChecklist(
             ? !accountOptions.data || accountOptions.data.pending
             : !domain.isComplete}
           disabledReason={editing === 'accounts' && accountOptions.data?.pending ? accountsPendingText : undefined}
-          submitError={error ? { headline: error } : null}
+          submitError={editing === 'accounts' ? accountsError : error ? { headline: error } : null}
         >
           {editing === 'accounts'
-            ? accountOptions.isPending
+            ? accountOptions.isPending || (accountOptions.isError && accountOptions.isFetching)
               ? <ListState variant='loading' rows={3} />
               : accountOptions.isError
               ? (
-                <p role='status' className='text-sm text-muted-foreground'>
-                  {t('administration:integrations.companyAccounts.accountsUnavailable', 'Could not read the account lists. Try again.')}
-                </p>
+                <div className='flex flex-col items-start gap-3'>
+                  <p role='status' className='text-sm text-muted-foreground'>
+                    {t('administration:integrations.companyAccounts.accountsUnavailable', 'Could not read the account lists.')}
+                  </p>
+                  <Button variant='outline' size='sm' onClick={() => { void accountOptions.refetch(); }}>
+                    {t('administration:integrations.companyAccounts.accountsRetry', 'Try again')}
+                  </Button>
+                </div>
               )
               : (
                 <FormGrid>
@@ -461,6 +491,7 @@ export function ErpSetupChecklist(
                         label={slotLabels[slot]}
                         placeholder={t('administration:integrations.companyAccounts.accountsChoose', 'Choose…')}
                         options={values.map((value) => ({ value, label: value }))}
+                        title={current || undefined}
                         helper={slot === 'bank' && values.length === 0
                           ? t('administration:integrations.companyAccounts.noBankAccount', 'The company has no bank account yet, so there is none to choose. Create the bank account first; it is then listed here.')
                           : undefined}
