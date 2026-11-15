@@ -19,14 +19,14 @@ describe('TaskStatusCell focus (#2084)', () => {
     const { rerender } = render(
       <TaskStatusCell task={task} editable disabled={false} pendingPush={IDLE_PENDING_PUSH} onChange={onChange} />,
     );
-    await user.click(screen.getByRole('button', { name: 'Status for Pour slab' }));
-    const select = screen.getByRole('combobox', { name: 'Status for Pour slab' });
+    await user.click(screen.getByRole('button', { name: /^Status for Pour slab/ }));
+    const select = screen.getByRole('combobox', { name: /^Status for Pour slab/ });
     expect(select).toHaveFocus();
     await user.selectOptions(select, 'In Progress');
     expect(onChange).toHaveBeenCalledWith(task, 'In Progress');
     rerender(
       <TaskStatusCell task={{ ...task, status: 'In Progress' } as TaskWithRefs} editable disabled={false} pendingPush={IDLE_PENDING_PUSH} onChange={onChange} />,
     );
-    expect(screen.getByRole('button', { name: 'Status for Pour slab' })).toHaveFocus();
+    expect(screen.getByRole('button', { name: /^Status for Pour slab/ })).toHaveFocus();
   });
 });

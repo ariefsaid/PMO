@@ -647,8 +647,10 @@ describe('AC-PROC1 one-page request creation', () => {
     fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
     fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
     fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '10' } });
-    expect(screen.getByLabelText('New line total')).toHaveTextContent('IDR');
-    expect(screen.getByLabelText('New line total')).not.toHaveTextContent('$');
+    // The total carries its name as screen-reader text (#2085), so the total is the element that holds it.
+    const total = screen.getByText('New line total', { exact: false }).parentElement!;
+    expect(total).toHaveTextContent('IDR');
+    expect(total).not.toHaveTextContent('$');
   });
 
   it('AC-PROC1-006 keeps the create permission gate on the route', () => {
