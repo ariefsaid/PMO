@@ -1,5 +1,5 @@
 /**
- * Odoo stock posting recovery and crash-window bed tests (AC-OSP-004, Task 2 of plan #1508).
+ * Odoo stock posting recovery and crash-window bed tests (AC-OSP-004).
  *
  * Proves safe recovery identity on stock.picking via stock external identifiers (ir.model.data, module 'pmo').
  *
@@ -17,6 +17,7 @@
 // deno-lint-ignore no-import-prefix
 import { assert, assertEquals } from 'jsr:@std/assert@1.0.0';
 import { bindCall, type OdooCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
+import { stockExternalIdentifier } from '../../../pmo-portal/src/lib/adapterSeam/odoo/stock/anchors.ts';
 
 interface BedConfig {
   baseUrl: string;
@@ -56,11 +57,6 @@ function getBedConfig(): BedConfig {
   );
 
   return { baseUrl: baseUrl!, database: database!, apiKey: apiKey! };
-}
-
-/** Formats an external identifier descriptor following the adapterSeam/odoo/purchase/anchors.ts contract. */
-export function stockExternalIdentifier(key: string): { module: string; name: string } {
-  return { module: 'pmo', name: key.replace(/[^a-zA-Z0-9_]/g, '_') };
 }
 
 export type StockProbeVerdict =

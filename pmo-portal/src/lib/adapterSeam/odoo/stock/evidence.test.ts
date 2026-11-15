@@ -541,7 +541,7 @@ describe('evaluateStockEvidence (AC-OSP-007)', () => {
   });
 });
 
-describe('evaluateStockEvidence issue with N moves (AC-OSP-007; bed 7.0: one cost line per move)', () => {
+describe('evaluateStockEvidence issue with N moves (AC-OSP-007; bed fact: one cost line per move)', () => {
   const intent: PmoStockIntent = {
     documentId: '15120000-0000-0000-0000-000000003003',
     kind: 'issue',

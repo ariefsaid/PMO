@@ -1,5 +1,5 @@
 /**
- * Odoo stock posting native protocol bed tests (AC-OSP-002, AC-OSP-003, Task 1 of plan #1508).
+ * Odoo stock posting native protocol bed tests (AC-OSP-002, AC-OSP-003).
  *
  * Proves native Odoo 20 Community stock transfer, validation, project issue and analytic costing behavior
  * on the dev bed using bindCall from pmo-portal/src/lib/adapterSeam/odoo/client.ts.

@@ -163,7 +163,7 @@ describe({ name: 'AC-OSP-006 a connected stock post against the real database', 
     assertEquals(odoo.rows('stock.picking').length, 1);
   });
 
-  it('AC-OSP-004 a non-keeper is refused 403: no outbox row, no Odoo call, the document stays a Draft', async () => {
+  it('AC-OSP-006 a non-keeper is refused 403: no outbox row, no Odoo call, the document stays a Draft', async () => {
     const before = odoo.calls.length;
     const r = await dispatch(strangerJwt, odoo, DOC_STRANGER, await revisionOf(DOC_STRANGER));
     assertEquals(r.status, 403, JSON.stringify(r.body));
@@ -175,14 +175,15 @@ describe({ name: 'AC-OSP-006 a connected stock post against the real database', 
   it('a warehouse mapped to a location of another Odoo company is refused: nothing written to Odoo, the document stays a Draft', async () => {
     const [written, pickings] = [odooWrites(odoo).length, odoo.rows('stock.picking').length];
     const r = await dispatch(keeperJwt, odoo, DOC_FOREIGN, await revisionOf(DOC_FOREIGN));
-    assert(r.status >= 400, JSON.stringify(r.body));
+    assertEquals(r.status, 422, JSON.stringify(r.body));
+    assertEquals((r.body as { reason?: string }).reason, 'foreign-company', 'the keeper is told which rule refused');
     assertEquals(odooWrites(odoo).length, written, 'zero Odoo writes');
     assertEquals(odoo.rows('stock.picking').length, pickings);
     assertEquals(await one(`select status from public.stock_documents where id='${DOC_FOREIGN}'`), 'Draft');
     assertEquals(await one(`select state from public.external_command_outbox where pmo_record_id='${DOC_FOREIGN}'`), 'failed');
   });
 
-  it('AC-OSP-007 a retry after the keeper repairs the mapping and edits the document refreshes the failed row and posts', async () => {
+  it('AC-OSP-006 a retry after the keeper repairs the mapping and edits the document refreshes the failed row and posts', async () => {
     await psql(`update public.external_refs set external_record_id='40' where org_id='${ORG}' and domain='stock_warehouses' and pmo_record_id='${WH_BAD}';
       update public.stock_documents set note='edited after the refusal' where id='${DOC_FOREIGN}';`);
     const revision = await revisionOf(DOC_FOREIGN);

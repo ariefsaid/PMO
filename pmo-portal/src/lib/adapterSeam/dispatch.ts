@@ -136,8 +136,9 @@ export interface DispatchMoneyOutboxDeps {
   /** Recovery probe: does ERP already hold a doc stamped with this idempotency key (the `remarks`
    *  anchor, ADR-0058 §3)? Used by the claim winner to adopt an orphaned prior commit instead of
    *  blindly re-POSTing. `recovery` is false only on a row's FIRST claim (claim_generation 1): nothing can have been
-   *  created yet, so a probe that looks for an un-anchored look-alike (Odoo's composite) has no business running. */
-  probeByRemarksKey: (domain: string, idempotencyKey: string, probe?: { recovery: boolean }) => Promise<{ externalRecordId: string; canonical?: PmoRecord } | null>;
+   *  created yet, so a probe that looks for an un-anchored look-alike (Odoo's composite) has no business running.
+   *  `deadlineAtMs` is the claim's commit deadline: a probe that writes (completing an anchored picking) stops before it. */
+  probeByRemarksKey: (domain: string, idempotencyKey: string, probe?: { recovery: boolean; deadlineAtMs?: number }) => Promise<{ externalRecordId: string; canonical?: PmoRecord } | null>;
   /** A short backoff before re-reading a fresh (non-reclaimable) `committing` row owned by another
    *  live caller. Injected so tests run instantly; production wires a small real delay. */
   backoff: () => Promise<void>;
@@ -358,7 +359,7 @@ async function claimAndCommit(
     && typeof command.record.capturedInvoiceDocumentId === 'string';
   if (!isRangeBudget && !firstCapturedClaim) {
     try {
-      probed = await money.probeByRemarksKey(command.domain, command.idempotencyKey!, { recovery: token > 1 });
+      probed = await money.probeByRemarksKey(command.domain, command.idempotencyKey!, { recovery: token > 1, deadlineAtMs: opts.claimStartedAtMs + MONEY_COMMIT_CLAIM_BUDGET_MS });
     } catch (error) {
       if (isRetryableTransport(error)) throw toDispatchError(error);
       const heldCount = await money.markOutboxHeld(claimed.id, `recovery-probe-failed: ${redactErrorForOutbox(error)}`, token);

@@ -25,7 +25,7 @@ describe('AC-OSP-002 createOdooStockAdapter commits a stock document through the
     expect(seen).toHaveLength(0);
   });
 
-  it('AC-OSP-002 a confirmed transfer read-back returns stock.picking:<id> with Odoo quantity and no value (bed 7.0: not valued)', async () => {
+  it('AC-OSP-002 a confirmed transfer read-back returns stock.picking:<id> with Odoo quantity and no value (bed fact: not valued)', async () => {
     const { call } = stockBed();
     const adapter = createOdooStockAdapter({ call, loadIntent: async () => ({ ok: true, intent: TRANSFER_INTENT }) });
 

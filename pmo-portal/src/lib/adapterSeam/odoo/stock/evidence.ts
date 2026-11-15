@@ -1,5 +1,5 @@
 /**
- * Pure stock evidence evaluation (AC-OSP-007, FR-OSP-005, FR-OSP-009, Task 12 of #1508).
+ * Pure stock evidence evaluation (AC-OSP-007, FR-OSP-005, FR-OSP-009).
  *
  * Compares PMO document intent against authoritative records read back from Odoo
  * (stock.picking, stock.move, and for an issue native account.analytic.line).
@@ -51,7 +51,7 @@ export interface OdooMoveEvidence {
   location_id?: number | [number, string];
   location_dest_id?: number | [number, string];
   value?: number | null;
-  /** Odoo's own flag: an internal transfer is not valued (bed 7.0: value 0, `is_valued` false); an issue is. */
+  /** Odoo's own flag: an internal transfer is not valued (bed fact: value 0, `is_valued` false); an issue is. */
   is_valued?: boolean | null;
   write_date?: string | null;
 }

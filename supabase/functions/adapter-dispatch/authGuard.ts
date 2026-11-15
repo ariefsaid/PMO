@@ -14,6 +14,7 @@ import { KIND_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fee
 import { EQUIPMENT_KIND_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/odoo/assets/kinds.ts';
 import { ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { ODOO_TIER } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
+import { INVENTORY_DOMAIN, STOCK_DOC_KIND } from '../../../pmo-portal/src/lib/adapterSeam/odoo/stock/constants.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 // The per-domain money-write role map itself lives in _shared/moneyWriteRoles.ts (#919) so read-only
 // functions can apply the SAME rule without loading this dispatch guard.
@@ -62,11 +63,11 @@ const OWNING_TIERS: Readonly<Record<string, readonly string[]>> = {
   // #1511 D5/D7: the equipment register exists under Odoo only (FR-OFM-002), so ERPNext is never asked about it.
   equipment: [ODOO_TIER],
   // #1508: connected stock exists under Odoo only.
-  inventory: [ODOO_TIER],
+  [INVENTORY_DOMAIN]: [ODOO_TIER],
 };
 
 /** Every ERP document kind a command may name, and the domain it belongs to: the ERPNext feed's kinds plus the register's (#1511). */
-const KIND_DOMAINS: Readonly<Record<string, string>> = { ...KIND_DOMAIN, ...EQUIPMENT_KIND_DOMAIN, 'stock-document': 'inventory' };
+const KIND_DOMAINS: Readonly<Record<string, string>> = { ...KIND_DOMAIN, ...EQUIPMENT_KIND_DOMAIN, [STOCK_DOC_KIND]: INVENTORY_DOMAIN };
 
 /** Structural client for the two authorization RPCs (`domain_owned_by_tier`,
  *  `actor_authorization_state` — mig 0117). Satisfied by the deputy (caller-JWT) client on the

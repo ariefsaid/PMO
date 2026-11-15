@@ -1,21 +1,16 @@
 /**
- * Odoo stock mappings resolver (AC-OSP-001, AC-OSP-006, Task 8 of #1508, plan-stock-mappings.md § E).
+ * Odoo stock mappings resolver (AC-OSP-001, AC-OSP-006).
  *
- * Resolves PMO stock document items and warehouses to verified, company-scoped Odoo ERP master records
- * before any outbox claim or ERP mutation.
- *
- * Director rulings (binding):
- * - Mapping lives in `external_refs`: domain `stock_items` (PMO stock item id -> Odoo `product.product` id)
- *   and domain `stock_warehouses` (PMO warehouse id -> Odoo `stock.location` id of usage `internal`).
- * - Nothing is created in Odoo by setup or by this resolver. A missing mapping refuses and directs the
- *   Admin to finish stock matching in Integration setup.
- * - Records belonging to another company, inactive, non-storable, or unreadable -> refuse. Shared
- *   (no-company) records -> refuse for now.
- * - Server supplies organization and company; resolver never trusts caller-supplied ids for either.
- * - Zero write or mutation calls (read only).
+ * Resolves the PMO items and warehouses of a stock document to verified, company-scoped Odoo records before any
+ * outbox claim or ERP mutation. Read only.
+ * - Links live in `external_refs`: domain `stock_items` (PMO stock item id to Odoo `product.product` id) and domain
+ *   `stock_warehouses` (PMO warehouse id to the Odoo internal `stock.location` id). All of a document's links are read in
+ *   one query. A missing link refuses and points the Admin to stock matching in Integration setup; nothing is created in Odoo.
+ * - A record that belongs to another company, is inactive, is not storable or cannot be read refuses.
+ * - The organisation and company come from the server; this resolver never takes either from a caller-supplied id.
  */
 import type { OdooCall } from '../client.ts';
-import { resolveExternalRef, type ExternalRefsLookupClient } from '../../refs.ts';
+import { resolveExternalRefs, type ExternalRefsBatchClient } from '../../refs.ts';
 import { resolveStockProject } from './project.ts';
 
 export interface StockMappingLine {
@@ -30,28 +25,23 @@ export interface StockMappingParams {
   lines: StockMappingLine[];
   sourceWarehouseId: string;
   destinationWarehouseId?: string;
-  destinationLocationId?: number;
   operationTypeId?: number;
   projectId?: string;
-  workItemId?: string;
   analyticAccountId?: number;
 }
 
 export type StockMappingRefusalReason =
   | 'binding-unavailable'
-  | 'foreign-org'
   | 'foreign-company'
   | 'item-unmapped'
   | 'item-ambiguous'
   | 'product-unavailable'
-  | 'unit-mismatch'
   | 'warehouse-unmapped'
   | 'location-ambiguous'
   | 'location-unavailable'
   | 'project-unlinked'
   | 'project-ambiguous'
   | 'project-unavailable'
-  | 'work-item-mismatch'
   | 'read-failed';
 
 export type ResolveStockMappingsResult =
@@ -63,7 +53,6 @@ export type ResolveStockMappingsResult =
       destinationLocationId: number;
       projectId?: number;
       analyticAccountId?: number;
-      workItemId?: string;
     }
   | {
       ok: false;
@@ -78,23 +67,10 @@ export interface CostAccountResult {
   reason?: string;
 }
 
-export interface PersistedDocumentFact {
-  documentId: string;
-  orgId: string;
-  kind?: 'transfer' | 'issue';
-  lines?: Array<{ stockItemId: string }>;
-  sourceWarehouseId?: string;
-  destinationWarehouseId?: string;
-  projectId?: string;
-  workItemId?: string;
-}
-
 export interface StockMappingDeps {
   call: OdooCall;
-  client?: ExternalRefsLookupClient;
-  resolveRef?: (domain: string, pmoRecordId: string) => Promise<string | null>;
+  client: ExternalRefsBatchClient;
   resolveCostAccount?: (projectId: string) => Promise<CostAccountResult>;
-  fetchDocument?: (documentId: string) => Promise<PersistedDocumentFact | null>;
 }
 
 interface LocationRow {
@@ -163,45 +139,6 @@ export async function resolveStockMappings(
     };
   }
 
-  // 2. Persisted document ownership check (AC-OSP-006)
-  if (deps.fetchDocument) {
-    let doc: PersistedDocumentFact | null;
-    try {
-      doc = await deps.fetchDocument(documentId);
-    } catch (err) {
-      return {
-        ok: false,
-        reason: 'read-failed',
-        subjectId: documentId,
-        message: err instanceof Error ? err.message : String(err),
-      };
-    }
-    if (!doc) {
-      return {
-        ok: false,
-        reason: 'read-failed',
-        subjectId: documentId,
-        message: `Persisted document ${documentId} not found.`,
-      };
-    }
-    if (doc.orgId !== orgId) {
-      return {
-        ok: false,
-        reason: 'foreign-org',
-        subjectId: documentId,
-        message: `Document ${documentId} belongs to another organization.`,
-      };
-    }
-    if (params.workItemId && doc.workItemId && params.workItemId !== doc.workItemId) {
-      return {
-        ok: false,
-        reason: 'work-item-mismatch',
-        subjectId: params.workItemId,
-        message: `Work item ${params.workItemId} does not match persisted document work item ${doc.workItemId}.`,
-      };
-    }
-  }
-
   // 3. Document kind prerequisites
   if (kind === 'transfer') {
     if (!params.destinationWarehouseId || params.destinationWarehouseId.trim() === '') {
@@ -221,30 +158,26 @@ export async function resolveStockMappings(
     }
   }
 
-  // 4. Resolve ref helper
-  const refResolver = async (domain: string, pmoRecordId: string): Promise<string | null> => {
-    if (deps.resolveRef) {
-      return deps.resolveRef(domain, pmoRecordId);
-    }
-    if (deps.client) {
-      return resolveExternalRef(deps.client, orgId, domain, pmoRecordId);
-    }
-    throw new Error('No reference lookup mechanism provided.');
-  };
-
-  // 5. Resolve source warehouse -> Odoo stock.location
-  let sourceLocRef: string | null;
+  // 4. Every link of the document, in one read
+  const destinationWarehouseId = kind === 'transfer' ? params.destinationWarehouseId! : undefined;
+  let links: Map<string, string>;
   try {
-    sourceLocRef = await refResolver('stock_warehouses', sourceWarehouseId);
+    links = await resolveExternalRefs(
+      deps.client,
+      orgId,
+      ['stock_warehouses', 'stock_items'],
+      [...new Set([sourceWarehouseId, ...(destinationWarehouseId ? [destinationWarehouseId] : []), ...lines.map((l) => l.stockItemId)])],
+    );
   } catch (err) {
     return {
       ok: false,
       reason: 'read-failed',
-      subjectId: sourceWarehouseId,
       message: err instanceof Error ? err.message : String(err),
     };
   }
 
+  // 5. Source warehouse -> Odoo stock.location
+  const sourceLocRef = links.get(`stock_warehouses:${sourceWarehouseId}`);
   if (!sourceLocRef) {
     return {
       ok: false,
@@ -264,25 +197,13 @@ export async function resolveStockMappings(
     };
   }
 
-  // 6. Resolve destination location
+  // 6. Destination location: the destination warehouse's location for a transfer, the operation type's for an issue
   let destinationLocationId: number;
-  let derivedFromOperationType = false;
   let opTypeDesc = '';
 
   if (kind === 'transfer') {
-    const destWhId = params.destinationWarehouseId!;
-    let destLocRef: string | null;
-    try {
-      destLocRef = await refResolver('stock_warehouses', destWhId);
-    } catch (err) {
-      return {
-        ok: false,
-        reason: 'read-failed',
-        subjectId: destWhId,
-        message: err instanceof Error ? err.message : String(err),
-      };
-    }
-
+    const destWhId = destinationWarehouseId!;
+    const destLocRef = links.get(`stock_warehouses:${destWhId}`);
     if (!destLocRef) {
       return {
         ok: false,
@@ -302,94 +223,77 @@ export async function resolveStockMappings(
       };
     }
   } else {
-    // issue
-    if (params.destinationLocationId && Number.isInteger(params.destinationLocationId) && params.destinationLocationId > 0) {
-      destinationLocationId = params.destinationLocationId;
-    } else {
-      derivedFromOperationType = true;
-      const opTypeId = params.operationTypeId;
-      if (!opTypeId || !Number.isInteger(opTypeId) || opTypeId <= 0) {
-        return {
-          ok: false,
-          reason: 'location-unavailable',
-          message: 'Operation type ID is required to resolve destination location for issue. Configure a valid stock operation type in Integration setup.',
-        };
-      }
-
-      interface PickingTypeRow {
-        id: number;
-        name?: unknown;
-        company_id?: unknown;
-        default_location_dest_id?: unknown;
-      }
-
-      let opTypes: PickingTypeRow[];
-      try {
-        opTypes = await deps.call<PickingTypeRow[]>('stock.picking.type', 'search_read', {
-          domain: [['id', '=', opTypeId]],
-          fields: ['id', 'name', 'company_id', 'default_location_dest_id'],
-          limit: 1,
-        });
-      } catch (err) {
-        return {
-          ok: false,
-          reason: 'read-failed',
-          message: err instanceof Error ? err.message : String(err),
-        };
-      }
-
-      if (!Array.isArray(opTypes) || opTypes.length === 0) {
-        return {
-          ok: false,
-          reason: 'location-unavailable',
-          message: `Stock operation type with ID ${opTypeId} was not found in Odoo. Configure a valid operation type in Integration setup.`,
-        };
-      }
-
-      const opType = opTypes[0];
-      const typeName = typeof opType.name === 'string' ? `"${opType.name}" ` : '';
-      opTypeDesc = `${typeName}(ID ${opTypeId})`;
-
-      if (!opType.default_location_dest_id) {
-        return {
-          ok: false,
-          reason: 'location-unavailable',
-          message: `Stock operation type ${opTypeDesc} has no default destination location configured in Odoo. Configure default destination location on operation type ${opTypeId} in Odoo.`,
-        };
-      }
-
-      const rawDestLocId = Array.isArray(opType.default_location_dest_id)
-        ? opType.default_location_dest_id[0]
-        : opType.default_location_dest_id;
-      const derivedId = Number(rawDestLocId);
-      if (!Number.isInteger(derivedId) || derivedId <= 0) {
-        return {
-          ok: false,
-          reason: 'location-unavailable',
-          message: `Configured destination location ID for operation type ${opTypeDesc} is invalid. Configure a valid destination location on operation type ${opTypeId} in Odoo.`,
-        };
-      }
-
-      destinationLocationId = derivedId;
+    const opTypeId = params.operationTypeId;
+    if (!opTypeId || !Number.isInteger(opTypeId) || opTypeId <= 0) {
+      return {
+        ok: false,
+        reason: 'location-unavailable',
+        message: 'Operation type ID is required to resolve destination location for issue. Configure a valid stock operation type in Integration setup.',
+      };
     }
-  }
 
-  // 7. Resolve all lines (stockItemId -> productId)
-  const resolvedLines: Array<{ stockItemId: string; productId: number }> = [];
+    interface PickingTypeRow {
+      id: number;
+      name?: unknown;
+      company_id?: unknown;
+      default_location_dest_id?: unknown;
+    }
 
-  for (const line of lines) {
-    let itemRef: string | null;
+    let opTypes: PickingTypeRow[];
     try {
-      itemRef = await refResolver('stock_items', line.stockItemId);
+      opTypes = await deps.call<PickingTypeRow[]>('stock.picking.type', 'search_read', {
+        domain: [['id', '=', opTypeId]],
+        fields: ['id', 'name', 'company_id', 'default_location_dest_id'],
+        limit: 1,
+      });
     } catch (err) {
       return {
         ok: false,
         reason: 'read-failed',
-        subjectId: line.stockItemId,
         message: err instanceof Error ? err.message : String(err),
       };
     }
 
+    if (!Array.isArray(opTypes) || opTypes.length === 0) {
+      return {
+        ok: false,
+        reason: 'location-unavailable',
+        message: `Stock operation type with ID ${opTypeId} was not found in Odoo. Configure a valid operation type in Integration setup.`,
+      };
+    }
+
+    const opType = opTypes[0];
+    const typeName = typeof opType.name === 'string' ? `"${opType.name}" ` : '';
+    opTypeDesc = `${typeName}(ID ${opTypeId})`;
+
+    if (!opType.default_location_dest_id) {
+      return {
+        ok: false,
+        reason: 'location-unavailable',
+        message: `Stock operation type ${opTypeDesc} has no default destination location configured in Odoo. Configure default destination location on operation type ${opTypeId} in Odoo.`,
+      };
+    }
+
+    const rawDestLocId = Array.isArray(opType.default_location_dest_id)
+      ? opType.default_location_dest_id[0]
+      : opType.default_location_dest_id;
+    const derivedId = Number(rawDestLocId);
+    if (!Number.isInteger(derivedId) || derivedId <= 0) {
+      return {
+        ok: false,
+        reason: 'location-unavailable',
+        message: `Configured destination location ID for operation type ${opTypeDesc} is invalid. Configure a valid destination location on operation type ${opTypeId} in Odoo.`,
+      };
+    }
+
+    destinationLocationId = derivedId;
+  }
+
+  // 7. Items -> Odoo products
+  const resolvedLines: Array<{ stockItemId: string; productId: number }> = [];
+
+  for (const line of lines) {
+    const itemRef = links.get(`stock_items:${line.stockItemId}`);
     if (!itemRef) {
       return {
         ok: false,
@@ -474,7 +378,7 @@ export async function resolveStockMappings(
   const destLoc = locMap.get(destinationLocationId);
   if (!destLoc) {
     if (kind === 'issue') {
-      const fixTarget = derivedFromOperationType ? `operation type ${opTypeDesc}` : 'issue destination';
+      const fixTarget = `operation type ${opTypeDesc}`;
       return {
         ok: false,
         reason: 'location-unavailable',
@@ -491,7 +395,7 @@ export async function resolveStockMappings(
 
   if (destLoc.active === false) {
     if (kind === 'issue') {
-      const fixTarget = derivedFromOperationType ? `operation type ${opTypeDesc}` : 'issue destination';
+      const fixTarget = `operation type ${opTypeDesc}`;
       return {
         ok: false,
         reason: 'location-unavailable',
@@ -509,7 +413,7 @@ export async function resolveStockMappings(
   const destCompanyId = extractCompanyId(destLoc.company_id);
   if (kind === 'issue') {
     if (destCompanyId !== null && destCompanyId !== companyId) {
-      const fixTarget = derivedFromOperationType ? `operation type ${opTypeDesc}` : 'issue destination';
+      const fixTarget = `operation type ${opTypeDesc}`;
       return {
         ok: false,
         reason: 'location-unavailable',
@@ -518,7 +422,7 @@ export async function resolveStockMappings(
     }
 
     if (destLoc.usage !== 'customer') {
-      const fixTarget = derivedFromOperationType ? `operation type ${opTypeDesc}` : 'issue destination';
+      const fixTarget = `operation type ${opTypeDesc}`;
       return {
         ok: false,
         reason: 'location-unavailable',
@@ -687,8 +591,7 @@ export async function resolveStockMappings(
       ? {
           projectId: resolvedProjectId,
           analyticAccountId: resolvedAnalyticAccountId,
-          ...(params.workItemId ? { workItemId: params.workItemId } : {}),
-        }
+            }
       : {}),
   };
 }

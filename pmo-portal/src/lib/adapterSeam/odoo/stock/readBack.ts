@@ -1,7 +1,7 @@
 /**
  * Odoo stock evidence read-back (AC-OSP-007, #1508). One bounded pass: the picking, every move, the issue's
  * `picking_entry` analytic lines and the company currency. Reads only. A read that fails is `unknown`: it says
- * nothing about what Odoo holds, so it is neither held nor confirmed. `stock.move.is_valued` is read (bed 7.0:
+ * nothing about what Odoo holds, so it is neither held nor confirmed. `stock.move.is_valued` is read (bed fact:
  * an internal transfer reads false, an issue true).
  */
 import type { OdooCall } from '../client.ts';

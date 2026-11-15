@@ -3,7 +3,7 @@
 // Who may post is the 0869 outbox guard's decision (proved in pgTAP): here the guard's refusals are mocked at the insert, and the route
 // must classify them (STK_NOT_KEEPER / STK_ACTOR 403, any other STK_ 422 naming the rule), leave no row, and never reach Odoo.
 import { describe, it } from '@std/testing/bdd';
-import { assert, assertEquals } from '@std/assert';
+import { assert, assertEquals, assertRejects } from '@std/assert';
 import { createClient } from '@supabase/supabase-js';
 import {
   createJwtAuthority, createTestJwksResolver, installEdgeEnv, jsonResponse, supabaseRpc, supabaseSelect, withFetchMock,
@@ -289,7 +289,7 @@ describe('AC-OSP-007 a refusal before anything reached Odoo is written on the do
   });
 });
 
-describe('AC-OSP-006 finalize: the mirror is confirmed first, then the Draft is posted by the stored actor; a replay converges', () => {
+describe('AC-OSP-007 finalize: the mirror is confirmed first, then the Draft is posted by the stored actor; a replay converges', () => {
   const canonical = { id: DOC_ID, kind: 'transfer', companyId: COMPANY, state: 'confirmed', externalModel: 'stock.picking', externalId: '77',
     completedQuantity: 11, completedValue: 0, currency: 'IDR', sourceWrittenAt: '2026-11-15T01:00:00Z', exception: null };
   const command = { domain: 'inventory', operation: 'create', record: { id: DOC_ID } } as never;
@@ -351,8 +351,7 @@ describe('AC-OSP-006 retry after an edit: a failed command is refreshed to the v
     id: 'outbox-1', domain: 'inventory', pmo_record_id: DOC_ID, idempotency_key: `stock:${DOC_ID}`, state: 'failed',
     external_record_id: null, canonical: null, claim_generation: 1, payload_digest: null, payload, actor_user_id: actor,
   });
-  async function read(row: Record<string, unknown>, replay = false) {
-    const updates: Array<Record<string, unknown>> = [];
+  async function read(row: Record<string, unknown>, replay = false, updates: Array<Record<string, unknown>> = []) {
     await withFetchMock([
       ...bindingRoutes(),
       { label: 'outbox read', method: 'GET', pathname: '/rest/v1/external_command_outbox', response: () => objectResponse(row) },
@@ -376,7 +375,16 @@ describe('AC-OSP-006 retry after an edit: a failed command is refreshed to the v
     assertEquals(await read(failedRow({ ...stored, documentRevision: 3 }, KEEPER_ID)), []);
   });
 
-  it('a recovery (the sweep) never refreshes', async () => {
-    assertEquals(await read(failedRow(stored, STRANGER_ID), true), []);
+  it('a recovery (the sweep) never refreshes: it writes nothing and refuses the row', async () => {
+    const updates: Array<Record<string, unknown>> = [];
+    await assertRejects(() => read(failedRow(stored, STRANGER_ID), true, updates), AppError);
+    assertEquals(updates, []);
   });
+
+  for (const state of ['failed', 'held']) {
+    it(`a recovery that reads the row as ${state} refuses it: only a person's Post retries`, async () => {
+      await assertRejects(() => read({ ...failedRow(stored, KEEPER_ID), state }, true), AppError);
+      assertEquals(await read({ ...failedRow({ ...stored, documentRevision: 3 }, KEEPER_ID), state }, false), []);   // a person's Post still reads it
+    });
+  }
 });

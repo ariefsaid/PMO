@@ -115,7 +115,7 @@ describe('AC-OSP-004 recoverStockPicking resolves every crash window from the an
     expect(writeCalls(bed)).toHaveLength(0);
   });
 
-  it('AC-OSP-004 concurrent probes complete the same anchored draft once (second sees done)', async () => {
+  it('AC-OSP-004 two probes one after the other complete the same anchored draft once (the second sees it done); the claim fence decides who runs', async () => {
     const bed = stockBed();
     bed.fake.failAt('after-load');
     await commitWith(bed).catch(() => undefined);

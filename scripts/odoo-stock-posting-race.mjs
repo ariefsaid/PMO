@@ -2,7 +2,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 
 if (process.env.PMO_DB_LOCK_HELD !== '1') throw new Error('Run under scripts/with-db-lock.sh');
-const container = 'supabase_db_pmo-portal';
+const container = process.env.SUPABASE_DB_CONTAINER || 'supabase_db_pmo-portal';
 const ids = { org:'15080000-0000-0000-0000-000000000101', actor:'15080000-0000-0000-0000-000000000102', unit:'15080000-0000-0000-0000-000000000103', item:'15080000-0000-0000-0000-000000000104', wh:'15080000-0000-0000-0000-000000000105', dest:'15080000-0000-0000-0000-000000000106', first:'15080000-0000-0000-0000-000000000107', second:'15080000-0000-0000-0000-000000000108' };
 const args = ['exec','-i',container,'psql','-X','-qAt','-v','ON_ERROR_STOP=1','-U','postgres','-d','postgres'];
 function sql(statement) {

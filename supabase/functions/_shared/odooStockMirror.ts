@@ -1,5 +1,5 @@
 /**
- * Server-side Odoo stock ERP mirror adapter (AC-OSP-007, Task 12 of #1508).
+ * Server-side Odoo stock ERP mirror adapter (AC-OSP-007).
  *
  * Persists evaluated stock evidence verdicts into public.stock_erp_mirror via
  * the security definer function write_stock_erp_mirror.

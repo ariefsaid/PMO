@@ -36,13 +36,12 @@ interface World {
 function routes(w: World): MockRoute[] {
   return [
     supabaseSelect('external_refs', (c) => {
+      // One batched read: `org_id=eq.<org>&domain=in.(a,b)&pmo_record_id=in.(x,y)`; the other orgs' rows must not match.
+      const list = (k: string) => (c.url.searchParams.get(k) ?? '').replace(/^in\.\(|\)$/g, '').split(',').map((v) => decodeURIComponent(v).replace(/^"|"$/g, ''));
       const orgId = param(c, 'org_id');
-      const domain = param(c, 'domain');
-      const pmoId = param(c, 'pmo_record_id');
-      const match = (w.refs ?? []).find(
-        (r) => r.org_id === orgId && r.domain === domain && r.pmo_record_id === pmoId,
-      );
-      return match ? one({ external_record_id: match.external_record_id }) : none();
+      const domains = list('domain');
+      const ids = list('pmo_record_id');
+      return jsonResponse((w.refs ?? []).filter((r) => r.org_id === orgId && domains.includes(r.domain) && ids.includes(r.pmo_record_id)));
     }),
     supabaseSelect('external_project_bindings', (c) => {
       const orgId = param(c, 'org_id');
@@ -94,9 +93,13 @@ describe('odooStockMappings (server adapter, AC-OSP-001, AC-OSP-006)', () => {
       destinationWarehouseId: 'wh-dest',
     };
 
-    const result = await withFetchMock(routes(world), () =>
-      resolveOdooStockMappings(sc(), mockCall, params),
-    );
+    let refReads = 0;
+    const result = await withFetchMock(routes(world), async ({ calls }) => {
+      const r = await resolveOdooStockMappings(sc(), mockCall, params);
+      refReads = calls.filter((c) => c.url.pathname === '/rest/v1/external_refs').length;
+      return r;
+    });
+    assertEquals(refReads, 1); // the source, the destination and every item are read in one query
 
     assertEquals(result, {
       ok: true,
@@ -118,6 +121,9 @@ describe('odooStockMappings (server adapter, AC-OSP-001, AC-OSP-006)', () => {
     };
 
     const mockCall: OdooCall = <T>(model: string, _method: string, _body: Record<string, unknown> = {}): Promise<T> => {
+      if (model === 'stock.picking.type') {
+        return Promise.resolve([{ id: 3, name: 'Delivery', default_location_dest_id: [5, 'Partner/Customer'] }] as unknown as T);
+      }
       if (model === 'stock.location') {
         return Promise.resolve([
           { id: 10, complete_name: 'WH1/Stock', usage: 'internal', company_id: COMPANY_ID, active: true },
@@ -144,9 +150,8 @@ describe('odooStockMappings (server adapter, AC-OSP-001, AC-OSP-006)', () => {
       kind: 'issue',
       lines: [{ stockItemId: 'item-1' }],
       sourceWarehouseId: 'wh-main',
-      destinationLocationId: 5,
+      operationTypeId: 3,
       projectId: PROJECT,
-      workItemId: 'task-pile-driver',
     };
 
     const result = await withFetchMock(routes(world), () =>
@@ -161,11 +166,10 @@ describe('odooStockMappings (server adapter, AC-OSP-001, AC-OSP-006)', () => {
       destinationLocationId: 5,
       projectId: 88,
       analyticAccountId: 501,
-      workItemId: 'task-pile-driver',
     });
   });
 
-  it('AC-OSP-001: passes operationTypeId option to derive issue destination location from operation type', async () => {
+  it('AC-OSP-001: derives the issue destination location from the operation type', async () => {
     const world: World = {
       link: '501',
       account: { active: true, tombstoned_at: null },
@@ -208,12 +212,11 @@ describe('odooStockMappings (server adapter, AC-OSP-001, AC-OSP-006)', () => {
       lines: [{ stockItemId: 'item-1' }],
       sourceWarehouseId: 'wh-main',
       projectId: PROJECT,
-      workItemId: 'task-pile-driver',
-      // destinationLocationId is omitted: derived from operationTypeId: 2
+      operationTypeId: 2, // the destination is derived from this operation type
     };
 
     const result = await withFetchMock(routes(world), () =>
-      resolveOdooStockMappings(sc(), mockCall, params, { operationTypeId: 2 }),
+      resolveOdooStockMappings(sc(), mockCall, params),
     );
 
     assertEquals(result, {
@@ -224,7 +227,6 @@ describe('odooStockMappings (server adapter, AC-OSP-001, AC-OSP-006)', () => {
       destinationLocationId: 2,
       projectId: 88,
       analyticAccountId: 501,
-      workItemId: 'task-pile-driver',
     });
   });
 

@@ -37,6 +37,20 @@ const failing = (match: (model: string, method: string) => boolean, error: Error
 afterEach(() => vi.useRealTimers());
 
 describe('AC-OSP-002 sendStockPicking and completeStockPicking carry every line of a stock document', () => {
+  it('AC-OSP-004 a second pass writes only the moves that are not yet entered', async () => {
+    const { fake, call, seen } = setup();
+    const sent = await sendStockPicking(call, SEND);
+    if (sent.outcome !== 'sent') throw new Error('unreachable');
+    const [first] = fake.rows('stock.move').filter((m) => m.picking_id === sent.pickingId);
+    fake.seed('stock.move', fake.rows('stock.move').map((m) => (m.id === first.id ? { ...m, quantity: 8, picked: true } : m)));
+
+    const done = await completeStockPicking(call, sent.pickingId, LINES);
+
+    expect(done.outcome).toBe('validated');
+    const writes = seen.filter((c) => c.method === 'write' && c.model === 'stock.move');
+    expect(writes.map((w) => w.body.ids)).toEqual([[fake.rows('stock.move')[1].id]]);
+  });
+
   it('AC-OSP-002 a two-line transfer loads both moves under one anchor and validates once', async () => {
     const { fake, call, seen } = setup();
 

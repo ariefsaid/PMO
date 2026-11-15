@@ -1195,6 +1195,21 @@ describe('BLOCK 1: no POST may be issued once the claim budget is exhausted (the
     return clock;
   }
 
+  it('the probe is handed the claim\'s commit deadline, so a recovery write cannot outlive the claim', async () => {
+    const fake = createFakeOutbox();
+    const clock = { ms: 1_000_000 };
+    fake.deps.now = () => clock.ms;
+    const seen: Array<{ recovery: boolean; deadlineAtMs?: number } | undefined> = [];
+    fake.deps.probeByRemarksKey = async (_domain, _key, probe) => { seen.push(probe); return null; };
+    await dispatchMoneyWrite({
+      adapter: erpnextAdapter(vi.fn(async () => ({ externalRecordId: 'PI-1', canonical: { id: 'pmo-1' } }))),
+      command: baseCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money: fake.deps,
+    });
+    expect(seen).toEqual([{ recovery: false, deadlineAtMs: 1_000_000 + MONEY_COMMIT_CLAIM_BUDGET_MS }]);
+  });
+
   it('a probe that outlives the budget makes the POST refused — no ERP document, row left committing', async () => {
     const fake = createFakeOutbox();
     // The audited worst case: 4 × 120 s attempts + backoff, longer than the entire 300 s quarantine
@@ -1397,7 +1412,7 @@ describe('AC-ENA-012 classified failures: commit-rejected marks failed; external
     const run = () => dispatchMoneyWrite({ adapter: erpnextAdapter(commit), command: baseCommand, writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps });
     await expect(run()).rejects.toBeInstanceOf(AppError);
     await run();
-    expect(probe.mock.calls.map((c) => c[2])).toEqual([{ recovery: false }, { recovery: true }]);
+    expect(probe.mock.calls.map((c) => c[2]?.recovery)).toEqual([false, true]);
   });
 
   it('external-unreachable rethrows and leaves the row committing (reclaimable after the lease)', async () => {

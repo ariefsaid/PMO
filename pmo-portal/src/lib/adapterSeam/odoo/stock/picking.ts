@@ -102,11 +102,12 @@ export async function completeStockPicking(
     ? { outcome: 'held', cause: 'odoo-refused', message: `Odoo refused ${what} on stock picking ${pickingId}: ${reason(err)}` }
     : { outcome: 'unknown', message: `${what} on stock picking ${pickingId} did not answer: ${reason(err)}` };
 
-  let moves: Array<{ id: number; product_id: unknown; product_uom_qty?: unknown }>;
+  interface MoveRow { id: number; product_id: unknown; product_uom_qty?: unknown; quantity?: unknown; picked?: unknown }
+  let moves: MoveRow[];
   try {
-    moves = await call<Array<{ id: number; product_id: unknown; product_uom_qty?: unknown }>>('stock.move', 'search_read', {
+    moves = await call<MoveRow[]>('stock.move', 'search_read', {
       domain: [['picking_id', '=', pickingId]],
-      fields: ['id', 'product_id', 'product_uom_qty'],
+      fields: ['id', 'product_id', 'product_uom_qty', 'quantity', 'picked'],
       order: 'id asc',
     });
   } catch (err) {
@@ -117,6 +118,8 @@ export async function completeStockPicking(
   }
 
   for (let i = 0; i < moves.length; i++) {
+    // A pass cut short by the deadline resumes where it stopped: a move already entered is not written again.
+    if (moves[i].picked === true && Number(moves[i].quantity) === lines[i].quantity) continue;
     if (expired(deadlineAtMs)) return stopped();
     try {
       await call<boolean>('stock.move', 'write', { ids: [moves[i].id], vals: { quantity: lines[i].quantity, picked: true } });

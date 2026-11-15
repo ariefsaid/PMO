@@ -1,10 +1,10 @@
 /**
- * Odoo stock project resolution (AC-OSP-001, Task 8 prerequisite of #1508).
+ * Odoo stock project resolution (AC-OSP-001).
  *
  * Resolves the active `project.project` ID required for Odoo stock project movements
  * from a PMO project's bound `account.analytic.account` ID.
  *
- * Rules (plan-stock-mappings.md § critical prerequisite, D.7, E):
+ * Rules:
  * - Live company-scoped search for `project.project` with `account_id` equal to the verified bound analytic account.
  * - Exactly one active project -> use its id.
  * - Zero matching projects -> refuse with 'project-unlinked'.

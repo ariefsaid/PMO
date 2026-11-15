@@ -171,7 +171,7 @@ export async function resolveOdooStockMoneyOutboxDeps(ctx: AdapterSelectContext)
         const loaded = await loadIntent();
         if (!loaded.ok) throw new AppError(loaded.message, 'commit-rejected');   // cannot judge a recovered picking: hold it
         return loaded.intent;
-      } });
+      } }, probe?.deadlineAtMs);
     },
   });
 
@@ -200,7 +200,9 @@ export async function resolveOdooStockMoneyOutboxDeps(ctx: AdapterSelectContext)
     // The one write beside the read: a failed row is refreshed to the revision and the person posting, never by the sweep (`ctx.replay`).
     async readOutbox(domain, pmoRecordId, idempotencyKey) {
       const row = await deps.readOutbox(domain, pmoRecordId, idempotencyKey);
-      if (!row || row.state !== 'failed' || ctx.replay) return row;
+      // Recovery never retries what a person has to decide: a row that turned failed or held between its candidate check and this read stays.
+      if (row && ctx.replay && (row.state === 'failed' || row.state === 'held')) throw new AppError('A failed or held stock command is retried only by a person posting again', 'commit-rejected');
+      if (!row || row.state !== 'failed') return row;
       return (await refreshFailedCommand(row)) ? await deps.readOutbox(domain, pmoRecordId, idempotencyKey) : row;
     },
     insertOutboxPending: (domain, id, key) => classified(() => deps.insertOutboxPending(domain, id, key)),

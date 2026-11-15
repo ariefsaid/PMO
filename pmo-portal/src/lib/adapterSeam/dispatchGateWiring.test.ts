@@ -401,9 +401,9 @@ describe('WIRE STOCK (#1508): connected stock posts ride the same gates and the 
   });
 
   it('inventory is owned by the Odoo tier alone, its actor rule is the DB guard\'s, and its kind maps to the domain', () => {
-    expect(AUTH).toMatch(/OWNING_TIERS[^=]*=\s*\{[\s\S]*inventory: \[ODOO_TIER\]/);
+    expect(AUTH).toMatch(/OWNING_TIERS[^=]*=\s*\{[\s\S]*\[INVENTORY_DOMAIN\]: \[ODOO_TIER\]/);
     expect(AUTH).toMatch(/ROLE_RULE_DELEGATED_TO_DB_GATE = new Set\(\[[^\]]*'inventory'/);
-    expect(AUTH).toMatch(/'stock-document': 'inventory'/);
+    expect(AUTH).toMatch(/\[STOCK_DOC_KIND\]: INVENTORY_DOMAIN/);
   });
 
   it('the server replaces the record and derives the key: a client key and body fields never reach the outbox', () => {

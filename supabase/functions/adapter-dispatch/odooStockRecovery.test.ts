@@ -76,9 +76,9 @@ async function sweep(state: string, world: World) {
       supabaseSelect('stock_documents', () => objectResponse({ id: DOC, org_id: ORG, kind: 'transfer', number: 'TR-0001', warehouse_id: 'w-a', to_warehouse_id: 'w-b', project_id: null,
         stock_document_lines: [{ item_id: 'i-1', line_no: 1, quantity: 8 }, { item_id: 'i-2', line_no: 2, quantity: 3 }] })),
       supabaseSelect('external_refs', (c) => {
-        const id = String(c.url.searchParams.get('pmo_record_id')).replace(/^eq\./, '');
-        const ref = ({ 'w-a': '10', 'w-b': '20', 'i-1': '101', 'i-2': '102' } as Record<string, string>)[id];
-        return ref ? objectResponse({ external_record_id: ref }) : new Response('null', { status: 200, headers: { 'content-type': 'application/json' } });
+        const ids = (c.url.searchParams.get('pmo_record_id') ?? '').replace(/^in\.\(|\)$/g, '').split(',').map((v) => decodeURIComponent(v).replace(/^"|"$/g, ''));
+        const refs = { 'w-a': ['stock_warehouses', '10'], 'w-b': ['stock_warehouses', '20'], 'i-1': ['stock_items', '101'], 'i-2': ['stock_items', '102'] } as Record<string, [string, string]>;
+        return jsonResponse(ids.filter((id) => refs[id]).map((id) => ({ domain: refs[id][0], pmo_record_id: id, external_record_id: refs[id][1] })));
       }),
     ] : []),
     { label: 'document', method: 'PATCH', pathname: '/rest/v1/stock_documents', response: (c) => { rpcs.push('posted'); patches.push(c.bodyJson as Record<string, unknown>); return jsonResponse([{ id: DOC }]); } },

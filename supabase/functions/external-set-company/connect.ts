@@ -12,7 +12,7 @@ import { proposeMatches } from '../../../pmo-portal/src/lib/adapterSeam/connect/
 import { connectAdapterForOrg, hasConnectAdapterForTier } from '../_shared/connectAdapterForOrg.ts';
 import { allRows, pmoMasterCounts, pmoMasters } from '../_shared/connectPmoMasters.ts';
 import { toRow } from '../_shared/connectRun.ts';
-import { stockPostingCapabilities } from '../../../pmo-portal/src/lib/adapterSeam/capabilityMap.ts';
+import { stockMatchingCapabilities } from '../../../pmo-portal/src/lib/adapterSeam/capabilityMap.ts';
 import { erpSyncFeatureDecision } from './featureGate.ts';
 
 export const CONNECT_ACTIONS = new Set(['census', 'connect-status', 'list-proposals', 'search-connect-staged', 'accept-proposals', 'decide-review', 'unlink-match', 'retry-send', 'stock-propose', 'stock-list']);
@@ -156,7 +156,7 @@ async function listProposals(ctx: ConnectCtx, tier: string, body: Record<string,
 
 async function stockPropose(ctx: ConnectCtx, tier: string) {
   if (ctx.role !== 'Admin') throw new AppError('Not allowed for your role', 'FORBIDDEN');
-  if (!stockPostingCapabilities(tier).postStockDocument) throw new AppError('Stock matching is only available for Odoo', 'BAD_REQUEST');
+  if (!stockMatchingCapabilities(tier).stockMatching) throw new AppError('Stock matching is only available for Odoo', 'BAD_REQUEST');
 
   const { data: binding, error: bindingError } = await ctx.serviceClient
     .from('external_org_bindings')
@@ -241,7 +241,7 @@ async function stockPropose(ctx: ConnectCtx, tier: string) {
 
 async function stockList(ctx: ConnectCtx, tier: string, body: Record<string, unknown>) {
   if (ctx.role !== 'Admin') throw new AppError('Not allowed for your role', 'FORBIDDEN');
-  if (!stockPostingCapabilities(tier).postStockDocument) throw new AppError('Stock matching is only available for Odoo', 'BAD_REQUEST');
+  if (!stockMatchingCapabilities(tier).stockMatching) throw new AppError('Stock matching is only available for Odoo', 'BAD_REQUEST');
   const c = ctx.callerClient;
   const state = typeof body.state === 'string' && STATES.includes(body.state) ? body.state : 'open';
   let q = c.from('erp_connect_proposals').select('*')

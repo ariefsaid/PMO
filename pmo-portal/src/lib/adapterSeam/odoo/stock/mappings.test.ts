@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { bindCall, type OdooCall } from '../client.ts';
 import { createFakeOdoo } from '../fakeOdoo.ts';
-import type { ExternalRefsFilterBuilder, ExternalRefsLookupClient } from '../../refs.ts';
+import type { ExternalRefsBatchBuilder, ExternalRefsBatchClient } from '../../refs.ts';
 import {
   resolveStockMappings,
   type StockMappingParams,
@@ -17,29 +17,28 @@ interface FakeRefEntry {
   external_record_id: string | null;
 }
 
+/** A client over `rows` that serves the one batched read the resolver makes; `reads` counts the queries it saw. */
 function createFakeRefsClient(initialRows: FakeRefEntry[] = []) {
   const rows: FakeRefEntry[] = [...initialRows];
+  const reads: string[][] = [];
 
-  const client: ExternalRefsLookupClient = {
+  const client: ExternalRefsBatchClient = {
     from(table: string) {
       if (table !== 'external_refs') throw new Error(`Unexpected table ${table}`);
       return {
         select(_columns: string) {
-          const filters: Record<string, string> = {};
-          const builder: ExternalRefsFilterBuilder = {
-            eq(col: string, val: string) {
-              filters[col] = val;
-              return builder;
-            },
-            async maybeSingle() {
-              const matches = rows.filter((r) => {
-                for (const [k, v] of Object.entries(filters)) {
-                  if ((r as unknown as Record<string, string>)[k] !== v) return false;
-                }
-                return true;
+          const eqs: Record<string, string> = {};
+          const ins: Record<string, string[]> = {};
+          const builder: ExternalRefsBatchBuilder = {
+            eq(col: string, val: string) { eqs[col] = val; return builder; },
+            in(col: string, vals: string[]) { ins[col] = vals; return builder; },
+            then(onfulfilled, onrejected) {
+              reads.push(ins.pmo_record_id ?? []);
+              const data = rows.filter((r) => {
+                const row = r as unknown as Record<string, string>;
+                return Object.entries(eqs).every(([k, v]) => row[k] === v) && Object.entries(ins).every(([k, vs]) => vs.includes(row[k]));
               });
-              if (matches.length === 0) return { data: null, error: null };
-              return { data: matches[0], error: null };
+              return Promise.resolve({ data, error: null }).then(onfulfilled, onrejected);
             },
           };
           return builder;
@@ -48,7 +47,37 @@ function createFakeRefsClient(initialRows: FakeRefEntry[] = []) {
     },
   };
 
-  return { client, rows };
+  return { client, rows, reads };
+}
+
+/** A client that answers every link read with `link(domain, pmoId)`: a string is the Odoo id, null is "no link", a throw is a failed read. */
+function refsBy(link: (domain: string, pmoId: string) => string | null): ExternalRefsBatchClient {
+  return {
+    from() {
+      return {
+        select() {
+          const eqs: Record<string, string> = {};
+          const ins: Record<string, string[]> = {};
+          const builder: ExternalRefsBatchBuilder = {
+            eq(col: string, val: string) { eqs[col] = val; return builder; },
+            in(col: string, vals: string[]) { ins[col] = vals; return builder; },
+            then(onfulfilled, onrejected) {
+              try {
+                const data = (ins.domain ?? []).flatMap((domain) => (ins.pmo_record_id ?? []).flatMap((id) => {
+                  const external = link(domain, id);
+                  return external === null ? [] : [{ domain, pmo_record_id: id, external_record_id: external }];
+                }));
+                return Promise.resolve({ data, error: null }).then(onfulfilled, onrejected);
+              } catch (err) {
+                return Promise.resolve({ data: null, error: { message: err instanceof Error ? err.message : String(err) } }).then(onfulfilled, onrejected);
+              }
+            },
+          };
+          return builder;
+        },
+      };
+    },
+  };
 }
 
 function setupHarness(initialRefs: FakeRefEntry[] = []) {
@@ -68,9 +97,9 @@ function setupHarness(initialRefs: FakeRefEntry[] = []) {
     return rawCall<T>(model, method, body);
   };
 
-  const { client, rows: refRows } = createFakeRefsClient(initialRefs);
+  const { client, rows: refRows, reads: refReads } = createFakeRefsClient(initialRefs);
 
-  return { fake, call, calls, client, refRows };
+  return { fake, call, calls, client, refRows, refReads };
 }
 
 describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
@@ -124,12 +153,13 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
     expect(calls.some((c) => ['create', 'write', 'unlink', 'load'].includes(c.method))).toBe(false);
   });
 
-  it('AC-OSP-001: all mapped issue resolves bundle with project.project id, analytic account, and untouched workItemId', async () => {
+  it('AC-OSP-001: all mapped issue resolves bundle with project.project id, analytic account, and and no work item echoed', async () => {
     const { fake, call, client, calls } = setupHarness([
       { org_id: ORG_A, domain: 'stock_warehouses', pmo_record_id: 'wh-main', external_tier: 'odoo', external_record_id: '10' },
       { org_id: ORG_A, domain: 'stock_items', pmo_record_id: 'item-1', external_tier: 'odoo', external_record_id: '101' },
     ]);
 
+    fake.seed('stock.picking.type', [{ id: 77, name: 'Delivery', code: 'outgoing', company_id: 1, active: true, default_location_dest_id: [5, 'Customers'] }]);
     fake.seed('stock.location', [
       { id: 10, complete_name: 'WH1/Stock', usage: 'internal', company_id: [COMPANY_1, 'Main Co'], active: true },
       { id: 5, complete_name: 'Partner Locations/Customers', usage: 'customer', company_id: [COMPANY_1, 'Main Co'], active: true },
@@ -150,9 +180,8 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
       kind: 'issue',
       lines: [{ stockItemId: 'item-1' }],
       sourceWarehouseId: 'wh-main',
-      destinationLocationId: 5,
+      operationTypeId: 77,
       projectId: 'proj-bridge',
-      workItemId: 'task-concrete-pour',
     };
 
     const deps: StockMappingDeps = {
@@ -174,7 +203,6 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
       destinationLocationId: 5,
       projectId: 77,
       analyticAccountId: 501,
-      workItemId: 'task-concrete-pour',
     });
 
     // Zero Odoo write/mutation calls
@@ -576,6 +604,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
       { org_id: ORG_A, domain: 'stock_items', pmo_record_id: 'item-1', external_tier: 'odoo', external_record_id: '101' },
     ]);
 
+    fake.seed('stock.picking.type', [{ id: 77, name: 'Delivery', code: 'outgoing', company_id: 1, active: true, default_location_dest_id: [5, 'Customers'] }]);
     fake.seed('stock.location', [
       { id: 10, usage: 'internal', company_id: COMPANY_1, active: true },
       { id: 5, usage: 'customer', company_id: COMPANY_1, active: true },
@@ -592,7 +621,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
       kind: 'issue',
       lines: [{ stockItemId: 'item-1' }],
       sourceWarehouseId: 'wh-main',
-      destinationLocationId: 5,
+      operationTypeId: 77,
       // No projectId provided
     };
 
@@ -612,6 +641,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
       { org_id: ORG_A, domain: 'stock_items', pmo_record_id: 'item-1', external_tier: 'odoo', external_record_id: '101' },
     ]);
 
+    fake.seed('stock.picking.type', [{ id: 77, name: 'Delivery', code: 'outgoing', company_id: 1, active: true, default_location_dest_id: [5, 'Customers'] }]);
     fake.seed('stock.location', [
       { id: 10, usage: 'internal', company_id: COMPANY_1, active: true },
       { id: 5, usage: 'customer', company_id: COMPANY_1, active: true },
@@ -628,7 +658,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
       kind: 'issue',
       lines: [{ stockItemId: 'item-1' }],
       sourceWarehouseId: 'wh-main',
-      destinationLocationId: 5,
+      operationTypeId: 77,
       projectId: 'proj-unlinked',
     };
 
@@ -654,6 +684,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
       { org_id: ORG_A, domain: 'stock_items', pmo_record_id: 'item-1', external_tier: 'odoo', external_record_id: '101' },
     ]);
 
+    fake.seed('stock.picking.type', [{ id: 77, name: 'Delivery', code: 'outgoing', company_id: 1, active: true, default_location_dest_id: [5, 'Customers'] }]);
     fake.seed('stock.location', [
       { id: 10, usage: 'internal', company_id: COMPANY_1, active: true },
       { id: 5, usage: 'customer', company_id: COMPANY_1, active: true },
@@ -670,7 +701,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
       kind: 'issue',
       lines: [{ stockItemId: 'item-1' }],
       sourceWarehouseId: 'wh-main',
-      destinationLocationId: 5,
+      operationTypeId: 77,
       projectId: 'proj-archived-aa',
     };
 
@@ -696,6 +727,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
       { org_id: ORG_A, domain: 'stock_items', pmo_record_id: 'item-1', external_tier: 'odoo', external_record_id: '101' },
     ]);
 
+    fake.seed('stock.picking.type', [{ id: 77, name: 'Delivery', code: 'outgoing', company_id: 1, active: true, default_location_dest_id: [5, 'Customers'] }]);
     fake.seed('stock.location', [
       { id: 10, usage: 'internal', company_id: COMPANY_1, active: true },
       { id: 5, usage: 'customer', company_id: COMPANY_1, active: true },
@@ -715,7 +747,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
       kind: 'issue',
       lines: [{ stockItemId: 'item-1' }],
       sourceWarehouseId: 'wh-main',
-      destinationLocationId: 5,
+      operationTypeId: 77,
       projectId: 'proj-1',
     };
 
@@ -741,6 +773,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
       { org_id: ORG_A, domain: 'stock_items', pmo_record_id: 'item-1', external_tier: 'odoo', external_record_id: '101' },
     ]);
 
+    fake.seed('stock.picking.type', [{ id: 77, name: 'Delivery', code: 'outgoing', company_id: 1, active: true, default_location_dest_id: [5, 'Customers'] }]);
     fake.seed('stock.location', [
       { id: 10, usage: 'internal', company_id: COMPANY_1, active: true },
       { id: 5, usage: 'customer', company_id: COMPANY_1, active: true },
@@ -762,7 +795,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
       kind: 'issue',
       lines: [{ stockItemId: 'item-1' }],
       sourceWarehouseId: 'wh-main',
-      destinationLocationId: 5,
+      operationTypeId: 77,
       projectId: 'proj-1',
     };
 
@@ -788,6 +821,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
       { org_id: ORG_A, domain: 'stock_items', pmo_record_id: 'item-1', external_tier: 'odoo', external_record_id: '101' },
     ]);
 
+    fake.seed('stock.picking.type', [{ id: 77, name: 'Delivery', code: 'outgoing', company_id: 1, active: true, default_location_dest_id: [5, 'Customers'] }]);
     fake.seed('stock.location', [
       { id: 10, usage: 'internal', company_id: COMPANY_1, active: true },
       { id: 5, usage: 'customer', company_id: COMPANY_1, active: true },
@@ -808,7 +842,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
       kind: 'issue',
       lines: [{ stockItemId: 'item-1' }],
       sourceWarehouseId: 'wh-main',
-      destinationLocationId: 5,
+      operationTypeId: 77,
       projectId: 'proj-1',
     };
 
@@ -937,22 +971,13 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
     }
   });
 
-  it('AC-OSP-006: persisted document belonging to another organization refuses with foreign-org', async () => {
-    const { fake, call, client } = setupHarness([
-      { org_id: ORG_A, domain: 'stock_warehouses', pmo_record_id: 'wh-main', external_tier: 'odoo', external_record_id: '10' },
-      { org_id: ORG_A, domain: 'stock_warehouses', pmo_record_id: 'wh-dest', external_tier: 'odoo', external_record_id: '20' },
-      { org_id: ORG_A, domain: 'stock_items', pmo_record_id: 'item-1', external_tier: 'odoo', external_record_id: '101' },
+  it('AC-OSP-006: another organization\'s links are never read, so its warehouse reads as unmapped', async () => {
+    const { call, client } = setupHarness([
+      { org_id: ORG_B, domain: 'stock_warehouses', pmo_record_id: 'wh-main', external_tier: 'odoo', external_record_id: '10' },
+      { org_id: ORG_B, domain: 'stock_items', pmo_record_id: 'item-1', external_tier: 'odoo', external_record_id: '101' },
     ]);
 
-    fake.seed('stock.location', [
-      { id: 10, usage: 'internal', company_id: COMPANY_1, active: true },
-      { id: 20, usage: 'internal', company_id: COMPANY_1, active: true },
-    ]);
-    fake.seed('product.product', [
-      { id: 101, name: 'Steel Pipe', is_storable: true, company_id: COMPANY_1, active: true },
-    ]);
-
-    const params: StockMappingParams = {
+    const result = await resolveStockMappings({
       orgId: ORG_A,
       companyId: COMPANY_1,
       documentId: 'doc-foreign-1',
@@ -960,28 +985,9 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
       lines: [{ stockItemId: 'item-1' }],
       sourceWarehouseId: 'wh-main',
       destinationWarehouseId: 'wh-dest',
-    };
+    }, { call, client });
 
-    const deps: StockMappingDeps = {
-      call,
-      client,
-      fetchDocument: async (docId: string) => {
-        expect(docId).toBe('doc-foreign-1');
-        return {
-          documentId: 'doc-foreign-1',
-          orgId: ORG_B, // Belongs to Org B!
-        };
-      },
-    };
-
-    const result = await resolveStockMappings(params, deps);
-
-    expect(result).toEqual<ResolveStockMappingsResult>({
-      ok: false,
-      reason: 'foreign-org',
-      subjectId: 'doc-foreign-1',
-      message: 'Document doc-foreign-1 belongs to another organization.',
-    });
+    expect(result).toMatchObject({ ok: false, reason: 'warehouse-unmapped', subjectId: 'wh-main' });
   });
 
   it('AC-OSP-001: zero Odoo write/mutation calls on any refusal', async () => {
@@ -1465,97 +1471,18 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
       if (!r2.ok) expect(r2.reason).toBe('project-unlinked');
     });
 
-    it('handles persisted document facts: throw error, not found, or work item mismatch', async () => {
-      const { call, client } = setupHarness();
-
-      const r1 = await resolveStockMappings({
-        orgId: ORG_A,
-        companyId: COMPANY_1,
-        documentId: 'doc-1',
-        kind: 'transfer',
-        lines: [{ stockItemId: 'item-1' }],
-        sourceWarehouseId: 'wh-1',
-        destinationWarehouseId: 'wh-2',
-      }, {
-        call,
-        client,
-        fetchDocument: async () => { throw new Error('DB read error'); },
-      });
-      expect(r1.ok).toBe(false);
-      if (!r1.ok) expect(r1.reason).toBe('read-failed');
-
-      const r2 = await resolveStockMappings({
-        orgId: ORG_A,
-        companyId: COMPANY_1,
-        documentId: 'doc-1',
-        kind: 'transfer',
-        lines: [{ stockItemId: 'item-1' }],
-        sourceWarehouseId: 'wh-1',
-        destinationWarehouseId: 'wh-2',
-      }, {
-        call,
-        client,
-        fetchDocument: async () => null,
-      });
-      expect(r2.ok).toBe(false);
-      if (!r2.ok) expect(r2.reason).toBe('read-failed');
-
-      const r3 = await resolveStockMappings({
-        orgId: ORG_A,
-        companyId: COMPANY_1,
-        documentId: 'doc-1',
-        workItemId: 'wi-req',
-        kind: 'transfer',
-        lines: [{ stockItemId: 'item-1' }],
-        sourceWarehouseId: 'wh-1',
-        destinationWarehouseId: 'wh-2',
-      }, {
-        call,
-        client,
-        fetchDocument: async () => ({
-          documentId: 'doc-1',
-          orgId: ORG_A,
-          kind: 'transfer',
-          sourceWarehouseId: 'wh-1',
-          destinationWarehouseId: 'wh-2',
-          workItemId: 'wi-other',
-        }),
-      });
-      expect(r3.ok).toBe(false);
-      if (!r3.ok) expect(r3.reason).toBe('work-item-mismatch');
-    });
-
-    it('supports custom resolveRef or throws if neither resolveRef nor client provided', async () => {
-      const { call } = setupHarness();
-
-      const r1 = await resolveStockMappings({
-        orgId: ORG_A,
-        companyId: COMPANY_1,
-        documentId: 'doc-1',
-        kind: 'transfer',
-        lines: [{ stockItemId: 'item-1' }],
-        sourceWarehouseId: 'wh-1',
-        destinationWarehouseId: 'wh-2',
-      }, {
-        call,
-        resolveRef: async () => null,
-      });
-      expect(r1.ok).toBe(false);
-      if (!r1.ok) expect(r1.reason).toBe('warehouse-unmapped');
-
-      const r2 = await resolveStockMappings({
-        orgId: ORG_A,
-        companyId: COMPANY_1,
-        documentId: 'doc-1',
-        kind: 'transfer',
-        lines: [{ stockItemId: 'item-1' }],
-        sourceWarehouseId: 'wh-1',
-        destinationWarehouseId: 'wh-2',
-      }, {
-        call,
-      });
-      expect(r2.ok).toBe(false);
-      if (!r2.ok) expect(r2.reason).toBe('read-failed');
+    it('reads every link of a document in one query, however many lines it has', async () => {
+      const lines = Array.from({ length: 50 }, (_, i) => ({ stockItemId: `item-${i}` }));
+      const { call, client, refReads } = setupHarness([
+        { org_id: ORG_A, domain: 'stock_warehouses', pmo_record_id: 'wh-1', external_tier: 'odoo', external_record_id: '10' },
+      ]);
+      const r = await resolveStockMappings({
+        orgId: ORG_A, companyId: COMPANY_1, documentId: 'doc-many', kind: 'transfer', lines,
+        sourceWarehouseId: 'wh-1', destinationWarehouseId: 'wh-2',
+      }, { call, client });
+      expect(r.ok).toBe(false);
+      expect(refReads).toHaveLength(1);
+      expect(refReads[0]).toEqual(expect.arrayContaining(['wh-1', 'wh-2', 'item-0', 'item-49']));
     });
 
     it('handles ref resolution and search_read errors for warehouse locations', async () => {
@@ -1571,7 +1498,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
         destinationWarehouseId: 'wh-2',
       }, {
         call,
-        resolveRef: async () => { throw new Error('Ref query timeout'); },
+        client: refsBy(() => { throw new Error('Ref query timeout'); }),
       });
       expect(r1.ok).toBe(false);
       if (!r1.ok) expect(r1.reason).toBe('read-failed');
@@ -1587,7 +1514,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
         destinationWarehouseId: 'wh-2',
       }, {
         call: failingCall,
-        resolveRef: async () => '10',
+        client: refsBy(() => '10'),
       });
       expect(r2.ok).toBe(false);
       if (!r2.ok) expect(r2.reason).toBe('read-failed');
@@ -1610,7 +1537,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
         destinationWarehouseId: 'wh-2',
       }, {
         call,
-        resolveRef: async (_domain, id) => (id === 'wh-1' ? '10' : '20'),
+        client: refsBy((_domain, id) => (id === 'wh-1' ? '10' : '20')),
       });
       expect(r1.ok).toBe(false);
       if (!r1.ok) expect(r1.reason).toBe('location-unavailable');
@@ -1625,10 +1552,10 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
         destinationWarehouseId: 'wh-2',
       }, {
         call,
-        resolveRef: async (_domain, id) => {
+        client: refsBy((_domain, id) => {
           if (id === 'wh-1') return '10';
           throw new Error('Dest lookup fail');
-        },
+        }),
       });
       expect(r2.ok).toBe(false);
       if (!r2.ok) expect(r2.reason).toBe('read-failed');
@@ -1655,11 +1582,11 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
         destinationWarehouseId: 'wh-2',
       }, {
         call,
-        resolveRef: async (_domain, id) => {
+        client: refsBy((_domain, id) => {
           if (id === 'wh-1') return '10';
           if (id === 'wh-2') return '20';
           return '101';
-        },
+        }),
       });
       expect(r1.ok).toBe(false);
       if (!r1.ok) expect(r1.reason).toBe('product-unavailable');
@@ -1674,11 +1601,11 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
         destinationWarehouseId: 'wh-2',
       }, {
         call,
-        resolveRef: async (_domain, id) => {
+        client: refsBy((_domain, id) => {
           if (id === 'wh-1') return '10';
           if (id === 'wh-2') return '20';
           return '102';
-        },
+        }),
       });
       expect(r2.ok).toBe(false);
       if (!r2.ok) expect(r2.reason).toBe('foreign-company');
@@ -1709,10 +1636,10 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
       };
       const baseDeps: StockMappingDeps = {
         call,
-        resolveRef: async (_domain, id) => {
+        client: refsBy((_domain, id) => {
           if (id === 'wh-1') return '10';
           return '101';
-        },
+        }),
       };
 
       // 1. Cost resolver throws error
@@ -1769,10 +1696,10 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
 
       const deps: StockMappingDeps = {
         call,
-        resolveRef: async (_domain, id) => {
+        client: refsBy((_domain, id) => {
           if (id === 'wh-1') return '10';
           return '101';
-        },
+        }),
         resolveCostAccount: async () => ({ status: 'resolved', accountId: '501' }),
       };
 

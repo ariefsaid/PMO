@@ -1,5 +1,5 @@
 /**
- * Odoo stock posting capability preflight (AC-OSP-001, FR-OSP-001, Task 4 of #1508).
+ * Odoo stock posting capability preflight (AC-OSP-001, FR-OSP-001).
  *
  * Verifies that connected Odoo stock operations have the required modules installed
  * (`stock`, `stock_account`, `project_stock_account`) and that the designated operation
