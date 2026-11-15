@@ -24,16 +24,16 @@ describe('invoice settlement rule (docs/specs/invoice-settlement.spec.md)', () =
     expect(settlementIn(result, 'USD')).toBeNull();
   });
 
-  it('AC-SET-001 an invoice with no currency makes the result mixed, never the caller currency', () => {
+  it('#2204 an invoice with no currency makes the result mixed, never the caller currency', () => {
     const result = summarizeInvoiceSettlement([inv({ currency: 'IDR' }), inv({ currency: null })]);
     expect(result.denomination).toBe('mixed');
     expect(settlementIn(result, 'IDR')).toBeNull();
   });
 
-  it('AC-SET-001 a single foreign-currency result is never relabelled as the caller currency', () => {
+  it('#2204 a single foreign-currency result is never relabelled as the caller currency', () => {
     const result = summarizeInvoiceSettlement([inv({ currency: 'USD', amount: 50, erp_outstanding_amount: 10 })]);
     expect(settlementIn(result, 'IDR')).toBeNull();
-    expect(settlementIn(result, 'USD')).toEqual({ currency: 'USD', gross: 50, settled: 40, outstanding: 10, balancesKnown: true });
+    expect(settlementIn(result, 'USD')).toMatchObject({ currency: 'USD', gross: 50, settled: 40, outstanding: 10, balancesKnown: true });
   });
 
   it('AC-SET-002 tax-exclusive and tax-inclusive invoices settle on one gross basis, paid + unpaid = invoiced', () => {
@@ -41,29 +41,34 @@ describe('invoice settlement rule (docs/specs/invoice-settlement.spec.md)', () =
       inv({ tax_treatment: 'exclusive', amount: 1_000, tax_amount: 110, erp_outstanding_amount: 1_110 }),
       inv({ tax_treatment: 'inclusive', amount: 1_110, tax_amount: 110, erp_outstanding_amount: 0, status: 'Paid' }),
     ]);
-    expect(settlementIn(result, 'IDR')).toEqual({ currency: 'IDR', gross: 2_220, outstanding: 1_110, settled: 1_110, balancesKnown: true });
+    expect(settlementIn(result, 'IDR')).toMatchObject({ currency: 'IDR', gross: 2_220, outstanding: 1_110, settled: 1_110, balancesKnown: true });
   });
 
   it('AC-SET-005 a fully paid tax-exclusive invoice never reads paid above what it invoiced', () => {
     const figures = settlementIn(summarizeInvoiceSettlement([
       inv({ status: 'Paid', tax_treatment: 'exclusive', amount: 1_000_000, tax_amount: 110_000, erp_outstanding_amount: 0 }),
     ]), 'IDR')!;
-    expect(figures).toEqual({ currency: 'IDR', gross: 1_110_000, settled: 1_110_000, outstanding: 0, balancesKnown: true });
+    expect(figures).toMatchObject({ currency: 'IDR', gross: 1_110_000, settled: 1_110_000, outstanding: 0, balancesKnown: true });
     expect(figures.settled! + figures.outstanding!).toBe(figures.gross);
   });
 
-  it('AC-SET-002 an unpaid tax-exclusive invoice reads as nothing settled, not a negative', () => {
+  it('#2204 an unpaid tax-exclusive invoice reads as nothing settled, not a negative', () => {
     const result = summarizeInvoiceSettlement([
       inv({ tax_treatment: 'exclusive', amount: 1_000, tax_amount: 110, erp_outstanding_amount: 1_110 }),
     ]);
     expect(settlementIn(result, 'IDR')).toMatchObject({ settled: 0, outstanding: 1_110, gross: 1_110 });
   });
 
-  it('AC-SET-002 a tax-exclusive invoice without a stated tax, or an unknown tax treatment, leaves gross and settled unknown', () => {
+  it('#2204 a tax-exclusive invoice without a stated tax, or an unknown tax treatment, leaves gross and settled unknown', () => {
     expect(settlementIn(summarizeInvoiceSettlement([inv({ tax_treatment: 'exclusive', tax_amount: null })]), 'IDR'))
       .toMatchObject({ gross: null, settled: null, outstanding: 0 });
     expect(settlementIn(summarizeInvoiceSettlement([inv({ tax_treatment: null })]), 'IDR'))
       .toMatchObject({ gross: null, settled: null, outstanding: 0 });
+  });
+
+  it('#2204 the document total stays its own figure beside gross: a tax-exclusive invoice states 1,000 as stated and 1,110 gross', () => {
+    const result = summarizeInvoiceSettlement([inv({ amount: 1_000, tax_treatment: 'exclusive', tax_amount: 110, erp_outstanding_amount: 1_110 })]);
+    expect(settlementIn(result, 'IDR')).toMatchObject({ documentTotal: 1_000, gross: 1_110 });
   });
 
   it('AC-SET-003 drafts, cancelled and accounting-cancelled invoices are excluded entirely', () => {
@@ -74,7 +79,7 @@ describe('invoice settlement rule (docs/specs/invoice-settlement.spec.md)', () =
       inv({ status: 'Unpaid', currency: 'USD', amount: 9, erp_docstatus: 2 }),
       inv({ status: 'Paid', currency: 'USD', amount: 9, erp_cancelled_at: '2026-11-01T00:00:00Z' }),
     ]);
-    expect(result).toEqual({ denomination: 'single', currency: 'IDR', gross: 1_000, outstanding: 250, settled: 750, balancesKnown: true });
+    expect(result).toMatchObject({ denomination: 'single', currency: 'IDR', gross: 1_000, outstanding: 250, settled: 750, balancesKnown: true });
   });
 
   it('AC-1402 AC-SET-004 an unknown balance leaves settled and outstanding unknown, never partial or zero', () => {
@@ -85,7 +90,7 @@ describe('invoice settlement rule (docs/specs/invoice-settlement.spec.md)', () =
       inv({ status: 'Draft', amount: 500, erp_outstanding_amount: null }),
       inv({ status: 'Cancelled', amount: 900, erp_outstanding_amount: 0 }),
     ]);
-    expect(settlementIn(result, 'IDR')).toEqual({ currency: 'IDR', gross: 17_000.01, outstanding: null, settled: null, balancesKnown: false });
+    expect(settlementIn(result, 'IDR')).toMatchObject({ currency: 'IDR', gross: 17_000.01, outstanding: null, settled: null, balancesKnown: false });
   });
 
   it('AC-1402 adds partial payments to the cent only when every invoice balance is known', () => {
@@ -99,24 +104,24 @@ describe('invoice settlement rule (docs/specs/invoice-settlement.spec.md)', () =
   it('no counted invoice reads as zero settlement in whichever currency is asked', () => {
     const result = summarizeInvoiceSettlement([inv({ status: 'Draft', currency: 'USD' })]);
     expect(result).toEqual({ denomination: 'none' });
-    expect(settlementIn(result, 'IDR')).toEqual({ currency: 'IDR', gross: 0, outstanding: 0, settled: 0, balancesKnown: true });
+    expect(settlementIn(result, 'IDR')).toMatchObject({ currency: 'IDR', gross: 0, outstanding: 0, settled: 0, balancesKnown: true });
   });
 });
 
 describe('project settlement from the server finance projection (get_project_finances buckets)', () => {
-  it('AC-SET-001 more than one currency bucket is mixed and carries no amount', () => {
+  it('#2204 more than one currency bucket is mixed and carries no amount', () => {
     const result = settlementFromFinanceBuckets([bucket(), bucket({ currency: 'USD' })]);
     expect(result).toEqual({ denomination: 'mixed', currencies: ['IDR', 'USD'] });
   });
 
-  it('AC-SET-005 a tax-exclusive bucket reads invoiced on the gross basis: settled + outstanding', () => {
+  it('#2204 a tax-exclusive bucket reads invoiced on the gross basis: settled + outstanding', () => {
     const result = settlementFromFinanceBuckets([bucket({ tax_basis: 'exclusive', invoiced: '1000000.00', settled: '1110000.00', outstanding: '0.00' })]);
-    expect(settlementIn(result!, 'IDR')).toEqual({ currency: 'IDR', gross: 1_110_000, settled: 1_110_000, outstanding: 0, balancesKnown: true });
+    expect(settlementIn(result!, 'IDR')).toMatchObject({ currency: 'IDR', gross: 1_110_000, settled: 1_110_000, outstanding: 0, balancesKnown: true });
   });
 
-  it('AC-SET-004 an unknown server balance leaves settled and outstanding unknown; an inclusive bucket still states gross', () => {
+  it('#2204 an unknown server balance leaves settled and outstanding unknown; an inclusive bucket still states gross', () => {
     expect(settlementIn(settlementFromFinanceBuckets([bucket({ settled: null, outstanding: null, missing_outstanding: 1 })])!, 'IDR'))
-      .toEqual({ currency: 'IDR', gross: 1_000, settled: null, outstanding: null, balancesKnown: false });
+      .toMatchObject({ currency: 'IDR', gross: 1_000, settled: null, outstanding: null, balancesKnown: false });
     expect(settlementIn(settlementFromFinanceBuckets([bucket({ tax_basis: 'exclusive', settled: null, outstanding: null, missing_outstanding: 1 })])!, 'IDR'))
       .toMatchObject({ gross: null, balancesKnown: false });
   });
@@ -134,7 +139,7 @@ describe('outstanding balances by currency (overdue)', () => {
     expect(outstandingIn(result, 'IDR')).toBeNull();
   });
 
-  it('AC-SET-006 sums positive known balances within one currency', () => {
+  it('#2204 sums positive known balances within one currency', () => {
     const result = sumOutstanding([
       inv({ erp_outstanding_amount: 300.1 }), inv({ erp_outstanding_amount: 0.2 }),
       inv({ erp_outstanding_amount: -50 }), inv({ erp_outstanding_amount: null }),

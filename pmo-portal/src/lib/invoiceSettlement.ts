@@ -41,6 +41,8 @@ export interface SettlementInvoice {
 /** Figures for one currency, all on the gross basis so settled + outstanding = gross. `null` = unknown, never zero. */
 export interface CurrencySettlement {
   currency: string;
+  /** Σ document totals as stated, each on its own tax basis; null when any amount is unknown. Not comparable with `settled`. */
+  documentTotal: number | null;
   /** Σ gross amounts: what was invoiced, including tax. */
   gross: number | null;
   /** Σ accounting balances outstanding (gross); null when any balance is unknown. */
@@ -85,10 +87,11 @@ function denominationOf(currencies: Array<string | null | undefined>): { currenc
   return distinct.length === 1 && distinct[0] !== '' ? { currency: distinct[0] } : { currencies: distinct.filter(Boolean).sort() };
 }
 
-function fromCents(currency: string, gross: number | null, outstanding: number | null): InvoiceSettlement {
+function fromCents(currency: string, documentTotal: number | null, gross: number | null, outstanding: number | null): InvoiceSettlement {
   return {
     denomination: 'single',
     currency,
+    documentTotal: documentTotal === null ? null : documentTotal / 100,
     gross: gross === null ? null : gross / 100,
     outstanding: outstanding === null ? null : outstanding / 100,
     settled: gross === null || outstanding === null ? null : (gross - outstanding) / 100,
@@ -104,6 +107,7 @@ export function summarizeInvoiceSettlement(invoices: readonly SettlementInvoice[
   if ('currencies' in denomination) return { denomination: 'mixed', currencies: denomination.currencies };
   return fromCents(
     denomination.currency,
+    sumCents(counted.map((invoice) => cents(invoice.amount))),
     sumCents(counted.map(grossCents)),
     sumCents(counted.map((invoice) => cents(invoice.erp_outstanding_amount))),
   );
@@ -133,7 +137,7 @@ export function settlementFromFinanceBuckets(buckets: readonly InvoiceFinanceBuc
   const gross = settled !== null && outstanding !== null
     ? settled + outstanding
     : bucket.tax_basis === 'inclusive' ? exactCents(bucket.invoiced) : null;
-  return fromCents(denomination.currency, gross, outstanding);
+  return fromCents(denomination.currency, exactCents(bucket.invoiced), gross, outstanding);
 }
 
 /**
@@ -141,7 +145,7 @@ export function settlementFromFinanceBuckets(buckets: readonly InvoiceFinanceBuc
  * a mixed or foreign-currency result gives null. With nothing counted the figures are zero in any currency.
  */
 export function settlementIn(settlement: InvoiceSettlement, currency: string): CurrencySettlement | null {
-  if (settlement.denomination === 'none') return { currency, gross: 0, outstanding: 0, settled: 0, balancesKnown: true };
+  if (settlement.denomination === 'none') return { currency, documentTotal: 0, gross: 0, outstanding: 0, settled: 0, balancesKnown: true };
   if (settlement.denomination === 'mixed' || settlement.currency !== currency) return null;
   const { denomination: _denomination, ...figures } = settlement;
   return figures;

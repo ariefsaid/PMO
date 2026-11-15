@@ -144,6 +144,7 @@
       "invoiceDateSource": "Sumber: tanggal faktur dari akuntansi.",
       "percentOfContract": "{{percent}}% dari kontrak",
       "mixedCurrencyNote": "Difakturkan dan dibayar tidak ditampilkan karena faktur tidak semuanya dalam mata uang proyek",
+      "mixedCurrencyNotePaid": "Nilai dibayar tidak ditampilkan karena faktur tidak semuanya dalam mata uang proyek",
       "percentOfContractExcludingTax": "{{percent}}% dari nilai kontrak (sebelum pajak)",
       "paidOfInvoiced": "dari {{amount}} difakturkan, termasuk pajak"
     },
@@ -496,7 +497,7 @@
       "marginOutRestricted": "Margin kotor disembunyikan karena ada pengeluaran terbatas.",
       "marginOutActuals": "Margin kotor tidak ditampilkan sampai pengeluaran tertaut untuk setiap kategori anggaran.",
       "marginOutNoInvoices": "Margin kotor mulai dihitung sejak faktur pertama dalam mata uang proyek.",
-      "leadTooltip": "Nilai yang difakturkan terhadap kontrak yang ditandatangani, dalam mata uang dan dasar pajaknya, sebagai porsi dari nilai kontrak.",
+      "leadTooltip": "Jumlah yang sudah difakturkan sebagai porsi dari kontrak. Sumber: faktur yang bukan draf dan tidak dibatalkan dalam mata uang proyek.",
       "leadInvoiced": "{{percent}}% difakturkan",
       "leadPaid": "{{percent}}% dibayar",
       "cascadeLabel": "Kontrak hingga pembayaran",
@@ -511,8 +512,8 @@
       "cashIncompleteShort": "Kas diterima (kwitansi belum dialokasikan ke faktur)",
       "cashInvalidShort": "Kas diterima (pembacaan kwitansi belum diverifikasi)",
       "cashUnmatchedShort": "Kas diterima (belum ada penerimaan yang dicocokkan)",
-      "settlementCurrencyOut": "Nilai difakturkan dan dibayar tidak ditampilkan karena faktur tidak semuanya dalam mata uang proyek.",
-      "invoicedAndPaid": "Difakturkan dan dibayar"
+      "settlementCurrencyOut": "Difakturkan, dibayar, dan % difakturkan tidak ditampilkan karena faktur tidak semuanya dalam mata uang proyek.",
+      "invoicedAndPaid": "Difakturkan, dibayar, dan % difakturkan"
     },
     "cost": {
       "estimateTitle": "Anggaran",

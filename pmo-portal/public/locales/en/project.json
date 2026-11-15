@@ -144,6 +144,7 @@
       "invoiceDateSource": "Source: invoice date from accounting.",
       "percentOfContract": "{{percent}}% of contract",
       "mixedCurrencyNote": "Invoiced and paid are left out because the invoices are not all in the project currency",
+      "mixedCurrencyNotePaid": "Paid is left out because the invoices are not all in the project currency",
       "percentOfContractExcludingTax": "{{percent}}% of the contract value (before tax)",
       "paidOfInvoiced": "of {{amount}} invoiced, including tax"
     },
@@ -496,7 +497,7 @@
       "marginOutRestricted": "Gross margin is hidden because some spending is restricted.",
       "marginOutActuals": "Gross margin is left out until spending is linked for every budget category.",
       "marginOutNoInvoices": "Gross margin starts with the first invoice in the project currency.",
-      "leadTooltip": "Invoiced against the signed contract, in its currency and tax basis, as a share of the contract value.",
+      "leadTooltip": "Invoiced amount as a share of the contract. Source: non-draft, non-cancelled invoices in the project currency.",
       "leadInvoiced": "{{percent}}% invoiced",
       "leadPaid": "{{percent}}% paid",
       "cascadeLabel": "Contract to payment",
@@ -511,8 +512,8 @@
       "cashIncompleteShort": "Cash received (receipts not allocated to invoices)",
       "cashInvalidShort": "Cash received (receipt reading not verified)",
       "cashUnmatchedShort": "Cash received (no receipt matched yet)",
-      "settlementCurrencyOut": "Invoiced and paid are left out because the invoices are not all in the project currency.",
-      "invoicedAndPaid": "Invoiced and paid"
+      "settlementCurrencyOut": "Invoiced, paid and % invoiced are left out because the invoices are not all in the project currency.",
+      "invoicedAndPaid": "Invoiced, paid and % invoiced"
     },
     "cost": {
       "estimateTitle": "Budget",

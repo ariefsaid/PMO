@@ -13,7 +13,7 @@ import { useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import { formatNumberMax2, formatNumberWhole, formatTableMoney, formatTileMoney } from '@/src/lib/format';
-import { moneyUnits, selectContractInvoiceFigure } from '@/src/lib/projectFinances';
+import { selectContractInvoiceFigure } from '@/src/lib/projectFinances';
 import { outstandingIn, settlementFromFinanceBuckets, settlementIn, sumOutstanding } from '@/src/lib/invoiceSettlement';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -72,11 +72,6 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
   const settlementReading = settlementFromFinanceBuckets(projectFinances.data?.invoices);
   const settlement = settlementReading ? settlementIn(settlementReading, project.currency) : null;
   const contractInvoiceFigure = selectContractInvoiceFigure(projectFinances.data);
-  // The Paid share is of the signed contract only when that contract is also stated including tax.
-  const paidDenominator = project.tax_treatment === 'inclusive' ? moneyUnits(contractInvoiceFigure.denominator) : null;
-  const paidPercentage = settlement?.settled != null && paidDenominator !== null && paidDenominator > 0n
-    ? Math.max(0, Math.round(settlement.settled * 100 / (Number(paidDenominator) / 100)))
-    : null;
   const showSummary = !isCascadePending && !isCascadeError && canViewMoney && (hasReadingLayer || (
     invoices.isPending || invoices.isError || invoiceRows.length > 0 || Number(project.contract_value) > 0
   ));
@@ -197,7 +192,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
         : undefined;
   // Paid is gross; the Invoiced tile is contract-basis billing, so Paid names the gross invoiced it is a part of.
   const paidSupporting = [
-    ofContract(paidPercentage),
+    ofContract(percent(settlement?.settled ?? null)),
     settlement?.gross == null ? undefined : t('projectDetail.cascade.paidOfInvoiced', 'of {{amount}} invoiced, including tax', { amount: tileMoney(settlement.gross), interpolation: { escapeValue: false } }),
   ].filter(Boolean).join(' · ') || undefined;
   const unorderedRows: UnorderedLine[] = items.flatMap((item) => {
@@ -276,7 +271,9 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
           <p className="mt-3 text-sm text-muted-foreground">{project.currency}</p>
           {canViewMoney && !projectFinances.isPending && settlementReading !== null && settlement === null && (
             <p role="status" data-testid="contract-mixed-currency" className="mt-1 text-sm text-muted-foreground">
-              {t('projectDetail.cascade.mixedCurrencyNote', 'Invoiced and paid are left out because the invoices are not all in the project currency')}
+              {contractInvoiceFigure.amount === null
+                ? t('projectDetail.cascade.mixedCurrencyNote', 'Invoiced and paid are left out because the invoices are not all in the project currency')
+                : t('projectDetail.cascade.mixedCurrencyNotePaid', 'Paid is left out because the invoices are not all in the project currency')}
             </p>
           )}
           <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">

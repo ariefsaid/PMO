@@ -623,10 +623,7 @@ describe('contract billing block', () => {
     expect(screen.getByRole('heading', { name: 'Money position' })).toBeInTheDocument();
     // L5: one answer leads, biggest — the invoiced share of the contract — and the cascade follows as a compact strip.
     expect(screen.getByText('25% invoiced')).toHaveClass('text-2xl');
-    // #2204: Invoiced and Paid read including tax; the BoQ contract is priced excluding tax, so no Paid % or bars
-    // compare the two bases (the invoiced lead reads the contract-basis projection instead).
-    expect(screen.queryByText(/% paid/)).not.toBeInTheDocument();
-    expect(screen.queryAllByRole('progressbar')).toHaveLength(0);
+    expect(screen.getByText('20% paid')).toBeInTheDocument();
     expect(screen.queryByRole('progressbar', { name: /Contract is|Delivered is/ })).not.toBeInTheDocument();
     expect(screen.getByTestId('contract-value-amount').textContent).toBe(formatCurrency(1_000, 'USD'));
     expect(screen.getByText('$500')).toBeInTheDocument();
@@ -635,7 +632,7 @@ describe('contract billing block', () => {
     expect(screen.getByText('$200')).toBeInTheDocument();
   });
 
-  it('AC-SET-001 Money position leaves Invoiced and Paid out when the projection has two currency buckets', async () => {
+  it('#2204 Money position leaves Invoiced and Paid out when the projection has two currency buckets', async () => {
     state.boqItems = [{ id: 'boq-1', quantity: 10, rate: 100 }];
     state.billing = { contractLines: [] };
     state.invoices = [
@@ -654,13 +651,11 @@ describe('contract billing block', () => {
     expect(within(strip).queryByText('Invoiced')).not.toBeInTheDocument();
     expect(within(strip).queryByText('Paid')).not.toBeInTheDocument();
     expect(screen.queryByText('$250')).not.toBeInTheDocument();
-    // AC-SET-004: cash received stays its own figure from the receipt projection.
-    expect(screen.getByTestId('money-lead-cash')).toHaveTextContent('Received $150');
     await userEvent.click(within(screen.getByTestId('figures-hidden')).getByText('Why'));
     expect(screen.getByText('Invoiced and paid are left out because the invoices are not all in the project currency.')).toBeInTheDocument();
   });
 
-  it('AC-SET-002 Money position reads Invoiced and Paid on the gross basis for a tax-exclusive invoice', () => {
+  it('#2204 Money position reads Invoiced and Paid on the gross basis for a tax-exclusive invoice', () => {
     state.boqItems = [{ id: 'boq-1', quantity: 10, rate: 100 }];
     state.billing = { contractLines: [] };
     state.invoices = [{ ...invoice(), currency: 'USD', tax_treatment: 'exclusive', tax_amount: 25, amount: 250, erp_outstanding_amount: 275 }];
@@ -679,7 +674,7 @@ describe('contract billing block', () => {
     expect(paidRow).not.toHaveTextContent('-');
   });
 
-  it('AC-SET-005 a fully paid tax-exclusive invoice never reads Paid above Invoiced nor a percentage above 100', () => {
+  it('#2204 a fully paid tax-exclusive invoice reads Paid equal to Invoiced, both including tax', () => {
     state.boqItems = [];
     state.billing = { contractLines: [] };
     state.invoices = [{ ...invoice(), status: 'Paid', currency: 'USD', tax_treatment: 'exclusive', tax_amount: 110, amount: 1_000, erp_outstanding_amount: 0 }];
@@ -695,11 +690,9 @@ describe('contract billing block', () => {
     expect(within(strip).getByText('Invoiced').parentElement!).toHaveTextContent('$1,110');
     expect(within(strip).getByText('Paid').parentElement!).toHaveTextContent('$1,110');
     expect(screen.getByText('100% invoiced')).toBeInTheDocument();
-    expect(screen.queryByText(/% paid/)).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Money position' }).closest('section')!).not.toHaveTextContent(/(?:10[1-9]|1[1-9][0-9]|[2-9][0-9]{2})%/);
   });
 
-  it('AC-SET-005 shows the Paid share when the contract value is on the same gross basis', () => {
+  it('#2204 shows the Paid share when the contract value is on the same gross basis', () => {
     state.boqItems = [];
     state.billing = { contractLines: [] };
     state.invoices = [{ ...invoice(), currency: 'USD', amount: 1_110, erp_outstanding_amount: 555 }];
@@ -712,20 +705,6 @@ describe('contract billing block', () => {
 
     renderMoneyPosition(project({ contract_value: 1_110, tax_treatment: 'inclusive' }));
     expect(screen.getByText('50% paid')).toBeInTheDocument();
-  });
-
-  it('does not report withheld tax as unmatched cash when the project receipts carry withholding', () => {
-    state.boqItems = [{ id: 'boq-1', quantity: 10, rate: 100 }];
-    state.billing = { contractLines: [] };
-    state.invoices = [{ ...invoice(), currency: 'USD', amount: 250, erp_outstanding_amount: 50, project_receipt_withholding_article: 'pph23' }];
-    state.finances = {
-      contract_invoiced: '250', remaining_to_invoice: '750', invoices: [usdBucket()],
-      cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '150' }], receipt_count: 1 },
-      actuals: { currency: 'USD', total: '100.00', as_of: null, excludes_restricted_rows: false, categories: [] },
-    };
-
-    renderWithQueryClient(<MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>);
-    expect(screen.queryByText(/is settled in accounting but no receipt is matched to it yet/)).not.toBeInTheDocument();
   });
 
   it('explains settled invoice value that has no matched receipt and links to matching', () => {

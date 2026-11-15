@@ -15,7 +15,7 @@ import { useMilestones } from '@/src/hooks/useMilestones';
 import { completionPct, formatDay, formatDaysOverdue, formatTableMoney } from '@/src/lib/format';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
-import { budgetLeftAfterOrders, deriveMargin, selectContractInvoiceFigure } from '@/src/lib/projectFinances';
+import { budgetLeftAfterOrders, deriveMargin } from '@/src/lib/projectFinances';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import { useProjectCommittedSpend, useProjectProcurements } from '@/src/hooks/useProcurements';
 import { buildBudgetSummaryRows, resolveProjectCommitment } from '@/src/lib/budget/budgetModel';
@@ -110,14 +110,6 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean }> 
   const settlementCurrencyUnknown = settlementReading !== null && settlement === null;
   const invoiced = settlement?.gross ?? null;
   const paid = settlement?.settled ?? null;
-  // A share of the contract compares like with like: the BoQ is priced excluding tax, so only a recorded
-  // tax-inclusive contract value is on the same basis as these gross figures.
-  const grossComparable = !hasBoq && project.tax_treatment === 'inclusive';
-  const contractInvoiceFigure = selectContractInvoiceFigure(data);
-  // A receipt can settle part of an invoice through withheld tax, which is not cash: with withholding on the
-  // project, settled-but-unmatched cannot be told apart from withheld, so that note is not raised.
-  const withholdingPossible = invoices.isPending || invoices.isError
-    || (invoices.data ?? []).some((invoice) => invoice.project_receipt_withholding_article != null);
   const cash = data.cash_received;
   const cashSum = cash?.state === 'known'
     ? cash.buckets.filter((bucket) => bucket.currency === project.currency).reduce((sum, bucket) => sum + Number(bucket.amount), 0)
@@ -180,18 +172,18 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean }> 
       link: { to: '/finance/receivables?view=payments', label: t('projectDetail.money.matchPayments', 'Match payments') },
     }] : []),
   ];
-  const share = (value: number | null) => grossComparable && value !== null && contractValue !== null && contractValue > 0 ? pctOf(value, contractValue) : null;
-  // The lead reads the projection's contract-basis billing (the Contract tab's Invoiced figure), never the gross sum.
-  const invoicedShare = contractInvoiceFigure.percentage;
+  const share = (value: number | null) => value !== null && contractValue !== null && contractValue > 0 ? pctOf(value, contractValue) : null;
+  // The lead share is of the document total, as before #2204; the strip's Invoiced is gross so it sits beside Paid.
+  const invoicedShare = share(settlement?.documentTotal ?? null);
   const paidShare = share(paid);
 
   return (
     <Block id="pd-money" title={title} unit={unit} fillRow={fillRow}>
       <MoneyHiddenFigures figures={hidden} />
       {/* L5: the block's one answer leads, biggest — how much of the contract is billed, then collected. */}
-      {(invoicedShare !== null || cashReceived !== null) && (
+      {invoicedShare !== null && (
         <p className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          {invoicedShare !== null && explain(t('projectDetail.money.leadTooltip', 'Invoiced against the signed contract, in its currency and tax basis, as a share of the contract value.'),
+          {explain(t('projectDetail.money.leadTooltip', 'Invoiced amount as a share of the contract. Source: non-draft, non-cancelled invoices in the project currency.'),
             t('projectDetail.money.leadInvoiced', '{{percent}}% invoiced', { percent: invoicedShare }),
             'text-2xl font-semibold leading-tight tabular-nums text-foreground')}
           {paidShare !== null && <span className="text-sm tabular-nums text-muted-foreground">{t('projectDetail.money.leadPaid', '{{percent}}% paid', { percent: paidShare })}</span>}
@@ -230,7 +222,7 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean }> 
         </dl>
       )}
       {invoices.isError && <Note>{t('projectDetail.money.invoiceError', "Couldn't load invoice settlement.")} <Button variant="ghost" size="sm" onClick={() => void invoices.refetch()}>{t('common.retry', 'Retry')}</Button></Note>}
-      {cashReceived !== null && paid !== null && paid > cashReceived && !withholdingPossible && (
+      {cashReceived !== null && paid !== null && paid > cashReceived && (
         <Note>
           {t('projectDetail.money.paidNotReceived', '{{amount}} is settled in accounting but no receipt is matched to it yet.', { amount: whole(paid - cashReceived) })}{' '}
           <FixLink to="/finance/receivables?view=payments">{t('projectDetail.money.matchPayments', 'Match payments')}</FixLink>

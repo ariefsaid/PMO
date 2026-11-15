@@ -82,7 +82,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     h.drawdown = { data: { committed: 200_000, draft: 50_000, ceiling: 500_000, currency: 'IDR', basis: 'net' }, isPending: false, isError: false, refetch: vi.fn() };
   });
 
-  it('AC-SET-001 Contract Paid reads unknown, never a project-currency sum, when the projection has two currency buckets', () => {
+  it('#2204 Contract Paid reads unknown, never a project-currency sum, when the projection has two currency buckets', () => {
     h.finances = { contract_invoiced: null, remaining_to_invoice: null, invoices: [orphanBucket, bucketOf({ currency: 'USD', invoiced: '100.00', settled: '100.00', outstanding: '0.00' })] };
     renderCascade();
 
@@ -92,29 +92,27 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     expect(paid).not.toHaveTextContent(/IDR/);
   });
 
-  it('AC-SET-002 Contract Paid reads the projection gross settlement for mixed tax bases', () => {
+  it('#2204 Contract Paid reads the projection gross settlement for mixed tax bases', () => {
     h.finances = { contract_invoiced: '2000000.00', remaining_to_invoice: '0.00', invoices: [bucketOf({
       invoice_count: 2, invoiced: '2110000.00', settled: '1110000.00', outstanding: '1110000.00', tax_basis: 'mixed' })] };
     renderCascade();
 
     const summary = screen.getByRole('list', { name: 'Contract' });
     // Gross 2.22M less 1.11M still owed: 1.11M settled, shown beside the 2.22M it is a part of.
-    expect(within(summary).getByRole('listitem', { name: /^Paid / })).toHaveAccessibleName(/^Paid IDR\s1\.11M of IDR\s2\.22M invoiced, including tax$/);
+    expect(within(summary).getByRole('listitem', { name: /^Paid / })).toHaveAccessibleName(/^Paid IDR\s1\.11M \d+% of contract · of IDR\s2\.22M invoiced, including tax$/);
   });
 
-  it('AC-SET-005 a fully paid tax-exclusive invoice never reads Paid above what it invoiced nor a percentage above 100', () => {
+  it('#2204 a fully paid tax-exclusive invoice names the gross invoiced its Paid is a part of', () => {
     h.finances = { contract_invoiced: '1000000.00', remaining_to_invoice: '0.00', invoices: [bucketOf({
       invoiced: '1000000.00', settled: '1110000.00', outstanding: '0.00', tax_basis: 'exclusive' })] };
     renderCascade();
 
     const summary = screen.getByRole('list', { name: 'Contract' });
     const paid = within(summary).getByRole('listitem', { name: /^Paid / });
-    // The contract is excluding tax, the settlement including it: no Paid % against the contract.
-    expect(paid).toHaveAccessibleName('Paid IDR\u00a01.11M of IDR\u00a01.11M invoiced, including tax');
-    expect(summary).not.toHaveTextContent(/(?:10[1-9]|1[1-9][0-9]|[2-9][0-9]{2})%/);
+    expect(paid).toHaveAccessibleName(/^Paid IDR\u00a01\.11M \d+% of contract · of IDR\u00a01\.11M invoiced, including tax$/);
   });
 
-  it('AC-SET-006 never adds overdue balances in two currencies into one project-currency figure', () => {
+  it('#2204 never adds overdue balances in two currencies into one project-currency figure', () => {
     h.invoices = { data: [
       { currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 0, id: 'si-idr', work_order_id: null, status: 'Unpaid', amount: 500, erp_outstanding_amount: 300, erp_due_date: '2020-01-01', si_number: 'INV-IDR' },
       { currency: 'USD', tax_treatment: 'inclusive', tax_amount: 0, id: 'si-usd', work_order_id: null, status: 'Unpaid', amount: 50, erp_outstanding_amount: 20, erp_due_date: '2020-01-01', si_number: 'INV-USD' },
@@ -124,6 +122,13 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     const section = screen.getByRole('heading', { name: 'Contract' }).closest('section')!;
     expect(within(section).getByTestId('contract-overdue')).toHaveTextContent(/^Overdue—$/);
     expect(section).not.toHaveTextContent(/IDR 320|IDR\u00a0320/);
+  });
+
+  it('#2204 names Paid alone when Invoiced is still known and the invoices span currencies', () => {
+    h.finances = { contract_invoiced: '100.00', remaining_to_invoice: '900.00', invoices: [orphanBucket, bucketOf({ currency: 'USD', invoiced: '100.00', settled: '100.00', outstanding: '0.00' })] };
+    renderCascade();
+    expect(screen.getByTestId('contract-mixed-currency')).toHaveTextContent('Paid is left out because the invoices are not all in the project currency');
+    expect(screen.getByTestId('contract-mixed-currency')).not.toHaveTextContent(/Invoiced/);
   });
 
   it.each([
