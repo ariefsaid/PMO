@@ -13,7 +13,7 @@ export const LedgerDateLine: React.FC<{ entered: string | null | undefined; post
   const moved = movedLedgerDate(entered, posted);
   if (!moved) return null;
   return (
-    <span data-testid="ledger-date" className={className ?? 'block whitespace-nowrap text-sm font-normal text-muted-foreground'}>
+    <span data-testid="ledger-date" className={className ?? 'block min-w-0 text-sm font-normal text-muted-foreground'}>
       {t('finance:odooOutcome.ledgerDate', 'Ledger date {{date}} (entered {{entered}})', { date: formatDay(moved.slice(0, 10)), entered: formatDay((entered ?? '').slice(0, 10)) })}
     </span>
   );
