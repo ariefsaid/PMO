@@ -1368,6 +1368,6 @@ describe('Projects — which project is off track, and how far (#design-1115)', 
     expect((internalRow as HTMLTableRowElement).cells[contractIndex]).toHaveTextContent(/^—$/);
     expect(within(internalRow).queryByText('$800,000')).not.toBeInTheDocument();
     expect(screen.getAllByTestId('projects-absence-note')).toHaveLength(1);
-    expect(screen.getByTestId('projects-absence-note')).toHaveTextContent('internal project');
+    expect(screen.getByTestId('projects-absence-note')).toHaveTextContent('internal');
   });
 });

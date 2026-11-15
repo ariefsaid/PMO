@@ -371,15 +371,15 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
   const reasons: string[] = [];
   // A reason is named only for a column that stays on screen: some rows carry the figure, some the dash.
   const mixed = (absent: (p: ProjectWithRefs) => boolean) => filtered.some(absent) && filtered.some((p) => !absent(p));
-  if (shown('contract') && mixed(contractAbsent)) reasons.push(t('projects:absence.internal', 'internal project'));
+  if (shown('contract') && mixed(contractAbsent)) reasons.push(t('projects:absence.internal', 'internal'));
   if (shown('actual') && !moneyPending && !moneyError && mixed((p) => { const position = actualPosition(p); return !position.text && !position.restricted; })) {
-    reasons.push(t('projects:absence.noSpending', 'no linked spending'));
+    reasons.push(t('projects:absence.noSpending', 'no spending linked'));
   }
   if (shown('progress') && !deliveryPending && !deliveryError && mixed((p) => deliverySummary?.[p.id]?.deliveryPct == null)) {
-    reasons.push(t('projects:absence.noPhases', 'no phases yet'));
+    reasons.push(t('projects:absence.noPhases', 'no phases'));
   }
   if (shown('budget-used') && !moneyPending && !moneyError && mixed((p) => typeof budgetExport(p) === 'string')) {
-    reasons.push(t('projects:absence.noBudget', 'no usable Active budget'));
+    reasons.push(t('projects:absence.noBudget', 'no budget'));
   }
   const absenceNote = reasons.length > 0 ? t('projects:absence.note', '— : {{reasons}}', { reasons: reasons.join(' · ') }) : null;
 

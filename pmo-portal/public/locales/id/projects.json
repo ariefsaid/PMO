@@ -128,10 +128,10 @@
   },
   "absence": {
     "note": "— : {{reasons}}",
-    "internal": "proyek internal",
-    "noSpending": "belum ada pengeluaran tertaut",
+    "internal": "internal",
+    "noSpending": "belum ada pengeluaran",
     "noPhases": "belum ada fase",
-    "noBudget": "belum ada anggaran aktif yang bisa dipakai"
+    "noBudget": "belum ada anggaran"
   },
   "listOptions": "Opsi",
   "exportImport": "Ekspor dan impor"

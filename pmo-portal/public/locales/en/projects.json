@@ -128,10 +128,10 @@
   },
   "absence": {
     "note": "— : {{reasons}}",
-    "internal": "internal project",
-    "noSpending": "no linked spending",
-    "noPhases": "no phases yet",
-    "noBudget": "no usable Active budget"
+    "internal": "internal",
+    "noSpending": "no spending linked",
+    "noPhases": "no phases",
+    "noBudget": "no budget"
   },
   "listOptions": "Options",
   "exportImport": "Export and import"
