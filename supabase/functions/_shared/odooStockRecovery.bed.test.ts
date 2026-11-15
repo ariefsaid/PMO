@@ -25,7 +25,7 @@ interface BedConfig {
   apiKey: string;
 }
 
-function getBedConfig(): BedConfig {
+function readBedConfig(): BedConfig | null {
   let baseUrl = Deno.env.get('ODOO_BED_URL');
   let database = Deno.env.get('ODOO_BED_DB');
   let apiKey = Deno.env.get('ODOO_BED_KEY');
@@ -51,12 +51,16 @@ function getBedConfig(): BedConfig {
     }
   }
 
-  assert(
-    Boolean(baseUrl && database && apiKey),
-    'Odoo dev bed settings (ODOO_BED_URL, ODOO_BED_DB, ODOO_BED_KEY or .env.odoo.local) are required; bed tests fail when absent.',
-  );
+  if (!baseUrl || !database || !apiKey) return null;
+  return { baseUrl, database, apiKey };
+}
 
-  return { baseUrl: baseUrl!, database: database!, apiKey: apiKey! };
+/** Gated on the dependency, never on CI: without the bed's settings these tests are ignored, as the other bed tests are. */
+const BED = readBedConfig();
+
+function getBedConfig(): BedConfig {
+  assert(BED !== null, 'Odoo dev bed settings (ODOO_BED_URL, ODOO_BED_DB, ODOO_BED_KEY or .env.odoo.local) are required.');
+  return BED!;
 }
 
 /** A stock document's anchor key as the handler builds it: `stock:<document uuid>` (one fresh document per case). */
@@ -127,6 +131,7 @@ export async function probeStockPicking(
 
 Deno.test({
   name: 'AC-OSP-004: Case 1 — create response lost before any anchor exists holds with zero second create',
+  ignore: !BED,
   sanitizeResources: false,
   sanitizeOps: false,
   fn: async () => {
@@ -186,6 +191,7 @@ Deno.test({
 
 Deno.test({
   name: 'AC-OSP-004: Case 2 — anchored draft that was never validated is adopted in draft state',
+  ignore: !BED,
   sanitizeResources: false,
   sanitizeOps: false,
   fn: async () => {
@@ -248,6 +254,7 @@ Deno.test({
 
 Deno.test({
   name: 'AC-OSP-004: Case 3 & 4 — validation with lost response adopts completed movement, and repeated probe is idempotent',
+  ignore: !BED,
   sanitizeResources: false,
   sanitizeOps: false,
   fn: async () => {
@@ -316,6 +323,7 @@ Deno.test({
 
 Deno.test({
   name: 'AC-OSP-004: Case 5 — look-alike transfer in same company is rejected, and edited/ambiguous anchors hold',
+  ignore: !BED,
   sanitizeResources: false,
   sanitizeOps: false,
   fn: async () => {
@@ -431,6 +439,7 @@ Deno.test({
 
 Deno.test({
   name: 'AC-OSP-004: create and anchor are one call',
+  ignore: !BED,
   sanitizeResources: false,
   sanitizeOps: false,
   fn: async () => {

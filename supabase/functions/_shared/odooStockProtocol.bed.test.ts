@@ -21,7 +21,7 @@ interface BedConfig {
   apiKey: string;
 }
 
-function getBedConfig(): BedConfig {
+function readBedConfig(): BedConfig | null {
   let baseUrl = Deno.env.get('ODOO_BED_URL');
   let database = Deno.env.get('ODOO_BED_DB');
   let apiKey = Deno.env.get('ODOO_BED_KEY');
@@ -47,12 +47,16 @@ function getBedConfig(): BedConfig {
     }
   }
 
-  assert(
-    Boolean(baseUrl && database && apiKey),
-    'Odoo dev bed settings (ODOO_BED_URL, ODOO_BED_DB, ODOO_BED_KEY or .env.odoo.local) are required; bed tests fail when absent.',
-  );
+  if (!baseUrl || !database || !apiKey) return null;
+  return { baseUrl, database, apiKey };
+}
 
-  return { baseUrl: baseUrl!, database: database!, apiKey: apiKey! };
+/** Gated on the dependency, never on CI: without the bed's settings these tests are ignored, as the other bed tests are. */
+const BED = readBedConfig();
+
+function getBedConfig(): BedConfig {
+  assert(BED !== null, 'Odoo dev bed settings (ODOO_BED_URL, ODOO_BED_DB, ODOO_BED_KEY or .env.odoo.local) are required.');
+  return BED!;
 }
 
 /** The shipped writer's two steps in order: send the anchored picking, then enter the quantities and validate. */
@@ -65,6 +69,7 @@ async function postPicking(odoo: Parameters<typeof sendStockPicking>[0], p: Send
 
 Deno.test({
   name: 'AC-OSP-002: availability of stock modules, company, operation type and synthetic master data',
+  ignore: !BED,
   sanitizeResources: false,
   sanitizeOps: false,
   fn: async () => {
@@ -173,6 +178,7 @@ Deno.test({
 
 Deno.test({
   name: 'AC-OSP-002: full stock transfer movement (create, set quantity, validate, read back completed movement)',
+  ignore: !BED,
   sanitizeResources: false,
   sanitizeOps: false,
   fn: async () => {
@@ -295,6 +301,7 @@ Deno.test({
 
 Deno.test({
   name: 'AC-OSP-003: project issue with native project-cost link (analytic costs on creates picking_entry, off creates zero lines)',
+  ignore: !BED,
   sanitizeResources: false,
   sanitizeOps: false,
   fn: async () => {
@@ -471,6 +478,7 @@ Deno.test({
 
 Deno.test({
   name: 'AC-OSP-002 / AC-OSP-003: failure and partial transfer validation behavior (empty, zero quantity, backorder wizard)',
+  ignore: !BED,
   sanitizeResources: false,
   sanitizeOps: false,
   fn: async () => {
@@ -624,6 +632,7 @@ Deno.test({
 
 Deno.test({
   name: 'AC-OSP-003: whole-ledger oracle, periodic / standard',
+  ignore: !BED,
   sanitizeResources: false,
   sanitizeOps: false,
   fn: async () => {
@@ -857,6 +866,7 @@ Deno.test({
 
 Deno.test({
   name: 'AC-OSP-003: whole-ledger oracle, real_time / standard',
+  ignore: !BED,
   sanitizeResources: false,
   sanitizeOps: false,
   fn: async () => {
@@ -1099,6 +1109,7 @@ Deno.test({
 
 Deno.test({
   name: 'AC-OSP-003: whole-ledger oracle, real_time / average (AVCO)',
+  ignore: !BED,
   sanitizeResources: false,
   sanitizeOps: false,
   fn: async () => {
@@ -1330,6 +1341,7 @@ Deno.test({
 
 Deno.test({
   name: 'AC-OSP-001: bound analytic account resolves to one active project and books issue cost line on that account',
+  ignore: !BED,
   sanitizeResources: false,
   sanitizeOps: false,
   fn: async () => {
@@ -1442,6 +1454,7 @@ Deno.test({
 
 Deno.test({
   name: 'AC-OSP-001: bound analytic account resolves to multiple projects when shared (resolver must refuse)',
+  ignore: !BED,
   sanitizeResources: false,
   sanitizeOps: false,
   fn: async () => {
@@ -1507,6 +1520,7 @@ Deno.test({
 
 Deno.test({
   name: 'AC-OSP-001: bound analytic account resolves to zero projects when no project exists',
+  ignore: !BED,
   sanitizeResources: false,
   sanitizeOps: false,
   fn: async () => {
@@ -1546,6 +1560,7 @@ Deno.test({
 
 Deno.test({
   name: 'AC-OSP-001: bound analytic account resolves to zero active projects when project is archived',
+  ignore: !BED,
   sanitizeResources: false,
   sanitizeOps: false,
   fn: async () => {
@@ -1614,6 +1629,7 @@ Deno.test({
 // Round 7.0 (#1508): the facts the evidence rules rest on, through the shipped picking writer. Each FACT line is the call and Odoo's raw answer.
 Deno.test({
   name: 'AC-OSP-002 / AC-OSP-003 Round 7.0 facts: transfer valuation, N moves, load with two rows, load repeated on an anchored draft',
+  ignore: !BED,
   sanitizeResources: false,
   sanitizeOps: false,
   fn: async () => {
