@@ -10,7 +10,7 @@
 -- security-definer lock-order RPCs (0105/0106) are the only mutation path (closing the child→parent
 -- deadlock seam). The catalog backstop below excludes it; the exception is asserted explicitly.
 begin;
-select plan(49);
+select plan(50);
 
 -- profiles: the exact table the promote e2e failed on (admin-invite-user inserts here).
 select ok(has_table_privilege('service_role', 'public.profiles', 'INSERT'),
@@ -104,6 +104,7 @@ select is(
         'odoo_ledger_census_seen',
         'erp_capture_batches',
         'erp_capture_feed_witnesses',
+        'erp_capture_invoice_assignments',
         'stock_erp_mirror',
         'odoo_stock_cost_lines',
         'odoo_stock_cost_census_seen',
@@ -123,6 +124,14 @@ select ok(not has_table_privilege('service_role','public.erp_capture_feed_witnes
   and not has_table_privilege('service_role','public.erp_capture_feed_witnesses','UPDATE')
   and not has_table_privilege('service_role','public.erp_capture_feed_witnesses','DELETE'),
   'AC-ROP-017 capture feed witnesses deny direct service access');
+-- 0882: invoice assignments are written only by the capture definer RPCs (owner) and read by
+-- authenticated callers under RLS; service_role has no direct grant at all.
+select ok(not has_table_privilege('service_role','public.erp_capture_invoice_assignments','SELECT')
+  and not has_table_privilege('service_role','public.erp_capture_invoice_assignments','INSERT')
+  and not has_table_privilege('service_role','public.erp_capture_invoice_assignments','UPDATE')
+  and not has_table_privilege('service_role','public.erp_capture_invoice_assignments','DELETE')
+  and not has_table_privilege('service_role','public.erp_capture_invoice_assignments','TRUNCATE'),
+  'AC-ROP-017 capture invoice assignments deny direct service access');
 
 -- 0399's exemption is a named pin, not a silent omission: runs are RPC-minted (see above).
 select ok(
