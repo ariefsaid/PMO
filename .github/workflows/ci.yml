@@ -518,7 +518,7 @@ jobs:
 
       # Fail fast on duplicate migration prefixes — the clear one-liner version of
       # the confusing `supabase db reset`/pgTAP failure a collision causes below.
-      # (The other repo guards run once, in `checks` — see check:guards.)
+      # (The other repo guards run once, in `verify` — see check:guards.)
       - name: Migration prefix collision check
         run: bash scripts/check-migration-collisions.sh
 
