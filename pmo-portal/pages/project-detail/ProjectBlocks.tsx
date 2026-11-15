@@ -395,13 +395,13 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
                   <Link to={`/projects/${project.id}/budget`} onClick={onOpenBudget ? (event) => { event.preventDefault(); onOpenBudget(); } : undefined}
                     aria-label={t('projectDetail.cost.openCategory', 'Open {{category}} in Budget', { category: label(r.category) })}
                     className={cn(BUDGET_GRID, 'w-full py-2.5 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring')}>
-                    <span className="min-w-0 break-words font-normal text-foreground max-md:col-span-2">{label(r.category)}</span>
-                    <span className={cn('whitespace-nowrap text-right tabular-nums max-md:col-start-1 max-md:row-start-2 max-md:text-left', over ? 'font-medium text-destructive-text' : 'text-muted-foreground')}>
+                    <span className="min-w-0 break-words font-normal text-foreground max-md:basis-full">{label(r.category)}</span>
+                    <span className={cn('whitespace-nowrap text-right tabular-nums max-md:text-left', over ? 'font-medium text-destructive-text' : 'text-muted-foreground')}>
                       {r.actual === null
                         ? whole(r.budget)
                         : t('projectDetail.cost.rowSpent', '{{spent}} of {{budget}}', { spent: whole(r.actual), budget: whole(r.budget) })}
                     </span>
-                    <span className="flex min-w-0 items-center max-md:col-start-2 max-md:row-start-2">
+                    <span className="flex min-w-0 items-center max-md:min-w-32 max-md:flex-1">
                       {pct === null && maxBudget > 0 && <span aria-hidden="true" data-testid="category-budget-bar" className="h-1.5 w-full rounded-full bg-secondary">
                         <span className="block h-full rounded-full bg-muted-foreground/60" style={{ width: `${Math.round((r.budget / maxBudget) * 100)}%` }} />
                       </span>}
@@ -433,7 +433,8 @@ const DeliveryBlockView: React.FC<{ projectId: string; isPipeline?: boolean; chi
 
 /** The overview's shared row grid: the name column flexes, figure columns are fixed, and the bar column (10rem) ends every row on the panel inset. Literal strings so Tailwind sees them. */
 const PHASE_GRID = 'grid min-w-0 grid-cols-[minmax(0,1fr)_8rem] items-center gap-x-4 gap-y-1 md:grid-cols-[minmax(0,1fr)_7rem_6rem_4.5rem_5rem_10rem]';
-const BUDGET_GRID = 'grid min-w-0 grid-cols-[minmax(0,1fr)_8rem] items-center gap-x-4 gap-y-1 md:grid-cols-[minmax(0,1fr)_minmax(10rem,auto)_10rem]';
+// Phone: one wrapping line under the category, so the bar sits beside the figure only when both fit, never over it.
+const BUDGET_GRID = 'flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 md:grid md:grid-cols-[minmax(0,1fr)_minmax(10rem,auto)_10rem]';
 
 const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children?: React.ReactNode }> = ({ projectId, title, children }) => {
   const { t } = useTranslation('project');

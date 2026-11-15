@@ -137,6 +137,15 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     const percent = projectBudgetUsedPercent(money.budgetPosition, p.currency);
     return percent ?? '';
   };
+  // The amounts behind a budget-used share, on hover: the table cell and the phone card say the same.
+  const budgetTitle = (p: ProjectWithRefs) => {
+    const reading = projectMoney![p.id]!.budgetPosition!;
+    const amounts = t('projects:budgetConsumption', '{{used}} of {{budget}} Active budget before tax', {
+      used: formatExactMoney(reading.spent, reading.currency ?? p.currency, getNumberLocale(), { wholeUnits: true }),
+      budget: formatExactMoney(reading.activeBudgetAmount, reading.budgetCurrency ?? p.currency, getNumberLocale(), { wholeUnits: true }),
+    });
+    return `${amounts} · ${t('projects:budgetUsedHelp', 'Spent as a share of budget, before tax')}`;
+  };
   const columns: Column<ProjectWithRefs>[] = [
     {
       key: 'project',
@@ -324,13 +333,8 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
             : '—';
         }
         const atRisk = isAtRiskActual(p);
-        const reading = projectMoney![p.id]!.budgetPosition!;
-        const amounts = t('projects:budgetConsumption', '{{used}} of {{budget}} Active budget before tax', {
-          used: formatExactMoney(reading.spent, reading.currency ?? p.currency, getNumberLocale(), { wholeUnits: true }),
-          budget: formatExactMoney(reading.activeBudgetAmount, reading.budgetCurrency ?? p.currency, getNumberLocale(), { wholeUnits: true }),
-        });
         return (
-          <div title={`${amounts} · ${t('projects:budgetUsedHelp', 'Spent as a share of budget, before tax')}`}>
+          <div title={budgetTitle(p)}>
 
             <ProgressBar value={percent} showValue compact tone={atRisk ? 'destructive' : percent >= 70 ? 'warning' : undefined} aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget before tax', { percent })} />
           </div>
@@ -414,8 +418,8 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     const used = visibleColumns.some((column) => column.key === 'budget-used') && !moneyPending ? budgetExport(p) : null;
     const budgetUsed = typeof used === 'number' ? used : null;
     // Phone: each percentage names what it is a share of, and the bars share one fixed width so the figures sit in one column.
-    const share = (value: number, label: string, tone: ProgressTone | undefined, aria: string) => (
-      <span className="flex items-center gap-2">
+    const share = (value: number, label: string, tone: ProgressTone | undefined, aria: string, title?: string) => (
+      <span className="flex items-center gap-2" title={title}>
         <ProgressBar value={value} tone={tone} widthless className="w-16 shrink-0" aria-label={aria} />
         <span className="whitespace-nowrap tabular-nums text-control">{label}</span>
       </span>
@@ -429,7 +433,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
         {(progress !== null || budgetUsed !== null) && (
           <div className="flex flex-col gap-1">
             {progress !== null && share(progress, t('projects:card.progressShare', '{{percent}}% done', { percent: progress }), progress >= 100 ? 'success' : 'primary', t('projects.card.deliveryPercent', 'Delivery {{percent}}%', { percent: progress }))}
-            {budgetUsed !== null && share(budgetUsed, t('projects:card.budgetShare', '{{percent}}% of budget', { percent: budgetUsed }), isAtRiskActual(p) ? 'destructive' : budgetUsed >= 70 ? 'warning' : undefined, t('uxs02.budgetUsed', '{{percent}}% of Active budget before tax', { percent: budgetUsed }))}
+            {budgetUsed !== null && share(budgetUsed, t('projects:card.budgetShare', '{{percent}}% of budget', { percent: budgetUsed }), isAtRiskActual(p) ? 'destructive' : budgetUsed >= 70 ? 'warning' : undefined, t('uxs02.budgetUsed', '{{percent}}% of Active budget before tax', { percent: budgetUsed }), budgetTitle(p))}
           </div>
         )}
         {canViewMoney && (

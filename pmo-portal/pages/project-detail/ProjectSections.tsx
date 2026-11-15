@@ -95,7 +95,8 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
         <CostBlock project={project} isPipeline onOpenBudget={openBudget} />
         <DeliveryBlock projectId={project.id} isPipeline={isPipeline} />
         {/* AC-PMP-006: invoices and spending already recorded against a deal stay visible before it is won. */}
-        {canSeeMoney && <div className="min-w-0 xl:col-span-2"><ProjectFinancesSection project={project} /></div>}
+        {/* One surface language: the finances sit in a panel like their neighbours, never bare on the page. */}
+        {canSeeMoney && <div className="panel-card min-w-0 p-[var(--panel-inset)] xl:col-span-2 [&>section]:border-y-0 [&>section]:py-0"><ProjectFinancesSection project={project} /></div>}
         <div className="min-w-0 xl:col-span-2"><PipelineRecordBlocks project={project} /></div>
       </div>
     );
