@@ -1,7 +1,7 @@
 -- 0921_project_billing_scope.sql — #2223: get_project_billing read every confirmed acceptance and every work-order
 -- line of the organisation, then kept one project's worth. Both reads now filter on the project. The result is
 -- unchanged: an acceptance and a line always sit on the same project as their work order and contract line
--- (work_order_acceptances.project_id is stamped from the work order; check_boq_item_work_order_same_project guards lines).
+-- (work_order_acceptances.project_id is stamped from the work order; check_work_order_line_scope guards lines).
 -- Redefines get_project_billing (from 0810_pack_earned_value.sql, body verbatim except the two filters).
 -- Reversal: supabase/migrations/rollback/0921_project_billing_scope_down.sql.
 
