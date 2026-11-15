@@ -1,0 +1,32 @@
+[
+  {
+    "file": "en/administration.json",
+    "key": "integrations.send.addPeople",
+    "slice": "ECX-6"
+  },
+  {
+    "file": "en/administration.json",
+    "key": "integrations.send.accountantTask",
+    "slice": "ECX-4"
+  },
+  {
+    "file": "en/administration.json",
+    "key": "invoicePairs.needsDecisionHelp",
+    "slice": "ECX-2"
+  },
+  {
+    "file": "id/administration.json",
+    "key": "integrations.send.addPeople",
+    "slice": "ECX-6"
+  },
+  {
+    "file": "id/administration.json",
+    "key": "integrations.send.accountantTask",
+    "slice": "ECX-4"
+  },
+  {
+    "file": "id/administration.json",
+    "key": "invoicePairs.needsDecisionHelp",
+    "slice": "ECX-2"
+  }
+]
