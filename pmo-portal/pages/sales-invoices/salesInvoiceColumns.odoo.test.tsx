@@ -61,3 +61,24 @@ describe('AC-ODR-010 the invoice list shows the ledger date under a moved invoic
     expect(screen.queryByTestId('ledger-date')).toBeNull();
   });
 });
+
+describe('AC-ODR-010 the desktop receivables table shows the ledger date in the date column (#2290)', () => {
+  function dueCell(row: SalesInvoiceRow, embedded: boolean) {
+    const t = ((_: string, d?: string) => d ?? _) as never;
+    const { displayColumns } = salesInvoiceColumns({
+      t, all: [row], embedded, native: false, location: { pathname: '/', search: '', hash: '', state: null, key: 'k' }, orgCurrency: 'IDR', sharedTaxBasis: null,
+      projectOptionsById: new Map(), projectsById: new Map(), profilesById: new Map(),
+      invoiceStatus: () => ({ variant: 'neutral' as never, partlySettled: false, label: 'Unpaid', odooOutcome: null }),
+    });
+    const column = displayColumns.find((c) => c.key === 'due_date')!;
+    return render(<MemoryRouter><FinanceI18nTestProvider>{column.cell(row)}</FinanceI18nTestProvider></MemoryRouter>);
+  }
+  it.each([true, false])('embedded=%s: a re-dated invoice shows one "Ledger: {date}" line; an unmoved one none', (embedded) => {
+    dueCell(inv({ status: 'Unpaid', erp_posting_date: '2026-12-01' }), embedded);
+    expect(screen.getAllByTestId('ledger-date')).toHaveLength(1);
+    expect(screen.getByTestId('ledger-date')).toHaveTextContent(/^Ledger: .*2026/);
+    cleanup();
+    dueCell(inv({ status: 'Unpaid', erp_posting_date: '2026-11-01' }), embedded);
+    expect(screen.queryByTestId('ledger-date')).toBeNull();
+  });
+});

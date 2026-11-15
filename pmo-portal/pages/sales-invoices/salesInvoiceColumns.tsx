@@ -89,14 +89,11 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
       if (embedded) return null;
       const project = projectLabelOf(inv);
       const customer = invoiceNumber(inv) || inv.status !== 'Draft' ? (inv.customer_name ?? '—') : null;
-      const ledgerMoved = movedLedgerDate(inv.invoice_date, inv.erp_posting_date) !== null;
-      if (!customer && !project && !ledgerMoved) return null;
+      if (!customer && !project) return null;
       return (
         <>
           {customer && <span className="block truncate" title={customer}>{customer}</span>}
           {project && <span className="block truncate" title={project}>{project}</span>}
-          {/* #2290: the invoice date stays in the record and the export; the list says where the ledger posted it when that differs. */}
-          <LedgerDateLine entered={inv.invoice_date} posted={inv.erp_posting_date} className="block truncate" />
         </>
       );
     },
@@ -212,7 +209,9 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
     size: embedded ? 100 : 130,
     cell: (inv) => {
       const due = deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date);
-      return due ? formatDay(due) : '—';
+      // #2290: the invoice date stays in the record and the export; the list's date column says where the ledger posted it when that differs.
+      if (!movedLedgerDate(inv.invoice_date, inv.erp_posting_date)) return due ? formatDay(due) : '—';
+      return <span className="inline-flex flex-col">{due ? formatDay(due) : '—'}<LedgerDateLine entered={inv.invoice_date} posted={inv.erp_posting_date} /></span>;
     },
     exportValue: (inv) => deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date) ?? '',
   };
