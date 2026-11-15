@@ -13,10 +13,10 @@
 -- Concurrency: two re-splits racing for the same unallocated credit are proven by the two-session
 -- probe scripts/credit-allocation-race.test.mjs (pgTAP runs in one transaction and cannot race).
 begin;
-select plan(29);
+select plan(30);
 
--- ── Fixtures (as the test superuser): org X (pool 100) + org Y; an Admin, two Engineers in X; one
---    Engineer in Y.
+-- ── Fixtures (as the test superuser): org X (pool 100) + org Y; an Admin, an Executive, two Engineers
+--    in X; one Engineer in Y.
 insert into organizations (id, name) values
   ('09070000-0000-0000-0000-000000000001','AC-ALLOC Org X'),
   ('09070000-0000-0000-0000-000000000002','AC-ALLOC Org Y');
@@ -24,12 +24,14 @@ insert into auth.users (id, email) values
   ('09070000-0000-0000-0000-0000000000a1','alloc-admin@example.com'),
   ('09070000-0000-0000-0000-0000000000b1','alloc-b@example.com'),
   ('09070000-0000-0000-0000-0000000000c1','alloc-c@example.com'),
-  ('09070000-0000-0000-0000-0000000000d1','alloc-y@example.com');
+  ('09070000-0000-0000-0000-0000000000d1','alloc-y@example.com'),
+  ('09070000-0000-0000-0000-0000000000e1','alloc-exec@example.com');
 insert into profiles (id, org_id, full_name, email, role) values
   ('09070000-0000-0000-0000-0000000000a1','09070000-0000-0000-0000-000000000001','Alloc Admin','alloc-admin@example.com','Admin'),
   ('09070000-0000-0000-0000-0000000000b1','09070000-0000-0000-0000-000000000001','Alloc B','alloc-b@example.com','Engineer'),
   ('09070000-0000-0000-0000-0000000000c1','09070000-0000-0000-0000-000000000001','Alloc C','alloc-c@example.com','Engineer'),
-  ('09070000-0000-0000-0000-0000000000d1','09070000-0000-0000-0000-000000000002','Alloc Y','alloc-y@example.com','Engineer');
+  ('09070000-0000-0000-0000-0000000000d1','09070000-0000-0000-0000-000000000002','Alloc Y','alloc-y@example.com','Engineer'),
+  ('09070000-0000-0000-0000-0000000000e1','09070000-0000-0000-0000-000000000001','Alloc Exec','alloc-exec@example.com','Executive');
 insert into credits (org_id, owner_id, amount, granted_by) values
   ('09070000-0000-0000-0000-000000000001', null, 60, '09070000-0000-0000-0000-0000000000a1'),
   ('09070000-0000-0000-0000-000000000001', null, 40, '09070000-0000-0000-0000-0000000000a1');
@@ -149,7 +151,8 @@ select throws_ok(
   '23514', 'allocation_user_not_in_org',
   'AC-ALLOC-008 a direct write that allocates to another org''s user is refused by the database');
 
--- ── AC-ALLOC-009: who can read allocations — Admin sees the org, a user sees only their own.
+-- ── AC-ALLOC-009: who can read allocations — Admin and Executive see the org, a user sees only
+--    their own.
 insert into public.credit_allocations (org_id, user_id, amount) values
   ('09070000-0000-0000-0000-000000000001','09070000-0000-0000-0000-0000000000a1', 10),
   ('09070000-0000-0000-0000-000000000001','09070000-0000-0000-0000-0000000000b1', 15);
@@ -160,6 +163,9 @@ select is((select count(*) from public.credit_allocations), 1::bigint,
 set local request.jwt.claims = '{"sub":"09070000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select is((select count(*) from public.credit_allocations), 2::bigint,
   'AC-ALLOC-009 an Admin reads every allocation in their org');
+set local request.jwt.claims = '{"sub":"09070000-0000-0000-0000-0000000000e1","role":"authenticated"}';
+select is((select count(*) from public.credit_allocations), 2::bigint,
+  'AC-ALLOC-009 an Executive reads every allocation in their org');
 reset role;
 
 -- ── AC-ALLOC-012: allocation rows are readable by active members only — a disabled member of the
@@ -170,7 +176,7 @@ set local request.jwt.claims = '{"sub":"09070000-0000-0000-0000-0000000000b1","r
 select is((select count(*) from public.credit_allocations), 0::bigint,
   'AC-ALLOC-012 a disabled member of the org reads no allocation rows');
 reset role;
-select is(pg_temp.pool(), 100::numeric, 'AC-ALLOC-009 after every move and refusal the pool total is still 100');
+select is(pg_temp.pool(), 100::numeric, 'AC-ALLOC-001 after every move and refusal the pool total is still 100');
 
 select * from finish();
 rollback;

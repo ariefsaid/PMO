@@ -1858,6 +1858,7 @@ layer-1 RLS.** That relaxation is exactly the defect ADR-0049 closed; do not und
 the category that earned 4 adversarial rounds on M365 token custody. **2026-07-24 lesson: every M365
 defect passed happy-path pgTAP AND full verify — and three tests actively asserted the bug as the
 contract. Tests alone would have shipped all of them.**
+- **Accepted design (#564):** a direct maintenance write to `credit_allocations` by the operator (outside `admin_move_credit_allocation`) holds the credit lock of every organisation for the length of that one transaction; such writes are operator-only, rare and short, so the cost is accepted.
 
 **Operator vs org-Admin surface split (as-built + owner-directed 2026-07-24 — verified in code):**
 | Surface | Operator | org-Admin |

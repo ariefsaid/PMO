@@ -97,8 +97,11 @@ revoke all on function public.credit_allocations_within_pool() from public, anon
 -- otherwise lock its rows when the statement runs and take the credit lock only at commit, in the
 -- deferred check — the reverse of the RPC's order. This BEFORE STATEMENT trigger runs before the
 -- statement locks any row. It cannot know which org's rows the statement will touch, so it takes
--- every org's credit lock in one fixed (key) order; a direct write then serializes with every credit
--- writer until it commits, which is the cost of a maintenance path. Inside the RPC, which already
+-- every org's credit lock in one fixed (key) order. Ceiling: a direct write holds the credit lock of
+-- every organisation (all rows of organizations, however many there are when it runs) for the length
+-- of this one transaction, so it serializes with every credit writer of every org until it commits.
+-- That is the accepted cost of a maintenance path: such writes are operator-only, rare and short
+-- (docs/backlog.md, #564). Inside the RPC, which already
 -- holds its org's lock, it does nothing (the RPC sets the transaction-local flag around its writes).
 create or replace function public.credit_allocations_lock_order() returns trigger
   language plpgsql security definer set search_path = public as $$
