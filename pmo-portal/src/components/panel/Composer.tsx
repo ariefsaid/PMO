@@ -44,7 +44,11 @@ export interface ComposerProps {
   onAttachmentError?: (error: ClassifiedUploadError) => void;
   /** True while an attachment is uploading: Send/Enter wait so the file goes with the message. */
   uploading?: boolean;
-  /** Attachments already pending or uploading for this message; at the per-message max, another file is refused. */
+  /**
+   * Attachments already uploaded and pending for this message. The composer adds the files it has
+   * accepted whose upload has not settled, and refuses a file once the total would pass the
+   * per-message max.
+   */
   attachmentCount?: number;
 }
 
@@ -87,23 +91,29 @@ export const Composer: React.FC<ComposerProps> = ({
   const attachmentsEnabled = Boolean(onAttachFile);
   const inputDisabled = running || disabled;
 
+  // Files accepted here whose upload has not settled yet. Held in a ref so a burst of picks or a
+  // multi-file drop is counted synchronously, before the parent's attachmentCount re-renders.
+  const reservedRef = useRef(0);
+  const freeSlots = useCallback(
+    () => AGENT_ATTACHMENTS_PER_MESSAGE_MAX - attachmentCount - reservedRef.current,
+    [attachmentCount],
+  );
+  const reportLimit = useCallback(() => {
+    onAttachmentError?.({
+      type: 'count',
+      message: `You can attach up to ${AGENT_ATTACHMENTS_PER_MESSAGE_MAX} files to one message.`,
+    });
+  }, [onAttachmentError]);
+
   // IMPORTANT-3 (review, FR-AT2-ATT-009): useAgentAttachments is the SOLE owner of upload-error
-  // classification (classifyUploadError → timeout/cancel/network/server). acceptFile classifies
+  // classification (classifyUploadError → timeout/cancel/network/server). uploadFile classifies
   // only the Composer-owned pre-upload steps (oversize/disallowed MIME + transcode failure) and
   // then hands the file to onAttachFile; an upload failure is already recorded as a classified
   // error inside the hook BEFORE it rejects, so we deliberately do NOT translate/override it here
   // (translating would collapse timeout/cancel/network guidance to a generic 'server' message).
-  const acceptFile = useCallback(
+  const uploadFile = useCallback(
     async (selected: File) => {
-      if (!onAttachFile || inputDisabled) return;
-      if (attachmentCount >= AGENT_ATTACHMENTS_PER_MESSAGE_MAX) {
-        onAttachmentError?.({
-          type: 'type',
-          message: `You can attach up to ${AGENT_ATTACHMENTS_PER_MESSAGE_MAX} files to one message.`,
-        });
-        return;
-      }
-
+      if (!onAttachFile) return;
       const classified = classifyAttachmentError(selected);
       if (classified) {
         onAttachmentError?.(classified);
@@ -129,17 +139,32 @@ export const Composer: React.FC<ComposerProps> = ({
       // Upload path: the hook owns classification. A rejection already set the hook's classified
       // error; do not override it. (onAttachFile may return void or a Promise — wrap so a void
       // return does not throw.)
-      Promise.resolve(onAttachFile(fileToUpload)).catch(() => {
+      await Promise.resolve(onAttachFile(fileToUpload)).catch(() => {
         /* classified error already recorded by useAgentAttachments */
       });
     },
-    [onAttachFile, onAttachmentError, inputDisabled, attachmentCount],
+    [onAttachFile, onAttachmentError],
+  );
+
+  const acceptFile = useCallback(
+    (selected: File) => {
+      if (!onAttachFile || inputDisabled) return;
+      if (freeSlots() <= 0) {
+        reportLimit();
+        return;
+      }
+      reservedRef.current += 1;
+      void uploadFile(selected).finally(() => {
+        reservedRef.current -= 1;
+      });
+    },
+    [onAttachFile, inputDisabled, freeSlots, reportLimit, uploadFile],
   );
 
   const handleAttachChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0] ?? null;
     e.target.value = '';
-    if (selected) void acceptFile(selected);
+    if (selected) acceptFile(selected);
   };
 
   // IMPORTANT-9 (FR-AT2-ATT-001): the composer is a drag-drop target. Dropped files route through
@@ -157,7 +182,9 @@ export const Composer: React.FC<ComposerProps> = ({
     const files = Array.from(e.dataTransfer.files ?? []);
     if (files.length === 0) return;
     e.preventDefault();
-    for (const file of files) void acceptFile(file);
+    const kept = files.slice(0, Math.max(0, freeSlots()));
+    if (kept.length < files.length) reportLimit();
+    for (const file of kept) acceptFile(file);
   };
 
   return (

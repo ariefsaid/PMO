@@ -129,7 +129,8 @@ function put(url: string, file: File | Blob, options: UploadTransportOptions): P
 
 // ── Error classification ────────────────────────────────────────────────────
 
-export type UploadErrorType = 'oversize' | 'type' | 'network' | 'server' | 'cancel' | 'timeout';
+/** `count`: the message already carries the most attachments it may. */
+export type UploadErrorType = 'oversize' | 'type' | 'count' | 'network' | 'server' | 'cancel' | 'timeout';
 
 export interface ClassifiedUploadError {
   type: UploadErrorType;

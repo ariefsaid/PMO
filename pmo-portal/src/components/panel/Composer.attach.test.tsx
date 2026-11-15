@@ -204,7 +204,7 @@ describe('Composer attachment count', () => {
 
     await waitFor(() =>
       expect(onAttachmentError).toHaveBeenCalledWith({
-        type: 'type',
+        type: 'count',
         message: 'You can attach up to 10 files to one message.',
       }),
     );
@@ -218,5 +218,68 @@ describe('Composer attachment count', () => {
     fireEvent.change(attachInput(), { target: { files: { 0: pdf(), length: 1 } } });
 
     await waitFor(() => expect(onAttachFile).toHaveBeenCalledWith(expect.any(File)));
+  });
+});
+
+describe('Composer attachment count under bursts', () => {
+  const pdf = (n: number) => new File(['pdf'], `quote-${n}.pdf`, { type: 'application/pdf' });
+  const limitError = { type: 'count', message: 'You can attach up to 10 files to one message.' };
+
+  function drop(files: File[]) {
+    const target = screen.getByRole('textbox', { name: 'Ask a question' }).closest('div.border-t') as HTMLElement;
+    fireEvent.drop(target, { dataTransfer: { files } });
+  }
+
+  it('dropping 11 files at once uploads 10 and reports the limit once', async () => {
+    const onAttachFile = vi.fn(() => new Promise<void>(() => {})); // uploads stay in flight
+    const onAttachmentError = vi.fn();
+    renderComposer({ onAttachFile, onAttachmentError, attachmentCount: 0 });
+
+    drop(Array.from({ length: 11 }, (_, i) => pdf(i)));
+
+    await waitFor(() => expect(onAttachFile).toHaveBeenCalledTimes(10));
+    expect(onAttachmentError).toHaveBeenCalledTimes(1);
+    expect(onAttachmentError).toHaveBeenCalledWith(limitError);
+  });
+
+  it('dropping well past the limit still reports it once', async () => {
+    const onAttachFile = vi.fn(() => new Promise<void>(() => {}));
+    const onAttachmentError = vi.fn();
+    renderComposer({ onAttachFile, onAttachmentError, attachmentCount: 7 });
+
+    drop(Array.from({ length: 6 }, (_, i) => pdf(i)));
+
+    await waitFor(() => expect(onAttachFile).toHaveBeenCalledTimes(3));
+    expect(onAttachmentError).toHaveBeenCalledTimes(1);
+    expect(onAttachmentError).toHaveBeenCalledWith(limitError);
+  });
+
+  it('two quick picks with 9 attached accept only one', async () => {
+    const onAttachFile = vi.fn(() => new Promise<void>(() => {}));
+    const onAttachmentError = vi.fn();
+    renderComposer({ onAttachFile, onAttachmentError, attachmentCount: 9 });
+
+    fireEvent.change(attachInput(), { target: { files: { 0: pdf(1), length: 1 } } });
+    fireEvent.change(attachInput(), { target: { files: { 0: pdf(2), length: 1 } } });
+
+    await waitFor(() => expect(onAttachmentError).toHaveBeenCalledWith(limitError));
+    expect(onAttachFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('a slot frees again when an upload fails', async () => {
+    let fail!: () => void;
+    const onAttachFile = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise<void>((_, reject) => { fail = () => reject(new Error('network')); }))
+      .mockImplementation(() => new Promise<void>(() => {}));
+    renderComposer({ onAttachFile, attachmentCount: 9 });
+
+    fireEvent.change(attachInput(), { target: { files: { 0: pdf(1), length: 1 } } });
+    await waitFor(() => expect(onAttachFile).toHaveBeenCalledTimes(1));
+    fail();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    fireEvent.change(attachInput(), { target: { files: { 0: pdf(2), length: 1 } } });
+    await waitFor(() => expect(onAttachFile).toHaveBeenCalledTimes(2));
   });
 });

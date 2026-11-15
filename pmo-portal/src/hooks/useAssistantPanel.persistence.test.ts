@@ -110,6 +110,31 @@ describe('useAssistantPanel openThread (FR-AGP-021)', () => {
     expect(result.current.runId).toBe('run-1');
   });
 
+  it('opening a thread clears the previous run\'s error code', async () => {
+    h.listRunEvents.mockResolvedValue([makeRow({ seq: 1, type: 'user', text: 'earlier question' })]);
+    const runtime = makeFakeRuntime();
+    (runtime.createRun as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'run-2', title: 't', status: 'running' });
+    (runtime.subscribe as ReturnType<typeof vi.fn>).mockReturnValue({
+      [Symbol.asyncIterator]: async function* () {
+        yield {
+          id: 'e1', runId: 'run-2', type: 'status', createdAt: '2026-07-03T00:00:00Z',
+          payload: { status: 'errored', error: 'PAYLOAD_TOO_LARGE' },
+        } as AgentEvent;
+      },
+    });
+    const { result } = renderHook(() => useAssistantPanel(), { wrapper: makeWrapper(runtime) });
+
+    await act(async () => {
+      await result.current.send('a long conversation');
+    });
+    expect(result.current.errorCode).toBe('PAYLOAD_TOO_LARGE');
+
+    await act(async () => {
+      await result.current.openThread('run-1');
+    });
+    expect(result.current.errorCode).toBeNull();
+  });
+
   it('AC-AGP-021 consecutive assistant rows merge into one transcript entry (client-side merge reproduced)', async () => {
     h.listRunEvents.mockResolvedValue([
       makeRow({ seq: 1, type: 'assistant', text: 'You have ' }),
