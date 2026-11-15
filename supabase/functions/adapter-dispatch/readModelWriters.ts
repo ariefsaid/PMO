@@ -10,6 +10,7 @@
  * does not live in this registry.
  */
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+import { accountingWriter } from './readModel/accounting.ts';
 import { budgetWriter } from './readModel/budget.ts';
 import { companiesWriter } from './readModel/companies.ts';
 import { equipmentWriter } from './readModel/equipment.ts';
@@ -30,6 +31,7 @@ export type {
 } from './readModel/types.ts';
 export { heldIdentityFor, markTimesheetPushOutcome } from './readModel/timesheets.ts';
 export { upsertProcurementItemMirror } from './readModel/procurement.ts';
+export { recordJournalHold } from './readModel/accounting.ts';
 
 export const READ_MODEL_WRITERS: Record<string, ReadModelWriter> = {
   reference: referenceWriter,
@@ -42,6 +44,7 @@ export const READ_MODEL_WRITERS: Record<string, ReadModelWriter> = {
   timesheets: timesheetsWriter,
   expenses: expensesWriter,
   inventory: inventoryWriter,
+  accounting: accountingWriter,
 };
 
 /** The single lookup point — an unknown domain throws (no silent skip). */
