@@ -665,3 +665,25 @@ test('FR-CTM-023 claim sources lists each source, whether it is still in the cla
     assert.deepEqual(r.json.sources, [{ source_id: SOURCE, date: '2026-01-05', who: 'Siti Engineer', units: 8, unit: 'hour', line: 'Site engineer', basis: 'work', in_claim: true }]);
   } finally { await f.close(); }
 });
+
+test('FR-CTM-024 claim deselect removes each named source once, skips one already out, then prints the new total', async () => {
+  const f = await fake({ ...READS(), 'POST /rest/v1/rpc/deselect_tm_source': [200, null] });
+  try {
+    const gone = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
+    const r = await cli(['tm', 'claim', 'deselect', CLAIM, SOURCE, gone, '--project', PROJECT, '--apply'], f);
+    assert.equal(r.code, 0, JSON.stringify(r.error));
+    assert.deepEqual(r.json.sources.map((s) => s.action), ['deselect', 'skip']);
+    assert.deepEqual(f.requests.filter((q) => q.path === '/rest/v1/rpc/deselect_tm_source').map((q) => q.body), [{ p_claim: CLAIM, p_source: SOURCE }]);
+    assert.equal(r.json.claim.gross_amount, 6000000);
+  } finally { await f.close(); }
+});
+
+test('D3 a claim command refuses a claim that is not on the named project, before any write', async () => {
+  const f = await fake({ ...READS(), 'POST /rest/v1/rpc/list_tm_claims': [200, []] });
+  try {
+    const r = await cli(['tm', 'claim', 'deselect', CLAIM, SOURCE, '--project', PROJECT, '--apply'], f);
+    assert.equal(r.code, 2);
+    assert.match(r.error.details.join(), /no claim .* on project/);
+    assert.deepEqual(writesSent(f), []);
+  } finally { await f.close(); }
+});

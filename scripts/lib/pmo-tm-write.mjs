@@ -8,7 +8,7 @@
  */
 import crypto from 'node:crypto';
 
-import { MAX_RATE_ROWS, RATE_LINE_COLUMNS, TmQueryError, isCalendarDate, summarisePreview, validatePreview } from './pmo-tm.mjs';
+import { MAX_RATE_ROWS, RATE_LINE_COLUMNS, TmQueryError, isCalendarDate, projectProblem, summarisePreview, validatePreview } from './pmo-tm.mjs';
 
 /** The database's T&M write tier — keep in step with `tm_write_rpcs` in `api_client_request_guard`. */
 export const TM_WRITE_RPCS = Object.freeze([
@@ -311,4 +311,38 @@ export async function claimSources(api, { claim }) {
     signoff_is_current: sources[0]?.signoff_is_current ?? null,
     sources: sources.map((s) => ({ source_id: s.id, date: s.entry_date, who: s.person_name ?? s.asset_name ?? s.person_id ?? s.asset_id, units: s.units, unit: s.unit, line: s.line_label, basis: s.basis, in_claim: s.is_selected })),
   };
+}
+
+/** D3: a claim is found only in its named project's list, before any write. */
+async function findClaim(api, { claim, project }) {
+  const problems = [];
+  if (!UUID.test(String(claim ?? ''))) problems.push('name the claim: <claim-id> (uuid) from `pmo tm claim list --project <id>`');
+  const problem = projectProblem(project);
+  if (problem) problems.push(problem);
+  if (problems.length) throw new TmQueryError(problems);
+  const [id, projectId] = [String(claim).toLowerCase(), String(project).toLowerCase()];
+  const found = (await readClaims(api, projectId)).find((row) => row.id === id);
+  if (!found) throw new TmQueryError([`no claim ${id} on project ${projectId}: list them with \`pmo tm claim list --project ${projectId}\``]);
+  return found;
+}
+
+const claimView = (claim) => ({ claim_id: claim.id, status: claim.status, period: `${claim.period_from} → ${claim.period_to}`, currency: claim.currency, gross_amount: claim.gross_amount, lines: claim.lines });
+
+/** `tm claim deselect <claim> <source>…`: one deselect_tm_source per source still in the Draft claim. */
+export async function deselectSources(api, { claim, project, sources }, { apply }) {
+  const found = await findClaim(api, { claim, project });
+  const ids = (sources ?? []).map((id) => String(id).toLowerCase());
+  if (ids.length === 0 || ids.some((id) => !UUID.test(id))) throw new TmQueryError(['name one or more source ids (uuid) from `pmo tm claim sources <claim-id>`']);
+  if (found.status !== 'Draft') throw new TmQueryError([`only a Draft claim can be changed (this one is ${found.status})`]);
+  const details = await readSources(api, found.id);
+  const plan = ids.map((id) => {
+    const source = details.find((row) => row.id === id);
+    if (!source || !source.is_selected) return { source_id: id, action: 'skip', reason: source ? 'already out of the claim' : 'not a source of this claim' };
+    return { source_id: id, action: 'deselect', date: source.entry_date, who: source.person_name ?? source.asset_name, units: source.units, unit: source.unit, line: source.line_label };
+  });
+  if (!apply) return { exit: 0, result: { applied: false, claim: claimView(found), sources: plan, next: 'Run the same command with --apply to take these sources out of the claim.' } };
+  for (const step of plan.filter((row) => row.action === 'deselect')) {
+    await write(api, 'deselect_tm_source', { p_claim: found.id, p_source: step.source_id }, `pmo tm claim sources ${found.id}`);
+  }
+  return { exit: 0, result: { applied: true, sources: plan, claim: claimView(await findClaim(api, { claim: found.id, project })) } };
 }
