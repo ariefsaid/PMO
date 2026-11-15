@@ -10,6 +10,14 @@ export function setFigureAgreementBudgetPositionOverride(reading: CanonicalBudge
   budgetPositionOverride = reading;
 }
 
+type ActualsOverride = { currency: string; categories: Array<{ category: string; mapped: boolean; amount: string | null }> };
+let actualsOverride: ActualsOverride | undefined;
+
+/** The finance read's spending by category (and its currency); the project total stays the budget position's spent. */
+export function setFigureAgreementActualsOverride(actuals: ActualsOverride | undefined): void {
+  actualsOverride = actuals;
+}
+
 let singleCurrencyContractCase = false;
 
 export function setFigureAgreementSingleCurrencyContractCase(enabled: boolean): void {
@@ -86,6 +94,7 @@ export function createFigureAgreementRepositoryModule<T extends { repositories: 
       ...moneyRead,
       actuals: {
         ...moneyRead.actuals,
+        ...actualsOverride,
         total: reading.spent,
         committedTotal: reading.openCommitment,
       },
@@ -94,7 +103,7 @@ export function createFigureAgreementRepositoryModule<T extends { repositories: 
   };
   const currentFinances = () => ({
     ...contractFinanceReading(),
-    actuals: { ...finances.actuals, total: currentBudgetPosition().spent },
+    actuals: { ...finances.actuals, ...actualsOverride, total: currentBudgetPosition().spent },
   });
   const invoices = [...fixture.billing.invoices, fixture.variations.unknownAndMixedCurrency.foreignInvoice].map((invoice) => ({
     ...invoice,

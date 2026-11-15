@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { budgetAgreementRoutes } from '@/src/test/figureAgreementRoutes';
 import { renderFigureAgreementRoute } from '@/src/test/figureAgreementHarness';
-import { setFigureAgreementBudgetPositionOverride, setFigureAgreementProcurementOverride } from '@/src/test/figureAgreementRepositoryMock';
+import { setFigureAgreementActualsOverride, setFigureAgreementBudgetPositionOverride, setFigureAgreementProcurementOverride } from '@/src/test/figureAgreementRepositoryMock';
 import type { CanonicalBudgetReading } from '@/src/lib/db/projectMoney';
 import type { ProjectMoneyRead } from '@/src/lib/db/projectMoney';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -47,7 +47,7 @@ const renderBudgetAgreementRoute = async () => {
   return renderFigureAgreementRoute(projectBudgetRoute);
 };
 
-afterEach(() => { setFigureAgreementBudgetPositionOverride(undefined); setFigureAgreementProcurementOverride(undefined); });
+afterEach(() => { setFigureAgreementBudgetPositionOverride(undefined); setFigureAgreementProcurementOverride(undefined); setFigureAgreementActualsOverride(undefined); });
 
 for (const route of budgetAgreementRoutes) {
   if (route.id === 'budget.projects.table' || route.id === 'budget.projects.cards') continue;
@@ -161,6 +161,48 @@ describe('S01 budget figure agreement on real screens', () => {
     await waitFor(() => expect(within(table).getByRole('row', { name: /Uncategorized/u })).toHaveTextContent('$500'));
     expect(within(table).getAllByRole('row', { name: /Uncategorized/u })).toHaveLength(1);
     expect(within(table).getByRole('row', { name: /Uncategorized/u })).toHaveTextContent('$400');
+  });
+
+  it('#2261 with part of the spending mapped, the rows add up to the Spent total to the cent and nothing is counted twice', async () => {
+    setFigureAgreementActualsOverride({
+      currency: 'USD',
+      categories: [
+        { category: 'Labor', mapped: false, amount: null },
+        { category: 'Equipment', mapped: true, amount: '100.10' },
+        { category: 'Travel', mapped: true, amount: '0.20' },
+      ],
+    });
+    await renderBudgetAgreementRoute();
+    const table = await screen.findByRole('table', { name: 'Budget vs actual by category' });
+    // The screen rounds to whole units: $500 total less the mapped $100.10 and $0.20 leaves $399.70 unmapped.
+    await waitFor(() => expect(within(table).getByRole('row', { name: /Uncategorized/u })).toHaveTextContent('$400'));
+    expect(within(table).getAllByRole('row', { name: /Uncategorized/u })).toHaveLength(1);
+    expect(within(table).getByRole('row', { name: /^Total/u })).toHaveTextContent('$500');
+
+    // The export carries the exact figures: every row's Spent, read as written, adds up to the $500.00 total.
+    const blobs: Blob[] = [];
+    vi.stubGlobal('URL', { createObjectURL: (blob: Blob) => { blobs.push(blob); return 'blob:budget'; }, revokeObjectURL: () => undefined });
+    try {
+      fireEvent.click(screen.getByRole('button', { name: 'Export' }));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    const [header, ...lines] = (await blobs[0].text()).split('\r\n').map((line) => line.split(',').map((cell) => cell.replace(/^"|"$/gu, '')));
+    const spentIndex = header.findIndex((cell) => cell.startsWith('Spent'));
+    const spent = Object.fromEntries(lines.map((line) => [line[0], line[spentIndex]]));
+    expect(spent).toEqual({ Labor: '', Equipment: '100.1', Travel: '0.2', Uncategorized: '399.7' });
+    expect(Object.values(spent).reduce((cents, value) => cents + (value ? Math.round(Number(value) * 100) : 0), 0)).toBe(50000);
+  });
+
+  it('#2261 never moves spending read in another currency into the Uncategorized row', async () => {
+    setFigureAgreementActualsOverride({
+      currency: 'EUR',
+      categories: [{ category: 'Labor', mapped: true, amount: '100.00' }],
+    });
+    await renderBudgetAgreementRoute();
+    const table = await screen.findByRole('table', { name: 'Budget vs actual by category' });
+    await waitFor(() => expect(within(table).getByRole('row', { name: /Labor/u })).toHaveTextContent(/100/u));
+    expect(within(table).queryByRole('row', { name: /Uncategorized/u })).toBeNull();
   });
 
   it('shows an unknown budget-used reading as unknown, never zero', async () => {

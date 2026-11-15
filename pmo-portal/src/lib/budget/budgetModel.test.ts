@@ -193,6 +193,13 @@ describe('withUnmappedSpending (#2261)', () => {
     expect(rows[1]).toMatchObject({ spent: 500, committed: 400, unmappedSpent: 500 });
   });
 
+  it('works in whole cents, so the rows add up to the total exactly', () => {
+    const rows = withUnmappedSpending([row('Uncategorized', 0.1), row('Travel', null)], 0.3, true);
+    expect(rows[0]).toMatchObject({ spent: 0.3, unmappedSpent: 0.2 });
+    const appended = withUnmappedSpending([row('Equipment', 100.1), row('Travel', 0.2), row('Labor', null)], 500.3, true);
+    expect(appended.at(-1)).toMatchObject({ spent: 400, unmappedSpent: 400 });
+  });
+
   it('leaves commitments unknown on a new row when orders cannot be read', () => {
     expect(withUnmappedSpending([row('Labor', null)], 500, false).at(-1)?.committed).toBeNull();
   });

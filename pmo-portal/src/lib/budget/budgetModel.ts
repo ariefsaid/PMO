@@ -1,3 +1,5 @@
+import { toCents } from '@/src/lib/moneyCents';
+
 export interface BudgetLineLike {
   id?: string;
   category: string;
@@ -140,11 +142,13 @@ export type SpendingRow = BudgetSummaryRow & { unmappedSpent?: number };
  */
 export function withUnmappedSpending(rows: BudgetSummaryRow[], totalSpent: number | null, canReadProcurements: boolean): SpendingRow[] {
   if (totalSpent === null) return rows;
-  const unmapped = Math.round((totalSpent - rows.reduce((sum, row) => sum + (row.spent ?? 0), 0)) * 100) / 100;
-  if (unmapped <= 0) return rows;
+  // Whole cents throughout, so the rows add up to the total exactly (no float drift).
+  const unmappedCents = toCents(totalSpent) - rows.reduce((sum, row) => sum + toCents(row.spent ?? 0), 0);
+  if (unmappedCents <= 0) return rows;
+  const unmapped = unmappedCents / 100;
   const existing = rows.find((row) => row.category === UNCATEGORIZED);
   if (existing) {
-    return rows.map((row) => row === existing ? { ...row, spent: (row.spent ?? 0) + unmapped, unmappedSpent: unmapped } : row);
+    return rows.map((row) => row === existing ? { ...row, spent: (toCents(row.spent ?? 0) + unmappedCents) / 100, unmappedSpent: unmapped } : row);
   }
   return [...rows, { category: UNCATEGORIZED, budget: 0, spent: unmapped, committed: canReadProcurements ? 0 : null, lines: [], unmappedSpent: unmapped }];
 }
