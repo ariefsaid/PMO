@@ -152,7 +152,8 @@ describe('external-set-company — Odoo activate', () => {
   it('FR-ODC-020 activation runs discovery without reading the installed-modules model', async () => {
     const r = await call({ companyId: 1 });
     assertEquals(r.fake.calls.some((c) => c.model === 'ir.module.module'), false);
-    assertEquals(r.fake.calls.some((c) => c.method === 'fields_get' && c.model === 'res.partner'), true);
+    assertEquals(r.fake.calls.some((c) => c.method === 'search_read' && c.model === 'ir.model.fields'), true);
+    assertEquals(r.fake.calls.some((c) => c.method === 'has_access' && c.model === 'res.partner'), true);
   });
 
   for (const version of [19, null]) {

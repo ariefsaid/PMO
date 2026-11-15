@@ -300,7 +300,7 @@ describe('odooSweep — AC-ODC-025 budget and outcomes', () => {
 
   it('AC-ODC-025 capabilities older than a day are discovered again and stored', async () => {
     const r = await sweep({ binding: binding({ config: { database: 'db1', odoo_company_id: 1, capabilities: { observed_at: '2026-01-01T00:00:00Z', missing: [], models: {} } } }) });
-    assert(r.fake.calls.some((c) => c.method === 'fields_get'));
+    assert(r.fake.calls.some((c) => c.model === 'ir.model' && c.method === 'search_read'));
     assert(stored(r.calls)?.capabilities);
   });
 
@@ -863,7 +863,7 @@ describe('odooSweep — #1507 S3 ledger feed', () => {
     assertEquals('ok' in r.result && r.result.failed, undefined);
     assertEquals('ok' in r.result && r.result.ledger, { rows: 0, caughtUp: false, skipped: 0, failed: 'server-error' });
     assertEquals(r.ledger.applied, 0);
-    assert(r.fake.calls.some((c) => c.method === 'fields_get'), 're-discovery ran');
+    assert(r.fake.calls.some((c) => c.model === 'ir.model' && c.method === 'search_read'), 're-discovery ran');
   });
 });
 

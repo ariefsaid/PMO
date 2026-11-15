@@ -26,6 +26,9 @@ const FIELDS: Record<string, string[]> = {
   'purchase.order': ['name', 'state', 'partner_id', 'partner_ref', 'origin', 'date_order', 'order_line', 'amount_untaxed', 'amount_total', 'currency_id', 'company_id', 'create_date', 'write_date'],
   'purchase.order.line': ['name', 'order_id', 'product_id', 'product_qty', 'price_unit', 'uom_id', 'qty_received', 'qty_invoiced', 'analytic_distribution', 'write_date'],
   'ir.model.data': ['module', 'name', 'model', 'res_id', 'write_date'],
+  // The model and field directories (#2118): their rows are derived from this table, so a dropped model or field is gone from them too.
+  'ir.model': ['model', 'name'],
+  'ir.model.fields': ['model', 'name', 'ttype'],
   'account.payment': ['name', 'state', 'memo', 'amount', 'partner_id', 'payment_type', 'partner_type', 'journal_id', 'payment_method_line_id', 'currency_id', 'date', 'move_id', 'reconciled_bill_ids', 'reconciled_invoice_ids', 'is_reconciled', 'is_matched', 'create_date', 'write_date'],
   'account.journal': ['name', 'code', 'type', 'company_id', 'active', 'inbound_payment_method_line_ids', 'outbound_payment_method_line_ids', 'default_account_id', 'write_date'],
   'account.move': ['name', 'move_type', 'state', 'partner_id', 'ref', 'invoice_date', 'invoice_date_due', 'invoice_line_ids', 'amount_untaxed', 'amount_tax', 'amount_total', 'amount_residual', 'payment_state', 'reversed_entry_id', 'currency_id', 'company_id', 'invoice_origin', 'create_date', 'write_date'],
@@ -399,9 +402,31 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     return { name: 'Payments', type: 'ir.actions.act_window', res_model: 'account.payment', context: { create: false }, view_mode: 'form', res_id: paymentId };
   };
 
+  /** `ir.model` and `ir.model.fields` answer from the declared field lists, the way Odoo's directories mirror its registry. */
+  const directory = (m: string): Row[] | null => {
+    if (m === 'ir.model') return Object.keys(fields).map((model, i) => ({ id: i + 1, model, name: model }));
+    if (m === 'ir.model.fields') return Object.entries(fields).flatMap(([model, fs]) => fs.map((name) => ({ model, name, ttype: 'char' }))).map((r, i) => ({ ...r, id: i + 1 }));
+    return null;
+  };
+
+  /** Odoo's one2many update command on a transfer's moves (`[1, id, vals]`): each listed move is written as a direct write would. */
+  const updatePickingMoves = (picking: Row, commands: unknown) => {
+    if (!Array.isArray(commands)) throw rejected('Invalid move_ids commands');
+    const own = Array.isArray(picking.move_ids) ? picking.move_ids as number[] : [];
+    for (const command of commands) {
+      const [op, moveId, vals] = command as [unknown, unknown, Record<string, unknown>];
+      const move = typeof moveId === 'number' && own.includes(moveId) ? table('stock.move').get(moveId) : undefined;
+      if (op !== 1 || !move || !vals || typeof vals !== 'object') throw rejected('fakeOdoo: only an update of the transfer\'s own moves is modelled');
+      refuseUnknownFields('stock.move', Object.keys(vals));
+      Object.assign(move, vals, { write_date: fmt(++clock) });
+    }
+  };
+
   const methods: Record<string, (model: string, body: Record<string, unknown>) => unknown> = {
     search_read: (m, b) => {
       refuseUnknownFields(m, (b.fields as string[] | undefined) ?? []);
+      const listed = directory(m);
+      if (listed) return listed.filter((r) => matches(r, (b.domain ?? []) as Domain)).map((r) => pick(r, b.fields as string[] | undefined));
       return select(m, b).map((r) => pick(shaped(m, r), b.fields as string[] | undefined));
     },
     search: (m, b) => select(m, b).map((r) => r.id),
@@ -462,6 +487,12 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
       for (const id of b.ids as number[]) {
         const r = table(m).get(id);
         if (!r) continue;
+        if (m === 'stock.picking' && 'move_ids' in vals) {
+          const { move_ids: commands, ...others } = vals;
+          updatePickingMoves(r, commands);
+          table(m).set(id, { ...r, ...others, id, write_date: fmt(++clock) });
+          continue;
+        }
         const { order_line: lines, ...rest } = vals;
         table(m).set(id, { ...r, ...(m === 'purchase.order' && lines ? rest : vals), id, write_date: fmt(++clock) });
         if (m === 'purchase.order' && Array.isArray(lines)) applyLines(id, lines as unknown[][]);
