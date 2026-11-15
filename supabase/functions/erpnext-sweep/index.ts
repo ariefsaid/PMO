@@ -108,7 +108,7 @@ import { feedAccountMirror } from '../../../pmo-portal/src/lib/adapterSeam/erpne
 import { refreshAccountingSnapshots, type OrgAccountingScope } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountingFanout.ts';
 import { dispatchMoneyWrite as dispatchMoneyWriteCore, type DispatchMoneyWriteDeps, type ExternalRefMapping, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
-import { erpnextRequest, ErpError, getDoc, withProbeBudget, ERP_PROBE_TIMEOUT_MS, type ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
+import { ErpError, getDoc, withProbeBudget, ERP_PROBE_TIMEOUT_MS, type ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { AdapterError } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { readJsonBounded, fetchWithDeadline, FetchDeadlineError } from '../_shared/fetchWithDeadline.ts';
 import { recordErrorEvent, type ErrorEventSupabaseLike } from '../_shared/errorEvent.ts';
@@ -142,7 +142,7 @@ import { admitsDocForBindingCompany } from '../../../pmo-portal/src/lib/adapterS
 // IDENTICAL guard (round-9 FIX 1). Re-exported below so this module's existing test imports still resolve.
 import { createInFlightAnchorProbe, type InFlightAnchorProbe } from '../_shared/inFlightAnchorProbe.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
-import { findOutboxRowByKey, outboxRowOf } from './outboxRows.ts';
+import { findOutboxRowByKey } from './outboxRows.ts';
 import {
   type ErpSweepCadence, fullSweepDue, HOURLY_INVOCATION_DEADLINE_MS, SWEEP_BACKFILL_EVERY_MINUTES, SWEEP_FULL_INTERVAL_MS,
   SWEEP_RETRY_DELAY_SECONDS, statementPassDue, STATEMENT_PASS_INTERVAL_MS, STATEMENT_PASS_RETRY_DELAY_SECONDS, sweepCadenceAt,
@@ -242,6 +242,8 @@ import {
 import { timesheetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/timesheetPushKey.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 import { withJobRun, type JobSummary } from '../_shared/jobRun.ts';
+import { type ListOutboxCandidates, DOMAIN_FEATURE_KEY, featureDisabled, type OrgBinding, fetchErpDoc, erpClientForOrg, listRetryPendingLive, listCandidatesLive, stampQueueAttempt, byQueueFairness } from './sweepShared.ts';
+export { type ListOutboxCandidates, DOMAIN_FEATURE_KEY, featureDisabled } from './sweepShared.ts';
 
 export { createInFlightAnchorProbe, type InFlightAnchorProbe };
 
@@ -394,10 +396,6 @@ export function buildOutboxProbe(args: {
 //     candidate so the sweep path and the retry path share ONE reconciliation algorithm.
 // ────────────────────────────────────────────────────────────────────────────────────────────────
 
-/** Lists outbox reconcile candidates for an org via the SECURITY DEFINER RPC (mig 0095). The
- *  candidate rows are the `OutboxRow` camelCase shape `dispatchMoneyWrite` consumes. */
-export type ListOutboxCandidates = (orgId: string) => Promise<OutboxRow[]>;
-
 /** Builds the DispatchMoneyWriteDeps for one candidate row (the sweep wires the real outbox deps +
  *  adapter + read-model writers per org; the test injects mocks). Async-capable so the live wiring can
  *  resolve the adapter/binding; a sync mock (`() => deps`) still satisfies it (await on a value is a value). */
@@ -409,26 +407,6 @@ export interface ReconcileOrgOutboxResult {
   /** Per-candidate outcomes (`ok` on a terminal reconcile; `error` when dispatchMoneyWrite threw — the
    *  sweep logs + continues so one bad row does not abort the pass). */
   errors: Array<{ id: string; error: string }>;
-}
-
-/**
- * domain → the plan switch that entitles it (0534). A domain with no switch (`budget`, core
- * `expenses`) is never held here. `companies` is the CRM master feed.
- */
-export const DOMAIN_FEATURE_KEY: Record<string, string> = {
-  procurement: 'procurement',
-  revenue: 'revenue',
-  companies: 'crm',
-};
-
-/** True when 0534's entitlement read says this org's module is switched off. A read that FAILED for this
- *  org holds every gated key (fail-closed): "we could not read the switch" is never evidence it is on.
- *  Terminal recovery is unaffected — a candidate ERP already accepted still finalizes (see the pass). */
-export function featureDisabled(
-  org: { disabledFeatureKeys?: readonly string[]; featuresUnreadable?: boolean },
-  key: string,
-): boolean {
-  return org.featuresUnreadable === true || (org.disabledFeatureKeys ?? []).includes(key);
 }
 
 /**
@@ -561,45 +539,6 @@ export async function reconcileOrgOutbox(
 // ────────────────────────────────────────────────────────────────────────────────────────────────
 // (2)+(3)+(4) The per-org sweep cycle: doctype modified-poll → ledger feed → accounting refresh.
 // ────────────────────────────────────────────────────────────────────────────────────────────────
-
-/** A loaded per-org ERPNext binding (the external_org_bindings row, PMO-shaped). */
-interface OrgBinding {
-  orgId: string;
-  /** Present on live bindings; optional only for backward-compatible legacy test fixtures. */
-  bindingId?: string | null;
-  siteUrl: string;
-  secretRef: string;
-  company: string;
-  config: Record<string, unknown>;
-  /** Luna BLOCK 9: the PMO domains this org actually assigned to the ERPNext tier
-   *  (`external_domain_ownership`) — the sweep polls only these. */
-  ownedDomains: string[];
-  // task FIX-6 (Quality MINOR 4): the handshake-stamped ERPNext major version lives on the
-  // `external_org_bindings.version_major` COLUMN (§4.1), never inside `config` (which has no
-  // `version` key — `report_filter_shape`/`aging_report_names`/the account defaults live there).
-  versionMajor: number | null;
-  /** AC-TSP-022: the moment this org's ERPNext binding was activated. The timesheet backstop's
-   *  `absent` queue is scoped to it — hours approved BEFORE the integration existed are never
-   *  retroactively posted to the client's ledger by a background sweep. OPTIONAL so the existing
-   *  per-pass tests keep their fixtures byte-for-byte; absent/null ⇒ the `absent` queue yields NOTHING,
-   *  which is the fail-safe answer (never a retroactive push). `listEmployingOrgsLive` always sets it. */
-  activatedAt?: string | null;
-  /** Holder fence for statement-source writes in this sweep tick. */
-  statementLockHolder?: string;
-  statementReplayNeeded?: boolean;
-  /** 0534: the plan-switch keys that resolve OFF for this org (service_resolved_org_features).
-   *  OPTIONAL so existing per-pass/cycle fixtures stay byte-for-byte; absent ⇒ nothing is held. */
-  disabledFeatureKeys?: string[];
-  /** 0534: this org's entitlement read FAILED this tick. Set only for the org whose read failed, and it
-   *  holds every gated key for it (fail-closed) while terminal recovery still runs. OPTIONAL so existing
-   *  fixtures stay byte-for-byte; absent ⇒ the read succeeded (or was never attempted). */
-  featuresUnreadable?: boolean;
-  /** 0358: when this org's full (hourly) sweep last completed under its lock; null = never / unknown. */
-  lastFullSweepAt?: string | null;
-  /** 0642: when this org's native statement pass last PUBLISHED (its own marker, independent of the
-   *  full run); null = never / unknown. Optional so existing cycle fixtures stay byte-for-byte. */
-  lastStatementPassAt?: string | null;
-}
 
 /**
  * 0642 — one native statement pass outcome, as the shipped `refreshStatementReportBatch` reports it.
@@ -1342,45 +1281,6 @@ async function allActiveBindingsHavePublishedStatementGeneration(serviceClient: 
     if (recentAcquisitionActive || recentBatchActive) return false;
   }
   return true;
-}
-
-/** Re-read ONE ERP doc in full (Luna BLOCK 6) — the list endpoint omits child tables, and a Receive
- *  Payment Entry's `references` child rows carry the Sales Invoice link the money read-model needs. */
-async function fetchErpDoc(client: ErpClientDeps, doctype: string, name: string): Promise<Record<string, unknown>> {
-  const body = await erpnextRequest(client, {
-    method: 'GET',
-    path: `/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`,
-  });
-  return ((body as { data?: Record<string, unknown> } | null)?.data ?? {}) as Record<string, unknown>;
-}
-
-// #651 / ADR-0072: ONE resolver for both directions — `_shared/erpAuthPair.ts`. The inline Vault-first
-// block that used to live here (and its env-fallback-on-vault-error) is gone: a store that cannot answer
-// now refuses (FR-ENA-018). `cache` is optional so the per-pass unit tests keep their two-arg call.
-async function erpClientForOrg(
-  serviceClient: SupabaseClient,
-  org: OrgBinding,
-  cache?: ErpAuthPairCache,
-): Promise<ErpClientDeps> {
-  const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, org, cache);
-  return { fetchImpl: guardedErpFetch(org.siteUrl), apiKey, apiSecret, baseUrl: org.siteUrl };
-}
-
-/** The outbox-recovery listCandidates RPC wrapper (camelCase → OutboxRow). */
-/** 0357: the org's `failed` outbox rows still waiting out their retry delay (not due, not exhausted). */
-async function listRetryPendingLive(serviceClient: SupabaseClient, orgId: string): Promise<ReadonlySet<string>> {
-  const { data, error } = await serviceClient.rpc('outbox_retry_pending', { p_org_id: orgId });
-  if (error) throw new AppError(error.message, error.code);
-  return new Set(((data as unknown[] | null) ?? []).map(String));
-}
-
-function listCandidatesLive(serviceClient: SupabaseClient): ListOutboxCandidates {
-  return async (orgId: string) => {
-    const { data, error } = await serviceClient.rpc('outbox_reconcile_candidates', { p_org_id: orgId });
-    if (error) throw new AppError(error.message, error.code);
-    const rows = (data as Array<Record<string, unknown>> | null) ?? [];
-    return rows.map(outboxRowOf);
-  };
 }
 
 // ── #916: the doctype walk's per-tick budgets ──────────────────────────────────────────────────
@@ -2329,23 +2229,6 @@ function holdBudgetMirrorRow(
     // the SAME eligibility `listPendingBudgetPushes` asserted — never a state this pass did not observe
     .in('push_state', ['pending', 'failed'])
     .is('erp_cancelled_at', null);
-}
-
-/** THEME-BACK-06 (0427): stamp the rows a queue pass just selected, so the next tick serves the rows it
- *  did NOT select first. Written for rows that are skipped, waiting or failing too — that is the point. */
-async function stampQueueAttempt(serviceClient: SupabaseClient, table: string, orgId: string, column: string, ids: string[]): Promise<void> {
-  if (ids.length === 0) return;
-  const { error } = await serviceClient.from(table)
-    .update({ last_attempt_at: new Date().toISOString() }).eq('org_id', orgId).in(column, ids);
-  if (error) throw new AppError(error.message, error.code);
-}
-
-/** The queues' fair order, as a comparator over the rows' own keys: never attempted first, then the
- *  longest-waiting, then the oldest, then id (the same total order the SQL `order by` uses). */
-function byQueueFairness(a: { last_attempt_at?: string | null; created_at?: string | null; id?: string | null }, b: { last_attempt_at?: string | null; created_at?: string | null; id?: string | null }): number {
-  return (a.last_attempt_at ?? '').localeCompare(b.last_attempt_at ?? '')
-    || (a.created_at ?? '').localeCompare(b.created_at ?? '')
-    || (a.id ?? '').localeCompare(b.id ?? '');
 }
 
 /** The synthetic candidate state for a budget push whose OUTBOX row exists but whose mirror row does
