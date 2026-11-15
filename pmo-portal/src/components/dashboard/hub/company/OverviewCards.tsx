@@ -19,7 +19,7 @@ import { budgetSpendKnown } from './financeData';
 import { budgetVsSpentRows } from './overviewData';
 import { openPipelineStages, stageCurrencyState } from './pipelineStages';
 
-const linkClass = 'inline-flex items-center gap-1 text-control font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
+const linkClass = 'hit-area-24 inline-flex items-center gap-1 text-control font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 export const CardLink: React.FC<{ to: string; children: React.ReactNode }> = ({ to, children }) => (
   <Link to={to} className={linkClass}><span>{children}</span><Icon name="chev" className="size-4" /></Link>
 );

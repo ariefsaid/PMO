@@ -207,8 +207,8 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
           onClick={() => setExpanded((v) => !v)}
           className={
             expanded
-              ? '[&_svg]:rotate-90 [&_svg]:transition-transform'
-              : '[&_svg]:transition-transform'
+              ? 'hit-area-24 [&_svg]:rotate-90 [&_svg]:transition-transform'
+              : 'hit-area-24 [&_svg]:transition-transform'
           }
         >
           <Icon name="chev" />
