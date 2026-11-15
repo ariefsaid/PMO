@@ -109,6 +109,8 @@ export interface ProjectDetailHeaderProps {
   onEditProject?: () => void;
   /** The one filled action for the project's state, top-right of the title row (UX AC1/AC2). */
   primaryAction?: React.ReactNode;
+  /** The tab's own body holds the one filled action (e.g. Budget "Save lines"): Edit sits in the record menu. */
+  editInMenuOnly?: boolean;
   /** Redesign shell: identity only — no money strip (money lives in its own block), quieter actions. */
   compact?: boolean;
   /** Place compact canonical budget figures beside the desktop project facts when the page owns that row. */
@@ -302,6 +304,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   commitmentError = false,
   onEditProject,
   primaryAction,
+  editInMenuOnly = false,
   compact = false,
   editValueRequest = 0,
   secondaryAction,
@@ -562,7 +565,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   // The state's own verb (Raise invoice, Chase payment) is the primary action when the page offers one;
   // otherwise Edit is. Edit stays one click away either way.
   // Phone keeps the header to one row: Edit moves into the menu there.
-  const editInMenu = canEdit && ((compact && !isDesktopHeader) || primaryRendered);
+  const editInMenu = canEdit && ((compact && !isDesktopHeader) || primaryRendered || editInMenuOnly);
   const editButton = canEdit && !editInMenu ? (
     <Button variant="primary" size="sm" className="touch-target" onClick={onEditProject}>
       {t('projectDetail.header.action.edit', 'Edit')}

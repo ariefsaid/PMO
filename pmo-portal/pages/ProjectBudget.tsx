@@ -904,11 +904,16 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     ...(!authoringRefreshNeeded && canWrite && version.status === 'Draft' ? [{ label: t('financeCopy.deleteDraft', 'Delete draft'), onClick: () => requestDeleteDraft(version.id), danger: true }] : []),
   ];
 
+  // The version name is printed once: the default name already carries its number ("Budget v1").
+  const draftLabel = draftVersion ? (draftVersion.name.includes(`v${draftVersion.version}`) ? draftVersion.name : `${draftVersion.name} · v${draftVersion.version}`) : '';
+  // No amounts saved yet: the banner states the next step in order instead of a waiting-for-approval verdict.
+  const draftHasLines = (draftVersion?.line_items.length ?? 0) > 0;
+
   const draftEditor = draftVersion && canWrite ? (
     <section key={editorGeneration} hidden={!draftEditorOpen || selectedVersion?.id !== draftVersion.id || view !== 'actual'} aria-label={t('projectDetail.budget.draftEditor', 'Draft budget editor')} className="min-w-0 space-y-3" data-testid="budget-draft-editor">
       <fieldset disabled={authoringRefreshNeeded} className="min-w-0 space-y-3 border-0 p-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold">{draftVersion.name} · v{draftVersion.version}</h3>
+        <h3 className="text-sm font-semibold">{draftLabel}</h3>
         <div className="flex flex-wrap items-center gap-2">
           {canPaste && <Button variant="outline" size="sm" onClick={() => setPasteTargetId(draftVersion.id)}>{t('budgetPaste.open', 'Paste rows')}</Button>}
           <Button variant="outline" size="sm" onClick={() => setModeSwitchOpen(true)}>{t('projectDetail.budget.changeBudgetMode', 'Change budget mode')}</Button>
@@ -1017,7 +1022,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <StatusPill record="budgetVersion" state="Draft" />
               <h3 className="font-semibold">{t('projectDetail.budget.draftReturned', 'Draft returned to the drafter')}</h3>
-              <span className="text-sm text-muted-foreground">{draftVersion.name} · v{draftVersion.version}</span>
+              <span className="text-sm text-muted-foreground">{draftLabel}</span>
             </div>
             <p className="mt-1 text-sm text-foreground">{t('projectDetail.budget.returnedReasonLine', 'Reason: {{reason}}', { reason: draftVersion.return_reason })}</p>
             <p className="mt-1 text-sm text-muted-foreground">{t('projectDetail.budget.returnedWaitingResubmit', 'Not waiting for approval until it is resubmitted.')}</p>
@@ -1034,14 +1039,15 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <StatusPill record="budgetVersion" state="Draft" />
-              <h3 className="font-semibold">{t('projectDetail.budget.draftWaiting', 'Draft waiting for approval')}</h3>
-              <span className="text-sm text-muted-foreground">{draftVersion.name} · v{draftVersion.version}</span>
+              <h3 className="font-semibold">{draftHasLines ? t('projectDetail.budget.draftWaiting', 'Draft waiting for approval') : t('projectDetail.budget.draftNew', 'New draft budget')}</h3>
+              <span className="text-sm text-muted-foreground">{draftLabel}</span>
             </div>
-            {!canActivate && <p role="status" className="mt-1 text-sm text-muted-foreground">{activateBlockedReason ?? t('projectDetail.budget.waitingForFinance', 'Waiting for approval by finance')}</p>}
-            {canActivate && !hasOpenLineBuffers && <p className="mt-1 text-sm text-muted-foreground">{t('projectDetail.budget.draftReady', 'This draft is ready for an eligible approver to activate.')}</p>}
-            {canActivate && hasOpenLineBuffers && <p role="status" className="mt-1 text-sm text-muted-foreground">{t('projectDetail.budget.saveOrDiscardLines', 'Save or discard all open line item edits before activating.')}</p>}
+            {!draftHasLines && <p role="status" className="mt-1 text-sm text-muted-foreground" data-testid="budget-draft-next-step">{t('projectDetail.budget.draftEnterAmounts', 'Next: enter the amounts below and save them. Then an approver activates the budget.')}</p>}
+            {draftHasLines && !canActivate && <p role="status" className="mt-1 text-sm text-muted-foreground">{activateBlockedReason ?? t('projectDetail.budget.waitingForFinance', 'Waiting for approval by finance')}</p>}
+            {draftHasLines && canActivate && !hasOpenLineBuffers && <p className="mt-1 text-sm text-muted-foreground">{t('projectDetail.budget.draftReady', 'This draft is ready for an eligible approver to activate.')}</p>}
+            {draftHasLines && canActivate && hasOpenLineBuffers && <p role="status" className="mt-1 text-sm text-muted-foreground">{t('projectDetail.budget.saveOrDiscardLines', 'Save or discard all open line item edits before activating.')}</p>}
             <div data-testid="budget-readiness-summary" aria-live="polite" className="mt-2 text-sm text-muted-foreground">
-              {readinessMessages.map((message, index) => <p key={`${index}-${message}`}>{message}</p>)}
+              {draftHasLines && readinessMessages.map((message, index) => <p key={`${index}-${message}`}>{message}</p>)}
             </div>
             {!canWrite && draftMode === 'whole_project' && budgetDistributionQuery.isError && (
               <Button variant="outline" size="sm" className="mt-2" onClick={() => { void budgetDistributionQuery.refetch(); }}>

@@ -247,6 +247,17 @@ describe('ProjectBudget Option A', () => {
     expect(row).toHaveTextContent('At risk');
   });
 
+  it('design-1115: a first draft with no amounts prints its name once and states the next step, with no readiness verdict', () => {
+    state.role = 'Project Manager';
+    state.versions.data = [draft({ name: 'Budget v1', version: 1, line_items: [], total: 0 }) as unknown as BudgetVersionWithItems];
+    renderPage();
+    const banner = screen.getByTestId('budget-draft-banner');
+    expect(banner.textContent?.match(/Budget v1/gu)).toHaveLength(1);
+    expect(banner).toHaveTextContent('enter the amounts below and save them');
+    expect(banner).not.toHaveTextContent('Draft waiting for approval');
+    expect(screen.getByTestId('budget-readiness-summary')).toBeEmptyDOMElement();
+  });
+
   it('renders the approved summary, category columns, versions card, draft waiting banner, and bulk actions', async () => {
     // This case includes the Finance-only activation affordance; PM read access and SoD stay
     // covered by the PM summary and activation/PM-draft cases below.

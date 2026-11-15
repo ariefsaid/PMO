@@ -617,6 +617,8 @@
       "title": "Anggaran proyek",
       "noMoneyAccess": "Detail anggaran tersedia bagi manajemen proyek dan tim keuangan.",
       "draftWaiting": "Draf menunggu persetujuan",
+      "draftNew": "Draf anggaran baru",
+      "draftEnterAmounts": "Berikutnya: isi jumlahnya di bawah dan simpan. Lalu seorang penyetuju mengaktifkan anggaran ini.",
       "waitingForFinance": "Menunggu persetujuan tim keuangan",
       "activationSeparationNextStep": "Penyusun dan pengaktif harus orang yang berbeda. Minta Admin atau Finance yang berwenang dan tidak mengedit draf ini untuk mengaktifkannya.",
       "saveOrDiscardLines": "Simpan atau batalkan semua edit item baris yang terbuka sebelum mengaktifkan.",

@@ -324,6 +324,22 @@ describe('ProjectDetailHeader — content', () => {
     expect(onEditAgain).toHaveBeenCalledOnce();
   });
 
+  it('design-1115: a tab that holds its own filled action (Budget Save lines) leaves Edit in the ⋯ menu', async () => {
+    const onEditProject = vi.fn();
+    render(
+      <MemoryRouter>
+        <ToastProvider>
+          <ProjectDetailHeader project={onHand} compact editInMenuOnly onEditProject={onEditProject} commitmentSource="not-tracked" ledgerBasis="erp" />
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+    const header = within(screen.getByTestId('record-header'));
+    expect(header.queryByRole('button', { name: /^Edit$/i })).not.toBeInTheDocument();
+    await userEvent.click(header.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit' }));
+    expect(onEditProject).toHaveBeenCalledOnce();
+  });
+
   it('keeps the JISDOR caption on one compact line after the original amount', () => {
     renderHeader('Finance');
     const tile = screen.getAllByTestId('stat-tile')[0];

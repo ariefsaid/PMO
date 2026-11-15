@@ -29,6 +29,7 @@ import ProjectFormModal from '../../components/ProjectFormModal';
 import ProjectSections, { PrimaryProjectAction } from './ProjectSections';
 import { areaFromParam, type Area } from './projectDetailAreas';
 import BudgetHeaderAction from './budget/BudgetHeaderAction';
+import BudgetTabHeader from './budget/BudgetTabHeader';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs; showBudgetFigures: boolean }> = ({ project, showBudgetFigures }) => {
@@ -230,9 +231,10 @@ const ProjectDetail: React.FC = () => {
     );
   }
 
+  const HeaderForArea = area === 'budget' ? BudgetTabHeader : ProjectDetailHeader;
   const header = (
     <>
-      <ProjectDetailHeader project={project} onEditProject={openEditProject} compact
+      <HeaderForArea project={project} onEditProject={openEditProject} compact
         primaryAction={primaryActionAllowed ? <span className="hidden md:inline-flex"><PrimaryProjectAction project={project} isPipeline={isPipelineRecord} chaseOnly={chaseOnly} /></span>
           : area === 'budget' ? <span className="hidden md:inline-flex"><BudgetHeaderAction projectId={project.id} /></span> : undefined}
         menuContent={<ProjectDetailRail project={project} detailsOnly />} />
