@@ -7,7 +7,7 @@
 
 ### What the CLI can and cannot do
 
-`node scripts/pmo.mjs --help` is the command reference. The CLI supports bounded reads, selected record writes, a starting-data loader, stage-date correction, ERP checks, purchase-document linking, document-reference linking, goods-receipt recording, account maps, cost-attribution rules, and read-only T&M inspection. It is not a general database console: there is no delete command, no arbitrary RPC, and some writes remain app-only. Do not invent flags or call database tables directly.
+`node scripts/pmo.mjs --help` is the command reference. The CLI supports bounded reads, selected record writes, a starting-data loader, stage-date correction, ERP checks, purchase-document linking, document-reference linking, document register entries and uploads, goods-receipt recording, account maps, cost-attribution rules, and read-only T&M inspection. It is not a general database console: there is no delete command, no arbitrary RPC, and some writes remain app-only. Do not invent flags or call database tables directly.
 
 Use Node 22 or newer. Sign in with `node scripts/pmo.mjs login`, then confirm the identity and role with `node scripts/pmo.mjs whoami`. The CLI stores an ordinary owner session and applies the same row-level permissions as the app. Use a real, active Admin account for loading client data and other Admin-only commands.
 
@@ -375,9 +375,16 @@ Common refusals (exit 2) and what to do:
 | `feed_not_current` | the accounting-system sync is running, or has not finished within the last two hours | read `feed`: `sync_running_retry_in_minutes` means run the preview again in a few minutes; `erpnext_sync_stopped_check_integrations` means check the sync in **Administration → Integrations** (`feed.last_synced_at` is the start time of the last completed sync) |
 | `generation_changed` | the mirrored data changed while reading | run a new preview and use its revision |
 | `ledger_currency_mismatch` | the currency read from the accounting company differs from the organization's currency | correct the currency in one of the two before capturing |
+| `source_settings_unreadable` | the accounting system's System Settings could not be read, so the amount scale is not known: the integration user lacks read access, or the accounting system did not answer (unreachable, an error, or an unreadable reply) | check the accounting system is reachable; if it is, give the integration user read access to System Settings; then preview again |
+| `source_settings_unreadable` (version) | the accounting system's major version is not recorded on the integration, or is one PMO does not support, so PMO cannot tell which precision rule applies | ask the platform owner to run the integration's version check again, then preview again |
+| `source_precision_unknown` | System Settings has a Currency Precision PMO cannot read as a whole number, or leaves it blank and its Number Format is not one PMO knows (or, on version 16, the "use number format from currency" value cannot be read), so the amount scale is not known | in the accounting system's System Settings, set Currency Precision (1 or 2, or 0 on version 16) or choose a standard Number Format, then preview again |
+| `source_precision_per_currency` | on version 16, Currency Precision is blank and the "use number format from currency" switch is on, so each currency's own format decides the decimals; capture does not read per-currency formats | in the accounting system's System Settings, turn that switch off or set an explicit Currency Precision, then preview again |
+| `source_precision_exceeds_mirror` | the accounting system keeps more than 2 decimals for amounts (from Currency Precision or the Number Format) | PMO holds at most 2 decimals; these purchases cannot be captured |
 | `source_limit_exceeded`, `ledger_limit_exceeded`, `run_per_project` | scope too large | repeat per `--project` |
 | `precision_changed`, `ledger_currency_unknown`, `ledger_scope_unknown`, `project_unmapped` | the data cannot be matched safely | read the `missing` and `unassigned` entries; fix the mapping in the app or accounting system, then preview again |
 | `42501 ... not available to OAuth API clients` | the database has not been updated for this command | ask the platform owner to apply the pending migration |
+
+Currency Precision `0` depends on the accounting system's version: on version 16 and later it is a real setting (amounts are whole numbers); on version 15 it behaves like blank and the Number Format's decimals apply. On version 16 the number format can also come from the saving user's own language settings rather than System Settings; a document whose amount then does not fit the scale PMO read is refused (`source_precision_mismatch`), never rounded.
 
 #### Place invoices that carry no ERP project
 
@@ -508,7 +515,7 @@ The preview is read-only and shows priced hours, unrated hours and the total. Th
 
 ### 8. Documents
 
-**Goal:** inspect the project register and attach an existing Microsoft 365 item to the right PMO record.
+**Goal:** inspect the project register, create a register entry and upload its file, or attach an existing Microsoft 365 item to the right PMO record.
 
 **Exact commands:**
 
@@ -517,13 +524,17 @@ node scripts/pmo.mjs documents list --project <project-uuid>
 node scripts/pmo.mjs m365 status
 node scripts/pmo.mjs documents link <document-links.json> --dry-run
 node scripts/pmo.mjs documents link <document-links.json>
+node scripts/pmo.mjs documents create --project <project-uuid> --category <category> --title <title> [--code <code>] [--revision <rev>] [--date <YYYY-MM-DD>] [--file <path>]
+node scripts/pmo.mjs documents create ... --confirm
+node scripts/pmo.mjs documents upload <document-uuid> <path>
+node scripts/pmo.mjs documents upload <document-uuid> <path> --confirm
 ```
 
-Each JSON row names exactly one `project_id`, `budget_version_id`, or `procurement_id`, plus `drive_id`, `item_id`, `web_url`, `name`, and `kind` (`file` or `folder`). The CLI links an existing Microsoft 365 item; it does not create a document-register entry or upload the file. Create/upload/register it in the relevant **Project → Documents** screen, or use the matching Procurement or Budget source-link action. Enhancement: [CLI document register and upload](https://github.com/ariefsaid/PMO/issues/1857).
+Each JSON row names exactly one `project_id`, `budget_version_id`, or `procurement_id`, plus `drive_id`, `item_id`, `web_url`, `name`, and `kind` (`file` or `folder`). `documents create` and `documents upload` are for active Admin, Executive, Project Manager and Finance members, as in the app. Without `--confirm` each prints a preview and writes nothing. `--category` is one of the register's categories: Drawing, Specification, Report, Transmittal, Submittal, Certificate, Other. A new entry starts as Draft; `--file` uploads the file to it in the same run. `documents upload` attaches a private file to a Draft entry that has no Microsoft reference. Only the entry's author or an Admin can upload to it; the preview warns when you are not its author. A new upload replaces the entry's previous file when its name differs; a file with the same name as the current one is refused, so rename it first. Files follow the app's rules: PDF, PNG/JPG/WebP images, Word, Excel or PowerPoint (`.docx`, `.xlsx`, `.pptx`), DWG/DXF, CSV or text, up to 5 MB. A command-line sign-in does not set, change or clear a Microsoft reference on a register entry; use `documents link` or the app. Status changes (Issue, Approve) stay in **Project → Documents**.
 
-**How to verify:** read the register again with `documents list` and confirm the expected row and source; confirm `m365 status` reports the expected connection before linking.
+**How to verify:** read the register again with `documents list` and confirm the expected row and source (`upload` after an upload); confirm `m365 status` reports the expected connection before linking.
 
-**Common errors:** the link must target exactly one record type and identify a file or folder. If the M365 item does not exist or is in the wrong library, correct it in **Project → Documents** or the library before rerunning. Same-item links are idempotent.
+**Common errors:** the link must target exactly one record type and identify a file or folder. If the M365 item does not exist or is in the wrong library, correct it in **Project → Documents** or the library before rerunning. Same-item links are idempotent. `document_not_draft` or `document_has_microsoft_reference`: the entry cannot take a file; use the app. `document_not_updated`: the entry was not changed, and the stored file was removed so the command can be rerun; if the message says the file is still stored, remove it in the app first. `document_created_file_not_stored`: `create --file` made the entry but could not store the file; finish it with `documents upload <document-uuid> <path> --confirm` rather than rerunning `create`. `document_file_name_in_use`: the entry already holds a file with that name; upload it under a new name. A permission error from the file store on `--confirm` means you are neither the entry's author nor an Admin.
 
 ### 9. ERP checks
 
@@ -607,6 +618,6 @@ After the app correction, rerun the original load with `--dry-run`; verify it pl
 
 ## Command scope and current constraints
 
-The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `purchases record-only`, `purchases undo-record-only`, `purchases import-history`, `purchases receive`, `purchases pay-captured`, `documents link`, `accounts map set`, and `attribution set` do support previews. No command deletes records.
+The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `purchases record-only`, `purchases undo-record-only`, `purchases import-history`, `purchases receive`, `purchases pay-captured`, `documents link`, `documents create`, `documents upload`, `accounts map set`, and `attribution set` do support previews. No command deletes records.
 
-The CLI does not create an ERP company directly as a separate ad hoc step, activate a budget, author T&M data, upload a document, or overwrite a loaded project/contract/budget line. Use the recipes above for their app screens and tracked enhancements: [budget activation](https://github.com/ariefsaid/PMO/issues/1859), [T&M operations](https://github.com/ariefsaid/PMO/issues/1856), [document register and upload](https://github.com/ariefsaid/PMO/issues/1857), and [loader corrections](https://github.com/ariefsaid/PMO/issues/1858).
+The CLI does not create an ERP company directly as a separate ad hoc step, activate a budget, author T&M data, or overwrite a loaded project/contract/budget line. Use the recipes above for their app screens and tracked enhancements: [budget activation](https://github.com/ariefsaid/PMO/issues/1859), [T&M operations](https://github.com/ariefsaid/PMO/issues/1856), and [loader corrections](https://github.com/ariefsaid/PMO/issues/1858).
