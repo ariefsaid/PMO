@@ -70,8 +70,11 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   const config = binding.config as { company?: unknown } | null;
   const adapter = await captureAdapterForOrg(binding.external_tier, service, profile.org_id, config, { erpCalls: body.action !== 'assign' });
   // A retry of a request that already finished answers from the stored result, so an unreadable or oversized ERP read never hides the outcome.
+  // Keep in step with capture_history_batch (0866): same procurement switch, same "every group processed" rule, same refused count. Only precision_changed cannot be compared here.
   const storedResult = async (): Promise<Response | null> => {
     if (body.action !== 'apply') return null;
+    const { data: featureOn } = await service.rpc('service_feature_enabled', { p_org_id: profile.org_id, p_key: 'procurement' });
+    if (featureOn !== true) return null;
     const { data } = await service.rpc('capture_history_batch_result', { p_actor_id: userId, p_project_id: projectId, p_request_id: body.requestId, p_revision: body.expectedRevision });
     if (data?.complete !== true) return null;
     const refused = (data.results as Array<{ outcome?: string }> | undefined)?.filter(result => result.outcome === 'refused').length ?? 0;
@@ -138,7 +141,7 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   const complete = docs.complete && ledger.complete && missing.length === 0;
   const proposals = proposeCapture(sources, projectId as string | null, { sourceId: binding.id, generation: docs.generation ?? '', accountScope: 'budget_map', complete, classifications });
   if (body.action === 'apply') {
-    if (!complete) return await storedResult() ?? json({ complete: false, missing: [...new Set(missing)], proposals, revision: docs.generation, request_id: body.requestId, ...feed, erp_write: false });
+    if (!complete) return (missing.includes('precision_changed') ? null : await storedResult()) ?? json({ complete: false, missing: [...new Set(missing)], proposals, revision: docs.generation, request_id: body.requestId, ...feed, erp_write: false });
     const families = new Map<string, typeof proposals>();
     for (const proposal of proposals) {
       const source = sources.find(item => item.id === proposal.id);
