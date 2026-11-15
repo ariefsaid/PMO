@@ -393,7 +393,8 @@
         "negotiation": "Negosiasi",
         "won": "Menang",
         "lost": "Kalah"
-      }
+      },
+      "moreActions": "Aksi lainnya"
     },
     "activity": {
       "notesTitle": "Catatan dan aktivitas",

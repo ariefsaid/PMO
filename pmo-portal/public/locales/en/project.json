@@ -393,7 +393,8 @@
         "negotiation": "Negotiation",
         "won": "Won",
         "lost": "Lost"
-      }
+      },
+      "moreActions": "More actions"
     },
     "activity": {
       "notesTitle": "Notes and activity",
