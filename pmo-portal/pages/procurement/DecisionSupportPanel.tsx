@@ -114,7 +114,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   if (!PANEL_VISIBLE_STATUSES.includes(status)) return null;
 
   const heading = (
-    <div className="mb-3 flex items-baseline gap-1">
+    <div className="mb-3 flex flex-wrap items-baseline gap-x-1 gap-y-1">
       <h2 className="text-control font-semibold text-muted-foreground">
         {t('decisionSupport.heading', 'Budget impact')}
       </h2>
@@ -127,7 +127,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         />
       ) : null}
       {projectStatus && PIPELINE_STATUSES.includes(projectStatus) ? (
-        <StatusPill record="project" state={projectStatus} className="ml-2 self-center" />
+        <StatusPill record="project" state={projectStatus} wrap={false} className="ml-1" />
       ) : null}
     </div>
   );
@@ -228,20 +228,22 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
 
   const budgetUsedPct = projectBudgetUsedPercent(positions.data?.[scopedProjectId], projectCurrency);
 
+  // A long label wraps to two lines; every label reserves two and sits on the bottom so the figures line up across a row.
+  const tileLabel = (text: string) => <span className="flex min-h-[2lh] items-end">{text}</span>;
   const tiles = [
     {
-      label: t('decisionSupport.thisProcurement', 'Procurement total'),
+      label: tileLabel(t('decisionSupport.thisProcurement', 'Procurement total')),
       value: formatCurrency(totalValue, currency),
       ...(requestInOtherCurrency ? { sub: t('decisionSupport.notCompared', 'In a different currency: not compared with the budget') } : {}),
     },
     {
-      label: t('decisionSupport.reserved', 'Reserved'),
+      label: tileLabel(t('decisionSupport.reserved', 'Reserved')),
       value: formatCurrency(otherReserved, budgetCurrency),
       sub: otherCurrencyReserved ? t('decisionSupport.otherReservedCurrencies', { defaultValue: 'Approved, not yet ordered. Other currencies: {{amounts}}', amounts: otherCurrencyReserved }) : t('decisionSupport.reservedSub', 'Approved, not yet ordered'),
     },
     {
       // The budget less open orders and reservations, before recorded spending: not a cash balance, so it is not called "Available".
-      label: t('decisionSupport.uncommitted', 'Not yet committed to purchases'),
+      label: tileLabel(t('decisionSupport.uncommitted', 'Not yet committed to purchases')),
       value: formatCurrency(available, budgetCurrency),
       tone: available < 0 ? ('neg' as const) : undefined,
       // 0373: committed spend in another currency is not subtracted (no conversion); say so rather than hide it.
@@ -249,14 +251,15 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
     },
     {
       // The project's canonical Budget used (same reading as the project header). Unknown stays unknown.
-      label: t('decisionSupport.budgetUsed', 'Budget used'),
+      // An unknown figure keeps a plain-string label: the page's hidden-figures line names it.
+      label: budgetUsedPct === null ? t('decisionSupport.budgetUsed', 'Budget used') : tileLabel(t('decisionSupport.budgetUsed', 'Budget used')),
       ...(budgetUsedPct === null
         ? { value: null, unavailableReason: t('decisionSupport.budgetUsedUnknown', 'Budget used is unknown or unavailable.') }
         : { value: `${formatNumberExact(budgetUsedPct)}%`, sub: t('decisionSupport.budgetUsedBasis', 'Recorded spending, before tax') }),
     },
-    { label: t('decisionSupport.projectBudget', 'Project budget'), value: formatCurrency(budgetAmount, budgetCurrency) },
+    { label: tileLabel(t('decisionSupport.projectBudget', 'Project budget')), value: formatCurrency(budgetAmount, budgetCurrency) },
     ...(requestInOtherCurrency ? [] : [{
-      label: t('decisionSupport.afterThisProcurement', 'After this procurement'),
+      label: tileLabel(t('decisionSupport.afterThisProcurement', 'After this procurement')),
       value: formatCurrency(afterRequest, currency),
       // Whole percent and its exact complement to used always total 100.
       sub: t('decisionSupport.headroom', { defaultValue: '{{pct}}% headroom left', pct: formatNumberExact(roundedHeadroomPct) }),
