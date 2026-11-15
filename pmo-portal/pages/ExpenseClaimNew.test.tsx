@@ -49,6 +49,14 @@ describe('Expense claim one-page capture (AC-EXP1-001..005)', () => {
   await waitFor(() => expect(h.capture).toHaveBeenCalled());
   expect(h.capture.mock.calls[0][0].header).toMatchObject({ projectId: 'p1', budgetCategory: 'Vehicle', purpose: 'Visit the site' });
  });
+ it('#2082 saving with an incomplete line moves focus to that line\'s first incomplete field', async () => {
+  renderPage();
+  fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Client visit' } });
+  fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: 'Train fare' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+  await waitFor(() => expect(screen.getByLabelText(/^Date/)).toHaveFocus());
+  expect(h.capture).not.toHaveBeenCalled();
+ });
  it('keeps each expense line grouped and shows the already computed total', () => {
   h.orgCurrency = { currency: 'USD', isResolved: true, isError: false };
   renderPage();

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -87,6 +87,13 @@ describe('StockCount', () => {
 
     expect(await screen.findByText('This draft was created by Alex. Only its author can save changes.')).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: 'Save draft' })).toBeEnabled();
+  });
+
+  it('#2082 posting an empty count sheet moves focus to the first invalid field', async () => {
+    renderAt('/stock/new/count');
+    const warehouse = await screen.findByLabelText(/^Warehouse/);
+    fireEvent.submit(warehouse.closest('form')!);
+    await waitFor(() => expect(warehouse).toHaveFocus());
   });
 
   it('C16 an opened draft says it is being edited, and a new sheet does not', async () => {

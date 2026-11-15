@@ -206,6 +206,15 @@ describe('DealBand — mark-won shows the booked value (AC-IXD-DASH-005)', () =>
     expect(repositoryTransition).toHaveBeenCalledWith('d1', 'Won, Pending KoM', { customerContractRef: 'CPO-RECOVERED', contractDate: '2026-03-15' });
   });
 
+  it('#2082 Confirm won without a contract reference focuses the reference field and announces the error', async () => {
+    const user = userEvent.setup();
+    renderLens();
+    await user.click(screen.getByRole('button', { name: /Mark won/i }));
+    await user.click(screen.getByRole('button', { name: /Confirm won/i }));
+    expect(screen.getByLabelText(/Customer contract reference/i)).toHaveFocus();
+    expect(screen.getAllByRole('alert').map((a) => a.textContent)).toContain('Customer contract reference is required');
+  });
+
   it('asks for a refresh when win eligibility is unavailable', () => {
     winEligibility.data = 'unavailable';
     renderLens();

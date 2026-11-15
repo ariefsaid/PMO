@@ -67,6 +67,8 @@ export const ConnectCredentialsModal: React.FC<ConnectCredentialsModalProps> = (
     await connectForm.handleSubmit(onSubmit);
   };
 
+  // The summary link must land on a field this form actually renders (ClickUp: token; ERPNext: site URL).
+  const firstFieldId = connectForm.fieldProps(tier === 'clickup' ? 'token' : 'siteUrl').id;
   return (
     <EntityFormModal
       open
@@ -77,7 +79,7 @@ export const ConnectCredentialsModal: React.FC<ConnectCredentialsModalProps> = (
       loading={loading}
       dirty={connectForm.isDirty}
       submitDisabled={!connectForm.isComplete}
-      errorSummary={error ? [{ fieldId: connectForm.fieldProps('token').id, message: error }] : undefined}
+      errorSummary={error ? [{ fieldId: firstFieldId, message: error }] : undefined}
     >
       <FormSection legend={t('integrations.organization.readiness.connect.credentials', 'Credentials')}>
         <FormGrid>
@@ -121,7 +123,7 @@ export const ConnectCredentialsModal: React.FC<ConnectCredentialsModalProps> = (
         </FormGrid>
       </FormSection>
       {error && (
-        <FieldError id={`${connectForm.fieldProps('token').id}-submit`}>
+        <FieldError id={`${firstFieldId}-submit`}>
           {error}
         </FieldError>
       )}

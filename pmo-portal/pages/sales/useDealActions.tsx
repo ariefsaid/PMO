@@ -196,7 +196,11 @@ export function useDealActions(project: ProjectWithRefs) {
     const dateMissing = !contractDate;
     setRefError(refMissing ? t('projectDetail.pipeline.refRequired', 'Customer contract reference is required') : null);
     setDateError(dateMissing ? t('projectDetail.pipeline.dateRequired', 'Contract date is required') : null);
-    if (refMissing || dateMissing) return;
+    if (refMissing || dateMissing) {
+      // #2082: the first missing field takes focus; its error is announced (role=alert).
+      document.getElementById(refMissing ? 'won-ref' : 'won-date')?.focus();
+      return;
+    }
     void runTransition('Won, Pending KoM', { customerContractRef: contractRef.trim(), contractDate });
   };
 
