@@ -56,6 +56,7 @@ const baseProps = () => ({
   bulkPending: false,
   onApplyBulk: vi.fn(),
   selectedActiveCount: 0,
+  onPreloadTimeline: vi.fn(),
 });
 
 const renderToolbar = (overrides: Partial<ReturnType<typeof baseProps>> = {}) => {

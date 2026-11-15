@@ -45,10 +45,7 @@ describe('#2111 hasTimesheetApprovalWork — existence only', () => {
     expect(h.reads[1].gte[0][0]).toBe('week_start_date');
   });
 
-  it.each([
-    ['Engineer', 'eq', [['owner.manager_id', 'u1']]],
-    ['Project Manager', 'eq', [['owner.manager_id', 'u1']]],
-  ] as const)('a %s sees only the sheets of the people who report to them', async (role) => {
+  it.each(['Engineer', 'Project Manager'] as const)('a %s sees only the sheets of the people who report to them', async (role) => {
     await hasTimesheetApprovalWork('u1', role);
     for (const read of h.reads) expect(read.eq.slice(1)).toEqual([['owner.manager_id', 'u1']]);
   });

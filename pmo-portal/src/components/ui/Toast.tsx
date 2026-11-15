@@ -205,6 +205,8 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         for (const node of Array.from(record.addedNodes)) for (const modal of modalsIn(node)) { open.add(modal); changed = true; }
         for (const node of Array.from(record.removedNodes)) for (const modal of modalsIn(node)) { open.delete(modal); changed = true; }
       }
+      // However a removal arrived (the overlay itself or any ancestor), a tracked overlay that left the document is a change.
+      if (!changed) for (const candidate of open) if (!candidate.isConnected) { changed = true; break; }
       if (changed) sync();
     };
     sync();
