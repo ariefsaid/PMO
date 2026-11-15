@@ -35,7 +35,9 @@ function toDoc(y: FakeYear) {
   };
 }
 
-export function fakeFiscalYearErp(seed: FakeYear[] = [], opts: { companies?: string[]; host?: string } = {}) {
+/** `version` picks the overlap rules: v15 (default) or the looser v16 (`__fixtures__/fiscalYear.json` `v16` block). */
+export function fakeFiscalYearErp(seed: FakeYear[] = [], opts: { companies?: string[]; host?: string; version?: 15 | 16 } = {}) {
+  const v16 = opts.version === 16;
   const years: FakeYear[] = seed.map((y) => ({ ...y, companies: [...y.companies] }));
   const known = opts.companies ?? KNOWN_COMPANIES_DEFAULT;
   const writes: Array<Record<string, unknown>> = [];
@@ -82,7 +84,8 @@ export function fakeFiscalYearErp(seed: FakeYear[] = [], opts: { companies?: str
     const overlapping = (y: FakeYear) => frappeError(409, 'NameError', `Year start date or end date is overlapping with ${y.name}. To avoid please set company`);
     const sharesNamed = (y: FakeYear) => companies.some((c) => y.companies.includes(c));
     for (const y of years) if (y.start === start && y.end === end && sharesNamed(y)) return overlapping(y);
-    for (const y of years) {
+    // v16 dropped the identical-dates refusal: another company's year, or a global one, may share the exact dates.
+    for (const y of v16 ? [] : years) {
       if (y.start === start && y.end === end) return frappeError(417, 'ValidationError', `Fiscal Year Start Date and Fiscal Year End Date are already set in Fiscal Year ${y.name}`);
     }
     for (const y of years) {

@@ -41,6 +41,41 @@ describe('the fake Fiscal Year answers every recorded bed case as the bed did', 
   });
 });
 
+describe('the fake answers the v16 bed cases as the v16 bed did', () => {
+  it('replays the v16 block: identical dates beside another company or a global year are accepted, a shared company is not', async () => {
+    const erp = fakeFiscalYearErp([
+      { name: '2026', start: '2026-01-01', end: '2026-12-31', companies: [] },
+      { name: '2027', start: '2027-01-01', end: '2027-12-31', companies: [] },
+      { name: '2028', start: '2028-01-01', end: '2028-12-31', companies: [] },
+      { name: 'ECX 2031', start: '2031-01-01', end: '2031-12-31', companies: [COMPANY] },
+      { name: 'ECX 2032', start: '2032-01-01', end: '2032-12-31', companies: [] },
+    ], { companies: [COMPANY, 'Other Co'], version: 16 });
+    for (const c of fixture.v16.cases as Case[]) {
+      const res = await erp.fetchImpl('https://erp.test/api/resource/Fiscal%20Year', { method: 'POST', body: JSON.stringify(c.request.body) });
+      expect(res.status, c.label).toBe(c.status);
+    }
+  });
+});
+
+describe('ERPNext ensureNextFiscalYear on v16 rules', () => {
+  it('a global next year is still used: v16 would accept a second, company-scoped one, so the lookup is what prevents it', async () => {
+    const erp = fakeFiscalYearErp([
+      { name: '2026', start: '2026-01-01', end: '2026-12-31', companies: [] },
+      { name: '2027', start: '2027-01-01', end: '2027-12-31', companies: [] },
+    ], { version: 16 });
+    expect(await ensureNextFiscalYear(erp.client, COMPANY, '2026-12-01')).toEqual({ state: 'ready', current: '2026', next: '2027', created: false });
+    expect(erp.writes()).toEqual([]);
+  });
+
+  it('another company\'s year with the same dates does not serve this company: v16 accepts this company\'s own year', async () => {
+    const erp = fakeFiscalYearErp([
+      { name: '2026', start: '2026-01-01', end: '2026-12-31', companies: [COMPANY] },
+      { name: 'Other 2027', start: '2027-01-01', end: '2027-12-31', companies: ['Other Co'] },
+    ], { version: 16 });
+    expect(await ensureNextFiscalYear(erp.client, COMPANY, '2026-12-01')).toEqual({ state: 'ready', current: '2026', next: '2027', created: true });
+  });
+});
+
 describe('date rules', () => {
   it('the next year starts the day after and runs one year', () => {
     expect(nextYearSpan('2026-12-31')).toEqual({ start: '2027-01-01', end: '2027-12-31' });
