@@ -3,7 +3,7 @@
 -- enabled leaf of that company and org of the right kind (the ERP itself checks no account type); the cost centre a mirrored leaf
 -- of the company; another org's request is refused. The result writer records only what the ERP read back.
 begin;
-select plan(47);
+select plan(52);
 
 insert into organizations (id, name) values
  ('09100000-0000-0000-0000-000000000001','Defaults A'),
@@ -62,6 +62,8 @@ select ok(not has_function_privilege('authenticated', 'public.replace_erp_cost_c
 select ok(not has_function_privilege('anon', 'public.request_company_defaults(text, jsonb)', 'execute'), 'request_company_defaults is not callable anonymously');
 select ok(not has_table_privilege('authenticated', 'public.erp_company_default_requests', 'insert'), 'a signed-in user cannot write a request row directly');
 select ok(not has_table_privilege('authenticated', 'public.erp_cost_centre_mirror', 'insert'), 'a signed-in user cannot write the cost-centre mirror');
+select ok(not (select prosecdef from pg_proc where oid = 'public.company_default_target_problem(uuid, text, text, text)'::regprocedure),
+  'company_default_target_problem runs with its caller''s rights (security invoker)');
 
 -- 1. Role and org.
 set local role authenticated;
@@ -146,6 +148,28 @@ select is(public.record_company_defaults_result('09100000-0000-0000-0000-0000000
   null, 'late refusal')->>'state', 'applied', 'a repeat result for a settled request changes nothing');
 select is((select count(*)::int from audit_events where org_id = '09100000-0000-0000-0000-000000000001' and action = 'integration.company_defaults'), 1,
   'the applied change is audited once');
+reset role;
+
+-- 5. Concurrent saves: the newest request for the connection wins. An older request whose read-back arrives last is refused and the
+-- binding keeps the newer values.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"09100000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select set_config('d910.older', public.request_company_defaults('erpnext','{"bank":"Bank A"}')::text, true);
+select set_config('d910.newer', public.request_company_defaults('erpnext','{"cash":"Cash"}')::text, true);
+reset role;
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select is(public.record_company_defaults_result('09100000-0000-0000-0000-000000000001', (current_setting('d910.newer')::jsonb->>'id')::uuid,
+  '{"payable":"Creditors","expense":"Cost of Goods Sold","cash":"Cash","bank":null,"cost_centre":"Main"}'::jsonb, null)->>'state', 'applied',
+  'AC-ECX-021 the newer request for the connection is recorded');
+select is(public.record_company_defaults_result('09100000-0000-0000-0000-000000000001', (current_setting('d910.older')::jsonb->>'id')::uuid,
+  '{"payable":"Creditors","expense":"Cost of Goods Sold","cash":null,"bank":"Bank A","cost_centre":"Main"}'::jsonb, null)->>'state', 'rejected',
+  'AC-ECX-021 an older request whose read-back is recorded last is refused');
+select is((select config->>'default_cash_account' || '|' || coalesce(config->>'default_bank_account', '-') from external_org_bindings
+            where org_id = '09100000-0000-0000-0000-000000000001'), 'Cash|-',
+  'AC-ECX-021 the binding keeps the newer request''s values');
+select alike((select reason_text from erp_company_default_requests where id = (current_setting('d910.older')::jsonb->>'id')::uuid),
+  '%newer change%', 'the overtaken request says in plain words that a newer change was saved');
 reset role;
 
 select * from finish();

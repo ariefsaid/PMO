@@ -282,6 +282,8 @@
       "accountsChoose": "Choose…",
       "accountsFailed": "Could not set the company accounts. Try again.",
       "accountsUnavailable": "Could not read the account lists. Try again.",
+      "accountsPending": "A change to the company accounts is still being saved. Reload in a few minutes to see it.",
+      "noBankAccount": "The company has no bank account yet, so there is none to choose. Create the bank account first; it is then listed here.",
       "accountSlots": {
         "payable": "Vendor payable account",
         "expense": "Default expense account",

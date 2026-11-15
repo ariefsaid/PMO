@@ -3,8 +3,9 @@
  * `PUT /api/resource/Company/<name>` sets a default; the ERP refuses a group, another company's account and an unknown
  * name, but accepts an account of any type and a group or another company's cost centre. So, before any write, this reads
  * each chosen account and cost centre from the ERP and refuses one that does not fit (`defaultTargetProblem`). It then reads
- * the Company, sends only the fields that change (no `modified`: a stale one is refused by the ERP), and reads the Company
- * back: a chosen value the ERP does not hold afterwards is a refusal, never a success.
+ * the Company, sends only the fields that change (no `modified`), and reads the Company back: a chosen value the ERP does not
+ * hold afterwards is a refusal, never a success. A save the ERP refuses because the Company changed after it was read
+ * (TimestampMismatchError) is a refusal that asks the person to reload.
  */
 import { AdapterError } from '../contract.ts';
 import {
@@ -13,6 +14,9 @@ import {
   type CompanyDefaultsWriter, type DefaultTargetFacts,
 } from '../companyDefaults.ts';
 import { type ErpClientDeps, ErpError, getDoc, listDocsByFilters, updateDoc } from './client.ts';
+
+/** The plain-words refusal when the ERP company changed after PMO read it. */
+export const COMPANY_CHANGED = 'The company accounts were changed in the ERP after PMO read them, so nothing was saved. Reload and try again.';
 
 /** The ERPNext Company field behind each PMO slot. */
 export const ERPNEXT_DEFAULT_FIELD: Record<CompanyDefaultSlot, string> = {
@@ -71,7 +75,13 @@ export function createErpnextCompanyDefaults(client: ErpClientDeps, company: str
       const current = defaultsOf(await readCompany());
       const written = slots.filter((s) => current[s] !== choice[s]);
       if (written.length === 0) return { written, readBack: current };
-      await updateDoc(client, 'Company', company, Object.fromEntries(written.map((s) => [ERPNEXT_DEFAULT_FIELD[s], choice[s]])));
+      try {
+        await updateDoc(client, 'Company', company, Object.fromEntries(written.map((s) => [ERPNEXT_DEFAULT_FIELD[s], choice[s]])));
+      } catch (err) {
+        // The ERP refuses a save of a record changed since it was read (417 TimestampMismatchError, bed v15 and v16).
+        if (err instanceof ErpError && err.errorType === 'TimestampMismatchError') throw new AdapterError('commit-rejected', COMPANY_CHANGED);
+        throw err;
+      }
       const readBack = defaultsOf(await readCompany());
       const missed = slots.filter((s) => readBack[s] !== choice[s]);
       if (missed.length) {

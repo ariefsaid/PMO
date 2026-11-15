@@ -7,7 +7,8 @@
  * (`record_company_defaults_result`). A refusal is recorded in plain words; an ERP that cannot be reached records nothing.
  *
  * company-defaults-options: refreshes the company's cost centres from the ERP into the mirror, then offers each slot only the
- * mirrored targets that fit it (the same rule), so a person is never shown a choice that would be refused.
+ * mirrored targets that fit it (the same rule), so a person is never shown a choice that would be refused, and says whether a
+ * request for the connection is still being saved (`pending`), so Save waits for it.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
@@ -16,6 +17,10 @@ import { COMPANY_DEFAULT_SLOTS, defaultTargetProblem, type CompanyDefaultSlot } 
 import { companyDefaultsForOrg, hasCompanyDefaultsWriter } from '../_shared/companyDefaultsForOrg.ts';
 import { erpReason } from '../_shared/erpReason.ts';
 import type { ConnectCtx } from './connect.ts';
+
+/** How long a pending request counts as still being saved: past the longest a setup call can run, so a request whose save
+ *  ended without an answer (the ERP could not be reached) does not hold Save back for good. */
+export const PENDING_SAVE_WINDOW_MS = 5 * 60_000;
 
 type RpcFailure = (e: { code?: string; message?: string }) => AppError;
 interface Request { id: string; company: string; values: Record<string, string> }
@@ -68,18 +73,21 @@ export async function companyDefaultOptions(ctx: ConnectCtx, tier: string) {
   }
   const { error: mirrorError } = await ctx.serviceClient.rpc('replace_erp_cost_centre_mirror', { p_org_id: ctx.orgId, p_company: target.company, p_rows: centres });
   if (mirrorError) throw new AppError('The request could not be completed', 'INTERNAL');
-  const [accounts, mirrored] = await Promise.all([
+  const [accounts, mirrored, pending] = await Promise.all([
     ctx.serviceClient.from('erp_account_mirror').select('erp_name,company,is_group,disabled,root_type,account_type')
       .eq('org_id', ctx.orgId).eq('company', target.company).eq('is_group', false).eq('disabled', false).order('erp_name').limit(5000),
     ctx.serviceClient.from('erp_cost_centre_mirror').select('erp_name,company,is_group,disabled')
       .eq('org_id', ctx.orgId).eq('company', target.company).eq('is_group', false).eq('disabled', false).order('erp_name').limit(5000),
+    ctx.serviceClient.from('erp_company_default_requests').select('id')
+      .eq('org_id', ctx.orgId).eq('external_tier', tier).eq('company', target.company).eq('state', 'pending')
+      .gte('requested_at', new Date(Date.now() - PENDING_SAVE_WINDOW_MS).toISOString()).limit(1),
   ]);
-  if (accounts.error || mirrored.error) throw new AppError('The request could not be completed', 'INTERNAL');
+  if (accounts.error || mirrored.error || pending.error) throw new AppError('The request could not be completed', 'INTERNAL');
   type Row = { erp_name: string; company: string; is_group: boolean; disabled: boolean; root_type?: string | null; account_type?: string | null };
   const fits = (slot: CompanyDefaultSlot, rows: Row[]) => rows.filter((row) => defaultTargetProblem(slot, target.company, {
     name: row.erp_name, company: row.company, isGroup: row.is_group, disabled: row.disabled, rootType: row.root_type ?? null, accountType: row.account_type ?? null,
   }) === null).map((row) => row.erp_name);
   const options = Object.fromEntries(COMPANY_DEFAULT_SLOTS.map((slot) =>
     [slot, fits(slot, (slot === 'cost_centre' ? mirrored.data : accounts.data) as Row[])]));
-  return { company: target.company, options };
+  return { company: target.company, options, pending: (pending.data ?? []).length > 0 };
 }

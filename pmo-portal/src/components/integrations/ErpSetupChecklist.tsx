@@ -86,6 +86,7 @@ export function ErpSetupChecklist(
     bank: t('administration:integrations.companyAccounts.accountSlots.bank', 'Bank account'),
     cost_centre: t('administration:integrations.companyAccounts.accountSlots.costCentre', 'Cost centre'),
   };
+  const accountsPendingText = t('administration:integrations.companyAccounts.accountsPending', 'A change to the company accounts is still being saved. Reload in a few minutes to see it.');
   const saveAccounts = async () => {
     const changed = Object.fromEntries(ACCOUNT_SLOTS
       .filter(({ slot, key }) => accounts.values[slot] && accounts.values[slot] !== currentAccount(key))
@@ -430,8 +431,9 @@ export function ErpSetupChecklist(
           submitDisabled={editing === 'defaults'
             ? !defaults.isComplete
             : editing === 'accounts'
-            ? !accountOptions.data
+            ? !accountOptions.data || accountOptions.data.pending
             : !domain.isComplete}
+          disabledReason={editing === 'accounts' && accountOptions.data?.pending ? accountsPendingText : undefined}
           submitError={error ? { headline: error } : null}
         >
           {editing === 'accounts'
@@ -445,6 +447,9 @@ export function ErpSetupChecklist(
               )
               : (
                 <FormGrid>
+                  {accountOptions.data?.pending && (
+                    <p role='status' className='text-sm text-muted-foreground sm:col-span-2'>{accountsPendingText}</p>
+                  )}
                   {ACCOUNT_SLOTS.map(({ slot }) => {
                     const listed = accountOptions.data?.options[slot] ?? [];
                     const current = accounts.values[slot];
@@ -456,6 +461,9 @@ export function ErpSetupChecklist(
                         label={slotLabels[slot]}
                         placeholder={t('administration:integrations.companyAccounts.accountsChoose', 'Choose…')}
                         options={values.map((value) => ({ value, label: value }))}
+                        helper={slot === 'bank' && values.length === 0
+                          ? t('administration:integrations.companyAccounts.noBankAccount', 'The company has no bank account yet, so there is none to choose. Create the bank account first; it is then listed here.')
+                          : undefined}
                         fullWidth
                       />
                     );

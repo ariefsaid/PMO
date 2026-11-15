@@ -5,4 +5,5 @@ drop function if exists public.request_company_defaults(text, jsonb);
 drop function if exists public.company_default_target_problem(uuid, text, text, text);
 drop function if exists public.replace_erp_cost_centre_mirror(uuid, text, jsonb);
 drop table if exists public.erp_company_default_requests;
+drop sequence if exists public.erp_company_default_request_seq;
 drop table if exists public.erp_cost_centre_mirror;

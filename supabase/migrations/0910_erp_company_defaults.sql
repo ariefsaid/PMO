@@ -32,6 +32,7 @@ grant select on public.erp_cost_centre_mirror to authenticated;
 grant all on public.erp_cost_centre_mirror to service_role;
 
 -- Replace one company's cost centres with the ERP's complete list. Returns the number now held.
+-- Definer because: it deletes and inserts the mirror rows of one org as one owner, whatever grants the service caller holds.
 create or replace function public.replace_erp_cost_centre_mirror(p_org_id uuid, p_company text, p_rows jsonb) returns int
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_count int;
@@ -55,6 +56,10 @@ begin
 end $$;
 
 -- One row per distinct choice per connection: the same choice again is the same request (its key), never a second one.
+-- request_seq orders the requests of a connection: each request, and each repeat of one, takes the next number, and only the
+-- highest-numbered request of a connection may be recorded on the binding.
+create sequence public.erp_company_default_request_seq;
+revoke all on sequence public.erp_company_default_request_seq from public, anon, authenticated;
 create table public.erp_company_default_requests (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references public.organizations(id) on delete cascade,
@@ -67,6 +72,7 @@ create table public.erp_company_default_requests (
   reason_text text,
   read_back jsonb,
   attempts int not null default 1,
+  request_seq bigint not null default nextval('public.erp_company_default_request_seq'),
   requested_by uuid not null references public.profiles(id),
   requested_at timestamptz not null default now(),
   decided_at timestamptz,
@@ -81,9 +87,9 @@ grant select on public.erp_company_default_requests to authenticated;
 grant all on public.erp_company_default_requests to service_role;
 
 -- Why a mirrored target cannot be the default for a slot, in plain words, or null when it fits. The same rule as the adapter's
--- `defaultTargetProblem`. Internal: called by the definer only.
+-- `defaultTargetProblem`. Internal: called by request_company_defaults only, so it runs with that caller's rights (invoker).
 create or replace function public.company_default_target_problem(p_org_id uuid, p_company text, p_slot text, p_name text) returns text
-language plpgsql stable security definer set search_path = public, pg_temp as $$
+language plpgsql stable security invoker set search_path = public, pg_temp as $$
 declare
   v_label text := case p_slot when 'payable' then 'vendor payable account' when 'expense' then 'default expense account'
                    when 'cash' then 'cash account' when 'bank' then 'bank account' else 'cost centre' end;
@@ -111,6 +117,7 @@ end $$;
 
 -- A person asks for the company defaults to be set. Org, role and membership come from the caller's session; each choice is checked
 -- against the mirrors before anything is queued. Returns the request the setup function then writes to the ERP.
+-- Definer because: a person reads the org's mirrors and writes a request row, which no signed-in role may read or write directly.
 create or replace function public.request_company_defaults(p_tier text, p_values jsonb) returns jsonb
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
@@ -146,7 +153,7 @@ begin
     values (v_org, b.id, p_tier, v_company, v_key, v_values, 'pending', v_actor)
   on conflict (org_id, idempotency_key) do update
     set state = 'pending', reason_text = null, read_back = null, decided_at = null, attempts = public.erp_company_default_requests.attempts + 1,
-        requested_by = excluded.requested_by, requested_at = now()
+        requested_by = excluded.requested_by, requested_at = now(), request_seq = nextval('public.erp_company_default_request_seq')
   returning * into r;
   perform public.log_audit('integration.company_defaults_requested', v_org, v_actor, r.id,
     jsonb_build_object('tier', p_tier, 'slots', (select jsonb_agg(k order by k) from jsonb_object_keys(v_values) k)));
@@ -155,7 +162,9 @@ end $$;
 
 -- The setup function's answer after it wrote to the ERP and read the company back (p_rejection null) or was refused (plain words).
 -- The binding records the five defaults exactly as read back, and only when the read-back holds every chosen value. A result for a
--- request that is no longer pending changes nothing; another org's request is refused.
+-- request that is no longer pending changes nothing; another org's request is refused. A request overtaken by a newer request for
+-- the same connection is refused, so an older read-back never replaces the newer values.
+-- Definer because: it writes the binding's config and the audit log as one owner, whatever grants the service caller holds.
 create or replace function public.record_company_defaults_result(p_org_id uuid, p_request_id uuid, p_read_back jsonb, p_rejection text) returns jsonb
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare r public.erp_company_default_requests%rowtype; v_reason text := p_rejection; k text;
@@ -176,6 +185,10 @@ begin
   end if;
   if v_reason is null and exists (select 1 from jsonb_each_text(r.chosen) c where p_read_back->>c.key is distinct from c.value) then
     v_reason := 'The ERP did not keep every chosen default, so nothing was recorded. Try again.';
+  end if;
+  if v_reason is null and exists (select 1 from public.erp_company_default_requests n
+                                    where n.binding_id = r.binding_id and n.id <> r.id and n.request_seq > r.request_seq) then
+    v_reason := 'A newer change to the company accounts was saved for this connection, so this one was not recorded.';
   end if;
   if v_reason is null and not exists (select 1 from public.external_org_bindings
                                         where id = r.binding_id and org_id = p_org_id and status = 'active' and config->>'company' = r.company) then

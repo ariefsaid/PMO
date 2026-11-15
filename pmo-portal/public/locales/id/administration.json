@@ -282,6 +282,8 @@
       "accountsChoose": "Pilih…",
       "accountsFailed": "Akun perusahaan tidak dapat diatur. Coba lagi.",
       "accountsUnavailable": "Daftar akun tidak dapat dibaca. Coba lagi.",
+      "accountsPending": "Perubahan akun perusahaan masih sedang disimpan. Muat ulang dalam beberapa menit untuk melihatnya.",
+      "noBankAccount": "Perusahaan belum memiliki akun bank, jadi belum ada yang bisa dipilih. Buat akun bank terlebih dahulu; akun itu lalu tercantum di sini.",
       "accountSlots": {
         "payable": "Akun utang vendor",
         "expense": "Akun beban default",

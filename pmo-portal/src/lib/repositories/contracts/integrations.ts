@@ -187,7 +187,12 @@ export type ConnectReviewChoice =
 
 /** #1599 ECX-3: the ERP company defaults PMO sets, in PMO terms (`adapterSeam/companyDefaults.ts`). */
 export type CompanyDefaultSlot = 'payable' | 'expense' | 'cash' | 'bank' | 'cost_centre';
-export interface CompanyDefaultOptions { company: string; options: Record<CompanyDefaultSlot, string[]> }
+export interface CompanyDefaultOptions {
+  company: string;
+  options: Record<CompanyDefaultSlot, string[]>;
+  /** A request for this connection is still being saved; Save waits for it. */
+  pending: boolean;
+}
 export interface CompanyDefaultsSetResponse { ok: true; written: CompanyDefaultSlot[]; defaults: Record<CompanyDefaultSlot, string | null> }
 
 export interface IntegrationsRepository {

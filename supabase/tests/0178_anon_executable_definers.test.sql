@@ -388,13 +388,13 @@ insert into client_callable_rpc_names (proname) values
   ('redate_stage_entry'),
   ('release_credits'),
   ('release_outbox_hold'),
+  ('request_company_defaults'),  -- ⚑ AMENDED BY 0910 (#1599 ECX-3)
   ('request_financial_statement_refresh'),  -- 0685: Refresh now (Admin/Finance/Executive, org from the session)
   ('request_imprest_replenishment'),
   ('resolve_held_outbox_command'),  -- ⚑ AMENDED BY 0508, 0512, 0513 (#1505 P6, #1506 C5/C6)
   ('request_po_variation'),
   ('reserve_credits'),
   ('retry_connect_send'),
-  ('request_company_defaults'),  -- ⚑ AMENDED BY 0910 (#1599 ECX-3)
   ('save_timesheet_week'),
   ('send_task_reminders'),
   ('select_procurement_quote'),

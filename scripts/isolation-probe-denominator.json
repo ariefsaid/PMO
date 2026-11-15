@@ -285,7 +285,6 @@
     "clickup_sweep_tick()",
     "clickup_webhook_worker_tick()",
     "clone_budget_version(uuid)",
-    "company_default_target_problem(uuid,text,text,text)",
     "complete_erp_statement_pass(uuid,uuid,uuid,timestamp with time zone,uuid,bigint,bigint,date,uuid)",
     "confirm_erp_employee_link(uuid,uuid)",
     "confirm_erp_project_link(uuid,uuid,uuid,text,jsonb,text,text)",

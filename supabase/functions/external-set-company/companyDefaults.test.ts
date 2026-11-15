@@ -5,6 +5,7 @@
 import { afterAll, describe, it } from '@std/testing/bdd';
 import { assertEquals, assertMatch } from '@std/assert';
 import { handleSetCompanyRequest, setTestJwks } from './index.ts';
+import { PENDING_SAVE_WINDOW_MS } from './companyDefaults.ts';
 import {
   createAuthedRequest, createJwtAuthority, createTestJwksResolver, installEdgeEnv, jsonResponse, rpcCall, restCall,
   supabaseRpc, supabaseSelect, withFetchMock, type FetchCall, type MockRoute,
@@ -32,7 +33,7 @@ const ACCOUNTS: Record<string, Record<string, unknown>> = {
   'Creditors - OTH': { name: 'Creditors - OTH', company: COMPANY, is_group: 0, disabled: 0, root_type: 'Liability', account_type: 'Payable' },
 };
 
-interface Opts { role?: string; featureEnabled?: boolean; put?: Case | 'down'; request?: () => Response; tier?: string }
+interface Opts { role?: string; featureEnabled?: boolean; put?: Case | 'down'; request?: () => Response; tier?: string; record?: () => Response; pending?: boolean }
 function routes(o: Opts, state: { company: Record<string, unknown> }): MockRoute[] {
   const put = o.put ?? bedCase('payable<-Payable (accept)');
   return [
@@ -46,8 +47,9 @@ function routes(o: Opts, state: { company: Record<string, unknown> }): MockRoute
     supabaseRpc('request_company_defaults', (c) => o.request?.() ?? jsonResponse({
       id: 'req-1', idempotencyKey: 'setup:company-defaults:b:x', company: COMPANY,
       values: Object.fromEntries(Object.entries((c.bodyJson as { p_values: Record<string, string> }).p_values).map(([k, v]) => [k, v.trim()])) })),
-    supabaseRpc('record_company_defaults_result', (c) => jsonResponse((c.bodyJson as { p_rejection: unknown }).p_rejection === null ? { state: 'applied' } : { state: 'rejected' })),
+    supabaseRpc('record_company_defaults_result', (c) => o.record?.() ?? jsonResponse((c.bodyJson as { p_rejection: unknown }).p_rejection === null ? { state: 'applied' } : { state: 'rejected' })),
     supabaseRpc('replace_erp_cost_centre_mirror', () => jsonResponse(2)),
+    supabaseSelect('erp_company_default_requests', () => jsonResponse(o.pending ? [{ id: 'req-9' }] : [])),
     supabaseSelect('erp_account_mirror', () => jsonResponse([
       { erp_name: 'Creditors - EPC', company: COMPANY, is_group: false, disabled: false, root_type: 'Liability', account_type: 'Payable' },
       { erp_name: 'Cash - EPC', company: COMPANY, is_group: false, disabled: false, root_type: 'Asset', account_type: 'Cash' },
@@ -134,6 +136,22 @@ describe('company defaults set from PMO', () => {
     assertEquals(/<strong>/.test(String(r.json.message)), false);
   });
 
+  it('AC-ECX-020 a refusal because the ERP company changed since PMO read it (bed: 417 TimestampMismatchError) is recorded and says reload', async () => {
+    const r = await call({ setupAction: 'set-company-defaults', values: { payable: 'Creditors - EPC' } }, { put: bedCase('stale modified') });
+    assertEquals([r.res.status, r.json.error], [422, 'config-rejected']);
+    const reload = 'The company accounts were changed in the ERP after PMO read them, so nothing was saved. Reload and try again.';
+    assertEquals(r.json.message, reload);
+    const [rec] = resultArgs(r.calls);
+    assertEquals([rec.p_read_back, rec.p_rejection], [null, reload]);
+  });
+
+  it('AC-ECX-021 a request overtaken by a newer one for the connection is refused when its read-back is recorded, in plain words', async () => {
+    const newer = 'A newer change to the company accounts was saved for this connection, so this one was not recorded.';
+    const r = await call({ setupAction: 'set-company-defaults', values: { payable: 'Creditors - EPC' } },
+      { record: () => jsonResponse({ state: 'rejected', reason: newer }) });
+    assertEquals([r.res.status, r.json.error, r.json.message], [422, 'config-rejected', newer]);
+  });
+
   it('fail closed: an unreachable ERP records nothing (the request stays pending) and says so', async () => {
     const r = await call({ setupAction: 'set-company-defaults', values: { payable: 'Creditors - EPC' } }, { put: 'down' });
     assertEquals(r.res.status, 502);
@@ -169,5 +187,17 @@ describe('company defaults set from PMO', () => {
     assertEquals(reads[0].url.searchParams.get('org_id'), 'eq.org-1');
     assertEquals(reads[0].url.searchParams.get('company'), `eq.${COMPANY}`);
     assertEquals(erpCalls(r.calls).every((c) => c.method === 'GET'), true);
+    assertEquals(r.json.pending, false);
+  });
+
+  it('the options read says when a request for the connection is still pending, so Save waits for it', async () => {
+    const r = await call({ setupAction: 'company-defaults-options' }, { pending: true });
+    assertEquals([r.res.status, r.json.pending], [200, true]);
+    const [read] = restCall(r.calls, 'erp_company_default_requests');
+    assertEquals([read.url.searchParams.get('org_id'), read.url.searchParams.get('external_tier'), read.url.searchParams.get('state')],
+      ['eq.org-1', 'eq.erpnext', 'eq.pending']);
+    assertEquals(read.url.searchParams.get('company'), `eq.${COMPANY}`);
+    const since = Date.parse(read.url.searchParams.get('requested_at')!.replace(/^gte\./, ''));
+    assertEquals(Math.abs(Date.now() - PENDING_SAVE_WINDOW_MS - since) < 60_000, true);   // a long-stuck request does not count
   });
 });

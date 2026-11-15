@@ -64,6 +64,18 @@ describe('ERPNext company defaults (bed fixtures)', () => {
     const b = bed(put);
     await expect(b.writer.set({ bank: 'Bank Accounts - EPC' })).rejects.toMatchObject({ code: 'commit-rejected', message: expect.stringMatching(/group account/) });
   });
+
+  it.each([
+    ['v15', byLabel('stale modified')],
+    ['v16', (fixture as unknown as { v16: { cases: Case[] } }).v16.cases.find((c) => c.label === 'stale modified')!],
+  ])('AC-ECX-020 a refusal because the ERP company changed since it was read (%s, 417 TimestampMismatchError) says reload', async (_v, stale) => {
+    expect(stale).toMatchObject({ status: 417, response: { exc_type: 'TimestampMismatchError' } });
+    const b = bed({ ...stale, request: { ...stale.request, path: `/api/resource/Company/${COMPANY}` } });
+    await expect(b.writer.set({ bank: 'Probe Bank A - EPC' })).rejects.toMatchObject({
+      code: 'commit-rejected',
+      message: 'The company accounts were changed in the ERP after PMO read them, so nothing was saved. Reload and try again.',
+    });
+  });
 });
 
 describe('ERPNext cost centre list', () => {

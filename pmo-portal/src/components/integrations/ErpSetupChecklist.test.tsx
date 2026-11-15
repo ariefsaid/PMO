@@ -23,6 +23,7 @@ const readiness = (defaults: Partial<ErpSetupReadiness['defaults']>): ErpSetupRe
 const OPTIONS = {
   company: 'Example Co',
   options: { payable: ['Creditors'], expense: ['Cost of Goods Sold', 'Site Costs'], cash: ['Cash'], bank: ['Bank A'], cost_centre: ['Main'] },
+  pending: false,
 };
 
 beforeEach(() => {
@@ -77,6 +78,48 @@ describe('ERP company accounts set from PMO (#1599 ECX-3)', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save company accounts' }));
     expect(await within(dialog).findByText('Could not set the company accounts. Try again.')).toBeInTheDocument();
     expect(within(dialog).queryByText('upstream detail')).not.toBeInTheDocument();
+  });
+
+  it('ECX3-T6 Save is disabled while a request for the connection is still being saved', async () => {
+    repo.getErpSetup.mockResolvedValue(readiness({ default_payable_account: null }));
+    repo.getCompanyDefaultOptions.mockResolvedValue({ ...OPTIONS, pending: true });
+    wrapWithRole('Admin', <ErpSetupChecklist orgId='org-1' onRefreshCompany={vi.fn()} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Set company accounts' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Company accounts' });
+    fireEvent.change(await within(dialog).findByRole('combobox', { name: 'Vendor payable account' }), { target: { value: 'Creditors' } });
+    expect(within(dialog).getByRole('button', { name: 'Save company accounts' })).toBeDisabled();
+    expect(within(dialog).getByRole('status')).toHaveTextContent('A change to the company accounts is still being saved. Reload in a few minutes to see it.');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save company accounts' }));
+    expect(repo.setCompanyDefaults).not.toHaveBeenCalled();
+  });
+
+  it('ECX3-T6 Save is disabled while this person\'s own save is on its way, so it is sent once', async () => {
+    repo.getErpSetup.mockResolvedValue(readiness({ default_payable_account: null }));
+    let finish: (v: Awaited<ReturnType<IntegrationsRepository['setCompanyDefaults']>>) => void = () => {};
+    repo.setCompanyDefaults.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+    wrapWithRole('Admin', <ErpSetupChecklist orgId='org-1' onRefreshCompany={vi.fn()} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Set company accounts' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Company accounts' });
+    fireEvent.change(await within(dialog).findByRole('combobox', { name: 'Vendor payable account' }), { target: { value: 'Creditors' } });
+    const save = within(dialog).getByRole('button', { name: 'Save company accounts' });
+    fireEvent.click(save);
+    await waitFor(() => expect(save).toBeDisabled());
+    fireEvent.click(save);
+    expect(repo.setCompanyDefaults).toHaveBeenCalledTimes(1);
+    finish({ ok: true, written: ['payable'], defaults: { payable: 'Creditors', expense: null, cash: null, bank: null, cost_centre: null } });
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Company accounts' })).not.toBeInTheDocument());
+  });
+
+  it('ECX3-T6 a company with no bank account yet says so and points to creating one', async () => {
+    repo.getErpSetup.mockResolvedValue(readiness({ default_bank_account: null }));
+    repo.getCompanyDefaultOptions.mockResolvedValue({ ...OPTIONS, options: { ...OPTIONS.options, bank: [] } });
+    wrapWithRole('Admin', <ErpSetupChecklist orgId='org-1' onRefreshCompany={vi.fn()} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Set company accounts' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Company accounts' });
+    const bank = await within(dialog).findByRole('combobox', { name: 'Bank account' });
+    expect(within(bank).getAllByRole('option').map((o) => o.textContent)).toEqual(['Choose…']);
+    expect(bank).toHaveAccessibleDescription('The company has no bank account yet, so there is none to choose. Create the bank account first; it is then listed here.');
+    expect(within(dialog).getByRole('combobox', { name: 'Cash account' })).not.toHaveAccessibleDescription(/no bank account/);
   });
 
   it('ECX3-T6 without a chosen company the accounts cannot be set yet; the company is chosen first', async () => {
