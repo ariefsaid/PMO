@@ -57,7 +57,6 @@
   "close": "Close",
   "approval": {
     "withinLimit": "Within your limit",
-    "goesTo": "Goes to {{name}}",
     "note": "Approval note (optional)"
   },
   "sod": {
@@ -187,5 +186,18 @@
       "Invoice": "Supplier invoice",
       "Payment": "Payment"
     }
+  },
+  "chain": {
+    "label": "Approval chain",
+    "requested": "Requested",
+    "approved": "Approved",
+    "next": "Next",
+    "or": "or",
+    "anApprover": "An approver",
+    "waitingDays_one": "Waiting {{count}} day",
+    "waitingDays_other": "Waiting {{count}} days",
+    "waitingUnderDay": "Waiting under a day",
+    "done": "Done",
+    "waiting": "Waiting"
   }
 }

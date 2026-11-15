@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Badge, Checkbox, ListState } from '@/src/components/ui';
 import { formatTableMoney } from '@/src/lib/format';
-import { ageInDays, urgencyOf } from '@/src/lib/selectors/approvalUrgency';
+import { ageInDays, groupByUrgency, urgencyOf, type Urgency } from '@/src/lib/selectors/approvalUrgency';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { weekLabel, type BulkController } from '../timesheets/TimesheetBulkApprove';
 import type { ProcurementBulkController } from './useProcurementBulkApprove';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
@@ -12,6 +13,25 @@ import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition
 export type QueueItem =
   | { key: string; kind: 'procurement'; row: ProcurementWithRefs }
   | { key: string; kind: 'timesheets'; row: TimesheetAwaitingApproval };
+
+/** When the wait began: a purchase from its creation, a timesheet from its submission (its week as a fallback). */
+function waitingSince(item: QueueItem): string | null {
+  return item.kind === 'procurement' ? item.row.created_at : item.row.submitted_at ?? item.row.week_start_date;
+}
+
+/** The age line every card carries; overdue reads in the destructive tone. */
+function WaitingAge({ since }: { since: string | null }) {
+  const { t } = useTranslation();
+  const days = ageInDays(since);
+  const overdue = urgencyOf(since) === 'overdue';
+  return (
+    <span className={overdue ? 'text-control font-medium text-destructive-text' : 'text-control text-muted-foreground'}>
+      {days > 0
+        ? t('procurement:approvalQueue.waitingDays', { count: days, defaultValue_one: '{{count}} day waiting', defaultValue_other: '{{count}} days waiting' })
+        : t('procurement:approvalQueue.waitingUnderDay', 'Under a day waiting')}
+    </span>
+  );
+}
 
 function sumHours(sheet: TimesheetAwaitingApproval): number {
   return sheet.entries.reduce((sum, e) => sum + e.hours, 0);
@@ -34,8 +54,6 @@ export function QueueButton({
   if (item.kind === 'procurement') {
     const row = item.row;
     const canSelect = procurementBulk?.approvableIds.has(row.id) ?? false;
-    const waitingDays = ageInDays(row.created_at);
-    const overdue = urgencyOf(row.created_at) === 'overdue';
     const rowButton = (
       <button
         type="button"
@@ -49,7 +67,7 @@ export function QueueButton({
         <div className="min-w-0">
           <div className="line-clamp-2 break-words text-sm font-medium" title={row.title}>{row.title}</div>
           {/* Every row here is awaiting a decision, so no status pill repeats it; only the wait is shown. */}
-          {waitingDays > 0 && <div className="mt-1"><span className={overdue ? 'text-control font-medium text-destructive-text' : 'text-control text-muted-foreground'}>{t('procurement:approvalQueue.waitingDays', { count: waitingDays, defaultValue_one: '{{count}} day waiting', defaultValue_other: '{{count}} days waiting' })}</span></div>}
+          <div className="mt-1"><WaitingAge since={waitingSince(item)} /></div>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-control text-muted-foreground">
             <span>{row.requested_by?.full_name ?? t('approvals.unknownRequester', 'Unknown requester')}</span>
             <span>·</span>
@@ -92,6 +110,7 @@ export function QueueButton({
           <div className="truncate text-sm font-medium">
             {row.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown')}
           </div>
+          <div className="mt-1"><WaitingAge since={waitingSince(item)} /></div>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-control text-muted-foreground">
             <span>{weekLabel(row.week_start_date, t)}</span>
             <span>·</span>
@@ -116,6 +135,24 @@ export function QueueButton({
       {rowButton}
     </div>
   ) : rowButton;
+}
+
+function UrgencyGroup({ group, children }: { group: Urgency; children: React.ReactNode }) {
+  const { t } = useTranslation();
+  const headingId = useId();
+  const label = {
+    overdue: t('procurement:approvalQueue.group.overdue', 'Overdue'),
+    today: t('procurement:approvalQueue.group.today', 'Today'),
+    later: t('procurement:approvalQueue.group.later', 'Later'),
+  }[group];
+  return (
+    <div role="group" aria-labelledby={headingId}>
+      <h3 id={headingId} className={group === 'overdue' ? 'mb-1.5 text-control font-medium text-destructive-text' : 'mb-1.5 text-control font-medium text-muted-foreground'}>
+        {label}
+      </h3>
+      <div className="space-y-1.5">{children}</div>
+    </div>
+  );
 }
 
 export function QueueGroup({
@@ -147,6 +184,8 @@ export function QueueGroup({
   hideWhenEmpty?: boolean;
 }) {
   const { t } = useTranslation();
+  // Re-render when the organisation's day turns, so a card moves from Today to Overdue without a reload.
+  useOrgToday();
   if (hideWhenEmpty && !isPending && !isError && items.length === 0) return null;
   return (
     <section>
@@ -171,16 +210,20 @@ export function QueueGroup({
       ) : items.length === 0 ? (
         <p className="py-2 text-control text-muted-foreground">{emptyTitle}</p>
       ) : (
-        <div className="space-y-1.5">
-          {items.map((item) => (
-            <QueueButton
-              key={item.key}
-              item={item}
-              selected={selectedKey === item.key}
-              onSelect={() => onSelect(item.key)}
-              bulk={bulk}
-              procurementBulk={procurementBulk}
-            />
+        <div className="space-y-3">
+          {groupByUrgency(items, waitingSince).map(({ group, items: grouped }) => (
+            <UrgencyGroup key={group} group={group}>
+              {grouped.map((item) => (
+                <QueueButton
+                  key={item.key}
+                  item={item}
+                  selected={selectedKey === item.key}
+                  onSelect={() => onSelect(item.key)}
+                  bulk={bulk}
+                  procurementBulk={procurementBulk}
+                />
+              ))}
+            </UrgencyGroup>
           ))}
         </div>
       )}

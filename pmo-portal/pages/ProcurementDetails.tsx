@@ -17,6 +17,7 @@ import {
   ListState,
   ConfirmDialog,
   ReasonDialog,
+  TextArea,
   Tabs,
   tabId,
   tabPanelId,
@@ -72,6 +73,7 @@ import { RecordHistory } from '@/src/components/history/RecordHistory';
 import { RecordCaptureForm, type CreateRecordInput, type RecordKind } from './procurement/RecordCaptureForm';
 import { LinkErpDocumentsDialog } from './procurement/LinkErpDocumentsDialog';
 import { DecisionSupportPanel } from './procurement/DecisionSupportPanel';
+import { ApprovalChainStrip } from './procurement/detail/ApprovalChainStrip';
 import { ProcurementBudgetSignal, ProcurementStageTracker, ProcurementMoneySummary, ProcurementTimeline } from './procurement/detail/ProcurementDetailPanels';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
 import { selectedQuotation } from '../components/procurement';
@@ -375,10 +377,9 @@ const ProcurementDetails: React.FC = () => {
   const returnAction = p.status === 'Requested' ? actionFor('Rejected') : undefined;
   const secondaryTransitionActions = actions.filter((action) => action.to !== transitionMainAction?.to && action.to !== 'Rejected' && action.to !== 'Cancelled');
   const isEngineer = role === 'Engineer';
-  const approverLimitLine = p.status === 'Requested' && !isRequester && routeAllows && p.approvalRoute
-    ? p.approvalRoute.reason === 'within_budget'
-      ? t('procurementRecord:approval.withinLimit', 'Within your limit')
-      : t('procurementRecord:approval.goesTo', 'Goes to {{name}}', { name: p.approvalRoute.approvers.map((approver) => approver.fullName).join(' or ') })
+  // #2058: who decides next is named once, in the approval chain strip; this line keeps only the limit.
+  const approverLimitLine = p.status === 'Requested' && !isRequester && routeAllows && p.approvalRoute?.reason === 'within_budget'
+    ? t('procurementRecord:approval.withinLimit', 'Within your limit')
     : null;
   const waitingNote = p.status === 'Requested' && isRequester
     ? isEngineer
@@ -657,6 +658,7 @@ const ProcurementDetails: React.FC = () => {
         menuLabel={t('procurementRecord:moreActions', 'More procurement actions')}
       />
 
+      <ApprovalChainStrip procurement={p} className="mb-3" />
       {/* Same hidden-figures line as the project record and the home: "N figures hidden · Why" —
           the Why opens the reasons (and any fix) so a person can act on them. */}
       <FigureHiddenLine compact className="mb-3 text-control text-muted-foreground" />
@@ -684,9 +686,6 @@ const ProcurementDetails: React.FC = () => {
       {isDraft && p.items.length === 0 && mainAction?.to === 'Requested' && <p data-testid="line-items-gate" className="mb-3 text-sm text-muted-foreground">{t('procurementRecord:gate.addLineItem', 'Add at least one line item before submitting.')}</p>}
       {isDraft && isRequester && <p data-testid="sod-pre-announce" className="mb-3 text-sm text-muted-foreground">{t('procurementRecord:sod.preAnnounce', "Submitting hands this to another approver. You can't approve your own procurement case.")}</p>}
       {routeNote && !(showVICapture || showCreateGR || showCreateVI) && <p data-testid="approval-route-note" className="mb-3 text-sm text-muted-foreground">{routeNote}</p>}
-      {mainAction?.to === 'Approved' && <label className="mb-4 mt-2 block max-w-xl text-sm font-medium text-muted-foreground">{t('procurementRecord:approval.note', 'Approval note (optional)')}
-        <textarea data-testid="procurement-notes-input" value={notesInput} onChange={(event) => setNotesInput(event.target.value)} rows={2} className="mt-1 block w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
-      </label>}
       {/* Draft-header edit (requester while Draft/Rejected) — opened from the header Edit action */}
       {canEditHeader && headerEditOpen && (
         <ProcurementHeaderEdit
@@ -945,7 +944,23 @@ const ProcurementDetails: React.FC = () => {
               : t('procurementDetail.confirm.viTitle', 'Record this supplier invoice?')
         }
         description={
-          pendingConfirm?.kind === 'transition'
+          pendingConfirm?.kind === 'transition' && pendingConfirm.to === 'Approved' ? (
+            // #2058: the optional approval note sits in the dialog Approve opens; it still rides
+            // notesInput → commitTransition, so the transition payload is unchanged.
+            <div className="space-y-3">
+              <div>{pendingConfirm.description}</div>
+              <TextArea
+                data-testid="procurement-notes-input"
+                label={t('procurementRecord:approval.note', 'Approval note (optional)')}
+                fullWidth
+                rows={2}
+                value={notesInput}
+                disabled={confirmInFlight}
+                onChange={setNotesInput}
+              />
+            </div>
+          )
+          : pendingConfirm?.kind === 'transition'
             ? pendingConfirm.description
             : pendingConfirm?.kind === 'createGR'
               ? t(

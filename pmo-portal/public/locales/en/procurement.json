@@ -717,6 +717,12 @@
   "approvalQueue": {
     "headingAll": "Purchases and timesheets",
     "waitingDays_one": "{{count}} day waiting",
-    "waitingDays_other": "{{count}} days waiting"
+    "waitingDays_other": "{{count}} days waiting",
+    "waitingUnderDay": "Under a day waiting",
+    "group": {
+      "overdue": "Overdue",
+      "today": "Today",
+      "later": "Later"
+    }
   }
 }
