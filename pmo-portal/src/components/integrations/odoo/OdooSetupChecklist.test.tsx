@@ -38,7 +38,7 @@ it('FR-ODC-110 an Odoo org lists the Odoo steps and none of ERPNext\'s activity-
   h.conn.data = read({});
   render(<OdooSetupChecklist />);
   const names = screen.getAllByRole('listitem').map((li) => li.getAttribute('aria-label'));
-  expect(names).toEqual(['Odoo connected', 'Company chosen', 'Odoo apps available', 'Map once', 'Payment journal', 'Customer-advance account', 'Tax-prepaid account', 'Sends finished', 'Vendors and clients managed in Odoo', 'Purchases go to Odoo']);
+  expect(names).toEqual(['Odoo connected', 'Company chosen', 'Odoo apps available', 'Map once', 'Payment journal', 'Customer-advance account', 'Tax-prepaid account', 'Add PPh 23 withholding tax', 'Add PPh 4(2) withholding tax', 'Sends finished', 'Vendors and clients managed in Odoo', 'Purchases go to Odoo']);
   expect(screen.queryByText(/activity type/i)).not.toBeInTheDocument();
   expect(screen.queryByText(/budget categor/i)).not.toBeInTheDocument();
 });
@@ -312,4 +312,11 @@ describe('AC-ODS-006 send purchases to Odoo', () => {
     await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Send purchases' }));
     expect(await within(item(STEP)).findByRole('alert')).toHaveTextContent('Odoo is missing something this needs. Check the connection again, then try again.');
   });
+});
+
+it('#1504 the checklist names the two withholding taxes to add in Odoo: PPh 23 and PPh 4(2)', () => {
+  h.conn.data = read({});
+  render(<OdooSetupChecklist />);
+  expect(screen.getByRole('listitem', { name: /PPh 23/ })).toBeInTheDocument();
+  expect(screen.getByRole('listitem', { name: /PPh 4\(2\)/ })).toBeInTheDocument();
 });
