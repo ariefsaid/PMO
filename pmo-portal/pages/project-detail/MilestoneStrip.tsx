@@ -667,7 +667,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
               {t('projectDetail.milestones.cancel', 'Cancel')}
             </Button>
           </div>
-          {inputError && <span className="text-sm text-destructive">{inputError}</span>}
+          {inputError && <span className="text-sm text-destructive-text">{inputError}</span>}
         </div>
       )}
     </section>

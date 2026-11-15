@@ -240,8 +240,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
               {invalid && (
                 <span
                   role="alert"
-                  style={{ color: 'hsl(0 72% 42%)' }}
-                  className="mt-0.5 block text-center text-control leading-tight"
+                  className="mt-0.5 block text-center text-destructive-text text-control leading-tight"
                 >
                   {t('timesheets.invalidHours', '0–24 only')}
                 </span>
@@ -460,8 +459,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                         {invalid && (
                           <span
                             role="alert"
-                            style={{ color: 'hsl(0 72% 42%)' }}
-                            className="mt-0.5 block text-control leading-tight"
+                            className="mt-0.5 block text-control leading-tight text-destructive-text"
                           >
                             {t('timesheets.invalidHours', '0–24 only')}
                           </span>

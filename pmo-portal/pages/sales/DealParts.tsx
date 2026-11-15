@@ -152,13 +152,13 @@ export const DealActionsZone: React.FC<{ d: DealActions; children?: React.ReactN
         <input id="won-ref" value={d.contractRef} onChange={(e) => { d.setContractRef(e.target.value); d.setRefError(null); }} aria-invalid={!!d.refError} aria-describedby={d.refError ? 'won-ref-err' : undefined}
           placeholder={t('projectDetail.pipeline.contractRefPlaceholder', 'e.g. CPO-2026-0042')}
           className={`h-8 rounded-md border bg-background px-2.5 text-control outline-none placeholder:text-muted-foreground ${d.refError ? 'border-destructive' : 'border-input'}`} />
-        {d.refError && <span id="won-ref-err" className="text-control text-destructive">{d.refError}</span>}
+        {d.refError && <span id="won-ref-err" className="text-control text-destructive-text">{d.refError}</span>}
       </div>
       <div className="flex flex-col gap-1">
         <label htmlFor="won-date" className="text-control font-semibold">{t('projectDetail.pipeline.contractDateLabel', 'Contract date')}</label>
         <input id="won-date" type="date" max={d.today} value={d.contractDate} onChange={(e) => { d.setContractDate(e.target.value); d.setDateError(null); }} aria-invalid={!!d.dateError} aria-describedby={d.dateError ? 'won-date-err' : undefined}
           className={`h-8 rounded-md border bg-background px-2.5 text-control outline-none ${d.dateError ? 'border-destructive' : 'border-input'}`} />
-        {d.dateError && <span id="won-date-err" className="text-control text-destructive">{d.dateError}</span>}
+        {d.dateError && <span id="won-date-err" className="text-control text-destructive-text">{d.dateError}</span>}
       </div>
       <div className="flex gap-2">
         <Button variant="primary" size="sm" loading={d.pending} onClick={d.submitWon}>{t('projectDetail.pipeline.confirmWon', 'Confirm won')}</Button>
@@ -188,7 +188,7 @@ export const DealActionsZone: React.FC<{ d: DealActions; children?: React.ReactN
           {children ?? (!d.isTerminal && <RecordActionZone sticky={false}><DealActionButtons d={d} /></RecordActionZone>)}
           {wonForm}
           {d.error && (
-            <div role="alert" className="flex items-start gap-2 text-control text-destructive">
+            <div role="alert" className="flex items-start gap-2 text-control text-destructive-text">
               <Icon name="alert" className="mt-px size-4 shrink-0" /><span>{d.error}</span>
             </div>
           )}

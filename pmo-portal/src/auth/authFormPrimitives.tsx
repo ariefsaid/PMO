@@ -19,7 +19,7 @@ export const SuccessNotice: React.FC<{ children: React.ReactNode }> = ({ childre
     className="flex items-start gap-2 rounded-md border border-success/30 bg-success/[0.07] px-3 py-2.5 text-control"
   >
     <Icon name="check" className="mt-px size-4 shrink-0 text-success" aria-hidden="true" />
-    <span style={{ color: 'hsl(142 60% 30%)' }}>{children}</span>
+    <span className="text-success-text">{children}</span>
   </div>
 );
 

@@ -324,7 +324,7 @@ export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
               },
             )}</span>
             {staleSelection && <>
-              <div role="alert" className="mt-2 text-sm text-destructive">
+              <div role="alert" className="mt-2 text-sm text-destructive-text">
                 {t('approvals.employeeLinks.uxs30.staleProfile', 'The selected employee is no longer available. Choose another active employee before confirming.')}
               </div>
               {(profileOptions?.length ?? 0) > 0 && <div className="mt-2 max-w-sm">
@@ -351,7 +351,7 @@ export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
                 />
               </div>}
             </>}
-            {saveError && !staleSelection && <div role="alert" className="mt-2 text-sm text-destructive">
+            {saveError && !staleSelection && <div role="alert" className="mt-2 text-sm text-destructive-text">
               {t('approvals.employeeLinks.uxs30.saveFailure', "Couldn't confirm this employee link. The selected profile is still available; try again.")}
             </div>}
           </>}

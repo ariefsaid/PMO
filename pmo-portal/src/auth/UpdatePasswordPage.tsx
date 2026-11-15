@@ -253,8 +253,7 @@ const UpdatePasswordPage: React.FC = () => {
                   <span
                     id="confirm-err"
                     role="alert"
-                    className="mt-1.5 flex items-center gap-1.5 text-control font-medium"
-                    style={{ color: 'hsl(0 72% 45%)' }}
+                    className="mt-1.5 flex items-center gap-1.5 text-control font-medium text-destructive-text"
                   >
                     {confirmError}
                   </span>

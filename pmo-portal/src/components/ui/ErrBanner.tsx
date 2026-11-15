@@ -27,7 +27,7 @@ export const ErrBanner: React.FC<ErrBannerProps> = ({ title, sub, action, classN
   >
     <Icon name="alert" className="mt-px size-[17px] shrink-0 text-destructive" />
     <div className="min-w-0 flex-1">
-      <div className="text-control font-semibold" style={{ color: 'hsl(0 72% 42%)' }}>
+      <div className="text-control font-semibold text-destructive-text">
         {title}
       </div>
       {sub && <div className="mt-px text-control text-muted-foreground">{sub}</div>}

@@ -149,7 +149,7 @@ describe('TimesheetGrid (editable mode)', () => {
     expect(tue).not.toHaveAttribute('aria-invalid', 'true');
   });
 
-  it('NFR-TSE-A11Y: the inline cell error TEXT uses the darkened destructive variant (≥4.5:1 on white), not base text-destructive', () => {
+  it('NFR-TSE-A11Y: the inline cell error TEXT uses the darkened destructive variant (≥4.5:1 on white), not base text-destructive (#2090 token)', () => {
     const editRows: TimesheetGridRow[] = [
       { id: 'p1', project: 'Acme Platform', code: 'P003', hours: [25, 0, 0, 0, 0, 0, 0] },
     ];
@@ -157,11 +157,12 @@ describe('TimesheetGrid (editable mode)', () => {
       <TimesheetGrid days={days} rows={editRows} editable invalidCells={new Set(['p1:0'])} />,
     );
     const alert = screen.getByRole('alert');
-    // jsdom resolves hsl() → rgb(). hsl(0 72% 42%) == rgb(184,30,30) — the darkened red that
-    // clears AA (~6.5:1 on white), NOT the base destructive hsl(0 84.2% 60.2%) at ~3.76:1.
-    expect(alert.style.color).toBe('rgb(184, 30, 30)');
-    // And it must NOT carry the failing text-destructive utility.
-    expect(alert.className).not.toContain('text-destructive');
+    // #2090: the dark-aware semantic token replaces the literal light-theme red, so the text
+    // follows the theme (AA in light and dark). No inline colour, and not the base utility.
+    expect(alert.style.color).toBe('');
+    expect(alert).toHaveClass('text-destructive-text');
+    // And it must NOT carry the failing base text-destructive utility.
+    expect(alert.className).not.toMatch(/(^|\s)text-destructive(\s|$)/);
   });
 
   it('AC-TSE-012: editable grid totals reflect edited cell values live', () => {

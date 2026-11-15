@@ -226,7 +226,7 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?
             </StatusPill>
           </div>
           <div className="mt-3 flex items-center gap-2">
-            <p className="text-sm text-destructive">Couldn't reach ClickUp. Check the connection, then retry.</p>
+            <p className="text-sm text-destructive-text">Couldn't reach ClickUp. Check the connection, then retry.</p>
             <Button variant="outline" size="sm" onClick={() => refetchLists()}>
               <Icon name="refresh" className="size-3.55" aria-hidden="true" />
               Retry
@@ -248,7 +248,7 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?
             </StatusPill>
           </div>
           <div className="mt-3 flex items-center gap-2">
-            <p className="text-sm text-destructive">{bindingsError?.message ?? 'Failed to load project bindings'}</p>
+            <p className="text-sm text-destructive-text">{bindingsError?.message ?? 'Failed to load project bindings'}</p>
             <Button variant="outline" size="sm" onClick={() => refetchBindings()}>
               <Icon name="refresh" className="size-3.55" aria-hidden="true" />
               Retry

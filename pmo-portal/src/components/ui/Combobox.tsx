@@ -378,7 +378,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
               )}
 
               {state === 'error' && (
-                <div className="px-3 py-3.5 text-center text-control" style={{ color: 'hsl(0 72% 45%)' }}>
+                <div className="px-3 py-3.5 text-center text-control text-destructive-text">
                   {t('combobox.error.title', { defaultValue: "Couldn't load {{nounPlural}}.", noun, nounPlural: nounPluralLabel })}
                   <button
                     type="button"
