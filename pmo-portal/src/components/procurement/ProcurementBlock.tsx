@@ -36,6 +36,8 @@ import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
+import { formatQuantity } from '@/src/lib/stockFormat';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { formatCurrency, formatDay, formatPercent, formatShortMoney } from '@/src/lib/format';
 import { mayDecideRoutedApproval } from '@/src/lib/procurement/approvalRoute';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -1221,7 +1223,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                   {drawerDetails!.items.map((item) => (
                     <li key={item.id} className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-2 text-sm">
                       <span>{item.name}{item.description ? ` · ${item.description}` : ''}</span>
-                      <span className="tabular text-muted-foreground">{item.quantity}</span>
+                      <span className="tabular text-muted-foreground">{formatQuantity(String(item.quantity), getNumberLocale())}</span>
                     </li>
                   ))}
                 </ul>

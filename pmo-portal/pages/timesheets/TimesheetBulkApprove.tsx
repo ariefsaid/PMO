@@ -8,7 +8,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useTimesheetMutations } from '@/src/hooks/useTimesheetApproval';
 import { timesheetActions, type TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 import { TimesheetStatus } from '../../types';
-import { formatDay } from '@/src/lib/format';
+import { formatDay, formatNumberMax2 } from '@/src/lib/format';
 
 export type BulkController = ReturnType<typeof useTimesheetBulkApprove>;
 
@@ -179,7 +179,7 @@ export function TimesheetBulkConfirm({ controller, sheets }: { controller: BulkC
           <span className="mt-2 block space-y-0.5">
             {sheets.filter((sheet) => controller.effectiveSelected.has(sheet.id)).map((sheet) => (
               <span key={sheet.id} className="block text-control">
-                {sheet.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown')} · {weekLabel(sheet.week_start_date, t)} · <span className="tabular">{sheet.entries.reduce((sum, entry) => sum + entry.hours, 0).toFixed(1)}</span> {t('approvals.bulk.hoursUnit', 'h')}
+                {sheet.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown')} · {weekLabel(sheet.week_start_date, t)} · <span className="tabular">{formatNumberMax2(sheet.entries.reduce((sum, entry) => sum + entry.hours, 0))}</span>&nbsp;{t('approvals.bulk.hoursUnit', 'h')}
               </span>
             ))}
           </span>

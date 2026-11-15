@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ApprovalRow, Button, Icon, ProjectNameLink, TaxBasisLabel } from '@/src/components/ui';
 import { useInvoiceProjectOptions } from '@/src/hooks/useFkOptions';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
-import { formatCurrency, formatCurrencyCents, formatDay } from '@/src/lib/format';
+import { formatCurrency, formatCurrencyCents, formatDay, formatNumberExact } from '@/src/lib/format';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import { invoiceGross, invoiceNet, nativeInvoiceSummary } from '@/src/lib/revenue/nativeInvoice';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
@@ -66,7 +66,8 @@ export const SalesInvoiceApprovalPreview: React.FC<{
                   )}
                 </span>
                 <span className="ml-auto shrink-0 tabular text-muted-foreground">
-                  {line.qty} × {money(line.rate)} ={' '}
+                  {/* #2089: the quantity renders in the viewer's locale, grouped. */}
+                  {formatNumberExact(line.qty)} × {money(line.rate)} ={' '}
                   <span className="font-medium text-foreground">{money(line.amount)}</span>
                 </span>
               </li>

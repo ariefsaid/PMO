@@ -540,6 +540,13 @@ describe('pipeline overview blocks and engineer task links', () => {
     expect(screen.getByRole('button', { name: 'Update phases' })).not.toHaveClass('max-md:hidden');
   });
 
+  it('#2089: a task one day overdue reads "1 day", not "1 days"', () => {
+    const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+    state.tasks = [{ id: 'task-18', name: 'Check cabling', status: 'In Progress', assignee_id: 'viewer-1', end_date: yesterday }];
+    renderWithQueryClient(<MemoryRouter><MyOpenTasks projectId="p1" /></MemoryRouter>);
+    expect(screen.getByText('Overdue · 1 day')).toBeInTheDocument();
+  });
+
   it('links an overdue task to its task anchor and uses destructive text for urgency', () => {
     state.tasks = [{ id: 'task-17', name: 'Review drawings', status: 'In Progress', assignee_id: 'viewer-1', end_date: '2000-01-01' }];
     renderWithQueryClient(<MemoryRouter><MyOpenTasks projectId="p1" /></MemoryRouter>);

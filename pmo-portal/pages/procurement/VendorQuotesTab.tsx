@@ -18,7 +18,7 @@ import {
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { trackComingSoonClicked } from '@/src/lib/analytics';
-import { currencySymbol, formatCurrency, formatDay, parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, formatCurrency, formatDay, numberSymbols, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { ProcurementFilesSubsection, type EmbeddedProcurementFile } from './ProcurementFilesSubsection';
 import { useCommandIntentMap } from '@/src/hooks/useCommandIntent';
@@ -273,7 +273,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
                 }}
                 error={totalError}
                 localeAware
-                placeholder="0.00"
+                placeholder={`0${numberSymbols().decimal}00`}
               />
             </div>
             <span

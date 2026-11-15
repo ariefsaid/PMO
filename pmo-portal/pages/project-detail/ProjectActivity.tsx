@@ -138,7 +138,7 @@ export const MyOpenTasks: React.FC<{ projectId: string }> = ({ projectId }) => {
                   <StatusPill record="task" state={task.status} />
                   {task.end_date && <span className={task.end_date < today ? 'shrink-0 whitespace-nowrap text-sm font-medium text-destructive-text sm:min-w-28 sm:text-right' : 'shrink-0 whitespace-nowrap text-sm text-muted-foreground sm:min-w-28 sm:text-right'}>
                     {task.end_date < today
-                      ? t('projectDetail.myTasks.overdue', 'Overdue · {{days}} days', { days: Math.round((Date.parse(today) - Date.parse(task.end_date)) / 86_400_000) })
+                      ? t('projectDetail.myTasks.overdue', { count: Math.round((Date.parse(today) - Date.parse(task.end_date)) / 86_400_000), defaultValue_one: 'Overdue · {{count}} day', defaultValue_other: 'Overdue · {{count}} days' })
                       : formatDay(task.end_date)}
                   </span>}
                 </Link>

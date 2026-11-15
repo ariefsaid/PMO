@@ -159,6 +159,17 @@ describe('AC-IFW-PROC-01: expanded state — budget impact + line items + adjace
     expect(screen.getByText('Inverter 5kW')).toBeInTheDocument();
   });
 
+  it('#2089: a line quantity renders grouped in the viewer locale (id: 1.250,5)', () => {
+    detailState.data = { ...detailData, items: [{ ...detailData.items[0], quantity: 1250.5 }] };
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'UTC' });
+    try {
+      renderAs();
+      expect(screen.getByText(/1\.250,5 ×/)).toBeInTheDocument();
+    } finally {
+      resetActiveLocale();
+    }
+  });
+
   it('Approve button appears in expanded panel (adjacent — no navigation)', async () => {
     renderAs();
     expect(screen.getByRole('button', { name: /^Approve$/i })).toBeInTheDocument();

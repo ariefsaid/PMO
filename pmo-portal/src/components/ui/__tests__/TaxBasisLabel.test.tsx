@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { TaxBasisLabel } from '../TaxBasisLabel';
+import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
 
 function visibleText(element: HTMLElement): string {
   const clone = element.cloneNode(true) as HTMLElement;
@@ -255,5 +256,15 @@ describe('TaxBasisLabel — the basis that travels with a money figure (OD-TAX-1
   it('carries the treatment as a data attribute, so a surface with many figures is auditable', () => {
     render(<TaxBasisLabel treatment="inclusive" testId="contract-tax-basis" />);
     expect(screen.getByTestId('contract-tax-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
+  });
+
+  it('#2089: a fractional rate renders in the viewer locale (id: 12,5%)', () => {
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'UTC' });
+    try {
+      render(<TaxBasisLabel treatment="exclusive" taxRate={12.5} taxBaseNumerator={11} taxBaseDenominator={12} />);
+      expect(screen.getByTestId('tax-basis')).toHaveTextContent('12,5% · DPP 11/12');
+    } finally {
+      resetActiveLocale();
+    }
   });
 });

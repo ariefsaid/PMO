@@ -414,7 +414,8 @@
       "all": "All tasks",
       "empty": "Nothing assigned to you here.",
       "dueTooltip": "Task status and due date come from this task record; overdue days are calculated from today.",
-      "overdue": "Overdue · {{days}} days"
+      "overdue_one": "Overdue · {{count}} day",
+      "overdue_other": "Overdue · {{count}} days"
     },
     "attention": {
       "title": "Needs attention",
