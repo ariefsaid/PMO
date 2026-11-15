@@ -93,7 +93,6 @@ export async function erpClientForBinding(
   return { fetchImpl: guardedErpFetch(org.siteUrl), apiKey, apiSecret, baseUrl: org.siteUrl };
 }
 
-/** The outbox-recovery listCandidates RPC wrapper (camelCase → OutboxRow). */
 /** 0357: the org's `failed` outbox rows still waiting out their retry delay (not due, not exhausted). */
 export async function listRetryPendingLive(serviceClient: SupabaseClient, orgId: string): Promise<ReadonlySet<string>> {
   const { data, error } = await serviceClient.rpc('outbox_retry_pending', { p_org_id: orgId });
@@ -101,6 +100,7 @@ export async function listRetryPendingLive(serviceClient: SupabaseClient, orgId:
   return new Set(((data as unknown[] | null) ?? []).map(String));
 }
 
+/** The outbox-recovery listCandidates RPC wrapper (camelCase → OutboxRow). */
 export function listCandidatesLive(serviceClient: SupabaseClient): ListOutboxCandidates {
   return async (orgId: string) => {
     const { data, error } = await serviceClient.rpc('outbox_reconcile_candidates', { p_org_id: orgId });

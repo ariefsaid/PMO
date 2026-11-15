@@ -56,7 +56,7 @@ export function budgetDedupKey(versionId: string, fiscalYear: string | null | un
 /** Read the EXISTING `external_command_outbox` row for this budget version's deterministic key, if
  *  any (FR-BUD-141: the SAME key the foreground path derives — `budgetPushKey` — so this finds the
  *  SAME candidate rather than minting a second one; the two originators collide safely, ADR-0058). */
-export async function findBudgetOutboxRow(
+export function findBudgetOutboxRow(
   serviceClient: SupabaseClient,
   orgId: string,
   versionId: string,
