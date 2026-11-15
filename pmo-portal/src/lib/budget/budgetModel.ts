@@ -131,6 +131,24 @@ export function buildBudgetSummaryRows(input: {
   });
 }
 
+export type SpendingRow = BudgetSummaryRow & { unmappedSpent?: number };
+
+/**
+ * #2261 — when the project's spending is known but the categories carry only part of it, the rest goes to the
+ * Uncategorized row (created when absent) so the rows add up to the Spent total. `totalSpent` must be in the
+ * rows' currency; null, or no shortfall, leaves the rows as they are.
+ */
+export function withUnmappedSpending(rows: BudgetSummaryRow[], totalSpent: number | null, canReadProcurements: boolean): SpendingRow[] {
+  if (totalSpent === null) return rows;
+  const unmapped = Math.round((totalSpent - rows.reduce((sum, row) => sum + (row.spent ?? 0), 0)) * 100) / 100;
+  if (unmapped <= 0) return rows;
+  const existing = rows.find((row) => row.category === UNCATEGORIZED);
+  if (existing) {
+    return rows.map((row) => row === existing ? { ...row, spent: (row.spent ?? 0) + unmapped, unmappedSpent: unmapped } : row);
+  }
+  return [...rows, { category: UNCATEGORIZED, budget: 0, spent: unmapped, committed: canReadProcurements ? 0 : null, lines: [], unmappedSpent: unmapped }];
+}
+
 /**
  * The project's committed spend: the sum of the category rows' commitments, Uncategorized included.
  * The one calculation behind every committed figure on the project (Overview and Budget tab agree, L12);
