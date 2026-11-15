@@ -31,7 +31,7 @@ Deno.test({ name: 'AC-ONB-001: inactive operators cannot use either action or ex
 
 const valid = { action: 'create', name: 'Acme', admin_email: 'a@example.test', admin_full_name: 'Admin', default_currency: 'USD', default_locale: 'en', default_timezone: 'UTC', plan_id: 'standard' };
 const org = '11111111-1111-4111-8111-111111111111';
-interface Scenario { orgExists?: boolean; orgAdmin?: boolean; profile?: boolean; lookupError?: boolean; account?: 'pending' | 'active' | 'other'; orgError?: boolean; rateLimited?: boolean; status?: boolean; inviteExisting?: boolean; unknownPlan?: boolean; noPlan?: boolean; manyStages?: boolean; manyAdmins?: boolean; pagedAccount?: boolean; orgName?: string; }
+interface Scenario { orgExists?: boolean; orgAdmin?: boolean; profile?: boolean; lookupError?: boolean; account?: 'pending' | 'active' | 'other'; orgError?: boolean; rateLimited?: boolean; status?: boolean; inviteExisting?: boolean; unknownPlan?: boolean; noPlan?: boolean; manyStages?: boolean; manyAdmins?: boolean; pagedAccount?: boolean; orgName?: string; nameLookupError?: boolean; }
 // Migration 0530 revoked these tables from EVERY API role (service_role included): they have no
 // table path. The mock must refuse them exactly like the real REST layer (403, PG 42501) in every
 // scenario, so a handler that reads them directly can never pass a test again.
@@ -65,7 +65,8 @@ async function run(body: Record<string, unknown>, s: Scenario = {}) {
     else if (path.endsWith('/rpc/organization_id_by_name')) {
       const key = (v: string) => v.replace(/[\s\u0085\u200b\ufeff]+/g, ' ').trim().toLowerCase();
       const asked = key(JSON.parse(calls[calls.length - 1].body).p_name ?? '');
-      if (asked === '') { status = 400; value = { code: 'P0001', message: 'org_name_required' }; }
+      if (s.nameLookupError) { status = 500; value = { code: 'XX000', message: 'failure' }; }
+      else if (asked === '') { status = 400; value = { code: 'P0001', message: 'org_name_required' }; }
       else value = s.orgExists && asked === key(s.orgName ?? 'Acme') ? org : null;
     }
     else if (s.status && path === '/rest/v1/profiles') {
@@ -238,4 +239,12 @@ test('AC-ORG-026: a name the database key reads as blank is refused before any i
   const r = await run({ ...valid, name: '\u200b\u0085' });
   check(r.status === 400 && r.body.error === 'ORG_NAME_REQUIRED', 'blank name refused');
   check(!r.calls.some(c => c.path === '/auth/v1/invite'), 'no invitation sent');
+});
+test('AC-ORG-030: when the name lookup fails the create is refused and no invitation is sent', async () => {
+  const r = await run(valid, { nameLookupError: true });
+  check(r.status === 502 && r.body.error === 'LOOKUP_FAILED', 'lookup failure refused');
+  check(r.calls.some(c => c.path.endsWith('/rpc/organization_id_by_name')), 'the name lookup was asked');
+  check(!r.calls.some(c => c.path === '/auth/v1/invite'), 'no invitation sent');
+  check(!r.calls.some(c => c.path === '/auth/v1/admin/users' || c.path === '/rest/v1/profiles'), 'no account or profile scan');
+  check(!r.calls.some(c => c.path.endsWith('/rpc/operator_create_org_with_setup')), 'no organization created');
 });
