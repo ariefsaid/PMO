@@ -153,7 +153,7 @@ node scripts/pmo.mjs org add \
 - `TIMEZONE_REQUIRED`: The `--timezone` flag value is missing.
 - `PLAN_REQUIRED`: The `--plan` flag value is missing.
 - `UNKNOWN_PLAN`: The specified plan identifier does not exist in the database.
-- `ORG_NAME_TAKEN`: An organization with this name already exists and caller is not its Admin.
+- `ORG_NAME_TAKEN`: Another organization already has this name, and the given Admin is not its Admin. Names match ignoring letter case and spacing (any run of whitespace counts as one space; leading and trailing whitespace is ignored), and the database holds one organization per name (#2264).
 - `ADMIN_HAS_PROFILE`: The specified email address already belongs to an existing organization profile.
 - `ADMIN_ACCOUNT_EXISTS`: An auth account exists for this email with a profile or has signed in.
 - `RATE_LIMITED`: The operator has exceeded the allowed rate of organization creation.
@@ -218,7 +218,7 @@ node scripts/pmo.mjs get projects --select id,name,status,client_id --filter nam
 node scripts/pmo.mjs stages <project-uuid>
 ```
 
-`pmo load` walks the legal path from `Leads` to the requested stage and writes the contract value through the guarded app RPC. The load's transition dates are load/audit time, not historical pipeline dates. To correct one, inspect the history, then set the date of the most recent matching stage entry:
+`pmo load` walks the legal path from `Leads` to the requested stage and writes the contract value through the guarded app RPC. The pipeline order is `Leads` → `Quotation Submitted` → `PQ Submitted` → `Tender Submitted` → `Negotiation`; a won project goes `Leads` → `Quotation Submitted` → `Won, Pending KoM`, then on to `Ongoing Project`, `On Hold` or `Close Out`. A rerun of a project already part-way continues from its current stage. The load's transition dates are load/audit time, not historical pipeline dates. To correct one, inspect the history, then set the date of the most recent matching stage entry:
 
 ```bash
 node scripts/pmo.mjs stages <project-uuid>
