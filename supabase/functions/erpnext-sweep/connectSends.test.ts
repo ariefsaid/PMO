@@ -64,6 +64,8 @@ interface Opts {
   openStatuses?: string[];
   /** #1599: answer this ERP request instead of the fake (undefined: the fake answers). */
   erpAnswer?: (c: FetchCall) => Response | undefined;
+  /** #1599: the outbox's claim refuses with this message (a refusal from the outbox itself, before any ERP call). */
+  claimRefusal?: string;
 }
 
 function routes(o: Opts) {
@@ -106,6 +108,7 @@ function routes(o: Opts) {
       return jsonResponse([{ id: row.id }]);
     } },
     supabaseRpc('claim_outbox_for_commit', (c) => {
+      if (o.claimRefusal) return jsonResponse({ code: 'P0001', message: o.claimRefusal, details: '' }, { status: 400 });
       const row = outbox.find((x) => x.id === (c.bodyJson as { p_id: string }).p_id)!;
       Object.assign(row, { state: 'committing', claim_generation: Number(row.claim_generation) + 1 });
       return jsonResponse(row);
@@ -644,6 +647,14 @@ describe('#1599 ECX-4 drainConnectSends: direct-cost accounts', () => {
     const unreadable = () => new Response(JSON.stringify({ exc_type: 'ValidationError', _server_messages: JSON.stringify([JSON.stringify({ message: 'https://erp.example.com/app/account' })]) }), { status: 417 });
     const { calls } = await tick({ claimed: [P.account], tables: chart(), erpAnswer: (c) => (isAccountPost(c) ? unreadable() : undefined) });
     assertEquals(results(calls)[0].p_rejection, ADMIN_TOLD);
+    assertEquals(operatorTasks(calls).map((t) => t.error_code), ['ERP_ACCOUNT_SEND_REFUSED']);
+  });
+
+  it('AC-ECX-030 a refusal from the outbox itself (not the ERP) is never shown verbatim: the same sentence and an Operator task', async () => {
+    const { calls } = await tick({ claimed: [P.account], tables: chart(), claimRefusal: 'procurement-create-refused: some_rule' });
+    assertEquals(erpPosts(calls).length, 0);
+    const [r] = results(calls);
+    assertEquals(r.p_rejection, ADMIN_TOLD);
     assertEquals(operatorTasks(calls).map((t) => t.error_code), ['ERP_ACCOUNT_SEND_REFUSED']);
   });
 

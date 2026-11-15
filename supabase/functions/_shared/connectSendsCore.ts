@@ -173,6 +173,7 @@ export async function drainSends(sc: SupabaseClient, org: { orgId: string; bindi
   /** An account refusal (#1599). A 403 is the integration user's missing permission and a reason PMO cannot read is unknown: both are
    *  the Operator's, never a step in the ERP for the client. PMO's own refusals (no status: the adapter's words) stand alone. */
   const rejectAccountSend = async (c: Claimed, err: unknown) => {
+    if (err === null) return rejectAccount(c, ACCOUNT_OPERATOR_TASK.refused);   // refused by the outbox itself, not the ERP or the adapter
     const status = (err as { status?: unknown }).status;
     if (status === 403) return rejectAccount(c, ACCOUNT_OPERATOR_TASK.forbidden);
     if (typeof status !== 'number') return reject(c, (err as Error).message);
@@ -237,7 +238,7 @@ export async function drainSends(sc: SupabaseClient, org: { orgId: string; bindi
         if (kind === 'account') await noteAccountElsewhere(c, master, done.externalRecordId);
       } catch (err) {
         const code = (err as { code?: string }).code;
-        if (code === 'commit-rejected' && kind === 'account') await rejectAccountSend(c, raw ?? err);
+        if (code === 'commit-rejected' && kind === 'account') await rejectAccountSend(c, raw);
         else if (code === 'commit-rejected') await reject(c, CONNECT_SEND_REJECTION_TEXT.refused(kind, t.reasonOf(err)));
         else if (code === 'command-held' && ambiguous) await reject(c, CONNECT_SEND_REJECTION_TEXT.ambiguous(kind));
         else if (code === 'command-held') {
