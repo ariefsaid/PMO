@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { expectedInvoiceTotal, readBackInvoice, type InvoiceRead } from './invoiceReadBack.ts';
 
-const MOVE = { name: 'INV/2026/00001', state: 'posted', amount_untaxed: 1000, amount_tax: 110, amount_total: 1110, amount_residual: 1110, ref: 'PO-77', invoice_date: '2026-11-03', currency_id: [12, 'IDR'], write_date: '2026-11-03 10:00:00' };
+const MOVE = { name: 'INV/2026/00001', state: 'posted', amount_untaxed: 1000, amount_tax: 110, amount_total: 1110, amount_residual: 1110, ref: 'PO-77', invoice_date: '2026-11-03', date: '2026-11-03', currency_id: [12, 'IDR'], write_date: '2026-11-03 10:00:00' };
 const LINES = [{ id: 1, display_type: 'product', analytic_distribution: { '101': 100 } }, { id: 2, display_type: 'product', analytic_distribution: { '101': 100 } }];
 const read = (over: Partial<InvoiceRead['move']> = {}, lines: InvoiceRead['productLines'] = LINES): InvoiceRead => ({ move: { ...MOVE, ...over }, productLines: lines, readAt: '2026-11-03T10:00:01Z' });
 const EXPECT = { total: '1110.00', costAccountId: 101 };
@@ -9,7 +9,7 @@ const EXPECT = { total: '1110.00', costAccountId: 101 };
 describe('AC-OCI-016 the whole money header is written, or none of it', () => {
   it('writes Odoo\'s untaxed-derived figures verbatim: total, tax, outstanding; the number, reference and currency come from Odoo', () => {
     expect(readBackInvoice('inv-1', read(), EXPECT)).toEqual({
-      id: 'inv-1', si_number: 'INV/2026/00001', invoice_date: '2026-11-03', reference_number: 'PO-77', currency: 'IDR',
+      id: 'inv-1', si_number: 'INV/2026/00001', invoice_date: '2026-11-03', erp_posting_date: '2026-11-03', reference_number: 'PO-77', currency: 'IDR',
       amount: '1110.00', tax_amount: '110.00', erp_outstanding_amount: '1110.00', erp_docstatus: 1, erp_modified: '2026-11-03 10:00:00', erp_amended_from: null,
       odoo_state: 'posted', odoo_attention: null, odoo_sent_total: null, odoo_read_at: '2026-11-03T10:00:01Z',
     });
@@ -82,6 +82,29 @@ describe('AC-OCI-022 a down-payment product posts to the configured customer-adv
   it('accepts the configured account on the posted down-payment line', () => {
     const lines = [{ id: 1, display_type: 'product', product_id: [72, 'Down payment'], account_id: [210, 'Customer Advances'], analytic_distribution: { '101': 100 } }];
     expect(readBackInvoice('inv-1', read({}, lines), advance).odoo_attention).toBeNull();
+  });
+});
+
+describe('AC-ODR-004 an invoice Odoo re-dated is mirrored on the ledger date and needs attention', () => {
+  const SENT = { ...EXPECT, date: '2026-11-03', ref: 'PO-77' };
+  it('a moved accounting date: the entered invoice date as read, the ledger date beside it, ledger-date-differs', () => {
+    expect(readBackInvoice('inv-1', read({ date: '2027-01-01' }), SENT)).toMatchObject({ invoice_date: '2026-11-03', erp_posting_date: '2027-01-01', odoo_attention: 'ledger-date-differs' });
+  });
+  it('an equal date and reference: no attention', () => {
+    expect(readBackInvoice('inv-1', read(), SENT)).toMatchObject({ erp_posting_date: '2026-11-03', odoo_attention: null });
+  });
+  it('an unreadable ledger date is ledger-date-unreadable, never a match', () => {
+    expect(readBackInvoice('inv-1', read({ date: false }), SENT).odoo_attention).toBe('ledger-date-unreadable');
+  });
+  it('a reference Odoo changed is ledger-reference-differs, after the money and account reasons', () => {
+    expect(readBackInvoice('inv-1', read({ ref: 'OTHER' }), SENT).odoo_attention).toBe('ledger-reference-differs');
+    expect(readBackInvoice('inv-1', read({ ref: 'OTHER', amount_total: 1200, amount_residual: 1200 }), SENT).odoo_attention).toBe('total-mismatch');
+  });
+  it('unreadable money still comes first: a moved date does not hide it', () => {
+    expect(readBackInvoice('inv-1', read({ date: '2027-01-01', amount_residual: undefined }), SENT).odoo_attention).toBe('money-unreadable');
+  });
+  it('a legacy expectation without a sent date compares no date', () => {
+    expect(readBackInvoice('inv-1', read({ date: '2027-01-01' }), EXPECT)).toMatchObject({ erp_posting_date: '2027-01-01', odoo_attention: null });
   });
 });
 

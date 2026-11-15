@@ -260,6 +260,22 @@ describe('AC-OCI-013 / AC-OCI-030 what Odoo computed is flagged, never overwritt
   });
 });
 
+describe('AC-ODR-004 settleInvoice reads the accounting date Odoo posted on', () => {
+  const SENT: InvoiceExpect = { ...EXPECT, date: INPUT.invoiceDate, ref: 'PO-77' };
+  it('an invoice dated inside a locked period is posted on another day: mirrored on that day, ledger-date-differs', async () => {
+    const r = rig({ expectation: SENT });
+    r.fake.seed('res.company', [{ id: 1, fiscalyear_lock_date: '2026-11-30' }]);
+    const result = await r.attempt();
+    expect(r.fake.rows('account.move')[0]).toMatchObject({ state: 'posted', invoice_date: '2026-11-03', date: '2026-12-01' });
+    expect(result.canonical).toMatchObject({ invoice_date: '2026-11-03', erp_posting_date: '2026-12-01', odoo_attention: 'ledger-date-differs', odoo_state: 'posted' });
+  });
+
+  it('an invoice in an open period: its posting date, no attention', async () => {
+    const result = await rig({ expectation: SENT }).attempt();
+    expect(result.canonical).toMatchObject({ erp_posting_date: '2026-11-03', odoo_attention: null });
+  });
+});
+
 describe('the adapter refuses what C3 does not push', () => {
   it('owns revenue, refuses delete, other kinds and other domains, and has no reads yet', async () => {
     const { adapter } = rig();

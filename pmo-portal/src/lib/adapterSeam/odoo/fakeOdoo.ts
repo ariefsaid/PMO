@@ -11,7 +11,7 @@ type Domain = unknown[];
 /** The fields `fields_get` reports per model (the adapter only asks which exist). Any other model answers 404. */
 const FIELDS: Record<string, string[]> = {
   'res.partner': ['name', 'vat', 'ref', 'email', 'is_company', 'parent_id', 'active', 'supplier_rank', 'customer_rank', 'company_id', 'write_date'],
-  'res.company': ['name', 'currency_id', 'partner_id', 'fiscalyear_last_day', 'fiscalyear_last_month', 'write_date'],
+  'res.company': ['name', 'currency_id', 'partner_id', 'fiscalyear_last_day', 'fiscalyear_last_month', 'fiscalyear_lock_date', 'write_date'],
   'res.users': ['partner_id', 'active', 'write_date'],
   'res.currency': ['name', 'rounding', 'decimal_places', 'active', 'write_date'],
   'product.product': ['default_code', 'name', 'uom_id', 'supplier_taxes_id', 'property_account_income_id', 'purchase_ok', 'sale_ok', 'is_storable', 'company_id', 'active', 'write_date'],
@@ -28,7 +28,7 @@ const FIELDS: Record<string, string[]> = {
   'ir.model.data': ['module', 'name', 'model', 'res_id', 'write_date'],
   'account.payment': ['name', 'state', 'memo', 'amount', 'partner_id', 'payment_type', 'partner_type', 'journal_id', 'payment_method_line_id', 'currency_id', 'date', 'move_id', 'reconciled_bill_ids', 'reconciled_invoice_ids', 'is_reconciled', 'is_matched', 'create_date', 'write_date'],
   'account.journal': ['name', 'code', 'type', 'company_id', 'active', 'inbound_payment_method_line_ids', 'outbound_payment_method_line_ids', 'default_account_id', 'write_date'],
-  'account.move': ['name', 'move_type', 'state', 'partner_id', 'ref', 'invoice_date', 'invoice_date_due', 'invoice_line_ids', 'amount_untaxed', 'amount_tax', 'amount_total', 'amount_residual', 'payment_state', 'reversed_entry_id', 'currency_id', 'company_id', 'invoice_origin', 'create_date', 'write_date'],
+  'account.move': ['name', 'move_type', 'state', 'partner_id', 'ref', 'invoice_date', 'date', 'invoice_date_due', 'invoice_line_ids', 'amount_untaxed', 'amount_tax', 'amount_total', 'amount_residual', 'payment_state', 'reversed_entry_id', 'currency_id', 'company_id', 'invoice_origin', 'create_date', 'write_date'],
   'account.move.line': ['move_id', 'move_name', 'journal_id', 'company_id', 'currency_id', 'amount_currency', 'date', 'parent_state', 'debit', 'credit', 'display_type', 'product_id', 'product_uom_id', 'quantity', 'price_unit', 'tax_ids', 'tax_line_id', 'tax_base_amount', 'analytic_distribution', 'purchase_line_id', 'account_id', 'account_type', 'partner_id', 'balance', 'amount_residual', 'reconciled', 'write_date'],
   'account.tax.repartition.line': ['tax_id', 'document_type', 'repartition_type', 'account_id', 'write_date'],
   'stock.picking': ['name', 'state', 'partner_id', 'move_ids', 'backorder_id', 'backorder_ids', 'purchase_id', 'picking_type_code', 'write_date'],
@@ -169,6 +169,8 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     'fleet.vehicle.log.services': ['vehicle_id', 'service_type_id', 'vendor_id'],
   };
   const shaped = (m: string, r: Row): Row => {
+    // Odoo's accounting `date` follows the document date unless a post moved it (a locked period, #2290).
+    if (m === 'account.move' && r.date === undefined) return shaped(m, { ...r, date: r.invoice_date ?? false });
     if (m === 'account.analytic.account') return { ...r, plan_id: asM2o(r.plan_id), company_id: asM2o(r.company_id) };
     const m2oFields = M2O_FIELDS[m];
     if (!m2oFields) return r;
@@ -375,6 +377,17 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
   const settleInvoice = (invoice: Row, residualCents: number) => {
     Object.assign(invoice, { amount_residual: units(residualCents), payment_state: residualCents === 0 ? 'paid' : 'partial', write_date: fmt(++clock) });
   };
+  /**
+   * Odoo 20 posts a document dated inside the company's locked period on the first open day instead of refusing it (bed facts
+   * V-ACD4.post-*-dated-inside-lock, #2290). Seed `res.company.fiscalyear_lock_date` to lock a period.
+   */
+  const lockDate = (): string | null => [...table('res.company').values()].map((c) => c.fiscalyear_lock_date).filter((d): d is string => typeof d === 'string').sort().at(-1) ?? null;
+  const dayAfter = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+  const lockedOut = (d: unknown): string | null => { const lock = lockDate(); return lock && typeof d === 'string' && d <= lock ? dayAfter(lock) : null; };
+  const relock = (m: string, row: Row) => {
+    if (m === 'account.move') { const moved = lockedOut(row.date ?? row.invoice_date); if (moved) row.date = moved; }
+    if (m === 'account.payment') { const moved = lockedOut(row.date); if (moved) row.date = moved; }
+  };
   const createPayments = (b: Record<string, unknown>) => {
     const wizard = table('account.payment.register').get((b.ids as number[])[0]);
     const invoice = wizard ? table('account.move').get(Number(wizard.invoice_id)) : undefined;
@@ -392,7 +405,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     const paymentId = newId('account.payment');
     table('account.payment').set(paymentId, {
       id: paymentId, payment_type: 'inbound', partner_type: 'customer', partner_id: invoice.partner_id, amount: units(amount), state: 'reconciled', memo: wizard.communication ?? false,
-      journal_id: wizard.journal_id ?? false, date: wizard.payment_date ?? false, is_reconciled: difference === 0, is_matched: false,
+      journal_id: wizard.journal_id ?? false, date: lockedOut(wizard.payment_date) ?? wizard.payment_date ?? false, is_reconciled: difference === 0, is_matched: false,
       reconciled_invoice_ids: [invoice.id], move_id: [moveId, name], write_date: fmt(++clock),
     });
     settleInvoice(invoice, Math.max(0, residual - amount - difference));
@@ -523,6 +536,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     action_post: (m, b) => {
       for (const id of b.ids as number[]) {
         const row = table(m).get(id);
+        if (row) relock(m, row);
         if (m === 'account.move' && row?.move_type === 'in_invoice') postBill({ table, nextId: newId, stamp: () => fmt(++clock) }, row);
         else if (m === 'account.move' && isCustomerMove(row)) postInvoice(row!);
         else if (m === 'account.payment' && row?.payment_type === 'inbound' && row.partner_type === 'customer') postInboundPayment(row);

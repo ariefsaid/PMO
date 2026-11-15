@@ -270,6 +270,17 @@ describe('FR-OCI-070 / FR-OCI-072 / OQ-OCI-14 an invoice approval goes through t
     });
   });
 
+  it('AC-ODR-004 the payload stores the invoice date and reference the body sends, so a recovery judges the ledger date by them', async () => {
+    const t = await invoiceDeps();
+    await withFetchMock(t.routes, async ({ calls }) => {
+      const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+      await deps.insertOutboxPending('revenue', DRAFT_ID, KEY);
+      const payload = (calls.find((c) => c.method === 'POST' && c.url.pathname === '/rest/v1/external_command_outbox')!.bodyJson as { payload: Record<string, unknown> }).payload;
+      assertEquals(/^\d{4}-\d{2}-\d{2}$/.test(String(payload.odoo_expected_date)), true, String(payload.odoo_expected_date));
+      assertEquals(payload.odoo_expected_ref, 'WO-PO-9');
+    });
+  });
+
   it('the digest is the command\'s, not the derived facts: the window and the judged figures stay out of it', async () => {
     const [a, b] = [await invoiceDeps(), await invoiceDeps()];
     const digests: string[] = [];

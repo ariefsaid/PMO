@@ -7,6 +7,7 @@
  * refuses a create and writes none of it on an update, and the invoice is flagged `money-unreadable`.
  */
 import type { PmoRecord } from '../../contract.ts';
+import { compareLedger, type LedgerCode } from '../ledgerReadBack.ts';
 import { centsOf, checkCostAccount, compareSent, moneyHeader } from './moneyHeader.ts';
 import { odooFloatRound } from './odooRounding.ts';
 
@@ -14,7 +15,7 @@ type Amount = number | string;
 export interface InvoiceRead {
   move: {
     name: unknown; state: string; amount_untaxed?: Amount; amount_tax?: Amount; amount_total?: Amount; amount_residual?: Amount;
-    ref?: unknown; invoice_date?: unknown; currency_id?: unknown; write_date: string;
+    ref?: unknown; invoice_date?: unknown; date?: unknown; currency_id?: unknown; write_date: string;
   };
   /** The posted product lines (`account.move.line`, display_type product); null when they could not be read. */
   productLines: ReadonlyArray<{
@@ -31,8 +32,11 @@ export interface InvoiceExpect {
   costAccountId: number | null;
   /** A down-payment or recovery product and the configured customer-advance liability account it must post to. */
   advanceAccount?: { productId: number; accountId: number };
+  /** The `invoice_date` and `ref` PMO sent (#2290); null on an outbox row persisted before they were stored: then nothing is compared. */
+  date?: string | null;
+  ref?: string | null;
 }
-export type InvoiceAttention = 'total-mismatch' | 'cost-account-missing' | 'advance-account-mismatch' | 'money-unreadable' | 'lines-unreadable';
+export type InvoiceAttention = 'total-mismatch' | 'cost-account-missing' | 'advance-account-mismatch' | 'money-unreadable' | 'lines-unreadable' | LedgerCode;
 
 const text = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
 const many2oneId = (value: unknown): number | null => typeof value === 'number' && Number.isInteger(value) && value > 0
@@ -64,11 +68,16 @@ export function readBackInvoice(pmoId: string, read: InvoiceRead, expect: Invoic
   const mismatch = sane && compareSent(expect.total, move.amount_total) === 'mismatch';
   const costAccount = expect.costAccountId === null ? ({ outcome: 'ok' } as const) : checkCostAccount(read.productLines, expect.costAccountId);
   const advanceAccount = checkAdvanceAccount(read.productLines, expect.advanceAccount);
-  // One column holds one reason; the order is the order a person should look in.
+  // Odoo re-dates a post inside a locked period instead of refusing it (#2290): the accounting `date` is the ledger's.
+  const ledger = compareLedger({ date: expect.date ?? null, ref: expect.ref ?? null }, { date: move.date, ref: move.ref });
+  // One column holds one reason; the order is the order a person should look in (a moved period first once the money is readable).
   const attention: InvoiceAttention | null = !sane ? 'money-unreadable'
+    : ledger.codes.includes('ledger-date-differs') ? 'ledger-date-differs'
+    : ledger.codes.includes('ledger-date-unreadable') ? 'ledger-date-unreadable'
     : costAccount.outcome === 'needs-attention' ? 'cost-account-missing'
     : advanceAccount.outcome === 'needs-attention' ? 'advance-account-mismatch'
     : mismatch ? 'total-mismatch'
+    : ledger.codes.includes('ledger-reference-differs') ? 'ledger-reference-differs'
     : costAccount.outcome === 'unreadable' || advanceAccount.outcome === 'unreadable' ? 'lines-unreadable'
     : null;
   const currency = Array.isArray(move.currency_id) ? text(move.currency_id[1]) : null;
@@ -76,6 +85,7 @@ export function readBackInvoice(pmoId: string, read: InvoiceRead, expect: Invoic
     id: pmoId,
     si_number: text(move.name),
     invoice_date: text(move.invoice_date),
+    erp_posting_date: ledger.postingDate,
     reference_number: text(move.ref),
     ...(currency ? { currency } : {}),
     ...(sane ? { amount: header.total, tax_amount: header.tax, erp_outstanding_amount: header.outstanding } : {}),

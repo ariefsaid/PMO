@@ -72,20 +72,26 @@ function billLine(line: BillLineInput, ctx: BillCtx): Record<string, unknown> {
   };
 }
 
+const isoDay = (v: string | null | undefined): string | null => (/^\d{4}-\d{2}-\d{2}$/.test(v ?? '') ? v! : null);
+
+/** The `invoice_date` and `ref` a bill body sends (#2290): what the read-back compares the ledger's accounting date and reference with. */
+export function billSentDateRef(bill: Pick<BillInput, 'invoiceDate' | 'reference'>, today = new Date().toISOString().slice(0, 10)): { date: string; ref: string | null } {
+  return { date: isoDay(bill.invoiceDate) ?? today, ref: bill.reference ? bill.reference : null };
+}
+
 export function buildBillBody(bill: BillInput, ctx: BillCtx, today = new Date().toISOString().slice(0, 10)): Record<string, unknown> {
   assertOrderResolved(bill, ctx);
   const verdict = validateTaxes(ctx.taxes, ctx.companyId);   // defence in depth: the resolver already validated the set
   if (verdict.outcome === 'refused') refuse(`${verdict.code}: ${verdict.tax}`);
   const partnerId = vendorPartnerId(bill.vendor);
-  const date = (v: string | null | undefined) => (/^\d{4}-\d{2}-\d{2}$/.test(v ?? '') ? v : null);
   return {
     move_type: 'in_invoice',
     partner_id: partnerId,
     company_id: ctx.companyId,
     currency_id: ctx.currencyId,   // explicit: never the vendor's default currency (OQ-OPP-9)
     ...(bill.reference ? { ref: bill.reference } : {}),
-    invoice_date: date(bill.invoiceDate) ?? today,   // Odoo will not post a vendor bill without one
-    ...(date(bill.dueDate) ? { invoice_date_due: date(bill.dueDate) } : {}),
+    invoice_date: billSentDateRef(bill, today).date,   // Odoo will not post a vendor bill without one
+    ...(isoDay(bill.dueDate) ? { invoice_date_due: isoDay(bill.dueDate) } : {}),
     invoice_line_ids: bill.lines.map((line) => [0, 0, billLine(line, ctx)]),
   };
 }

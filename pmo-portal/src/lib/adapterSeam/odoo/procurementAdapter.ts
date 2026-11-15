@@ -348,8 +348,8 @@ async function pushReceipt(deps: OdooProcurementDeps, command: AdapterCommand): 
 
 export const billKey = (record: PmoRecord): string => `bill:${record.id}`;
 
-interface BillRow { name: string; state: string; move_type: string; amount_total?: number | string; amount_residual?: number | string; ref?: unknown; invoice_date?: unknown; currency_id?: unknown; write_date: string }
-const BILL_FIELDS = ['name', 'state', 'move_type', 'amount_total', 'amount_residual', 'ref', 'invoice_date', 'currency_id', 'write_date'];
+interface BillRow { name: string; state: string; move_type: string; amount_total?: number | string; amount_residual?: number | string; ref?: unknown; invoice_date?: unknown; date?: unknown; currency_id?: unknown; write_date: string }
+const BILL_FIELDS = ['name', 'state', 'move_type', 'amount_total', 'amount_residual', 'ref', 'invoice_date', 'date', 'currency_id', 'write_date'];
 
 const readBill = async (call: OdooCall, id: number): Promise<BillRow> =>
   (await call<BillRow[]>('account.move', 'read', { ids: [id], fields: BILL_FIELDS }))[0] ?? refuse('bill-missing');
@@ -392,7 +392,8 @@ async function pushBill(deps: OdooProcurementDeps, command: AdapterCommand): Pro
   const call = guarded(deps.call);
   const { input, ctx } = await deps.resolveBill(command);
   const body = buildBillBody(input, ctx);   // refuses before the first Odoo call
-  const expect: BillExpect = { total: expectedBillTotal(input, ctx.taxes), costAccountId: ctx.costAccountId };
+  const sent = { date: typeof body.invoice_date === 'string' ? body.invoice_date : null, ref: typeof body.ref === 'string' ? body.ref : null };
+  const expect: BillExpect = { total: expectedBillTotal(input, ctx.taxes), costAccountId: ctx.costAccountId, ...sent };
   const found = await recoverBill(call, command.record, undefined, expect, deps.isExternalAnchorOwnedElsewhere);
   if (found) return found;
   if (nextStep('bill', { absent: true, probe: 'conclusive' }) !== 'create') return refuse('bill-held');

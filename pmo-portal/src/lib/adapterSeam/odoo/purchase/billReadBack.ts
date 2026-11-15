@@ -7,12 +7,13 @@
  * out whole (DD-VWH-2/5): the shipped mirror writer then refuses a create and writes none of it on an update.
  */
 import type { PmoRecord } from '../../contract.ts';
+import { compareLedger } from '../ledgerReadBack.ts';
 import { compareSent, moneyHeader } from './moneyHeader.ts';
 
 type Amount = number | string;
 export interface BillRead {
   move: {
-    name: string; state: string; amount_total?: Amount; amount_residual?: Amount; ref?: unknown; invoice_date?: unknown;
+    name: string; state: string; amount_total?: Amount; amount_residual?: Amount; ref?: unknown; invoice_date?: unknown; date?: unknown;
     currency_id?: unknown; write_date: string;
   };
   /** The posted tax lines (`balance`: positive VAT, negative withholding). */
@@ -24,6 +25,9 @@ export interface BillExpect {
   /** The total PMO expected Odoo to answer, from the lines and explicit taxes it sent. */
   total: string;
   costAccountId: string | null;
+  /** The `invoice_date` and `ref` PMO sent (#2290); null on an outbox row persisted before they were stored: then nothing is compared. */
+  date?: string | null;
+  ref?: string | null;
 }
 
 const text = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
@@ -41,11 +45,15 @@ export function readBackBill(pmoId: string, read: BillRead, expect: BillExpect):
   if (!sane) attention.push('money-unreadable');
   else if (compareSent(expect.total, move.amount_total as Amount) === 'mismatch') attention.push('total-mismatch');
   if (expect.costAccountId !== null && read.productLines.some((l) => !carriesAccount(l.analytic_distribution, expect.costAccountId!))) attention.push('cost-account-missing');
+  // Odoo re-dates a post inside a locked period instead of refusing it (#2290): the accounting `date` is the ledger's.
+  const ledger = compareLedger({ date: expect.date ?? null, ref: expect.ref ?? null }, { date: move.date, ref: move.ref });
+  attention.push(...ledger.codes);
   const currency = Array.isArray(move.currency_id) ? text(move.currency_id[1]) : null;
   return {
     id: pmoId,
     vi_number: move.name,
     invoice_date: text(move.invoice_date),
+    erp_posting_date: ledger.postingDate,
     reference_number: text(move.ref),
     ...(currency ? { currency } : {}),
     ...(sane ? { amount: header.gross, tax_amount: header.vat, withheld_amount: header.withheld, erp_outstanding_amount: header.outstanding } : {}),

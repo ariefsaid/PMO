@@ -351,7 +351,11 @@ export function resolveOdooInvoiceInputs(sc: SupabaseClient, orgId: string, comm
     delete record.taxes;
     return {
       input, maps,
-      expect: { total: expectedInvoiceTotal(lines.map((line, i) => ({ ...line, amount: draft.lines[i].amount })), rates, currency.rounding), costAccountId, ...(advanceAccount ? { advanceAccount } : {}) },
+      expect: {
+        total: expectedInvoiceTotal(lines.map((line, i) => ({ ...line, amount: draft.lines[i].amount })), rates, currency.rounding), costAccountId,
+        ...(advanceAccount ? { advanceAccount } : {}),
+        date: input.invoiceDate, ref: reference,   // what the body sends (`invoiceBody.ts`): the ledger read-back's expectation (#2290)
+      },
       draft,
     };
   })();

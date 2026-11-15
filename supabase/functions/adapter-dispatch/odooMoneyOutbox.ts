@@ -9,7 +9,7 @@ import { CLAIM_BUDGET_MS, REQUEST_DEADLINE_MS, SETTLE_MARGIN_MS } from '../../..
 import type { PurchaseKind } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/nextStep.ts';
 import type { OrderComposite, PaymentComposite } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/recoveryProbe.ts';
 import { readOrderLines, recoverBill, recoverOrder, recoverPayment, recoverReceipt, recoverRevise, type PaymentResolution } from '../../../pmo-portal/src/lib/adapterSeam/odoo/procurementAdapter.ts';
-import { expectedBillTotal } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/billBody.ts';
+import { billSentDateRef, expectedBillTotal } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/billBody.ts';
 import type { BillExpect } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/billReadBack.ts';
 import { odooClientForOrg, type OdooClientForOrgResult } from '../_shared/odooClientForOrg.ts';
 import { billCompositeFacts, orderCompositeFacts, paymentCompositeFacts, resolveOdooBillInputs, resolveOdooOrderCurrency, resolveOdooReceiptFacts } from '../_shared/odooPurchaseRefs.ts';
@@ -111,17 +111,24 @@ async function billCompositePayload(ctx: AdapterSelectContext, call: OdooCall, r
   const currencyId = await resolveOdooOrderCurrency(sc, ctx.orgId, ctx.command, call, resolved.companyId);
   const { input, ctx: bill } = await resolveOdooBillInputs(sc, ctx.orgId, ctx.command, resolved, currencyId, call);
   const facts = await billCompositeFacts(sc, ctx.orgId, ctx.command.record as { procurementId?: unknown });
+  const sent = billSentDateRef(input);   // what the body sends: the read-back's date and reference expectation (#2290)
   return {
     odoo_partner_id: facts.partnerId, odoo_amount: facts.amount, odoo_line_count: facts.lineCount, ...window,
     odoo_expected_total: expectedBillTotal(input, bill.taxes), odoo_cost_account: bill.costAccountId,
+    odoo_expected_date: sent.date, odoo_expected_ref: sent.ref,
   };
 }
 
 /** What the read-back is judged against: derived, so it is not command material (it stays out of the payload digest). */
-const DERIVED_KEYS = ['odoo_expected_total', 'odoo_cost_account', 'odoo_bill_ref', 'odoo_adopted_ref', 'odoo_absent_confirmed'] as const;
+const DERIVED_KEYS = ['odoo_expected_total', 'odoo_cost_account', 'odoo_expected_date', 'odoo_expected_ref', 'odoo_bill_ref', 'odoo_adopted_ref', 'odoo_absent_confirmed'] as const;
 const billExpectOf = (p: Record<string, unknown> | null | undefined): BillExpect | undefined =>
   p && typeof p.odoo_expected_total === 'string' && (typeof p.odoo_cost_account === 'string' || p.odoo_cost_account === null)
-    ? { total: p.odoo_expected_total, costAccountId: p.odoo_cost_account }
+    ? {
+      total: p.odoo_expected_total, costAccountId: p.odoo_cost_account,
+      // #2290: a row persisted before the sent date and reference were stored compares neither (never an invented expectation).
+      date: typeof p.odoo_expected_date === 'string' ? p.odoo_expected_date : null,
+      ref: typeof p.odoo_expected_ref === 'string' ? p.odoo_expected_ref : null,
+    }
     : undefined;
 
 const orderCompositeOf = (p: Record<string, unknown> | null | undefined): OrderComposite | undefined => {

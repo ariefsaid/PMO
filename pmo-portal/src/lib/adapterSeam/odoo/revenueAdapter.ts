@@ -45,9 +45,9 @@ export const invoiceKey = (record: PmoRecord): string => `si:${record.id}`;
 
 interface MoveRow {
   name: unknown; state: string; move_type: string; partner_id?: unknown; amount_untaxed?: number | string; amount_tax?: number | string; amount_total?: number | string; amount_residual?: number | string;
-  ref?: unknown; invoice_date?: unknown; currency_id?: unknown; write_date: string;
+  ref?: unknown; invoice_date?: unknown; date?: unknown; currency_id?: unknown; write_date: string;
 }
-const MOVE_FIELDS = ['name', 'state', 'move_type', 'partner_id', 'amount_untaxed', 'amount_tax', 'amount_total', 'amount_residual', 'ref', 'invoice_date', 'currency_id', 'write_date'];
+const MOVE_FIELDS = ['name', 'state', 'move_type', 'partner_id', 'amount_untaxed', 'amount_tax', 'amount_total', 'amount_residual', 'ref', 'invoice_date', 'date', 'currency_id', 'write_date'];
 const PAYMENT_FIELDS = ['name', 'state', 'payment_type', 'partner_type', 'partner_id', 'amount', 'date', 'memo', 'move_id', 'reconciled_invoice_ids', 'is_reconciled', 'is_matched', 'write_date'];
 
 const readMove = async (call: OdooCall, id: number): Promise<MoveRow> =>

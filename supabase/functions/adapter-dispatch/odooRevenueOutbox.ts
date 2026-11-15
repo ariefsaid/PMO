@@ -50,7 +50,7 @@ const WINDOW_MS = 10 * 60_000;
 
 /** What the read-back is judged against and the composite's inputs: derived, so not command material (they stay out of the payload digest). */
 const DERIVED_KEYS = [
-  'odoo_expected_total', 'odoo_cost_account', 'odoo_advance_product_id', 'odoo_advance_account_id',
+  'odoo_expected_total', 'odoo_cost_account', 'odoo_advance_product_id', 'odoo_advance_account_id', 'odoo_expected_date', 'odoo_expected_ref',
   'odoo_partner_id', 'created_after', 'created_before', 'odoo_adopted_ref', 'odoo_absent_confirmed',
 ] as const;
 const RECEIPT_DERIVED_KEYS = ['odoo_receipt_probe', 'odoo_adopted_ref', 'odoo_absent_confirmed', 'recorded_by', 'recorded_by_id', 'recordedBy'] as const;
@@ -58,7 +58,12 @@ const expectOf = (p: Record<string, unknown> | null | undefined): InvoiceExpect 
   if (!p || typeof p.odoo_expected_total !== 'string' || !(typeof p.odoo_cost_account === 'number' || p.odoo_cost_account === null)) return undefined;
   const advanceAccount = typeof p.odoo_advance_product_id === 'number' && typeof p.odoo_advance_account_id === 'number'
     ? { productId: p.odoo_advance_product_id, accountId: p.odoo_advance_account_id } : undefined;
-  return { total: p.odoo_expected_total, costAccountId: p.odoo_cost_account, ...(advanceAccount ? { advanceAccount } : {}) };
+  return {
+    total: p.odoo_expected_total, costAccountId: p.odoo_cost_account, ...(advanceAccount ? { advanceAccount } : {}),
+    // #2290: a row persisted before the sent date and reference were stored compares neither (never an invented expectation).
+    date: typeof p.odoo_expected_date === 'string' ? p.odoo_expected_date : null,
+    ref: typeof p.odoo_expected_ref === 'string' ? p.odoo_expected_ref : null,
+  };
 };
 const compositeOf = (p: Record<string, unknown> | null | undefined): InvoiceComposite | undefined =>
   p && typeof p.odoo_partner_id === 'number' && typeof p.created_after === 'string'
@@ -112,6 +117,8 @@ async function invoiceOutboxDeps(ctx: AdapterSelectContext, resolved: Exclude<Od
         ...record, erp_doc_kind: 'sales-invoice',
         odoo_partner_id: persistedComposite.partnerId, odoo_expected_total: persistedExpect.total,
         odoo_cost_account: persistedExpect.costAccountId, created_after: persistedComposite.createdAfter,
+        ...(persistedExpect.date ? { odoo_expected_date: persistedExpect.date } : {}),
+        ...(persistedExpect.ref ? { odoo_expected_ref: persistedExpect.ref } : {}),
         ...(persistedComposite.createdBefore ? { created_before: persistedComposite.createdBefore } : {}),
         ...(persistedExpect.advanceAccount ? {
           odoo_advance_product_id: persistedExpect.advanceAccount.productId,
@@ -128,6 +135,7 @@ async function invoiceOutboxDeps(ctx: AdapterSelectContext, resolved: Exclude<Od
     payload = {
       ...record, erp_doc_kind: 'sales-invoice', odoo_partner_id: facts.partnerId,
       odoo_expected_total: expect.total, odoo_cost_account: expect.costAccountId,
+      odoo_expected_date: expect.date ?? null, odoo_expected_ref: expect.ref ?? null,
       odoo_draft_digest: await odooInvoiceDraftDigest(resolvedInvoice.draft),
       ...(expect.advanceAccount ? {
         odoo_advance_product_id: expect.advanceAccount.productId,

@@ -241,7 +241,7 @@ describe('AC-OPP-053 the Odoo probe closure: zero, one and many matches', () => 
   });
 
   describe('bill', () => {
-    const MOVE = { name: 'BILL/2026/00041', state: 'posted', move_type: 'in_invoice', amount_total: 54.5, amount_residual: 54.5, ref: 'INV-77', invoice_date: '2026-12-05', currency_id: [12, 'IDR'], write_date: '2026-11-03 10:00:00' };
+    const MOVE = { name: 'BILL/2026/00041', state: 'posted', move_type: 'in_invoice', amount_total: 54.5, amount_residual: 54.5, ref: 'INV-77', invoice_date: '2026-12-05', date: '2026-12-05', currency_id: [12, 'IDR'], write_date: '2026-11-03 10:00:00' };
     const lines = (b: { domain: unknown[][] }) => (b.domain.some((t) => t[0] === 'tax_line_id') ? [{ balance: 5.5 }, { balance: -1 }] : [{ analytic_distribution: false }]);
     const billSetup = (odoo: Rows, over: Parameters<typeof setup>[2] = {}) => setup('purchase-invoice', { taxIds: [11, 12], referenceNumber: 'INV-77', invoiceDate: '2026-12-05' }, {
       ...over, odoo: { 'res.company': [{ currency_id: [12, 'IDR'] }], 'account.tax': [{ id: 11, company_id: [1, 'Co'] }, { id: 12, company_id: [1, 'Co'] }],
@@ -256,7 +256,7 @@ describe('AC-OPP-053 the Odoo probe closure: zero, one and many matches', () => 
         assertEquals(await deps.probeByRemarksKey('procurement', KEY), {
           externalRecordId: 'account.move:41',   // qualified by model: Odoo ids are per model, external_refs is unique per (org, domain, id)
           canonical: {
-            id: REC, vi_number: 'BILL/2026/00041', invoice_date: '2026-12-05', reference_number: 'INV-77', currency: 'IDR',
+            id: REC, vi_number: 'BILL/2026/00041', invoice_date: '2026-12-05', erp_posting_date: '2026-12-05', reference_number: 'INV-77', currency: 'IDR',
             amount: '55.50', tax_amount: '5.50', withheld_amount: '1.00', erp_outstanding_amount: '54.50', pmo_amount: '54.50',
             erp_docstatus: 1, erp_modified: '2026-11-03 10:00:00', erp_amended_from: null,
           },
@@ -337,6 +337,26 @@ describe('AC-OPP-053 the Odoo probe closure: zero, one and many matches', () => 
         assertEquals((await deps.probeByRemarksKey('procurement', KEY))?.canonical?.pmo_amount, '54.50');
       });
       assertEquals(queries(t, 'account.tax').length + queries(t, 'res.company').length, 0);
+    });
+
+    it('AC-ODR-003 a REPLAY judges the ledger date against the stored sent date: a bill Odoo re-dated needs attention', async () => {
+      const stored = { odoo_partner_id: 77, odoo_amount: '50.00', odoo_line_count: 2, odoo_expected_total: '54.50', odoo_cost_account: null, odoo_expected_date: '2026-12-05', odoo_expected_ref: null };
+      const t = billSetup({ 'ir.model.data': [{ res_id: 41 }], 'account.move': [{ ...MOVE, date: '2027-01-01' }], 'account.move.line': lines }, { replay: true, outbox: stored });
+      await withFetchMock(t.routes, async () => {
+        const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+        const canonical = (await deps.probeByRemarksKey('procurement', KEY))?.canonical;
+        assertEquals([canonical?.erp_posting_date, canonical?.odoo_attention], ['2027-01-01', ['ledger-date-differs']]);
+      });
+    });
+
+    it('AC-ODR-003 a legacy REPLAY row without a stored sent date compares no date: nothing is flagged for it', async () => {
+      const stored = { odoo_partner_id: 77, odoo_amount: '50.00', odoo_line_count: 2, odoo_expected_total: '54.50', odoo_cost_account: null };
+      const t = billSetup({ 'ir.model.data': [{ res_id: 41 }], 'account.move': [{ ...MOVE, date: '2027-01-01' }], 'account.move.line': lines }, { replay: true, outbox: stored });
+      await withFetchMock(t.routes, async () => {
+        const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+        const canonical = (await deps.probeByRemarksKey('procurement', KEY))?.canonical;
+        assertEquals([canonical?.erp_posting_date, canonical?.odoo_attention], ['2027-01-01', undefined]);
+      });
     });
 
     it('a REPLAY with no stored expectation cannot judge the bill: the probe refuses (held), it never assumes a match', async () => {

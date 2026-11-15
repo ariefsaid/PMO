@@ -70,3 +70,19 @@ describe('AC-OPP-020 every posted line carries the project\'s cost account', () 
     expect(c.odoo_attention).toEqual(['total-mismatch', 'cost-account-missing']);
   });
 });
+
+describe('AC-ODR-003 a bill Odoo re-dated is mirrored on the ledger date and needs attention', () => {
+  it('flags ledger-date-differs and carries erp_posting_date', () => {
+    const c = readBackBill(PMO_ID, { ...READ, move: { ...MOVE, date: '2027-01-01' } }, { ...EXPECT, date: '2026-12-05', ref: 'INV-77' });
+    expect(c).toMatchObject({ erp_posting_date: '2027-01-01', odoo_outcome: 'needs-attention', odoo_attention: ['ledger-date-differs'] });
+  });
+  it('an unmoved bill carries its posting date and no attention', () => {
+    const c = readBackBill(PMO_ID, { ...READ, move: { ...MOVE, date: '2026-12-05' } }, { ...EXPECT, date: '2026-12-05', ref: 'INV-77' });
+    expect(c).toMatchObject({ erp_posting_date: '2026-12-05' });
+    expect(c).not.toHaveProperty('odoo_outcome');
+  });
+  it('a reference Odoo changed is flagged ledger-reference-differs', () => {
+    const c = readBackBill(PMO_ID, { ...READ, move: { ...MOVE, date: '2026-12-05', ref: 'OTHER' } }, { ...EXPECT, date: '2026-12-05', ref: 'INV-77' });
+    expect(c).toMatchObject({ odoo_outcome: 'needs-attention', odoo_attention: ['ledger-reference-differs'] });
+  });
+});

@@ -481,6 +481,22 @@ describe('AC-OPP-041 an interrupted bill ends with one posted bill and no second
   });
 });
 
+describe('AC-ODR-003 settleBill reads the accounting date Odoo posted on', () => {
+  it('a bill dated inside a locked period is posted by Odoo on another day: mirrored on that day and needs attention', async () => {
+    const r = rig();
+    r.fake.seed('res.company', [{ id: 1, fiscalyear_lock_date: '2026-12-31' }]);
+    const result = await r.attemptBill();
+    expect(r.fake.rows('account.move')[0]).toMatchObject({ state: 'posted', invoice_date: '2026-12-05', date: '2027-01-01' });
+    expect(result.canonical).toMatchObject({ invoice_date: '2026-12-05', erp_posting_date: '2027-01-01', odoo_outcome: 'needs-attention', odoo_attention: ['ledger-date-differs'] });
+  });
+
+  it('a bill in an open period carries its posting date and no attention', async () => {
+    const result = await rig().attemptBill();
+    expect(result.canonical).toMatchObject({ erp_posting_date: '2026-12-05' });
+    expect(result.canonical).not.toHaveProperty('odoo_outcome');
+  });
+});
+
 describe('AC-OPP-044 / AC-OPP-020 what Odoo computed is flagged, never overwritten', () => {
   it('Odoo answers a different total than PMO sent (its VAT rate differs): needs attention, Odoo\'s money mirrored, the sent figure beside it', async () => {
     const r = rig();
