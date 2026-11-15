@@ -45,7 +45,7 @@ export const StockTabs: React.FC = () => {
   React.useLayoutEffect(() => {
     const currentTab = scrollerRef.current?.querySelector<HTMLElement>('[aria-current="page"]');
     currentTab?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' });
-  }, [pathname]);
+  }, [pathname, tabs.length]); // Setup joins the strip once the role resolves, so a direct open of /stock/setup must scroll again
   return (
     <nav
       ref={scrollerRef}
