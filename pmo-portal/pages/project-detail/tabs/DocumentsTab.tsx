@@ -74,7 +74,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     onCountChange?.(isPending || isError || data == null ? null : data.length);
   }, [data, isError, isPending, onCountChange]);
   const { data: orgProfiles } = useAssignableProfiles();
-  const { create, update, transition, remove, link, unlink } = useDocumentMutations(projectId);
+  const { create, update, transition, bulkTransition, refresh, remove, link, unlink } = useDocumentMutations(projectId);
   const { createRevision } = useRevision(projectId);
 
   const [search, setSearch] = useState('');
@@ -298,16 +298,11 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     if (!pendingBulkStatus) return;
     setBulkFailure(null);
     const targets = selectedDocuments.filter((doc) => allowedStatusTargets(doc).includes(pendingBulkStatus));
-    let succeeded = 0;
+    const results = await Promise.allSettled(targets.map((doc) => bulkTransition.mutateAsync({ id: doc.id, status: pendingBulkStatus })));
+    if (targets.length > 0) void refresh();
     const failures: Array<{ doc: ProjectDocumentRow; error: unknown }> = [];
-    for (const doc of targets) {
-      try {
-        await transition.mutateAsync({ id: doc.id, status: pendingBulkStatus });
-        succeeded += 1;
-      } catch (error) {
-        failures.push({ doc, error });
-      }
-    }
+    results.forEach((r, i) => { if (r.status === 'rejected') failures.push({ doc: targets[i], error: r.reason }); });
+    const succeeded = targets.length - failures.length;
     setBulkStatus('');
     setBulkStatusOpen(false);
     if (succeeded > 0) {

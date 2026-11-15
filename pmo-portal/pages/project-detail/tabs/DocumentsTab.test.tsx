@@ -22,6 +22,7 @@ const { listState, childDocs, mutations, fileUploadState, revisionState, reposit
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },
     transition: { mutateAsync: vi.fn(), isPending: false },
+    bulkTransition: { mutateAsync: vi.fn(), isPending: false },
     remove: { mutateAsync: vi.fn(), isPending: false },
     link: { mutateAsync: vi.fn(), isPending: false },
     unlink: { mutateAsync: vi.fn(), isPending: false },
@@ -51,6 +52,7 @@ const { listState, childDocs, mutations, fileUploadState, revisionState, reposit
   },
 }));
 
+const refresh = vi.hoisted(() => vi.fn());
 const destinationState = vi.hoisted(() => ({ value: { kind: 'private' } as { kind: 'private' | 'microsoft' | 'unknown' } }));
 vi.mock('@/src/hooks/useUploadDestination', async (orig) => ({
   ...(await orig<typeof import('@/src/hooks/useUploadDestination')>()),
@@ -59,7 +61,7 @@ vi.mock('@/src/hooks/useUploadDestination', async (orig) => ({
 
 vi.mock('@/src/hooks/useDocuments', () => ({
   useDocuments: () => listState,
-  useDocumentMutations: () => mutations,
+  useDocumentMutations: () => ({ ...mutations, refresh }),
   useChildDocument: (parentId: string | null) => ({
     data: parentId ? childDocs[parentId] ?? null : null,
     isPending: false,
@@ -349,12 +351,33 @@ describe('DocumentsTab — register views and selection', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Review change' }));
     await userEvent.click(screen.getByRole('button', { name: 'Confirm status change' }));
 
-    await waitFor(() => expect(mutations.transition.mutateAsync).toHaveBeenCalledWith({ id: 'd1', status: 'Issued' }));
+    await waitFor(() => expect(mutations.bulkTransition.mutateAsync).toHaveBeenCalledWith({ id: 'd1', status: 'Issued' }));
+  });
+
+  it('#2112 applies a bulk status change concurrently and refetches the register once', async () => {
+    listState.data = [seed[0], { ...seed[0], id: 'd7', code: 'DOC-007', title: 'Field Notes' }];
+    refresh.mockClear();
+    const started: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    mutations.bulkTransition.mutateAsync.mockImplementation(async ({ id }: { id: string }) => { started.push(id); await gate; });
+    renderTab('Admin', 'admin-1');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select Site Plan' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select Field Notes' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Change status' }));
+    await userEvent.selectOptions(screen.getByLabelText('Change status'), 'Issued');
+    await userEvent.click(screen.getByRole('button', { name: 'Review change' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm status change' }));
+    await waitFor(() => expect(started).toEqual(['d1', 'd7']));
+    expect(refresh).not.toHaveBeenCalled();
+    release();
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+    mutations.bulkTransition.mutateAsync.mockReset();
   });
 
   it('F2-28 keeps failed rows selected and names them in the open bulk confirmation', async () => {
     listState.data = [seed[0], { ...seed[0], id: 'd7', code: 'DOC-007', title: 'Field Notes' }];
-    mutations.transition.mutateAsync
+    mutations.bulkTransition.mutateAsync
       .mockImplementationOnce(async ({ id }: { id: string }) => {
         if (id === 'd1') throw Object.assign(new Error('permission denied'), { code: '42501' });
       });
@@ -375,8 +398,8 @@ describe('DocumentsTab — register views and selection', () => {
     expect(within(dialog).getByText(/Updated 1 document/i)).toBeInTheDocument();
 
     await userEvent.click(within(dialog).getByRole('button', { name: 'Confirm status change' }));
-    await waitFor(() => expect(mutations.transition.mutateAsync).toHaveBeenCalledTimes(3));
-    expect(mutations.transition.mutateAsync).toHaveBeenLastCalledWith({ id: 'd1', status: 'Issued' });
+    await waitFor(() => expect(mutations.bulkTransition.mutateAsync).toHaveBeenCalledTimes(3));
+    expect(mutations.bulkTransition.mutateAsync).toHaveBeenLastCalledWith({ id: 'd1', status: 'Issued' });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(sitePlan).not.toBeChecked();
   });
