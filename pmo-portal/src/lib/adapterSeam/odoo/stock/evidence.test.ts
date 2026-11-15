@@ -541,7 +541,7 @@ describe('evaluateStockEvidence (AC-OSP-007)', () => {
   });
 });
 
-describe('evaluateStockEvidence issue with N moves (AC-OSP-007; line count pending the bed, Round 7.0)', () => {
+describe('evaluateStockEvidence issue with N moves (AC-OSP-007; bed 7.0: one cost line per move)', () => {
   const intent: PmoStockIntent = {
     documentId: '15120000-0000-0000-0000-000000003003',
     kind: 'issue',
@@ -591,3 +591,58 @@ describe('evaluateStockEvidence issue with N moves (AC-OSP-007; line count pendi
   });
 });
 
+
+describe('evaluateStockEvidence against the bed facts (AC-OSP-007, Round 7.0)', () => {
+  const picking = { id: 13, state: 'done', company_id: 1, location_id: 6, location_dest_id: 2, write_date: '2026-11-15 09:00:00' };
+  const transfer: PmoStockIntent = { documentId: '15120000-0000-0000-0000-000000003005', kind: 'transfer', companyId: 1, sourceLocationId: 6, destinationLocationId: 2, lines: [{ productId: 101, quantity: 3 }, { productId: 102, quantity: 2 }] };
+
+  it('AC-OSP-007 an internal transfer Odoo does not value (value 0, is_valued false) confirms with its quantity and no value change', () => {
+    const verdict = evaluateStockEvidence(transfer, { picking, moves: [
+      { id: 1, product_id: 101, quantity: 3, state: 'done', value: 0, is_valued: false },
+      { id: 2, product_id: 102, quantity: 2, state: 'done', value: 0, is_valued: false },
+    ], currency: 'IDR' });
+    expect(verdict).toMatchObject({ state: 'confirmed', completedQuantity: 5, completedValue: 0, exception: null });
+  });
+
+  it('AC-OSP-007 a move not valued confirms even when its value reads empty', () => {
+    const verdict = evaluateStockEvidence(transfer, { picking, moves: [
+      { id: 1, product_id: 101, quantity: 3, state: 'done', value: null, is_valued: false },
+      { id: 2, product_id: 102, quantity: 2, state: 'done', value: null, is_valued: false },
+    ] });
+    expect(verdict).toMatchObject({ state: 'confirmed', completedValue: 0 });
+  });
+
+  it('AC-OSP-007 a valued move with no number is held, never confirmed on a guess', () => {
+    const verdict = evaluateStockEvidence(transfer, { picking, moves: [
+      { id: 1, product_id: 101, quantity: 3, state: 'done', value: -30, is_valued: true },
+      { id: 2, product_id: 102, quantity: 2, state: 'done', value: null, is_valued: true },
+    ] });
+    expect(verdict.state).toBe('held');
+    expect(verdict.exception).toMatch(/^STK_EVIDENCE_VALUATION:/);
+  });
+
+  it('AC-OSP-007 one item on two lines confirms on its two moves and two cost lines', () => {
+    const issue: PmoStockIntent = { documentId: '15120000-0000-0000-0000-000000003006', kind: 'issue', companyId: 1, sourceLocationId: 6, destinationLocationId: 2, projectId: 42, lines: [{ productId: 205, quantity: 2 }, { productId: 205, quantity: 3 }] };
+    const verdict = evaluateStockEvidence(issue, { picking, moves: [
+      { id: 1, product_id: 205, quantity: 2, state: 'done', value: -20, is_valued: true },
+      { id: 2, product_id: 205, quantity: 3, state: 'done', value: -30, is_valued: true },
+    ], analyticLines: [
+      { id: 1, amount: -20, category: 'picking_entry', product_id: 205, account_id: 42 },
+      { id: 2, amount: -30, category: 'picking_entry', product_id: 205, account_id: 42 },
+    ] });
+    expect(verdict).toMatchObject({ state: 'confirmed', completedQuantity: 5, completedValue: -50 });
+  });
+
+  it('AC-OSP-007 one item on two lines with a third cost line is held as duplicate', () => {
+    const issue: PmoStockIntent = { documentId: '15120000-0000-0000-0000-000000003007', kind: 'issue', companyId: 1, sourceLocationId: 6, destinationLocationId: 2, projectId: 42, lines: [{ productId: 205, quantity: 2 }, { productId: 205, quantity: 3 }] };
+    const verdict = evaluateStockEvidence(issue, { picking, moves: [
+      { id: 1, product_id: 205, quantity: 2, state: 'done', value: -20, is_valued: true },
+      { id: 2, product_id: 205, quantity: 3, state: 'done', value: -30, is_valued: true },
+    ], analyticLines: [
+      { id: 1, amount: -20, category: 'picking_entry', product_id: 205, account_id: 42 },
+      { id: 2, amount: -30, category: 'picking_entry', product_id: 205, account_id: 42 },
+      { id: 3, amount: -5, category: 'picking_entry', product_id: 205, account_id: 42 },
+    ] });
+    expect(verdict.exception).toMatch(/^STK_EVIDENCE_PROJECT_COST: duplicate/);
+  });
+});

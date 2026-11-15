@@ -53,7 +53,12 @@ export function stockBed(wrap?: (inner: OdooCall) => OdooCall): StockBed {
       throw err;
     }
     if (model === 'stock.move' && method === 'read') {
-      return (out as unknown as Array<Record<string, unknown>>).map((m) => ({ ...m, value: -10 * Number(m.quantity ?? 0) })) as unknown as T;
+      // Bed 7.0: an issue's moves are valued (value -cost x quantity, is_valued true); an internal transfer's are not (value 0, false).
+      const pickings = fake.rows('stock.picking');
+      return (out as unknown as Array<Record<string, unknown>>).map((m) => {
+        const valued = Boolean(pickings.find((p) => p.id === m.picking_id)?.project_id);
+        return { ...m, value: valued ? -10 * Number(m.quantity ?? 0) : 0, is_valued: valued };
+      }) as unknown as T;
     }
     if (model === 'stock.picking' && method === 'button_validate') bookCostLines(body);
     return out;

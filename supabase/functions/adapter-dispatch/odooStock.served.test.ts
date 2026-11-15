@@ -122,11 +122,8 @@ async function dispatch(jwt: string, odoo: FakeOdoo, docId: string, revision: nu
     const request = input instanceof Request ? input : new Request(String(input), init);
     const url = new URL(request.url);
     if (url.host !== ODOO_HOST) return realFetch(request);
-    const answer = await odoo.fetch(request.url, { method: request.method, headers: { Authorization: String(request.headers.get('authorization')) }, body: await request.text() });
-    // Odoo books a value on every validated move; the fake does not, so the read-back carries what valuation would (as the stock bed fixture does).
-    if (!url.pathname.endsWith('/stock.move/read') || !answer.ok) return answer;
-    const moves = await answer.json() as Array<Record<string, unknown>>;
-    return new Response(JSON.stringify(moves.map((m) => ({ ...m, value: -10 * Number(m.quantity ?? 0) }))), { status: 200, headers: { 'content-type': 'application/json' } });
+    // The fake reads a transfer's moves as not valued (is_valued false, value 0), as the bed does (Round 7.0).
+    return odoo.fetch(request.url, { method: request.method, headers: { Authorization: String(request.headers.get('authorization')) }, body: await request.text() });
   }) as typeof fetch;
   try {
     const res = await servedHandler!(new Request('http://edge.test/adapter-dispatch', {

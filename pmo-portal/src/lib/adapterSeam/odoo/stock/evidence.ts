@@ -49,6 +49,8 @@ export interface OdooMoveEvidence {
   location_id?: number | [number, string];
   location_dest_id?: number | [number, string];
   value?: number | null;
+  /** Odoo's own flag: an internal transfer is not valued (bed 7.0: value 0, `is_valued` false); an issue is. */
+  is_valued?: boolean | null;
   write_date?: string | null;
 }
 
@@ -233,15 +235,24 @@ export function evaluateStockEvidence(
     odooQtyByProduct.set(pid, (odooQtyByProduct.get(pid) ?? 0) + qty);
     totalOdooQty += qty;
 
-    if (typeof move.value === 'number' && Number.isFinite(move.value)) {
+    if (move.is_valued === false) {
+      // Not valued: Odoo books no value for it, so there is none to read (and none to hold for).
+    } else if (typeof move.value === 'number' && Number.isFinite(move.value)) {
       odooMovesValueTotal += move.value;
     } else {
       hasValidMoveValue = false;
     }
   }
 
-  // Check each intent line against Odoo move quantities
-  for (const line of intent.lines) {
+  // A document may carry one item on two lines (bed 7.0: two moves, and for an issue two cost lines): compare per product.
+  const intentQtyByProduct = new Map<number, number>();
+  for (const line of intent.lines) intentQtyByProduct.set(line.productId, (intentQtyByProduct.get(line.productId) ?? 0) + line.quantity);
+  const movesPerProduct = new Map<number, number>();
+  for (const move of moves) { const pid = extractId(move.product_id)!; movesPerProduct.set(pid, (movesPerProduct.get(pid) ?? 0) + 1); }
+
+  // Check each intent product against Odoo move quantities
+  for (const [productId, intentQty] of intentQtyByProduct) {
+    const line = { productId, quantity: intentQty };
     const odooQty = odooQtyByProduct.get(line.productId);
     if (odooQty === undefined) {
       return {
@@ -304,7 +315,7 @@ export function evaluateStockEvidence(
       };
     }
 
-    // Odoo books one picking_entry line per move (pending the bed count, Round 7.0): the lines must match the moves.
+    // Odoo books one picking_entry line per move, linked by picking name and product (bed 7.0): the lines must match the moves.
     const held = (message: string): StockEvidenceVerdict => ({
       state: 'held',
       externalModel,
@@ -318,13 +329,13 @@ export function evaluateStockEvidence(
     if (analyticLines.length > moves.length) {
       return held(`STK_EVIDENCE_PROJECT_COST: duplicate native project cost lines found (${analyticLines.length} lines for ${moves.length} moves)`);
     }
-    const lineProducts = new Set<number>();
+    const linesPerProduct = new Map<number, number>();
     for (const l of analyticLines) {
       const pid = extractId(l.product_id);
       if (pid === null) continue;
-      if (lineProducts.has(pid)) return held(`STK_EVIDENCE_PROJECT_COST: duplicate native project cost lines found for product ${pid}`);
-      lineProducts.add(pid);
+      linesPerProduct.set(pid, (linesPerProduct.get(pid) ?? 0) + 1);
       if (!odooQtyByProduct.has(pid)) return held(`STK_EVIDENCE_PROJECT_COST: native project cost line for product ${pid}, which is on no move`);
+      if (linesPerProduct.get(pid)! > (movesPerProduct.get(pid) ?? 0)) return held(`STK_EVIDENCE_PROJECT_COST: duplicate native project cost lines found for product ${pid}`);
     }
     if (analyticLines.length < moves.length) {
       return held(`STK_EVIDENCE_PROJECT_COST: missing native project cost lines (${analyticLines.length} lines for ${moves.length} moves)`);

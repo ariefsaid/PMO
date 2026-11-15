@@ -25,14 +25,14 @@ describe('AC-OSP-002 createOdooStockAdapter commits a stock document through the
     expect(seen).toHaveLength(0);
   });
 
-  it('AC-OSP-002 a confirmed read-back returns stock.picking:<id> with Odoo quantity and value', async () => {
+  it('AC-OSP-002 a confirmed transfer read-back returns stock.picking:<id> with Odoo quantity and no value (bed 7.0: not valued)', async () => {
     const { call } = stockBed();
     const adapter = createOdooStockAdapter({ call, loadIntent: async () => ({ ok: true, intent: TRANSFER_INTENT }) });
 
     const result = await adapter.commit(command());
 
     expect(result.externalRecordId).toMatch(/^stock\.picking:\d+$/);
-    expect(result.canonical).toMatchObject({ id: DOC, state: 'confirmed', completedQuantity: 11, completedValue: -110, currency: 'IDR', exception: null });
+    expect(result.canonical).toMatchObject({ id: DOC, state: 'confirmed', completedQuantity: 11, completedValue: 0, currency: 'IDR', exception: null });
   });
 
   it('AC-OSP-003 an issue posts the project and confirms on the picking_entry lines Odoo booked', async () => {

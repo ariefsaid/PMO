@@ -1,8 +1,8 @@
 /**
  * Odoo stock evidence read-back (AC-OSP-007, #1508). One bounded pass: the picking, every move, the issue's
  * `picking_entry` analytic lines and the company currency. Reads only. A read that fails is `unknown`: it says
- * nothing about what Odoo holds, so it is neither held nor confirmed. `stock.move.is_valued` is not read until
- * the bed confirms the field (Round 7.0).
+ * nothing about what Odoo holds, so it is neither held nor confirmed. `stock.move.is_valued` is read (bed 7.0:
+ * an internal transfer reads false, an issue true).
  */
 import type { OdooCall } from '../client.ts';
 import type { OdooAnalyticLineEvidence, OdooMoveEvidence, OdooPickingEvidence, OdooStockEvidenceRead } from './evidence.ts';
@@ -33,7 +33,7 @@ export async function readStockEvidence(
     const moveIds = Array.isArray(picking.move_ids) ? picking.move_ids : [];
     const moves = moveIds.length === 0 ? [] : await call<OdooMoveEvidence[]>('stock.move', 'read', {
       ids: moveIds,
-      fields: ['id', 'product_id', 'quantity', 'product_uom_qty', 'state', 'value'],
+      fields: ['id', 'product_id', 'quantity', 'product_uom_qty', 'state', 'value', 'is_valued'],
     });
 
     const analyticLines = options.analyticAccountId === undefined ? undefined : await call<OdooAnalyticLineEvidence[]>('account.analytic.line', 'search_read', {
