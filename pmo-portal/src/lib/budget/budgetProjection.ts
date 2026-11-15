@@ -21,6 +21,8 @@ import { parseSafeCents, formatNumberCents } from '../exactDecimal';
  * binary-float artifact the decimal-string contract exists to avoid) — the same discipline as
  * `categoryAccountMap.ts`'s `toCents`/`fromCents`.
  */
+/** The label key of a paid purchase with no budget category (a row of its own on the PMO basis). */
+export const UNCATEGORIZED = 'Uncategorized';
 
 export interface ProjectionInput {
   category: string;
@@ -245,8 +247,8 @@ export function deriveBudgetComparisonForecast(
 export function summarizeBudgetComparison(
   rows: readonly BudgetComparisonSummaryRow[],
 ): BudgetComparisonSummary {
-  const unknownBudget = rows.filter((row) => row.budgetTotal === null).map((row) => row.category ?? 'Uncategorized');
-  const unknownRecorded = rows.filter((row) => row.recorded === null).map((row) => row.category ?? 'Uncategorized');
+  const unknownBudget = rows.filter((row) => row.budgetTotal === null).map((row) => row.category ?? UNCATEGORIZED);
+  const unknownRecorded = rows.filter((row) => row.recorded === null).map((row) => row.category ?? UNCATEGORIZED);
   const sum = (field: 'budgetTotal' | 'recorded'): number | null => {
     if (rows.length === 0 || rows.some((row) => row[field] === null)) return null;
     const cents = rows.reduce((total, row) => total + toCents(String(row[field])), 0);

@@ -6,9 +6,10 @@
 -- Mutation commitments (each turns this file red, then is restored):
 --   M1 basis — drop the `not` on the PMO branch (it then runs for a ledger org too): AC-BCNL-006 → red.
 --   M2 helper — drop the NULL-category group from project_pmo_paid_by_category: AC-BCNL-002/003 → red.
+--   M3 unbudgeted category — leave a named category with spend but no budget line at NULL budget: AC-BCNL-003 → red.
 begin;
 create extension if not exists pgtap;
-select plan(32);
+select plan(38);
 
 insert into public.organizations (id, name, default_currency, default_timezone) values
   ('08970000-0000-0000-0000-000000000001', 'BCNL no ledger', 'USD', 'UTC'),
@@ -28,12 +29,14 @@ insert into public.external_org_bindings (org_id, external_tier, site_url, secre
 values ('08970000-0000-0000-0000-000000000003', 'erpnext', 'https://erp.example.test', 'test-ref', 'active',
         '08970000-0000-0000-0000-0000000000c1', now());
 
--- P1 the fixture project; P2 the other-currency case; P3 a per-year budget; P4 the ledger org's project.
+-- P1 the fixture project; P2 the other-currency case; P3 a per-year budget; P4 the ledger org's project; P5 a EUR project
+-- (org default USD) with a taxed paid purchase and a hire charge.
 insert into public.projects (id, org_id, name, status, currency, start_date, end_date) values
   ('08970000-0000-0000-0000-0000000000d1', '08970000-0000-0000-0000-000000000001', 'BCNL fixture', 'Ongoing Project', 'USD', '2026-01-01', '2026-12-31'),
   ('08970000-0000-0000-0000-0000000000d2', '08970000-0000-0000-0000-000000000001', 'BCNL other currency', 'Ongoing Project', 'USD', '2026-01-01', '2026-12-31'),
   ('08970000-0000-0000-0000-0000000000d3', '08970000-0000-0000-0000-000000000001', 'BCNL per year', 'Ongoing Project', 'USD', '2026-01-01', '2026-12-31'),
-  ('08970000-0000-0000-0000-0000000000d4', '08970000-0000-0000-0000-000000000003', 'BCNL ledger', 'Ongoing Project', 'USD', '2026-01-01', '2026-12-31');
+  ('08970000-0000-0000-0000-0000000000d4', '08970000-0000-0000-0000-000000000003', 'BCNL ledger', 'Ongoing Project', 'USD', '2026-01-01', '2026-12-31'),
+  ('08970000-0000-0000-0000-0000000000d5', '08970000-0000-0000-0000-000000000001', 'BCNL tax and charge', 'Ongoing Project', 'EUR', '2026-01-01', '2026-12-31');
 
 insert into public.budget_versions (id, org_id, project_id, version, name, status, currency, budget_mode) values
   ('08970000-0000-0000-0000-0000000000e1', '08970000-0000-0000-0000-000000000001', '08970000-0000-0000-0000-0000000000d1', 1, 'v1', 'Draft', 'USD', 'whole_project'),
@@ -60,14 +63,19 @@ insert into public.procurements (id, org_id, title, status, total_value, project
   ('08970000-0000-0000-0000-0000000000f4', '08970000-0000-0000-0000-000000000001', 'Labor paid EUR', 'Paid', 1000, '08970000-0000-0000-0000-0000000000d2', 'EUR', 'Labor', null),
   ('08970000-0000-0000-0000-0000000000f5', '08970000-0000-0000-0000-000000000001', 'Uncategorised paid', 'Paid', 300, '08970000-0000-0000-0000-0000000000d2', 'USD', null, null),
   ('08970000-0000-0000-0000-0000000000f6', '08970000-0000-0000-0000-000000000001', 'Year paid', 'Paid', 1000, '08970000-0000-0000-0000-0000000000d3', 'USD', 'Labor', null),
-  ('08970000-0000-0000-0000-0000000000f7', '08970000-0000-0000-0000-000000000003', 'Ledger org paid', 'Paid', 1000, '08970000-0000-0000-0000-0000000000d4', 'USD', 'Labor', null);
+  ('08970000-0000-0000-0000-0000000000f7', '08970000-0000-0000-0000-000000000003', 'Ledger org paid', 'Paid', 1000, '08970000-0000-0000-0000-0000000000d4', 'USD', 'Labor', null),
+  ('08970000-0000-0000-0000-0000000000f8', '08970000-0000-0000-0000-000000000001', 'Taxed paid', 'Paid', 1100, '08970000-0000-0000-0000-0000000000d5', 'EUR', 'Materials', null);
+insert into public.procurement_invoices (id, org_id, procurement_id, status, amount, currency, tax_treatment, tax_amount)
+values ('08970000-0000-0000-0000-0000000000b8', '08970000-0000-0000-0000-000000000001',
+        '08970000-0000-0000-0000-0000000000f8', 'Paid', 1000, 'EUR', 'exclusive', 100);
 insert into public.payments (id, org_id, procurement_id, status, date, amount, currency) values
   ('08970000-0000-0000-0000-0000000000c1', '08970000-0000-0000-0000-000000000001', '08970000-0000-0000-0000-0000000000f1', 'Paid', '2026-10-10', 1000, 'USD'),
   ('08970000-0000-0000-0000-0000000000c3', '08970000-0000-0000-0000-000000000001', '08970000-0000-0000-0000-0000000000f3', 'Paid', '2026-10-10', 300, 'USD'),
   ('08970000-0000-0000-0000-0000000000c4', '08970000-0000-0000-0000-000000000001', '08970000-0000-0000-0000-0000000000f4', 'Paid', '2026-10-10', 1000, 'EUR'),
   ('08970000-0000-0000-0000-0000000000c5', '08970000-0000-0000-0000-000000000001', '08970000-0000-0000-0000-0000000000f5', 'Paid', '2026-10-10', 300, 'USD'),
   ('08970000-0000-0000-0000-0000000000c6', '08970000-0000-0000-0000-000000000001', '08970000-0000-0000-0000-0000000000f6', 'Paid', '2026-10-10', 1000, 'USD'),
-  ('08970000-0000-0000-0000-0000000000c7', '08970000-0000-0000-0000-000000000003', '08970000-0000-0000-0000-0000000000f7', 'Paid', '2026-10-10', 1000, 'USD');
+  ('08970000-0000-0000-0000-0000000000c7', '08970000-0000-0000-0000-000000000003', '08970000-0000-0000-0000-0000000000f7', 'Paid', '2026-10-10', 1000, 'USD'),
+  ('08970000-0000-0000-0000-0000000000c8', '08970000-0000-0000-0000-000000000001', '08970000-0000-0000-0000-0000000000f8', 'Paid', '2026-10-10', 1100, 'EUR');
 
 -- A hire charge on P1: 4 hours at 50 = 200 Equipment (the internal term of the spent position).
 insert into public.equipment_assets (id, org_id, code, name, default_unit) values
@@ -80,6 +88,9 @@ insert into public.equipment_usage_entries (org_id, asset_id, project_id, work_d
                                              author_id, approver_id, approved_at) values
   ('08970000-0000-0000-0000-000000000001', '08970000-0000-0000-0000-0000000000a9',
    '08970000-0000-0000-0000-0000000000d1', '2026-10-10', 4, 'hours', 'work', 'Approved',
+   '08970000-0000-0000-0000-0000000000a2', '08970000-0000-0000-0000-0000000000a1', now()),
+  ('08970000-0000-0000-0000-000000000001', '08970000-0000-0000-0000-0000000000a9',
+   '08970000-0000-0000-0000-0000000000d5', '2026-10-11', 4, 'hours', 'work', 'Approved',
    '08970000-0000-0000-0000-0000000000a2', '08970000-0000-0000-0000-0000000000a1', now());
 
 -- The ledger org reads an accounting system: Labor 700 on its snapshot.
@@ -126,8 +137,21 @@ select is((select budget_total from public.get_budget_comparison('08970000-0000-
   0::numeric, 'AC-BCNL-003 the uncategorised row has no budget (0), so the budget total stays the real categories');
 select is((select sum(budget_total) from public.get_budget_comparison('08970000-0000-0000-0000-0000000000d1', null)),
   7000::numeric, 'AC-BCNL-003 budget total is Labor 5,000 + Materials 2,000');
+-- SQL sum() skips NULL, so the total above cannot see an unknown budget; the strip's approved total needs none.
+select is((select count(*)::int from public.get_budget_comparison('08970000-0000-0000-0000-0000000000d1', null) where budget_total is null),
+  0, 'AC-BCNL-003 no row has an unknown budget (the strip total stays known)');
+select is((select budget_total from public.get_budget_comparison('08970000-0000-0000-0000-0000000000d1', null) where category = 'Equipment'),
+  0::numeric, 'AC-BCNL-003 a category with spend and no budget line is budgeted 0, not unknown');
 select is((select recorded from public.get_budget_comparison('08970000-0000-0000-0000-0000000000d1', null) where category = 'Equipment'),
   200::numeric, 'AC-BCNL-003 the hire charge shows on its category');
+
+-- AC-BCNL-010 ─ the helper takes paid purchases before tax, and a hire charge on a project in another currency is unknown.
+select is((select amount from public.project_pmo_paid_by_category('08970000-0000-0000-0000-0000000000d5') where category = 'Materials'),
+  1000::numeric, 'AC-BCNL-010 a taxed paid purchase counts before tax (1,100 paid, 100 tax)');
+select is((select amount from public.project_pmo_paid_by_category('08970000-0000-0000-0000-0000000000d5') where category = 'Equipment'),
+  null::numeric, 'AC-BCNL-010 a hire charge priced in the org currency is unknown on a project in another currency');
+select is((select n from public.project_pmo_paid_by_category('08970000-0000-0000-0000-0000000000d5') where category = 'Equipment'),
+  1, 'AC-BCNL-010 and the unknown group still counts its charge');
 
 -- AC-BCNL-004 ─ a budget category with no paid purchase is a known zero; an unpaid order adds nothing.
 select is((select recorded from public.get_budget_comparison('08970000-0000-0000-0000-0000000000d1', null) where category = 'Materials'),
@@ -181,6 +205,12 @@ select is((select count(*)::int from public.get_budget_comparison('08970000-0000
   0, 'AC-BCNL-006 a ledger org gets no uncategorised row');
 select is((select has_ledger from public.get_budget_comparison('08970000-0000-0000-0000-0000000000d4', null) where category = 'Labor'),
   true, 'AC-BCNL-006 a ledger org keeps its ledger flag');
+
+-- AC-BCNL-011 ─ the helper is closed to anon and open to signed-in callers and the service (an invoker, so RLS still decides rows).
+select ok(not has_function_privilege('anon', 'public.project_pmo_paid_by_category(uuid)', 'execute')
+      and has_function_privilege('authenticated', 'public.project_pmo_paid_by_category(uuid)', 'execute')
+      and has_function_privilege('service_role', 'public.project_pmo_paid_by_category(uuid)', 'execute'),
+  'AC-BCNL-011 the helper is executable by authenticated and service_role, never anon');
 
 select * from finish();
 rollback;

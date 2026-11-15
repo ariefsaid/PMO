@@ -1,4 +1,5 @@
 import { formatExactCents } from '@/src/lib/exactDecimal';
+import { UNCATEGORIZED } from '@/src/lib/budget/budgetProjection';
 import type { BudgetComparisonRow, BudgetProjectionCellRow } from '@/src/lib/repositories/budgetProjection';
 
 export type BudgetProjectionExport =
@@ -44,7 +45,7 @@ export function buildBudgetProjectionCsv(
   const headers = payload.scope.kind === 'all' ? comparisonHeaders : annualHeaders;
   const rows = payload.scope.kind === 'all'
     ? (payload.rows as BudgetComparisonRow[]).map((row) => [
-      'All years (project to date)', '', categoryLabel(row.category ?? 'Uncategorized'), row.budgetTotal ?? '', 'Active budget version',
+      'All years (project to date)', '', categoryLabel(row.category ?? UNCATEGORIZED), row.budgetTotal ?? '', 'Active budget version',
       row.recorded ?? '', row.recorded === null
         ? pmoBasis ? 'Paid purchases unavailable' : !row.mapped ? 'No ledger account mapped' : !row.hasLedger ? 'No ledger reading' : 'ERP ledger amount unavailable'
         : pmoBasis ? 'Paid purchases before tax' : 'ERP ledger',
@@ -53,7 +54,7 @@ export function buildBudgetProjectionCsv(
     ])
     : (payload.rows as BudgetProjectionCellRow[]).map((row) => [
       'Fiscal year', annualFiscalYear, categoryLabel(row.category), row.pmoBudgetAmount ?? '', 'Active budget version',
-      row.actualsToDate ?? '', 'ERP ledger', row.actualsAsOf ?? '', row.pmoEtc, row.projectedFinalCost ?? '',
+      row.actualsToDate ?? '', pmoBasis ? 'Not split by year' : 'ERP ledger', row.actualsAsOf ?? '', row.pmoEtc, row.projectedFinalCost ?? '',
       compatibleCurrencyBasis ? row.projectedVariance ?? '' : '',
     ]);
   return [headers, ...rows].map((row) => row.map(quoteCsvCell).join(',')).join('\r\n');

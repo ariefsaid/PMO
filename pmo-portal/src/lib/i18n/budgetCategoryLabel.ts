@@ -1,8 +1,10 @@
+import { UNCATEGORIZED } from '@/src/lib/budget/budgetProjection';
+
 type Translate = (key: string, fallback: string) => string;
 
 /** Static category calls keep every budget label visible to the i18n catalogue gates. */
 export function budgetCategoryLabel(category: string | null, t: Translate): string {
-  switch (category ?? 'Uncategorized') {
+  switch (category ?? UNCATEGORIZED) {
     case 'Labor': return t('financeCopy.budgetCategoryLabor', 'Labor');
     case 'Materials': return t('financeCopy.budgetCategoryMaterials', 'Materials');
     case 'Subcontractors': return t('financeCopy.budgetCategorySubcontractors', 'Subcontractors');
@@ -13,7 +15,7 @@ export function budgetCategoryLabel(category: string | null, t: Translate): stri
     case 'Special expenses': return t('budget.category.specialExpenses', 'Special expenses');
     case 'Travel & accommodation': return t('finance:budgetCategory.travelAccommodation', 'Travel & accommodation');
     case 'Vehicle': return t('finance:budgetCategory.vehicle', 'Vehicle');
-    case 'Uncategorized': return t('finance:budgetCategory.uncategorized', 'Uncategorized');
+    case UNCATEGORIZED: return t('finance:budgetCategory.uncategorized', 'Uncategorized');
     default: return category ?? '';
   }
 }

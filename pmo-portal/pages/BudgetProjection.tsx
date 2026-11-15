@@ -340,10 +340,10 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
         ? unavailableRecordedText(row, t, pmoBasis)
         : row.recordedAsOf
           ? pmoBasis
-            ? t('projectDetail.budget.wholeRecordedSourcePmo', 'Source: paid purchases before tax, latest payment {{date}}.', { date: formatDay(row.recordedAsOf) })
+            ? t('projectDetail.budget.wholeRecordedSourcePmo', 'Source: paid purchases before tax and internal equipment charges, latest payment {{date}}.', { date: formatDay(row.recordedAsOf) })
             : t('projectDetail.budget.wholeRecordedSource', 'Source: mapped ERP ledger through {{date}}.', { date: formatDay(row.recordedAsOf) })
           : pmoBasis
-            ? t('projectDetail.budget.wholeRecordedUnknownSourcePmo', 'Source: paid purchases before tax.')
+            ? t('projectDetail.budget.wholeRecordedUnknownSourcePmo', 'Source: paid purchases before tax and internal equipment charges.')
             : t('projectDetail.budget.wholeRecordedUnknownSource', 'Source: mapped ERP ledger. The reading date is unavailable.')}
       ><span tabIndex={0} className="inline-flex flex-col items-end"><span>{moneyText(row.recorded, currency)}</span><span className="text-sm font-normal text-muted-foreground">{row.recorded === null ? unavailableRecordedText(row, t, pmoBasis) : row.recordedAsOf ? t('projectDetail.budget.recordedAsOf', 'As of {{date}}', { date: formatDay(row.recordedAsOf) }) : t('projectDetail.budget.recordedDateUnknown', 'Date unavailable')}</span></span></Tooltip>,
     },
@@ -465,7 +465,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
       {viewLoading ? <ListState variant="loading" rows={4} />
         : viewError ? <ListState variant="error" title={t('projectDetail.budget.forecastError', 'Forecast could not be loaded')} onRetry={viewRetry} />
           : allYears && comparisonRows.length === 0 ? <ListState variant="empty" title={t('projectDetail.budget.noComparisonRows', 'No approved budget or recorded spending is available yet')} sub={pmoBasis ? t('projectDetail.budget.noComparisonRowsSubPmo', 'All-years comparison reads the active approved budget and paid purchases.') : t('projectDetail.budget.noComparisonRowsSub', 'All-years comparison reads the active approved budget and mapped ledger records.')} />
-            : !allYears && rows.length === 0 ? <ListState variant="empty" title={t('projectDetail.budget.noForecastRows', 'No forecast categories for this fiscal year')} sub={t('projectDetail.budget.noForecastRowsSub', 'No approved budget or ledger spending is available for this fiscal year.')} />
+            : !allYears && rows.length === 0 ? <ListState variant="empty" title={t('projectDetail.budget.noForecastRows', 'No forecast categories for this fiscal year')} sub={pmoBasis ? t('projectDetail.budget.noForecastRowsSubPmo', 'No approved budget is recorded for this fiscal year.') : t('projectDetail.budget.noForecastRowsSub', 'No approved budget or ledger spending is available for this fiscal year.')} />
             : allYears ? <DataTable
               rows={comparisonRows}
               columns={comparisonColumns}
@@ -545,7 +545,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
               [t('projectDetail.budget.approvedTotal', 'Approved total'), moneyText(selectedComparisonRow.budgetTotal, budgetCurrency), t('projectDetail.budget.wholeBudgetSource', 'Source: the Active budget version, counted once across the project.')],
               [t('projectDetail.budget.recordedToDate', 'Recorded to date'), moneyText(selectedComparisonRow.recorded, currency), selectedComparisonRow.recordedAsOf
                 ? pmoBasis
-                  ? t('projectDetail.budget.wholeRecordedSourcePmo', 'Source: paid purchases before tax, latest payment {{date}}.', { date: formatDay(selectedComparisonRow.recordedAsOf) })
+                  ? t('projectDetail.budget.wholeRecordedSourcePmo', 'Source: paid purchases before tax and internal equipment charges, latest payment {{date}}.', { date: formatDay(selectedComparisonRow.recordedAsOf) })
                   : t('projectDetail.budget.wholeRecordedSource', 'Source: mapped ERP ledger through {{date}}.', { date: formatDay(selectedComparisonRow.recordedAsOf) })
                 : unavailableRecordedText(selectedComparisonRow, t, pmoBasis)],
               [t('projectDetail.budget.remainingShort', 'Remaining'), moneyText(compatibleBasis ? selectedComparisonRow.remaining : null, currency), t('projectDetail.budget.wholeRemainingFormula', 'Calculated as approved project budget minus recorded project spending. This does not include a forecast.')],

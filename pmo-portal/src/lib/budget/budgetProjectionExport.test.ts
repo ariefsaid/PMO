@@ -56,6 +56,15 @@ describe('buildBudgetProjectionCsv (AC-013/015)', () => {
     ].join('\r\n'));
   });
 
+  it('#2325 a fiscal-year export with no accounting system does not call the empty Spent an ERP ledger', () => {
+    const rows: BudgetProjectionCellRow[] = [
+      { category: 'Labor', pmoBudgetAmount: 100, actualsToDate: null, actualsAsOf: null, pmoEtc: 0, projectedFinalCost: null, projectedVariance: null, projectedUtilization: null, attributionKnown: true },
+    ];
+    const csv = buildBudgetProjectionCsv({ scope: { kind: 'year', year: 'FY-client' }, rows }, { ...options, pmoBasis: true });
+    expect(csv).toContain('"Not split by year"');
+    expect(csv).not.toContain('ERP ledger');
+  });
+
   it('includes the All scope and recorded provenance in the exported rows', () => {
     const rows: BudgetComparisonRow[] = [
       { category: 'Labor', budgetTotal: 0, recorded: 0, recordedAsOf: '2026-04-05T12:30:00Z', mapped: true, hasLedger: true, remaining: 0, percentUsed: null },

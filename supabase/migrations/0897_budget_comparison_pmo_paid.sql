@@ -225,9 +225,10 @@ as $$
   ),
   -- No accounting system (0560/0700 basis): recorded is what PMO itself paid, pre-tax, per budget category (plus the
   -- internal hire charge). PMO reads its own purchases completely, so a budget category with none is a known 0; a
-  -- paid purchase with no category is its own row (budget 0: a budget line cannot be uncategorised). A fiscal-year
-  -- scope has no fiscal calendar to place a payment in, so recorded stays unknown there. A role outside the
-  -- helper's guard reads no recorded figure.
+  -- paid purchase with no category is its own row (budget 0: a budget line cannot be uncategorised), as is a named
+  -- category with spend but no budget line. A fiscal-year scope has no fiscal calendar to place a payment in, so
+  -- recorded stays unknown there. A role outside the helper's guard reads no recorded figure; that role list is
+  -- the same one in project_pmo_spent_position (0700) and project_pmo_paid_by_category: keep the three in step.
   pmo_paid as (
     select h.category, h.amount, h.n, h.as_of
       from public.project_pmo_paid_by_category(p_project_id) h
@@ -236,7 +237,12 @@ as $$
   ),
   pmo_base as (
     select coalesce(b.category, h.category) as category,
-           case when b.category is null and h.category is null then 0::numeric else b.budget_total end as budget_total,
+           -- All years with an Active version is complete: a category with no budget line is budgeted 0, known (never NULL,
+           -- which would make the strip's approved total unknown); a paid purchase with no category has no line either.
+           case when (b.category is null and h.category is null)
+                  or (p_fiscal_year is null and exists (select 1 from active_version))
+                then coalesce(b.budget_total, 0::numeric)
+                else b.budget_total end as budget_total,
            case when p_fiscal_year is not null
                   or not coalesce(public.auth_role()::text in ('Admin','Executive','Project Manager','Finance'), false) then null::numeric
                 when h.n is null then 0::numeric
