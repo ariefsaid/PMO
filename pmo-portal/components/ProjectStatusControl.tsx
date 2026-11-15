@@ -67,6 +67,8 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
   };
 
   const [open, setOpen] = useState(false);
+  // A menu opened from the keyboard appears instantly (click detail 0); a pointer open grows from the trigger.
+  const [instant, setInstant] = useState(false);
   const [pendingTarget, setPendingTarget] = useState<ProjectStatus | null>(null);
   const [contractRef, setContractRef] = useState('');
   const [contractDate, setContractDate] = useState('');
@@ -211,7 +213,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
           ref={triggerRef}
           variant={triggerVariant}
           size={triggerSize}
-          onClick={() => setOpen(true)}
+          onClick={(e) => { setInstant(e.detail === 0); setOpen(true); }}
           disabled={mutation.isPending}
           aria-label="Change status"
           aria-haspopup="true"
@@ -223,7 +225,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
 
       {/* Target selection dropdown */}
       {open && !pendingTarget && (
-        <div ref={popoverRef} className="absolute right-0 z-20 mt-1 min-w-[180px] rounded-lg border border-border bg-popover p-[5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
+        <div ref={popoverRef} data-instant={instant || undefined} className="menu-pop-anim motion-reduce:animate-none [--menu-origin:top_right] absolute right-0 z-20 mt-1 min-w-[180px] rounded-lg border border-border bg-popover p-[5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
           <p className="px-2.5 pb-1 pt-1.5 text-sm font-semibold text-muted-foreground">
             Move to
           </p>
@@ -251,7 +253,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
 
       {/* Win form — requires customer contract ref + date */}
       {pendingTarget === 'Won, Pending KoM' && !canWin && (
-        <div className="absolute right-0 z-20 mt-1 min-w-[240px] rounded-lg border border-border bg-popover p-3 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
+        <div data-instant={instant || undefined} className="menu-pop-anim motion-reduce:animate-none [--menu-origin:top_right] absolute right-0 z-20 mt-1 min-w-[240px] rounded-lg border border-border bg-popover p-3 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
           {winEligibility.data === 'allowed' && !winEligibility.isPending && !winEligibility.isFetching && !winEligibility.isError
             ? <p role="status" className="text-sm text-muted-foreground">{t('project:winEligibility.unavailable', 'Win eligibility is unavailable. Refresh this page and try again.')}</p>
             : <WinTarget eligibility={winEligibility} onSelect={() => {}} />}
@@ -261,7 +263,8 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
       {pendingTarget === 'Won, Pending KoM' && canWin && (
         <form
           onSubmit={handleWinSubmit}
-          className="absolute right-0 z-20 mt-1 min-w-[240px] rounded-lg border border-border bg-popover p-3 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)] space-y-2"
+          data-instant={instant || undefined}
+          className="menu-pop-anim motion-reduce:animate-none [--menu-origin:top_right] absolute right-0 z-20 mt-1 min-w-[240px] rounded-lg border border-border bg-popover p-3 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)] space-y-2"
         >
           <p className="text-sm font-semibold">Win — enter contract details</p>
           <WinDetailsFields idPrefix={project.id} contractRef={contractRef} contractDate={contractDate} onRef={setContractRef} onDate={setContractDate} />

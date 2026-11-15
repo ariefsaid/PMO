@@ -127,7 +127,7 @@ export const KanbanCard: React.FC<KanbanCardProps> = ({
     }}
     className={cn(
       'relative cursor-pointer rounded-lg border border-border bg-card p-3 shadow-[0_1px_2px_hsl(240_6%_10%/0.04)] transition-[box-shadow,border-color,transform] duration-150',
-      'hover:border-muted-foreground/35 hover:shadow-[0_4px_14px_hsl(240_6%_10%/0.1)] active:scale-[0.992]',
+      'hover:border-muted-foreground/35 hover:shadow-[0_4px_14px_hsl(240_6%_10%/0.1)] active:scale-[0.98] motion-reduce:active:scale-100',
       selected && 'border-primary ring-2 ring-primary/40 bg-primary/[0.04]',
       className
     )}

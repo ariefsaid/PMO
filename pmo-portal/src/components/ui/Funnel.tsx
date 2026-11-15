@@ -99,7 +99,7 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
                 presentation === 'flat'
                   ? 'border-r border-border last:border-r-0'
                   : 'rounded-l-lg border border-r-0 border-border first:rounded-l-lg last:rounded-r-lg last:border-r',
-                interactive && 'cursor-pointer',
+                interactive && 'cursor-pointer transition-transform active:scale-[0.98] motion-reduce:active:scale-100',
                 // Discover fix I-1 (2026-09-28): the global `*:focus-visible` ring draws OUTWARD
                 // (2px width, 2px offset) from the stage, but the scroll viewport's own
                 // `overflow-x-auto` clips vertical overflow too (per the CSS overflow spec, one
