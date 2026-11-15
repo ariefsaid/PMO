@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/src/components/ui/cn';
-import { Icon } from '@/src/components/ui/icons';
 import { RailDrawerContext } from './railDrawerContext';
 import { useFocusTrap } from '@/src/hooks/useFocusTrap';
 import { isTabSwitchNavState } from '@/src/lib/tabSwitchNav';
@@ -369,20 +368,6 @@ export const AppShell: React.FC<AppShellProps> = ({
               paddingBottom: 'env(safe-area-inset-bottom)',
             }}
           >
-            {/* C3: Visible close (×) button at the top of the drawer.
-                .touch-target extends the hit area to ≥44px on touch without
-                changing the visual 32px size. */}
-            <div className="flex items-center justify-end px-2 py-2">
-              <button
-                type="button"
-                aria-label={t('shell.drawer.close', 'Close navigation menu')}
-                onClick={handleClose}
-                className="touch-target grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground [&_svg]:size-[17px]"
-              >
-                <Icon name="x" />
-              </button>
-            </div>
-
             {/* Rail nav content — same node as the persistent rail. */}
             <RailDrawerContext.Provider value>
               <div className="min-h-0 flex-1 overflow-y-auto">{rail}</div>

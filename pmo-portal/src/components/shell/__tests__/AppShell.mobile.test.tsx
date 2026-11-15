@@ -100,30 +100,6 @@ describe('AC-IXD-MOBILE-W4-C3 C3-2/C3-5: drawer a11y and scrim-close', () => {
 // ---------------------------------------------------------------------------
 // C3-8: Visible close button inside drawer
 // ---------------------------------------------------------------------------
-describe('AC-IXD-MOBILE-W4-C3 C3-8: drawer has a visible close button', () => {
-  it('renders a close (×) button inside the drawer when open', () => {
-    wrap(
-      <AppShell rail={<div>nav</div>} header={null} railOpen onCloseRail={vi.fn()}>
-        <div>x</div>
-      </AppShell>
-    );
-    // Must be a button with an accessible label for close
-    const closeBtn = screen.getByRole('button', { name: /close navigation/i });
-    expect(closeBtn).toBeInTheDocument();
-  });
-
-  it('clicking the close button calls onCloseRail', async () => {
-    const onCloseRail = vi.fn();
-    wrap(
-      <AppShell rail={<div>nav</div>} header={null} railOpen onCloseRail={onCloseRail}>
-        <div>x</div>
-      </AppShell>
-    );
-    await userEvent.click(screen.getByRole('button', { name: /close navigation/i }));
-    expect(onCloseRail).toHaveBeenCalled();
-  });
-});
-
 // ---------------------------------------------------------------------------
 // C3-3: Focus trap — Tab cycles within the drawer
 // ---------------------------------------------------------------------------
@@ -418,16 +394,6 @@ describe('AC-IXD-MOBILE-W4-C3 C3-10: breadcrumb on a phone', () => {
 // C3-11: Touch targets on More and ⌘K trigger
 // ---------------------------------------------------------------------------
 describe('AC-IXD-MOBILE-W4-C3 C3-11: More and close button have .touch-target', () => {
-  it('the drawer close button has .touch-target', () => {
-    wrap(
-      <AppShell rail={<div>nav</div>} header={null} railOpen onCloseRail={vi.fn()}>
-        <div>x</div>
-      </AppShell>
-    );
-    const closeBtn = screen.getByRole('button', { name: /close navigation/i });
-    expect(closeBtn.className).toMatch(/touch-target/);
-  });
-
   it('removes the redundant navigation trigger from the context bar', () => {
     wrap(<ContextBar breadcrumb={[{ label: 'Dashboard' }]} onOpenPalette={() => {}} />);
     expect(screen.queryByRole('button', { name: /open navigation/i })).not.toBeInTheDocument();

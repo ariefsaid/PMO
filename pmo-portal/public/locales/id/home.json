@@ -2,6 +2,14 @@
   "nav": {
     "label": "Navigasi ponsel",
     "search": "Cari",
-    "more": "Lainnya"
+    "more": "Lainnya",
+    "short": {
+      "dashboard": "Dasbor",
+      "approvals": "Setuju",
+      "myTasks": "Tugas",
+      "projects": "Proyek",
+      "timesheets": "Timesheet",
+      "finance": "Keuangan"
+    }
   }
 }

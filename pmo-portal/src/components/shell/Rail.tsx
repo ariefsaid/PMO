@@ -1,3 +1,4 @@
+import { RailDrawerContext } from './railDrawerContext';
 import React, { useContext, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -239,6 +240,7 @@ const RailWithTimesheetEligibility: React.FC<RailProps> = (props) => {
 const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = ({ onNavigate, railActiveOverride, onOpenAssistant, assistantPanelOpen, operatorAccessError = false, hasEligibleTimesheets = false, onPreloadHref }) => {
   const { t } = useTranslation();
   const location = useLocation();
+  const inDrawer = useContext(RailDrawerContext);
   const { effectiveRole, realRole } = useEffectiveRole();
   const role = toUserRole(effectiveRole);
   const realRoleValue = toUserRole(realRole);
@@ -498,6 +500,16 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
           P
         </span>
         <span className="text-group font-bold tracking-[-0.01em]">PMO Portal{/* i18n-exempt: PMO brand name stays verbatim */}</span>
+        {inDrawer && onNavigate && (
+          <button
+            type="button"
+            aria-label={t('shell.drawer.close', 'Close navigation menu')}
+            onClick={onNavigate}
+            className="touch-target ml-auto grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground [&_svg]:size-[17px]"
+          >
+            <Icon name="x" />
+          </button>
+        )}
       </div>
 
       <nav
@@ -508,12 +520,12 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
         onFocusCapture={preloadFromEvent}
       >
         {items.filter((item) => item.to === '/approvals').map((item) => (
-          <div key={item.to} data-rail-pinned-approvals className="shrink-0 border-b border-border p-2.5">
+          <div key={item.to} data-rail-pinned-approvals className={cn('shrink-0 border-b border-border p-2.5', inDrawer && 'pt-4')}>
             {renderItem(item)}
           </div>
         ))}
         <div className="relative min-h-0 flex-1">
-          <div ref={scrollRegionRef} data-rail-scroll-region className="min-h-0 h-full overflow-y-auto p-2.5">
+          <div ref={scrollRegionRef} data-rail-scroll-region className={cn('min-h-0 h-full overflow-y-auto p-2.5', inDrawer && 'pt-4')}>
             {items.filter((item) => item.to === '/').map(renderItem)}
             {groupOrderForRole(role).map((group) => {
               const groupItems = items.filter((i) => i.group === group);

@@ -2,6 +2,14 @@
   "nav": {
     "label": "Phone navigation",
     "search": "Search",
-    "more": "More"
+    "more": "More",
+    "short": {
+      "dashboard": "Dashboard",
+      "approvals": "Approvals",
+      "myTasks": "My Tasks",
+      "projects": "Projects",
+      "timesheets": "Timesheets",
+      "finance": "Finance"
+    }
   }
 }

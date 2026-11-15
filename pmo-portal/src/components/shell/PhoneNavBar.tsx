@@ -36,8 +36,7 @@ const PhoneNavBarContent: React.FC<PhoneNavBarProps & { hasEligibleDecisions: bo
   hasEligibleDecisions,
 }) => {
   const { t } = useTranslation('home');
-  const { t: tShell } = useTranslation();
-  const { pathname } = useLocation();
+    const { pathname } = useLocation();
   const isNarrow = useIsNarrow();
   const { effectiveRole, realRole } = useEffectiveRole();
   const { data: orgFeatures } = useOrgFeatures();
@@ -65,12 +64,12 @@ const PhoneNavBarContent: React.FC<PhoneNavBarProps & { hasEligibleDecisions: bo
 
   // The same words as the rail and the breadcrumb, so a place has one name everywhere.
   const labels: Record<string, string> = {
-    '/': tShell('shell.nav.dashboard', 'Dashboard'),
-    '/approvals': tShell('shell.nav.approvals', 'Approvals'),
-    '/my-tasks': tShell('shell.nav.myTasks', 'My Tasks'),
-    '/projects': tShell('shell.nav.projects', 'Projects'),
-    '/timesheets': tShell('shell.nav.timesheets', 'Timesheets'),
-    '/finance': tShell('financeHub:nav.finance', 'Finance'),
+    '/': t('nav.short.dashboard', 'Dashboard'),
+    '/approvals': t('nav.short.approvals', 'Approvals'),
+    '/my-tasks': t('nav.short.myTasks', 'My Tasks'),
+    '/projects': t('nav.short.projects', 'Projects'),
+    '/timesheets': t('nav.short.timesheets', 'Timesheets'),
+    '/finance': t('nav.short.finance', 'Finance'),
   };
   const itemClass = (active: boolean) =>
     cn(

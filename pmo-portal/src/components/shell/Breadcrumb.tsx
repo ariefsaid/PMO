@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
@@ -46,8 +46,23 @@ interface BreadcrumbProps {
  *   nav). This keeps the top bar tidy at 375px without sacrificing wayfinding.
  *   Desktop (>921px) is unchanged: all parts show.
  */
+/** True while the page body carries its own visible h1 (the phone top bar then stays empty). */
+const usePageHasTitle = (): boolean => {
+  const [has, setHas] = useState(false);
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+    const check = () => setHas(Boolean(document.querySelector('main h1, #main-content h1, [role="main"] h1')));
+    check();
+    const observer = typeof MutationObserver === 'undefined' ? null : new MutationObserver(check);
+    observer?.observe(document.body, { childList: true, subtree: true });
+    return () => observer?.disconnect();
+  }, []);
+  return has;
+};
+
 export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
   const { t } = useTranslation();
+  const pageHasTitle = usePageHasTitle();
   // The signed-in role (never a preview role): it decides which pages actually open.
   const realRole = useContext(AuthContext)?.role ?? null;
   // A parent crumb is a doorway only when this person can open it: a project manager on an invoice
@@ -106,7 +121,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
               <span
                 aria-current="page"
                 title={part.title}
-                className="min-w-0 break-words font-semibold text-foreground"
+                className={cn('min-w-0 break-words font-semibold text-foreground', pageHasTitle && 'max-[920px]:hidden')}
               >
                 {label}
               </span>
