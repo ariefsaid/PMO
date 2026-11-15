@@ -128,7 +128,7 @@
   },
   "absence": {
     "note": "— : {{reasons}}",
-    "internal": "internal",
+    "internal": "proyek internal",
     "noSpending": "belum ada pengeluaran",
     "noPhases": "belum ada fase",
     "noBudget": "belum ada anggaran"
