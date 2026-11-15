@@ -4043,7 +4043,6 @@
     "recordProgress": "Catat progres",
     "billedAhead": "ditagih di muka",
     "undated": "{{count}} faktur tanpa tanggal dikecualikan",
-    "unpriced": "Faktur yang belum memiliki nilai: {{count}}. Total faktur yang mencakupnya tidak tersedia.",
     "total": "Total",
     "basis": {
       "invoiced": "Ditagih",

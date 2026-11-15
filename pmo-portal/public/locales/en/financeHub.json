@@ -232,6 +232,7 @@
       "opening": "Opening"
     },
     "noProgressNote": "Without progress assessments, earned revenue follows invoiced revenue.",
+    "unpricedNote": "Invoices without an amount yet: {{count}}. Invoiced totals that include them are unavailable.",
     "leftToBillUnknownNote": "Left to bill excludes unreconciled foreign-currency invoices; their amounts are unknown.",
     "reviewInvoices": "Review invoices",
     "invoiceCountsUnavailable": "Unavailable",

@@ -232,6 +232,7 @@
       "opening": "Saldo awal"
     },
     "noProgressNote": "Tanpa penilaian progres, pendapatan yang diakui mengikuti nilai faktur.",
+    "unpricedNote": "Faktur yang belum memiliki nilai: {{count}}. Total faktur yang mencakupnya tidak tersedia.",
     "leftToBillUnknownNote": "Sisa tagihan tidak mencakup faktur mata uang asing yang belum direkonsiliasi; nilainya belum diketahui.",
     "reviewInvoices": "Tinjau faktur",
     "invoiceCountsUnavailable": "Jumlah faktur tidak tersedia",

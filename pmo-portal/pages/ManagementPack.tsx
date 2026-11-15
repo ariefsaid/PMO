@@ -531,7 +531,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       ? [{ label: t('financeHub:managementPack.figures.leftToBill', 'Left to bill'), reason: leftToBillReason, link: reviewInvoices }]
       : []),
     ...(pack?.unpricedInvoiceCount
-      ? [{ label: t('financeHub:managementPack.figures.billedWorkInPeriod', 'Invoiced in period'), reason: t('managementPack.unpriced', 'Invoices without an amount yet: {{count}}. Invoiced totals that include them are unavailable.', { count: pack.unpricedInvoiceCount }), link: reviewInvoices }]
+      ? [{ label: t('financeHub:managementPack.figures.billedWorkInPeriod', 'Invoiced in period'), reason: t('financeHub:managementPack.unpricedNote', 'Invoices without an amount yet: {{count}}. Invoiced totals that include them are unavailable.', { count: pack.unpricedInvoiceCount }), link: reviewInvoices }]
       : []),
     ...(pack && pack.undatedInvoiceCount > 0
       ? [{ label: t('finance:receivables.invoiceDate', 'Invoice date'), reason: t('managementPack.undated', '{{count}} undated invoices are excluded', { count: pack.undatedInvoiceCount }) }]
