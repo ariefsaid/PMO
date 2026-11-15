@@ -137,14 +137,14 @@ const orphanRowKey = (row: ErpPurchaseRow) => row.id;
 const OrphansTable = React.memo<{
   rows: ErpPurchaseRow[];
   columns: Column<ErpPurchaseRow>[];
-  tableId: string;
+  savedWidthId: string;
   accessibleName: string;
-}>(({ rows, columns, tableId, accessibleName }) => (
+}>(({ rows, columns, savedWidthId, accessibleName }) => (
   <DataTable<ErpPurchaseRow>
     rows={rows}
     columns={columns}
     rowKey={orphanRowKey}
-    tableId={tableId}
+    tableId={savedWidthId}
     accessibleName={accessibleName}
   />
 ));
@@ -374,7 +374,7 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
         <OrphansTable
           rows={rows}
           columns={columns}
-          tableId={tableId ?? 'erp-orphans-table'}
+          savedWidthId={tableId ?? 'erp-orphans-table'}
           accessibleName={t('erpLinks.orphansTitle', 'ERPNext documents not in a purchase')}
         />
       </SelectionStoreContext.Provider>

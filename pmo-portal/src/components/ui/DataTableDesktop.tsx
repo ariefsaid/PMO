@@ -1,4 +1,5 @@
 import React, { memo, useMemo, useRef } from 'react';
+import { rowContentKey, useLiveRowProps } from './useLiveRowProps';
 import type { Table, Row as TableRow } from '@tanstack/react-table';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
@@ -184,6 +185,8 @@ interface DataTableRowProps<Row> {
   seamStore: SeamStore;
   fingerprint: string;
   compactRows: boolean;
+  /** Serialised output of the row callbacks (labels, menu content) — see useLiveRowProps. */
+  contentKey: string;
 }
 
 /** Row memo (#2102): keyed on the row DATA plus the flags that change what a row paints.
@@ -203,6 +206,7 @@ function dataTableRowPropsEqual<Row>(a: Readonly<DataTableRowProps<Row>>, b: Rea
     && a.columns === b.columns
     && a.fingerprint === b.fingerprint
     && a.compactRows === b.compactRows
+    && a.contentKey === b.contentKey
     // PRESENCE, not identity (#2102 review I1): a row's cell count is decided by whether the
     // selection cell / actions cell / activation button render at all. `rowMenu`, `selection`,
     // `onActivate` and `canActivate` are re-created on every parent render, so only their
@@ -362,6 +366,9 @@ interface DataTableTableBodyProps<Row> {
   isResizingColumn: boolean;
   selectedVisibleSignature: string;
   compactRows: boolean;
+  /** Per data-row contentKey by row id, and their joined signature for the body memo. */
+  rowKeys: Map<string, string>;
+  rowKeysSignature: string;
 }
 
 /** Entry-wise equivalence of the row list: a group heading's identity (label/count/its rows'
@@ -415,6 +422,9 @@ function tableBodyPropsEqual<Row>(a: Readonly<DataTableTableBodyProps<Row>>, b: 
     && a.columns === b.columns
     && a.fingerprint === b.fingerprint
     && a.compactRows === b.compactRows
+    && a.rowKeysSignature === b.rowKeysSignature
+    // Group header content is a ReactNode built from closures: compared by identity.
+    && a.groupHeader === b.groupHeader
     && groupEntriesShallowEqual(a.groupedRows, b.groupedRows);
 }
 
@@ -439,6 +449,7 @@ function DataTableTableBodyInner<Row>({
   seamStore,
   fingerprint,
   compactRows,
+  rowKeys,
 }: DataTableTableBodyProps<Row>) {
   return (
     <tbody>
@@ -479,6 +490,7 @@ function DataTableTableBodyInner<Row>({
               seamStore={seamStore}
               fingerprint={fingerprint}
               compactRows={compactRows}
+              contentKey={rowKeys.get(modelRow.id) ?? ''}
             />
           );
         })
@@ -581,6 +593,23 @@ export function DataTableDesktop<Row>({
   // Locale stamp for the table's own t()-built row labels (aria-labels); semantic column
   // changes propagate through the `columns` identity comparison instead.
   const canActivate = Boolean(onActivate && rowLabel);
+  const live = useLiveRowProps({ onActivate, rowMenu, accessibleRowLabel, selectionLabel });
+  // Frozen during a drag: the body skips every move, so the O(rows) key pass would be pure waste.
+  const frozenKeys = useRef<{ rowKeys: Map<string, string>; rowKeysSignature: string } | null>(null);
+  let keyed = frozenKeys.current;
+  if (!isResizingColumn || !keyed) {
+    const rowKeys = new Map<string, string>();
+    if (!state) {
+      for (const entry of groupedRows) {
+        if (entry.type === 'data') {
+          rowKeys.set(entry.modelRow.id, rowContentKey(entry.modelRow.original, { onActivate, rowMenu, accessibleRowLabel, selectionLabel, rowTarget }, columns[0]));
+        }
+      }
+    }
+    keyed = { rowKeys, rowKeysSignature: Array.from(rowKeys.values()).join('\u0004') };
+    frozenKeys.current = keyed;
+  }
+  const { rowKeys, rowKeysSignature } = keyed;
   const rowFingerprint = i18n.language;
   const resizeHeaderKey = modelHeaders.map((header) => header.id).join('|');
   const resizeColumnVisibilityKey = columns
@@ -791,11 +820,13 @@ export function DataTableDesktop<Row>({
           groupHeaderSpan={groupHeaderSpan}
           rowTarget={rowTarget}
           selectedKey={selectedKey}
-          accessibleRowLabel={accessibleRowLabel}
-          onActivate={onActivate}
-          rowMenu={rowMenu}
+          accessibleRowLabel={live.accessibleRowLabel}
+          onActivate={onActivate ? live.onActivate : undefined}
+          rowMenu={rowMenu ? live.rowMenu : undefined}
           selection={selection}
-          selectionLabel={selectionLabel}
+          selectionLabel={live.selectionLabel}
+          rowKeys={rowKeys}
+          rowKeysSignature={rowKeysSignature}
           state={state}
           listStateNode={listStateNode}
           colSpan={colSpan}

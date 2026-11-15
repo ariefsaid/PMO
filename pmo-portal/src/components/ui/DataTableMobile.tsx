@@ -1,4 +1,5 @@
 import React, { memo } from 'react';
+import { rowContentKey, useLiveRowProps } from './useLiveRowProps';
 import { useTranslation } from 'react-i18next';
 import type { Row as TableRow } from '@tanstack/react-table';
 import { cn } from './cn';
@@ -50,6 +51,8 @@ interface DataTableMobileCardProps<Row> {
   mobileCardTitle?: (row: Row) => React.ReactNode;
   mobileCardDetails?: (row: Row) => React.ReactNode;
   fingerprint: string;
+  /** Serialised output of the row callbacks (labels, menu content) — see useLiveRowProps. */
+  contentKey: string;
 }
 
 /** Card memo (#2102): keyed on the row DATA plus the flags that change what a card paints —
@@ -64,6 +67,7 @@ function mobileCardPropsEqual<Row>(a: Readonly<DataTableMobileCardProps<Row>>, b
     && a.isSelected === b.isSelected
     && a.columns === b.columns
     && a.fingerprint === b.fingerprint
+    && a.contentKey === b.contentKey
     // PRESENCE, not identity (same rule as the desktop row memo, #2102 review I1): the card's
     // checkbox, ⋯ menu and activation button appear/disappear with these props, so a permission
     // flip beside a stable `columns` array must repaint the card instead of leaving it stale.
@@ -246,6 +250,7 @@ export function DataTableMobile<Row>({
   // Locale stamp for the list's own t()-built labels (select-all, activation aria-labels);
   // semantic column changes propagate through the `columns` identity comparison instead.
   const cardFingerprint = i18n.language;
+  const live = useLiveRowProps({ onActivate, rowMenu, accessibleRowLabel, selectionLabel });
 
   return (
     /* ── Mobile card branch (<768px — only branch in the DOM) ─────────────
@@ -294,12 +299,13 @@ export function DataTableMobile<Row>({
               targetId={rowTarget?.(modelRow.original)}
               selected={modelRow.id === selectedKey}
               isSelected={modelRow.getIsSelected()}
-              accessibleRowLabel={accessibleRowLabel}
-              onActivate={onActivate}
+              accessibleRowLabel={live.accessibleRowLabel}
+              onActivate={onActivate ? live.onActivate : undefined}
               canActivate={Boolean(onActivate && rowLabel)}
-              rowMenu={rowMenu}
+              rowMenu={rowMenu ? live.rowMenu : undefined}
               selection={selection}
-              selectionLabel={selectionLabel}
+              selectionLabel={live.selectionLabel}
+              contentKey={rowContentKey(modelRow.original, { onActivate, rowMenu, accessibleRowLabel, selectionLabel, rowTarget }, columns[0])}
               mobileCardTitle={mobileCardTitle}
               mobileCardDetails={mobileCardDetails}
               fingerprint={cardFingerprint}

@@ -7,7 +7,7 @@ import SalesInvoicesFilters from './sales-invoices/SalesInvoicesFilters';
 import SalesInvoicePanelDrawer from './sales-invoices/SalesInvoicePanelDrawer';
 import { createInvoiceReceiptGate, createInvoiceStatus } from './sales-invoices/salesInvoiceStatus';
 import { buildInvoiceRowMenu } from './sales-invoices/salesInvoiceRowMenu';
-import React, { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
@@ -62,6 +62,9 @@ interface SalesInvoicesProps {
   onRecordPayment?: (invoice: SalesInvoiceRow) => void;
 }
 
+/** Stable empty default: a fresh `[]` each render rebuilt invoiceStatus + columns while a query was pending. */
+const NONE: never[] = [];
+
 const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecordPayment, secondaryAction: _secondaryAction }) => {
   const { t } = useTranslation();
   const may = usePermission();
@@ -72,13 +75,13 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useSalesInvoices();
   const mode = useRevenueMode();
-  const ownership = useExternalDomainOwnership().data ?? [];
+  const ownership = useExternalDomainOwnership().data ?? NONE;
   const odoo = ownership.some((row) => row.domain === 'revenue' && odooOwnsRevenueTier(row.externalTier));
   const odooUnreachable = useOdooUnreachable(odoo).unreachable;
   const odooOffline = odoo && odooUnreachable;
   const odooCommands = useOdooRevenueCommandsForInvoices((data ?? []).map((invoice) => invoice.id), odoo);
-  const { data: paymentRows = [] } = useIncomingPayments(undefined, embedded || mode === 'erp');
-  const { data: profileRows = [] } = useAssignableProfiles();
+  const { data: paymentRows = NONE } = useIncomingPayments(undefined, embedded || mode === 'erp');
+  const { data: profileRows = NONE } = useAssignableProfiles();
   const profilesById = useMemo(() => new Map(profileRows.map((profile) => [profile.id, profile])), [profileRows]);
   const { day: organizationToday, isError: orgDayError, retry: retryOrgDay } = useFxOrgDay(true);
   const orgCurrency = useOrgCurrency();
@@ -139,9 +142,6 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
   const [searchParams, setSearchParams] = useSearchParams();
   const urlFilters = useUrlFilters(['q', 'status', 'attribution']);
   const search = urlFilters.values.q;
-  // #2103: filtering a long receivables list runs as a low-priority render so a keystroke never waits
-  // behind it; the box and the URL keep their immediate contract.
-  const deferredSearch = useDeferredValue(search);
   const requestedCustomerId = searchParams.get('customer');
   const selectedCustomer = requestedCustomerId
     ? customerOptionsQuery.data?.find((option) => option.value === requestedCustomerId) ?? null
@@ -329,7 +329,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
     : null;
 
   const filtered = useMemo(() => {
-    const q = deferredSearch.trim().toLowerCase();
+    const q = search.trim().toLowerCase();
     // #1461: a dashboard 'Invoiced · excl. tax' drill carries its window (`from`/`to` month
     // tokens). The list then shows exactly the issued, non-cancelled invoices dated in that
     // window — the records the management-pack figure sums.
@@ -359,7 +359,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
         // FIN-S1: the project filter control is gone; the project is reachable through search.
         // AC-002 #1325: either the short label or the contractual title finds the invoice.
         || [projectOptionsById.get(inv.project_id ?? '')].some((o) => o && (o.label.toLowerCase().includes(q) || o.contractualName?.toLowerCase().includes(q))));
-  }, [all, canApproveDraft, currentUser?.id, deferredSearch, organizationToday, projectOptionsById, searchParams, statusFilter]);
+  }, [all, canApproveDraft, currentUser?.id, search, organizationToday, projectOptionsById, searchParams, statusFilter]);
 
   // FIN-S1: "Overdue only" is also the oldest-overdue-first view, so it needs no separate sort control.
   const sortedInvoices = useMemo(() => {

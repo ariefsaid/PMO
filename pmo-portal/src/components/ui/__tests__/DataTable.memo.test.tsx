@@ -425,3 +425,75 @@ describe('DataTable mobile card render cost (issue #2102)', () => {
     expect(record.filter((entry) => entry === 'B')).toHaveLength(1);
   });
 });
+
+describe('DataTable row memo follows what the row callbacks produce (review C1/I1/M3)', () => {
+  const stableRows = rows;
+  const stableColumns = countingColumns([]);
+  const key = (r: Row) => r.id;
+
+  function Harness({ busy, label, tag, onOpen }: { busy: boolean; label: string; tag: string; onOpen: (id: string, tag: string) => void }) {
+    // rows and columns are STABLE; only the closures' outputs depend on the props.
+    return (
+      <DataTable
+        rows={stableRows}
+        columns={stableColumns}
+        rowKey={key}
+        tableId="memo-live"
+        rowLabel={(r) => `${label} ${r.name}`}
+        onActivate={(r) => onOpen(r.id, tag)}
+        rowMenu={(r) => [{ label: busy ? 'Preparing' : 'Download', disabled: busy, onClick: () => onOpen(`menu-${r.id}`, tag) }]}
+        rowTarget={(r) => `${tag}-${r.id}`}
+      />
+    );
+  }
+
+  it('AC-PERF-2102: a menu item changing label/disabled with stable rows and columns repaints the row menu', async () => {
+    desktopViewport();
+    const user = userEvent.setup();
+    const onOpen = vi.fn();
+    const { rerender } = renderTable(<Harness busy={false} label="Open" tag="t1" onOpen={onOpen} />);
+    rerender(<Harness busy label="Open" tag="t1" onOpen={onOpen} />);
+    await user.click(screen.getAllByRole('button', { name: 'Row actions' })[0]!);
+    const item = await screen.findByRole('menuitem', { name: 'Preparing' });
+    expect(item).toHaveAttribute('aria-disabled', 'true');
+    await user.click(item);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('AC-PERF-2102: activating a row after a parent re-render calls the LATEST onActivate, and aria-label / row id follow the new closures', async () => {
+    desktopViewport();
+    const user = userEvent.setup();
+    const onOpen = vi.fn();
+    const { rerender } = renderTable(<Harness busy={false} label="Open" tag="t1" onOpen={onOpen} />);
+    rerender(<Harness busy={false} label="Show" tag="t2" onOpen={onOpen} />);
+    const button = screen.getByRole('button', { name: 'Show Alpha' });
+    expect(screen.queryByRole('button', { name: 'Open Alpha' })).toBeNull();
+    expect(document.getElementById('t2-A')).not.toBeNull();
+    await user.click(button);
+    expect(onOpen).toHaveBeenCalledWith('A', 't2');
+  });
+
+  it('AC-PERF-2102: a menu item clicked after a re-render runs the latest closure', async () => {
+    desktopViewport();
+    const user = userEvent.setup();
+    const onOpen = vi.fn();
+    const { rerender } = renderTable(<Harness busy={false} label="Open" tag="t1" onOpen={onOpen} />);
+    rerender(<Harness busy={false} label="Open" tag="t2" onOpen={onOpen} />);
+    await user.click(screen.getAllByRole('button', { name: 'Row actions' })[0]!);
+    await user.click(await screen.findByRole('menuitem', { name: 'Download' }));
+    expect(onOpen).toHaveBeenCalledWith('menu-A', 't2');
+  });
+
+  it('AC-PERF-2102: the mobile card follows the same contract', async () => {
+    mobileViewport();
+    const user = userEvent.setup();
+    const onOpen = vi.fn();
+    const { rerender } = renderTable(<Harness busy={false} label="Open" tag="t1" onOpen={onOpen} />);
+    rerender(<Harness busy label="Show" tag="t2" onOpen={onOpen} />);
+    await user.click(screen.getAllByRole('button', { name: 'Row actions' })[0]!);
+    expect(await screen.findByRole('menuitem', { name: 'Preparing' })).toHaveAttribute('aria-disabled', 'true');
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: 'Show Alpha' }));
+    expect(onOpen).toHaveBeenCalledWith('A', 't2');
+  });
+});
