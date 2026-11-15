@@ -4,8 +4,8 @@
  * the Bahasa strings, and no inline English leaks through. The instance mirrors test/setup.ts's
  * synchronous init, but loads the real `import` namespace the wizard declares.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
@@ -24,14 +24,22 @@ vi.mock('@/src/lib/import', async (importOriginal) => {
 import { parseWorkbook } from '@/src/lib/import';
 import { ImportWizard } from '../ImportWizard';
 import { makeContractLineImportDescriptor } from '@/src/lib/import/contractLineDescriptor';
+import { setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { AppError } from '@/src/lib/appError';
 
 const catalogue = (lng: 'en' | 'id', namespace: string) =>
   JSON.parse(readFileSync(join(process.cwd(), 'public/locales', lng, `${namespace}.json`), 'utf8'));
 
 function renderWizardUnderBahasa() {
+  return renderWizard('id');
+}
+
+function renderWizard(lng: 'en' | 'id') {
+  // The number formatters read the process-wide active locale, not the i18n instance: pin both.
+  setActiveLocale({ locale: lng, numberLocale: lng, timezone: 'UTC' });
   const i18n = i18next.createInstance();
   void i18n.init({
-    lng: 'id',
+    lng,
     fallbackLng: 'en',
     defaultNS: 'common',
     resources: {
@@ -90,5 +98,155 @@ describe('the contract-lines import wizard reads Bahasa (#1278 round A item 4)',
     // Round A item 4: the Import button reads Bahasa (disabled — every row is skipped, zero writes).
     expect(screen.getByRole('button', { name: 'Impor 0 baris kontrak' })).toBeDisabled();
     expect(createBoq).not.toHaveBeenCalled();
+  });
+});
+
+// ── #1278 round C ───────────────────────────────────────────────────────────────────────────────────────────
+
+const HEADERS = {
+  en: ['Line reference', 'Item code', 'Description', 'Unit', 'Quantity', 'Rate (USD)'],
+  id: ['Referensi baris', 'Kode item', 'Deskripsi', 'Satuan', 'Kuantitas', 'Harga satuan (USD)'],
+} as const;
+
+async function toPreview(lng: 'en' | 'id', rows: string[][]) {
+  vi.mocked(parseWorkbook).mockResolvedValue({ headers: [...HEADERS[lng]], rows });
+  const user = userEvent.setup();
+  renderWizard(lng);
+  await user.upload(screen.getByLabelText(lng === 'en' ? /choose an \.xlsx file/i : /pilih file \.xlsx/i), new File(['x'], 'lines.xlsx'));
+  await user.click(await screen.findByRole('button', { name: lng === 'en' ? 'Next' : 'Lanjut' }));
+  return user;
+}
+
+describe('#1278 round C', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    setActiveLocale({ locale: 'en', numberLocale: 'en', timezone: 'UTC' });
+  });
+
+  describe('item 1: the preview shows the value that will be imported, in the reader\'s language', () => {
+    it('Bahasa reads 18.1234 as eighteen point one two three four, never eighteen thousand', async () => {
+      await toPreview('id', [['L-1', 'SVC-1', 'Trenching', 'm', '1200.5', '18.1234'], ['L-2', 'SVC-2', 'Cabling', 'm', '2500', 'abc']]);
+      const table = await screen.findByRole('table');
+      expect(within(table).getByText('18,1234')).toBeInTheDocument();
+      expect(within(table).getByText('1.200,5')).toBeInTheDocument();
+      expect(within(table).getByText('2.500')).toBeInTheDocument();
+      expect(within(table).queryByText('18.1234')).toBeNull();
+      expect(within(table).queryByText('1200.5')).toBeNull();
+      // a cell that cannot be read keeps the file's own text, and its row says why
+      expect(within(table).getByText('abc')).toBeInTheDocument();
+      // both rows (18.1234 has too many decimals, abc is no number) say so in plain Bahasa
+      expect(within(table).getAllByText('Harga satuan harus berupa angka 0 atau lebih (maksimal 2 desimal).')).toHaveLength(2);
+    });
+
+    it('English groups the same figures the English way', async () => {
+      await toPreview('en', [['L-1', 'SVC-1', 'Trenching', 'm', '1200.5', '18.12'], ['L-2', 'SVC-2', 'Cabling', 'm', '2500', '7']]);
+      const table = await screen.findByRole('table');
+      expect(within(table).getByText('1,200.5')).toBeInTheDocument();
+      expect(within(table).getByText('2,500')).toBeInTheDocument();
+      expect(within(table).getByText('18.12')).toBeInTheDocument();
+      expect(within(table).queryByText('1200.5')).toBeNull();
+    });
+  });
+
+  describe('item 2: the Import button reads the plural', () => {
+    it.each([
+      ['en', 1, 'Import 1 contract line'],
+      ['en', 2, 'Import 2 contract lines'],
+      ['id', 1, 'Impor 1 baris kontrak'],
+      ['id', 2, 'Impor 2 baris kontrak'],
+    ] as const)('%s with %i valid row(s): "%s"', async (lng, n, name) => {
+      const rows = Array.from({ length: n }, (_, i) => [`L-${i + 1}`, `SVC-${i + 1}`, 'Trenching', 'm', '5', '10']);
+      await toPreview(lng, rows);
+      expect(await screen.findByRole('button', { name })).toBeEnabled();
+    });
+  });
+
+  describe('item 3: the result says what happened to every row', () => {
+    const rows = [
+      ['L-1', 'SVC-1', 'Trenching', 'm', '5', '10'], // created
+      ['L-2', 'SVC-2', 'Cabling', 'm', '0', '10'], // refused in preview
+      ['L-3', 'SVC-3', 'Piping', 'm', '5', '10'], // already on the contract
+      ['L-4', 'SVC-4', 'Ducting', 'm', 'abc', '10'], // refused in preview
+    ];
+    beforeEach(() => {
+      createBoq.mockResolvedValueOnce({ id: 'new' }).mockRejectedValueOnce(new AppError('duplicate', '23505'));
+    });
+
+    it('English: created, the rows with errors, the already-imported row, each listed with its reason', async () => {
+      const user = await toPreview('en', rows);
+      await user.click(await screen.findByRole('button', { name: 'Import 2 contract lines' }));
+      const summary = await screen.findByTestId('import-result-summary');
+      expect(summary).toHaveTextContent('1 created, 2 skipped for errors, 1 skipped because already imported.');
+      const list = screen.getByRole('list', { name: 'Rows not imported' });
+      expect(within(list).getByText(/Row 2 \(SVC-2\):/)).toHaveTextContent('Quantity must be a number above 0');
+      expect(within(list).getByText(/Row 4 \(SVC-4\):/)).toHaveTextContent('Quantity must be a number above 0');
+      expect(within(list).getByText(/Row 3 \(SVC-3\):/)).toHaveTextContent('Already imported');
+      expect(within(list).queryByText(/Row 1 /)).toBeNull();
+    });
+
+    it('Bahasa says the same in Bahasa', async () => {
+      const user = await toPreview('id', rows);
+      await user.click(await screen.findByRole('button', { name: 'Impor 2 baris kontrak' }));
+      const summary = await screen.findByTestId('import-result-summary');
+      expect(summary).toHaveTextContent('1 dibuat, 2 dilewati karena kesalahan, 1 dilewati karena sudah diimpor.');
+      const list = screen.getByRole('list', { name: 'Baris yang tidak diimpor' });
+      expect(within(list).getByText(/Baris 3 \(SVC-3\):/)).toHaveTextContent('Sudah diimpor');
+    });
+
+    it('no skipped part when nothing was skipped', async () => {
+      createBoq.mockReset();
+      createBoq.mockResolvedValue({ id: 'new' });
+      const user = await toPreview('en', [rows[0]]);
+      await user.click(await screen.findByRole('button', { name: 'Import 1 contract line' }));
+      expect(await screen.findByTestId('import-result-summary')).toHaveTextContent(/^1 created\.$/);
+      expect(screen.queryByRole('list', { name: 'Rows not imported' })).toBeNull();
+    });
+  });
+
+  describe('item 4: the match columns name every field in plain words', () => {
+    it.each([
+      ['en', ['Line reference', 'Item code', 'Description', 'Unit', 'Quantity', 'Rate (USD)', 'Line number', 'Charged by'], /Unique for each line/],
+      ['id', ['Referensi baris', 'Kode item', 'Deskripsi', 'Satuan', 'Kuantitas', 'Harga satuan (USD)', 'Nomor baris', 'Dikenakan per'], /Unik untuk setiap baris/],
+    ] as const)('%s: labels, and a one-line explanation under the required reference', async (lng, labels, hint) => {
+      vi.mocked(parseWorkbook).mockResolvedValue({ headers: [...HEADERS[lng]], rows: [['L-1', 'SVC-1', 'Trenching', 'm', '5', '10']] });
+      const user = userEvent.setup();
+      renderWizard(lng);
+      await user.upload(screen.getByLabelText(lng === 'en' ? /choose an \.xlsx file/i : /pilih file \.xlsx/i), new File(['x'], 'lines.xlsx'));
+      for (const label of labels) expect(await screen.findByText(label, { selector: 'label' })).toBeInTheDocument();
+      expect(screen.getByText(hint)).toBeInTheDocument();
+      for (const jargon of ['Key', 'Line no', 'Basis', 'Kunci', 'No. baris', 'Dasar perolehan']) expect(screen.queryByText(jargon)).toBeNull();
+    });
+
+    it('a sheet that still says Key / Line no / Basis maps onto the renamed fields', async () => {
+      vi.mocked(parseWorkbook).mockResolvedValue({
+        headers: ['Key', 'Item code', 'Description', 'Unit', 'Quantity', 'Rate', 'Line no', 'Basis'],
+        rows: [['L-1', 'SVC-1', 'Trenching', 'm', '5', '10', '1', 'unit_rate']],
+      });
+      const user = userEvent.setup();
+      renderWizard('en');
+      await user.upload(screen.getByLabelText(/choose an \.xlsx file/i), new File(['x'], 'lines.xlsx'));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled());
+    });
+  });
+
+  describe('item 6: a phone preview card is headed by the row, not a bare number', () => {
+    const phone = () =>
+      vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+        matches: false, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+        addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+      })));
+
+    it.each([
+      ['en', 'SVC-1 · Trenching', 'Row 2'],
+      ['id', 'SVC-1 · Trenching', 'Baris 2'],
+    ] as const)('%s: item code and description, "Row n" when both are empty', async (lng, title, fallback) => {
+      phone();
+      await toPreview(lng, [['L-1', 'SVC-1', 'Trenching', 'm', '5', '10'], ['L-2', '', '', 'm', '5', '10']]);
+      expect(await screen.findByText(title)).toBeInTheDocument();
+      expect(screen.getByText(fallback)).toBeInTheDocument();
+    });
   });
 });

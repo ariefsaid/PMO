@@ -1,10 +1,10 @@
 {
   "entity": {
-    "contractLines": "contract lines"
+    "contractLines": "contract lines",
+    "contractLine": "contract line"
   },
   "wizard": {
     "title": "Import {{entity}}",
-    "importButton": "Import {{n}} {{entity}}",
     "close": "Close",
     "back": "Back",
     "cancel": "Cancel",
@@ -22,7 +22,9 @@
       "preview": "Invalid rows are skipped. Only valid rows are imported.",
       "committing": "Creating one record per valid row.",
       "result": "Here is what happened."
-    }
+    },
+    "importButton_one": "Import {{count}} {{entity}}",
+    "importButton_other": "Import {{count}} {{entity}}"
   },
   "upload": {
     "chooseFile": "Choose an .xlsx file",
@@ -32,7 +34,8 @@
   "mapping": {
     "requiredAlert": "Map every required field to continue.",
     "notMapped": "— Not mapped —",
-    "column": "Column {{n}}"
+    "column": "Column {{n}}",
+    "requiredLegend": "* Required. The import cannot continue until it is matched."
   },
   "preview": {
     "row": "Row",
@@ -42,17 +45,21 @@
     "tableName": "Import row preview",
     "validCount": "{{n}} valid",
     "invalidCount": "{{n}} invalid",
-    "totalCount": "{{n}} total"
+    "totalCount": "{{n}} total",
+    "rowNumber": "Row {{n}}"
   },
   "committing": {
     "progress": "Importing {{done}} / {{total}}…"
   },
   "result": {
     "created": "{{n}} created",
-    "skipped": "{{n}} already imported",
+    "skipped": "{{n}} skipped because already imported",
     "failed": "{{n}} failed",
     "rowNamed": "Row {{n}} ({{label}}): ",
-    "rowReason": "Row {{n}}: "
+    "rowReason": "Row {{n}}: ",
+    "invalid": "{{n}} skipped for errors",
+    "listName": "Rows not imported",
+    "alreadyImported": "Already imported."
   },
   "paste": {
     "label": "Or paste rows copied from a spreadsheet",
@@ -60,20 +67,20 @@
     "use": "Use pasted rows"
   },
   "contractLines": {
-    "key": "Key",
+    "key": "Line reference",
     "itemCode": "Item code",
     "description": "Description",
     "unit": "Unit",
     "quantity": "Quantity",
     "rate": "Rate",
     "rateWithCurrency": "Rate ({{code}})",
-    "lineNo": "Line no",
-    "earningBasis": "Basis",
+    "lineNo": "Line number",
+    "earningBasis": "Charged by",
     "error": {
-      "keyRequired": "Key is required.",
-      "keyTooLong": "Key must be at most {{max}} characters.",
-      "keyDuplicate": "Key \"{{value}}\" appears twice.",
-      "keyDuplicateRows": "Key \"{{value}}\" appears twice (rows {{first}} and {{second}}).",
+      "keyRequired": "Line reference is required.",
+      "keyTooLong": "Line reference must be at most {{max}} characters.",
+      "keyDuplicate": "Line reference \"{{value}}\" appears twice.",
+      "keyDuplicateRows": "Line reference \"{{value}}\" appears twice (rows {{first}} and {{second}}).",
       "itemCodeRequired": "Item code is required.",
       "itemCodeTooLong": "Item code must be at most {{max}} characters.",
       "descriptionRequired": "Description is required.",
@@ -84,8 +91,11 @@
       "rate": "Rate must be a number of 0 or more (up to 2 decimals).",
       "lineNoWhole": "Line number must be a whole number.",
       "lineNoRange": "Line number is out of range.",
-      "basis": "Basis must be a unit rate or a lump sum.",
+      "basis": "Charged by must be a unit rate or a lump sum.",
       "lumpSumQuantity": "A lump-sum line must have quantity 1."
-    }
+    },
+    "keyHint": "Unique for each line. A line whose reference is already on this contract is skipped.",
+    "lineNoHint": "Optional. Sets the order of the lines; lines without one come last.",
+    "earningBasisHint": "Optional. Unit rate (quantity × rate) or lump sum (one amount, quantity 1)."
   }
 }

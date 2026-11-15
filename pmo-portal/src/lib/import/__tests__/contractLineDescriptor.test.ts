@@ -27,12 +27,19 @@ describe('makeContractLineImportDescriptor (#1278)', () => {
     });
   });
 
+  it('reads "Unit rate" and "Lump sum" as a person writes them (round C item 4: no code words in the hint)', () => {
+    expect(d().toInput(good({ earningBasis: 'Unit rate' })).earningBasis).toBe('unit_rate');
+    expect(d().toInput(good({ unit: 'Lot', quantity: '1', earningBasis: ' Lump Sum ' })).earningBasis).toBe('lump_sum');
+    expect(d().validateRow?.(good({ earningBasis: 'Lump sum' }))).toHaveProperty('quantity'); // lump sum needs quantity 1
+    expect(d().validateRow?.(good({ earningBasis: 'weekly' }))).toHaveProperty('earningBasis');
+  });
+
   it('defaults a lot/ls/lump sum unit to lump_sum, as pmo load does', () => {
     expect(d().toInput(good({ unit: 'Lot', quantity: '1' })).earningBasis).toBe('lump_sum');
   });
 
   it.each([
-    ['importKey', { importKey: '' }, /Key is required/],
+    ['importKey', { importKey: '' }, /Line reference is required/],
     ['importKey', { importKey: 'k'.repeat(501) }, /at most 500 characters/],
     ['itemCode', { itemCode: '' }, /Item code is required/],
     ['itemCode', { itemCode: 'x'.repeat(141) }, /at most 140 characters/],
@@ -95,7 +102,7 @@ describe('a key repeated within one sheet (#1278)', () => {
     const { desc, rows, mapping } = sheet();
     const v = validateRows(rows, desc.fields, mapping, desc.validateRow, desc.validateSheet);
     expect(v.map((r) => r.valid)).toEqual([true, true, false]);
-    expect(v[2].errors.importKey).toMatch(/Key "A" appears twice \(rows 2 and 4\)/);
+    expect(v[2].errors.importKey).toMatch(/Line reference "A" appears twice \(rows 2 and 4\)/);
     const cli = validateContractLinesFile([
       { key: 'A', item_code: 'S', description: 'x', unit: 'm', quantity: 1, rate: 1 },
       { key: 'A', item_code: 'S', description: 'x', unit: 'm', quantity: 1, rate: 1 },
@@ -116,8 +123,8 @@ describe('contract-line import labels (#1278)', () => {
     const id = JSON.parse(readFileSync('public/locales/id/import.json', 'utf8'));
     const lookup = ((key: string, fallback: string) => key.split(':')[1].split('.').reduce((o: unknown, k) => (o as Record<string, unknown> | undefined)?.[k], id) ?? fallback) as never;
     const labels = makeContractLineImportDescriptor('p1', lookup).fields.map((f) => f.label);
-    expect(labels).toEqual(['Kunci', 'Kode item', 'Deskripsi', 'Satuan', 'Kuantitas', 'Harga satuan', 'No. baris', 'Dasar perolehan']);
-    expect(makeContractLineImportDescriptor('p1').fields[0].label).toBe('Key');
+    expect(labels).toEqual(['Referensi baris', 'Kode item', 'Deskripsi', 'Satuan', 'Kuantitas', 'Harga satuan', 'Nomor baris', 'Dikenakan per']);
+    expect(makeContractLineImportDescriptor('p1').fields[0].label).toBe('Line reference');
   });
 
   it('round A item 4: the wizard entity word reads the catalogue — "baris kontrak" under Bahasa', async () => {

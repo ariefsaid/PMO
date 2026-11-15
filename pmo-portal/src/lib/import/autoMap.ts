@@ -25,7 +25,12 @@ export function autoMap<Input>(headers: string[], fields: ImportField<Input>[]):
       continue;
     }
     const byKey = normalized.indexOf(norm(field.key));
-    mapping[field.key] = byKey === -1 ? null : byKey;
+    if (byKey !== -1) {
+      mapping[field.key] = byKey;
+      continue;
+    }
+    const byAlias = (field.aliases ?? []).map((alias) => normalized.indexOf(norm(alias))).find((i) => i !== -1);
+    mapping[field.key] = byAlias ?? null;
   }
   return mapping;
 }

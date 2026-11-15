@@ -1,6 +1,6 @@
 import type { TFunction } from 'i18next';
 import { repositories } from '@/src/lib/repositories';
-import { parseNeutralMoneyInputAtScale } from '@/src/lib/format';
+import { formatNumberExact, parseNeutralMoneyInputAtScale } from '@/src/lib/format';
 import { AppError } from '@/src/lib/appError';
 import { contractLineProblemCodes, defaultContractLineBasis } from '../../../../scripts/lib/contract-line-rules.mjs';
 import { type ImportDescriptor, IMPORT_SKIPPED } from './types';
@@ -32,9 +32,9 @@ const FIELD_OF: Record<string, Key> = {
  * LITERAL so the i18n completeness gate scans it.
  */
 const ERROR_OF: Record<string, { key: string; fallback: string }> = {
-  'key:required': { key: 'import:contractLines.error.keyRequired', fallback: 'Key is required.' },
-  'key:tooLong': { key: 'import:contractLines.error.keyTooLong', fallback: 'Key must be at most {{max}} characters.' },
-  'key:duplicate': { key: 'import:contractLines.error.keyDuplicate', fallback: 'Key "{{value}}" appears twice.' },
+  'key:required': { key: 'import:contractLines.error.keyRequired', fallback: 'Line reference is required.' },
+  'key:tooLong': { key: 'import:contractLines.error.keyTooLong', fallback: 'Line reference must be at most {{max}} characters.' },
+  'key:duplicate': { key: 'import:contractLines.error.keyDuplicate', fallback: 'Line reference "{{value}}" appears twice.' },
   'item_code:required': { key: 'import:contractLines.error.itemCodeRequired', fallback: 'Item code is required.' },
   'item_code:tooLong': { key: 'import:contractLines.error.itemCodeTooLong', fallback: 'Item code must be at most {{max}} characters.' },
   'description:required': { key: 'import:contractLines.error.descriptionRequired', fallback: 'Description is required.' },
@@ -45,7 +45,7 @@ const ERROR_OF: Record<string, { key: string; fallback: string }> = {
   'rate:invalid': { key: 'import:contractLines.error.rate', fallback: 'Rate must be a number of 0 or more (up to 2 decimals).' },
   'line_no:notWhole': { key: 'import:contractLines.error.lineNoWhole', fallback: 'Line number must be a whole number.' },
   'line_no:outOfRange': { key: 'import:contractLines.error.lineNoRange', fallback: 'Line number is out of range.' },
-  'basis:invalid': { key: 'import:contractLines.error.basis', fallback: 'Basis must be a unit rate or a lump sum.' },
+  'basis:invalid': { key: 'import:contractLines.error.basis', fallback: 'Charged by must be a unit rate or a lump sum.' },
   'quantity:lumpSumOne': { key: 'import:contractLines.error.lumpSumQuantity', fallback: 'A lump-sum line must have quantity 1.' },
 };
 
@@ -56,7 +56,8 @@ function lineFromCells(c: Record<string, string>) {
     return n === null ? Number.NaN : n;
   };
   const lineNo = (c.lineNo ?? '').trim();
-  const basis = (c.earningBasis ?? '').trim();
+  // "Unit rate" / "Lump sum" as a person writes them read as the stored words (unit_rate / lump_sum).
+  const basis = (c.earningBasis ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
   return {
     key: c.importKey ?? '', item_code: c.itemCode ?? '', description: c.description ?? '', unit: c.unit ?? '',
     quantity: num(c.quantity, 3), rate: num(c.rate, 2),
@@ -79,30 +80,56 @@ export function makeContractLineImportDescriptor(projectId: string, t?: TFunctio
     if (t) return String(t(key, fallback, params));
     return params ? fallback.replace(/\{\{(\w+)\}\}/g, (_, name: string) => String(params[name] ?? '')) : fallback;
   };
+  // The cell as this reader reads it: the PARSED value, grouped the reader's way ("1,200.5" / "1.200,5"). The file is
+  // neutral text (dot decimal), so the parse is language-independent; only the display follows the language.
+  // Scale 12 so a value with too many decimals still shows what it reads as (its row carries the error).
+  const figure = (raw: string) => {
+    const n = parseNeutralMoneyInputAtScale(raw, 12);
+    return n === null ? null : formatNumberExact(n);
+  };
   const noCellRule = () => null; // rules run in validateRow: they read several cells (unit → basis → quantity).
-  const field = (key: Key, label: string, required: boolean, hideInPreview = false, previewSize = 0, numeric = false) =>
-    ({ key, label, required, validate: noCellRule, hideInPreview, previewSize, numeric });
+  const field = (
+    key: Key, label: string, required: boolean,
+    extra: { hideInPreview?: boolean; previewSize?: number; numeric?: boolean; hint?: string; aliases?: string[] } = {},
+  ) => ({
+    key, label, required, validate: noCellRule, hideInPreview: false, previewSize: 0, numeric: false,
+    ...(extra.numeric ? { format: figure } : {}), ...extra,
+  });
   return {
     entity: 'Contract lines',
     // The wizard title/button word for THIS entity, in the reader's language. `entity` above stays the stable
     // identifier (analytics + table-id keys), never localized.
     entityDisplay: label('import:entity.contractLines', 'contract lines'),
+    entityDisplayOne: label('import:entity.contractLine', 'contract line'),
+    rowTitle: (cells) => [cells.itemCode, cells.description].map((v) => (v ?? '').trim()).filter(Boolean).join(' · '),
     wide: true,
     fields: [
       // The import key is internal (DD-CQ-7): mapped and validated, never shown as a column (round A item 6) —
       // the Row number identifies a row, so errors on it surface under the row's status.
-      field('importKey', label('import:contractLines.key', 'Key'), true, true),
+      field('importKey', label('import:contractLines.key', 'Line reference'), true, {
+        hideInPreview: true,
+        hint: label('import:contractLines.keyHint', 'Unique for each line. A line whose reference is already on this contract is skipped.'),
+        aliases: ['Key', 'Kunci'],
+      }),
       // previewSize: px in the wide preview, summing to the wide dialog body (1088) with the Row (64) and Status (240) columns.
-      field('itemCode', label('import:contractLines.itemCode', 'Item code'), true, false, 104),
-      field('description', label('import:contractLines.description', 'Description'), true, false, 200),
-      field('unit', label('import:contractLines.unit', 'Unit'), true, false, 76),
-      field('quantity', label('import:contractLines.quantity', 'Quantity'), true, false, 96, true),
+      field('itemCode', label('import:contractLines.itemCode', 'Item code'), true, { previewSize: 104 }),
+      field('description', label('import:contractLines.description', 'Description'), true, { previewSize: 200 }),
+      field('unit', label('import:contractLines.unit', 'Unit'), true, { previewSize: 76 }),
+      field('quantity', label('import:contractLines.quantity', 'Quantity'), true, { previewSize: 96, numeric: true }),
       field('rate', currency
         ? label('import:contractLines.rateWithCurrency', 'Rate ({{code}})', { code: currency })
-        : label('import:contractLines.rate', 'Rate'), true, false, 140, true),
+        : label('import:contractLines.rate', 'Rate'), true, { previewSize: 140, numeric: true }),
       // Optional columns: the table drops them when the sheet leaves them blank on every row.
-      field('lineNo', label('import:contractLines.lineNo', 'Line no'), false, false, 68, true),
-      field('earningBasis', label('import:contractLines.earningBasis', 'Basis'), false, false, 100),
+      field('lineNo', label('import:contractLines.lineNo', 'Line number'), false, {
+        previewSize: 68, numeric: true,
+        hint: label('import:contractLines.lineNoHint', 'Optional. Sets the order of the lines; lines without one come last.'),
+        aliases: ['Line no', 'No. baris'],
+      }),
+      field('earningBasis', label('import:contractLines.earningBasis', 'Charged by'), false, {
+        previewSize: 100,
+        hint: label('import:contractLines.earningBasisHint', 'Optional. Unit rate (quantity × rate) or lump sum (one amount, quantity 1).'),
+        aliases: ['Basis', 'Dasar perolehan'],
+      }),
     ],
     validateRow: (cells) => {
       const out: Partial<Record<Key, string>> = {};
@@ -121,7 +148,7 @@ export function makeContractLineImportDescriptor(projectId: string, t?: TFunctio
       return rows.map((cells, i) => {
         const line = lineFromCells(cells);
         const dup = contractLineProblemCodes({ key: line.key }, seen).find((p) => p.code === 'duplicate');
-        if (dup) return { importKey: label('import:contractLines.error.keyDuplicateRows', 'Key "{{value}}" appears twice (rows {{first}} and {{second}}).', { value: line.key, first: (firstRow.get(line.key) ?? 0) + 2, second: i + 2 }) };
+        if (dup) return { importKey: label('import:contractLines.error.keyDuplicateRows', 'Line reference "{{value}}" appears twice (rows {{first}} and {{second}}).', { value: line.key, first: (firstRow.get(line.key) ?? 0) + 2, second: i + 2 }) };
         if (!firstRow.has(line.key)) firstRow.set(line.key, i);
         return {};
       });

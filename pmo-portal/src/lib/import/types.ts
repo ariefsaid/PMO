@@ -29,6 +29,16 @@ export interface ImportField<Input> {
   hideInPreview?: boolean;
   /** A figure: right-aligned, tabular, never wrapped, in the wide preview (#1278 round B). */
   numeric?: boolean;
+  /** Other header texts that map to this field (a sheet made before a label was renamed, either language). */
+  aliases?: string[];
+  /** One short line under the field's label in the match-columns step: what the column holds, in plain words. */
+  hint?: string;
+  /**
+   * The cell as the reader's language shows it (#1278 round C): the PARSED value through the app's number
+   * formatter, so what the preview shows is what the import will write. `null` = the cell cannot be read, and
+   * the preview keeps the file's own text (the row carries its error).
+   */
+  format?: (raw: string) => string | null;
   /** Column width in px in the wide preview (all columns, with Row 64 and Status 240, must sum to the dialog body, 1088px at most). */
   previewSize?: number;
 }
@@ -43,6 +53,10 @@ export interface ImportDescriptor<Input> {
    * that read `entity` stable in every locale.
    */
   entityDisplay?: string;
+  /** The same word for exactly one record ("contract line"): the Import button's singular. ABSENT → `entityDisplay`. */
+  entityDisplayOne?: string;
+  /** What a phone preview card is headed by (item code and description); empty/absent → "Row n". */
+  rowTitle?: (cells: Record<string, string>) => string;
   /**
    * OPTIONAL wide preview (#1278 round B): a wider dialog whose preview table fits without sideways scroll, one
    * line per cell (long text truncates, full text in `title`), and every row error in plain words under the
@@ -104,6 +118,8 @@ export interface ImportResult {
    * demonstrate (DD-BIMP-8). Descriptors that never return the sentinel always see 0 here.
    */
   skipped: number;
+  /** Which rows were skipped (0-based sheet row indexes), so the result can name them. */
+  skippedIndexes: number[];
   failed: { index: number; reason: string }[];
 }
 
