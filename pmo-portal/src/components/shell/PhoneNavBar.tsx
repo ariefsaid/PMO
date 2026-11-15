@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { useTerms } from '@/src/lib/i18n/terms';
 import { cn } from '@/src/components/ui/cn';
 import { Icon, type IconName } from '@/src/components/ui/icons';
 import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
@@ -30,13 +31,14 @@ const PhoneNavBarContent: React.FC<PhoneNavBarProps & { role: string | null; has
   hasEligibleDecisions,
 }) => {
   const { t } = useTranslation('home');
+  const terms = useTerms();
   const { pathname } = useLocation();
   const isNarrow = useIsNarrow();
 
   if (!isNarrow) return null;
 
   const labels: Record<Destination | 'search' | 'more', string> = {
-    home: t('nav.home', 'Home'),
+    home: terms.dashboard,
     approvals: t('nav.approvals', 'Approvals'),
     myTasks: t('nav.myTasks', 'My Tasks'),
     search: t('nav.search', 'Search'),

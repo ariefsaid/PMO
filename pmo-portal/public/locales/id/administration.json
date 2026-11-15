@@ -397,7 +397,7 @@
       "noMatch": "Tidak ada faktur ERP yang cocok",
       "ambiguous": "Lebih dari satu faktur ERP yang cocok",
       "hasReceipt": "PMO sudah mencatat pembayaran pada faktur ini",
-      "projectDiffers": "Faktur ERP berada di proyek atau work order yang berbeda"
+      "projectDiffers": "Faktur ERP berada di proyek atau $t(common:terms.clientWorkOrder) yang berbeda"
     },
     "countOne": "1 faktur",
     "countOther": "{{count}} faktur",

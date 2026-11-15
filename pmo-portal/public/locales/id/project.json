@@ -57,11 +57,11 @@
         "contractQuantity": "Sumber: kuantitas pada baris kontrak berharga.",
         "customerOrderQuantities": "Sumber: kuantitas yang dialokasikan ke pesanan pelanggan.",
         "leftToOrder": "Kuantitas kontrak dikurangi kuantitas yang sudah dialokasikan ke pesanan pelanggan.",
-        "lineOrdered": "Sumber: kuantitas yang dialokasikan ke work order ini.",
+        "lineOrdered": "Sumber: kuantitas yang dialokasikan ke $t(common:terms.clientWorkOrder) ini.",
         "rate": "Sumber: tarif pada baris daftar kuantitas ini.",
-        "lineDelivered": "Sumber: total kuantitas yang diterima pada BAST terkonfirmasi untuk work order ini.",
+        "lineDelivered": "Sumber: total kuantitas yang diterima pada BAST terkonfirmasi untuk $t(common:terms.clientWorkOrder) ini.",
         "lineDeliveryProgress": "Kuantitas diterima ÷ kuantitas dipesan. Pengiriman akhir yang kurang akan ditandai.",
-        "lineInvoiced": "Sumber: kuantitas yang sudah diklaim terhadap alokasi work order ini.",
+        "lineInvoiced": "Sumber: kuantitas yang sudah diklaim terhadap alokasi $t(common:terms.clientWorkOrder) ini.",
         "lineCanInvoice": "Kuantitas yang diterima dikurangi kuantitas yang sudah diklaim. Angka akan muncul setelah BAST dikonfirmasi.",
         "invoiceUnpaid": "Sumber: saldo faktur ini yang masih terutang menurut akuntansi.",
         "acceptedHistory": "Sumber: kuantitas yang dicatat pada BAST ini.",
@@ -330,14 +330,14 @@
         "subtitle": "Satu tagihan menjadi satu faktur ERP. Lampirkan bukti sebelum menerbitkannya.",
         "recoverRest": "Pulihkan sisa uang muka dengan tagihan ini",
         "scope": "Menagih",
-        "scopeContract": "Baris tanpa work order",
+        "scopeContract": "Baris tanpa $t(common:terms.clientWorkOrder)",
         "title": "Tagihan baru",
         "prefill": "Mulai dari penilaian {{month}}",
         "kindProgress": "Progres: kuantitas terhadap bill of quantities"
       },
       "boqForm": {
         "quantity": "Kuantitas",
-        "subtitle": "Harga belum termasuk pajak. work order mengambil kuantitas dari suatu baris saat Anda mengalokasikannya.",
+        "subtitle": "Harga belum termasuk pajak. $t(common:terms.clientWorkOrder) mengambil kuantitas dari suatu baris saat Anda mengalokasikannya.",
         "save": "Simpan baris",
         "rate": "Harga satuan (belum termasuk PPN)",
         "unit": "Satuan",
@@ -471,7 +471,7 @@
       "contractSourceRecord": "Nilai kontrak yang disetujui pada catatan proyek.",
       "contractUnavailable": "Nilai kontrak belum tercatat.",
       "ordered": "Dipesan",
-      "orderedSource": "Jumlah alokasi work order yang diterbitkan dikalikan harga satuan daftar kuantitas.",
+      "orderedSource": "Jumlah alokasi $t(common:terms.clientWorkOrder) yang diterbitkan dikalikan harga satuan daftar kuantitas.",
       "delivered": "Terkirim",
       "deliveredSource": "Jumlah kuantitas yang diterima dikalikan harga satuan daftar kuantitas.",
       "invoiced": "Ditagih",
@@ -576,7 +576,7 @@
     "billingMilestones": {
       "title": "Milestone penagihan",
       "error": "Gagal memuat milestone penagihan",
-      "empty": "Belum ada work order.",
+      "empty": "Belum ada $t(common:terms.clientWorkOrder).",
       "openContract": "Buka kontrak & penagihan",
       "notIssued": "Belum diterbitkan",
       "dates": "{{start}} – {{end}}",
@@ -590,7 +590,7 @@
         "invoiced": "Ditagih",
         "paid": "Lunas"
       },
-      "statusSource": "Sumber: faktur dan draf work order ini (Kontrak & penagihan).",
+      "statusSource": "Sumber: faktur dan draf $t(common:terms.clientWorkOrder) ini (Kontrak & penagihan).",
       "invoiceThis": "Tagih ini",
       "invoiceThisLabel": "Tagih {{order}}"
     },
@@ -981,9 +981,9 @@
     "workOrders": {
       "acceptanceAge": "Hari sejak BAST, belum ditagih: {{days}}",
       "acceptanceAgeSource": "Dihitung dari BAST terkonfirmasi paling awal yang belum diikuti faktur terkirim.",
-      "cannotInvoiceHere": "Work order ini belum bisa ditagih dari sini.",
+      "cannotInvoiceHere": "$t(common:terms.clientWorkOrder) ini belum bisa ditagih dari sini.",
       "export": {
-        "number": "Work order",
+        "number": "$t(common:terms.clientWorkOrder)",
         "title": "Judul",
         "customerPo": "PO pelanggan",
         "status": "Status",
@@ -1006,13 +1006,13 @@
       },
       "drawdown": {
         "headroom": "Sisa pagu penyerapan",
-        "source": "Dihitung dari nilai bersih kontrak dikurangi nilai bersih work order yang diterbitkan dan ditutup."
+        "source": "Dihitung dari nilai bersih kontrak dikurangi nilai bersih $t(common:terms.clientWorkOrder) yang diterbitkan dan ditutup."
       },
       "drafts": "Draf pesanan",
       "emptyRegister": "Belum ada pesanan pelanggan. PO pelanggan dicatat di sini dan mengurangi pagu kontrak proyek saat diterbitkan.",
       "orderDate": "Tanggal order",
       "billing": {
-        "orderRemainingSource": "Sumber: saldo penagihan work order setelah faktur dan draf tertunda.",
+        "orderRemainingSource": "Sumber: saldo penagihan $t(common:terms.clientWorkOrder) setelah faktur dan draf tertunda.",
         "pendingNote": "Draf dan klaim yang belum diajukan dihitung sebagai belum ditagihkan.",
         "figuresIncomplete": "Angka faktur belum lengkap.",
         "retryFigures": "Coba lagi memuat angka faktur",

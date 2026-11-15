@@ -573,17 +573,17 @@
           "detail": "Jumlah pesanan tidak dapat dikurangi di bawah jumlah yang sudah diterima atau ditagihkan."
         }
       },
-      "chooseWorkOrder": "Pilih work order",
+      "chooseWorkOrder": "Pilih $t(common:terms.clientWorkOrder)",
       "notPassed": "Tidak diteruskan",
-      "linkLabel": "Work order klien",
+      "linkLabel": "$t(common:terms.clientWorkOrder) klien",
       "notPassedReason": "Alasan tidak diteruskan",
       "notPassedRequired": "Berikan alasan variasi ini tidak diteruskan.",
       "saveLink": "Simpan tautan",
       "linked": "Tautan variasi disimpan",
-      "linkedReadOnly": "Ditautkan ke work order klien",
+      "linkedReadOnly": "Ditautkan ke $t(common:terms.clientWorkOrder) klien",
       "notPassedReadOnly": "Tidak diteruskan: {{reason}}",
-      "workOrdersLoading": "Memuat work order proyek…",
-      "workOrdersLoadError": "Work order proyek tidak dapat dimuat.",
+      "workOrdersLoading": "Memuat $t(common:terms.clientWorkOrder) proyek…",
+      "workOrdersLoadError": "$t(common:terms.clientWorkOrder) proyek tidak dapat dimuat.",
       "workOrderHeading": "Variasi biaya",
       "workOrderLoadError": "Variasi biaya tidak dapat dimuat.",
       "workOrderEmpty": "Belum ada variasi biaya tertaut",
@@ -722,7 +722,7 @@
     }
   },
   "approvalQueue": {
-    "headingAll": "Pembelian dan timesheet",
+    "headingAll": "Pembelian dan $t(common:terms.timesheet)",
     "waitingDays_one": "Menunggu {{count}} hari",
     "waitingDays_other": "Menunggu {{count}} hari"
   },

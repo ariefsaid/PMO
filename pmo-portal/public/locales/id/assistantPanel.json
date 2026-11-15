@@ -10,7 +10,7 @@
   "suggestions": {
     "projectStatus": "Ringkas status proyek ini.",
     "projectOverdueTasks": "Tugas mana pada proyek ini yang terlambat?",
-    "projectBudget": "Tampilkan anggaran dan aktual proyek ini.",
+    "projectBudget": "Tampilkan anggaran dan realisasi proyek ini.",
     "procurementSummary": "Ringkas kasus pengadaan ini.",
     "procurementNextStep": "Apa langkah berikutnya untuk pengadaan ini?",
     "procurementOpenItems": "Item mana pada pengadaan ini yang masih terbuka?",
