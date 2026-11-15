@@ -4,7 +4,7 @@
 // REAL shipped entrypoint (import ./index.ts, mocked globalThis.fetch, real JWT verification).
 //
 // Verify: cd supabase/functions/compose-view && deno test -A bodyCap.test.ts
-import { assertEquals } from "jsr:@std/assert@1.0.0";
+import { assert, assertEquals } from "jsr:@std/assert@1.0.0";
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from "jose";
 
 const SUPABASE_URL = "https://edge-test.supabase.test";
@@ -47,14 +47,38 @@ function streamOf(text: string): ReadableStream<Uint8Array> {
   });
 }
 
+/** A composition the shipped compiler accepts: one KPI tile counting projects. */
+const VALID_SPEC = {
+  version: 1,
+  panels: [{
+    id: "p1",
+    primitive: "KPITile",
+    querySpec: { entity: "projects", select: ["id"], aggregate: { fn: "count", column: "id", alias: "count" } },
+  }],
+};
+
+/** A stream that never ends; it records how many chunks were pulled and whether it was cancelled. */
+function endlessStream(chunkBytes: number) {
+  const stats = { pulls: 0, cancelled: false };
+  const stream = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      stats.pulls++;
+      controller.enqueue(new Uint8Array(chunkBytes).fill(0x20));
+    },
+    cancel() {
+      stats.cancelled = true;
+    },
+  }, { highWaterMark: 0 });
+  return { stream, stats };
+}
+
 async function send(body: BodyInit) {
   const names = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_ANON_KEY", "OPENROUTER_API_KEY"];
   const previous = Object.fromEntries(names.map((name) => [name, Deno.env.get(name)]));
   Deno.env.set("SUPABASE_URL", SUPABASE_URL);
   Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "synthetic-service-key");
   Deno.env.set("SUPABASE_ANON_KEY", "synthetic-anon-key");
-  // No model credential: a body that gets past the cap reaches the 502 credential branch, never a model.
-  Deno.env.delete("OPENROUTER_API_KEY");
+  Deno.env.set("OPENROUTER_API_KEY", "synthetic-model-key");
   const originalFetch = globalThis.fetch;
   const paths: string[] = [];
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -68,6 +92,21 @@ async function send(body: BodyInit) {
     }
     if (url.pathname === "/rest/v1/rpc/rate_limit_hit") return Response.json(true);
     if (url.pathname === "/rest/v1/rpc/service_feature_enabled") return Response.json(true);
+    if (url.pathname === "/api/v1/chat/completions") {
+      return Response.json({
+        model: "deepseek/deepseek-v4.1-flash-1017",
+        choices: [{
+          finish_reason: "tool_calls",
+          message: {
+            role: "assistant",
+            content: null,
+            tool_calls: [{ id: "call-1", type: "function", function: { name: "compose_view", arguments: JSON.stringify(VALID_SPEC) } }],
+          },
+        }],
+        usage: { prompt_tokens: 110, completion_tokens: 40, total_tokens: 150, cost: 0.0003, total_cost: 0.0003 },
+      });
+    }
+    if (url.pathname === "/rest/v1/agent_usage") return new Response(null, { status: 201 });
     if (url.pathname === "/rest/v1/error_events") return new Response(null, { status: 201 });
     throw new Error(`unexpected fetch: ${request.method} ${url.pathname}`);
   }) as typeof fetch;
@@ -103,16 +142,22 @@ Deno.test("compose-view answers 413 for an over-cap body streamed without a Cont
   assertEquals((await response.json()).error, "PAYLOAD_TOO_LARGE");
 });
 
-Deno.test({
-  name: "compose-view still processes a well-formed body under the cap",
-  // The credential branch records its error event fire-and-forget; that pending write is not this test's subject.
-  sanitizeOps: false,
-  sanitizeResources: false,
-}, async () => {
-  const { response } = await send(bodyOfSize(1024));
-  // Past the cap and the JSON parse, the request reaches the model-credential step (unset here).
-  assertEquals(response.status, 502);
-  assertEquals((await response.json()).error, "UPSTREAM_ERROR");
+Deno.test("compose-view stops reading a body that never ends once it passes the cap", async () => {
+  const chunkBytes = 4096;
+  const { stream, stats } = endlessStream(chunkBytes);
+  const { response } = await send(stream);
+  assertEquals(response.status, 413);
+  assertEquals((await response.json()).error, "PAYLOAD_TOO_LARGE");
+  assert(stats.cancelled, "the oversized stream is cancelled");
+  assert(stats.pulls <= MAX_REQUEST_BODY_BYTES / chunkBytes + 2, `read stopped near the cap (pulled ${stats.pulls})`);
+});
+
+Deno.test("compose-view still composes a view from a well-formed body under the cap", async () => {
+  const { response, paths } = await send(bodyOfSize(1024));
+  assertEquals(response.status, 200);
+  const body = await response.json();
+  assert(body.spec !== undefined, "the response carries the compiled spec");
+  assert(paths.includes("/api/v1/chat/completions"), "the request reached the model");
 });
 
 Deno.test("compose-view still answers 400 for malformed JSON under the cap", async () => {

@@ -32,6 +32,7 @@ import { createAttachmentResolver } from './attachments.ts';
 import { createCreditRateGuard } from '../_shared/creditRateGuard.ts';
 import { checkRequestRate } from '../_shared/requestRateGuard.ts';
 import { readBodyBounded } from '../_shared/readBodyBounded.ts';
+import { MAX_REQUEST_BODY_BYTES, checkAgentChatRequest } from './requestLimits.ts';
 import { OpenRouterModelClient, providerPolicyFromEnv, fallbackModelsFromEnv, modelOverrideFromEnv } from '../_shared/openRouterModelClient.ts';
 import { compactionOptionsFromEnv } from '../_shared/transcriptCompaction.ts';
 import { resolveDefaultModel } from '../_shared/modelResolution.ts';
@@ -62,13 +63,12 @@ export function setTestJwks(resolver: JwksResolver): void {
   _jwks = resolver;
 }
 
-/**
- * Request-body cap, enforced on the stream (readBodyBounded) so it holds without a Content-Length.
- * The body is the conversation transcript (user and assistant text plus small tool_use blocks;
- * attachments travel as ids, never bytes). 1 MiB is over ten times the transcript-compaction trigger,
- * so a real conversation stays well inside it while one call cannot make the function buffer more.
- */
-export const MAX_REQUEST_BODY_BYTES = 1024 * 1024;
+export {
+  MAX_REQUEST_BODY_BYTES,
+  MAX_TRANSCRIPT_MESSAGES,
+  MAX_USER_MESSAGE_CHARS,
+  MAX_TRANSCRIPT_CHARS,
+} from './requestLimits.ts';
 
 export const testSupabaseOptions = {
   auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
@@ -256,6 +256,14 @@ export async function handleAgentChatRequest(req: Request): Promise<Response> {
     return new Response(
       JSON.stringify({ status: 400, error: 'BAD_REQUEST', detail: 'invalid JSON body' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    );
+  }
+  // Shape and size of the transcript, checked before persistence lookups or any model request.
+  const transcript = checkAgentChatRequest(body);
+  if (!transcript.ok) {
+    return new Response(
+      JSON.stringify({ status: transcript.status, error: transcript.error, detail: transcript.detail }),
+      { status: transcript.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }
 
