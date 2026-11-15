@@ -395,7 +395,7 @@ describe('CompanyDetail — primary contact + related opportunities (AC-CRM-CD-0
     // The first contact (alphabetically or by order) should appear as primary contact
     expect(screen.getByText(/primary contact/i)).toBeInTheDocument();
     // Should be a link navigating to the contact's page
-    const link = screen.getByRole('link', { name: /jane doe/i });
+    const link = screen.getByRole('link', { name: 'Jane Doe' });
     expect(link).toBeInTheDocument();
     expect(link).toHaveAttribute('href', '/contacts/ct1');
     expect(link.className).toContain('text-primary-text');
@@ -436,10 +436,10 @@ describe('CompanyDetail — activity card vs a failed contacts read (PGA02-002)'
     expect(screen.getAllByRole('button', { name: /retry/i }).length).toBeGreaterThan(0);
   });
 
-  it('a11y(#2086): a contact row button names the person and their job title', () => {
+  it('a11y(#2086): a contact row link names the person and their job title', () => {
     contactsState.data = contacts;
     renderPage();
-    expect(screen.getByRole('button', { name: 'Open Jane Doe — Procurement Lead' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Open John Roe' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Jane Doe — Procurement Lead' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open John Roe' })).toBeInTheDocument();
   });
 });
