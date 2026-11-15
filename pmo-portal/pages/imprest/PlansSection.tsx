@@ -121,7 +121,9 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
         )}
         {!plans.isPending && !plans.isError && plans.data && (plans.data.rows.length === 0
           ? <p className="text-sm text-muted-foreground">{t('imprest:plan.noPlans', 'No plans yet. The custodian drafts one per month.')}</p>
-          : <ul className="divide-y divide-border">
+          : <>
+          {usage != null && <h3 className="pt-[var(--panel-inset)] text-sm font-semibold text-foreground">{t('imprest:plan.allPlans', 'All plans')}</h3>}
+          <ul className="divide-y divide-border">
             {plans.data.rows.map((plan) => {
               const actions = availablePlanActions({ userId, realRole, custodianId, plan });
               const editable = userId === plan.author_id && (plan.status === 'Draft' || plan.status === 'Rejected');
@@ -131,8 +133,9 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
                     <span className="font-medium">{monthLabel(plan.month)}</span>
                     <span className="text-muted-foreground">{plan.number ?? t('imprest:plan.draftNumber', 'Draft')}</span>
                     <StatusPill record="imprest" state={plan.status} />
-                    {plan.is_late && <span className="text-muted-foreground">{t('imprest:plan.late', 'Late')}</span>}
-                    <span className="flex-1 text-right tabular-nums">{formatCurrency(Number(plan.total), currency)}</span>
+                    {plan.is_late && <span className="text-muted-foreground">{t('imprest:plan.late', 'Approved after the month began')}</span>}
+                    {/* The figure carries its noun, so the row reads without a table header. */}
+                    <span className="ml-auto tabular-nums"><span className="mr-1 text-muted-foreground">{t('imprest:plan.totalLabel', 'Total')}</span>{formatCurrency(Number(plan.total), currency)}</span>
                     <Button variant="ghost" size="sm" aria-expanded={open === plan.id} onClick={() => setOpen((c) => (c === plan.id ? null : plan.id))}>
                       {open === plan.id ? t('imprest:plan.hideLines', 'Hide lines') : t('imprest:plan.showLines', 'Show lines')}
                     </Button>
@@ -147,7 +150,8 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
                 </li>
               );
             })}
-          </ul>)}
+          </ul>
+          </>)}
       </div>}
       <ConfirmDialog
         open={dialog !== null}

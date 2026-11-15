@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
@@ -85,6 +85,7 @@ describe('ExpenseLinesCard', () => {
     expect(screen.queryByRole('button', { name: 'Add line' })).toBeNull();
     expect(screen.queryByRole('button', { name: /Edit line/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /Remove line/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Line actions/ })).toBeNull();
   });
 });
 
@@ -121,9 +122,13 @@ describe('phone: a line row is the edit target', () => {
 
 // Floor tests (floor-tests/expense-claim-record.md rows 13, 14).
 describe('floor: expense line controls', () => {
+  // Desktop table: the row menu is the path here; the phone row-as-button path is covered above.
+  beforeEach(() => { vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({ matches: query.includes('min-width: 768px'), addEventListener: vi.fn(), removeEventListener: vi.fn() }))); });
+  afterEach(() => { vi.unstubAllGlobals(); });
   it('floor: editing a line saves the values the claimant changed', async () => {
     renderCard(true, [LINE]);
-    await userEvent.click(screen.getByRole('button', { name: 'Edit line Taxi' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Line actions: Taxi' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit' }));
     const dialog = await screen.findByRole('dialog');
     const description = within(dialog).getByLabelText(/Description/);
     await userEvent.clear(description);
@@ -141,7 +146,8 @@ describe('floor: expense line controls', () => {
 
   it('floor: confirming Remove deletes that line', async () => {
     renderCard(true, [LINE]);
-    await userEvent.click(screen.getByRole('button', { name: 'Remove line Taxi' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Line actions: Taxi' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Remove' }));
     const dialog = await screen.findByRole('alertdialog');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Remove' }));
 
@@ -150,7 +156,8 @@ describe('floor: expense line controls', () => {
 
   it('floor: cancelling Remove keeps the line and writes nothing', async () => {
     renderCard(true, [LINE]);
-    await userEvent.click(screen.getByRole('button', { name: 'Remove line Taxi' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Line actions: Taxi' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Remove' }));
     const dialog = await screen.findByRole('alertdialog');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
 

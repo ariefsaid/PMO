@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, ConfirmDialog, DataTable, EntityFormModal, FormGrid, FormSection, ListState, RecordSection, SelectField,
+  Button, ConfirmDialog, DataTable, EntityFormModal, FormGrid, Icon, ListState, NumberField, RecordMenu, RecordSection, SelectField,
   TextField, useEntityForm, useToast, type Column, type SubmitError,
 } from '@/src/components/ui';
 import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
@@ -31,22 +31,24 @@ export const ExpenseLinesCard: React.FC<ExpenseLinesCardProps> = ({ claimId, lin
   const [editing, setEditing] = useState<ExpenseClaimLineRow | 'new' | null>(null);
   const [removeTarget, setRemoveTarget] = useState<ExpenseClaimLineRow | null>(null);
   const totalCents = lines.reduce((sum, l) => sum + Math.round(Number(l.amount) * 100), 0);
+  // 1168 canvas: date 112 + type 168 + description (the identity column, takes the rest) + amount 168 + row menu 56.
+  // The row menu is a fixed lane, so every amount ends on one edge with or without it.
   const columns = useMemo<Column<ExpenseClaimLineRow>[]>(() => [
-    { key: 'date', header: t('expenses.lines.columns.date', 'Date'), kind: 'date', cell: (line) => formatDay(line.expense_date) },
-    { key: 'type', header: t('expenses.lines.columns.type', 'Type'), kind: 'text', cell: (line) => expenseTypeLabel(line.expense_type, t) },
+    { key: 'date', header: t('expenses.lines.columns.date', 'Date'), kind: 'date', size: 112, cell: (line) => formatDay(line.expense_date) },
+    { key: 'type', header: t('expenses.lines.columns.type', 'Type'), kind: 'text', size: 168, cell: (line) => expenseTypeLabel(line.expense_type, t) },
     { key: 'description', header: t('expenses.lines.columns.description', 'Description'), kind: 'primary', cell: (line) => line.description, primaryTitle: (line) => line.description },
-    { key: 'amount', header: t('expenses.lines.columns.amount', 'Amount'), kind: 'money', align: 'num', cell: (line) => formatCurrency(Number(line.amount), currency, { precision: 'minor' }) },
+    { key: 'amount', header: t('expenses.lines.columns.amount', 'Amount'), kind: 'money', align: 'num', size: 168, cell: (line) => formatCurrency(Number(line.amount), currency, { precision: 'minor' }) },
     ...(editable ? [{
-      key: 'actions', header: t('table.actions', 'Actions'), kind: 'actions' as const, size: 140, minSize: 140, maxSize: 140,
-      cell: (line: ExpenseClaimLineRow) => <div className="flex justify-end gap-1">
-        <Button variant="ghost" size="sm" onClick={() => setEditing(line)}
-          aria-label={t('expenses.lines.editAria', 'Edit line {{description}}', { description: line.description })}>
-          {t('expenses.lines.edit', 'Edit')}
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => setRemoveTarget(line)}
-          aria-label={t('expenses.lines.removeAria', 'Remove line {{description}}', { description: line.description })}>
-          {t('expenses.lines.remove', 'Remove')}
-        </Button>
+      key: 'actions', header: <span className="sr-only">{t('table.actions', 'Actions')}</span>, kind: 'actions' as const, size: 56, minSize: 56, maxSize: 56,
+      cell: (line: ExpenseClaimLineRow) => <div className="flex justify-end">
+        <RecordMenu
+          ariaLabel={t('expenseClaims:lines.menuAria', 'Line actions: {{description}}', { description: line.description })}
+          triggerClassName="border-transparent bg-transparent"
+          items={[
+            { key: 'edit', label: t('expenses.lines.edit', 'Edit'), onSelect: () => setEditing(line) },
+            { key: 'remove', label: t('expenses.lines.remove', 'Remove'), danger: true, onSelect: () => setRemoveTarget(line) },
+          ]}
+        />
       </div>,
     }] : []),
   ], [currency, editable, t]);
@@ -81,15 +83,18 @@ export const ExpenseLinesCard: React.FC<ExpenseLinesCardProps> = ({ claimId, lin
       ) : isNarrow ? (
         <ul data-testid="expense-lines-list" aria-label={t('expenses.lines.title', 'Lines')} className="divide-y divide-border border-t border-border">
           {lines.map((line) => {
+            // Zoho/Expensify row: what it was + how much on line 1, when · what kind on line 2, a chevron when it opens.
             const body = (
-              <>
-                <span className="flex items-center justify-between gap-3">
-                  <span className="text-control text-muted-foreground">{formatDay(line.expense_date)}</span>
-                  <span className="font-semibold tabular-nums">{formatCurrency(Number(line.amount), currency, { precision: 'minor' })}</span>
+              <span className="flex items-center gap-3">
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-baseline justify-between gap-3">
+                    <span className="min-w-0 text-sm font-medium text-foreground">{line.description}</span>
+                    <span className="shrink-0 text-sm font-semibold tabular-nums">{formatCurrency(Number(line.amount), currency, { precision: 'minor' })}</span>
+                  </span>
+                  <span className="mt-0.5 block text-control text-muted-foreground">{formatDay(line.expense_date)} · {expenseTypeLabel(line.expense_type, t)}</span>
                 </span>
-                <span className="mt-1 block text-control text-muted-foreground">{expenseTypeLabel(line.expense_type, t)}</span>
-                <span className="block text-sm text-foreground">{line.description}</span>
-              </>
+                {editable && <Icon name="chev" aria-hidden className="size-4 shrink-0 text-muted-foreground" />}
+              </span>
             );
             return (
               <li key={line.id}>
@@ -129,6 +134,7 @@ export const ExpenseLinesCard: React.FC<ExpenseLinesCardProps> = ({ claimId, lin
       {editing && (
         <ExpenseLineFormModal
           initial={editing === 'new' ? null : editing}
+          currency={currency}
           onClose={() => setEditing(null)}
           onRemove={isNarrow && editing !== 'new' ? () => { setRemoveTarget(editing); setEditing(null); } : undefined}
           onSubmit={async (input) => {
@@ -156,11 +162,12 @@ interface LineValues { expenseDate: string; expenseType: string; description: st
 
 const ExpenseLineFormModal: React.FC<{
   initial: ExpenseClaimLineRow | null;
+  currency: string;
   onClose: () => void;
   /** Phone: a line row is the edit target, so Remove lives inside its edit sheet. */
   onRemove?: () => void;
   onSubmit: (input: ExpenseLineInput) => Promise<void>;
-}> = ({ initial, onClose, onRemove, onSubmit }) => {
+}> = ({ initial, currency, onClose, onRemove, onSubmit }) => {
   const { t } = useTranslation();
   const validate = useMemo(
     () => (v: LineValues): Partial<Record<keyof LineValues, string>> => {
@@ -227,8 +234,7 @@ const ExpenseLineFormModal: React.FC<{
       errorSummary={errorSummary}
       submitError={saveError}
     >
-      <FormSection legend={t('expenses.lines.sectionLegend', 'Expense')}>
-        <FormGrid>
+      <FormGrid>
           <TextField id={dateField.id} type="date" required label={t('expenses.lines.date', 'Date')} value={dateField.value}
             onChange={dateField.onChange} onBlur={dateField.onBlur} error={dateField.error} />
           <SelectField id={typeField.id} label={t('expenses.lines.type', 'Type')} value={typeField.value}
@@ -236,10 +242,9 @@ const ExpenseLineFormModal: React.FC<{
             options={Constants.public.Enums.expense_type.map((x) => ({ value: x, label: expenseTypeLabel(x, t) }))} />
           <TextField id={descField.id} required label={t('expenses.lines.description', 'Description')} value={descField.value}
             onChange={descField.onChange} onBlur={descField.onBlur} error={descField.error} fullWidth />
-          <TextField id={amountField.id} required inputMode="decimal" label={t('expenses.lines.amount', 'Amount')}
+          <NumberField id={amountField.id} required prefix={currency} label={t('expenses.lines.amount', 'Amount')}
             value={amountField.value} onChange={amountField.onChange} onBlur={amountField.onBlur} error={amountField.error} />
-        </FormGrid>
-      </FormSection>
+      </FormGrid>
       {onRemove && (
         <Button type="button" variant="outline" className="mt-3 w-full" onClick={onRemove}
           aria-label={t('expenses.lines.removeAria', 'Remove line {{description}}', { description: initial?.description ?? '' })}>

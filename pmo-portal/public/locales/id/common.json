@@ -1572,7 +1572,6 @@
       "removeAria": "Hapus rincian {{description}}",
       "removeTitle": "Hapus rincian ini?",
       "save": "Simpan rincian",
-      "sectionLegend": "Pengeluaran",
       "title": "Rincian",
       "total": "Total",
       "type": "Jenis"
@@ -1582,7 +1581,6 @@
       "attach": "Lampirkan bukti",
       "attachAria": "Pilih berkas bukti",
       "attached": "Bukti terlampir",
-      "download": "Unduh {{name}}",
       "empty": "Belum ada bukti terlampir.",
       "preview": "Pratinjau bukti",
       "error": "Gagal memuat bukti.",
@@ -4381,7 +4379,7 @@
       "formNotConnected": "Posting biaya nonaktif. Ini hanya disimpan di PMO.",
       "formInactive": "Posting biaya nonaktif. Ini hanya disimpan di PMO.",
       "formUnknown": "Tidak dapat memeriksa posting biaya. Ini hanya disimpan di PMO.",
-      "cardInactive": "Belum diposting ke akuntansi: posting biaya tidak aktif untuk organisasi ini.",
+      "cardInactive": "Hanya tersimpan di PMO: posting biaya ke akuntansi nonaktif.",
       "cardUnknown": "Tidak dapat memeriksa apakah klaim ini akan masuk ke akuntansi."
     }
   },

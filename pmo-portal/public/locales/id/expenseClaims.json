@@ -40,5 +40,26 @@
   },
   "accountMap": {
     "projectDirectCost": "Biaya langsung proyek"
+  },
+  "detail": {
+    "statusLine": {
+      "draft_other": "Belum dikirim · {{count}} baris",
+      "draftAdvance": "Belum dikirim",
+      "with": "Menunggu {{names}} sejak {{date}} · baris terkunci",
+      "waiting": "Menunggu persetujuan sejak {{date}} · baris terkunci",
+      "approved": "Disetujui {{date}} · menunggu pembayaran",
+      "paid": "Dibayar {{date}}",
+      "joiner": " atau ",
+      "draft_one": "Belum dikirim · {{count}} baris"
+    }
+  },
+  "lines": {
+    "menuAria": "Aksi baris: {{description}}"
+  },
+  "receipts": {
+    "downloadShort": "Unduh",
+    "menuAria": "Aksi bukti: {{name}}",
+    "previewShort": "Lihat",
+    "removeShort": "Hapus"
   }
 }

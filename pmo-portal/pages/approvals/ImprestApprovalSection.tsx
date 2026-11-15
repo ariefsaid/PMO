@@ -26,7 +26,7 @@ export const ImprestApprovalSection: React.FC = () => {
         .some((a) => a === 'approveReplenishment' || a === 'payReplenishment'))
       .map((r) => ({ key: `rep:${r.id}`, floatId: r.float_id, label: r.number,
         project: r.float?.project?.name ?? '—', amount: formatCurrency(Number(r.amount), r.float?.currency ?? ''),
-        kind: r.status === 'Approved' ? t('imprest:approvals.toPay', 'Replenishment to pay') : t('imprest:approvals.toApprove', 'Replenishment to approve') }));
+        kind: r.status === 'Approved' ? t('imprest:approvals.toPay', 'Top-up to pay') : t('imprest:approvals.toApprove', 'Top-up to approve') }));
     return [...plans, ...reps];
   }, [data, userId, realRole, t]);
   if (isPending) return null;

@@ -340,6 +340,15 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Expense claim evidence** — a file attached to an expense claim as supporting documentation.
 
+**Site cash** (Bahasa *kas lapangan*) — cash one custodian holds on site for one project (code: imprest float). One name in
+the UI; never "float". Its figures: **Limit** (*batas kas*, the approved amount it is topped up to), **Cash in hand**,
+**Advances given**, **Receipts waiting** (paid claims not yet refilled), **Top-up on its way**, **Still needed**.
+
+**Top-up** (*tambahan dana*) — a request to refill site cash with the receipts waiting (code: replenishment). **Funding**
+(*pendanaan*) is the first cash put in, up to the limit.
+
+**Cash count** — the custodian's count of cash in hand: **Counted**, **Expected** (by the books) and the **Difference**.
+
 **Vendor withholding slip** — a numbered vendor tax record for a tax period, currency, withholding type, tax base and withheld amount, with status and revision.
 
 **Vendor withholding slip bill** — an association of a slip to a vendor invoice preserving the withheld amount, type and currency at recording.

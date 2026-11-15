@@ -292,7 +292,8 @@ describe('ExpenseClaimDetail', () => {
     h.claim = { ...base, status: 'Submitted' };
     as('fin', 'Finance');
     renderAt();
-    await userEvent.click(screen.getByRole('button', { name: /^Cancel claim$/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /^Cancel claim$/ }));
     const dialog = screen.getByRole('alertdialog');
     expect(dialog).toHaveTextContent('Cancel EXP-2610060001?');
     expect(dialog).toHaveTextContent('Site visit');
@@ -555,7 +556,8 @@ describe('floor: claim record controls', () => {
     as('fin', 'Finance');
     renderAt();
 
-    await userEvent.click(screen.getByRole('button', { name: /^Cancel claim$/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /^Cancel claim$/ }));
     const dialog = screen.getByRole('alertdialog');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel it' }));
 
@@ -567,7 +569,8 @@ describe('floor: claim record controls', () => {
     as('fin', 'Finance');
     renderAt();
 
-    await userEvent.click(screen.getByRole('button', { name: /^Cancel claim$/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /^Cancel claim$/ }));
     const dialog = screen.getByRole('alertdialog');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Keep it' }));
 
@@ -672,7 +675,8 @@ describe('AC-UXS-011 Bahasa confirmations restate identity and amount', () => {
     h.claim = submitted; h.route = null; h.outstanding = null;
     as('fin', 'Finance');
     view = renderAtId();
-    await userEvent.click(screen.getByRole('button', { name: 'Batalkan klaim' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Tindakan lainnya' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Batalkan klaim' }));
     expect(screen.getByRole('alertdialog')).toHaveTextContent('Batalkan EXP-2610060001?');
     expect(screen.getByRole('alertdialog')).toHaveTextContent('Tetap tercatat sebagai Dibatalkan');
     view.unmount();

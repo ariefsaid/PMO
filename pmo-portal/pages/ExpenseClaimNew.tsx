@@ -139,7 +139,7 @@ const ExpenseClaimNew: React.FC = () => {
         // The capture RPC does not carry the float; link it now. A refusal leaves the saved draft (the same recovery as a later line failure).
         try { await setClaimFloat.mutateAsync({ claimId, floatId: chargedFloatId }); } catch (reason) {
           const { headline, detail } = classifyMutationError(reason);
-          toast(t('imprest:form.linkFailed', 'Saved, but not charged to the site float'), `${headline}: ${detail}`, 'warning');
+          toast(t('imprest:form.linkFailed', 'Saved, but not charged to the site cash'), `${headline}: ${detail}`, 'warning');
           navigate(`/expenses/${claimId}`, { replace: true });
           return;
         }
@@ -193,8 +193,8 @@ const ExpenseClaimNew: React.FC = () => {
           {!categoryEdited && categoryPrecedents.get(projectId) && <p className="col-span-full text-control text-muted-foreground" role="note">{t('uxs29.expenseCapture.categorySource', 'Suggested from your most recent same-project claim: {{title}}.', { title: categoryPrecedents.get(projectId)?.sourceTitle })}</p>}
           <TextField label={t('expenses.form.purpose.label', 'Purpose')} value={purpose} onChange={setPurpose} fullWidth />
           {floatChoices.length > 0 && <>
-            <SelectField label={t('imprest:form.chargeToFloat', 'Charge to site float')} value={floatId} onChange={(value) => { setFloatId(value); setAdvanceId(''); }}
-              fullWidth options={[{ value: '', label: t('imprest:form.noFloat', 'Not charged to a float') },
+            <SelectField label={t('imprest:form.chargeToFloat', 'Charge to site cash')} value={floatId} onChange={(value) => { setFloatId(value); setAdvanceId(''); }}
+              fullWidth options={[{ value: '', label: t('imprest:form.noFloat', 'Not charged to site cash') },
                 ...floatChoiceOptions(floatChoices)]}
               helper={t('imprest:form.helper', 'Cash paid out of site cash held by the custodian.')} />
             {floatHint && <div className="col-span-full space-y-1 text-control text-muted-foreground" role="note">

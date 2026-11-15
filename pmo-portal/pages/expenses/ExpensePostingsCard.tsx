@@ -71,7 +71,7 @@ export const ExpensePostingNote: React.FC<{ claimId: string }> = ({ claimId }) =
     <p role="status">
       {readiness === 'unavailable'
         ? t('uxs12.expensePosting.cardUnknown', "Couldn't check whether this claim will reach accounting.")
-        : t('uxs12.expensePosting.cardInactive', "Not posted to accounting: expense posting isn't active for this organization.")}
+        : t('uxs12.expensePosting.cardInactive', "Kept in PMO only: expense posting to accounting is off.")}
     </p>
   );
 };
@@ -118,7 +118,7 @@ export const ExpensePostingsCard: React.FC<{ claimId: string; noteInHeader?: boo
       <p role="status" className="mb-4 text-control text-muted-foreground">
         {readiness === 'unavailable'
           ? t('uxs12.expensePosting.cardUnknown', "Couldn't check whether this claim will reach accounting.")
-          : t('uxs12.expensePosting.cardInactive', "Not posted to accounting: expense posting isn't active for this organization.")}
+          : t('uxs12.expensePosting.cardInactive', "Kept in PMO only: expense posting to accounting is off.")}
       </p>
     );
   }

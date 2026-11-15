@@ -169,14 +169,17 @@ const ExpenseClaims: React.FC = () => {
                 </span>
               )}
               mobileCardDetails={(r) => (
-                <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-control text-muted-foreground">
-                  <StatusPill record="expense" state={r.status} />
-                  <span className="min-w-0 break-words">{[
-                    r.project ? projectDisplayName(r.project) : t('expenses.overhead', 'Overhead'),
-                    r.budget_category ? budgetCategoryLabel(r.budget_category, t) : null,
-                    r.kind === 'advance' ? expenseKindLabel(r.kind, t) : null,
-                    r.claim_number, r.claimant?.full_name,
-                  ].filter(Boolean).join(' · ')}</span>
+                // Status sits in the line it qualifies (no row of its own); who and which number go last, quieter.
+                <div className="min-w-0 space-y-1 text-control text-muted-foreground">
+                  <p className="min-w-0 break-words">
+                    <StatusPill record="expense" state={r.status} className="mr-2 align-middle" />
+                    {[
+                      r.project ? projectDisplayName(r.project) : t('expenses.overhead', 'Overhead'),
+                      r.budget_category ? budgetCategoryLabel(r.budget_category, t) : null,
+                      r.kind === 'advance' ? expenseKindLabel(r.kind, t) : null,
+                    ].filter(Boolean).join(' · ')}
+                  </p>
+                  {(r.claim_number || r.claimant?.full_name) && <p className="min-w-0 break-words">{[r.claim_number, r.claimant?.full_name].filter(Boolean).join(' · ')}</p>}
                 </div>
               )}
             />

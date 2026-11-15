@@ -28,7 +28,7 @@ const PositionFigure: React.FC<{ floatId: string; currency: string; figure: Figu
     if (data.last_count_variance == null) return <span className="text-muted-foreground">—</span>;
     return toCents(data.last_count_variance) !== 0
       ? <span className="whitespace-nowrap font-medium text-destructive-text" role="status">
-        {t('imprest:position.varianceFlag', 'Count variance')} <span className="tabular-nums">({formatCurrency(Number(data.last_count_variance), currency)})</span>
+        {t('imprest:position.varianceFlag', 'Count differs')} <span className="tabular-nums">({formatCurrency(Number(data.last_count_variance), currency)})</span>
       </span>
       : <span className="text-muted-foreground">{t('imprest:list.countOk', 'Matched')}</span>;
   }
@@ -40,7 +40,7 @@ const PositionFigure: React.FC<{ floatId: string; currency: string; figure: Figu
         {t('imprest:position.gapFlag', 'Books do not balance')} <span className="tabular-nums">({formatCurrency(books.short, currency)})</span>
       </span>;
     }
-    if (books.kind === 'unfunded') return <span className="whitespace-nowrap text-muted-foreground">{t('imprest:position.notFunded', 'Not yet funded')}</span>;
+    if (books.kind === 'unfunded') return <span className="whitespace-nowrap text-muted-foreground">{t('imprest:position.notFunded', 'Not funded yet')}</span>;
     if (books.kind === 'topUp') {
       return <span className="whitespace-nowrap text-muted-foreground">{t('imprest:position.topUp', 'Top-up due {{amount}}', { amount: formatCurrency(books.due, currency) })}</span>;
     }
@@ -87,7 +87,7 @@ const EstablishFloatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
     void form.handleSubmit(async (v) => {
       try {
         const floatId = await establish.mutateAsync({ projectId: v.projectId, custodianId: v.custodianId, amount: parseMoneyInputAtScale(v.amount, 2) ?? 0 });
-        toast(t('imprest:establish.toast', 'Float established'), undefined, 'success');
+        toast(t('imprest:establish.toast', 'Site cash set up'), undefined, 'success');
         onClose();
         navigate(`/imprest/${floatId}`);
       } catch (err) {
@@ -96,8 +96,8 @@ const EstablishFloatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
     });
   };
   return (
-    <EntityFormModal open title={t('imprest:establish.title', 'Establish site float')}
-      submitLabel={t('imprest:establish.submit', 'Establish float')} onSubmit={submit} onClose={onClose}
+    <EntityFormModal open title={t('imprest:establish.title', 'Set up site cash')}
+      submitLabel={t('imprest:establish.submit', 'Set up site cash')} onSubmit={submit} onClose={onClose}
       loading={form.isSubmitting} dirty={form.isDirty} submitDisabled={!form.isComplete} submitError={submitError}>
       <FormGrid>
         <Combobox id={projectField.id} label={t('imprest:establish.project', 'Project')} required noun={t('imprest:establish.projectNoun', 'project')}
@@ -113,7 +113,7 @@ const EstablishFloatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
           emptyMessage={(query) => query ? undefined : t('imprest:establish.noEligibleCustodians', 'No eligible custodians: add a Finance user or assign a project manager.')}
           loadOptions={() => Promise.resolve(custodianOptions)}
           onChange={(value) => form.setValue('custodianId', value)} error={custodianField.error} />
-        <TextField label={t('imprest:establish.amount', 'Float amount')} required inputMode="decimal" {...amountField} />
+        <TextField label={t('imprest:establish.amount', 'Limit')} required inputMode="decimal" {...amountField} />
       </FormGrid>
     </EntityFormModal>
   );
@@ -132,12 +132,12 @@ const ImprestFloatsPage: React.FC = () => {
       exportValue: (r) => r.project?.name ?? '' },
     { key: 'custodian', header: t('imprest:list.columns.custodian', 'Custodian'), cell: (r) => r.custodian?.full_name ?? '—',
       exportValue: (r) => r.custodian?.full_name ?? '' },
-    { key: 'float', header: t('imprest:position.float', 'Float'), align: 'num',
+    { key: 'float', header: t('imprest:position.float', 'Limit'), align: 'num',
       cell: (r) => <span className="tabular-nums">{formatCurrency(Number(r.float_amount), r.currency)}</span>, exportValue: (r) => Number(r.float_amount) },
     { key: 'cash', header: t('imprest:position.cash', 'Cash in hand'), align: 'num', cell: (r) => <PositionFigure floatId={r.id} currency={r.currency} figure="cash_book" /> },
-    { key: 'advances', header: t('imprest:position.advancesOut', 'Advances out'), align: 'num', cell: (r) => <PositionFigure floatId={r.id} currency={r.currency} figure="advances_out" /> },
+    { key: 'advances', header: t('imprest:position.advancesOut', 'Advances given'), align: 'num', cell: (r) => <PositionFigure floatId={r.id} currency={r.currency} figure="advances_out" /> },
     { key: 'receipts', header: t('imprest:position.receiptsWaiting', 'Receipts waiting'), align: 'num', cell: (r) => <PositionFigure floatId={r.id} currency={r.currency} figure="receipts_waiting" /> },
-    { key: 'gap', header: t('imprest:position.gap', 'Gap'), align: 'num', cell: (r) => <PositionFigure floatId={r.id} currency={r.currency} figure="gap" /> },
+    { key: 'gap', header: t('imprest:position.gap', 'Still needed'), align: 'num', cell: (r) => <PositionFigure floatId={r.id} currency={r.currency} figure="gap" /> },
     { key: 'count', header: t('imprest:position.lastCountColumn', 'Last count'), cell: (r) => <PositionFigure floatId={r.id} currency={r.currency} figure="count" /> },
   ];
   return (
@@ -147,26 +147,26 @@ const ImprestFloatsPage: React.FC = () => {
       primaryAction={<CanWrite entity="imprestFloat" action="create">
         <Button variant="primary" onClick={() => setEstablishOpen(true)}>
           <Icon name="plus" />
-          {t('imprest:establish.submit', 'Establish float')}
+          {t('imprest:establish.submit', 'Set up site cash')}
         </Button>
       </CanWrite>}
     >
       {isPending && <ListState variant="loading" shape="table" rows={4} />}
       {!isPending && (isError || !data) && (
-        <ListState variant="error" title={t('imprest:list.error', "Couldn't load site cash floats")}
+        <ListState variant="error" title={t('imprest:list.error', "Couldn't load site cash")}
           sub={t('imprest:list.errorSub', 'The request failed. Check your connection and try again.')} onRetry={() => void refetch()} />
       )}
       {!isPending && !isError && data && (
         <>
           {data.truncated && <p role="status" className="mb-2 text-sm text-muted-foreground">
-            {t('imprest:list.truncated', 'Showing the latest {{count}}. Archive floats you no longer use to see older ones.', { count: LIST_LIMIT })}
+            {t('imprest:list.truncated', 'Showing the latest {{count}}. Archive site cash you no longer use to see older ones.', { count: LIST_LIMIT })}
           </p>}
           {/* No column headers over an empty list: one line saying what is absent, plus the one fix. */}
           {rows.length === 0 ? (
             <Card clip>
               <ListState variant="empty" actionVariant="outline"
-                title={t('imprest:list.empty', 'No site floats yet')}
-                action={may('create', 'imprestFloat') ? { label: t('imprest:establish.submit', 'Establish float'), onClick: () => setEstablishOpen(true) } : undefined} />
+                title={t('imprest:list.empty', 'No site cash yet')}
+                action={may('create', 'imprestFloat') ? { label: t('imprest:establish.submit', 'Set up site cash'), onClick: () => setEstablishOpen(true) } : undefined} />
             </Card>
           ) : (
             <DataTable<FloatListRow> rows={rows} columns={columns} rowKey={(r) => r.id}
