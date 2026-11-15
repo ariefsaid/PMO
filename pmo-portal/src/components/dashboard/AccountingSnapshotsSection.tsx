@@ -212,7 +212,8 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
     {first && (
       <AccountingSnapshotProvenance
         asOf={first.asOf}
-        sourceReport={first.sourceReport}
+        // One caption for the block: only when every row names the same source (the actuals mix the ledger and issued material).
+        sourceReport={rows.every((r) => r.sourceReport === first.sourceReport) ? first.sourceReport : null}
         reportVersion={reportVersion}
         className={detail ? 'mb-1' : 'mb-2.5'}
       />
