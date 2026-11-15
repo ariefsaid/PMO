@@ -209,44 +209,47 @@ const ExpenseClaimNew: React.FC = () => {
         </FormGrid>
       </FormSection>
       <FormSection legend={t('expenses.lines.title', 'Lines')}>
-        {/* One header row over the line grid on wide screens; each phone line carries its own labels. */}
+        {/* One header row over the line grid on wide screens (each column keeps its required mark); each phone line carries its own labels. */}
         {isDesktop && <div aria-hidden className={`${LINE_GRID} items-end mb-1 text-control font-medium text-foreground`}>
-          <span>{t('expenses.lines.date', 'Date')}</span>
-          <span>{t('expenses.lines.type', 'Type')}</span>
-          <span>{t('expenses.lines.description', 'Description')}</span>
-          <span className="text-right">{t('expenses.lines.amount', 'Amount')}</span>
+          <span>{t('expenses.lines.date', 'Date')}<span aria-hidden className="ml-0.5 text-destructive">*</span></span>
+          <span>{t('expenses.lines.type', 'Type')}<span aria-hidden className="ml-0.5 text-destructive">*</span></span>
+          <span>{t('expenses.lines.description', 'Description')}<span aria-hidden className="ml-0.5 text-destructive">*</span></span>
+          <span className="text-right">{t('expenses.lines.amount', 'Amount')}<span aria-hidden className="ml-0.5 text-destructive">*</span></span>
           <span />
         </div>}
         {lines.map((line, index) => {
           const amount = parseMoneyInputAtScale(line.amount, 2);
           const setLine = (patch: Partial<DraftLine>) => setLines((rows) => rows.map((row, i) => i === index ? { ...row, ...patch } : row));
           const removeLabel = t('expenseClaims:new.removeLine', 'Remove line {{number}}', { number: index + 1 });
+          const dateField = <TextField key="date" label={t('expenses.lines.date', 'Date')} hideLabel={isDesktop} required error={submitted && lineStarted(line) && !line.date ? t('expenseClaims:new.required', 'Required') : undefined} type="date" value={line.date} onChange={(value) => setLine({ date: value })} />;
+          const typeField = <SelectField key="type" label={t('expenses.lines.type', 'Type')} hideLabel={isDesktop} required error={submitted && lineStarted(line) && !line.type ? t('expenseClaims:new.required', 'Required') : undefined} value={line.type} onChange={(value) => setLine({ type: value })} options={[{ value: '', label: t('uxs29.expenseCapture.expenseTypePlaceholder', 'Choose a type') }, ...Constants.public.Enums.expense_type.map((value) => ({ value, label: expenseTypeLabel(value, t) }))]} />;
+          const descriptionField = <TextField key="description" label={t('expenses.lines.description', 'Description')} hideLabel={isDesktop} wrapperClassName={isDesktop ? undefined : 'col-span-2'} required error={submitted && lineStarted(line) && !line.description.trim() ? t('expenseClaims:new.required', 'Required') : undefined} value={line.description} onChange={(value) => { setLine({ description: value }); if (index === 0 && !titleEdited) setTitle(value); }} />;
+          const amountField = <NumberField
+            key="amount"
+            label={t('expenses.lines.amount', 'Amount')}
+            hideLabel={isDesktop}
+            prefix={orgCurrency.isResolved ? currency : unknownCurrency}
+            required
+            error={submitted && lineStarted(line) && !(amount !== null && amount > 0)
+              ? line.amount.trim()
+                ? t('expenseClaims:new.amountInvalid', 'Enter an amount greater than zero.')
+                : t('expenseClaims:new.required', 'Required')
+              : undefined}
+            value={line.amount}
+            onChange={(value) => setLine({ amount: value })}
+          />;
+          const removeButton = lines.length > 1
+            ? <Button type="button" variant="ghost" size="icon" className="touch-target shrink-0" aria-label={removeLabel} title={removeLabel} onClick={() => setLines((rows) => rows.filter((_, i) => i !== index))}><Icon name="x" aria-hidden /></Button>
+            : null;
           return (
             <div key={index} role="group" aria-label={t('expenseClaims:new.lineGroup', 'Expense line {{number}}', { number: index + 1 })}
               className={isDesktop ? `${LINE_GRID} items-center py-1.5` : 'grid grid-cols-2 gap-x-3 gap-y-3 border-b border-border py-3'}>
-              <TextField label={t('expenses.lines.date', 'Date')} hideLabel={isDesktop} required error={submitted && lineStarted(line) && !line.date ? t('expenseClaims:new.required', 'Required') : undefined} type="date" value={line.date} onChange={(value) => setLine({ date: value })} />
-              <SelectField label={t('expenses.lines.type', 'Type')} hideLabel={isDesktop} required error={submitted && lineStarted(line) && !line.type ? t('expenseClaims:new.required', 'Required') : undefined} value={line.type} onChange={(value) => setLine({ type: value })} options={[{ value: '', label: t('uxs29.expenseCapture.expenseTypePlaceholder', 'Choose a type') }, ...Constants.public.Enums.expense_type.map((value) => ({ value, label: expenseTypeLabel(value, t) }))]} />
-              <TextField label={t('expenses.lines.description', 'Description')} hideLabel={isDesktop} wrapperClassName={isDesktop ? undefined : 'col-span-2'} required error={submitted && lineStarted(line) && !line.description.trim() ? t('expenseClaims:new.required', 'Required') : undefined} value={line.description} onChange={(value) => { setLine({ description: value }); if (index === 0 && !titleEdited) setTitle(value); }} />
-              <div className={isDesktop ? 'contents' : 'col-span-2 flex items-end gap-2'}>
-                <div className={isDesktop ? undefined : 'min-w-0 flex-1'}>
-                  <NumberField
-                    label={t('expenses.lines.amount', 'Amount')}
-                    hideLabel={isDesktop}
-                    prefix={orgCurrency.isResolved ? currency : unknownCurrency}
-                    required
-                    error={submitted && lineStarted(line) && !(amount !== null && amount > 0)
-                      ? line.amount.trim()
-                        ? t('expenseClaims:new.amountInvalid', 'Enter an amount greater than zero.')
-                        : t('expenseClaims:new.required', 'Required')
-                      : undefined}
-                    value={line.amount}
-                    onChange={(value) => setLine({ amount: value })}
-                  />
-                </div>
-                {lines.length > 1
-                  ? <Button type="button" variant="ghost" size="icon" className="touch-target shrink-0" aria-label={removeLabel} title={removeLabel} onClick={() => setLines((rows) => rows.filter((_, i) => i !== index))}><Icon name="x" aria-hidden /></Button>
-                  : isDesktop && <span />}
-              </div>
+              {isDesktop
+                ? <>{dateField}{typeField}{descriptionField}{amountField}{removeButton ?? <span />}</>
+                // Phone: Date and Amount share a row; Type gets the full width so a long Bahasa type is never cut.
+                : <>{dateField}{amountField}
+                  <div className="col-span-2 flex items-end gap-2"><div className="min-w-0 flex-1">{typeField}</div>{removeButton}</div>
+                  {descriptionField}</>}
             </div>
           );
         })}

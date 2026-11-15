@@ -8,9 +8,10 @@ import {
 import { BackBar } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { CanWrite } from '@/src/auth/usePermission';
 import {
-  useImprestCounts, useImprestFloat, useImprestFloatClaims, useImprestPosition, useImprestPostingStates, useImprestReplenishments, useRecordCount,
-  useRequestReplenishment, useTransitionReplenishment,
+  useCreatePlan, useImprestCounts, useImprestFloat, useImprestFloatClaims, useImprestPlans, useImprestPosition, useImprestPostingStates, useImprestReplenishments,
+  useRecordCount, useRequestReplenishment, useTransitionReplenishment,
 } from '@/src/hooks/useImprest';
 import { availableFloatActions, availableReplenishmentActions, booksState, toCents, type ImprestAction } from '@/src/lib/imprest/imprestRules';
 import { LIST_LIMIT, type ImprestReplenishmentWithRejecter as ImprestReplenishmentRow } from '@/src/lib/db/imprest';
@@ -49,6 +50,8 @@ const ImprestFloatDetail: React.FC = () => {
   const position = useImprestPosition(floatId);
   const reps = useImprestReplenishments(floatId);
   const counts = useImprestCounts(floatId);
+  const plans = useImprestPlans(floatId);
+  const createPlan = useCreatePlan();
   const claims = useImprestFloatClaims(floatId);
   const postings = useImprestPostingStates(floatId);
   const requestRep = useRequestReplenishment();
@@ -105,6 +108,9 @@ const ImprestFloatDetail: React.FC = () => {
     ? availableFloatActions({ userId, realRole, custodianId: flt.custodian_id, receiptsWaiting: (requestable / 100).toFixed(2), gap: pos.gap, openFunding })
     : [];
   const planLines = (pos?.plan_lines ?? []) as unknown as PlanLineUsage[];
+  // The plan card offers New plan only when this month has no live plan yet (a draft or submitted one is handled in Plans).
+  const monthPlanMissing = !plans.isPending && !plans.isError && !!plans.data && pos != null
+    && !plans.data.rows.some((plan) => plan.month === pos.month && plan.status !== 'Cancelled');
   const books = pos ? booksState(pos) : null;
 
   const run = async (work: () => Promise<unknown>, success: string) => {
@@ -160,7 +166,8 @@ const ImprestFloatDetail: React.FC = () => {
   return (
     <div>
       <div className="hidden max-[920px]:block"><BackBar label={backLabel} onBack={goBack} /></div>
-      <RecordHeader name={`${t('imprest:detail.floatName', 'Float {{id}}', { id: flt.id.slice(0, 8) })} · ${flt.project?.name ?? '—'}`} icon="$"
+      {/* The project names the float; the short identifier is a muted second element (floats carry no human number). */}
+      <RecordHeader name={<>{flt.project?.name ?? '—'}<span className="ml-2 text-control font-normal text-muted-foreground">{t('imprest:detail.floatName', 'Float {{id}}', { id: flt.id.slice(0, 8) })}</span></>} icon="$"
         status={flt.archived_at
           ? <StatusPill variant="neutral">{t('imprest:detail.archived', 'Archived')}</StatusPill>
           : <StatusPill record="imprest" state="Active" />}
@@ -210,11 +217,21 @@ const ImprestFloatDetail: React.FC = () => {
           <Card className="mb-4">
             <CardHead>{t('imprest:plan.title', 'This month\'s plan ({{month}})', { month: pos.month.slice(0, 7) })}</CardHead>
             <CardPad className="pt-0">
-              <DataTable<PlanLineUsage> embedded rows={planLines} columns={planColumns} rowKey={(r) => r.budget_category}
-                state={planLines.length === 0 ? 'empty' : undefined}
-                emptyTitle={t('imprest:plan.none', 'No approved plan this month')}
-                emptySub={t('imprest:plan.noneSub', 'Spend this month is out of plan until a plan is approved.')}
-                tableId="imprest-plan-usage" />
+              {planLines.length === 0
+                // Empty: one line and the next step, no column headers over nothing.
+                ? <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                  <p className="text-sm text-muted-foreground">{t('imprest:plan.emptyLine', 'No approved plan this month. Spend is out of plan until one is approved.')}</p>
+                  {monthPlanMissing && <CanWrite entity="imprestPlan" action="create">
+                    <Button variant="outline" size="sm" disabled={createPlan.isPending}
+                      onClick={() => void createPlan.mutateAsync({ floatId: flt.id, month: pos.month })
+                        .then(() => toast(t('imprest:plan.toast.created', 'Draft plan created'), undefined, 'success'))
+                        .catch((err: unknown) => { const { headline, detail } = classifyMutationError(err); toast(headline, detail, 'warning'); })}>
+                      {t('imprest:plan.new', 'New plan')}
+                    </Button>
+                  </CanWrite>}
+                </div>
+                : <DataTable<PlanLineUsage> embedded rows={planLines} columns={planColumns} rowKey={(r) => r.budget_category}
+                  tableId="imprest-plan-usage" />}
             </CardPad>
           </Card>
         </>
@@ -265,10 +282,11 @@ const ImprestFloatDetail: React.FC = () => {
             {t('imprest:posting.truncated', 'Showing posting status for the first {{count}} movements only.', { count: LIST_LIMIT })}
           </p>}
           {reps.isError ? <ListState variant="error" title={t('imprest:rep.error', "Couldn't load replenishments")} onRetry={() => void reps.refetch()} />
-            : <DataTable<ImprestReplenishmentRow> embedded rows={repRows} columns={repColumns} rowKey={(r) => r.id}
-              state={reps.isPending ? 'loading' : repRows.length === 0 ? 'empty' : undefined}
-              emptyTitle={t('imprest:rep.none', 'No replenishments yet')} emptySub={t('imprest:rep.noneSub', 'The custodian requests one when receipts are waiting.')}
-              tableId="imprest-replenishments" />}
+            : !reps.isPending && repRows.length === 0
+              ? <p className="text-sm text-muted-foreground">{t('imprest:rep.emptyLine', 'No replenishments yet. The custodian requests one when receipts are waiting.')}</p>
+              : <DataTable<ImprestReplenishmentRow> embedded rows={repRows} columns={repColumns} rowKey={(r) => r.id}
+                state={reps.isPending ? 'loading' : undefined}
+                tableId="imprest-replenishments" />}
         </CardPad>
       </Card>
 

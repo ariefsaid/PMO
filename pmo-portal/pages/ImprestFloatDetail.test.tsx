@@ -112,6 +112,32 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     expect(within(vehicle).queryByText('Out of plan')).toBeNull();
   });
 
+  it('an empty month plan says so in one line and offers New plan for this month, with no table', async () => {
+    h.position = ok({ ...POSITION, plan_lines: [] });
+    const user = userEvent.setup();
+    renderPage();
+    const line = screen.getByText('No approved plan this month. Spend is out of plan until one is approved.');
+    expect(screen.queryByRole('table', { name: /plan/i })).toBeNull();
+    expect(screen.queryByRole('columnheader', { name: 'Budget category' })).toBeNull();
+    await user.click(within(line.parentElement as HTMLElement).getByRole('button', { name: 'New plan' }));
+    expect(h.m.createPlan.mutateAsync).toHaveBeenCalledWith({ floatId: 'f1', month: '2026-11-01' });
+  });
+
+  it('the empty month plan does not offer New plan when this month already has a live plan', () => {
+    h.position = ok({ ...POSITION, plan_lines: [] });
+    h.plans = ok({ rows: [{ id: 'pl1', month: '2026-11-01', status: 'Submitted', number: null, author_id: 'u-cust', float_id: 'f1' }], truncated: false });
+    renderPage();
+    const line = screen.getByText('No approved plan this month. Spend is out of plan until one is approved.');
+    expect(within(line.parentElement as HTMLElement).queryByRole('button', { name: 'New plan' })).toBeNull();
+  });
+
+  it('no replenishments reads as one line with no column headers', () => {
+    h.reps = ok({ rows: [], truncated: false });
+    renderPage();
+    expect(screen.getByText('No replenishments yet. The custodian requests one when receipts are waiting.')).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Number' })).toBeNull();
+  });
+
   it('C5 does not say there are no cash counts while their read is pending', () => {
     h.counts = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
     renderPage();
@@ -122,7 +148,8 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
   it('C13 identifies this float and shows its archived status', () => {
     h.floats = ok({ ...FLOAT, archived_at: '2026-11-01T00:00:00Z' });
     renderPage();
-    expect(screen.getByRole('heading', { name: /Float f1 · Site Alpha/ })).toBeInTheDocument();
+    // The project names the float; the short identifier follows it.
+    expect(screen.getByRole('heading', { name: /^Site Alpha\s*Float f1$/ })).toBeInTheDocument();
     expect(screen.getByText('Archived')).toBeInTheDocument();
     expect(screen.queryByText('Active')).not.toBeInTheDocument();
   });

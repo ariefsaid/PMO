@@ -3216,7 +3216,7 @@
       "revenueByProject": "Pendapatan per Proyek",
       "sales": "Pipeline Penjualan",
       "salesInvoices": "Faktur Penjualan",
-      "timesheets": "Timesheet",
+      "timesheets": "Lembar waktu",
       "profileSettings": "Profil & preferensi",
       "expenses": "Biaya",
       "financialStatements": "Laporan keuangan",
@@ -3375,7 +3375,7 @@
       "description": "Ini mengirim seluruh minggu ke atasan Anda. Anda tidak dapat mengubahnya lagi sampai dikembalikan.",
       "title": "Ajukan minggu ini untuk persetujuan?"
     },
-    "title": "Timesheet",
+    "title": "Lembar waktu",
     "toast": {
       "deleteFailed": "Gagal menghapus",
       "reopened": {
