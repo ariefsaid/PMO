@@ -60,6 +60,14 @@ export { resolveInvoiceProject, resolveInvoiceProjects } from '../_shared/projec
  * `sweepOrgDoctypesLive` wiring itself is proven in companyScopedSweep/sweepWedge.test.ts. The
  * remaining Deno.serve wrapper is
  * INTEGRATION-ONLY — verified by `deno check` + the boot-smoke.
+ *
+ * Module map (THEME-BACK-40, #1643): this file keeps the handler, the per-org cycle, the outbox recovery
+ * pass and the statement / ledger / purchase / accounting feeds, and wires the passes that live beside it —
+ * `doctypePoll.ts` (2), `linkRepair.ts` (the receipt and invoice-project repairs), `budgetBackstopLive.ts` (5),
+ * `timesheetBackstopLive.ts` (6), `expenseBackstopLive.ts` (7), `imprestBackstopLive.ts` (7b), over the
+ * shared layers `moneyWriteLive.ts` (every pass's DispatchMoneyWriteDeps), `budgetOutboxFacts.ts`,
+ * `sweepShared.ts`, `outboxRows.ts` and `sweepCadence.ts`. The modules never import this file; it
+ * re-exports their names so existing importers keep resolving.
  */
 
 // Deno-native imports (not in pmo-portal/package.json)
@@ -108,6 +116,7 @@ export {
 import { ERPNEXT_BUDGET_DOMAIN, ERPNEXT_EXPENSES_DOMAIN, ERPNEXT_TIMESHEETS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 import { withJobRun, type JobSummary } from '../_shared/jobRun.ts';
+// The passes extracted beside this file (#1643), and the names this file re-exports from them.
 import { type ListOutboxCandidates, DOMAIN_FEATURE_KEY, featureDisabled, type OrgBinding, erpClientForOrg, listCandidatesLive } from './sweepShared.ts';
 import { repairInvoiceProjectsLive, repairOrgLinksLive } from './linkRepair.ts';
 import { SWEEP_TICK_MAX_DOCS, SWEEP_TICK_TIME_BUDGET_MS, SWEEP_TICK_MAX_DOCS_ENV, SWEEP_TICK_TIME_BUDGET_MS_ENV, sweepOrgDoctypesLive } from './doctypePoll.ts';
@@ -130,8 +139,6 @@ export { createInFlightAnchorProbe, type InFlightAnchorProbe };
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
-
-
 
 // #656: the domain→doctype poll rule (Luna BLOCK 9) lives in `erpnext/feedKinds.ts` — ONE copy, shared
 // with the activation read-permission probe (`external-set-company`). Re-exported for existing importers.
