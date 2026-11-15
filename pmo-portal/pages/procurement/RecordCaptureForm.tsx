@@ -428,7 +428,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       )}
 
       {/* Reference number — bounded at 64 chars (NFR-PR-SEC-003) */}
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-2">
         <label
           htmlFor={`${formId}-ref`}
           className="text-sm font-semibold text-muted-foreground"
@@ -453,7 +453,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
 
       {/* #769: the parent group's own number — PR / PO / vendor invoice only; bounded at 100 chars */}
       {hasGroupRef && (
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-2">
           <label
             htmlFor={`${formId}-group-ref`}
             className="text-sm font-semibold text-muted-foreground"
@@ -477,7 +477,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       {/* Two-column row: date + status */}
       <div className="flex flex-wrap gap-3">
         {/* Business date */}
-        <div className="flex min-w-[140px] flex-1 flex-col gap-1">
+        <div className="flex min-w-[140px] flex-1 flex-col gap-2">
           <label
             htmlFor={`${formId}-date`}
             className="text-sm font-semibold text-muted-foreground"
@@ -564,7 +564,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
         />
       )}
       {showsAmount && (
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-2">
           <label
             htmlFor={`${formId}-amount`}
             className="text-sm font-semibold text-muted-foreground"
