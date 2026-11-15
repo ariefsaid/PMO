@@ -12,6 +12,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { Dialog } from '@base-ui/react/dialog';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/src/components/ui/Button';
+import { UnsavedChangesDialog } from '@/src/components/ui/UnsavedChangesDialog';
 import {
   overlayBackdropClassName,
   overlayBackdropStyle,
@@ -39,6 +40,7 @@ const AIComposerModal: React.FC<AIComposerModalProps> = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [prompt, setPrompt] = useState('');
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   const { compose, status, error: hookError } = useAIComposer();
 
@@ -62,6 +64,13 @@ const AIComposerModal: React.FC<AIComposerModalProps> = ({
     }
   };
 
+  // #2080: a typed prompt is unsaved work; Esc, the scrim and Cancel ask before dropping it.
+  const requestClose = () => {
+    if (isLoading) return;
+    if (prompt.trim() !== '') setConfirmDiscard(true);
+    else onClose();
+  };
+
   const handlePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setPrompt(e.target.value.slice(0, MAX_PROMPT_LENGTH));
   };
@@ -70,6 +79,7 @@ const AIComposerModal: React.FC<AIComposerModalProps> = ({
   useEffect(() => {
     if (!open) {
       setPrompt('');
+      setConfirmDiscard(false);
     }
   }, [open]);
 
@@ -84,7 +94,7 @@ const AIComposerModal: React.FC<AIComposerModalProps> = ({
       onOpenChange={(next, details) => {
         if (next) return;
         details.cancel();
-        if (!isLoading) onClose();
+        requestClose();
       }}
     >
       <Dialog.Portal>
@@ -148,7 +158,7 @@ const AIComposerModal: React.FC<AIComposerModalProps> = ({
               <Button
                 variant="outline"
                 disabled={isLoading}
-                onClick={onClose}
+                onClick={requestClose}
               >
                 {t('viewBuilder.cancel', 'Cancel')}
               </Button>
@@ -164,6 +174,11 @@ const AIComposerModal: React.FC<AIComposerModalProps> = ({
           </Dialog.Popup>
         </div>
       </Dialog.Portal>
+      <UnsavedChangesDialog
+        open={open && confirmDiscard}
+        onDiscard={() => { setConfirmDiscard(false); onClose(); }}
+        onKeepEditing={() => setConfirmDiscard(false)}
+      />
     </Dialog.Root>
   );
 };

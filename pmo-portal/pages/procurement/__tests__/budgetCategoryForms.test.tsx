@@ -80,6 +80,7 @@ describe('AC-APR-037 budget category on the request forms', () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(
       <ToastProvider>
+        <MemoryRouter>
         <ProcurementHeaderEdit
           title="Cable"
           projectId="proj-1"
@@ -91,6 +92,7 @@ describe('AC-APR-037 budget category on the request forms', () => {
           onError={vi.fn()}
           onClose={vi.fn()}
         />
+        </MemoryRouter>
       </ToastProvider>,
     );
     await userEvent.selectOptions(screen.getByLabelText('Budget category'), '');

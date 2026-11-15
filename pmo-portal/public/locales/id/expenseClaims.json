@@ -18,7 +18,9 @@
     "categoryHelper": "Menentukan pemberi persetujuan",
     "lineGroup": "Baris pengeluaran {{number}}",
     "total": "Jumlah",
-    "saveDraft": "Simpan draf"
+    "saveDraft": "Simpan draf",
+    "closeBlocked": "Selesaikan tanda terima atau buka draf yang tersimpan dahulu",
+    "closeBlockedDetail": "Draf Anda sudah tersimpan. Coba lagi tanda terima, atau buka draf dan lampirkan nanti."
   },
   "postings": {
     "recordedBeforeConnection": "Dicatat sebelum terhubung ke ERP"

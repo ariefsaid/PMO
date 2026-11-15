@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import i18next from 'i18next';
 import { I18nextProvider } from 'react-i18next';
@@ -21,6 +22,7 @@ function renderEdit(props: Partial<React.ComponentProps<typeof ProcurementHeader
   const onClose = props.onClose ?? vi.fn();
   render(
     <ToastProvider>
+      <MemoryRouter>
       <ProcurementHeaderEdit
         title={props.title ?? 'Welding consumables'}
         projectId={props.projectId ?? 'proj-1'}
@@ -31,6 +33,7 @@ function renderEdit(props: Partial<React.ComponentProps<typeof ProcurementHeader
         onError={onError}
         onClose={onClose}
       />
+      </MemoryRouter>
     </ToastProvider>,
   );
   return { onSave, onError, onClose };
@@ -91,6 +94,7 @@ describe('AC-PROC-002 ProcurementHeaderEdit (Draft-header inline edit)', () => {
     render(
       <I18nextProvider i18n={i18n}>
         <ToastProvider>
+          <MemoryRouter>
           <ProcurementHeaderEdit
             title="Welding consumables"
             projectId="proj-1"
@@ -101,6 +105,7 @@ describe('AC-PROC-002 ProcurementHeaderEdit (Draft-header inline edit)', () => {
             onError={vi.fn()}
             onClose={vi.fn()}
           />
+          </MemoryRouter>
         </ToastProvider>
       </I18nextProvider>,
     );

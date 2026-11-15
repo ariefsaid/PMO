@@ -18,7 +18,9 @@
     "categoryHelper": "Decides who approves",
     "lineGroup": "Expense line {{number}}",
     "total": "Total",
-    "saveDraft": "Save draft"
+    "saveDraft": "Save draft",
+    "closeBlocked": "Finish the receipt or open the saved draft first",
+    "closeBlockedDetail": "Your draft is saved. Retry the receipt, or open the draft and attach it later."
   },
   "postings": {
     "recordedBeforeConnection": "Recorded before the ERP connection"

@@ -8,6 +8,7 @@ import {
   StatusPill,
   ListState,
   ConfirmDialog,
+  UnsavedChangesDialog,
   TextField,
   TextArea,
   SelectField,
@@ -15,6 +16,7 @@ import {
   useToast,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { useContactActivities, useContactMeetings, useContactMutations } from '@/src/hooks/useContacts';
 import type { ContactMeetingRef } from '@/src/lib/db/meetings';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -80,6 +82,13 @@ export const ContactActivityPanel: React.FC<ContactActivityPanelProps> = ({
   const [activityDate, setActivityDate] = useState(() => todayInActiveTimeZone());
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
+  // #2080: a half-written activity is unsaved work; hold in-app exits, Back and tab close.
+  const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
+  useUnsavedChangesGuard({
+    dirty: logFormOpen && (subject.trim() !== '' || body.trim() !== ''),
+    guardHistory: true,
+    onBlocked: (leave, stay) => setPendingLeave({ leave, stay }),
+  });
 
   // Edit modal state
   const [editingActivity, setEditingActivity] = useState<CrmActivityRow | null>(null);
@@ -333,6 +342,11 @@ export const ContactActivityPanel: React.FC<ContactActivityPanelProps> = ({
         />
       )}
 
+      <UnsavedChangesDialog
+        open={pendingLeave !== null}
+        onDiscard={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}
+        onKeepEditing={() => { const pending = pendingLeave; setPendingLeave(null); pending?.stay(); }}
+      />
       {/* Delete confirm */}
       <ConfirmDialog
         open={deletingActivityId !== null}

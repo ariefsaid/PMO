@@ -10,6 +10,7 @@ import {
   StatusPill,
   ListState,
   ConfirmDialog,
+  UnsavedChangesDialog,
   TextField,
   TextArea,
   SelectField,
@@ -17,6 +18,7 @@ import {
   useToast,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { ContactNameLink } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatDay } from '@/src/lib/format';
@@ -92,6 +94,13 @@ export const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: (
   // When there's more than one contact the user must pick; with a single contact we
   // pre-populate and hide the selector.
   const [selectedContactId, setSelectedContactId] = useState<string>('');
+  // #2080: a half-written activity is unsaved work; hold in-app exits, Back and tab close.
+  const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
+  useUnsavedChangesGuard({
+    dirty: subject.trim() !== '' || body.trim() !== '',
+    guardHistory: true,
+    onBlocked: (leave, stay) => setPendingLeave({ leave, stay }),
+  });
 
   // Edit/delete state for activity rows (CD-1)
   const [editingActivity, setEditingActivity] = useState<CrmActivityRow | null>(null);
@@ -353,6 +362,11 @@ export const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: (
           />
         )}
 
+        <UnsavedChangesDialog
+          open={pendingLeave !== null}
+          onDiscard={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}
+          onKeepEditing={() => { const pending = pendingLeave; setPendingLeave(null); pending?.stay(); }}
+        />
         {/* Delete confirm (CD-1) */}
         <ConfirmDialog
           open={deletingActivityId !== null}

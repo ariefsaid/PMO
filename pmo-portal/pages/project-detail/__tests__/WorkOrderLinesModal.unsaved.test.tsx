@@ -93,4 +93,23 @@ describe('WorkOrderLinesModal unsaved line quantities', () => {
     expect(screen.queryByRole('dialog', { name: /unsaved line changes/i })).not.toBeInTheDocument();
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it('#2080: Enter in a quantity field saves that row instead of closing or asking to discard', async () => {
+    const user = userEvent.setup();
+    const { onClose, onUpdate } = renderLines();
+    const quantity = screen.getByRole('textbox', { name: /SURVEY — Survey route/i });
+    await user.clear(quantity);
+    await user.type(quantity, '12.5{Enter}');
+
+    await waitFor(() => expect(onUpdate).toHaveBeenCalledWith('line-1', 12.5));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
+  it('#2080: Esc on an untouched allocation closes without a prompt', async () => {
+    const user = userEvent.setup();
+    const first = renderLines();
+    await user.keyboard('{Escape}');
+    expect(first.onClose).toHaveBeenCalledTimes(1);
+  });
 });

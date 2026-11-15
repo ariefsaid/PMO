@@ -10,8 +10,10 @@ import {
   FormActions,
   SelectField,
   useEntityForm,
+  UnsavedChangesDialog,
   type ComboboxOption,
 } from '@/src/components/ui';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
 import type { ProcurementHeaderPatch } from '@/src/lib/db/procurementCrud';
 import type { BudgetCategory } from '@/src/lib/budget/categoryAccountMap';
@@ -81,6 +83,14 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
     ),
     idPrefix: 'pr-header-edit',
     module: 'procurement',
+  });
+
+  // #2080: an edited header is unsaved work; hold links, Back, tab close and Cancel.
+  const [pendingLeave, setPendingLeave] = React.useState<{ leave: () => void; stay: () => void } | null>(null);
+  const guardLeave = useUnsavedChangesGuard({
+    dirty: form.isDirty,
+    guardHistory: true,
+    onBlocked: (leave, stay) => setPendingLeave({ leave, stay }),
   });
 
   const titleField = form.fieldProps('title');
@@ -179,12 +189,17 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
           </FormGrid>
           <FormActions
             submitLabel="Save procurement"
-            onCancel={onClose}
+            onCancel={() => guardLeave(onClose)}
             disabled={!form.canSubmit}
             loading={busy || form.isSubmitting}
           />
         </CardPad>
       </form>
+      <UnsavedChangesDialog
+        open={pendingLeave !== null}
+        onDiscard={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}
+        onKeepEditing={() => { const pending = pendingLeave; setPendingLeave(null); pending?.stay(); }}
+      />
     </Card>
   );
 };
