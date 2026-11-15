@@ -10,7 +10,7 @@ import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import {
-  useApproveWeek, useArchiveUsage, useEquipmentAssetPages, useEquipmentUsage, useSaveUsage, useTransitionUsage,
+  useApproveWeek, useArchiveUsage, useEquipmentAssetPages, useEquipmentUsage, useInvalidateUsage, useSaveUsage, useTransitionUsage,
 } from '@/src/hooks/useEquipment';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useUsers } from '@/src/hooks/useUsers';
@@ -89,6 +89,9 @@ const EquipmentUsagePage: React.FC = () => {
   const usersQ = useUsers();
   const save = useSaveUsage();
   const transition = useTransitionUsage();
+  const weekTransition = useTransitionUsage({ deferInvalidate: true });
+  const invalidateUsage = useInvalidateUsage();
+  const [submitting, setSubmitting] = useState(false);
   const approveWeek = useApproveWeek();
   const archive = useArchiveUsage();
 
@@ -167,18 +170,18 @@ const EquipmentUsagePage: React.FC = () => {
 
   const submitWeek = async () => {
     setProblem(null);
-    let sent = 0;
-    const failed: string[] = [];
-    for (const e of mine) {
-      if (e.status !== 'Draft' && e.status !== 'Rejected') continue;
-      try {
-        if (e.status === 'Rejected') await transition.mutateAsync({ id: e.id, to: 'Draft' });
-        await transition.mutateAsync({ id: e.id, to: 'Submitted' });
-        sent += 1;
-      } catch {
-        failed.push(`${assetName(e.asset_id)} · ${projectName(e.project_id)} · ${dayLabel(e.work_date)}`);
-      }
-    }
+    setSubmitting(true);
+    const drafts = mine.filter((e) => e.status === 'Draft' || e.status === 'Rejected');
+    // Entries go out together; each keeps its own Draft→Submitted order. One refresh at the end.
+    const results = await Promise.allSettled(drafts.map(async (e) => {
+      if (e.status === 'Rejected') await weekTransition.mutateAsync({ id: e.id, to: 'Draft' });
+      await weekTransition.mutateAsync({ id: e.id, to: 'Submitted' });
+    }));
+    if (drafts.length > 0) invalidateUsage();
+    setSubmitting(false);
+    const failed = drafts.filter((_, i) => results[i].status === 'rejected')
+      .map((e) => `${assetName(e.asset_id)} · ${projectName(e.project_id)} · ${dayLabel(e.work_date)}`);
+    const sent = drafts.length - failed.length;
     if (failed.length > 0) {
       setProblem(t('equipment:usage.partialSubmit', '{{submitted}} submitted; {{failed}} failed. Failed entries: {{items}}.', {
         submitted: sent,
@@ -319,7 +322,7 @@ const EquipmentUsagePage: React.FC = () => {
     <ListPage
       title={t('equipment:usage.title', 'Equipment')}
       primaryAction={tab === 'log' && submittable ? <CanWrite entity="equipmentUsage" action="create" ctx={writeCtx}>
-        <Button variant="primary" disabled={transition.isPending} onClick={() => void submitWeek()}>{t('equipment:usage.submitWeek', 'Submit week')}</Button>
+        <Button variant="primary" disabled={transition.isPending || submitting} onClick={() => void submitWeek()}>{t('equipment:usage.submitWeek', 'Submit week')}</Button>
       </CanWrite> : undefined}
       filters={header}
     >
