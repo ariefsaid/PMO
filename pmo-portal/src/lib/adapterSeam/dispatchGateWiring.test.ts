@@ -350,10 +350,21 @@ describe('WIRE P3B: the `timesheets` domain resolves an ERPNext adapter and ride
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 
 // The live backstop wiring left `erpnext-sweep/index.ts` for its own modules (#1643); scan the files that now hold it.
-const SWEEP = ['budgetBackstopLive.ts', 'timesheetBackstopLive.ts']
-  .map((file) => readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../../../supabase/functions/erpnext-sweep', file), 'utf8'))
-  .join('\n');
-const SWEEP_CODE = SWEEP.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+const readSweepCode = (file: string) =>
+  readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../../../supabase/functions/erpnext-sweep', file), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+const SWEEP_CODE = ['budgetBackstopLive.ts', 'timesheetBackstopLive.ts'].map(readSweepCode).join('\n');
+
+/** The body of one top-level function (up to the next top-level function, or end of file). Fails loudly
+ *  when the anchor moved, so a rename cannot silently turn the assertions below into no-ops. */
+function sliceFunction(code: string, name: string): string {
+  const start = code.search(new RegExp(`function ${name}\\(`));
+  expect(start, `${name} not found — the anchor moved`).toBeGreaterThan(-1);
+  const rest = code.slice(start + 1);
+  const next = rest.search(/\n(?:export )?(?:async )?function /);
+  return next === -1 ? rest : rest.slice(0, next);
+}
 
 describe('H-1: the budget backstop gates its re-POST on outbox eligibility', () => {
   it('driveBudgetPush checks eligibility BEFORE dispatchMoneyWrite (never re-POSTs a terminal row)', () => {
@@ -367,22 +378,21 @@ describe('H-1: the budget backstop gates its re-POST on outbox eligibility', () 
     expect(guardAt, 'H-1: the guard must run BEFORE the POST, or a terminal row is re-sent').toBeLessThan(postAt);
   });
 
-  // One assertion PER module: each backstop must prove its own eligible-set source, so one module's
-  // text can never satisfy the other's check.
-  const stripComments = (source: string) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-  const readSweep = (file: string) =>
-    stripComments(readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../../../supabase/functions/erpnext-sweep', file), 'utf8'));
-
-  it('budget: the eligible set comes from the outbox_reconcile_candidates SoT, not a duplicated predicate', () => {
+  // One assertion set PER module, scoped to the module's own live pass function: each backstop must prove
+  // its eligible set is the candidates RPC's answer AND is what reaches its consumers, so neither one
+  // module's text nor an unrelated `new Set(...)` elsewhere in the file can satisfy it.
+  it('budget: the eligible set comes from the outbox_reconcile_candidates SoT and is what the consumers receive', () => {
     // A hand-rolled state/attempt filter here would be the "second door" 0131 exists to prevent.
-    const budget = readSweep('budgetBackstopLive.ts');
-    expect(budget).toMatch(/eligibleBudgetCandidates\s*=\s*\(await listCandidatesLive\(/);
-    expect(budget).toMatch(/new Set\(eligibleBudgetCandidates\.map\(/);
+    const pass = sliceFunction(readSweepCode('budgetBackstopLive.ts'), 'reconcileOrgBudgetPushesLive');
+    expect(pass).toMatch(/eligibleBudgetCandidates\s*=\s*\(await listCandidatesLive\(/);
+    expect(pass).toMatch(/budgetBackstopDepsLive\(\s*serviceClient,\s*org,\s*eligibleBudgetCandidates\b/);
+    expect(pass).toMatch(/reconcileOrgBudgetArchiveCancellationsLive\(\s*serviceClient,\s*org,\s*new Set\(eligibleBudgetCandidates\.map\(/);
   });
 
-  it('timesheet: the eligible set comes from the outbox_reconcile_candidates SoT, not a duplicated predicate', () => {
-    const timesheet = readSweep('timesheetBackstopLive.ts');
-    expect(timesheet).toMatch(/timesheetEligibility\(\s*await listCandidatesLive\(/);
+  it('timesheet: the eligible set comes from the outbox_reconcile_candidates SoT and is what the deps receive', () => {
+    const pass = sliceFunction(readSweepCode('timesheetBackstopLive.ts'), 'reconcileOrgTimesheetPushesLive');
+    expect(pass).toMatch(/timesheetEligibility\(\s*await listCandidatesLive\(/);
+    expect(pass).toMatch(/timesheetBackstopDepsLive\(\s*serviceClient,\s*org,\s*eligibleOutboxIds\b/);
   });
 });
 
