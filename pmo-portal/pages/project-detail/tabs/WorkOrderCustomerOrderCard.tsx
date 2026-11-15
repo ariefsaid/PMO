@@ -14,7 +14,7 @@ import {
   type StatusVariant,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
-import { formatCurrency, formatDay, formatNumberExact, formatNumberWhole } from '@/src/lib/format';
+import { formatDay, formatNumberExact, formatNumberWhole } from '@/src/lib/format';
 import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
 import type { WorkOrderAcceptanceWithLines, WorkOrderLineRow } from '@/src/lib/db/workOrderAcceptances';
@@ -271,7 +271,8 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
             <dt className="sr-only">{t('projectDetail.workOrders.closingValue', 'Closing value')}</dt>
             <dd data-testid={`wo-closing-${row.id}`} className="text-muted-foreground tabular-nums">
               {t('projectTabs:contractQuantities.workOrders.closing.closedAt', 'Closed at {{amount}} (excl. PPN)', {
-                amount: formatCurrency(Number(row.closing_value), currency),
+                // C6: the currency is named once in the Customer orders heading; every figure here is bare.
+                amount: formatNumberWhole(Number(row.closing_value)),
                 interpolation: { escapeValue: false },
               })}
             </dd>

@@ -291,9 +291,30 @@ describe('project money position', () => {
 
     const attention = renderHook(() => useProjectAttention(project(), 'money'));
     const ar = attention.result.current.items.find((item) => item.key === 'ar');
-    expect(ar?.size).toBe('7 days past due');
+    // #2133: a balance that is not known does not assert "overdue" as fact; the due date passing is the fact.
+    expect(ar?.what).toBe('2 invoices past their due date, payment not confirmed');
+    expect(ar?.what).not.toMatch(/overdue/i);
+    expect(ar?.size).toBe('7 days');
     expect(ar?.size).not.toContain('9999');
     expect(ar?.size).not.toContain('8888');
+  });
+
+  it('#2133 one past-due invoice with an unknown balance says payment is not confirmed, never "overdue"', () => {
+    state.invoices = [invoice({ id: 'inv-1', erp_due_date: '2026-10-20', erp_outstanding_amount: null })];
+
+    const attention = renderHook(() => useProjectAttention(project(), 'money'));
+    const ar = attention.result.current.items.find((item) => item.key === 'ar');
+    expect(ar?.what).toBe('Invoice past its due date, payment not confirmed');
+    expect(ar?.size).toBe('7 days');
+  });
+
+  it('#2133 a known unpaid balance past its due date still reads as overdue', () => {
+    state.invoices = [invoice({ id: 'inv-1', erp_due_date: '2026-10-20', erp_outstanding_amount: '50' })];
+
+    const attention = renderHook(() => useProjectAttention(project(), 'money'));
+    const ar = attention.result.current.items.find((item) => item.key === 'ar');
+    expect(ar?.what).toBe('Customer invoice overdue');
+    expect(ar?.size).toBe('50 USD unpaid · 7 days');
   });
 
   it('shows the summed unpaid balance only when every overdue invoice balance is known', () => {
@@ -328,6 +349,8 @@ describe('project money position', () => {
     expect(result.current.items[1]?.size).toContain('40 USD unpaid');
     expect(result.current.items[2]?.what).toContain('Design');
     expect(result.current.items[3]?.what).toBe('Procurement waiting for your approval');
+    // #2133: the count is already in the row's words; no "1 procurements" beside it.
+    expect(result.current.items[3]?.size).toBeUndefined();
   });
 
   it('shows the Engineer only their overdue or blocked task attention', () => {
@@ -749,6 +772,20 @@ describe('overview restructure rulings (L5/L6/L10/C4/L12)', () => {
     renderMoneyPosition();
     await userEvent.click(within(screen.getByTestId('figures-hidden')).getByText('Why'));
     expect(screen.getByText(/receipt reading not verified/)).toBeInTheDocument();
+  });
+
+  it('#2133 cash received is not known yet while invoices carry no settled balance — never shown as 0', async () => {
+    state.invoices = [{ ...invoice(), currency: 'USD', amount: 250, erp_outstanding_amount: null }];
+    state.finances = { contract_invoiced: '250', remaining_to_invoice: '750', invoices: [],
+      cash_received: { state: 'known', buckets: [], receipt_count: 0 } };
+    renderMoneyPosition();
+    const money = screen.getByRole('region', { name: /Money position/ });
+    expect(within(money).queryByTestId('money-lead-cash')).not.toBeInTheDocument();
+    expect(within(money).queryByText(/\$0\b/)).not.toBeInTheDocument();
+    await userEvent.click(within(screen.getByTestId('figures-hidden')).getByText('Why'));
+    expect(screen.getByText('Cash received is not known yet: no receipt is matched to these invoices.')).toBeInTheDocument();
+    // BoQ is glossed where it reaches the reader.
+    expect(screen.getByText(/BoQ \(itemised quantities\)/)).toBeInTheDocument();
   });
 
   it('AC-UWC-009: Money position shows known cash received — a known zero stays 0, and only the project-currency bucket counts', () => {

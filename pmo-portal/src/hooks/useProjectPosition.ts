@@ -245,11 +245,14 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
     }
     if (receivables.data) {
       out.push({ key: 'ar', tone: 'danger', to: receivables.data.to,
-        what: receivables.data.count === 1 ? t('projectDetail.attention.arWhatOne', 'Customer invoice overdue') : t('projectDetail.attention.arWhatMany', '{{count}} customer invoices overdue', { count: receivables.data.count }),
+        // #2133: "overdue" only on a known unpaid balance; an unknown balance states the due date passed and payment is unconfirmed.
+        what: receivables.data.balance !== null
+          ? receivables.data.count === 1 ? t('projectDetail.attention.arWhatOne', 'Customer invoice overdue') : t('projectDetail.attention.arWhatMany', '{{count}} customer invoices overdue', { count: receivables.data.count })
+          : receivables.data.count === 1 ? t('projectDetail.attention.arPastDueOne', 'Invoice past its due date, payment not confirmed') : t('projectDetail.attention.arPastDueMany', '{{count}} invoices past their due date, payment not confirmed', { count: receivables.data.count }),
         // Only a known balance is a figure; an unsynced balance shows age only, never the invoice total.
         size: receivables.data.balance !== null
           ? t('projectDetail.attention.arSize', '{{amount}} {{currency}} unpaid · {{days}} days', { amount: formatNumberWhole(receivables.data.balance), currency: project.currency, days: receivables.data.oldest })
-          : t('projectDetail.attention.arSizeNoBalance', '{{days}} days past due', { days: receivables.data.oldest }),
+          : t('projectDetail.attention.arSizeNoBalance', '{{days}} days', { days: receivables.data.oldest }),
         explanation: t('projectDetail.attention.arTooltip', 'Invoice status, due date, and any known unpaid balance come from project invoices and accounting sync.'),
         action: receivables.data.count === 1 ? t('projectDetail.attention.arActionOne', 'See invoice') : t('projectDetail.attention.arActionMany', 'See invoices') });
     }
@@ -272,7 +275,6 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
           what: waiting.length === 1
             ? t('projectDetail.attention.approveOne', 'Procurement waiting for your approval')
             : t('projectDetail.attention.approveMany', '{{count}} procurements waiting for your approval', { count: waiting.length }),
-          size: t('projectDetail.attention.approveSize', '{{count}} procurements', { count: waiting.length }),
           action: t('projectDetail.attention.approveAction', 'Review'),
           explanation: t('projectDetail.attention.approveTooltip', 'Counts project procurements that are waiting for your approval.') });
       }

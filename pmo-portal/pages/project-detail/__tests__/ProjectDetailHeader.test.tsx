@@ -1069,6 +1069,16 @@ describe('ProjectDetailHeader — compact strip (AC-RD-HDR-001)', () => {
     expect(screen.queryByText(/Loading budget/)).not.toBeInTheDocument();
   });
 
+  it('#2133 Budget used is a locale-formatted percent (grouped like every other number)', () => {
+    setBudgetPosition({ budget: 1_000, spent: 12_340, openCommitment: 0, usedPercent: 1234 });
+    const { unmount } = renderHeader('Finance', onHand, 2_100_000, 'pmo', 'pmo');
+    expect(tileFor('Budget used')).toHaveTextContent('1,234%');
+    unmount();
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    renderHeader('Finance', onHand, 2_100_000, 'pmo', 'pmo');
+    expect(tileFor('Budget used')).toHaveTextContent('1.234%');
+  });
+
   it('AC-RD-HDR-001: with a budget and complete Actual the strip carries every known figure', () => {
     setBudgetPosition({ budget: 4_200_000, spent: 1_800_000, openCommitment: 500_000, usedPercent: 55 });
     renderHeader('Finance', onHand, 2_100_000, 'pmo', 'pmo');

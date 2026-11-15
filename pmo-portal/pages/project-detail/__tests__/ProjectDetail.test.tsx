@@ -583,9 +583,19 @@ describe('ProjectDetail shell (decomposition)', () => {
 
   it('AC-PSH-013: the won-page "Sales history" disclosure contains only its summary heading without duplicate Stage history h2', async () => {
     await renderAt('/projects/p1');
-    const summary = screen.getByText('Sales history');
+    // #2133: the sales history is a project detail, opened from Project details — not a band of its own.
+    await userEvent.click(screen.getByRole('button', { name: 'Project details' }));
+    const summary = await screen.findByText('Sales history');
     expect(summary).toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 2, name: /stage history/i })).not.toBeInTheDocument();
+  });
+
+  it.each([true, false])('#2133 desktop=%s: no orphan "Sales history" band around the tabs; it opens from Project details', async (desktop) => {
+    desktopBox.value = desktop;
+    await renderAt('/projects/p1');
+    expect(screen.queryByText('Sales history')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Project details' }));
+    expect(await screen.findByText('Sales history')).toBeInTheDocument();
   });
 
   it.each(['Project Manager', 'Executive', 'Finance'])('screen rules: the %s overview states the project tax basis once', async (role) => {

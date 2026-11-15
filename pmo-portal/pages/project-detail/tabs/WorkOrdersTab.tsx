@@ -542,12 +542,13 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                 {t('projectDetail.workOrders.action.addCustomerOrder', 'Add customer order')}
               </Button>
             )}
-            <ExportButton rows={filteredOrders} columns={orderExportColumns} entity="Customer orders"
-              label={t('common.export', 'Export')} />
+            {/* #2133: an empty register has nothing to export or filter. */}
+            {rows.length > 0 && <ExportButton rows={filteredOrders} columns={orderExportColumns} entity="Customer orders"
+              label={t('common.export', 'Export')} />}
           </div>
         </div>
 
-        <div className="flex flex-wrap items-end gap-2 px-[var(--panel-inset)] pt-4">
+        {rows.length > 0 && <div className="flex flex-wrap items-end gap-2 px-[var(--panel-inset)] pt-4">
           <SelectField
             label={t('projectDetail.workOrders.filter.orders', 'Order')}
             value={orderFilter}
@@ -570,7 +571,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             wrapperClassName="min-w-[160px] gap-1"
             aria-label={t('projectDetail.workOrders.filter.status', 'Status')}
           />
-        </div>
+        </div>}
         {autoInvoiceNote && <p role="status" className="px-[var(--panel-inset)] pt-4 text-sm text-muted-foreground">{autoInvoiceNote}</p>}
         {/* L6/C4: the "Still to invoice" total only adds information across several orders (one order's own line
             already says it); "Not yet submitted" is said only here. An incomplete total is left out — each order
