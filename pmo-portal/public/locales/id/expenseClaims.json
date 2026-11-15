@@ -1,7 +1,7 @@
 {
   "actions": {
-    "cancelClaim": "Batalkan klaim",
-    "clearFilters": "Hapus filter"
+    "clearFilters": "Hapus filter",
+    "cancelClaim": "Batalkan klaim"
   },
   "list": {
     "filteredEmptyTitle": "Tidak ada biaya yang cocok dengan filter ini"
@@ -23,7 +23,7 @@
     "submit": "Ajukan klaim",
     "submitting": "Mengajukan…",
     "submitFailed": "Tersimpan sebagai draf, belum diajukan",
-    "removeLine": "Hapus rincian {{number}}"
+    "removeLine": "Hapus baris {{number}}"
   },
   "postings": {
     "recordedBeforeConnection": "Dicatat sebelum terhubung ke ERP"
