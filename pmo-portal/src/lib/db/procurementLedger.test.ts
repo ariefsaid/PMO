@@ -784,6 +784,15 @@ describe('#1671 vendor bill void — ledger projection', () => {
     expect(plain[0].voidable).toBe(false);
   });
 
+  it('AC-SCV-008 each bill row names the order it was captured against, so a void refreshes that order', () => {
+    const rows = buildLedgerRows(makeDetail({
+      is_subcontract: true,
+      invoices: [live, { ...live, id: 'vi-second', vi_number: 'VI-015', po_id: 'po-2' }],
+    }));
+    expect(rows.find((r) => r.recordId === 'vi-live')?.poId).toBe('po-1');
+    expect(rows.find((r) => r.recordId === 'vi-second')?.poId).toBe('po-2');
+  });
+
   it('AC-SCV-008 a voided bill carries the reason, when, and who voided it, and is not voidable again', () => {
     const rows = buildLedgerRows(makeDetail({
       is_subcontract: true,

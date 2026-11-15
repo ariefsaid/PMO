@@ -88,6 +88,8 @@ export interface LedgerRow {
   voidable?: boolean;
   /** #1671 — vendor-invoice rows only: the void facts of a voided bill (when, why, who); null on a live bill. */
   voided?: { at: string; reason: string; byName: string | null } | null;
+  /** #1671 — vendor-invoice rows only: the purchase order the bill was captured against (a purchase may have several). */
+  poId?: string | null;
   taxRate?: number | null;
   taxBaseNumerator?: number;
   taxBaseDenominator?: number;
@@ -224,6 +226,7 @@ interface MakeRowExtra {
   efakturLocked?: boolean;
   voidable?: boolean;
   voided?: LedgerRow['voided'];
+  poId?: string | null;
   taxRate?: number | null;
   taxBaseNumerator?: number;
   taxBaseDenominator?: number;
@@ -246,7 +249,7 @@ function makeRow(
   extra: MakeRowExtra = {},
 ): LedgerRow {
   const { groupRef, taxTreatment, taxRate, taxBaseNumerator, taxBaseDenominator, taxBaseUnknown, taxAmount, withheldAmount,
-    efakturNumber, efakturDate, efakturLocked, voidable, voided } = extra;
+    efakturNumber, efakturDate, efakturLocked, voidable, voided, poId } = extra;
   const businessDate = date ?? createdAt;
   const { fileHref, fileTitle, fileCount, fileRef } = filePresence(files);
   return {
@@ -269,7 +272,7 @@ function makeRow(
     taxTreatment: taxTreatment ?? null,
     efakturNumber: type === 'Invoice' ? (efakturNumber ?? null) : null,
     efakturDate: type === 'Invoice' ? (efakturDate ?? null) : null,
-    ...(type === 'Invoice' ? { efakturLocked: efakturLocked ?? false, voidable: voidable ?? false, voided: voided ?? null } : {}),
+    ...(type === 'Invoice' ? { efakturLocked: efakturLocked ?? false, voidable: voidable ?? false, voided: voided ?? null, poId: poId ?? null } : {}),
     taxRate, taxBaseNumerator, taxBaseDenominator, taxBaseUnknown,
     ...(withheldAmount !== undefined ? { taxAmount: taxAmount ?? null, withheldAmount } : {}),
   };
@@ -422,6 +425,7 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
                 byName: (vi as unknown as { voider?: { full_name: string | null } | null }).voider?.full_name ?? null,
               }
             : null,
+          poId: vi.po_id ?? null,
         },
       ),
     );

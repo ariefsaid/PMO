@@ -39,7 +39,7 @@ const bill: LedgerRow = {
   id: 'Invoice-vi-1', date: '2026-11-01', type: 'Invoice', systemNumber: 'VI-1', externalRef: null,
   amount: 10000000, status: 'Received', statusVariant: 'neutral', fileHref: null, fileTitle: null, fileCount: 0,
   financial: true, recordId: 'vi-1', currency: 'IDR', taxTreatment: 'exclusive',
-  efakturNumber: null, efakturDate: null, efakturLocked: false, voidable: true, voided: null,
+  efakturNumber: null, efakturDate: null, efakturLocked: false, voidable: true, voided: null, poId: 'po-1',
 };
 
 function renderLedger(props: Partial<React.ComponentProps<typeof ProcurementLedger>> = {}) {

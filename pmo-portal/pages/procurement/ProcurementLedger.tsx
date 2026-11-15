@@ -608,7 +608,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
       {canVoidBill && voidTarget && (
         <VoidBillDialog
           row={voidTarget}
-          poId={detail.purchase_orders?.[0]?.id ?? ''}
+          poId={voidTarget.poId ?? ''}
           procurementId={procurementId}
           onClose={() => setVoidTarget(null)}
         />
