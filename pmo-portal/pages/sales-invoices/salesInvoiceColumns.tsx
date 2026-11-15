@@ -83,7 +83,7 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
             </Badge>
           )}
           {/* #2290: the list shows no invoice-date column, so the ledger date rides the identity line; never under the due date. */}
-          {embedded && <LedgerDateLine entered={inv.invoice_date} posted={inv.erp_posting_date} className="basis-full whitespace-nowrap text-sm text-muted-foreground" />}
+          {embedded && <LedgerDateLine entered={inv.invoice_date} posted={inv.erp_posting_date} className="basis-full whitespace-nowrap text-sm font-normal text-muted-foreground" />}
         </span>
       );
     },
@@ -95,7 +95,7 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
       if (!customer && !project && !moved) return null;
       return (
         <>
-          <LedgerDateLine entered={inv.invoice_date} posted={inv.erp_posting_date} className="block truncate text-sm text-muted-foreground" />
+          <LedgerDateLine entered={inv.invoice_date} posted={inv.erp_posting_date} className="block truncate text-sm font-normal text-muted-foreground" />
           {customer && <span className="block truncate" title={customer}>{customer}</span>}
           {project && <span className="block truncate" title={project}>{project}</span>}
         </>
