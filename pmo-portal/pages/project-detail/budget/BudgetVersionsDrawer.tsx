@@ -117,12 +117,12 @@ export default function BudgetVersionsDrawer({
               <h3 id="budget-version-compare-heading" className="text-sm font-semibold">
                 {t('projectDetail.budget.compareVersions', 'Compare versions')}
               </h3>
-              <Button variant="outline" size="sm" onClick={() => setComparing((value) => !value)}>
+              <Button variant="outline" size="sm" aria-expanded={comparing} aria-controls="budget-version-compare-panel" onClick={() => setComparing((value) => !value)}>
                 {comparing ? t('common.close', 'Close') : t('projectDetail.budget.compare', 'Compare')}
               </Button>
             </div>
             {comparing && (
-              <div className="mt-3 space-y-3">
+              <div id="budget-version-compare-panel" className="mt-3 space-y-3">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="flex flex-col gap-1 text-sm font-medium text-muted-foreground">
                     {t('projectDetail.budget.versionA', 'Version A')}

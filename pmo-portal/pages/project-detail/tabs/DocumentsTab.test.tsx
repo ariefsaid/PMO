@@ -245,6 +245,26 @@ describe('DocumentsTab — register rows (AC-DOC-001)', () => {
     expect(screen.getByText('Steel Spec')).toBeInTheDocument();
   });
 
+  it('URL-STATE: a status filter is written to the URL and a link with it opens the filtered register', async () => {
+    const view = renderTab();
+    await userEvent.selectOptions(screen.getByLabelText('Filter by status'), 'Approved');
+    expect(screen.getByTestId('route-search')).toHaveTextContent('status=Approved');
+    expect(screen.queryByText('Site Plan')).not.toBeInTheDocument();
+    view.unmount();
+
+    renderTab('Admin', 'admin-1', '/?status=Approved');
+    expect(screen.getByLabelText('Filter by status')).toHaveValue('Approved');
+    expect(screen.getByText('Survey Report')).toBeInTheDocument();
+    expect(screen.queryByText('Site Plan')).not.toBeInTheDocument();
+  });
+
+  it('URL-STATE: the sort order rides in the URL and the starting order is omitted', async () => {
+    renderTab('Admin', 'admin-1', '/?sort=title:desc');
+    const titles = screen.getAllByRole('row').map((row) => row.textContent ?? '');
+    expect(titles.findIndex((t) => t.includes('Steel Spec'))).toBeLessThan(titles.findIndex((t) => t.includes('Site Plan')));
+    expect(screen.getByTestId('route-search')).toHaveTextContent('?sort=title:desc');
+  });
+
   it('B7: offers search only beyond ten documents and keeps the action banner honest when nothing is missing or expired', () => {
     const view = renderTab();
     expect(screen.queryByLabelText(/Search documents/i)).not.toBeInTheDocument();
