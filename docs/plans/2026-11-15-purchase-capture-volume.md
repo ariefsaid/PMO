@@ -50,9 +50,11 @@ section into that spec once it is on `dev`.
   it resolves to a mapped PMO project; it belongs to a mirrored purchase document; or its voucher kind is order, receipt or supplier invoice.
 - **FR-CAPV-002** — When the capture service reads ledger lines in the capture scope, it shall return, on the first page, a count and
   an exact net total (debit minus credit) for each voucher kind among the lines left out of the line-by-line read. The total shall be
-  null when any of those lines has no debit or no credit.
+  null when any of those lines has no debit or no credit. Each kind also carries the finest decimal scale among its amounts, and the
+  edge formats the total at the larger of two places and that scale, exactly as its line-by-line sum did.
 - **FR-CAPV-003** — The capture service shall produce the same `proposals`, `reports`, `assignments`, `unassigned`, `other_unassigned`,
-  `unassigned_documents`, `missing` and `revision` for the same database state as before this change.
+  `unassigned_documents`, `missing` and `revision` as before this change for every database state whose preview completed before;
+  a preview that stopped at the page limit only because of left-out lines now completes.
 - **FR-CAPV-004** — When an apply request names a batch that already exists, the capture service shall continue that batch
   without reading the census and ledger again. It shall still check that the revision, the feed health and the ERP precision equal
   what the batch recorded.
@@ -290,6 +292,11 @@ and map `data.other_summary` from page 1 through `netTotal`-equivalent formattin
 Then remove the `otherByKind` loop. The golden test (A1) must stay green, with the golden mocks regenerated to the scoped shape
 **from the same seeded generator**, and the expected JSON file unchanged.
 
+*As built:* the `otherByKind` loop stays and the summary is added to it, because a payment mirrored as a purchase document is
+capture-relevant (it has a document) yet listed as other; dropping the loop would lose it. With the loop kept, the AC-ROP-073
+cases pass unchanged as they stand (their lines arrive through the page, which the edge still counts), so they were not
+converted; the summary path has its own cases in the `#2286` block of `index.test.ts`.
+
 **A6 — failing pgTAP for source-page indexes.** Create `supabase/tests/2286_capture_source_index.test.sql`. Assert that
 `pg_indexes` has `erp_purchase_documents_purchase_orders_idx` (GIN). Using the 970-document fixture, run
 `explain (format json)` of the family subquery and assert that it uses that index and not a `Seq Scan` on `erp_purchase_documents`,
@@ -427,6 +434,16 @@ EXPLAIN excerpts are pasted below the table: first ledger page, first source pag
 The preview also changed from *cannot complete* to *completes*: 7,927 of the 26,370 lines are capture-relevant, 16 pages, within the
 edge function's 20-page limit. The page limit now counts only capture-relevant lines; every preview that completed before still
 returns the same response (AC-CAPV-002), and one that stopped at the limit only because of unrelated lines now completes.
+
+**Review fix round (after A, second build).** The page-1 summary became its own statement over the same four relevance terms
+(each strictly true or false, so a line with no voucher type is summarized as other instead of dropped) with the document test as
+an anti-join, and it now returns each kind's scale. Under EXPLAIN ANALYZE the summary went from 160 ms (nested loop, one document
+lookup per left-out line) to 89 ms (`Hash Anti Join` over 18,443 lines against the 970 documents). The whole-org preview did not
+move measurably: two rounds of 5 gave medians of 8,295 ms (runs 7,881–9,293) and 8,493 ms (8,165–8,852), with
+`capture_revision` itself at 390 and 415 ms in those rounds against 381 ms in the first after-A round, so the machine was slower
+and the preview stays about 21 revision computations' worth. The 8 s target remains missed. In the slower third round the
+unchanged batch (PR B) measured 2,130 ms median against 1,824 ms earlier; that is run noise on code this PR does not touch, but it
+shows the fence target is borderline.
 
 **EXPLAIN excerpts** (`-v explain=1`, `explain (analyze, buffers)` through auto_explain; nested statements over 5 ms).
 

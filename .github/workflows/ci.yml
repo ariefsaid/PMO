@@ -626,7 +626,7 @@ jobs:
 
       # #2286 PR A: the down for 0904 restores the ledger and source pages verbatim and they answer what 0904's did.
       - name: Capture volume reads rollback harness
-        run: scripts/test-2286-capture-rollback.sh
+        run: scripts/with-db-lock.sh scripts/test-2286-capture-rollback.sh
 
       # AC-CQ-003 (issue #1281): contract-quantities upgrade/reversal round trip. The harness
       # inlines migration 0337 and its rollback into a generated pgTAP file (deleted on exit)

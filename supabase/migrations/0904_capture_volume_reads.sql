@@ -33,13 +33,15 @@ begin
     from public.external_org_bindings b cross join lateral jsonb_each_text(coalesce(b.config->'project_map','{}'::jsonb)) entry
     where b.org_id=v_org and b.id=v_binding and entry.key ~* '^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$'
     group by entry.value having count(distinct entry.key) = 1
-  ), scoped as not materialized (
+  ), scoped as (
     select g.*, d.id as document_id, l.procurement_id as document_purchase_id,
       case when g.company=v_company then project.project_id end as project_id,
       -- 0904 FR-CAPV-001: a line is read line by line when it is of another company than the binding's (as the edge function
       -- compares it), resolves to a PMO project, belongs to a mirrored purchase document, or is an order, receipt or supplier invoice.
-      (g.company is distinct from v_binding_company or (g.company=v_company and project.project_id is not null) or d.id is not null
-        or g.voucher_type in ('Purchase Order','Purchase Receipt','Purchase Invoice')) as capture_relevant
+      -- Every term is strictly true or false (a null company or voucher type must never drop a line from both lists); the summary
+      -- statement below tests the same four terms.
+      (g.company is distinct from v_binding_company or coalesce(g.company=v_company and project.project_id is not null,false) or d.id is not null
+        or coalesce(g.voucher_type in ('Purchase Order','Purchase Receipt','Purchase Invoice'),false)) as capture_relevant
     from public.erp_gl_entry_mirror g
     left join public.erp_purchase_documents d on g.company=v_company and d.org_id=g.org_id and d.erp_doctype=g.voucher_type and d.erp_name=g.voucher_no
     left join public.procurement_erp_links l on l.erp_purchase_document_id=d.id
@@ -62,14 +64,38 @@ begin
     left join public.erp_account_mirror a on a.org_id=s.org_id and a.company=s.company and a.erp_name=s.account and not a.is_group
   )
   select coalesce(jsonb_agg((to_jsonb(c) - 'capture_relevant') || jsonb_build_object('kind',public.capture_source_kind(c.voucher_type),'debit',c.debit::text,'credit',c.credit::text) order by c.id),'[]'::jsonb), max(c.id::text)::uuid,
-    (select count(*) > p_limit from candidates),
-    -- 0904 FR-CAPV-002: on the first capture page, each left-out kind with its count and exact net total (null when an amount is missing).
-    case when p_scope='capture' and p_cursor is null then (
-      select coalesce(jsonb_agg(jsonb_build_object('kind',k.kind,'count',k.lines,'total',k.total) order by k.kind collate "C"),'[]'::jsonb)
-      from (select coalesce(public.capture_source_kind(o.voucher_type),'other') as kind, count(*) as lines,
-          case when bool_or(o.debit is null or o.credit is null) then null else (sum(o.debit) - sum(o.credit))::text end as total
-        from scoped o where not o.capture_relevant group by 1) k) end
-    into v_lines,v_last,v_more,v_summary from page c;
+    (select count(*) > p_limit from candidates)
+    into v_lines,v_last,v_more from page c;
+  -- 0904 FR-CAPV-002: on the first capture page, each left-out kind with its count, its exact net total (null when an amount is
+  -- missing) and the finest decimal scale among its amounts (the edge formats the total at it, as its line-by-line sum did).
+  -- A separate statement over the same four terms as capture_relevant, so the page above stops at its 501 rows and this one
+  -- reads the left-out lines set-wise (an anti-join on the documents) instead of re-reading the page's joins.
+  if p_scope='capture' and p_cursor is null then
+    if p_project_id is not null then
+      v_summary := '[]'::jsonb;  -- every line of a project scope resolves to that project, so none is left out
+    else
+      with project_map as (
+        select entry.value as erp_project
+        from public.external_org_bindings b cross join lateral jsonb_each_text(coalesce(b.config->'project_map','{}'::jsonb)) entry
+        where b.org_id=v_org and b.id=v_binding and entry.key ~* '^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$'
+        group by entry.value having count(distinct entry.key) = 1
+      ), left_out as (
+        select g.voucher_type, g.debit, g.credit from public.erp_gl_entry_mirror g
+        where g.org_id=v_org and not g.is_cancelled
+          and not (g.company is distinct from v_binding_company)
+          and not coalesce(g.company=v_company and exists(select 1 from project_map m where m.erp_project=g.project),false)
+          and not coalesce(g.voucher_type in ('Purchase Order','Purchase Receipt','Purchase Invoice'),false)
+          and not exists(select 1 from public.erp_purchase_documents d where g.company=v_company and d.org_id=g.org_id
+            and d.erp_doctype=g.voucher_type and d.erp_name=g.voucher_no)
+      )
+      select coalesce(jsonb_agg(jsonb_build_object('kind',k.kind,'count',k.lines,'total',k.total,'scale',k.scale) order by k.kind collate "C"),'[]'::jsonb)
+        into v_summary
+        from (select coalesce(public.capture_source_kind(o.voucher_type),'other') as kind, count(*) as lines,
+            case when bool_or(o.debit is null or o.credit is null) then null else (sum(o.debit) - sum(o.credit))::text end as total,
+            greatest(max(min_scale(o.debit)),max(min_scale(o.credit))) as scale
+          from left_out o group by 1) k;
+    end if;
+  end if;
   return jsonb_build_object('lines',v_lines,'revision',v_revision,'next_cursor',case when v_more then v_last end)
     || case when v_summary is not null then jsonb_build_object('other_summary',v_summary) else '{}'::jsonb end;
 end $$;

@@ -4,6 +4,7 @@
 --   scripts/with-db-lock.sh bash -c 'for i in 1 2 3 4 5; do psql "$DB_URL" -X -q -f scripts/bench/2286-capture-volume.sql; done'
 -- Add `-v explain=1` for one run with the EXPLAIN (ANALYZE, BUFFERS) plans (auto_explain, nested statements).
 \set ON_ERROR_STOP on
+\ir 2286-local-only.sql
 \if :{?explain}
 \else
 \set explain 0

@@ -1,6 +1,7 @@
 -- #2286 benchmark seed: the 2195_capture_volume.test.sql fixture (ten times a real organization's volume) in its own
 -- org, plus 11,000 unrelated journal and payment lines with no project. Included by 2286-capture-volume.sql inside
 -- begin; ... rollback; so nothing persists. Not a test: it asserts nothing.
+\ir 2286-local-only.sql
 insert into organizations (id, name, default_currency) values ('22860000-0000-0000-0000-000000000001','Volume bench','IDR');
 insert into auth.users (id, email) values ('22860000-0000-0000-0000-000000000002','volume-bench-admin@example.test');
 insert into profiles (id, org_id, full_name, email, role, status) values

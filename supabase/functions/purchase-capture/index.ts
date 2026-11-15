@@ -12,7 +12,8 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 });
 
 interface RawDocument { id: string; kind: CaptureKind | null }
-interface OtherSummary { kind: string; count: number; total: string | null }
+/** `scale`: the finest decimal scale among the kind's amounts (null when it has none), so the total keeps the digits a line-by-line sum had. */
+interface OtherSummary { kind: string; count: number; total: string | null; scale: number | null }
 /** The first capture-scope page's summary of the lines it leaves out; null when it is not a well-formed list. Absent means none. */
 function parseOtherSummary(value: unknown): OtherSummary[] | null {
   if (value === undefined) return [];
@@ -20,8 +21,8 @@ function parseOtherSummary(value: unknown): OtherSummary[] | null {
   const groups: OtherSummary[] = [];
   for (const entry of value as Array<Record<string, unknown> | null>) {
     if (!entry || typeof entry.kind !== 'string' || !entry.kind || !Number.isInteger(entry.count) || (entry.count as number) < 1 ||
-      (entry.total !== null && typeof entry.total !== 'string')) return null;
-    groups.push({ kind: entry.kind, count: entry.count as number, total: entry.total as string | null });
+      (entry.total !== null && typeof entry.total !== 'string') || (entry.scale !== null && (!Number.isInteger(entry.scale) || (entry.scale as number) < 0))) return null;
+    groups.push({ kind: entry.kind, count: entry.count as number, total: entry.total as string | null, scale: entry.scale as number | null });
   }
   return groups;
 }
@@ -31,12 +32,12 @@ function push<K, V>(map: Map<K, V[]>, key: K, value: V): void {
 }
 function trimDecimal(value: string): string { return value.includes('.') ? value.replace(/0+$/, '').replace(/\.$/, '') : value; }
 
-/** Exact net (debit minus credit) of decimal strings at the finest scale present, never below two places. Null when a value is not a plain decimal. */
-function netTotal(lines: Array<{ debit: string | null; credit: string | null }>): string | null {
+/** Exact net (debit minus credit) of decimal strings at the finest scale present, never below two places (nor below `minScale`). Null when a value is not a plain decimal. */
+function netTotal(lines: Array<{ debit: string | null; credit: string | null }>, minScale = 2): string | null {
   // Ledger debit and credit are nullable columns: a missing amount makes the total unknown, never an error.
   if (lines.some(line => typeof line.debit !== 'string' || typeof line.credit !== 'string')) return null;
   const parts = lines.flatMap(line => [[trimDecimal(line.debit as string), 1n], [trimDecimal(line.credit as string), -1n]] as const);
-  const scale = Math.max(2, ...parts.map(([value]) => value.split('.')[1]?.length ?? 0));
+  const scale = Math.max(2, minScale, ...parts.map(([value]) => value.split('.')[1]?.length ?? 0));
   try {
     const minor = parts.reduce((sum, [value, sign]) => sum + sign * BigInt(toMinorUnits(value, scale)), 0n);
     const digits = (minor < 0n ? -minor : minor).toString().padStart(scale + 1, '0');
@@ -283,12 +284,12 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   const unassigned: Array<{ id: string; kind: string; source: string | null; reason: string }> = [];
   // Per kind: how many lines, and the amounts whose exact net is the kind's total. A summarized kind adds its count and its
   // net total as one amount (a missing total keeps the kind's total unknown); a paged line adds itself.
-  const otherByKind = new Map<string, { count: number; amounts: Array<{ debit: string | null; credit: string | null }> }>();
-  const addOther = (kind: string, count: number, amount: { debit: string | null; credit: string | null }) => {
+  const otherByKind = new Map<string, { count: number; scale: number; amounts: Array<{ debit: string | null; credit: string | null }> }>();
+  const addOther = (kind: string, count: number, amount: { debit: string | null; credit: string | null }, scale = 0) => {
     const group = otherByKind.get(kind);
-    if (group) { group.count += count; group.amounts.push(amount); } else otherByKind.set(kind, { count, amounts: [amount] });
+    if (group) { group.count += count; group.scale = Math.max(group.scale, scale); group.amounts.push(amount); } else otherByKind.set(kind, { count, scale, amounts: [amount] });
   };
-  for (const group of otherSummary) addOther(group.kind, group.count, { debit: group.total, credit: '0' });
+  for (const group of otherSummary) addOther(group.kind, group.count, { debit: group.total, credit: '0' }, group.scale ?? 0);
   for (const line of ledger.items) {
     if (!(line.documentId && decided.has(line.documentId)) && (line.company !== company || (!line.projectId && isPurchaseLine(line)))) {
       unassigned.push({ id: line.id, kind: line.kind ?? 'other', source: line.reference, reason: line.company !== company ? 'company_scope_mismatch' : 'project_unmapped' });
@@ -297,7 +298,7 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   }
   const proposalsById = new Map<string, (typeof proposals)[number]>();
   for (const proposal of proposals) if (!proposalsById.has(proposal.id)) proposalsById.set(proposal.id, proposal);
-  const otherUnassigned = [...otherByKind.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([kind, group]) => ({ kind, count: group.count, total: netTotal(group.amounts) }));
+  const otherUnassigned = [...otherByKind.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([kind, group]) => ({ kind, count: group.count, total: netTotal(group.amounts, group.scale) }));
   const unassignedDocuments = sources.filter(source => source.projectIds.length === 0 && !decided.has(source.id)).map(source => ({ id: source.id,
     kind: source.kind, state: source.state, source: source.reference ?? null,
     reason: proposalsById.get(source.id)?.reason ?? 'project_unmapped' }));

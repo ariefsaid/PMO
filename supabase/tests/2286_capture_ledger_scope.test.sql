@@ -1,7 +1,8 @@
 -- AC-CAPV-001 / AC-CAPV-003 (#2286): the capture-scope ledger read pages only the capture-relevant lines and summarizes
--- the lines it leaves out, per kind, with an exact net total (null when an amount is missing). 'all' keeps every line.
+-- the lines it leaves out, per kind, with an exact net total (null when an amount is missing) and the finest decimal scale
+-- among the kind's amounts (the edge formats the total at it, as it did line by line). 'all' keeps every line.
 begin;
-select plan(25);
+select plan(28);
 insert into organizations (id, name, default_currency) values ('22860300-0000-0000-0000-000000000001','Ledger scope test','USD');
 insert into auth.users (id, email) values ('22860300-0000-0000-0000-000000000002','scope-admin@example.test');
 insert into profiles (id, org_id, full_name, email, role, status) values
@@ -25,7 +26,7 @@ set local request.jwt.claims = '{"sub":"22860300-0000-0000-0000-000000000002","r
 select is((select jsonb_agg(l->>'erp_name') from jsonb_array_elements(public.purchase_capture_ledger_page(null,500,null,'capture')->'lines') l),
   '["GL-1","GL-2","GL-3"]'::jsonb,'AC-CAPV-001 the capture scope pages only the mapped-project, purchase-kind and other-company lines');
 select is(public.purchase_capture_ledger_page(null,500,null,'capture')->'other_summary',
-  '[{"kind":"journal","count":2,"total":null},{"kind":"supplier_payment","count":2,"total":"10.50"}]'::jsonb,
+  '[{"kind":"journal","count":2,"total":null,"scale":0},{"kind":"supplier_payment","count":2,"total":"10.50","scale":1}]'::jsonb,
   'AC-CAPV-001 AC-CAPV-003 the first page summarizes each left-out kind with its count and exact net total, null when an amount is missing');
 select is((select jsonb_agg(l->>'erp_name') from jsonb_array_elements(public.purchase_capture_ledger_page(null,500,null,'all')->'lines') l),
   '["GL-1","GL-2","GL-3","GL-4","GL-5","GL-6","GL-10"]'::jsonb,'AC-CAPV-001 the all scope still pages every line in id order');
@@ -66,9 +67,22 @@ set local request.jwt.claims = '{"sub":"22860300-0000-0000-0000-000000000002","r
 select is((select jsonb_agg(l->>'erp_name') from jsonb_array_elements(public.purchase_capture_ledger_page(null,500,null,'capture')->'lines') l),
   '["GL-1","GL-2","GL-3","GL-4","GL-8"]'::jsonb,'AC-CAPV-001 a line of a mirrored purchase document and a receipt line are read line by line');
 select is(public.purchase_capture_ledger_page(null,500,null,'capture')->'other_summary',
-  '[{"kind":"journal","count":2,"total":null},{"kind":"other","count":1,"total":"-2.25"},{"kind":"supplier_payment","count":1,"total":"3.50"}]'::jsonb,
+  '[{"kind":"journal","count":2,"total":null,"scale":0},{"kind":"other","count":1,"total":"-2.25","scale":2},{"kind":"supplier_payment","count":1,"total":"3.50","scale":1}]'::jsonb,
   'AC-CAPV-001 cancelled lines stay out; a line of no known kind is summarized as other');
 select is(jsonb_array_length(public.purchase_capture_ledger_page(null,500,null,'all')->'lines'),9,'AC-CAPV-001 the all scope still omits cancelled lines');
+reset role;
+
+-- A line with no voucher type is of no known kind: summarized as other, never dropped from both lists. Amounts finer than
+-- cents keep their scale: 1.005 and 0.005 net to -1.250 together with GL-7, at scale 3.
+insert into erp_gl_entry_mirror(id,org_id,erp_name,company,account,project,voucher_type,voucher_no,posting_date,debit,credit,is_cancelled,erp_modified) values
+ ('22860300-0000-0000-0000-000000000111','22860300-0000-0000-0000-000000000001','GL-11','Example','Cost',null,null,'NOTYPE-1','2026-02-01',1.005,0,false,'2026-02-01'),
+ ('22860300-0000-0000-0000-000000000112','22860300-0000-0000-0000-000000000001','GL-12','Example','Bank',null,'Bank Entry','BANK-1','2026-02-01',0,0.005,false,'2026-02-01');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"22860300-0000-0000-0000-000000000002","role":"authenticated"}';
+select is(public.purchase_capture_ledger_page(null,500,null,'capture')->'other_summary'->1,
+  '{"kind":"other","count":3,"total":"-1.250","scale":3}'::jsonb,'AC-CAPV-001 AC-CAPV-003 a line with no voucher type is summarized as other, at the finest scale of its kind');
+select ok(not (public.purchase_capture_ledger_page(null,500,null,'capture')->'lines' @> '[{"erp_name":"GL-11"}]'),'AC-CAPV-001 a line with no voucher type is not read line by line');
+select is(jsonb_array_length(public.purchase_capture_ledger_page(null,500,null,'all')->'lines'),11,'AC-CAPV-001 the all scope reads it');
 reset role;
 
 -- The edge function compares a line's company with the binding's company exactly as configured, so a padded name makes every
@@ -76,7 +90,7 @@ reset role;
 update external_org_bindings set config = jsonb_set(config,'{company}','" Example"') where org_id='22860300-0000-0000-0000-000000000001';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"22860300-0000-0000-0000-000000000002","role":"authenticated"}';
-select is(jsonb_array_length(public.purchase_capture_ledger_page(null,500,null,'capture')->'lines'),9,'AC-CAPV-001 a padded binding company leaves no line out of the capture scope');
+select is(jsonb_array_length(public.purchase_capture_ledger_page(null,500,null,'capture')->'lines'),11,'AC-CAPV-001 a padded binding company leaves no line out of the capture scope');
 select is(public.purchase_capture_ledger_page(null,500,null,'capture')->'other_summary','[]'::jsonb,'AC-CAPV-001 and summarizes nothing');
 reset role;
 

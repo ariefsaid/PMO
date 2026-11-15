@@ -4,8 +4,8 @@
  * It produces what the database RPCs return (source pages, ledger pages, feed health, the assignment report) for one
  * organization, so the golden test (AC-CAPV-002) and the bench drive the real handler through the fetch mock.
  * The ledger is served in both shapes of `purchase_capture_ledger_page`: `'all'` (every line) and `'capture'` (only the
- * capture-relevant lines, with `other_summary` on the first page). `capturePage` mirrors the SQL rule of migration 0904;
- * the pgTAP proof `2286_capture_ledger_scope.test.sql` owns that rule, this file only serves it.
+ * capture-relevant lines, with `other_summary` on the first page). `captureRelevant` and `otherSummary` model migration 0904's
+ * rule only to serve the mock; parity with the SQL is owned by the pgTAP proof `2286_capture_ledger_scope.test.sql`, not by this file.
  */
 
 export const COMPANY = 'Example';
@@ -20,7 +20,7 @@ export interface LedgerRow {
   voucher_type: string; voucher_no: string; debit: string | null; credit: string | null; document_id: string | null;
   document_purchase_id: string | null; journal_purchase_id: string | null; classification: 'mapped' | 'unmapped' | 'capital_spending' | 'unknown'; kind: string | null;
 }
-export interface OtherSummary { kind: string; count: number; total: string | null }
+export interface OtherSummary { kind: string; count: number; total: string | null; scale: number | null }
 export interface Fixture {
   binding: Record<string, unknown>;
   sources: Array<Record<string, unknown>>;
@@ -138,18 +138,21 @@ export function captureRelevant(row: LedgerRow, company = COMPANY): boolean {
 
 /** The first page's `other_summary`: each left-out kind with its count and exact net total (null when any amount is missing). */
 export function otherSummary(rows: readonly LedgerRow[]): OtherSummary[] {
-  const groups = new Map<string, { count: number; minor: bigint; unknown: boolean }>();
+  const groups = new Map<string, { count: number; minor: bigint; unknown: boolean; scale: number | null }>();
+  // min_scale: the decimals a value needs once trailing zeros are dropped (the fixture's amounts all have two places).
+  const minScale = (value: string | null) => value === null ? null : (value.split('.')[1] ?? '').replace(/0+$/, '').length;
   for (const row of rows) {
     if (captureRelevant(row)) continue;
     const key = row.kind ?? 'other';
-    const group = groups.get(key) ?? { count: 0, minor: 0n, unknown: false };
+    const group = groups.get(key) ?? { count: 0, minor: 0n, unknown: false, scale: null };
     group.count++;
+    for (const scale of [minScale(row.debit), minScale(row.credit)]) if (scale !== null) group.scale = Math.max(group.scale ?? 0, scale);
     if (row.debit === null || row.credit === null) group.unknown = true;
     else group.minor += BigInt(row.debit.replace('.', '')) - BigInt(row.credit.replace('.', ''));
     groups.set(key, group);
   }
   return [...groups.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([kind, group]) => ({ kind, count: group.count,
-    total: group.unknown ? null : money(Number(group.minor)) }));
+    total: group.unknown ? null : money(Number(group.minor)), scale: group.scale }));
 }
 
 /** One page of a sorted row list after a cursor, as the SQL pages return it (next_cursor is the page's last id when more rows follow). */

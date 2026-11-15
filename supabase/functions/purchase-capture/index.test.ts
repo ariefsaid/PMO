@@ -1033,7 +1033,7 @@ describe('#2286 the capture-scope ledger read', () => {
         const lines = (options.lines ?? []).map((extra, i) => ({ ...line, id: `gl-${i}`, ...extra }));
         if (request.p_cursor === null) return jsonResponse({ lines: lines.slice(0, 1), revision: 'gen', next_cursor: lines.length > 1 ? 'gl-0' : null, other_summary: options.summary });
         // A later page never carries a summary; a stray one is ignored.
-        return jsonResponse({ lines: lines.slice(1), revision: 'gen', next_cursor: null, other_summary: [{ kind: 'journal', count: 99, total: '99.00' }] });
+        return jsonResponse({ lines: lines.slice(1), revision: 'gen', next_cursor: null, other_summary: [{ kind: 'journal', count: 99, total: '99.00', scale: 0 }] });
       }),
       supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: options.assignments ?? [] })),
       supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD', ledger_started_at: '2026-11-13T00:00:00Z' })),
@@ -1045,7 +1045,7 @@ describe('#2286 the capture-scope ledger read', () => {
   };
 
   it('AC-CAPV-001 the preview reads the ledger in the capture scope and lists the left-out lines from the first page summary', async () => {
-    const { body, ledgerCalls } = await previewScoped({ summary: [{ kind: 'journal', count: 2, total: '2.50' }, { kind: 'supplier_payment', count: 1, total: '-40.00' }] });
+    const { body, ledgerCalls } = await previewScoped({ summary: [{ kind: 'journal', count: 2, total: '2.50', scale: 1 }, { kind: 'supplier_payment', count: 1, total: '-40.00', scale: 0 }] });
     assertEquals(ledgerCalls.map(call => call.p_scope), ['capture']);
     assertEquals(body.complete, true);
     assertEquals(body.other_unassigned, [{ kind: 'journal', count: 2, total: '2.50' }, { kind: 'supplier_payment', count: 1, total: '-40.00' }]);
@@ -1054,17 +1054,30 @@ describe('#2286 the capture-scope ledger read', () => {
     const document = { id: 'pay-1', kind: 'supplier_payment', erp_doctype: 'Payment Entry', erp_name: 'PAY-1', erp_docstatus: 1, erp_status: 'Paid', erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [], purchase_orders: [], procurement_id: null, purchase_origin: null, doc_date: null, currency: 'USD', net_total: '40.00', is_return: false, recorded_by_pmo: false };
     const { body, ledgerCalls } = await previewScoped({ sources: [document],
       lines: [{ kind: 'supplier_payment', voucher_type: 'Payment Entry', voucher_no: 'PAY-1', document_id: 'pay-1', debit: '0.00', credit: '40.00' }, { kind: 'journal', debit: '0.10', credit: '0.00' }],
-      summary: [{ kind: 'journal', count: 3, total: '0.20' }, { kind: 'other', count: 1, total: '7.00' }, { kind: 'supplier_payment', count: 2, total: '10.50' }] });
+      summary: [{ kind: 'journal', count: 3, total: '0.20', scale: 1 }, { kind: 'other', count: 1, total: '7.00', scale: 0 }, { kind: 'supplier_payment', count: 2, total: '10.50', scale: 1 }] });
     assertEquals(ledgerCalls.length, 2);
     assertEquals(body.other_unassigned, [{ kind: 'journal', count: 4, total: '0.30' }, { kind: 'other', count: 1, total: '7.00' }, { kind: 'supplier_payment', count: 3, total: '-29.50' }]);
   });
+  it('AC-CAPV-002 a summarized total finer than cents keeps the scale of its amounts, as the line-by-line total did', async () => {
+    const { body } = await previewScoped({ summary: [{ kind: 'other', count: 2, total: '1.000', scale: 3 }, { kind: 'supplier_payment', count: 1, total: '2.50', scale: 1 }] });
+    assertEquals(body.other_unassigned, [{ kind: 'other', count: 2, total: '1.000' }, { kind: 'supplier_payment', count: 1, total: '2.50' }]);
+  });
+  it('AC-CAPV-002 a summarized kind and its paged lines total at the finest scale of either', async () => {
+    const document = { id: 'pay-1', kind: 'supplier_payment', erp_doctype: 'Payment Entry', erp_name: 'PAY-1', erp_docstatus: 1, erp_status: 'Paid', erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [], purchase_orders: [], procurement_id: null, purchase_origin: null, doc_date: null, currency: 'USD', net_total: '40.00', is_return: false, recorded_by_pmo: false };
+    const coarse = await previewScoped({ sources: [document], lines: [{ kind: 'supplier_payment', voucher_type: 'Payment Entry', voucher_no: 'PAY-1', document_id: 'pay-1', debit: '0.125', credit: '0' }],
+      summary: [{ kind: 'supplier_payment', count: 1, total: '0.50', scale: 1 }] });
+    assertEquals(coarse.body.other_unassigned, [{ kind: 'supplier_payment', count: 2, total: '0.625' }]);
+    const fine = await previewScoped({ sources: [document], lines: [{ kind: 'supplier_payment', voucher_type: 'Payment Entry', voucher_no: 'PAY-1', document_id: 'pay-1', debit: '1', credit: '0' }],
+      summary: [{ kind: 'supplier_payment', count: 1, total: '0.0000', scale: 4 }] });
+    assertEquals(fine.body.other_unassigned, [{ kind: 'supplier_payment', count: 2, total: '1.0000' }]);
+  });
   it('AC-CAPV-003 a summarized kind with an unknown total stays unknown, its count still counted, and the preview completes', async () => {
-    const { body } = await previewScoped({ lines: [{ kind: 'journal', debit: '1.00', credit: '0.00' }], summary: [{ kind: 'journal', count: 4, total: null }] });
+    const { body } = await previewScoped({ lines: [{ kind: 'journal', debit: '1.00', credit: '0.00' }], summary: [{ kind: 'journal', count: 4, total: null, scale: null }] });
     assertEquals(body.complete, true);
     assertEquals(body.other_unassigned, [{ kind: 'journal', count: 5, total: null }]);
   });
   it('AC-CAPV-001 an organization whose ledger is only summarized still reads the ledger precision for its placements', async () => {
-    const { body, settingsReads, project } = await previewScoped({ summary: [{ kind: 'journal', count: 1, total: '5.00' }],
+    const { body, settingsReads, project } = await previewScoped({ summary: [{ kind: 'journal', count: 1, total: '5.00', scale: 0 }],
       assignments: [{ decision_id: 'decision-1', source_id: 'inv-9', source: 'INV-9', decision: 'project', project_id: '11111111-1111-4111-8111-111111111111', procurement_id: null, assignment_origin: 'pmo_assignment', placed: '10.00', excluded: [] }] });
     assertEquals(settingsReads, 1);
     assertEquals(body.assignments.map((item: { placedMinor: string | null }) => item.placedMinor), ['1000']);
@@ -1072,7 +1085,8 @@ describe('#2286 the capture-scope ledger read', () => {
     assertEquals(body.reports.map((report: { scope: { projectId: string } }) => report.scope.projectId), [project]);
   });
   for (const [scenario, summary] of [['not a list', { kind: 'journal' }], ['a count that is not a whole number', [{ kind: 'journal', count: 1.5, total: '1.00' }]],
-    ['a total that is not text', [{ kind: 'journal', count: 1, total: 1 }]], ['an entry without a kind', [{ count: 1, total: '1.00' }]]] as const) {
+    ['a total that is not text', [{ kind: 'journal', count: 1, total: 1, scale: 0 }]], ['an entry without a kind', [{ count: 1, total: '1.00', scale: 0 }]],
+    ['an entry without a scale', [{ kind: 'journal', count: 1, total: '1.00' }]], ['a negative scale', [{ kind: 'journal', count: 1, total: '1.00', scale: -1 }]]] as const) {
     it(`AC-CAPV-001 a summary that is ${scenario} fails the ledger read instead of dropping lines`, async () => {
       const { body } = await previewScoped({ summary });
       assertEquals(body.complete, false);
