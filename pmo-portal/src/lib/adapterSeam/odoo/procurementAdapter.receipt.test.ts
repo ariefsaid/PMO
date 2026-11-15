@@ -17,7 +17,7 @@ const CTX: OrderCtx = { companyId: 1, currencyId: 12, itemMap: ITEMS, unitMap: {
 
 type Armed = { model: string; method: string; fault: 'transport' | 'lost-response' };
 /** A confirmed order for Cable 10 and Bolt 4 on a fake Odoo, plus a way to fail the next matching call. */
-async function rig() {
+async function rig(input: OrderInput = INPUT, items: Record<string, string> = ITEMS) {
   const fake = createFakeOdoo({ key: 'k' });
   let armed: Armed | null = null;
   let answer: { model: string; method: string; body: unknown } | null = null;
@@ -31,7 +31,7 @@ async function rig() {
   }) as typeof fetch;
   const call = bindCall({ baseUrl: 'https://odoo.example.test', apiKey: 'k', database: 'db1', fetchImpl });
   const adapter = createOdooProcurementAdapter({
-    call, resolveOrder: async () => ({ input: INPUT, ctx: CTX }), resolveRevise: async () => { throw new Error('unused'); }, resolveBill: async () => { throw new Error('unused'); },
+    call, resolveOrder: async () => ({ input, ctx: { ...CTX, itemMap: items } }), resolveRevise: async () => { throw new Error('unused'); }, resolveBill: async () => { throw new Error('unused'); },
   });
   const order = await recoverOrder(call, { id: PO_ID }) ?? await adapter.commit({
     domain: 'procurement', operation: 'create', idempotencyKey: 'k-po',
@@ -40,7 +40,7 @@ async function rig() {
   const orderRef = order.externalRecordId;
   const orderId = Number(String(orderRef).split(':').pop());   // the Odoo id, whatever shape the ref has
   const orderLines = (): OrderLineQty[] => fake.rows('purchase.order.line').map((l) => ({ id: l.id, productId: Number(l.product_id), ordered: Number(l.product_qty), received: Number(l.qty_received ?? 0) }));
-  const plan = (wanted?: ReceiptLineInput[]) => planReceipt(orderId, orderLines(), wanted, ITEMS);
+  const plan = (wanted?: ReceiptLineInput[]) => planReceipt(orderId, orderLines(), wanted, items);
   const receipt = (p: ReceiptPlan, over: Partial<PmoRecord> = {}): AdapterCommand => ({
     domain: 'procurement', operation: 'create', idempotencyKey: 'k-gr',
     record: { id: GR_ID, erp_doc_kind: 'goods-receipt', procurementId: 'case-1', receiptDate: '2026-12-02', odooReceipt: p, receiptDigest: p.digest, ...over },
@@ -74,6 +74,24 @@ describe('AC-OPP-030 a receipt validates the order\'s transfer for the quantitie
     expect(result.canonical.odoo_booked).toEqual([{ lineId: lineOf(55), productId: 55, quantity: 6 }, { lineId: lineOf(56), productId: 56, quantity: 4 }]);
     expect(result.canonical.odoo_entered).toEqual([{ lineId: lineOf(55), productId: 55, quantity: 6 }, { lineId: lineOf(56), productId: 56, quantity: 4 }]);
     expect(r.fake.rows('ir.model.data').filter((d) => d.model === 'stock.picking')).toEqual([expect.objectContaining({ module: 'pmo', res_id: picking.id })]);
+  });
+});
+
+describe('#2118 a receipt sets every line\'s quantity in one write', () => {
+  const LINES = Array.from({ length: 20 }, (_, i) => ({ name: `Part ${i + 1}`, quantity: 10 + i, rate: 1 }));
+  const MANY = Object.fromEntries(LINES.map((l, i) => [l.name, String(600 + i)]));
+
+  it('AC-2118-2 a 20-line receipt sends one write (was 20) and the read-back quantities match what was entered', async () => {
+    const r = await rig({ ...INPUT, lines: LINES }, MANY);
+    const wanted = LINES.map((l, i) => ({ itemRef: l.name, quantity: i % 2 ? l.quantity : 3 }));   // half full, half partial
+    const result = await r.attempt(r.receipt(await r.plan(wanted)));
+    expect(r.count('stock.move', 'write')).toBe(0);
+    expect(r.count('stock.picking', 'write')).toBe(1);
+    expect(r.fake.calls.filter((c) => c.method === 'write')).toEqual([{ model: 'stock.picking', method: 'write' }]);
+    for (const [i, l] of LINES.entries()) expect(r.onHand(600 + i), l.name).toBe(wanted[i].quantity);
+    const lineOf = (product: number) => r.orderLines().find((l) => l.productId === product)!.id;
+    expect(result.canonical.odoo_booked).toEqual(LINES.map((_, i) => ({ lineId: lineOf(600 + i), productId: 600 + i, quantity: wanted[i].quantity })));
+    expect(result.canonical.odoo_booked).toEqual(result.canonical.odoo_entered);
   });
 });
 
@@ -235,7 +253,7 @@ describe('AC-OPP-032 a retry after a lost response books nothing twice; differen
   it('another writer changing the quantity between our write and the validate is a conflict: nothing is validated', async () => {
     const r = await rig();
     const cmd = r.receipt(await r.plan(partial));
-    r.afterNext('stock.move', 'write', () => { r.fake.rows('stock.move').find((m) => Number(m.product_id) === 55)!.quantity = 3; });
+    r.afterNext('stock.picking', 'write', () => { r.fake.rows('stock.move').find((m) => Number(m.product_id) === 55)!.quantity = 3; });
     await expect(r.attempt(cmd)).rejects.toMatchObject({ code: 'commit-rejected', message: 'receipt-conflict' });
     expect(r.count('stock.picking', 'button_validate')).toBe(0);
     expect(r.onHand(55)).toBe(0);
