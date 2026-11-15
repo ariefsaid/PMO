@@ -16,6 +16,7 @@ import { REQUEST_DEADLINE_MS } from '../../../pmo-portal/src/lib/adapterSeam/odo
 import { checkStockCapability, checkTransferOperationType } from '../../../pmo-portal/src/lib/adapterSeam/odoo/stock/capability.ts';
 import { INVENTORY_DOMAIN, createOdooStockAdapter, type StockIntentResult } from '../../../pmo-portal/src/lib/adapterSeam/odoo/stock/stockAdapter.ts';
 import { recoverStockPicking } from '../../../pmo-portal/src/lib/adapterSeam/odoo/stock/recovery.ts';
+import { plainHoldReason } from '../../../pmo-portal/src/lib/adapterSeam/odoo/stock/holdReason.ts';
 import { odooClientForOrg, type OdooClientForOrgResult } from '../_shared/odooClientForOrg.ts';
 import { withOdooCallBudget, countOdooCalls } from '../_shared/odooCallBudget.ts';
 import { resolveOdooStockMappings } from '../_shared/odooStockMappings.ts';
@@ -207,7 +208,7 @@ export async function recordStockHold(sc: SupabaseClient, orgId: string, command
     if (typeof companyId !== 'number') return;
     const written = await writeOdooStockMirror(sc, { orgId, documentId: String(command.record.id), companyId, generation: held.heldClaimGeneration }, {
       state: 'held', externalModel: null, externalId: null, completedQuantity: null, completedValue: null, currency: null, sourceWrittenAt: null,
-      exception: heldExceptionInWords(failure.message, row?.last_error).slice(0, 500),
+      exception: heldExceptionInWords(failure.message, row?.last_error, (failure as { transferReference?: string | null }).transferReference).slice(0, 500),
     });
     if (!written.ok) console.error('[adapter-dispatch] the held stock evidence was not recorded:', written.refusal);
   } catch (err) {
@@ -215,14 +216,11 @@ export async function recordStockHold(sc: SupabaseClient, orgId: string, command
   }
 }
 
-/** The dispatcher's two generic hold messages name a payment; the document says what it means for a transfer (the row's reason carries the detail). */
-export function heldExceptionInWords(message: string, lastError: unknown): string {
+/** What the document shows for a hold: one plain sentence naming the transfer. The raw cause stays in the outbox row (`last_error`) and is logged here. */
+export function heldExceptionInWords(message: string, lastError: unknown, reference?: string | null): string {
   const detail = typeof lastError === 'string' ? lastError.replace(/^recovery-probe-failed:\s*/, '').trim() : '';
-  if (message.startsWith('payment command held')) {
-    return 'Odoo shows no transfer for this document, so it cannot be told whether one was sent. Check Odoo; an Admin can release the hold.';
-  }
-  if (message.startsWith('money command held')) {
-    return `The transfer Odoo holds for this document could not be checked${detail ? `: ${detail}` : ''}. Check it in Odoo; an Admin can release the hold.`;
-  }
-  return message.trim() || 'Held for a person to check Odoo.';
+  console.error('[adapter-dispatch] stock command held:', message, detail);
+  if (message.startsWith('payment command held')) return 'Odoo shows no transfer for this document, so it cannot be told whether one was sent. Check it in Odoo.';
+  if (message.startsWith('money command held')) return 'The transfer Odoo holds for this document could not be checked. Check it in Odoo.';
+  return plainHoldReason(message, reference);
 }

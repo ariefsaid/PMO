@@ -70,4 +70,13 @@ export async function recoverStockPicking(call: OdooCall, source: StockRecoveryS
 }
 
 /** The command-held error a post-anchor refusal raises (the dispatcher holds the row and records the reason). */
-export const heldError = (message: string): AppError => new AppError(message, 'command-held');
+export const heldError = (message: string, transferReference?: string | null): AppError =>
+  Object.assign(new AppError(message, 'command-held'), { transferReference: transferReference ?? null });
+
+/** The transfer's own reference (e.g. WH/INT/00012) for a person to find it in Odoo; a failed read just leaves it out. */
+export async function transferReferenceOf(call: OdooCall, pickingId: number): Promise<string | null> {
+  try {
+    const rows = await call<Array<{ name?: unknown }>>('stock.picking', 'read', { ids: [pickingId], fields: ['name'] });
+    return typeof rows?.[0]?.name === 'string' ? rows[0].name : null;
+  } catch { return null; }
+}

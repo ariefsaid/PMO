@@ -56,9 +56,10 @@ beforeEach(() => {
 
 describe('StockDocumentDetail connected posting (AC-OSP-007)', () => {
   it('AC-OSP-007 a held document names the reason in plain words and an Admin can release it', async () => {
-    documents.erpState.mockResolvedValue({ command: { id: 'c1', state: 'held' }, mirror: { state: 'held', exception: 'Odoo needs a lot number', externalId: null, completedQuantity: null, completedValue: null, currency: null } });
+    documents.erpState.mockResolvedValue({ command: { id: 'c1', state: 'held' }, mirror: { state: 'held', exception: 'Odoo did not finish transfer WH/INT/00012: it asked to confirm a partial quantity. Check it in Odoo.', externalId: null, completedQuantity: null, completedValue: null, currency: null } });
     renderPage('Admin');
-    expect(await screen.findByText('Held in Odoo check: Odoo needs a lot number')).toBeInTheDocument();
+    expect(await screen.findByText('Odoo did not finish transfer WH/INT/00012: it asked to confirm a partial quantity. Check it in Odoo.')).toBeInTheDocument();
+    expect(screen.getByText('After checking the transfer in Odoo, release the hold so it can be posted again.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Post' })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Release hold' }));
     await userEvent.click((await screen.findAllByRole('button', { name: 'Release hold' })).at(-1)!);
@@ -68,7 +69,8 @@ describe('StockDocumentDetail connected posting (AC-OSP-007)', () => {
   it('AC-OSP-007 a non-Admin sees the hold but no release', async () => {
     documents.erpState.mockResolvedValue({ command: { id: 'c1', state: 'held' }, mirror: { state: 'held', exception: 'x', externalId: null, completedQuantity: null, completedValue: null, currency: null } });
     renderPage('Project Manager');
-    expect(await screen.findByText(/Held in Odoo check/)).toBeInTheDocument();
+    expect(await screen.findByText('Ask an Admin to check it in Odoo.')).toBeInTheDocument();
+    expect(screen.queryByText(/release the hold/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Release hold' })).not.toBeInTheDocument();
   });
 
@@ -91,5 +93,8 @@ describe('StockDocumentDetail connected posting (AC-OSP-007)', () => {
     renderPage('Admin');
     expect(await screen.findByText(/Posted from Odoo transfer stock\.picking:9/)).toBeInTheDocument();
     expect(screen.getByText(/No value change/)).toBeInTheDocument();
+    expect(screen.getByText('Stock entries for this document are kept in Odoo.')).toBeInTheDocument();
+    expect(screen.queryByText(/Nothing has been posted/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Open in the ledger' })).not.toBeInTheDocument();
   });
 });

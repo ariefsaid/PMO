@@ -15,7 +15,7 @@ import { ODOO_TIER } from '../connectAdapter.ts';
 import { odooExternalRef } from '../purchase/anchors.ts';
 import type { PmoStockIntent } from './evidence.ts';
 import { completeStockPicking, sendStockPicking } from './picking.ts';
-import { canonicalOfVerdict, heldError, judgePicking } from './recovery.ts';
+import { canonicalOfVerdict, heldError, judgePicking, transferReferenceOf } from './recovery.ts';
 import type { StockCapabilityRefusalReason } from './capability.ts';
 import type { StockMappingRefusalReason } from './mappings.ts';
 
@@ -68,14 +68,14 @@ export function createOdooStockAdapter({ call, loadIntent }: OdooStockDeps): Ada
       if (sent.outcome === 'unknown') throw new AdapterError('external-unreachable', sent.message);
 
       const done = await completeStockPicking(call, sent.pickingId, intent.lines, cmd.commitDeadlineAtMs);
-      if (done.outcome === 'held') throw heldError(done.message);
+      if (done.outcome === 'held') throw heldError(done.message, await transferReferenceOf(call, sent.pickingId));
       if (done.outcome === 'unknown') throw new AdapterError('external-unreachable', done.message);
 
       const { verdict } = await judgePicking(call, intent, sent.pickingId);
       if (verdict.state === 'confirmed') {
         return { externalRecordId: odooExternalRef('stock.picking', sent.pickingId), canonical: canonicalOfVerdict(intent, verdict) };
       }
-      throw heldError(verdict.exception ?? `Odoo does not report stock picking ${sent.pickingId} as done after validation.`);
+      throw heldError(verdict.exception ?? `Odoo does not report stock picking ${sent.pickingId} as done after validation.`, await transferReferenceOf(call, sent.pickingId));
     },
 
     // The stock ledger is Odoo's: PMO mirrors a document's evidence, never a feed of changes. A read refuses rather than answering empty.

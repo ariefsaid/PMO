@@ -299,7 +299,7 @@
     "costsFailed": "Couldn't load the line costs",
     "erp": {
       "settling": "This document is being posted in Odoo. It cannot be changed until that finishes.",
-      "held": "Held in Odoo check: {{reason}}",
+      "held": "{{reason}}",
       "heldNoReason": "Odoo needs a person to look at this transfer.",
       "release": "Release hold",
       "released": "Hold released",
@@ -309,7 +309,10 @@
       },
       "fromOdoo": "Posted from Odoo transfer {{ref}}, {{quantity}} moved.",
       "noValueChange": "No value change.",
-      "value": "Value booked: {{value}}."
+      "value": "Value booked: {{value}}.",
+      "heldAdmin": "After checking the transfer in Odoo, release the hold so it can be posted again.",
+      "heldOther": "Ask an Admin to check it in Odoo.",
+      "entriesInOdoo": "Stock entries for this document are kept in Odoo."
     }
   },
   "ledger": {

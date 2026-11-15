@@ -71,6 +71,8 @@ const StockDocumentDetail: React.FC = () => {
   const settling = ['pending', 'committing', 'quarantined', 'committed'].includes(command?.state ?? '');
 
   const d = doc.data;
+  const postedFromOdoo = d?.status === 'Posted' && evidence?.state === 'confirmed';
+  const awaitingEvidence = connected && d?.status === 'Posted' && erp.isPending;
   const isKeeper = (keepers.data ?? []).some((k) => k.warehouse_id === d?.warehouse_id && k.user_id === me);
   const record = { kind: d?.kind, status: d?.status, created_by: d?.created_by, isKeeper, viewOnly: realRole !== effectiveRole };
   const ctx = { currentUserId: me, record };
@@ -190,6 +192,7 @@ const StockDocumentDetail: React.FC = () => {
       {d && (
         <div className="space-y-4">
           <RecordHeader
+            className="!mb-4"
             name={<span className="font-mono">{d.number}</span>}
             meta={`${t(`kinds.${d.kind}`)} · ${formatDay(d.occurred_on)}`}
             status={<StatusPill record="stockDocument" state={d.status} />}
@@ -204,11 +207,12 @@ const StockDocumentDetail: React.FC = () => {
           {d.status === 'Draft' && settling && <p role="status" className="rounded-md border border-border bg-muted px-3 py-2 text-sm">{t('detail.erp.settling')}</p>}
           {d.status === 'Draft' && held && (
             <div role="alert" className="space-y-2 rounded-md border border-warning/40 bg-warning/12 px-3 py-2 text-sm text-warning-foreground">
-              <p>{t('detail.erp.held', { reason: evidence?.exception ?? t('detail.erp.heldNoReason') })}</p>
+              <p>{evidence?.exception ?? t('detail.erp.heldNoReason')}</p>
+              <p>{canRelease ? t('detail.erp.heldAdmin') : t('detail.erp.heldOther')}</p>
               {canRelease && command && <Button variant="outline" size="sm" loading={m.releaseHold.isPending} onClick={() => setConfirmRelease(true)}>{t('detail.erp.release')}</Button>}
             </div>
           )}
-          {d.status === 'Posted' && evidence?.state === 'confirmed' && (
+          {postedFromOdoo && (
             <p role="status" className="rounded-md border border-border bg-muted px-3 py-2 text-sm">
               {t('detail.erp.fromOdoo', { ref: evidence.externalId ?? '', quantity: formatQuantity(evidence.completedQuantity ?? '0', loc) })}{' '}
               {d.kind === 'transfer' || Number(evidence.completedValue ?? 0) === 0
@@ -251,9 +255,10 @@ const StockDocumentDetail: React.FC = () => {
             <h2 id="entries-h" className="mb-2 text-group font-semibold">{t('detail.entries')}</h2>
             {entries.isError && <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={() => void entries.refetch()} />}
             {entries.isPending && <ListState variant="loading" rows={2} />}
-            {!entries.isPending && !entries.isError && entryRows.length === 0 && <p className="text-sm text-muted-foreground">{t('detail.noEntries')}</p>}
+            {postedFromOdoo && <p className="text-sm text-muted-foreground">{t('detail.erp.entriesInOdoo')}</p>}
+            {!postedFromOdoo && !awaitingEvidence && !entries.isPending && !entries.isError && entryRows.length === 0 && <p className="text-sm text-muted-foreground">{t('detail.noEntries')}</p>}
             {entryRows.length > 0 && <DataTable<StockLedgerRow> rows={entryRows} columns={entryCols} rowKey={(r) => String(r.seq)} tableId="stock-document-entries" accessibleName={t('detail.entries')} embedded />}
-            {d.status === 'Posted' && <p className="mt-2 text-sm"><Link className="underline" to={`/stock/ledger?document=${d.id}`}>{t('detail.openInLedger')}</Link></p>}
+            {d.status === 'Posted' && !postedFromOdoo && !awaitingEvidence && <p className="mt-2 text-sm"><Link className="underline" to={`/stock/ledger?document=${d.id}`}>{t('detail.openInLedger')}</Link></p>}
           </section>
         </div>
       )}

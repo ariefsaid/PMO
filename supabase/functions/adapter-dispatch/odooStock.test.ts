@@ -237,9 +237,11 @@ describe('AC-OSP-007 a hold writes its reason on the document evidence at the ge
     });
   });
 
-  it('a hold carries the adapter\'s own plain message through', () => {
-    assertEquals(heldExceptionInWords('Validation of stock picking 4 needs the wizard "stock.backorder.confirmation". Manual intervention required in Odoo.', null),
-      'Validation of stock picking 4 needs the wizard "stock.backorder.confirmation". Manual intervention required in Odoo.');
+  it('a hold is one plain sentence naming the transfer; the wizard name and the picking id never reach the page', () => {
+    const raw = 'Validation of stock picking 4 needs the wizard "stock.backorder.confirmation". Manual intervention required in Odoo.';
+    assertEquals(heldExceptionInWords(raw, null, 'WH/INT/00012'), 'Odoo did not finish transfer WH/INT/00012: it asked to confirm a partial quantity. Check it in Odoo.');
+    assertEquals(heldExceptionInWords('something new', null), 'Odoo needs a manual check of this transfer.');
+    assert(!heldExceptionInWords(raw, null).includes('stock.backorder'));
   });
 });
 

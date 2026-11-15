@@ -299,7 +299,7 @@
     "costsFailed": "Gagal memuat biaya per baris",
     "erp": {
       "settling": "Dokumen ini sedang diposting di Odoo. Tidak dapat diubah sampai selesai.",
-      "held": "Ditahan untuk diperiksa di Odoo: {{reason}}",
+      "held": "{{reason}}",
       "heldNoReason": "Odoo memerlukan orang untuk memeriksa transfer ini.",
       "release": "Lepas tahanan",
       "released": "Tahanan dilepas",
@@ -309,7 +309,10 @@
       },
       "fromOdoo": "Diposting dari transfer Odoo {{ref}}, {{quantity}} dipindahkan.",
       "noValueChange": "Tidak ada perubahan nilai.",
-      "value": "Nilai tercatat: {{value}}."
+      "value": "Nilai tercatat: {{value}}.",
+      "heldAdmin": "Setelah memeriksa transfer di Odoo, lepas tahanan agar dapat diposting lagi.",
+      "heldOther": "Minta Admin memeriksanya di Odoo.",
+      "entriesInOdoo": "Entri stok untuk dokumen ini disimpan di Odoo."
     }
   },
   "ledger": {
