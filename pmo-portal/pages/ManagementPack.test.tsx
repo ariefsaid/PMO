@@ -6,14 +6,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ManagementPack } from '@/src/lib/reports/managementPack';
 
-const state = vi.hoisted(() => ({ pack: null as ManagementPack | null }));
+const state = vi.hoisted(() => ({ pack: null as ManagementPack | null, deliveryArgs: [] as string[][] }));
 
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: null }) }));
 vi.mock('@/src/hooks/useManagementPack', () => ({
   useManagementPack: () => ({ data: state.pack, isPending: false, isError: false, error: null, refetch: vi.fn() }),
 }));
-vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectsDelivery: () => ({ data: {} }) }));
+vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectsDelivery: (ids: string[]) => { state.deliveryArgs.push(ids); return { data: {} }; } }));
 vi.mock('@/src/components/export/useExport', () => ({ useExport: () => ({ exportTable: vi.fn(), busy: false }) }));
 vi.mock('@/src/components/reports/RecordProgressModal', () => ({ RecordProgressModal: () => null }));
 
@@ -37,7 +37,7 @@ const report = (): ManagementPack => ({
   undatedInvoiceCount: 0,
 });
 
-beforeEach(() => { state.pack = report(); });
+beforeEach(() => { state.pack = report(); state.deliveryArgs = []; });
 
 const renderPage = () => {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -49,6 +49,14 @@ const renderPage = () => {
 };
 
 describe('Management pack money display (#1260, #1437)', () => {
+  it('#2109 reads no delivery until the Record progress modal opens', () => {
+    const pack = report();
+    state.pack = { ...pack, rows: pack.rows.map((row) => ({ ...row, projectId: 'p1', projectName: 'Alpha' })) };
+    render(<QueryClientProvider client={new QueryClient()}><MemoryRouter><ManagementPackPage /></MemoryRouter></QueryClientProvider>);
+    expect(state.deliveryArgs.length).toBeGreaterThan(0);
+    expect(state.deliveryArgs.every((ids) => ids.length === 0)).toBe(true);
+  });
+
   it('AC-MONEY-DISPLAY: keeps unknown backlog separate from known zero unbilled and links to invoice review in Why', async () => {
     renderPage();
 

@@ -173,7 +173,8 @@ const DETAIL_SELECT = [
   // The DecisionSupportPanel sources committed spend via useProjectCommittedSpend (the
   // honest Σ-PO-in-Ordered..Paid basis, OD-W5-4) — NOT the static projects.budget/spent
   // columns (0 in seed, contradict the dashboards). Include the human PMO number for tax evidence.
-  'project:projects(name,short_name,code,pmo_project_number)',
+  'project:projects(name,short_name,code,pmo_project_number,project_manager_id)',
+  // project_manager_id: the PM-scope check on the record page reads it from here, not from a second project read (#2107; UX scope only, RLS stays the authority).
   'vendor:companies(name)',
   'requested_by:profiles!procurements_requested_by_id_fkey(full_name)',
   'approved_by:profiles!procurements_approved_by_id_fkey(full_name)',
