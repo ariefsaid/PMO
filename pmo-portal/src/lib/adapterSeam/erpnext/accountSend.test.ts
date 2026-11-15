@@ -65,11 +65,12 @@ describe('AC-ECX-030 ERPNext account send, against the bed fixtures', () => {
     expect(e.seen.filter((r) => r.method === 'POST')).toHaveLength(1);
   });
 
-  it('a 409 duplicate whose account is a group, of another company, or outside the expense root is refused in plain words', async () => {
+  it('a 409 duplicate whose account is a group, of another company, outside the expense root or disabled is refused in plain words', async () => {
     const group = asDoc('is_group=1 create');
     const otherCompany = { status: 200, response: { data: { ...docOf('create full (accept)'), company: 'Other Co' } } };
     const asset = { status: 200, response: { data: { ...docOf('create full (accept)'), root_type: 'Asset' } } };
-    for (const existing of [group, otherCompany, asset]) {
+    const disabled = { status: 200, response: { data: { ...docOf('create full (accept)'), disabled: 1 } } };
+    for (const existing of [group, otherCompany, asset, disabled]) {
       const e = erp({ lookup: recorded('lookup (absent)'), create: recorded('create duplicate different case'), doc: { 'probe direct cost a - EPC': existing } });
       await expect(send(e.adapter, 'probe direct cost a')).rejects.toMatchObject({
         code: 'commit-rejected', message: 'The ERP already has an account named probe direct cost a that cannot hold direct costs. Choose another name.',

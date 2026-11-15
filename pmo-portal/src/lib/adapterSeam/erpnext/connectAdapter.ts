@@ -55,11 +55,11 @@ function accountRequest(record: PmoMaster): { name: string; parent: string } {
   return { name, parent };
 }
 
-/** An account the ERP already holds is used only when it can hold direct costs: a leaf of the bound company under the expense root.
- *  Answers the ERP's own name for it, as the ERP reads it back, or null when it is not usable. */
+/** An account the ERP already holds is used only when it can hold direct costs: an enabled leaf of the bound company under the
+ *  expense root. Answers the ERP's own name for it, as the ERP reads it back, or null when it is not usable. */
 async function readUsableAccount(client: ErpClientDeps, company: string, erpName: string): Promise<string | null> {
   const doc = (await getDoc(client, 'Account', erpName)) as Record<string, unknown> | null;
-  const usable = doc && doc.company === company && Number(doc.is_group) === 0 && doc.root_type === 'Expense' && doc.name;
+  const usable = doc && doc.company === company && Number(doc.is_group) === 0 && doc.root_type === 'Expense' && Number(doc.disabled) !== 1 && doc.name;
   return usable ? String(doc.name) : null;
 }
 
