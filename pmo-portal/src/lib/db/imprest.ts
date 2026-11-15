@@ -28,14 +28,21 @@ const bounded = <T>(rows: T[] | null): Bounded<T> =>
 const fail = (error: { message: string; code?: string } | null): void => { if (error) throw new AppError(error.message, error.code); };
 
 /** One page of active floats, newest first (#843): no cursor is the first page; a cursor reads the rows strictly after it. */
-export async function listFloats(cursor?: CreatedAtCursor): Promise<Bounded<ImprestFloatRow & { project: { name: string } | null; custodian: { full_name: string } | null }>> {
+/** The Site cash list's page (#843, NFR-PAGE-002): 50 rows per read plus one sentinel row that only signals a further page. */
+export const FLOAT_PAGE_SIZE = 50;
+/** The list's own columns (FR-PAGE-004): exactly what the Site cash screen and the keyset cursor read. */
+const FLOAT_LIST_COLUMNS = 'id, currency, float_amount, created_at, project:projects(name), custodian:profiles!imprest_floats_custodian_id_fkey(full_name)';
+export type ImprestFloatListRow = Pick<ImprestFloatRow, 'id' | 'currency' | 'float_amount' | 'created_at'>
+  & { project: { name: string } | null; custodian: { full_name: string } | null };
+export async function listFloats(cursor?: CreatedAtCursor): Promise<Bounded<ImprestFloatListRow>> {
   let q = supabase.from('imprest_floats')
-    .select('*, project:projects(name), custodian:profiles!imprest_floats_custodian_id_fkey(full_name)')
+    .select(FLOAT_LIST_COLUMNS)
     .is('archived_at', null);
   if (cursor) q = q.or(afterCreatedAt(cursor));
-  const { data, error } = await q.order('created_at', { ascending: false }).order('id', { ascending: false }).limit(LIST_LIMIT + 1);
+  const { data, error } = await q.order('created_at', { ascending: false }).order('id', { ascending: false }).limit(FLOAT_PAGE_SIZE + 1);
   fail(error);
-  return bounded(data);
+  const rows = (data ?? []) as unknown as ImprestFloatListRow[];
+  return { rows: rows.slice(0, FLOAT_PAGE_SIZE), truncated: rows.length > FLOAT_PAGE_SIZE };
 }
 /** Exact count of active floats — the "of y" in "Showing x of y" (#843). A head count: no rows are fetched. */
 export async function countFloats(): Promise<number | undefined> {

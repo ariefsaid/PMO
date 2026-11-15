@@ -42,7 +42,7 @@ export function useExpenseClaimPages(filters: ExpenseClaimFilters = {}) {
   const orgId = useOrgId();
   const pages = useInfiniteQuery({
     queryKey: ['expense-claims', orgId, filters, 'pages'],
-    queryFn: ({ pageParam }) => repositories.expenseClaim.list(filters, pageParam),
+    queryFn: ({ pageParam }) => repositories.expenseClaim.page(filters, pageParam),
     initialPageParam: undefined as CreatedAtCursor | undefined,
     getNextPageParam: (lastPage) => cursorAfter(lastPage),
     enabled: Boolean(orgId),

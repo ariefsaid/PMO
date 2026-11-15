@@ -1,5 +1,6 @@
 /** Expense claim, receipt and posting repository contracts (#775). */
 import type {
+  ExpenseClaimListRow,
   ExpenseClaimWithRefs,
   ExpenseClaimLineRow,
   ExpenseClaimFilters,
@@ -22,8 +23,9 @@ import type { ExpenseAccountMapRow, ExpensePostingRow } from '../expensePostings
  * RPC — collapsing any pair would hide a control behind a convenience.
  */
 export interface ExpenseClaimRepository {
-  /** One page, newest first; a cursor reads the page after it (#843). */
-  list(filters?: ExpenseClaimFilters, cursor?: CreatedAtCursor): Promise<{ rows: ExpenseClaimWithRefs[]; truncated: boolean }>;
+  list(filters?: ExpenseClaimFilters): Promise<{ rows: ExpenseClaimWithRefs[]; truncated: boolean }>;
+  /** One 50-row page of the Expenses screen, newest first; a cursor reads the page after it (#843). */
+  page(filters?: ExpenseClaimFilters, cursor?: CreatedAtCursor): Promise<{ rows: ExpenseClaimListRow[]; truncated: boolean }>;
   /** Exact count for the same filters — the "of y" in "Showing x of y" (#843). */
   count(filters?: ExpenseClaimFilters): Promise<number | undefined>;
   get(id: string): Promise<ExpenseClaimWithRefs | null>;

@@ -11,7 +11,7 @@ import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { formatCurrency } from '@/src/lib/format';
 import {
   type BudgetCategory, type ExpenseClaimFilters, type ExpenseClaimStatus,
-  type ExpenseClaimWithRefs, type ExpenseKind,
+  type ExpenseClaimListRow, type ExpenseKind,
 } from '@/src/lib/db/expenseClaims';
 import { ExpenseClaimFormModal } from './expenses/ExpenseClaimFormModal';
 import { AdvanceAgingCard } from './expenses/AdvanceAgingCard';
@@ -48,7 +48,9 @@ const ExpenseClaims: React.FC = () => {
     }),
     [status, kind, category],
   );
-  const { data, total, isPending, isError, refetch, hasNextPage, isFetchingNextPage, fetchNextPage } = useExpenseClaimPages(filters);
+  const { data, total, isPending, isError, isFetchNextPageError, refetch, hasNextPage, isFetchingNextPage, fetchNextPage } = useExpenseClaimPages(filters);
+  // FR-PAGE-022: a failed further page keeps the loaded rows; only a failed first read replaces the list.
+  const listFailed = (isError && !isFetchNextPageError) || !data;
   const projectChoices = useProjectChoices();
   const { create } = useExpenseClaimMutations();
   const ownAdvances = useOwnAdvanceOptions();
@@ -70,7 +72,7 @@ const ExpenseClaims: React.FC = () => {
     ...Constants.public.Enums.budget_category.map((c) => ({ value: c, label: budgetCategoryLabel(c, t) })),
   ];
 
-  const columns: Column<ExpenseClaimWithRefs>[] = [
+  const columns: Column<ExpenseClaimListRow>[] = [
     { key: 'claim_number', header: t('expenses.columns.number', 'Number'),
       cell: (r) => <span className="whitespace-nowrap font-medium">{r.claim_number ?? '—'}</span>,
       exportValue: (r) => r.claim_number ?? '' },
@@ -116,7 +118,7 @@ const ExpenseClaims: React.FC = () => {
     >
       <AdvanceAgingCard />
       {isPending && <ListState variant="loading" shape="table" columns={6} rows={6} />}
-      {!isPending && (isError || !data) && (
+      {!isPending && listFailed && (
         <ListState
           variant="error"
           title={t('expenses.states.errorTitle', "Couldn't load expenses")}
@@ -124,7 +126,7 @@ const ExpenseClaims: React.FC = () => {
           onRetry={() => void refetch()}
         />
       )}
-      {!isPending && !isError && data && (
+      {!isPending && !listFailed && data && (
         <>
           {(rows ?? []).length === 0 ? (
             <Card clip>
@@ -148,7 +150,7 @@ const ExpenseClaims: React.FC = () => {
               />
             </Card>
           ) : (
-            <DataTable<ExpenseClaimWithRefs>
+            <DataTable<ExpenseClaimListRow>
               rows={rows ?? []}
               columns={columns}
               rowKey={(r) => r.id}
@@ -161,6 +163,16 @@ const ExpenseClaims: React.FC = () => {
               onLoadMore={() => void fetchNextPage()}
               loadMoreLabel={t('expenseClaims:list.loadMore', 'Load more')}
             />
+          )}
+          {isFetchNextPageError && (
+            <div className="mt-3">
+              <ListState
+                variant="error"
+                title={t('expenseClaims:list.loadMoreFailed', "Couldn't load more expenses")}
+                sub={t('expenses.states.errorSub', 'The request failed. Check your connection and try again.')}
+                onRetry={() => void fetchNextPage()}
+              />
+            </div>
           )}
         </>
       )}

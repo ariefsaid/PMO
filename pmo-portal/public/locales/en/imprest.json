@@ -139,6 +139,7 @@
     "error": "Couldn't load site cash floats",
     "errorSub": "The request failed. Check your connection and try again.",
     "loadMore": "Load more",
+    "loadMoreFailed": "Couldn't load more site cash floats",
     "positionUnavailable": "Unavailable",
     "rowLabel": "Open {{project}}",
     "title": "Site cash"

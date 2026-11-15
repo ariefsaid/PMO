@@ -86,8 +86,8 @@ const h = vi.hoisted(() => {
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
 import {
-  listExpenseClaims, countExpenseClaims, listExpenseClaimLines, createExpenseClaim, updateExpenseClaim, removeExpenseLine, transitionExpenseClaim,
-  getExpenseClaimRoutes, getExpenseAdvanceAging, getExpenseAdvanceAgingTotals, recordExpenseAdvanceReturn, EXPENSE_LIST_LIMIT,
+  listExpenseClaims, listExpenseClaimsPage, countExpenseClaims, listExpenseClaimLines, createExpenseClaim, updateExpenseClaim, removeExpenseLine, transitionExpenseClaim,
+  getExpenseClaimRoutes, getExpenseAdvanceAging, getExpenseAdvanceAgingTotals, recordExpenseAdvanceReturn, EXPENSE_LIST_LIMIT, EXPENSE_PAGE_SIZE,
 } from './expenseClaims';
 
 beforeEach(() => {
@@ -147,19 +147,36 @@ describe('AC-EXP-050 list', () => {
     expect(out.rows).toHaveLength(EXPENSE_LIST_LIMIT);
     expect(out.truncated).toBe(true);
   });
+  it('NFR-PAGE-002 the Expenses page reads 50 rows + 1 sentinel and reports a further page', async () => {
+    h.result.value = { data: Array.from({ length: 51 }, (_, i) => ({ id: String(i) })), error: null };
+    const out = await listExpenseClaimsPage();
+    expect(EXPENSE_PAGE_SIZE).toBe(50);
+    expect(h.calls.range).toEqual([[0, 50]]);
+    expect(out.rows).toHaveLength(50);
+    expect(out.truncated).toBe(true);
+  });
+  it('FR-PAGE-004 the Expenses page selects named columns only, never *, and still embeds claimant and project', async () => {
+    h.result.value = { data: [], error: null };
+    await listExpenseClaimsPage();
+    const select = String(h.calls.select[0]);
+    expect(select).not.toContain('*');
+    expect(select).not.toContain('org_id');
+    expect(select).toContain('claimant:profiles!expense_claims_claimant_id_fkey(full_name)');
+    expect(select).toContain('project:projects(name,short_name)');
+  });
   it('AC-PAGE-003 a cursor reads only the rows after it, keyset on (created_at, id), with the same filters', async () => {
     h.result.value = { data: [{ id: 'old' }], error: null };
     const cursor = { createdAt: '2026-01-01T00:00:00.123456+00:00', id: 'c200' };
-    const out = await listExpenseClaims({ status: 'Approved' }, cursor);
+    const out = await listExpenseClaimsPage({ status: 'Approved' }, cursor);
     expect(h.calls.eq).toEqual([['status', 'Approved']]);
     expect(h.calls.or).toEqual([`created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.c200)`]);
     expect(h.calls.order).toEqual([['created_at', { ascending: false }], ['id', { ascending: false }]]);
-    expect(h.calls.range).toEqual([[0, EXPENSE_LIST_LIMIT]]);
+    expect(h.calls.range).toEqual([[0, EXPENSE_PAGE_SIZE]]);
     expect(out.truncated).toBe(false);
   });
   it('AC-PAGE-003 the first page sends no keyset filter', async () => {
     h.result.value = { data: [], error: null };
-    await listExpenseClaims();
+    await listExpenseClaimsPage();
     expect(h.calls.or).toEqual([]);
   });
   it('AC-PAGE-012 the count is a head count over the same filters as the list', async () => {

@@ -139,6 +139,7 @@
     "error": "Gagal memuat kas lapangan",
     "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
     "loadMore": "Muat lebih banyak",
+    "loadMoreFailed": "Gagal memuat kas lapangan berikutnya",
     "positionUnavailable": "Tidak tersedia",
     "rowLabel": "Buka {{project}}",
     "title": "Kas lapangan"

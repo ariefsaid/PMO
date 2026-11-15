@@ -84,9 +84,17 @@ export interface ExpenseAdvanceAgingRow {
 }
 
 export const EXPENSE_LIST_LIMIT = 200;
+/** The Expenses list's page (#843, NFR-PAGE-002). */
+export const EXPENSE_PAGE_SIZE = 50;
 export const AGING_LIMIT = 500;
 
 const SELECT = '*, rejecter:profiles!expense_claims_rejected_by_fkey(full_name), claimant:profiles!expense_claims_claimant_id_fkey(full_name), project:projects(name,short_name), float:imprest_floats(currency)';
+
+/** The Expenses screen's own columns (FR-PAGE-004): its table cells plus the keyset cursor. */
+const LIST_COLUMNS = 'id, claim_number, kind, title, budget_category, amount, currency, status, created_at, claimant:profiles!expense_claims_claimant_id_fkey(full_name), project:projects(name,short_name)';
+export type ExpenseClaimListRow = Pick<ExpenseClaimRow, 'id' | 'claim_number' | 'kind' | 'title'
+  | 'budget_category' | 'amount' | 'currency' | 'status' | 'created_at'>
+  & { claimant: { full_name: string } | null; project: { name: string; short_name?: string | null } | null };
 
 interface PostgrestErrorLike { message: string; code?: string }
 function throwWrite(error: PostgrestErrorLike): never {
@@ -106,24 +114,38 @@ function applyFilters<Q extends { eq: (column: string, value: string) => Q }>(q:
   return out;
 }
 
-/**
- * One page of the claims list, newest first (#843). Without a cursor it is the first page; with one, the rows
- * strictly after it (keyset `created_at desc, id desc`). `truncated` means a further page exists.
- */
+/** The non-paged list (inbox, Engineer home, New claim): the newest 200 with a truncation flag. */
 export async function listExpenseClaims(
   filters: ExpenseClaimFilters = {},
-  cursor?: CreatedAtCursor,
 ): Promise<{ rows: ExpenseClaimWithRefs[]; truncated: boolean }> {
-  let q = applyFilters(supabase.from('expense_claims').select(SELECT), filters);
-  if (cursor) q = q.or(afterCreatedAt(cursor));
   // range is inclusive: 0..LIMIT reads LIMIT + 1 rows, the extra one only to detect truncation.
-  const { data, error } = await q
+  const { data, error } = await applyFilters(supabase.from('expense_claims').select(SELECT), filters)
     .order('created_at', { ascending: false })
     .order('id', { ascending: false })
     .range(0, EXPENSE_LIST_LIMIT);
   if (error) throwWrite(error);
   const rows = ((data ?? []) as unknown as ExpenseClaimWithRefs[]).map(normalizeDecision);
   return { rows: rows.slice(0, EXPENSE_LIST_LIMIT), truncated: rows.length > EXPENSE_LIST_LIMIT };
+}
+
+/**
+ * One page of the Expenses screen, newest first (#843): 50 rows (NFR-PAGE-002) over the list's own columns
+ * (FR-PAGE-004). Without a cursor it is the first page; with one, the rows strictly after it (keyset
+ * `created_at desc, id desc`). `truncated` means a further page exists.
+ */
+export async function listExpenseClaimsPage(
+  filters: ExpenseClaimFilters = {},
+  cursor?: CreatedAtCursor,
+): Promise<{ rows: ExpenseClaimListRow[]; truncated: boolean }> {
+  let q = applyFilters(supabase.from('expense_claims').select(LIST_COLUMNS), filters);
+  if (cursor) q = q.or(afterCreatedAt(cursor));
+  const { data, error } = await q
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .range(0, EXPENSE_PAGE_SIZE);
+  if (error) throwWrite(error);
+  const rows = (data ?? []) as unknown as ExpenseClaimListRow[];
+  return { rows: rows.slice(0, EXPENSE_PAGE_SIZE), truncated: rows.length > EXPENSE_PAGE_SIZE };
 }
 
 /** Exact count for the same filters as the list — the "of y" in "Showing x of y" (#843). A head count: no rows. */

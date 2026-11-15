@@ -102,13 +102,22 @@ describe('AC-IMP-080 RPC writes', () => {
 });
 
 describe('AC-IMP-080 reads', () => {
-  it('AC-IMP-080 listFloats is bounded at 200 + 1 and reports truncated', async () => {
-    h.result.value = { data: Array.from({ length: 201 }, (_, i) => ({ id: String(i) })), error: null };
+  it('AC-IMP-080 listFloats reads a 50-row page + 1 sentinel (NFR-PAGE-002) and reports truncated', async () => {
+    h.result.value = { data: Array.from({ length: 51 }, (_, i) => ({ id: String(i) })), error: null };
     const r = await dal.listFloats();
-    expect(r.rows).toHaveLength(200);
+    expect(dal.FLOAT_PAGE_SIZE).toBe(50);
+    expect(r.rows).toHaveLength(50);
     expect(r.truncated).toBe(true);
-    expect(h.calls.limit).toEqual([201]);
+    expect(h.calls.limit).toEqual([51]);
     expect(String(h.calls.select[0])).toContain('profiles!imprest_floats_custodian_id_fkey');
+  });
+  it('FR-PAGE-004 listFloats selects named columns only, never *', async () => {
+    h.result.value = { data: [], error: null };
+    await dal.listFloats();
+    const select = String(h.calls.select[0]);
+    expect(select).not.toContain('*');
+    expect(select).not.toContain('org_id');
+    expect(select).toMatch(/^id, currency, float_amount, created_at, project:projects\(name\), custodian:/);
   });
   it('AC-PAGE-003 listFloats orders by (created_at, id) and a cursor reads only the floats after it', async () => {
     h.result.value = { data: [{ id: 'f0' }], error: null };
@@ -118,7 +127,7 @@ describe('AC-IMP-080 reads', () => {
     const cursor = { createdAt: '2026-01-01T00:00:00.5+00:00', id: 'f200' };
     const r = await dal.listFloats(cursor);
     expect(h.calls.or).toEqual([`created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.f200)`]);
-    expect(h.calls.limit).toEqual([201, 201]);
+    expect(h.calls.limit).toEqual([51, 51]);
     expect(r).toEqual({ rows: [{ id: 'f0' }], truncated: false });
   });
   it('AC-PAGE-012 countFloats is a head count of active floats', async () => {

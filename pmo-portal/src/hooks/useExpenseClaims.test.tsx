@@ -7,7 +7,7 @@ const { expenseClaim } = vi.hoisted(() => ({
   expenseClaim: {
     list: vi.fn(), get: vi.fn(), lines: vi.fn(), create: vi.fn(), update: vi.fn(), addLine: vi.fn(),
     updateLine: vi.fn(), removeLine: vi.fn(), transition: vi.fn(), recordReturn: vi.fn(), outstanding: vi.fn(),
-    routes: vi.fn(), aging: vi.fn(), agingTotals: vi.fn(), count: vi.fn(),
+    routes: vi.fn(), aging: vi.fn(), agingTotals: vi.fn(), count: vi.fn(), page: vi.fn(),
   },
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { expenseClaim } }));
@@ -24,6 +24,7 @@ const fresh = () => new QueryClient({ defaultOptions: { queries: { retry: false 
 beforeEach(() => {
   for (const fn of Object.values(expenseClaim)) fn.mockReset();
   expenseClaim.list.mockResolvedValue({ rows: [{ id: 'c1', status: 'Submitted' }], truncated: false });
+  expenseClaim.page.mockResolvedValue({ rows: [{ id: 'c1', status: 'Submitted' }], truncated: false });
   expenseClaim.routes.mockResolvedValue([{ claimId: 'c1', route: 'flat', reason: 'no_project', approvers: [] }]);
   expenseClaim.transition.mockResolvedValue(undefined);
 });
@@ -31,17 +32,17 @@ beforeEach(() => {
 describe('AC-PAGE-024 useExpenseClaimPages', () => {
   it('AC-PAGE-024 asks for the next page after the last row and carries the server total', async () => {
     const last = { id: 'c2', created_at: '2026-01-02T00:00:00.000001+00:00' };
-    expenseClaim.list
+    expenseClaim.page
       .mockResolvedValueOnce({ rows: [{ id: 'c3', created_at: '2026-01-03T00:00:00+00:00' }, last], truncated: true })
       .mockResolvedValueOnce({ rows: [{ id: 'c1', created_at: '2026-01-01T00:00:00+00:00' }], truncated: false });
     expenseClaim.count.mockResolvedValue(3);
     const { result } = renderHook(() => useExpenseClaimPages({ status: 'Approved' }), { wrapper: wrap(fresh()) });
     await waitFor(() => expect(result.current.total).toBe(3));
-    expect(expenseClaim.list).toHaveBeenNthCalledWith(1, { status: 'Approved' }, undefined);
+    expect(expenseClaim.page).toHaveBeenNthCalledWith(1, { status: 'Approved' }, undefined);
     expect(expenseClaim.count).toHaveBeenCalledWith({ status: 'Approved' });
     expect(result.current.hasNextPage).toBe(true);
     await act(async () => { await result.current.fetchNextPage(); });
-    expect(expenseClaim.list).toHaveBeenNthCalledWith(2, { status: 'Approved' }, { createdAt: last.created_at, id: 'c2' });
+    expect(expenseClaim.page).toHaveBeenNthCalledWith(2, { status: 'Approved' }, { createdAt: last.created_at, id: 'c2' });
     await waitFor(() => expect(result.current.hasNextPage).toBe(false));
     expect(result.current.data?.pages.flatMap((p) => p.rows.map((r) => r.id))).toEqual(['c3', 'c2', 'c1']);
   });

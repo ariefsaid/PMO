@@ -4,7 +4,8 @@
   },
   "list": {
     "filteredEmptyTitle": "Tidak ada biaya yang cocok dengan filter ini",
-    "loadMore": "Muat lebih banyak"
+    "loadMore": "Muat lebih banyak",
+    "loadMoreFailed": "Gagal memuat biaya berikutnya"
   },
   "new": {
     "validation": "Isi judul dan lengkapi setiap rincian pengeluaran yang mulai Anda isi.",

@@ -9,13 +9,13 @@ import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useImprestFloatPages, useImprestPosition, useEstablishFloat } from '@/src/hooks/useImprest';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useUsers } from '@/src/hooks/useUsers';
-import type { ImprestFloatRow } from '@/src/lib/db/imprest';
+import type { ImprestFloatListRow } from '@/src/lib/db/imprest';
 import { booksState, toCents } from '@/src/lib/imprest/imprestRules';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency, parseMoneyInputAtScale } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 
-type FloatListRow = ImprestFloatRow & { project: { name: string } | null; custodian: { full_name: string } | null };
+type FloatListRow = ImprestFloatListRow;
 type Figure = 'cash_book' | 'advances_out' | 'receipts_waiting' | 'gap' | 'count';
 
 /** One figure of one float's position. A failed or pending read shows text, never a zero (money-path primer). */
@@ -123,7 +123,9 @@ const EstablishFloatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
 const ImprestFloatsPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { data, total, isPending, isError, refetch, hasNextPage, isFetchingNextPage, fetchNextPage } = useImprestFloatPages();
+  const { data, total, isPending, isError, isFetchNextPageError, refetch, hasNextPage, isFetchingNextPage, fetchNextPage } = useImprestFloatPages();
+  // FR-PAGE-022: a failed further page keeps the loaded rows; only a failed first read replaces the list.
+  const listFailed = (isError && !isFetchNextPageError) || !data;
   const [establishOpen, setEstablishOpen] = useState(false);
   const may = usePermission();
   const rows = data?.pages.flatMap((page) => page.rows) ?? [];
@@ -152,11 +154,11 @@ const ImprestFloatsPage: React.FC = () => {
       </CanWrite>}
     >
       {isPending && <ListState variant="loading" shape="table" rows={4} />}
-      {!isPending && (isError || !data) && (
+      {!isPending && listFailed && (
         <ListState variant="error" title={t('imprest:list.error', "Couldn't load site cash floats")}
           sub={t('imprest:list.errorSub', 'The request failed. Check your connection and try again.')} onRetry={() => void refetch()} />
       )}
-      {!isPending && !isError && data && (
+      {!isPending && !listFailed && data && (
         <>
           <DataTable<FloatListRow> rows={rows} columns={columns} rowKey={(r) => r.id}
             onActivate={(r) => navigate(`/imprest/${r.id}`)}
@@ -171,6 +173,12 @@ const ImprestFloatsPage: React.FC = () => {
             isLoadingMore={isFetchingNextPage}
             onLoadMore={() => void fetchNextPage()}
             loadMoreLabel={t('imprest:list.loadMore', 'Load more')} />
+          {isFetchNextPageError && (
+            <div className="mt-3">
+              <ListState variant="error" title={t('imprest:list.loadMoreFailed', "Couldn't load more site cash floats")}
+                sub={t('imprest:list.errorSub', 'The request failed. Check your connection and try again.')} onRetry={() => void fetchNextPage()} />
+            </div>
+          )}
         </>
       )}
       {establishOpen && <EstablishFloatModal onClose={() => setEstablishOpen(false)} />}

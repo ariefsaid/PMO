@@ -4,7 +4,8 @@
   },
   "list": {
     "filteredEmptyTitle": "No expenses match these filters",
-    "loadMore": "Load more"
+    "loadMore": "Load more",
+    "loadMoreFailed": "Couldn't load more expenses"
   },
   "new": {
     "validation": "Enter a title and complete any expense line you start.",
