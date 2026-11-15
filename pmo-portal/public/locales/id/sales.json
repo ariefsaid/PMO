@@ -14,11 +14,23 @@
       "23505": "Data lain sudah memakai salah satu nilai ini. Ubah nilainya lalu coba lagi.",
       "23503": "Data lain masih merujuk ke data ini. Hapus atau alihkan rujukan itu terlebih dahulu, atau arsipkan saja.",
       "23514": "Perubahan ini bertentangan dengan status dokumen saat ini. Muat ulang lalu coba lagi.",
-      "42501": "Peran Anda tidak mengizinkan perubahan ini. Hubungi administrator jika menurut Anda seharusnya boleh."
+      "42501": "Peran Anda tidak mengizinkan perubahan ini. Hubungi administrator jika menurut Anda seharusnya boleh.",
+      "illegalTransition": "Proyek ini tidak dapat dipindahkan ke status tersebut dari status saat ini.",
+      "reasonRequired": "Pilih alasan sebelum menandai kesepakatan sebagai kalah atau ditolak.",
+      "noteRequired": "Tambahkan catatan jika alasannya Lainnya.",
+      "noteTooLong": "Catatan dibatasi hingga 500 karakter.",
+      "contractRequired": "Masukkan referensi dan tanggal kontrak pelanggan untuk memenangkan kesepakatan ini.",
+      "valueNoAuthor": "Nilai kontrak tidak memiliki pencatat. Minta atasan Anda menetapkan nilainya, atau memenangkan kesepakatan ini.",
+      "valueSetterGone": "Nilai kontrak ditetapkan oleh orang yang bukan lagi anggota aktif. Minta atasan Anda menetapkannya kembali, atau memenangkan kesepakatan ini.",
+      "valueNotSenior": "Nilai kontrak harus dikonfirmasi oleh atasan Anda atau yang lebih senior. Minta mereka mengonfirmasinya, atau memenangkan kesepakatan ini.",
+      "generic": "Status tidak dapat diubah. Muat ulang lalu coba lagi."
     },
     "updated": "Proyek diperbarui",
     "movedForward": "Dipindahkan ke {{status}}",
-    "movedBack": "Dipindahkan kembali ke {{status}}"
+    "movedBack": "Dipindahkan kembali ke {{status}}",
+    "moveTo": "Pindahkan ke",
+    "change": "Ubah status",
+    "saving": "Menyimpan…"
   },
   "getShort": "Get",
   "column": {

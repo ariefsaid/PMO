@@ -158,6 +158,16 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(screen.getByRole('button', { name: 'Open Beta Ltd' })).toBeInTheDocument();
   });
 
+  it('#2130: an activatable mobile row takes a colour press; a read-only row does not', () => {
+    mockViewport(false);
+    const { rerender } = render(
+      <DataTable rows={rows} columns={columns} rowKey={(r) => r.id} onActivate={vi.fn()} rowLabel={(r) => `Open ${r.name}`} />,
+    );
+    expect(screen.getAllByRole('listitem')[0]).toHaveClass('active:bg-surface-pressed');
+    rerender(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
+    expect(screen.getAllByRole('listitem')[0]).not.toHaveClass('active:bg-surface-pressed');
+  });
+
   // ── Card anatomy ─────────────────────────────────────────────────────────
 
   it('each row produces an <li> in the card branch (one per row)', () => {

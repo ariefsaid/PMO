@@ -14,11 +14,23 @@
       "23505": "Another record already uses one of these values. Change it and try again.",
       "23503": "Another record still refers to this one. Remove or reassign those references first, or archive it instead.",
       "23514": "This change conflicts with the current document state. Refresh and try again.",
-      "42501": "Your role does not allow this change. Ask an administrator if you think it should."
+      "42501": "Your role does not allow this change. Ask an administrator if you think it should.",
+      "illegalTransition": "This project cannot move to that status from where it is now.",
+      "reasonRequired": "Choose a reason before marking a deal lost or declined.",
+      "noteRequired": "Add a note when the reason is Other.",
+      "noteTooLong": "The note is limited to 500 characters.",
+      "contractRequired": "Enter the customer contract reference and date to win this deal.",
+      "valueNoAuthor": "The contract value has no recorded author. Ask your supervisor to set the value, or to win the deal.",
+      "valueSetterGone": "The contract value was set by someone who is no longer an active member. Ask your supervisor to set it again, or to win the deal.",
+      "valueNotSenior": "The contract value must be confirmed by your supervisor or someone more senior. Ask them to confirm it, or to win the deal.",
+      "generic": "The status could not be changed. Refresh and try again."
     },
     "updated": "Project updated",
     "movedForward": "Moved to {{status}}",
-    "movedBack": "Moved back to {{status}}"
+    "movedBack": "Moved back to {{status}}",
+    "moveTo": "Move to",
+    "change": "Change status",
+    "saving": "Saving…"
   },
   "getShort": "Get",
   "column": {

@@ -144,7 +144,7 @@ describe('ProjectStatusControl - Lost Reason (AC-LR-010)', () => {
     });
   });
 
-  it('AC-LR-010 / AC-LR-013: server error path toasts Status change failed with the server message', async () => {
+  it('AC-LR-010 / AC-LR-013: server error path toasts Status change failed with the translated refusal', async () => {
     const user = userEvent.setup();
     mockMutateAsync.mockRejectedValue(new Error('P0001: a reason is required when a deal is lost or declined'));
 
@@ -159,7 +159,7 @@ describe('ProjectStatusControl - Lost Reason (AC-LR-010)', () => {
     await waitFor(() => {
       const toastEl = screen.getByRole('alert');
       expect(toastEl).toHaveTextContent(/Status change failed/i);
-      expect(toastEl).toHaveTextContent(/a reason is required/i);
+      expect(toastEl).toHaveTextContent(/Choose a reason before marking a deal lost/i);
     });
   });
 });

@@ -345,7 +345,7 @@ export const AppShell: React.FC<AppShellProps> = ({
           {/* Scrim — desaturated near-black, low alpha (No-Pure-Black-Shadow Rule). */}
           <div
             data-testid="drawer-scrim"
-            className="absolute inset-0 bg-[hsl(var(--scrim)/0.4)]"
+            className="confirm-scrim-anim absolute inset-0 bg-[hsl(var(--scrim)/0.4)]"
             onClick={handleClose}
             aria-hidden
           />
@@ -357,7 +357,7 @@ export const AppShell: React.FC<AppShellProps> = ({
             aria-modal="true"
             aria-label={t('shell.drawer.navigationMenu', 'Navigation menu')}
             className={cn(
-              'absolute inset-y-0 left-0 flex w-[224px] flex-col bg-card shadow-xl',
+              'drawer-left-anim motion-reduce:animate-none absolute inset-y-0 left-0 flex w-[224px] flex-col bg-card shadow-xl',
               // C3: safe-area-inset-left/top so the drawer clears notch/home-bar.
               'safe-area-drawer',
             )}

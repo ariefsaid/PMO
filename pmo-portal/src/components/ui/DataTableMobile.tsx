@@ -144,7 +144,7 @@ export function DataTableMobile<Row>({
               data-record-row=""
               className={cn(
                 'relative flex min-h-[var(--table-row-min-height)] flex-col gap-2 p-[var(--table-cell-inset)] text-control transition-colors',
-                onActivate && 'cursor-pointer',
+                onActivate && 'cursor-pointer active:bg-surface-pressed',
                 selected && 'bg-surface-selected'
               )}
             >

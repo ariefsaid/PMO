@@ -21,6 +21,7 @@ import { render, screen, act, waitFor, fireEvent, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
+import { readFileSync } from 'node:fs';
 import { AppShell } from '../AppShell';
 import { Breadcrumb } from '../Breadcrumb';
 import { BackBar } from '../BackBar';
@@ -94,6 +95,19 @@ describe('AC-IXD-MOBILE-W4-C3 C3-2/C3-5: drawer a11y and scrim-close', () => {
     const scrim = screen.getByTestId('drawer-scrim');
     await userEvent.click(scrim);
     expect(onCloseRail).toHaveBeenCalled();
+  });
+
+  it('#2130: the drawer slides in from the left with a fading scrim, and is still under reduced motion', () => {
+    wrap(
+      <AppShell rail={<div>nav</div>} header={null} railOpen onCloseRail={vi.fn()}>
+        <div>x</div>
+      </AppShell>
+    );
+    expect(screen.getByRole('dialog')).toHaveClass('drawer-left-anim', 'motion-reduce:animate-none');
+    expect(screen.getByTestId('drawer-scrim')).toHaveClass('confirm-scrim-anim');
+    const css = readFileSync('index.css', 'utf8');
+    expect(css).toContain('@keyframes drawerLeftIn { from { transform: translateX(-100%); }');
+    expect(css.slice(css.indexOf('Every #1970 animation is off'))).toContain('.drawer-left-anim');
   });
 });
 

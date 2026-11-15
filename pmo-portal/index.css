@@ -650,6 +650,10 @@
 .drawer-sheet[data-ending-style] { transition-duration: var(--motion-drawer-out); }
 .drawer-sheet[data-swiping] { transition-duration: 0ms; }
 
+/* Phone navigation drawer slides in from the left (entrance only; instant under reduced motion). */
+.drawer-left-anim { animation: drawerLeftIn var(--motion-drawer-in) var(--ease-out); }
+@keyframes drawerLeftIn { from { transform: translateX(-100%); } to { transform: none; } }
+
 /* ---------- Exits (#1970): ~20% shorter than the entrance, same transform/opacity only.
    Base UI dialogs wait for [data-ending-style]; hand-rolled overlays use [data-closing]
    (useExitPresence). Pointer events off so a closing overlay never eats a click. */
@@ -701,7 +705,7 @@
   .confirm-anim[data-ending-style], .confirm-anim[data-closing],
   .confirm-scrim-anim[data-ending-style], .confirm-scrim-anim[data-closing],
   .confirm-sheet-anim[data-ending-style],
-  .menu-pop-anim, .save-pulse::after, .icon-swap-in, .icon-swap-out { animation: none; }
+  .menu-pop-anim, .drawer-left-anim, .save-pulse::after, .icon-swap-in, .icon-swap-out { animation: none; }
   .save-pulse::after { display: none; }
   .icon-swap-out { display: none; }
 }

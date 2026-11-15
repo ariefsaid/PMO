@@ -200,7 +200,7 @@ describe('ProjectStatusControl', () => {
     } as unknown as ReturnType<typeof useProjectTransition>);
 
     renderControl(negotiationProject);
-    expect(screen.getByText(/illegal transition P0001/i)).toBeInTheDocument();
+    expect(screen.getByText(/cannot move to that status/i)).toBeInTheDocument();
   });
 
   it('#1682: the inline error shows the same plain copy as the toast, never the raw database message', () => {

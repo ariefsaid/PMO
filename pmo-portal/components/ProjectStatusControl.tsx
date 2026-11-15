@@ -24,6 +24,18 @@ interface ProjectStatusControlProps {
   triggerSize?: 'sm' | 'default';
 }
 
+/** The refusals `transition_project` raises itself (P0001 / the contract-value witness), by message. */
+const SERVER_REFUSALS: Array<[RegExp, string, string]> = [
+  [/^illegal transition/i, 'illegalTransition', 'This project cannot move to that status from where it is now.'],
+  [/a reason is required when a deal is lost/i, 'reasonRequired', 'Choose a reason before marking a deal lost or declined.'],
+  [/a note is required when the reason is other/i, 'noteRequired', 'Add a note when the reason is Other.'],
+  [/the note is limited to 500 characters/i, 'noteTooLong', 'The note is limited to 500 characters.'],
+  [/customer contract ref and date are required to win/i, 'contractRequired', 'Enter the customer contract reference and date to win this deal.'],
+  [/contract value has no recorded author/i, 'valueNoAuthor', 'The contract value has no recorded author. Ask your supervisor to set the value, or to win the deal.'],
+  [/no longer an active member/i, 'valueSetterGone', 'The contract value was set by someone who is no longer an active member. Ask your supervisor to set it again, or to win the deal.'],
+  [/not set by anyone senior to you/i, 'valueNotSenior', 'The contract value must be confirmed by your supervisor or someone more senior. Ask them to confirm it, or to win the deal.'],
+];
+
 /** A win is offered only after the server has checked the current actor and value witness. */
 const WinTarget: React.FC<{ eligibility: ReturnType<typeof useProjectWinEligibility>; onSelect: () => void }> = ({ eligibility, onSelect }) => {
   const { t } = useTranslation();
@@ -57,12 +69,22 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
   const { toast } = useToast();
   // One plain-language line for both the toast and the inline alert (#1682). Copy the app writes
   // itself passes through; the families Postgres writes get a translated line (#1684).
-  const failureDetail = (err: unknown): string => {
-    const { detail, rawDetail } = classifyMutationError(err);
+  // Capture the analytics event once per failure (at the call that handles the rejection); the inline
+  // alert re-renders and must not log again (#1682 review F1).
+  const failureDetail = (err: unknown, capture = false): string => {
+    const { detail, rawDetail } = classifyMutationError(err, undefined, {
+      module: 'projects',
+      operation: 'update',
+      suppressCapture: !capture,
+    });
     const code = (err as { code?: unknown } | null)?.code;
     if (typeof code === 'string' && detail !== rawDetail && ['23505', '23503', '23514', '42501'].includes(code)) {
       return t(`sales:statusChange.error.${code}`, detail);
     }
+    // The status RPC's own refusals are English server text: map the known ones, never show the rest raw.
+    const known = SERVER_REFUSALS.find(([re]) => re.test(rawDetail));
+    if (known) return t(`sales:statusChange.error.${known[1]}`, known[2]);
+    if (detail === rawDetail) return t('sales:statusChange.error.generic', 'The status could not be changed. Refresh and try again.');
     return detail;
   };
 
@@ -128,6 +150,17 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
     };
   }, [open]);
 
+  // Capture once per failure: the confirm path logs in its own catch; a failure of the inline win form
+  // (no catch there) is logged here, once per distinct error object.
+  const capturedErrorRef = useRef<unknown>(null);
+  useEffect(() => {
+    const err = mutation.error;
+    if (!err || capturedErrorRef.current === err) return;
+    capturedErrorRef.current = err;
+    failureDetail(err, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mutation.error]);
+
   // Cosmetic gate on the REAL role (ADR-0016): hide for non-write roles. The RPC
   // is the real authority — gating on realRole keeps the affordance honest under
   // Admin impersonation (the banner explains the view-as state).
@@ -169,8 +202,9 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
         'success',
       );
     } catch (err) {
+      capturedErrorRef.current = err;
       setConfirmTarget(null);
-      toast(t('boardDrag:statusChangeFailed', 'Status change failed'), failureDetail(err), 'warning');
+      toast(t('boardDrag:statusChangeFailed', 'Status change failed'), failureDetail(err, true), 'warning');
     }
   };
 
@@ -215,11 +249,11 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
           size={triggerSize}
           onClick={(e) => { setInstant(e.detail === 0); setOpen(true); }}
           disabled={mutation.isPending}
-          aria-label="Change status"
+          aria-label={t('sales:statusChange.change', 'Change status')}
           aria-haspopup="true"
           aria-expanded={false}
         >
-          {mutation.isPending ? 'Saving…' : 'Change status'}
+          {mutation.isPending ? t('sales:statusChange.saving', 'Saving…') : t('sales:statusChange.change', 'Change status')}
         </Button>
       )}
 
@@ -227,7 +261,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
       {open && !pendingTarget && (
         <div ref={popoverRef} data-instant={instant || undefined} className="menu-pop-anim motion-reduce:animate-none [--menu-origin:top_right] absolute right-0 z-20 mt-1 min-w-[180px] rounded-lg border border-border bg-popover p-[5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
           <p className="px-2.5 pb-1 pt-1.5 text-sm font-semibold text-muted-foreground">
-            Move to
+            {t('sales:statusChange.moveTo', 'Move to')}
           </p>
           {legalTargets.map(target => target === 'Won, Pending KoM' ? (
             <WinTarget key={target} eligibility={winEligibility} onSelect={() => handleTargetSelect(target)} />
