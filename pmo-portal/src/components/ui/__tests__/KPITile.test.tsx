@@ -21,6 +21,20 @@ describe('KPITile', () => {
     expect(screen.getByTestId('kpi-x').className).not.toContain('hover:shadow-');
   });
 
+  it('layout rule 15: the figure is one unbreakable line, plain tile and link tile alike', () => {
+    render(
+      <MemoryRouter>
+        <KPITile icon="dollar" tone="blue" label="Plain" value="US$1.000.000" />
+        <KPITile icon="dollar" tone="blue" label="Linked" value="US$2.000.000" to="/x" />
+      </MemoryRouter>,
+    );
+    for (const text of ['US$1.000.000', 'US$2.000.000']) {
+      const box = screen.getByText(text).closest('.tabular') as HTMLElement;
+      expect(box.className).toContain('whitespace-nowrap');
+      expect(box.className).not.toMatch(/break-(words|all)/);
+    }
+  });
+
   it('AC-RD-MONEY-001: shows the short figure; the exact amount is the hover title and the screen-reader text, read once', () => {
     render(<KPITile icon="dollar" tone="blue" label="Pipeline" value="$1.2M" exactValue="$1,200,000" />);
     const figure = screen.getByText('$1.2M');
@@ -47,11 +61,11 @@ describe('KPITile', () => {
     expect(reason.closest('a')).toBeNull();
   });
 
-  it('AC-RD-GEOM-001 (unit): the figure can shrink and wrap instead of crossing the card edge', () => {
+  it('AC-RD-GEOM-001 (unit): the figure box can shrink inside the card, and the number stays on one line (rule 15)', () => {
     render(<KPITile icon="dollar" tone="blue" label="Pipeline" value="$1.2M" exactValue="$1,200,000" />);
     const box = screen.getByText('$1.2M').parentElement!;
     expect(box.className).toContain('min-w-0');
-    expect(box.className).toContain('break-words');
+    expect(box.className).toContain('whitespace-nowrap');
   });
 
   it('RD-077: the help "?" is not dimmed below the 3:1 non-text contrast floor', () => {

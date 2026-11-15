@@ -28,8 +28,14 @@ export interface ConsumptionAllowanceRow extends ConsumptionKey {
   id: string; plannedQuantity: string; netToDate: string; variance: string; overAllowance: boolean;
 }
 export interface ConsumptionUnplannedRow extends ConsumptionKey { netToDate: string }
+/** #2282: material issued in Odoo whose cost is in the project's actuals but which has no single work item (no PMO document, or two lines
+ *  of one item). `value` only for a member with the stock cost permission. */
+export interface ConsumptionErpUnattributedRow {
+  pickingRef: string; postingDate: string; tieState: 'no-document' | 'ambiguous'; quantity: string; stockDocumentId: string | null; value?: string;
+}
 export interface ProjectConsumption {
   from: string; to: string; months: ConsumptionMonthRow[]; allowances: ConsumptionAllowanceRow[]; unplanned: ConsumptionUnplannedRow[];
+  erpUnattributed: ConsumptionErpUnattributedRow[];
 }
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -110,5 +116,10 @@ export async function getProjectConsumption(projectId: string, from: string, to:
       ...mapKey(r), id: r.id, plannedQuantity: r.planned_quantity, netToDate: r.net_to_date, variance: r.variance, overAllowance: r.over_allowance === true,
     })),
     unplanned: (d.unplanned as Json[]).map((r) => ({ ...mapKey(r), netToDate: r.net_to_date })),
+    erpUnattributed: ((d.erp_unattributed as Json[] | undefined) ?? []).map((r) => {
+      const out: Json = { pickingRef: r.picking_ref, postingDate: r.posting_date, tieState: r.tie_state, quantity: r.quantity, stockDocumentId: r.stock_document_id ?? null };
+      optional(r, 'value', 'value', out);
+      return out as ConsumptionErpUnattributedRow;
+    }),
   };
 }
