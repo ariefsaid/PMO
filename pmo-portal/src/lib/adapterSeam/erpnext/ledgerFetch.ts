@@ -216,6 +216,34 @@ export const GL_ENTRY_DOCTYPE = 'GL Entry';
 export const PAYMENT_LEDGER_ENTRY_DOCTYPE = 'Payment Ledger Entry';
 export const LEDGER_MIRROR_DOCTYPES: readonly string[] = [GL_ENTRY_DOCTYPE, PAYMENT_LEDGER_ENTRY_DOCTYPE];
 
+const JOURNAL_ENTRY_DOCTYPE = 'Journal Entry';
+/** Journal names per batched read — keeps the request URL well under proxy limits. */
+const JOURNAL_REMARK_CHUNK = 100;
+
+/**
+ * Newer ERPNext 16 minors write empty GL `remarks` for journals while the Journal Entry still holds
+ * `user_remark` (v15 copied it onto the ledger row). For journal rows whose remarks are empty, read the
+ * reference from the Journal Entry: one batched `name in [...]` list read per chunk of distinct journals
+ * on the page — never one request per row. Rows that already carry remarks are left untouched.
+ */
+async function journalRemarks(client: ErpClientDeps, names: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  for (let i = 0; i < names.length; i += JOURNAL_REMARK_CHUNK) {
+    const chunk = names.slice(i, i + JOURNAL_REMARK_CHUNK);
+    const path = `/api/resource/${encodeURIComponent(JOURNAL_ENTRY_DOCTYPE)}?filters=${encodeURIComponent(JSON.stringify([['name', 'in', chunk]]))}&fields=${encodeURIComponent(JSON.stringify(['name', 'user_remark']))}&limit_page_length=${chunk.length}`;
+    const body = await erpnextRequest(client, { method: 'GET', path });
+    const data = isRecord(body) ? body.data : undefined;
+    if (!Array.isArray(data)) throw malformedLedgerResponse();
+    for (const j of data) {
+      if (isRecord(j) && typeof j.name === 'string') {
+        const remark = str(j.user_remark);
+        if (remark !== null) out.set(j.name, remark);
+      }
+    }
+  }
+  return out;
+}
+
 /** `GET /api/resource/GL Entry` — mirrored GL Entry truth (FR-ENA-150). Pure fetch; never persists. */
 export async function fetchGlEntries(client: ErpClientDeps, opts: LedgerFetchOpts): Promise<LedgerFetchResult<GlEntryRow>> {
   // OD-INT-6: fail loud on missing Company (config-rejected) instead of silently filtering ['company','=',null]
@@ -229,10 +257,17 @@ export async function fetchGlEntries(client: ErpClientDeps, opts: LedgerFetchOpt
   const pageSize = opts.pageSize ?? DEFAULT_PAGE_SIZE;
   const maxPages = opts.maxPages ?? DEFAULT_MAX_PAGES;
   const result = await fetchAllPages(client, GL_ENTRY_DOCTYPE, scopeFilters(opts), opts.since, GL_FIELDS, pageSize, maxPages, 'ledger_decimal_text');
+  const needJournal = [...new Set(
+    result.rows
+      .filter((r) => r.voucher_type === JOURNAL_ENTRY_DOCTYPE && str(r.remarks) === null && str(r.voucher_no) !== null)
+      .map((r) => String(r.voucher_no)),
+  )];
+  const fromJournal = needJournal.length > 0 ? await journalRemarks(client, needJournal) : new Map<string, string>();
   return {
     ...result,
     rows: result.rows.map((r) => {
       const docstatus = docstatusOf(r.docstatus);
+      const rowRemarks = str(r.remarks);
       return {
         name: String(r.name),
         company: String(r.company ?? opts.company),
@@ -250,7 +285,7 @@ export async function fetchGlEntries(client: ErpClientDeps, opts: LedgerFetchOpt
         is_cancelled: Boolean(r.is_cancelled) || docstatus === 2,
         is_opening: r.is_opening === 'Yes' || r.is_opening === 'No' ? r.is_opening : null,
         finance_book: str(r.finance_book),
-        remarks: str(r.remarks),
+        remarks: rowRemarks ?? (r.voucher_type === JOURNAL_ENTRY_DOCTYPE ? fromJournal.get(String(r.voucher_no)) ?? null : null),
         docstatus,
         modified: String(r.modified),
       };

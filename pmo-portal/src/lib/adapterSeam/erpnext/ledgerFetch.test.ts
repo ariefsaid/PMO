@@ -92,6 +92,41 @@ describe('erpnext/ledgerFetch — fetchGlEntries', () => {
     expect(rows.map((r) => [r.name, r.is_cancelled])).toEqual([['GLE-ORIG', true], ['GLE-REV', true], ['GLE-LIVE', false]]);
   });
 
+  it('#2356 remarks only on the journal: empty row remarks are filled from the Journal Entry user_remark in ONE batched read; same reference as the row-remarks shape', async () => {
+    const urls: string[] = [];
+    const gl = (extra: Record<string, unknown>) => ({ account: 'A', debit: '1', credit: '0', modified: '2026-10-07', docstatus: 1, voucher_type: 'Journal Entry', ...extra });
+    const fetchImpl = async (url: string) => {
+      urls.push(url);
+      if (url.includes('/api/resource/Journal%20Entry')) {
+        return jsonResponse({ data: [{ name: 'JV-1', user_remark: 'Vendor X inv 12' }, { name: 'JV-2', user_remark: null }] });
+      }
+      return jsonResponse({ data: [
+        gl({ name: 'G1', voucher_no: 'JV-1', remarks: '' }),
+        gl({ name: 'G2', voucher_no: 'JV-1', remarks: null }),
+        gl({ name: 'G3', voucher_no: 'JV-2', remarks: '' }),
+        gl({ name: 'G4', voucher_no: 'JV-9', remarks: 'Note: kept', modified: '2026-10-08' }),
+        gl({ name: 'G5', voucher_no: 'PI-1', voucher_type: 'Purchase Invoice', remarks: '', modified: '2026-10-09' }),
+      ] });
+    };
+    const { rows } = await fetchGlEntries(client(fetchImpl), { company: 'Acme' });
+    expect(rows.map((r) => r.remarks)).toEqual(['Vendor X inv 12', 'Vendor X inv 12', null, 'Note: kept', null]);
+    const je = urls.filter((u) => u.includes('/api/resource/Journal%20Entry'));
+    expect(je).toHaveLength(1);
+    expect(decodeURIComponent(je[0])).toContain('["JV-1","JV-2"]');
+    expect(decodeURIComponent(je[0])).toContain('user_remark');
+  });
+
+  it('#2356 rows that already carry remarks trigger no Journal Entry read', async () => {
+    const urls: string[] = [];
+    const fetchImpl = async (url: string) => {
+      urls.push(url);
+      return jsonResponse({ data: [{ name: 'G1', account: 'A', modified: '2026-10-07', voucher_type: 'Journal Entry', voucher_no: 'JV-1', remarks: 'Note: x', docstatus: 1 }] });
+    };
+    const { rows } = await fetchGlEntries(client(fetchImpl), { company: 'Acme' });
+    expect(rows[0].remarks).toBe('Note: x');
+    expect(urls.some((u) => u.includes('Journal%20Entry'))).toBe(false);
+  });
+
   it('AC-JEC-013: the GL request asks for remarks and a fetched row keeps it', async () => {
     let fields: string[] = [];
     const fetchImpl = async (url: string | URL | Request) => {
