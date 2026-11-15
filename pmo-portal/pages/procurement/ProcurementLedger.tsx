@@ -37,6 +37,8 @@ import { LedgerCaptureRow } from './LedgerCaptureRow';
 import { LedgerFileCell } from './LedgerFileCell';
 import { WithholdingBreakdown } from './WithholdingBreakdown';
 import { OdooOutcome } from '@/src/components/procurement/OdooOutcome';
+import { LedgerDateLine } from '@/src/components/revenue/LedgerDateLine';
+import { movedLedgerDate } from '@/src/lib/revenue/ledgerDate';
 import { odooOutcome } from '@/src/lib/procurement/odooOutcome';
 import type { RecordKind, StagedRecord } from './RecordCaptureForm';
 import type { TFunction } from 'i18next';
@@ -121,7 +123,7 @@ const OdooRowStatus: React.FC<{ row: LedgerRow }> = ({ row }) => {
   return (
     <div className="inline-flex flex-col items-start gap-1">
       <StatusPill variant={row.statusVariant}>{row.status}</StatusPill>
-      {outcome && <OdooOutcome outcome={outcome} quiet />}
+      {outcome && <OdooOutcome outcome={outcome} quiet ledgerDate={facts.erpPostingDate && movedLedgerDate(row.date, facts.erpPostingDate) ? { sent: row.date.slice(0, 10), posted: facts.erpPostingDate } : null} />}
       {facts.paymentView === 'awaiting-odoo' && <span data-testid="odoo-payment-awaiting" className="text-sm text-muted-foreground">{t('procurement:odoo.paymentAwaiting', 'Payment sent, awaiting Odoo')}</span>}
       {facts.booked !== null && (
         <span data-testid="odoo-quantities" className="text-sm text-muted-foreground tabular-nums">
@@ -140,6 +142,8 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
     cell: (row) => (
       <span className="text-sm text-muted-foreground">
         {formatBusinessDate(row.date)}
+        {/* #2290: a bill or payment the ledger posted on another date shows that date under the entered one. */}
+        {(row.type === 'Invoice' || row.type === 'Payment') && <LedgerDateLine entered={row.date} posted={row.odoo?.erpPostingDate} />}
       </span>
     ),
   },

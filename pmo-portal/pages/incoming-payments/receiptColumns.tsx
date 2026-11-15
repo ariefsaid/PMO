@@ -9,6 +9,7 @@ import { incomingPaymentStatusVariant, salesInvoiceStatusVariant } from '@/src/l
 import { receiptNumber } from '@/src/lib/revenue/nativeInvoice';
 import { displayAllocations, knownUnappliedCash } from '@/src/lib/revenue/receiptAllocation';
 import { OdooReceiptStatus } from './OdooReceiptStatus';
+import { LedgerDateLine } from '@/src/components/revenue/LedgerDateLine';
 
 /** Status filter segments. "Received"/"Cancelled" are how a PMO receipt reads (I-5): it is recorded as received, never
  *  Scheduled, and a cancelled one keeps its row (DD-NAR-10). */
@@ -133,7 +134,10 @@ export function receiptColumns({ t, embedded, location, invoiceNumberById, odoo 
       key: 'date',
       header: t('financeCopy.date', "Date"),
       kind: 'date',
-      cell: (p) => (p.date ? formatDateOnly(p.date) : '—'),
+      // #2290: a receipt the ledger posted on another date shows that date under the entered one.
+      cell: (p) => (p.erp_posting_date
+        ? <span className="inline-flex flex-col">{p.date ? formatDateOnly(p.date) : '—'}<LedgerDateLine entered={p.date} posted={p.erp_posting_date} /></span>
+        : (p.date ? formatDateOnly(p.date) : '—')),
       exportValue: (p) => p.date ?? '',
     },
     {

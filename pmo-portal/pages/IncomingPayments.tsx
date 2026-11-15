@@ -48,6 +48,7 @@ import { IncomingPaymentFormModal } from './incoming-payments/IncomingPaymentFor
 import { ApplyReceiptForm } from './incoming-payments/ApplyReceiptForm';
 import { ReceiptRecord } from './incoming-payments/ReceiptRecord';
 import { BulkBar } from '@/src/components/finance/receivables/BulkBar';
+import { LedgerDateLine } from '@/src/components/revenue/LedgerDateLine';
 
 interface IncomingPaymentsProps {
   embedded?: boolean;
@@ -402,6 +403,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
               <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                 {odoo ? <OdooReceiptStatus receipt={payment} fallback={fallbackStatus} /> : fallbackStatus}
                 <span className="shrink-0 text-control text-muted-foreground">{payment.date ? formatDay(payment.date) : '—'}</span>
+                <LedgerDateLine entered={payment.date} posted={payment.erp_posting_date} className="shrink-0 text-control text-muted-foreground" />
               </div>
               <span className="shrink-0 text-right text-control tabular">
                 <span>{receivedAmount == null ? '—' : formatCurrency(receivedAmount, payment.currency)}</span>

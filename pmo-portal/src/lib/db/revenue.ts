@@ -137,6 +137,8 @@ export interface IncomingPaymentRow {
   erp_modified: string | null;
   erp_amended_from: string | null;
   erp_cancelled_at: string | null;
+  /** #2290 (0883): the date the ledger posted the receipt on, when Odoo moved it from `date` (a locked period). */
+  erp_posting_date?: string | null;
   created_at: string;
   /** #784 (DD-NAR-2): a receipt recorded in PMO against a PMO invoice. */
   pmo_native?: boolean;

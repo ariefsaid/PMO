@@ -136,12 +136,14 @@ export interface OdooRowFacts {
   erpReadAt: string | null;
   booked: number | null;
   entered: number | null;
+  /** #2290 (0883): the date the ledger posted a bill or payment on, as Odoo says it; null when unknown. */
+  erpPostingDate: string | null;
   /** A bill only (FR-OPP-046/054): Paid, payment sent and awaiting Odoo's next read, or unpaid. */
   paymentView?: 'paid' | 'awaiting-odoo' | 'unpaid';
 }
 
 interface OdooMirrorColumns {
-  erp_state?: string | null; erp_attention?: string | null; erp_read_at?: string | null;
+  erp_state?: string | null; erp_attention?: string | null; erp_read_at?: string | null; erp_posting_date?: string | null;
   odoo_booked?: unknown; odoo_entered?: unknown;
 }
 
@@ -151,9 +153,10 @@ const sumQuantities = (list: unknown): number | null => {
 };
 
 function odooFacts(rec: OdooMirrorColumns): OdooRowFacts | undefined {
-  if (rec.erp_state == null && rec.erp_attention == null) return undefined;
+  if (rec.erp_state == null && rec.erp_attention == null && rec.erp_posting_date == null) return undefined;
   return {
     erpState: rec.erp_state ?? null, erpAttention: rec.erp_attention ?? null, erpReadAt: rec.erp_read_at ?? null,
+    erpPostingDate: rec.erp_posting_date ?? null,
     booked: sumQuantities(rec.odoo_booked), entered: sumQuantities(rec.odoo_entered),
   };
 }
