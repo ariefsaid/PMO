@@ -1104,6 +1104,19 @@ describe('ProjectBudget Active version actions', () => {
     expect(mockArchive).toHaveBeenCalledWith({ versionId: 'v-active', cancelErp: false });
   });
 
+  it('#2091 a failed archive read says what to do next and never shows the transport text', async () => {
+    budgetState.data = 4700000;
+    versionsState.data = [activeVersion];
+    mockListArchiveTargets.mockRejectedValue(new TypeError('Failed to fetch'));
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
+
+    expect(await findToastAnnouncement('alert', /Check your connection and try again/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Failed to fetch/i)).not.toBeInTheDocument();
+  });
+
   it('keeps the archive decision open when cancellation is refused so the operator can archive without it', async () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion];

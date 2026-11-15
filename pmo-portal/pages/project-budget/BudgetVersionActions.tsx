@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { budgetActionFailure } from './budgetActionFailure';
 import { Button, Checkbox, ConfirmDialog, ReasonDialog, Toolbar, useToast } from '@/src/components/ui';
 import { useBudgetArchiveTargets, useBudgetMutations, useBudgetActivationPrecheck } from '@/src/hooks/useBudget';
 import { repositories } from '@/src/lib/repositories';
@@ -102,7 +103,8 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
       const targets = await repositories.budget.listArchiveTargets(id);
       setPendingConfirm(budgetArchiveConfirmFromTargets(id, versionLabel(id), targets));
     } catch (error) {
-      toast(t('financeCopy.actionFailed', 'Action failed'), error instanceof Error ? error.message : undefined, 'warning');
+      const failure = budgetActionFailure(error, t);
+      toast(failure.headline, failure.detail, 'warning');
     }
   };
   const requestDeleteDraft = (id: string) => {
@@ -206,7 +208,8 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
       // #1462 — a refused cancellation keeps the dialog OPEN with the actionable message, so the
       // operator can switch to "archive without cancellation" instead of losing the decision context.
       if (confirm.kind !== 'archive') setPendingConfirm(null);
-      toast(t('financeCopy.actionFailed', 'Action failed'), error instanceof Error ? error.message : undefined, 'warning');
+      const failure = budgetActionFailure(error, t);
+      toast(failure.headline, failure.detail, 'warning');
     }
   };
 

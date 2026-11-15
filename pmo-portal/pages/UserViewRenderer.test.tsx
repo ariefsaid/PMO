@@ -7,6 +7,7 @@
  * AC-VR-020 (VITE_APP_ENV=prod hides dev-disclosure details block).
  * AC-VR-021 (ready state renders correctly after two-tick delay).
  */
+import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 // Panels run through usePanelQueries (react-query), so every render needs a client.
@@ -159,6 +160,19 @@ describe('UserViewRenderer — guard states', () => {
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
     // Must not show not-found copy (isError should not fall through to not-found guard)
     expect(screen.queryByText(/this view was not found/i)).not.toBeInTheDocument();
+  });
+
+  it('#2091 Retry refetches the view without reloading the page', async () => {
+    const refetch = vi.fn();
+    const reload = vi.fn();
+    const original = window.location;
+    Object.defineProperty(window, 'location', { configurable: true, value: { ...original, reload } });
+    mockUseUserView.mockReturnValue({ data: undefined, isPending: false, isError: true, refetch });
+    renderRenderer();
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(refetch).toHaveBeenCalledTimes(1);
+    expect(reload).not.toHaveBeenCalled();
+    Object.defineProperty(window, 'location', { configurable: true, value: original });
   });
 
   it('AC-VR-020: dev-disclosure <details> is absent when VITE_APP_ENV is "prod"', async () => {
