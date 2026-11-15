@@ -151,3 +151,23 @@ describe('AC-NBR-020 invoice deep link does not wait for the list', () => {
     expect((await screen.findAllByText(/ACC-SINV-2026-00009/)).length).toBeGreaterThan(0);
   });
 });
+
+describe('AC-NBR-020 invoice record: a pending revenue mode holds only the action buttons', () => {
+  it('(P) mode pending, record loaded: number, customer and amount show; the primary action is held', async () => {
+    hoisted.mode = undefined;
+    hoisted.getInvoice.mockResolvedValue(row({ id: 'inv-9', si_number: 'ACC-SINV-2026-00009' }));
+    renderAt('/sales-invoices/inv-9');
+    expect((await screen.findAllByText(/ACC-SINV-2026-00009/)).length).toBeGreaterThan(0);
+    expect(screen.getByText('Acme Energy')).toBeInTheDocument();
+    expect(screen.getByText(/5,000/)).toBeInTheDocument();
+    expect(screen.queryByTestId('liststate-loading')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Record delivery|Approve|Record payment/ })).not.toBeInTheDocument();
+  });
+  it('mode ready, same record: the primary action shows', async () => {
+    hoisted.mode = 'erp';
+    hoisted.getInvoice.mockResolvedValue(row({ id: 'inv-9', si_number: 'ACC-SINV-2026-00009' }));
+    renderAt('/sales-invoices/inv-9');
+    expect((await screen.findAllByText(/ACC-SINV-2026-00009/)).length).toBeGreaterThan(0);
+    expect(await screen.findByRole('button', { name: /Record delivery|Approve|Record payment/ })).toBeInTheDocument();
+  });
+});

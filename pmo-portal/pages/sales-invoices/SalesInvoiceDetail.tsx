@@ -48,7 +48,7 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
           <Icon name="back" className="size-4" />
           {t('financeCopy.backToInvoices', 'Back to Receivables')}
         </Button>
-        {mode === undefined || (isPending && !viewTarget) ? (
+        {isPending && !viewTarget ? (
           <ListState variant="loading" rows={3} />
         ) : !viewTarget && (isError || !data) ? (
           <ListState

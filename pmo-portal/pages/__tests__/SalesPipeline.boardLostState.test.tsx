@@ -68,6 +68,8 @@ const page = (path = '/sales?view=kanban') => (
   );
 const renderDesktop = () => render(page());
 
+const openDeal = { id: 'p10', name: 'Regional Services', short_name: null, client_name: null, status: 'PQ Submitted', contract_value: 800000, currency: 'USD', win_probability: 0.25 };
+const openStage = { status: 'PQ Submitted', count: 1, total_value: 800000, win_probability: 0.25, weighted_value: 200000 };
 const lostDeal = { id: 'lost-recovered', name: 'Recovered Lost Deal', client_name: 'Recovered Client', status: 'Loss Tender', currency: 'USD', contract_value: 20000, win_probability: 0, last_update: '2020-01-01T00:00:00Z' };
 
 beforeEach(() => {
@@ -77,6 +79,7 @@ beforeEach(() => {
   wonState.refetch.mockReset();
   pipelineState.refetch.mockReset();
   pipelineState.isPending = false;
+  pipelineState.data = { stages: [], projects: [] };
   pipelineState.isError = false;
   lostState.isPending = false;
   lostState.isError = false;
@@ -87,12 +90,17 @@ beforeEach(() => {
 
 describe('SalesPipeline — PGA05-006: lost query pending and error on desktop board', () => {
   it('enters loading state when lost deals query is pending', () => {
+    // Per-region contract (#2197 A1): the open read fills the board; only the Lost count waits on its own read.
+    pipelineState.data = { stages: [openStage], projects: [openDeal] } as never;
     lostState.isPending = true;
     renderDesktop();
 
-    expect(screen.getAllByTestId('liststate-loading').length).toBeGreaterThan(0);
-    // While lost deals is loading, the page should show loading state, not empty
+    // The open deals are on the board while lost deals load
+    expect(screen.getByText('Regional Services')).toBeInTheDocument();
+    // While lost deals is loading, the page must not conclude empty
     expect(screen.queryByText(/No projects yet/i)).not.toBeInTheDocument();
+    // The Lost count shows the empty marker, not a number
+    expect(screen.getByText(/Lost — all time/)).toBeInTheDocument();
   });
 
   it('displays lost error and retry button on desktop board when lost deals query fails', async () => {
