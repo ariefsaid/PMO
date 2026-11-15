@@ -110,7 +110,8 @@ describe('AC-ODR-010 a bill and a payment the ledger re-dated show the ledger da
     show(detail({ invoices: [inv({ erp_state: 'posted', erp_read_at: READ, erp_attention: 'ledger-date-differs', erp_posting_date: '2026-06-01' })] }));
     const row = screen.getByRole('row', { name: /VI-1/ });
     expect(within(row).getByTestId('odoo-outcome-reason')).toHaveTextContent(/^Posted in the ledger on .*, not .*\. The period you chose is closed in the ledger\.$/);
-    expect(within(row).getByTestId('ledger-date')).toHaveTextContent(/^Ledger date 1 Jun( 2026)? \(entered \d+ \w+( 2026)?\)$/);
+    expect(within(row).getByTestId('ledger-date-label')).toHaveTextContent(/^Ledger date$/);
+    expect(within(row).getByTestId('ledger-date-value')).toHaveTextContent(/^1 Jun( 2026)?$/);
   });
 
   it('a re-dated vendor payment shows the ledger date; an unmoved one does not', () => {
@@ -118,7 +119,7 @@ describe('AC-ODR-010 a bill and a payment the ledger re-dated show the ledger da
       { id: 'p1', pay_number: 'PAY-1', date: '2026-05-20', created_at: '2026-05-20T00:00:00Z', status: 'Paid', currency: 'IDR', amount: 1000, erp_state: 'paid', erp_read_at: READ, erp_posting_date: '2026-06-01' },
       { id: 'p2', pay_number: 'PAY-2', date: '2026-05-21', created_at: '2026-05-21T00:00:00Z', status: 'Paid', currency: 'IDR', amount: 1000, erp_state: 'paid', erp_read_at: READ, erp_posting_date: '2026-05-21' },
     ] }));
-    expect(within(screen.getByRole('row', { name: /PAY-1/ })).getByTestId('ledger-date')).toHaveTextContent(/^Ledger date 1 Jun/);
+    expect(within(screen.getByRole('row', { name: /PAY-1/ })).getByTestId('ledger-date-value')).toHaveTextContent(/^1 Jun/);
     expect(within(screen.getByRole('row', { name: /PAY-2/ })).queryByTestId('ledger-date')).toBeNull();
   });
 });

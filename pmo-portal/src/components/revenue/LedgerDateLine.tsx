@@ -8,10 +8,19 @@ import { useTranslation } from 'react-i18next';
 import { formatDay } from '@/src/lib/format';
 import { movedLedgerDate } from '@/src/lib/revenue/ledgerDate';
 
-export const LedgerDateLine: React.FC<{ entered: string | null | undefined; posted: string | null | undefined; className?: string }> = ({ entered, posted, className }) => {
+export const LedgerDateLine: React.FC<{ entered: string | null | undefined; posted: string | null | undefined; className?: string; stacked?: boolean }> = ({ entered, posted, className, stacked }) => {
   const { t } = useTranslation();
   const moved = movedLedgerDate(entered, posted);
   if (!moved) return null;
+  if (stacked) {
+    // Narrow date cell: label above value; the date itself never breaks across lines.
+    return (
+      <span data-testid="ledger-date" className={className ?? 'block min-w-0 text-sm font-normal text-muted-foreground'}>
+        <span data-testid="ledger-date-label" className="block whitespace-nowrap">{t('finance:odooOutcome.ledgerDateLabel', 'Ledger date')}</span>
+        <span data-testid="ledger-date-value" className="block whitespace-nowrap">{formatDay(moved.slice(0, 10))}</span>
+      </span>
+    );
+  }
   return (
     <span data-testid="ledger-date" className={className ?? 'block min-w-0 text-sm font-normal text-muted-foreground'}>
       {t('finance:odooOutcome.ledgerDate', 'Ledger date {{date}} (entered {{entered}})', { date: formatDay(moved.slice(0, 10)), entered: formatDay((entered ?? '').slice(0, 10)) })}

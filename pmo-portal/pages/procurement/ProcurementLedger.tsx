@@ -143,7 +143,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
       <span className="text-sm text-muted-foreground">
         {formatBusinessDate(row.date)}
         {/* #2290: a bill or payment the ledger posted on another date shows that date under the entered one. */}
-        {(row.type === 'Invoice' || row.type === 'Payment') && <LedgerDateLine entered={row.date} posted={row.odoo?.erpPostingDate} />}
+        {(row.type === 'Invoice' || row.type === 'Payment') && <LedgerDateLine stacked entered={row.date} posted={row.odoo?.erpPostingDate} />}
       </span>
     ),
   },

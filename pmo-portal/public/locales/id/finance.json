@@ -807,7 +807,8 @@
       "ledger-reference-differs": "Referensi di buku besar tidak sama dengan yang dikirim PMO."
     },
     "sentTotal": "PMO mengirim {{amount}}.",
-    "ledgerDate": "Tanggal buku besar {{date}} (dimasukkan {{entered}})"
+    "ledgerDate": "Tanggal buku besar {{date}} (dimasukkan {{entered}})",
+    "ledgerDateLabel": "Tanggal buku besar"
   },
   "common": {
     "save": "Simpan",
