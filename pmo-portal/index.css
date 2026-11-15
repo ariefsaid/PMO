@@ -764,6 +764,25 @@
   }
 }
 
+/* Fine pointers (#2135, WCAG 2.2 2.5.8): the same overlay trick, at the 24px AA minimum, so a compact
+   `.touch-target` control (15px help glyph, 16px text actions) gets a 24x24 hit area on desktop without
+   changing its glyph, text or row height. Only static elements gain `position: relative`; absolute, fixed
+   and sticky ones are already positioned. */
+@media (pointer: fine) {
+  .touch-target:not(.absolute):not(.fixed):not(.sticky) { position: relative; }
+  .touch-target::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    min-width: 24px;
+    min-height: 24px;
+    width: 100%;
+    height: 100%;
+  }
+}
+
 /* ---------- scroll-fade-x utility (PR-3, Wave-4) ----------
    Right-edge mask-image fade used by 3+ scroll containers (kanban, stepper, tabs,
    timesheet). Defined once here as a reusable class. Compositor-only — no repaint.
