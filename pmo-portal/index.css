@@ -940,6 +940,10 @@
   }
 }
 
+/* #2084: sticky/fixed bottom bars (decision zone, save bars, phone nav) must not cover the control
+   keyboard focus scrolls into view: reserve the phone-nav height plus a 5rem bar above the fold. */
+.main-scroll { scroll-padding-bottom: calc(var(--phone-nav-height) + 5rem); }
+
 /* ---------- Scrollbar polish (from reference) ---------- */
 .main-scroll::-webkit-scrollbar,
 .kanban-scroll::-webkit-scrollbar { height: 9px; width: 9px; }

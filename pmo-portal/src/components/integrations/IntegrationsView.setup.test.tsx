@@ -228,6 +228,24 @@ describe('ERP domain setup actions', () => {
     expect(finish.getAttribute('href')).toBe('#erp-setup-company-defaults');
   });
 
+  it('#2084: activating "Finish setup" moves keyboard focus to the first missing step', async () => {
+    const erpBinding={...mockBinding,external_tier:'erpnext' as const,config:{company:'Example Company'}};
+    vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as never);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({getBinding:(tier:string)=>tier==='erpnext'?erpBinding:undefined}) as never);
+    vi.mocked(useProjects).mockReturnValue({data:[],isPending:false,isError:false} as never);
+    erpSetup.getErpSetup.mockResolvedValueOnce({
+      defaults:{company:'Example Company',default_payable_account:null,default_expense_account:null,default_cash_account:null,default_bank_account:null,cost_center:null,default_activity_type:null,default_receivable_account:null},
+      domains:['companies'],unmappedProjects:[],budgetMappedCategories:[],unlinkedEmployeeCount:0,
+    } satisfies ErpSetupReadiness);
+    wrapWithRole('Admin',<IntegrationsView/>);
+    const card=within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="erpnext"]')!);
+    const finish=await card.findByRole('link',{name:/Finish setup/i});
+    const target=document.getElementById('erp-setup-company-defaults');
+    expect(target).not.toBeNull();
+    fireEvent.click(finish);
+    expect(target).toHaveFocus();
+  });
+
   it('AC-UX-072 preserves the last known readiness and offers an operator handoff after a refresh failure', async () => {
     erpSetup.getErpSetup.mockResolvedValueOnce({
       defaults: { company: 'Example Company', default_receivable_account: null, default_activity_type: null },

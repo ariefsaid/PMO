@@ -1,7 +1,7 @@
 /**
  * PanelList — ordered panel cards with edit/remove/move-up/move-down (FR-VB-036/037, OD-VB-5).
  */
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/src/components/ui';
 import type { PanelSpec } from '@/src/lib/viewspec/types';
@@ -28,13 +28,30 @@ export const PanelList: React.FC<PanelListProps> = ({
   onMoveDown,
 }) => {
   const { t } = useTranslation();
+  const listRef = useRef<HTMLOListElement>(null);
+  // #2084: a move button disables at the list end, which would drop focus to <body> mid-reorder.
+  // Remember which panel moved and which way; after the re-render put focus on the same
+  // direction's button, or on the opposite one when that direction is now disabled.
+  const pendingMove = useRef<{ id: string; dir: 'up' | 'down' } | null>(null);
+  useEffect(() => {
+    const move = pendingMove.current;
+    if (!move) return;
+    pendingMove.current = null;
+    const row = Array.from(listRef.current?.querySelectorAll<HTMLElement>('[data-panel-id]') ?? []).find(
+      (el) => el.dataset.panelId === move.id,
+    );
+    const want = row?.querySelector<HTMLButtonElement>(`[data-move="${move.dir}"]`);
+    const other = row?.querySelector<HTMLButtonElement>(`[data-move="${move.dir === 'up' ? 'down' : 'up'}"]`);
+    (want && !want.disabled ? want : other)?.focus();
+  }, [panels]);
   if (panels.length === 0) return null;
 
   return (
-    <ol aria-label={t('viewBuilder.panelList', 'Panel list')} className="flex flex-col gap-2">
+    <ol ref={listRef} aria-label={t('viewBuilder.panelList', 'Panel list')} className="flex flex-col gap-2">
       {panels.map((panel, idx) => (
         <li
           key={panel.id}
+          data-panel-id={panel.id}
           className="flex items-center justify-between rounded-md border border-border bg-card px-3 py-2"
         >
           <div className="min-w-0 flex-1">
@@ -47,7 +64,11 @@ export const PanelList: React.FC<PanelListProps> = ({
               size="sm"
               aria-label={t('viewBuilder.movePanelUp', 'Move panel {{number}} up', { number: idx + 1 })}
               disabled={idx === 0}
-              onClick={() => onMoveUp(idx)}
+              data-move="up"
+              onClick={() => {
+                pendingMove.current = { id: panel.id, dir: 'up' };
+                onMoveUp(idx);
+              }}
             >
               ↑
             </Button>
@@ -56,7 +77,11 @@ export const PanelList: React.FC<PanelListProps> = ({
               size="sm"
               aria-label={t('viewBuilder.movePanelDown', 'Move panel {{number}} down', { number: idx + 1 })}
               disabled={idx === panels.length - 1}
-              onClick={() => onMoveDown(idx)}
+              data-move="down"
+              onClick={() => {
+                pendingMove.current = { id: panel.id, dir: 'down' };
+                onMoveDown(idx);
+              }}
             >
               ↓
             </Button>
