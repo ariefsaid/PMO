@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, ListState, RecordSection, SelectField, StatusPill, TextArea, TextField, useToast } from '@/src/components/ui';
+import { Button, ConfirmDialog, ListState, RecordMenu, RecordSection, SelectField, StatusPill, TextArea, TextField, useToast } from '@/src/components/ui';
+import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 import { CanWrite } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -76,6 +77,8 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
   /** The usage block already says there is no plan: do not say it twice below it. */
   usageEmpty?: boolean }> = ({ floatId, custodianId, currency, currentMonth, usage, usageEmpty = false }) => {
   const { t } = useTranslation();
+  // Phone: three buttons fill the row's line in Bahasa (the group then starts near the text edge), so Cancel moves into the row's ⋯ menu.
+  const isNarrow = useIsNarrow();
   const { toast } = useToast();
   const userId = useAuth().currentUser?.id ?? null;
   const { realRole } = useEffectiveRole();
@@ -146,7 +149,10 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
                     {actions.includes('reopenPlan') && <Button variant="outline" size="sm" disabled={transition.isPending} onClick={() => void move(plan, 'reopenPlan')}>{t('imprest:actions.reopenPlan', 'Edit and resubmit')}</Button>}
                     {actions.includes('approvePlan') && <Button variant="primary" size="sm" onClick={() => setDialog({ plan, action: 'approvePlan' })}>{t('imprest:actions.approve', 'Approve')}</Button>}
                     {actions.includes('rejectPlan') && <Button variant="outline" size="sm" onClick={() => setDialog({ plan, action: 'rejectPlan' })}>{t('imprest:actions.reject', 'Reject')}</Button>}
-                    {actions.includes('cancelPlan') && <Button variant="ghost" size="sm" onClick={() => setDialog({ plan, action: 'cancelPlan' })}>{t('imprest:actions.cancel', 'Cancel')}</Button>}
+                    {actions.includes('cancelPlan') && (isNarrow
+                      ? <RecordMenu ariaLabel={t('imprest:plan.menuAria', 'More actions for the {{month}} plan', { month: monthLabel(plan.month) })}
+                          items={[{ key: 'cancel', label: t('imprest:actions.cancel', 'Cancel'), danger: true, onSelect: () => setDialog({ plan, action: 'cancelPlan' }) }]} />
+                      : <Button variant="ghost" size="sm" onClick={() => setDialog({ plan, action: 'cancelPlan' })}>{t('imprest:actions.cancel', 'Cancel')}</Button>)}
                     </div>
                   </div>
                   {plan.decision_notes && plan.status === 'Rejected' && <p role="note" className="mt-1 text-muted-foreground">{t('imprest:plan.rejectionNote', 'Rejected: {{note}}', { note: plan.decision_notes })}</p>}
@@ -168,6 +174,8 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
           {dialog?.action === 'rejectPlan' && <TextArea label={t('imprest:plan.confirm.notes', 'Note to the author (optional)')} value={notes} onChange={setNotes} />}
         </div>}
         confirmLabel={dialog?.action === 'approvePlan' ? t('imprest:actions.approve', 'Approve') : dialog?.action === 'rejectPlan' ? t('imprest:actions.reject', 'Reject') : t('imprest:actions.cancel', 'Cancel')}
+        // Cancelling a plan: the dismiss button must not also read "Cancel".
+        cancelLabel={dialog?.action === 'cancelPlan' ? t('imprest:plan.confirm.keep', 'Keep plan') : undefined}
         loading={transition.isPending}
         onConfirm={() => { if (dialog) void move(dialog.plan, dialog.action, notes.trim() ? { notes: notes.trim() } : {}); }}
         onCancel={() => { setDialog(null); setNotes(''); }}

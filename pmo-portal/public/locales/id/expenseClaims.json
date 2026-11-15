@@ -18,7 +18,7 @@
     "required": "Wajib diisi",
     "amountInvalid": "Masukkan jumlah yang lebih besar dari nol.",
     "categoryHelper": "Menentukan pemberi persetujuan",
-    "lineGroup": "Baris pengeluaran {{number}}",
+    "lineGroup": "Rincian pengeluaran {{number}}",
     "total": "Total",
     "saveDraft": "Simpan draf",
     "submit": "Ajukan klaim",
@@ -44,18 +44,18 @@
   },
   "detail": {
     "statusLine": {
-      "draft_other": "Belum dikirim · {{count}} baris",
+      "draft_other": "Belum dikirim · {{count}} rincian",
       "draftAdvance": "Belum dikirim",
-      "with": "Menunggu {{names}} sejak {{date}} · baris terkunci",
-      "waiting": "Menunggu persetujuan sejak {{date}} · baris terkunci",
+      "with": "Menunggu {{names}} sejak {{date}} · rincian terkunci",
+      "waiting": "Menunggu persetujuan sejak {{date}} · rincian terkunci",
       "approved": "Disetujui {{date}} · menunggu pembayaran",
       "paid": "Dibayar {{date}}",
       "joiner": " atau ",
-      "draft_one": "Belum dikirim · {{count}} baris"
+      "draft_one": "Belum dikirim · {{count}} rincian"
     }
   },
   "lines": {
-    "menuAria": "Aksi baris: {{description}}"
+    "menuAria": "Aksi rincian: {{description}}"
   },
   "receipts": {
     "downloadShort": "Unduh",

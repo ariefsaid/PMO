@@ -152,7 +152,8 @@
       "approveTitle": "Approve the {{month}} plan?",
       "cancelTitle": "Cancel the {{month}} plan?",
       "notes": "Note to the author (optional)",
-      "rejectTitle": "Reject the {{month}} plan?"
+      "rejectTitle": "Reject the {{month}} plan?",
+      "keep": "Keep plan"
     },
     "drawn": "Drawn",
     "error": "Couldn't load plans",
@@ -185,7 +186,8 @@
       "updated": "Plan updated"
     },
     "allPlans": "All plans",
-    "totalLabel": "Total"
+    "totalLabel": "Total",
+    "menuAria": "More actions for the {{month}} plan"
   },
   "position": {
     "advancesOut": "Advances given",

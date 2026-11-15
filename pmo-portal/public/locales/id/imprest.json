@@ -152,7 +152,8 @@
       "approveTitle": "Setujui rencana {{month}}?",
       "cancelTitle": "Batalkan rencana {{month}}?",
       "notes": "Catatan untuk penyusun (opsional)",
-      "rejectTitle": "Tolak rencana {{month}}?"
+      "rejectTitle": "Tolak rencana {{month}}?",
+      "keep": "Pertahankan rencana"
     },
     "drawn": "Terpakai",
     "error": "Gagal memuat rencana",
@@ -185,7 +186,8 @@
       "updated": "Rencana diperbarui"
     },
     "allPlans": "Semua rencana",
-    "totalLabel": "Total"
+    "totalLabel": "Total",
+    "menuAria": "Aksi lain untuk rencana {{month}}"
   },
   "position": {
     "advancesOut": "Uang muka diberikan",
