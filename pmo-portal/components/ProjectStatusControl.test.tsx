@@ -212,7 +212,7 @@ describe('ProjectStatusControl', () => {
     } as unknown as ReturnType<typeof useProjectTransition>);
 
     renderControl(negotiationProject);
-    const alert = screen.getByRole('alert');
+    const alert = screen.getByTestId('project-status-control').querySelector('p[role="alert"]') as HTMLElement;
     expect(alert).toHaveTextContent(/Another record already uses one of these values/);
     expect(alert).not.toHaveTextContent(/duplicate key|projects_pkey/i);
   });
