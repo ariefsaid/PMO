@@ -49,10 +49,10 @@ const ExpenseClaims: React.FC = () => {
     [status, kind, category],
   );
   const { data, isPending, isError, refetch } = useExpenseClaims(filters);
-  const projectChoices = useProjectChoices();
-  const { create } = useExpenseClaimMutations();
-  const ownAdvances = useOwnAdvanceOptions();
   const [formKind, setFormKind] = useState<ExpenseKind | null>(null);
+  const projectChoices = useProjectChoices(formKind !== null);
+  const ownAdvances = useOwnAdvanceOptions(null, formKind !== null);
+  const { create } = useExpenseClaimMutations();
   const canCreate = may('create', 'expenseClaim');
   const rows = data?.rows;
 
