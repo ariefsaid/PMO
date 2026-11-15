@@ -142,21 +142,21 @@ const renderPage = (section: 'usage' | 'credits' | 'features') =>
   );
 
 describe('Administration — section-header molecule consistency', () => {
-  it('renders Usage, Credits, and Features each as exactly one <h2> on its selected route', () => {
+  it('renders Usage, Credits, and Features each as exactly one <h2> on its selected route', async () => {
     for (const [section, title] of [
       ['usage', 'Usage'],
       ['credits', 'Credits'],
       ['features', 'Features'],
     ] as const) {
       const view = renderPage(section);
-      expect(screen.getAllByRole('heading', { level: 2, name: title })).toHaveLength(1);
+      expect(await screen.findAllByRole('heading', { level: 2, name: title })).toHaveLength(1);
       view.unmount();
     }
   });
 
-  it('Credits renders its Grant-credits action in the same header row as its <h2> (Operator)', () => {
+  it('Credits renders its Grant-credits action in the same header row as its <h2> (Operator)', async () => {
     renderPage('credits');
-    const creditsHeading = screen.getByRole('heading', { level: 2, name: 'Credits' });
+    const creditsHeading = await screen.findByRole('heading', { level: 2, name: 'Credits' });
     const headerRow = creditsHeading.parentElement!;
     expect(within(headerRow).getByRole('button', { name: /grant credits/i })).toBeInTheDocument();
   });
