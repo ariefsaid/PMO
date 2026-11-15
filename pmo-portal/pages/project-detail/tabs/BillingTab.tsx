@@ -150,7 +150,6 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   // A claim's scope comes from the allocations: until they are loaded no scope is offered (never a guessed one).
   const claimScopeReady = !allocations.isPending && !allocations.isError;
   const canBill = may('create', 'progressClaim') && erp.connected && clientId !== null && claimScopeReady;
-  const mayStartClaim = may('create', 'progressClaim') && erp.connected && clientId !== null;
   // #1817: no ERP owns revenue, so a confirmed T&M claim is invoiced in PMO (volume claims stay ERP-only, #784's deferral).
   const canBillNative = revenueMode === 'native' && may('create', 'salesInvoice') && clientId !== null;
   const claimSources = [
@@ -160,12 +159,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     { query: workOrders, name: t('projectDetail.billing.sources.orders', 'customer orders') },
     { query: allocations, name: t('projectDetail.billing.sources.allocations', 'order allocations') },
   ];
-  // The reads the button and the dialog's starting state depend on: order allocations decide the scope, and the
-  // existing claims decide which kinds are offered (a second down payment is never). Every other source settles
-  // inside the dialog, which lists it per source and keeps Create claim off until all five answered.
-  const claimStartSources = [allocations, claims];
-  const claimStartReady = claimStartSources.every((query) => !query.isPending && !query.isError && query.data != null);
-  const claimStartPending = claimStartSources.some((query) => query.isPending) && !claimStartSources.some((query) => query.isError);
+  const claimDataReady = claimSources.every(({ query }) => !query.isPending && !query.isError && query.data != null);
   const canStartInvoice = may('create', 'salesInvoice') && revenueRouteReady && clientId !== null;
   const canAssess = may('edit', 'projectProgress', { currentUserId: currentUser?.id, record: { project_manager_id: projectManagerId } });
   const liveDownPayment = claimRows.some((c) => c.kind === 'down_payment' && !c.withdrawn_at && c.invoice?.status !== 'Cancelled');
@@ -492,8 +486,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         level={2}
         className="text-base"
         actions={
-          mayStartClaim && (claimStartReady || claimStartPending) && !canStartInvoice && (
-            <Button variant="primary" size="sm" disabled={!claimStartReady} onClick={() => setClaimFormOpen(true)}>{t('projectDetail.billing.claims.new', 'New claim')}</Button>
+          canBill && claimDataReady && !canStartInvoice && (
+            <Button variant="primary" size="sm" onClick={() => setClaimFormOpen(true)}>{t('projectDetail.billing.claims.new', 'New claim')}</Button>
           )
         }
       >

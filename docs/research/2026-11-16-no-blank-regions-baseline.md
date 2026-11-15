@@ -83,16 +83,6 @@ Delayed read substring: `get_project_overview_read`
 |---|---|---|
 | project-section-tabs | 5624 | no |
 
-## A7
-
-Delayed read substring: `rest/v1/sales_invoices`
-
-**/projects/41000000-0000-0000-0000-000000000005/billing** — delayed read: `rest/v1/sales_invoices` held 3000 ms
-
-| region | ms to content | beat the delayed read |
-|---|---|---|
-| raise-figures | no hook | n/a |
-
 ## A8
 
 Delayed read substring: `rest/v1/sales_invoices`
@@ -204,7 +194,7 @@ Delayed read substring: `get_financial_statement_catalogue`
 | project-pl-section | no hook | n/a |
 
 
-## AFTER: A5, A6, A7, A8 (project detail batch)
+## AFTER: A5, A6, A8 (project detail batch)
 
 Same method as above (local stack, Vite dev servers, headless Chromium 1440x900, 3000 ms hold). Base = the phase 0
 branch with only the new `data-testid` hooks added; after = this batch. Three alternating timed runs per route after one
@@ -225,9 +215,6 @@ Reading: no region got slower beyond run-to-run noise (about 150 ms on this box)
 before the held read; the whole card, which includes the one loading row, still waits for it by design. The overview
 content region waits for the overview read, and the header, tabs and primary action no longer do.
 
-**A7:** `raise-figures` is the raise-invoice confirm dialog's own hook (it renders only after a click), so it has no
-timed state on load, and this slice adds no hook of its own. The full-layout `BillingTab` that holds the "New claim"
-button is not mounted by any route at head (the contract tab mounts it in contract-tools mode); the live "New claim"
-button is in `WorkOrdersClaimsCard` / `WorkOrdersTab`. See the batch notes.
+**A7:** removed from this branch (its button is on no live screen).
 **A8:** the card already takes invoices and billing from its parent (no read of its own); the hook `customer-order-card`
 is added, but the seed holds no customer orders, so the region does not render in the measured state.
