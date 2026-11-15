@@ -60,7 +60,8 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({ row, currency, cur
   const status = entry?.status ?? row.status;
   const wroteIt = !!entry && !!currentUserId
     && (entry.maker_id === currentUserId || detail.authorIds.includes(currentUserId) || detail.originalAuthorIds.includes(currentUserId));
-  // Asked only of a writer of a submitted journal: the server's rule says whether they are the org's sole active member.
+  // Asked only of a writer of a submitted journal: the server's rule says whether they are the only member the org has
+  // ever had, the one case in which a writer may approve.
   const { data: serverMayApprove } = useMayApproveJournal(wroteIt && entry?.status === 'submitted' ? entry.id : null, currentUserId);
   const soleActiveMember = wroteIt && serverMayApprove === true;
   const record = entry ? {

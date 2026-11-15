@@ -119,7 +119,7 @@
 -- ⚑ AMENDED BY 0887 (#895): `save_journal_draft`, `submit_journal`, `approve_journal`, `return_journal`,
 -- `request_journal_reversal` and `set_desk_journal` join (+6, count 173 re-derived by hand from the list). SECURITY DEFINER writers under a member's JWT: each
 -- re-asserts active membership, the Finance-or-above role (Admin for set_desk_journal) and the caller's org, and
--- approve/return re-assert the second-approver rule (may_approve_journal); anon/PUBLIC revoked. Proved by
+-- approve/return re-assert the second-approver rule (journal_approver_allows); anon/PUBLIC revoked. Proved by
 -- supabase/tests/manual_journals.test.sql (AC-MJE-001/002/020). record_journal_outcome is service-role only, NOT listed.
 -- ⚑ AMENDED BY 0731 (#1415): `record_native_on_account_receipt`, `apply_native_receipt` and `unapply_native_allocation` join (+3). Finance/Admin-gated
 -- SECURITY DEFINER writers under a member's JWT (membership, role, org re-asserted; anon/PUBLIC revoked), proven by 0731_payment_allocation_*.test.sql.

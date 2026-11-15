@@ -126,7 +126,7 @@ describe('/journals (#895)', () => {
     expect(within(drawer).queryByRole('button', { name: 'Approve' })).toBeNull();
   });
 
-  it('AC-MJE-002 the sole active member is offered Approve on their own journal, and told why', async () => {
+  it('AC-MJE-002 the only member the org has ever had is offered Approve on their own journal, and told why', async () => {
     h.me = 'u-maker';
     h.mayApprove = true;
     renderPage();

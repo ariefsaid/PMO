@@ -414,8 +414,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    * #895 manual journals (owner ruling 2). The desk is Finance-or-above; `approve` (and Return) is for a
    * Finance-or-above member who did not write the journal: not its maker, not any editor
    * (`record.author_ids`) and, for a reversal, nobody who wrote the original (`record.original_author_ids`).
-   * Exception: the sole active member of the org may approve their own journal (`record.sole_active_member`, the
-   * server's `may_approve_journal` answer). Deny without a record or a user id. UX only; the RPC is the authority.
+   * Exception: the member of an org that has only ever had one member (one profile, any status) may approve their own
+   * journal (`record.sole_active_member` carries the server's `may_approve_journal` answer). Deny without a record or a user id. UX only; the RPC is the authority.
    */
   journal: {
     view: allow(MONEY_AUTHORITY),

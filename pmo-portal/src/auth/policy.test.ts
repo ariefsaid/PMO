@@ -1094,7 +1094,7 @@ describe('#895 manual journals: the desk and the second approver', () => {
     expect(can('approve', 'journal', { realRole: 'Finance', currentUserId: 'u-approver' })).toBe(false);
   });
 
-  it('AC-MJE-002 the sole active member of the org is offered approve on their own journal', () => {
+  it('AC-MJE-002 the only member the org has ever had is offered approve on their own journal', () => {
     const record = { maker_id: 'u-maker', author_ids: ['u-maker'], sole_active_member: true };
     expect(can('approve', 'journal', ctxFor('Finance', record, 'u-maker'))).toBe(true);
     // still Finance-or-above, still not while viewing as another role
