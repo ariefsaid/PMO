@@ -314,7 +314,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
           <Tooltip content={t('projectDetail.budget.forecastUtilizationFormula', 'Forecast final divided by fiscal-year budget.')}><span tabIndex={0}><ProgressBar compact value={Math.round(utilizationPct(row)!)} showValue aria-label={`${budgetCategoryLabel(row.category, t)} ${t('projectDetail.budget.forecastUtilization', 'forecast utilization')}`} /></span></Tooltip>
         </span>,
     },
-  ], [budgetCurrency, canReadCommitments, committedByCategory, currency, editing, etcDraft, etcErrors, changeDraft, t]);
+  ], [budgetCurrency, canReadCommitments, committedByCategory, currency, editing, etcDraft, etcErrors, changeDraft, pmoBasis, t]);
 
   const comparisonColumns: Column<BudgetComparisonRow>[] = useMemo(() => [
     {
@@ -362,7 +362,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
         ? <StatusPill variant="neutral">{t('projectDetail.budget.unavailable', 'Unavailable')}</StatusPill>
         : <Tooltip content={t('projectDetail.budget.wholePercentFormula', 'Recorded spending divided by the approved project budget.')}><span tabIndex={0}><ProgressBar compact value={Math.round(row.percentUsed * 100)} showValue aria-label={`${budgetCategoryLabel(row.category, t)} ${t('projectDetail.budget.recordedPercentAria', 'recorded percent of approved budget')}`} /></span></Tooltip>,
     },
-  ], [budgetCurrency, compatibleBasis, currency, t]);
+  ], [budgetCurrency, compatibleBasis, currency, pmoBasis, t]);
 
   const yearSummary = interpretation?.summary;
   const { budget: totalBudget, remaining: totalForecastRemaining, committed: totalCommitted } = yearSummary ?? { budget: null, remaining: null, committed: null };
