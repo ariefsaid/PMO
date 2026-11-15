@@ -18,21 +18,21 @@ function source(over: Partial<ApprovalChainSource> = {}): ApprovalChainSource {
 }
 
 describe('#2058 procurement approval chain', () => {
-  it('names the requester, then who is next and how long it has waited since submission', () => {
+  it('names the requester, then who is next and how long it has waited, aged from creation as the approvals queue ages it', () => {
     const chain = approvalChain(source({
       approvalRoute: { approvers: [{ id: 'u1', fullName: 'Budi' }, { id: 'u2', fullName: 'Sari' }] },
     }), NOW);
     expect(chain).toEqual([
       { kind: 'requested', names: ['Rina'], at: ago(4) },
-      { kind: 'next', names: ['Budi', 'Sari'], waitingDays: 4 },
+      { kind: 'next', names: ['Budi', 'Sari'], waitingDays: 10 },
     ]);
   });
 
   it('leaves the next approver unnamed when no route was read', () => {
-    expect(approvalChain(source(), NOW)?.[1]).toEqual({ kind: 'next', names: [], waitingDays: 4 });
+    expect(approvalChain(source(), NOW)?.[1]).toEqual({ kind: 'next', names: [], waitingDays: 10 });
   });
 
-  it('measures the wait from the latest submission after a return and resubmit', () => {
+  it('measures the wait from creation after a return and resubmit, so it matches the queue card', () => {
     const chain = approvalChain(source({
       statusEvents: [
         { to_status: 'Requested', created_at: ago(9), actor: { full_name: 'Rina' } },
@@ -40,7 +40,7 @@ describe('#2058 procurement approval chain', () => {
         { to_status: 'Requested', created_at: ago(1), actor: { full_name: 'Rina' } },
       ],
     }), NOW);
-    expect(chain?.[1]).toMatchObject({ kind: 'next', waitingDays: 1 });
+    expect(chain?.[1]).toMatchObject({ kind: 'next', waitingDays: 10 });
   });
 
   it('shows who approved and when, once approved', () => {

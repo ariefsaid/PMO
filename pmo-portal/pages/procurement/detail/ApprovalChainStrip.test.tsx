@@ -18,7 +18,7 @@ const requested: ApprovalChainSource = {
 };
 
 describe('#2058 ApprovalChainStrip', () => {
-  it('lists the requester, then who decides next and how long it has waited', () => {
+  it('lists the requester, then who decides next and how long it has waited (from creation, as the queue card)', () => {
     render(<ApprovalChainStrip procurement={requested} />);
     const chain = screen.getByRole('list', { name: 'Approval chain' });
     const [first, second] = within(chain).getAllByRole('listitem');
@@ -26,7 +26,7 @@ describe('#2058 ApprovalChainStrip', () => {
     expect(first).toHaveTextContent('Requested');
     expect(second).toHaveTextContent('Budi Santoso or Sari Dewi');
     expect(second).toHaveTextContent('Next');
-    expect(second).toHaveTextContent('Waiting 4 days');
+    expect(second).toHaveTextContent('Waiting 6 days');
   });
 
   it('marks each step done or waiting for assistive tech', () => {
@@ -53,6 +53,7 @@ describe('#2058 ApprovalChainStrip', () => {
     render(<ApprovalChainStrip procurement={{
       ...requested,
       approvalRoute: null,
+      created_at: ago(0.1),
       statusEvents: [{ to_status: 'Requested', created_at: ago(0.1), actor: null }],
     }} />);
     const [, second] = screen.getAllByRole('listitem');

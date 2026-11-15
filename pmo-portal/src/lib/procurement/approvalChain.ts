@@ -44,7 +44,9 @@ export function approvalChain(source: ApprovalChainSource, now: Date = new Date(
     return [requested, {
       kind: 'next',
       names: (source.approvalRoute?.approvers ?? []).map((approver) => approver.fullName),
-      waitingDays: ageInDays(requestedAt, now),
+      // Aged from creation, as the approvals queue card ages it: the queue's list read carries no
+      // submission time, so both screens use `created_at` and say the same number (#2058).
+      waitingDays: ageInDays(source.created_at, now),
     }];
   }
   const approved = latest(source.statusEvents, 'Approved');
