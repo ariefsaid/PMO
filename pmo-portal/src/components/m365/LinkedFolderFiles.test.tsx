@@ -77,7 +77,7 @@ describe('#1320 AC-2 LinkedFolderFiles', () => {
 
   it('AC-2: the expired-folder reconnect message is localized in Bahasa', async () => {
     listChildren.mockRejectedValueOnce(Object.assign(new Error('expired'), { code: 'CONNECTION_STALE' }));
-    render(<BahasaProvider><MemoryRouter><LinkedFolderFiles reference={ref} /></MemoryRouter></BahasaProvider>);
+    render(<QueryClientProvider client={client}><BahasaProvider><MemoryRouter><LinkedFolderFiles reference={ref} /></MemoryRouter></BahasaProvider></QueryClientProvider>);
     expect(await screen.findByText('Koneksi Microsoft 365 telah kedaluwarsa. Hubungkan ulang untuk melihat file folder ini.')).toBeInTheDocument();
   });
 

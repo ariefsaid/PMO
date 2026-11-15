@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
@@ -35,6 +36,7 @@ const versionsPage = (ids: string[], next: { path: string } | null = null) =>
 const open = vi.fn();
 let windowOpen: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
+  client = new QueryClient();
   vi.clearAllMocks();
   windowOpen = vi.spyOn(window, 'open').mockImplementation(open);
   vi.mocked(getItem).mockResolvedValue(graphItem());
@@ -42,8 +44,9 @@ beforeEach(() => {
 });
 afterEach(() => windowOpen.mockRestore());
 
+let client = new QueryClient();
 const view = (reference: MicrosoftReference, owner: ReferenceOwner, title?: string) =>
-  render(<MemoryRouter><LinkedDocumentCell reference={reference} owner={owner} title={title} /></MemoryRouter>);
+  render(<QueryClientProvider client={client}><MemoryRouter><LinkedDocumentCell reference={reference} owner={owner} title={title} /></MemoryRouter></QueryClientProvider>);
 
 describe('LinkedDocumentCell direct open', () => {
   it('AC-M365DOC-058 a file opens the stored URL in a new tab with noopener/noreferrer and makes no Graph call, with no permission or connection context at all', async () => {
@@ -222,7 +225,7 @@ describe('LinkedDocumentCell versions and approved history', () => {
   it('AC-M365DOC-065 renders the verified history action in Indonesian', async () => {
     const i18n = createInstance();
     await i18n.init({ lng: 'id', fallbackLng: false, defaultNS: 'common', resources: { id: { common: {}, project: idProject } }, interpolation: { escapeValue: false } });
-    render(<I18nextProvider i18n={i18n}><MemoryRouter><LinkedDocumentCell reference={ref()} owner={projectOwner()} /></MemoryRouter></I18nextProvider>);
+    render(<I18nextProvider i18n={i18n}><QueryClientProvider client={client}><MemoryRouter><LinkedDocumentCell reference={ref()} owner={projectOwner()} /></MemoryRouter></QueryClientProvider></I18nextProvider>);
     await userEvent.click(screen.getByRole('button', { name: /^Check approved version/ }));
     expect(await screen.findByRole('link', { name: 'Buka riwayat versi yang terverifikasi' })).toBeVisible();
   });
@@ -252,7 +255,7 @@ describe('LinkedDocumentCell versions and approved history', () => {
       .mockImplementationOnce(() => new Promise((resolve) => { releaseSecond = resolve; }));
 
     const cell = (reference: MicrosoftReference, pin: string) => (
-      <MemoryRouter><LinkedDocumentCell reference={reference} owner={projectOwner({ version_id_at_issue: pin })} /></MemoryRouter>
+      <QueryClientProvider client={client}><MemoryRouter><LinkedDocumentCell reference={reference} owner={projectOwner({ version_id_at_issue: pin })} /></MemoryRouter></QueryClientProvider>
     );
     const view = render(cell(ref(), '2.0'));
     await user.click(screen.getByRole('button', { name: /^Check approved version/ }));
