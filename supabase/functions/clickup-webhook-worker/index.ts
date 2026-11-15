@@ -384,7 +384,8 @@ export async function claimPendingLive(serviceClient: SupabaseClient, batchSize:
     .sort((a, b) => (a.processed_at ?? '').localeCompare(b.processed_at ?? '') || a.received_at.localeCompare(b.received_at))
     .slice(0, batchSize)
     .map(({ received_at: _receivedAt, processed_at: _processedAt, ...row }) => row);
-  // Each row is marked processing when its turn comes (markProcessingLive).
+  // Each row is marked processing when its turn comes (markProcessingLive). The claim takes no lock: two
+  // overlapping runs may both take a row, and applying a task's current state twice gives the same result.
   return rows;
 }
 
