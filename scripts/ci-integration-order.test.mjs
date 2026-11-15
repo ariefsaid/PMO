@@ -2,8 +2,12 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import test from 'node:test';
+import { EXCLUDED } from './run-script-tests.mjs';
 
 const workflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+// #2332: non-database script-test discovery lives in the tracked runner, so its invariants
+// are pinned against the runner's source instead of the old inline `find`/`mapfile` line.
+const runner = readFileSync(new URL('../scripts/run-script-tests.mjs', import.meta.url), 'utf8');
 const packageJson = JSON.parse(
   readFileSync(new URL('../pmo-portal/package.json', import.meta.url), 'utf8'),
 );
@@ -26,16 +30,19 @@ test('every scripts/*.test.mjs file is assigned to a CI test step', () => {
     'financial-statements-rollback.test.mjs',
     'financial-statements-nightly-intent-race.test.mjs',
   ];
-  const nonDatabase = workflow.match(/find scripts[^\n]+/);
-  assert.ok(nonDatabase, 'CI must discover non-database script tests by glob');
+  const nonDatabase = workflow.match(/node scripts\/run-script-tests\.mjs[^\n]+/);
+  assert.ok(nonDatabase, 'CI must discover non-database script tests through the tracked runner (#2332)');
+  assert.match(nonDatabase[0], /--self-test/, 'CI must run the runner through its --self-test guard first');
   for (const file of scriptTests) {
     if (databaseTests.includes(file)) {
       assert.ok(workflow.includes(`scripts/${file}`), `${file} must run after Supabase starts`);
-      assert.match(nonDatabase[0], new RegExp(`! -name '${file}'`), `${file} must not be run before Supabase starts`);
+      assert.ok(EXCLUDED.includes(file), `${file} must not be run before Supabase starts (it must sit in the runner's EXCLUDED list)`);
     }
   }
   const provesCoverage = (text) => {
-    assert.match(text, /find scripts -maxdepth 1 -name '\*\.test\.mjs'/);
+    // Broad depth-1 discovery by .test.mjs suffix — the runner must not hand-pick a list.
+    assert.match(runner, /readdirSync/);
+    assert.match(runner, /\.endsWith\('\.test\.mjs'\)/);
     for (const file of databaseTests) assert.ok(text.includes(`scripts/${file}`), `${file} is missing from CI`);
   };
   provesCoverage(workflow);
@@ -593,7 +600,9 @@ test('rendered proof self-test runs after Chromium installation in the browser g
   const install = browser.indexOf('- name: Install Playwright');
   const proof = browser.indexOf('npm run check:ux-proof');
   assert.ok(install !== -1 && proof > install, 'browser job must run the proof self-test after installing Chromium');
-  assert.match(workflow, /! -name 'ux-proof\.test\.mjs'/);
+  // #2332: the exclusion moved into the runner's EXCLUDED list (its --self-test proves the
+  // name stays live), so ux-proof cannot run in the pre-Chromium script step.
+  assert.ok(EXCLUDED.includes('ux-proof.test.mjs'), "ux-proof.test.mjs must sit in the runner's EXCLUDED list");
   assert.ok(browser.includes('node --test scripts/ux-proof.test.mjs'), 'browser job must run the proof contract test');
   assert.match(packageJson.scripts['check:ux-proof'], /ux-proof\.mjs --self-test/);
   assert.doesNotMatch(packageJson.scripts['check:guards'], /ux-proof/);
