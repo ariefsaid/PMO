@@ -440,7 +440,7 @@ function jobsIn(workflowText) {
       continue;
     }
     if (!insideJobs) continue;
-    const header = /^  ([A-Za-z0-9_-]+):\s*$/.exec(line);
+    const header = /^ {2}([A-Za-z0-9_-]+):\s*$/.exec(line);
     if (header) {
       current = header[1];
       jobs.set(current, []);
@@ -455,7 +455,7 @@ function stepsIn(jobLines) {
   const steps = [];
   let current = null;
   for (const line of jobLines) {
-    if (/^      - /.test(line)) {
+    if (/^ {6}- /.test(line)) {
       if (current) steps.push(current);
       current = [line];
       continue;
