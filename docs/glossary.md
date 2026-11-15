@@ -384,6 +384,14 @@ Append-only. The ledger is the trace.
 **Consumption** — net quantity (and value) of an item taken to a project work item: issues minus returns, by period.
 It is operational and is not committed spend or an ERP actual.
 
+**Issued material cost** — where an ERP owns the organisation's inventory, the cost the ERP books to the project when material is
+issued to it (Odoo: the issue's project analytic line). It reaches the project's actuals from the ERP ledger once; the PMO stock document
+supplies only the quantity and the work item, never a second amount. An issue made in the ERP with no PMO document still counts in the
+project's actuals and is listed on consumption as having no work item. (#2282.)
+
+**Uncategorised actuals** — a project's actual cost on accounts that map to no budget category. Shown with its amount, never dropped from
+the project's actuals. (#2282.)
+
 **Reorder level / suggestion** — the on-hand quantity at which an item should be reordered at a warehouse; a
 *suggestion* is computed from past usage and only a person turns it into a level.
 

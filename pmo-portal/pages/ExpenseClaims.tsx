@@ -1,17 +1,18 @@
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, DataTable, Icon, ListPage, ListState, SelectField, StatusPill, useToast, useUrlFilters, type Column } from '@/src/components/ui';
+import { Button, Card, DataTable, Icon, ListPage, ListState, SelectField, StatusPill, parsePageParam, useClampPage, useToast, useUrlFilters, type Column } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjectChoices } from './expenses/useProjectChoices';
-import { useExpenseClaims, useExpenseClaimMutations } from '@/src/hooks/useExpenseClaims';
+import { useExpenseClaimPages, useExpenseClaimMutations } from '@/src/hooks/useExpenseClaims';
+import { EXPENSE_PAGE_SIZE } from '@/src/lib/db/expenseClaims';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { formatCurrency } from '@/src/lib/format';
 import {
-  EXPENSE_LIST_LIMIT, type BudgetCategory, type ExpenseClaimFilters, type ExpenseClaimStatus,
-  type ExpenseClaimWithRefs, type ExpenseKind,
+  type BudgetCategory, type ExpenseClaimFilters, type ExpenseClaimStatus,
+  type ExpenseClaimListRow, type ExpenseKind,
 } from '@/src/lib/db/expenseClaims';
 import { ExpenseClaimFormModal } from './expenses/ExpenseClaimFormModal';
 import { AdvanceAgingCard } from './expenses/AdvanceAgingCard';
@@ -20,7 +21,7 @@ import { expenseKindLabel, expenseStatusLabel } from './expenses/expenseLabels';
 
 /**
  * Expenses — claims and cash advances (#775, FR-EXP-060..062). Reads are RLS-scoped: an Engineer sees their own,
- * approval rank sees the org's. Filters are server-side; the list is bounded at 200 with a visible notice.
+ * approval rank sees the org's. Filters are server-side; the list pages 200 at a time and reads "Showing x of y" (#843).
  */
 const ExpenseClaims: React.FC = () => {
   const { t } = useTranslation(['common', 'expenseClaims']);
@@ -32,14 +33,17 @@ const ExpenseClaims: React.FC = () => {
   // URL-owned (the same hook as Contacts/Incidents), so Back/refresh and a shared link restore
   // them; defaults stay out of the URL (empty = all).
   const VALID_STATUSES = Constants.public.Enums.expense_claim_status;
-  const { values, setFilter, clear: clearFilters } = useUrlFilters(['status', 'kind', 'category']);
+  const { values, setFilters, clear: clearFilters } = useUrlFilters(['status', 'kind', 'category', 'page']);
   const status = (VALID_STATUSES as readonly string[]).includes(values.status) ? values.status : '';
   const kind = values.kind;
   const category = values.category;
   const hasActiveFilters = Boolean(status || kind || category);
-  const setStatus = (next: string) => setFilter('status', next);
-  const setKind = (next: string) => setFilter('kind', next);
-  const setCategory = (next: string) => setFilter('category', next);
+  // A changed filter is a different result set: it starts again at page 1 (#843).
+  const setStatus = (next: string) => setFilters({ status: next, page: '' });
+  const setKind = (next: string) => setFilters({ kind: next, page: '' });
+  const setCategory = (next: string) => setFilters({ category: next, page: '' });
+  const page = parsePageParam(values.page);
+  const setPage = useCallback((next: number, options?: { replace?: boolean }) => setFilters({ page: next > 1 ? String(next) : '' }, options), [setFilters]);
   const filters = useMemo<ExpenseClaimFilters>(
     () => ({
       ...(status ? { status: status as ExpenseClaimStatus } : {}),
@@ -48,7 +52,9 @@ const ExpenseClaims: React.FC = () => {
     }),
     [status, kind, category],
   );
-  const { data, isPending, isError, refetch } = useExpenseClaims(filters);
+  const { data, total, isPending, isError, refetch } = useExpenseClaimPages(filters, page);
+  useClampPage(page, total, EXPENSE_PAGE_SIZE, setPage);
+  const listFailed = isError || !data;
   const projectChoices = useProjectChoices();
   const { create } = useExpenseClaimMutations();
   const ownAdvances = useOwnAdvanceOptions();
@@ -72,7 +78,7 @@ const ExpenseClaims: React.FC = () => {
 
   // Memoised (#2102): the table's row memo keys on this array's identity, so a toast, a menu or
   // any unrelated re-render must not rebuild it. Only a language change can.
-  const columns = useMemo<Column<ExpenseClaimWithRefs>[]>(() => [
+  const columns = useMemo<Column<ExpenseClaimListRow>[]>(() => [
     { key: 'claim_number', header: t('expenses.columns.number', 'Number'),
       cell: (r) => <span className="whitespace-nowrap font-medium">{r.claim_number ?? '—'}</span>,
       exportValue: (r) => r.claim_number ?? '' },
@@ -96,7 +102,7 @@ const ExpenseClaims: React.FC = () => {
   return (
     <ListPage
       title={t('expenses.title', 'Expenses')}
-      count={rows ? rows.length : undefined}
+      count={total ?? rows?.length}
       primaryAction={
         canCreate && (
           <span className="flex flex-wrap gap-2">
@@ -118,7 +124,7 @@ const ExpenseClaims: React.FC = () => {
     >
       <AdvanceAgingCard />
       {isPending && <ListState variant="loading" shape="table" columns={6} rows={6} />}
-      {!isPending && (isError || !data) && (
+      {!isPending && listFailed && (
         <ListState
           variant="error"
           title={t('expenses.states.errorTitle', "Couldn't load expenses")}
@@ -126,13 +132,8 @@ const ExpenseClaims: React.FC = () => {
           onRetry={() => void refetch()}
         />
       )}
-      {!isPending && !isError && data && (
+      {!isPending && !listFailed && data && (
         <>
-          {data.truncated && (
-            <p role="status" className="mb-2 text-sm text-muted-foreground">
-              {t('expenses.truncated', 'Showing the latest {{count}}. Narrow the filters to see older records.', { count: EXPENSE_LIST_LIMIT })}
-            </p>
-          )}
           {(rows ?? []).length === 0 ? (
             <Card clip>
               {/* Ruling 1: the header carries the view's one filled action at every width, so the
@@ -155,7 +156,7 @@ const ExpenseClaims: React.FC = () => {
               />
             </Card>
           ) : (
-            <DataTable<ExpenseClaimWithRefs>
+            <DataTable<ExpenseClaimListRow>
               rows={rows ?? []}
               columns={columns}
               rowKey={(r) => r.id}
@@ -165,7 +166,7 @@ const ExpenseClaims: React.FC = () => {
               mobileCardTitle={(r) => (
                 <span className="flex min-w-0 items-start justify-between gap-3">
                   <span className="min-w-0 break-words font-medium">{r.title}</span>
-                  <span className="shrink-0 font-semibold tabular-nums">{formatCurrency(Number(r.amount), r.currency, { precision: 'minor' })}</span>
+                  <span className="shrink-0 tabular-nums">{formatCurrency(Number(r.amount), r.currency, { precision: 'minor' })}</span>
                 </span>
               )}
               mobileCardDetails={(r) => (
@@ -182,6 +183,8 @@ const ExpenseClaims: React.FC = () => {
                   {(r.claim_number || r.claimant?.full_name) && <p className="min-w-0 break-words">{[r.claim_number, r.claimant?.full_name].filter(Boolean).join(' · ')}</p>}
                 </div>
               )}
+              total={total}
+              pagination={{ page, pageSize: EXPENSE_PAGE_SIZE, onPageChange: setPage }}
             />
           )}
         </>

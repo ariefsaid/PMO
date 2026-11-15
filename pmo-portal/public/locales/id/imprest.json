@@ -140,8 +140,7 @@
     "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
     "positionUnavailable": "Tidak tersedia",
     "rowLabel": "Buka {{project}}",
-    "title": "Kas lapangan",
-    "truncated": "Menampilkan {{count}} terbaru. Arsipkan kas lapangan yang tidak dipakai untuk melihat yang lebih lama."
+    "title": "Kas lapangan"
   },
   "nav": {
     "siteCash": "Kas lapangan"

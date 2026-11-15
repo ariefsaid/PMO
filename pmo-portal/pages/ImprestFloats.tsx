@@ -1,21 +1,21 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, Card, Combobox, DataTable, Icon, EntityFormModal, FormGrid, ListPage, ListState, TextField, useEntityForm, useToast,
+  Button, Card, Combobox, DataTable, Icon, EntityFormModal, FormGrid, ListPage, ListState, TextField, parsePageParam, useClampPage, useEntityForm, useToast, useUrlFilters,
   type Column, type SubmitError,
 } from '@/src/components/ui';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
-import { useImprestFloats, useImprestPosition, useEstablishFloat } from '@/src/hooks/useImprest';
+import { useImprestFloatPages, useImprestPosition, useEstablishFloat } from '@/src/hooks/useImprest';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useUsers } from '@/src/hooks/useUsers';
-import { LIST_LIMIT, type ImprestFloatRow } from '@/src/lib/db/imprest';
+import { FLOAT_PAGE_SIZE, type ImprestFloatListRow } from '@/src/lib/db/imprest';
 import { booksState, toCents } from '@/src/lib/imprest/imprestRules';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency, parseMoneyInputAtScale } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 
-type FloatListRow = ImprestFloatRow & { project: { name: string } | null; custodian: { full_name: string } | null };
+type FloatListRow = ImprestFloatListRow;
 type Figure = 'cash_book' | 'advances_out' | 'receipts_waiting' | 'gap' | 'count';
 
 /** One figure of one float's position. A failed or pending read shows text, never a zero (money-path primer). */
@@ -123,7 +123,12 @@ const EstablishFloatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
 const ImprestFloatsPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { data, isPending, isError, refetch } = useImprestFloats();
+  const { values, setFilters } = useUrlFilters(['page']);
+  const page = parsePageParam(values.page);
+  const setPage = useCallback((next: number, options?: { replace?: boolean }) => setFilters({ page: next > 1 ? String(next) : '' }, options), [setFilters]);
+  const { data, total, isPending, isError, refetch } = useImprestFloatPages(page);
+  useClampPage(page, total, FLOAT_PAGE_SIZE, setPage);
+  const listFailed = isError || !data;
   const [establishOpen, setEstablishOpen] = useState(false);
   const may = usePermission();
   const rows = data?.rows ?? [];
@@ -143,7 +148,7 @@ const ImprestFloatsPage: React.FC = () => {
   return (
     <ListPage
       title={t('imprest:list.title', 'Site cash')}
-      count={data ? rows.length : undefined}
+      count={total ?? (data ? rows.length : undefined)}
       primaryAction={<CanWrite entity="imprestFloat" action="create">
         <Button variant="primary" onClick={() => setEstablishOpen(true)}>
           <Icon name="plus" />
@@ -152,15 +157,12 @@ const ImprestFloatsPage: React.FC = () => {
       </CanWrite>}
     >
       {isPending && <ListState variant="loading" shape="table" rows={4} />}
-      {!isPending && (isError || !data) && (
+      {!isPending && listFailed && (
         <ListState variant="error" title={t('imprest:list.error', "Couldn't load site cash")}
           sub={t('imprest:list.errorSub', 'The request failed. Check your connection and try again.')} onRetry={() => void refetch()} />
       )}
-      {!isPending && !isError && data && (
+      {!isPending && !listFailed && data && (
         <>
-          {data.truncated && <p role="status" className="mb-2 text-sm text-muted-foreground">
-            {t('imprest:list.truncated', 'Showing the latest {{count}}. Archive site cash you no longer use to see older ones.', { count: LIST_LIMIT })}
-          </p>}
           {/* No column headers over an empty list: one line saying what is absent, plus the one fix. */}
           {rows.length === 0 ? (
             <Card clip>
@@ -172,7 +174,9 @@ const ImprestFloatsPage: React.FC = () => {
             <DataTable<FloatListRow> rows={rows} columns={columns} rowKey={(r) => r.id}
               onActivate={(r) => navigate(`/imprest/${r.id}`)}
               rowLabel={(r) => t('imprest:list.rowLabel', 'Open {{project}}', { project: r.project?.name ?? '' })}
-              tableId="imprest-floats-table" />
+              tableId="imprest-floats-table"
+              total={total}
+              pagination={{ page, pageSize: FLOAT_PAGE_SIZE, onPageChange: setPage }} />
           )}
         </>
       )}

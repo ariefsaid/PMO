@@ -140,8 +140,7 @@
     "errorSub": "The request failed. Check your connection and try again.",
     "positionUnavailable": "Unavailable",
     "rowLabel": "Open {{project}}",
-    "title": "Site cash",
-    "truncated": "Showing the latest {{count}}. Archive site cash you no longer use to see older ones."
+    "title": "Site cash"
   },
   "nav": {
     "siteCash": "Site cash"

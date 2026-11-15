@@ -24,13 +24,16 @@ const h = vi.hoisted(() => ({
   create: { mutateAsync: vi.fn(), isPending: false },
   capture: { capture: vi.fn(), cleanupUnlinkedAttachment: vi.fn(), recovery: null as null | Record<string, unknown>, progress: null as number | null },
 }));
-vi.mock('@/src/hooks/useExpenseClaims', () => ({
-  useExpenseClaims: (filters: unknown) => { h.listSpy(filters); return h.dynamicFilters && Object.keys(filters as Record<string, unknown>).length > 0 ? h.filteredList : h.list; },
-  useExpenseAdvanceAging: () => h.aging,
-  useExpenseAdvanceAgingTotals: () => h.totals,
-  useOwnExpenseAdvances: () => h.own,
-  useExpenseClaimMutations: () => ({ create: h.create }),
-}));
+vi.mock('@/src/hooks/useExpenseClaims', async () => {
+  const { asPagedQuery } = await import('@/src/test/pagedQueryMock');
+  return {
+    useExpenseClaimPages: (filters: unknown) => { h.listSpy(filters); return asPagedQuery(h.dynamicFilters && Object.keys(filters as Record<string, unknown>).length > 0 ? h.filteredList : h.list); },
+    useExpenseAdvanceAging: () => h.aging,
+    useExpenseAdvanceAgingTotals: () => h.totals,
+    useOwnExpenseAdvances: () => h.own,
+    useExpenseClaimMutations: () => ({ create: h.create }),
+  };
+});
 vi.mock('@/src/hooks/useExpenseCapture', async () => {
   const ReactModule = await import('react');
   return {
@@ -209,10 +212,17 @@ describe('ExpenseClaims page', () => {
     expect(h.create.mutateAsync).not.toHaveBeenCalled();
   });
 
-  it('AC-EXP-060 says when the list is truncated instead of trimming silently', () => {
+  it('AC-EXP-060 says when the list is truncated instead of trimming silently (#843: x of y and the next page)', () => {
     h.list.data = { rows: [ROW], truncated: true };
-    renderPage();
-    expect(screen.getByText(/Showing the latest 200/)).toBeInTheDocument();
+    (h.list as { total?: number }).total = 201;
+    try {
+      renderPage();
+      expect(screen.getByText('Showing 1–1 of 201')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Next page' })).toBeInTheDocument();
+      expect(screen.queryByText(/Showing the latest/)).not.toBeInTheDocument();
+    } finally {
+      delete (h.list as { total?: number }).total;
+    }
   });
 
   it('AC-S12 readiness disclosure moves with the new full-page create route', async () => {
