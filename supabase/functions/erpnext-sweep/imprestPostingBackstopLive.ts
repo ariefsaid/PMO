@@ -17,7 +17,7 @@ import { ERPNEXT_EXPENSES_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam
 import { backstopPassResult } from './expensePostingBackstop.ts';
 import { featureDisabled, type OrgBinding, listRetryPendingLive, listCandidatesLive } from './sweepShared.ts';
 import { buildReconcileDepsLive, dispatchMoneyWrite, buildMoneyWriteDepsLive } from './moneyWriteLive.ts';
-import { expenseResolveDepsLive, expenseOutboxHoldReason } from './expenseBackstopLive.ts';
+import { expenseResolveDepsLive, expenseOutboxHoldReason } from './expensePostingBackstopLive.ts';
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
 // (7b) #1515 S6 — site float transfers: head office bank → a float's ERP cash account, once per paid replenishment.

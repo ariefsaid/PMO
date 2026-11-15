@@ -1,5 +1,5 @@
 // THEME-BACK-40 (#1643): the expense posting pass's live wiring, imported from its own module.
-import { expenseOutboxHoldReason, reconcileOrgExpensePostingsLive } from './expenseBackstopLive.ts';
+import { expenseOutboxHoldReason, reconcileOrgExpensePostingsLive } from './expensePostingBackstopLive.ts';
 
 function assert(condition: boolean, message: string): void {
   if (!condition) throw new Error(message);

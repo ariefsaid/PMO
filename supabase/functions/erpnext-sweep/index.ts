@@ -64,7 +64,7 @@ export { resolveInvoiceProject, resolveInvoiceProjects } from '../_shared/projec
  * Module map (THEME-BACK-40, #1643): this file keeps the handler, the per-org cycle, the outbox recovery
  * pass and the statement / ledger / purchase / accounting feeds, and wires the passes that live beside it —
  * `doctypePoll.ts` (2), `linkRepair.ts` (the receipt and invoice-project repairs), `budgetBackstopLive.ts` (5),
- * `timesheetBackstopLive.ts` (6), `expenseBackstopLive.ts` (7), `imprestBackstopLive.ts` (7b), over the
+ * `timesheetBackstopLive.ts` (6), `expensePostingBackstopLive.ts` (7), `imprestPostingBackstopLive.ts` (7b), over the
  * shared layers `moneyWriteLive.ts` (every pass's DispatchMoneyWriteDeps), `budgetOutboxFacts.ts`,
  * `sweepShared.ts`, `outboxRows.ts` and `sweepCadence.ts`. The modules never import this file; it
  * re-exports their names so existing importers keep resolving.
@@ -123,10 +123,10 @@ import { SWEEP_TICK_MAX_DOCS, SWEEP_TICK_TIME_BUDGET_MS, SWEEP_TICK_MAX_DOCS_ENV
 import { buildReconcileDepsLive, dispatchMoneyWrite } from './moneyWriteLive.ts';
 import { reconcileOrgBudgetPushesLive } from './budgetBackstopLive.ts';
 import { reconcileOrgTimesheetPushesLive } from './timesheetBackstopLive.ts';
-import { reconcileOrgExpensePostingsLive } from './expenseBackstopLive.ts';
-import { reconcileOrgImprestPostingsLive } from './imprestBackstopLive.ts';
-export { imprestResolveDepsLive, imprestPostingBackstopDepsLive } from './imprestBackstopLive.ts';
-export { expenseResolveDepsLive, expensePostingBackstopDepsLive } from './expenseBackstopLive.ts';
+import { reconcileOrgExpensePostingsLive } from './expensePostingBackstopLive.ts';
+import { reconcileOrgImprestPostingsLive } from './imprestPostingBackstopLive.ts';
+export { imprestResolveDepsLive, imprestPostingBackstopDepsLive } from './imprestPostingBackstopLive.ts';
+export { expenseResolveDepsLive, expensePostingBackstopDepsLive } from './expensePostingBackstopLive.ts';
 export { absentQueueBudget, timesheetBackstopDepsLive } from './timesheetBackstopLive.ts';
 export { BUDGET_ARCHIVE_CANCEL_HELD, BUDGET_ARCHIVE_RESUME_ACTOR_UNAUTHORIZED, type BudgetArchiveWaitResumeOutcome, BUDGET_ARCHIVE_CANCEL_SUPERSEDED, budgetArchiveWaitResumeLive, budgetBackstopDepsLive } from './budgetBackstopLive.ts';
 export { buildOutboxProbe, buildReconcileDepsLive, moneyWriteReplayOptions, moneyWriteReadModelContext, dispatchMoneyWrite, buildMoneyWriteDepsLive, readErpFiscalYearsLive } from './moneyWriteLive.ts';

@@ -1,5 +1,5 @@
 // THEME-BACK-40 (#1643): the site float transfer pass's live wiring, imported from its own module.
-import { imprestPostingBackstopDepsLive, reconcileOrgImprestPostingsLive } from './imprestBackstopLive.ts';
+import { imprestPostingBackstopDepsLive, reconcileOrgImprestPostingsLive } from './imprestPostingBackstopLive.ts';
 
 function assert(condition: boolean, message: string): void {
   if (!condition) throw new Error(message);
