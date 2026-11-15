@@ -84,13 +84,21 @@ test(
     await expect(createdRow).toBeVisible({ timeout: 15_000 });
 
     // ── Step 3: AC-TASK-005 — change the task's status via the inline control ──
-    const statusCtl = createdRow.getByLabel(`Status for ${taskName}`);
+    const statusCtl = createdRow.getByRole('combobox', { name: `Status for ${taskName}` });
     const statusButton = createdRow.getByRole('button', { name: `Status for ${taskName}` });
+    // A success notification can cover the row's status control and pauses while hovered
+    // (as in AC-DOC-020): move the pointer off it and let it expire before using the control.
+    const dismissNotifications = async () => {
+      await page.mouse.move(0, 0);
+      await expect(page.locator('[data-sonner-toast]')).toHaveCount(0, { timeout: 15_000 });
+    };
+    await dismissNotifications();
     await statusButton.click();
     await statusCtl.selectOption('In Progress');
     // GOAL ORACLE: the control reflects the new status (the row persisted the change).
     // The stored value stays 'In Progress'; ux/1110 prints it through status.json as "In progress".
     await expect(statusButton).toHaveText('In progress', { timeout: 15_000 });
+    await dismissNotifications();
     await statusButton.click();
     await expect(statusCtl).toHaveValue('In Progress', { timeout: 15_000 });
 
