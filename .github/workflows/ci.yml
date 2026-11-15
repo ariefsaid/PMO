@@ -253,6 +253,15 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: pmo-portal/package-lock.json
+      - name: Refuse attribution in PR commits
+        if: github.event_name == 'pull_request'
+        working-directory: .
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          node scripts/check-no-attribution.mjs --self-test
+          node scripts/check-no-attribution.mjs "$BASE_SHA" "$HEAD_SHA"
       # Install the checked-in Playwright/Vitest CLIs before repository script tests spawn them.
       - name: Install Node dependencies for repository contract tests
         working-directory: pmo-portal
