@@ -13,7 +13,7 @@ import { readJsonBounded, fetchWithDeadline } from '../_shared/fetchWithDeadline
 import { readBudgetLineItems, readCategoryAccountMap, resolveErpDispatchAdapter, withPaymentTypeDiscriminator } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 // FR-BFY-075: the sweep re-runs the SAME gate the foreground dispatch runs, never a second copy.
 import { runBudgetGate, type BudgetGateProjectRow, type BudgetGateResult, type BudgetVersionGateRow, type FiscalYearRow } from '../../../pmo-portal/src/lib/budget/budgetGate.ts';
-import { guardedErpFetch, isPermittedErpSiteUrl } from '../_shared/erpHostGuard.ts';
+import { isPermittedErpSiteUrl } from '../_shared/erpHostGuard.ts';
 import { resolveErpAuthPair, type ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
 import { checkErpnextCommandAuthorization, checkOutboxReplayAuthorization, replayMayIssueErpWrite } from '../adapter-dispatch/authGuard.ts';
@@ -28,7 +28,7 @@ import type { BudgetArchiveCancelIntent } from './budgetArchiveBackstop.ts';
 import { budgetAccountArchiveKey, budgetAccountIdentity, budgetAccountPushKey, budgetLegacyArchiveKey, budgetLegacyIdentity, budgetRangeIdentity, parseBudgetIdentity } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
 import { resolveV16BudgetAccounts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountPlan.ts';
 import { parseExactCents } from '../../../pmo-portal/src/lib/exactDecimal.ts';
-import type { OrgBinding } from './sweepShared.ts';
+import { type OrgBinding, orgErpFetch, orgErpTransport } from './sweepShared.ts';
 import { BUDGET_SWEEP_GATE_HELD, readBudgetArchiveLifecycleLive, budgetArchiveTargetStillLiveAndOwnedLive } from './budgetOutboxFacts.ts';
 
 /**
@@ -271,7 +271,7 @@ export async function buildMoneyWriteDepsLive(
   // BLOCK 1 (money double-POST): the recovery probe must not burn the claim budget. withProbeBudget
   // caps it (maxRetries 0 + tighter deadline) so a hung probe surfaces as unreachable instead of
   // consuming the whole 300s quarantine window and letting a claimant POST after its own reissue.
-  const client = withProbeBudget({ fetchImpl: guardedErpFetch(org.siteUrl), apiKey, apiSecret, baseUrl: org.siteUrl });
+  const client = withProbeBudget({ ...orgErpTransport(org), apiKey, apiSecret, baseUrl: org.siteUrl });
 
   // ECA-6: a budget replace the sweep finishes names its recorded consent; it is spent once the write lands.
   let occupantConsentId: string | null = null;
@@ -280,7 +280,7 @@ export async function buildMoneyWriteDepsLive(
     orgId: org.orgId,
     actorUserId: args.actorUserId ?? undefined,
     command,
-    fetchImpl: guardedErpFetch(org.siteUrl),
+    ...orgErpTransport(org),
     apiKey,
     apiSecret,
     rateLimiter: { acquire: async () => {} },
@@ -657,7 +657,7 @@ export async function readErpFiscalYearsLive(
   let res: Response;
   try {
     res = await fetchWithDeadline(
-      guardedErpFetch(org.siteUrl),
+      orgErpFetch(org),
       url.toString(),
       // #655: never follow a redirect off the admin-nominated host; a 3xx fails the `!res.ok` check below.
       { headers: { Authorization: `token ${apiKey}:${apiSecret}`, Accept: 'application/json' }, redirect: 'manual' },
