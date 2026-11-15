@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { formatCurrency, formatCurrencyCents, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
@@ -214,6 +214,27 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
     }
   };
 
+  // #2081: Enter saves and Esc cancels from any field of the add row or the row being edited.
+  const rowKeys = (save: () => void, cancel: () => void, busy: boolean) => (e: React.KeyboardEvent) => {
+    if (e.defaultPrevented) return;
+    if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+    else if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT' && !busy) { e.preventDefault(); save(); }
+  };
+  const cancelNewLine = () => {
+    const dirty = newCategory !== 'Labor' || newDesc !== '' || newAmount !== '' || newFiscalYear !== '';
+    if (dirty) setDiscardBuffer('new');
+    else resetNewLine();
+  };
+  const newKeys = rowKeys(() => void handleAdd(), cancelNewLine, createIsPending);
+  const editKeys = (li: BudgetLineItemRow) => rowKeys(() => void handleSaveEdit(li), requestCloseEdit, updateIsPending);
+  // #2081: a refused save moves focus to the field that is wrong, so the error is announced in place.
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (newFiscalYearError || newAmountError || editFiscalYearError || editAmountError) {
+      rootRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+    }
+  }, [newFiscalYearError, newAmountError, editFiscalYearError, editAmountError]);
+
   const fieldCls =
     'h-8 rounded-md border border-input bg-background px-2.5 text-sm outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 
@@ -234,8 +255,9 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
     </datalist>
   );
 
-  const categorySelect = (props: { id?: string; label: string; value: Enums<'budget_category'>; onChange: (v: Enums<'budget_category'>) => void; autoFocus?: boolean; disabled?: boolean }) => (
+  const categorySelect = (props: { id?: string; label: string; value: Enums<'budget_category'>; onChange: (v: Enums<'budget_category'>) => void; autoFocus?: boolean; disabled?: boolean; onKeyDown?: React.KeyboardEventHandler }) => (
     <select
+      onKeyDown={props.onKeyDown}
       id={props.id}
       aria-label={props.label}
       value={props.value}
@@ -260,11 +282,11 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
       size: 170,
       cell: (row) => {
         if (row.kind === 'new') {
-          return categorySelect({ label: t('financeCopy.lineItemCategory', "Line item category"), value: newCategory, onChange: setNewCategory, disabled: createIsPending });
+          return categorySelect({ label: t('financeCopy.lineItemCategory', "Line item category"), value: newCategory, onChange: setNewCategory, disabled: createIsPending, onKeyDown: newKeys });
         }
         const li = row.li;
         return editingId === li.id
-          ? categorySelect({ id: `edit-category-${li.id}`, label: t('financeCopy.category', "Category"), value: editCategory, onChange: setEditCategory, autoFocus: true, disabled: updateIsPending })
+          ? categorySelect({ id: `edit-category-${li.id}`, label: t('financeCopy.category', "Category"), value: editCategory, onChange: setEditCategory, autoFocus: true, disabled: updateIsPending, onKeyDown: editKeys(li) })
           : budgetCategoryLabel(li.category as Enums<'budget_category'>, t);
       },
     },
@@ -283,6 +305,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
               value={newDesc}
               disabled={createIsPending}
               onChange={(e) => setNewDesc(e.target.value)}
+              onKeyDown={newKeys}
               className={`${fieldCls} w-full`}
             />
           );
@@ -296,6 +319,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
             value={editDesc}
             disabled={updateIsPending}
             onChange={(e) => setEditDesc(e.target.value)}
+            onKeyDown={editKeys(li)}
             className={`${fieldCls} w-full`}
           />
         ) : (
@@ -323,6 +347,8 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
                 list="budget-fiscal-year-options"
                 value={newFiscalYear}
                 disabled={createIsPending}
+                onKeyDown={newKeys}
+                aria-invalid={newFiscalYearError ? true : undefined}
                 onChange={(e) => {
                   setNewFiscalYear(e.target.value);
                   setNewFiscalYearError(null);
@@ -350,6 +376,8 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
               list="budget-fiscal-year-options"
               value={editFiscalYear}
               disabled={updateIsPending}
+              onKeyDown={editKeys(li)}
+              aria-invalid={editFiscalYearError ? true : undefined}
               onChange={(e) => {
                 setEditFiscalYear(e.target.value);
                 setEditFiscalYearError(null);
@@ -381,6 +409,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
               placeholder={t('financeCopy.amount', "Amount")}
               value={newAmount}
               disabled={createIsPending}
+              onKeyDown={newKeys}
               onChange={(value) => {
                 setNewAmount(value);
                 setNewAmountError(null);
@@ -402,6 +431,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
               hideLabel
               value={editAmount}
               disabled={updateIsPending}
+              onKeyDown={editKeys(li)}
               onChange={(value) => {
                 setEditAmount(value);
                 setEditAmountError(null);
@@ -441,11 +471,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => {
-                  const dirty = newCategory !== 'Labor' || newDesc !== '' || newAmount !== '' || newFiscalYear !== '';
-                  if (dirty) setDiscardBuffer('new');
-                  else resetNewLine();
-                }}
+                onClick={cancelNewLine}
                 disabled={createIsPending}
               >
                 {t('financeCopy.cancel', "Cancel")}</Button>
@@ -517,7 +543,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
     : allColumns;
 
   return (
-    <div className="relative mt-4">
+    <div ref={rootRef} className="relative mt-4">
       {wholeProject && (
         <p data-testid="budget-whole-project-editor-hint" className="mb-2 text-sm text-muted-foreground">
           {t('financeCopy.wholeProjectEditorHint', 'Whole-project budget: enter each category total once — no fiscal year per line.')}

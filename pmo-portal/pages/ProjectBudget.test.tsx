@@ -1577,6 +1577,21 @@ describe('ProjectBudget Create budget form (empty state)', () => {
     resetState();
   });
 
+  it('#2081 Enter in the version name stages the create, Esc closes the form', async () => {
+    budgetState.data = 0;
+    versionsState.data = [];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Create budget' }));
+    await userEvent.type(screen.getByPlaceholderText(/Version name/i), 'Budget v1{Enter}');
+    expect(await screen.findByRole('button', { name: /Create version/i })).toBeInTheDocument();
+    expect(mockCreateVersion).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: /^Cancel$/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'Create budget' }));
+    await userEvent.type(screen.getByPlaceholderText(/Version name/i), 'x{Escape}');
+    expect(screen.queryByPlaceholderText(/Version name/i)).not.toBeInTheDocument();
+    resetState();
+  });
+
   it('hides form on cancel', async () => {
     budgetState.data = 0;
     versionsState.data = [];

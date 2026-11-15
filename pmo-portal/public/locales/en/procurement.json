@@ -3,7 +3,11 @@
     "selected": "Selected",
     "lowestPrice": "Lowest price"
   },
+  "bupot": {
+    "billCap": "A slip covers at most 100 bills."
+  },
   "lineItems": {
+    "nameRequired": "Enter an item name.",
     "erpItem": "ERP item",
     "itemDescription": "Item / description",
     "description": "Description",

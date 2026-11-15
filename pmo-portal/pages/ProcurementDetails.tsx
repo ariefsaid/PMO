@@ -441,6 +441,27 @@ const ProcurementDetails: React.FC = () => {
     const { headline, detail } = classifyMutationError(err);
     toast(headline, detail, 'warning');
   };
+  // #2081: shared by the Save button and Enter in the Set supplier panel.
+  const saveVendor = async () => {
+    if (!selectedVendorId) return;
+    try {
+      await crud.updateVendor.mutateAsync(selectedVendorId);
+      setVendorPickerOpen(false);
+      toast(t('bupot.vendorSet', 'Supplier set'), undefined, 'success');
+    } catch (err) {
+      if ((err as { code?: string })?.code === 'VENDOR_ALREADY_SET') {
+        setVendorPickerOpen(false);
+        toast(
+          t('bupot.vendorAlreadySet', 'A supplier was already set. Refresh to see it.'),
+          undefined,
+          'warning',
+        );
+        await detailQuery.refetch();
+        return;
+      }
+      onMutationError(err);
+    }
+  };
   // 0349: where payment is blocked because the billed amount exceeds the approved amount, an eligible
   // approver (the Approve role set, never the requester) may approve the higher amount. UX only — the
   // server decides eligibility from the approval route and refuses the quote selector / bill recorder.
@@ -780,7 +801,21 @@ const ProcurementDetails: React.FC = () => {
               gates={gates}
             /> : <ProcurementTimeline procurement={p} ledgerRows={ledgerRows} linkedDocuments={linkedDocs} isEngineer canWriteFiles={canManageFiles} uploadedById={currentUserId} onFullHistory={() => { setHistoryOpen(true); setTab('timeline'); }} />}
             {vendorPickerOpen && canSetVendor && (
-              <div role="dialog" aria-label={t('bupot.setVendor', 'Set supplier')} className="mt-3 flex flex-wrap items-end gap-3 rounded-md border border-border p-3">
+              <div
+                role="dialog"
+                aria-label={t('bupot.setVendor', 'Set supplier')}
+                className="mt-3 flex flex-wrap items-end gap-3 rounded-md border border-border p-3"
+                onKeyDown={(e) => {
+                  // #2081: Esc cancels; Enter on the closed supplier picker saves a chosen supplier.
+                  if (e.defaultPrevented) return;
+                  const target = e.target as HTMLElement;
+                  if (e.key === 'Escape') { e.preventDefault(); setVendorPickerOpen(false); }
+                  else if (e.key === 'Enter' && target.getAttribute('role') === 'combobox' && target.getAttribute('aria-expanded') !== 'true' && vendorReferencesReady && selectedVendorId && !crud.updateVendor.isPending) {
+                    e.preventDefault();
+                    void saveVendor();
+                  }
+                }}
+              >
                 <Combobox
                   label={t('bupot.vendor', 'Supplier')}
                   noun={t('bupot.vendor', 'Supplier').toLowerCase()}
@@ -796,26 +831,7 @@ const ProcurementDetails: React.FC = () => {
                   variant="primary"
                   size="sm"
                   disabled={!vendorReferencesReady || !selectedVendorId || crud.updateVendor.isPending}
-                  onClick={async () => {
-                    if (!selectedVendorId) return;
-                    try {
-                      await crud.updateVendor.mutateAsync(selectedVendorId);
-                      setVendorPickerOpen(false);
-                      toast(t('bupot.vendorSet', 'Supplier set'), undefined, 'success');
-                    } catch (err) {
-                      if ((err as { code?: string })?.code === 'VENDOR_ALREADY_SET') {
-                        setVendorPickerOpen(false);
-                        toast(
-                          t('bupot.vendorAlreadySet', 'A supplier was already set. Refresh to see it.'),
-                          undefined,
-                          'warning',
-                        );
-                        await detailQuery.refetch();
-                        return;
-                      }
-                      onMutationError(err);
-                    }
-                  }}
+                  onClick={() => void saveVendor()}
                 >{t('bupot.saveVendor', 'Save supplier')}</Button>
                 <Button variant="outline" size="sm" onClick={() => setVendorPickerOpen(false)}>{t('bupot.cancelSetVendor', 'Cancel')}</Button>
               </div>

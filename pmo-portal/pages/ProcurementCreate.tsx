@@ -254,6 +254,8 @@ export default function ProcurementCreate() {
     }
     if (!title.trim()) {
       setErrors({ title: t('titleRequired', 'A procurement title is required.') });
+      // #2081: move focus to the field that is wrong so its error is announced in place.
+      document.getElementById('procurement-create-title')?.focus();
       return;
     }
     setErrors({});
