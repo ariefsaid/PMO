@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import type { BudgetCategory } from '@/src/lib/db/imprest';
@@ -14,6 +14,28 @@ const useOrgId = (): string | undefined => useAuth().currentUser?.org_id;
 export function useImprestFloats() {
   const orgId = useOrgId();
   return useQuery({ queryKey: ['imprest-floats', orgId], queryFn: () => repositories.imprest.listFloats(), enabled: Boolean(orgId) });
+}
+/** One numbered page of the Site cash list (#843), plus the server count for "Showing 1–50 of 205". The previous page stays on screen while the next loads. */
+export function useImprestFloatPages(page = 1) {
+  const orgId = useOrgId();
+  const pages = useQuery({
+    queryKey: ['imprest-floats', orgId, 'pages', page],
+    queryFn: () => repositories.imprest.listFloats(page),
+    placeholderData: keepPreviousData,
+    enabled: Boolean(orgId),
+  });
+  const count = useQuery({
+    queryKey: ['imprest-floats', orgId, 'count'],
+    queryFn: async () => {
+      try {
+        return await repositories.imprest.countFloats();
+      } catch {
+        return undefined;
+      }
+    },
+    enabled: Boolean(orgId),
+  });
+  return { ...pages, total: count.data };
 }
 /** One float by id (a record page must not search the capped list). Its own root (`imprest-float`, listed in IMPREST_QUERY_ROOTS) so every write refreshes it; the shell crumb reads the same key. */
 export function useImprestFloat(floatId: string | null | undefined) {

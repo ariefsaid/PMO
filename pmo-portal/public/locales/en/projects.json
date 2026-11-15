@@ -1,6 +1,7 @@
 {
   "listPage": {
-    "loadedMoreAvailable": "{{count}} loaded, more available"
+    "loadedMoreAvailable": "{{count}} loaded, more available",
+    "showingRange": "Showing {{from}}–{{to}} of {{total}}"
   },
   "coverage": {
     "hiddenNotLinked": "spending is not linked",
@@ -138,5 +139,13 @@
     "noBudget": "no budget"
   },
   "listOptions": "Options",
-  "exportImport": "Export and import"
+  "exportImport": "Export and import",
+  "pagination": {
+    "label": "Pagination",
+    "previous": "Previous",
+    "previousAria": "Previous page",
+    "next": "Next",
+    "nextAria": "Next page",
+    "page": "Page {{page}}"
+  }
 }
