@@ -81,6 +81,13 @@ export interface LedgerRow {
    * which locks the e-Faktur edit affordance. Absent on every other record type.
    */
   efakturLocked?: boolean;
+  /**
+   * #1671 — vendor-invoice rows only: true for a live, PMO-native bill (no ERP number, docstatus or cancel stamp) tied
+   * to the PO of a subcontract purchase, i.e. one `void_subcontract_bill` may accept. UX only: the RPC decides.
+   */
+  voidable?: boolean;
+  /** #1671 — vendor-invoice rows only: the void facts of a voided bill (when, why, who); null on a live bill. */
+  voided?: { at: string; reason: string; byName: string | null } | null;
   taxRate?: number | null;
   taxBaseNumerator?: number;
   taxBaseDenominator?: number;
@@ -215,6 +222,8 @@ interface MakeRowExtra {
   efakturNumber?: string | null;
   efakturDate?: string | null;
   efakturLocked?: boolean;
+  voidable?: boolean;
+  voided?: LedgerRow['voided'];
   taxRate?: number | null;
   taxBaseNumerator?: number;
   taxBaseDenominator?: number;
@@ -237,7 +246,7 @@ function makeRow(
   extra: MakeRowExtra = {},
 ): LedgerRow {
   const { groupRef, taxTreatment, taxRate, taxBaseNumerator, taxBaseDenominator, taxBaseUnknown, taxAmount, withheldAmount,
-    efakturNumber, efakturDate, efakturLocked } = extra;
+    efakturNumber, efakturDate, efakturLocked, voidable, voided } = extra;
   const businessDate = date ?? createdAt;
   const { fileHref, fileTitle, fileCount, fileRef } = filePresence(files);
   return {
@@ -260,7 +269,7 @@ function makeRow(
     taxTreatment: taxTreatment ?? null,
     efakturNumber: type === 'Invoice' ? (efakturNumber ?? null) : null,
     efakturDate: type === 'Invoice' ? (efakturDate ?? null) : null,
-    ...(type === 'Invoice' ? { efakturLocked: efakturLocked ?? false } : {}),
+    ...(type === 'Invoice' ? { efakturLocked: efakturLocked ?? false, voidable: voidable ?? false, voided: voided ?? null } : {}),
     taxRate, taxBaseNumerator, taxBaseDenominator, taxBaseUnknown,
     ...(withheldAmount !== undefined ? { taxAmount: taxAmount ?? null, withheldAmount } : {}),
   };
@@ -403,6 +412,16 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
           efakturNumber: vi.efaktur_number,
           efakturDate: vi.efaktur_date,
           efakturLocked: vi.erp_docstatus === 2 || vi.erp_cancelled_at != null,
+          // #1671: mirrors void_subcontract_bill's preconditions so the action is offered only where it can succeed.
+          voidable: vi.voided_at == null && vi.external_ref == null && vi.erp_docstatus == null && vi.erp_cancelled_at == null
+            && vi.po_id != null && detail.is_subcontract === true,
+          voided: vi.voided_at != null
+            ? {
+                at: vi.voided_at,
+                reason: vi.void_reason ?? '',
+                byName: (vi as unknown as { voider?: { full_name: string | null } | null }).voider?.full_name ?? null,
+              }
+            : null,
         },
       ),
     );

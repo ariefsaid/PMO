@@ -1053,3 +1053,9 @@ describe('can() — time-and-materials rate card and sign-off (#1514 T7; the 051
     expect(can('confirm', 'tmSignoff', { realRole: 'Finance', currentUserId: 'u1', record: { preparedBy: 'u1', viewOnly: true } })).toBe(false);
   });
 });
+
+describe('#1671 vendor bill void (UX gate; void_subcontract_bill is the authority)', () => {
+  it('AC-SCV-008 only Admin and Finance may void a vendor bill', () => {
+    expect(allowedRoles('void', 'procurementInvoice')).toEqual(['Admin', 'Finance']);
+  });
+});

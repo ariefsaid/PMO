@@ -718,5 +718,25 @@
     "headingAll": "Purchases and timesheets",
     "waitingDays_one": "{{count}} day waiting",
     "waitingDays_other": "{{count}} days waiting"
+  },
+  "voidBill": {
+    "action": "Void bill",
+    "title": "Void this bill?",
+    "reason": "Why is this bill being voided?",
+    "helper": "Kept with the bill and its history.",
+    "confirm": "Void bill",
+    "context": "{{number}} stays on the ledger as voided and stops counting against the PO, so the corrected bill can be captured.",
+    "voided": "Voided",
+    "byOn": "{{name}} · {{date}}",
+    "error": {
+      "ownBill": "You captured this bill, so another Admin or Finance user must void it.",
+      "authorUnknown": "Nobody is recorded as capturing this bill, so it cannot be voided here.",
+      "erpBound": "Your organisation records bills in its ERP. Cancel the bill there.",
+      "erpRecord": "This bill came from an ERP record. Cancel it in the ERP.",
+      "hasPayment": "This bill has a payment. Cancel the payment first.",
+      "paymentsExceed": "Payments on this purchase would be more than its remaining bills. Cancel a payment first.",
+      "already": "This bill is already voided.",
+      "generic": "The bill could not be voided. Try again."
+    }
   }
 }

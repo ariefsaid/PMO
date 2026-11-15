@@ -51,7 +51,8 @@ export type Action =
   | 'request'
   | 'decide'
   | 'revise'
-  | 'link';
+  | 'link'
+  | 'void';
 
 export type Entity =
   | 'project'
@@ -664,6 +665,9 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     view: allow(MASTER_DATA),
     // DD-EFK-1: vendor e-Faktur facts use the same Admin/Finance UX gate as outgoing invoices.
     record_efaktur: allow(REVENUE_WRITE),
+    // #1671: voiding a mistyped PMO-native subcontract bill is a post-capture bill write, Admin/Finance like the
+    // line attribution and e-Faktur. UX only — void_subcontract_bill (0885) enforces role, author SoD and the ERP boundary.
+    void: allow(REVENUE_WRITE),
   },
   erpPurchaseLink: {
     // ADR-0093: linking an ERPNext purchase document into a purchase (FR-PFE-020) — the ERP-purchase audience; an

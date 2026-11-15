@@ -101,6 +101,8 @@ Service/O&M). Defined in `docs/roadmap-spines.md`.
 
 **Vendor invoice** (UI: **Supplier invoice**) — a supplier billing record under a procurement case, optionally linked to a purchase order, carrying an amount, date, status and tax details.
 
+**Void (vendor bill)** — in an organisation with no ERP, an Admin or Finance user marks a mistyped PMO-native subcontract bill as voided, with a reason. Soft: the bill and its lines stay, it stops counting against the PO and the purchase's payments, and it can never be paid or un-voided. The person who captured the bill cannot void it unless they are the organisation's only active member. Distinct from an ERP cancel, which comes from the ERP (#1671).
+
 **Procurement payment** — a dated payment record under a procurement case, optionally linked to a vendor invoice, with an amount and status.
 
 **Procurement item** — a named quantity and rate on a procurement case, with a calculated or recorded amount.

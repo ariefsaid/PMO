@@ -183,7 +183,8 @@ const DETAIL_SELECT = [
   // Receipts + their files.
   `receipts:procurement_receipts(*, files:procurement_receipt_files(${FILE_FIELDS}))`,
   // Invoices + their files.
-  `invoices:procurement_invoices(*, files:procurement_invoice_files(${FILE_FIELDS}))`,
+  // #1671: the voider's name for a voided bill's ledger row.
+  `invoices:procurement_invoices(*, voider:profiles!procurement_invoices_voided_by_fkey(full_name), files:procurement_invoice_files(${FILE_FIELDS}))`,
   // Slice 6.1 — four new ERP-canonical record types + transition-event log (one bounded
   // PostgREST embed, no N+1; NFR-PR-PERF-002, [PD-7]).
   `purchase_requests:purchase_requests(*, files:purchase_request_files(${FILE_FIELDS}))`,

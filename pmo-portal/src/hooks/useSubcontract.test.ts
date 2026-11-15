@@ -26,6 +26,7 @@ const h = vi.hoisted(() => ({
   issuePoRevision: vi.fn(),
   linkPoVariation: vi.fn(),
   attributeSubcontractBillLines: vi.fn(),
+  voidSubcontractBill: vi.fn(),
 }));
 
 vi.mock('@/src/lib/repositories', () => ({
@@ -259,5 +260,21 @@ describe('useSubcontract hooks (src/hooks/useSubcontract.ts)', () => {
     const calls = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]));
     expect(calls.some((c) => c.includes('"subcontract"') && c.includes('"org-1"') && c.includes('"po-1"'))).toBe(true);
     expect(calls.some((c) => c.includes('"procurement"') && c.includes('"org-1"'))).toBe(true);
+  });
+
+  it('AC-SCV-008 voidBill calls the repository and refreshes the PO position and the purchase', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+    h.voidSubcontractBill.mockResolvedValueOnce({ id: 'inv-1' });
+
+    const { result } = renderHook(() => useSubcontractMutations('po-1', 'proc-1'), { wrapper: Wrapper });
+    await act(async () => {
+      await result.current.voidBill.mutateAsync({ invoiceId: 'inv-1', reason: 'typed 12 instead of 2' });
+    });
+    expect(h.voidSubcontractBill).toHaveBeenCalledWith('inv-1', 'typed 12 instead of 2');
+
+    const calls = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]));
+    expect(calls.some((c) => c.includes('"subcontract"') && c.includes('"org-1"') && c.includes('"po-1"'))).toBe(true);
+    expect(calls.some((c) => c.includes('"procurement"') && c.includes('"org-1"') && c.includes('"proc-1"'))).toBe(true);
   });
 });
