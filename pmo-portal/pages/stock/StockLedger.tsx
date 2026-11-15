@@ -77,13 +77,17 @@ export function buildLedgerColumns({ t, loc, currency, showCost }: {
         <div className="min-w-0">
           <CodeText code={r.itemCode} testId="stock-ledger-item-code" className="block break-all font-mono text-sm md:whitespace-nowrap" />
           <span className="block break-normal whitespace-normal text-sm text-muted-foreground">{r.itemName}</span>
+          {r.projectName && (
+            <span data-testid="stock-ledger-project-fact" className="block break-normal whitespace-normal text-sm text-muted-foreground 2xl:hidden">{r.projectName}</span>
+          )}
         </div>
       ),
       exportValue: (r) => r.itemCode,
     },
     { key: 'warehouse', header: t('ledger.columns.warehouse'), size: 200, minSize: 200, colClassName: 'md:whitespace-nowrap', cell: (r) => <CodeText code={r.warehouseCode} testId="stock-ledger-warehouse-code" className="block min-w-0 break-all font-mono text-sm md:whitespace-nowrap" />, exportValue: (r) => r.warehouseCode },
     {
-      key: 'project', header: t('ledger.columns.project'), size: 176, minSize: 176, colClassName: 'hidden lg:table-cell md:whitespace-nowrap',
+      key: 'project', header: t('ledger.columns.project'), size: 176, minSize: 176, colClassName: 'hidden 2xl:table-cell md:whitespace-nowrap',
+      // Below 2xl (1536px) the project name rides under Item so the money columns fit the panel at 1440.
       // Project names wrap at spaces; the work-item code remains one intact identifier on desktop.
       cell: (r) => (r.projectName ? (<div className="min-w-0"><span className="block break-normal whitespace-normal text-sm">{r.projectName}</span><CodeText code={r.boqItemCode ?? ''} className="block break-all font-mono text-sm text-muted-foreground md:whitespace-nowrap" /></div>) : null),
       exportValue: (r) => r.projectName ?? '',

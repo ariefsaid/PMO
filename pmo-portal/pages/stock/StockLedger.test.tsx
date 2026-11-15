@@ -65,7 +65,7 @@ describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
   it('AC-STK-001 shows the actor, project, work item and running balance of an issue', async () => {
     renderPage();
     expect(await findActorNames()).not.toHaveLength(0);
-    expect(screen.getByText('Tower A')).toBeInTheDocument();
+    expect(screen.getAllByText('Tower A')[0]).toBeInTheDocument();
     expect(screen.getByText('W-1')).toBeInTheDocument();
     expect(screen.getByText('70')).toBeInTheDocument();
   });
@@ -213,7 +213,7 @@ describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
     const actorLine = within(row).getByTestId('stock-ledger-actor');
     expect(kindLine.textContent).toBe(stockEn.kinds.issue);
     expect(actorLine.textContent).toBe('Eka Engineer');
-    expect(within(row).getByText('Tower A').textContent).toBe('Tower A');
+    expect(within(row).getAllByText('Tower A').map((n) => n.textContent)).toEqual(['Tower A', 'Tower A']);
     expect(within(row).getByText('W-1').textContent).toBe('W-1');
   });
 
