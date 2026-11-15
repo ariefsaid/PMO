@@ -487,7 +487,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   })();
 
   const claimsCard = (
-    <Card data-testid="raise-figures">
+    <Card>
       <CardHead
         level={2}
         className="text-base"

@@ -225,8 +225,9 @@ Reading: no region got slower beyond run-to-run noise (about 150 ms on this box)
 before the held read; the whole card, which includes the one loading row, still waits for it by design. The overview
 content region waits for the overview read, and the header, tabs and primary action no longer do.
 
-**A7:** the claims card ("raise-figures") is rendered only by the full-layout `BillingTab`, which no route mounts at
-head (the contract tab mounts it in contract-tools mode). It has no live region to time. The live "New claim" button is
-in `WorkOrdersClaimsCard` / `WorkOrdersTab`; see the batch notes.
+**A7:** `raise-figures` is the raise-invoice confirm dialog's own hook (it renders only after a click), so it has no
+timed state on load, and this slice adds no hook of its own. The full-layout `BillingTab` that holds the "New claim"
+button is not mounted by any route at head (the contract tab mounts it in contract-tools mode); the live "New claim"
+button is in `WorkOrdersClaimsCard` / `WorkOrdersTab`. See the batch notes.
 **A8:** the card already takes invoices and billing from its parent (no read of its own); the hook `customer-order-card`
 is added, but the seed holds no customer orders, so the region does not render in the measured state.
