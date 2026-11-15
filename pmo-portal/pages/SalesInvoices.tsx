@@ -119,16 +119,19 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
       currentUserId: currentUser?.id,
       record: { author_id: inv.author_user_id, author_ids: inv.author_user_ids },
     }), [currentUser?.id, may]);
-  const receiptAwaitingOdooForInvoice = createInvoiceReceiptGate(paymentRows);
-  const invoiceStatus = createInvoiceStatus({
+  // Memoised so the columns below can depend on them (#2102): the table's row memo keys on the
+  // columns array's identity, and an unstable callback would rebuild it on every render.
+  const receiptAwaitingOdooForInvoice = useMemo(() => createInvoiceReceiptGate(paymentRows), [paymentRows]);
+  const odooCommandsData = odooCommands.data;
+  const invoiceStatus = useMemo(() => createInvoiceStatus({
     t,
     canApproveDraft,
     receiptAwaitingOdooForInvoice,
     odoo,
     odooOffline,
     organizationToday,
-    odooCommandsData: odooCommands.data,
-  });
+    odooCommandsData,
+  }), [t, canApproveDraft, receiptAwaitingOdooForInvoice, odoo, odooOffline, organizationToday, odooCommandsData]);
 
   const all = useMemo(() => data ?? [], [data]);
 
@@ -382,6 +385,14 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
     return majority && isTaxTreatment(majority[0]) ? majority[0] : null;
   }, [embedded, sortedInvoices]);
 
+  // ONE memo unit (#2102): a toast, a menu open or an unrelated re-render must not rebuild the
+  // columns; every input that changes what a cell paints is a dependency. Above the early
+  // returns so the hook order is stable.
+  const { projectLabelOf, displayColumns, exportColumns, mobileCardDetails } = useMemo(
+    () => salesInvoiceColumns({ t, all, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus }),
+    [t, all, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus],
+  );
+
   const state: 'loading' | 'empty' | 'error' | undefined = isPending || mode === undefined
     ? 'loading'
     : isError || !data
@@ -409,7 +420,6 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
     return <SalesInvoiceDetail viewTarget={viewTarget} isPending={!viewTarget && (isPending || unlisted.isFetching)} isError={isError || unlisted.isError} data={data} mode={mode} organizationToday={organizationToday} onBack={recordContext.closeRecord} refetch={refetch} recordPrimaryAction={recordPrimaryAction} invoiceDisplayLabel={invoiceDisplayLabel} projectName={viewTarget ? projectOptionsById.get(viewTarget.project_id ?? '')?.contractualName ?? null : null} receiptAwaitingOdoo={viewTarget ? receiptAwaitingOdooForInvoice(viewTarget) : false} odoo={odoo} may={may} pdfDownload={pdfDownload} dialogs={<SalesInvoiceDialogs actions={actions} submitFallback={invoiceDisplayLabel} />} />;
   }
 
-  const { projectLabelOf, displayColumns, exportColumns, mobileCardDetails } = salesInvoiceColumns({ t, all, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus });
   const groupRowsBy = groupMode === 'client'
     ? (inv: SalesInvoiceRow) => inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')
     : groupMode === 'project'
