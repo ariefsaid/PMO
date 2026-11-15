@@ -394,11 +394,14 @@ select is((select count(*)::int from erp_capture_invoice_assignments where famil
 select is((public.undo_captured_purchase(pg_temp.purchase('PO-1'),'again',false))->>'reason','already_undone','AC-011 a second undo is a skip');
 select is((public.undo_captured_purchase(:'W','wrong invoice',false,:'attach_req'))->>'outcome','undo','AC-012 one attachment is undone');
 select is((select record_only_stage from procurements where id = :'W'),'ordered','AC-012 the stage before the attachment is back');
-select is((select status::text from procurements where id = :'W'),'Draft','AC-012 the purchase stays');   -- the fixture W's status
+select is((select status::text||'/'||(vendor_invoiced_at is null)::text from procurements where id = :'W'),'Ordered/true','AC-012 the status before the attachment is back');
 select throws_ok(format($$select public.undo_captured_purchase(%L,'x',false)$$, pg_temp.purchase('PO-P')),'55000','has_later_pmo_steps','AC-013 a queued payment blocks undo');
 ```
 plus W's open commitment back to 1000.00, P's actuals back, the mark of a set-aside PI restored, and a changed mark →
-`assignment_mark_changed`. Verify red (the 4-argument call does not exist).
+`assignment_mark_changed`. Attaching links an invoice, which moves W's status to Vendor Invoiced; so with no invoice left
+the undo restores stage, status and vendor-invoiced date from W's **earliest** attachment capture row (two attachments
+undone first-to-last must still end Ordered with no date), lowering `record_only` for the change as the capture's attach
+does. Verify red (the 4-argument call does not exist).
 
 ### T16 — green: `undo_captured_purchase` (FR-015–FR-017)
 `drop function public.undo_captured_purchase(uuid,text,boolean);` then create

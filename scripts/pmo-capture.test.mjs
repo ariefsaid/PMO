@@ -171,14 +171,14 @@ test('AC-018 a family preview prints the outcome, invoice amounts, commitment be
   const server = { complete: true, revision: 'rev-7', results: [
     { request_id: U(1), source_id: U(201), source: 'PO-1', supplier: 'Supplier One', decision: 'order_family', outcome: 'create', would_create: true, procurement_id: null, project_id: U(900),
       invoices: [{ source_id: U(301), source: 'PI-1', tagged: false, mapped_amount: '600.00', excluded: [], prior_placement: [{ project_id: U(901), amount: '600.00' }], state: 'invoiced' }],
-      commitment_before: '0.00', commitment_after: '400.00', ledger_currency: 'USD', assignment_origin: 'pmo_assignment', erp_write: false },
+      commitment_before: '0', commitment_after: '400.00', ledger_currency: 'USD', assignment_origin: 'pmo_assignment', erp_write: false },
   ] };
   const preview = await runCaptureAssignments({ capture: async () => server }, rows, { dryRun: true, file: 'f.json' });
   const [one] = preview.rows;
   assert.equal(one.outcome, 'create');
   assert.equal(one.choice, 'order_family');
-  assert.equal(one.summary, `PO-1 → ${U(900)}: create, PI-1 600.00 (pmo_assignment), commitment 0.00 → 400.00, erp_write: false`);
-  assert.deepEqual(one.commitment, { before: '0.00', after: '400.00', currency: 'USD' });
+  assert.equal(one.summary, `PO-1 → ${U(900)}: create, PI-1 600.00 (pmo_assignment), commitment 0 → 400.00, erp_write: false`);
+  assert.deepEqual(one.commitment, { before: '0', after: '400.00', currency: 'USD' });
   assert.deepEqual(one.invoices, [{ source_id: U(301), reference: 'PI-1', tagged_in_erp: false, amount: '600.00', excluded: [], loses_cost: [{ project_id: U(901), amount: '600.00' }], state: 'invoiced' }]);
   assert.equal(one.next, "node scripts/pmo.mjs purchases assign 'f.json' --apply --revision rev-7");
   assert.equal(one.erp_write, false);

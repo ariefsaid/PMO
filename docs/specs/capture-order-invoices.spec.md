@@ -62,9 +62,9 @@ Nothing is written to the ERP.
   by PMO (`document_recorded_by_pmo`), with a known currency and exactly one PMO vendor (`currency_unknown`,
   `supplier_unknown`), and carries no ERP project or only the chosen project (`family_project_conflict`,
   `document_spans_projects`).
-- **FR-004** (event) When the named invoices differ from the order's submitted, non-return invoices not yet linked to the
-  order's purchase, the system shall refuse the row with `family_incomplete` and return `missing_invoice_ids` and
-  `extra_invoice_ids`.
+- **FR-004** (event) When the named invoices differ from the order's submitted, non-return invoices that are in no purchase and
+  have no active placement, the system shall refuse the row with `family_incomplete` and return `missing_invoice_ids` and
+  `extra_invoice_ids`; a named invoice already linked or already placed is returned as extra.
 - **FR-005** (event) When any submitted invoice of the family is a return, the system shall refuse with
   `family_has_return`; when any named invoice bills more than one order, with `family_ambiguous`; when any named invoice
   differs from the order in supplier or currency, with `supplier_mismatch` / `currency_mismatch`.
@@ -91,12 +91,17 @@ Nothing is written to the ERP.
   purchase (null for a new one), per invoice its mapped amount, excluded lines, prior placement and whether it is
   ERP-tagged, and the purchase's open commitment before and after, then roll everything back.
 - **FR-014** (event) When the same `request_id` is sent again with the same payload, the system shall return `skip`; with
-  a different payload, `request_conflict`; after its undo, `undone`.
+  a different payload, `request_conflict`; after its undo, `undone`. A request id belongs to one kind of row: a family row
+  reusing a project or set-aside row's id, or the reverse, is refused `request_conflict`, and a row is treated as a retry
+  (exempt from the revision check) only when a stored request of its own kind exists.
 - **FR-015** (event) When an active Admin undoes a captured purchase with no attachment named, the system shall undo every
   active decision on it (restoring each invoice's overhead mark as B1 does), remove its links and cancel it.
 - **FR-016** (event) When an active Admin undoes a named attachment, the system shall undo only that attachment's
-  decisions and links, restore the stored stage, and keep the purchase and its order; a second undo returns
-  `already_undone`.
+  decisions and links and keep the purchase and its order; a second undo returns `already_undone`. The stage follows the
+  invoices still linked (FR-011). When no invoice remains linked, the stage, status and vendor-invoiced date return to the
+  values stored on the purchase's earliest attachment (for an order captured on its own: `ordered`, Ordered, none),
+  whatever order the attachments are undone in. The role is checked before anything about the purchase or attachment
+  is returned.
 - **FR-017** (conditional) While the purchase has a later PMO step (a queued or committed payment for a captured invoice,
   or any PMO request, order, receipt, invoice or payment record), when either undo is requested, the system shall refuse
   it with `has_later_pmo_steps`; when an invoice's overhead mark changed since the placement, with
@@ -145,7 +150,9 @@ Nothing is written to the ERP.
   restored, the purchase is Cancelled, P's actuals and commitment return to their prior values; a second undo returns
   `already_undone`.
 - **AC-012** Given the attachment of AC-003, When an Admin undoes that attachment, Then W keeps O only, W's commitment is
-  1000.00 again, W's stage is `ordered` again, W is not Cancelled, and P's actuals fall by 600.00.
+  1000.00 again, W's stage is `ordered` and its status Ordered again with no vendor-invoiced date, W is not Cancelled, and
+  P's actuals fall by 600.00. Given two attachments A1 then A2, When A1 is undone and then A2, Then W stays invoiced after
+  the first undo and ends `ordered`, Ordered, with no vendor-invoiced date.
 - **AC-013** Given a payment queued in PMO for a captured invoice of the purchase, When either undo is requested, Then it
   is refused `has_later_pmo_steps` and nothing changes.
 - **AC-014** Given the purchase of AC-001, When the ERP later tags I's ledger rows with P, Then P's actuals are unchanged
@@ -165,7 +172,8 @@ Nothing is written to the ERP.
 - **AC-020** Given migration NNNN applied, When its down runs with no family decision, Then every replaced body is
   restored verbatim; with one, it refuses.
 - **AC-021** Given two sessions applying family placements for the same order at once, When both commit, Then exactly one
-  succeeds and the other is refused (`source_already_decided` or `family_conflict`); O is linked to one purchase only.
+  succeeds and the other waits for it, then is refused `family_incomplete` (its invoice is already in a purchase, FR-004);
+  O and its invoice are linked to one purchase only.
 
 ## Out of scope
 
