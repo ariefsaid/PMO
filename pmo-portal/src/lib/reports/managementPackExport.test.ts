@@ -8,7 +8,7 @@ const labels: ManagementPackExportLabels = {
   taxBasis: 'Tax basis', planned: 'Planned', recognised: 'Recognised', invoicedByMonth: 'Invoiced',
   selectedPeriod: 'Invoiced in period', opening: 'Opening invoiced', selectedPeriodRow: 'Selected period total', openingRow: 'Opening',
   recognisedToDate: 'Recognised to date', invoicedToDate: 'Invoiced to date', unbilled: 'Done, not yet billed',
-  leftToBill: 'Left to bill', basis: 'Basis', taxBasisValue: 'excl. PPN', unassigned: 'Unassigned', total: 'Total',
+  leftToBill: 'Left to bill', leftToBillNoValue: (count) => `${count} contracts with no value, not in the total`, basis: 'Basis', taxBasisValue: 'excl. PPN', unassigned: 'Unassigned', total: 'Total',
   basisInvoiced: 'Invoiced', basisProgress: 'Progress', basisEarned: 'Earned value',
 };
 
@@ -91,6 +91,23 @@ describe('AC-MMP-011 management pack export', () => {
     const openingTotal = exported.body.find((row) => row[column('Period')] === 'Opening' && row[column('Currency')] === 'IDR');
     expect(periodTotal?.[column('Invoiced in period')]).toBe(107.5);
     expect(openingTotal?.[column('Opening invoiced')]).toBe(40);
+  });
+
+  it('AC-LTB-005: a held contract with no value is left out of the exported total and said beside it', () => {
+    const withNoValue = buildManagementPack({
+      ...facts,
+      projects: [contractProject, { ...contractProject, id: 'p6', name: 'Zeta', pmo_project_number: 'PRJ-26-0006', contract_net: 0 }],
+      invoiced: [...facts.invoiced, { project_id: 'p6', currency: 'IDR', month: '2026-01-01', net: 40, invoice_count: 1 }],
+    });
+    const exported = buildManagementPackExport(withNoValue, labels);
+    const idrTotals = exported.body.filter((row) => row[col('Project')] === 'Total' && row[col('Currency')] === 'IDR' && /^2026-\d{2}$/u.test(String(row[col('Period')])));
+    // 1,000 less 100.5 invoiced on the valued contract; the no-value contract's 40 does not subtract.
+    expect(idrTotals.map((row) => row[col('Left to bill')])).toEqual([899.5, 899.5]);
+    expect(idrTotals.map((row) => row[col('Basis')])).toEqual(['1 contracts with no value, not in the total', '1 contracts with no value, not in the total']);
+    const zeta = exported.body.filter((row) => row[col('Project number')] === 'PRJ-26-0006');
+    expect(zeta.map((row) => row[col('Left to bill')])).toEqual(['', '']);
+    // With none missing, the cell stays blank.
+    expect(table.body.filter((row) => row[col('Project')] === 'Total').every((row) => row[col('Basis')] === '')).toBe(true);
   });
 
   it('RF-036: an unreconciled cross-currency Left to bill exports as blank, not a contract-sized debt', () => {

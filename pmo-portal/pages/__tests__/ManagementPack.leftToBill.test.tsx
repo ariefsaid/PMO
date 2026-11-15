@@ -1,5 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act, render, screen, within } from '@testing-library/react';
+import i18next from 'i18next';
+import idFinanceHub from '../../public/locales/id/financeHub.json';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
@@ -49,6 +51,7 @@ const leftToBillTile = () =>
   within(screen.getByRole('region', { name: 'Report figures' })).getByTestId('pack-figure-leftToBill');
 
 beforeEach(() => { h.pack = buildManagementPack(facts); });
+afterEach(async () => { await act(async () => { await i18next.changeLanguage('en'); }); });
 
 describe('#2203 Left to bill reads one derivation in the report tile, rows and home', () => {
   it('AC-LTB-001: progress ahead of invoicing gives the same Left to bill on the tile, the row and home', () => {
@@ -58,8 +61,10 @@ describe('#2203 Left to bill reads one derivation in the report tile, rows and h
     expect(leftToBillTile()).toHaveTextContent(/800/);
     expect(leftToBillTile()).not.toHaveTextContent(/400/);
     expect(within(alphaRow()).getByTestId('pack-cell-leftToBill')).toHaveTextContent('800,000');
-    expect(selectLeftToBillTotals(pack, 'IDR')).toEqual([{ currency: 'IDR', amount: 800_000 }]);
+    expect(selectLeftToBillTotals(pack, 'IDR')).toEqual([{ currency: 'IDR', amount: 800_000, noValueCount: 0 }]);
     expect(selectLeftToBillByProject(pack, 'IDR')).toEqual([{ id: 'p1', name: 'Alpha', amount: 800_000 }]);
+    // Every held contract has a value: no note anywhere.
+    expect(screen.queryByText(/with no value/)).not.toBeInTheDocument();
   });
 
   it('AC-LTB-002: an invoice awaiting reconciliation leaves the tile hidden, the row explained and home unknown', () => {
@@ -72,7 +77,7 @@ describe('#2203 Left to bill reads one derivation in the report tile, rows and h
     const figures = screen.getByRole('region', { name: 'Report figures' });
     expect(within(figures).queryByText('Left to bill')).not.toBeInTheDocument();
     expect(within(alphaRow()).getByTestId('pack-cell-leftToBill')).toHaveTextContent(/^—/);
-    expect(selectLeftToBillTotals(pack, 'IDR')).toEqual([{ currency: 'IDR', amount: null }]);
+    expect(selectLeftToBillTotals(pack, 'IDR')).toEqual([{ currency: 'IDR', amount: null, noValueCount: 0 }]);
     expect(selectLeftToBillByProject(pack, 'IDR')).toEqual([]);
   });
 
@@ -93,11 +98,51 @@ describe('#2203 Left to bill reads one derivation in the report tile, rows and h
     expect(cell).toHaveTextContent(/^—$/);
     expect(cell.querySelector('[title]')).toBeNull();
     expect(within(alphaRow()).getByTestId('pack-cell-leftToBill')).toHaveTextContent('800,000');
-    expect(selectLeftToBillTotals(pack, 'IDR')).toEqual([{ currency: 'IDR', amount: 800_000 }]);
+    expect(selectLeftToBillTotals(pack, 'IDR')).toEqual([{ currency: 'IDR', amount: 800_000, noValueCount: 0 }]);
     expect(selectLeftToBillByProject(pack, 'IDR')).toEqual([{ id: 'p1', name: 'Alpha', amount: 800_000 }]);
     // Nothing awaits reconciliation, so the page has no hidden-figures line: no "Left to bill excludes
     // unreconciled foreign-currency invoices" reason and no Review invoices link.
     expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Review invoices' })).not.toBeInTheDocument();
+  });
+
+  // Ruling: a held contract with no value is counted and said beside the total, which stays a number.
+  const withNoValue = (): ManagementPackFacts => ({
+    ...facts,
+    projects: [...facts.projects, {
+      id: 'p6', name: 'Zeta', pmo_project_number: null, code: null, status: 'Won, Pending KoM', currency: 'IDR',
+      contract_net: 0, start_date: null, end_date: null, project_manager_id: null, client_name: null, on_hand: true,
+    }],
+    invoiced: [...facts.invoiced, { project_id: 'p6', currency: 'IDR', month: '2026-03-01', net: 50_000, invoice_count: 1 }],
+  });
+  const totalRow = () => screen.getAllByRole('row').find((r) => r.textContent?.includes('Total · IDR'))!;
+
+  it('AC-LTB-005: a held contract with no value is said beside the tile and the row total, which stay 800,000', () => {
+    h.pack = buildManagementPack(withNoValue());
+    renderPage();
+    const note = '1 contract with no value, not in the total';
+    expect(leftToBillTile()).toHaveTextContent(/800/);
+    expect(leftToBillTile()).toHaveTextContent(note);
+    expect(totalRow()).toHaveTextContent('800,000');
+    expect(totalRow()).toHaveTextContent(note);
+    // The no-value row is a plain dash, not the reconciliation reason, and raises no hidden-figure line.
+    const zeta = screen.getAllByRole('row').find((r) => r.textContent?.includes('Zeta'))!;
+    expect(within(zeta).getByTestId('pack-cell-leftToBill')).toHaveTextContent(/^—$/);
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
+  });
+
+  it('AC-LTB-005: the note is plural-correct', () => {
+    const two = withNoValue();
+    h.pack = buildManagementPack({ ...two, projects: [...two.projects, { ...two.projects[1], id: 'p7', name: 'Eta' }] });
+    renderPage();
+    expect(leftToBillTile()).toHaveTextContent('2 contracts with no value, not in the total');
+  });
+
+  it('AC-LTB-005: the note reads in Bahasa Indonesia', async () => {
+    i18next.addResourceBundle('id', 'financeHub', idFinanceHub, true, true);
+    await act(async () => { await i18next.changeLanguage('id'); });
+    h.pack = buildManagementPack(withNoValue());
+    renderPage();
+    expect(screen.getAllByText('1 kontrak tanpa nilai, tidak termasuk total').length).toBeGreaterThanOrEqual(2);
   });
 });

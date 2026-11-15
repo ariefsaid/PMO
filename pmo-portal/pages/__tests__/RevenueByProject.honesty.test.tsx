@@ -325,6 +325,7 @@ describe('live Reports money honesty (adapted from RevenueByProject)', () => {
       currency: 'IDR',
       contractNet: null,
       holdsContract: false,
+      contractValueMissing: false,
       latestProgress: null,
       months: [],
     };

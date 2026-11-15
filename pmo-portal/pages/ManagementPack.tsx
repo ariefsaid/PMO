@@ -17,9 +17,10 @@ import { useRevenuePerProject } from '@/src/hooks/useRevenue';
 import { useExport } from '@/src/components/export/useExport';
 import { RecordProgressModal } from '@/src/components/reports/RecordProgressModal';
 import { BoardPackAction } from '@/src/components/reports/BoardPackAction';
+import { leftToBillNoValueNote } from '@/src/lib/reports/leftToBillNoValueNote';
 import {
   fromCents,
-  leftToBillAt,
+  leftToBillSummaryAt,
   selectBilledWorkCumulative,
   selectBilledWorkInPeriod,
   selectBilledWorkOpening,
@@ -159,6 +160,11 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   const invalidRange = (error as { code?: string } | null)?.code === '22023';
   const leftToBillCellReason = t('financeHub:managementPack.figures.leftToBillUnknownReason', 'A foreign-currency invoice needs reconciliation before this amount can be known.');
   const unpricedReason = t('financeHub:managementPack.figures.unpricedReason', 'An invoice in this period has no amount yet.');
+  // #2203: held contracts with no value are left out of Left to bill and said beside it, in one sentence everywhere.
+  const noValueNote = useCallback((count: number) => leftToBillNoValueNote(t, count), [t]);
+  const withNoValueNote = (amount: React.ReactNode, count: number) => count > 0
+    ? <>{amount}<span className="block text-control text-muted-foreground">{noValueNote(count)}</span></>
+    : amount;
 
   const setMonth = (key: 'from' | 'to', value: string) => {
     const next = new URLSearchParams(params);
@@ -185,6 +191,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     invoicedToDate: label.invoicedToDate,
     unbilled: label.unbilled,
     leftToBill: label.leftToBill,
+    leftToBillNoValue: noValueNote,
     basis: t('managementPack.col.basis', 'Basis'),
     taxBasisValue: t('tax.basis.exclusive', 'excl. PPN'),
     unassigned: t('managementPack.unassigned', 'Unassigned'),
@@ -246,7 +253,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     const value = m ? m[key] : null;
     return (
       <span data-testid={`pack-cell-${key}`} className="tabular text-right text-control">
-        {key === 'leftToBill' && row.holdsContract && value === null ? leftToBillUnknown : money(value, row.currency)}
+        {key === 'leftToBill' && row.holdsContract && !row.contractValueMissing && value === null ? leftToBillUnknown : money(value, row.currency)}
         {key === 'unbilled' && value !== null && value < 0 && (
           <span className="ml-1 text-control text-muted-foreground">{t('managementPack.billedAhead', 'billed ahead')}</span>
         )}
@@ -399,7 +406,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     const contractTotal = contracts.reduce((sum, r) => sum + (r.contractNet ?? 0), 0);
     const sum = (key: 'recognisedToDate' | 'invoicedToDate' | 'unbilled' | 'invoiceCountToDate') => ms.reduce((total, month) => total + month[key], 0);
     const month = pack?.months[last];
-    const leftToBill = month ? leftToBillAt(contracts, currency, month) : null;
+    const leftToBill = month ? leftToBillSummaryAt(contracts, currency, month) : null;
     return {
       key: currency,
       label: `${t('managementPack.total', 'Total')} · ${currency}`,
@@ -408,7 +415,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
         recognisedToDate: money(sum('recognisedToDate'), currency),
         invoicedToDate: pack && unpricedIn(pack, currency, null, pack.to.slice(0, 7)) ? unpricedUnknown : money(sum('invoicedToDate'), currency),
         unbilled: money(sum('unbilled'), currency),
-        leftToBill: leftToBill === null ? leftToBillUnknown : money(leftToBill, currency),
+        leftToBill: leftToBill === null || leftToBill.cents === null ? leftToBillUnknown : withNoValueNote(money(leftToBill.cents, currency), leftToBill.noValueCount),
         invoiceCount:
           invoiceCountStatus === 'error' ? (
             invoiceCountsUnavailableLabel
@@ -449,6 +456,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
         <span className="tabular text-right text-control">
           {k === 'leftToBill' && r.leftToBill === null
             ? leftToBillUnknown
+            : k === 'leftToBill' ? withNoValueNote(money(r.leftToBill, r.currency), r.leftToBillNoValue)
             : k === 'invoiced' && pack && unpricedIn(pack, r.currency, r.month.slice(0, 7), r.month.slice(0, 7)) ? unpricedUnknown : money(r[k], r.currency)}
         </span>
       ),
@@ -509,6 +517,11 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       label: t('financeHub:managementPack.figures.leftToBill', 'Left to bill'),
       help: t('financeHub:managementPack.figures.leftToBillHelp', 'Signed contract value minus invoiced to date; unavailable if a foreign-currency invoice needs reconciliation.'),
       amount: (month) => month.leftToBill,
+      // Counted over the currencies the tile shows (an unknown currency is not on it).
+      caption: () => {
+        const count = latestTotals.reduce((sum, { month }) => sum + (month.leftToBill === null ? 0 : month.leftToBillNoValue), 0);
+        return count > 0 ? noValueNote(count) : '';
+      },
     },
   ];
   /** One row of four tiles: the home currency is the figure, another currency a second line; unknown in the home currency hides the tile. */
@@ -531,7 +544,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   const unpricedSpec = (spec: (typeof figureSpecs)[number]) => spec.reading?.some((row) => row.amount === null) ?? false;
   const homeMonth = latestTotals.find(({ currency }) => currency === homeCurrency)?.month ?? latestTotals[0]?.month;
   const leftToBillUnknownSomewhere = latestTotals.some(({ month }) => month.leftToBill === null)
-    || filteredRows.some((row) => row.holdsContract && latestMonth(row)?.leftToBill === null);
+    || filteredRows.some((row) => row.holdsContract && !row.contractValueMissing && latestMonth(row)?.leftToBill === null);
   const showFigures = Boolean(pack) && !isError && latestTotals.length > 0;
   const leftToBillFigure = figureSpecs.find((spec) => spec.key === 'leftToBill');
   const leftToBillFigureHidden = leftToBillFigure ? tileFor(leftToBillFigure) === null : false;

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildManagementPack,
   leftToBillAt,
+  leftToBillSummaryAt,
   mulDivRound,
   pctOf,
   plannedForMonth,
@@ -162,7 +163,7 @@ describe('AC-MMP-008 unbilled (DD-MMP-3)', () => {
   it('D1: Left to bill uses contract value less invoiced value in the as-at currency', () => {
     const pack = buildManagementPack(scenario);
     expect(leftToBillAt(pack.rows, 'IDR', '2026-04-01')).toBe(c(600_000));
-    expect(selectLeftToBillTotals(pack)).toEqual([{ currency: 'IDR', amount: 600_000 }]);
+    expect(selectLeftToBillTotals(pack)).toEqual([{ currency: 'IDR', amount: 600_000, noValueCount: 0 }]);
   });
 
   it('AC-1405-REPORT-001: invoice counts use dated monthly facts and accumulate through the as-at month', () => {
@@ -398,7 +399,7 @@ describe('#2203 Left to bill has one derivation, distinct from remaining work', 
     expect(total.leftToBill).toBe(c(800_000));
     expect(total.remainingWork).toBe(c(400_000));
     expect(leftToBillAt(pack.rows, 'IDR', '2026-04-01')).toBe(c(800_000));
-    expect(selectLeftToBillTotals(pack)).toEqual([{ currency: 'IDR', amount: 800_000 }]);
+    expect(selectLeftToBillTotals(pack)).toEqual([{ currency: 'IDR', amount: 800_000, noValueCount: 0 }]);
   });
 
   it('AC-LTB-002: a foreign invoice awaiting reconciliation leaves Left to bill unknown, never 0', () => {
@@ -408,7 +409,7 @@ describe('#2203 Left to bill has one derivation, distinct from remaining work', 
     expect(pack.rows.find((r) => r.kind === 'otherCurrency')?.months[1].leftToBill).toBeNull();
     expect(pack.totals.find((t) => t.currency === 'IDR')!.months.map((m) => m.leftToBill)).toEqual([null, null, null, null]);
     expect(pack.totals.find((t) => t.currency === 'USD')!.months.map((m) => m.leftToBill)).toEqual([0, 0, 0, 0]);
-    expect(selectLeftToBillTotals(pack)).toEqual([{ currency: 'IDR', amount: null }]);
+    expect(selectLeftToBillTotals(pack)).toEqual([{ currency: 'IDR', amount: null, noValueCount: 0 }]);
   });
 
   // Ticket ruling: Left to bill counts contracts we hold (on-hand status, not archived), the same set as
@@ -432,13 +433,13 @@ describe('#2203 Left to bill has one derivation, distinct from remaining work', 
     expect(byId('p4').months[3].remainingWork).toBe(c(400_000));
     expect(leftToBillAt(pack.rows, 'IDR', '2026-04-01')).toBe(c(800_000));
     expect(pack.totals.find((t) => t.currency === 'IDR')!.months[3].leftToBill).toBe(c(800_000));
-    expect(selectLeftToBillTotals(pack)).toEqual([{ currency: 'IDR', amount: 800_000 }]);
+    expect(selectLeftToBillTotals(pack)).toEqual([{ currency: 'IDR', amount: 800_000, noValueCount: 0 }]);
   });
 
   it('AC-LTB-004: home lists no Left to bill currency whose only contract is no longer held', () => {
     const usdArchived: PackFactsProject = { ...ARCHIVED, id: 'p5', name: 'Epsilon', currency: 'USD' };
     const pack = buildManagementPack({ ...withUnheld, projects: [ONE_M, usdArchived], invoiced: [inv('p1', 'IDR', '2026-02-01', 200_000), inv('p5', 'USD', '2026-02-01', 300_000)] });
-    expect(selectLeftToBillTotals(pack, 'IDR')).toEqual([{ currency: 'IDR', amount: 800_000 }]);
+    expect(selectLeftToBillTotals(pack, 'IDR')).toEqual([{ currency: 'IDR', amount: 800_000, noValueCount: 0 }]);
   });
 
   it('AC-LTB-004: switching the period does not change Left to bill at the same month', () => {
@@ -457,6 +458,44 @@ describe('#2203 Left to bill has one derivation, distinct from remaining work', 
   it('AC-LTB-004: an unheld project awaiting reconciliation does not make Left to bill unknown', () => {
     const pack = buildManagementPack({ ...withUnheld, invoiced: [...withUnheld.invoiced, inv('p4', 'USD', '2026-02-01', 10)] });
     expect(leftToBillAt(pack.rows, 'IDR', '2026-04-01')).toBe(c(800_000));
+  });
+
+  // Ruling: a held contract with no contract value is not summed and not silently dropped either; the total
+  // stays a number and the contracts left out of it are counted beside it.
+  const NO_VALUE: PackFactsProject = { ...P1, id: 'p6', name: 'Zeta', contract_net: 0 };
+  const withNoValue = facts({
+    projects: [ONE_M, NO_VALUE],
+    invoiced: [inv('p1', 'IDR', '2026-02-01', 200_000), inv('p6', 'IDR', '2026-02-01', 50_000)],
+    progress: [prog('2026-03-01', 60)],
+  });
+
+  it('AC-LTB-005: a held contract with no value stays out of a numeric total and is counted beside it', () => {
+    const pack = buildManagementPack(withNoValue);
+    const zeta = pack.rows.find((r) => r.projectId === 'p6')!;
+    expect(zeta.holdsContract).toBe(true);
+    expect(zeta.contractValueMissing).toBe(true);
+    expect(zeta.months[3].leftToBill).toBeNull();
+    expect(pack.rows.find((r) => r.projectId === 'p1')!.contractValueMissing).toBe(false);
+    // 800,000 for the valued contract alone: not 750,000 (0 less 50,000 invoiced) and not unknown.
+    expect(leftToBillSummaryAt(pack.rows, 'IDR', '2026-04-01')).toEqual({ cents: c(800_000), noValueCount: 1 });
+    expect(leftToBillAt(pack.rows, 'IDR', '2026-04-01')).toBe(c(800_000));
+    expect(pack.totals.find((t) => t.currency === 'IDR')!.months[3]).toMatchObject({ leftToBill: c(800_000), leftToBillNoValue: 1 });
+    expect(selectLeftToBillTotals(pack)).toEqual([{ currency: 'IDR', amount: 800_000, noValueCount: 1 }]);
+  });
+
+  it('AC-LTB-005: a held contract sent with no value at all is counted the same way', () => {
+    const pack = buildManagementPack({ ...withNoValue, projects: [ONE_M, { ...NO_VALUE, contract_net: null as unknown as number }] });
+    expect(selectLeftToBillTotals(pack)).toEqual([{ currency: 'IDR', amount: 800_000, noValueCount: 1 }]);
+  });
+
+  it('AC-LTB-005: a currency whose only held contract has no value reads 0 with the count, not unknown', () => {
+    const pack = buildManagementPack({ ...withNoValue, projects: [{ ...NO_VALUE, currency: 'USD' }], invoiced: [] });
+    expect(selectLeftToBillTotals(pack)).toEqual([{ currency: 'USD', amount: 0, noValueCount: 1 }]);
+  });
+
+  it('AC-LTB-005: an unheld project with no value is not counted', () => {
+    const pack = buildManagementPack({ ...withNoValue, projects: [ONE_M, { ...NO_VALUE, on_hand: false }] });
+    expect(selectLeftToBillTotals(pack)).toEqual([{ currency: 'IDR', amount: 800_000, noValueCount: 0 }]);
   });
 
   it('AC-LTB-004: a project sent without the on-hand flag is not counted, whatever its status', () => {

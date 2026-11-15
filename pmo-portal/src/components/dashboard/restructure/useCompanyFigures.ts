@@ -15,6 +15,7 @@ import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { formatDashboardPercent, moneyFigure } from '@/src/lib/dashboardMoney';
 import { formatTileMoney, formatPercent } from '@/src/lib/format';
 import type { ManagementPack } from '@/src/lib/reports/managementPack';
+import { leftToBillNoValueNote } from '@/src/lib/reports/leftToBillNoValueNote';
 import {
   selectBilledWorkByMonth,
   selectBilledWorkInPeriod,
@@ -314,6 +315,7 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
   const leftToBillKnown = leftToBillTotals?.some((row) => row.amount === null)
     ? null
     : leftToBillTotals?.map((row) => ({ currency: row.currency, amount: row.amount as number })) ?? null;
+  const leftToBillNoValue = leftToBillTotals?.reduce((sum, row) => sum + row.noValueCount, 0) ?? 0;
   const moneyReason = t('figures.moneyUnknownReason', 'The accounting source did not provide a comparable amount.');
   // Owed by clients: every open invoice's balance; one unknown balance makes the total unknowable (never a partial sum).
   const owed = useMemo(() => {
@@ -445,9 +447,11 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
       unavailableReason: t('figures.leftToBillUnknown', 'A contract invoice needs reconciliation before this amount can be known.'),
       amounts: leftToBillKnown,
       exactValue: leftToBillKnown?.length ? currencyFigure(leftToBillKnown, orgCurrency, moneyReason)?.exactValue : undefined,
+      // #2203: held contracts with no value are not in the total; said beside it, as on the report.
+      subline: leftToBillKnown && leftToBillNoValue > 0 ? leftToBillNoValueNote(t, leftToBillNoValue) : undefined,
       href: '/finance/reports',
     },
-  ], [dashboard.data?.on_hand_realized_margin, dashboard.data?.on_hand_value, owed, billedMargin, billedMarginLabel, billedMarginSubline, dashboard.data?.pipeline_projected_margin, margin, moneyReason, onHand, onHandValue, ongoingProjectsLabel, pipelineTotals, leftToBillTotals, leftToBillKnown, overdue, overdueKnown, pipelineGross, pipelineWeighted, remaining, spendPartial, supplierKnown, suppliers, t, orgCurrency]);
+  ], [dashboard.data?.on_hand_realized_margin, dashboard.data?.on_hand_value, owed, billedMargin, billedMarginLabel, billedMarginSubline, dashboard.data?.pipeline_projected_margin, margin, moneyReason, onHand, onHandValue, ongoingProjectsLabel, pipelineTotals, leftToBillTotals, leftToBillKnown, leftToBillNoValue, overdue, overdueKnown, pipelineGross, pipelineWeighted, remaining, spendPartial, supplierKnown, suppliers, t, orgCurrency]);
 
   const periodFigures = useMemo<DashboardFigure[]>(() => {
     const wonCount = winRate.data?.wins_count;

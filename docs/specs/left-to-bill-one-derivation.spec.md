@@ -47,6 +47,13 @@ the pack's field at its name got the wrong amount whenever progress recognition 
 - **FR-LTB-008** (ubiquitous) The pack's project facts shall carry `on_hand` (0919); a project without the
   flag shall not count as held (only the server knows whether it is archived).
 
+- **FR-LTB-009** (state-driven) While a held contract has no contract value (none, or not above 0), it shall
+  not be in any Left to bill total and shall not make one unknown; the total stays a number, and every
+  surface that shows the total (report tile, project-table total row, per-currency totals table, export
+  totals row, home tile) shall say beside it, only when the count is above 0, "N contract(s) with no value,
+  not in the total" (one key, `financeHub:managementPack.leftToBillNoValue`, en and id). The count comes from
+  `leftToBillSummaryAt`, the function that sums the total.
+
 ## Acceptance criteria
 
 - **AC-LTB-001** Given one IDR contract of 1,000,000 with 60% complete recorded and 200,000 invoiced as at
@@ -64,6 +71,12 @@ the pack's field at its name got the wrong amount whenever progress recognition 
   (the unheld projects drop out, the held contract's invoice moves before the window) gives the same Left
   to bill at the same month.
 
+- **AC-LTB-005** Given the contract above plus a held contract with no value that has 50,000 invoiced, When
+  the pack is built, Then the IDR Left to bill total is 800,000 (not 750,000, not unknown) with a no-value
+  count of 1, the no-value row shows a plain dash, and the tile, the total row, the export totals row and the
+  home tile say "1 contract with no value, not in the total" (Bahasa: "1 kontrak tanpa nilai, tidak termasuk
+  total"); with no such contract there is no note.
+
 ## Traceability
 
 | AC | Owning test |
@@ -71,4 +84,5 @@ the pack's field at its name got the wrong amount whenever progress recognition 
 | AC-LTB-001 | `pmo-portal/pages/__tests__/ManagementPack.leftToBill.test.tsx` (tile, row, home) · `src/lib/reports/managementPack.test.ts` (pack) |
 | AC-LTB-002 | same two files |
 | AC-LTB-003 | `src/lib/reports/managementPack.test.ts` |
+| AC-LTB-005 | `src/lib/reports/managementPack.test.ts` (derivation, count) · `ManagementPack.leftToBill.test.tsx` (tile, total row, en/id) · `CompanyDashboard.honesty.test.tsx` (home, en/id) · `managementPackExport.test.ts` (export) |
 | AC-LTB-004 | `src/lib/reports/managementPack.test.ts` (set, period, missing flag) · `ManagementPack.leftToBill.test.tsx` (screen) · `supabase/tests/0919_pack_on_hand_after_billed_totals.test.sql` (flag) |

@@ -28,7 +28,7 @@ const report = (): ManagementPack => ({
   rows: [{
     key: 'project|USD|contract', kind: 'contract', projectId: null, projectName: null, projectNumber: null,
     clientName: null, projectManagerId: null, projectStatus: null, currency: 'USD', contractNet: 100_000,
-    holdsContract: true, latestProgress: null,
+    holdsContract: true, contractValueMissing: false, latestProgress: null,
     months: [{ month, planned: 10_000, recognised: 10_000, invoiced: 10_000, invoiceCount: 0, recognisedToDate: 10_000,
       invoicedToDate: 10_000, invoiceCountToDate: 0, unbilled: 0, remainingWork: null, leftToBill: null, basis: 'invoiced' }],
   }],

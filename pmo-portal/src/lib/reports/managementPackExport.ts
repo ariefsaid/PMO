@@ -20,6 +20,8 @@ export interface ManagementPackExportLabels {
   invoicedToDate: string;
   unbilled: string;
   leftToBill: string;
+  /** The page's one note for held contracts with no value, left out of Left to bill (#2203). */
+  leftToBillNoValue: (count: number) => string;
   basis: string;
   /** Every figure is net of tax (DD-MMP-5); OD-TAX-1 §2 forbids a bare number. */
   taxBasisValue: string;
@@ -59,7 +61,9 @@ export function buildManagementPackExport(pack: ManagementPack, l: ManagementPac
       const invoicedToDate = unpricedIn(pack, totals.currency, null, period) ? null : t.invoicedToDate;
       body.push([
         period, '', l.total, '', totals.currency, l.taxBasisValue, money(t.planned), money(t.recognised),
-        money(invoiced), '', '', money(t.recognisedToDate), money(invoicedToDate), money(t.unbilled), money(t.leftToBill), '',
+        money(invoiced), '', '', money(t.recognisedToDate), money(invoicedToDate), money(t.unbilled), money(t.leftToBill),
+        // The totals row has no recognition basis; that cell carries the no-value note beside the total.
+        t.leftToBillNoValue > 0 ? l.leftToBillNoValue(t.leftToBillNoValue) : '',
       ]);
     }
   }
