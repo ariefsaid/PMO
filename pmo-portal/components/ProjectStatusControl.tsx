@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjectTransition, useProjectWinEligibility } from '@/src/hooks/useProjectTransitions';
+import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { Button, useToast } from '@/src/components/ui';
 import {
   LEGAL_PROJECT_TRANSITIONS,
@@ -50,6 +51,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
 }) => {
   const { t } = useTranslation();
   const can = usePermission();
+  const statusLabel = useProjectStatusLabel();
   const mutation = useProjectTransition();
   const { toast } = useToast();
 
@@ -148,10 +150,14 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
         opts: lost ? { lostReason: lost.reason, lostNote: lost.note.trim() || undefined } : undefined,
       });
       setConfirmTarget(null);
-      toast('Project updated', `Moved to ${target}`, 'success');
+      toast(
+        t('sales:statusChange.updated', 'Project updated'),
+        t('sales:statusChange.movedForward', 'Moved to {{status}}', { status: statusLabel(target) }),
+        'success',
+      );
     } catch (err) {
       setConfirmTarget(null);
-      toast('Status change failed', err instanceof Error ? err.message : undefined, 'warning');
+      toast(t('boardDrag:statusChangeFailed', 'Status change failed'), err instanceof Error ? err.message : undefined, 'warning');
     }
   };
 
