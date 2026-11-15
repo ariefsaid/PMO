@@ -67,11 +67,12 @@ const CONTAINER_SPAN_RESET: Record<number, string> = {
 
 /**
  * A figure this wide (e.g. "US$1.000.000", "$10,000,000") does not fit half a phone row at the metric size,
- * and it must not wrap (rule 15), so its tile takes the whole row there. Width is the character count with
- * separators at half weight ("$1,000,000" fits half a row, "US$1.000.000" does not).
- * ponytail: estimated, not measured; measure the figure if a font change ever moves the limit.
+ * and it must not wrap (rule 15), so its tile takes the whole row there (until the pane is `@md`, 28rem: two
+ * ~13rem tiles fit abreast again). Width is the character count with
+ * separators at half weight ("$1,000,000" fits half a row, "US$210.000" does not).
+ * ponytail: calibrated on a 155px phone tile ("US$210.000" overflows, "$6,900,000" fits); re-measure if the metric font changes.
  */
-const WIDE_FIGURE_UNITS = 9.5;
+const WIDE_FIGURE_UNITS = 9.25;
 const isWideFigure = (tile: StatTile) =>
   tile.unavailableReason == null
   && typeof tile.value === 'string'
@@ -114,6 +115,15 @@ export const StatTiles: React.FC<StatTilesProps> = ({
   const smColsClass = CONTAINER_COLS_CLASS[columns] ?? '';
   const spanReset = CONTAINER_SPAN_RESET[columns] ?? '';
   const isOdd = tiles.length % 2 !== 0;
+  // Phone 2-col flow: a wide tile takes its row; a tile left alone in the row before it, or at the end,
+  // takes its row too, so no row is half empty.
+  const rowSpan: boolean[] = [];
+  let col = 0;
+  tiles.forEach((t, i) => {
+    if (isWideFigure(t)) { if (col === 1) rowSpan[i - 1] = true; rowSpan[i] = true; col = 0; }
+    else col = col === 0 ? 1 : 0;
+  });
+  if (col === 1) rowSpan[tiles.length - 1] = true;
   const isBare = variant === 'bare';
   return (
     <div
@@ -145,7 +155,9 @@ export const StatTiles: React.FC<StatTilesProps> = ({
               isBare
                 ? 'py-1'
                 : 'bg-card px-[var(--space-content-inset)] py-3 first:rounded-l-lg last:rounded-r-lg',
-              (isLastOdd || isWideFigure(t)) && cn('col-span-2', spanReset),
+              // a wide figure's row span ends at @md (two tiles fit abreast), before any N-col layout starts, so it
+              // never spans 2 of 3 columns beside a gap; the odd last tile keeps the N-col reset
+              rowSpan[i] && cn('col-span-2', isLastOdd ? spanReset : '@md:col-span-1'),
             )}
           >
             <div className="mb-1 text-control font-medium text-foreground">{t.label}</div>

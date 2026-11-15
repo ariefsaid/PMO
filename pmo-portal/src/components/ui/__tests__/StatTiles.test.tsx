@@ -180,14 +180,51 @@ describe('StatTiles', () => {
       expect(box.className).not.toMatch(/break-(words|all)/);
     });
 
-    it('a figure too long for half a phone row takes the whole row; the label stays above it and may wrap', () => {
-      render(<StatTiles tiles={[short, wide, short, wide]} columns={4} />);
+    it('a wide tile never keeps its span into the 3-col layout (a 2-wide tile beside an empty cell)', () => {
+      render(<StatTiles tiles={[short, short, short, wide, short]} columns={5} />);
+      const tile = screen.getAllByTestId('stat-tile')[3];
+      expect(tile.className).toContain('@md:col-span-1');
+      expect(tile.className).not.toContain('@5xl:col-span-1');
+    });
+
+    it('measured edge at a 155px phone tile: "US$210.000" overflows (wide), "$6,900,000" fits (not wide)', () => {
+      const spans = (value: string) => {
+        const { unmount } = render(<StatTiles tiles={[{ label: 'a', value: '$1' }, { label: 'b', value }, { label: 'c', value: '$2' }]} columns={4} />);
+        const span = screen.getAllByTestId('stat-tile')[1].className.includes('col-span-2');
+        unmount();
+        return span;
+      };
+      expect(spans('US$210.000')).toBe(true);
+      expect(spans('$6,900,000')).toBe(false);
+    });
+
+    it('an odd last tile that is wide keeps filling the N-col row (no gap beside it at desktop)', () => {
+      render(<StatTiles tiles={[short, short, wide]} columns={3} />);
+      const last = screen.getAllByTestId('stat-tile')[2];
+      expect(last.className).toContain('col-span-2');
+      expect(last.className).toContain('@xl:col-span-1');
+      expect(last.className).not.toContain('@md:col-span-1');
+    });
+
+    it('a tile left alone before a wide tile takes its row too, so no row is half empty (phone)', () => {
+      render(<StatTiles tiles={[short, short, short, wide]} columns={4} />);
       const [a, b, c, d] = screen.getAllByTestId('stat-tile');
       expect(a.className).not.toContain('col-span-2');
-      expect(b.className).toContain('col-span-2');
-      expect(b.className).toContain('@3xl:col-span-1');
-      expect(c.className).not.toContain('col-span-2');
+      expect(b.className).not.toContain('col-span-2');
+      expect(c.className).toContain('col-span-2');
+      expect(c.className).toContain('@md:col-span-1');
       expect(d.className).toContain('col-span-2');
+    });
+
+    it('a figure too long for half a phone row takes the whole row; the label stays above it and may wrap', () => {
+      render(<StatTiles tiles={[short, short, wide, short]} columns={4} />);
+      const [a, b, c, d] = screen.getAllByTestId('stat-tile');
+      expect(a.className).not.toContain('col-span-2');
+      expect(b.className).not.toContain('col-span-2');
+      expect(c.className).toContain('col-span-2');
+      // 2-up resumes as soon as the pane fits two figures abreast (@md), whatever the strip's column count
+      expect(c.className).toContain('@md:col-span-1');
+      expect(d.className).toContain('col-span-2'); // the tile left alone after it takes its row too
       // the label sits in its own block above the figure, so a long label wraps without touching the number
       const label = screen.getAllByText('Belum dikomitmenkan')[0];
       expect(label.className).not.toContain('whitespace-nowrap');
