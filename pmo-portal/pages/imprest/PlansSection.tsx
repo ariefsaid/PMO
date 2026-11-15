@@ -131,7 +131,8 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
                 <li key={plan.id} className={cn('py-4 text-sm', usage == null && 'first:pt-0')}>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                     <span className="font-semibold">{monthLabel(plan.month)}</span>
-                    <span className="text-muted-foreground">{plan.number ?? t('imprest:plan.draftNumber', 'Draft')}</span>
+                    {/* A draft has no number yet; its pill already says Draft. */}
+                    {plan.number && <span className="text-muted-foreground">{plan.number}</span>}
                     <StatusPill record="imprest" state={plan.status} />
                     {plan.is_late && <span className="text-muted-foreground">{t('imprest:plan.late', 'Approved after the month began')}</span>}
                     {/* The figure carries its noun, so the row reads without a table header. */}

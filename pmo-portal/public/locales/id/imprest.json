@@ -154,7 +154,6 @@
       "notes": "Catatan untuk penyusun (opsional)",
       "rejectTitle": "Tolak rencana {{month}}?"
     },
-    "draftNumber": "Draf",
     "drawn": "Terpakai",
     "error": "Gagal memuat rencana",
     "exception": "Di luar rencana",

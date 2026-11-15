@@ -154,7 +154,6 @@
       "notes": "Note to the author (optional)",
       "rejectTitle": "Reject the {{month}} plan?"
     },
-    "draftNumber": "Draft",
     "drawn": "Drawn",
     "error": "Couldn't load plans",
     "exception": "Out of plan",
