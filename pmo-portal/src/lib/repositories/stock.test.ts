@@ -79,7 +79,7 @@ describe('stock repository (documents and reports)', () => {
 
 describe('stock repository (consumption and allowances, S5)', () => {
   it('FR-STK-042 consumption.report delegates project and range', async () => {
-    vi.mocked(reports.getProjectConsumption).mockResolvedValue({ from: 'a', to: 'b', months: [], allowances: [], unplanned: [] });
+    vi.mocked(reports.getProjectConsumption).mockResolvedValue({ from: 'a', to: 'b', months: [], allowances: [], unplanned: [], erpUnattributed: [] });
     await repositories.stock.consumption.report('p1', '2026-09-01', '2026-11-30');
     expect(reports.getProjectConsumption).toHaveBeenCalledWith('p1', '2026-09-01', '2026-11-30');
   });

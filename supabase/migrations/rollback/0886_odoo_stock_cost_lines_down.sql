@@ -1,6 +1,7 @@
 -- Rollback for 0886_odoo_stock_cost_lines.sql (#2282). Restores get_project_consumption to its 0417 body (verbatim, with its grants),
 -- drops the stock-cost read, writers, helpers and tables, and deletes the feed cursor so a reapply re-reads every analytic line.
--- The edge code skips the stock-cost kind when the table is absent; the next pass rebuilds the actuals snapshot from GL only.
+-- Revert the #2282 edge and app code in the same change: the ledger pass reads the table for an org whose inventory Odoo owns. With
+-- both reverted, the next pass rebuilds the actuals snapshot from GL only (the refresh is org-wide), so no manual repair is needed.
 begin;
 create or replace function public.get_project_consumption(p_project_id uuid, p_from date, p_to date) returns jsonb
   language plpgsql stable security definer set search_path = public as $$

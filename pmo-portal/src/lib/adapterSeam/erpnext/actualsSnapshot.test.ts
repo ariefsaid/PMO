@@ -375,3 +375,76 @@ describe('erpnext/actualsSnapshot — HIGH-1: the mirror read is PAGED past Post
     expect(client.inserted[0]![0]).toMatchObject({ net: expectedNet });
   });
 });
+
+describe('#2282 issued material cost from Odoo analytic lines (AC-IMC-002)', () => {
+  const P = '00000000-0000-4000-8000-0000000000a1';
+  const projectMap = { [P]: '600' };
+  function client(gl: Record<string, unknown>[], stock: Record<string, unknown>[]) {
+    const fake = new FakePostgrest({
+      erp_gl_entry_mirror: gl.map((r, i) => ({ id: `gl-${String(i).padStart(8, '0')}`, is_cancelled: false, cost_center: null, fiscal_year: '2026', org_id: 'org-1', ...r })),
+      odoo_stock_cost_lines: stock.map((r, i) => ({ id: `sc-${String(i).padStart(8, '0')}`, is_cancelled: false, double_count_risk: false, fiscal_year: '2026', org_id: 'org-1', ...r })),
+      erp_actuals_snapshot: [],
+    });
+    const published = () => (fake.rpcCalls.filter((c) => c.fn === 'replace_erp_snapshot').at(-1)?.args.p_rows ?? []) as Array<Record<string, unknown>>;
+    return { fake, published };
+  }
+  const projectTotal = (rows: Array<Record<string, unknown>>) => rows.filter((r) => r.project_id === P).reduce((t, r) => t + Number(r.net), 0);
+  // A project expense on the project's analytic account, plus the real-time stock journal entry: Dr COGS 240 / Cr Inventory 240, no project.
+  const gl = [
+    { project: '600', account: '5100', debit: '100.00', credit: '0.00' },
+    { project: null, account: '5110', debit: '240.00', credit: '0.00' },
+    { project: null, account: '1150', debit: '0.00', credit: '240.00' },
+  ];
+
+  it('NO-DOUBLE-COUNT: the project total is the expense plus the issue once (340, not 580); the COGS line stays unattributed', async () => {
+    const c = client(gl, [{ analytic_account_id: '600', account: '5110', debit: '240.00', credit: '0.00' }]);
+    await refreshActuals(c.fake as never, 'org-1', { projectMap, stockCost: true });
+    const rows = c.published();
+    expect(projectTotal(rows)).toBe(340);
+    expect(rows.filter((r) => r.project_id === null).map((r) => [r.account, r.net, r.source_report])).toEqual(
+      expect.arrayContaining([['5110', 240, 'GL Entry'], ['1150', -240, 'GL Entry']]));
+    expect(rows.filter((r) => r.source_report === 'Odoo stock issue')).toEqual([expect.objectContaining({ project_id: P, account: '5110', net: 240 })]);
+  });
+
+  it('NO-DOUBLE-COUNT: a material issue already in the ledger (flagged by the check) adds zero; a cancelled line adds zero', async () => {
+    const c = client(gl, [
+      { analytic_account_id: '600', account: '5110', debit: '240.00', credit: '0.00', double_count_risk: true },
+      { analytic_account_id: '600', account: '5110', debit: '70.00', credit: '0.00', is_cancelled: true },
+    ]);
+    await refreshActuals(c.fake as never, 'org-1', { projectMap, stockCost: true });
+    expect(projectTotal(c.published())).toBe(100);
+    expect(c.published().some((r) => r.source_report === 'Odoo stock issue')).toBe(false);
+  });
+
+  it('a return nets against the issue in the same bucket', async () => {
+    const c = client([], [
+      { analytic_account_id: '600', account: '5110', debit: '240.00', credit: '0.00' },
+      { analytic_account_id: '600', account: '5110', debit: '0.00', credit: '120.00' },
+    ]);
+    await refreshActuals(c.fake as never, 'org-1', { projectMap, stockCost: true });
+    expect(c.published()).toEqual([expect.objectContaining({ project_id: P, debit: 240, credit: 120, net: 120, source_report: 'Odoo stock issue' })]);
+  });
+
+  it('UNCATEGORISED: a cost on an account that maps to no budget category (or none at all) is kept with its amount, never dropped', async () => {
+    const c = client([], [
+      { analytic_account_id: '600', account: '5999', debit: '55.00', credit: '0.00' },
+      { analytic_account_id: '600', account: null, debit: '5.00', credit: '0.00' },
+    ]);
+    await refreshActuals(c.fake as never, 'org-1', { projectMap, stockCost: true });
+    expect(projectTotal(c.published())).toBe(60);
+  });
+
+  it('a line on an analytic account no project links waits in the table: never in the unattributed bucket beside the COGS line', async () => {
+    const c = client(gl, [{ analytic_account_id: '700', account: '5110', debit: '240.00', credit: '0.00' }]);
+    await refreshActuals(c.fake as never, 'org-1', { projectMap, stockCost: true });
+    expect(c.published().some((r) => r.source_report === 'Odoo stock issue')).toBe(false);
+  });
+
+  it('without the stockCost option the refresh never reads the table and publishes GL only (ERPNext unchanged)', async () => {
+    const c = client(gl, [{ analytic_account_id: '600', account: '5110', debit: '240.00', credit: '0.00' }]);
+    await refreshActuals(c.fake as never, 'org-1', { projectMap });
+    expect(c.fake.reads.some((r) => r.table === 'odoo_stock_cost_lines')).toBe(false);
+    expect(projectTotal(c.published())).toBe(100);
+    expect(c.published().every((r) => r.source_report === 'GL Entry')).toBe(true);
+  });
+});
