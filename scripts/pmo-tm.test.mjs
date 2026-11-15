@@ -707,3 +707,25 @@ test('FR-CTM-025 the withdraw preview shows the status and what it releases', as
     assert.match(r.json.releases, /^1 source\(s\) become claimable again/);
   } finally { await f.close(); }
 });
+
+test('AC-CTM-012 preparing against a Draft document or one without a file warns that confirmation will refuse it', async () => {
+  for (const [doc, re] of [[{ ...DOC, status: 'Draft' }, /Issued or Approved/], [{ ...DOC, file_path: null }, /has no file/]]) {
+    const f = await fake({ ...READS(), 'GET /rest/v1/project_documents': [200, [doc]] });
+    try {
+      const r = await cli(['tm', 'signoff', 'prepare', CLAIM, '--project', PROJECT, '--document', DOCUMENT], f);
+      assert.equal(r.code, 0, JSON.stringify(r.error));
+      assert.match(r.json.warnings.join(), re);
+      assert.deepEqual(writesSent(f), []);
+    } finally { await f.close(); }
+  }
+});
+
+test('FR-CTM-030 a document from another project is refused before sending', async () => {
+  const f = await fake({ ...READS(), 'GET /rest/v1/project_documents': [200, [{ ...DOC, project_id: OTHER }]] });
+  try {
+    const r = await cli(['tm', 'signoff', 'prepare', CLAIM, '--project', PROJECT, '--document', DOCUMENT, '--apply'], f);
+    assert.equal(r.code, 2);
+    assert.match(r.error.details.join(), /must belong to the claim's project/);
+    assert.deepEqual(writesSent(f), []);
+  } finally { await f.close(); }
+});

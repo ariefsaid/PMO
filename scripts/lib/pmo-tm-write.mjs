@@ -358,3 +358,40 @@ export async function withdrawClaim(api, { claim, project }, { apply }) {
   const after = await findClaim(api, { claim: found.id, project });
   return { exit: 0, result: { applied: true, claim_id: found.id, status: after.status } };
 }
+
+async function readDocument(api, id) {
+  const rows = await api.get('project_documents', new URLSearchParams({ select: 'id,project_id,title,revision,status,file_path', id: `eq.${id}` }));
+  return Array.isArray(rows) ? rows[0] ?? null : null;
+}
+
+/** Why the sign-off would be refused at confirmation with this document (the server re-checks both then). */
+function documentWarnings(doc) {
+  const warnings = [];
+  if (!['Issued', 'Approved'].includes(doc.status)) warnings.push(`the document is ${doc.status}: confirmation will refuse it until it is Issued or Approved (Project → Documents)`);
+  if (!String(doc.file_path ?? '').trim()) warnings.push('the document has no file: confirmation will refuse it until one is uploaded (`pmo documents upload`)');
+  return warnings;
+}
+
+const documentView = (doc) => ({ document_id: doc.id, title: doc.title, revision: doc.revision, status: doc.status, has_file: Boolean(String(doc.file_path ?? '').trim()) });
+
+/** `tm signoff prepare <claim> --document <id>`: prepare_tm_signoff once (FR-CTM-030). */
+export async function prepareSignoff(api, { claim, project, document, note }, { apply }) {
+  const found = await findClaim(api, { claim, project });
+  const problems = [];
+  if (!UUID.test(String(document ?? ''))) problems.push('--document must be the signed project document id (uuid) from `pmo documents list --project <id>`');
+  const text = typeof note === 'string' ? note.trim() : '';
+  if (text.length > 500) problems.push('--note may have at most 500 characters');
+  if (found.status !== 'Draft') problems.push(`only a Draft claim can be prepared for sign-off (this one is ${found.status})`);
+  const doc = problems.length ? null : await readDocument(api, String(document).toLowerCase());
+  if (!problems.length && !doc) problems.push('document not found (or not visible to you)');
+  // list_tm_claims carries no project id: the claim was found under --project, so the document must be on that project.
+  if (doc && doc.project_id !== String(project).toLowerCase()) problems.push("the sign-off document must belong to the claim's project");
+  if (problems.length) throw new TmQueryError(problems);
+  const warnings = documentWarnings(doc);
+  const body = { p_claim: found.id, p_document: doc.id, ...(text ? { p_note: text } : {}) };
+  if (!apply) return { exit: 0, result: { applied: false, claim: claimView(found), document: documentView(doc), warnings, next: 'Run the same command with --apply to prepare the sign-off.' } };
+  await write(api, 'prepare_tm_signoff', body, `pmo tm claim sources ${found.id}`);
+  const after = await findClaim(api, { claim: found.id, project });
+  const current = (await readSources(api, found.id))[0]?.signoff_is_current ?? null;
+  return { exit: 0, result: { applied: true, claim_id: found.id, prepared_by: after.signoff_prepared_by, document_id: after.document_id, signoff_is_current: current, warnings } };
+}
