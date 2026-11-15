@@ -78,6 +78,10 @@ pmo tm signoff prepare <claim-id> --document <document-id> [--note <text>] [--ap
 pmo tm signoff confirm <claim-id> [--apply]
 ```
 
+**Ruling D3 (accepted, Director, 16 Nov):** claim commands take `--project`; the command refuses a claim not on that
+project's list before any write; no new read, no guard change. (`claim deselect|withdraw`, `signoff prepare|confirm`,
+`claim invoice` therefore take `--project <id>` in addition to the synopsis above; `claim sources` does not.)
+
 ## 4. Functional requirements (EARS)
 
 **General**
