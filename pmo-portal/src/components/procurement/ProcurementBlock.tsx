@@ -631,8 +631,14 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
               {row.title}
             </button>
             {(row.code || row.vendor?.name) && (
-              <span className="block line-clamp-2 break-words text-sm text-muted-foreground">
-                {row.code && <span className="record-id">{row.code}</span>}{row.code && row.vendor?.name && ' · '}{row.vendor?.name}
+              // Rule 13 (one-type): one line, never wrapping the supplier below the number — the
+              // number is the record-id role and never truncates; the supplier is regular weight
+              // (the phone card's title wrapper is font-semibold) and truncates with its full name
+              // on title.
+              <span className="flex min-w-0 items-baseline text-sm text-muted-foreground">
+                {row.code && <span className="record-id shrink-0">{row.code}</span>}
+                {row.code && row.vendor?.name && <span>{' · '}</span>}
+                {row.vendor?.name && <span className="min-w-0 truncate font-normal" title={row.vendor.name}>{row.vendor.name}</span>}
               </span>
             )}
           </div>

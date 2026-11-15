@@ -493,15 +493,16 @@ const ProcurementDetails: React.FC = () => {
   const canShowVIForm =
     p.status === 'Vendor Invoiced' && (p.invoices?.length ?? 0) === 0 && INVOICE_PAY_ROLES.has(role);
 
-  // The separator goes BETWEEN present parts only — a purchase with no request number (e.g. one created from an ERPNext
-  // document) must not start with a stray "·".
+  // Rule 13 (one-type): the record title is the only heavy text in the header — the sub-line's
+  // project and supplier links render regular weight (the meta wrapper forces `[&_a]:font-normal`
+  // over the shared name links' own font-medium). Parts hang on a flex gap with no '·' text
+  // separators, so a wrapped line (390px) can never leave a separator hanging at a line end.
   const meta = [
     p.code ? <span key="code" className="record-id">{p.code}</span> : null,
     p.project?.name ? <ProjectNameLink key="proj" projectId={p.project_id} name={projectDisplayName(p.project)} legalName={p.project.name} /> : null,
     p.vendor?.name ? <CompanyNameLink key="supplier" companyId={p.vendor_id} name={p.vendor.name} /> : <span key="supplier-missing">{t('procurementRecord:status.supplierNotChosen', 'Supplier not chosen yet')}</span>,
     p.requested_by?.full_name ? <span key="req" className="inline-flex items-center gap-1.5"><Avatar name={p.requested_by.full_name} decorative /><span>{t('procurementRecord:meta.raisedBy', 'Raised by')} {p.requested_by.full_name}</span></span> : null,
-  ].filter((part): part is React.ReactElement => part !== null)
-    .map((part, i) => <span key={String(part.key)}>{i > 0 && ' · '}{part}</span>);
+  ].filter((part): part is React.ReactElement => part !== null);
 
   const detailRows = procurementDetailRows(p, t, linkedDocs.length);
 
@@ -629,7 +630,7 @@ const ProcurementDetails: React.FC = () => {
             <ProcurementStatusPill status={p.status} />
           </span>
         }
-        meta={meta.length ? <span>{meta}</span> : undefined}
+        meta={meta.length ? <span className="flex flex-wrap items-center gap-x-3 gap-y-1 [&_a]:font-normal">{meta}</span> : undefined}
         actions={<>
           {waitingNote && <span className="min-w-0 text-sm text-muted-foreground">{waitingNote}</span>}
           {approverLimitLine && <span className="hidden text-sm text-muted-foreground lg:inline">{approverLimitLine}</span>}

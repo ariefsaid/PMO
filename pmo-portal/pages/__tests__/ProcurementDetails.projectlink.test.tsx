@@ -179,15 +179,17 @@ describe('AC-JR-W1-05: ProcurementDetails project name links', () => {
     expect(projectLinks[0].getAttribute('href')).toBe('/projects/proj-1');
   });
 
-  it('review 12: without a request number the header meta starts with the project, not a stray "·"', () => {
+  it('review 12 (updated by one-type r3): without a request number the header meta starts with the project, and a flex gap replaces the "·" separators so none can hang at a line end', () => {
     detailState.data = { ...baseProcurement, code: null };
     renderPage();
     const link = screen.getAllByRole('link', { name: /Open Bridge Alpha/i })[0];
     const meta = link.parentElement!.parentElement!;
     expect(meta.textContent?.trim().startsWith('·')).toBe(false);
-    // The restructured header (#1404) reads project · supplier · raised-by (avatar initial + "Raised by").
-    expect(meta.textContent?.trim().startsWith('Bridge Alpha · ')).toBe(true);
+    // The restructured header (#1404) reads project, supplier, raised-by — one-type r3 hangs them
+    // on a flex gap with no '·' text dots, so a wrapped line (390px) can never leave one hanging.
+    expect(meta.textContent?.trim().startsWith('Bridge Alpha')).toBe(true);
     expect(meta.textContent).toContain('Raised by Eng User');
+    expect(meta.textContent).not.toContain('·');
   });
 
   it('AC-JR-W1-05: moneyContext in Approve confirm shows project name as a link', async () => {

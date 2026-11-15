@@ -67,7 +67,10 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
         : preErp;
       return (
         <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-          {embedded ? <span className={draftLabel ? 'min-w-0 break-words text-control font-semibold text-foreground' : 'min-w-0 record-id font-semibold text-foreground'}>{draftLabel ?? number ?? '—'}</span> : <Link
+          {/* Rule 13 (one-type): embedded, the client column is the row's one medium name, so the
+              number (or the draft stand-in) renders as the record-id role — regular, muted —
+              matching the phone card. Only the non-embedded primary cell keeps the medium ink. */}
+          {embedded ? <span className="min-w-0 truncate record-id">{draftLabel ?? number ?? '—'}</span> : <Link
             to={`/sales-invoices/${encodeURIComponent(inv.id)}${location.search}`}
             state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }}
             className={draftLabel ? 'truncate text-control font-semibold text-foreground underline-offset-2 hover:underline focus-visible:underline' : 'truncate record-id font-semibold text-foreground underline-offset-2 hover:underline focus-visible:underline'}

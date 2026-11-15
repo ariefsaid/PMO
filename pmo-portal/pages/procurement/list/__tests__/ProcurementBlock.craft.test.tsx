@@ -64,12 +64,29 @@ describe('ProcurementBlock craft rulings', () => {
     expect(screen.getByText('No procurement on this project yet.')).toBeInTheDocument();
   });
 
-  it('O10: a long supplier name wraps instead of being cut to "SunVolt Modules …"', () => {
+  // O10 pinned the old ruling ("a long supplier name wraps instead of being cut"); the one-type
+  // judgement (r3) supersedes it: the supplier span truncates on one line with its full name on
+  // title (asserted below), while the identity LINE itself still carries no truncate.
+  it('O10 (superseded by one-type r3): the identity line carries no truncate itself — only the supplier span cuts, on title', () => {
     procState.data = [{ ...row('a', 'Requested'), code: 'PROC-2026-001', vendor: { name: 'RackMount Systems International' } }];
     renderBlock();
 
     const identity = screen.getByText('PROC-2026-001').parentElement as HTMLElement;
     expect(identity).toHaveTextContent('PROC-2026-001 · RackMount Systems International');
-    expect(identity.className).not.toMatch(/\btruncate\b/);
+    expect(identity.className).not.toMatch(/\btruncate\b|\bline-clamp\b/);
+  });
+
+  it('one-type r3: a long supplier name renders with the truncate class and its full name on title; the record number never truncates', () => {
+    procState.data = [{ ...row('a', 'Requested'), code: 'PROC-2026-001', vendor: { name: 'RackMount Systems International' } }];
+    renderBlock();
+
+    const supplier = screen.getByText('RackMount Systems International');
+    expect(supplier.className).toMatch(/\btruncate\b/);
+    expect(supplier.className).toMatch(/\bmin-w-0\b/);
+    expect(supplier).toHaveAttribute('title', 'RackMount Systems International');
+    const code = screen.getByText('PROC-2026-001');
+    expect(code.className).toMatch(/\brecord-id\b/);
+    expect(code.className).toMatch(/\bshrink-0\b/); // the number keeps its width: it never truncates
+    expect(code.className).not.toMatch(/\btruncate\b/);
   });
 });
