@@ -1,8 +1,8 @@
-// @e2e-isolation: self-isolated — creates a unique project and purchase each run; issued PO lines and bills are append-only, so it archives the fixture project after the journey.
-/** AC-SCV-009 — goal: a mistyped subcontract bill is voided by a second Admin/Finance user, the PO line is payable again, and the corrected bill is captured. */
+// @e2e-isolation: self-isolated — each journey creates its own project and purchase (the void journey also its own organisation and users); issued PO lines and bills are append-only, so it archives the fixture project afterwards.
+/** AC-SCV-009 — goal: where PMO owns the books (an organisation with no ERP binding), a mistyped subcontract bill is voided by a second Admin/Finance user, the PO line is payable again, and the corrected bill is captured. An ERP-bound organisation is refused in plain words and the bill stays live. */
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { requireServiceRoleKey, signIn } from './helpers';
+import { requireServiceRoleKey, signIn, SEED_PASSWORD } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 import type { Database } from '../src/lib/supabase/database.types';
 
@@ -30,7 +30,43 @@ async function captureBill(page: Page, itemCode: string, quantity: string) {
   await confirm(page, 'Save supplier invoice');
 }
 
-test('AC-SCV-009 a second Admin/Finance user voids a mistyped subcontract bill from the ledger; the line is payable again and the corrected bill is captured', async ({ page }, testInfo) => {
+type Actor = 'pm' | 'exec' | 'finance' | 'admin';
+
+/** Real form sign-in for a user created inside a fixture organisation (the captured seed sessions only cover seed users). */
+async function formSignIn(page: Page, email: string) {
+  await page.goto('/login');
+  await page.getByLabel(/email/i).fill(email);
+  await page.getByLabel(/password/i).fill(SEED_PASSWORD);
+  await page.getByRole('button', { name: /sign in/i }).click();
+  await expect(page).toHaveURL(/\/$/, { timeout: 15_000 });
+}
+
+const ROLES: Record<Actor, string> = { pm: 'Project Manager', exec: 'Executive', finance: 'Finance', admin: 'Admin' };
+
+/** A tenant with no ERP binding and its own four actors: PMO owns the books there. */
+async function createPmoOwnedOrg(admin: SupabaseClient<Database>, suffix: string) {
+  const orgId = crypto.randomUUID();
+  await admin.from('organizations').insert({
+    id: orgId, name: `SCV-009 PMO-owned org ${suffix}`, default_currency: 'IDR', default_timezone: 'UTC', default_locale: 'en', lifecycle_state: 'test',
+  }).throwOnError();
+  const ids = {} as Record<Actor, string>;
+  const emails = {} as Record<Actor, string>;
+  for (const actor of Object.keys(ROLES) as Actor[]) {
+    const email = `scv009-${actor}-${suffix.toLowerCase()}@acme.test`;
+    const created = await admin.auth.admin.createUser({ email, password: SEED_PASSWORD, email_confirm: true });
+    if (created.error || !created.data.user) throw new Error(`AC-SCV-009 could not create the ${actor} user: ${created.error?.message}`);
+    ids[actor] = created.data.user.id;
+    emails[actor] = email;
+    await admin.from('profiles').insert({
+      id: ids[actor], org_id: orgId, email, full_name: `SCV ${actor} ${suffix}`, role: ROLES[actor] as 'Admin', status: 'active', locale: 'en', timezone: 'UTC',
+    }).throwOnError();
+  }
+  const bindings = await admin.from('external_org_bindings').select('id').eq('org_id', orgId).eq('status', 'active');
+  expect(bindings.data ?? []).toHaveLength(0);
+  return { orgId, ids, emails };
+}
+
+async function setUpAndRun(page: Page, testInfo: TestInfo, bound: boolean) {
   const serviceKey = requireServiceRoleKey();
   if (!serviceKey) throw new Error('AC-SCV-009 requires the local fixture service client');
   const url = requireMatchingLocalSupabaseUrls(undefined, undefined);
@@ -44,12 +80,22 @@ test('AC-SCV-009 a second Admin/Finance user voids a mistyped subcontract bill f
   const voidReason = `Typed 100 instead of 40 ${suffix}`;
 
   try {
-    const [pm, executive] = await Promise.all([
-      admin.from('profiles').select('id, org_id').eq('email', 'pm@acme.test').single().throwOnError(),
-      admin.from('profiles').select('id').eq('email', 'exec@acme.test').single().throwOnError(),
-    ]);
+    // Bound: the seed organisation (active ERP binding). PMO-owned: a fresh organisation with no binding and its own actors.
+    const own = bound ? null : await createPmoOwnedOrg(admin, suffix);
+    const as = async (actor: Actor) => {
+      if (own) return formSignIn(page, own.emails[actor]);
+      return signIn(page, `${actor}@acme.test`);
+    };
+    const [pm, executive] = own
+      ? [{ data: { id: own.ids.pm, org_id: own.orgId } }, { data: { id: own.ids.exec } }]
+      : await Promise.all([
+        admin.from('profiles').select('id, org_id').eq('email', 'pm@acme.test').single().throwOnError(),
+        admin.from('profiles').select('id').eq('email', 'exec@acme.test').single().throwOnError(),
+      ]);
     const orgId = pm.data.org_id;
     const execId = executive.data.id;
+    const bindings = await admin.from('external_org_bindings').select('id').eq('org_id', orgId).eq('status', 'active').throwOnError();
+    if (bound && (bindings.data ?? []).length === 0) throw new Error('AC-SCV-009 the ERP-bound journey needs the seed organisation to have an active ERP binding');
 
     const vendorId = (await admin.from('companies').insert({ org_id: orgId, name: `Subcontract vendor ${suffix}`, type: 'Vendor' }).select('id').single().throwOnError()).data.id;
     await admin.from('projects').insert({
@@ -76,7 +122,7 @@ test('AC-SCV-009 a second Admin/Finance user voids a mistyped subcontract bill f
     }).throwOnError();
 
     // Given: the PM issues 100 m3 on the PO and records the signed acceptance of all 100.
-    await signIn(page, 'pm@acme.test');
+    await as('pm');
     await page.goto(`/procurement/${purchaseId}/items`);
     await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 20_000 });
     await page.getByRole('button', { name: 'Set BoQ lines' }).click();
@@ -94,7 +140,7 @@ test('AC-SCV-009 a second Admin/Finance user voids a mistyped subcontract bill f
     await expect(acceptanceDialog).toBeHidden();
 
     // Finance confirms the acceptance, then mistypes the bill: all 100 instead of the 40 the vendor invoiced.
-    await signIn(page, 'finance@acme.test');
+    await as('finance');
     await page.goto(`/procurement/${purchaseId}/items`);
     await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 20_000 });
     await page.getByRole('button', { name: 'Review draft' }).click();
@@ -111,8 +157,28 @@ test('AC-SCV-009 a second Admin/Finance user voids a mistyped subcontract bill f
     const viNumber = mistyped.data.vi_number;
     if (!viNumber) throw new Error('AC-SCV-009 the captured bill has no system number to find on the ledger');
 
+    if (bound) {
+      // When an ERP-bound organisation's second Admin tries the same void, the app says why in words and the bill stays live.
+      await as('admin');
+      await page.goto(`/procurement/${purchaseId}/files`);
+      const ledger = page.getByTestId('procurement-ledger');
+      await expect(ledger).toBeVisible({ timeout: 20_000 });
+      const billRow = ledger.getByRole('row', { name: new RegExp(viNumber) });
+      await billRow.hover();
+      await billRow.getByRole('button', { name: 'Row actions' }).click();
+      await page.getByRole('menuitem', { name: 'Void bill' }).click();
+      const voidDialog = page.getByRole('alertdialog');
+      await voidDialog.getByLabel(/Why is this bill being voided\?/).fill(voidReason);
+      await voidDialog.getByRole('button', { name: 'Void bill', exact: true }).click();
+      await expect(voidDialog).toContainText('Your organisation records bills in its ERP. Cancel the bill there.', { timeout: 15_000 });
+      await capture(page, testInfo, 'erp-bound-refusal');
+      const bill = await admin.from('procurement_invoices').select('voided_at').eq('id', mistyped.data.id).single().throwOnError();
+      expect(bill.data.voided_at).toBeNull();
+      return;
+    }
+
     // When: a second Admin/Finance user (not the bill's author) voids it from the purchase ledger, with a reason.
-    await signIn(page, 'admin@acme.test');
+    await as('admin');
     await page.goto(`/procurement/${purchaseId}/files`);
     const ledger = page.getByTestId('procurement-ledger');
     await expect(ledger).toBeVisible({ timeout: 20_000 });
@@ -151,4 +217,12 @@ test('AC-SCV-009 a second Admin/Finance user voids a mistyped subcontract bill f
     // Issued PO lines and bills are append-only (a void keeps the row). Archive the unique fixture project.
     await admin.from('projects').update({ archived_at: new Date().toISOString() }).eq('id', projectId).throwOnError();
   }
+}
+
+test('AC-SCV-009 where PMO owns the books, a second Admin/Finance user voids a mistyped subcontract bill from the ledger; the line is payable again and the corrected bill is captured', async ({ page }, testInfo) => {
+  await setUpAndRun(page, testInfo, false);
+});
+
+test('AC-SCV-009b in an ERP-bound organisation, voiding a subcontract bill is refused in plain words and the bill stays live', async ({ page }, testInfo) => {
+  await setUpAndRun(page, testInfo, true);
 });
