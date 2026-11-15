@@ -1,4 +1,4 @@
-// @e2e-isolation: self-isolated — uses SP2401-004 (shared seed case); serial mode within file; captures RFQ → ledger shows dual IDs + timeline grows; no parallel contention.
+// @e2e-isolation: self-isolated — creates its own namespaced Approved procurement (service-role) and removes it afterwards (#1882), so it passes on a reused database; serial mode within file; captures RFQ → ledger shows dual IDs + timeline grows.
 /**
  * AC-PR-020 — Capture a record with external ref + date + amount on one page, confirm
  *             it appears with both IDs in the Files ledger, and confirm the
@@ -44,9 +44,19 @@
  */
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers';
+import { createProcurementFixture, type ProcurementFixture } from './procurement-fixture';
 
-// SP2401-004: "DC/AC Cabling & Balance of System" — Approved at reset; non-terminal; Admin ≠ requester
-const CAPTURE_CASE_ID = '61000000-0000-0000-0000-000000000004';
+// An Approved procurement created for this run (requested by pm@, so Admin ≠ requester) and removed
+// afterwards. The former shared seed case (SP2401-004) was no longer Approved on a reused database.
+let fixture: ProcurementFixture;
+let CAPTURE_CASE_ID = '';
+test.beforeAll(async () => {
+  fixture = await createProcurementFixture({ status: 'Approved', title: 'AC-PR-020' });
+  CAPTURE_CASE_ID = fixture.id;
+});
+test.afterAll(async () => {
+  await fixture?.cleanup();
+});
 
 // Serial mode: AC-PR-022 must not advance the case before AC-PR-020 has captured its record.
 // This keeps the two tests in a predictable order within this file; both still run.

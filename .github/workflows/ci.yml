@@ -271,12 +271,13 @@ jobs:
       - name: Repository script tests (non-DB)
         working-directory: .
         run: |
-          mapfile -t tests < <(find scripts -maxdepth 1 -name '*.test.mjs' ! -name 'financial-statements-publication-race.test.mjs' ! -name 'financial-statements-rollback.test.mjs' ! -name 'financial-statements-nightly-intent-race.test.mjs' ! -name '2195-journal-safety-rollback.test.mjs' ! -name 'ux-proof.test.mjs' -print | sort)
+          mapfile -t tests < <(find scripts -maxdepth 1 -name '*.test.mjs' ! -name 'financial-statements-publication-race.test.mjs' ! -name 'financial-statements-rollback.test.mjs' ! -name 'financial-statements-nightly-intent-race.test.mjs' ! -name '2195-journal-safety-rollback.test.mjs' ! -name 'ux-proof.test.mjs' ! -name 'stock-connect-race.test.mjs' -print | sort)
           node --test "${tests[@]}"
       - name: CI integration-order test
         working-directory: .
         run: |
           node --test pmo-portal/e2e/support/AC-S21-005-*.test.mjs
+          node --test pmo-portal/e2e/support/AC-1869-*.test.mjs
           node scripts/check-e2e-skips.mjs --self-test
           node scripts/check-browser-shard-inventory.mjs --self-test
           node scripts/check-e2e-time-budget.mjs --self-test
@@ -285,6 +286,7 @@ jobs:
           bash scripts/check-e2e-isolation.sh --self-test
           bash scripts/check-nul-bytes.sh --self-test
           bash scripts/ci-e2e.sh --self-test
+          bash scripts/renumber-migration.sh --self-test
           bash scripts/db-seed-prod.test.sh
       # EVERY repo guard (package.json `check:guards` — the same list `npm run verify` runs locally,
       # so the two cannot drift; scripts/ci-integration-order.test.mjs asserts it). Cheap — before
@@ -633,6 +635,18 @@ jobs:
       # is left exactly as it found it.
       - name: Watermarks per-org rollback harness
         run: scripts/test-watermarks-per-org-rollback.sh
+
+      # AC-OSP-005/006: reversing 0879 removes the stock-command guard objects and re-applying restores
+      # them (generated pgTAP file, deleted on exit); the race script then proves the two-session
+      # interleavings of a stock command against a document edit on the reset database.
+      - name: Stock posting rollback harness
+        run: scripts/test-odoo-stock-posting-rollback.sh
+      - name: Stock posting two-session race
+        run: scripts/with-db-lock.sh node scripts/odoo-stock-posting-race.mjs
+      - name: Stock connect rollback harness
+        run: scripts/with-db-lock.sh node scripts/test-stock-connect-rollback.mjs
+      - name: Stock connect two-session race
+        run: scripts/with-db-lock.sh node --test scripts/stock-connect-race.test.mjs
 
       # A push to `dev` is the full suite that backstops every PR's narrowed run; when it fails, say
       # which merge it ran on (a squash merge's subject ends in the PR number).
