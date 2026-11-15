@@ -699,7 +699,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     },
     {
       key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', size: 125, minSize: 112,
-      cell: (row) => { const status = getStatus(row); return status ? <StatusPill variant={status.variant}>{status.label}</StatusPill> : null; },
+      cell: (row) => { const status = getStatus(row); return status ? <StatusPill variant={status.variant} wrap={false}>{status.label}</StatusPill> : null; },
     },
   ];
   const actualTotals = enrichedRows.length ? [{

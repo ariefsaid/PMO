@@ -79,7 +79,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
   const calendarQuery = useQuery<BudgetProjectFiscalCalendar>({
     queryKey: ['budget-project-calendar', orgId, projectId, budgetVersionId, projectStartDate, projectEndDate],
     queryFn: () => fetchProjectFiscalCalendar(projectId),
-    enabled: Boolean(orgId && projectId && budgetVersionId),
+    enabled: !pmoBasis && Boolean(orgId && projectId && budgetVersionId), // no accounting system: there is no ERP calendar to read
     staleTime: 5 * 60_000,
     retry: false,
   });
@@ -390,7 +390,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
       : years.map(({ fiscalYear }) => ({ kind: 'year' as const, year: fiscalYear })).find((option) => scopeToken(option) === value);
     if (next) setSelection({ identity, scope: next });
   };
-  const calendarMessage = calendarIsPending || calendarIsFetching
+  const calendarMessage = pmoBasis ? null : calendarIsPending || calendarIsFetching
     ? t('projectDetail.budget.currentCalendarLoading', 'Loading the current project fiscal calendar…')
     : calendarQuery.isError || calendarResult?.status === 'unavailable'
       ? t('projectDetail.budget.currentCalendarUnavailable', 'The current project fiscal calendar is unavailable.')
@@ -411,7 +411,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
     return `${year.fiscalYear} · ${t(`projectDetail.budget.${source}`, fallback)}`;
   };
   const fiscalYearOptions = [
-    ...(!scope ? [{ value: 'unresolved', label: calendarIsPending || calendarIsFetching || yearsQuery.isPending ? t('projectDetail.budget.scopeLoading', 'Loading fiscal years') : t('projectDetail.budget.scopeUnresolved', 'Current fiscal years unavailable'), disabled: true }] : []),
+    ...(!scope ? [{ value: 'unresolved', label: (!pmoBasis && (calendarIsPending || calendarIsFetching)) || yearsQuery.isPending ? t('projectDetail.budget.scopeLoading', 'Loading fiscal years') : t('projectDetail.budget.scopeUnresolved', 'Current fiscal years unavailable'), disabled: true }] : []),
     { value: scopeToken(allYearsScope), label: t('projectDetail.budget.allYearsProjectToDate', 'All years (project to date)') },
     ...years.map((year) => ({ value: scopeToken({ kind: 'year' as const, year: year.fiscalYear }), label: fiscalYearLabel(year) })),
   ];

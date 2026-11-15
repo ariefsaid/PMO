@@ -1388,4 +1388,43 @@ describe('BudgetProjection — no accounting system (#2325)', () => {
     expect(await screen.findByTestId('forecast-incomplete')).toHaveTextContent('Labor: Spending is not split by year yet. See All years.');
     expect(screen.queryByText(/accounting system/i)).not.toBeInTheDocument();
   });
+
+  it('AC-BCNL-014 a no-ERP organisation never reads the ERP fiscal calendar: All years, no calendar error, no Retry, the year reason in en and id', async () => {
+    calendarMock.mockRejectedValue(new Error('no ERP binding'));
+    yearsMock.mockResolvedValue([{ fiscalYear: 'FY-2027', hasActiveBudget: true }]);
+    phasingMock.mockResolvedValue(phasing({ Labor: ['FY-2027'] }));
+    renderForecast({ ...TWO_YEAR_PROJECT, ledgerBasis: 'pmo' });
+    await rowFor('Labor');
+    const view = screen.getByTestId('budget-forecast-view');
+    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue(JSON.stringify({ kind: 'all' }));
+    expect(calendarMock).not.toHaveBeenCalled();
+    expect(within(view).queryByText(/fiscal calendar/i)).not.toBeInTheDocument();
+    expect(within(view).queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+    fetchMock.mockResolvedValue([{ ...ROW, actualsToDate: null, actualsAsOf: null, projectedFinalCost: null, projectedVariance: null, projectedUtilization: null }]);
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), JSON.stringify({ kind: 'year', year: 'FY-2027' }));
+    expect(await screen.findByTestId('forecast-incomplete')).toHaveTextContent('Labor: Spending is not split by year yet. See All years.');
+    expect(within(view).queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+  });
+
+  it('AC-BCNL-014 Bahasa: the year reason reads Pengeluaran belum dipisah per tahun', async () => {
+    await financeTestI18n.changeLanguage('id');
+    calendarMock.mockRejectedValue(new Error('no ERP binding'));
+    yearsMock.mockResolvedValue([{ fiscalYear: 'FY-2027', hasActiveBudget: true }]);
+    phasingMock.mockResolvedValue(phasing({ Labor: ['FY-2027'] }));
+    fetchMock.mockResolvedValue([{ ...ROW, actualsToDate: null, actualsAsOf: null, projectedFinalCost: null, projectedVariance: null, projectedUtilization: null }]);
+    renderForecast({ ...TWO_YEAR_PROJECT, ledgerBasis: 'pmo' });
+    const select = await screen.findByRole('combobox', { name: /tahun fiskal/i });
+    await waitFor(() => expect(within(screen.getByTestId('budget-forecast-view')).queryByText(/memuat/i)).not.toBeInTheDocument());
+    await userEvent.selectOptions(select, JSON.stringify({ kind: 'year', year: 'FY-2027' }));
+    expect(await screen.findByTestId('forecast-incomplete')).toHaveTextContent('Pengeluaran belum dipisah per tahun. Lihat Semua tahun.');
+    expect(calendarMock).not.toHaveBeenCalled();
+  });
+
+  it('AC-BCNL-014 a connected organisation with a failing calendar keeps its error and Retry', async () => {
+    calendarMock.mockRejectedValue(new Error('calendar offline'));
+    renderForecast({ ...TWO_YEAR_PROJECT, ledgerBasis: 'erp' });
+    const view = screen.getByTestId('budget-forecast-view');
+    expect(await within(view).findByText('The current project fiscal calendar is unavailable.')).toBeInTheDocument();
+    expect(within(view).getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
 });
