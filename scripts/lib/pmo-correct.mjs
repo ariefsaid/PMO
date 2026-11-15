@@ -57,6 +57,11 @@ export const CORRECTABLE = Object.freeze({
   }),
 });
 
+/** Tables `pmo correct` PATCHes that the API-client guard's Admin tier must allow (projects is already in its write tables). */
+export const CORRECT_ADMIN_PATCH_TABLES = Object.freeze(
+  Object.values(CORRECTABLE).map((spec) => spec.table).filter((table) => table !== 'projects').sort(),
+);
+
 /** Where the app changes a field the CLI will not (the first matching entry names it). */
 const POINTERS = {
   contract_value: 'a contract value moves only in the app, where its approval rules apply',
@@ -128,7 +133,7 @@ async function resolveProject(api, target) {
 }
 
 async function resolveContractLine(api, project, target) {
-  if (!isText(target.key)) throw refuse('name the contract line: --key <the load file\'s line key>');
+  if (!isText(target.key)) throw refuse('name the contract line: --line-key <the load file\'s line key>');
   const rows = await api.get('boq_items', params({
     select: 'id,project_id,import_key,description,unit,quantity,rate,earning_basis', project_id: eq(project.id), import_key: eq(target.key),
   }));

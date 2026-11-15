@@ -565,7 +565,7 @@ node scripts/pmo.mjs connect stock dismiss --proposal <id> --confirm
 node scripts/pmo.mjs correct project --code <code> --set end_date=2026-12-31 --dry-run
 node scripts/pmo.mjs correct project --name "<name>" --client "<legal name>" --set short_name=<alias> --set sector=<value> --dry-run
 # Contract line: the line `key` from the load file
-node scripts/pmo.mjs correct contract-line --code <code> --key <line-key> --set rate=1500.50 --set quantity=12 --dry-run
+node scripts/pmo.mjs correct contract-line --code <code> --line-key <line-key> --set rate=1500.50 --set quantity=12 --dry-run
 # Draft budget line: the row exactly as it is in the load file (JSON or @file)
 node scripts/pmo.mjs correct budget-line --code <code> --line '{"category":"Labor","description":"Site crew","fiscal_year":"2026","budgeted_amount":1000}' --set budgeted_amount=1200 --dry-run
 ```

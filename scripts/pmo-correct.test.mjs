@@ -8,7 +8,7 @@ import test from 'node:test';
 
 import { applyLoad, resolveLoad } from './lib/pmo-load.mjs';
 import { encodeBudgetImportIdentity } from './lib/budget-import-identity.mjs';
-import { CORRECTABLE, correct, parseSets, validateSets } from './lib/pmo-correct.mjs';
+import { CORRECTABLE, CORRECT_ADMIN_PATCH_TABLES, correct, parseSets, validateSets } from './lib/pmo-correct.mjs';
 
 /** A PostgREST-ish fake: eq.<v> filters, PATCH by id, every request logged. Row-security hiding is `hidden`. */
 function fakeApi(tables, { hidden = false } = {}) {
@@ -251,4 +251,9 @@ test('a line with a reference is found by its reference key, and a category the 
     budget_line_items: [BLINE({ id: 'b-9', category: 'Travel & accommodation', description: moved.description, budgeted_amount: 500, import_key: id.v2Key })] });
   const r = await correct('budget-line', { code: 'ORG-001', line: moved }, { budgeted_amount: '650' }, api, { dryRun: true });
   assert.equal(r.id, 'b-9');
+});
+
+test('AC-CLICOR-015: the tables a correction PATCHes beyond the ordinary write tables are exactly the guard Admin PATCH list', () => {
+  assert.deepEqual([...CORRECT_ADMIN_PATCH_TABLES], ['boq_items', 'budget_line_items']);
+  assert.deepEqual(Object.values(CORRECTABLE).map((s) => s.table).sort(), ['boq_items', 'budget_line_items', 'projects']);
 });
