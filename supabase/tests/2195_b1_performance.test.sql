@@ -2,7 +2,7 @@
 -- The helper reads only the assigned vouchers through the assignment and voucher indexes; its sum equals an independent sum;
 -- an organization with nothing configured never runs the attribution engine. No forced scans, no latency threshold.
 begin;
-select plan(15);
+select plan(18);
 insert into organizations(id,name,default_currency) values
  ('21951005-0000-0000-0000-000000000001','Perf 1','USD'),('21951005-0000-0000-0000-000000000002','Perf 2','USD'),('21951005-0000-0000-0000-000000000003','Perf 3','USD');
 insert into auth.users(id,email) select ('21951005-0000-0000-0000-00000000010'||g)::uuid,'perf-'||g||'@example.test' from generate_series(1,3) g;
@@ -102,5 +102,24 @@ select ok(coalesce(pg_stat_get_xact_numscans('public.erp_capture_invoice_assignm
 select is((select count(*)::int from engine_a),(select count(*)::int from engine_b),'AC-ROP-003 the engine allocates the same number of lines with the assignment as the twin without the assigned vouchers');
 select is((select sum(amount) from engine_a),(select sum(amount) from engine_b),'AC-ROP-003 and the same total: the assigned vouchers add nothing to the rule');
 select is((select count(*)::int from engine_a where gl_id in (select id from erp_gl_entry_mirror where voucher_no like 'Y-%')),0,'AC-ROP-003 none of the assigned vouchers reaches the rule');
+
+-- A 500-row set-aside batch reads the attribution engine once, not once per row: the rule warning comes from the batch's single read.
+insert into companies(id,org_id,name,type) values ('21951005-0000-0000-0000-0000000000c2','21951005-0000-0000-0000-000000000002','Batch vendor','Vendor');
+insert into external_refs(org_id,domain,pmo_record_id,external_tier,external_record_id) values ('21951005-0000-0000-0000-000000000002','companies','21951005-0000-0000-0000-0000000000c2','erpnext','Supplier:SUP-B');
+insert into erp_purchase_documents(id,org_id,erp_doctype,erp_name,supplier,currency,grand_total,net_total,erp_status,erp_docstatus,erp_modified)
+select ('21951005-2000-0002-0000-'||lpad(n::text,12,'0'))::uuid,'21951005-0000-0000-0000-000000000002','Purchase Invoice','SA-'||n,'SUP-B','USD',10,10,'Unpaid',1,'1' from generate_series(1,500) n;
+insert into erp_gl_entry_mirror(org_id,erp_name,company,account,fiscal_year,party_type,voucher_type,voucher_no,posting_date,debit,credit,is_cancelled,erp_modified)
+select '21951005-0000-0000-0000-000000000002','GL-SA-'||n,'Example','Cost','2026','Supplier','Purchase Invoice','SA-'||n,'2026-02-01',10,0,false,'1' from generate_series(1,500) n;
+create or replace function public.purchase_capture_feed_health() returns jsonb language sql stable as $$ select jsonb_build_object('caught_up',true,'ledger_currency','USD') $$;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21951005-0000-0000-0000-000000000102","role":"authenticated"}';
+select set_config('perf.engine_before',pg_temp.engine_calls()::text,true);
+select set_config('perf.batch',public.assign_capture_invoices(
+  (select jsonb_agg(jsonb_build_object('request_id',('21951005-3000-0002-0000-'||lpad(n::text,12,'0')),'source_id',('21951005-2000-0002-0000-'||lpad(n::text,12,'0')),'decision','set_aside')) from generate_series(1,500) n),
+  public.purchase_capture_source_page(null,null,1)->>'revision',false)::text,true);
+reset role;
+select is((select count(*)::int from jsonb_array_elements(current_setting('perf.batch')::jsonb->'results') r where r->>'outcome'='create'),500,'AC-ROP-008 a 500-row set-aside batch applies every row');
+select is(pg_temp.engine_calls()-current_setting('perf.engine_before')::bigint,1::bigint,'AC-ROP-008 and reads the attribution engine once for the whole batch');
+select is((select count(*)::int from jsonb_array_elements(current_setting('perf.batch')::jsonb->'results') r where r->'warnings' ? 'allocated_by_rule'),500,'AC-ROP-008 every row still carries the rule warning');
 select * from finish();
 rollback;
