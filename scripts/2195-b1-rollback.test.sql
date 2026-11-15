@@ -1,6 +1,6 @@
--- #2195 B1: the down for 0871 restores every replaced function to its exact previous body, refuses while any decision exists,
--- and removes what 0871 added. The script substitutes the (signature, body hash, grants) of each replaced function, as recorded in a database reset to the
--- migration before 0871, and the down file. One transaction; nothing is left behind.
+-- #2195 B1: the down for 0875 restores every replaced function to its exact previous body, refuses while any decision exists,
+-- and removes what 0875 added. The script substitutes the (signature, body hash, grants) of each replaced function, as recorded in a database reset to the
+-- migration before 0875, and the down file. One transaction; nothing is left behind.
 begin;
 select plan(5);
 insert into organizations(id,name,default_currency) values ('21951008-0000-0000-0000-000000000001','Rollback org','USD');
@@ -19,7 +19,7 @@ select lives_ok($down$
 $down$,'AC-ROP-009 the down runs once no decision exists');
 select is((select count(*)::int from pg_class where oid=to_regclass('public.erp_capture_invoice_assignments'))
   + (select count(*)::int from pg_proc where proname in ('capture_assigned_gl','capture_assignment_claim','capture_assignment_validate','capture_assignment_row','assign_capture_invoices','purchase_capture_assignment_report','guard_capture_assignment_update','capture_assignment_batch','capture_assignment_release_set_aside')
-      and pronamespace='public'::regnamespace),0,'AC-ROP-009 the assignment table, trigger guard and every function 0871 added are gone');
+      and pronamespace='public'::regnamespace),0,'AC-ROP-009 the assignment table, trigger guard and every function 0875 added are gone');
 select is((select count(*)::int from (values @HASHES@) e(sig,body,acl) join pg_proc p on p.oid=to_regprocedure(e.sig)
    where md5(pg_get_functiondef(p.oid))=e.body and p.proacl::text is not distinct from nullif(e.acl,'')),6,'AC-ROP-009 every replaced function has its exact previous body and grants');
 select is((select count(*)::int from pg_proc where proname in ('cost_attribution_engine','cost_attribution_allocations','cost_attribution_org_actuals','cost_attribution_project_actuals','link_erp_purchase_documents','undo_captured_purchase') and pronamespace='public'::regnamespace),6,'AC-ROP-009 no replaced function was dropped or duplicated');
