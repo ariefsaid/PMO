@@ -791,9 +791,16 @@ describe('external-set-company — ERPNext branch', () => {
         ...activationProbeRoutes(['procurement']),
         supabaseRpc('activate_external_binding_audited', () => jsonResponse('2026-09-14T00:00:00+00:00')),
       ],
-      async () => {
+      async ({ calls }) => {
         const res = await handleSetCompanyRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
         assertEquals(res.status, 200);
+        // The three statement-report checks actually ran (not just "no warning because nothing was probed").
+        const reportsChecked = calls
+          .map((c) => c.url.pathname)
+          .filter((p) => p.startsWith('/api/resource/Report/'))
+          .map((p) => decodeURIComponent(p.slice('/api/resource/Report/'.length)))
+          .sort();
+        assertEquals(reportsChecked, ['Balance Sheet', 'Profit and Loss Statement', 'Trial Balance']);
         assertEquals((await res.json()).warnings, undefined);
       },
     );
