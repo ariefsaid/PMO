@@ -60,13 +60,16 @@ const h = vi.hoisted(() => ({
   create: { mutateAsync: vi.fn(), isPending: false },
   capture: { capture: vi.fn(), cleanupUnlinkedAttachment: vi.fn(), recovery: null as null | Record<string, unknown>, progress: null as number | null },
 }));
-vi.mock('@/src/hooks/useExpenseClaims', () => ({
-  useExpenseClaims: () => h.list,
-  useExpenseAdvanceAging: () => h.aging,
-  useExpenseAdvanceAgingTotals: () => h.totals,
-  useOwnExpenseAdvances: () => h.own,
-  useExpenseClaimMutations: () => ({ create: h.create }),
-}));
+vi.mock('@/src/hooks/useExpenseClaims', async () => {
+  const { asPagedQuery } = await import('@/src/test/pagedQueryMock');
+  return {
+    useExpenseClaimPages: () => asPagedQuery(h.list),
+    useExpenseAdvanceAging: () => h.aging,
+    useExpenseAdvanceAgingTotals: () => h.totals,
+    useOwnExpenseAdvances: () => h.own,
+    useExpenseClaimMutations: () => ({ create: h.create }),
+  };
+});
 vi.mock('@/src/hooks/useExpenseCapture', async () => {
   const ReactModule = await import('react');
   return {
