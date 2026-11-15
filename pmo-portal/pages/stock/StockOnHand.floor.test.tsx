@@ -134,7 +134,7 @@ describe('stock on hand floor controls', () => {
   it('floor: Issue to project opens a new issue movement', async () => {
     renderRouted();
     await screen.findByText('CEM');
-    await userEvent.click(screen.getByRole('button', { name: 'Issue to project' }));
+    await userEvent.click(screen.getByRole('link', { name: 'Issue to project' }));
     expect(await screen.findByText('new movement: issue')).toBeInTheDocument();
   });
 

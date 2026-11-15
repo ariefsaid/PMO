@@ -260,17 +260,17 @@ describe('StockOnHand (AC-STK-032 states, AC-STK-020 cost by data)', () => {
   it('FR-STK-064 view-as is view-only: an Admin viewing as an Engineer sees no movement buttons', async () => {
     renderPage('Admin', 'Engineer');
     await screen.findByText('CEM');
-    expect(screen.queryByRole('button', { name: 'Issue to project' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Issue to project' })).not.toBeInTheDocument();
   });
 
   it('FR-STK-064 movement actions appear only for a keeper (Admin always); a non-keeper sees none', async () => {
     const { unmount } = renderPage('Engineer');
     await screen.findByText('CEM');
-    expect(screen.queryByRole('button', { name: 'Issue to project' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Issue to project' })).not.toBeInTheDocument();
     unmount();
     master.listKeepers.mockResolvedValue([{ warehouse_id: 'w1', user_id: 'me', org_id: 'org-1' }]);
     renderPage('Engineer');
-    expect(await screen.findByRole('button', { name: 'Issue to project' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Issue to project' })).toBeInTheDocument();
   });
 
   it('typing in search narrows the list by code or name', async () => {
@@ -361,10 +361,17 @@ describe('AC-STK-032 floor: every control on the balance list still works', () =
     expect(await screen.findByText('documents page')).toBeInTheDocument();
   });
 
+  it('AC-2077 Issue to project is one tab stop: a link with no button inside it', async () => {
+    renderRouted();
+    const link = await screen.findByRole('link', { name: 'Issue to project' });
+    expect(link).toHaveAttribute('href', '/stock/new/issue');
+    expect(link.querySelector('button')).toBeNull();
+  });
+
   it('Issue to project starts an issue movement', async () => {
     renderRouted();
     await screen.findByText('CEM');
-    await userEvent.click(await screen.findByRole('button', { name: 'Issue to project' }));
+    await userEvent.click(await screen.findByRole('link', { name: 'Issue to project' }));
     expect(await screen.findByText('new movement: issue')).toBeInTheDocument();
   });
 

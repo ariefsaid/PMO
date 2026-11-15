@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
+
+const LocationProbe = () => <span data-testid="where">{useLocation().pathname}</span>;
 import { FigureGroup } from './FigureGroup';
 import type { DashboardFigure } from './FigureGroup';
 
@@ -46,5 +48,19 @@ describe('FigureGroup', () => {
     renderGroup({ figures: [{ id: 'won', label: 'Won', value: '3 · $14.4M' }] });
     const cell = screen.getByText('3 · $14.4M').closest('.border-b') as HTMLElement;
     expect(cell.parentElement).toHaveClass('grid-cols-1');
+  });
+
+  it('AC-2077 the help control of a linked figure sits beside the link, and activating it does not navigate', () => {
+    render(
+      <MemoryRouter initialEntries={['/start']}>
+        <FigureGroup heading="Today" figures={[{ id: 'won', label: 'Won', value: '3', href: '/sales', help: 'Deals won in the period' }]} />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+    const help = screen.getByRole('button', { name: /About this metric: Won/ });
+    expect(screen.getByRole('link', { name: /Won/ })).toHaveAttribute('href', '/sales');
+    expect(help.closest('a')).toBeNull();
+    fireEvent.click(help);
+    expect(screen.getByTestId('where')).toHaveTextContent('/start');
   });
 });
