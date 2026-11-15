@@ -127,6 +127,15 @@ update external_command_outbox set state='confirmed' where pmo_record_id='a87000
 select ok(not public.connect_link_in_use('a8700000-0000-0000-0000-000000000001','stock_items','a8700000-0000-0000-0000-000000000011'),'AC-OSP-006 a confirmed command no longer holds the link');
 update external_command_outbox set state='failed' where pmo_record_id='a8700000-0000-0000-0000-000000000051';
 select ok(not public.connect_link_in_use('a8700000-0000-0000-0000-000000000001','stock_warehouses','a8700000-0000-0000-0000-000000000021'),'AC-OSP-006 a plain failed command does not hold the link');
+-- A released hold (held -> failed) is a durable fact: the transfer may exist in Odoo, so both links stay in use, also after a later failure.
+update external_command_outbox set state='held' where pmo_record_id='a8700000-0000-0000-0000-000000000051';
+update external_command_outbox set state='failed' where pmo_record_id='a8700000-0000-0000-0000-000000000051';
+select ok(public.connect_link_in_use('a8700000-0000-0000-0000-000000000001','stock_items','a8700000-0000-0000-0000-000000000011'),'AC-OSP-006 a released hold keeps its stock item link in use');
+select ok(public.connect_link_in_use('a8700000-0000-0000-0000-000000000001','stock_warehouses','a8700000-0000-0000-0000-000000000021'),'AC-OSP-006 a released hold keeps its warehouse link in use');
+update external_command_outbox set state='pending' where pmo_record_id='a8700000-0000-0000-0000-000000000051';
+update external_command_outbox set state='failed' where pmo_record_id='a8700000-0000-0000-0000-000000000051';
+select ok(public.connect_link_in_use('a8700000-0000-0000-0000-000000000001','stock_items','a8700000-0000-0000-0000-000000000011'),'AC-OSP-006 a released then failed again command keeps its stock item link in use');
+select ok(public.connect_link_in_use('a8700000-0000-0000-0000-000000000001','stock_warehouses','a8700000-0000-0000-0000-000000000021'),'AC-OSP-006 a released then failed again command keeps its warehouse link in use');
 delete from external_command_outbox where pmo_record_id='a8700000-0000-0000-0000-000000000051';
 delete from stock_document_lines where document_id='a8700000-0000-0000-0000-000000000051';
 delete from stock_documents where id='a8700000-0000-0000-0000-000000000051';
