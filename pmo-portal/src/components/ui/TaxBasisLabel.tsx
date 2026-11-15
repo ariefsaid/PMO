@@ -2,6 +2,7 @@ import React, { useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
+import { formatPercent } from '@/src/lib/format';
 
 /**
  * TaxBasisLabel — `OD-TAX-1` §2: **no bare number anywhere the treatment exists.**
@@ -56,7 +57,7 @@ export const TaxBasisLabel: React.FC<TaxBasisLabelProps> = ({ treatment, taxRate
     treatment === 'inclusive'
       ? t('tax.basis.inclusive', 'incl. PPN')
       : t('tax.basis.exclusive', 'excl. PPN');
-  const rateLabel = taxRate != null ? `${taxRate}%` : t('tax.details.unknownRate', 'rate not recorded');
+  const rateLabel = taxRate != null ? formatPercent(taxRate / 100, 2) : t('tax.details.unknownRate', 'rate not recorded');
   const baseLabel = taxBaseUnknown ? t('tax.details.unknownBase', 'DPP not recorded') : `DPP ${taxBaseNumerator}/${taxBaseDenominator}`;
   return (
     <span

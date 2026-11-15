@@ -313,7 +313,7 @@ export async function main(argv, { promptConfirmFn = promptConfirm } = {}) {
             vendorMap[vk] = `provisional-vendor:${vk}`;
             unresolvedVendors.set(vk, r.vendor.trim());
           }
-        } catch (error) {
+        } catch {
           console.error(`✗ ${group.caseRef}: vendor lookup failed; retry this case.`);
           vendorError = true;
           break;
@@ -355,7 +355,7 @@ export async function main(argv, { promptConfirmFn = promptConfirm } = {}) {
             vendorMap[key] = created.data.id;
             summary.references.created++;
           }
-        } catch (error) {
+        } catch {
           console.error(`✗ ${group.caseRef}: vendor creation failed; retry this case.`);
           summary.cases.failed++;
           continue;

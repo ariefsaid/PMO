@@ -6,6 +6,7 @@
  */
 import { useContext } from 'react';
 import {
+  AgentContextChangeContext,
   AgentContextContext,
   AgentContextPublisherContext,
   type AgentContextPublisher,
@@ -29,4 +30,9 @@ export function useAgentContext(): AgentContextValue {
  */
 export function useAgentContextPublisher(): AgentContextPublisher {
   return useContext(AgentContextPublisherContext) ?? NOOP_CONTEXT;
+}
+
+/** Subscribe the caller to route/entity changes; use only where the render itself reads `getContext()`. */
+export function useAgentContextChange(): string {
+  return useContext(AgentContextChangeContext);
 }

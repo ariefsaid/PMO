@@ -102,3 +102,37 @@ export async function findPmoRecordId(
   if (error) throw new AppError(error.message, error.code);
   return (data as { pmo_record_id: string } | null)?.pmo_record_id ?? null;
 }
+
+/** Structural client seam for one batched `external_refs` read: `.from(t).select(c).eq(...).in(...).in(...)`, awaited. */
+export interface ExternalRefsBatchClient {
+  from(table: string): { select(columns: string): ExternalRefsBatchBuilder };
+}
+export interface ExternalRefsBatchBuilder extends PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }> {
+  eq(column: string, value: string): ExternalRefsBatchBuilder;
+  in(column: string, values: string[]): ExternalRefsBatchBuilder;
+}
+
+/**
+ * Resolve many `pmoRecordId → externalId` links of one org in ONE query, across the given domains. The map is keyed
+ * `<domain>:<pmoRecordId>`; a record with no link is simply absent. The caller keeps the id list under the platform
+ * row cap (a stock document has at most 200 lines).
+ */
+export async function resolveExternalRefs(
+  client: ExternalRefsBatchClient,
+  orgId: string,
+  domains: string[],
+  pmoRecordIds: string[],
+): Promise<Map<string, string>> {
+  const { data, error } = await client
+    .from('external_refs')
+    .select('domain, pmo_record_id, external_record_id')
+    .eq('org_id', orgId)
+    .in('domain', domains)
+    .in('pmo_record_id', pmoRecordIds);
+  if (error) throw new AppError(error.message, error.code);
+  const out = new Map<string, string>();
+  for (const r of (data ?? []) as Array<{ domain: string; pmo_record_id: string; external_record_id: string }>) {
+    out.set(`${r.domain}:${r.pmo_record_id}`, r.external_record_id);
+  }
+  return out;
+}

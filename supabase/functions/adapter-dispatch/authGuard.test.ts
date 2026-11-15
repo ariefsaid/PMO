@@ -622,3 +622,36 @@ Deno.test('AC-OCI-062: an Odoo sweep replay reauthorizes against Odoo ownership'
   );
   assertEquals(res.ok, true, res.message);
 });
+
+// #1508 — connected stock: `inventory` is owned by the Odoo tier alone, keeper is not a role (the 0879 outbox guard decides it
+// from the stored actor), and the `stock-document` kind belongs to the `inventory` domain only.
+Deno.test('#1508 inventory: an active Engineer passes the role half under Odoo ownership; the keeper rule is the DB guard\'s', async () => {
+  const res = await checkCommandAuthorization(
+    fakeClient({ domainOwned: true, role: 'Engineer', ownedPairs: ['inventory:odoo'] }),
+    'org-1', 'user-1', { domain: 'inventory', record: { erp_doc_kind: 'stock-document' } } as never,
+  );
+  assertEquals([res.ok, res.tier], [true, 'odoo']);
+});
+
+Deno.test('#1508 inventory: never asked of the ERPNext tier, so an ERPNext-only org is refused 403', async () => {
+  const res = await checkCommandAuthorization(
+    fakeClient({ domainOwned: true, role: 'Admin', ownedPairs: ['inventory:erpnext'] }),
+    'org-1', 'user-1', { domain: 'inventory', record: { erp_doc_kind: 'stock-document' } } as never,
+  );
+  assertEquals(res.ok, false);
+  assertEquals(res.status, 403);
+});
+
+Deno.test('#1508 inventory: an inactive actor is still refused (the delegation skips the role half only)', async () => {
+  const res = await checkCommandAuthorization(
+    fakeClient({ domainOwned: true, role: 'Engineer', active: false, ownedPairs: ['inventory:odoo'] }),
+    'org-1', 'user-1', { domain: 'inventory', record: { erp_doc_kind: 'stock-document' } } as never,
+  );
+  assertEquals([res.ok, res.status], [false, 403]);
+});
+
+Deno.test('#1508 the stock-document kind is refused under another domain, and another kind under inventory', async () => {
+  const client = fakeClient({ domainOwned: true, role: 'Admin', ownedPairs: ['inventory:odoo', 'procurement:odoo'] });
+  assertEquals((await checkCommandAuthorization(client, 'org-1', 'user-1', { domain: 'procurement', record: { erp_doc_kind: 'stock-document' } } as never)).ok, false);
+  assertEquals((await checkCommandAuthorization(client, 'org-1', 'user-1', { domain: 'inventory', record: { erp_doc_kind: 'payment' } } as never)).ok, false);
+});

@@ -41,6 +41,20 @@ function openForm(props?: Partial<React.ComponentProps<typeof PanelEditorForm>>)
   );
 }
 
+/**
+ * #2092 (WIG, Forms) — Limit (1–500) and Column span (1–4) are whole numbers, not prose: they
+ * must open the numeric keypad instead of the full alphabetic keyboard.
+ */
+describe('#2092 PanelEditorForm — numeric fields get the numeric keyboard', () => {
+  it('#2092 AC3: Limit and Column span are inputMode="numeric"', () => {
+    openForm();
+    for (const name of [/limit/i, /column span/i]) {
+      const field = screen.getByRole('textbox', { name });
+      expect(field).toHaveAttribute('inputmode', 'numeric');
+    }
+  });
+});
+
 describe('PanelEditorForm — whitelist constraints', () => {
   it('C10 PanelEditorForm.tsx:217: an incomplete filter cannot be silently dropped on confirm', async () => {
     const user = userEvent.setup();

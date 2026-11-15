@@ -21,9 +21,21 @@ export interface OdooCommandRow {
  * inside is only the fallback for commands without that evidence.
  */
 export function createInvoiceReceiptGate(paymentRows: IncomingPaymentRow[]) {
-  return (inv: SalesInvoiceRow) => paymentRows.some((payment) =>
-    (payment.sales_invoice_id === inv.id || Boolean(payment.allocation_details?.some((allocation) => allocation.invoice_id === inv.id)))
-    && invoiceReceiptAwaitingOdoo({
+  // #2103: one index per payment read. The gate runs per row (status cell, export, cards), so scanning
+  // every payment and every allocation inside it per invoice was O(invoices x payments).
+  const paymentsByInvoiceId = new Map<string, IncomingPaymentRow[]>();
+  const add = (invoiceId: string | null | undefined, payment: IncomingPaymentRow) => {
+    if (!invoiceId) return;
+    const bucket = paymentsByInvoiceId.get(invoiceId);
+    if (!bucket) paymentsByInvoiceId.set(invoiceId, [payment]);
+    else if (bucket[bucket.length - 1] !== payment) bucket.push(payment);
+  };
+  for (const payment of paymentRows) {
+    add(payment.sales_invoice_id, payment);
+    for (const allocation of payment.allocation_details ?? []) add(allocation.invoice_id, payment);
+  }
+  return (inv: SalesInvoiceRow) => (paymentsByInvoiceId.get(inv.id) ?? []).some((payment) =>
+    invoiceReceiptAwaitingOdoo({
       invoiceStatus: inv.status,
       invoiceErpModified: inv.erp_modified,
       receiptCommandState: payment.push_command_state,
@@ -48,8 +60,13 @@ export interface InvoiceStatusDeps {
 /** The receivables list's status derivation (label + pill variant + partly-settled + Odoo outcome). */
 export function createInvoiceStatus(deps: InvoiceStatusDeps) {
   const { t, canApproveDraft, receiptAwaitingOdooForInvoice, odoo, odooOffline, organizationToday, odooCommandsData } = deps;
+  // #2103: the first command per invoice, indexed once (a linear `find` per row before).
+  const commandByRecordId = new Map<string, OdooCommandRow>();
+  for (const row of odooCommandsData ?? []) {
+    if (row.kind === 'sales-invoice' && !commandByRecordId.has(row.recordId)) commandByRecordId.set(row.recordId, row);
+  }
   return (inv: SalesInvoiceRow) => {
-    const command = (odooCommandsData ?? []).find((row) => row.kind === 'sales-invoice' && row.recordId === inv.id);
+    const command = commandByRecordId.get(inv.id);
     const externalOutcome = odoo ? deriveOdooOutcome({
       erpState: inv.odoo_state,
       erpAttention: inv.odoo_attention,

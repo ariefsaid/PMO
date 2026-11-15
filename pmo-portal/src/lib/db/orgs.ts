@@ -67,9 +67,46 @@ export function isOrgLifecycleState(value: unknown): value is OrgLifecycleState 
  * returns exactly one row under RLS. org_id is NEVER sent (ADR-0017).
  */
 export async function getOrgDefaultCurrency(): Promise<string> {
-  const { data, error } = await supabase.from('organizations').select('default_currency').limit(1);
-  if (error) throw new Error(error.message);
-  return data?.[0]?.default_currency ?? 'USD';
+  const rows = await readOrgSettings();
+  return rows[0]?.default_currency ?? 'USD';
+}
+
+interface OrgSettingsRow {
+  default_currency: string | null;
+  default_locale: string | null;
+  default_number_locale: string | null;
+  default_timezone: string | null;
+}
+
+let orgSettingsRead: { at: number; rows: Promise<OrgSettingsRow[]> } | null = null;
+let watchingAuth = false;
+/** Readers of one load reach this a moment apart (profile, then currency); a few seconds covers them. */
+const ORG_SETTINGS_SHARE_MS = 5_000;
+
+/**
+ * The org's settings columns the app reads on every load (currency, locale, number locale, time zone)
+ * in ONE request. Readers within a few seconds of each other share the read, so the locale defaults and the
+ * FX context that mount together cost one round trip, not two (#2111). The share is dropped on any sign-in,
+ * sign-out or token change, so another user or org never sees it, and on a failed read.
+ */
+export function readOrgSettings(): Promise<OrgSettingsRow[]> {
+  if (!watchingAuth) {
+    watchingAuth = true;
+    supabase.auth?.onAuthStateChange(() => { orgSettingsRead = null; });
+  }
+  if (orgSettingsRead && Date.now() - orgSettingsRead.at < ORG_SETTINGS_SHARE_MS) return orgSettingsRead.rows;
+  const rows = (async () => {
+    const { data, error } = await supabase
+      .from('organizations')
+      .select('default_currency,default_locale,default_number_locale,default_timezone')
+      .limit(1);
+    if (error) throw new Error(error.message);
+    return (data ?? []) as OrgSettingsRow[];
+  })();
+  const entry = { at: Date.now(), rows };
+  orgSettingsRead = entry;
+  rows.catch(() => { if (orgSettingsRead === entry) orgSettingsRead = null; });
+  return rows;
 }
 
 /**
@@ -89,12 +126,7 @@ export interface OrgLocaleDefaultsRow {
 }
 
 export async function getOrgLocaleDefaults(): Promise<OrgLocaleDefaultsRow> {
-  const { data, error } = await supabase
-    .from('organizations')
-    .select('default_locale,default_number_locale,default_timezone')
-    .limit(1);
-  if (error) throw new Error(error.message);
-  const row = data?.[0];
+  const row = (await readOrgSettings())[0];
   return {
     defaultLocale: row?.default_locale ?? null,
     defaultNumberLocale: row?.default_number_locale ?? null,

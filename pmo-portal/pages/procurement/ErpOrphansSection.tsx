@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Checkbox, DataTable, MenuButton, Tooltip, type Column, type RowMenuItem } from '@/src/components/ui';
@@ -28,38 +28,171 @@ type Outcome =
   | { kind: 'result'; verb: 'added' | 'linked'; made: number; targets: string[]; refused: string[] }
   | { kind: 'error'; headline: string; detail?: string };
 
+/**
+ * #2104 — the row selection lives in a tiny external store so it never has to be a dependency of
+ * the table's column model. Each per-row control subscribes to the slice it reads (its own
+ * `checked`, or "is anything selected"), so a selection re-renders exactly the rows it touched and
+ * leaves the table body — and every other row's body — untouched (AC-3 at row level, not just at
+ * the checkbox subtree).
+ */
+interface SelectionStore {
+  get: () => ReadonlySet<string>;
+  set: (next: ReadonlySet<string>) => void;
+  subscribe: (listener: () => void) => () => void;
+}
+
+const EMPTY_SELECTION: ReadonlySet<string> = new Set();
+
+function createSelectionStore(): SelectionStore {
+  let value: ReadonlySet<string> = EMPTY_SELECTION;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => value,
+    set: (next) => {
+      if (next === value) return;
+      value = next;
+      listeners.forEach((listener) => listener());
+    },
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => { listeners.delete(listener); };
+    },
+  };
+}
+
+/** Outside the provider (never in practice) nothing is selected and nothing can change. */
+const NO_SELECTION_STORE: SelectionStore = {
+  get: () => EMPTY_SELECTION,
+  set: () => undefined,
+  subscribe: () => () => undefined,
+};
+
+const SelectionStoreContext = React.createContext<SelectionStore>(NO_SELECTION_STORE);
+
+const falseSnapshot = () => false;
+
+/** `checked` for ONE row, read straight from the store: the cell re-renders only when its own id
+ *  enters or leaves the selection, whatever the parent does. */
+function useStoreSelected(id: string): boolean {
+  const store = React.useContext(SelectionStoreContext);
+  return React.useSyncExternalStore(store.subscribe, () => store.get().has(id), falseSnapshot);
+}
+
+/** "Is any row selected" — the per-row actions collapse behind the bulk bar while true. */
+function useStoreHasSelection(): boolean {
+  const store = React.useContext(SelectionStoreContext);
+  return React.useSyncExternalStore(store.subscribe, () => store.get().size > 0, falseSnapshot);
+}
+
+/**
+ * #2104 — one orphan row's select checkbox. Its props are all primitives plus the stable
+ * `onToggle` and the store, so selecting ONE document re-renders that row's checkbox and leaves
+ * every other row's untouched.
+ */
+const DocumentSelectCell = React.memo<{
+  id: string;
+  onToggle: (id: string) => void;
+  label: string;
+}>(({ id, onToggle, label }) => {
+  const checked = useStoreSelected(id);
+  return (
+    <Checkbox
+      className="max-[767px]:!size-6"
+      checked={checked}
+      onChange={() => onToggle(id)}
+      label={label}
+    />
+  );
+});
+
+/**
+ * #2104 — one orphan row's "Link…" action. Decision 5 hides it while rows are selected (the bulk
+ * bar is the action then); that readable-from-the-store state keeps `selecting` out of the column
+ * deps, so the column model is never rebuilt for a selection change.
+ */
+const RowActionsCell = React.memo<{
+  row: ErpPurchaseRow;
+  rowMenu: (row: ErpPurchaseRow) => RowMenuItem[];
+  label: string;
+  ariaLabel: string;
+}>(({ row, rowMenu, label, ariaLabel }) => {
+  const hasSelection = useStoreHasSelection();
+  if (hasSelection) return null;
+  return (
+    <div className="flex justify-end">
+      <MenuButton label={label} ariaLabel={ariaLabel} items={rowMenu(row)} />
+    </div>
+  );
+});
+
+/** Stable row identity for the memoised body below (an inline arrow would defeat its memo). */
+const orphanRowKey = (row: ErpPurchaseRow) => row.id;
+
+/**
+ * #2104 — the table as its own memoised component. Everything selection-related is carried by the
+ * per-row controls above, so a selection change re-renders those cells and this component (and its
+ * whole row body) bails out. Without this boundary the section's own re-render would still walk
+ * every row's cells.
+ */
+const OrphansTable = React.memo<{
+  rows: ErpPurchaseRow[];
+  columns: Column<ErpPurchaseRow>[];
+  savedWidthId: string;
+  accessibleName: string;
+}>(({ rows, columns, savedWidthId, accessibleName }) => (
+  <DataTable<ErpPurchaseRow>
+    rows={rows}
+    columns={columns}
+    rowKey={orphanRowKey}
+    tableId={savedWidthId}
+    accessibleName={accessibleName}
+  />
+));
+
 /** FR-PFE-041 — ERPNext documents not yet in a purchase: one "Link…" action per row, plus bulk link / new purchase. */
 export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, projectId, canLink, projectNames, tableId }) => {
   const { t } = useTranslation('finance');
   const navigate = useNavigate();
-  const link = useLinkErpDocuments();
+  // The mutation's `mutateAsync` is stable across renders; the mutation OBJECT is not, so take the
+  // function — a callback that closed over the object would change identity on every render (#2104).
+  const { mutateAsync: linkDocuments } = useLinkErpDocuments();
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [dialogDocs, setDialogDocs] = useState<ErpPurchaseRow[] | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
+  // #2104 — the store the per-row controls subscribe to (one per mounted section).
+  const [selectStore] = useState(createSelectionStore);
 
   // A row that left the list (linked elsewhere, refreshed away) drops out of the selection on its own.
   const chosen = useMemo(() => rows.filter((r) => selected.has(r.id)), [rows, selected]);
+  // Publish the selection to the store declared above. A layout effect (not the render body) so the
+  // subscribing cells re-render in the same commit, before paint.
+  const chosenIds = useMemo(() => new Set(chosen.map((r) => r.id)), [chosen]);
+  useLayoutEffect(() => { selectStore.set(chosenIds); }, [chosenIds, selectStore]);
   const allChosen = rows.length > 0 && chosen.length === rows.length;
   const selecting = chosen.length > 0;
-  const toggle = (id: string) => setSelected((s) => {
+  // #2104: stable identity — the memoised select cell takes this as a prop, so a selection change
+  // must not hand every row a new callback (that alone re-renders every checkbox).
+  const toggle = useCallback((id: string) => setSelected((s) => {
     const next = new Set(s);
     if (next.has(id)) next.delete(id); else next.add(id);
     return next;
-  });
+  }), []);
   const toggleAll = () => setSelected(allChosen ? new Set() : new Set(rows.map((r) => r.id)));
 
   /** FR-PFE-025/026 — the project a new purchase lands on: the scoped project, else the document's only project. */
-  const targetProject = (d: ErpPurchaseRow): string | null => projectId ?? (d.projectIds.length === 1 ? d.projectIds[0] : null);
+  const targetProject = useCallback((d: ErpPurchaseRow): string | null =>
+    projectId ?? (d.projectIds.length === 1 ? d.projectIds[0] : null), [projectId]);
   /** Only a document split across several projects is ambiguous; one with none is an explicit "No project" purchase. */
-  const isSplit = (d: ErpPurchaseRow) => projectId === undefined && d.projectIds.length > 1;
+  const isSplit = useCallback((d: ErpPurchaseRow) => projectId === undefined && d.projectIds.length > 1, [projectId]);
   const bulkNewBlocked = chosen.some(isSplit);
-  const projectName = (id: string) => projectNames?.get(id) ?? t('erpLinks.thisProject', 'the project');
+  const projectName = useCallback((id: string) =>
+    projectNames?.get(id) ?? t('erpLinks.thisProject', 'the project'), [projectNames, t]);
 
-  const openDialog = (docs: ErpPurchaseRow[]) => { setOutcome(null); setDialogDocs(docs); };
+  const openDialog = useCallback((docs: ErpPurchaseRow[]) => { setOutcome(null); setDialogDocs(docs); }, []);
 
   /** FR-PFE-026 — a new Draft purchase for the documents (one per project; a bulk call shares one group key). */
-  const newPurchaseFrom = async (docs: ErpPurchaseRow[], key: string) => {
+  const newPurchaseFrom = useCallback(async (docs: ErpPurchaseRow[], key: string) => {
     setOutcome(null);
     setBusyKey(key);
     const group = docs.length > 1 ? `bulk-${docs[0].name}` : undefined;
@@ -70,7 +203,7 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
       ...(group ? { group } : {}),
     }));
     try {
-      const res = await link.mutateAsync({ rows: linkRows });
+      const res = await linkDocuments({ rows: linkRows });
       const refused = res.results.filter((r) => r.outcome === 'refused')
         .map((r) => `${r.erp_name ?? ''}: ${erpLinkReasonText(r.reason, t)}`);
       const targets = [...new Set(res.results.filter((r) => r.outcome !== 'refused')
@@ -87,9 +220,9 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
     } finally {
       setBusyKey(null);
     }
-  };
+  }, [linkDocuments, navigate, t, targetProject]);
 
-  const rowMenu = (r: ErpPurchaseRow): RowMenuItem[] => {
+  const rowMenu = useCallback((r: ErpPurchaseRow): RowMenuItem[] => {
     // An invoice split across projects is not linked into one purchase (the server refuses it): say how to add it instead.
     if (r.doctype === 'Purchase Invoice' && r.projectIds.length > 1) {
       return [{ label: t('erpLinks.splitInvoice', 'Split across projects: link it per project in ERPNext, or record it in PMO'), onClick: () => undefined, disabled: true }];
@@ -107,20 +240,24 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
       }
     }
     return items;
-  };
+  }, [busyKey, isSplit, navigate, newPurchaseFrom, openDialog, projectName, t, targetProject]);
 
-  const projectLabel = (r: ErpPurchaseRow) => r.projectIds.length === 0
+  const projectLabel = useCallback((r: ErpPurchaseRow) => r.projectIds.length === 0
     ? t('erpPurchases.noProject', 'No project')
     : r.projectIds.map((id) => {
       const name = projectNames?.get(id);
       return name?.trim() ? name : t('erpPurchases.projectUnavailable', 'Project unavailable ({{id}})', { id });
-    }).join(', ');
-  const amountOf = (r: ErpPurchaseRow) => {
+    }).join(', '), [projectNames, t]);
+  const amountOf = useCallback((r: ErpPurchaseRow) => {
     const amount = erpPreTaxAmount(r);
     return amount === null || !r.currency ? '—' : formatCurrency(amount, r.currency);
-  };
+  }, []);
 
-  const columns: Column<ErpPurchaseRow>[] = [
+  // #2104 — the columns are rebuilt only when something they close over actually changes. Neither
+  // the selection nor "is anything selected" is read here: the checkbox and the row actions are
+  // their own memoised components subscribing to the selection store, so a selection change keeps
+  // the table's column model — and every untouched row — as it was.
+  const columns: Column<ErpPurchaseRow>[] = useMemo(() => [
     {
       key: 'document',
       header: t('erpPurchases.column.document', 'Document'),
@@ -131,10 +268,9 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
       cell: (r) => (
         <span className="inline-flex items-center gap-2">
           {canLink && (
-            <Checkbox
-              className="max-[767px]:!size-6"
-              checked={selected.has(r.id)}
-              onChange={() => toggle(r.id)}
+            <DocumentSelectCell
+              id={r.id}
+              onToggle={toggle}
               label={t('erpLinks.selectOne', 'Select {{name}}', { name: r.name })}
             />
           )}
@@ -167,19 +303,22 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
       size: 110,
       minSize: 110,
       // Decision 5: one labelled row action; hidden while rows are selected (the bulk bar is the action then).
-      cell: (r: ErpPurchaseRow) => (selecting ? null : (
-        <div className="flex justify-end">
-          <MenuButton label={t('erpLinks.linkMenu', 'Link…')} ariaLabel={t('erpLinks.linkMenuNamed', 'Link {{name}}', { name: r.name })} items={rowMenu(r)} />
-        </div>
-      )),
+      cell: (r: ErpPurchaseRow) => (
+        <RowActionsCell
+          row={r}
+          rowMenu={rowMenu}
+          label={t('erpLinks.linkMenu', 'Link…')}
+          ariaLabel={t('erpLinks.linkMenuNamed', 'Link {{name}}', { name: r.name })}
+        />
+      ),
     }] : []),
-  ];
+  ], [amountOf, canLink, projectLabel, projectNames, rowMenu, t, toggle]);
 
-  const exportColumns: Column<ErpPurchaseRow>[] = columns.filter((column) => column.exportValue !== undefined).flatMap((column) =>
+  const exportColumns: Column<ErpPurchaseRow>[] = useMemo(() => columns.filter((column) => column.exportValue !== undefined).flatMap((column) =>
     column.key === 'amount' ? [
       { ...column, header: t('erpPurchases.column.amountPreTax', 'Amount (pre-tax)') },
       { key: 'currency', header: t('erpPurchases.column.currency', 'Currency'), cell: () => null, exportValue: (r: ErpPurchaseRow) => r.currency ?? '' },
-    ] : [column]);
+    ] : [column]), [columns, t]);
 
   return (
     <div>
@@ -231,13 +370,14 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
         />
       </div>}
       {outcome && <OutcomeNotice outcome={outcome} />}
-      <DataTable<ErpPurchaseRow>
-        rows={rows}
-        columns={columns}
-        rowKey={(r) => r.id}
-        tableId={tableId ?? 'erp-orphans-table'}
-        accessibleName={t('erpLinks.orphansTitle', 'ERPNext documents not in a purchase')}
-      />
+      <SelectionStoreContext.Provider value={selectStore}>
+        <OrphansTable
+          rows={rows}
+          columns={columns}
+          savedWidthId={tableId ?? 'erp-orphans-table'}
+          accessibleName={t('erpLinks.orphansTitle', 'ERPNext documents not in a purchase')}
+        />
+      </SelectionStoreContext.Provider>
       {dialogDocs && (
         <LinkErpDocumentsDialog
           docs={dialogDocs}

@@ -105,6 +105,7 @@ export const SearchMini: React.FC<SearchMiniProps> = ({
       <input
         ref={inputRef}
         type="search"
+        autoComplete="off"
         value={value}
         onKeyDown={handleKeyDown}
         className={cn(

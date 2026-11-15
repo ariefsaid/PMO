@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { EntityFormModal, FormGrid, TextField, useEntityForm, useToast, type SubmitError } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { parseMoneyInputAtScale } from '@/src/lib/format';
+import { formatNumberExact, parseMoneyInputAtScale } from '@/src/lib/format';
 import { monthInputToIso } from '@/src/lib/reports/months';
 import { useRecordProjectProgress } from '@/src/hooks/useManagementPack';
 
@@ -15,6 +15,8 @@ export interface RecordProgressModalProps {
   defaultMonth: string;
   /** Milestone-weighted delivery % (get_projects_delivery); a suggestion only, never applied (DD-MMP-1). */
   deliveryPct: number | null;
+  /** The caller reads delivery after the modal opens: keep the helper line's space so the field does not jump when it arrives. */
+  reserveDeliveryLine?: boolean;
 }
 
 interface Values {
@@ -31,7 +33,7 @@ export function parsePercentComplete(raw: string): number | null {
 }
 
 export const RecordProgressModal: React.FC<RecordProgressModalProps> = ({
-  open, onClose, projectId, projectName, defaultMonth, deliveryPct,
+  open, onClose, projectId, projectName, defaultMonth, deliveryPct, reserveDeliveryLine = false,
 }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
@@ -92,8 +94,8 @@ export const RecordProgressModal: React.FC<RecordProgressModalProps> = ({
           required
           helper={
             deliveryPct != null
-              ? t('managementPack.progressModal.pctHelper', 'Phase delivery: {{pct}}%', { pct: Math.round(deliveryPct) })
-              : undefined
+              ? t('managementPack.progressModal.pctHelper', 'Phase delivery: {{pct}}%', { pct: formatNumberExact(Math.round(deliveryPct)) })
+              : reserveDeliveryLine ? '\u00A0' : undefined
           }
           {...form.fieldProps('pct')}
         />
