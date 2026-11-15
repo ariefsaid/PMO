@@ -957,3 +957,74 @@ describe('purchase capture caller authorization', () => {
     assertEquals(body.other_unassigned, []);
   });
 });
+
+describe('#2286 the capture-scope ledger read', () => {
+  // A whole-org preview whose ledger page answers in the capture scope: the given lines and the first page's summary of the rest.
+  const previewScoped = async (options: { sources?: Array<Record<string, unknown>>; lines?: Array<Record<string, unknown>>; summary?: unknown; assignments?: unknown[] }) => {
+    const token = await auth.mintJwt({ sub: 'user-1' });
+    const project = '11111111-1111-4111-8111-111111111111';
+    const binding = { id: 'binding-1', org_id: 'org-1', external_tier: 'erpnext', config: { company: 'Example', project_map: { [project]: 'PROJECT' } }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 };
+    const line = { erp_modified: 'v', company: 'Example', project_id: null, voucher_type: 'Journal Entry', voucher_no: 'X', debit: '0.00', credit: '0.00', document_id: null, journal_purchase_id: null, classification: 'unmapped' };
+    const ledgerCalls: Array<Record<string, unknown>> = [];
+    let body: Record<string, any> = {};
+    let settingsReads = 0;
+    await withFetchMock([
+      jwksRoute(auth),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('external_org_bindings', () => jsonResponse([binding])),
+      supabaseRpc('read_vault_secret', () => jsonResponse('synthetic-key:synthetic-secret')),
+      supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: options.sources ?? [], revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_ledger_page', call => {
+        const request = call.bodyJson as Record<string, unknown>;
+        ledgerCalls.push(request);
+        const lines = (options.lines ?? []).map((extra, i) => ({ ...line, id: `gl-${i}`, ...extra }));
+        if (request.p_cursor === null) return jsonResponse({ lines: lines.slice(0, 1), revision: 'gen', next_cursor: lines.length > 1 ? 'gl-0' : null, other_summary: options.summary });
+        // A later page never carries a summary; a stray one is ignored.
+        return jsonResponse({ lines: lines.slice(1), revision: 'gen', next_cursor: null, other_summary: [{ kind: 'journal', count: 99, total: '99.00' }] });
+      }),
+      supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: options.assignments ?? [] })),
+      supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD', ledger_started_at: '2026-11-13T00:00:00Z' })),
+      erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => { settingsReads++; return jsonResponse({ data: { currency_precision: '2', float_precision: '3', number_format: '#,###.##' } }); }),
+    ], async () => {
+      body = await (await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'preview', scope: { projectId: null } }, token))).json();
+    });
+    return { body, ledgerCalls, settingsReads, project };
+  };
+
+  it('AC-CAPV-001 the preview reads the ledger in the capture scope and lists the left-out lines from the first page summary', async () => {
+    const { body, ledgerCalls } = await previewScoped({ summary: [{ kind: 'journal', count: 2, total: '2.50' }, { kind: 'supplier_payment', count: 1, total: '-40.00' }] });
+    assertEquals(ledgerCalls.map(call => call.p_scope), ['capture']);
+    assertEquals(body.complete, true);
+    assertEquals(body.other_unassigned, [{ kind: 'journal', count: 2, total: '2.50' }, { kind: 'supplier_payment', count: 1, total: '-40.00' }]);
+  });
+  it('AC-CAPV-001 a summarized kind adds to the same kind among the paged lines, to the exact cent', async () => {
+    const document = { id: 'pay-1', kind: 'supplier_payment', erp_doctype: 'Payment Entry', erp_name: 'PAY-1', erp_docstatus: 1, erp_status: 'Paid', erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [], purchase_orders: [], procurement_id: null, purchase_origin: null, doc_date: null, currency: 'USD', net_total: '40.00', is_return: false, recorded_by_pmo: false };
+    const { body, ledgerCalls } = await previewScoped({ sources: [document],
+      lines: [{ kind: 'supplier_payment', voucher_type: 'Payment Entry', voucher_no: 'PAY-1', document_id: 'pay-1', debit: '0.00', credit: '40.00' }, { kind: 'journal', debit: '0.10', credit: '0.00' }],
+      summary: [{ kind: 'journal', count: 3, total: '0.20' }, { kind: 'other', count: 1, total: '7.00' }, { kind: 'supplier_payment', count: 2, total: '10.50' }] });
+    assertEquals(ledgerCalls.length, 2);
+    assertEquals(body.other_unassigned, [{ kind: 'journal', count: 4, total: '0.30' }, { kind: 'other', count: 1, total: '7.00' }, { kind: 'supplier_payment', count: 3, total: '-29.50' }]);
+  });
+  it('AC-CAPV-003 a summarized kind with an unknown total stays unknown, its count still counted, and the preview completes', async () => {
+    const { body } = await previewScoped({ lines: [{ kind: 'journal', debit: '1.00', credit: '0.00' }], summary: [{ kind: 'journal', count: 4, total: null }] });
+    assertEquals(body.complete, true);
+    assertEquals(body.other_unassigned, [{ kind: 'journal', count: 5, total: null }]);
+  });
+  it('AC-CAPV-001 an organization whose ledger is only summarized still reads the ledger precision for its placements', async () => {
+    const { body, settingsReads, project } = await previewScoped({ summary: [{ kind: 'journal', count: 1, total: '5.00' }],
+      assignments: [{ decision_id: 'decision-1', source_id: 'inv-9', source: 'INV-9', decision: 'project', project_id: '11111111-1111-4111-8111-111111111111', procurement_id: null, assignment_origin: 'pmo_assignment', placed: '10.00', excluded: [] }] });
+    assertEquals(settingsReads, 1);
+    assertEquals(body.assignments.map((item: { placedMinor: string | null }) => item.placedMinor), ['1000']);
+    assertEquals(body.missing.includes('ledger_amount_unknown'), false);
+    assertEquals(body.reports.map((report: { scope: { projectId: string } }) => report.scope.projectId), [project]);
+  });
+  for (const [scenario, summary] of [['not a list', { kind: 'journal' }], ['a count that is not a whole number', [{ kind: 'journal', count: 1.5, total: '1.00' }]],
+    ['a total that is not text', [{ kind: 'journal', count: 1, total: 1 }]], ['an entry without a kind', [{ count: 1, total: '1.00' }]]] as const) {
+    it(`AC-CAPV-001 a summary that is ${scenario} fails the ledger read instead of dropping lines`, async () => {
+      const { body } = await previewScoped({ summary });
+      assertEquals(body.complete, false);
+      assertEquals(body.missing.includes('ledger_read_failed'), true);
+    });
+  }
+});

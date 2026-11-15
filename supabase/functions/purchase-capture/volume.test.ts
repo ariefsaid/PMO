@@ -65,8 +65,13 @@ describe('#2286 purchase capture at ten times the volume', () => {
   });
 
   it('AC-CAPV-002 the whole-org preview and report equal the stored golden response', async () => {
-    const actual = { preview: (await runAction(handlePurchaseCaptureRequest, fixture, auth, 'preview')).body,
-      report: (await runAction(handlePurchaseCaptureRequest, fixture, auth, 'report')).body };
+    const preview = await runAction(handlePurchaseCaptureRequest, fixture, auth, 'preview');
+    const report = await runAction(handlePurchaseCaptureRequest, fixture, auth, 'report');
+    const actual = { preview: preview.body, report: report.body };
+    // FR-CAPV-001: the handler reads the ledger in the capture scope, so the unrelated lines arrive as the first page's summary.
+    const ledgerPages = preview.calls.filter(call => call.url.pathname.endsWith('/purchase_capture_ledger_page'));
+    assertEquals(ledgerPages.map(call => (call.bodyJson as { p_scope?: string }).p_scope), ledgerPages.map(() => 'capture'));
+    assertEquals(ledgerPages.length, Math.ceil(fixture.ledger.filter(row => captureRelevant(row)).length / 500));
     const resolved = { preview: await resolveDigest(actual.preview), report: await resolveDigest(actual.report) };
     if (Deno.env.get('UPDATE_GOLDEN') === '1') await Deno.writeTextFile(GOLDEN, JSON.stringify(resolved, null, 1) + '\n');
     const golden = JSON.parse(await Deno.readTextFile(GOLDEN));

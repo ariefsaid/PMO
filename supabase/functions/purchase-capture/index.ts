@@ -12,6 +12,19 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 });
 
 interface RawDocument { id: string; kind: CaptureKind | null }
+interface OtherSummary { kind: string; count: number; total: string | null }
+/** The first capture-scope page's summary of the lines it leaves out; null when it is not a well-formed list. Absent means none. */
+function parseOtherSummary(value: unknown): OtherSummary[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) return null;
+  const groups: OtherSummary[] = [];
+  for (const entry of value as Array<Record<string, unknown> | null>) {
+    if (!entry || typeof entry.kind !== 'string' || !entry.kind || !Number.isInteger(entry.count) || (entry.count as number) < 1 ||
+      (entry.total !== null && typeof entry.total !== 'string')) return null;
+    groups.push({ kind: entry.kind, count: entry.count as number, total: entry.total as string | null });
+  }
+  return groups;
+}
 function push<K, V>(map: Map<K, V[]>, key: K, value: V): void {
   const list = map.get(key);
   if (list) list.push(value); else map.set(key, [value]);
@@ -88,9 +101,16 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
     if (error || !data || !Array.isArray(data.sources) || typeof data.revision !== 'string') return { supported: false as const, missing: ['source_read_failed'] };
     return { supported: true as const, generation: data.revision as string, items: data.sources as RawDocument[], nextCursor: data.next_cursor as string | null };
   }, { limit: 20 });
+  // The capture scope pages only the lines a capture decides on; the first page summarizes the rest per kind (#2286).
+  let otherSummary: OtherSummary[] = [];
   const ledger = await collectPages<CaptureLedgerEvidence>(async cursor => {
-    const { data, error } = await caller.rpc('purchase_capture_ledger_page', { p_cursor: cursor, p_limit: 500, p_project_id: projectId });
+    const { data, error } = await caller.rpc('purchase_capture_ledger_page', { p_cursor: cursor, p_limit: 500, p_project_id: projectId, p_scope: 'capture' });
     if (error || !data || !Array.isArray(data.lines) || typeof data.revision !== 'string') return { supported: false as const, missing: ['ledger_read_failed'] };
+    if (cursor === null) {
+      const summary = parseOtherSummary(data.other_summary);
+      if (!summary) return { supported: false as const, missing: ['ledger_read_failed'] };
+      otherSummary = summary;
+    }
     return { supported: true as const, generation: data.revision as string, items: data.lines.map((row: unknown) => adapter.mapLedger(row)), nextCursor: data.next_cursor as string | null };
   }, { limit: 20, expectedGeneration: docs.generation });
   if (docs.missing.includes('page_limit') || ledger.missing.includes('page_limit')) {
@@ -118,7 +138,7 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
     missing.push('precision_changed');
     ledgerScale = undefined;
   }
-  if (kinds.size === 0 && ledger.items.length > 0) {
+  if (kinds.size === 0 && (ledger.items.length > 0 || otherSummary.some(group => group.count > 0))) {
     const result = await precisionReader.read(company, 'journal');
     if (result.ok) ledgerScale = result.scale;
     else missing.push(result.reason);
@@ -244,16 +264,23 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   const sourceKinds = new Map(sources.map(source => [source.id, source.kind]));
   const isPurchaseLine = (line: typeof ledger.items[number]) => purchaseKinds.has(line.kind ?? 'other') || purchaseKinds.has(sourceKinds.get(line.documentId ?? '') ?? 'other');
   const unassigned: Array<{ id: string; kind: string; source: string | null; reason: string }> = [];
-  const otherByKind = new Map<string, typeof ledger.items>();
+  // Per kind: how many lines, and the amounts whose exact net is the kind's total. A summarized kind adds its count and its
+  // net total as one amount (a missing total keeps the kind's total unknown); a paged line adds itself.
+  const otherByKind = new Map<string, { count: number; amounts: Array<{ debit: string | null; credit: string | null }> }>();
+  const addOther = (kind: string, count: number, amount: { debit: string | null; credit: string | null }) => {
+    const group = otherByKind.get(kind);
+    if (group) { group.count += count; group.amounts.push(amount); } else otherByKind.set(kind, { count, amounts: [amount] });
+  };
+  for (const group of otherSummary) addOther(group.kind, group.count, { debit: group.total, credit: '0' });
   for (const line of ledger.items) {
     if (!(line.documentId && decided.has(line.documentId)) && (line.company !== company || (!line.projectId && isPurchaseLine(line)))) {
       unassigned.push({ id: line.id, kind: line.kind ?? 'other', source: line.reference, reason: line.company !== company ? 'company_scope_mismatch' : 'project_unmapped' });
     }
-    if (line.company === company && !line.projectId && !isPurchaseLine(line)) push(otherByKind, line.kind ?? 'other', line);
+    if (line.company === company && !line.projectId && !isPurchaseLine(line)) addOther(line.kind ?? 'other', 1, line);
   }
   const proposalsById = new Map<string, (typeof proposals)[number]>();
   for (const proposal of proposals) if (!proposalsById.has(proposal.id)) proposalsById.set(proposal.id, proposal);
-  const otherUnassigned = [...otherByKind.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([kind, lines]) => ({ kind, count: lines.length, total: netTotal(lines) }));
+  const otherUnassigned = [...otherByKind.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([kind, group]) => ({ kind, count: group.count, total: netTotal(group.amounts) }));
   const unassignedDocuments = sources.filter(source => source.projectIds.length === 0 && !decided.has(source.id)).map(source => ({ id: source.id,
     kind: source.kind, state: source.state, source: source.reference ?? null,
     reason: proposalsById.get(source.id)?.reason ?? 'project_unmapped' }));
