@@ -129,7 +129,7 @@ export const YourPlan: React.FC = () => {
     <ListState variant="loading" rows={4} testId="your-plan-plan-loading" />
   ) : plan.isError ? planError : (
     <>
-      <Card className="px-4 py-4">
+      <Card data-testid="your-plan-plan-card" className="px-4 py-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <div>
             <div className="text-control font-semibold text-muted-foreground">
@@ -171,7 +171,7 @@ export const YourPlan: React.FC = () => {
     <ListState variant="loading" rows={6} testId="your-plan-loading" />
   ) : featuresError ? featuresErrorState : (
     <>
-        <div className="rounded-lg border border-border bg-card">
+        <div data-testid="your-plan-features-card" className="rounded-lg border border-border bg-card">
           <ul className="divide-y divide-border">
             {grouped.map((group) => (
               <li key={group.id} className="grid gap-x-4 gap-y-1 px-4 py-3 sm:grid-cols-[8rem_1fr]">

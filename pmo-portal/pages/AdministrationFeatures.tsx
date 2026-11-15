@@ -282,7 +282,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
 
   return (
     <div className="min-w-0 space-y-6">
-      <Card className="px-4 py-4">
+      <Card data-testid="console-header" className="px-4 py-4">
         {header}
         <div className="grid gap-3 md:grid-cols-2">
           <SelectField
