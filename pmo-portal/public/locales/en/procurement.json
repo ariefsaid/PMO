@@ -128,6 +128,9 @@
     }
   },
   "detail": {
+    "sodReceipt": "To advance from Purchase Order to Goods Receipt, the requester or a Project-Manager must confirm receipt of the goods.",
+    "sodRequesterYou": "This procurement was raised by you. A different user holding the Project-Manager, Finance, or Executive role must review it — the requester cannot self-approve their own procurement.",
+    "sodRequester": "This procurement was raised by {{name}}. A different user holding the Project-Manager, Finance, or Executive role must review it — the requester cannot self-approve their own procurement.",
     "paidNeedsValue": "Add a line item or a document with an amount before marking this paid."
   },
   "projectDetail": {
@@ -349,14 +352,16 @@
     "returnedDetail": "{{title}} has been returned"
   },
   "decisionSupport": {
+    "otherCurrencyCommitments": "Not counting commitments in other currencies: {{amounts}}",
+    "projectBudget": "Project budget",
+    "reservedSub": "approved, not yet ordered",
+    "reserved": "Reserved",
     "thisProcurement": "Procurement total",
     "notCompared": "In a different currency: not compared with the budget",
     "afterThisProcurement": "After this procurement",
     "overBudgetLead": "This procurement exceeds available budget by",
     "barLabel": "Budget used after this procurement: {{pct}}% of {{budget}}",
     "barCaption": "Budget in use with this purchase: {{pct}}%",
-    "uncommitted": "Not yet committed",
-    "actualsNotCounted": "Actual spend not counted",
     "uncommittedToPurchases": "Not yet committed to purchases",
     "notCountingRecordedSpending": "Not counting recorded spending",
     "budgetUsed": "Budget used",

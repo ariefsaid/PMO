@@ -1,9 +1,9 @@
 {
   "budgetForecast": {
     "remainingShort": "Sisa",
-    "remainingFull": "Perkiraan sisa / (kelebihan)",
+    "remainingFull": "Proyeksi sisa / (kelebihan)",
     "budgetUsedShort": "% terpakai",
-    "budgetUsedFull": "Perkiraan anggaran terpakai"
+    "budgetUsedFull": "Proyeksi anggaran terpakai"
   },
   "billing": {
     "quantity": "Penagihan kuantitas"
@@ -57,12 +57,12 @@
       "acceptances": {
         "confirm": "Konfirmasi BAST",
         "confirmFinal": {
-          "body": "Mengonfirmasi BAST final menutup Work Order pada kuantitas yang diterima. Nilai PO klien tetap seperti tercatat; nilai penutupan disimpan terpisah dan kuantitas yang tidak terpakai kembali ke sisa kontrak. Tindakan ini tidak dapat diurungkan.",
+          "body": "Mengonfirmasi BAST final menutup $t(common:terms.clientWorkOrder) pada kuantitas yang diterima. Nilai PO klien tetap seperti tercatat; nilai penutupan disimpan terpisah dan kuantitas yang tidak terpakai kembali ke sisa kontrak. Tindakan ini tidak dapat diurungkan.",
           "confirm": "Konfirmasi BAST final",
           "title": "Konfirmasi BAST final?"
         },
         "confirmStage": {
-          "body": "Kuantitas yang diterima dicatat per BAST ini. Work Order tetap terbuka dan tidak ada yang ditagih.",
+          "body": "Kuantitas yang diterima dicatat per BAST ini. $t(common:terms.clientWorkOrder) tetap terbuka dan tidak ada yang ditagih.",
           "confirm": "Konfirmasi BAST",
           "title": "Konfirmasi BAST ini?"
         },
@@ -89,8 +89,8 @@
             "quantity": "Setiap kuantitas yang diterima harus 0 atau lebih dengan paling banyak 3 angka desimal"
           },
           "final": "Ini BAST final",
-          "finalHelp": "Mengonfirmasi BAST final menutup Work Order pada kuantitas yang diterima.",
-          "noAllocations": "Alokasikan dulu baris kontrak ke Work Order ini.",
+          "finalHelp": "Mengonfirmasi BAST final menutup $t(common:terms.clientWorkOrder) pada kuantitas yang diterima.",
+          "noAllocations": "Alokasikan dulu baris kontrak ke $t(common:terms.clientWorkOrder) ini.",
           "noDocument": "Belum ada",
           "noEligibleDocument": "Unggah dan terbitkan dulu BAST bertanda tangan di daftar dokumen proyek. Dokumen ini diperlukan untuk konfirmasi.",
           "note": "Catatan (opsional)",
@@ -152,7 +152,7 @@
           "removeAccepted": "BAST yang dikonfirmasi telah menerima {{qty}} {{unit}}, jadi alokasi ini tidak dapat dihapus.",
           "quantity": "Isi kuantitas di atas 0 dengan paling banyak 3 angka desimal"
         },
-        "frozen": "Work Order ini berstatus {{status}}: alokasinya dibekukan.",
+        "frozen": "$t(common:terms.clientWorkOrder) ini berstatus {{status}}: alokasinya dibekukan.",
         "heading": "Baris kontrak",
         "legend": "Baris bill of quantities",
         "loadError": "Baris kontrak tidak dapat dimuat",
@@ -163,7 +163,7 @@
         "removeRow": "Hapus {{item}}",
         "save": "Simpan",
         "saveRow": "Simpan {{item}}",
-        "subtitle": "Kuantitas yang diambil Work Order ini dari kontrak. Setiap baris disimpan sendiri-sendiri; memesan lebih dari sisa diperbolehkan dan ditandai.",
+        "subtitle": "Kuantitas yang diambil $t(common:terms.clientWorkOrder) ini dari kontrak. Setiap baris disimpan sendiri-sendiri; memesan lebih dari sisa diperbolehkan dan ditandai.",
         "title": "Baris kontrak: {{wo}}"
       },
       "quantities": {

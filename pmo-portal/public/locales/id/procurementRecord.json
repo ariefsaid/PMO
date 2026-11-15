@@ -97,6 +97,7 @@
   "cancelProcurement": "Batalkan pengadaan",
   "erpLinked": "Dokumen sistem akuntansi ditautkan",
   "stage": {
+    "trackerLabel": "Tahap pengadaan",
     "request": "Permintaan",
     "order": "Pesanan",
     "receive": "Penerimaan",
@@ -136,9 +137,7 @@
     "currencyUnavailable": "Perbandingan anggaran tidak tersedia untuk mata uang ini",
     "amountUnavailable": "Perbandingan anggaran tidak tersedia untuk jumlah ini",
     "noBudget": "Tidak ada anggaran aktif untuk proyek ini",
-    "budgetSignal": "Anggaran belum terikat {{available}} · {{after}} setelah pengadaan ini",
     "budgetSignalPurchases": "Belum terikat pembelian {{available}} · {{after}} setelah pengadaan ini",
-    "budgetSignalTooltip": "Belum terikat pembelian = anggaran proyek dikurangi pengeluaran yang sudah terikat dan dicadangkan. “Setelah pengadaan ini” menyertakan pengadaan ini pada tahapnya saat ini. Sumber: anggaran proyek, pengeluaran pengadaan terikat, dan pengeluaran pengadaan yang dicadangkan.",
     "unknown": "{{figure}} tidak dapat dihitung karena jumlah sumber belum tersedia. Sumber: catatan pengadaan dan dokumen sistem akuntansi tertaut.",
     "unpaidHelp": "Dihitung dari jumlah tagihan dikurangi jumlah pembayaran, atau saldo faktur sistem akuntansi tertaut. Sumber: tagihan pemasok, pembayaran, dan dokumen sistem akuntansi tertaut.",
     "calculation": "Jumlah dari nilai {{figure}} yang tercatat. Sumber: catatan pengadaan dan dokumen sistem akuntansi tertaut.",
@@ -155,6 +154,7 @@
     }
   },
   "timeline": {
+    "filterLabel": "Filter linimasa",
     "overdue": "Terlambat {{days}} hari",
     "title": "Linimasa",
     "inDateOrder": "berdasarkan tanggal · langkah yang tidak tercatat tidak diwajibkan perusahaan",
@@ -188,5 +188,41 @@
       "Invoice": "Faktur pemasok",
       "Payment": "Pembayaran"
     }
+  },
+  "files": {
+    "heading": "Lampiran",
+    "attach": "Lampirkan file",
+    "attachInput": "Lampirkan file",
+    "uploading": "Mengunggah {{progress}}%",
+    "loading": "Memuat lampiran…",
+    "loadError": "Lampiran tidak dapat dimuat.",
+    "empty": "Belum ada file terlampir.",
+    "attached": "File terlampir",
+    "removed": "File dihapus",
+    "preview": "Pratinjau",
+    "previewNamed": "Pratinjau file {{name}}",
+    "download": "Unduh",
+    "downloadNamed": "Unduh file {{name}}",
+    "remove": "Hapus",
+    "removeNamed": "Hapus file {{name}}",
+    "removeTitle": "Hapus lampiran ini?",
+    "removeBody": "Lampiran \"{{name}}\" akan dihapus dari catatan ini. File dapat diunggah ulang bila perlu."
+  },
+  "recordStatus": {
+    "draft": "Draf",
+    "submitted": "Diajukan",
+    "approved": "Disetujui",
+    "rejected": "Ditolak",
+    "issued": "Diterbitkan",
+    "received": "Diterima",
+    "partial": "Sebagian",
+    "selected": "Dipilih",
+    "closed": "Ditutup",
+    "cancelled": "Dibatalkan",
+    "paid": "Dibayar",
+    "unpaid": "Belum dibayar",
+    "pending": "Menunggu",
+    "open": "Terbuka",
+    "sent": "Terkirim"
   }
 }

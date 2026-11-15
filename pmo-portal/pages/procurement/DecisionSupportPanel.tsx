@@ -247,7 +247,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       value: formatCurrency(available, budgetCurrency),
       tone: available < 0 ? ('neg' as const) : undefined,
       // 0373: committed spend in another currency is not subtracted (no conversion); say so rather than hide it.
-      sub: otherCurrencyCommitted ? `Not counting commitments in other currencies: ${otherCurrencyCommitted}` : t('decisionSupport.notCountingRecordedSpending', 'Not counting recorded spending'),
+      sub: otherCurrencyCommitted ? t('decisionSupport.otherCurrencyCommitments', { defaultValue: 'Not counting commitments in other currencies: {{amounts}}', amounts: otherCurrencyCommitted }) : t('decisionSupport.notCountingRecordedSpending', 'Not counting recorded spending'),
     },
     {
       // The project's canonical Budget used (same reading as the project header). Unknown stays unknown.

@@ -9,9 +9,10 @@
 export const BID_OUTCOMES = Object.freeze({ win: 'Won, Pending KoM', lose: 'Loss Tender', decline: 'Declined' });
 
 /**
- * The stages each outcome can be recorded from. These are exactly the source stages whose legal moves in
- * transition_project (the v_legal map in migration 0534) include the outcome's target status: won only from a
- * submitted quotation or tender or a negotiation; lost and declined from any open bid stage.
+ * The stages each outcome can be recorded from, kept by hand to match the legal moves of transition_project
+ * (won from a submitted quotation, tender or negotiation; lost and declined from any open bid stage). The plan
+ * uses this list only to refuse early with a plain message; no test compares it with the function, so the
+ * database's own stage check stays the authority and refuses any move this list wrongly allows.
  */
 export const OUTCOME_FROM_STATUSES = Object.freeze({
   win: Object.freeze(['Quotation Submitted', 'Tender Submitted', 'Negotiation']),

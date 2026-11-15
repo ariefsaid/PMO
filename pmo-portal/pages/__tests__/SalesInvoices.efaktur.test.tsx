@@ -13,6 +13,7 @@ import { financeTestI18n, financeTestI18nReady } from '@/test/financeI18nTestIns
 import { axe } from 'jest-axe';
 import en from '../../public/locales/en/finance.json';
 import id from '../../public/locales/id/finance.json';
+import sameAsEnglish from '../../../scripts/i18n-same-as-english-allowlist.json';
 
 const h = vi.hoisted(() => ({
   invoices: [] as SalesInvoiceRow[],
@@ -315,8 +316,11 @@ describe('SalesInvoices e-Faktur details', () => {
         const enOdoo = flat(en).filter(([k]) => /odoo/i.test(k));
         const idFlat = new Map(flat(id));
         expect(enOdoo.length).toBeGreaterThan(0);
+        // One list: the terms Indonesian uses as written ("Total") are the catalogue gate's allowlist.
+        const sameInBoth = new Set(sameAsEnglish.values.map((entry) => entry.value));
         for (const [key, value] of enOdoo) {
           expect(idFlat.has(key), `id is missing ${key}`).toBe(true);
+          if (sameInBoth.has(String(value))) continue;
           expect(idFlat.get(key), `id ${key} is untranslated`).not.toBe(value);
         }
       });

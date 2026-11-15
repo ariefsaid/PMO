@@ -97,6 +97,7 @@
   "cancelProcurement": "Cancel procurement",
   "erpLinked": "Accounting-system document linked",
   "stage": {
+    "trackerLabel": "Procurement stages",
     "request": "Request",
     "order": "Order",
     "receive": "Receive",
@@ -136,9 +137,7 @@
     "currencyUnavailable": "Budget comparison unavailable for these currencies",
     "amountUnavailable": "Budget comparison unavailable for these amounts",
     "noBudget": "No active project budget",
-    "budgetSignal": "Budget not yet committed {{available}} · {{after}} after this procurement",
     "budgetSignalPurchases": "Not yet committed to purchases {{available}} · {{after}} after this procurement",
-    "budgetSignalTooltip": "Not yet committed to purchases = project budget less committed and reserved spend. “After this procurement” includes it at its current stage. Source: project budget, committed procurement spend, and reserved procurement spend.",
     "unknown": "{{figure}} could not be calculated because a source amount is missing. Source: procurement records and linked accounting-system documents.",
     "unpaidHelp": "Calculated from invoiced less paid amounts, or from linked accounting-system invoice balances. Source: supplier invoices, payments, and linked accounting-system documents.",
     "calculation": "Sum of recorded {{figure}} amounts. Source: procurement records and linked accounting-system documents.",
@@ -155,6 +154,7 @@
     }
   },
   "timeline": {
+    "filterLabel": "Timeline filter",
     "overdue": "Overdue {{days}} days",
     "title": "Timeline",
     "inDateOrder": "in date order · missing steps aren’t required by your company",
@@ -188,5 +188,41 @@
       "Invoice": "Supplier invoice",
       "Payment": "Payment"
     }
+  },
+  "files": {
+    "heading": "Attachments",
+    "attach": "Attach file",
+    "attachInput": "Attach a file",
+    "uploading": "Uploading {{progress}}%",
+    "loading": "Loading attachments…",
+    "loadError": "Couldn't load attachments.",
+    "empty": "No files attached.",
+    "attached": "File attached",
+    "removed": "File removed",
+    "preview": "Preview",
+    "previewNamed": "Preview file {{name}}",
+    "download": "Download",
+    "downloadNamed": "Download file {{name}}",
+    "remove": "Remove",
+    "removeNamed": "Remove file {{name}}",
+    "removeTitle": "Remove this attachment?",
+    "removeBody": "This removes \"{{name}}\" from this record. It can be re-uploaded if needed."
+  },
+  "recordStatus": {
+    "draft": "Draft",
+    "submitted": "Submitted",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "issued": "Issued",
+    "received": "Received",
+    "partial": "Partial",
+    "selected": "Selected",
+    "closed": "Closed",
+    "cancelled": "Cancelled",
+    "paid": "Paid",
+    "unpaid": "Unpaid",
+    "pending": "Pending",
+    "open": "Open",
+    "sent": "Sent"
   }
 }
