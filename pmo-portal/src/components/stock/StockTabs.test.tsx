@@ -82,4 +82,23 @@ describe('the stock section strip', () => {
       scrollIntoView.mockRestore();
     }
   });
+  it('scrolls the Setup tab into view when it appears after the role resolves on /stock/setup', () => {
+    realRole = 'Engineer';
+    const scrollIntoView = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {});
+    try {
+      const ui = () => <MemoryRouter initialEntries={['/stock/setup']}><StockTabs /></MemoryRouter>;
+      const view = render(ui());
+      expect(screen.queryByRole('link', { name: 'Setup' })).toBeNull();
+      expect(scrollIntoView).not.toHaveBeenCalled();
+
+      realRole = 'Admin';
+      view.rerender(ui());
+
+      const setupTab = screen.getByRole('link', { name: 'Setup' });
+      expect(setupTab).toHaveAttribute('aria-current', 'page');
+      expect(scrollIntoView.mock.contexts).toEqual([setupTab]);
+    } finally {
+      scrollIntoView.mockRestore();
+    }
+  });
 });
