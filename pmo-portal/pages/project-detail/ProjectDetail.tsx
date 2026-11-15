@@ -188,8 +188,8 @@ const ProjectDetail: React.FC = () => {
       <ListState variant="loading" shape="detail" loadingLabel={t('projectDetail.loadingTitle', 'Loading project')} rows={6} />
     </>
   );
-  // Only the Overview waits: swapping the page for a skeleton on a tab change would unmount the tablist and drop focus.
-  if (project && area === 'overview' && overview.isLoading) return loadingView;
+  // The shell (header, tabs) renders with the project alone; only the Overview content waits for its read, so a
+  // tab change never swaps the page for a skeleton (it would unmount the tablist and drop focus).
 
   if (!project) {
     if (isPending) return loadingView;
@@ -247,7 +247,7 @@ const ProjectDetail: React.FC = () => {
     <div>
       {/* #735: the top-bar breadcrumb hides its parent crumbs at <= 920px, so the record shows the in-page BackBar there. */}
       <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
-      <ProjectSections project={project} area={area} setArea={setArea} isPipeline={isPipelineRecord} header={header} />
+      <ProjectSections project={project} area={area} setArea={setArea} isPipeline={isPipelineRecord} header={header} overviewPending={overview.isLoading} />
       {/* Phone: the doorway keeps its disclosure affordance at the record's foot (panel-gap phone = 16px),
           costing the fold nothing; react-query dedupes its reads with the desktop instance's. */}
       {pipelineGroup === 'onHand' && !isDesktop && <SalesHistoryDisclosure projectId={project.id} className="mt-4" />}

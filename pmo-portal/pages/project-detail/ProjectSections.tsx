@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, FigureHiddenLine, FigureScope, ListState, MobileActionBar, SelectField, Tabs, tabId, tabPanelId, WhenNearViewport, type TabItem } from '@/src/components/ui';
+import { Button, FigureHiddenLine, FigureScope, ListState, MobileActionBar, SelectField, Tabs, Tooltip, tabId, tabPanelId, WhenNearViewport, type TabItem } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
@@ -28,6 +28,8 @@ interface Props {
   setArea: (area: Area) => void;
   isPipeline: boolean;
   header: React.ReactNode;
+  /** The overview's shared read has not answered: the shell shows, the overview content loads. */
+  overviewPending?: boolean;
 }
 
 type CountedArea = 'procurement' | 'tasks' | 'documents';
@@ -64,7 +66,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
   const lens = useLens();
   const may = usePermission();
   const attention = useProjectAttention(project, lens);
-  const attentionProps = { items: attention.items, isPending: attention.isPending, error: attention.error, excludeKeys: lens === 'delivery' ? attention.myVisibleTaskKeys : undefined };
+  const attentionProps = { items: attention.items, isPending: attention.isPending, pendingSources: attention.pendingSources, error: attention.error, excludeKeys: lens === 'delivery' ? attention.myVisibleTaskKeys : undefined };
   const visibleDeliveryAttention = lens === 'delivery'
     ? attention.items.filter((item) => !attention.myVisibleTaskKeys.has(item.key))
     : [];
@@ -123,7 +125,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
         {/* Phone reads attention → money → budget. At xl, the attention and money rows align,
             then Budget spans the canvas so the shorter right column does not end halfway down the page. */}
         <div className={`grid min-w-0 gap-[var(--space-panel-gap)] ${canSeeMoney ? 'xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]' : 'xl:grid-cols-2'}`}>
-          <ProjectAttention items={attention.items} isPending={attention.isPending} error={attention.error} fillRow={canSeeMoney} className="min-w-0 xl:col-start-1 xl:row-start-1" />
+          <ProjectAttention items={attention.items} isPending={attention.isPending} pendingSources={attention.pendingSources} error={attention.error} fillRow={canSeeMoney} className="min-w-0 xl:col-start-1 xl:row-start-1" />
           {canSeeMoney && <div className="min-w-0 xl:col-start-2 xl:row-start-1"><MoneyBlock project={project} fillRow /></div>}
           <div className={`min-w-0 ${canSeeMoney ? 'xl:col-span-2 xl:col-start-1 xl:row-start-2' : ''}`}><CostBlock project={project} onOpenBudget={openBudget} showUnit={!canSeeMoney} /></div>
         </div>
@@ -191,7 +193,7 @@ function useVisibleAreas(isPipeline: boolean): Area[] {
 }
 
 /** The project's areas as tabs under one header (owner pick A+C, #1402); activity opens from the Overview foot. */
-const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, header }) => {
+const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, header, overviewPending = false }) => {
   const { t } = useTranslation('project');
   const labels = useAreaLabels();
   const sectionsLabel = t('projectDetail.tabs.ariaLabel', 'Project sections');
@@ -267,13 +269,15 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
       </div>
       <div role="tabpanel" id={tabPanelId('project-detail', panel)} aria-labelledby={tabId('project-detail', panel)} className="pt-4 md:pt-8">
         <Suspended>
-          {panel === 'overview'
+          {panel === 'overview' && overviewPending
+            ? <ListState variant="loading" shape="detail" rows={6} className="min-h-80" testId="project-detail-panel-loading" />
+            : panel === 'overview'
             ? <OverviewContent project={project} isPipeline={isPipeline} onOpen={setArea} />
             : <AreaContent project={project} area={panel} onCountChange={onCountChange} />}
         </Suspended>
       </div>
       {/* Activity is about the project as a whole, so it lives on Overview only (owner, 2026-10-27). */}
-      {panel === 'overview' && !isPipeline && <ActivityFooter projectId={project.id} initialOpen={area === 'activity'} />}
+      {panel === 'overview' && !overviewPending && !isPipeline && <ActivityFooter projectId={project.id} initialOpen={area === 'activity'} />}
     </>
   );
 };
@@ -292,7 +296,11 @@ export const PrimaryProjectAction: React.FC<{ project: ProjectWithRefs; isPipeli
   if (receivables.data) {
     return <ProjectActionButton mobileBar={mobileBar} to={receivables.data.to}>{t('projectDetail.action.chasePayment', 'Chase payment')}</ProjectActionButton>;
   }
-  if (chaseOnly || receivables.isPending || receivables.isError) return null;
+  // Pending or failed reads hold the slot as a disabled button (no reflow when it lands); permission still returns null above.
+  if (receivables.isPending || receivables.isError) {
+    return <HeldActionButton mobileBar={mobileBar} unavailable={receivables.isError}>{chaseOnly ? t('projectDetail.action.chasePayment', 'Chase payment') : t('projectDetail.action.raiseInvoice', 'Raise invoice')}</HeldActionButton>;
+  }
+  if (chaseOnly) return null;
   return <RaiseInvoiceAction project={project} mobileBar={mobileBar} />;
 };
 
@@ -300,7 +308,9 @@ const RaiseInvoiceAction: React.FC<{ project: ProjectWithRefs; mobileBar: boolea
   const { t } = useTranslation('project');
   const finances = useProjectFinances(project.id);
   const billing = useProjectBilling(project.id);
-  if (finances.isPending || finances.isError || billing.isPending || billing.isError) return null;
+  if (finances.isPending || finances.isError || billing.isPending || billing.isError) {
+    return <HeldActionButton mobileBar={mobileBar} unavailable={finances.isError || billing.isError}>{t('projectDetail.action.raiseInvoice', 'Raise invoice')}</HeldActionButton>;
+  }
   const lines = billing.data?.contractLines ?? [];
   const billableQuantity = lines.reduce((sum, line) => sum + line.allocations.reduce(
     (allocationSum, allocation) => allocationSum + (allocation.acceptedQuantity ?? 0) - allocation.claimedQuantity,
@@ -311,6 +321,27 @@ const RaiseInvoiceAction: React.FC<{ project: ProjectWithRefs; mobileBar: boolea
   const canRaise = lines.length > 0 ? billableQuantity > 0 : contract > 0 && remaining / contract >= 0.05;
   if (!canRaise) return null;
   return <ProjectActionButton mobileBar={mobileBar} to={`/projects/${project.id}/contract`}>{t('projectDetail.action.raiseInvoice', 'Raise invoice')}</ProjectActionButton>;
+};
+
+/** The action's slot while a read it depends on is loading or failed: same label and size, disabled. */
+const HeldActionButton: React.FC<{ mobileBar: boolean; unavailable: boolean; children: React.ReactNode }> = ({ mobileBar, unavailable, children }) => {
+  const { t } = useTranslation('project');
+  const button = (
+    <Button variant="primary" size={mobileBar ? 'default' : 'sm'} className={mobileBar ? 'touch-target w-full' : undefined} disabled>
+      {children}
+    </Button>
+  );
+  const held = unavailable
+    ? <Tooltip content={t('projectDetail.billing.summary.unavailable', 'Billing summary is unavailable.')}>{button}</Tooltip>
+    : <span aria-busy="true" className="inline-flex">{button}</span>;
+  return mobileBar
+    ? (
+      <>
+        <div aria-hidden="true" className="h-20 md:hidden" />
+        <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-background px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 md:hidden">{held}</MobileActionBar>
+      </>
+    )
+    : held;
 };
 
 const ProjectActionButton: React.FC<{ mobileBar: boolean; to: string; children: React.ReactNode }> = ({ mobileBar, to, children }) => {
