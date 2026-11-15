@@ -1,5 +1,5 @@
 -- isolation-fixtures.sql — throwaway tenants for the standing isolation proof (#612). LOCAL / CI STACK ONLY.
--- Driven by scripts/isolation-proof.sh:  psql -v action=up|down -v b_password=... -f this file.
+-- Driven by scripts/isolation-proof.sh:  psql -v action=up|down -v b_password=... < this file.
 --   up   : org B (attacker, one active Admin who can sign in) + org A (disposable) = a self-consistent copy of
 --          the seed org: every org-scoped row re-keyed (new ids, every id reference remapped), org_id = A.
 --   down : removes every row of both orgs and B's sign-in. Both are safe to repeat.
@@ -24,6 +24,8 @@ do $$ declare t record; begin
                    'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-00000000000b');
   end loop;
   delete from public.organizations where id in ('a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-00000000000b');
+  delete from auth.refresh_tokens where user_id = 'a6120000-0000-4000-8000-0000000000b1';  -- B's sign-in leaves these behind
+  delete from auth.sessions where user_id = 'a6120000-0000-4000-8000-0000000000b1';
   delete from auth.identities where user_id = 'a6120000-0000-4000-8000-0000000000b1';
   delete from auth.users where id = 'a6120000-0000-4000-8000-0000000000b1';
 end $$;

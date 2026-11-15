@@ -612,6 +612,8 @@ jobs:
         run: node scripts/check-isolation-denominator.mjs --self-test
       - name: Isolation denominator guard
         run: node scripts/check-isolation-denominator.mjs
+      - name: Isolation proof self-test
+        run: scripts/isolation-proof.sh --self-test
 
       # pgTAP gate (0001..0060) — RLS, tenancy, SoD proofs.
       - name: pgTAP integration tests
@@ -619,10 +621,8 @@ jobs:
 
       # Standing cross-org isolation proof (#612): two throwaway organisations on this stack (A disposable,
       # B the attacker), the probe in read mode then write mode. Any leak, probe error, crashed probe or write
-      # probe skipped for lack of a disposable A fails the job; the counts print in the log and the job summary.
+      # probe skipped for lack of a disposable A, or a check or skip count off its expected number fails the job; the counts print in the log and the job summary.
       # It removes both organisations on exit, so the steps after it see the database as pgTAP left it.
-      - name: Isolation proof self-test
-        run: scripts/isolation-proof.sh --self-test
       - name: Isolation proof (read and write, local stack)
         run: scripts/with-db-lock.sh scripts/isolation-proof.sh
 
