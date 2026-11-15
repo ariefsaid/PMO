@@ -101,7 +101,7 @@ All write files below are illustrative JSON shapes. Replace placeholders in a pr
 
 **Exact commands:** use `pmo org add`. Run without `--confirm` first to preview the planned steps (dry run), then re-run with `--confirm`.
 
-**Who:** `pmo org add` works with a command-line sign-in as the platform Operator and no other. Suspending or closing an organisation is app-only; the command line has no command for it.
+**Who:** `pmo org add` works with a command-line sign-in as the platform Operator and no other. It only adds: a command-line sign-in cannot change an existing organisation's plan, features or state, and suspending or closing an organisation is app-only.
 
 ```bash
 # Preview the numbered actions (dry run — zero writes):
@@ -135,12 +135,10 @@ node scripts/pmo.mjs org add \
 - Safety: `--confirm`. Without this flag, the command prints the planned numbered sequence with given values, makes zero writing requests, and prints `Dry run. Add --confirm to run.`
 
 **Workflow when confirmed:**
-1. Calls edge function `operator-org` (`action: "create"`) to invite the first Admin and create the organization.
-2. Checks status via `operator-org` (`action: "status"`). If `plan_id` is null, assigns `--plan` via RPC `operator_set_org_plan`. If an existing plan differs from `--plan`, execution stops without making further changes.
-3. Applies any requested `--feature` flags via RPC `operator_toggle_feature`, skipping flags that match existing status.
-4. Checks status again and classifies organization readiness (`organization`, `plan`, `admin`, `stage-config`).
-5. If healthy, sets lifecycle state via RPC `operator_set_org_lifecycle_state` (if not already that value). If unhealthy, leaves lifecycle state unset, reports failed checks, and exits non-zero.
-6. Prints the summary: organization id, plan, Admin active/pending counts, and state.
+1. Calls edge function `operator-org` (`action: "create"`) with the plan, features and state. The server invites the first Admin and creates the organization, its plan, its features and its starting state in one transaction: all of it, or nothing.
+2. Reads status via `operator-org` (`action: "status"`). An existing organization is never changed from the command line: if its plan, a requested feature or its state differs from what was asked, the command stops and says so (change it in the app).
+3. Classifies organization readiness (`organization`, `plan`, `admin`, `stage-config`). If unhealthy, reports failed checks and exits non-zero.
+4. Prints the summary: organization id, plan, Admin active/pending counts, and state.
 
 **How to verify:** the command prints the organization UUID, plan, Admin status, and lifecycle state. Verify via `node scripts/pmo.mjs whoami` after signing in as the invited Admin.
 

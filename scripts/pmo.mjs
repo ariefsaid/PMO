@@ -292,7 +292,7 @@ function assertRpc(name) {
     throw usage(`RPC '${name}' is not available to \`pmo rpc\`; only \`pmo load\` uses it. Move stages and set contract values in the app.`);
   }
   if (OPERATOR_ORG_RPCS.includes(name)) {
-    throw usage(`RPC '${name}' is not available to \`pmo rpc\`; only \`pmo org add\` uses it.`);
+    throw usage(`RPC '${name}' is not available to \`pmo rpc\`. Add an organisation with \`pmo org add\`; change an existing one in the app.`);
   }
   if (!ALLOWED_RPCS.includes(name) && !ADMIN_RPCS.includes(name) && !OPERATOR_READ_RPCS.includes(name)) {
     throw usage(`RPC '${name}' is not available from the CLI. Available: ${ALLOWED_RPCS.join(', ')}; active Admin: ${ADMIN_RPCS.join(', ')}; read-only: ${OPERATOR_READ_RPCS.join(', ')}`);
@@ -1862,12 +1862,6 @@ function orgApi(ctx) {
   return {
     operatorOrg: async (body) => {
       return authed(ctx, 'POST', '/functions/v1/operator-org', { body, errorFrom: functionError });
-    },
-    rpc: async (name, body) => {
-      if (!OPERATOR_ORG_RPCS.includes(name)) {
-        throw usage(`RPC '${name}' is not in the operator org allow-list`);
-      }
-      return authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body });
     },
   };
 }

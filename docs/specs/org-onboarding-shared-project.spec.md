@@ -91,14 +91,15 @@ organization (see Decisions); any in-app screen.
   `--locale`, `--timezone` and `--plan`, and shall refuse to run when any is missing, naming it.
 - **FR-ONB-012.** While `--confirm` is absent, the command shall print the planned steps and make no
   request that writes.
-- **FR-ONB-013.** When confirmed, the command shall, in order: call `create`; read `status`; assign the
-  plan if none is assigned (stop if a different plan is assigned); apply each `--feature` switch not
-  already set; read `status` again; evaluate readiness; set the lifecycle state only if readiness is
-  healthy and the state differs; print the result.
-- **FR-ONB-014.** If readiness is unhealthy, the command shall leave the lifecycle state unset, print
-  each failed check by name and exit non-zero.
-- **FR-ONB-015.** When re-run with the same inputs after a partial or complete run, the command shall
-  finish the remaining steps and create nothing twice.
+- **FR-ONB-013.** When confirmed, the command shall call `create` once, carrying the plan, each `--feature`
+  switch and the lifecycle state, so the server sets them together with the organization or not at all;
+  read `status`; stop, naming the difference, if the organization's plan, a requested feature or its
+  state differs from what was asked; evaluate readiness; print the result. The command never changes an
+  existing organization.
+- **FR-ONB-014.** If readiness is unhealthy, the command shall print each failed check by name and exit
+  non-zero.
+- **FR-ONB-015.** When re-run with the same inputs after a complete run, the command shall change nothing
+  and create nothing twice.
 
 ### Readiness
 
@@ -110,7 +111,7 @@ organization (see Decisions); any in-app screen.
 
 ### Non-functional
 
-- **NFR-ONB-001.** No schema migration.
+- **NFR-ONB-001.** One database function (`operator_create_org_with_setup`, security invoker, migration 0894) and no new table.
 - **NFR-ONB-002.** No value from one organization appears in another organization's status response.
 - **NFR-ONB-003.** The CLI never holds or accepts a service key (existing rule, unchanged).
 
@@ -121,14 +122,14 @@ organization (see Decisions); any in-app screen.
 | AC-ONB-001 | Given a caller who is not an active Operator, when either action is called, then it is refused and no service-key client was built and no invitation issued. | Deno test (shipped handler) |
 | AC-ONB-002 | Given a `create` with a missing plan, a malformed or wildcard email, or a missing field, when called, then each is refused with its own code and no invitation is issued. | Deno test |
 | AC-ONB-003 | Given a name already taken by another organization, or an email that already has a profile, when `create` is called, then it is refused and no invitation is issued. | Deno test |
-| AC-ONB-004 | Given valid inputs, when `create` is called, then the invitation is issued once, the organization is created under the caller's token with that account as Admin, the plan is assigned, and the id is returned. | Deno test |
+| AC-ONB-004 | Given valid inputs, when `create` is called, then the invitation is issued once, the organization is created under the caller's token with that account as Admin, the plan, features and starting state are set in the same call, and the id is returned. | Deno test |
 | AC-ONB-005 | Given the organization-creation step fails after issuance, when `create` returns, then the failed step is named and no account deletion was requested. | Deno test |
 | AC-ONB-006 | Given a completed `create`, when it is called again with the same inputs, then nothing is issued or written and `created: false` is returned. | Deno test |
 | AC-ONB-007 | Given two organizations, when `status` is called for one, then the response describes only that one. | Deno test |
 | AC-ONB-008 | Given no `--confirm`, when `pmo org add` runs, then no writing request is made. | node test |
 | AC-ONB-009 | Given a missing required flag, when `pmo org add` runs, then it refuses and names the flag. | node test |
-| AC-ONB-010 | Given a healthy status, when the confirmed command runs, then the lifecycle state is set after the status check, and only once. | node test |
-| AC-ONB-011 | Given an unhealthy status (no plan, no Admin, or no stage configuration), when the confirmed command runs, then the lifecycle state is not set, each failed check is named, and the exit code is non-zero. | node test |
+| AC-ONB-010 | Given a healthy status, when the confirmed command runs, then one create call carries the plan, features and state, one status is read, and no other request is made. | node test |
+| AC-ONB-011 | Given an unhealthy status (no plan, no Admin, or no stage configuration), when the confirmed command runs, then each failed check is named, and the exit code is non-zero. | node test |
 | AC-ONB-012 | Given readiness inputs, when classified, then healthy holds only with organization, explicit plan, Admin and stage configuration all present. | node test |
 | AC-ONB-013 | Given a project with two organizations each with an Admin, when the project-level check classifies it, then the organization rule passes. | node test |
 | AC-ONB-014 | Given the local stack, when `pmo org add … --state test --confirm` runs as the Operator, then the organization exists with its Admin, plan and stage configuration, and a second run changes nothing. | recorded local run (evidence, not CI) |

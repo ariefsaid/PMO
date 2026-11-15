@@ -1,7 +1,37 @@
--- 0894 (#2280): a command-line sign-in may carry the eight calls `pmo org add` needs, for the platform Operator only.
--- Each is POST-only and admitted only when `public.is_operator() and public.is_active_member()` holds for the token, on top
--- of each RPC's own check. Suspend, close and every other operator call are not named, so the default refusal holds.
+-- 0894 (#2280): a command-line sign-in may add an organisation as the platform Operator, and nothing else of an Operator's.
+-- `operator_create_org_with_setup` creates the organisation and, in the same transaction, sets its plan, features and starting
+-- state through the existing Operator RPCs (each keeps its own Operator check). The guard admits only the five calls
+-- `pmo org add` makes: is_operator, is_active_member, operator_plan_catalogue, operator_org_plan and that function, POST only,
+-- when `public.is_operator() and public.is_active_member()` holds. operator_set_org_plan, operator_toggle_feature and
+-- operator_set_org_lifecycle_state are NOT admitted, so a command-line token cannot change an existing organisation's plan,
+-- features or state. Suspend, close and every other operator call stay refused (there is no suspend or close RPC).
 -- Body of 0884 (the latest replacement) copied verbatim; the only additions are the lines marked 0894.
+create or replace function public.operator_create_org_with_setup(
+  p_name text, p_admin_user_id uuid, p_admin_full_name text, p_default_currency text, p_default_locale text,
+  p_default_number_locale text, p_default_timezone text, p_plan_id text, p_features jsonb, p_lifecycle_state text
+) returns uuid
+language plpgsql security invoker set search_path = '' as $$
+declare
+  v_org uuid;
+  v_feature jsonb;
+begin
+  -- Invoker on purpose: each call below is a definer RPC that checks the active Operator from auth.uid() itself, so this
+  -- function adds no privilege and a failure at any step rolls the whole organisation back.
+  v_org := public.operator_create_org(p_name, p_admin_user_id, p_admin_full_name, p_default_currency, p_default_locale,
+    p_default_number_locale, p_default_timezone);
+  perform public.operator_set_org_plan(v_org, p_plan_id);
+  for v_feature in select * from jsonb_array_elements(coalesce(p_features, '[]'::jsonb)) loop
+    perform public.operator_toggle_feature(v_org, v_feature ->> 'key', (v_feature ->> 'enabled')::boolean);
+  end loop;
+  if p_lifecycle_state is not null then
+    perform public.operator_set_org_lifecycle_state(v_org, p_lifecycle_state);
+  end if;
+  return v_org;
+end;
+$$;
+revoke all on function public.operator_create_org_with_setup(text, uuid, text, text, text, text, text, text, jsonb, text) from public, anon, service_role;
+grant execute on function public.operator_create_org_with_setup(text, uuid, text, text, text, text, text, text, jsonb, text) to authenticated;
+
 create or replace function public.api_client_request_guard()
   returns void
   language plpgsql
@@ -65,8 +95,8 @@ declare
   -- DOCUMENT-REGISTER WRITE TIER (`pmo documents create|upload`, #1857) — keep in step with scripts/pmo.mjs DOCUMENT_WRITE_TABLES.  -- 0884
   document_write_tables constant text[] := array['project_documents'];  -- 0884
   -- OPERATOR ONBOARDING TIER (`pmo org add`, #2280) — keep in step with scripts/lib/pmo-org.mjs and supabase/functions/operator-org.  -- 0894
-  operator_onboard_rpcs constant text[] := array['is_operator', 'is_active_member', 'operator_plan_catalogue', 'operator_create_org',  -- 0894
-    'operator_org_plan', 'operator_set_org_plan', 'operator_toggle_feature', 'operator_set_org_lifecycle_state'];  -- 0894
+  operator_onboard_rpcs constant text[] := array['is_operator', 'is_active_member', 'operator_plan_catalogue', 'operator_org_plan',  -- 0894
+    'operator_create_org_with_setup'];  -- 0894
   claims jsonb := nullif(current_setting('request.jwt.claims', true), '')::jsonb;
   headers jsonb := coalesce(nullif(current_setting('request.headers', true), '')::jsonb, '{}'::jsonb);
   method text := current_setting('request.method', true);

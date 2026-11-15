@@ -2,17 +2,18 @@
  * Local served proof that the platform Operator can add an organisation from the command line (#2280; the recorded
  * AC-ONB-014 run, #2257).
  *
- * `pmo org add` calls the operator-org function with the caller's own token, and the function and the CLI then call eight
- * RPCs on that token (is_operator, is_active_member, operator_plan_catalogue, operator_create_org, operator_org_plan,
- * operator_set_org_plan, operator_toggle_feature, operator_set_org_lifecycle_state). A command-line sign-in carries
- * client_id, so every one of them meets api_client_request_guard(). The tokens here are real OAuth tokens from the local
+ * `pmo org add` calls the operator-org function with the caller's own token, and the function then calls five RPCs on that
+ * token (is_operator, is_active_member, operator_plan_catalogue, operator_org_plan, operator_create_org_with_setup, which
+ * sets plan, features and starting state in the same transaction). A command-line sign-in carries client_id, so every one
+ * of them meets api_client_request_guard(). The tokens here are real OAuth tokens from the local
  * Auth server (authorization code + PKCE, consent approved over HTTP); nothing is mocked, neither the guard nor the function.
  *
  *   1. Operator: a dry run writes nothing.
  *   2. Operator: a confirmed run creates the organisation with its Admin, plan, feature choice, stage configuration and state.
  *   3. Operator: a second run changes nothing (identical row counts for the new organisation).
  *   4. An organisation Admin who is not an Operator is refused at the first call and creates nothing.
- *   5. The Operator's token is refused by the guard for operator calls outside the eight (suspend and close stay app-only).
+ *   5. The Operator's token is refused by the guard for plan, feature and state changes on the new organisation and for other
+ *      operator calls (suspend and close stay app-only).
  *
  * Run only against the local stack, under the DB and test locks, with functions served (SITE_URL for the invitation link
  * comes from the gitignored supabase/functions/.env.local):
@@ -162,13 +163,20 @@ await withCaptureProofCleanup(async () => {
   assert.match(refused.text, /OPERATOR_ONLY/);
   assert.equal(sql(`select count(*) from organizations where name='${refusedName}'`), '0', 'a refused run creates nothing');
 
-  // 5. The Operator's command-line token still cannot reach operator calls outside the eight.
-  for (const [name, body] of [['operator_set_global_feature', { p_key: 'crm', p_enabled: true }], ['operator_list_orgs', {}]]) {
+  // 5. The Operator's command-line token cannot change the organisation it just added, nor reach other operator calls.
+  for (const [name, body] of [
+    ['operator_set_org_plan', { p_org_id: orgId, p_plan_id: 'enterprise' }],
+    ['operator_toggle_feature', { p_org_id: orgId, p_key: 'crm', p_enabled: false }],
+    ['operator_set_org_lifecycle_state', { p_org_id: orgId, p_lifecycle_state: 'live' }],
+    ['operator_set_global_feature', { p_key: 'crm', p_enabled: true }],
+    ['operator_list_orgs', {}],
+  ]) {
     const response = await fetch(`${base}/rest/v1/rpc/${name}`, { method: 'POST', headers: { apikey: anon, authorization: `Bearer ${operator.access_token}`, 'content-type': 'application/json' }, body: JSON.stringify(body) });
     const text = await response.text();
     assert.equal(response.status, 403, `${name}: ${text}`);
     assert.match(text, /not available to OAuth API clients/, `${name} is refused by the guard`);
   }
+  assert.equal(snapshot(orgId), before, 'the refused calls changed nothing');
   process.stdout.write(`Served operator onboarding proof passed; organisation ${orgId} added, second run unchanged, non-Operator refused.\n`);
 }, async () => {
   await withCaptureProofCleanup(async () => {

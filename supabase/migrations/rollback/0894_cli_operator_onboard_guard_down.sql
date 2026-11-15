@@ -1,4 +1,5 @@
--- Down for 0894 (#2280): restores api_client_request_guard() to its 0884 body, verbatim.
+-- Down for 0894 (#2280): drops operator_create_org_with_setup and restores api_client_request_guard() to its 0884 body, verbatim.
+drop function if exists public.operator_create_org_with_setup(text, uuid, text, text, text, text, text, text, jsonb, text);
 create or replace function public.api_client_request_guard()
   returns void
   language plpgsql
