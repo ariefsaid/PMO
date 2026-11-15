@@ -131,7 +131,7 @@ import { guardedErpFetch, isPermittedErpSiteUrl } from '../_shared/erpHostGuard.
 import { resolveErpAuthPair, createErpAuthPairCache, type ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
 import { checkErpnextCommandAuthorization, checkOutboxReplayAuthorization, replayMayIssueErpWrite } from '../adapter-dispatch/authGuard.ts';
-import { assertNotPreCutover } from '../../../pmo-portal/src/lib/adapterSeam/cutoverGate.ts';
+import { assertNotPreCutover, PRE_CUTOVER_CODE } from '../../../pmo-portal/src/lib/adapterSeam/cutoverGate.ts';
 import { checkQueuedProcurementCreate } from '../adapter-dispatch/procurementGateGuard.ts';
 import { getReadModelWriter } from '../adapter-dispatch/readModelWriters.ts';
 import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
@@ -430,9 +430,6 @@ export function featureDisabled(
 ): boolean {
   return org.featuresUnreadable === true || (org.disabledFeatureKeys ?? []).includes(key);
 }
-
-/** The cut-over gate's refusal code (`cutoverGate.ts`): a later step of a purchase started before the ERP connection. */
-const PRE_CUTOVER_CODE = 'pre-cutover';
 
 /**
  * The outbox recovery pass for ONE org (AC-ENA-045, ADR-0058 §Consequences). Lists the candidates
@@ -4304,20 +4301,26 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
   return json({ ok: true, cadence: tickCadenceSummary(cadence, cycle), ...cycle });
 }, { summarize: summarizeErpSweep }));
 
+/** A terminal `last_error` marker the held-refusal stamp must never replace (0868: a rejected captured payment). */
+const TERMINAL_LAST_ERROR = 'captured_invoice_payment_rejected';
+
 /**
  * #1680: records a held pre-connection step's refusal in the row's own `last_error`, so the recovery pass reports it once
  * and stays quiet while the same refusal repeats (`reconcileOrgOutbox`). Writes `last_error` only — no state, attempt or
  * `updated_at` change, so the row's place in the candidate list and its retry timing are exactly as before — and only on
- * the unclaimed row the sweep read (same state, same claim generation). Best effort: a failed write leaves the row
- * reporting on the next tick, which is today's behaviour.
+ * the unclaimed row the sweep read (same state, same claim generation). A terminal marker is never replaced, including
+ * one written concurrently (the update filter). Best effort: a failed write is logged by its code and the row reports
+ * again on the next tick, which is the behaviour before #1680.
  */
 async function recordHeldRefusal(serviceClient: SupabaseClient, orgId: string, row: OutboxRow, message: string): Promise<void> {
-  if (row.lastError === message) return;
+  if (row.lastError === message || row.lastError === TERMINAL_LAST_ERROR) return;
   try {
-    await serviceClient.from('external_command_outbox').update({ last_error: message })
-      .eq('id', row.id).eq('org_id', orgId).eq('state', row.state).eq('claim_generation', row.claimGeneration);
+    const { error } = await serviceClient.from('external_command_outbox').update({ last_error: message })
+      .eq('id', row.id).eq('org_id', orgId).eq('state', row.state).eq('claim_generation', row.claimGeneration)
+      .or(`last_error.is.null,last_error.neq.${TERMINAL_LAST_ERROR}`);
+    if (error) console.warn('[erpnext-sweep] held-refusal stamp failed', error.code ?? 'unknown');
   } catch {
-    // Reported again next tick.
+    console.warn('[erpnext-sweep] held-refusal stamp failed', 'thrown');
   }
 }
 
