@@ -18,6 +18,9 @@ const ODOO_REVENUE_CUTOVER = 1602;
 const ODOO_EQUIPMENT = 1511;
 
 /** Why tax documents cannot be read: Odoo Community v20 has no tax document facts and PMO writes no ERP tax fields (FR-OCI-094, SD-11). */
+// The accountant's desk, piece 1 (#895): manual journals.
+const MANUAL_JOURNALS = 895;
+
 export const ODOO_TAX_DOCUMENT_UNAVAILABLE_REASON = 'Odoo Community does not expose tax-document facts, and PMO writes no ERP tax-document fields.';
 
 export const ODOO_WORKFLOWS: TierWorkflows = {
@@ -55,6 +58,8 @@ export const ODOO_WORKFLOWS: TierWorkflows = {
   'purchase-order.revise': { status: 'supported', version: 1 },
   'equipment.push': { status: 'pending', version: 1, issue: ODOO_EQUIPMENT },
   'equipment.read': { status: 'pending', version: 1, issue: ODOO_EQUIPMENT },
+  'journal.post': { status: 'pending', version: 1, issue: MANUAL_JOURNALS },
+  'journal.reverse': { status: 'pending', version: 1, issue: MANUAL_JOURNALS },
 };
 
 /** Captured-purchase behavior declared by this tier. */
