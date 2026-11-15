@@ -1953,7 +1953,6 @@
       "taxAmount": "Tax amount",
       "confirmMarkInvoiced": "Confirm & mark invoiced"
     },
-    "externalRefOptional": "External ref (optional)",
     "amountOptional": "Amount (optional)",
     "savePayment": "Save Payment",
     "paymentRecorded": "Payment recorded",

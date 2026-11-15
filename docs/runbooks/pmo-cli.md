@@ -7,11 +7,11 @@
 
 ### What the CLI can and cannot do
 
-`node scripts/pmo.mjs --help` is the command reference. The CLI supports bounded reads, selected record writes, a starting-data loader, stage-date correction, ERP checks, purchase-document linking, document-reference linking, goods-receipt recording, account maps, cost-attribution rules, and read-only T&M inspection. It is not a general database console: there is no delete command, no arbitrary RPC, and some writes remain app-only. Do not invent flags or call database tables directly.
+`node scripts/pmo.mjs --help` is the command reference. The CLI supports bounded reads, selected record writes, a starting-data loader, stage-date correction, recording a bid's win, loss or decline, ERP checks, purchase-document linking, document-reference linking, document register entries and uploads, goods-receipt recording, account maps, cost-attribution rules, read-only T&M inspection, and adding an organisation as the platform Operator (`org add`). It is not a general database console: there is no delete command, no arbitrary RPC, and some writes remain app-only, including every change to an existing organisation. Do not invent flags or call database tables directly.
 
 Use Node 22 or newer. Sign in with `node scripts/pmo.mjs login`, then confirm the identity and role with `node scripts/pmo.mjs whoami`. The CLI stores an ordinary owner session and applies the same row-level permissions as the app. Use a real, active Admin account for loading client data and other Admin-only commands.
 
-`pmo load`, `pmo stages`, `pmo stage-date`, `pmo accounts map set`, and ERP setup checks require an active Admin. Purchase reads/links and `pmo purchases receive` (a procurement money write) are for active Admin, Executive, Project Manager, or Finance members; the `--include-set-aside` read and setting documents aside are Admin/Finance only. Attribution preview/set/end are Admin/Finance; `pmo attribution list` also serves Executive and Project Manager. T&M reads are for Admin, Finance, Executive, or the project's Project Manager. Other writes remain subject to the signed-in member's normal app permissions.
+`pmo load`, `pmo stages`, `pmo stage-date`, `pmo bid`, `pmo accounts map set`, and ERP setup checks require an active Admin. Purchase reads/links and `pmo purchases receive` (a procurement money write) are for active Admin, Executive, Project Manager, or Finance members; the `--include-set-aside` read and setting documents aside are Admin/Finance only. Attribution preview/set/end are Admin/Finance; `pmo attribution list` also serves Executive and Project Manager. T&M reads are for Admin, Finance, Executive, or the project's Project Manager. Other writes remain subject to the signed-in member's normal app permissions.
 
 ### Data ownership when an ERP is connected
 
@@ -101,6 +101,8 @@ All write files below are illustrative JSON shapes. Replace placeholders in a pr
 
 **Exact commands:** use `pmo org add`. Run without `--confirm` first to preview the planned steps (dry run), then re-run with `--confirm`.
 
+**Who:** `pmo org add` works with a command-line sign-in as the platform Operator and no other. It only adds: a command-line sign-in cannot change an existing organisation's plan, features or state, and suspending or closing an organisation is app-only.
+
 ```bash
 # Preview the numbered actions (dry run — zero writes):
 node scripts/pmo.mjs org add \
@@ -133,12 +135,10 @@ node scripts/pmo.mjs org add \
 - Safety: `--confirm`. Without this flag, the command prints the planned numbered sequence with given values, makes zero writing requests, and prints `Dry run. Add --confirm to run.`
 
 **Workflow when confirmed:**
-1. Calls edge function `operator-org` (`action: "create"`) to invite the first Admin and create the organization.
-2. Checks status via `operator-org` (`action: "status"`). If `plan_id` is null, assigns `--plan` via RPC `operator_set_org_plan`. If an existing plan differs from `--plan`, execution stops without making further changes.
-3. Applies any requested `--feature` flags via RPC `operator_toggle_feature`, skipping flags that match existing status.
-4. Checks status again and classifies organization readiness (`organization`, `plan`, `admin`, `stage-config`).
-5. If healthy, sets lifecycle state via RPC `operator_set_org_lifecycle_state` (if not already that value). If unhealthy, leaves lifecycle state unset, reports failed checks, and exits non-zero.
-6. Prints the summary: organization id, plan, Admin active/pending counts, and state.
+1. Calls edge function `operator-org` (`action: "create"`) with the plan, features and state. The server invites the first Admin and creates the organization, its plan, its features and its starting state in one transaction: all of it, or nothing.
+2. Reads status via `operator-org` (`action: "status"`). An existing organization is never changed from the command line: if its plan, a requested feature or its state differs from what was asked, the command stops and says so (change it in the app).
+3. Classifies organization readiness (`organization`, `plan`, `admin`, `stage-config`). If unhealthy, reports failed checks and exits non-zero.
+4. Prints the summary: organization id, plan, Admin active/pending counts, and state.
 
 **How to verify:** the command prints the organization UUID, plan, Admin status, and lifecycle state. Verify via `node scripts/pmo.mjs whoami` after signing in as the invited Admin.
 
@@ -157,8 +157,13 @@ node scripts/pmo.mjs org add \
 - `ADMIN_HAS_PROFILE`: The specified email address already belongs to an existing organization profile.
 - `ADMIN_ACCOUNT_EXISTS`: An auth account exists for this email with a profile or has signed in.
 - `RATE_LIMITED`: The operator has exceeded the allowed rate of organization creation.
-- `ORG_CREATE_FAILED`: Server-side organization creation step failed.
-- `PLAN_ASSIGN_FAILED`: Server-side plan assignment step failed.
+- `ORG_CREATE_FAILED`: Server-side organization creation (with its plan, features and state) failed; nothing was created.
+- `BAD_FEATURES`: A `--feature` entry is malformed (each needs a key and on or off).
+- `BAD_STATE`: `--state` is not `live`, `demo` or `test`.
+- `INVITE_FAILED`, `LOOKUP_FAILED`: The invitation or a server-side lookup failed; nothing was created by the failed step, retry.
+- `UNAUTHORIZED`, `MISCONFIGURED`, `BAD_REQUEST`, `BAD_ACTION`, `BAD_ORG_ID`, `METHOD_NOT_ALLOWED`: The sign-in is missing or the request is malformed or the server is not set up for this; check the sign-in and the flags.
+- `org_differs`, `plan_conflict`, `live_org_terminal` (raised by the command itself): the organization already exists with a different plan, feature or state, or is live. The command never changes an existing organization; change it in the app.
+- `unhealthy_org` (raised by the command itself): a readiness check failed; the failed checks are named.
 - Function errors report the code (and step if present) in the JSON error on stderr and exit non-zero.
 
 ### 2. Add a new client company
@@ -226,6 +231,36 @@ node scripts/pmo.mjs stages <project-uuid>
 **How to verify:** the load output lists created/skipped/conflicting actions. Re-run `pmo stages` after any date change and check stage order and entered dates against the approved chronology.
 
 **Common errors:** a project already moved away from the load file's stage is not moved backward by rerunning the load; use `stages` and the controlled date correction instead. A missing stage label must be copied from `stages` exactly. A win without its contract value, tax treatment/amount, client contract reference, or contract date fails preflight.
+
+### 3a. Record a win, loss or decline on an existing bid
+
+**Goal:** a bid that is already in PMO was won, lost or declined. Record it from the CLI with the same details the app's win and lost dialogs ask for.
+
+**Exact commands:** find the project and check its stage and contract value first:
+
+```bash
+node scripts/pmo.mjs get projects --select id,name,status,contract_value --filter name=eq.<project-name>
+```
+
+Then preview the outcome. Without `--apply` the command reads the project, runs every check and prints what it would record; it writes nothing. Run the same command again with `--apply` to record it.
+
+```bash
+# Won: the client's order number, the date on the order, and the project's contract value
+node scripts/pmo.mjs bid win <project-uuid> --ref <client order number> --date <YYYY-MM-DD> --value <contract value>
+node scripts/pmo.mjs bid win <project-uuid> --ref <client order number> --date <YYYY-MM-DD> --value <contract value> --apply
+
+# Lost or declined: a reason, and a note when the reason is other
+node scripts/pmo.mjs bid lose <project-uuid> --reason <reason> [--note <text>] --apply
+node scripts/pmo.mjs bid decline <project-uuid> --reason <reason> [--note <text>] --apply
+```
+
+Reasons: `price`, `competitor`, `scope_fit`, `timing`, `capacity`, `relationship`, `client_cancelled`, `no_decision`, `other`. A note is at most 500 characters.
+
+`--value` is a check, not a change: it must equal the contract value already on the project. If the project has no contract value, set it first with `pmo load` or in the app, so its approval rule applies. The command is for an active Admin. It uses the same database step as the app, so the app's rules still apply, including which stages can move to won.
+
+**How to verify:** the `--apply` output says `"applied": true` with the old and new stage. Read the project again with `get projects` and check `status`, `customer_contract_ref` and `contract_date` (or `lost_reason`). If ERPNext is connected, open the project page to link its ERP project; the CLI does not do that step.
+
+**Common errors:** a missing order number, date or value, a date in the future, or a value that differs from the project's is refused before anything is sent. A project that is already won, lost or declined is refused; change it in the app. A refusal from the database (for example a stage that cannot move straight to won) is printed as it is and nothing changes.
 
 ### 4. Budgets and account maps
 
@@ -515,7 +550,7 @@ The preview is read-only and shows priced hours, unrated hours and the total. Th
 
 ### 8. Documents
 
-**Goal:** inspect the project register and attach an existing Microsoft 365 item to the right PMO record.
+**Goal:** inspect the project register, create a register entry and upload its file, or attach an existing Microsoft 365 item to the right PMO record.
 
 **Exact commands:**
 
@@ -524,13 +559,17 @@ node scripts/pmo.mjs documents list --project <project-uuid>
 node scripts/pmo.mjs m365 status
 node scripts/pmo.mjs documents link <document-links.json> --dry-run
 node scripts/pmo.mjs documents link <document-links.json>
+node scripts/pmo.mjs documents create --project <project-uuid> --category <category> --title <title> [--code <code>] [--revision <rev>] [--date <YYYY-MM-DD>] [--file <path>]
+node scripts/pmo.mjs documents create ... --confirm
+node scripts/pmo.mjs documents upload <document-uuid> <path>
+node scripts/pmo.mjs documents upload <document-uuid> <path> --confirm
 ```
 
-Each JSON row names exactly one `project_id`, `budget_version_id`, or `procurement_id`, plus `drive_id`, `item_id`, `web_url`, `name`, and `kind` (`file` or `folder`). The CLI links an existing Microsoft 365 item; it does not create a document-register entry or upload the file. Create/upload/register it in the relevant **Project → Documents** screen, or use the matching Procurement or Budget source-link action. Enhancement: [CLI document register and upload](https://github.com/ariefsaid/PMO/issues/1857).
+Each JSON row names exactly one `project_id`, `budget_version_id`, or `procurement_id`, plus `drive_id`, `item_id`, `web_url`, `name`, and `kind` (`file` or `folder`). `documents create` and `documents upload` are for active Admin, Executive, Project Manager and Finance members, as in the app. Without `--confirm` each prints a preview and writes nothing. `--category` is one of the register's categories: Drawing, Specification, Report, Transmittal, Submittal, Certificate, Other. A new entry starts as Draft; `--file` uploads the file to it in the same run. `documents upload` attaches a private file to a Draft entry that has no Microsoft reference. Only the entry's author or an Admin can upload to it; the preview warns when you are not its author. A new upload replaces the entry's previous file when its name differs; a file with the same name as the current one is refused, so rename it first. Files follow the app's rules: PDF, PNG/JPG/WebP images, Word, Excel or PowerPoint (`.docx`, `.xlsx`, `.pptx`), DWG/DXF, CSV or text, up to 5 MB. A command-line sign-in does not set, change or clear a Microsoft reference on a register entry; use `documents link` or the app. Status changes (Issue, Approve) stay in **Project → Documents**.
 
-**How to verify:** read the register again with `documents list` and confirm the expected row and source; confirm `m365 status` reports the expected connection before linking.
+**How to verify:** read the register again with `documents list` and confirm the expected row and source (`upload` after an upload); confirm `m365 status` reports the expected connection before linking.
 
-**Common errors:** the link must target exactly one record type and identify a file or folder. If the M365 item does not exist or is in the wrong library, correct it in **Project → Documents** or the library before rerunning. Same-item links are idempotent.
+**Common errors:** the link must target exactly one record type and identify a file or folder. If the M365 item does not exist or is in the wrong library, correct it in **Project → Documents** or the library before rerunning. Same-item links are idempotent. `document_not_draft` or `document_has_microsoft_reference`: the entry cannot take a file; use the app. `document_not_updated`: the entry was not changed, and the stored file was removed so the command can be rerun; if the message says the file is still stored, remove it in the app first. `document_created_file_not_stored`: `create --file` made the entry but could not store the file; finish it with `documents upload <document-uuid> <path> --confirm` rather than rerunning `create`. `document_file_name_in_use`: the entry already holds a file with that name; upload it under a new name. A permission error from the file store on `--confirm` means you are neither the entry's author nor an Admin.
 
 ### 9. ERP checks
 
@@ -614,6 +653,6 @@ After the app correction, rerun the original load with `--dry-run`; verify it pl
 
 ## Command scope and current constraints
 
-The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `purchases record-only`, `purchases undo-record-only`, `purchases import-history`, `purchases receive`, `purchases pay-captured`, `documents link`, `accounts map set`, and `attribution set` do support previews. No command deletes records.
+The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `pmo bid`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `purchases record-only`, `purchases undo-record-only`, `purchases import-history`, `purchases receive`, `purchases pay-captured`, `documents link`, `documents create`, `documents upload`, `accounts map set`, `attribution set`, and `org add` do support previews. No command deletes records.
 
-The CLI does not create an ERP company directly as a separate ad hoc step, activate a budget, author T&M data, upload a document, or overwrite a loaded project/contract/budget line. Use the recipes above for their app screens and tracked enhancements: [budget activation](https://github.com/ariefsaid/PMO/issues/1859), [T&M operations](https://github.com/ariefsaid/PMO/issues/1856), [document register and upload](https://github.com/ariefsaid/PMO/issues/1857), and [loader corrections](https://github.com/ariefsaid/PMO/issues/1858).
+The CLI does not create an ERP company directly as a separate ad hoc step, activate a budget, author T&M data, or overwrite a loaded project/contract/budget line. Use the recipes above for their app screens and tracked enhancements: [budget activation](https://github.com/ariefsaid/PMO/issues/1859), [T&M operations](https://github.com/ariefsaid/PMO/issues/1856), and [loader corrections](https://github.com/ariefsaid/PMO/issues/1858).

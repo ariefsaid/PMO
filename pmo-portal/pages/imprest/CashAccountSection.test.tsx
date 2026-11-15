@@ -44,6 +44,15 @@ describe('#1515 S6 cash account', () => {
     expect(h.bind.mutateAsync).not.toHaveBeenCalled();
   });
 
+  /**
+   * #2092 (WIG, Forms) — the ERP cash account name is an account CODE, not prose: no spellcheck
+   * squiggle or autocorrect may rewrite it while it is typed.
+   */
+  it('#2092 AC1: the ERP cash account name drops spellcheck', () => {
+    renderIt();
+    expect(screen.getByLabelText('ERP cash account name')).toHaveAttribute('spellcheck', 'false');
+  });
+
   it('asks before leaving an entered cash account and Stay retains it', async () => {
     const user = userEvent.setup();
     renderIt();
