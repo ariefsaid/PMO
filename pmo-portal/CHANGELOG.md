@@ -10,6 +10,24 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.41.1](https://github.com/ariefsaid/PMO/compare/v0.41.0...v0.41.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* **procurement:** entry row Add button centres and the item table fits at 1024 ([2467c57](https://github.com/ariefsaid/PMO/commit/2467c57a5cc5245fd7b9e2be21aec129b539d115))
+* **procurement:** entry row of the item table lines up on the new purchase form ([de6f99c](https://github.com/ariefsaid/PMO/commit/de6f99c38b5b315659a0bbd06ba414340b594d35))
+* **procurement:** entry row of the item table lines up on the new purchase form ([d5035e2](https://github.com/ariefsaid/PMO/commit/d5035e26d605809d8f0dd0a6bcf4bad0fe3d9215))
+* **ui:** a document preview opens as a large viewer dialog, not a side drawer ([37b7b6a](https://github.com/ariefsaid/PMO/commit/37b7b6ae2c60063b4860163a8866e48003332358))
+* **ui:** a picker list may grow wider than its field so names are not cut ([0dbea63](https://github.com/ariefsaid/PMO/commit/0dbea63d61776cf5345445ad504208a7e7a13377))
+* **ui:** a picker option keeps its code or tag on one line in its own right-hand column ([6e16037](https://github.com/ariefsaid/PMO/commit/6e160379c494f081cd648d6b0904e1635596a5ac))
+* **ui:** Phase timeline spans the row and leaves no extra gap when its neighbour slot is empty ([5a61d37](https://github.com/ariefsaid/PMO/commit/5a61d3752caccbc3ee9bd247e1b3a3fd46b80e0d))
+* **ui:** project header gets an identity line and a facts line; Updated moves to the right end ([93e1ff1](https://github.com/ariefsaid/PMO/commit/93e1ff198314b24894ddf43c7aee84ef55cdc163))
+* **ui:** project header names the project on every width; status tags sit under the name where the row is narrow ([2ba6cdf](https://github.com/ariefsaid/PMO/commit/2ba6cdfd73686cefcb1e6b1932bbbcb00fb97fcb))
+* **ui:** project Overview layout — My open tasks rows on the card inset, Needs attention rows keep natural height, Money position rows plain label and amount ([10a88b4](https://github.com/ariefsaid/PMO/commit/10a88b4fa8416ab15f903ac1f6b746615966487f))
+* **ui:** the owner's pointed-out screen defects: overview, header, pickers, Stock tabs, document preview ([4034227](https://github.com/ariefsaid/PMO/commit/4034227d4d460b603445ae7816c41b6afc03dab2))
+* **ui:** the Stock title and tab bar stay put from the list to a record, a count and a form ([b501af5](https://github.com/ariefsaid/PMO/commit/b501af5c0b6d8a939d95f8367e8427644c425db9))
+
 ## [0.41.0](https://github.com/ariefsaid/PMO/compare/v0.40.0...v0.41.0) (2026-11-16)
 
 
