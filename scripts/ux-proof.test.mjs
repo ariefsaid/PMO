@@ -296,3 +296,8 @@ test('control: a visually hidden select-all checkbox is not a leading mark, and 
   const list = '<ul style="list-style:none;margin:0;padding:0"><li><label class="sr-only"><input type="checkbox">Select all rows</label></li><li>First row</li><li>Second row</li></ul>';
   assert.deepEqual(layoutFixture(`<main style="padding:24px">${lpanel(`<p>Body</p><div style="margin-top:12px">${list}</div>`)}<p>Tail</p></main>`), []);
 });
+
+test('class centred control: a centred logo-and-name group at the top of a form page is not a left edge', () => {
+  const logo = '<header style="display:flex;justify-content:center;margin-bottom:24px"><div style="display:inline-flex;align-items:center;gap:8px"><span style="width:32px;height:32px;border-radius:6px;background:#07f;color:#fff;display:flex;align-items:center;justify-content:center">P</span><span>Brand</span></div></header>';
+  assert.deepEqual(layoutFixture(`<main style="padding:24px"><div style="max-width:384px;margin:0 auto">${logo}${lpanel('<p>Body</p>')}</div></main>`), []);
+});

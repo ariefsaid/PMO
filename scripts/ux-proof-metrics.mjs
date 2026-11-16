@@ -326,7 +326,12 @@ export function measureLayout(N) {
   // 1. leftEdges ------------------------------------------------------------------------------
   const leftEdges = [];
   // A block that is centred or right-aligned in the room its parent gives it does not start a line at the left edge.
+  // The block, or a group it sits in (a logo mark inside a centred logo-and-name pair), is centred or right-aligned.
   const offStart = (el) => {
+    for (let n = el, i = 0; n && n !== main && i < 3 && (i === 0 || !isPanel(n)); n = n.parentElement, i++) if (offStartSelf(n)) return true; // never through a panel: its contents are judged against the panel's own edges
+    return false;
+  };
+  const offStartSelf = (el) => {
     const text = texts.find((x) => el.contains(x.node));
     if (text) {
       const align = getComputedStyle(text.el).textAlign;

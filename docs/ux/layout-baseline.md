@@ -70,7 +70,7 @@ Shrink-only: a touched route may not gain a fingerprint, and a route under redes
 | `/companies` | finance@acme.test | 390 | 0 |
 | `/companies/c0000000-0000-0000-0000-000000000002` | exec@acme.test | 1440 | 12 |
 | `/companies/c0000000-0000-0000-0000-000000000002` | exec@acme.test reads-failing | 1440 | 0 |
-| `/companies/c0000000-0000-0000-0000-000000000002` | exec@acme.test | 390 | 12 |
+| `/companies/c0000000-0000-0000-0000-000000000002` | exec@acme.test | 390 | 11 |
 | `/companies/c0000000-0000-0000-0000-000000000002` | exec@acme.test reads-failing | 390 | 0 |
 | `/contacts` | exec@acme.test | 1440 | 0 |
 | `/contacts` | exec@acme.test reads-failing | 1440 | 1 |
@@ -82,11 +82,11 @@ Shrink-only: a touched route may not gain a fingerprint, and a route under redes
 | `/contacts/ce000000-0000-0000-0000-000000000001` | exec@acme.test reads-failing | 390 | 0 |
 | `/equipment` | engineer@acme.test | 1440 | 0 |
 | `/equipment` | exec@acme.test | 1440 | 0 |
-| `/equipment` | exec@acme.test reads-failing | 1440 | 1 |
+| `/equipment` | exec@acme.test reads-failing | 1440 | 0 |
 | `/equipment` | pm@acme.test | 1440 | 0 |
 | `/equipment` | engineer@acme.test | 390 | 0 |
 | `/equipment` | exec@acme.test | 390 | 0 |
-| `/equipment` | exec@acme.test reads-failing | 390 | 1 |
+| `/equipment` | exec@acme.test reads-failing | 390 | 0 |
 | `/equipment` | pm@acme.test | 390 | 0 |
 | `/equipment/assets` | pm@acme.test | 1440 | 1 |
 | `/equipment/assets` | pm@acme.test | 390 | 0 |
@@ -119,9 +119,9 @@ Shrink-only: a touched route may not gain a fingerprint, and a route under redes
 | `/finance/payables` | exec@acme.test | 1440 | 1 |
 | `/finance/payables` | exec@acme.test reads-failing | 1440 | 2 |
 | `/finance/payables` | finance@acme.test | 1440 | 1 |
-| `/finance/payables` | exec@acme.test | 390 | 2 |
+| `/finance/payables` | exec@acme.test | 390 | 1 |
 | `/finance/payables` | exec@acme.test reads-failing | 390 | 2 |
-| `/finance/payables` | finance@acme.test | 390 | 2 |
+| `/finance/payables` | finance@acme.test | 390 | 1 |
 | `/finance/receivables` | exec@acme.test | 1440 | 1 |
 | `/finance/receivables` | exec@acme.test reads-failing | 1440 | 2 |
 | `/finance/receivables` | finance@acme.test | 1440 | 1 |
@@ -154,7 +154,7 @@ Shrink-only: a touched route may not gain a fingerprint, and a route under redes
 | `/imprest` | finance@acme.test | 390 | 0 |
 | `/incidents` | engineer@acme.test | 1440 | 0 |
 | `/incidents` | exec@acme.test | 1440 | 0 |
-| `/incidents` | exec@acme.test reads-failing | 1440 | 1 |
+| `/incidents` | exec@acme.test reads-failing | 1440 | 0 |
 | `/incidents` | engineer@acme.test | 390 | 0 |
 | `/incidents` | exec@acme.test | 390 | 0 |
 | `/incidents` | exec@acme.test reads-failing | 390 | 0 |
@@ -176,10 +176,10 @@ Shrink-only: a touched route may not gain a fingerprint, and a route under redes
 | `/integrations` | exec@acme.test reads-failing | 390 | 1 |
 | `/integrations` | finance@acme.test | 390 | 1 |
 | `/integrations` | pm@acme.test | 390 | 1 |
-| `/login` | exec@acme.test | 1440 | 2 |
-| `/login` | exec@acme.test reads-failing | 1440 | 2 |
-| `/login` | exec@acme.test | 390 | 2 |
-| `/login` | exec@acme.test reads-failing | 390 | 2 |
+| `/login` | exec@acme.test | 1440 | 0 |
+| `/login` | exec@acme.test reads-failing | 1440 | 0 |
+| `/login` | exec@acme.test | 390 | 0 |
+| `/login` | exec@acme.test reads-failing | 390 | 0 |
 | `/master-data/product` | admin@acme.test | 1440 | 0 |
 | `/master-data/product` | admin@acme.test | 390 | 0 |
 | `/meetings` | engineer@acme.test | 1440 | 0 |
@@ -200,20 +200,20 @@ Shrink-only: a touched route may not gain a fingerprint, and a route under redes
 | `/my-tasks` | engineer@acme.test | 390 | 4 |
 | `/my-tasks` | finance@acme.test | 390 | 0 |
 | `/my-tasks` | pm@acme.test | 390 | 3 |
-| `/oauth/consent` | exec@acme.test | 1440 | 2 |
-| `/oauth/consent` | exec@acme.test reads-failing | 1440 | 2 |
-| `/oauth/consent` | exec@acme.test | 390 | 2 |
-| `/oauth/consent` | exec@acme.test reads-failing | 390 | 2 |
+| `/oauth/consent` | exec@acme.test | 1440 | 1 |
+| `/oauth/consent` | exec@acme.test reads-failing | 1440 | 1 |
+| `/oauth/consent` | exec@acme.test | 390 | 1 |
+| `/oauth/consent` | exec@acme.test reads-failing | 390 | 1 |
 | `/procurement` | engineer@acme.test | 1440 | 0 |
 | `/procurement` | exec@acme.test | 1440 | 0 |
 | `/procurement` | exec@acme.test reads-failing | 1440 | 0 |
 | `/procurement` | finance@acme.test | 1440 | 0 |
 | `/procurement` | pm@acme.test | 1440 | 0 |
-| `/procurement` | engineer@acme.test | 390 | 1 |
-| `/procurement` | exec@acme.test | 390 | 1 |
+| `/procurement` | engineer@acme.test | 390 | 0 |
+| `/procurement` | exec@acme.test | 390 | 0 |
 | `/procurement` | exec@acme.test reads-failing | 390 | 0 |
-| `/procurement` | finance@acme.test | 390 | 1 |
-| `/procurement` | pm@acme.test | 390 | 1 |
+| `/procurement` | finance@acme.test | 390 | 0 |
+| `/procurement` | pm@acme.test | 390 | 0 |
 | `/procurement/00000000-0000-0000-0000-000000000002` | exec@acme.test | 1440 | 0 |
 | `/procurement/00000000-0000-0000-0000-000000000002` | exec@acme.test reads-failing | 1440 | 0 |
 | `/procurement/00000000-0000-0000-0000-000000000002` | pm@acme.test | 1440 | 0 |
@@ -272,20 +272,20 @@ Shrink-only: a touched route may not gain a fingerprint, and a route under redes
 | `/projects/41000000-0000-0000-0000-000000000002/budget` | exec@acme.test reads-failing | 1440 | 0 |
 | `/projects/41000000-0000-0000-0000-000000000002/budget` | finance@acme.test | 1440 | 7 |
 | `/projects/41000000-0000-0000-0000-000000000002/budget` | pm@acme.test | 1440 | 7 |
-| `/projects/41000000-0000-0000-0000-000000000002/budget` | exec@acme.test | 390 | 5 |
+| `/projects/41000000-0000-0000-0000-000000000002/budget` | exec@acme.test | 390 | 4 |
 | `/projects/41000000-0000-0000-0000-000000000002/budget` | exec@acme.test reads-failing | 390 | 0 |
-| `/projects/41000000-0000-0000-0000-000000000002/budget` | finance@acme.test | 390 | 5 |
-| `/projects/41000000-0000-0000-0000-000000000002/budget` | pm@acme.test | 390 | 5 |
+| `/projects/41000000-0000-0000-0000-000000000002/budget` | finance@acme.test | 390 | 4 |
+| `/projects/41000000-0000-0000-0000-000000000002/budget` | pm@acme.test | 390 | 4 |
 | `/projects/41000000-0000-0000-0000-000000000002/contract` | finance@acme.test | 1440 | 28 |
 | `/projects/41000000-0000-0000-0000-000000000002/contract` | pm@acme.test | 1440 | 9 |
-| `/projects/41000000-0000-0000-0000-000000000002/contract` | finance@acme.test | 390 | 25 |
-| `/projects/41000000-0000-0000-0000-000000000002/contract` | pm@acme.test | 390 | 6 |
+| `/projects/41000000-0000-0000-0000-000000000002/contract` | finance@acme.test | 390 | 24 |
+| `/projects/41000000-0000-0000-0000-000000000002/contract` | pm@acme.test | 390 | 5 |
 | `/projects/41000000-0000-0000-0000-000000000002/documents` | pm@acme.test | 1440 | 2 |
-| `/projects/41000000-0000-0000-0000-000000000002/documents` | pm@acme.test | 390 | 1 |
+| `/projects/41000000-0000-0000-0000-000000000002/documents` | pm@acme.test | 390 | 0 |
 | `/projects/41000000-0000-0000-0000-000000000002/materials` | pm@acme.test | 1440 | 7 |
 | `/projects/41000000-0000-0000-0000-000000000002/materials` | pm@acme.test | 390 | 5 |
 | `/projects/41000000-0000-0000-0000-000000000002/procurement` | pm@acme.test | 1440 | 2 |
-| `/projects/41000000-0000-0000-0000-000000000002/procurement` | pm@acme.test | 390 | 1 |
+| `/projects/41000000-0000-0000-0000-000000000002/procurement` | pm@acme.test | 390 | 0 |
 | `/projects/41000000-0000-0000-0000-000000000002/tasks` | engineer@acme.test | 1440 | 4 |
 | `/projects/41000000-0000-0000-0000-000000000002/tasks` | pm@acme.test | 1440 | 4 |
 | `/projects/41000000-0000-0000-0000-000000000002/tasks` | engineer@acme.test | 390 | 2 |
@@ -300,10 +300,10 @@ Shrink-only: a touched route may not gain a fingerprint, and a route under redes
 | `/projects/new` | pm@acme.test | 390 | 1 |
 | `/receivables?view=payments` | finance@acme.test | 1440 | 0 |
 | `/receivables?view=payments` | finance@acme.test | 390 | 0 |
-| `/reset-password` | exec@acme.test | 1440 | 2 |
-| `/reset-password` | exec@acme.test reads-failing | 1440 | 2 |
-| `/reset-password` | exec@acme.test | 390 | 2 |
-| `/reset-password` | exec@acme.test reads-failing | 390 | 2 |
+| `/reset-password` | exec@acme.test | 1440 | 1 |
+| `/reset-password` | exec@acme.test reads-failing | 1440 | 1 |
+| `/reset-password` | exec@acme.test | 390 | 1 |
+| `/reset-password` | exec@acme.test reads-failing | 390 | 1 |
 | `/sales` | exec@acme.test | 1440 | 2 |
 | `/sales` | exec@acme.test reads-failing | 1440 | 1 |
 | `/sales` | pm@acme.test | 1440 | 2 |
@@ -341,20 +341,20 @@ Shrink-only: a touched route may not gain a fingerprint, and a route under redes
 | `/stock/reorder` | pm@acme.test | 1440 | 2 |
 | `/stock/reorder` | pm@acme.test | 390 | 1 |
 | `/stock/setup` | pm@acme.test | 1440 | 0 |
-| `/stock/setup` | pm@acme.test | 390 | 2 |
+| `/stock/setup` | pm@acme.test | 390 | 1 |
 | `/timesheets` | engineer@acme.test | 1440 | 2 |
 | `/timesheets` | exec@acme.test | 1440 | 2 |
 | `/timesheets` | exec@acme.test reads-failing | 1440 | 1 |
 | `/timesheets` | finance@acme.test | 1440 | 0 |
 | `/timesheets` | pm@acme.test | 1440 | 1 |
-| `/timesheets` | engineer@acme.test | 390 | 8 |
+| `/timesheets` | engineer@acme.test | 390 | 1 |
 | `/timesheets` | exec@acme.test | 390 | 1 |
 | `/timesheets` | exec@acme.test reads-failing | 390 | 1 |
 | `/timesheets` | finance@acme.test | 390 | 1 |
 | `/timesheets` | pm@acme.test | 390 | 8 |
-| `/update-password` | exec@acme.test | 1440 | 3 |
-| `/update-password` | exec@acme.test reads-failing | 1440 | 3 |
-| `/update-password` | exec@acme.test | 390 | 3 |
-| `/update-password` | exec@acme.test reads-failing | 390 | 3 |
+| `/update-password` | exec@acme.test | 1440 | 2 |
+| `/update-password` | exec@acme.test reads-failing | 1440 | 2 |
+| `/update-password` | exec@acme.test | 390 | 2 |
+| `/update-password` | exec@acme.test reads-failing | 390 | 2 |
 
-Routes measured: 72. Routes with failures: 57. Total fingerprints: 791.
+Routes measured: 72. Routes with failures: 53. Total fingerprints: 746.

@@ -251,8 +251,8 @@ try {
             console.log(`${layoutKey} | layout fingerprints=${report.fingerprints.length}`);
             const allowed = new Set(layoutBaseline[layoutKey] ?? []);
             const fresh = report.fingerprints.filter((fp) => !allowed.has(fp));
-            if (!updateLayout && fresh.length) {
-              failed = true;
+            if ((!updateLayout || seedNew) && fresh.length) {
+              if (!updateLayout) failed = true; // a seeding run lists what it writes; only a plain run fails
               console.error(`${route} @${width} [${state}]: ${fresh.length} layout fingerprint(s) not in the baseline`);
               new Set(fresh.map((fp) => report.items[fp])).forEach((message) => console.error(message));
             }
