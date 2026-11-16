@@ -282,7 +282,7 @@ describe('AssistantPanel', () => {
     expect(textarea).toHaveValue('line one\nline two');
   });
 
-  it('AC-AP-009 while streaming: textarea + Send disabled; Stop enabled', async () => {
+  it('AC-AP-009 while streaming: textarea read-only but still focusable; Stop shown in place of Send', async () => {
     // Create a runtime that never resolves subscribe (keeps streaming).
     // We use an explicit iterator (not a generator) to avoid the require-yield lint rule.
     const neverEndingIterable: AsyncIterable<AgentEvent> = {
@@ -328,6 +328,17 @@ describe('AssistantPanel', () => {
       const stopBtn = screen.queryByRole('button', { name: /stop generating/i });
       expect(stopBtn).toBeInTheDocument();
     });
+    // #2047 round 3: editable (not read-only, not disabled) during a run; the next question can be
+    // typed, Enter sends nothing, and the text stays for the user to send after the answer.
+    const live = screen.getByRole('textbox', { name: /ask a question/i });
+    expect(live).not.toBeDisabled();
+    expect(live).not.toHaveAttribute('readonly');
+    await user.type(live, 'next question{Enter}');
+    expect(live).toHaveValue('next question');
+    expect(runtime.createRunSpy).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: /send message/i })).not.toBeInTheDocument();
+    // #2047: the working cue is the chat's last row, directly under the question
+    expect(screen.getByTestId('chat-scroll')).toContainElement(screen.getByText('Working on your answer'));
   });
 
   it('AC-AP-010 after status:completed: textarea + Send enabled; Stop hidden', async () => {
@@ -482,6 +493,9 @@ describe('AssistantPanel', () => {
 
     const retryBtn = screen.getByRole('button', { name: /retry/i });
     expect(retryBtn).toBeInTheDocument();
+
+    // #2047: the error is the chat's last row, under the newest message, not under the scroll area
+    expect(screen.getByTestId('chat-scroll')).toContainElement(screen.getByRole('alert'));
 
     // No raw JSON in any visible element
     const errorText = screen.getByText(/something went wrong/i).textContent ?? '';
