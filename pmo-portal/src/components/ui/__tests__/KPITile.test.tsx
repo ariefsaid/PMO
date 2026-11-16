@@ -212,7 +212,7 @@ describe('KPITile', () => {
   });
 
   it('2249: an equivalent reads the owner format as ONE unbreakable unit, rate phrase included', () => {
-    render(<KPITile icon="dollar" tone="blue" label="Budget" value="$1" caption="≈ IDR 1,623,456 (using IDR 18,500 rate)" />);
+    render(<KPITile icon="dollar" tone="blue" label="Budget" value="$1" caption="≈ IDR 1,623,456 (using IDR 18,500 rate)" captionWrap />);
     const unit = screen.getByText('≈ IDR 1,623,456 (using IDR 18,500 rate)');
     expect(unit.className).toContain('whitespace-nowrap');
     // The sentence is in the page once (not a hidden copy plus drawn pieces), and never split into pieces.
