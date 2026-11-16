@@ -154,12 +154,20 @@ select ok(
                        'erp_journal_cost_lines','project_erp_journal_lines',
                        -- The record-only link guard protects source provenance; it does not feed actuals.
                        'linked_step_state','guard_record_only_erp_link',
+                       -- AMENDED BY 0868: step and capture policies read link state, not amounts into actuals.
+                       'record_only_step_refusal','captured_invoice_source_active',
                        -- AC-ROP-017 capture census, reconciliation and linking read source documents, not actuals.
                        'capture_history_apply_internal','purchase_capture_ledger_page','purchase_capture_source_page',
                        -- AC-ROP-021 private source evidence is a read-only capture input.
                        'capture_source_evidence',
                        -- AMENDED BY 0873: the capture revision hashes source rows into a fingerprint; it feeds no actuals.
-                       'capture_revision'))
+                       'capture_revision',
+                       -- AMENDED BY 0882: invoice assignment reads source documents to validate and claim a placement; it returns no amount to any actuals reader.
+                       'capture_assignment_claim','capture_assignment_validate','capture_assignment_row','capture_assignment_batch',
+                       -- AMENDED BY 0903: an order-family placement reads the order and its invoices to check and link the family; the amounts
+                       -- it reports come from capture_assigned_gl and the commitment readers, never from the documents' faces as actuals.
+                       -- The stage helper reads the linked invoices' ERP status to set a captured purchase's stage; no amount.
+                       'capture_assignment_family','capture_family_stage'))
   and not exists (select 1 from pg_views where schemaname = 'public' and definition ilike '%erp_purchase_documents%'
                     and viewname not in ('erp_purchase_documents_linked','erp_purchase_orphans','erp_purchase_orphans_all')),
   'AC-EPR-006 (re-baselined by AC-PFE-005) ERP purchases never feed actuals; only named link/commitment readers and refresh triggers touch the table');

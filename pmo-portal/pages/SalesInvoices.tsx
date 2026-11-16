@@ -62,6 +62,9 @@ interface SalesInvoicesProps {
   onRecordPayment?: (invoice: SalesInvoiceRow) => void;
 }
 
+/** Stable empty default: a fresh `[]` each render rebuilt invoiceStatus + columns while a query was pending. */
+const NONE: never[] = [];
+
 const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecordPayment, secondaryAction: _secondaryAction }) => {
   const { t } = useTranslation();
   const may = usePermission();
@@ -72,13 +75,13 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useSalesInvoices();
   const mode = useRevenueMode();
-  const ownership = useExternalDomainOwnership().data ?? [];
+  const ownership = useExternalDomainOwnership().data ?? NONE;
   const odoo = ownership.some((row) => row.domain === 'revenue' && odooOwnsRevenueTier(row.externalTier));
   const odooUnreachable = useOdooUnreachable(odoo).unreachable;
   const odooOffline = odoo && odooUnreachable;
   const odooCommands = useOdooRevenueCommandsForInvoices((data ?? []).map((invoice) => invoice.id), odoo);
-  const { data: paymentRows = [] } = useIncomingPayments(undefined, embedded || mode === 'erp');
-  const { data: profileRows = [] } = useAssignableProfiles();
+  const { data: paymentRows = NONE } = useIncomingPayments(undefined, embedded || mode === 'erp');
+  const { data: profileRows = NONE } = useAssignableProfiles();
   const profilesById = useMemo(() => new Map(profileRows.map((profile) => [profile.id, profile])), [profileRows]);
   const { day: organizationToday, isError: orgDayError, retry: retryOrgDay } = useFxOrgDay(true);
   const orgCurrency = useOrgCurrency();
@@ -119,16 +122,19 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
       currentUserId: currentUser?.id,
       record: { author_id: inv.author_user_id, author_ids: inv.author_user_ids },
     }), [currentUser?.id, may]);
-  const receiptAwaitingOdooForInvoice = createInvoiceReceiptGate(paymentRows);
-  const invoiceStatus = createInvoiceStatus({
+  // Memoised so the columns below can depend on them (#2102): the table's row memo keys on the
+  // columns array's identity, and an unstable callback would rebuild it on every render.
+  const receiptAwaitingOdooForInvoice = useMemo(() => createInvoiceReceiptGate(paymentRows), [paymentRows]);
+  const odooCommandsData = odooCommands.data;
+  const invoiceStatus = useMemo(() => createInvoiceStatus({
     t,
     canApproveDraft,
     receiptAwaitingOdooForInvoice,
     odoo,
     odooOffline,
     organizationToday,
-    odooCommandsData: odooCommands.data,
-  });
+    odooCommandsData,
+  }), [t, canApproveDraft, receiptAwaitingOdooForInvoice, odoo, odooOffline, organizationToday, odooCommandsData]);
 
   const all = useMemo(() => data ?? [], [data]);
 
@@ -155,7 +161,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
   const unlisted = useQuery({
     queryKey: ['salesInvoice', currentUser?.org_id, invoiceId],
     queryFn: () => repositories.revenue.getInvoice(invoiceId!),
-    enabled: Boolean(invoiceId && currentUser?.org_id && !isPending && !isError && !listedTarget),
+    // Read by id at once: the list is an optimisation, so a deep link never waits for it (#2197 A4).
+    enabled: Boolean(invoiceId && currentUser?.org_id && !listedTarget),
     retry: false,
   });
   const invoiceDisplayLabel = (inv: SalesInvoiceRow) => {
@@ -224,7 +231,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
     if (inv.si_number?.trim()) {
       return (
         <p className="min-w-0 break-words font-medium">
-          {t('efaktur.issuedSalesInvoice', 'Issued sales invoice number')}: <span className="font-mono">{inv.si_number}</span>
+          {t('efaktur.issuedSalesInvoice', 'Issued sales invoice number')}: <span className="record-id text-foreground">{inv.si_number}</span>
         </p>
       );
     }
@@ -312,7 +319,12 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
     setContextError(null);
     setFormTarget({});
   };
-  const recordPrimaryAction = !odooOffline && viewTarget
+  // #2197 A4: the action waits on the revenue mode (it reads `native`); the record itself does not.
+  const recordActionPending = !odooOffline && viewTarget && mode === undefined
+    && (viewTarget.status === 'Draft' || viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid');
+  const recordPrimaryAction = recordActionPending
+    ? { pending: true as const }
+    : !odooOffline && viewTarget && mode !== undefined
     ? canApproveDraft(viewTarget)
       ? { label: t('finance:receivables.approve', 'Approve'), onClick: () => setSubmitTarget(viewTarget) }
       : (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid') && !viewTarget.received_date && canRecordReceipt && !(viewTarget.pmo_native && !native)
@@ -353,7 +365,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
         // FIN-S1: the project filter control is gone; the project is reachable through search.
         // AC-002 #1325: either the short label or the contractual title finds the invoice.
         || [projectOptionsById.get(inv.project_id ?? '')].some((o) => o && (o.label.toLowerCase().includes(q) || o.contractualName?.toLowerCase().includes(q))));
-  }, [all, canApproveDraft, currentUser?.id, organizationToday, projectOptionsById, search, searchParams, statusFilter]);
+  }, [all, canApproveDraft, currentUser?.id, search, organizationToday, projectOptionsById, searchParams, statusFilter]);
 
   // FIN-S1: "Overdue only" is also the oldest-overdue-first view, so it needs no separate sort control.
   const sortedInvoices = useMemo(() => {
@@ -382,7 +394,16 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
     return majority && isTaxTreatment(majority[0]) ? majority[0] : null;
   }, [embedded, sortedInvoices]);
 
-  const state: 'loading' | 'empty' | 'error' | undefined = isPending || mode === undefined
+  // ONE memo unit (#2102): a toast, a menu open or an unrelated re-render must not rebuild the
+  // columns; every input that changes what a cell paints is a dependency. Above the early
+  // returns so the hook order is stable.
+  const { projectLabelOf, displayColumns, exportColumns, mobileCardDetails } = useMemo(
+    () => salesInvoiceColumns({ t, all, embedded, native, actionsPending: mode === undefined, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus }),
+    [t, all, embedded, native, mode, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus],
+  );
+
+  // #2197 A3: the rows gate on the invoice read alone; the revenue mode only holds the action cells (`actionsPending`).
+  const state: 'loading' | 'empty' | 'error' | undefined = isPending
     ? 'loading'
     : isError || !data
       ? 'error'
@@ -406,10 +427,9 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
   }
 
   if (invoiceId) {
-    return <SalesInvoiceDetail viewTarget={viewTarget} isPending={!viewTarget && (isPending || unlisted.isFetching)} isError={isError || unlisted.isError} data={data} mode={mode} organizationToday={organizationToday} onBack={recordContext.closeRecord} refetch={refetch} recordPrimaryAction={recordPrimaryAction} invoiceDisplayLabel={invoiceDisplayLabel} projectName={viewTarget ? projectOptionsById.get(viewTarget.project_id ?? '')?.contractualName ?? null : null} receiptAwaitingOdoo={viewTarget ? receiptAwaitingOdooForInvoice(viewTarget) : false} odoo={odoo} may={may} pdfDownload={pdfDownload} dialogs={<SalesInvoiceDialogs actions={actions} submitFallback={invoiceDisplayLabel} />} />;
+    return <SalesInvoiceDetail viewTarget={viewTarget} isPending={!viewTarget && !unlisted.isError && !isError && (isPending || (unlisted.isPending && unlisted.fetchStatus !== 'idle'))} isError={!viewTarget && unlisted.isError} data={data} organizationToday={organizationToday} onBack={recordContext.closeRecord} refetch={refetch} recordPrimaryAction={recordPrimaryAction} invoiceDisplayLabel={invoiceDisplayLabel} projectName={viewTarget ? projectOptionsById.get(viewTarget.project_id ?? '')?.contractualName ?? null : null} receiptAwaitingOdoo={viewTarget ? receiptAwaitingOdooForInvoice(viewTarget) : false} odoo={odoo} may={may} pdfDownload={pdfDownload} dialogs={<SalesInvoiceDialogs actions={actions} submitFallback={invoiceDisplayLabel} />} />;
   }
 
-  const { projectLabelOf, displayColumns, exportColumns, mobileCardDetails } = salesInvoiceColumns({ t, all, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus });
   const groupRowsBy = groupMode === 'client'
     ? (inv: SalesInvoiceRow) => inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')
     : groupMode === 'project'
@@ -428,10 +448,15 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
       : null;
   };
 
-  const rowMenu = buildInvoiceRowMenu({
+  const builtRowMenu = buildInvoiceRowMenu({
     t, may, pdfDownload, native, odooOffline: Boolean(odooOffline), canCancel, canRecordReceipt, canRecordEfaktur,
     canApproveDraft, openRecord: recordContext.openRecord, setProjectTarget, setReceiptTarget, setEfakturTarget, setCancelTarget, setSubmitTarget,
   });
+
+  // While the revenue mode is unknown the action cells hold their slot as one disabled entry.
+  const rowMenu = mode === undefined
+    ? () => [{ label: t('ui.listState.loading', 'Loading…'), onClick: () => undefined, disabled: true }]
+    : builtRowMenu;
 
   const panelPayments = panelInvoice
     ? paymentRows.filter((payment) => (!payment.pmo_native && payment.sales_invoice_id === panelInvoice.id)
@@ -464,6 +489,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
             embedded={embedded}
             isDesktop={isDesktop}
             statusFilters={statusFilters}
+            statusPending={mode === undefined}
             statusFilter={statusFilter}
             onStatusChange={(v) => {
               updateListParam('status', v);
@@ -579,6 +605,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
       )}
 
       {state === undefined && (
+        <div data-testid="invoice-list-body" className="contents">
         <DataTable<SalesInvoiceRow>
           rows={sortedInvoices}
           columns={displayColumns}
@@ -588,7 +615,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
           rowLabel={embedded ? (inv) => t('table.openRow', 'Open {{name}}', { name: invoiceNumber(inv) ?? inv.customer_name ?? invoiceDisplayLabel(inv) }) : undefined}
           mobileCardTitle={embedded ? (inv) => <span className="flex min-w-0 flex-col gap-0.5">
             <span className="min-w-0 truncate text-control font-semibold">{inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')}</span>
-            <span className="min-w-0 truncate font-mono text-control font-normal text-muted-foreground">{invoiceNumber(inv) ?? t('financeCopy.draftInvoiceLabel', 'Draft · {{customer}}', { customer: inv.customer_name ?? '—' })}</span>
+            <span className="min-w-0 truncate record-id">{invoiceNumber(inv) ?? t('financeCopy.draftInvoiceLabel', 'Draft · {{customer}}', { customer: inv.customer_name ?? '—' })}</span>
           </span> : undefined}
           mobileCardDetails={embedded ? mobileCardDetails : undefined}
           selection={embedded ? {
@@ -603,6 +630,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
           emptyTitle={searchParams.get('overdue') === 'true' && !organizationToday ? t('finance:receivables.overdueUnavailable', 'Overdue results are unavailable') : t('financeCopy.noInvoicesMatchYourFilters', "No invoices match your filters")}
           emptySub={t('financeCopy.tryADifferentStatusOrClearTheSearch', "Try a different status or clear the search.")}
         tableId="salesinvoices-table" />
+        </div>
       )}
 
       {/* Create modal */}

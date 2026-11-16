@@ -77,7 +77,7 @@ describe('InvoiceWorkOrderModal over the real dispatch transport (AC-BWO-004)', 
     try {
       renderModal({ ...WO, currency: 'IDR' });
       await userEvent.type(screen.getByLabelText(/Kode item/), 'SVC-INSTALL');
-      await userEvent.click(screen.getByRole('button', { name: 'Buat draf faktur' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Buat draf invoice' }));
       const region = await screen.findByTestId('entity-modal-save-error');
       expect(region).toHaveTextContent('Tagihan ini akan melewati nilai Work Order');
       expect(region).toHaveTextContent(/Rp\s?120\.000,00/);

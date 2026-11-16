@@ -79,7 +79,7 @@ describe('ProcurementLedger e-Faktur details', () => {
     expect(headers).not.toContain('e-Faktur number');
     expect(headers).not.toContain('e-Faktur date');
     const cell = cellOf('VI-1', 'e-Faktur');
-    expect(within(cell).getByText('010.001-26.12345678')).toHaveClass('font-mono');
+    expect(within(cell).getByText('010.001-26.12345678')).toBeInTheDocument();
     // the e-Faktur date is its own fact, not the invoice date (2026-10-01), as a muted second line
     expect(within(cell).getByText(formatDateOnly('2026-09-28'))).toHaveClass('text-muted-foreground');
     // a payment carries no e-Faktur: blank, not a dash

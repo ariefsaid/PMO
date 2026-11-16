@@ -1,7 +1,11 @@
+import { JOURNAL_KEY_RE, JOURNAL_REVERSAL_KEY_RE } from '../../ledgerJournal.ts';
+
 const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 export const PURCHASE_KEY_RE = new RegExp(`^(?:po|bill|pay):${uuid}$|^gr:${uuid}:[a-f0-9]+$|^porev:${uuid}:[1-9][0-9]*$`, 'i');
 /** #1511 F4: one PMO register or maintenance record is one anchored Odoo record, keyed on the PMO record id. */
 export const EQUIPMENT_KEY_RE = new RegExp(`^equipment:${uuid}$`, 'i');
+/** #1508: stock movement intent anchor, keyed on the PMO stock document id. */
+export const STOCK_KEY_RE = new RegExp(`^stock:${uuid}$`, 'i');
 export const ODOO_ANCHORS = {
   order: { model: 'ir.model.data', mutable: false },
   receipt: { model: 'ir.model.data', mutable: false },
@@ -9,8 +13,9 @@ export const ODOO_ANCHORS = {
   payment: { model: 'account.payment', field: 'memo', mutable: true },
 } as const;
 export function anchorValue(key: string): string {
-  // A purchase key or an equipment key (#1511 F4): both anchor a stock external identifier the same way.
-  if (!PURCHASE_KEY_RE.test(key) && !EQUIPMENT_KEY_RE.test(key)) throw new Error('Invalid Odoo anchor key');
+  // A purchase key, equipment key (#1511 F4), stock key (#1508) or manual-journal key (#895): anchor an external identifier the same way.
+  const valid = [PURCHASE_KEY_RE, EQUIPMENT_KEY_RE, STOCK_KEY_RE, JOURNAL_KEY_RE, JOURNAL_REVERSAL_KEY_RE].some((re) => re.test(key));
+  if (!valid) throw new Error('Invalid Odoo anchor key');
   return `pmo:${key}`;
 }
 export function externalIdentifier(key: string): { module: string; name: string } {
@@ -45,8 +50,8 @@ export function parseOdooExternalRef(model: string, ref: unknown): number | null
  * document Odoo users created.
  */
 export function keyFromExternalIdentifier(name: string): string | null {
-  const m = /^(po|bill)_([0-9a-f]{8})_([0-9a-f]{4})_([0-9a-f]{4})_([0-9a-f]{4})_([0-9a-f]{12})$/i.exec(name);
+  const m = /^(po|bill|stock)_([0-9a-f]{8})_([0-9a-f]{4})_([0-9a-f]{4})_([0-9a-f]{4})_([0-9a-f]{12})$/i.exec(name);
   if (!m) return null;
   const key = `${m[1]}:${m[2]}-${m[3]}-${m[4]}-${m[5]}-${m[6]}`;
-  return PURCHASE_KEY_RE.test(key) ? key : null;
+  return (PURCHASE_KEY_RE.test(key) || STOCK_KEY_RE.test(key)) ? key : null;
 }

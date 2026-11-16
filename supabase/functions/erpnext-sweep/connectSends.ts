@@ -6,17 +6,19 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createErpnextConnectAdapter, erpnextSendProbe } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/connectAdapter.ts';
 import { withProbeBudget } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { erpClientForOrg } from '../_shared/erpClientForOrg.ts';
+import { sweepErpFetchWrap, type SweepBudgetHolder } from './sweepShared.ts';
 import { erpReason } from '../_shared/erpReason.ts';
 import { CONNECT_SENDS_BUDGET_MS, CONNECT_SENDS_PER_TICK, drainSends, type DrainResult } from '../_shared/connectSendsCore.ts';
 
 export { CONNECT_SENDS_BUDGET_MS, CONNECT_SENDS_PER_TICK, CONNECT_SEND_REJECTION_TEXT, type DrainResult } from '../_shared/connectSendsCore.ts';
 
-export function drainConnectSends(sc: SupabaseClient, org: { orgId: string; bindingId?: string | null }, budget = CONNECT_SENDS_PER_TICK,
+export function drainConnectSends(sc: SupabaseClient, org: { orgId: string; bindingId?: string | null } & SweepBudgetHolder, budget: number = CONNECT_SENDS_PER_TICK.erpnext,
   clock: { nowMs: () => number; budgetMs: number } = { nowMs: Date.now, budgetMs: CONNECT_SENDS_BUDGET_MS }): Promise<DrainResult> {
   return drainSends(sc, org, {
     tier: 'erpnext',
     async open() {
-      const conn = await erpClientForOrg(sc, org.orgId, { requireCompany: true });
+      // #2149: the sends' ERP client is the sweep's budget transport; a refused or cut try is retryable, so the send waits.
+      const conn = await erpClientForOrg(sc, org.orgId, { requireCompany: true, wrapFetch: sweepErpFetchWrap(org) });
       if ('refusal' in conn) return { refusal: conn.refusal };
       const company = String(conn.config?.company);
       return { connect: createErpnextConnectAdapter(conn.client, company), probe: (kind, master) => erpnextSendProbe(withProbeBudget(conn.client), company, kind, master) };

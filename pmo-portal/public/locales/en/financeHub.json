@@ -216,6 +216,7 @@
       "leftToBill": "Left to bill",
       "leftToBillHelp": "Signed contract value minus invoiced to date; unavailable if a foreign-currency invoice needs reconciliation.",
       "leftToBillUnknownReason": "A foreign-currency invoice needs reconciliation before this amount can be known.",
+      "unpricedReason": "An invoice in this period has no amount yet.",
       "unknownReason": "a foreign-currency invoice needs reconciliation",
       "reconcile": "Open invoices"
     },
@@ -233,6 +234,8 @@
     },
     "noProgressNote": "Without progress assessments, earned revenue follows invoiced revenue.",
     "leftToBillUnknownNote": "Left to bill excludes unreconciled foreign-currency invoices; their amounts are unknown.",
+    "leftToBillNoValue_one": "{{count}} contract with no value, not in the total",
+    "leftToBillNoValue_other": "{{count}} contracts with no value, not in the total",
     "reviewInvoices": "Review invoices",
     "invoiceCountsUnavailable": "Unavailable",
     "invoiceCountsLoading": "Loading invoice counts",

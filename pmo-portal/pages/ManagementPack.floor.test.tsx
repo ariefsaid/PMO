@@ -55,7 +55,7 @@ const project = (id: string, name: string, pm: string) => ({
   name,
   pmo_project_number: id === 'p1' ? 'PRJ-001' : 'PRJ-002',
   code: null,
-  status: 'Ongoing Project',
+  status: 'Ongoing Project', on_hand: true,
   currency: 'IDR',
   contract_net: 1_000,
   start_date: null,

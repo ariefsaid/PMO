@@ -20,12 +20,17 @@ import { AppError } from '../../appError.ts';
 export class ErpError extends AdapterError {
   readonly status: number;
   readonly retryable: boolean;
+  errorType?: string;
   constructor(status: number, code: 'commit-rejected' | 'external-unreachable' | 'destination_not_permitted', message: string, retryable = true) {
     super(code, message);
     this.name = 'ErpError';
     this.status = status;
     this.retryable = retryable;
   }
+}
+
+function safeErpErrorType(type: string | undefined): string | undefined {
+  return type && ['TypeError', 'ValidationError', 'MandatoryError', 'PermissionError', 'DoesNotExistError', 'LinkValidationError', 'TimestampMismatchError', 'SyntheticFailure'].includes(type) ? type : undefined;
 }
 
 /** A modest per-org token bucket (FR-ENA-014 — "Frappe rate-limiting is off by default"; this is a
@@ -69,6 +74,10 @@ export interface ErpClientDeps {
   rangeWriteDeadlineAtMs?: number;
   /** Injectable clock (ms) for the commit-deadline check. Defaults to `Date.now`; tests drive it. */
   now?: () => number;
+  /** #2149: false once the caller has no time left to start a write (the sweep's invocation budget). An adapter that
+   *  records a durable "write started" stage before its create asks this first, so a write that will be refused unsent
+   *  never leaves that stage behind. Absent ⇒ always true (every foreground path). */
+  writeMayStart?: () => boolean;
 }
 
 /**
@@ -589,14 +598,18 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
           await (safeMode ? pause : sleep)(retryDelayMs(res.headers.get('Retry-After'), attempt));
           continue;
         }
-        if (!safeMode) console.error(`[erpnext-client] upstream status=${res.status} code=external-unreachable type=${parsed.excType ?? 'unknown'}`);
-        throw new ErpError(res.status, 'external-unreachable', safeMode ? 'Statement report request failed' : parsed.message ?? `ERPNext request failed with status ${res.status}`, true);
+        if (!safeMode) console.error(`[erpnext-client] upstream status=${res.status} code=external-unreachable type=${safeErpErrorType(parsed.excType) ?? 'unknown'}`);
+        const error = new ErpError(res.status, 'external-unreachable', safeMode ? 'Statement report request failed' : parsed.message ?? `ERPNext request failed with status ${res.status}`, true);
+        error.errorType = safeErpErrorType(parsed.excType);
+        throw error;
       }
 
       const body = await waitForDiagnostic(safeParseBody(res, maxBodyBytes, opts.responseNumbers));
       if (res.status >= 400) {
         const parsed = parseFrappeErrorBody(body);
-        throw new ErpError(res.status, 'commit-rejected', safeMode ? 'Statement report request failed' : parsed.message ?? `ERPNext request failed with status ${res.status}`, true);
+        const error = new ErpError(res.status, 'commit-rejected', safeMode ? 'Statement report request failed' : parsed.message ?? `ERPNext request failed with status ${res.status}`, true);
+        error.errorType = safeErpErrorType(parsed.excType);
+        throw error;
       }
       return body;
     } catch (err) {
@@ -684,6 +697,12 @@ export function submitFetchedDoc(deps: ErpClientDeps, doc: Record<string, unknow
  *  cancel-only, never delete, on a once-submitted doc). */
 export async function cancelDoc(deps: ErpClientDeps, doctype: string, name: string): Promise<unknown> {
   return unwrapFrappeDoc(await erpnextRequest(deps, { method: 'PUT', path: doctypePath(doctype, name), body: { docstatus: 2 } }));
+}
+
+/** `DELETE /api/resource/<DocType>/<name>` — ERPNext deletes only a draft (a submitted document is cancelled, never
+ *  deleted). Used to replace a draft the create itself left behind (#895 `lookUpByKeyFirst`). */
+export async function deleteDoc(deps: ErpClientDeps, doctype: string, name: string): Promise<void> {
+  await erpnextRequest(deps, { method: 'DELETE', path: doctypePath(doctype, name) });
 }
 
 /** `PUT /api/resource/<DocType>/<name>` with a plain field patch, no `docstatus` (task 3.3) — a

@@ -62,35 +62,42 @@ The system shall provide `useProjectReservedSpend(projectId: string | null | und
 
 ### Available formula & tile math
 
-**FR-RB-010 — Available formula.**
-The panel shall compute `available = budget − committed − reserved` (the over-commitment-safe headroom),
-where `budget`, `committed`, `reserved` are the resolved values of the three reads (each defaulting to `0`).
+**FR-RB-010 — Left formula.** *(Amended by OD-APPROVAL-LEFT; was Available = budget − committed − reserved.)*
+The panel shall compute `left = budget − spent − openOrders − reserved`, in exact cents, where `spent` is the
+project header's recorded spending (paid pre-tax on PMO, ledger actual on ERP), `openOrders` is the order total
+less the part `spent` already holds (PMO: the same reading's open commitment; ERP: `project_committed_spend`),
+and `reserved` is the TOTAL Reserved. Each amount is counted once. When `spent` or `openOrders` is not known
+the panel shall not draw `left` as a number (FR-RB-017).
 
 **FR-RB-011 — Reserved tile.**
 While the panel is visible, the system shall render a **"Reserved"** tile showing
 `formatCurrency(otherReserved)` with sub-line **"approved, not yet ordered"** (see FR-RB-014 for
 `otherReserved`). The label **"Reserved"** and sub-line shall never use the word "encumbered".
 
-**FR-RB-012 — Available tile.**
-While the panel is visible, the system shall render an **"Available"** tile showing
-`formatCurrency(available)` with tone `neg` when `available < 0`.
+**FR-RB-012 — (removed) Available tile.** *(Amended by OD-APPROVAL-LEFT.)*
+The purchasing-only "Not yet committed to purchases" / "Available" tile is removed; the single decision
+figure is "Left after this purchase" (FR-RB-013). The panel's tiles are: Procurement total · Reserved ·
+Budget used · Project budget · Left after this purchase.
 
-**FR-RB-013 — Per-stage "After this request" math (double-count fix).** `[OWNER-DECISION-2]` (boundary)
-The system shall compute the "After this request" figure as:
+**FR-RB-013 — Per-stage "Left after this purchase" math (double-count fix).** `[OWNER-DECISION-2]` (boundary) *(Amended by OD-APPROVAL-LEFT.)*
+The system shall compute the "Left after this purchase" figure as:
 ```
-caseInReserved = status ∈ {Approved, Vendor Quoted, Quote Selected}
-afterRequest   = available − (caseInReserved ? 0 : thisRequest)
+counted      = status ∈ {Approved, Vendor Quoted, Quote Selected}   (already in reserved)
+             or status ∈ {Ordered, Received, Vendor Invoiced, Paid}  (already an order: open part in openOrders, paid part in spent)
+afterRequest = left − (counted ? 0 : thisRequest)
 ```
-i.e. **subtract `thisRequest` only when the viewed case is NOT already inside Reserved** ({Draft,
-Requested}); when the case is already in Reserved, its value is already in `reserved`, so `afterRequest =
-available` (no second subtraction).
+i.e. **subtract `thisRequest` only when the viewed case is NOT already counted** ({Draft, Requested}); the
+Ordered..Paid branch is reached only by the record header line ("Left in budget X"), which uses the same
+helper. The tile is labelled "Left after this purchase" with sub-line "After spending, orders and reserved"
+and a tooltip stating the formula; the bar caption is "Spent or committed, with this one: N%" (N = the exact
+complement of the figure).
 
 **FR-RB-014 — Other-vs-this Reserved framing.** `[OWNER-DECISION-3]`
 The Reserved tile (FR-RB-011) shall show **other** Reserved — Reserved excluding the current case:
 ```
 otherReserved = reserved − (caseInReserved ? thisRequest : 0)
 ```
-so an approver sees other concurrent demand distinct from "this request". *The headroom math (Available,
+so an approver sees other concurrent demand distinct from "this request". *The Left math (left,
 afterRequest) uses TOTAL `reserved`, not `otherReserved`.* Default: show `otherReserved` on the tile.
 
 ### Panel visibility
@@ -110,8 +117,9 @@ from the loaded detail.
 ### States
 
 **FR-RB-030 — Loading state.**
-While any of the three reads (budget, committed, reserved) is pending and the panel is otherwise visible,
-the system shall render the existing skeleton loading card (no tiles).
+While any of the reads (budget, committed, reserved, the project's budget positions, purchasing ownership) is
+pending and the panel is otherwise visible, the system shall render the existing skeleton loading card (no
+tiles), so the decision figure never flashes "not known".
 
 **FR-RB-031 — Error state.**
 While any of the three reads is in error and the panel is otherwise visible, the system shall render the
@@ -123,16 +131,25 @@ budget set for this project" message card (no tiles, no Reserved/Available figur
 
 ### Advisory
 
-**FR-RB-040 — Over-available advisory.**
-When the case status ∈ {Draft, Requested} (not yet in Reserved) AND `thisRequest > available`, the system
-shall render a non-blocking advisory (role="status", `ErrBanner`) stating the request exceeds available
-budget by `formatCurrency(thisRequest − available)` and that approval is still permitted (advisory only).
+**FR-RB-040 — Over-budget advisory (one).** *(Amended by OD-APPROVAL-LEFT; merges the former over-available and already-reserved advisories.)*
+When `afterRequest < 0` and Left is known, the system shall render ONE non-blocking advisory (role="status",
+`ErrBanner`) titled "Over budget" stating `formatCurrency(−afterRequest)` over the budget after this purchase,
+and that approval is still permitted (advisory only). Both former amounts were exactly `−afterRequest`.
 
-**FR-RB-041 — Already-reserved info (no false advisory).** `[OWNER-DECISION-3]`
-When the case status ∈ {Approved, Vendor Quoted, Quote Selected} (already in Reserved), the system shall
-**not** show the over-available advisory based on `thisRequest` (it is already counted in `reserved`).
-Instead, when `available < 0` (the project is over-committed across all reserved+committed demand), it shall
-show a non-blocking advisory that the project is over budget by `formatCurrency(-available)`.
+**FR-RB-041 — Already-reserved: no false advisory.** `[OWNER-DECISION-3]`
+When the case status ∈ {Approved, Vendor Quoted, Quote Selected} (already in Reserved), the advisory is based
+on the same `afterRequest`, which does not subtract the request again; it shows only when `afterRequest < 0`.
+
+**FR-RB-017 — Unknown is never drawn as a number.** *(OD-APPROVAL-LEFT.)*
+When `spent` or `openOrders` is not known (failed read, no ledger reading for the project, a reading or open
+orders in another currency, purchasing kept outside PMO, no committed position yet), the Left tile shall show
+its reason (inside a figure scope it is counted in the page's hidden-figures line; outside one the tile reads "Not known" when
+only spending is unknown), and the bar and the
+advisory shall not be drawn. When **only `spent`** is unknown and open orders and Reserved are known in the
+project currency, the panel shall also state the figure without spending under its own label — "Without spending:
+{amount} left after orders, reserved and this purchase." — visible without a click, never
+in the Left tile or on the bar, with no advisory. When open orders are also unknown, only the reason is shown.
+A request in another currency shows no Left figure and no such line.
 
 ## Non-Functional Requirements
 
@@ -166,8 +183,8 @@ Reserved for their project, *Then* only org A rows are summed (RLS), and no `org
 *Given* the COMMITTED_STATUSES and RESERVED_STATUSES sets, *When* compared, *Then* they are disjoint, and
 `getProjectCommittedSpend` still sums exactly {Ordered, Received, Vendor Invoiced, Paid}. *(Owns FR-RB-004.)*
 
-**AC-RB-004 — Available = Budget − Committed − Reserved (unit).**
-*Given* budget=1000, committed=300, reserved=200, *When* the panel computes Available, *Then* it shows
+**AC-RB-004 — Left = Budget − Spending − Open orders − Reserved (unit).**
+*Given* budget=1000, spending=0, open orders=300, reserved=200, *When* the panel computes Left, *Then* it shows
 $500. *(Owns FR-RB-010, FR-RB-012.)*
 
 **AC-RB-005 — Reserved tile shows other-reserved with sub-line, never "encumbered" (unit).**
@@ -175,14 +192,14 @@ $500. *(Owns FR-RB-010, FR-RB-012.)*
 *When* rendered, *Then* the Reserved tile shows $150 ("approved, not yet ordered"), and the rendered text
 contains no "encumber"/"encumbered". *(Owns FR-RB-011, FR-RB-014.)*
 
-**AC-RB-006 — At Requested, After = Available − thisRequest (unit).**
-*Given* status=Requested, available=500, thisRequest=120, *When* the panel computes "After this request",
+**AC-RB-006 — At Requested, Left after = Left − thisRequest (unit).**
+*Given* status=Requested, left=500, thisRequest=120, *When* the panel computes "Left after this purchase",
 *Then* it shows $380. *(Owns FR-RB-013 [Draft/Requested branch].)*
 
-**AC-RB-007 — At Approved, After = Available (no double-subtract) (unit).**
-*Given* status=Approved, this case's 120 already inside reserved (available=500 already net of it),
-thisRequest=120, *When* the panel computes "After this request", *Then* it shows $500 (NOT $380) — the case
-is not subtracted twice. *(Owns FR-RB-013 [Approved branch].)*
+**AC-RB-007 — At Approved, Left after = Left (no double-subtract) (unit).**
+*Given* status=Approved, this case's 120 already inside reserved (left=500 already net of it),
+thisRequest=120, *When* the panel computes "Left after this purchase", *Then* it shows $500 (NOT $380) — the
+case is not subtracted twice. *(Owns FR-RB-013 [Approved branch].)*
 
 **AC-RB-008 — Panel visible Draft..Quote-Selected (unit).**
 *Given* status ∈ {Draft, Requested, Approved, Vendor Quoted, Quote Selected} and a non-zero budget, *When*
@@ -204,15 +221,40 @@ unavailable" message card is shown (no tiles). *(Owns FR-RB-031.)*
 *Given* a visible-status case with budget=0, *When* the panel renders, *Then* the "No active budget set"
 message card is shown (no Reserved/Available figures). *(Owns FR-RB-032.)*
 
-**AC-RB-013 — Over-available advisory at Requested (unit).**
-*Given* status=Requested, available=100, thisRequest=250, *When* the panel renders, *Then* a non-blocking
-role="status" advisory states the request exceeds available budget by $150 and approval is still permitted.
+**AC-RB-013 — Over-budget advisory at Requested (unit).**
+*Given* status=Requested, left=100, thisRequest=250, *When* the panel renders, *Then* one non-blocking
+role="status" advisory states $150 over the budget after this purchase and that approval is still permitted.
 *(Owns FR-RB-040.)*
 
-**AC-RB-014 — No false advisory when already reserved; over-budget info instead (unit).**
-*Given* status=Approved with this case already in reserved and `available ≥ 0`, *When* the panel renders,
-*Then* no over-available advisory based on thisRequest is shown; *and given* available < 0, *Then* an
-over-budget advisory states the project is over budget by `|available|`. *(Owns FR-RB-041.)*
+**AC-RB-014 — No false advisory when already reserved (unit).**
+*Given* status=Approved with this case already in reserved and `left ≥ 0`, *When* the panel renders,
+*Then* no advisory is shown; *and given* left < 0, *Then* the one advisory states the negative amount over the
+budget. *(Owns FR-RB-041.)*
+
+**AC-RB-015 — Left after this purchase counts the whole budget (unit + agreement).**
+*Given* budget 1,000, spending 500, open orders 400, Reserved 50 and a new Requested purchase of 25, *When* the
+panel computes the figure, *Then* it shows $25 left (the bar reads 97.5%, shown as 98%), and an over-budget
+case (spending 1,040, open orders 300, Reserved 200, request 440) shows −$980 with one advisory. The same
+fixture's project Overview reads "Left after open orders $100" (100 − 50 − 25 = 25) on PMO and on ERP. *(Owns
+FR-RB-010, FR-RB-012, FR-RB-013, FR-RB-040.)*
+
+**AC-RB-016 — An already-reserved request is not subtracted again (unit).**
+*Given* the same project with the purchase Approved (Reserved 75 including it), *When* the panel computes the
+figure, *Then* it shows $25 (not $0) and the Reserved tile shows the other 50. *(Owns FR-RB-013 [Approved
+branch], FR-RB-014.)*
+
+**AC-RB-017 — Unknown is never drawn as a number (unit).**
+*Given* spending not known (reading null, no ledger reading, another currency, failed read) with open orders
+400 and Reserved 50, *When* the panel renders, *Then* the Left tile shows its reason and no `$` figure, there is
+no bar and no advisory, and the line "Without spending: $525 left after orders, reserved and
+this purchase." is visible beside it. *Given* open orders not known (another currency, purchasing outside PMO,
+no position), *Then* only the reason is shown, with no amount. *(Owns FR-RB-017.)*
+
+**AC-RB-018 — The record header line counts an order once (unit).**
+*Given* an Ordered purchase of 50 already inside open orders 100, budget 1,000, Reserved 200, spending 0,
+*When* the record header line renders, *Then* it reads "Left in budget $700" (not $650). *(Owns FR-RB-013
+[Ordered..Paid branch].)* *Given* spending not known, *Then* the line reads "Without spending: $700 left after
+orders, reserved and this purchase." (the panel's wording), never "Left in budget".
 
 ---
 
@@ -223,17 +265,21 @@ over-budget advisory states the project is over budget by `|available|`. *(Owns 
 | AC-RB-001 | Reserved sum over status set | **Unit** (Vitest, mocked supabase) | `src/lib/db/procurements.test.ts` |
 | AC-RB-002 | Reserved org-scoping (RLS) | **pgTAP** (the only honest layer for RLS) | `supabase/tests/*_reserved_spend.test.sql` |
 | AC-RB-003 | Committed unchanged & disjoint | **Unit** (set assertion) + reuse existing drift pgTAP | `src/lib/db/procurements.test.ts` |
-| AC-RB-004 | Available formula | **Unit** (RTL render) | `pages/procurement/DecisionSupportPanel.test.tsx` |
+| AC-RB-004 | Left formula | **Unit** (RTL render) | `pages/procurement/DecisionSupportPanel.test.tsx` |
 | AC-RB-005 | Other-reserved tile, no "encumbered" | **Unit** (RTL) | `DecisionSupportPanel.test.tsx` |
-| AC-RB-006 | After = Available − thisRequest (Requested) | **Unit** (RTL) | `DecisionSupportPanel.test.tsx` |
-| AC-RB-007 | After = Available (Approved, no double-count) | **Unit** (RTL) | `DecisionSupportPanel.test.tsx` |
+| AC-RB-006 | Left after = Left − thisRequest (Requested) | **Unit** (RTL) | `DecisionSupportPanel.test.tsx` |
+| AC-RB-007 | Left after = Left (Approved, no double-count) | **Unit** (RTL) | `DecisionSupportPanel.test.tsx` |
 | AC-RB-008 | Panel visible Draft..Quote-Selected | **Unit** (RTL) | `DecisionSupportPanel.test.tsx` |
 | AC-RB-009 | Panel hidden Ordered..terminal | **Unit** (RTL) | `DecisionSupportPanel.test.tsx` |
 | AC-RB-010 | Loading state | **Unit** (RTL) | `DecisionSupportPanel.test.tsx` |
 | AC-RB-011 | Error state | **Unit** (RTL) | `DecisionSupportPanel.test.tsx` |
 | AC-RB-012 | No-budget state | **Unit** (RTL) | `DecisionSupportPanel.test.tsx` |
-| AC-RB-013 | Over-available advisory (Requested) | **Unit** (RTL) | `DecisionSupportPanel.test.tsx` |
-| AC-RB-014 | No false advisory / over-budget info (Approved) | **Unit** (RTL) | `DecisionSupportPanel.test.tsx` |
+| AC-RB-013 | Over-budget advisory (Requested) | **Unit** (RTL) | `DecisionSupportPanel.test.tsx` |
+| AC-RB-014 | No false advisory (Approved) | **Unit** (RTL) | `DecisionSupportPanel.test.tsx` |
+| AC-RB-015 | Left over the whole budget; agrees with Overview | **Unit** | `computeBudgetSignal.test.ts` (owner); also referenced: `DecisionSupportPanel.test.tsx` (panel, and the shown figures add up to Left), `pages/__tests__/figures-budget.agreement.test.tsx` (agreement) |
+| AC-RB-016 | Already reserved: not subtracted again | **Unit** | `computeBudgetSignal.test.ts` (owner); also referenced: `DecisionSupportPanel.test.tsx` |
+| AC-RB-017 | Unknown never drawn; amount without spending under its own label | **Unit** | `DecisionSupportPanel.test.tsx` (owner); also referenced: `src/lib/budget/wholeBudgetInputs.test.ts` (inputs), `ProcurementListRow.budgetUsed.test.tsx` (mount) |
+| AC-RB-018 | Header line counts an order once | **Unit** | `pages/procurement/detail/ProcurementDetailPanels.test.tsx` |
 
 **No new E2E.** No new real cross-stack journey is introduced — the panel is a read-only derivation over
 existing data; its math and states are fully owned at the unit layer, and the single tenancy contract is

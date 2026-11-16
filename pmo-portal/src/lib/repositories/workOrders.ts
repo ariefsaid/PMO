@@ -32,6 +32,7 @@ import {
   attachClaimEvidence,
   withdrawProgressClaim,
   getProjectBilling,
+  createNativeProgressClaimInvoice,
 } from '@/src/lib/db/progressBilling';
 import {
   listProjectAcceptances,
@@ -101,6 +102,7 @@ export const progressBillingRepository: ProgressBillingRepository = {
           { id: claim.claimId, idempotencyKey: intent?.idempotencyKey ?? crypto.randomUUID() },
         ).then((res) => ({ id: String(res.canonical.id), si_number: String(res.canonical.si_number ?? '') }))
       : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
+  raiseNativeInvoice: (claimId) => wrap(() => createNativeProgressClaimInvoice(claimId)),
   summary: (projectId) => wrap(() => getProjectBilling(projectId)),
 };
 

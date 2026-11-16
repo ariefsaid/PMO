@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { skipToken, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Card, CardHead, CardPad, Drawer, ListState, StatusPill, Tooltip, ViewToggle } from '@/src/components/ui';
+import { Card, CardHead, CardPad, Drawer, ListState, RecordSection, StatusPill, Tooltip, ViewToggle } from '@/src/components/ui';
 import { CommentsSection } from '@/src/components/comments/CommentsSection';
 import { RecordHistory } from '@/src/components/history/RecordHistory';
 import { KIND_FILTERS } from '@/src/components/history/historyFields';
@@ -10,6 +10,7 @@ import { filterLabels } from '@/src/components/history/historyLabels';
 import { useComments } from '@/src/hooks/useComments';
 import { useTasks } from '@/src/hooks/useTasks';
 import { useAuth } from '@/src/auth/useAuth';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { formatDay } from '@/src/lib/format';
 
 type ActivityView = 'all' | 'comments' | 'changes';
@@ -102,10 +103,11 @@ export const ProjectActivity: React.FC<{ projectId: string; compact?: boolean; t
 export const MyOpenTasks: React.FC<{ projectId: string }> = ({ projectId }) => {
   const { t } = useTranslation('project');
   const { currentUser } = useAuth();
+  // #2088: "overdue" is decided against the organization's day, never the UTC day.
+  const today = useOrgToday();
   const tasks = useTasks(projectId);
   if (tasks.isPending) return <Card role="region" aria-labelledby="pd-my-tasks"><CardHead id="pd-my-tasks">{t('projectDetail.myTasks.title', 'My open tasks')}</CardHead><CardPad><ListState variant="loading" shape="table" rows={3} /></CardPad></Card>;
   if (tasks.isError) return <Card role="region" aria-labelledby="pd-my-tasks"><CardHead id="pd-my-tasks">{t('projectDetail.myTasks.title', 'My open tasks')}</CardHead><CardPad><ListState variant="error" title={t('projectDetail.myTasks.error', "Couldn't load your tasks")} onRetry={() => void tasks.refetch()} /></CardPad></Card>;
-  const today = new Date().toISOString().slice(0, 10);
   const mine = (tasks.data ?? [])
     .filter((task) => task.assignee_id === currentUser?.id && task.status !== 'Done')
     .sort((a, b) => (a.end_date ?? '9999').localeCompare(b.end_date ?? '9999'));
@@ -168,14 +170,16 @@ export const ActivityFooter: React.FC<{ projectId: string; initialOpen?: boolean
   const label = t('projectDetail.activity.title', 'Activity');
   return (
     <>
-      <div className="mt-12">
+      {/* A heading-only panel like every other block on the page: Activity, and its count as the way in. */}
+      <RecordSection title={label} actions={(
         <Tooltip content={t('projectDetail.activity.countTooltip', 'Count of project comments. Open Activity to read comments and recorded changes.')}>
           <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog"
-            className="touch-target inline-flex items-center rounded-sm text-sm text-muted-foreground hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            {label} · {t('projectDetail.activity.count', '{{count}} comments', { count })}
+            aria-label={`${label} · ${t('projectDetail.activity.count', '{{count}} comments', { count })}`}
+            className="touch-target inline-flex items-center rounded-sm text-sm font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            {t('projectDetail.activity.count', '{{count}} comments', { count })}
           </button>
         </Tooltip>
-      </div>
+      )} />
       <Drawer open={open} title={label} onClose={() => setOpen(false)}>
         <ProjectActivity projectId={projectId} />
       </Drawer>

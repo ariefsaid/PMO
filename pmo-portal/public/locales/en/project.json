@@ -110,6 +110,7 @@
       "unorderedValueFormula": "Unordered contract quantity multiplied by its contract rate.",
       "viewQuantityHistory": "View quantity history",
       "notOrderedTitle": "Not yet ordered",
+      "contractLinesTitle": "Contract lines",
       "openUnorderedLine": "Open {{item}} quantity history",
       "quantityHistory": "Quantity history",
       "noQuantityHistory": "No customer order quantities yet.",
@@ -179,7 +180,7 @@
           "confirm": "Delete line"
         },
         "column": {
-          "rate": "Rate",
+          "rateWithCurrency": "Rate ({{code}})",
           "claimed": "Claimed",
           "assessed": "Assessed",
           "item": "Item",
@@ -195,6 +196,7 @@
         "empty": "No bill of quantities yet",
         "overClaimed": "Over-claimed",
         "add": "Add line",
+        "import": "Import lines",
         "delete": "Delete"
       },
       "claims": {
@@ -208,6 +210,7 @@
           "dpHeld": "Computed as invoiced down payment less recovered down payment."
         },
         "openLabel": "Open {{kind}} claim from {{date}}",
+        "emptySubNative": "A claim bills a down payment or accepted quantities as one invoice.",
         "evidence": "Evidence",
         "noEvidence": "No evidence attached yet.",
         "evidenceFirst": "Claims need evidence attached before an invoice draft can be raised.",
@@ -221,7 +224,7 @@
           "invoice": "Invoice"
         },
         "billingTitle": "Billing claims",
-        "billingEmptySub": "A claim bills a down payment or quantities done, as one ERP invoice.",
+        "billingEmptySub": "A claim bills a down payment or quantities done, as one invoice.",
         "toast": {
           "raised": "Invoice raised in the ERP",
           "raisedNative": "Invoice drafted in PMO",
@@ -238,7 +241,10 @@
         "errors": {
           "claimWithdrawn": "This claim was withdrawn. Its invoice can't be raised.",
           "alreadyInvoiced": "This claim already has an invoice.",
+          "erpRaiseInFlight": "An invoice for this claim is still being raised in the ERP. Wait for it to finish.",
           "noClient": "This project has no client to invoice. Set the client on the project first.",
+          "claimKind": "This claim is invoiced from its sign-off, not from here.",
+          "invoiceTotalInvalid": "This claim's net is zero, so there is nothing to invoice. Withdraw it.",
           "totalMismatch": "This claim's lines do not add up to its total. Withdraw it and assemble it again."
         },
         "withdrawn": "Withdrawn",
@@ -327,7 +333,7 @@
         "quantity": "{{item}}: {{description}} ({{unit}})",
         "kind": "Claim type",
         "save": "Create claim",
-        "subtitle": "A claim becomes one ERP invoice. Attach the evidence before raising it.",
+        "subtitle": "A claim becomes one invoice. Attach the evidence before raising it.",
         "recoverRest": "Recover the rest of the down payment with this claim",
         "scope": "Bills",
         "scopeContract": "Lines with no work order",
@@ -393,7 +399,8 @@
         "negotiation": "Negotiation",
         "won": "Won",
         "lost": "Lost"
-      }
+      },
+      "moreActions": "More actions"
     },
     "activity": {
       "notesTitle": "Notes and activity",
@@ -440,25 +447,26 @@
       "taskAction": "Open task",
       "projectOver": "Project over on spending",
       "categoryOver": "{{category}} over on spending",
-      "projectOverSize": "{{amount}} {{currency}} over",
-      "categoryOverSize": "{{amount}} {{currency}} over",
+      "projectOverSize": "{{amount}} over",
+      "categoryOverSize": "{{amount}} over",
       "budgetTooltip": "Compared mapped spending with the active budget before tax; see Budget for category detail.",
       "budgetAction": "Review budget",
       "arWhatOne": "Customer invoice overdue",
       "arWhatMany": "{{count}} customer invoices overdue",
-      "arSize": "{{amount}} {{currency}} unpaid · {{days}} days",
+      "arSize": "{{amount}} unpaid · {{days}} days",
       "arSizeNoBalance": "{{days}} days past due",
       "arTooltip": "Invoice status, due date, and any known unpaid balance come from project invoices and accounting sync.",
       "arActionOne": "See invoice",
       "arActionMany": "See invoices",
       "phaseWhat": "{{name}} is late",
-      "phasesWhat": "{{count}} phases late",
+      "phasesWhat": "{{count}} phases late, worst by {{days}} days",
       "phaseSize": "{{days}} days late",
       "phaseAction": "See tasks",
       "phaseTooltip": "Phase target dates and completion come from the project phase plan.",
       "approveOne": "Procurement waiting for your approval",
       "approveMany": "{{count}} procurements waiting for your approval",
-      "approveSize": "{{count}} procurements",
+      "approveSize_one": "{{count}} procurement",
+      "approveSize_other": "{{count}} procurements",
       "approveAction": "Review",
       "approveTooltip": "Counts project procurements that are waiting for your approval."
     },
@@ -510,6 +518,11 @@
       "cashUnmatchedShort": "Cash received (no receipt matched yet)"
     },
     "cost": {
+      "colCategory": "Category",
+      "colBudget": "Budget",
+      "colSpentOfBudget": "Spent of budget",
+      "colShare": "Share of budget",
+      "colUsed": "Used",
       "estimateTitle": "Budget",
       "estimateTooltip": "Estimated budget from the project record; not an active budget version.",
       "noEstimate": "No estimated budget yet",
@@ -525,7 +538,7 @@
       "commitmentsUnknown": "Open orders are unknown",
       "committedInOrders": "Committed {{amount}}",
       "leftUnknown": "Left after open orders is unknown",
-      "leftAfterOrders": "Left after orders {{amount}}",
+      "leftAfterOrders": "Left after open orders {{amount}}",
       "summaryTooltip": "Spent as a share of budget, before tax.",
       "summaryTooltipLedger": "Project budget used is ledger spending divided by the active budget, before tax. Spent and category detail are shown separately.",
       "budgetOnly": "Budget {{budget}}",
@@ -595,6 +608,16 @@
       "invoiceThisLabel": "Invoice {{order}}"
     },
     "delivery": {
+      "colPhase": "Phase",
+      "colDue": "Due",
+      "colLateBy": "Late by",
+      "colWeight": "Weight",
+      "colTasks": "Tasks",
+      "colProgress": "Progress",
+      "lateByDays_one": "{{count}} day",
+      "lateByDays_other": "{{count}} days",
+      "weightPct": "{{pct}}%",
+      "tasksOf": "{{done}} of {{total}}",
       "timelineTitle": "Phase timeline",
       "emptyPipeline": "Phases are planned once the deal is won.",
       "doneManaging": "Done",
@@ -608,7 +631,10 @@
       "phaseOverdue": "Late {{count}}d · target {{date}}",
       "phaseTarget": "Target {{date}}",
       "phaseProgressTooltip": "Manual phase progress when set; otherwise done phase tasks divided by the phase task count. Source: the project phase plan.",
-      "phaseProgressAria": "{{name}} {{pct}}% complete"
+      "phaseProgressAria": "{{name}} {{pct}}% complete",
+      "currentPhaseIs": "Current phase: {{name}}",
+      "phaseLate_one": "{{count}} day late",
+      "phaseLate_other": "{{count}} days late"
     },
     "facts": {
       "noDates": "Dates not set",
@@ -626,9 +652,10 @@
         "linkCopied": "Project link copied",
         "linkCopyFailed": "Could not copy project link"
       },
-      "more": "More actions",
+      "projectActions": "Project actions",
       "projectDetails": "Project details",
-      "pastEndDate": "Past end date · {{count}} d",
+      "pastEnd_one": "{{count}} day past end date",
+      "pastEnd_other": "{{count}} days past end date",
       "contractValueReadOnly": "Contract value · read-only",
       "contractValueReadOnlyExplanation": "The approved contract value is locked for project managers after the project is won. An executive, Finance, or an administrator can update it, with the change recorded.",
       "changeDeliveryStatus": "Change delivery status",
@@ -636,6 +663,7 @@
       "previewFileFor": "Preview file for {{title}}",
       "previewFile": "Preview file",
       "changeContractValue": "Change contract value",
+      "contractLocked": "Contract value is locked for your role",
       "unsavedValue": {
         "title": "Unsaved contract value",
         "description": "Your contract value and tax basis edits will be lost if you leave.",
@@ -690,7 +718,10 @@
       "canonicalUtilizationFormula": "Spent as a share of budget, before tax.",
       "utilizationFormula": "Calculated as spending divided by the category budget before tax.",
       "budgetUsedUnavailable": "Budget used is unknown or unavailable.",
-      "uncategorizedTotalKnown": "Project spending is known; some category amounts are not mapped.",
+      "uncategorizedTotalKnown": "Not split by category",
+      "uncategorizedTotalNotMapped": "Project spending is known; some category amounts are not mapped.",
+      "uncategorizedSpend": "{{amount}} paid has no budget category, so it is not in any category.",
+      "uncategorizedSpendUnknown": "Some paid spending has no budget category, so it is not in any category.",
       "leftFormula": "Calculated as budget minus spent and open orders, before tax.",
       "leftAfterSpendingFormula": "Calculated as active budget minus recorded spending, before tax.",
       "leftUnavailable": "Left after open orders is unknown while spending or commitments are unavailable.",
@@ -839,7 +870,8 @@
         "preview": "Preview",
         "download": "Download",
         "copyLink": "Copy link",
-        "openSharePoint": "Open in SharePoint"
+        "openSharePoint": "Open in SharePoint",
+        "view": "View file"
       },
       "bulk": {
         "statusUpdated": "Status updated for {{count}} documents",
@@ -877,7 +909,12 @@
       },
       "field": {
         "microsoft": "Microsoft 365 item"
-      }
+      },
+      "add": {
+        "upload": "Upload a document",
+        "folderPending": "Creating folder…"
+      },
+      "filters": "Filters"
     },
     "procurement": {
       "erpCard": {

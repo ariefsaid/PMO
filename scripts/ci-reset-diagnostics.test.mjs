@@ -440,7 +440,7 @@ function jobsIn(workflowText) {
       continue;
     }
     if (!insideJobs) continue;
-    const header = /^  ([A-Za-z0-9_-]+):\s*$/.exec(line);
+    const header = /^ {2}([A-Za-z0-9_-]+):\s*$/.exec(line);
     if (header) {
       current = header[1];
       jobs.set(current, []);
@@ -455,7 +455,7 @@ function stepsIn(jobLines) {
   const steps = [];
   let current = null;
   for (const line of jobLines) {
-    if (/^      - /.test(line)) {
+    if (/^ {6}- /.test(line)) {
       if (current) steps.push(current);
       current = [line];
       continue;
@@ -504,11 +504,11 @@ test('ci.yml runs the diagnostics only after that job\'s own reset failure and k
 
   assert.deepEqual(
     resetJobs.sort(),
-    ['browser-chromium', 'integration', 'pgtap'],
+    ['browser-chromium', 'integration-lanes', 'pgtap'],
     'every job that resets the database before/with browser work carries the failure diagnostics',
   );
 
-  const required = stepsIn(jobs.get('integration')).find((step) => step.join('\n').includes('Required integration result'));
+  const required = stepsIn(jobs.get('integration-full')).find((step) => step.join('\n').includes('Required integration result'));
   assert.ok(required, 'the required-result step is still present');
   assert.doesNotMatch(required.join('\n'), /reset|diagnostic/i, 'diagnostics never become a required result');
 

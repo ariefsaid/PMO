@@ -1,6 +1,6 @@
 import React, { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, DataTable, ListState, StatusPill, type Column } from '@/src/components/ui';
+import { Button, ConfirmDialog, DataTable, ListState, RecordSection, StatusPill, type Column } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { formatCurrency, formatDay } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -43,7 +43,7 @@ export const LinkedErpDocuments: React.FC<{ procurementId: string }> = ({ procur
     {
       key: 'document', header: t('erpPurchases.column.document', 'Document'), kind: 'primary',
       primaryTitle: (d) => d.name,
-      cell: (d) => <span className="font-mono">{d.name}</span>,
+      cell: (d) => <span className="record-id font-semibold text-foreground">{d.name}</span>,
       secondaryCell: (d) => (
         <span className="inline-flex flex-wrap items-center gap-1.5">
           {erpDoctypeLabel(t, d.doctype)}
@@ -69,14 +69,13 @@ export const LinkedErpDocuments: React.FC<{ procurementId: string }> = ({ procur
   ];
 
   return (
-    <section aria-labelledby={headingId} className="mt-6 border-t border-border pt-4">
-      <h2 id={headingId} className="mb-2 px-1 text-[14px] font-semibold text-foreground">
-        {t('erpLinks.linkedTitle', 'Documents from ERPNext')}
-      </h2>
+    // A panel of the record's Files tab: heading on the panel inset, table flush with its first column on the same inset.
+    <RecordSection headingId={headingId} title={t('erpLinks.linkedTitle', 'Documents from ERPNext')} flush={!query.isError}>
       {query.isError ? (
         <ListState variant="error" title={t('erpLinks.linkedError', "Couldn't load the documents from ERPNext")} onRetry={() => void query.refetch()} />
       ) : (
         <DataTable<ErpPurchaseRow>
+          embedded
           rows={rows}
           columns={columns}
           rowKey={(d) => d.id}
@@ -102,6 +101,6 @@ export const LinkedErpDocuments: React.FC<{ procurementId: string }> = ({ procur
         onConfirm={() => void confirmUnlink()}
         onCancel={close}
       />
-    </section>
+    </RecordSection>
   );
 };

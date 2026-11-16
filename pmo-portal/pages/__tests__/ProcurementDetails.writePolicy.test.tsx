@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // `useTaxTreatmentPreselect` stays the real implementation, so this suite renders the shipped
 // seeding behaviour without needing a QueryClientProvider/AuthProvider it otherwise has no use for.
 // The pre-selection rule itself is owned by src/hooks/useOrgTaxDefault.test.tsx.
+vi.mock('@/src/hooks/useProcurementFilesBatch', () => ({ useProcurementFilesBatch: () => ({ data: undefined, isError: false }) }));
 vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
 vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }) }));
 
@@ -119,6 +120,10 @@ vi.mock('@/src/components/ui', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useToast: () => ({ toast }) };
 });
+// S05: the budget panel also reads the project's canonical Budget used; stubbed like its other reads (these tests mount no QueryClient).
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: () => ({ data: undefined, isPending: false, isError: false }),
+}));
 // N8 (AC-IXD-PROC-W5-2): DecisionSupportPanel now mounts in ProcurementDetails.
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 1000000, isPending: false, isError: false }),
@@ -157,7 +162,7 @@ const baseProcurement = {
   org_id: 'org-1',
   created_at: '2026-06-04T00:00:00Z',
   updated_at: '2026-06-04T00:00:00Z',
-  project: { name: 'HQ Fit-Out', code: 'PRJ-001' },
+  project: { name: 'HQ Fit-Out', code: 'PRJ-001', project_manager_id: 'u-alice' },
   vendor: null,
   requested_by: { full_name: 'Alice Manager' },
   approved_by: null,
@@ -310,12 +315,12 @@ describe('AC-IXD-WP-003: consequential procurement actions still confirm', () =>
     expect(mockTransition).not.toHaveBeenCalled();
   });
 
-  it('AC-IXD-WP-003: Reject opens a destructive confirm and does NOT write on the first click', async () => {
+  it('AC-IXD-WP-003: Return opens a reason dialog and does NOT write on the first click', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
     await openMoreActions();
-    await userEvent.click(screen.getByRole('menuitem', { name: /^reject$/i }));
-    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('menuitem', { name: /^return$/i }));
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
     expect(mockTransition).not.toHaveBeenCalled();
   });
 
@@ -352,7 +357,7 @@ describe('AC-IXD-WP-002: kept financial confirms restate the amount + project + 
       status: 'Requested',
       requested_by_id: 'u-other',
       total_value: 85000, currency: 'USD',
-      project: { name: 'HQ Fit-Out', code: 'PRJ-001' },
+      project: { name: 'HQ Fit-Out', code: 'PRJ-001', project_manager_id: 'u-alice' },
       requested_by: { full_name: 'Alice Manager' },
     };
     renderPage();
@@ -371,7 +376,7 @@ describe('AC-IXD-WP-002: kept financial confirms restate the amount + project + 
       requested_by_id: 'u-other',
       approved_by_id: 'u-someone-else',
       total_value: 85000, currency: 'USD',
-      project: { name: 'HQ Fit-Out', code: 'PRJ-001' },
+      project: { name: 'HQ Fit-Out', code: 'PRJ-001', project_manager_id: 'u-alice' },
       requested_by: { full_name: 'Alice Manager' },
     };
     renderPage();

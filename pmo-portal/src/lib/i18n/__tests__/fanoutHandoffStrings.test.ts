@@ -30,9 +30,9 @@ type Handoff = [namespace: string, key: string, english: string, indonesian: str
 
 /** A5 — stock screens (C1/C5/C13 rows, documents order, the Stock on hand moves). */
 const A5: Handoff[] = [
-  ['stock', 'onHand.count', '{{shown}} balances', '{{shown}} saldo'],
-  ['stock', 'onHand.countOne', '1 balance', '1 saldo'],
-  ['stock', 'onHand.countOfTotal', 'Showing {{shown}} of {{total}} balances', 'Menampilkan {{shown}} dari {{total}} saldo'],
+  ['stock', 'onHand.count', '{{shown}} balances', '{{shown}} sisa stok'],
+  ['stock', 'onHand.countOne', '1 balance', '1 sisa stok'],
+  ['stock', 'onHand.countOfTotal', 'Showing {{shown}} of {{total}} balances', 'Menampilkan {{shown}} dari {{total}} sisa stok'],
   ['stock', 'detail.overAllowanceFailed', 'Could not check whether this issue is over its work-item allowance.', 'Tidak dapat memeriksa apakah pengeluaran ini melebihi batas item pekerjaannya.'],
   ['stock', 'detail.costsFailed', "Couldn't load the line costs", 'Gagal memuat biaya per baris'],
   ['stock', 'documents.loadMoreFailed', "Couldn't load more documents", 'Gagal memuat dokumen berikutnya'],
@@ -93,11 +93,11 @@ const A3: Handoff[] = [
 
 /** A7 — imprest float record, procurement create currency, and the unknown-currency amount. */
 const A7: Handoff[] = [
-  ['imprest', 'detail.floatName', 'Float {{id}}', 'Kas kecil {{id}}'],
+  ['imprest', 'detail.floatRef', 'Ref. {{id}}', 'Referensi {{id}}'],
   ['imprest', 'detail.archived', 'Archived', 'Diarsipkan'],
   // F2 (Director sitting 11-13): one sentence, no "read", and the Retry button stays — the copy
   // names what a person sees (no figure) and what is paused, instead of four sentences about a read.
-  ['imprest', 'detail.positionErrorSub', 'No figure is shown and float actions are paused until the position loads.', 'Angka tidak ditampilkan dan tindakan kas kecil dijeda sampai posisi dimuat.'],
+  ['imprest', 'detail.positionErrorSub', 'No figure is shown and actions are paused until the position loads.', 'Angka tidak ditampilkan dan tindakan dijeda sampai posisi dimuat.'],
   ['imprest', 'counts.loading', 'Loading cash counts…', 'Memuat hitungan kas…'],
   ['procurementCreate', 'currencyError', "Couldn't load your organisation's currency.", 'Mata uang organisasi tidak dapat dimuat.'],
   ['procurementCreate', 'currencyLoading', 'Loading organisation currency…', 'Memuat mata uang organisasi…'],

@@ -1,18 +1,23 @@
 import { Avatar } from '@/src/components/ui/Avatar';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Card, CardHead, CardPad, Icon, useFigureReport, type HiddenFigure } from '@/src/components/ui';
+import { FigureHiddenLine, Icon, RecordSection, useFigureReport, useFigureScope, type HiddenFigure } from '@/src/components/ui';
 import { formatCurrency, formatDay } from '@/src/lib/format';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { LedgerRow } from '@/src/lib/db/procurementLedger';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
 import { useProjectBudget } from '@/src/hooks/useBudget';
+import { useProjectBudgetPositions } from '@/src/hooks/useProjectBudgetPositions';
+import { wholeBudgetInputs } from '@/src/lib/budget/wholeBudgetInputs';
 import { useProjectCommittedSpend, useProjectReservedSpend } from '@/src/hooks/useProcurements';
 import { usePermission } from '@/src/auth/usePermission';
 import { procurementMoney, type ProcurementMoneyKind } from '@/src/lib/procurement/procurementMoney';
 import { stageDates, stageForStatus, type StageKey } from '@/src/lib/procurement/stage';
 import { computeBudgetSignal } from '../computeBudgetSignal';
 import { ProcurementFilesSubsection } from '../ProcurementFilesSubsection';
+import { useProcurementFilesBatch } from '@/src/hooks/useProcurementFilesBatch';
+import { procurementFileParentKey } from '@/src/lib/db/procurementFiles';
+import { recordStatusLabel } from '@/src/lib/procurement/recordStatusLabel';
 
 const STAGES: { key: StageKey; label: string; ordinal: number }[] = [
   { key: 'request', label: 'Request', ordinal: 0 },
@@ -85,8 +90,8 @@ export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = (
   const partialReceive = procurement.receipts.some((receipt) => receipt.status === 'Partial');
 
   return (
-    <Card aria-label="Procurement stages" data-testid="procurement-stage-tracker">
-      <CardPad>
+    // Header band content: it sits on the header panel's inset, so it has no frame of its own.
+    <section aria-label={t('stage.trackerLabel', 'Procurement stages')} data-testid="procurement-stage-tracker">
         <ol className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
           {STAGES.map((stage, index) => {
             const count = rowsByStage[stage.key];
@@ -127,7 +132,7 @@ export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = (
                 <div>
                   <span className={`mb-1 block text-sm font-semibold ${isCurrent ? 'text-foreground' : done ? 'text-success-text' : 'text-muted-foreground'}`}>{stageLabel}</span>
                   {/* O14: the current stage reads in neutral ink; blue stays reserved for the one main action. */}
-                  <span aria-hidden="true" className={`block h-1.5 rounded-full ${partial ? 'bg-secondary' : done ? 'bg-success' : isCurrent ? 'bg-muted-foreground' : 'bg-secondary'}`}>
+                  <span aria-hidden="true" className={`block h-1.5 rounded-full ${partial ? 'bg-secondary' : done ? 'bg-success' : isCurrent ? 'bg-input' : 'bg-secondary'}`}>
                     {partial && <span className="block h-full w-1/2 rounded-full bg-success" />}
                   </span>
                 </div>
@@ -136,8 +141,7 @@ export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = (
             );
           })}
         </ol>
-      </CardPad>
-    </Card>
+    </section>
   );
 };
 
@@ -156,15 +160,16 @@ interface ProcurementBudgetSignalProps {
 }
 
 export const ProcurementBudgetSignal: React.FC<ProcurementBudgetSignalProps> = ({ projectId, totalValue, status, currency }) => {
-  const { t } = useTranslation('procurementRecord');
+  const { t } = useTranslation(['procurementRecord', 'procurement']);
   const may = usePermission();
   const scopedProjectId = may('view', 'procurement') ? projectId : null;
   const budget = useProjectBudget(scopedProjectId ?? '');
-  const committed = useProjectCommittedSpend(scopedProjectId);
+  const committed = useProjectCommittedSpend(scopedProjectId, true);
   const reserved = useProjectReservedSpend(scopedProjectId);
+  const positions = useProjectBudgetPositions(scopedProjectId ? [scopedProjectId] : []);
 
   if (!scopedProjectId) return null;
-  if (budget.isPending || committed.isPending || reserved.isPending) {
+  if (budget.isPending || committed.isPending || reserved.isPending || positions.isPending || committed.ownershipPending) {
     return <span className="text-sm font-normal text-muted-foreground">{t('money.budgetLoading', 'Budget signal loading')}</span>;
   }
   if (budget.isError || committed.isError || reserved.isError) {
@@ -177,25 +182,30 @@ export const ProcurementBudgetSignal: React.FC<ProcurementBudgetSignalProps> = (
     return <span className="text-sm font-normal text-muted-foreground">{t('money.currencyUnavailable', 'Budget comparison unavailable for these currencies')}</span>;
   }
 
+  // Spending and open orders come from the same readings as the approval panel (wholeBudgetInputs). The purchase is
+  // already an order here, so it is counted in them and not subtracted again.
+  const inputs = wholeBudgetInputs(positions.isError ? undefined : positions.data?.[scopedProjectId], committed, reserved.projectCurrency);
+  if (inputs === null) {
+    return <span className="text-control font-normal text-muted-foreground">{t('money.budgetLeftUnknown', 'Budget left not known yet')}</span>;
+  }
+  // Only spending unknown: the amount without it, under the approval panel's own wording and never as "Left in budget".
+  const spendingKnown = inputs.spent !== null;
   let signal;
   try {
-    signal = computeBudgetSignal({ budget: budget.data, committed: committed.data ?? 0, reserved: reserved.data ?? 0, totalValue, status, projectCurrency: reserved.projectCurrency, budgetCurrency: reserved.budgetCurrency, requestCurrency: currency });
+    signal = computeBudgetSignal({ budget: budget.data, spent: inputs.spent ?? 0, openOrders: inputs.openOrders, reserved: reserved.data ?? 0, totalValue, status, projectCurrency: reserved.projectCurrency, budgetCurrency: reserved.budgetCurrency, requestCurrency: currency });
   } catch {
     return <span className="text-sm font-normal text-muted-foreground">{t('money.amountUnavailable', 'Budget comparison unavailable for these amounts')}</span>;
   }
-  const { available, afterRequest } = signal;
-  // "Available" read as a cash balance; it is the budget less commitments, before actual spend, and says so.
-  const label = t('money.budgetSignal', 'Budget not yet committed {{available}} · {{after}} after this procurement', {
-    available: formatCurrency(available, currency),
-    after: formatCurrency(afterRequest, currency),
-  });
-  const otherPositions = [...(reserved.otherCurrencies ?? []), ...(committed.otherCurrencies ?? [])];
-  const otherCurrencyNotice = otherPositions.length ? t('money.otherCurrenciesExcluded', ' · Other currencies excluded from comparison') : '';
+  const label = spendingKnown
+    ? t('money.budgetLeft', 'Left in budget {{left}}', { left: formatCurrency(signal.afterRequest, currency) })
+    : t('procurement:decisionSupport.leftWithoutSpending', { defaultValue: 'Without spending: {{amount}} left after orders, reserved and this purchase.', amount: formatCurrency(signal.afterRequest, currency) });
+  const otherCurrencyNotice = (reserved.otherCurrencies ?? []).length ? t('money.otherCurrenciesExcluded', ' · Other currencies excluded from comparison') : '';
   return <span className="text-control font-normal text-muted-foreground">{label}{otherCurrencyNotice}</span>;
 };
 
+// Amount names, never status words: the header's badge already says Requested / Paid (#2437, the status reads once).
 const moneyLabels: Record<ProcurementMoneyKind, string> = {
-  requested: 'Requested', ordered: 'Ordered', invoiced: 'Invoiced', paid: 'Paid', unpaid: 'Unpaid',
+  requested: 'Request total', ordered: 'Order total', invoiced: 'Invoiced', paid: 'Payments', unpaid: 'Unpaid',
 };
 
 /** The document a missing figure comes from, so the hidden-figures line cannot be read as the procurement total. */
@@ -205,6 +215,7 @@ const moneySources: Record<ProcurementMoneyKind, string> = {
 
 export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = ({ procurement, linkedDocuments, isEngineer, budgetSignal }) => {
   const { t } = useTranslation('procurementRecord');
+  const figureScope = useFigureScope();
   const money = procurementMoney({
     total_value: procurement.total_value,
     purchase_requests: procurement.purchase_requests.map((row) => ({ amount: row.amount })),
@@ -233,11 +244,14 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
   const shown = kinds.flatMap<{ kind: ProcurementMoneyKind; hidden: boolean }>((kind) => {
     const figure = money[kind];
     const absent = figure.amount == null && !figure.unknown;
+    // #2345 row 6: a purchase that started later (at the order stage) expects no request amount, so
+    // "no request" is not a hidden figure — this check must precede the unknown check below, or the
+    // missing-PR unknown is reported as a missing figure that was never expected.
+    if (kind === 'requested' && requestedStartedLater) return [];
     if (figure.unknown) return [{ kind, hidden: true }];
     if (absent) return [];
     // Nothing owed is not a figure either: "Unpaid 0" on a request says nothing.
     if (kind === 'unpaid' && (figure.amount ?? 0) <= 0) return [];
-    if (kind === 'requested' && requestedStartedLater) return [];
     return [{ kind, hidden: false }];
   });
   useFigureReport(shown.filter((entry) => entry.hidden).map<HiddenFigure>((entry) => ({
@@ -245,24 +259,25 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
     reason: t('money.sourceMissing', '{{figure}} amount not recorded', { figure: t(`money.source.${entry.kind}`, moneySources[entry.kind]) }),
   })));
   const visible = shown.filter((entry) => !entry.hidden);
-  // No figure and no budget line: no empty card.
-  if (visible.length === 0 && !budgetSignal && !isEngineer) return null;
+  // The record's one hidden-figures line lives here, so any figure hidden on the record keeps this block.
+  const anyHidden = shown.some((entry) => entry.hidden) || (figureScope?.hidden.length ?? 0) > 0;
+  // No figure, no hidden figure and no budget line: no empty block.
+  if (visible.length === 0 && !anyHidden && !budgetSignal && !isEngineer) return null;
 
+  // Header band content (after the stage track): label, budget line, figures, then the hidden-figures line it reports.
   return (
-    <Card data-testid="procurement-money-summary">
-      <CardHead className="flex flex-wrap items-center gap-x-4 gap-y-1" subline={budgetSignal}>
-        <span>{t('money.title', { defaultValue: 'Money · {{currency}}, before tax', currency: procurement.currency })}</span>
-      </CardHead>
+    <section data-testid="procurement-money-summary" aria-labelledby="procurement-money-heading" className="border-t border-border pt-4">
+      <h2 id="procurement-money-heading" className="text-control font-semibold text-foreground">{t('money.title', { defaultValue: 'Money · {{currency}}, before tax', currency: procurement.currency })}</h2>
+      {budgetSignal != null && budgetSignal !== false && <p className="mt-1 text-control font-normal text-muted-foreground">{budgetSignal}</p>}
       {visible.length > 0 && (
-        <CardPad>
-          <div className="grid grid-cols-2 gap-x-5 gap-y-4 sm:grid-cols-5">
+          <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-5">
             {visible.map(({ kind }) => {
               const figure = money[kind];
               const lead = kind === 'unpaid';
               return (
                 <div key={kind}>
                   <p className="mb-1 text-control font-medium text-foreground">{t(`money.${kind}`, moneyLabels[kind])}</p>
-                  <p className={`${lead ? 'text-section font-semibold' : 'text-group font-medium'} text-foreground tabular-nums`}>
+                  <p className={`${lead ? 'text-section font-semibold' : 'text-group font-medium'} whitespace-nowrap text-foreground tabular-nums`}>
                     {formatCurrency(figure.amount ?? 0, procurement.currency)}
                   </p>
                   {lead && nextDueDate && <p className={`mt-0.5 text-control ${overdueDays > 0 ? 'font-medium text-destructive' : 'text-muted-foreground'}`}>
@@ -274,10 +289,11 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
               );
             })}
           </div>
-        </CardPad>
       )}
-      {isEngineer && <p className="px-[var(--panel-inset)] pb-[var(--panel-inset)] text-sm text-muted-foreground">{t('money.financeOnly', 'Invoices and payments are handled by Finance.')}</p>}
-    </Card>
+      {isEngineer && <p className="mt-3 text-control text-muted-foreground">{t('money.financeOnly', 'Invoices and payments are handled by Finance.')}</p>}
+      {/* "N figures hidden · Why" sits under the figures it reports on, never on the page background. */}
+      <FigureHiddenLine compact className="mt-3 text-control text-muted-foreground" />
+    </section>
   );
 };
 
@@ -355,7 +371,7 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
     const recordEntries: TimelineEntry[] = ledgerRows
       .map((row) => ({
         id: row.id, date: row.date, label: t(`timeline.record.${row.type}`, typeLabel[row.type]), number: row.systemNumber,
-        facts: [row.status, row.externalRef, row.groupRef, row.fileCount ? `${row.fileCount} ${t('timeline.files', 'files')}` : null].filter((fact): fact is string => Boolean(fact)),
+        facts: [recordStatusLabel(t, row.status), row.externalRef, row.groupRef, row.fileCount ? `${row.fileCount} ${t('timeline.files', 'files')}` : null].filter((fact): fact is string => Boolean(fact)),
         amount: isEngineer && (row.type === 'Invoice' || row.type === 'Payment') ? null : row.amount,
         currency: row.currency, source: 'procurement', ledger: row,
         icon: row.type === 'PO' ? 'cart' : row.type === 'GR' ? 'inbox' : row.type === 'Invoice' ? 'invoices' : row.type === 'Payment' ? 'payments' : 'doc',
@@ -374,17 +390,22 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
   }, [procurement.created_at, procurement.id, procurement.requested_by?.full_name, procurement.statusEvents, ledgerRows, linkedDocuments, isEngineer, t]);
   const visible = entries.filter((entry) => filter === 'all'
     || (filter === 'financial' ? Boolean(entry.ledger?.financial || entry.erp) : (entry.ledger?.fileCount ?? 0) > 0));
+  // #2106: React mounts a closed <details>' children too, so a files read inside every entry fired one request per
+  // ledger record. The files of every record on the timeline are read together, once, up front; each entry's panel
+  // reads from that result, so an opened entry shows its files at once.
+  const fileParents = useMemo(
+    () => entries.flatMap((entry) => (entry.ledger ? [{ phase: phaseByType[entry.ledger.type], parentId: entry.ledger.recordId }] : [])),
+    [entries],
+  );
+  const filesBatch = useProcurementFilesBatch(procurement.id, fileParents);
 
   return (
-    <Card data-testid="procurement-timeline">
-      <CardHead
-        className="flex-wrap"
-        actions={<button type="button" onClick={onFullHistory} className="shrink-0 text-sm font-medium text-primary-text underline underline-offset-2">{t('timeline.fullHistory', 'Full history')}</button>}
-      >
-        {t('timeline.title', 'Timeline')}
-      </CardHead>
-      <CardPad>
-        <div role="group" aria-label="Timeline filter" className="mb-3 flex flex-wrap gap-2">
+    <RecordSection
+      data-testid="procurement-timeline"
+      title={t('timeline.title', 'Timeline')}
+      actions={<button type="button" onClick={onFullHistory} className="shrink-0 text-sm font-medium text-primary-text underline underline-offset-2">{t('timeline.fullHistory', 'Full history')}</button>}
+    >
+        <div role="group" aria-label={t('timeline.filterLabel', 'Timeline filter')} className="mb-3 flex flex-wrap gap-2">
           {(['all', 'financial', 'has-file'] as const).map((value) => (
             <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className={`rounded-md px-2.5 py-1 text-sm ${filter === value ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
               {value === 'all' ? t('timeline.all', 'All') : value === 'financial' ? t('timeline.financial', 'Financial') : t('timeline.hasFile', 'Has file')}
@@ -402,7 +423,7 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
                     </span>
                     <span className="whitespace-nowrap text-sm text-muted-foreground max-[640px]:col-start-2 max-[640px]:row-start-1">{showDate(entry.date, t('timeline.dateMissing', 'Date not recorded'))}</span>
                     <span className="min-w-0 max-[640px]:col-start-2">
-                      <span className="block text-sm font-medium">{entry.label}{entry.number ? <span className="ml-1 font-mono text-sm">{entry.number}</span> : null}</span>
+                      <span className="block text-sm font-medium">{entry.label}{entry.number ? <span className="ml-1 record-id text-foreground">{entry.number}</span> : null}</span>
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
                         {entry.actor && <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
                           <Avatar name={entry.actor} size="xs" decorative fallback="" />
@@ -423,7 +444,11 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
                     {entry.erp && <dl className="mb-2 grid grid-cols-2 gap-x-4 gap-y-1"><dt>{t('details.supplier', 'Supplier')}</dt><dd>{entry.erp.supplier ?? '—'}</dd><dt>{t('timeline.status', 'Status')}</dt><dd>{entry.erp.erpStatus ?? '—'}</dd><dt>{t('timeline.dueDate', 'Due date')}</dt><dd>{showDate(entry.erp.dueDate, t('timeline.dateMissing', 'Date not recorded'))}{entry.overdueDays ? ` · ${t('timeline.overdue', { defaultValue: 'Overdue {{days}} days', days: entry.overdueDays })}` : ''}</dd></dl>}
                     {entry.ledger && <>
                       {entry.ledger.groupRef && <p>Group ref · {entry.ledger.groupRef}</p>}
-                      <ProcurementFilesSubsection phase={phaseByType[entry.ledger.type]} parentId={entry.ledger.recordId} procurementId={procurement.id} canWrite={canWriteFiles} uploadedById={uploadedById} />
+                      {(() => {
+                        const phase = phaseByType[entry.ledger.type];
+                        const files = filesBatch.data?.[procurementFileParentKey(phase, entry.ledger.recordId)];
+                        return <ProcurementFilesSubsection phase={phase} parentId={entry.ledger.recordId} procurementId={procurement.id} canWrite={canWriteFiles} uploadedById={uploadedById} files={files ?? []} loading={files === undefined && !filesBatch.isError} failed={files === null || (files === undefined && filesBatch.isError)} />;
+                      })()}
                     </>}
                   </div>
                 </details>
@@ -431,7 +456,6 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
             ))}
           </ol>
         )}
-      </CardPad>
-    </Card>
+    </RecordSection>
   );
 };

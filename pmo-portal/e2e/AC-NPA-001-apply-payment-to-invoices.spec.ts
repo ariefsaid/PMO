@@ -61,7 +61,7 @@ test.afterEach(async () => {
 /** The status text of one of this run's invoices on the Sales Invoices list. */
 async function invoiceRow(page: Page, number: string) {
   await page.goto('/sales-invoices');
-  const search = page.getByLabel(localized('Search sales invoices', 'Cari faktur penjualan'));
+  const search = page.getByLabel(localized('Search sales invoices', 'Cari invoice penjualan'));
   await expect(search).toBeVisible({ timeout: 15_000 });
   await search.fill(number);
   return page.getByRole('row').filter({ hasText: number });
@@ -87,12 +87,12 @@ test('AC-NPA-001 a payment on account is applied across two invoices, both read 
   await expect(receiptRow).toBeVisible({ timeout: 15_000 });
   await receiptRow.getByRole('button', { name: /^(?:Open|Buka) RCV-\d{10}$/ }).click();
   const drawer = page.getByRole('dialog');
-  await drawer.getByRole('button', { name: localized('Apply to invoices', 'Terapkan ke faktur') }).click();
-  const apply = page.getByRole('dialog', { name: localized('Apply to invoices', 'Terapkan ke faktur') });
-  await pickComboboxOption(apply, page, /^(?:Invoice|Faktur)$/, new RegExp(numbers[0]));
+  await drawer.getByRole('button', { name: localized('Apply to invoices', 'Terapkan ke invoice') }).click();
+  const apply = page.getByRole('dialog', { name: localized('Apply to invoices', 'Terapkan ke invoice') });
+  await pickComboboxOption(apply, page, /^(?:Invoice|Invoice)$/, new RegExp(numbers[0]));
   await apply.getByLabel(/^(?:Amount|Jumlah)$/).first().fill('600');
-  await apply.getByRole('button', { name: localized('Add another invoice', 'Tambah faktur lain') }).click();
-  await pickComboboxOption(apply.getByRole('listitem').nth(1), page, /^(?:Invoice|Faktur)$/, new RegExp(numbers[1]));
+  await apply.getByRole('button', { name: localized('Add another invoice', 'Tambah invoice lain') }).click();
+  await pickComboboxOption(apply.getByRole('listitem').nth(1), page, /^(?:Invoice|Invoice)$/, new RegExp(numbers[1]));
   await apply.getByLabel(/^(?:Amount|Jumlah)$/).nth(1).fill('400');
   await apply.getByRole('button', { name: localized('Apply', 'Terapkan'), exact: true }).click();
   await expect(apply).toBeHidden({ timeout: 15_000 });

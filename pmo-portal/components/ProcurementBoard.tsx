@@ -74,7 +74,7 @@ const PrCard: React.FC<{
         {pr.title}
       </div>
       {pr.code && (
-        <div className="mt-0.5 truncate font-mono text-sm text-muted-foreground">
+        <div className="mt-0.5 truncate record-id">
           {pr.code}
         </div>
       )}
@@ -132,7 +132,7 @@ const ProcurementBoard: React.FC<ProcurementBoardProps> = ({
           <div key={key} data-testid={`prstage-${key}`} className="flex min-w-0 flex-col">
             <KanbanColumn
               title={stageTitle}
-              dotColor={key === 'paid' ? 'hsl(var(--success))' : 'hsl(var(--muted-foreground))'}
+              dotColor={key === 'paid' ? 'hsl(var(--success))' : 'hsl(var(--mark-neutral))'}
               count={items.length}
               totals={<MoneyTotalLines totals={totals} tooltip={tooltip} testId={`prstage-${key}-totals`} className="items-end" />}
               emptyMessage={t('board.empty', { stage: stageTitle, defaultValue: `No procurements at ${stageTitle}` })}

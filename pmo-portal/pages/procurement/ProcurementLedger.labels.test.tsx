@@ -74,8 +74,8 @@ describe('ProcurementLedger vendor e-Faktur recognition', () => {
     renderLedger([numbered, unnumbered]);
 
     await openEditor(0);
-    expect(screen.getByText(locale === 'en' ? 'Supplier invoice reference: SUP-INV-910' : 'Referensi faktur pemasok: SUP-INV-910')).toBeInTheDocument();
-    expect(screen.getByText(locale === 'en' ? 'Supplier invoice no. (accounting): VI-910' : 'No. faktur pemasok (akuntansi): VI-910')).toBeInTheDocument();
+    expect(screen.getByText(locale === 'en' ? 'Supplier invoice reference: SUP-INV-910' : 'Referensi invoice supplier: SUP-INV-910')).toBeInTheDocument();
+    expect(screen.getByText(locale === 'en' ? 'Supplier invoice no. (accounting): VI-910' : 'No. invoice supplier (akuntansi): VI-910')).toBeInTheDocument();
     expect(screen.getByText(locale === 'en' ? 'Case: Harbor bridge' : 'Kasus: Harbor bridge')).toBeInTheDocument();
     expect(screen.getByText(locale === 'en' ? 'Project: North pier' : 'Proyek: North pier')).toBeInTheDocument();
     expect(screen.getByText(locale === 'en' ? 'PMO project number: PMO-26-0042' : 'Nomor proyek PMO: PMO-26-0042')).toBeInTheDocument();
@@ -89,8 +89,8 @@ describe('ProcurementLedger vendor e-Faktur recognition', () => {
     fireEvent.click(screen.getByRole('button', { name: financeTestI18n.t('efaktur.discard') }));
 
     await openEditor(1);
-    expect(screen.getByText(locale === 'en' ? 'Supplier invoice reference not recorded' : 'Referensi faktur pemasok belum dicatat')).toBeInTheDocument();
-    expect(screen.getByText(locale === 'en' ? 'Supplier invoice no. (accounting) unavailable' : 'No. faktur pemasok (akuntansi) tidak tersedia')).toBeInTheDocument();
+    expect(screen.getByText(locale === 'en' ? 'Supplier invoice reference not recorded' : 'Referensi invoice supplier belum dicatat')).toBeInTheDocument();
+    expect(screen.getByText(locale === 'en' ? 'Supplier invoice no. (accounting) unavailable' : 'No. invoice supplier (akuntansi) tidak tersedia')).toBeInTheDocument();
     expect(screen.getByText(locale === 'en' ? 'Case: Harbor bridge' : 'Kasus: Harbor bridge')).toBeInTheDocument();
     expect(screen.queryByText('invoice-immutable-911')).not.toBeInTheDocument();
   });

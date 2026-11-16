@@ -20,9 +20,10 @@ import { useProcurementDetail } from '@/src/hooks/useProcurementDetail';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { useProcurementNextStepLabel } from '@/src/hooks/useProjectStatusLabel';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import { formatCurrency, formatRelativeTime } from '@/src/lib/format';
+import { formatCurrency, formatNumberExact, formatRelativeTime } from '@/src/lib/format';
 import { DecisionSupportPanel } from './DecisionSupportPanel';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
+import { FIGURE_LINE_CLASS } from '@/src/components/ui/FigureContent';
 
 /** UIP-007: one comparative desktop template, shared by the header and every row. */
 const columnGrid = 'grid grid-cols-2 gap-3 md:grid-cols-12';
@@ -52,8 +53,20 @@ export const ProcurementListColumns: React.FC = () => {
   );
 };
 
+/** list-working-set-return (#682): captures the list URL + scroll before opening a record. */
+export type OpenRecord = (recordPath: string) => boolean;
+
+export interface ProcurementListRowBaseProps {
+  row: ProcurementWithRefs;
+  /** The list-owned opener. Passed in so a row never subscribes to the router itself (#2104). */
+  openRecord: OpenRecord;
+}
+
 export interface ProcurementListRowProps {
   row: ProcurementWithRefs;
+  /** Optional: a list that already owns the return-context hook passes it down; a standalone row
+   *  falls back to its own `useListReturn` (#2104). */
+  openRecord?: OpenRecord;
 }
 
 /**
@@ -103,6 +116,7 @@ const ExpandedPanel: React.FC<{
             totalValue={detail.data.total_value}
             projectName={detail.data.project ? projectDisplayName(detail.data.project) : undefined}
             projectLegalName={detail.data.project?.name}
+            projectStatus={detail.data.project?.status}
             status={detail.data.status}
             currency={detail.data.currency}
           />
@@ -123,7 +137,8 @@ const ExpandedPanel: React.FC<{
                     >
                       <span className="truncate">{item.name}</span>
                       <span className="tabular text-muted-foreground shrink-0">
-                        {item.quantity} × {formatCurrency(item.rate, detail.data.currency)} ={' '}
+                        {/* #2089: the quantity renders in the viewer's locale, grouped. */}
+                        {formatNumberExact(item.quantity)} × {formatCurrency(item.rate, detail.data.currency)} ={' '}
                         <span className="font-medium text-foreground">
                           {formatCurrency(lineTotal, detail.data.currency)}
                         </span>
@@ -152,16 +167,18 @@ const ExpandedPanel: React.FC<{
   );
 };
 
-export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) => {
+/**
+ * #2104 — the router-free row. Everything it needs about navigation arrives as a prop, so the row
+ * holds no `location`/`navigate` subscription: a URL change re-renders the LIST, not each of its
+ * (up to ~1k) rows. The grouped list memoises this component.
+ */
+export const ProcurementListRowBase: React.FC<ProcurementListRowBaseProps> = ({ row, openRecord }) => {
   const { t } = useTranslation();
   const nextStepLabel = useProcurementNextStepLabel();
   const panelId = `proc-list-panel-${useId()}`;
   const [expanded, setExpanded] = useState(false);
   const status = row.status as ProcurementStatus;
   const nextStep = nextStepLabel(status);
-  // list-working-set-return (#682, AC-LRC-005): captures the current Procurement list URL +
-  // scroll as validated return context before navigating to the canonical detail route.
-  const { openRecord } = useListReturn({ list: 'procurement' });
   // Native modified/new-tab clicks keep the plain href (no return context to carry into a separate
   // browsing context) — only a plain left-click is intercepted to route through the shared opener
   // (AC-LRC-005), matching the row-click behaviour.
@@ -226,7 +243,7 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
             {row.title}
           </Link>
           {row.code && (
-            <div className="font-mono text-sm text-muted-foreground">
+            <div className="record-id">
               {row.code}
             </div>
           )}
@@ -244,7 +261,7 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
           </div>
           <div data-procurement-value className={`${columnFields[3].span} min-w-0 tabular`}>
             <dt className="font-semibold md:sr-only">{t('procurement.columns.value', 'Value')}</dt>
-            <dd className="break-words font-medium text-foreground">{formatCurrency(row.total_value, row.currency)}</dd>
+            <dd className={`${FIGURE_LINE_CLASS} font-medium text-foreground`}>{formatCurrency(row.total_value, row.currency)}</dd>
           </div>
           <div className={`${columnFields[4].span} min-w-0 tabular`}>
             <dt className="font-semibold md:sr-only">{t('procurement.columns.age', 'Age')}</dt>
@@ -269,4 +286,14 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
       {expanded && <ExpandedPanel row={row} panelId={panelId} onLinkClick={onLinkClick} />}
     </div>
   );
+};
+
+/**
+ * Standalone row: owns the list-return hook for callers that render a single row outside a list
+ * (the row's own tests and any one-off preview). Lists render {@link ProcurementListRowBase} with
+ * an opener they hold once, so their rows never subscribe to the router (#2104).
+ */
+export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row, openRecord }) => {
+  const { openRecord: rowListReturn } = useListReturn({ list: 'procurement' });
+  return <ProcurementListRowBase row={row} openRecord={openRecord ?? rowListReturn} />;
 };

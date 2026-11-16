@@ -10,8 +10,6 @@ import { useProcurements } from '@/src/hooks/useProcurements';
 import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
 import { useProjectBudgetPositions } from '@/src/hooks/useProjectBudgetPositions';
 import { useTimesheetsAwaitingApproval } from '@/src/hooks/useTimesheetApproval';
-import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
-import { usePMOverdueTasks } from '@/src/hooks/usePMOverdueTasks';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import { INTERNAL_STATUSES, ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 import { expenseClaimsAwaitingKey } from '@/src/hooks/approvalsQueryKeys';
@@ -19,14 +17,12 @@ import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useNeedsYou } from './restructure/useNeedsYou';
 import { Button } from '@/src/components/ui/Button';
 import { Card, CardHead, CardPad } from '@/src/components/ui/Card';
+import { cn } from '@/src/components/ui/cn';
 import { ListState } from '@/src/components/ui/ListState';
 import { FigureHiddenLine, FigureScope } from '@/src/components/ui/FigureScope';
-import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
+import { KPIRow, KPITile, KPITileError } from '@/src/components/ui/KPITile';
 import { PageHeader } from '@/src/components/ui/PageHeader';
 import { Icon } from '@/src/components/ui/icons';
-import { BarList, ChartCard, SeriesKey, type BarRow } from './charts';
-import { CardLink } from './hub/company/OverviewCards';
-import { cn } from '@/src/components/ui/cn';
 import { moneyTileValue } from './dashMoney';
 import { DashboardWaitsOnYou, ProjectRows, type ProjectRow, type WaitRow } from './DashParts';
 import { PlanVsActualChart } from './hub/company/PlanVsActualChart';
@@ -53,9 +49,6 @@ export const PMDashboard: React.FC = () => {
   const orgId = currentUser?.org_id;
   const userId = currentUser?.id;
   const projectsQuery = usePMDashboardProjects();
-  const overdueTaskProjectIds = useMemo(() => (projectsQuery.data ?? []).map((project) => project.id), [projectsQuery.data]);
-  const overdueTasksQuery = usePMOverdueTasks(overdueTaskProjectIds, projectsQuery.data !== undefined);
-  const overdueOrgDay = useFxOrgDay(true);
   const deliveryQuery = useProjectsDelivery((projectsQuery.data ?? []).map((project) => project.id));
   const timesheetsQuery = useTimesheetsAwaitingApproval();
   const procurementsQuery = useProcurements({ status: 'Requested' });
@@ -159,7 +152,8 @@ export const PMDashboard: React.FC = () => {
       id: item.id,
       count: item.countLabel ?? item.count,
       label: item.label,
-      amount: item.id === 'team-timesheets' && approvedHours !== null ? `${formatHours(approvedHours)} ${t('home.hoursUnit', 'h')}` : undefined,
+      // The hours are named (never a bare "36 h"), and the number never parts from its unit.
+      detail: item.id === 'team-timesheets' && approvedHours !== null ? t('home.hoursInTotal', '{{hours}}\u00a0h in total', { hours: formatHours(approvedHours) }) : undefined,
       href: item.href,
       tone: item.tone === 'lost' ? 'lost' as const : item.tone === 'neutral' ? 'neutral' as const : 'warn' as const,
     }));
@@ -186,12 +180,16 @@ export const PMDashboard: React.FC = () => {
       error={projectsError}
       onRetry={refresh}
       footer={budgetUseStatus}
-      allLink={{ to: projectsHref(userId), label: t('home.allMine', 'All {{count}} projects', { count: projects.length }) }}
+      allLink={{ to: projectsHref(userId), label: projectsPending || projectsError ? t('home.allProjectsBare', 'All projects') : t('home.allMine', 'All {{count}} projects', { count: projects.length }) }}
       emptyLabel={t('hub.pm.noProjects', 'No delivery projects assigned to you yet')}
       testId="pm-projects"
+      skeletonRows={7}
     />
   );
-  const contractTile = (
+  // A failed read keeps the tile in its place: its label and one line, never a hole in the figure strip.
+  const contractTile = projectsError ? (
+    <KPITileError testId="kpi-my-contract-value-error" label={t('hub.pm.myContractValue', 'My contract value')} caption="" onRetry={() => void projectsQuery.refetch()} />
+  ) : (
     <KPITile
       testId="kpi-my-contract-value"
       tone="green"
@@ -200,7 +198,7 @@ export const PMDashboard: React.FC = () => {
       value={contract?.value ?? null}
       exactValue={contract?.exact}
       unavailableReason={contract ? undefined : projectsError || projectsQuery.isError ? t('hub.pm.projectsFigureUnavailable', 'Project data could not be loaded. Retry to refresh this figure.') : t('home.reasonMyContract', 'a project contract value is missing')}
-      caption={contract ? t('home.projectCount', { count: projects.length, defaultValue_one: '{{count}} project', defaultValue_other: '{{count}} projects' }) : undefined}
+      caption={contract ? t('home.projectCount', { count: projects.length, defaultValue_one: '{{count}} project', defaultValue_other: '{{count}} projects' }) : projectsQuery.isPending ? '\u00a0' : undefined}
       loading={projectsQuery.isPending}
       to={projectsHref(userId)}
       linkLabel={t('hub.pm.openMyProjects', 'Open my projects')}
@@ -208,82 +206,40 @@ export const PMDashboard: React.FC = () => {
     />
   );
 
+  // A tile with nothing to show draws nothing (it still reports why to the hidden-figures line): no empty box, no
+  // stray rule, and its neighbour closes the gap.
+  const contractShown = projectsQuery.isPending || projectsError || contract != null;
+  const contractRow = (className: string) => (contractShown
+    ? <KPIRow panelInset aria-label={t('hub.pm.kpiBand', 'My project figures')} className={className}>{contractTile}</KPIRow>
+    : contractTile);
+
   if (overview) {
-    const hoursItem = needs.items.find((item) => item.id === 'team-timesheets');
-    const overdueItem = needs.items.find((item) => item.id === 'overdue-project-tasks');
-    const used = rows.filter((row) => row.delivery !== null || row.budgetUsed !== null);
-    const pctBars: BarRow[] = used.slice(0, 6).map((row) => ({
-      id: row.id,
-      name: row.name,
-      value: row.delivery,
-      label: row.delivery === null ? undefined : `${Math.round(row.delivery)}%`,
-      tone: 'accent' as const,
-      value2: row.budgetUsed,
-      label2: row.budgetUsed === null ? undefined : `${Math.round(row.budgetUsed)}%`,
-      tone2: (row.budgetUsed !== null && row.budgetUsed > 100 ? 'bad' : 'neutral') as 'bad' | 'neutral',
-    }));
-    const overdueBars: BarRow[] = rows.filter((row) => (needs.pmOverdueTasksByProject[row.id] ?? 0) > 0)
-      .sort((a, b) => (needs.pmOverdueTasksByProject[b.id] ?? 0) - (needs.pmOverdueTasksByProject[a.id] ?? 0)).slice(0, 6)
-      .map((row) => ({ id: row.id, name: row.name, value: needs.pmOverdueTasksByProject[row.id], label: String(needs.pmOverdueTasksByProject[row.id]), tone: 'bad' as const }));
-    const deliveryName = t('home.chartDelivery', 'Delivery');
-    const budgetName = t('home.colBudget', 'Budget used');
-    const overdueTitle = t('home.overdueByProject', 'Overdue tasks by project');
+    // One question: what needs me today across my projects. Waits on you is a short band (with my contract value
+    // beside it), My projects is the dominant table, and one chart adds what the table cannot: contract, budget and
+    // spending side by side across projects. Overdue tasks are stated once per place: my own in Waits on you, each
+    // project's in its row (no separate total or chart repeats them).
     const planTitle = t('hub.company.planVsActual.title', 'Plan vs actual');
     return (
       <FigureScope>
         <div className="space-y-[var(--space-panel-gap)]" data-home-layout="overview">
           {header}
-          <div className="grid items-start gap-[var(--space-panel-gap)] min-[900px]:items-stretch min-[900px]:grid-cols-3">
-            <div className="min-w-0 min-[900px]:[&>div]:h-full">{waitsEl}</div>
-            <div className="min-w-0 min-[900px]:col-span-2 min-[900px]:[&>div]:h-full">{projectsEl}</div>
+          <div className="grid items-stretch gap-[var(--space-panel-gap)] min-[900px]:grid-cols-12">
+            <div className={cn('min-w-0 min-[900px]:row-start-1 [&>div]:h-full', contractShown ? 'min-[900px]:col-span-9' : 'min-[900px]:col-span-12')}>
+              {/* Exception colour once per group: a neutral panel where only overdue counts are coloured. */}
+              <DashboardWaitsOnYou band plain overdueOnly rows={waitRows} pending={needs.isPending} error={needs.isError} onRetry={refresh} />
+            </div>
+            <div className="min-w-0 min-[900px]:col-span-12 min-[900px]:row-start-2">{projectsEl}</div>
+            {/* Read after My projects (and drawn there on a phone); on a wide screen it sits beside Waits on you. */}
+            {contractRow('grid-cols-1 min-[900px]:col-span-3 min-[900px]:col-start-10 min-[900px]:row-start-1')}
           </div>
-          <KPIRow aria-label={t('hub.pm.kpiBand', 'My project figures')} className="grid-cols-1 min-[900px]:auto-cols-fr min-[900px]:grid-flow-col">
-            {contractTile}
-            <KPITile
-              testId="kpi-team-hours"
-              tone="blue"
-              icon="grid"
-              label={t('home.teamHours', 'Team hours to approve')}
-              value={approvedHours === null || hoursItem === undefined ? null : `${formatHours(approvedHours)} ${t('home.hoursUnit', 'h')}`}
-              unavailableReason={approvedHours === null || hoursItem === undefined ? t('home.reasonTeamHours', 'team timesheets could not be read') : undefined}
-              to={hoursItem?.href}
-              linkLabel={t('home.teamHours', 'Team hours to approve')}
-              loading={timesheetsQuery.isPending}
-            />
-            <KPITile
-              testId="kpi-tasks-overdue"
-              tone="red"
-              icon="grid"
-              label={t('home.tasksOverdue', 'Tasks overdue')}
-              value={overdueItem ? String(overdueItem.count) : null}
-              unavailableReason={overdueItem ? undefined : t('home.reasonTasksOverdue', 'task dates could not be read')}
-              to={overdueItem?.href}
-              linkLabel={t('home.tasksOverdue', 'Tasks overdue')}
-              loading={projectsQuery.isPending || (projectsQuery.data !== undefined && (overdueTasksQuery.isPending || overdueOrgDay.isPending))}
-            />
-          </KPIRow>
-          <div className={cn('grid items-start gap-[var(--space-panel-gap)] min-[900px]:grid-cols-2')}>
-            <Card>
-              <CardHead level={2} actions={<CardLink to={projectsHref(userId)}>{t('hub.pm.openMyProjects', 'Open my projects')}</CardLink>}>{planTitle}</CardHead>
-              <CardPad className="min-w-0">
-                {projectsQuery.isPending ? <ListState variant="loading" shape="chart" rows={4} />
-                  : projectsQuery.isError ? <ListState variant="error" title={t('home.projectsError', "Couldn't load projects")} onRetry={() => { void projectsQuery.refetch(); }} />
-                    : <PlanVsActualChart projects={projects} currency={orgCurrency} />}
-              </CardPad>
-            </Card>
-            <ChartCard title={t('home.deliveryVsBudget', 'Delivery and budget used by project')} actions={<CardLink to={projectsHref(userId)}>{t('hub.pm.openMyProjects', 'Open my projects')}</CardLink>}
-              known={pctBars.length > 0} hiddenReason={t('home.reasonDeliveryBudget', 'delivery and budget are not recorded')} pending={projectsPending}
-              error={projectsError ? { title: t('home.projectsError', "Couldn't load projects"), retry: refresh } : undefined} testId="chart-delivery-budget">
-              <SeriesKey items={[...(pctBars.some((row) => row.value !== null) ? [{ label: deliveryName, tone: 'accent' as const }] : []), ...(pctBars.some((row) => row.value2 != null) ? [{ label: budgetName, tone: 'neutral' as const }] : [])]} />
-              <BarList rows={pctBars} ariaLabel={t('home.deliveryVsBudget', 'Delivery and budget used by project')} seriesNames={[deliveryName, budgetName]} domainMax={100} />
-            </ChartCard>
-            <ChartCard title={overdueTitle} actions={overdueItem ? <CardLink to={overdueItem.href}>{t('hub.pm.openMyProjects', 'Open my projects')}</CardLink> : undefined}
-              known={overdueItem !== undefined || needs.isPending} pending={needs.isPending} hiddenReason={t('home.reasonTasksOverdue', 'task dates could not be read')} testId="chart-overdue-tasks">
-              {overdueBars.length === 0
-                ? <p className="text-control text-muted-foreground">{t('home.noOverdueTasks', 'No overdue tasks.')}</p>
-                : <BarList rows={overdueBars} ariaLabel={overdueTitle} />}
-            </ChartCard>
-          </div>
+          <Card>
+            <CardHead level={2}>{planTitle}</CardHead>
+            <CardPad className="min-w-0">
+              {projectsQuery.isPending ? <ListState variant="loading" shape="bars" rows={8} className="max-[899px]:[&_[data-skeleton-shape]>div]:min-h-16" />
+                : projectsQuery.isError ? <ListState variant="error" title={t('home.projectsError', "Couldn't load projects")} onRetry={() => { void projectsQuery.refetch(); }} quiet />
+                  : <PlanVsActualChart dense projects={projects} currency={orgCurrency} />}
+            </CardPad>
+          </Card>
         </div>
       </FigureScope>
     );
@@ -295,9 +251,7 @@ export const PMDashboard: React.FC = () => {
         {header}
         {waitsEl}
         {projectsEl}
-        <KPIRow aria-label={t('hub.pm.kpiBand', 'My project figures')} className="grid-cols-1 min-[900px]:max-w-sm">
-          {contractTile}
-        </KPIRow>
+        {contractRow('grid-cols-1 min-[900px]:max-w-sm')}
       </div>
     </FigureScope>
   );

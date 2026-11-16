@@ -49,6 +49,8 @@ export class InviteError extends Error {
   constructor(
     public code: InviteErrorCode,
     public status: number,
+    /** Set on DUPLICATE_EMAIL: the authorized target org, so the wrapper can answer an identical repeat. */
+    public targetOrgId?: string,
   ) {
     super(code);
   }
@@ -62,6 +64,10 @@ interface CallerProfile {
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
+export function isValidInviteEmail(email: string): boolean {
+  return EMAIL_RE.test(email) && !email.includes('*');
+}
+
 /**
  * Resolve + authorize an invite request. Returns `{ targetOrgId, role }` on success; throws an
  * `InviteError` (with an HTTP status the edge-fn wrapper maps directly) otherwise. org_id is
@@ -74,7 +80,7 @@ export async function authorizeInvite(
   input: InviteInput,
 ): Promise<{ targetOrgId: string; role: InviteRole }> {
   const email = (input.email ?? '').trim().toLowerCase();
-  if (!EMAIL_RE.test(email) || email.includes('*')) throw new InviteError('BAD_EMAIL', 400);
+  if (!isValidInviteEmail(email)) throw new InviteError('BAD_EMAIL', 400);
   if (!INVITE_ROLES.includes(input.role as InviteRole)) throw new InviteError('INVALID_ROLE', 400);
 
   // Operator? (platform grant — checked before the caller's own profile role.)
@@ -111,7 +117,7 @@ export async function authorizeInvite(
     p_org_id: targetOrgId,
     p_email: email,
   });
-  if (dup === true) throw new InviteError('DUPLICATE_EMAIL', 409);
+  if (dup === true) throw new InviteError('DUPLICATE_EMAIL', 409, targetOrgId);
 
   // Seat limit (FR-PLN-010, AC-PLN-009): `assert_seat_available` (migration 0535) counts the org's
   // active profiles — a pending invite IS one of those rows — under the organisation row lock, and

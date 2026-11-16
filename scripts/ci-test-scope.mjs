@@ -2,6 +2,7 @@
 // CI test scope (#1584): decide which test layers a PR to `dev` can affect.
 //
 //   node scripts/ci-test-scope.mjs --base origin/dev   → {"unit":"full"|"affected","pgtap":bool,"deno":bool,"reason":"…"}
+//   node scripts/ci-test-scope.mjs --release-please --target-base main --head-branch <name> --base origin/main
 //   node scripts/ci-test-scope.mjs --fs-coupled        → vitest test files that read repo files (one per line)
 //   node scripts/ci-test-scope.mjs --self-test
 //
@@ -13,6 +14,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -21,6 +23,15 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // p90 137): up to 60 files the affected set is median 158 of ~1,410 test files (p75 ~590, a few
 // high-fan-out files); above 60 it is 650-760 (~50%), where one job is no faster than two shards.
 export const FILE_THRESHOLD = 60;
+
+// Above this many changed files an affected run is split across the same SHARDS runners the full run
+// uses. The affected test count is only known after `npm ci` + `vitest list`, so changed files are the
+// proxy: the data above gives ~8 affected tests per changed file (20 files -> 158 tests, 69 -> ~590). A
+// full run is ~1,410 files in ~26 min of one runner (2 shards measured ~10/~16 min), ~1.1 s per file,
+// plus ~2 min of install per runner. Sharding wins once the run outlasts the extra installs: ~200 tests
+// (~4 min) is ~25 files. At or below it one job is cheaper in runner-minutes and just as fast.
+export const SHARD_FILE_THRESHOLD = 25;
+export const SHARDS = 4;
 
 const TEST_RE = /\.(test|spec)\.[cm]?[jt]sx?$/;
 // Paths the Vitest module graph cannot see (setup files are added from vite.config.ts at run time).
@@ -39,13 +50,16 @@ const UNIT_FULL = [
 // Everything the `pgtap` job runs besides `supabase/**` itself.
 const PGTAP = [
   /^supabase\//,
-  /^scripts\/(check-migration-collisions\.sh|check-project-short-name-reversal\.mjs|check-isolation-denominator\.mjs|isolation-probe-denominator\.json|with-db-lock\.sh)$/,
+  /^scripts\/(check-migration-collisions\.sh|check-project-short-name-reversal\.mjs|check-isolation-denominator\.mjs|isolation-probe-denominator\.json|isolation-probe\.sh|isolation-proof\.sh|isolation-fixtures\.sql|with-db-lock\.sh)$/,
   /^scripts\/financial-statements-[\w-]+\.test\.mjs$/,
   /^scripts\/2195-journal-safety-rollback\.test\.mjs$/,
   /^scripts\/(test-2195-capture-rollback\.sh|2195-capture-rollback\.test\.sql)$/,
   // The rollback harness the pgtap job runs (AC-CQ-003) and the pgTAP template it expands.
   /^scripts\/(test-contract-quantities-rollback\.sh|contract-quantities-rollback\.test\.sql)$/,
   /^scripts\/(test-plan-limits-rollback\.sh|plan-limits-rollback\.test\.sql)$/,
+  // The 0867 reversal round trip (issue 2255): down runs, collapses to the earliest cursor, is
+  // idempotent, and the up migration re-applies the per-organization shape.
+  /^scripts\/(test-watermarks-per-org-rollback\.sh|watermarks-per-org-rollback\.test\.sql)$/,
   /^scripts\/lib\/flock-run\.sh$/,
   /^\.github\/workflows\/ci\.yml$/,
   /^scripts\/ci-test-scope\.mjs$/,
@@ -62,9 +76,9 @@ const any = (res, p) => res.some((re) => re.test(p));
 /**
  * Pure rule engine.
  * @param {{status: string, path: string}[]} changes `git diff --name-status --no-renames` entries
- * @param {{setupFiles?: string[], edgeImports?: Set<string>, threshold?: number}} ctx
+ * @param {{setupFiles?: string[], edgeImports?: Set<string>, threshold?: number, shardThreshold?: number}} ctx
  */
-export function scope(changes, { setupFiles = [], edgeImports = new Set(), threshold = FILE_THRESHOLD } = {}) {
+export function scope(changes, { setupFiles = [], edgeImports = new Set(), threshold = FILE_THRESHOLD, shardThreshold = SHARD_FILE_THRESHOLD } = {}) {
   const paths = changes.map((c) => c.path);
   const reasons = [];
   const full = (why) => reasons.push(why);
@@ -78,16 +92,238 @@ export function scope(changes, { setupFiles = [], edgeImports = new Set(), thres
   if (paths.length > threshold) full(`${paths.length} files > ${threshold}`);
 
   const edge = paths.find((p) => edgeImports.has(p));
+  const isFull = reasons.length > 0;
+  const sharded = !isFull && paths.length > shardThreshold;
   return {
-    unit: reasons.length ? 'full' : 'affected',
+    unit: isFull ? 'full' : 'affected',
+    shards: isFull || sharded ? SHARDS : 1,
     pgtap: paths.some((p) => any(PGTAP, p)),
     deno: paths.some((p) => any(DENO, p)) || Boolean(edge),
-    reason: reasons.join('; ') || `${paths.length} files, module graph covers them`,
+    reason: reasons.join('; ') || `${paths.length} files, module graph covers them${sharded ? `; ${paths.length} > ${shardThreshold} files: sharded x${SHARDS}` : ''}`,
+  };
+}
+
+const RELEASE_PLEASE_FILES = [
+  '.release-please-manifest.json',
+  'pmo-portal/CHANGELOG.md',
+  'pmo-portal/package.json',
+  'pmo-portal/package-lock.json',
+];
+const RELEASE_PLEASE_ALLOWED = new Set(RELEASE_PLEASE_FILES);
+const RELEASE_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+
+function fullReleasePlease(reason) {
+  return { unit: 'full', pgtap: true, deno: true, releaseLight: false, reason };
+}
+
+function parseJsonFile(files, name) {
+  if (!files || typeof files[name] !== 'string' || files[name].trim() === '') throw new Error('missing file');
+  return JSON.parse(files[name]);
+}
+
+function topLevelVersion(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) && typeof value.version === 'string'
+    ? value.version
+    : null;
+}
+
+function packageLockRootVersion(lock) {
+  if (!lock || typeof lock !== 'object' || Array.isArray(lock)) return null;
+  if (!Object.hasOwn(lock, 'packages')) return topLevelVersion(lock);
+  const packages = lock.packages;
+  return packages && typeof packages === 'object' && !Array.isArray(packages)
+    ? topLevelVersion(packages[''])
+    : null;
+}
+
+function withoutPackageVersion(value, lockfile = false) {
+  const rest = { ...value };
+  delete rest.version;
+  if (!lockfile || !Object.hasOwn(value, 'packages')) return rest;
+  const packages = value.packages;
+  const rootPackage = { ...packages[''] };
+  delete rootPackage.version;
+  return { ...rest, packages: { ...packages, '': rootPackage } };
+}
+
+function changelogVersion(changelog) {
+  if (typeof changelog !== 'string') return null;
+  const heading = changelog.split(/\r?\n/).find((line) => line.startsWith('## '));
+  return heading?.match(/^## \[([^\]]+)\]/)?.[1] ?? null;
+}
+
+/**
+ * Classify the deliberately narrow release-please fast path. Any missing or uncertain input falls
+ * back to the full CI lanes. JSON is compared as parsed data with only the package version fields
+ * removed (including package-lock's root package record), so formatting/key order is immaterial and
+ * nested dependency edits remain visible.
+ */
+export function classifyReleasePlease({
+  targetBase,
+  headBranch,
+  changes,
+  diffMetadataClean,
+  baseFiles,
+  headFiles,
+} = {}) {
+  if (targetBase !== 'main') return fullReleasePlease('target is not main');
+  if (typeof headBranch !== 'string' || !headBranch.startsWith('release-please--')) {
+    return fullReleasePlease('head branch is not release-please generated');
+  }
+  if (diffMetadataClean !== true) return fullReleasePlease('diff metadata is uncertain');
+  if (!Array.isArray(changes) || changes.length === 0) return fullReleasePlease('diff is empty or unavailable');
+  const seen = new Set();
+  for (const change of changes) {
+    if (!change || change.status !== 'M' || typeof change.path !== 'string' || !RELEASE_PLEASE_ALLOWED.has(change.path)) {
+      return fullReleasePlease('diff contains an unexpected or renamed path');
+    }
+    if (seen.has(change.path)) return fullReleasePlease('diff contains duplicate paths');
+    seen.add(change.path);
+  }
+
+  let manifest;
+  let baseManifest;
+  let basePackage;
+  let headPackage;
+  let baseLock;
+  let headLock;
+  try {
+    manifest = parseJsonFile(headFiles, '.release-please-manifest.json');
+    baseManifest = parseJsonFile(baseFiles, '.release-please-manifest.json');
+    basePackage = parseJsonFile(baseFiles, 'pmo-portal/package.json');
+    headPackage = parseJsonFile(headFiles, 'pmo-portal/package.json');
+    baseLock = parseJsonFile(baseFiles, 'pmo-portal/package-lock.json');
+    headLock = parseJsonFile(headFiles, 'pmo-portal/package-lock.json');
+    if (typeof baseFiles['pmo-portal/CHANGELOG.md'] !== 'string' || baseFiles['pmo-portal/CHANGELOG.md'].trim() === '' ||
+        typeof headFiles['pmo-portal/CHANGELOG.md'] !== 'string' || headFiles['pmo-portal/CHANGELOG.md'].trim() === '') {
+      throw new Error('missing changelog');
+    }
+  } catch {
+    return fullReleasePlease('an expected release file is missing or malformed');
+  }
+
+  const manifestVersion = manifest && typeof manifest === 'object' && !Array.isArray(manifest)
+    ? manifest['pmo-portal']
+    : null;
+  const baseManifestVersion = baseManifest && typeof baseManifest === 'object' && !Array.isArray(baseManifest)
+    ? baseManifest['pmo-portal']
+    : null;
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) ||
+      !baseManifest || typeof baseManifest !== 'object' || Array.isArray(baseManifest)) {
+    return fullReleasePlease('release manifest is not a JSON object');
+  }
+  const baseManifestWithoutVersion = { ...baseManifest };
+  delete baseManifestWithoutVersion['pmo-portal'];
+  const headManifestWithoutVersion = { ...manifest };
+  delete headManifestWithoutVersion['pmo-portal'];
+  if (!isDeepStrictEqual(baseManifestWithoutVersion, headManifestWithoutVersion)) {
+    return fullReleasePlease('release manifest contains a non-version edit');
+  }
+  const packageVersion = topLevelVersion(headPackage);
+  const lockVersion = topLevelVersion(headLock);
+  const lockRootPackageVersion = packageLockRootVersion(headLock);
+  const headingVersion = changelogVersion(headFiles['pmo-portal/CHANGELOG.md']);
+  if (![manifestVersion, packageVersion, lockVersion, lockRootPackageVersion, headingVersion].every((version) => typeof version === 'string' && RELEASE_VERSION.test(version))) {
+    return fullReleasePlease('release version is missing or malformed');
+  }
+  if (new Set([manifestVersion, packageVersion, lockVersion, lockRootPackageVersion, headingVersion]).size !== 1) {
+    return fullReleasePlease('release versions do not agree');
+  }
+
+  const baseLockRootPackageVersion = packageLockRootVersion(baseLock);
+  const previousVersions = [baseManifestVersion, topLevelVersion(basePackage), topLevelVersion(baseLock), baseLockRootPackageVersion];
+  if (!previousVersions.every((version) => typeof version === 'string' && RELEASE_VERSION.test(version))) {
+    return fullReleasePlease('base package-lock root version is missing or malformed');
+  }
+  if (previousVersions.every((version) => version === manifestVersion)) {
+    return fullReleasePlease('release version is unchanged');
+  }
+  for (const [before, after, isLockfile] of [[basePackage, headPackage, false], [baseLock, headLock, true]]) {
+    if (!before || typeof before !== 'object' || Array.isArray(before) || !after || typeof after !== 'object' || Array.isArray(after)) {
+      return fullReleasePlease('package metadata is not a JSON object');
+    }
+    if (topLevelVersion(before) === null || topLevelVersion(after) === null) {
+      return fullReleasePlease('package version field is missing');
+    }
+    if (isLockfile && (packageLockRootVersion(before) === null || packageLockRootVersion(after) === null)) {
+      return fullReleasePlease('package-lock root package version is missing');
+    }
+    const beforeWithoutVersion = withoutPackageVersion(before, isLockfile);
+    const afterWithoutVersion = withoutPackageVersion(after, isLockfile);
+    if (!isDeepStrictEqual(beforeWithoutVersion, afterWithoutVersion)) {
+      return fullReleasePlease('package JSON contains a non-version edit');
+    }
+  }
+
+  return {
+    unit: 'full',
+    pgtap: true,
+    deno: true,
+    releaseLight: true,
+    version: manifestVersion,
+    reason: 'release-please version files validated',
   };
 }
 
 // ── repo reading ────────────────────────────────────────────────────────────
 const git = (...args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 << 20 });
+
+function parseNameStatusZ(output) {
+  const fields = output.split('\0');
+  const changes = [];
+  for (let index = 0; index < fields.length && fields[index] !== ''; ) {
+    const status = fields[index++];
+    const renamedOrCopied = status.startsWith('R') || status.startsWith('C');
+    const pathCount = renamedOrCopied ? 2 : 1;
+    if (fields.length < index + pathCount) return null;
+    if (renamedOrCopied) {
+      const oldPath = fields[index++];
+      const nextPath = fields[index++];
+      changes.push({ status, path: nextPath, oldPath });
+    } else {
+      changes.push({ status, path: fields[index++] });
+    }
+  }
+  return changes;
+}
+
+function gitFile(revision, file) {
+  try {
+    return git('show', `${revision}:${file}`);
+  } catch {
+    return undefined;
+  }
+}
+
+function releasePleaseCli(argv) {
+  const value = (name) => {
+    const index = argv.indexOf(name);
+    return index === -1 ? undefined : argv[index + 1];
+  };
+  const baseRef = value('--base');
+  const resultForFailure = (reason) => console.log(JSON.stringify(fullReleasePlease(reason)));
+  if (!baseRef) return resultForFailure('base ref is missing');
+
+  try {
+    const diffRange = `${baseRef}...HEAD`;
+    const changes = parseNameStatusZ(git('diff', '--name-status', '--find-renames', '-z', '--no-ext-diff', diffRange));
+    if (!changes) return resultForFailure('diff paths could not be parsed');
+    const diffMetadataClean = git('diff', '--summary', '--no-ext-diff', diffRange).trim() === '';
+    const baseFiles = Object.fromEntries(RELEASE_PLEASE_FILES.map((file) => [file, gitFile(baseRef, file)]));
+    const headFiles = Object.fromEntries(RELEASE_PLEASE_FILES.map((file) => [file, gitFile('HEAD', file)]));
+    const result = classifyReleasePlease({
+      targetBase: value('--target-base'),
+      headBranch: value('--head-branch'),
+      changes,
+      diffMetadataClean,
+      baseFiles,
+      headFiles,
+    });
+    console.log(JSON.stringify(result));
+  } catch {
+    resultForFailure('diff could not be inspected');
+  }
+}
 
 /** Relative import targets of a source file, resolved to repo-relative paths that exist. */
 export function localImports(file, root = ROOT) {
@@ -137,10 +373,11 @@ function setupFilesFromConfig(root = ROOT) {
 }
 
 function cli(argv) {
+  if (argv.includes('--release-please')) return releasePleaseCli(argv);
   if (argv.includes('--self-test')) return selfTest();
   if (argv.includes('--fs-coupled')) return console.log(fsCoupledTests().join('\n'));
   const base = argv[argv.indexOf('--base') + 1];
-  if (!argv.includes('--base') || !base) throw new Error('usage: ci-test-scope.mjs --base <ref> | --fs-coupled | --self-test');
+  if (!argv.includes('--base') || !base) throw new Error('usage: ci-test-scope.mjs --base <ref> | --release-please --target-base <branch> --head-branch <name> --base <ref> | --fs-coupled | --self-test');
   const changes = git('diff', '--name-status', '--no-renames', `${base}...HEAD`)
     .split('\n')
     .filter(Boolean)
@@ -190,12 +427,28 @@ async function selfTest() {
     assert.equal(s(many(FILE_THRESHOLD + 1)).unit, 'full');
     assert.equal(s(many(5), { threshold: 4 }).unit, 'full');
   });
+  test('shards: a small affected set stays one job', () => {
+    const r = s(Array.from({ length: 25 }, (_, i) => `pmo-portal/src/lib/f${i}.ts`));
+    assert.deepEqual([r.unit, r.shards], ['affected', 1]);
+  });
+  test('shards: a large affected set (past the shard threshold, under the full threshold) runs 4 shards', () => {
+    const r = s(Array.from({ length: 26 }, (_, i) => `pmo-portal/src/lib/f${i}.ts`));
+    assert.deepEqual([r.unit, r.shards], ['affected', 4]);
+    assert.match(r.reason, /sharded/);
+  });
+  test('shards: forced-full is unchanged (full, 4 shards)', () => {
+    assert.deepEqual((({ unit, shards }) => ({ unit, shards }))(s(['pmo-portal/vite.config.ts'])), { unit: 'full', shards: 4 });
+    const r = s(Array.from({ length: 61 }, (_, i) => `pmo-portal/src/lib/f${i}.ts`));
+    assert.deepEqual([r.unit, r.shards], ['full', 4]);
+  });
+  test('shards: the shard threshold is injectable', () => assert.equal(s(['pmo-portal/src/lib/a.ts', 'pmo-portal/src/lib/b.ts'], { shardThreshold: 1 }).shards, 4));
   for (const p of ['supabase/migrations/0400_x.sql', 'supabase/tests/x.sql', 'supabase/functions/a/index.ts', 'scripts/with-db-lock.sh',
-    'scripts/check-isolation-denominator.mjs', 'scripts/isolation-probe-denominator.json', 'scripts/financial-statements-rollback.test.mjs',
+    'scripts/check-isolation-denominator.mjs', 'scripts/isolation-probe-denominator.json', 'scripts/isolation-probe.sh', 'scripts/isolation-proof.sh', 'scripts/isolation-fixtures.sql', 'scripts/financial-statements-rollback.test.mjs',
     'scripts/financial-statements-nightly-intent-race.test.mjs', 'scripts/2195-journal-safety-rollback.test.mjs',
     'scripts/test-2195-capture-rollback.sh', 'scripts/2195-capture-rollback.test.sql',
     'scripts/test-contract-quantities-rollback.sh', 'scripts/contract-quantities-rollback.test.sql',
-    'scripts/test-plan-limits-rollback.sh', 'scripts/plan-limits-rollback.test.sql', '.github/workflows/ci.yml']) {
+    'scripts/test-plan-limits-rollback.sh', 'scripts/plan-limits-rollback.test.sql',
+    'scripts/test-watermarks-per-org-rollback.sh', 'scripts/watermarks-per-org-rollback.test.sql', '.github/workflows/ci.yml']) {
     test(`pgtap: ${p}`, () => assert.equal(s([p]).pgtap, true));
   }
   test('pgtap false for app-only, docs and unrelated scripts', () => {

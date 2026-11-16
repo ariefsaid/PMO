@@ -80,6 +80,10 @@ vi.mock('@/src/hooks/useMeetings', () => ({
   useMeetingMutations: () => mutations,
 }));
 
+vi.mock('@/src/hooks/useOrgProfilesLoader', async () => {
+  const { repositories } = await import('@/src/lib/repositories');
+  return { useOrgProfilesLoader: () => () => repositories.profile.listOrgProfiles() };
+});
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjectPickerOptions: () => ({ data: projectsState.data, isPending: false }),
 }));
@@ -234,7 +238,16 @@ describe('Meetings index — list (FR-MTG-028/029)', () => {
       </ToastProvider>,
     );
 
-    expect(within(screen.getByTestId('list-page-toolbar')).getByText('Showing 2 of 2')).toBeInTheDocument();
+    expect(within(screen.getByTestId('list-page-header')).getByText('Showing 2 of 2')).toBeInTheDocument();
+  });
+
+  it('#2446: the toolbar is the shared one row — search in the search slot, no count inside it', async () => {
+    renderPage('Admin', '/meetings?archived=1');
+    const toolbar = screen.getByTestId('list-page-toolbar');
+    expect(within(toolbar).queryByText(/^Showing /)).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('list-page-search-group')).getByRole('searchbox', { name: 'Search meetings' })).toBeInTheDocument();
+    expect(within(screen.getByTestId('list-page-filter-group')).getByRole('combobox', { name: /Filter by project/ })).toBeInTheDocument();
+    expect(within(screen.getByTestId('list-page-filter-group')).getByRole('button', { name: /Clear all/i })).toBeInTheDocument();
   });
 
   it('renders the seeded meetings with title, project, and location', () => {
@@ -528,7 +541,7 @@ describe('Meetings index — list working set + return context (AC-LRC-008)', ()
     expect(useMeetingsSpy).toHaveBeenLastCalledWith(
       expect.objectContaining({ projectId: '33333333-3333-4333-8333-333333333333' }),
     );
-    expect(within(screen.getByTestId('list-page-toolbar')).getByText('Showing 0 of …')).toBeInTheDocument();
+    expect(within(screen.getByTestId('list-page-header')).getByText('Showing 0 of …')).toBeInTheDocument();
   });
 
   it('AC-LRC-001: choosing a project filter writes ?project= to the URL', async () => {

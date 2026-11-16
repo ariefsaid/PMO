@@ -16,6 +16,7 @@ const detailState = {
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useProcurementFilesBatch', () => ({ useProcurementFilesBatch: () => ({ data: undefined, isError: false }) }));
 vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
 vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }) }));
 
@@ -74,6 +75,10 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: 'Finance', realRole: 'Finance' }),
+}));
+// The budget panel also reads the project's canonical Budget used; stubbed like its other reads (these tests mount no QueryClient).
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: () => ({ data: undefined, isPending: false, isError: false }),
 }));
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 1000000, isPending: false, isError: false }),

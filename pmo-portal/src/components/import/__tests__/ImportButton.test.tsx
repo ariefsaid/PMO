@@ -57,4 +57,14 @@ describe('ImportButton', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(onImported).not.toHaveBeenCalled();
   });
+
+  it('a caller that hosts the wizard (onOpen) gets the click and no dialog from the button itself', async () => {
+    const user = userEvent.setup();
+    may.mockReturnValue(true);
+    const onOpen = vi.fn();
+    renderUi(<ImportButton entity="company" descriptor={descriptor} onOpen={onOpen} />);
+    await user.click(screen.getByRole('button', { name: /import/i }));
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
 });

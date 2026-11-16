@@ -119,14 +119,21 @@ export const NotificationBell: React.FC = () => {
       });
   }, []);
 
-  // item 9: the badge must never go stale for a mounted session — refresh on mount, on a 60s
-  // interval while mounted (cleanup-safe: the interval is cleared on unmount), and again after
-  // loadInbox/markRead resolve (below) so an in-session read/new-arrival is reflected promptly
-  // without waiting up to 60s.
+  // item 9: the badge must never go stale for a mounted session — refresh on mount, every 60s while
+  // the tab is visible (a hidden tab sends no request; it refreshes the moment the tab returns, #2105),
+  // and again after loadInbox/markRead resolve (below) so an in-session read/new-arrival is reflected
+  // promptly without waiting up to 60s.
   useEffect(() => {
     refreshUnreadCount();
-    const id = setInterval(refreshUnreadCount, 60_000);
-    return () => clearInterval(id);
+    const refreshIfVisible = () => {
+      if (document.visibilityState === 'visible') refreshUnreadCount();
+    };
+    const id = setInterval(refreshIfVisible, 60_000);
+    document.addEventListener('visibilitychange', refreshIfVisible);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', refreshIfVisible);
+    };
   }, [refreshUnreadCount]);
 
   const loadInbox = useCallback(() => {
@@ -242,7 +249,7 @@ export const NotificationBell: React.FC = () => {
     <div className="relative" ref={popoverRef}>
       <button
         type="button"
-        aria-label={`Notifications, ${unread} unread`}
+        aria-label={t('shell.notifications.bellLabel', 'Notifications, {{count}} unread', { count: unread })}
         aria-haspopup="true"
         aria-expanded={open}
         onClick={(e) => {

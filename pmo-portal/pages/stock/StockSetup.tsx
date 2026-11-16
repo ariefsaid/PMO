@@ -7,6 +7,8 @@ import {
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { Link } from 'react-router';
+import { useOdooConnection } from '@/src/hooks/useOdoo';
 import { useProjectIdentity } from '@/src/hooks/useProjects';
 import {
   useStockUnits, useStockItems, useStockWarehouses, useStockKeepers, useStockKeeperCandidates, useStockMasterMutations, useStockOnHand,
@@ -64,6 +66,8 @@ const StockSetup: React.FC = () => {
   const projects = useProjectIdentity();
   const onHand = useStockOnHand({ includeZero: true }, tab === 'items');
   const m = useStockMasterMutations();
+  const odoo = useOdooConnection().data;
+  const odooConnected = odoo?.status === 'active' && odoo.activated;
 
   const canCreate = may('create', ENTITY[tab], ctx);
   const canEdit = may('edit', ENTITY[tab], ctx);
@@ -95,7 +99,7 @@ const StockSetup: React.FC = () => {
   const dim = (r: { archived_at: string | null }) => (r.archived_at ? 'opacity-60' : '');
   const identity = (r: { code: string; name: string; archived_at: string | null }): React.ReactNode => (
     <div className={`min-w-0 ${dim(r)}`}>
-      <span className="block truncate font-mono text-sm font-semibold">{r.code}</span>
+      <span className="block truncate record-id font-semibold text-foreground">{r.code}</span>
       <span className="block truncate text-sm text-muted-foreground">{r.name}</span>
     </div>
   );
@@ -175,10 +179,20 @@ const StockSetup: React.FC = () => {
         </Button>
       )}
     >
+      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+        <Link to="/stock" className="touch-target inline-flex min-h-9 items-center gap-1 rounded-sm font-medium text-primary-text underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+          <Icon name="back" className="size-4" aria-hidden="true" />{t('setup.backToStock')}
+        </Link>
+        {odooConnected && (
+          <Link to="/master-data/product" className="touch-target inline-flex min-h-9 items-center rounded-sm font-medium text-primary-text underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+            {t('setup.odooDirectories')}
+          </Link>
+        )}
+      </div>
       <StockTabs />
       <div className="mb-4 flex flex-col items-stretch border-b border-border sm:flex-row sm:items-center">
         <Tabs<Tab>
-          className="mb-0 w-full min-w-0 border-b-0 sm:w-auto sm:flex-1"
+          className="mb-0 w-full min-w-0 border-b-0 sm:w-auto sm:flex-1 [&>[role=tab]:first-child]:pl-0"
           idBase="stock-setup"
           ariaLabel={t('setup.tabsLabel')}
           value={tab}
@@ -373,7 +387,7 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, onC
       submitError={saveError}
     >
       <FormGrid>
-        <TextField id={code.id} label={t(`setup.form.${k}.code`)} required value={code.value} onChange={code.onChange} onBlur={code.onBlur} error={code.error} mono fullWidth />
+        <TextField id={code.id} label={t(`setup.form.${k}.code`)} required value={code.value} onChange={code.onChange} onBlur={code.onBlur} error={code.error} code fullWidth />
         <TextField id={name.id} label={t(`setup.form.${k}.name`)} required value={name.value} onChange={name.onChange} onBlur={name.onBlur} error={name.error} fullWidth />
         {which === 'units' && (
           <div className="flex items-start gap-2">

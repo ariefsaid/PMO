@@ -9,7 +9,7 @@ const h = vi.hoisted(() => {
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: h.from } }));
 import {
-  attachClaimEvidence, createBoqItem, createProgressClaim, getProjectBilling, listBoqItems, recordProgressAssessment, updateBoqItem,
+  attachClaimEvidence, createBoqItem, createNativeProgressClaimInvoice, createProgressClaim, getProjectBilling, listBoqItems, recordProgressAssessment, updateBoqItem,
 } from './progressBilling';
 
 const CONTRACT = {
@@ -125,6 +125,14 @@ describe('progress billing DAL', () => {
     });
   });
 
+  it('AC-1278 an imported BoQ line carries its import key on insert; a hand-entered line carries none', async () => {
+    h.result.data = { id: 'b1' };
+    await createBoqItem('p1', { itemCode: 'A-1', description: 'Cable', unit: 'km', quantity: 1, rate: 50, earningBasis: 'unit_rate', lineNo: null, importKey: 'L-1' });
+    expect(h.chain.insert).toHaveBeenLastCalledWith(expect.objectContaining({ import_key: 'L-1' }));
+    await createBoqItem('p1', { itemCode: 'A-2', description: 'Cable', unit: 'km', quantity: 1, rate: 50, earningBasis: 'unit_rate', lineNo: null });
+    expect(h.chain.insert.mock.calls.at(-1)![0]).not.toHaveProperty('import_key');
+  });
+
   it('AC-CQ-001 a BoQ update sends basis and line number, not import_key or work order', async () => {
     h.result.data = [{ id: 'b1' }];
     await updateBoqItem('b1', { itemCode: 'A-1', description: 'Cable', unit: 'lot', quantity: 1, rate: 50, earningBasis: 'lump_sum', lineNo: null });
@@ -141,5 +149,20 @@ describe('progress billing DAL', () => {
       ['created_at', { ascending: true }],
       ['id', { ascending: true }],
     ]);
+  });
+
+  it('AC-PBL-NAT-004 DAL: the native claim invoice sends the claim id and returns the invoice id', async () => {
+    h.rpc.mockResolvedValue({ data: 'claim-1', error: null });
+    await expect(createNativeProgressClaimInvoice('claim-1')).resolves.toBe('claim-1');
+    expect(h.rpc).toHaveBeenCalledWith('create_native_progress_claim_invoice', { p_claim: 'claim-1' });
+  });
+
+  it('AC-PBL-NAT-004 DAL: a refusal surfaces its machine-readable detail as the code, and a missing id is an error', async () => {
+    h.rpc.mockResolvedValue({ data: null, error: { message: 'this claim already has an invoice', code: 'P0001', details: 'claim-already-invoiced' } });
+    await expect(createNativeProgressClaimInvoice('claim-1')).rejects.toMatchObject({ name: 'AppError', code: 'claim-already-invoiced' });
+    h.rpc.mockResolvedValue({ data: null, error: { message: 'a time-and-materials claim is invoiced from its own sign-off', code: 'P0001', details: 'claim-kind' } });
+    await expect(createNativeProgressClaimInvoice('claim-1')).rejects.toMatchObject({ code: 'claim-kind' });
+    h.rpc.mockResolvedValue({ data: null, error: null });
+    await expect(createNativeProgressClaimInvoice('claim-1')).rejects.toMatchObject({ name: 'AppError' });
   });
 });

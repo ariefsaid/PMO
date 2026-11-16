@@ -174,7 +174,7 @@ test.describe('AC-AAN-036: create automation, simulated fire, notification, seco
     // on render — no race (FR-AP-005 Assistant toggle; the hotkey has its own dedicated coverage).
     await page.getByRole('button', { name: 'Assistant' }).click();
 
-    const panel = page.getByRole('complementary', { name: /agent assistant/i });
+    const panel = page.getByTestId('assistant-panel');
     await expect(panel).toBeVisible({ timeout: 5_000 });
 
     const composer = panel.getByRole('textbox', { name: /ask a question/i });
@@ -315,7 +315,7 @@ test.describe('AC-AAN-036: create automation, simulated fire, notification, seco
     await expect
       .poll(async () => (await bellUnread(page)) === (await dbUnread(annProfile.id)), { timeout: 10_000 })
       .toBe(true);
-    const resumedPanel = page.getByRole('complementary', { name: /agent assistant/i });
+    const resumedPanel = page.getByTestId('assistant-panel');
     await expect(resumedPanel).toBeVisible({ timeout: 5_000 });
     await resumedPanel.getByRole('button', { name: 'Close assistant' }).click();
     await expect(resumedPanel).not.toBeVisible({ timeout: 5_000 });

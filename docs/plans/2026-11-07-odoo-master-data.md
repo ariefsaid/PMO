@@ -206,6 +206,6 @@ Each owning test names its `AC-###` in the title (CLAUDE.md tagging rule). Layer
 - **Sends create real records in the client's Odoo.** Behind a bulk accept with counts, keyed `seed:<kind>:<id>`, looked up before create, **held — never reissued** — on an inconclusive probe (Q3). The mutation checks in T3/T7 are mandatory evidence.
 - **T2 moves ERPNext money-adjacent code.** Its unchanged `connectSends.test.ts` is the proof; any edit to that test file is a stop-and-ask.
 - **`odooSweep.ts` and `router.ts`/`purchasing.ts` are shared with S7.** Keep S8's edits to one appended array element and one set membership so the merge is mechanical; the second branch to merge rebases.
-- **Call budget.** A 300-vendor setup sends over several ticks; each send reserves probe + create. Do not raise `CONNECT_SENDS_PER_TICK` (10); upgrade path is a per-org budget if a tick is observed to starve the directory passes.
+- **Call budget.** A 300-vendor setup sends over several ticks; each send reserves probe + create. Do not raise `CONNECT_SENDS_PER_TICK.odoo` (10; per tier since the #2250 follow-up — ERPNext's one-minute tick claims 2 to stay inside its CPU limit, Odoo keeps 10 on its five-minute, call-budgeted tick); upgrade path is a per-org budget if a tick is observed to starve the directory passes.
 - **Odoo e2e is not in CI** (Q5): a green CI says nothing about S10 specs. The Director runs them locally on the bed before closing #1504 and records the output.
 - **Public repo:** no weaknesses, hosts, keys or client names in code, tests, fixtures or the runbook.

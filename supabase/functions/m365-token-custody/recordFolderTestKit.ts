@@ -38,6 +38,10 @@ export const gpost = (match: string | RegExp, respond: GraphRoute["respond"]): G
 
 export interface World {
   role: string;
+  orgId?: string;
+  connectionTenant?: string;
+  noDeployment?: boolean;
+  appRows?: Record<string, unknown[]>;
   /** Rows returned for the caller-RLS parent read (projects / procurements). */
   parent: unknown[] | ((call: FetchCall) => unknown[] | Promise<unknown[]>);
   parentError?: unknown;
@@ -118,7 +122,7 @@ async function connectionRow(world: World) {
   const refreshHex = Array.from(serializeEnvelope(refresh.iv, refresh.ciphertext), (b) => b.toString(16).padStart(2, "0")).join("");
   world.seededRefreshCiphertext = `\\x${refreshHex}`;
   return {
-    id: "synthetic-connection", org_id: ORG, user_id: USER, entra_tenant_id: "synthetic-tenant",
+    id: "synthetic-connection", org_id: world.orgId ?? ORG, user_id: USER, entra_tenant_id: world.connectionTenant ?? "synthetic-tenant",
     entra_user_object_id: null, scopes: world.scopes, refresh_token_ciphertext: `\\x${refreshHex}`,
     access_token_ciphertext: `\\x${hex}`, access_token_expires_at: new Date(Date.now() + (world.accessExpired ? -1_000 : 3_600_000)).toISOString(),
     refresh_token_expires_at: null, key_id: "kek-v1", status: world.connectionStatus,
@@ -153,8 +157,13 @@ function routesFor(world: World, connection: Record<string, unknown>): MockRoute
   );
   return [
     ...extraTables,
-    { label: "membership", pathname: "/rest/v1/rpc/m365_membership_state", response: () => jsonResponse({ state: world.memberState ?? "active", org_id: ORG, role: world.role }) },
+    { label: "membership", pathname: "/rest/v1/rpc/m365_membership_state", response: () => jsonResponse({ state: world.memberState ?? "active", org_id: world.orgId ?? ORG, role: world.role }) },
+    { label: "app-resolve", pathname: "/rest/v1/rpc/m365_org_app_resolve", response: (call) => jsonResponse(world.appRows?.[String((call.bodyJson as Record<string, unknown>).p_org_id)] ?? []) },
+    { label: "app-set", pathname: "/rest/v1/rpc/m365_set_org_app", response: () => jsonResponse({ changed_app: false }) },
+    { label: "app-clear", pathname: "/rest/v1/rpc/m365_clear_org_app", response: () => jsonResponse(null) },
     { label: "feature", pathname: "/rest/v1/rpc/service_feature_enabled", response: () => jsonResponse((world.featureEnabled ?? true) && (world.entitled ?? true)) },
+    table("profiles", () => jsonResponse({ org_id: world.orgId ?? ORG, role: world.role }, OBJECT_HEADERS)),
+    table("platform_operators", () => jsonResponse(null)),
     table("projects", (call) => world.parentError ? jsonResponse(world.parentError, { status: 500 }) : parentRows(call)),
     table("procurements", (call) => world.parentError ? jsonResponse(world.parentError, { status: 500 }) : parentRows(call)),
     table("project_documents", documentRows),
@@ -201,7 +210,7 @@ function routesFor(world: World, connection: Record<string, unknown>): MockRoute
   ];
 }
 
-const ENV_NAMES = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_ANON_KEY", "M365_TOKEN_KEK"] as const;
+const ENV_NAMES = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_ANON_KEY", "M365_TOKEN_KEK", "M365_TENANT_ID", "M365_CLIENT_ID", "M365_CLIENT_SECRET", "M365_REDIRECT_URI"] as const;
 let authority: Awaited<ReturnType<typeof createJwtAuthority>> | null = null;
 
 export interface Scenario extends FetchMockContext {
@@ -226,6 +235,10 @@ export function makeScenarioRunner(
     Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "synthetic-service-key");
     Deno.env.set("SUPABASE_ANON_KEY", "synthetic-anon-key");
     Deno.env.set("M365_TOKEN_KEK", b64url(KEK_BYTES));
+    Deno.env.set("M365_TENANT_ID", world.noDeployment ? "" : "synthetic-tenant");
+    Deno.env.set("M365_CLIENT_ID", world.noDeployment ? "" : "synthetic-client");
+    Deno.env.set("M365_CLIENT_SECRET", world.noDeployment ? "" : "synthetic-secret");
+    Deno.env.set("M365_REDIRECT_URI", "https://example.invalid/callback");
     try {
       const connection = await connectionRow(world);
       return await withFetchMock(routesFor(world, connection), (ctx) =>

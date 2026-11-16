@@ -31,7 +31,7 @@ import {
   useProcurementMutations,
 } from '@/src/hooks/useProcurementDetail';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import { formatDay, formatTableMoney } from '@/src/lib/format';
+import { formatDay, formatNumberExact, formatTableMoney } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { DecisionSupportPanel } from '@/pages/procurement/DecisionSupportPanel';
 import { useAuth } from '@/src/auth/useAuth';
@@ -118,7 +118,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 space-y-1">
               <div className="flex flex-wrap items-center gap-2 text-control text-muted-foreground">
-                <span className="font-mono">{row.code ?? row.id.slice(0, 8)}</span>
+                <span className="record-id">{row.code ?? row.id.slice(0, 8)}</span>
                 <span>·</span>
                 <ProjectNameLink
                   projectId={row.project_id}
@@ -170,6 +170,8 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
                 totalValue={detail.data.total_value}
                 projectName={detail.data.project ? projectDisplayName(detail.data.project) : undefined}
                 projectLegalName={detail.data.project?.name}
+                projectStatus={detail.data.project?.status}
+                captionInTooltip
                 status={detail.data.status}
                 currency={detail.data.currency}
               />
@@ -189,7 +191,8 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
                         >
                           <span className="min-w-0 truncate">{item.name}</span>
                           <span className="shrink-0 tabular text-muted-foreground">
-                            {item.quantity} × {money(item.rate)} ={' '}
+                            {/* #2089: the quantity renders in the viewer's locale, grouped. */}
+                            {formatNumberExact(item.quantity)} × {money(item.rate)} ={' '}
                             <span className="font-medium text-foreground">
                               {money(lineTotal)}
                             </span>

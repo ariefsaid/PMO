@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { Button, ConfirmDialog, Icon, SelectField } from '@/src/components/ui';
 import { sendsFinished } from '@/src/lib/adapterSeam/odoo/sendsFinished';
 import React, { useState } from 'react';
-import { useOdooConnection, useOdooConfigProposal, useOdooConnectStatus, useOdooEmploy, useOdooJournalProposal, useOdooSetup, type JournalCandidate } from '@/src/hooks/useOdoo';
+import { useMasterRecords, useOdooConnection, useOdooConfigProposal, useOdooConnectStatus, useOdooEmploy, useOdooJournalProposal, useOdooSetup, type JournalCandidate } from '@/src/hooks/useOdoo';
+import { useSetDeskJournal } from '@/src/hooks/useJournals';
 import { useOdooCan } from './useOdooCan';
 import { odooErrorMessage } from './odooErrors';
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
@@ -77,6 +78,39 @@ function JournalDefault({ proposal, canSet }: { proposal: ReturnType<typeof useO
   );
 }
 
+/** #895 owner ruling 4: the general Odoo journal manual journals post to. Admin only; `set_desk_journal` re-checks the journal. */
+function DeskJournal({ savedId }: { savedId: string }) {
+  const { t } = useTranslation();
+  const save = useSetDeskJournal();
+  const journals = useMasterRecords({ kind: 'journal', journalType: 'general', page: 1, pageSize: 100 });
+  const [picked, setPicked] = useState('');
+  const [failed, setFailed] = useState(false);
+  const rows = journals.data?.rows ?? [];
+  const saved = rows.find((r) => r.external_id === savedId);
+  if (savedId) return <span className="text-muted-foreground">{saved?.name ?? savedId}</span>;
+  if (journals.data && rows.length === 0) {
+    return <span className="text-muted-foreground">{t('administration:odoo.checklist.deskJournalNone', 'No general journal has been read from Odoo yet.')}</span>;
+  }
+  const submit = async () => {
+    setFailed(false);
+    try { await save.mutateAsync(picked); } catch { setFailed(true); }
+  };
+  return (
+    <span className="inline-flex flex-wrap items-end gap-2">
+      <SelectField
+        label={t('administration:odoo.checklist.deskJournal', 'Desk journal')}
+        hideLabel
+        value={picked}
+        onChange={setPicked}
+        placeholder={t('administration:odoo.checklist.journalChoose', 'Choose a journal')}
+        options={rows.map((r) => ({ value: r.external_id, label: r.name }))}
+      />
+      <Button size="sm" variant="outline" disabled={!picked} loading={save.isPending} onClick={() => { void submit(); }}>{t('administration:odoo.checklist.journalSave', 'Save')}</Button>
+      {failed && <span role="alert" className="text-control text-destructive-text">{t('administration:odoo.checklist.journalFailed', 'The journal could not be saved. Try again.')}</span>}
+    </span>
+  );
+}
+
 /** #2050: hand a domain to Odoo after one confirm. Vendors and clients wait until every record has reached Odoo; the server refuses otherwise (`sends-pending`). It can be handed back, so the confirm is not destructive. */
 function EmployAction({ domain, waiting }: { domain: 'companies' | 'procurement'; waiting: boolean }) {
   const { t } = useTranslation();
@@ -142,6 +176,9 @@ export function OdooSetupChecklist() {
     { name: t('administration:odoo.checklist.mapOnce', 'Map once'), done: Boolean(cfg.account_defaults && cfg.default_warehouse_id) && (mapProposal ? mapProposal.units.every((u) => u.mapped) : Boolean(cfg.unit_map)), hint: t('administration:odoo.checklist.mapOnceHint', 'Accounts, units and the default warehouse, proposed together and accepted in one step.') },
     { name: t('administration:odoo.checklist.journal', 'Payment journal'), done: Boolean(cfg.default_payment_journal_id), hint: t('administration:odoo.checklist.journalHint', 'The bank or cash journal supplier payments are made from, unless Finance picks another.'),
       extra: <JournalDefault proposal={proposal} canSet={canSet} /> },
+    { name: t('administration:odoo.checklist.deskJournal', 'Desk journal'), done: cfg.desk_journal_id != null && String(cfg.desk_journal_id) !== '', adminOnly: true,
+      hint: t('administration:odoo.checklist.deskJournalHint', 'The general journal manual journals are posted to.'),
+      extra: <DeskJournal savedId={cfg.desk_journal_id != null ? String(cfg.desk_journal_id) : ''} /> },
     { name: t('administration:odoo.checklist.customerAdvance', 'Customer-advance account'), done: Boolean(cfg.customer_advance_account_ref), hint: t('administration:odoo.checklist.customerAdvanceHint', 'Choose the account that holds customer advances.'), extra: <AccountDefault kind="advance" value={String(cfg.customer_advance_account_ref ?? '')} canSet={canSet} /> },
     { name: t('administration:odoo.checklist.taxPrepaid', 'Tax-prepaid account'), done: Boolean(cfg.tax_prepaid_account_id), hint: t('administration:odoo.checklist.taxPrepaidHint', 'Choose the asset account used for client tax withheld.'), extra: <AccountDefault kind="prepaid" value={String(cfg.tax_prepaid_account_id ?? '')} canSet={canSet} /> },
     { name: t('administration:odoo.checklist.sends', 'Sends finished'), done: sendsDone, adminOnly: true, hint: t('administration:odoo.checklist.sendsHint', 'Records PMO holds that Odoo should also have are sent once.') },

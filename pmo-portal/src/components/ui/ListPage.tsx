@@ -24,7 +24,7 @@ export interface ListPageProps {
    */
   count?: number;
   /** Total count before filters. */
-  total?: number;
+  total?: number | string;
   /**
    * The single per-screen primary CTA ("New <Entity>" / "Raise request" / …),
    * gated by the consumer. Lives top-right in the header row.
@@ -57,6 +57,8 @@ export interface ListPageProps {
   mobileToolbarBreakpoint?: number;
   /** Page-specific desktop toolbar layout refinements. */
   desktopToolbarClassName?: string;
+  /** Page-specific phone toolbar layout refinements (e.g. no card frame around a single row of controls). */
+  mobileToolbarClassName?: string;
 
   /** Embedded under a page that already names the list (a switch labels it): no second title, help or count chip. */
   hideHeader?: boolean;
@@ -97,6 +99,7 @@ export const ListPage: React.FC<ListPageProps> = ({
   mobileToolbar,
   mobileToolbarBreakpoint = 768,
   desktopToolbarClassName,
+  mobileToolbarClassName,
   hideHeader = false,
   banner,
   children,
@@ -117,7 +120,7 @@ export const ListPage: React.FC<ListPageProps> = ({
   return (
     <div className={className}>
       {hideHeader ? (
-        count !== undefined && total !== undefined && count < total && (
+        count !== undefined && total !== undefined && (
           <p className="mb-2 text-control text-muted-foreground">{t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', { count, total })}</p>
         )
       ) : (
@@ -127,7 +130,7 @@ export const ListPage: React.FC<ListPageProps> = ({
           headingLevel={headingLevel}
           help={help}
           action={primaryAction}
-          count={count === undefined ? undefined : total !== undefined && count < total
+          count={count === undefined ? undefined : total !== undefined
             ? t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', { count, total })
             : count}
         />
@@ -141,7 +144,7 @@ export const ListPage: React.FC<ListPageProps> = ({
           <Toolbar
             standalone
             data-testid="list-page-toolbar"
-            className="flex-col items-stretch gap-2.5"
+            className={`flex-col items-stretch gap-2.5 ${mobileToolbarClassName ?? ''}`}
           >
             {mobileToolbar}
           </Toolbar>

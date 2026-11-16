@@ -2,7 +2,7 @@ import { isMicrosoftFolder } from './documentUtils';
 import React from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Drawer, GateNotice, StatusPill, type RowMenuItem } from '@/src/components/ui';
+import { Button, Drawer, GateNotice, Icon, StatusPill, type RowMenuItem } from '@/src/components/ui';
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import { formatDay } from '@/src/lib/format';
 import { statusLabel } from '@/src/lib/status/statusMap';
@@ -58,7 +58,7 @@ export const DocumentTitleCell: React.FC<{
           {doc.title}
         </span>
         {(doc.code || doc.revision) && (
-          <span className="text-sm text-muted-foreground">
+          <span className="block text-sm font-normal text-muted-foreground">
             {[
               doc.code,
               doc.revision ? `${t('projectDetail.documents.revLabel', 'Rev')} ${doc.revision}` : null,
@@ -103,6 +103,8 @@ interface DocumentPreviewProps {
 }
 
 interface DocumentActionFooterProps {
+  /** Opens the file in the app's viewer; omitted when there is nothing readable to show. */
+  onView?: () => void;
   canEdit: boolean;
   canDelete: boolean;
   hasFile: boolean;
@@ -142,6 +144,7 @@ const DocumentHeaderActions: React.FC<DocumentHeaderActionsProps> = ({ primaryAc
 };
 
 const DocumentActionFooter: React.FC<DocumentActionFooterProps> = ({
+  onView,
   canEdit,
   canDelete,
   hasFile,
@@ -153,6 +156,12 @@ const DocumentActionFooter: React.FC<DocumentActionFooterProps> = ({
   const { t } = useTranslation('project');
   return (
     <>
+      {onView && (
+        <Button variant="outline" size="sm" onClick={onView}>
+          <Icon name="eye" />
+          {t('projectDetail.documents.action.view', 'View file')}
+        </Button>
+      )}
       {canEdit && (
         <Button variant="outline" size="sm" onClick={onEdit}>
           {t('projectDetail.documents.action.edit', 'Edit')}
@@ -209,7 +218,7 @@ const DocumentPreviewFields: React.FC<DocumentPreviewProps & { statusHeadingLeve
           <>
             {/* C4: empty fields are left out, never shown as "—". */}
             {doc.code && <DocField label={t('projectDetail.documents.field.code', 'Code')}>
-              <span className="font-mono text-sm">{doc.code}</span>
+              <span className="record-id text-foreground">{doc.code}</span>
             </DocField>}
             <DocField label={t('projectDetail.documents.field.category', 'Category')}>
               {doc.category || t('projectDetail.documents.category.uncategorized', 'Uncategorized')}
@@ -308,12 +317,13 @@ export const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
   onDelete,
   onViewDocument,
   onDownload,
+  onView,
   fileContent,
   microsoftFile,
 }) => {
   const isFolder = isMicrosoftFolder(doc);
   const [primaryTransition, ...secondaryTransitions] = transitions;
-  const hasFooter = canEdit || canDelete || hasFile || Boolean(sharePointUrl);
+  const hasFooter = Boolean(onView) || canEdit || canDelete || hasFile || Boolean(sharePointUrl);
 
   return (
     <Drawer
@@ -325,6 +335,7 @@ export const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
       nestedOpen={nestedOpen}
       onClose={onClose}
       footer={hasFooter && <DocumentActionFooter
+        onView={onView}
         canEdit={canEdit}
         canDelete={canDelete}
         hasFile={hasFile}

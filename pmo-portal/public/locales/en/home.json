@@ -1,10 +1,13 @@
 {
   "nav": {
     "label": "Phone navigation",
-    "home": "Home",
-    "approvals": "Approvals",
-    "myTasks": "My Tasks",
     "search": "Search",
-    "more": "More"
+    "more": "More",
+    "short": {
+      "dashboard": "Dashboard",
+      "projects": "Projects",
+      "timesheets": "Timesheets",
+      "finance": "Finance"
+    }
   }
 }

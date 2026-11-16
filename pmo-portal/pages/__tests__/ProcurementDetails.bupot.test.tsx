@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
   toast: vi.fn(),
   vendor: { data: [{ value: 'vendor-new', label: 'New supplier' }], isPending: false, isError: false, refetch: vi.fn() },
 }));
+vi.mock('@/src/hooks/useProcurementFilesBatch', () => ({ useProcurementFilesBatch: () => ({ data: undefined, isError: false }) }));
 vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
 vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }) }));
 
@@ -33,6 +34,10 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'req
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.realRole, effectiveRole: h.effectiveRole }) }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: false }) }));
 vi.mock('@/src/hooks/useBudget', () => ({ useProjectBudget: () => ({ data: 1, isPending: false, isError: false }) }));
+// The budget panel and header line also read the project's budget positions (no QueryClient is mounted here).
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: () => ({ data: undefined, isPending: false, isError: false }),
+}));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProjectCommittedSpend: () => ({ data: 0 }), useProjectReservedSpend: () => ({ data: 0 }) }));
 vi.mock('@/src/hooks/useAgentContext', () => ({ useAgentContext: () => ({ setEntity: vi.fn() }) }));
 vi.mock('@/src/hooks/useListReturn', () => ({ useListReturn: () => ({ returnToList: vi.fn() }) }));

@@ -50,11 +50,25 @@ select set_eq(
             -- it (only database.types.ts mentions the table), so no unqualified embed exists.
             ('contract_rate_assignees -> profiles'),
             ('credits -> profiles'),
+            -- 0882 (#2195): erp_capture_invoice_assignments carries actor_id, undone_by and the two
+            -- prior_mark_* columns, all -> profiles. Checked before adding: no DAL, repository,
+            -- edge-function or e2e code embeds profiles from it (the command line reads placements
+            -- through the assignment report RPC), so no unqualified embed exists. Any future embed
+            -- must name its constraint.
+            ('erp_capture_invoice_assignments -> profiles'),
+            -- 0903 (#2277): erp_capture_invoice_assignments carries source_document_id and family_order_document_id, both
+            -- -> erp_purchase_documents. Checked before adding: nothing embeds the table through PostgREST (no reference in
+            -- pmo-portal/src, pmo-portal/pages, supabase/functions or the CLI; it is read only through purchase_capture_assignment_report).
+            ('erp_capture_invoice_assignments -> erp_purchase_documents'),
             ('erp_employees -> profiles'),
             -- 0291 (#1012): fx_rates carries created_by AND updated_by, both -> profiles. Checked
             -- before adding: neither src/lib/db/fxRates.ts nor the fx repository embeds profiles
             -- from fx_rates, so no unqualified embed exists. Recorded, not waived.
             ('fx_rates -> profiles'),
+            -- 0887 (#895): journal_entries carries maker_id AND approver_id, both -> profiles. Checked before
+            -- adding: the journals DAL reads journal_entries with select('*') and no embed; names resolve through
+            -- the profiles directory by id. Any future embed must name its constraint.
+            ('journal_entries -> profiles'),
             ('platform_operators -> profiles'),
             ('procurements -> profiles'),
             ('projects -> profiles'),

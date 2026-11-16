@@ -1,3 +1,4 @@
+import { capturedPurchaseCapabilities } from '../../../pmo-portal/src/lib/adapterSeam/capabilityMap.ts';
 /**
  * adapter-dispatch — Deno Edge Function entry point (ADR-0055 P0/P1, FR-EAS-023/033/042, FR-CUA-001).
  *
@@ -49,9 +50,10 @@ import { applyCanonicalTimesheetTruth, enforceTimesheetApproved, isTimesheetPush
 import { dispatchErrorStatus } from './dispatchErrorStatus.ts';
 import type { FaultGate } from './faultSeams.ts';
 import { isRevenueSiSubmitTransition, grantSiSubmitClearance, requiresSiAuthorClaim, claimSiAuthor, releaseSiSubmitClearance } from './sodGuard.ts';
-import { checkCommandAuthorization } from './authGuard.ts';
+import { checkCommandAuthorization, checkOutboxReplayAuthorization, replayMayIssueErpWrite } from './authGuard.ts';
 import { authorizeBudgetOccupant, isBudgetOccupantCommand, runBudgetOccupant } from './budgetOccupant.ts';
 import { assertNotPreCutover } from '../../../pmo-portal/src/lib/adapterSeam/cutoverGate.ts';
+import { canonicalCommandDigest } from './moneyOutboxDeps.ts';
 import { authorizeClickUpTaskCommand } from './taskAuthorization.ts';
 import { enforcePaymentGate, isProcurementPaymentCreate } from './paymentGate.ts';
 import { checkOdooPaymentGate } from './odooPaymentGate.ts';
@@ -84,7 +86,10 @@ import { resolveOdooMoneyOutboxDeps } from './odooMoneyOutbox.ts';
 import { odooRevenueAnchorKey } from './odooRevenueOutbox.ts';
 import { odooCompanyAnchorKey } from './odooCompanies.ts';
 import { equipmentKey } from './odooEquipment.ts';
+import { INVENTORY_DOMAIN, STOCK_DOC_KIND, stockCommandShapeError, stockKey } from './odooStock.ts';
 import { EQUIPMENT_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/odoo/assets/kinds.ts';
+import { applyCanonicalJournalTruth, enforceJournalApproved, isJournalPush, JOURNAL_DOMAIN, type ApprovedJournal } from './journalGuard.ts';
+import { recordJournalHold } from './readModelWriters.ts';
 import { checkOdooDraftTarget, isOdooInvoiceDraftWrite, writeOdooInvoiceDraft } from './odooInvoiceDraft.ts';
 import { ODOO_TIER } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
 import { odooOwnsCompaniesTier, odooOwnsRevenueTier } from '../../../pmo-portal/src/lib/adapterSeam/odoo/ownership.ts';
@@ -278,7 +283,34 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   // Compute isErpDomain early so it's available for both the auth guard and idempotency check. #1511: the equipment register is
   // an externally-owned domain too — it is served by the Odoo tier only, and every gate below that does not concern it is
   // self-gating on the domain (the cutover gate, the revenue/procurement target guards, the project gates).
-  const isErpDomain = isErpDispatchDomain(command.domain) || command.domain === EQUIPMENT_DOMAIN;
+  const isErpDomain = isErpDispatchDomain(command.domain) || command.domain === EQUIPMENT_DOMAIN || command.domain === INVENTORY_DOMAIN
+    || command.domain === JOURNAL_DOMAIN;
+
+  // ── #895 — a manual journal posts ONLY once a second person approved it in PMO (owner rulings 1–2, enforced by
+  // `approve_journal`). The gate re-reads the approved journal under the caller's JWT (Finance-or-above, own org,
+  // approved) and the command is rebuilt from that read: id, key, lines, amounts, date and ledger refs. The ledger tier
+  // is the one the read names, so no domain-ownership row is needed for `accounting`. Any other shape is refused here.
+  let approvedJournal: ApprovedJournal | undefined;
+  if (command.domain === JOURNAL_DOMAIN) {
+    if (command.operation !== 'create' || !isJournalPush(command as never)) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: 'only an approved manual journal can be posted' }), { status: 422, headers });
+    }
+    const gate = await enforceJournalApproved(callerClient as never, String(command.record.id));
+    if (!gate.ok || !gate.journal) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: gate.message }), { status: gate.status, headers });
+    }
+    approvedJournal = gate.journal;
+    applyCanonicalJournalTruth(command as never, approvedJournal);
+  }
+
+  // ── #1508 — a connected stock post names only the document and the integer revision the keeper viewed. Anything else (another
+  // kind or operation, a non-uuid id, no revision) answers 422 before any guard read or write; the rest of the record is dropped,
+  // so no client field can reach the outbox payload or the Odoo body.
+  if (command.domain === INVENTORY_DOMAIN) {
+    const shapeError = stockCommandShapeError(command as never);
+    if (shapeError) return new Response(JSON.stringify({ error: 'commit-rejected', message: shapeError }), { status: 422, headers });
+    command.record = { id: command.record.id, revision: command.record.revision, erp_doc_kind: STOCK_DOC_KIND } as typeof command.record;
+  }
 
   // ── #784 — a revenue command names its record by the canonical uuid every PMO revenue table keys it on;
   // the whole money path compares that id as TEXT (the outbox fence, the one-in-flight index, external_refs,
@@ -312,7 +344,8 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   // `budget-occupant` (ECA-6) is a request, not an ERP document kind: it has its own Admin/Finance gate below.
   // The tier that owns the domain for this org (ERPNext, or Odoo where procurement is employed) picks the adapter and the outbox.
   let employedTier: string | undefined;
-  if (isErpDomain && !isBudgetOccupantCommand(command)) {
+  if (approvedJournal) employedTier = approvedJournal.tier;
+  if (isErpDomain && !isBudgetOccupantCommand(command) && !approvedJournal) {
     // The guard reads only the authorization inputs (domain + the named ERP document kind).
     const auth = await checkCommandAuthorization(callerClient as never, orgId, userId, {
       domain: command.domain,
@@ -327,18 +360,24 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     employedTier = auth.tier;
   }
 
-  // ── ECA-4 (FR-ECA-030, OQ-ECA-1) — a purchase ordered before the ERP connection pushes no later step. Runs on the
-  // deputy `callerClient` BEFORE the outbox, adapter selection and any ERP call, for every ERP tier alike; the
-  // verdict is read from PMO's tables, never from the payload. A check that cannot answer refuses (fail closed).
-  try {
-    await assertNotPreCutover(callerClient as never, command);
-  } catch (error) {
-    const code = error instanceof AppError ? error.code : undefined;
-    const message = error instanceof Error ? error.message : 'could not check the connection date';
-    return new Response(JSON.stringify({ error: code === 'pre-cutover' ? 'pre-cutover' : 'commit-rejected', message }), {
-      status: code === 'pre-cutover' ? 409 : 422,
-      headers,
-    });
+  const possibleCapturedReplay = capturedPurchaseCapabilities(employedTier).payCapturedInvoice && command.domain === 'procurement' && command.operation === 'create'
+    && command.record.erp_doc_kind === 'payment' && command.record.capturedInvoiceDocumentId != null;
+  // ECA-4: new purchases must satisfy the connection-date gate; replay uses the frozen command.
+  const checkCutover = async (): Promise<Response | null> => {
+    try {
+      await assertNotPreCutover(callerClient as never, command);
+      return null;
+    } catch (error) {
+      const code = error instanceof AppError ? error.code : undefined;
+      const message = error instanceof Error ? error.message : 'could not check the connection date';
+      return new Response(JSON.stringify({ error: code === 'pre-cutover' ? 'pre-cutover' : 'commit-rejected', message }), {
+        status: code === 'pre-cutover' ? 409 : 422, headers,
+      });
+    }
+  };
+  if (!possibleCapturedReplay) {
+    const refusal = await checkCutover();
+    if (refusal) return refusal;
   }
 
   // ── P3b FR-TSP-010 — THE APPROVED-ONLY GATE (ADR-0059 §3.3). BEFORE the outbox, BEFORE adapter
@@ -409,7 +448,10 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     try { command.idempotencyKey = equipmentKey(command.record as Record<string, unknown>); }
     catch { return new Response(JSON.stringify({ error: 'commit-rejected', message: 'record-id-invalid' }), { status: 422, headers }); }
   }
-  if (isErpDomain && !budgetKeyDerivedByServer && !odooInvoiceKeyDerivedByServer && !odooCompanyKeyDerivedByServer && !odooEquipmentKeyDerivedByServer && (command.operation as string) !== 'read' && !isOpaqueIdempotencyKey(command.idempotencyKey)) {
+  // #1508: one PMO stock document is one Odoo picking, so the key follows the document (the client's per-click key is replaced).
+  const odooStockKeyDerivedByServer = command.domain === INVENTORY_DOMAIN;
+  if (odooStockKeyDerivedByServer) command.idempotencyKey = stockKey(command.record as Record<string, unknown>);
+  if (isErpDomain && !approvedJournal && !budgetKeyDerivedByServer && !odooInvoiceKeyDerivedByServer && !odooCompanyKeyDerivedByServer && !odooEquipmentKeyDerivedByServer && !odooStockKeyDerivedByServer && (command.operation as string) !== 'read' && !isOpaqueIdempotencyKey(command.idempotencyKey)) {
     return new Response(
       JSON.stringify({
         error: 'commit-rejected',
@@ -434,6 +476,69 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   // record) AND, for 'tasks', to resolve the per-request ClickUp binding/mapping at adapter-select time.
   // Never used for adapter.commit() — org_id never crosses into the adapter (AC-EAS-023).
   const serviceClient = createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions);
+  // A same-intent captured payment is bound to its original server snapshot before new-payment gates.
+  let capturedReplayPayload: Record<string, unknown> | undefined;
+  let capturedReplayBeforeClaim: ((id: string) => Promise<Response | null>) | undefined;
+  let capturedReplayAfterClaim: ((id: string, generation: number) => Promise<Response | null>) | undefined;
+  const authorizeCapturedWrite = async (candidate: { id: string; state: string; actor_user_id: string | null; last_error: string | null; pmo_record_id: string; payload: Record<string, unknown> | null }, claimed = false): Promise<Response | null> => {
+    if (!claimed && (!replayMayIssueErpWrite(candidate.state) || (candidate.state === 'failed' && candidate.last_error === 'captured_invoice_payment_rejected'))) return null;
+    if (!candidate.actor_user_id || candidate.actor_user_id !== userId) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: 'not authorized' }), { status: 403, headers });
+    }
+    const auth = await checkOutboxReplayAuthorization(serviceClient as never, orgId, {
+      id: candidate.id, state: claimed ? 'pending' : candidate.state, domain: 'procurement', operation: 'create',
+      pmoRecordId: candidate.pmo_record_id, actorUserId: candidate.actor_user_id, payload: candidate.payload, tier: employedTier!,
+    });
+    if (!auth.ok) return new Response(JSON.stringify({ error: 'commit-rejected', message: auth.message }), { status: auth.status, headers });
+    const gateRecord = claimed ? candidate.payload : command.record;
+    if (!gateRecord) return new Response(JSON.stringify({ error: 'commit-rejected', message: 'gate-check-failed' }), { status: 403, headers });
+    const gate = await checkProcurementGate(serviceClient as never, orgId, { ...command, record: gateRecord } as never, employedTier);
+    if (!gate.ok) return new Response(JSON.stringify({ error: 'commit-rejected', message: gate.message }), { status: gate.status, headers });
+    const payment = await enforcePaymentGate(serviceClient as never, orgId, userId, String(gateRecord.procurementId ?? ''));
+    if (!payment.ok) return new Response(JSON.stringify({ error: 'commit-rejected', message: payment.message }), { status: payment.status, headers });
+    return null;
+  };
+  if (possibleCapturedReplay) {
+    capturedReplayBeforeClaim = async (id) => {
+      const current = await serviceClient.from('external_command_outbox').select('id,state,actor_user_id,last_error,pmo_record_id,payload').eq('org_id', orgId).eq('id', id).maybeSingle();
+      if (current.error || !current.data) return new Response(JSON.stringify({ error: 'commit-rejected', message: 'gate-check-failed' }), { status: 422, headers });
+      return authorizeCapturedWrite(current.data);
+    };
+    capturedReplayAfterClaim = async (id, generation) => {
+      const current = await serviceClient.from('external_command_outbox').select('id,state,claim_generation,actor_user_id,last_error,pmo_record_id,payload').eq('org_id', orgId).eq('id', id).eq('claim_generation', String(generation)).maybeSingle();
+      if (current.error || !current.data || current.data.state !== 'committing' || current.data.claim_generation !== generation) {
+        return new Response(JSON.stringify({ error: 'commit-rejected', message: 'gate-check-failed' }), { status: 403, headers });
+      }
+      return authorizeCapturedWrite(current.data, true);
+    };
+  }
+  if (possibleCapturedReplay) {
+    const { data, error } = await serviceClient.from('external_command_outbox')
+      .select('id,state,actor_user_id,last_error,payload,payload_digest,pmo_record_id,operation,external_tier')
+      .eq('org_id', orgId).eq('domain', 'procurement').eq('idempotency_key', command.idempotencyKey!).maybeSingle();
+    if (error) return new Response(JSON.stringify({ error: 'commit-rejected', message: 'idempotency-key-payload-mismatch' }), { status: 422, headers });
+    if (data) {
+      const saved = data.payload as Record<string, unknown> | null;
+      const inbound = command.record as Record<string, unknown>;
+      const { created_after: _createdAfter, ...material } = saved ?? {};
+      const digest = await canonicalCommandDigest({ domain: 'procurement', operation: 'create', record: material });
+      if (!saved || data.operation !== 'create' || data.external_tier !== employedTier || !capturedPurchaseCapabilities(employedTier).payCapturedInvoice || data.pmo_record_id !== inbound.id
+          || saved.id !== inbound.id || saved.erp_doc_kind !== 'payment' || saved.procurementId !== inbound.procurementId
+          || saved.capturedInvoiceDocumentId !== inbound.capturedInvoiceDocumentId || inbound.invoiceId != null
+          || saved.date !== inbound.date || (typeof inbound.paid_amount !== 'number' && typeof inbound.paid_amount !== 'string')
+          || !/^[0-9]+(?:\.[0-9]{1,2})?$/.test(String(inbound.paid_amount))
+          || Number(saved.paid_amount) !== Number(inbound.paid_amount) || !data.payload_digest || data.payload_digest !== digest) {
+        return new Response(JSON.stringify({ error: 'commit-rejected', message: 'idempotency-key-payload-mismatch' }), { status: 422, headers });
+      }
+      const initialRefusal = await authorizeCapturedWrite(data);
+      if (initialRefusal) return initialRefusal;
+      capturedReplayPayload = saved;
+    }
+  }
+  if (possibleCapturedReplay && !capturedReplayPayload) {
+    const refusal = await checkCutover();
+    if (refusal) return refusal;
+  }
   if (budgetActivationPrecheckVersionId) {
     try {
       const result = await runBudgetActivationPrecheck(
@@ -537,7 +642,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
 
   // FR-PFE-010 (#1319) — the org's purchase rules, before any adapter/outbox/ERP work (rejection = no outbox row).
   {
-    const procurementGate = await checkProcurementGate(serviceClient as never, orgId, command as never);
+    const procurementGate = capturedReplayPayload ? { ok: true as const } : await checkProcurementGate(serviceClient as never, orgId, command as never, employedTier);
     if (!procurementGate.ok) {
       return new Response(JSON.stringify({ error: 'commit-rejected', message: procurementGate.message }), {
         status: procurementGate.status,
@@ -603,7 +708,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   //  #4: a create must not target an ALREADY-MAPPED PMO record — `record_outbox_ref` would repoint
   //      that record's external identity to a fresh ERP document before the mirror insert fails on
   //      the duplicate PK. This command's own retry (same idempotency key) stays allowed.
-  if (isErpDomain) {
+  if (isErpDomain && !capturedReplayPayload) {
     // #784 — a PMO-native invoice or receipt is never acted on through the ERP path (any operation).
     const erpPath = await checkRevenueErpPathTarget(serviceClient as never, command);
     if (!erpPath.ok) {
@@ -648,7 +753,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   // fail-closed on a missing/unreadable row. Runs BEFORE the outbox insert, so a refused payment
   // leaves no outbox row and touches no ERP. Positioned after the binding/target guards so a command
   // that is about to be rejected for those reasons never pays for this read.
-  if (isProcurementPaymentCreate(command)) {
+  if (!capturedReplayPayload && isProcurementPaymentCreate(command)) {
     const paymentGate = await enforcePaymentGate(
       serviceClient as never,
       orgId,
@@ -776,6 +881,27 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     }
   };
 
+  /** #895 — a journal the ledger did not confirm shows Needs a check (held) or Refused, never stays Approved silently.
+   *  Best-effort, like the timesheet recorder: a failure to record never masks the error the caller gets. A transient
+   *  failure (unreachable) leaves the journal sending, so it can be sent again. */
+  const recordJournalPushFailure = async (failure: AppError): Promise<void> => {
+    if (!approvedJournal) return;
+    const status = failure.code === 'command-held' || failure.code === 'config-rejected' ? 'held'
+      : failure.code === 'commit-rejected' ? 'refused' : null;
+    if (!status) return;
+    try {
+      await recordJournalHold(serviceClient as never, approvedJournal.id, status, failure.message);
+    } catch (recordErr) {
+      console.error('[adapter-dispatch] failed to record journal push failure:', recordErr);
+    }
+  };
+  if (approvedJournal) {
+    try { await recordJournalHold(serviceClient as never, approvedJournal.id, 'sending', null); } catch (err) {
+      const message = err instanceof Error ? err.message : 'the journal could not be marked as sending';
+      return new Response(JSON.stringify({ error: 'commit-rejected', message }), { status: 409, headers });
+    }
+  }
+
   // ── Named server-side fault seams (Slice 0 task 0.7, FR-ENA-003, plan §2 decision 5; host
   // allowlist added fix-round finding 5): read the gate ONCE per request and thread it through.
   // `maybeFault` re-checks ALL THREE conditions per named seam, so this is a pure no-op in every
@@ -823,8 +949,14 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
       budgetVersionMajor,
       headers,
       outboxRecordId,
+      capturedReplayPayload,
+      capturedReplayBeforeClaim,
+      capturedReplayAfterClaim,
       releaseSubmitClearance,
-      recordTimesheetPushFailure,
+      recordTimesheetPushFailure: async (failure: AppError) => {
+        await recordTimesheetPushFailure(failure);
+        await recordJournalPushFailure(failure);
+      },
     });
 
   try {

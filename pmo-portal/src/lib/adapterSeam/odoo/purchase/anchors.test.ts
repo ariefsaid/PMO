@@ -18,6 +18,16 @@ it('an equipment key is a valid anchor too: `equipment:<uuid>` names one registe
   }
 });
 
+it('a stock key is a valid anchor: `stock:<uuid>` names one stock movement (#1508)', () => {
+  const key = 'stock:123e4567-e89b-12d3-a456-426614174000';
+  expect(anchorValue(key)).toBe(`pmo:${key}`);
+  expect(externalIdentifier(key)).toEqual({ module: 'pmo', name: 'stock_123e4567_e89b_12d3_a456_426614174000' });
+  expect(keyFromExternalIdentifier('stock_123e4567_e89b_12d3_a456_426614174000')).toBe(key);
+  for (const bad of ['stock:bad', 'stock', 'stock:']) {
+    expect(() => anchorValue(bad), bad).toThrow();
+  }
+});
+
 it('an external ref carries its Odoo model, so ids of different models never share one', () => {
   expect(odooExternalRef('stock.picking', 1)).toBe('stock.picking:1');
   expect(odooExternalRef('purchase.order', '1')).toBe('purchase.order:1');
@@ -41,4 +51,14 @@ it('maps a held customer document number to the Odoo model that holds it', () =>
   expect(odooRevenueDocumentRef('sales-invoice', '42')).toBe('account.move:42');
   expect(odooRevenueDocumentRef('incoming-payment', 42)).toBe('account.payment:42');
   expect(() => odooRevenueDocumentRef('sales-invoice', 'abc')).toThrow();
+});
+
+it('#895 a manual-journal key and a journal-reversal key are valid anchors (one PMO journal, one Odoo move)', () => {
+  const id = '123e4567-e89b-12d3-a456-426614174000';
+  expect(externalIdentifier(`journal:${id}`)).toEqual({ module: 'pmo', name: `journal_${id.replace(/-/g, '_')}` });
+  expect(externalIdentifier(`journal-rev:${id}`)).toEqual({ module: 'pmo', name: `journal_rev_${id.replace(/-/g, '_')}` });
+  expect(anchorValue(`journal:${id}`)).toBe(`pmo:journal:${id}`);
+  for (const bad of [`journal:${id}:x`, `journal:${id}:1`, 'journal:bad', `journal-rev:${id}:1`, `journal:${id.slice(0, 35)}`]) {
+    expect(() => externalIdentifier(bad), bad).toThrow();
+  }
 });

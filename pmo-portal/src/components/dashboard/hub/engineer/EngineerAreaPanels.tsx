@@ -55,10 +55,10 @@ export function EngineerTimesheetCard({
       <CardHead level={2} actions={status ? <StatusPill record="timesheet" state={status} /> : undefined}>{t('home.eng.thisWeek', 'This week’s timesheet')}</CardHead>
       <CardPad className="grid gap-4">
         {loading ? <ListState variant="loading" rows={3} />
-          : error ? <ListState variant="error" title={t('hub.engineer.timesheetsError', "Couldn't load your timesheets")} onRetry={onRetry} />
+          : error ? <ListState variant="error" title={t('hub.engineer.timesheetsError', "Couldn't load your timesheets")} onRetry={onRetry} quiet />
             : (
               <>
-                <div className="text-[23px] font-bold leading-none tabular">{formatNumberExact(hours)} {t('hub.engineer.hourUnit', 'h')}</div>
+                <div className="text-[23px] font-bold leading-none tabular">{formatNumberExact(hours)}&nbsp;{t('hub.engineer.hourUnit', 'h')}</div>
                 {status === 'Rejected' && <p className="text-control text-destructive-text">{t('home.eng.returnedLine', 'Sent back for correction.')}</p>}
                 {chart
                   ? <MonthColumns labelAll height={150} ariaLabel={t('home.eng.weekStrip', 'Hours by day this week')} points={days.map((day) => ({ key: day.date, tick: day.label, a: day.hours, labelA: day.hours > 0 ? formatNumberExact(day.hours) : undefined }))} />
@@ -127,10 +127,10 @@ export function EngineerTasksCard({
       <CardHead level={2} subline={finding} actions={<CardLink to="/my-tasks">{t('home.eng.allTasks', 'All tasks')}</CardLink>}>{t('home.eng.myTasks', 'My tasks')}</CardHead>
       <div className="px-[var(--panel-inset)] pb-2">
         {!loading && !error && dayError && (
-          <ListState variant="error" className="mb-2" title={t('home.eng.dayUnread', "Couldn't read today's date")} onRetry={onRetry} />
+          <ListState variant="error" className="mb-2" title={t('home.eng.dayUnread', "Couldn't read today's date")} onRetry={onRetry} quiet />
         )}
         {loading ? <ListState variant="loading" rows={3} />
-          : error ? <ListState variant="error" title={t('hub.engineer.tasksError', "Couldn't load your tasks")} onRetry={onRetry} />
+          : error ? <ListState variant="error" title={t('hub.engineer.tasksError', "Couldn't load your tasks")} onRetry={onRetry} quiet />
             : rows.length === 0 ? <p className="pb-2 text-control text-muted-foreground">{t('hub.engineer.noTasksDue', 'No overdue tasks or tasks due this week.')}</p>
               : (
                 <ul className="min-w-0 divide-y divide-border">
@@ -138,10 +138,10 @@ export function EngineerTasksCard({
                     const late = today && task.end_date && task.end_date < today ? overdueAgeDays(task.end_date, today) : null;
                     return (
                       <li key={task.id} className="min-w-0">
-                        <Link to={taskHref(task)} className="flex min-h-11 min-w-0 items-center justify-between gap-3 py-2 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-control font-normal">{task.name}</span>
-                            <span className="block truncate text-control text-muted-foreground">{task.project_name ?? t('hub.engineer.noProject', 'No project')}</span>
+                        <Link to={taskHref(task)} className="flex min-h-11 min-w-0 flex-col items-start gap-x-3 gap-y-0.5 py-2 text-foreground hover:bg-accent/40 sm:flex-row sm:items-center sm:justify-between focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                          <span className="min-w-0 max-w-full flex-1">
+                            <span className="block break-words text-control font-normal">{task.name}</span>
+                            <span className="block break-words text-control text-muted-foreground">{task.project_name ?? t('hub.engineer.noProject', 'No project')}</span>
                           </span>
                           {late !== null
                             ? <LateText tone="destructive" className="shrink-0 whitespace-nowrap">{t('hub.engineer.daysLate', { count: late, defaultValue_one: '{{count}} day overdue', defaultValue_other: '{{count}} days overdue' })}</LateText>
@@ -169,8 +169,8 @@ export function EngineerReturnedCard({ claims }: { claims: ExpenseClaimWithRefs[
           <li key={claim.id}>
             <Link to="/expenses?status=Rejected" className="flex min-h-11 items-center justify-between gap-3 py-2 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
               <span className="min-w-0">
-                <span className="block truncate text-control font-medium">{claim.title}</span>
-                <span className="block truncate text-control text-muted-foreground">{claim.project?.short_name ?? claim.project?.name ?? t('hub.engineer.noProject', 'No project')}</span>
+                <span className="block break-words text-control font-medium">{claim.title}</span>
+                <span className="block break-words text-control text-muted-foreground">{claim.project?.short_name ?? claim.project?.name ?? t('hub.engineer.noProject', 'No project')}</span>
               </span>
             </Link>
           </li>
@@ -197,7 +197,7 @@ export function EngineerRecentEntriesPanel({
       <CardHead level={2} actions={<CardLink to="/timesheets">{t('home.eng.allTimesheets', 'All timesheets')}</CardLink>}>{title}</CardHead>
       <div className="px-[var(--panel-inset)] pb-2">
         {loading ? <ListState variant="loading" rows={3} />
-          : error ? <ListState variant="error" title={t('hub.engineer.timesheetsError', "Couldn't load your timesheets")} onRetry={onRetry} />
+          : error ? <ListState variant="error" title={t('hub.engineer.timesheetsError', "Couldn't load your timesheets")} onRetry={onRetry} quiet />
             : entries.length === 0 ? <p className="pb-2 text-control text-muted-foreground">{t('hub.engineer.noRecentEntries', 'No recent time entries')}</p>
               : (
                 <ul className="divide-y divide-border">
@@ -212,8 +212,8 @@ export function EngineerRecentEntriesPanel({
                           className="grid min-h-11 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 py-2 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                         >
                           <span className="min-w-0">
-                            <span className="block text-control font-medium tabular">{formatDay(entry.entry_date)} · {formatNumberExact(entry.hours)} {t('hub.engineer.hourUnit', 'h')}</span>
-                            <span className="block truncate text-control text-muted-foreground">{project}{entry.notes ? ` · ${entry.notes}` : ''}</span>
+                            <span className="block text-control font-medium tabular">{formatDay(entry.entry_date)} · {formatNumberExact(entry.hours)}&nbsp;{t('hub.engineer.hourUnit', 'h')}</span>
+                            <span className="block break-words text-control text-muted-foreground">{project}{entry.notes ? ` · ${entry.notes}` : ''}</span>
                           </span>
                           {status && <span className="shrink-0"><StatusPill record="timesheet" state={status} /></span>}
                         </Link>

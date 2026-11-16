@@ -280,6 +280,7 @@ ui-implementer (sonnet; opus for hard slices) · design-reviewer (opus).
 | UI build (to tokens + design-plan) | ui-implementer (ui-ux-pro-max, taste) |
 | Visual design review (render + screenshot audit) | design-reviewer (design-review, impeccable, taste) |
 | Browser QA · security · ship/deploy/monitor | gstack (`/qa`, `/cso`, `/ship`, `/land-and-deploy`, `/canary`) |
+| Human friction: walk a role's jobs (`docs/jtbd.md` §6) as a first-time person | friction-walk (project skill) |
 | Multi-session fuzzy efforts → decision-ticket map | wayfinder (mattpocock set; maps live on GitHub issues, `docs/agents/issue-tracker.md`) |
 | Skill routing ("which skill fits?") | ask-matt (override — main flow = the per-issue loop) |
 | Conversation→spec synthesis (no interview) | to-spec (override; feature-forge keeps the interview workshop) |

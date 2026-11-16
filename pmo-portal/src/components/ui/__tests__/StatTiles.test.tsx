@@ -164,4 +164,85 @@ describe('StatTiles', () => {
     expect(lastTile.className).toContain('col-span-2');
     expect(lastTile.className).toContain('@5xl:col-span-1');
   });
+
+  // Layout rule 15: a money figure renders on one line, always. The label wraps or the tile takes the whole
+  // row; the number is never broken (phone, Bahasa: "US$1.000.0" / "00" read as a smaller budget).
+  describe('layout rule 15: a money figure never wraps', () => {
+    const wide = { label: 'Belum dikomitmenkan', value: 'US$1.000.000' };
+    const short = { label: 'Total pengadaan', value: 'US$22.500' };
+
+    it('the figure is one unbreakable line (nowrap, tabular), with a plain or an exact value', () => {
+      render(<StatTiles tiles={[wide, { label: 'Exact', value: '$1.2M', exactValue: '$1,200,000' }]} />);
+      for (const el of [screen.getByText('US$1.000.000'), screen.getByText('$1.2M')]) {
+        expect(el.closest('.whitespace-nowrap')).not.toBeNull();
+      }
+      const box = screen.getByText('US$1.000.000').closest('.tabular') as HTMLElement;
+      expect(box.className).not.toMatch(/break-(words|all)/);
+    });
+
+    it('a wide tile never keeps its span into the 3-col layout (a 2-wide tile beside an empty cell)', () => {
+      render(<StatTiles tiles={[short, short, short, wide, short]} columns={5} />);
+      const tile = screen.getAllByTestId('stat-tile')[3];
+      expect(tile.className).toContain('@md:col-span-1');
+      expect(tile.className).not.toContain('@5xl:col-span-1');
+    });
+
+    it('measured edge at a 155px phone tile: "US$210.000" overflows (wide), "$6,900,000" fits (not wide)', () => {
+      const spans = (value: string) => {
+        const { unmount } = render(<StatTiles tiles={[{ label: 'a', value: '$1' }, { label: 'b', value }, { label: 'c', value: '$2' }]} columns={4} />);
+        const span = screen.getAllByTestId('stat-tile')[1].className.includes('col-span-2');
+        unmount();
+        return span;
+      };
+      expect(spans('US$210.000')).toBe(true);
+      expect(spans('$6,900,000')).toBe(false);
+    });
+
+    it('an odd last tile that is wide keeps filling the N-col row (no gap beside it at desktop)', () => {
+      render(<StatTiles tiles={[short, short, wide]} columns={3} />);
+      const last = screen.getAllByTestId('stat-tile')[2];
+      expect(last.className).toContain('col-span-2');
+      expect(last.className).toContain('@xl:col-span-1');
+      expect(last.className).not.toContain('@md:col-span-1');
+    });
+
+    it('a tile left alone before a wide tile takes its row too, so no row is half empty (phone)', () => {
+      render(<StatTiles tiles={[short, short, short, wide]} columns={4} />);
+      const [a, b, c, d] = screen.getAllByTestId('stat-tile');
+      expect(a.className).not.toContain('col-span-2');
+      expect(b.className).not.toContain('col-span-2');
+      expect(c.className).toContain('col-span-2');
+      expect(c.className).toContain('@md:col-span-1');
+      expect(d.className).toContain('col-span-2');
+    });
+
+    it('a figure too long for half a phone row takes the whole row; the label stays above it and may wrap', () => {
+      render(<StatTiles tiles={[short, short, wide, short]} columns={4} />);
+      const [a, b, c, d] = screen.getAllByTestId('stat-tile');
+      expect(a.className).not.toContain('col-span-2');
+      expect(b.className).not.toContain('col-span-2');
+      expect(c.className).toContain('col-span-2');
+      // 2-up resumes as soon as the pane fits two figures abreast (@md), whatever the strip's column count
+      expect(c.className).toContain('@md:col-span-1');
+      expect(d.className).toContain('col-span-2'); // the tile left alone after it takes its row too
+      // the label sits in its own block above the figure, so a long label wraps without touching the number
+      const label = screen.getAllByText('Belum dikomitmenkan')[0];
+      expect(label.className).not.toContain('whitespace-nowrap');
+      expect(label.nextElementSibling?.className).toContain('whitespace-nowrap');
+    });
+  });
+
+  describe('wideFigures (money in the billions)', () => {
+    const tile = (n: number) => ({ label: `Tile ${n}`, value: 'Rp 12.685.600.000' });
+    it('waits for a 52rem strip before going three across, so a figure never outgrows its tile', () => {
+      render(<StatTiles tiles={[1, 2, 3, 4, 5, 6].map(tile)} columns={3} wideFigures />);
+      const strip = screen.getByTestId('stat-tiles');
+      expect(strip.className).toContain('@[52rem]:grid-cols-3');
+      expect(strip.className).not.toContain('@xl:grid-cols-3');
+    });
+    it('keeps the normal threshold when the strip does not carry wide figures', () => {
+      render(<StatTiles tiles={[1, 2, 3].map(tile)} columns={3} />);
+      expect(screen.getByTestId('stat-tiles').className).toContain('@xl:grid-cols-3');
+    });
+  });
 });

@@ -10,7 +10,21 @@
 
 ### ⚑⚑⚑ CURRENT STATE — run the four commands below before quoting any number
 
-**2026-11-13 — v0.39.0 is on `main` and on production** (tag `v0.39.0`; database at migration 0865; no edge
+**2026-11-15 — hotfix on `main` and on production after v0.40.0** (`production` = `main`; database at migration
+0872; every edge function reports the hotfix commit). It lets an Admin's command-line sign-in make the three reads the
+purchase-capture preview needs (#2276). The preview does not yet complete on a large connected organization; that fix is
+in build (#2195). `dev` carries the same migration.
+
+**2026-11-15 — v0.40.0 was released to `main` and production** (tag `v0.40.0`; `production` = `main`; database at migration
+0866; every edge function reports the release commit; owner's yes 2026-11-15). After-deploy checks: the hosted-grant sweep
+is clean and both second-organization smokes pass (20 steps and 80 steps, none failed).
+Shipped since v0.39.0: purchases that already exist in the ERP can be recorded, slice A (#2242); the
+all-screens repairs (shared components #2231, 26 screens in #2232, #2236, #2240); budget used is one figure on every
+project screen (#2239); an invitation never removes an existing account (#2262); sign-in and profile-error screens
+(#2234, #2237, #2248); Indonesian labels (#2230); usage metering per organization and the demo seed guard, first
+groundwork for several organizations in one hosted project (#2263, ADR-0101); control tests for 30+ screens.
+
+**2026-11-13 — v0.39.0 was on `main` and on production** (tag `v0.39.0`; database at migration 0865; no edge
 function changed since v0.38.0; the site on the tagged commit). Shipped since v0.38.0: invoiced figures agree across
 screens (#2212), the Contract tab and the timesheet editor keep what was typed (#2226, #2227), confirm before work is
 lost and partial lists say so (#2224), the first all-screens class repairs (#2222), one read for project budget
@@ -1813,7 +1827,7 @@ badly each misleads.
   same way, reported "clean". Use `while IFS= read -r f; do … done < filelist` for repo-wide sweeps, and
   always re-grep for the *old* value afterwards to prove the rewrite happened.
 
-### ⚑ PER-USER CREDIT ALLOCATION — **tracked as [#564](https://github.com/ariefsaid/PMO/issues/564)**, NOT BUILT
+### ⚑ PER-USER CREDIT ALLOCATION — **tracked as [#564](https://github.com/ariefsaid/PMO/issues/564)**, database layer built (allocation table, org-pool total check, org-Admin move function); per-user metering and the Admin allocation screen are not built
 **The three-layer credit model, settled. The boundary between layers is what keeps revenue safe:**
 
 | # | Layer | Who | Effect on the org total | Status |
@@ -1844,6 +1858,7 @@ layer-1 RLS.** That relaxation is exactly the defect ADR-0049 closed; do not und
 the category that earned 4 adversarial rounds on M365 token custody. **2026-07-24 lesson: every M365
 defect passed happy-path pgTAP AND full verify — and three tests actively asserted the bug as the
 contract. Tests alone would have shipped all of them.**
+- **Accepted design (#564):** a direct maintenance write to `credit_allocations` by the operator (outside `admin_move_credit_allocation`) holds the credit lock of every organisation for the length of that one transaction; such writes are operator-only, rare and short, so the cost is accepted.
 
 **Operator vs org-Admin surface split (as-built + owner-directed 2026-07-24 — verified in code):**
 | Surface | Operator | org-Admin |

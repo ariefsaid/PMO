@@ -15,7 +15,7 @@
  *
  * DESIGN.md tokens only; no raw hex/px. No horizontal bleed @390/360 (DataTable
  * md→card handles mobile). WCAG-AA: filter chips are keyboard-operable buttons
- * with aria-pressed; status pills are dot+label (never color-only); mono IDs.
+ * with aria-pressed; status pills are dot+label (never color-only); record-id reference lines.
  *
  * File column: zero per-row network calls on mount. File presence (fileTitle /
  * fileCount / fileHref) is pre-built from the bundle by buildLedgerRows. The cell
@@ -25,8 +25,9 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  CardPad,
   DataTable,
+  ReasonDialog,
+  RecordSection,
   StatusPill,
   TaxBasisLabel,
 } from '@/src/components/ui';
@@ -42,6 +43,7 @@ import type { RecordKind, StagedRecord } from './RecordCaptureForm';
 import type { TFunction } from 'i18next';
 import type { ProcurementGates } from '@/src/lib/db/orgs';
 import { useProcurementRecordMutations } from '@/src/hooks/useProcurementRecords';
+import { useSubcontractMutations } from '@/src/hooks/useSubcontract';
 import { usePermission } from '@/src/auth/usePermission';
 import type { LedgerRow } from '@/src/lib/db/procurementLedger';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
@@ -53,7 +55,9 @@ import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 import { useVendorWithholdingCoverage } from '@/src/hooks/useVendorWithholdingSlips';
 import { VendorWithholdingSlipCell } from './VendorWithholdingSlipCell';
 import { VendorInvoiceIdentity } from '@/src/components/procurement/VendorInvoiceIdentity';
+import { voidBillErrorText } from './subcontractBillError';
 import type { VendorInvoiceContext } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
+import { recordStatusLabel } from '@/src/lib/procurement/recordStatusLabel';
 
 // ---------------------------------------------------------------------------
 // Date formatting — a ledger row's date is a BUSINESS DATE: its calendar day never moves with the
@@ -113,6 +117,12 @@ const EfakturHeader: React.FC = () => {
   return <>{t('efaktur.column', 'e-Faktur')}</>;
 };
 
+/** The record's stored status in the reader's language; the stored value is never translated. */
+const RecordStatusPill: React.FC<{ row: LedgerRow }> = ({ row }) => {
+  const { t } = useTranslation('procurementRecord');
+  return <StatusPill variant={row.statusVariant}>{recordStatusLabel(t, row.status)}</StatusPill>;
+};
+
 /** #1505 P8: the record's own status, then what Odoo last said about it and, for a receipt, the quantity Odoo booked (FR-OPP-034/090). */
 const OdooRowStatus: React.FC<{ row: LedgerRow }> = ({ row }) => {
   const { t } = useTranslation(['common', 'procurement']);
@@ -120,7 +130,7 @@ const OdooRowStatus: React.FC<{ row: LedgerRow }> = ({ row }) => {
   const outcome = odooOutcome({ erpState: facts.erpState, erpAttention: facts.erpAttention, erpReadAt: facts.erpReadAt });
   return (
     <div className="inline-flex flex-col items-start gap-1">
-      <StatusPill variant={row.statusVariant}>{row.status}</StatusPill>
+      <RecordStatusPill row={row} />
       {outcome && <OdooOutcome outcome={outcome} quiet />}
       {facts.paymentView === 'awaiting-odoo' && <span data-testid="odoo-payment-awaiting" className="text-sm text-muted-foreground">{t('procurement:odoo.paymentAwaiting', 'Payment sent, awaiting Odoo')}</span>}
       {facts.booked !== null && (
@@ -136,6 +146,9 @@ const OdooRowStatus: React.FC<{ row: LedgerRow }> = ({ row }) => {
 const STATIC_COLUMNS: Column<LedgerRow>[] = [
   {
     key: 'date',
+    size: 96,
+    // First column: its text starts on the panel inset (the other columns keep 16px between them).
+    colClassName: 'md:pl-[var(--panel-inset)]',
     header: <LedgerHeader translationKey="procurementLedger.date" fallback="Date" />,
     cell: (row) => (
       <span className="text-sm text-muted-foreground">
@@ -145,6 +158,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
   },
   {
     key: 'type',
+    size: 100,
     header: <LedgerHeader translationKey="procurementLedger.typeHeader" fallback="Type" />,
     cell: (row) => (
       <StatusPill variant="neutral">
@@ -154,30 +168,33 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
   },
   {
     key: 'systemNumber',
+    size: 136,
     header: <LedgerHeader translationKey="procurementLedger.systemNumber" fallback="System #" />,
     cell: (row) =>
       row.systemNumber ? (
-        <span className="font-mono text-sm font-semibold">{row.systemNumber}</span>
+        <span className="record-id font-semibold text-foreground">{row.systemNumber}</span>
       ) : (
         <span className="text-sm text-muted-foreground">—</span>
       ),
   },
   {
     key: 'externalRef',
+    size: 132,
     header: <LedgerHeader translationKey="procurementLedger.externalRef" fallback="External ref" />,
     cell: (row) =>
       row.externalRef ? (
-        <span className="font-mono text-sm text-muted-foreground">{row.externalRef}</span>
+        <span className="record-id">{row.externalRef}</span>
       ) : (
         <span className="text-sm text-muted-foreground">—</span>
       ),
   },
   {
     key: 'groupRef',
+    size: 100,
     header: <GroupRefHeader />,
     cell: (row) =>
       row.groupRef ? (
-        <span className="font-mono text-sm text-muted-foreground">{row.groupRef}</span>
+        <span className="record-id">{row.groupRef}</span>
       ) : (
         <span className="text-sm text-muted-foreground">—</span>
       ),
@@ -187,6 +204,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
     // Only a vendor invoice carries an e-Faktur — every other record type renders nothing here (no dash,
     // and no empty label on its mobile card).
     key: 'efaktur',
+    size: 92,
     header: <EfakturHeader />,
     cell: (row) => row.type === 'Invoice'
       ? <EfakturCell number={row.efakturNumber ?? null} date={row.efakturDate ?? null} />
@@ -194,8 +212,10 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
   },
   {
     key: 'status',
+    size: 196,
     header: <LedgerHeader translationKey="procurementLedger.status" fallback="Status" />,
-    cell: (row) => (row.odoo ? <OdooRowStatus row={row} /> : <StatusPill variant={row.statusVariant}>{row.status}</StatusPill>),
+    cell: (row) => (row.voided ? <VoidedBillStatus voided={row.voided} />
+      : row.odoo ? <OdooRowStatus row={row} /> : <RecordStatusPill row={row} />),
   },
 ];
 
@@ -234,6 +254,62 @@ function ledgerEmptyCopy(status: string, canApprove: boolean, t: TFunction): { t
 // Props
 // ---------------------------------------------------------------------------
 
+/** #1671: a voided vendor bill keeps its row; the status says so, with why, who and when beneath. */
+const VoidedBillStatus: React.FC<{ voided: NonNullable<LedgerRow['voided']> }> = ({ voided }) => {
+  const { t } = useTranslation(['common', 'procurement']);
+  return (
+    <div className="inline-flex flex-col items-start gap-1" data-testid="ledger-voided-bill">
+      <StatusPill variant="lost">{t('procurement:voidBill.voided', 'Voided')}</StatusPill>
+      <span className="text-sm text-muted-foreground">{voided.reason}</span>
+      <span className="text-sm text-muted-foreground">
+        {voided.byName
+          ? t('procurement:voidBill.byOn', '{{name}} · {{date}}', { name: voided.byName, date: formatDay(voided.at) })
+          : formatDay(voided.at)}
+      </span>
+    </div>
+  );
+};
+
+/**
+ * #1671: the void confirm for one bill. Mounted only while open, so the ledger takes on no mutation of its own;
+ * void_subcontract_bill owns role, author separation and the cap, and the hook refreshes the purchase and its PO.
+ */
+const VoidBillDialog: React.FC<{ row: LedgerRow; poId: string; procurementId: string; onClose: () => void }> = ({
+  row, poId, procurementId, onClose,
+}) => {
+  const { t } = useTranslation(['common', 'procurement']);
+  const { voidBill } = useSubcontractMutations(poId, procurementId);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <ReasonDialog
+      open
+      kind="reject"
+      title={t('procurement:voidBill.title', 'Void this bill?')}
+      label={t('procurement:voidBill.reason', 'Why is this bill being voided?')}
+      helper={t('procurement:voidBill.helper', 'Kept with the bill and its history.')}
+      confirmLabel={t('procurement:voidBill.confirm', 'Void bill')}
+      context={(
+        <p className="text-sm text-muted-foreground">
+          {t('procurement:voidBill.context', '{{number}} stays on the ledger as voided and stops counting against the PO, so the corrected bill can be captured.', { number: row.systemNumber ?? '' })}
+        </p>
+      )}
+      maxLength={1000}
+      loading={voidBill.isPending}
+      error={error ?? undefined}
+      onCancel={onClose}
+      onConfirm={async (reason) => {
+        setError(null);
+        try {
+          await voidBill.mutateAsync({ invoiceId: row.recordId, reason });
+          onClose();
+        } catch (err) {
+          setError(voidBillErrorText(err, t));
+        }
+      }}
+    />
+  );
+};
+
 export interface ProcurementLedgerProps {
   /** The already-loaded procurement detail (for status + stage-gating). */
   detail: ProcurementDetail;
@@ -251,6 +327,8 @@ export interface ProcurementLedgerProps {
   onSetEfaktur?: (invoiceId: string, values: EfakturSaveValues) => Promise<void>;
   /** Whether the setter is currently pending. */
   efakturSaving?: boolean;
+  /** #1671: the viewer may void a mistyped PMO-native subcontract bill (Admin/Finance, no ERP). UX only. */
+  canVoidBill?: boolean;
   /** Invoice rows for the payment predecessor-FK dropdown ([PD-5]). */
   invoices?: ProcurementInvoiceRow[];
   canWriteWithholdingSlip?: boolean;
@@ -292,6 +370,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   canRecordEfaktur = false,
   onSetEfaktur,
   efakturSaving = false,
+  canVoidBill = false,
   invoices = [],
   canWriteWithholdingSlip = false,
   onRecordWithholdingSlip,
@@ -312,6 +391,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
 }) => {
   const [filter, setFilter] = useState<LedgerFilter>('all');
   const [efakturTarget, setEfakturTarget] = useState<LedgerRow | null>(null);
+  const [voidTarget, setVoidTarget] = useState<LedgerRow | null>(null);
   const focusedInvoiceTarget = useRef<HTMLElement | null>(null);
   const { t } = useTranslation(['common', 'procurement']);
   const may = usePermission();
@@ -347,6 +427,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   const fileColumn = useMemo<Column<LedgerRow>>(
     () => ({
       key: 'file',
+      size: 96,
       header: <LedgerHeader translationKey="procurementLedger.file" fallback="File" />,
       cell: (row) => (
         <LedgerFileCell
@@ -367,10 +448,10 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   );
 
   const amountColumn = useMemo<Column<LedgerRow>>(() => ({
-    key: 'amount', header: <LedgerHeader translationKey="procurementLedger.amount" fallback="Amount" />, align: 'num',
+    key: 'amount', size: 168, header: <LedgerHeader translationKey="procurementLedger.amount" fallback="Amount" />, align: 'num',
     cell: (row) => {
       if (row.amount == null) return <span className="text-sm text-muted-foreground">—</span>;
-      const total = <span className="inline-flex items-baseline justify-end gap-1.5"><span className="tabular-nums">{formatCurrency(row.amount, row.currency)}</span><TaxBasisLabel treatment={row.taxTreatment} taxBaseUnknown={row.taxBaseUnknown} taxRate={row.taxRate} taxBaseNumerator={row.taxBaseNumerator} taxBaseDenominator={row.taxBaseDenominator} /></span>;
+      const total = <span className="inline-flex items-baseline justify-end gap-1.5"><span className="whitespace-nowrap tabular-nums">{formatCurrency(row.amount, row.currency)}</span><TaxBasisLabel treatment={row.taxTreatment} taxBaseUnknown={row.taxBaseUnknown} taxRate={row.taxRate} taxBaseNumerator={row.taxBaseNumerator} taxBaseDenominator={row.taxBaseDenominator} /></span>;
       const figures = row.type === 'Invoice' ? withholdingFigures(row.amount, row.taxAmount, row.withheldAmount, row.taxTreatment) : null;
       const invoice = row.type === 'Invoice' ? invoices.find((item) => item.id === row.recordId) : undefined;
       const slipCell = row.type === 'Invoice' ? <VendorWithholdingSlipCell row={withholdingCoverage[row.recordId]} isLoading={coverageQuery.isLoading} isError={coverageQuery.isError} canWrite={canWriteWithholdingSlip} onRetry={() => void coverageQuery.refetch()} onRecord={() => invoice && onRecordWithholdingSlip?.(invoice)} vendorMissing={vendorMissing} onSetVendor={onSetVendor} onView={onViewWithholdingSlip} onHistory={() => onWithholdingHistory?.(row.recordId)} /> : null;
@@ -459,11 +540,14 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   const pendingPush = mutations.pendingPush ?? IDLE_PENDING_PUSH;
 
   return (
-    <div data-testid="procurement-ledger">
-      {/* Toolbar: card-head + filter chips */}
-      <div className="mb-0 flex flex-wrap items-center justify-between gap-3 rounded-t-lg border border-b-0 border-border bg-card px-4 py-3">
-        <span className="text-sm font-semibold">{t('procurementLedger.title', 'Case ledger')}</span>
-        {/* Filter chips — DESIGN.md §6: seg-style 28px, rounded-full, aria-pressed */}
+    // One panel: the heading with its filter on the right, the table flush, the capture row and notes at its foot,
+    // all on the panel inset (the record's one left edge).
+    <RecordSection
+      data-testid="procurement-ledger"
+      title={t('procurementLedger.title', 'Case ledger')}
+      flush
+      actions={
+        /* Filter chips — DESIGN.md §6: seg-style 28px, rounded-full, aria-pressed */
         <div
           role="group"
           aria-label={t('procurementLedger.filter.label', 'Filter records')}
@@ -493,10 +577,13 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
             );
           })}
         </div>
-      </div>
-
-      {/* DataTable — reuses the shared primitive with md→card mobile reflow */}
+      }
+    >
+      {/* DataTable — reuses the shared primitive with md→card mobile reflow. 16px between columns so the
+          headers stay on one line at 1440; the first column carries the panel inset (its colClassName). */}
+      <div className="[--table-cell-inset:var(--space-content-inset)]">
       <DataTable<LedgerRow>
+        embedded
         rows={filteredRows}
         columns={columns}
         rowKey={(row) => row.id}
@@ -505,6 +592,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
           if (row.type !== 'Invoice') return undefined;
           const items: RowMenuItem[] = [];
           if (canRecordEfaktur && onSetEfaktur && !row.efakturLocked) items.push({ label: t('efaktur.record', 'Record e-Faktur'), onClick: () => setEfakturTarget(row) });
+          if (canVoidBill && row.voidable) items.push({ label: t('procurement:voidBill.action', 'Void bill'), onClick: () => setVoidTarget(row) });
           const coverage = withholdingCoverage[row.recordId];
           const invoice = invoices.find((item) => item.id === row.recordId);
           if (coverage?.active_slip_id) items.push({ label: t('bupot.view', 'View bukti potong'), onClick: () => onViewWithholdingSlip?.(coverage.active_slip_id!) });
@@ -516,8 +604,8 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
         state={tableState}
         emptyTitle={emptyTitle}
         emptySub={emptySub}
-        className="rounded-t-none"
       tableId="procurement-procurementledger-table" />
+      </div>
 
       {efakturTarget && onSetEfaktur && (
         <EfakturModal
@@ -540,8 +628,17 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
         />
       )}
 
-      {/* Capture affordance + note */}
-      <CardPad>
+      {canVoidBill && voidTarget && (
+        <VoidBillDialog
+          row={voidTarget}
+          poId={voidTarget.poId ?? ''}
+          procurementId={procurementId}
+          onClose={() => setVoidTarget(null)}
+        />
+      )}
+
+      {/* Capture affordance + notes: the panel's foot, on the panel inset. */}
+      <div className="border-t border-border px-[var(--panel-inset)] pb-[var(--panel-inset)] pt-4 [&>:first-child]:mt-0">
         {detail.pre_cutover && (
           // FR-ECA-030: ordered before the ERP connection, so receipts, bills and payments stay in PMO. Information, not an alert.
           <p data-testid="ledger-pre-cutover" className="mb-2.5 text-sm text-muted-foreground">
@@ -582,8 +679,8 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
         <p className="mt-3 text-sm text-muted-foreground">
           {t('procurementLedger.ledgerNote', 'Every record appears once, chronological. Empty record types show nothing.')}
         </p>
-      </CardPad>
-    </div>
+      </div>
+    </RecordSection>
   );
 };
 

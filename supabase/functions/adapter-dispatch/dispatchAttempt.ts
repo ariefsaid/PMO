@@ -14,7 +14,18 @@ import { maybeFault, type FaultGate } from './faultSeams.ts';
 import { getReadModelWriter } from './readModelWriters.ts';
 import { isBudgetPushCommand, recordBudgetPushFailure } from './budgetDispatch.ts';
 import type { AdapterFactory, AdapterSelectContext } from './dispatchAdapters.ts';
+import { recordStockHold, recordStockRefusal } from './odooStock.ts';
 import type { ProcurementSourceLine } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
+
+/** The typed setup condition of a stock refusal (the keeper's page words it); nothing for any other failure. */
+const refusalReasonOf = (error: AppError): { reason?: string } => {
+  const reason = (error as AppError & { refusalReason?: unknown }).refusalReason;
+  return typeof reason === 'string' ? { reason } : {};
+};
+
+class CapturedReplayRefusal extends AppError {
+  constructor(readonly response: Response) { super('not authorized', 'commit-rejected'); }
+}
 
 export type DispatchAttemptOutcome = { ok: true; result: unknown } | { ok: false; response: Response };
 
@@ -34,13 +45,16 @@ export async function runDispatchAttempt(args: {
   budgetVersionMajor: 15 | 16 | null;
   headers: HeadersInit;
   outboxRecordId?: string;
+  capturedReplayPayload?: Record<string, unknown>;
+  capturedReplayBeforeClaim?: (id: string) => Promise<Response | null>;
+  capturedReplayAfterClaim?: (id: string, generation: number) => Promise<Response | null>;
   releaseSubmitClearance: () => Promise<void>;
   recordTimesheetPushFailure: (failure: AppError) => Promise<void>;
 }): Promise<DispatchAttemptOutcome> {
   const {
     command, serviceClient, orgId, adapterFactory, faultGate, userId, erpAuth, tier,
     moneyOutboxResolvers, budgetVersionMajor, headers, outboxRecordId,
-    releaseSubmitClearance, recordTimesheetPushFailure,
+    releaseSubmitClearance, recordTimesheetPushFailure, capturedReplayPayload, capturedReplayBeforeClaim, capturedReplayAfterClaim,
   } = args;
   let adapter: Adapter;
   let money: DispatchMoneyOutboxDeps | undefined;
@@ -60,6 +74,10 @@ export async function runDispatchAttempt(args: {
     // never select this guard's policy on a retry.
     const receiptLineIntent = requiresReceiptLineEntitlement(tier, command);
     context.receiptLineIntent = receiptLineIntent;
+    if (capturedReplayPayload) {
+      context.replay = true;
+      command.record = capturedReplayPayload as PmoRecord;
+    }
     let rawReceiptDigest: string | undefined;
     let existingRow = false;
     if (isReceiptCreate || receiptLineIntent) {
@@ -164,6 +182,24 @@ export async function runDispatchAttempt(args: {
     const resolveMoneyOutbox = moneyOutboxResolvers[adapter.tier];
     if (resolveMoneyOutbox && (command.operation as string) !== 'read') {
       money = await resolveMoneyOutbox(context);
+      if (capturedReplayBeforeClaim) {
+        const claim = money.claimOutboxForCommit;
+        money = { ...money, claimOutboxForCommit: async (id) => {
+          const refusal = await capturedReplayBeforeClaim(id);
+          if (refusal) throw new CapturedReplayRefusal(refusal);
+          return claim(id);
+        } };
+      }
+      if (capturedReplayAfterClaim) {
+        const markFailed = money.markOutboxFailed;
+        money = { ...money, authorizeClaimedWrite: async (claimed) => {
+          const refusal = await capturedReplayAfterClaim(claimed.id, claimed.claimGeneration);
+          if (!refusal) return;
+          // A refused claimed attempt remains retryable failed and consumes one attempt.
+          await markFailed(claimed.id, 'captured_replay_authorization_refused', claimed.claimGeneration);
+          throw new CapturedReplayRefusal(new Response(await refusal.text(), { status: 403, headers }));
+        } };
+      }
     }
   } catch (err) {
     // The submit never reaches ERP — end the body-rewrite freeze now rather than in five minutes.
@@ -277,6 +313,7 @@ export async function runDispatchAttempt(args: {
     // Server-side diagnostics only — the client body stays generic/typed. Without this, an
     // external-unreachable's underlying cause (which upstream status? fetch error? which path?)
     // is unrecoverable from any log.
+    if (err instanceof CapturedReplayRefusal) return { ok: false, response: err.response };
     console.error('[adapter-dispatch] dispatch failed:', err instanceof Error ? (err.stack ?? err.message) : String(err));
     const appError = err instanceof AppError ? err : new AppError(err instanceof Error ? err.message : 'adapter dispatch failed');
     // 'command-held' (C-1): a mutable-anchor money doc held for operator resolution — a 409 Conflict
@@ -286,6 +323,8 @@ export async function runDispatchAttempt(args: {
     // Retrying now cannot help, but retrying LATER can, so it is a 409 like `command-held`, never a 500
     // carrying the raw index name.
     await recordTimesheetPushFailure(appError);
+    await recordStockHold(serviceClient, orgId, command, appError);   // #1508: a held or refused stock command shows its reason on the document
+    await recordStockRefusal(serviceClient, orgId, command, appError);
     // P3c defense-in-depth: the budget gate above already refuses an unmapped category / multi-FY
     // project BEFORE this try block ever runs, so this branch is unreachable in the normal path — but
     // `BudgetCategoryUnmappedError` (categoryAccountMap.ts) is a plain `Error` subclass, not an
@@ -307,7 +346,7 @@ export async function runDispatchAttempt(args: {
     await recordBudgetPushFailure({ serviceClient, orgId, command, budgetVersionMajor, failure: budgetAppError });
     return {
       ok: false,
-      response: new Response(JSON.stringify({ error: budgetAppError.code ?? 'DISPATCH_FAILED', message: budgetAppError.message }), {
+      response: new Response(JSON.stringify({ error: budgetAppError.code ?? 'DISPATCH_FAILED', message: budgetAppError.message, ...refusalReasonOf(budgetAppError) }), {
         // AC-TSP-031: the SAME ladder the adapter-select exit uses (unreachable 502 / classified business
         // rejection 422 / held-or-in-flight 409), with THIS exit's own 500 for an unclassified failure.
         status: dispatchErrorStatus(budgetAppError.code, 500),

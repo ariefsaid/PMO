@@ -54,6 +54,7 @@ interface OutboxDbRow {
   canonical: PmoRecord | null;
   claim_generation: number;
   payload_digest: string | null;
+  last_error?: string | null;
   attempt_count?: number;
   claimed_at?: string | null;
 }
@@ -69,6 +70,7 @@ function mapRow(row: OutboxDbRow): OutboxRow {
     canonical: row.canonical,
     claimGeneration: row.claim_generation,
     payloadDigest: row.payload_digest ?? null,
+    lastError: row.last_error ?? null,
   };
 }
 
@@ -222,7 +224,7 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
         // the original trim and are read back ONLY for #1783 item 1's legacy-receipt verification
         // (a row with no stored digest, reached by a caller-line-intent command) — identity stays
         // scoped to the same 4-tuple, nothing is written back, and every other domain/kind ignores them.
-        .select('id,domain,pmo_record_id,idempotency_key,state,external_record_id,canonical,claim_generation,payload_digest,payload,operation')
+        .select('id,domain,pmo_record_id,idempotency_key,state,external_record_id,canonical,claim_generation,payload_digest,payload,operation,last_error')
         .eq('org_id', orgId)
         .eq('domain', domain)
         .eq('pmo_record_id', pmoRecordId)
@@ -391,7 +393,12 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
 
     reissueOnInconclusiveAbsence: opts.reissueOnInconclusiveAbsence ?? true,
 
-    async markOutboxFailed(id, lastError, claimGeneration) {
+    async markOutboxFailed(id, lastError, claimGeneration, terminalCaptured) {
+      if (terminalCaptured) {
+        const n = await callCountRpc(serviceClient, 'fail_captured_invoice_payment', { p_id: id, p_generation: claimGeneration });
+        if (n === 1) outcome(id, 'failed', 'captured_invoice_payment_rejected');
+        return n;
+      }
       const { data, error } = await serviceClient
         .from('external_command_outbox')
         // 0357: the retry delay runs from the failure, so the failure stamps updated_at.

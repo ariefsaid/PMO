@@ -75,4 +75,19 @@ describe('Ageing strip bar', () => {
       expect(round(rightOf(painted[index]!))).toBeLessThanOrEqual(round(leftOf(painted[index + 1]!)));
     }
   });
+
+  it('#2346 rule 15: a bucket amount is one unbreakable line; the label gives way', () => {
+    render(
+      <AgeingStrip
+        kind="payables"
+        payablesStatusColors
+        values={payables({ d0_30: 100_000_000_000, d31_60: 2_000_000, d61_90: 3_000_000, over90: 4_000_000 })}
+      />,
+    );
+    const legend = screen.getByTestId('ageing-legend-IDR');
+    const figure = Array.from(legend.querySelectorAll<HTMLElement>('span')).find((el) => /1[.,]000[.,]000[.,]000/.test(el.textContent ?? '') && el.children.length === 0);
+    expect(figure).toBeDefined();
+    expect(figure!.closest('.whitespace-nowrap')).not.toBeNull();
+    expect(figure!.className).not.toMatch(/break-(all|words)/);
+  });
 });

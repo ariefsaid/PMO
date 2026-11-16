@@ -7,13 +7,19 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { AdapterError } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { takeCensus } from '../../../pmo-portal/src/lib/adapterSeam/connect/census.ts';
+import type { MasterKind, NormalisedMaster } from '../../../pmo-portal/src/lib/adapterSeam/connect/types.ts';
+import { proposeMatches } from '../../../pmo-portal/src/lib/adapterSeam/connect/match.ts';
 import { connectAdapterForOrg, hasConnectAdapterForTier } from '../_shared/connectAdapterForOrg.ts';
-import { pmoMasterCounts } from '../_shared/connectPmoMasters.ts';
+import { allRows, pmoMasterCounts, pmoMasters } from '../_shared/connectPmoMasters.ts';
+import { toRow } from '../_shared/connectRun.ts';
+import { stockMatchingCapabilities } from '../../../pmo-portal/src/lib/adapterSeam/capabilityMap.ts';
 import { erpSyncFeatureDecision } from './featureGate.ts';
+import { companyDefaultOptions, setCompanyDefaults } from './companyDefaults.ts';
 
-export const CONNECT_ACTIONS = new Set(['census', 'connect-status', 'list-proposals', 'search-connect-staged', 'accept-proposals', 'decide-review', 'unlink-match', 'retry-send']);
+export const CONNECT_ACTIONS = new Set(['census', 'connect-status', 'list-proposals', 'search-connect-staged', 'accept-proposals', 'decide-review', 'unlink-match', 'retry-send', 'stock-propose', 'stock-list', 'company-defaults-options', 'set-company-defaults']);
 
-const KINDS = ['party', 'item', 'project', 'employee', 'account'];
+const KINDS = ['party', 'item', 'project', 'employee', 'account', 'stock_item', 'stock_warehouse'];
+const STOCK_KINDS: MasterKind[] = ['stock_item', 'stock_warehouse'];
 const STATES = ['open', 'sending', 'applied', 'dismissed'];
 const LIST_PAGE = 200;
 /** Each accept call applies ≤ 500 rows inside the user statement timeout; a request makes at most this many, and says what is left. */
@@ -22,7 +28,9 @@ const ACCEPT_CALLS_PER_REQUEST = 20;
 const ACCEPT_BUDGET_MS = 60_000;
 /** Tiers whose sweep pass advances a setup run. A census starts a run, so a tier without a pass would leave it open forever. */
 const CENSUS_TIERS = new Set(['erpnext', 'odoo']);
-const ERP_SYNC_GATED_ACTIONS = new Set(['census', 'accept-proposals']);
+const ERP_SYNC_GATED_ACTIONS = new Set(['census', 'accept-proposals', 'stock-propose', 'set-company-defaults']);
+/** #1599 ECX-3: accounting configuration, Admin or Finance (the database re-asserts it). */
+const COMPANY_DEFAULTS_ACTIONS = new Set(['company-defaults-options', 'set-company-defaults']);
 
 export interface ConnectCtx {
   serviceClient: SupabaseClient;
@@ -36,8 +44,8 @@ export interface ConnectCtx {
 function rpcFailure(e: { code?: string; message?: string }): AppError {
   if (e.code === '42501') return new AppError('Not allowed for your role', 'FORBIDDEN');
   if (e.code === 'P0002') return new AppError(e.message ?? 'Not found', 'NOT_FOUND');
-  // The raisers in migration 0480 speak plain words; anything else is not ours to explain.
-  if (e.code === 'P0001' || e.code === '22023') return new AppError(e.message ?? 'The request was refused', 'BAD_REQUEST');
+  // The raisers in migration 0480 and 0880 speak plain words; anything else is not ours to explain.
+  if (e.code === 'P0001' || e.code === '22023' || (e.message && /^Stock\s/i.test(e.message))) return new AppError(e.message ?? 'The request was refused', 'BAD_REQUEST');
   return new AppError('The request could not be completed', 'INTERNAL');
 }
 
@@ -59,7 +67,8 @@ const applied = (c: Counts) => Object.values(c).reduce((a, f) => a + Object.valu
 function allowed(action: string, role: string, kind: unknown): boolean {
   if (role === 'Admin') return true;
   if (role !== 'Finance') return false;
-  if (action === 'connect-status' || action === 'decide-review') return true;   // the database limits a Finance decision to account rows
+  if (action === 'connect-status' || COMPANY_DEFAULTS_ACTIONS.has(action)) return true;
+  if (action === 'decide-review') return kind === 'account';
   return (action === 'list-proposals' || action === 'search-connect-staged' || action === 'accept-proposals') && kind === 'account';
 }
 
@@ -89,33 +98,43 @@ interface NameTable {
 
 async function proposalNames(client: SupabaseClient, orgId: string, proposals: Proposal[]): Promise<Proposal[]> {
   const names = new Map<string, string>();
-  const kindTables: Record<string, { table: string; column: string; ids: string[] }> = {};
+  const codes = new Map<string, string>();
+  const kindTables: Record<string, { table: string; column: string; codeColumn?: string; ids: string[] }> = {};
   for (const proposal of proposals) {
-    const config = proposal.kind === 'party' ? ['companies', 'name']
-      : proposal.kind === 'project' ? ['projects', 'name']
-      : proposal.kind === 'employee' ? ['profiles', 'full_name'] : null;
+    const config = proposal.kind === 'party' ? { table: 'companies', column: 'name' }
+      : proposal.kind === 'project' ? { table: 'projects', column: 'name' }
+      : proposal.kind === 'employee' ? { table: 'profiles', column: 'full_name' }
+      : proposal.kind === 'stock_item' ? { table: 'stock_items', column: 'name', codeColumn: 'code' }
+      : proposal.kind === 'stock_warehouse' ? { table: 'stock_warehouses', column: 'name', codeColumn: 'code' } : null;
     if (!config) {
       for (const id of proposal.pmo_ids ?? []) names.set(`${proposal.kind}:${id}`, id);
       continue;
     }
-    const [table, column] = config;
-    const target = kindTables[proposal.kind] ??= { table, column, ids: [] };
+    const target = kindTables[proposal.kind] ??= { table: config.table, column: config.column, codeColumn: config.codeColumn, ids: [] };
     target.ids.push(...(proposal.pmo_ids ?? []));
   }
   const scopedClient = client as unknown as { from: (table: string) => NameTable };
   for (const [kind, target] of Object.entries(kindTables)) {
     const ids = [...new Set(target.ids)].filter((id) => id.length > 0);
     if (!ids.length) continue;
-    const { data, error } = await scopedClient.from(target.table).select(`id, ${target.column}`).eq('org_id', orgId).in('id', ids);
+    const selectCols = target.codeColumn ? `id, ${target.column}, ${target.codeColumn}` : `id, ${target.column}`;
+    const { data, error } = await scopedClient.from(target.table).select(selectCols).eq('org_id', orgId).in('id', ids);
     if (error) throw new AppError('The request could not be completed', 'INTERNAL');
-    for (const row of data ?? []) names.set(`${kind}:${String(row.id)}`, String(row[target.column] ?? row.id));
+    for (const row of data ?? []) {
+      names.set(`${kind}:${String(row.id)}`, String(row[target.column] ?? row.id));
+      if (target.codeColumn && row[target.codeColumn]) {
+        codes.set(`${kind}:${String(row.id)}`, String(row[target.codeColumn]));
+      }
+    }
   }
   return proposals.map((proposal) => ({
     ...proposal,
     pmo_name: (proposal.pmo_ids ?? []).map((id) => names.get(`${proposal.kind}:${id}`) ?? id).join(', ') || null,
+    pmo_code: (proposal.pmo_ids ?? []).map((id) => codes.get(`${proposal.kind}:${id}`)).filter(Boolean).join(', ') || null,
     erp_name: proposal.outcome === 'send' ? null
       : String(proposal.snapshot?.employeeName ?? proposal.snapshot?.accountName ?? proposal.snapshot?.itemName ?? proposal.snapshot?.item_name
         ?? proposal.snapshot?.name ?? proposal.snapshot?.code ?? proposal.external_ids?.[0] ?? '') || null,
+    erp_code: proposal.snapshot?.code ? String(proposal.snapshot.code) : null,
     can_unlink: false,
   }));
 }
@@ -138,6 +157,126 @@ async function listProposals(ctx: ConnectCtx, tier: string, body: Record<string,
   return { proposals, nextAfterId: proposals.length === LIST_PAGE ? String(proposals[proposals.length - 1].id) : null };
 }
 
+async function stockPropose(ctx: ConnectCtx, tier: string) {
+  if (ctx.role !== 'Admin') throw new AppError('Not allowed for your role', 'FORBIDDEN');
+  if (!stockMatchingCapabilities(tier).stockMatching) throw new AppError('Stock matching is only available for Odoo', 'BAD_REQUEST');
+
+  const { data: binding, error: bindingError } = await ctx.serviceClient
+    .from('external_org_bindings')
+    .select('id, site_url, secret_ref, status, activated_at, config')
+    .eq('org_id', ctx.orgId)
+    .eq('external_tier', tier)
+    .maybeSingle();
+
+  if (bindingError || !binding || binding.status !== 'active' || !binding.activated_at) {
+    throw new AppError('Stock links require an active Odoo connection', 'BAD_REQUEST');
+  }
+  const companyId = binding.config?.odoo_company_id;
+  if (!companyId || !/^[1-9][0-9]*$/.test(String(companyId))) {
+    throw new AppError('Choose an Odoo company before linking stock', 'BAD_REQUEST');
+  }
+
+  const adapter = await connectAdapterForOrg(ctx.serviceClient, ctx.orgId, tier);
+  const runId = await rpc<string>(ctx.serviceClient, 'start_connect_run', {
+    p_org_id: ctx.orgId,
+    p_tier: tier,
+    p_actor: ctx.userId,
+  });
+
+  const CHUNK = 1000;
+  const stagedCounts: Record<string, number> = {};
+  const proposedCounts: Record<string, { link: number; review: number }> = {};
+  for (const kind of STOCK_KINDS) {
+    let cursor: string | null = null;
+    const allErpRows: NormalisedMaster[] = [];
+    do {
+      const page = await adapter.listMasters(kind, cursor);
+      await rpc(ctx.serviceClient, 'stage_connect_master_page', {
+        p_org_id: ctx.orgId,
+        p_run_id: runId,
+        p_kind: kind,
+        p_rows: page.rows,
+        p_next_cursor: page.nextCursor,
+      });
+      allErpRows.push(...page.rows);
+      cursor = page.nextCursor;
+    } while (cursor !== null);
+
+    const domain = kind === 'stock_item' ? 'stock_items' : 'stock_warehouses';
+    const linkedRefs = await allRows(ctx.serviceClient, 'external_refs', 'id, pmo_record_id, external_record_id', ctx.orgId,
+      (q) => q.eq('external_tier', tier).eq('domain', domain));
+    const alreadyLinked = {
+      pmoIds: new Set(linkedRefs.map((r) => String(r.pmo_record_id))),
+      externalIds: new Set(linkedRefs.map((r) => String(r.external_record_id))),
+    };
+
+    const pmo = await pmoMasters(ctx.serviceClient, ctx.orgId, kind);
+    const outcomes = proposeMatches(kind, pmo, allErpRows, alreadyLinked);
+    const erpById = new Map(allErpRows.map((e) => [e.externalId, e]));
+    const pmoNames = new Map(pmo.map((m) => [m.id, m.name]));
+    const rows = outcomes.map((o) => toRow(kind, o, (id) => erpById.get(id), (id) => pmoNames.get(id)));
+    stagedCounts[kind] = allErpRows.length;
+    proposedCounts[kind] = {
+      link: rows.filter((r) => r.outcome === 'link').length,
+      review: rows.filter((r) => r.outcome === 'review').length,
+    };
+    const chunks = Math.max(1, Math.ceil(rows.length / CHUNK));
+    for (let i = 0; i < chunks; i += 1) {
+      await rpc(ctx.serviceClient, 'replace_connect_proposals', {
+        p_org_id: ctx.orgId,
+        p_tier: tier,
+        p_run_id: runId,
+        p_kind: kind,
+        p_rows: rows.slice(i * CHUNK, (i + 1) * CHUNK),
+        p_last: i === chunks - 1,
+      });
+    }
+  }
+
+  const { error: readyError } = await ctx.serviceClient
+    .from('erp_connect_runs')
+    .update({ state: 'ready', finished_at: new Date().toISOString() })
+    .eq('id', runId);
+  if (readyError) throw new AppError('The request could not be completed', 'INTERNAL');
+
+  return { ok: true, runId, stagedCounts, proposedCounts };
+}
+
+async function stockList(ctx: ConnectCtx, tier: string, body: Record<string, unknown>) {
+  if (ctx.role !== 'Admin') throw new AppError('Not allowed for your role', 'FORBIDDEN');
+  if (!stockMatchingCapabilities(tier).stockMatching) throw new AppError('Stock matching is only available for Odoo', 'BAD_REQUEST');
+  const c = ctx.callerClient;
+  const state = typeof body.state === 'string' && STATES.includes(body.state) ? body.state : 'open';
+  let q = c.from('erp_connect_proposals').select('*')
+    .eq('external_tier', tier)
+    .eq('state', state)
+    .in('kind', STOCK_KINDS)
+    .order('id', { ascending: true })
+    .limit(LIST_PAGE);
+  if (typeof body.kind === 'string') q = q.eq('kind', body.kind);
+  if (typeof body.outcome === 'string') q = q.eq('outcome', body.outcome);
+  if (typeof body.afterId === 'string') q = q.gt('id', body.afterId);
+  const { data, error } = await q;
+  if (error) throw new AppError('The request could not be completed', 'INTERNAL');
+  const proposals = await proposalNames(ctx.serviceClient, ctx.orgId, (data ?? []) as Proposal[]);
+
+  if (state === 'applied' && proposals.length > 0) {
+    const ids = proposals.filter((p) => p.outcome === 'link').map((p) => p.id);
+    const unlinkable = new Set(await rpc<string[]>(ctx.callerClient, 'list_unlinkable_connect_matches', { p_ids: ids }));
+    for (const proposal of proposals) proposal.can_unlink = unlinkable.has(proposal.id);
+  }
+
+  // The whole run, not this page: open link and review rows per stock kind.
+  const all = await rpc<Record<string, { link?: number; review?: number }>>(ctx.callerClient, 'connect_proposal_counts', { p_tier: tier });
+  const counts = Object.fromEntries(STOCK_KINDS.map((k) => [k, { link: all?.[k]?.link ?? 0, review: all?.[k]?.review ?? 0 }]));
+
+  return {
+    proposals,
+    counts,
+    nextAfterId: proposals.length === LIST_PAGE ? String(proposals[proposals.length - 1].id) : null,
+  };
+}
+
 export async function handleConnectAction(ctx: ConnectCtx): Promise<unknown> {
   const { body } = ctx;
   const tier = typeof body.tier === 'string' ? body.tier : '';
@@ -154,6 +293,9 @@ export async function handleConnectAction(ctx: ConnectCtx): Promise<unknown> {
     if (decision === 'unavailable') throw new AppError('Could not resolve the plan switch', 'INTERNAL');
     if (decision === 'off') throw new AppError('ERP integration is not enabled for this organization', 'feature_off');
   }
+
+  if (action === 'company-defaults-options') return await companyDefaultOptions(ctx, tier);
+  if (action === 'set-company-defaults') return await setCompanyDefaults(ctx, tier, rpcFailure);
 
   if (action === 'census') {
     if (ctx.role !== 'Admin') throw new AppError('Not allowed for your role', 'FORBIDDEN');
@@ -174,6 +316,8 @@ export async function handleConnectAction(ctx: ConnectCtx): Promise<unknown> {
     }
   }
   if (action === 'accept-proposals') {
+    // There is no preview here: a preview is the list. A body that asks for one must not be answered by applying.
+    if (body.dryRun !== undefined) throw new AppError('Accepting has no dry run; list the proposals instead', 'BAD_REQUEST');
     const ids = Array.isArray(body.ids) ? body.ids.map(String) : null;
     const excludeIds = Array.isArray(body.excludeIds) ? body.excludeIds.map(String) : null;
     const counts: Counts = {};
@@ -196,7 +340,12 @@ export async function handleConnectAction(ctx: ConnectCtx): Promise<unknown> {
     });
     return { records };
   }
-  if (action === 'decide-review') return await rpc(ctx.callerClient, 'decide_connect_review', { p_id: body.id, p_choice: body.choice });
+  if (action === 'stock-propose') return await stockPropose(ctx, tier);
+  if (action === 'stock-list') return await stockList(ctx, tier, body);
+  if (action === 'decide-review') {
+    if (ctx.role !== 'Admin' && body.kind && body.kind !== 'account') throw new AppError('Not allowed for your role', 'FORBIDDEN');
+    return await rpc(ctx.callerClient, 'decide_connect_review', { p_id: body.id, p_choice: body.choice });
+  }
   if (action === 'unlink-match') return await rpc(ctx.callerClient, 'unlink_connect_match', { p_id: body.id });
   if (action === 'retry-send') return await rpc(ctx.callerClient, 'retry_connect_send', { p_id: body.id });
   if (action === 'list-proposals') return await listProposals(ctx, tier, body);

@@ -1,7 +1,10 @@
 import '@testing-library/jest-dom/vitest';
 import 'jest-axe/extend-expect';
 import { createElement } from 'react';
-import { vi } from 'vitest';
+import { afterAll, vi } from 'vitest';
+import { assertNodeMajor } from './nodeMajorGuard';
+
+assertNodeMajor(process.versions.node);
 
 // Projects page suites predating the collection-money query intentionally render
 // without a QueryClient. Their concerns are independent of this new read seam;
@@ -28,6 +31,40 @@ vi.mock('@/src/components/integrations/M365DefaultLibraryCard', () => ({
 vi.mock('@/src/components/integrations/odoo/OdooIntegrationSection', () => ({
   OdooIntegrationSection: () => createElement('div', { 'data-testid': 'odoo-section-stub' }),
 }));
+
+// Background route preloads (App.tsx `preloadForPath`, fired by the shell on every route entry) start
+// real chunk imports that no test awaits. A whole-App test can end with one still in flight; jsdom is
+// then torn down under it and the import rejects with an EnvironmentTeardownError nobody handles,
+// failing an otherwise green run (#2408). `lazyWithPreload` must keep rethrowing a failed preload (the
+// stale-chunk reload guard reads it), so the fix is here: every `preload()` in every file is tracked
+// and `afterAll` waits (bounded, and swallowing the outcome) for the ones still pending, so the
+// import settles inside the environment. The wrapper hands back the same memoized promise, so
+// lazyWithPreload's own contract is unchanged.
+const pendingPreloads = vi.hoisted(() => new Set<Promise<unknown>>());
+vi.mock('@/src/lib/lazyWithPreload', async (importActual) => {
+  const actual = await importActual<typeof import('@/src/lib/lazyWithPreload')>();
+  return {
+    ...actual,
+    lazyWithPreload: ((factory) => {
+      const lazy = actual.lazyWithPreload(factory);
+      const preload = lazy.preload;
+      lazy.preload = () => {
+        const started = preload();
+        pendingPreloads.add(started);
+        return started;
+      };
+      return lazy;
+    }) as typeof actual.lazyWithPreload,
+  };
+});
+afterAll(async () => {
+  if (pendingPreloads.size === 0) return;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const bound = new Promise((resolve) => { timer = setTimeout(resolve, 10_000); });
+  await Promise.race([Promise.allSettled([...pendingPreloads]), bound]);
+  clearTimeout(timer);
+  pendingPreloads.clear();
+});
 
 // Some local Node/Vitest combinations expose jsdom but do not install a usable
 // localStorage global. Several app primitives persist per-device UI prefs, so

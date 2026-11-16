@@ -8,12 +8,12 @@ const labels: ManagementPackExportLabels = {
   taxBasis: 'Tax basis', planned: 'Planned', recognised: 'Recognised', invoicedByMonth: 'Invoiced',
   selectedPeriod: 'Invoiced in period', opening: 'Opening invoiced', selectedPeriodRow: 'Selected period total', openingRow: 'Opening',
   recognisedToDate: 'Recognised to date', invoicedToDate: 'Invoiced to date', unbilled: 'Done, not yet billed',
-  backlog: 'Left to bill', basis: 'Basis', taxBasisValue: 'excl. PPN', unassigned: 'Unassigned', total: 'Total',
+  leftToBill: 'Left to bill', leftToBillNoValue: (count) => `${count} contracts with no value, not in the total`, basis: 'Basis', taxBasisValue: 'excl. PPN', unassigned: 'Unassigned', total: 'Total',
   basisInvoiced: 'Invoiced', basisProgress: 'Progress', basisEarned: 'Earned value',
 };
 
 const contractProject = {
-  id: 'p1', name: 'Alpha', short_name: 'North Terminal', pmo_project_number: 'PRJ-26-0001', code: null, status: 'Ongoing Project',
+  id: 'p1', name: 'Alpha', short_name: 'North Terminal', pmo_project_number: 'PRJ-26-0001', code: null, status: 'Ongoing Project', on_hand: true,
   currency: 'IDR', contract_net: 1_000, start_date: null, end_date: null, project_manager_id: null, client_name: 'Client A',
 };
 
@@ -93,18 +93,35 @@ describe('AC-MMP-011 management pack export', () => {
     expect(openingTotal?.[column('Opening invoiced')]).toBe(40);
   });
 
-  it('RF-036: an unreconciled cross-currency backlog exports as blank, not a contract-sized debt', () => {
+  it('AC-LTB-005: a held contract with no value is left out of the exported total and said beside it', () => {
+    const withNoValue = buildManagementPack({
+      ...facts,
+      projects: [contractProject, { ...contractProject, id: 'p6', name: 'Zeta', pmo_project_number: 'PRJ-26-0006', contract_net: 0 }],
+      invoiced: [...facts.invoiced, { project_id: 'p6', currency: 'IDR', month: '2026-01-01', net: 40, invoice_count: 1 }],
+    });
+    const exported = buildManagementPackExport(withNoValue, labels);
+    const idrTotals = exported.body.filter((row) => row[col('Project')] === 'Total' && row[col('Currency')] === 'IDR' && /^2026-\d{2}$/u.test(String(row[col('Period')])));
+    // 1,000 less 100.5 invoiced on the valued contract; the no-value contract's 40 does not subtract.
+    expect(idrTotals.map((row) => row[col('Left to bill')])).toEqual([899.5, 899.5]);
+    expect(idrTotals.map((row) => row[col('Basis')])).toEqual(['1 contracts with no value, not in the total', '1 contracts with no value, not in the total']);
+    const zeta = exported.body.filter((row) => row[col('Project number')] === 'PRJ-26-0006');
+    expect(zeta.map((row) => row[col('Left to bill')])).toEqual(['', '']);
+    // With none missing, the cell stays blank.
+    expect(table.body.filter((row) => row[col('Project')] === 'Total').every((row) => row[col('Basis')] === '')).toBe(true);
+  });
+
+  it('RF-036: an unreconciled cross-currency Left to bill exports as blank, not a contract-sized debt', () => {
     const packWithForeignBilling = buildManagementPack({
       ...facts,
       invoiced: [...facts.invoiced, { project_id: 'p1', currency: 'USD', month: '2026-02-01', net: 5, invoice_count: 1 }],
     });
     const exported = buildManagementPackExport(packWithForeignBilling, labels);
-    const backlog = exported.header.indexOf('Left to bill');
-    expect(exported.body[0][backlog]).toBe('');
-    expect(exported.body[1][backlog]).toBe('');
+    const leftToBill = exported.header.indexOf('Left to bill');
+    expect(exported.body[0][leftToBill]).toBe('');
+    expect(exported.body[1][leftToBill]).toBe('');
   });
 
-  it('AC-MIP-007: earlier zero-net foreign invoice presence exports blank backlog cells and subtotal', () => {
+  it('AC-MIP-007: earlier zero-net foreign invoice presence exports blank Left to bill cells and subtotal', () => {
     const packWithEarlierForeignBilling = buildManagementPack({
       ...facts,
       invoiced_before: [earlierInvoice('p1', 'USD', 0, 2)],
@@ -114,12 +131,12 @@ describe('AC-MMP-011 management pack export', () => {
     const projectNumber = exported.header.indexOf('Project number');
     const currency = exported.header.indexOf('Currency');
     const period = exported.header.indexOf('Period');
-    const backlog = exported.header.indexOf('Left to bill');
+    const leftToBill = exported.header.indexOf('Left to bill');
     const invoicedToDate = exported.header.indexOf('Invoiced to date');
     const contractRows = exported.body.filter((row) => row[projectNumber] === 'PRJ-26-0001' && row[currency] === 'IDR');
     const idrTotals = exported.body.filter((row) => row[project] === 'Total' && row[currency] === 'IDR' && /^2026-\d{2}$/u.test(String(row[period])));
-    expect(contractRows.map((row) => row[backlog])).toEqual(['', '']);
-    expect(idrTotals.map((row) => row[backlog])).toEqual(['', '']);
+    expect(contractRows.map((row) => row[leftToBill])).toEqual(['', '']);
+    expect(idrTotals.map((row) => row[leftToBill])).toEqual(['', '']);
     expect(contractRows[1][invoicedToDate]).toBe(100.5);
   });
 
@@ -142,5 +159,27 @@ describe('AC-MMP-011 management pack export', () => {
 
   it('AC-MMP-011: the file name carries the as-at month', () => {
     expect(managementPackFileStem(pack)).toBe('Management-pack_2026-02');
+  });
+});
+
+describe('AC-2201-02 management pack export with an invoice that has no amount', () => {
+  const pack = buildManagementPack({ ...facts, unpriced: [{ currency: 'IDR', month: '2026-02-01', invoice_count: 1 }] });
+  const table = buildManagementPackExport(pack, labels);
+  const col = (name: string) => table.header.indexOf(name);
+  const total = (period: string) => table.body.find((row) => row[col('Period')] === period && row[col('Project')] === 'Total')!;
+
+  it('AC-2201-02: the total row of the month with the unpriced invoice leaves invoiced and invoiced to date blank, never a partial sum', () => {
+    expect(total('2026-02')[col('Invoiced')]).toBe('');
+    expect(total('2026-02')[col('Invoiced to date')]).toBe('');
+  });
+
+  it('AC-2201-03: an earlier month without one keeps its invoiced figures', () => {
+    expect(total('2026-01')[col('Invoiced')]).toBe(100.5);
+    expect(total('2026-01')[col('Invoiced to date')]).toBe(100.5);
+  });
+
+  it('AC-2201-02: the selected-period summary is blank for that currency', () => {
+    const summary = table.body.find((row) => row[col('Period')] === 'Selected period total')!;
+    expect(summary[col('Invoiced in period')]).toBe('');
   });
 });

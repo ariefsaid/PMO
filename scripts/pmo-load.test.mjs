@@ -8,14 +8,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 
-import { classifyBudgetLineCategory, defaultContractLineBasis, LOAD_STAGE_PATHS, remainingPath, validateLoadFile } from './lib/pmo-load.mjs';
+import { classifyBudgetLineCategory, defaultContractLineBasis, LOAD_STAGE_PATHS, remainingPath, validateLoadFile, WON_STAGES } from './lib/pmo-load.mjs';
 
 const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
 
 test('AC-CSD-002: validateLoadFile names every problem, row by row', () => {
   assert.deepEqual(validateLoadFile([]), ['The load file must be a JSON object with a "companies" list and/or a "projects" list']);
   const problems = validateLoadFile({
-    companies: [{ name: 'A' }, { name: 'A', type: 'Vendor' }],
+    companies: [{ name: 'A' }, { name: 'A', kind: 'Vendor' }],
     projects: [
       { name: 'X', client: 'A', stage: 'Won, Pending KoM', contract_value: 10 },
       { name: 'Y', client: 'A', stage: 'Leads', status: 'Ongoing Project', contract_date: '2025-01-01' },
@@ -31,7 +31,7 @@ test('AC-CSD-002: validateLoadFile names every problem, row by row', () => {
     ],
   });
   assert.deepEqual(problems, [
-    'companies[1]: unknown field "type"',
+    'companies[1]: unknown field "kind"',
     'companies[1]: "A" appears twice',
     'projects[0] (X | A): "tax_treatment" must be "inclusive" or "exclusive" when a contract value is given',
     'projects[0] (X | A): "tax_amount" must be a non-negative amount with at most 2 decimals when a contract value is given (0 = no tax)',
@@ -62,33 +62,32 @@ test('AC-CSD-002: a won project needs a value, and a date must be a real calenda
 });
 
 test('AC-CSD-009: remainingPath resumes from the current stage and returns null off the path', () => {
-  assert.deepEqual(remainingPath('Ongoing Project', 'Leads'), ['PQ Submitted', 'Quotation Submitted', 'Won, Pending KoM', 'Ongoing Project']);
+  assert.deepEqual(remainingPath('Ongoing Project', 'Leads'), ['Quotation Submitted', 'Won, Pending KoM', 'Ongoing Project']);
   assert.deepEqual(remainingPath('Ongoing Project', 'Quotation Submitted'), ['Won, Pending KoM', 'Ongoing Project']);
   assert.deepEqual(remainingPath('Ongoing Project', 'Ongoing Project'), []);
   assert.equal(remainingPath('Ongoing Project', 'Loss Tender'), null);
+  assert.deepEqual(remainingPath('Negotiation', 'PQ Submitted'), ['Tender Submitted', 'Negotiation']);
+  assert.deepEqual(remainingPath('Close Out', 'Won, Pending KoM'), ['Close Out']);
+  for (const [target, steps] of Object.entries(LOAD_STAGE_PATHS)) {
+    for (const [i, from] of ['Leads', ...steps].entries()) {
+      assert.deepEqual(remainingPath(target, from), steps.slice(i), `${target} from ${from}`);
+    }
+  }
   assert.equal(remainingPath('Quotation Submitted', 'Ongoing Project'), null);
 });
 
-test('AC-CSD-014: every step of every load path is legal in the latest transition_project map', () => {
-  const dir = path.join(ROOT, 'supabase', 'migrations');
-  const latest = fs
-    .readdirSync(dir)
-    .filter((f) => f.endsWith('.sql'))
-    .sort()
-    .filter((f) => /create or replace function (public\.)?transition_project\(/.test(fs.readFileSync(path.join(dir, f), 'utf8')))
-    .pop();
-  const sql = fs.readFileSync(path.join(dir, latest), 'utf8');
-  const legal = {};
-  for (const m of sql.matchAll(/'([^']+)',\s+jsonb_build_array\(([^)]*)\)/g)) {
-    legal[m[1]] = [...m[2].matchAll(/'([^']+)'/g)].map((x) => x[1]);
-  }
-  assert.ok(Object.keys(legal).length >= 10, `parsed the transition map from ${latest}`);
+test('AC-CSD-014: the pgTAP walk (the real transition_project) lists exactly LOAD_STAGE_PATHS', () => {
+  const sql = fs.readFileSync(path.join(ROOT, 'supabase', 'tests', 'pmo_load_stage_paths.test.sql'), 'utf8');
+  const json = sql.match(/\$paths\$([\s\S]*?)\$paths\$/)?.[1];
+  assert.ok(json, 'the pgTAP file carries its path list between $paths$ markers');
+  assert.deepEqual(JSON.parse(json), JSON.parse(JSON.stringify(LOAD_STAGE_PATHS)));
+});
+
+test('AC-CSD-014: every path starts at Leads, ends at its target and a won stage passes through the win step', () => {
   for (const [target, steps] of Object.entries(LOAD_STAGE_PATHS)) {
-    const walk = ['Leads', ...steps];
-    assert.equal(walk.at(-1), target, `${target}: the path ends at the target`);
-    for (let i = 1; i < walk.length; i += 1) {
-      assert.ok(legal[walk[i - 1]]?.includes(walk[i]), `${target}: ${walk[i - 1]} -> ${walk[i]} is legal`);
-    }
+    assert.equal(steps.at(-1) ?? 'Leads', target, `${target}: the path ends at the target`);
+    assert.equal(new Set(steps).size, steps.length, `${target}: no stage is visited twice`);
+    if (WON_STAGES.includes(target)) assert.ok(steps.includes('Won, Pending KoM'), `${target}: wins first`);
   }
 });
 
@@ -229,6 +228,44 @@ test('AC-CSD-005: an ERP party push failure stops before creating any project', 
   assert.deepEqual(api.tables.projects ?? [], []);
 });
 
+const ERP_OWNS = { external_domain_ownership: [{ domain: 'companies', external_tier: 'erpnext' }] };
+
+test('#2221: a supplier file entry is dry-run planned then created as Vendor through the app dispatch command', async () => {
+  const api = fakeApi({ tables: { ...ERP_OWNS } });
+  const { problems, plan } = await resolveLoad({ companies: [{ name: 'Supplier Legal X', type: 'Vendor', short_name: 'SLX' }] }, api);
+  assert.deepEqual(problems, []);
+  assert.equal(plan.companies[0].action, 'create_external');
+  assert.equal(plan.companies[0].type, 'Vendor');
+  const dry = await applyLoad(plan, api, { dryRun: true });
+  assert.deepEqual(dry.map((a) => a.kind), ['company.create']);
+  assert.deepEqual(writes(api), []);
+  await applyLoad(plan, api, {});
+  assert.deepEqual(writes(api)[0].body, { name: 'Supplier Legal X', type: 'Vendor' });
+});
+
+test('#2221: a supplier whose name is only a Client row is still created as Vendor', async () => {
+  const api = fakeApi({ tables: { ...ERP_OWNS, companies: [{ id: 'c-1', name: 'Dual Co', type: 'Client', archived_at: null }] } });
+  const { problems, plan } = await resolveLoad({ companies: [{ name: 'Dual Co', type: 'Vendor' }] }, api);
+  assert.deepEqual(problems, []);
+  assert.equal(plan.companies[0].action, 'create_external');
+});
+
+test('#2221: an existing supplier is skipped; ambiguous and archived suppliers are refused plainly', async () => {
+  const mk = (rows) => fakeApi({ tables: { ...ERP_OWNS, companies: rows } });
+  const doc = { companies: [{ name: 'Sup', type: 'Vendor' }] };
+  const one = await resolveLoad(doc, mk([{ id: 'v1', name: 'Sup', type: 'Vendor', archived_at: null }]));
+  assert.equal(one.plan.companies[0].action, 'skip');
+  const two = await resolveLoad(doc, mk([{ id: 'v1', name: 'Sup', type: 'Vendor', archived_at: null }, { id: 'v2', name: 'Sup', type: 'Vendor', archived_at: null }]));
+  assert.match(two.problems[0], /more than one company has this legal name/);
+  const arch = await resolveLoad(doc, mk([{ id: 'v1', name: 'Sup', type: 'Vendor', archived_at: '2026-01-01' }]));
+  assert.match(arch.problems[0], /is archived — restore it in the app first/);
+});
+
+test('#2221: the file type must be Client or Vendor', () => {
+  assert.deepEqual(validateLoadFile({ companies: [{ name: 'A', type: 'Vendor' }, { name: 'B', type: 'Client' }] }), []);
+  assert.match(validateLoadFile({ companies: [{ name: 'A', type: 'Internal' }] })[0], /"type" must be "Client" or "Vendor"/);
+});
+
 test('AC-CSD-010: the budget target is a new Draft, the highest Draft minus loaded keys, or nothing once a budget is active', async () => {
   const doc = { projects: [DOC().projects[0]] };
   const budgetOf = async (extra) =>
@@ -275,7 +312,7 @@ test('AC-CSD-006/007: a fresh load creates companies, projects as Leads, sets th
   assert.deepEqual(w.map((c) => `${c.kind} ${c.target}`), [
     'post companies', 'post companies',
     'post projects', 'rpc set_project_contract_value',
-    'rpc transition_project', 'rpc transition_project', 'rpc transition_project', 'rpc transition_project',
+    'rpc transition_project', 'rpc transition_project', 'rpc transition_project',
     'post budget_versions', 'rpc import_budget_line_v2', 'rpc import_budget_line_v2',
     'post projects', 'rpc set_project_contract_value',
     'rpc transition_project', 'rpc transition_project', 'rpc transition_project',
@@ -288,14 +325,13 @@ test('AC-CSD-006/007: a fresh load creates companies, projects as Leads, sets th
     service_line: 'Engineering', sector: 'Energy', location: 'Riau', award_type: 'direct', bidding_entity: 'Own',
   });
   assert.deepEqual(w[3].body, { p_id: 'projects-3', p_value: 1000000, p_tax_treatment: 'exclusive', p_tax_amount: 110000 });
-  assert.deepEqual(w.slice(4, 8).map((c) => c.body), [
-    { p_id: 'projects-3', p_to: 'PQ Submitted' },
+  assert.deepEqual(w.slice(4, 7).map((c) => c.body), [
     { p_id: 'projects-3', p_to: 'Quotation Submitted' },
     { p_id: 'projects-3', p_to: 'Won, Pending KoM', p_customer_contract_ref: 'PO-1', p_contract_date: '2025-02-01' },
     { p_id: 'projects-3', p_to: 'Ongoing Project' },
   ]);
-  assert.deepEqual(w.slice(13).map((c) => c.body.p_to), ['PQ Submitted', 'Quotation Submitted', 'Tender Submitted']);
-  assert.ok(w.slice(13).every((c) => !('p_customer_contract_ref' in c.body)), 'a bid carries no win artifacts');
+  assert.deepEqual(w.slice(12).map((c) => c.body.p_to), ['Quotation Submitted', 'PQ Submitted', 'Tender Submitted']);
+  assert.ok(w.slice(12).every((c) => !('p_customer_contract_ref' in c.body)), 'a bid carries no win artifacts');
 });
 
 test('AC-CSD-010: a budget becomes one Draft "Imported" version; lines carry the app key and never a status, activation or actual', async () => {
@@ -385,7 +421,7 @@ test('AC-CSD-003: a dry run plans the same actions and writes nothing', async ()
   assert.deepEqual(actions.map((a) => a.kind), [
     'company.create', 'company.create',
     'project.create', 'project.contract_value',
-    'project.transition', 'project.transition', 'project.transition', 'project.transition',
+    'project.transition', 'project.transition', 'project.transition',
     'budget.version', 'budget.lines',
     'project.create', 'project.contract_value',
     'project.transition', 'project.transition', 'project.transition',
@@ -399,7 +435,7 @@ test('AC-CSD-012: the first refusal stops the load and reports what was done and
     assert.equal(e.code, '42501');
     assert.deepEqual(e.loadReport.failed, { kind: 'project.transition', key: 'ORG-001', to: 'Won, Pending KoM' });
     assert.deepEqual(e.loadReport.done.map((a) => a.kind), [
-      'company.create', 'company.create', 'project.create', 'project.contract_value', 'project.transition', 'project.transition',
+      'company.create', 'company.create', 'project.create', 'project.contract_value', 'project.transition',
     ]);
     return true;
   });
@@ -953,4 +989,63 @@ test('budget malformed and uncertain transport failures identify the row and pre
     const retry = await load(api, doc);
     assert.equal(retry.find((a) => a.kind === 'budget.lines').skipped, 2);
   }
+});
+
+const BID = (over = {}) => ({ name: 'Plant upgrade', client: 'Client Legal A', stage: 'Leads', ...over });
+
+test('AC-FXBID-001 #1794: a project file may carry its own currency; it is sent on create and shown in a dry run', async () => {
+  const doc = { projects: [BID({ code: 'ORG-001', currency: 'USD' })] };
+  const dry = fakeApi({ tables: { companies: COMPANIES() } });
+  const planned = await load(dry, doc, true);
+  assert.deepEqual(writes(dry), []);
+  assert.equal(planned.find((a) => a.kind === 'project.create').currency, 'USD');
+
+  const api = fakeApi({ tables: { companies: COMPANIES() } });
+  await load(api, doc);
+  assert.equal(writes(api).find((c) => c.target === 'projects').body.currency, 'USD');
+
+  const none = fakeApi({ tables: { companies: COMPANIES() } });
+  await load(none, { projects: [BID()] });
+  assert.equal('currency' in writes(none).find((c) => c.target === 'projects').body, false);
+});
+
+test('AC-FXBID-002 #1794: a currency that is not a three-letter capital code, or is XXX, is refused before anything is sent', () => {
+  for (const bad of ['usd', 'US', 'USDD', 'XXX', '', 840, null]) {
+    assert.deepEqual(
+      validateLoadFile({ projects: [BID({ code: 'ORG-001', currency: bad })] }),
+      ['projects[0] (ORG-001): "currency" must be a three-letter currency code in capitals, such as IDR or USD'],
+      String(bad),
+    );
+  }
+  assert.deepEqual(validateLoadFile({ projects: [BID({ currency: 'USD' })] }), []);
+});
+
+test('AC-FXBID-003 #1794: an existing project in another currency is reported as a conflict and never changed', async () => {
+  const doc = { projects: [BID({ code: 'ORG-001', currency: 'USD' })] };
+  const api = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING({ status: 'Leads', contract_value: 0, currency: 'IDR' })] } });
+  const actions = await load(api, doc);
+  assert.deepEqual(writes(api), []);
+  const hit = actions.find((a) => a.kind === 'project.currency_conflict');
+  assert.deepEqual([hit.current, hit.file], ['IDR', 'USD']);
+
+  const dry = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING({ status: 'Leads', contract_value: 0, currency: 'IDR' })] } });
+  assert.ok((await load(dry, doc, true)).some((x) => x.kind === 'project.currency_conflict'));
+
+  const alias = { projects: [BID({ code: 'ORG-001', currency: 'USD', short_name: 'Depot' })] };
+  const both = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING({ status: 'Leads', contract_value: 0, currency: 'IDR', short_name: null })] } });
+  const bothActions = await load(both, alias);
+  assert.deepEqual(writes(both).map((c) => [c.kind, c.target, c.body]), [['patch', 'projects', { short_name: 'Depot' }]]);
+  assert.ok(bothActions.some((x) => x.kind === 'project.currency_conflict'));
+  assert.equal(both.tables.projects[0].currency, 'IDR');
+
+  const same = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING({ status: 'Leads', contract_value: 0, currency: 'USD' })] } });
+  const kinds = (await load(same, doc)).map((a) => a.kind);
+  assert.deepEqual(kinds, ['project.skip']);
+});
+
+test('AC-FXBID-003 #1794: a project that diverged from the file stage still reports a currency conflict', async () => {
+  const api = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING({ status: 'Loss Tender', contract_value: 0, currency: 'IDR' })] } });
+  const kinds = (await load(api, { projects: [BID({ code: 'ORG-001', currency: 'USD' })] })).map((a) => a.kind);
+  assert.deepEqual(writes(api), []);
+  assert.deepEqual(kinds, ['project.currency_conflict', 'project.diverged']);
 });

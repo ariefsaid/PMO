@@ -126,6 +126,7 @@ vi.mock('@/src/lib/db/timesheetTransition', () => ({
   reopenTimesheet: vi.fn(),
   attestTimesheetNoErpDocument: vi.fn(),
   listReopenableApprovedTimesheets: vi.fn(),
+  hasTimesheetApprovalWork: vi.fn(),
 }));
 vi.mock('@/src/lib/db/timesheetPush', () => ({
   approvedTimesheetForPush: vi.fn(), listPushesNeedingAttention: vi.fn(),
@@ -227,12 +228,13 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // silent no-op trap 0193 §5 exists to prevent.
       // 'workOrderAcceptance' from contract quantities (migration 0337, ADR-0091): allocations + BAST RPCs.
       // 'imprest' from site cash (#1515 S4+S5).
+      // 'journal' from manual journals (#895): the draft, second-approver and reversal RPCs.
       // 'equipment' from equipment usage and allocation (#1519 S5, plan S5.2): assets, usage, costing and allocations.
       // 'stock' from inventory master data (#1512 S1, migration 0412); S2a+ add documents and reports to it.
       // 'subcontracts' from subcontract acceptance, caps and variations (#1513 S6).
       // 'projectStage' from stage history (#1638).
       // 'timeAndMaterials' from time-and-materials claims (#1514 T7): rate card, assembly, sign-off and the reads.
-      ['agentAttachment', 'agentRun', 'budget', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'dashboard', 'document', 'equipment', 'erpJournalLines', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'integrations', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'notification', 'odoo', 'odooLedger', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'projectMoney', 'projectOverview', 'projectStage', 'recordHistory', 'reports', 'revenue', 'stock', 'subcontracts', 'task', 'timeAndMaterials', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder', 'workOrderAcceptance'].sort(),
+      ['agentAttachment', 'agentRun', 'budget', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'dashboard', 'document', 'equipment', 'erpJournalLines', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'journal', 'integrations', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'notification', 'odoo', 'odooLedger', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'projectMoney', 'projectOverview', 'projectStage', 'recordHistory', 'reports', 'revenue', 'stock', 'subcontracts', 'task', 'timeAndMaterials', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder', 'workOrderAcceptance'].sort(),
     );
   });
 
@@ -285,7 +287,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
 
   it('procurementFiles exposes its expected methods', () => {
     expect(Object.keys(repositories.procurementFiles).sort()).toEqual(
-      ['archive', 'cleanupObject', 'confirmMicrosoftUpload', 'confirmUpload', 'getSignedUrl', 'list', 'prepareUpload'].sort(),
+      ['archive', 'cleanupObject', 'confirmMicrosoftUpload', 'confirmUpload', 'getSignedUrl', 'list', 'listForParents', 'prepareUpload'].sort(),
     );
   });
 
@@ -334,9 +336,10 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // soft-archive). 'listByMeeting' added deliberately with #526 (the /action seam, migration
       // 0206 — the meeting detail lists its minuted tasks). 'listByAssignee' added with 2d97e91d5
       // (My Tasks projection). 'listDueRows' added with #1741 (one batched read for the PM dashboard
-      // overdue count). This list is an exhaustive API-seam contract (ADR-0017) — extending
+      // overdue count). 'listByIds' added with #2106 (the minutes' action items in one read instead of
+      // one per block). This list is an exhaustive API-seam contract (ADR-0017) — extending
       // the repository surface must be an explicit change here, never an accident.
-      ['addDependency', 'archive', 'create', 'delete', 'get', 'list', 'listByAssignee', 'listByMeeting', 'listCalendar', 'listDueRows', 'removeDependency', 'unarchive', 'update', 'updateStatus'].sort(),
+      ['addDependency', 'archive', 'create', 'delete', 'get', 'list', 'listByIds', 'listByAssignee', 'listByMeeting', 'listCalendar', 'listDueRows', 'removeDependency', 'unarchive', 'update', 'updateStatus'].sort(),
     );
     expect(Object.keys(repositories.meeting).sort()).toEqual(
       // #526 (OD-MTG-1/2): grants are add/revoke ONLY — no update method on purpose (a grant is
@@ -386,7 +389,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ].sort(),
     );
     expect(Object.keys(repositories.timesheet).sort()).toEqual(
-      ['approve', 'createDraft', 'deleteEntry', 'list', 'listAwaitingApproval', 'pushApproved', 'reject', 'submit', 'upsertEntries', 'saveWeek', 'reopen', 'attestNoErpDocument', 'listReopenableApproved', 'listPushesNeedingAttention', 'confirmEmployeeLink', 'getPushState'].sort(),
+      ['approve', 'createDraft', 'deleteEntry', 'list', 'listAwaitingApproval', 'pushApproved', 'reject', 'submit', 'upsertEntries', 'saveWeek', 'reopen', 'attestNoErpDocument', 'listReopenableApproved', 'hasApprovalWork', 'listPushesNeedingAttention', 'confirmEmployeeLink', 'getPushState'].sort(),
     );
     expect(Object.keys(repositories.budget).sort()).toEqual(
       ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'getActivationMode', 'getDistribution', 'importLine', 'listArchiveLiveTargets', 'listArchiveTargets', 'listDocumentLinks', 'listLegacyArchiveLiveTargets', 'listOrgDrafts', 'listVersions', 'precheckActivation', 'removeDocumentLink', 'resubmitVersion', 'returnVersion', 'saveDistribution', 'switchDraftMode', 'updateLineItem'].sort(),
@@ -669,7 +672,7 @@ describe('delegation — methods pass args through and return the DAL result', (
   });
 
   it('AC-INV/OPR: profile.inviteUser and profile.setUserStatus delegate to the adminUsers DAL', async () => {
-    vi.mocked(adminUsersDal.inviteUser).mockResolvedValue(undefined);
+    vi.mocked(adminUsersDal.inviteUser).mockResolvedValue('sent');
     vi.mocked(adminUsersDal.setUserStatus).mockResolvedValue(undefined);
 
     await repositories.profile.inviteUser({ email: 'new@example.com', role: 'Engineer' as never });
@@ -937,6 +940,10 @@ describe('delegation — methods pass args through and return the DAL result', (
     vi.mocked(tsTransitionDal.listReopenableApprovedTimesheets).mockResolvedValue([]);
     await expect(repositories.timesheet.listReopenableApproved('u1', 'Project Manager')).resolves.toEqual([]);
     expect(tsTransitionDal.listReopenableApprovedTimesheets).toHaveBeenCalledWith('u1', 'Project Manager');
+
+    vi.mocked(tsTransitionDal.hasTimesheetApprovalWork).mockResolvedValue(true);
+    await expect(repositories.timesheet.hasApprovalWork('u1', 'Project Manager')).resolves.toBe(true);
+    expect(tsTransitionDal.hasTimesheetApprovalWork).toHaveBeenCalledWith('u1', 'Project Manager');
     vi.mocked(tsPushDal.listPushesNeedingAttention).mockResolvedValue([]);
     await expect(repositories.timesheet.listPushesNeedingAttention()).resolves.toEqual([]);
     vi.mocked(tsPushDal.confirmEmployeeLink).mockResolvedValue(undefined);

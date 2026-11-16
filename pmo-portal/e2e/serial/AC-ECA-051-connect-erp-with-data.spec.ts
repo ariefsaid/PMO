@@ -52,7 +52,7 @@ test('AC-ECA-051 on a PMO org connected to an ERP that holds some of the same re
     // -- Given the ERP side -----------------------------------------------------------------------------------------------
     await benchCreate('Supplier', { supplier_name: v[0].name, supplier_group: 'All Supplier Groups' });
     await benchCreate('Supplier', { supplier_name: `ECA051 Renamed Supplier ${suffix}`, supplier_group: 'All Supplier Groups', tax_id: taxId });
-    await benchCreate('Customer', { customer_name: client.name, customer_group: 'All Customer Groups', territory: 'All Territories' });
+    await benchCreate('Customer', { customer_name: client.name, customer_group: 'Commercial', territory: 'All Territories' });
     const erpProject1 = String((await benchCreate('Project', { project_name: p[0].name, company, is_active: 'Yes' })).name);
     const serviceItem = `ECA051 Service ${suffix}`;
     await benchCreate('Item', { item_code: serviceItem, item_name: serviceItem, item_group: 'Services', stock_uom: 'Nos', is_stock_item: 0 });

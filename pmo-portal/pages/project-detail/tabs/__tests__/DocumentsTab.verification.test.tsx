@@ -58,7 +58,9 @@ vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: [
 vi.mock('@/src/hooks/useMicrosoftDocuments', () => ({
   useMicrosoftDocuments: () => ({ connection: undefined, isPending: true, refetch: vi.fn() }),
 }));
-vi.mock('@/src/components/m365/RecordFolderAction', () => ({ RecordFolderAction: () => null }));
+vi.mock('@/src/components/m365/useRecordFolderAction', () => ({
+  useRecordFolderAction: () => ({ allowed: false, hasNotice: false, canStart: false, pending: false, start: () => {}, label: '', outcome: null, remedies: null, reconnectError: null }),
+}));
 vi.mock('@/src/components/m365/MicrosoftDocumentPicker', () => ({ MicrosoftDocumentPicker: () => null }));
 vi.mock('@/src/lib/m365/graphClient', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/lib/m365/graphClient')>();

@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { MAX_LOCAL_SPECS, isSerialSpec, planPhases, printPhases, resultsRoot, runCapped, runPhases, serialTestMatch } from './affected-e2e.mjs';
+import { isAffectedInput, selectFor, changedLocaleKeys, localeKeyUsers, localeSourceFiles, MAX_LOCAL_SPECS, isSerialSpec, planPhases, printPhases, resultsRoot, runCapped, runPhases, serialTestMatch } from './affected-e2e.mjs';
 
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptsDir, '..');
@@ -88,7 +88,7 @@ test('affected-e2e --run skips a phase with no selected specs instead of spawnin
 
 test('affected-e2e --run still runs the serial phase after a chromium failure and exits non-zero', () => {
   const { calls, spawnE2E } = recordingSpawn([1, 0]);
-  const exit = captureLog(() => assert.equal(runPhases(planPhases([CHROMIUM_SPEC, SERIAL_SPEC]), spawnE2E), 1));
+  captureLog(() => assert.equal(runPhases(planPhases([CHROMIUM_SPEC, SERIAL_SPEC]), spawnE2E), 1));
   assert.equal(calls.length, 2, 'phase 2 must run even when phase 1 failed');
   assert.deepEqual(calls.map(call => call.phaseArgs[0]), ['--project=chromium', '--project=serial']);
 });
@@ -204,4 +204,84 @@ test('affected-e2e --run at the cap runs', () => {
   const { calls, spawn } = spawnCount();
   assert.equal(runCapped(planPhases(specs(MAX_LOCAL_SPECS)), false, spawn), 0);
   assert.equal(calls.length, 1);
+});
+
+// #1850: a locale edit must select only the screens that render the changed keys.
+test('changedLocaleKeys reports only added, removed and changed leaf keys', () => {
+  const before = JSON.stringify({ area: { a: 'A', b: 'B' }, c: 'C' });
+  const after = JSON.stringify({ area: { a: 'A2', d: 'D' }, c: 'C' });
+  assert.deepEqual([...changedLocaleKeys(before, after)].sort(), ['area.a', 'area.b', 'area.d']);
+  assert.equal(changedLocaleKeys(before, before).size, 0);
+});
+
+test('changedLocaleKeys returns null (fall back to broad) for an added/deleted file or bad JSON', () => {
+  assert.equal(changedLocaleKeys(null, '{}'), null);
+  assert.equal(changedLocaleKeys('{}', null), null);
+  assert.equal(changedLocaleKeys('{', '{}'), null);
+});
+
+test('localeKeyUsers matches literal, namespaced, plural-folded, dynamic-prefix and keyPrefix usage; null when unreferenced', () => {
+  const sources = new Map([
+    ['/a.tsx', "t('area.newInvoice')"], ['/b.tsx', "t('finance:area.daysOverdue')"],
+    ['/c.tsx', 't(`area.${kind}`)'], ['/d.tsx', "useTranslation('finance', { keyPrefix: 'area' }); t('viewAreas')"],
+    ['/e.tsx', "t('other.thing')"],
+  ]);
+  assert.deepEqual([...localeKeyUsers('area.newInvoice', sources)].sort(), ['/a.tsx', '/c.tsx']);
+  assert.deepEqual([...localeKeyUsers('area.daysOverdue_other', sources)].sort(), ['/b.tsx', '/c.tsx']);
+  assert.deepEqual([...localeKeyUsers('area.viewAreas', sources)].sort(), ['/c.tsx', '/d.tsx']);
+  assert.equal(localeKeyUsers('nothing.here', sources), null);
+});
+
+test('localeSourceFiles narrows to key users, and returns null when keys cannot be determined', () => {
+  const sources = () => new Map([['/a.tsx', "t('x.one')"], ['/b.tsx', "t('x.two')"]]);
+  const sides = (oldText, newText) => () => ({ oldText, newText });
+  const oldT = JSON.stringify({ x: { one: '1', two: '2' } }), newT = JSON.stringify({ x: { one: '1!', two: '2' } });
+  assert.deepEqual([...localeSourceFiles('f.json', { readSides: sides(oldT, newT), sources })], ['/a.tsx']);
+  assert.equal(localeSourceFiles('f.json', { readSides: () => null, sources }), null, 'file added/deleted');
+  assert.equal(localeSourceFiles('f.json', { readSides: sides(oldT, '{'), sources }), null, 'parse failure');
+  const unknown = JSON.stringify({ x: { one: '1', two: '2', ghost: 'g' } });
+  assert.equal(localeSourceFiles('f.json', { readSides: sides(oldT, unknown), sources }), null, 'key no source references');
+});
+
+test('select: one finance key selects far fewer specs than the namespace-wide fallback', async () => {
+  const { select } = await import('./affected-e2e.mjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ae2e-'));
+  const pFile = path.join(dir, 'p.tsx'), cFile = path.join(dir, 'c.tsx');
+  fs.writeFileSync(pFile, 'export default 1;'); fs.writeFileSync(cFile, 'export default 2;');
+  const routeData = { routes: [{ path: '/projects', roots: [pFile] }, { path: '/companies', roots: [cFile] }], shared: [] };
+  const specA = path.join(dir, 'a.spec.ts'), specB = path.join(dir, 'b.spec.ts');
+  fs.writeFileSync(specA, "await page.goto('/projects');"); fs.writeFileSync(specB, "await page.goto('/companies');");
+  try {
+    const file = 'pmo-portal/public/locales/en/finance.json';
+    assert.deepEqual(select([file], routeData, [specA, specB], () => null), [specA, specB].sort(), 'fallback = everything');
+    assert.deepEqual(select([file], routeData, [specA, specB], () => new Set([pFile])), [specA], 'narrowed to /projects');
+    assert.deepEqual(select([file], routeData, [specA, specB], () => new Set()), [], 'no changed keys selects nothing');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+// #2388: every changed file under pmo-portal/ except e2e/ is an input; each newly admitted folder
+// must now select journeys, not just pass the filter.
+const ADMITTED = [
+  ['src/lib (not repositories)', 'pmo-portal/src/lib/billingKind.ts'],
+  ['src/lib/db', 'pmo-portal/src/lib/db/companies.ts'],
+  ['src/auth', 'pmo-portal/src/auth/policy.ts'],
+  ['top-level components', 'pmo-portal/components/ProcurementBoard.tsx'],
+  ['App.tsx', 'pmo-portal/App.tsx'],
+];
+for (const [label, file] of ADMITTED) {
+  test(`affected-e2e #2388 admits ${label} and selects journeys`, () => {
+    assert.equal(isAffectedInput(file), true);
+    assert.ok(selectFor([file]).length > 0, `${file} selected no specs`);
+  });
+}
+test('affected-e2e #2388 keeps e2e/ and non-app paths out', () => {
+  assert.equal(isAffectedInput('pmo-portal/e2e/AC-CO-001-companies-crud.spec.ts'), false);
+  assert.equal(isAffectedInput('docs/x.md'), false);
+});
+test('affected-e2e #2388 the local cap still refuses a broad selection', () => {
+  const files = Array.from({ length: MAX_LOCAL_SPECS + 1 }, (_, i) => `e2e/a${i}.spec.ts`);
+  const { calls, spawnE2E } = recordingSpawn();
+  const err = console.error; console.error = () => {};
+  try { assert.equal(runCapped(planPhases(files), false, spawnE2E), 1); } finally { console.error = err; }
+  assert.equal(calls.length, 0);
 });

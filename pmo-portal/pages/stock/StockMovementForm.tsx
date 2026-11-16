@@ -5,7 +5,10 @@ import {
   Button, FormActions, FormGrid, FormSection, ListState, MobileActionBar, SelectField, TextArea, TextField, UnsavedChangesDialog, useToast, Icon,
 } from '@/src/components/ui';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
-import { useStockErrorText } from '@/src/components/stock/useStockErrorText';
+import { StockLinesLoading } from '@/src/components/stock/LinesLoading';
+import { MOVEMENT_LINES_RESERVE } from '@/src/components/stock/linesLoadingHeights';
+import { useStockErrorText, useStockFailureNotice } from '@/src/components/stock/useStockErrorText';
+import { StockDispatchError } from '@/src/lib/stockDispatchError';
 import { FormErrorStrip } from '@/src/components/ui/FormFields';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { usePermission } from '@/src/auth/usePermission';
@@ -56,6 +59,7 @@ const StockMovementForm: React.FC = () => {
   const { realRole, effectiveRole } = useEffectiveRole();
   const me = useAuth().currentUser?.id;
   const errorText = useStockErrorText();
+  const notify = useStockFailureNotice();
   const today = useFxOrgDay(true).day; // org-timezone today: the server refuses a later date (stock_assert_dates)
   const { create } = useStockDocumentMutations();
 
@@ -96,9 +100,15 @@ const StockMovementForm: React.FC = () => {
   if (!kind) {
     return <div className="p-4"><ListState variant="empty" icon="folder" title={t('form.unknownKind')} sub={t('form.unknownKindSub')} /></div>;
   }
-  const loadError = warehouses.isError || keepers.isError || items.isError || units.isError || (kind !== 'receive' && kind !== 'transfer' && projects.isError);
-  const pending = warehouses.isPending || keepers.isPending || items.isPending || units.isPending;
-  const retry = () => { for (const q of [warehouses, keepers, items, units, projects]) if (q.isError) void q.refetch(); };
+  // AC-NBR-033: the header needs warehouses + keepers (+ projects where the kind picks one); the line editor needs
+  // items + units. Submit waits for all four.
+  const headerError = warehouses.isError || keepers.isError || (kind !== 'receive' && kind !== 'transfer' && projects.isError);
+  const headerPending = warehouses.isPending || keepers.isPending;
+  const linesError = items.isError || units.isError;
+  const linesPending = items.isPending || units.isPending;
+  const linesSettled = !linesPending && !linesError;
+  const retryHeader = () => { for (const q of [warehouses, keepers, projects]) if (q.isError) void q.refetch(); };
+  const retryLines = () => { for (const q of [items, units]) if (q.isError) void q.refetch(); };
   const canSubmit = may('create', 'stockDocument', { record: { isKeeper: keptIds.has(warehouseId), viewOnly } });
   const needsProject = kind === 'issue' || kind === 'return';
   const heading = t(`kinds.${kind}`);
@@ -161,6 +171,8 @@ const StockMovementForm: React.FC = () => {
       setSaved(true);
       navigate(`/stock/documents/${id}`);
     } catch (err) {
+      // The Draft was saved and the post did not go through: open it (its page says where it stands) rather than create it again.
+      if (err instanceof StockDispatchError) { notify(err); setSaved(true); navigate(`/stock/documents/${err.documentId}`); return; }
       setSubmitError(err);
       const s = parseStockError(err);
       if (s?.code === 'STK_INSUFFICIENT') {
@@ -181,14 +193,15 @@ const StockMovementForm: React.FC = () => {
     <div className="mx-auto w-full max-w-5xl px-4 py-4">
       <h1 className="text-page font-semibold">{heading}</h1>
 
-      {pending && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}
-      {!pending && loadError && <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={retry} />}
-      {!pending && !loadError && usable.length === 0 && (
+      {headerPending && <div data-testid="stock-header-region" className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}
+      {!headerPending && headerError && <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={retryHeader} />}
+      {!headerPending && !headerError && usable.length === 0 && (
         <ListState variant="empty" icon="folder" title={t('form.noWarehouse.title')} sub={t('form.noWarehouse.sub')} />
       )}
-      {!pending && !loadError && usable.length > 0 && (
-        <form onSubmit={(e) => void submit(e)} noValidate className="space-y-4 pb-24 md:pb-0">
+      {!headerPending && !headerError && usable.length > 0 && (
+        <form data-testid="stock-movement-form" onSubmit={(e) => { if (linesSettled) void submit(e); else e.preventDefault(); }} noValidate className="space-y-4">
           {viewOnly && <p className="text-sm text-muted-foreground">{t('form.viewOnly')}</p>}
+          <div data-testid="stock-movement-header">
           <FormSection legend={t('form.sections.where')}>
             <FormGrid>
               <SelectField
@@ -224,9 +237,13 @@ const StockMovementForm: React.FC = () => {
               )}
             </FormGrid>
           </FormSection>
+          </div>
 
           <FormSection legend={t('form.sections.lines')}>
-            <div className="space-y-4">
+            <div data-testid="stock-lines-region">
+            {linesPending && <StockLinesLoading reserve={MOVEMENT_LINES_RESERVE[kind] ?? MOVEMENT_LINES_RESERVE.receive} />}
+            {!linesPending && linesError && <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={retryLines} />}
+            {linesSettled && <div className="space-y-4">
               {lines.map((l, idx) => {
                 const n = lines.length > 1 ? ` ${idx + 1}` : '';
                 const src = sourceById.get(l.sourceLineId);
@@ -284,6 +301,7 @@ const StockMovementForm: React.FC = () => {
                 <Icon name="plus" />
                 {t('form.addLine')}
               </Button>
+            </div>}
             </div>
           </FormSection>
 
@@ -300,7 +318,7 @@ const StockMovementForm: React.FC = () => {
 
           {canSubmit ? (
             <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-card p-3 md:static md:border-0 md:bg-transparent md:p-0">
-              <FormActions submitLabel={t(`form.submit.${kind}`)} cancelLabel={t('actions.cancel')} onCancel={() => guardLeave(() => navigate('/stock/documents'))} loading={create.isPending} />
+              <FormActions submitLabel={t(`form.submit.${kind}`)} cancelLabel={t('actions.cancel')} onCancel={() => guardLeave(() => navigate('/stock/documents'))} loading={create.isPending} disabled={!linesSettled} />
             </MobileActionBar>
           ) : (
             <p className="text-sm text-muted-foreground">{warehouseId ? t('form.notKeeper') : t('form.pickWarehouse')}</p>

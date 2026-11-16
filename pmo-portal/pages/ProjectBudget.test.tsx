@@ -68,7 +68,7 @@ const positionState = {
   isPending: false, isError: false, refetch: vi.fn(), hasBudget: true, canSeeActual: true, rows: [] as unknown[], unknown: 0,
   ledgerBasis: 'erp' as 'erp' | 'pmo' | null, spent: null as number | null, openCommitment: null as string | null,
   consumption: null as string | null, consumptionVariance: null as string | null, budgetComparisonKnown: false,
-  usedPercent: null as number | null, atRisk: false,
+  usedPercent: null as number | null, atRisk: false, uncategorized: null as { amount: number | null } | null,
 };
 const procurementsState = { data: [] as unknown[], isPending: false, isError: false };
 const budgetPushState = vi.hoisted(() => ({ rows: [] as Array<Record<string, unknown>> }));
@@ -88,6 +88,8 @@ const mockUpdateLineItem = vi.fn().mockResolvedValue(undefined);
 const mockSwitchBudgetDraftMode = vi.fn().mockResolvedValue(undefined);
 const mockSaveBudgetDistribution = vi.fn().mockResolvedValue(undefined);
 
+const fxIdr = vi.hoisted(() => ({ state: { status: 'off' } as { status: string; match?: { rate: number; rate_date: string } } }));
+vi.mock('@/src/hooks/useFxIdrRate', () => ({ useFxIdrRate: () => fxIdr.state }));
 vi.mock('@/src/hooks/useBudget', () => ({
   refreshBudgetQueries: (...args: unknown[]) => mockRefreshBudgetQueries(...args),
   useProjectBudget: () => budgetState,
@@ -308,6 +310,7 @@ function resetState() {
   positionState.unknown = 0;
   positionState.ledgerBasis = 'erp';
   positionState.spent = null;
+  positionState.uncategorized = null;
   positionState.openCommitment = null;
   positionState.consumption = null;
   positionState.consumptionVariance = null;
@@ -496,6 +499,57 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     expect(screen.queryByText(/Spending isn't linked yet\./)).not.toBeInTheDocument();
   });
 
+  const spentCells = () => {
+    const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
+    const headers = [...(table.querySelector('thead tr')?.children ?? [])];
+    const spentColumn = headers.findIndex((header) => header.textContent === 'Spent');
+    expect(spentColumn).toBeGreaterThan(0);
+    const body = [...table.querySelectorAll('tbody tr')].map((row) => ({
+      name: row.textContent ?? '', spent: row.children[spentColumn]?.textContent ?? '',
+    }));
+    const total = table.querySelector('tfoot tr')?.children[spentColumn]?.textContent ?? '';
+    return { table, body, total };
+  };
+  const amount = (text: string) => Number(text.replace(/[^0-9.-]/g, ''));
+
+  it('AC-2330-006 with paid spending that has no budget category, the category rows add up to the Spent total', () => {
+    budgetState.data = activeVersion.total;
+    versionsState.data = [activeVersion];
+    positionState.ledgerBasis = 'pmo';
+    positionState.rows = [{ category: 'Labor', budget: 2000000, actual: 150000 }, { category: 'Materials', budget: 1700000, actual: 30000 }];
+    positionState.spent = 1830000;
+    positionState.uncategorized = { amount: 1650000 };
+    renderPage();
+
+    const { table, body, total } = spentCells();
+    const uncategorized = within(table).getByRole('row', { name: /Uncategorized/ });
+    expect(uncategorized).toHaveTextContent('Paid with no budget category');
+    const sum = body.filter((row) => row.spent !== '').reduce((value, row) => value + amount(row.spent), 0);
+    expect(body.find((row) => row.name.includes('Uncategorized'))?.spent).toMatch(/1,650,000/);
+    expect(sum).toBe(1830000);
+    expect(amount(total)).toBe(1830000);
+    // The strip says it once, in full, with the currency.
+    const strip = screen.getAllByText('$1,650,000 paid has no budget category, so it is shown as Uncategorized.');
+    expect(strip).toHaveLength(1);
+    expect(screen.getByRole('region', { name: 'Budget figures' })).not.toHaveTextContent('no budget category');
+  });
+
+  it('AC-2330-006 when the uncategorized amount cannot be stated, its Spent cell reads Unknown with the reason on the row', () => {
+    budgetState.data = activeVersion.total;
+    versionsState.data = [activeVersion];
+    positionState.ledgerBasis = 'pmo';
+    positionState.rows = [{ category: 'Labor', budget: 2000000, actual: 55 }];
+    positionState.spent = 105;
+    positionState.uncategorized = { amount: null };
+    renderPage();
+
+    const { table, body } = spentCells();
+    expect(body.find((row) => row.name.includes('Uncategorized'))?.spent).toBe('Unknown');
+    expect(within(table).getByRole('row', { name: /Uncategorized/ })).toHaveTextContent('Paid with no budget category');
+    expect(screen.getAllByText('Some paid spending has no budget category, so it is shown as Uncategorized.')).toHaveLength(1);
+    expect(within(table).getByRole('row', { name: /Labor/ })).toHaveTextContent('55');
+  });
+
   it('shows the source remedy once while keeping unknown spending visibly unavailable', () => {
     budgetState.data = activeVersion.total;
     versionsState.data = [activeVersion];
@@ -505,10 +559,31 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
     // Unknown spending drops its blank column and names what is hidden once.
     expect(within(table).queryByRole('columnheader', { name: 'Spent' })).not.toBeInTheDocument();
-    // One line on the page names what is hidden and why, instead of dashes in every row.
-    const hidden = screen.getByTestId('figures-hidden');
-    expect(hidden).toHaveTextContent(/3 figures hidden: Budget used is unknown or unavailable\.; spending is not linked/);
-    expect(screen.getAllByTestId('figures-hidden')).toHaveLength(1);
+    // No notice row: each figure that cannot be shown reads — on its own card with one short caption.
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
+    const cards = screen.getByRole('region', { name: 'Budget figures' });
+    // The cause is said once (Spent, where it is fixed); Budget used and Left say the same short thing.
+    expect(within(cards).getAllByText('Spending is not linked')).toHaveLength(1);
+    expect(within(cards).getAllByText('Shown once spending is linked')).toHaveLength(2);
+    expect(within(cards).getAllByText('—').length).toBeGreaterThanOrEqual(3);
+  });
+
+  it.each([
+    ['en', 'Spending is not linked'],
+    ['id', 'Pengeluaran belum terhubung'],
+  ] as const)('an unknown figure carries one short caption on its own card in %s', (locale, caption) => {
+    budgetState.data = activeVersion.total;
+    versionsState.data = [activeVersion];
+    positionState.unknown = 3;
+    render(
+      <BahasaProvider locale={locale}>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter><ToastProvider><ProjectBudget projectId="p-1" project={project} /></ToastProvider></MemoryRouter>
+        </QueryClientProvider>
+      </BahasaProvider>,
+    );
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
+    expect(screen.getAllByText(caption).length).toBeGreaterThanOrEqual(1);
   });
 
   it('places the accounting-system notice after the budget table for Admin and Finance, and hides it from PMs', async () => {

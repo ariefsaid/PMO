@@ -185,7 +185,7 @@ const OperatorMembershipPending: React.FC = () => {
       aria-live="polite"
       className="flex items-start gap-2.5 rounded-lg border border-border bg-secondary/35 px-3.5 py-3 text-control text-muted-foreground"
     >
-      <span aria-hidden className="mt-1.5 size-2 shrink-0 rounded-full bg-muted-foreground" />
+      <span aria-hidden className="mt-1.5 size-2 shrink-0 rounded-full bg-mark-neutral" />
       <span>{t('admin.access.checking', 'Checking your Administration access…')}</span>
     </div>
   );

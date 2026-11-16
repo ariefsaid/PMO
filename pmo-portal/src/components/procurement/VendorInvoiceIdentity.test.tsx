@@ -15,8 +15,8 @@ describe('supplier invoice recognition identity', () => {
       invoiceDate="2026-09-18"
       context={{ state: 'ready', caseTitle: 'Bridge renewal · phase B', projectName: 'Harbor works', pmoProjectNumber: 'PRJ-2641' }}
     /></FinanceI18nTestProvider>);
-    expect(screen.getByText(locale === 'en' ? 'Supplier invoice reference: SUP-REF-2026-771' : 'Referensi faktur pemasok: SUP-REF-2026-771')).toBeInTheDocument();
-    expect(screen.getByText(locale === 'en' ? 'Supplier invoice no. (accounting): VI-2609-0017' : 'No. faktur pemasok (akuntansi): VI-2609-0017')).toBeInTheDocument();
+    expect(screen.getByText(locale === 'en' ? 'Supplier invoice reference: SUP-REF-2026-771' : 'Referensi invoice supplier: SUP-REF-2026-771')).toBeInTheDocument();
+    expect(screen.getByText(locale === 'en' ? 'Supplier invoice no. (accounting): VI-2609-0017' : 'No. invoice supplier (akuntansi): VI-2609-0017')).toBeInTheDocument();
     expect(document.body).toHaveTextContent('VI-2609-0017');
     expect(document.body).toHaveTextContent('Bridge renewal · phase B');
     expect(document.body).toHaveTextContent('Harbor works');
@@ -26,8 +26,8 @@ describe('supplier invoice recognition identity', () => {
       referenceNumber={null} viNumber={null} invoiceDate={null}
       context={{ state: 'unavailable' }}
     /></FinanceI18nTestProvider>);
-    expect(missing.container).toHaveTextContent(locale === 'en' ? 'Supplier invoice reference not recorded' : 'Referensi faktur pemasok belum dicatat');
-    expect(missing.container).toHaveTextContent(locale === 'en' ? 'Supplier invoice no. (accounting) unavailable' : 'No. faktur pemasok (akuntansi) tidak tersedia');
+    expect(missing.container).toHaveTextContent(locale === 'en' ? 'Supplier invoice reference not recorded' : 'Referensi invoice supplier belum dicatat');
+    expect(missing.container).toHaveTextContent(locale === 'en' ? 'Supplier invoice no. (accounting) unavailable' : 'No. invoice supplier (akuntansi) tidak tersedia');
     expect(missing.container).not.toHaveTextContent('invoice-uuid');
   });
 

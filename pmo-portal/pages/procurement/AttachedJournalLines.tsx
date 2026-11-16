@@ -1,6 +1,6 @@
 import React, { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, DataTable, ListState, StatusPill, type Column } from '@/src/components/ui';
+import { Button, ConfirmDialog, DataTable, ListState, RecordSection, StatusPill, type Column } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { formatCurrency, formatDay } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -42,8 +42,8 @@ export const AttachedJournalLines: React.FC<{ procurementId: string; projectId: 
       key: 'journal', header: t('erpJournal.column.journal', 'Journal'), kind: 'primary',
       primaryTitle: (l) => l.voucherNo,
       cell: (l) => (l.erpUrl
-        ? <a href={l.erpUrl} target="_blank" rel="noopener noreferrer" className="font-mono text-primary-text hover:underline">{l.voucherNo}</a>
-        : <span className="font-mono">{l.voucherNo}</span>),
+        ? <a href={l.erpUrl} target="_blank" rel="noopener noreferrer" className="record-id font-semibold text-primary-text hover:underline">{l.voucherNo}</a>
+        : <span className="record-id font-semibold text-foreground">{l.voucherNo}</span>),
       secondaryCell: (l) => l.remarks ?? null,
     },
     { key: 'date', header: t('erpJournal.column.date', 'Date'), kind: 'date', cell: (l) => formatDay(l.postingDate) },
@@ -69,14 +69,13 @@ export const AttachedJournalLines: React.FC<{ procurementId: string; projectId: 
   ];
 
   return (
-    <section aria-labelledby={headingId} className="mt-6 border-t border-border pt-4">
-      <h2 id={headingId} className="mb-2 px-1 text-[14px] font-semibold text-foreground">
-        {t('erpJournal.attachedTitle', 'Journal entries from the accounting system')}
-      </h2>
+    // A panel of the record's Files tab: heading on the panel inset, table flush with its first column on the same inset.
+    <RecordSection headingId={headingId} title={t('erpJournal.attachedTitle', 'Journal entries from the accounting system')} flush={!query.isError}>
       {query.isError ? (
         <ListState variant="error" title={t('erpJournal.attachedError', "Couldn't load the attached journal entries")} onRetry={() => void query.refetch()} />
       ) : (
         <DataTable<ErpJournalLine>
+          embedded
           rows={rows}
           columns={columns}
           rowKey={(l) => `${l.erpDoctype}|${l.voucherNo}|${l.account}`}
@@ -100,6 +99,6 @@ export const AttachedJournalLines: React.FC<{ procurementId: string; projectId: 
         onConfirm={() => void confirmDetach()}
         onCancel={close}
       />
-    </section>
+    </RecordSection>
   );
 };

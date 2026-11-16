@@ -233,6 +233,21 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(valueDd.className).not.toContain('text-right');
   });
 
+  it('cardValuesEnd puts every numeric value and total on the card\'s right edge, text columns untouched', () => {
+    mockViewport(false);
+    render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} cardValuesEnd totals={[{ key: 't', label: 'Total', values: { value: 212400 } }]} />);
+    const cardBranch = getCardBranch()!;
+    const ddFor = (header: string) => Array.from(cardBranch.querySelectorAll('dt')).filter((dt) => dt.textContent === header).map((dt) => dt.nextElementSibling as HTMLElement);
+    const money = ddFor('Value');
+    expect(money).toHaveLength(3); // two cards + the totals row
+    for (const dd of money) {
+      expect(dd.className).toContain('text-right');
+      expect(dd.className).toContain('tabular');
+    }
+    expect(money[0].className).toContain('[&>div]:items-end');
+    for (const dd of ddFor('Status')) expect(dd.className).not.toContain('text-right');
+  });
+
   // ── Activation (rowLabel + onActivate) ───────────────────────────────────
 
   it('when rowLabel+onActivate supplied, the card title is a <button> with the aria-label', () => {
@@ -453,5 +468,29 @@ describe('DataTable accessible structure name', () => {
     expect(screen.getByRole('list')).not.toHaveAttribute('aria-label');
     expect(screen.getAllByRole('listitem')).toHaveLength(rows.length);
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+});
+
+// Phone checkbox card: the 44px phone floor must grow the HIT AREA only. The global phone rule
+// (index.css) stretches every `main button` to 44x44 unless it carries `.touch-target-overlay`,
+// which drew each row's 16px checkbox as an empty 44px square beside the title.
+describe('mobile card selection checkbox', () => {
+  const selection = { selectedIds: new Set<string>(), onChange: vi.fn(), rowLabel: (r: Row) => `Select ${r.name}` };
+
+  it('keeps the row checkbox and select-all at their own size (hit area only is enlarged)', () => {
+    mockViewport(false);
+    render(<DataTable<Row> columns={columns} rows={rows} rowKey={(r) => r.id} selection={selection} />);
+    const rowBox = screen.getByRole('checkbox', { name: 'Select Alpha Corp' });
+    const allBox = screen.getByRole('checkbox', { name: /select all rows/i });
+    for (const box of [rowBox, allBox]) {
+      expect(box).toHaveClass('touch-target', 'touch-target-overlay');
+    }
+  });
+
+  it('sits on the title line: its box is centred on the first text line, not top-stacked above it', () => {
+    mockViewport(false);
+    render(<DataTable<Row> columns={columns} rows={rows} rowKey={(r) => r.id} selection={selection} />);
+    const rowBox = screen.getByRole('checkbox', { name: 'Select Alpha Corp' });
+    expect(rowBox.closest('span.shrink-0')).toHaveClass('mt-0.5');
   });
 });

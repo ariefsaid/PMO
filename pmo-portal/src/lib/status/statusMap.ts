@@ -70,6 +70,17 @@ export const STATUS_MAP = {
     Cancelled: e('neutral', (t) => t('status:imprest.cancelled', 'Cancelled')),
     Active: e('neutral', (t) => t('status:imprest.active', 'Active')),
   },
+  // #895 manual journals: the stored states are lower-case (journal_status enum). Held = Needs a check (waits on a person).
+  journal: {
+    draft: e('neutral', (t) => t('status:journal.draft', 'Draft')),
+    submitted: e('waiting', (t) => t('status:journal.submitted', 'Submitted')),
+    approved: e('done', (t) => t('status:journal.approved', 'Approved')),
+    sending: e('neutral', (t) => t('status:journal.sending', 'Sending')),
+    posted: e('done', (t) => t('status:journal.posted', 'Posted')),
+    scheduled: e('neutral', (t) => t('status:journal.scheduled', 'Scheduled')),
+    held: e('waiting', (t) => t('status:journal.held', 'Needs a check')),
+    refused: e('exception', (t) => t('status:journal.refused', 'Refused')),
+  },
   timesheet: {
     Draft: e('neutral', (t) => t('status:timesheet.draft', 'Draft')),
     Submitted: e('waiting', (t) => t('status:timesheet.submitted', 'Submitted')),
@@ -128,6 +139,8 @@ export const STATUS_MAP = {
     Draft: e('neutral', (t) => t('status:stockDocument.draft', 'Draft')),
     Posted: e('done', (t) => t('status:stockDocument.posted', 'Posted')),
     Cancelled: e('neutral', (t) => t('status:stockDocument.cancelled', 'Cancelled')),
+    // Not a stored status: a connected Draft whose post Odoo is holding reads this until the hold is released.
+    'On hold': e('waiting', (t) => t('status:stockDocument.onHold', 'On hold')),
   },
   workOrder: {
     Draft: e('neutral', (t) => t('status:workOrder.draft', 'Draft')),

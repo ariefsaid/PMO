@@ -29,7 +29,8 @@ export type ExpenseClaimWithRefs = ExpenseClaimRow & {
   rejecter: { full_name: string } | null;
   project: { name: string; short_name?: string | null } | null;
   /** The site float it is charged to (#1635); its currency governs how the amount is shown. */
-  float?: { currency: string } | null;
+  /** `custodian_id` rides with the embed so the Pay rule needs no second read of the float. */
+  float?: { currency: string; custodian_id?: string } | null;
 };
 
 export interface ExpenseClaimFilters {
@@ -83,9 +84,17 @@ export interface ExpenseAdvanceAgingRow {
 }
 
 export const EXPENSE_LIST_LIMIT = 200;
+/** The Expenses list's page (#843, NFR-PAGE-002). */
+export const EXPENSE_PAGE_SIZE = 50;
 export const AGING_LIMIT = 500;
 
-const SELECT = '*, rejecter:profiles!expense_claims_rejected_by_fkey(full_name), claimant:profiles!expense_claims_claimant_id_fkey(full_name), project:projects(name,short_name), float:imprest_floats(currency)';
+const SELECT = '*, rejecter:profiles!expense_claims_rejected_by_fkey(full_name), claimant:profiles!expense_claims_claimant_id_fkey(full_name), project:projects(name,short_name), float:imprest_floats(currency,custodian_id)';
+
+/** The Expenses screen's own columns (FR-PAGE-004): its table cells. */
+const LIST_COLUMNS = 'id, claim_number, kind, title, budget_category, amount, currency, status, created_at, claimant:profiles!expense_claims_claimant_id_fkey(full_name), project:projects(name,short_name)';
+export type ExpenseClaimListRow = Pick<ExpenseClaimRow, 'id' | 'claim_number' | 'kind' | 'title'
+  | 'budget_category' | 'amount' | 'currency' | 'status' | 'created_at'>
+  & { claimant: { full_name: string } | null; project: { name: string; short_name?: string | null } | null };
 
 interface PostgrestErrorLike { message: string; code?: string }
 function throwWrite(error: PostgrestErrorLike): never {
@@ -96,22 +105,52 @@ function normalizeDecision(row: ExpenseClaimWithRefs): ExpenseClaimWithRefs {
   return { ...row, rejection_notes: row.rejection_notes ?? null, rejected_by: row.rejected_by ?? null, rejected_at: row.rejected_at ?? null };
 }
 
+function applyFilters<Q extends { eq: (column: string, value: string) => Q }>(q: Q, filters: ExpenseClaimFilters): Q {
+  let out = q;
+  if (filters.status) out = out.eq('status', filters.status);
+  if (filters.kind) out = out.eq('kind', filters.kind);
+  if (filters.budgetCategory) out = out.eq('budget_category', filters.budgetCategory);
+  if (filters.projectId) out = out.eq('project_id', filters.projectId);
+  return out;
+}
+
+/** The non-paged list (inbox, Engineer home, New claim): the newest 200 with a truncation flag. */
 export async function listExpenseClaims(
   filters: ExpenseClaimFilters = {},
 ): Promise<{ rows: ExpenseClaimWithRefs[]; truncated: boolean }> {
-  let q = supabase.from('expense_claims').select(SELECT);
-  if (filters.status) q = q.eq('status', filters.status);
-  if (filters.kind) q = q.eq('kind', filters.kind);
-  if (filters.budgetCategory) q = q.eq('budget_category', filters.budgetCategory);
-  if (filters.projectId) q = q.eq('project_id', filters.projectId);
   // range is inclusive: 0..LIMIT reads LIMIT + 1 rows, the extra one only to detect truncation.
-  const { data, error } = await q
+  const { data, error } = await applyFilters(supabase.from('expense_claims').select(SELECT), filters)
     .order('created_at', { ascending: false })
     .order('id', { ascending: false })
     .range(0, EXPENSE_LIST_LIMIT);
   if (error) throwWrite(error);
   const rows = ((data ?? []) as unknown as ExpenseClaimWithRefs[]).map(normalizeDecision);
   return { rows: rows.slice(0, EXPENSE_LIST_LIMIT), truncated: rows.length > EXPENSE_LIST_LIMIT };
+}
+
+/**
+ * One numbered page (1-based) of the Expenses screen, newest first (#843): 50 rows (NFR-PAGE-002) over the
+ * list's own columns (FR-PAGE-004). `truncated` means a further page exists.
+ */
+export async function listExpenseClaimsPage(
+  filters: ExpenseClaimFilters = {},
+  page = 1,
+): Promise<{ rows: ExpenseClaimListRow[]; truncated: boolean }> {
+  const offset = (Math.max(1, page) - 1) * EXPENSE_PAGE_SIZE;
+  const { data, error } = await applyFilters(supabase.from('expense_claims').select(LIST_COLUMNS), filters)
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .range(offset, offset + EXPENSE_PAGE_SIZE);
+  if (error) throwWrite(error);
+  const rows = (data ?? []) as unknown as ExpenseClaimListRow[];
+  return { rows: rows.slice(0, EXPENSE_PAGE_SIZE), truncated: rows.length > EXPENSE_PAGE_SIZE };
+}
+
+/** Exact count for the same filters as the list — the "of y" in "Showing x of y" (#843). A head count: no rows. */
+export async function countExpenseClaims(filters: ExpenseClaimFilters = {}): Promise<number | undefined> {
+  const { count, error } = await applyFilters(supabase.from('expense_claims').select('id', { count: 'exact', head: true }), filters);
+  if (error) throwWrite(error);
+  return count ?? undefined;
 }
 
 export async function getExpenseClaim(id: string): Promise<ExpenseClaimWithRefs | null> {

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Card, CardHead, CardPad, ConfirmDialog, ListState, StatusPill, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatDay, formatNumberExact } from '@/src/lib/format';
 import {
@@ -53,6 +54,8 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
   const [acceptance, setAcceptance] = useState<{ draft: SubcontractAcceptanceWithLines | null } | null>(null);
   const [attribute, setAttribute] = useState<SubcontractCapExceptionRow | null>(null);
   const [variation, setVariation] = useState<{ row: SubcontractPoPositionRow; origin: 'pre_work' | 'post_work' } | null>(null);
+  // #2088: the acceptance's default date is the organization's business day, never the UTC day.
+  const orgToday = useOrgToday();
 
   const canEditLines = may('edit', 'subcontractLines');
   const canPrepare = may('prepare', 'subcontractAcceptance', { currentUserId, record: { project_manager_id: projectManagerId } });
@@ -157,7 +160,7 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
                   return (
                     <tr key={r.boq_item_id} className="border-b border-border/60 last:border-0">
                       <th scope="row" className="py-1.5 pr-3 text-left font-normal">
-                        <span className="font-mono">{r.item_code}</span>
+                        <span className="record-id font-semibold text-foreground">{r.item_code}</span>
                         <span className="ml-2 text-muted-foreground">{r.description}</span>
                       </th>
                       <td className="py-1.5 pr-3">{r.unit}</td>
@@ -217,7 +220,7 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
               {exceptionRows.map((e) => (
                 <li key={e.invoice_id} className="flex flex-wrap items-center gap-2">
                   <span>
-                    <span className="font-mono">{e.number}</span> ({formatCurrency(e.amount, currency)}): {reasonLabel(e.reason)}
+                    <span className="record-id text-foreground">{e.number}</span> ({formatCurrency(e.amount, currency)}): {reasonLabel(e.reason)}
                   </span>
                   {e.reason === 'no_lines' && canEditLines && (
                     <Button variant="outline" size="sm" onClick={() => setAttribute(e)}>
@@ -298,7 +301,7 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
           acceptances={acceptances.data ?? []}
           documents={documents.data ?? []}
           draft={acceptance.draft}
-          today={new Date().toISOString().slice(0, 10)}
+          today={orgToday}
           onClose={() => setAcceptance(null)}
           preparedByMe={Boolean(currentUserId) && acceptance.draft?.prepared_by === currentUserId}
           canConfirm={may('confirm', 'subcontractAcceptance')}

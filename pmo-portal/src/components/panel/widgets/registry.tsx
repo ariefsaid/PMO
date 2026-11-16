@@ -10,20 +10,12 @@
  */
 import React from 'react';
 import { KPITile } from '@/src/components/ui/KPITile';
-import { StatusBarChart } from '@/src/components/dashboard/StatusBarChart';
-import { ChartFrame } from '@/src/components/dashboard/ChartFrame';
-import { chartTheme } from '@/src/components/ui/chartTheme';
 import type { WidgetPayload } from '@/src/lib/agent/widgets/schema';
 import { DataTableWidget } from './DataTableWidget';
+import { WidgetFallback } from './WidgetFallback';
+import { ChartWidget } from './ChartWidget';
 
-const TEXT_FALLBACK = (
-  <div
-    role="note"
-    className="rounded-md border border-border bg-secondary/40 px-3 py-2 text-xs text-muted-foreground"
-  >
-    This result couldn&apos;t be displayed.
-  </div>
-);
+const TEXT_FALLBACK = <WidgetFallback />;
 
 /**
  * Renders a WidgetPayload as the mapped PMO primitive. `data_chart`'s
@@ -38,28 +30,7 @@ export function renderWidget(widget: WidgetPayload): React.ReactElement {
       return <DataTableWidget widget={widget} />;
     }
     case 'data_chart': {
-      const chartData = widget.series.map((s) => ({ status: s.label, count: s.value }));
-      const seriesTokens = Object.values(chartTheme.series);
-      const labels = chartData.map((d) => d.status);
-      const toneFor = (status: string) =>
-        seriesTokens[Math.max(0, labels.indexOf(status)) % seriesTokens.length];
-      return (
-        <ChartFrame state="ready">
-          {/* Item 4 (F2, review-remediation): the panel is a fixed ~365px-content-width
-              container — far narrower than StatusBarChart's own useIsNarrow() viewport-
-              width branch would ever detect on a desktop screen. compactYAxis (container-
-              appropriate, opt-in) hides the Y-axis ticks + pins an explicit domain so the
-              chart can never render a non-monotonic/garbled axis at this width; the
-              existing figcaption legend already carries every count. */}
-          <StatusBarChart
-            data={chartData}
-            toneFor={toneFor}
-            label={widget.caption ?? 'Results'}
-            noun="items"
-            compactYAxis
-          />
-        </ChartFrame>
-      );
+      return <ChartWidget widget={widget} />;
     }
     case 'data_insight': {
       return (

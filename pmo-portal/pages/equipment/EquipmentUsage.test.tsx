@@ -21,6 +21,7 @@ const h = vi.hoisted(() => ({
   assets: [] as unknown[],
   usageArgs: [] as unknown[],
   query: { isPending: false, isError: false, refetch: vi.fn() },
+  invalidateUsage: vi.fn(),
   save: vi.fn(), transition: vi.fn(), approveWeek: vi.fn(), archive: vi.fn(),
   assetsHasMore: false, fetchAssetPage: vi.fn(),
   userId: 'u-eng',
@@ -41,6 +42,7 @@ vi.mock('@/src/hooks/useEquipment', async () => {
       return { data: { rows, truncated: false }, ...h.query };
     },
     useSaveUsage: () => ({ mutateAsync: h.save, isPending: false }),
+    useInvalidateUsage: () => h.invalidateUsage,
     useTransitionUsage: () => ({ mutateAsync: h.transition, isPending: false }),
     useApproveWeek: () => ({ mutateAsync: h.approveWeek, isPending: false }),
     useArchiveUsage: () => ({ mutateAsync: h.archive, isPending: false }),
@@ -105,6 +107,12 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     expect(h.usageArgs.at(-1)).toMatchObject({ from: '2026-09-07', to: '2026-09-13', assetId: 'a1' });
   });
 
+  it('AC-EQU-017 shows how many equipment rows the week has beside the title', () => {
+    h.entries = [entry({}), entry({ id: 'e9', project_id: 'pj2' })];
+    renderPage();
+    expect(screen.getByTestId('list-page-count')).toHaveTextContent('2');
+  });
+
   it('C8b F2 counts the machines the picker has loaded and can load the rest', async () => {
     h.assetsHasMore = true;
     renderPage();
@@ -136,6 +144,42 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     renderPage();
     expect(screen.getByText('Reason unavailable')).toBeInTheDocument();
     expect(screen.queryByText('Person unavailable')).not.toBeInTheDocument();
+  });
+
+  it('#2112 submits a week concurrently, keeps Draft→Submitted per entry, and refreshes once', async () => {
+    h.invalidateUsage.mockClear();
+    h.entries = [
+      entry({ id: 'd1', project_id: 'pj1' }),
+      entry({ id: 'r1', project_id: 'pj2', status: 'Rejected' }),
+      entry({ id: 'd2', project_id: 'pj1', work_date: '2026-09-09' }),
+    ];
+    const order: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    h.transition.mockImplementation(async (a: { id: string; to: string }) => { order.push(`${a.id}:${a.to}`); await gate; });
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Submit week' }));
+    // first wave: every entry's first call is in flight before any resolves
+    await waitFor(() => expect(order).toEqual(['d1:Submitted', 'r1:Draft', 'd2:Submitted']));
+    expect(h.invalidateUsage).not.toHaveBeenCalled();
+    await act(async () => { release(); });
+    await waitFor(() => expect(order).toContain('r1:Submitted'));
+    expect(order.indexOf('r1:Draft')).toBeLessThan(order.indexOf('r1:Submitted'));
+    await waitFor(() => expect(h.invalidateUsage).toHaveBeenCalledTimes(1));
+  });
+
+  it('#2112 keeps at most five entry submissions in flight at once', async () => {
+    h.entries = Array.from({ length: 8 }, (_, i) => entry({ id: `e${i}`, project_id: 'pj1', work_date: `2026-09-${String(1 + i).padStart(2, '0')}` }));
+    let inFlight = 0; let maxInFlight = 0; let done = 0;
+    h.transition.mockImplementation(async () => {
+      inFlight++; maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--; done++;
+    });
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Submit week' }));
+    await waitFor(() => expect(done).toBe(8));
+    expect(maxInFlight).toBe(5);
   });
 
   it('C10 EquipmentUsage.tsx:160: reports mixed submission results and still attempts later entries', async () => {

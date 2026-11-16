@@ -29,7 +29,7 @@ import {
 } from '@/src/hooks/useWorkOrderAcceptances';
 import type { WorkOrderAcceptanceWithLines, WorkOrderLineRow } from '@/src/lib/db/workOrderAcceptances';
 import type { ProgressAssessmentInput, ProgressClaimWithInvoice } from '@/src/lib/db/progressBilling';
-import { summarizeBilling } from '@/src/lib/progressBilling';
+import { summarizeBilling, type AllocationFacts, type ContractLineFacts } from '@/src/lib/progressBilling';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { useSalesInvoices } from '@/src/hooks/useRevenue';
 import { PROGRESS_RECORDABLE_PROJECT_STATUSES } from '@/src/lib/dashboardConstants';
@@ -174,20 +174,39 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     for (const row of lines.data ?? []) grouped.set(row.work_order_id, [...(grouped.get(row.work_order_id) ?? []), row]);
     return grouped;
   }, [lines.data]);
+  const boqById = useMemo(() => new Map(boqRows.map((boqItem) => [boqItem.id, boqItem])), [boqRows]);
+  // #2103: contract-line allocations indexed by work order once. The per-order re-scan of every contract
+  // line, plus a linear BoQ `find` per allocation, was quadratic on a BoQ-heavy project.
+  const contractAllocationsByWo = useMemo(() => {
+    const grouped = new Map<string, { line: ContractLineFacts; allocation: AllocationFacts }[]>();
+    for (const contractLine of projectBilling.data?.contractLines ?? []) {
+      for (const allocation of contractLine.allocations) {
+        const bucket = grouped.get(allocation.workOrderId);
+        if (bucket) bucket.push({ line: contractLine, allocation }); else grouped.set(allocation.workOrderId, [{ line: contractLine, allocation }]);
+      }
+    }
+    return grouped;
+  }, [projectBilling.data]);
   const drawerLineRows = useMemo<OrderLineView[]>(() => rows.flatMap((order) =>
-    (projectBilling.data?.contractLines ?? []).flatMap((contractLine) => contractLine.allocations
-      .filter((allocation) => allocation.workOrderId === order.id)
-      .map((allocation) => {
-        const item = boqRows.find((boqItem) => boqItem.id === allocation.boqItemId) ?? null;
-        return {
-          key: `${allocation.boqItemId}-${order.id}`,
-          order,
-          item,
-          allocation,
-          rate: item?.rate == null ? null : Number(item.rate),
-        };
-      })),
-  ), [rows, projectBilling.data, boqRows]);
+    (contractAllocationsByWo.get(order.id) ?? []).map(({ allocation }) => {
+      const item = boqById.get(allocation.boqItemId) ?? null;
+      return {
+        key: `${allocation.boqItemId}-${order.id}`,
+        order,
+        item,
+        allocation,
+        rate: item?.rate == null ? null : Number(item.rate),
+      };
+    }),
+  ), [rows, contractAllocationsByWo, boqById]);
+  const drawerLineRowsByWo = useMemo(() => {
+    const grouped = new Map<string, OrderLineView[]>();
+    for (const line of drawerLineRows) {
+      const bucket = grouped.get(line.order.id);
+      if (bucket) bucket.push(line); else grouped.set(line.order.id, [line]);
+    }
+    return grouped;
+  }, [drawerLineRows]);
   const acceptancesByWo = useMemo(() => {
     const grouped = new Map<string, WorkOrderAcceptanceWithLines[]>();
     for (const row of acceptancesQuery.data ?? []) grouped.set(row.work_order_id, [...(grouped.get(row.work_order_id) ?? []), row]);
@@ -246,12 +265,14 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   const [raiseFor, setRaiseFor] = useState<{ claim: ProgressClaimWithInvoice; idempotencyKey: string } | null>(null);
   const [withdrawClaimFor, setWithdrawClaimFor] = useState<ProgressClaimWithInvoice | null>(null);
   const claimScopeReady = !lines.isPending && !lines.isError;
-  const canBill = may('create', 'progressClaim') && erp.connected && Boolean(clientId) && claimScopeReady && Boolean(summary);
+  // No ERP owns revenue: a claim is made, evidenced, withdrawn and invoiced in PMO by whoever may raise a customer invoice.
+  const nativeBilling = revenueMode === 'native' && revenueRouteReady && may('create', 'salesInvoice');
+  const canBill = may('create', 'progressClaim') && (erp.connected || nativeBilling) && Boolean(clientId) && claimScopeReady && Boolean(summary);
   /** The card's Raise invoice and the plan's Invoice this share ONE gate and ONE opener (#1640 D5). */
   const orderInvoiceAction = (row: WorkOrderRow): (() => void) | null => {
     // Fail closed: if either read that tells claim-path from direct-path failed, we can't know which applies.
     if (lines.isError || projectBilling.isError) return null;
-    const hasOrderLines = (projectBilling.data?.contractLines ?? []).some((line) => line.allocations.some((a) => a.workOrderId === row.id))
+    const hasOrderLines = contractAllocationsByWo.has(row.id)
       || (allocationsByWo.get(row.id) ?? []).length > 0;
     const billingRow = billingById.get(row.id);
     const invoiceable = billingRow && canInvoiceWorkOrder(row.status, billingRow);
@@ -433,18 +454,30 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     }
   };
 
+  // A time-and-materials claim is invoiced from its own section, so the native raise covers the other claim kinds.
+  const nativeRaise = nativeBilling;  // route decided: a failed ownership read in an ERP-owned org keeps the ERP raise
   const runRaiseClaimInvoice = async () => {
     if (!raiseFor || !clientId) return;
     try {
-      await billingMutations.raiseInvoice.mutateAsync({
-        claimId: raiseFor.claim.id,
-        customerId: clientId,
-        intent: { id: raiseFor.claim.id, idempotencyKey: raiseFor.idempotencyKey },
-      });
-      toast(t('projectDetail.billing.claims.toast.raised', 'Invoice raised in the ERP'), undefined, 'success');
+      if (nativeRaise) {
+        await billingMutations.raiseNativeInvoice.mutateAsync(raiseFor.claim.id);
+        toast(t('projectDetail.billing.claims.toast.raisedNative', 'Invoice drafted in PMO'), undefined, 'success');
+      } else {
+        await billingMutations.raiseInvoice.mutateAsync({
+          claimId: raiseFor.claim.id,
+          customerId: clientId,
+          intent: { id: raiseFor.claim.id, idempotencyKey: raiseFor.idempotencyKey },
+        });
+        toast(t('projectDetail.billing.claims.toast.raised', 'Invoice raised in the ERP'), undefined, 'success');
+      }
     } catch (err) {
       failClaim(err, {
         '55000': t('projectDetail.billing.claims.errors.claimWithdrawn', "This claim was withdrawn. Its invoice can't be raised."),
+        'claim-already-invoiced': t('projectDetail.billing.claims.errors.alreadyInvoiced', 'This claim already has an invoice.'),
+        'no-client': t('projectDetail.billing.claims.errors.noClient', 'This project has no client to invoice. Set the client on the project first.'),
+        'claim-total-mismatch': t('projectDetail.billing.claims.errors.totalMismatch', "This claim's lines do not add up to its total. Withdraw it and assemble it again."),
+        'claim-erp-raise-in-flight': t('projectDetail.billing.claims.errors.erpRaiseInFlight', 'An invoice for this claim is still being raised in the ERP. Wait for it to finish.'),
+        'invoice-total-invalid': t('projectDetail.billing.claims.errors.invoiceTotalInvalid', "This claim's net is zero, so there is nothing to invoice. Withdraw it."),
       });
     } finally {
       setRaiseFor(null);
@@ -640,7 +673,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               </section>
             )}
 
-            {visibleCustomerOrders.length > 0 && <div className="flex flex-col gap-4 p-[var(--panel-inset)] pt-4">{visibleCustomerOrders.map((row) => <WorkOrderCustomerOrderCard
+            {visibleCustomerOrders.length > 0 && <div data-testid="customer-order-card" className="flex flex-col gap-4 p-[var(--panel-inset)] pt-4">{visibleCustomerOrders.map((row) => <WorkOrderCustomerOrderCard
               key={row.id}
               row={row}
               currency={currency}
@@ -654,7 +687,9 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               invoicesByWo={invoicesByWo}
               billingById={billingById}
               ageById={ageById}
-              drawerLineRows={drawerLineRows}
+              drawerLineRowsByWo={drawerLineRowsByWo}
+              contractAllocationsByWo={contractAllocationsByWo}
+              boqById={boqById}
               lineReadsPending={lineReadsPending}
               lineReadsFailed={lineReadsFailed}
               invoiceReadReady={invoiceReadReady}
@@ -696,6 +731,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         onOpenPercent={() => setPercentOpen(true)}
         onOpenNewClaim={() => setNewClaimOpen(true)}
         onAttachEvidence={setEvidenceFor}
+        canRaiseClaim={(claim) => !(nativeRaise && claim.kind === 'time_materials')}
+        revenueMode={revenueMode}
         onRaiseClaim={(claim) => setRaiseFor({ claim, idempotencyKey: crypto.randomUUID() })}
         onWithdrawClaim={setWithdrawClaimFor}
       />
@@ -745,6 +782,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       {claimDrawerFor && <WorkOrderClaimDrawer
         claim={claimDrawerFor}
         canBill={canBill}
+        canRaise={!(nativeRaise && claimDrawerFor.kind === 'time_materials')}
         currency={currency}
         projectId={projectId}
         documents={documents.data ?? []}
@@ -790,6 +828,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         newClaimOpen={newClaimOpen}
         evidenceFor={evidenceFor}
         raiseFor={raiseFor}
+        nativeRaise={nativeRaise}
         withdrawClaimFor={withdrawClaimFor}
         pending={pending}
         overCommit={overCommit}

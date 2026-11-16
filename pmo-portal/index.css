@@ -62,7 +62,9 @@
   --secondary-foreground: var(--muted-foreground);
   --muted: 210 14.2857% 97.2549%;
   /* Neutral-800 keeps supporting text AA on pale secondary surfaces and chart overlays. */
-  --muted-foreground: 216 12% 22%;
+  --muted-foreground: 216 10% 40%;
+  /* Non-text marks (status dots, bars, switch) keep their own grey so text grey moves text only. */
+  --mark-neutral: 216 12% 22%;
   --accent: 210 14.2857% 97.2549%;
   --accent-foreground: 218.1818 12.3596% 17.451%;
   --count-foreground: var(--muted-foreground);
@@ -218,6 +220,7 @@
   --secondary-foreground: var(--muted-foreground);
   --muted: 206.6667 11.6883% 15.098%;
   --muted-foreground: 211.0345 17.7914% 68.0392%;
+  --mark-neutral: 211.0345 17.7914% 68.0392%;
   --accent: 207.2727 12.0879% 17.8431%;
   --accent-foreground: 211.2 20.6612% 76.2745%;
   --count-foreground: var(--muted-foreground);
@@ -351,6 +354,7 @@
   --color-secondary-foreground: hsl(var(--secondary-foreground));
   --color-muted: hsl(var(--muted));
   --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-mark-neutral: hsl(var(--mark-neutral));
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
   --color-destructive: hsl(var(--destructive));
@@ -465,6 +469,29 @@
   .tabular, .tnum {
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum";
+  }
+
+  /* Record numbers, codes and references (DESIGN.md typography): ONE shared type role so a
+     record id never reads as a second typeface. The app's normal family at the 14px support
+     size, regular weight, muted ink, tabular figures — no letter-spacing change. The mono
+     family survives ONLY in rendered assistant markdown (.prose-pmo code/pre). When a record
+     number is the row's primary cell, table hierarchy overrides ink/weight with utilities
+     (record-id font-semibold text-foreground) — family, size and figures still come from here. */
+  .record-id {
+    font-family: inherit;
+    font-size: var(--type-support);
+    font-weight: 400;
+    color: hsl(var(--muted-foreground));
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+    /* One token: never breaks mid-way, and where its container is narrower than the number it
+       truncates with an ellipsis (the full value goes in `title`) instead of bleeding past the viewport. */
+    white-space: nowrap;
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: bottom;
   }
 
   /* Single source of truth for focus (DESIGN.md a11y posture). */
@@ -973,8 +1000,26 @@ details[open] > summary:not(.list-none)::before { transform: rotate(45deg); }
 h1, h2, h3 { text-wrap: balance; }
 p { text-wrap: pretty; }
 
-/* Assistant "typing" cue: dots fade in a wave (no bounce). */
-@keyframes thinking-dot { 0%, 80%, 100% { opacity: 0.3; } 40% { opacity: 1; } }
+/* Assistant working cue: a 3x3 pixel grid with a travelling wavefront, a shimmering label,
+   and a fading caret on streaming text. Reduced motion freezes all three to a quiet static state. */
+@keyframes pixel-on { 0%, 100% { opacity: 0.15; } 18%, 42% { opacity: 1; } 62% { opacity: 0.15; } }
+@keyframes shimmer-text { 0% { background-position: 150%; } 100% { background-position: -50%; } }
+@keyframes caret-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+.loading-cell { opacity: 0.15; animation: pixel-on 650ms ease-in-out var(--cell-delay, 0ms) infinite; }
+.loading-label {
+  background-image: linear-gradient(90deg, hsl(var(--muted-foreground)) 35%, hsl(var(--foreground)) 50%, hsl(var(--muted-foreground)) 65%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer-text 1.4s linear infinite;
+}
+.stream-caret { animation: caret-blink 1s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .loading-cell { animation: none; opacity: 0.5; }
+  .loading-label { animation: none; background: none; color: hsl(var(--muted-foreground)); }
+  .stream-caret { animation: none; }
+}
 
 /* recharts measures label text in an off-screen span (aria-hidden, top -20000px) that it leaves in the body.
    Nobody sees it; hiding it keeps its box (measurement still works) and keeps it out of text audits. */

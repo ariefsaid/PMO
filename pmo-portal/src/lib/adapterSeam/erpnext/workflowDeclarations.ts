@@ -10,6 +10,9 @@ import type { TierWorkflows } from '../connect/workflows.ts';
 const CUTOVER_PROOFS_OUTSIDE_VITEST = 1676;
 
 /** Why a person cannot be sent: the declaration's reason, and the sentence the Admin reads (one copy, so another tier never shows this one's). */
+// The accountant's desk, piece 1 (#895): manual journals.
+const MANUAL_JOURNALS = 895;
+
 export const EMPLOYEE_SEND_UNAVAILABLE_REASON = 'This ERP asks for a birth date and gender for each person, which PMO does not hold.';
 
 /** Why ERPNext cannot hold the register: the screens are Odoo-only by ruling (D3/FR-OFM-002), not merely unbuilt here. */
@@ -28,6 +31,8 @@ export const ERPNEXT_WORKFLOWS: TierWorkflows = {
   'employee.match': { status: 'supported', version: 1 },
   // PQ-ECA-1, verified on the bed (ECA3-T1): the ERP requires gender, date of birth and date of joining for an employee; PMO holds none of them and never invents them.
   'employee.send': { status: 'unavailable', version: 1, reason: EMPLOYEE_SEND_UNAVAILABLE_REASON },
+  // #1599 ECX-3: PUT on Company, checked against the bed (fixtures in __fixtures__/companyDefaults.json).
+  'company-defaults.set': { status: 'supported', version: 1 },
   'purchase.push': { status: 'supported', version: 1 },
   'bill.push': { status: 'supported', version: 1 },
   'vendor-payment.push': { status: 'supported', version: 1 },
@@ -51,4 +56,12 @@ export const ERPNEXT_WORKFLOWS: TierWorkflows = {
   // #1511: the asset register and its maintenance are Odoo's (FR-OFM-002), never ERPNext's.
   'equipment.push': { status: 'unavailable', version: 1, reason: EQUIPMENT_UNAVAILABLE_REASON },
   'equipment.read': { status: 'unavailable', version: 1, reason: EQUIPMENT_UNAVAILABLE_REASON },
+  'journal.post': { status: 'supported', version: 1 },
+  'journal.reverse': { status: 'pending', version: 1, issue: MANUAL_JOURNALS },
 };
+
+/** Captured-purchase behavior declared by this tier. */
+export const CAPTURED_PURCHASE_CAPABILITIES = { payCapturedInvoice: true, applyStepPolicy: true } as const;
+
+/** Whether setup may match this tier's stock items and warehouses. Posting stock is decided by the domain-ownership guard and the adapter registry. */
+export const STOCK_MATCHING_CAPABILITIES = { stockMatching: false } as const;

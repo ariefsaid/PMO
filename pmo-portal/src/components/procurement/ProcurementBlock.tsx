@@ -36,7 +36,9 @@ import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { formatCurrency, formatDay, formatShortMoney } from '@/src/lib/format';
+import { formatQuantity } from '@/src/lib/stockFormat';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { formatCurrency, formatDay, formatPercent, formatShortMoney } from '@/src/lib/format';
 import { mayDecideRoutedApproval } from '@/src/lib/procurement/approvalRoute';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { ProcurementStatusPill } from './ProcurementStatusPill';
@@ -497,7 +499,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
     items.push({ label: t('procurement.rowMenu.recordDocument', 'Record another document'), onClick: () => openFullRecord(row) });
     if (canDecideRow(row)) {
       if (!inDrawer) items.push({ label: t('projectDetail.procurement.rowMenu.approve', 'Approve'), onClick: () => decide([row], 'Approved') });
-      items.push({ label: t('projectDetail.procurement.rowMenu.return', 'Return'), onClick: () => decide([row], 'Rejected') });
+      // In the drawer Return is a visible header button beside Approve, not a menu entry.
+      if (!inDrawer) items.push({ label: t('projectDetail.procurement.rowMenu.return', 'Return'), onClick: () => decide([row], 'Rejected') });
     }
     if (canAttachDocument) {
       items.push({ label: t('procurement.rowMenu.linkFile', 'Link a file'), onClick: () => attachDocument(row) });
@@ -572,7 +575,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       header: t('projectDetail.procurement.table.value', 'Value'),
       kind: 'money',
       align: 'num',
-      size: 120,
+      size: 112,
       minSize: 105,
       sortKey: 'value',
       cell: (row) => rowAmount(row),
@@ -582,7 +585,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       key: 'settlement',
       header: t('procurement.settlement', 'Paid / invoiced'),
       kind: 'text',
-      size: 134,
+      size: 126,
       minSize: 126,
       cell: (row) => {
         const money = derivationFor(row).money;
@@ -595,7 +598,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
             <span tabIndex={0} className="inline-flex min-w-0 w-full items-center gap-1.5 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
               <span aria-hidden="true" className="h-1.5 w-12 shrink-0 overflow-hidden rounded-full bg-secondary"><span className={`block h-full ${percent >= 100 ? 'bg-success' : 'bg-primary'}`} style={{ width: `${percent}%` }} /></span>
               <span className="shrink-0 text-sm tabular text-muted-foreground" title={`${formatCurrency(paid, row.currency)} / ${formatCurrency(money.invoiced.amount, row.currency)}`}>
-                {percent}%
+                {/* #2089: the share is a locale-formatted percent, never a raw float. */}
+                {formatPercent(percent / 100, 1)}
               </span>
             </span>
           </Tooltip>
@@ -610,10 +614,15 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       key: 'category',
       header: t('projectDetail.procurement.table.category', 'Category'),
       kind: 'text',
-      size: 110,
-      minSize: 100,
+      // #1791: the longest category word stays whole in English and Bahasa. "Subkontraktor" is 80.1px at 14px,
+      // so 112px (80px after the cell inset) cut it mid-word at 1440; 120px leaves room. The cell wraps at spaces only.
+      size: 120,
+      minSize: 120,
       sortKey: 'category',
-      cell: (row) => categoryLabel(row.budget_category),
+      cell: (row) => {
+        const label = categoryLabel(row.budget_category);
+        return <span title={label} className="break-normal">{label}</span>;
+      },
       exportValue: (row) => categoryLabel(row.budget_category),
     };
     const tableColumns: Column<ProcurementWithRefs>[] = [
@@ -622,17 +631,19 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         header: t('projectDetail.procurement.table.procurement', 'Procurement'),
         kind: 'text',
         rowHeader: true,
-        size: 280,
-        minSize: 220,
+        // #1791: with Category shown the list must fit the scroller at 1440; the title clamps to two lines and the code · supplier line to one, each with its full text in `title`.
+        // #2434: 208 leaves the supplier room beside the uncut number; Category took 8px.
+        size: 208,
+        minSize: 208,
         sortKey: 'title',
         cell: (row) => (
           <div className="min-w-0 space-y-1">
-            <button type="button" aria-label={t('table.openRow', 'Open {{name}}', { name: row.title })} onClick={() => setSelected(row)} title={row.title} className="min-w-0 line-clamp-2 break-words text-left font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+            <button type="button" aria-label={t('table.openRow', 'Open {{name}}', { name: row.title })} onClick={() => setSelected(row)} title={row.title} className="w-full min-w-0 line-clamp-2 break-words text-left font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
               {row.title}
             </button>
             {(row.code || row.vendor?.name) && (
-              <span className="block line-clamp-2 break-words text-sm text-muted-foreground">
-                {row.code && <span className="font-mono">{row.code}</span>}{row.code && row.vendor?.name && ' · '}{row.vendor?.name}
+              <span title={[row.code, row.vendor?.name].filter(Boolean).join(' · ')} className="min-w-0 line-clamp-1 break-words text-sm text-muted-foreground">
+                {row.code && <span className="record-id">{row.code}</span>}{row.code && row.vendor?.name && ' · '}{row.vendor?.name}
               </span>
             )}
           </div>
@@ -646,7 +657,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         key: 'stage',
         header: t('projectDetail.procurement.table.status', 'Status'),
         kind: 'status',
-        size: 176,
+        size: 154,
         minSize: 150,
         sortKey: 'stage',
         cell: (row) => (
@@ -662,10 +673,9 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         key: 'next-step',
         header: t('projectDetail.procurement.table.nextStep', 'Next step'),
         kind: 'text',
-        // Owner tidy ruling 2026-10-29: an action label is never truncated — the
-        // column gets the width it needs and wraps to two lines instead.
-        size: 210,
-        minSize: 150,
+        // #1791 ruling: the label wraps to two lines, then truncates with the full text in `title`.
+        size: 146,
+        minSize: 146,
         cell: (row) => {
           const next = nextStepText(row.status, canDecideRow(row), t);
           return <Tooltip content={next}><span title={next} className={`block min-w-0 w-full max-w-full line-clamp-2 break-words ${row.status === 'Requested' && canDecideRow(row) ? 'font-medium text-primary-text' : 'text-muted-foreground'}`}>{next}</span></Tooltip>;
@@ -678,8 +688,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         kind: 'number',
         colClassName: projectId ? 'hidden' : undefined,
         align: 'num',
-        size: 100,
-        minSize: 68,
+        size: 96,
+        minSize: 96,
         sortKey: 'age',
         cell: (row) => {
           const days = derivationFor(row).age;
@@ -696,8 +706,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         header: t('procurement.raisedBy', 'Raised by'),
         kind: 'text',
         colClassName: projectId ? 'hidden' : undefined,
-        size: 190,
-        minSize: 150,
+        size: 124,
+        minSize: 124,
         sortKey: 'owner',
         cell: (row) => {
           const owner = row.requested_by?.full_name ?? t('projectDetail.procurement.unassigned', 'Unassigned');
@@ -855,7 +865,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                   </span>
                   {canSeeMoney && scaleMax > 0 && (
                     <span aria-hidden="true" data-testid={`stage-bar-${key}`} className="mt-2 block h-1.5 w-full rounded-full bg-secondary">
-                      <span className="block h-full rounded-full bg-muted-foreground/60" style={{ width: `${Math.max(0, Math.min(100, ((currencyTotals.find((item) => item.currency === scaleCurrency)?.value ?? 0) / scaleMax) * 100))}%` }} />
+                      <span className="block h-full rounded-full bg-mark-neutral/60" style={{ width: `${Math.max(0, Math.min(100, ((currencyTotals.find((item) => item.currency === scaleCurrency)?.value ?? 0) / scaleMax) * 100))}%` }} />
                     </span>
                   )}
                 </button>
@@ -889,15 +899,16 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                 </span>
                 {canSeeMoney && rowAmount(row, true)}
               </div>
-              <div className="flex min-w-0 items-center justify-between gap-3">
-                {next ? (
+              {next && (
+                <div className="flex min-w-0">
                   <Button variant="outline" size="sm" onClick={() => navigate(`/procurement/${row.id}`)}>{next}</Button>
-                ) : <span />}
-                <span className="min-w-0 truncate text-sm text-muted-foreground">
-                  <span className="sr-only">{t('procurement.raisedBy', 'Raised by')}</span>
-                  {owner}
-                </span>
-              </div>
+                </div>
+              )}
+              {/* #2434: the owner takes its own line under the action, so a long Bahasa label never cuts the name. */}
+              <span className="block min-w-0 break-words text-sm text-muted-foreground">
+                <span className="sr-only">{t('procurement.raisedBy', 'Raised by')}</span>
+                {owner}
+              </span>
             </div>
           );
         }}
@@ -934,7 +945,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
             {stageStats.filter(({ rows: stageRows }) => stageRows.length > 0).length > 1 && <div aria-hidden="true" className="mb-2.5 flex h-2 w-full gap-px overflow-hidden rounded-full bg-secondary">
               {stageStats.filter(({ rows: stageRows }) => stageRows.length > 0).map(({ key, rows: stageRows }) => (
                 <span key={key} title={`${stageText(key, t)}: ${stageRows.length}`} style={{ flexGrow: stageRows.length }}
-                  className={key === 'Request' && canApprove && pendingProcurementApprovals(stageRows, currentUser?.id, role === 'Admin').length > 0 ? 'bg-primary' : 'bg-muted-foreground/40'} />
+                  className={key === 'Request' && canApprove && pendingProcurementApprovals(stageRows, currentUser?.id, role === 'Admin').length > 0 ? 'bg-primary' : 'bg-mark-neutral/40'} />
               ))}
             </div>}
           <div role="group" aria-label={t('projectDetail.procurement.stageBand.label', 'Procurement stages')} className="flex flex-wrap gap-2">
@@ -1059,6 +1070,11 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         nestedOpen={pendingDecision !== null}
         onClose={() => setSelected(null)}
         headerActions={selected ? <>
+          {drawerMain?.transition.to === 'Approved' && canDecideRow(selected) && (
+            <Button size="sm" variant="outline" onClick={() => decide([selected], 'Rejected')} disabled={transition.isPending}>
+              {t('projectDetail.procurement.rowMenu.return', 'Return')}
+            </Button>
+          )}
           {drawerMain && <Button size="sm" onClick={runDrawerMain} disabled={transition.isPending || (drawerMain.transition.to === 'Requested' && (drawerDetails?.items?.length ?? 0) === 0)}>
             {drawerMain.label}
           </Button>}
@@ -1192,7 +1208,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                   {drawerDetails!.items.map((item) => (
                     <li key={item.id} className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-2 text-sm">
                       <span>{item.name}{item.description ? ` · ${item.description}` : ''}</span>
-                      <span className="tabular text-muted-foreground">{item.quantity}</span>
+                      <span className="tabular text-muted-foreground">{formatQuantity(String(item.quantity), getNumberLocale())}</span>
                     </li>
                   ))}
                 </ul>

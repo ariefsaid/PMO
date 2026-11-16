@@ -448,7 +448,7 @@ describe('ProjectFinancesSection reading states', () => {
       excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: false, amount: null }] } });
     for (const [language, prompt, scope] of [
       ['en', 'Ask an administrator to complete spending setup.', 'Only invoices linked to this project are included.'],
-      ['id', 'Minta administrator menyelesaikan penyiapan pengeluaran.', 'Hanya faktur yang ditautkan ke proyek ini yang disertakan.'],
+      ['id', 'Minta administrator menyelesaikan penyiapan pengeluaran.', 'Hanya invoice yang ditautkan ke proyek ini yang disertakan.'],
     ] as const) {
       await localeI18n.changeLanguage(language);
       const view = render(<I18nextProvider i18n={localeI18n}><ProjectFinancesSection project={project} /></I18nextProvider>);
@@ -639,7 +639,9 @@ describe('ProjectFinancesSection reading states', () => {
     expect(invoicedLabel.tagName).toBe('DT');
     const invoicedValue = screen.getByText('1,234,567,891').closest('dd');
     expect(invoicedValue).not.toBeNull();
-    expect(invoicedValue).toHaveClass('break-words');
+    // rule 15: the figure never breaks; the label gives way
+    expect(invoicedValue).not.toHaveClass('break-words');
+    expect(invoicedValue).toHaveClass('whitespace-nowrap');
     expect(invoicedValue?.tagName).toBe('DD');
     // Invoiced, Settled, Outstanding, Billed-work revenue and Margin remain semantic fields; C4 keeps an unknown margin explained.
     expect(within(bucket).getAllByRole('term').map((term) => term.textContent)).toEqual([
@@ -694,6 +696,9 @@ describe('ProjectFinancesSection billing kinds (#1471)', () => {
     expect(within(known).getByText('Invoiced above contract by 100')).toBeInTheDocument();
     expect(within(known).getByText('Invoiced against contract')).toBeInTheDocument();
     expect(within(known).getByTestId('contract-excess-invoiced')).toHaveTextContent('1,100');
+    // #2346: the invoiced-against-contract figure is one unbroken line
+    expect(within(known).getByTestId('contract-excess-invoiced')).toHaveClass('whitespace-nowrap');
+    expect(within(known).getByTestId('contract-excess-invoiced')).not.toHaveClass('break-words');
     unmount();
     h.query.data = payload({
       contract_invoiced: '1100.00', remaining_to_invoice: '-100.00', invoices: [usdBucket('1100.00')],

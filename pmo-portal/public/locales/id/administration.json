@@ -38,7 +38,7 @@
       "checked": "Pengecekan terakhir",
       "checkedAgo": "Dicek {{age}}",
       "keyExpires": "Kunci kedaluwarsa",
-      "intro": "Sambungkan Odoo Anda untuk melihat barang, satuan, gudang, dan akun di PMO, serta menjaga vendor dan klien tetap selaras.",
+      "intro": "Sambungkan Odoo Anda untuk melihat barang, satuan, gudang, dan akun di PMO, serta menjaga supplier dan klien tetap selaras.",
       "pickCompany": "Pilih perusahaan Odoo yang dipakai PMO. Pilihan ini tidak dapat diubah nanti.",
       "companiesFailed": "Daftar perusahaan tidak dapat dimuat",
       "companyLabel": "Perusahaan",
@@ -88,9 +88,12 @@
       "mapOnceHint": "Akun, satuan, dan gudang bawaan diusulkan bersamaan dan diterima dalam satu langkah.",
       "sends": "Pengiriman selesai",
       "sendsHint": "Data yang dimiliki PMO dan juga harus ada di Odoo dikirim satu kali.",
-      "employ": "Vendor dan klien dikelola di Odoo",
+      "employ": "Supplier dan klien dikelola di Odoo",
       "journal": "Jurnal pembayaran",
-      "journalHint": "Jurnal bank atau kas tempat pembayaran pemasok dilakukan, kecuali Keuangan memilih yang lain.",
+      "journalHint": "Jurnal bank atau kas tempat pembayaran supplier dilakukan, kecuali Keuangan memilih yang lain.",
+      "deskJournal": "Jurnal entri manual",
+      "deskJournalHint": "Jurnal umum tempat jurnal manual diposting.",
+      "deskJournalNone": "Belum ada jurnal umum yang terbaca dari Odoo.",
       "journalNone": "Belum ada jurnal bank atau kas yang dibaca dari Odoo.",
       "journalProposed": "Diusulkan: {{name}}",
       "journalAccept": "Terima {{name}}",
@@ -102,12 +105,12 @@
       "taxPrepaid": "Akun pajak dibayar di muka",
       "taxPrepaidHint": "Pilih akun aset untuk pajak yang dipotong klien.",
       "accountFailed": "Akun tidak dapat disimpan. Coba lagi.",
-      "employHint": "Setelah ini, Odoo memegang data vendor dan klien.",
+      "employHint": "Setelah ini, Odoo memegang data supplier dan klien.",
       "title": "Penyiapan Odoo",
       "done": "Selesai",
       "todo": "Belum",
       "procurement": "Pembelian dicatat di Odoo",
-      "procurementHint": "Setelah ini, pesanan pembelian, penerimaan barang, dan tagihan pemasok yang disetujui juga dibuat di Odoo."
+      "procurementHint": "Setelah ini, pesanan pembelian, penerimaan barang, dan invoice supplier yang disetujui juga dibuat di Odoo."
     },
     "picker": {
       "placeholder": "Pilih barang",
@@ -240,13 +243,13 @@
       "addPeople": "Tambahkan orang-orang ini di Odoo. PMO belum mengirim data orang ke Odoo."
     },
     "employ": {
-      "companiesAction": "Biarkan Odoo mengelola vendor dan klien",
-      "companiesTitle": "Biarkan Odoo mengelola vendor dan klien?",
-      "companiesBody": "Mulai sekarang, Odoo menyimpan data vendor dan klien Anda. Vendor dan klien baru, serta perubahan nama dan NPWP, disimpan di Odoo melalui formulir PMO.",
+      "companiesAction": "Biarkan Odoo mengelola supplier dan klien",
+      "companiesTitle": "Biarkan Odoo mengelola supplier dan klien?",
+      "companiesBody": "Mulai sekarang, Odoo menyimpan data supplier dan klien Anda. Supplier dan klien baru, serta perubahan nama dan NPWP, disimpan di Odoo melalui formulir PMO.",
       "companiesConfirm": "Biarkan Odoo mengelola",
       "procurementAction": "Kirim pembelian ke Odoo",
       "procurementTitle": "Kirim pembelian ke Odoo?",
-      "procurementBody": "Mulai sekarang, pesanan pembelian, penerimaan barang, dan tagihan pemasok yang disetujui juga dibuat di Odoo.",
+      "procurementBody": "Mulai sekarang, pesanan pembelian, penerimaan barang, dan invoice supplier yang disetujui juga dibuat di Odoo.",
       "procurementConfirm": "Kirim pembelian",
       "waitSends": "Tunggu sampai semua data sampai di Odoo."
     },
@@ -275,9 +278,68 @@
     "description": "Tombol Masukan di header dan, paling sering tiap 30 hari, survei singkat. Tidak pernah saat mengisi formulir."
   },
   "integrations": {
+    "companyAccounts": {
+      "accountsAction": "Atur akun perusahaan",
+      "accountsDialog": "Akun perusahaan",
+      "accountsSubmit": "Simpan akun perusahaan",
+      "accountsChoose": "Pilih…",
+      "accountsFailed": "Akun perusahaan tidak dapat diatur. Coba lagi.",
+      "accountsUnavailable": "Daftar akun tidak dapat dibaca.",
+      "accountsPending": "Perubahan akun perusahaan masih sedang disimpan. Muat ulang dalam beberapa menit untuk melihatnya.",
+      "noBankAccount": "Perusahaan belum memiliki akun bank, jadi belum ada yang bisa dipilih. Buat akun bank terlebih dahulu; akun itu lalu tercantum di sini.",
+      "accountSlots": {
+        "payable": "Akun utang vendor",
+        "expense": "Akun beban default",
+        "cash": "Akun kas",
+        "bank": "Akun bank",
+        "costCentre": "Pusat biaya"
+      },
+      "accountsRefused": "Akun perusahaan tidak dapat diatur.",
+      "accountsRetry": "Coba lagi",
+      "slotInSentence": {
+        "payable": "akun utang vendor",
+        "expense": "akun beban default",
+        "cash": "akun kas",
+        "bank": "akun bank",
+        "costCentre": "pusat biaya"
+      },
+      "refusal": {
+        "notInChart": "{{name}} tidak ada dalam bagan akun ERP yang dibaca PMO, jadi tidak dapat menjadi {{slot}}. Muat ulang daftar lalu pilih lagi.",
+        "otherCompany": "{{name}} milik perusahaan lain, jadi tidak dapat menjadi {{slot}}.",
+        "group": "{{name}} adalah grup, jadi tidak dapat menjadi {{slot}}. Pilih akun atau pusat biaya di bawahnya.",
+        "disabled": "{{name}} dinonaktifkan, jadi tidak dapat menjadi {{slot}}.",
+        "notPayable": "{{name}} bukan akun utang, jadi tidak dapat menjadi {{slot}}.",
+        "notCash": "{{name}} bukan akun kas, jadi tidak dapat menjadi {{slot}}.",
+        "notBank": "{{name}} bukan akun bank, jadi tidak dapat menjadi {{slot}}.",
+        "notExpense": "{{name}} bukan akun beban, jadi tidak dapat menjadi {{slot}}.",
+        "connectFirst": "Hubungkan ERP dan pilih perusahaannya terlebih dahulu.",
+        "chooseOne": "Pilih setidaknya satu akun perusahaan.",
+        "unknownDefault": "Akun perusahaan tidak dikenal: {{name}}.",
+        "chooseValue": "Pilih nilai untuk setiap akun perusahaan yang Anda ubah.",
+        "notAvailable": "Akun perusahaan belum dapat diatur dari PMO untuk ERP ini.",
+        "connectionChangedReload": "Koneksi ERP berubah; muat ulang lalu coba lagi.",
+        "erpRefused": "ERP menolak perubahan ini.",
+        "readBackFailed": "Perusahaan di ERP tidak dapat dibaca ulang, jadi tidak ada yang dicatat. Coba lagi.",
+        "notKept": "ERP tidak menyimpan semua akun yang dipilih, jadi tidak ada yang dicatat. Coba lagi.",
+        "newerSaved": "Perubahan akun perusahaan yang lebih baru sudah disimpan untuk koneksi ini, jadi perubahan ini tidak dicatat.",
+        "connectionChanged": "Koneksi ERP berubah saat perubahan ini sedang diatur, jadi tidak ada yang dicatat.",
+        "notRecorded": "Perubahan tidak dicatat. Coba lagi.",
+        "companyChanged": "Akun perusahaan diubah di ERP setelah PMO membacanya, jadi tidak ada yang disimpan. Muat ulang dan coba lagi.",
+        "changeNotRecorded": "Perubahan tidak dapat dicatat",
+        "unreachableNothingRecorded": "ERP tidak dapat dihubungi, jadi tidak ada yang dicatat. Coba lagi.",
+        "unreachableTryAgain": "ERP tidak dapat dihubungi; coba lagi.",
+        "requestNotCompleted": "Permintaan tidak dapat diselesaikan"
+      }
+    },
     "personalM365": {
       "action": {
         "retryStatus": "Coba lagi"
+      },
+      "errors": {
+        "appNotConfigured": "Organisasi Anda perlu mengatur aplikasi Microsoft 365.",
+        "appRejected": "Microsoft menolak kredensial aplikasi. Periksa dan coba lagi.",
+        "tenantRejected": "Microsoft tidak menemukan direktori. Periksa ID direktori.",
+        "microsoftUnreachable": "Microsoft tidak tersedia. Coba lagi sebentar."
       }
     },
     "identityIncomplete": "Penyiapan belum selesai",
@@ -291,7 +353,39 @@
       "retryFailed": "Kami tidak dapat mengirim ulang. Coba lagi sebentar lagi.",
       "unnamed": "Sebuah data",
       "addPeople": "Tambahkan orang-orang ini di ERP. ERP meminta tanggal lahir dan jenis kelamin, yang tidak dimiliki PMO.",
-      "accountantTask": "Minta akuntan Anda menambahkan akun biaya langsung untuk: {{categories}}"
+      "accountantTask": "Minta akuntan Anda menambahkan akun biaya langsung untuk: {{categories}}",
+      "refusal": {
+        "unknown": "Kami tidak dapat mengirim data ini. Periksa di ERP, lalu coba lagi.",
+        "noun": {
+          "company": "perusahaan",
+          "project": "proyek",
+          "item": "item",
+          "person": "orang",
+          "record": "data"
+        },
+        "gone": "Data ini sudah tidak ada di PMO, atau (untuk item) sudah tidak ada di pembelian yang terbuka.",
+        "person": "ERP ini meminta tanggal lahir dan jenis kelamin setiap orang, yang tidak dimiliki PMO. Tambahkan orang ini di ERP.",
+        "personOdoo": "PMO belum mengirim data orang ke Odoo. Tambahkan orang ini di Odoo.",
+        "actor": "Admin yang menerima ini sudah bukan Admin lagi. Terima lagi.",
+        "ambiguous": "Dua data ERP cocok dengan {{noun}} ini. Hubungkan yang benar secara manual.",
+        "linked": "Data ini sudah terhubung ke data ERP lain.",
+        "stuck": "Kami tidak dapat menyelesaikan pengiriman data ini. Periksa di ERP, lalu coba lagi.",
+        "refused": "ERP menolak {{noun}} ini. Periksa di ERP, lalu coba lagi.",
+        "erpReason": "Alasan dari ERP: {{reason}}",
+        "refusedReason": "ERP menolak {{noun}} ini. Periksa di ERP, lalu coba lagi.",
+        "held": "Kami tidak dapat memastikan apakah ERP sudah membuat data ini. Cari di ERP dengan nama dan NPWP; jika tidak ada, kirim lagi.",
+        "heldOdoo": "Kami tidak dapat memastikan apakah Odoo sudah membuat data ini. Cari di Odoo dengan nama dan NPWP; jika tidak ada, kirim lagi.",
+        "planFirst": "Pilih dulu rencana akun biaya untuk proyek, lalu kirim proyek ini lagi.",
+        "projectNumber": "Proyek ini belum punya nomor proyek, sehingga akun biayanya tidak bisa diberi nama. Beri nomor, lalu kirim lagi.",
+        "unitUnmapped": "ERP menolak {{noun}} ini: satuannya belum cocok dengan satuan di Odoo.",
+        "notApplied": "Baris ini tidak dapat diterapkan.",
+        "companyGone": "Perusahaan ini sudah tidak ada di PMO.",
+        "projectGone": "Proyek ini sudah tidak ada di PMO.",
+        "internalCompany": "Perusahaan internal tidak dapat dihubungkan ke ERP.",
+        "changedSince": "Data ERP berubah sejak ini diusulkan.",
+        "personGone": "Orang ini sudah tidak ada di PMO.",
+        "itemLinked": "Item ini sudah terhubung."
+      }
     },
     "connect": {
       "title": "Cocokkan data",
@@ -362,12 +456,12 @@
       "censusBringInPart": "{{n}} diambil masuk",
       "censusNeedYouPart": "{{n}} perlu Anda putuskan",
       "sendingProgress": "Mengirim {{remaining}} dari {{total}}",
-      "clientsAndVendors": "Klien & pemasok",
+      "clientsAndVendors": "Klien & supplier",
       "projects": "Proyek",
       "items": "Barang",
       "people": "Orang",
       "accounts": "Akun",
-      "nounParty": "pemasok",
+      "nounParty": "supplier",
       "nounProject": "proyek",
       "nounItem": "barang",
       "nounEmployee": "orang",
@@ -375,46 +469,46 @@
     }
   },
   "invoicePairs": {
-    "title": "Faktur di kedua sisi",
-    "intro": "Sebagian faktur yang dibuat di PMO juga ada di ERP Anda. Hitung setiap penjualan sekali saja, sebagai salinan ERP. Salinan PMO tetap tersimpan dan terhubung ke faktur ERP, tetapi tidak lagi menambah pendapatan dan piutang.",
+    "title": "Invoice di kedua sisi",
+    "intro": "Sebagian invoice yang dibuat di PMO juga ada di ERP Anda. Hitung setiap penjualan sekali saja, sebagai salinan ERP. Salinan PMO tetap tersimpan dan terhubung ke invoice ERP, tetapi tidak lagi menambah pendapatan dan piutang.",
     "col": {
-      "pmo": "Faktur PMO",
-      "erp": "Faktur ERP",
+      "pmo": "Invoice PMO",
+      "erp": "Invoice ERP",
       "customer": "Pelanggan",
       "amount": "Jumlah"
     },
     "acceptAll": "Hitung masing-masing sekali",
     "needsDecision": "Perlu keputusan",
-    "needsDecisionHelp": "Faktur ini cocok dengan lebih dari satu faktur. Buka di ERP untuk membedakannya; PMO tidak akan memilih untuk Anda.",
-    "stillPmo": "Masih dihitung sebagai faktur PMO",
+    "needsDecisionHelp": "Invoice ini cocok dengan lebih dari satu invoice. Buka di ERP untuk membedakannya; PMO tidak akan memilih untuk Anda.",
+    "stillPmo": "Masih dihitung sebagai invoice PMO",
     "reason": {
-      "noMatch": "Tidak ada faktur ERP yang cocok",
-      "ambiguous": "Lebih dari satu faktur ERP yang cocok",
-      "hasReceipt": "PMO sudah mencatat pembayaran pada faktur ini",
-      "projectDiffers": "Faktur ERP berada di proyek atau perintah kerja yang berbeda"
+      "noMatch": "Tidak ada invoice ERP yang cocok",
+      "ambiguous": "Lebih dari satu invoice ERP yang cocok",
+      "hasReceipt": "PMO sudah mencatat pembayaran pada invoice ini",
+      "projectDiffers": "Invoice ERP berada di proyek atau $t(common:terms.clientWorkOrder) yang berbeda"
     },
-    "countOne": "1 faktur",
-    "countOther": "{{count}} faktur",
-    "doneOne": "1 faktur kini dihitung sekali.",
-    "doneOther": "{{count}} faktur kini dihitung sekali.",
-    "failed": "Tidak ada faktur yang diubah. Daftar mungkin sudah usang; daftar telah dimuat ulang. Coba lagi.",
-    "alreadyOne": "1 faktur sudah dihitung sekali",
-    "alreadyOther": "{{count}} faktur sudah dihitung sekali",
-    "countedAs": "dihitung sebagai faktur ERP {{number}}",
-    "confirmTitle": "Hitung faktur ini sekali saja?",
+    "countOne": "1 invoice",
+    "countOther": "{{count}} invoice",
+    "doneOne": "1 invoice kini dihitung sekali.",
+    "doneOther": "{{count}} invoice kini dihitung sekali.",
+    "failed": "Tidak ada invoice yang diubah. Daftar mungkin sudah usang; daftar telah dimuat ulang. Coba lagi.",
+    "alreadyOne": "1 invoice sudah dihitung sekali",
+    "alreadyOther": "{{count}} invoice sudah dihitung sekali",
+    "countedAs": "dihitung sebagai invoice ERP {{number}}",
+    "confirmTitle": "Hitung invoice ini sekali saja?",
     "confirmBody": "Hitung {{what}} sekali saja, sebagai salinan ERP?",
     "confirmAction": "Hitung sekali",
-    "failedStale": "Tidak ada faktur yang diubah. Sebuah pasangan tidak lagi cocok dengan jelas; daftar telah dimuat ulang. Periksa lalu coba lagi.",
+    "failedStale": "Tidak ada invoice yang diubah. Sebuah pasangan tidak lagi cocok dengan jelas; daftar telah dimuat ulang. Periksa lalu coba lagi.",
     "undo": "Batalkan",
     "undoFor": "Batalkan {{number}}",
     "undoTitle": "Hitung {{number}} secara terpisah lagi?",
-    "undoBody": "Faktur PMO kembali masuk ke pendapatan dan piutang. Faktur ERP {{erp}} tetap ada, jadi jika keduanya dihitung, penjualan tampil dua kali sampai Anda memasangkannya lagi.",
+    "undoBody": "Invoice PMO kembali masuk ke pendapatan dan piutang. Invoice ERP {{erp}} tetap ada, jadi jika keduanya dihitung, penjualan tampil dua kali sampai Anda memasangkannya lagi.",
     "undoDone": "{{number}} kini dihitung secara terpisah lagi.",
     "undoFailed": "Tidak ada yang diubah. Pasangan mungkin sudah dibatalkan; daftar telah dimuat ulang.",
     "loadFailed": {
-      "propose": "Faktur yang cocok gagal dimuat.",
-      "unpaired": "Faktur yang masih dihitung sebagai faktur PMO gagal dimuat.",
-      "accepted": "Faktur yang sudah dihitung sekali gagal dimuat."
+      "propose": "Invoice yang cocok gagal dimuat.",
+      "unpaired": "Invoice yang masih dihitung sebagai invoice PMO gagal dimuat.",
+      "accepted": "Invoice yang sudah dihitung sekali gagal dimuat."
     },
     "retry": "Coba lagi"
   },
@@ -454,12 +548,22 @@
         "currentUnavailable": "Manajer saat ini (nama tidak tersedia)"
       },
       "inviteError": {
+        "notAddable": "Alamat ini tidak dapat diundang",
+        "notAddableDetail": "Minta alamat lain kepada orang tersebut, lalu undang kembali.",
+        "retry": "Alamat ini sedang diundang",
+        "retryDetail": "Coba lagi sebentar lagi.",
         "seatLimit": "Paket Anda tidak memiliki sisa kursi",
         "seatLimitDetail": "Semua kursi pada paket Anda sudah terpakai. Minta Operator meningkatkan paket, lalu undang kembali."
       },
       "statusError": {
         "seatLimit": "Paket Anda tidak memiliki sisa kursi",
         "seatLimitDetail": "Semua kursi pada paket Anda sudah terpakai. Minta Operator meningkatkan paket, lalu aktifkan kembali pengguna ini."
+      },
+      "toast": {
+        "alreadyInvited": "Sudah diundang",
+        "alreadyInvitedDetail": "{{email}} sudah memiliki undangan yang masih berlaku. Tidak ada email baru yang dikirim.",
+        "inviteResent": "Undangan dikirim ulang",
+        "inviteResentDetail": "Tautan sebelumnya untuk {{email}} sudah kedaluwarsa. Tautan baru sedang dikirim."
       }
     },
     "spendApprovers": {

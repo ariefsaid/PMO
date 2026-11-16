@@ -129,6 +129,31 @@ describe('ImportWizard', () => {
     expect(create).not.toHaveBeenCalled();
   });
 
+  it('a wide descriptor previews every column with each row error in plain words under its Status, and imports only the valid row', async () => {
+    const user = userEvent.setup();
+    const wide: ImportDescriptor<Co> = {
+      ...descriptor,
+      wide: true,
+      fields: descriptor.fields.map((f, i) => ({ ...f, previewSize: i === 0 ? 240 : 120 })),
+    };
+    render(<ImportWizard descriptor={wide} onClose={vi.fn()} />);
+    await user.upload(screen.getByLabelText(/choose an \.xlsx file/i), file());
+    await waitFor(() => expect(screen.getByRole('button', { name: /^next$/i })).toBeEnabled());
+    await user.click(screen.getByRole('button', { name: /^next$/i }));
+    const table = await screen.findByRole('table');
+    for (const name of ['Row', 'Company name', 'Type', 'Status']) {
+      expect(within(table).getByRole('columnheader', { name })).toBeInTheDocument();
+    }
+    // the row's error sits in its Status cell, not under the cell it names
+    const bad = within(table).getByText('Project was not found.');
+    expect(bad.closest('td')).toContainElement(within(table).getAllByText(/skipped/i)[0]);
+    // a long value truncates on one line, the full text stays in title
+    const long = 'Unmatched project with a deliberately long name that exceeds the cell clamp';
+    expect(within(table).getByText(long)).toHaveAttribute('title', long);
+    await user.click(screen.getByRole('button', { name: /^import 1 /i }));
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+  });
+
   it('CMP-007: edited mappings stay in the wizard after close and route-leave confirmations', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();

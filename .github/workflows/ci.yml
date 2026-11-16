@@ -33,8 +33,9 @@ on:
   # minutes.
   pull_request:
   # Dispatched only via scripts/ci-e2e.sh, for a PR to `dev` whose PR run already did `verify` +
-  # `pgtap` — so a dispatch runs `integration` alone and skips its pgTAP step unless `run_pgtap`
-  # (ci-e2e.sh sets it when the branch has no PR, i.e. nothing ran pgTAP on it yet).
+  # `pgtap` — so a dispatch runs the browser shards, `integration-lanes` and the `integration`
+  # aggregate, skipping the pgTAP step unless `run_pgtap` (ci-e2e.sh sets it when the branch has
+  # no PR, i.e. nothing ran pgTAP on it yet).
   workflow_dispatch:
     inputs:
       run_pgtap:
@@ -60,31 +61,55 @@ defaults:
   run:
     working-directory: pmo-portal
 
+# ─── JOB GRAPH (#2161) ──────────────────────────────────────────────────────────
+# The required `verify` context aggregates the verify lanes; `integration` aggregates the
+# independent browser and integration lanes on release PRs / dispatches:
+#
+#   scope ─┬─ unit ×N (blob report + coverage each) ─→ coverage (merge + ≥80% gate) ─┐
+#          ├─ checks (guards · typecheck · lint · audits · build · script tests) ─────┤
+#          └─ deno (edge-fn tests + M365; conditional on scope.deno) ─────────────────┴→ verify
+#   scope ────────────────────────────────────────→ integration-lanes ──────┐
+#   browser-chromium ×3 ─────────────────────────────────────────────────────┴→ integration-full ─┐
+#   scope ─────────────────────────────────────────────────────────────────────────────────────────┴→ integration
+# A validated release-please version-only PR runs the version check and both required aggregates,
+# while skipping unit, Deno, browser and integration lanes.
+#   pgtap runs separately for PR→dev and push→dev.
+#
+# `verify` runs no tests: it fails closed unless every scheduled verify-stage job succeeded, or the
+# release-please scope validation passed and the heavy jobs were skipped. That split is
+# what lets the ~8-min `checks`, ~9-min `deno` and ~7-min `unit` lanes overlap instead of queueing
+# behind each other (a full dev push was ~34 min end-to-end; #2161 targets ≤16). The NAME is
+# preserved on purpose: `main`'s branch protection requires exactly `verify` + `integration`, and
+# protection was not touched by this change. `!cancelled()` on `verify` is load-bearing — a failed
+# shard must FAIL the required check, never skip it (a skipped required check counts as passing).
+#
 # ─── CI TIERING (resource-lean) ─────────────────────────────────────────────────
 # PR → dev    → `scope` picks what the diff can affect (scripts/ci-test-scope.mjs): the unit
 #               job runs only the AFFECTED tests (or the full suite when the diff touches
 #               anything the module graph can't see), `pgtap` only when supabase/** or its
-#               scripts change, the Deno steps of `verify` only when edge functions change.
+#               scripts change, the `deno` job only when edge functions change.
 #               Typecheck · lint · guards · build always run. No browser. Fast lane.
-# push dev    → everything, full: unit (2 shards) · verify · pgtap (#1584).
-# PR → main   → (everything full, unchanged) `verify` + `integration` (Supabase + pgTAP + Playwright e2e incl. the
-#               visual-invariant gate AC-VISUAL-ICON-001 + mobile-overflow gate
-#               AC-MOBILE-OVERFLOW-001). Authoritative pre-merge gate. (pgTAP runs again
-#               here — cheap, and this job must stand alone as the merge-gate proof.)
+# push dev    → everything, full: unit (4 shards) · checks · coverage · verify · pgtap (#1584).
+# PR → main   → (everything full) `verify` + required `integration` aggregate; a validated
+#               release-please version-only diff keeps both required contexts and skips test/e2e
+#               lanes. Every other PR runs browser shards and `integration-lanes` (Supabase + pgTAP
+#               + served smoke + consent + serial e2e), then `integration` checks all evidence.
 # push main   → `verify` smoke only (pgtap/integration skipped — see their `if`); unit is full.
-# dispatch    → `integration` only, pgTAP skipped (scripts/ci-e2e.sh; the PR already ran
-#               `verify` + `pgtap`).
+# dispatch    → browser shards + `integration-lanes` + `integration` aggregate, pgTAP skipped
+#               (scripts/ci-e2e.sh; the PR already ran `verify` + `pgtap`).
 # Feature branches have no push CI (PR-gated) → no duplicate `verify` runs.
 # Integration trims: Playwright browsers cached + Supabase starts without the
 # CI-unused containers (studio/realtime/vector). `pgtap` uses the same trim.
 # main→production → no CI; main is already pre-gated by the PR that merged it.
 # ───────────────────────────────────────────────────────────────────────────────
 jobs:
-  # What can this change affect? (#1584, scripts/ci-test-scope.mjs, self-tested in `verify`.)
+  # What can this change affect? (#1584, scripts/ci-test-scope.mjs, self-tested in `checks`.)
   # Only a PR to `dev` is narrowed; a push (main, dev), a PR to `main` and any other base run
-  # everything. Narrowed = `unit: affected` (module-graph selection) unless the diff touches
+  # everything except the validated release-please version-only path. Narrowed = `unit: affected`
+  # (module-graph selection) unless the diff touches
   # something the graph can't see, `pgtap` only for supabase/** and its scripts, `deno` only for
-  # edge functions (and the pmo-portal files they import). Lint, typecheck, guards, build: always.
+  # edge functions (and the pmo-portal files they import). On the full path, lint, typecheck, guards
+  # and build always run. The release-please path skips those jobs after version validation.
   scope:
     if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -94,6 +119,7 @@ jobs:
       unit: ${{ steps.scope.outputs.unit }}
       pgtap: ${{ steps.scope.outputs.pgtap }}
       deno: ${{ steps.scope.outputs.deno }}
+      release_light: ${{ steps.scope.outputs.release_light }}
       base_sha: ${{ steps.scope.outputs.base_sha }}
     defaults:
       run:
@@ -110,43 +136,56 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
+          HEAD_BRANCH: ${{ github.head_ref }}
         run: |
-          if [ "$EVENT" = pull_request ] && [ "$BASE_REF" = dev ]; then
+          if [ "$EVENT" = pull_request ] && [ "$BASE_REF" = main ]; then
+            if git fetch --no-tags origin "$BASE_REF"; then
+              json=$(node scripts/ci-test-scope.mjs --release-please --target-base "$BASE_REF" --head-branch "$HEAD_BRANCH" --base "origin/$BASE_REF")
+            else
+              json='{"unit":"full","pgtap":true,"deno":true,"releaseLight":false,"reason":"main base unavailable; full checks required"}'
+            fi
+            base_sha=
+          elif [ "$EVENT" = pull_request ] && [ "$BASE_REF" = dev ]; then
             git fetch --no-tags origin "$BASE_REF"
             json=$(node scripts/ci-test-scope.mjs --base "origin/$BASE_REF")
             base_sha=$(git merge-base "origin/$BASE_REF" HEAD)
           else
-            json='{"unit":"full","pgtap":true,"deno":true,"reason":"not a PR to dev: everything runs"}'
+            json='{"unit":"full","pgtap":true,"deno":true,"releaseLight":false,"reason":"not a PR to dev or validated release-please PR: everything runs"}'
             base_sha=
           fi
           echo "$json"
           unit=$(jq -r .unit <<<"$json")
-          if [ "$unit" = full ]; then
-            matrix='{"include":[{"shard":1,"mode":"full"},{"shard":2,"mode":"full"}]}'
-          else
-            matrix='{"include":[{"shard":1,"mode":"affected"}]}'
-          fi
+          release_light=$(jq -r '.releaseLight // false' <<<"$json")
+          # The shard COUNT comes from `strategy.job-total` in the run step. `shards` (scope script) is
+          # 4 for a full run or a large affected set, 1 for a small affected set (#2293).
+          shards=$(jq -r '.shards // 4' <<<"$json")
+          if [ "$unit" = full ]; then mode=full; else mode=affected; fi
+          matrix=$(jq -cn --arg mode "$mode" --argjson n "$shards" '{include: [range(1; $n + 1) | {shard: ., mode: $mode}]}')
           {
             echo "unit=$unit"
             echo "unit_matrix=$matrix"
             echo "pgtap=$(jq -r .pgtap <<<"$json")"
             echo "deno=$(jq -r .deno <<<"$json")"
+            echo "release_light=$release_light"
             echo "base_sha=$base_sha"
           } >> "$GITHUB_OUTPUT"
           echo "### Test scope" >> "$GITHUB_STEP_SUMMARY"
           echo "\`$json\`" >> "$GITHUB_STEP_SUMMARY"
 
-  # The Vitest suite. Full mode: split across 2 parallel runners (one runner took ~28 min; 4 cost more
-  # runner-minutes per push — owner 2026-10-20). Affected mode (PR to dev, see `scope`): ONE runner,
-  # the tests the module graph selects from the diff PLUS every test that reads repo files with fs
-  # (the graph can't see those reads). Either way each runner writes a blob report with its coverage;
-  # `verify` merges them (a single blob merges fine), so the required `verify` check still owns every
-  # selected test and the changed-lines coverage gate.
+  # The Vitest suite. Full mode: split across 4 parallel runners (#2161 — 2 shards measured ~10 and
+  # ~16 min, which is the whole critical path once `checks` runs alongside; 4 shards land ~7 min.
+  # Runner-minutes are cheaper than the wall clock here, and the owner's v0.23.0 throughput override
+  # already allows parallel dispatches). Affected mode (PR to dev, see `scope`): ONE runner for a small
+  # diff, the same 4 shards once it passes SHARD_FILE_THRESHOLD changed files (#2293); the
+  # tests the module graph selects from the diff PLUS every test that reads repo files with fs (the
+  # graph can't see those reads) — unchanged. Either way each runner writes a blob report with its
+  # coverage; the `coverage` job merges them (a single blob merges fine), so the required `verify`
+  # check still owns every selected test and the changed-lines coverage gate.
   unit:
     needs: scope
-    if: github.event_name != 'workflow_dispatch'
+    if: ${{ github.event_name != 'workflow_dispatch' && needs.scope.outputs.release_light != 'true' }}
     runs-on: ubuntu-latest
-    # A hung test must not hold a runner for the 6h default (absorbs #1528). Full shards run ~17 min.
+    # A hung test must not hold a runner for the 6h default (absorbs #1528). 4-way shards run ~7 min.
     timeout-minutes: 40
     strategy:
       fail-fast: false
@@ -162,9 +201,9 @@ jobs:
           cache: npm
           cache-dependency-path: pmo-portal/package-lock.json
       - run: npm ci
-      - name: Unit tests (shard ${{ matrix.shard }}/2, + coverage)
+      - name: Unit tests (shard ${{ matrix.shard }}/${{ strategy.job-total }}, + coverage)
         if: matrix.mode == 'full'
-        run: npx vitest run --coverage --shard=${{ matrix.shard }}/2 --reporter=default --reporter=blob
+        run: npx vitest run --coverage --shard=${{ matrix.shard }}/${{ strategy.job-total }} --reporter=default --reporter=blob
       - name: Select the affected unit tests
         if: matrix.mode == 'affected'
         env:
@@ -175,11 +214,11 @@ jobs:
           node ../scripts/ci-test-scope.mjs --fs-coupled > /tmp/fs-tests.txt
           sort -u /tmp/changed-tests.txt /tmp/fs-tests.txt > /tmp/affected-tests.txt
           echo "$(wc -l < /tmp/changed-tests.txt) via the module graph + $(wc -l < /tmp/fs-tests.txt) that read repo files = $(wc -l < /tmp/affected-tests.txt) test files"
-      - name: Unit tests (affected by the diff, + coverage)
+      - name: Unit tests (affected by the diff, shard ${{ matrix.shard }}/${{ strategy.job-total }}, + coverage)
         if: matrix.mode == 'affected'
         run: |
           mapfile -t files < /tmp/affected-tests.txt
-          npx vitest run --coverage --reporter=default --reporter=blob "${files[@]}"
+          npx vitest run --coverage --shard=${{ matrix.shard }}/${{ strategy.job-total }} --reporter=default --reporter=blob "${files[@]}"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: unit-blob-${{ matrix.mode }}-${{ matrix.shard }}
@@ -188,23 +227,40 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  verify:
-    # PR-only: a workflow_dispatch (scripts/ci-e2e.sh) is for e2e; its PR already ran verify.
-    # `!cancelled()`: a failed shard must FAIL verify, not skip it (a skipped required check passes).
-    needs: [scope, unit]
-    if: ${{ !cancelled() && github.event_name != 'workflow_dispatch' }}
+  # ── `checks` — the STATIC half of the old `verify` (#2161) ────────────────────────────────────
+  # Guards · typecheck · lint · supply-chain audits · build · repository script tests. None of it
+  # consumes a test report, so it needs only `scope` and now runs IN PARALLEL with `unit` instead of
+  # queueing behind it. This job is NOT a required context — the required `verify` aggregate below
+  # fails closed on its result, so a red guard still blocks a merge. The edge-function lane (Deno
+  # typecheck/boot/tests + the M365 mutation witness) lives in `deno` below: measured at ~9 min on
+  # the 2026-11-10 dev push, it was the other half of this job's ~17 min serial runtime.
+  checks:
+    # PR-only: a workflow_dispatch (scripts/ci-e2e.sh) is for e2e; its PR already ran this.
+    # `!cancelled()`: keep reporting when a sibling job failed (see `verify`).
+    needs: [scope]
+    if: ${{ !cancelled() && github.event_name != 'workflow_dispatch' && needs.scope.outputs.release_light != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Full history so the changed-lines coverage gate can diff against the
-          # PR base ref.
+          # Full history (5 s on this repo): repository script tests and guards shell out to git,
+          # and a shallow clone has no merge base to compare against. The changed-lines gate that
+          # used to need this now lives in `coverage`.
           fetch-depth: 0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: pmo-portal/package-lock.json
+      - name: Refuse attribution in PR commits
+        if: github.event_name == 'pull_request'
+        working-directory: .
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          node scripts/check-no-attribution.mjs --self-test
+          node scripts/check-no-attribution.mjs "$BASE_SHA" "$HEAD_SHA"
       # Install the checked-in Playwright/Vitest CLIs before repository script tests spawn them.
       - name: Install Node dependencies for repository contract tests
         working-directory: pmo-portal
@@ -214,12 +270,14 @@ jobs:
       - name: Repository script tests (non-DB)
         working-directory: .
         run: |
-          mapfile -t tests < <(find scripts -maxdepth 1 -name '*.test.mjs' ! -name 'financial-statements-publication-race.test.mjs' ! -name 'financial-statements-rollback.test.mjs' ! -name 'financial-statements-nightly-intent-race.test.mjs' ! -name '2195-journal-safety-rollback.test.mjs' ! -name 'ux-proof.test.mjs' -print | sort)
-          node --test "${tests[@]}"
+          # #2332: the list lives in the tracked runner (macOS bash 3.2 has no `mapfile`);
+          # --self-test refuses to run when the list is empty or an exclusion went stale.
+          node scripts/run-script-tests.mjs --self-test && node scripts/run-script-tests.mjs
       - name: CI integration-order test
         working-directory: .
         run: |
           node --test pmo-portal/e2e/support/AC-S21-005-*.test.mjs
+          node --test pmo-portal/e2e/support/AC-1869-*.test.mjs
           node scripts/check-e2e-skips.mjs --self-test
           node scripts/check-browser-shard-inventory.mjs --self-test
           node scripts/check-e2e-time-budget.mjs --self-test
@@ -228,6 +286,7 @@ jobs:
           bash scripts/check-e2e-isolation.sh --self-test
           bash scripts/check-nul-bytes.sh --self-test
           bash scripts/ci-e2e.sh --self-test
+          bash scripts/renumber-migration.sh --self-test
           bash scripts/db-seed-prod.test.sh
       # EVERY repo guard (package.json `check:guards` — the same list `npm run verify` runs locally,
       # so the two cannot drift; scripts/ci-integration-order.test.mjs asserts it). Cheap — before
@@ -253,9 +312,141 @@ jobs:
         run: npm run typecheck
       - name: Lint
         run: npm run lint:ci
-      - name: Unit tests all passed
-        run: test "${{ needs.unit.result }}" = success
+      - name: Lint scripts
+        run: npm run lint:scripts
+      - name: Build
+        run: npm run build
+      - name: Entry preload list excludes recharts/markdown/compiler
+        run: npx vitest run src/lib/build/entryPreload.test.ts
+      - name: Lock wrapper process tests
+        working-directory: .
+        run: python3 -m unittest discover -s scripts/tests -v
 
+      # A push to `dev` is the full suite that backstops every PR's narrowed run; when it fails, say
+      # which merge it ran on (a squash merge's subject ends in the PR number).
+      - name: Name the merged change
+        if: ${{ failure() && github.event_name == 'push' }}
+        working-directory: .
+        run: echo "::error title=Full suite failed after a push::$(git log -1 --format=%s)"
+
+  # ── `deno` — the edge-function lane, split out of `checks` (#2161) ────────────────────────────
+  # Measured on the 2026-11-10 push to dev: Deno typecheck 41 s + edge-fn unit tests 6 min 21 s + the
+  # M365 mutation witness 1 min 34 s ≈ 9 min — as much again as everything else in `checks`. Kept in
+  # one job they serialised to ~17 min, which becomes the whole wall clock once `unit` runs
+  # alongside; as its own lane it overlaps `checks` and `unit` instead.
+  # `scope.deno` (#1584) still decides whether it runs at all: a PR to dev that touches no edge
+  # function (and no script this lane uses) skips the job — the same skip the old per-step `if:` did.
+  # The release-please light path also skips this job after scope validates the version sources.
+  deno:
+    needs: [scope]
+    if: ${{ !cancelled() && github.event_name != 'workflow_dispatch' && needs.scope.outputs.release_light != 'true' && needs.scope.outputs.deno == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Node is pinned here only because the M365 witness below is a node script (node builtins
+      # only — this lane never runs `npm ci`).
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      # Restore the Deno binary into the runner tool cache first: setup-deno v2.0.5
+      # checks the tool cache (tc.find) BEFORE downloading and skips the release
+      # download on a hit — the download 504'd GitHub-side on 2026-11-08/09.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /opt/hostedtoolcache/deno
+          key: deno-${{ runner.os }}-${{ runner.arch }}-2.7.11
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          # Pinned (not `latest`/`vx.x`) for deploy-check determinism — bump deliberately.
+          # Bump the cache key above together with this version.
+          deno-version: '2.7.11'
+      # Gap: supabase/functions/** is outside tsc/ESLint (edge functions are Deno programs, not
+      # part of the pmo-portal TS project). Each function has its own deno.json import map/deps.
+      # --lock + --frozen: each fn's committed deno.lock is checked against its pinned deno.json
+      # deps — a floating/uncommitted dependency bump fails CI instead of silently drifting.
+      # Runs the SAME script `npm run verify` runs locally (scripts/deno-typecheck-edge-fns.sh) so the
+      # local gate and CI can never disagree about which functions are typechecked — a real
+      # adapter-dispatch type break was invisible to every local gate until the script existed. The
+      # script DISCOVERS the functions (every dir with a deno.json + index.ts) instead of carrying the
+      # hand-kept list this step used to hold, which had already drifted 10 functions behind.
+      - name: Deno typecheck — edge function entry points + _shared
+        working-directory: .
+        run: bash scripts/deno-typecheck-edge-fns.sh
+      # Boot smoke — `deno check` is type-only and Vitest resolves module-init order differently than
+      # the real runtime, so a circular-import TDZ (or any top-level throw) can pass both yet crash the
+      # deployed worker at boot (WORKER_ERROR). This imports each entrypoint's graph (Deno.serve stubbed)
+      # and fails on any import-time throw. Regression guard for the 2026-07-04 agent-chat boot crash.
+      - name: Deno boot smoke — edge function entry points load without throwing
+        working-directory: .
+        run: bash scripts/deno-boot-smoke-edge-fns.sh
+
+      # ⚑ RUN THE EDGE-FUNCTION UNIT TESTS. `deno check` is type-only and boot-smoke only proves the
+      # module graph loads — NEITHER executes a single assertion. Until this step existed, all ~393
+      # edge-fn tests across 44 files were LOCAL-ONLY: every money/mirror oracle built during the P3
+      # audit rounds (outbox eligibility, never-adopt, mirror lookup columns, company scoping, the
+      # approved-only gate) was invisible to CI, so a regression in any of them merged green.
+      #
+      # Two invocation traps this step encodes (both cost real debugging time):
+      #   • `_shared/` is NOT picked up by `deno test` run from a function directory — it must be
+      #     named explicitly, which is why it gets its own line below.
+      #   • the `external-*` functions need `--allow-env --allow-net --allow-read`; without them the
+      #     runner reports `NotCapable: Requires env access` as a TEST FAILURE, which reads exactly
+      #     like a broken assertion but is a missing flag.
+      - name: Deno unit tests — edge functions + _shared
+        working-directory: .
+        run: bash scripts/deno-test-edge-fns.sh
+
+      # The Microsoft folder-write allowlist is the one place PMO writes to Microsoft: break each tagged
+      # rule and the tests must go red (scripts/m365-record-folder-write-mutation.mjs restores the sources).
+      - name: M365 folder-write mutation witness
+        working-directory: .
+        run: node scripts/m365-record-folder-write-mutation.mjs
+
+      # The Odoo replay-authorization refusal is shared by revenue, procurement and stock recovery (#2283):
+      # disable it and all three domains' tests must go red.
+      - name: Odoo replay-authorization mutation witness
+        working-directory: .
+        run: node scripts/odoo-replay-auth-mutation.mjs
+
+      # The shared replay builder's reissue re-check runs for revenue and stock too, not only
+      # procurement (#2283 review I1): disable it and the four re-check tests must go red.
+      - name: Odoo reissue re-check mutation witness
+        working-directory: .
+        run: node scripts/odoo-replay-recheck-mutation.mjs
+
+      # A push to `dev` is the full suite that backstops every PR's narrowed run; when it fails, say
+      # which merge it ran on (a squash merge's subject ends in the PR number).
+      - name: Name the merged change
+        if: ${{ failure() && github.event_name == 'push' }}
+        working-directory: .
+        run: echo "::error title=Full suite failed after a push::$(git log -1 --format=%s)"
+
+  # ── `coverage` — the test-report half of the old `verify` (#2161) ─────────────────────────────
+  # Merges the `unit` shards' blob reports and enforces the ≥80% changed-lines gate. It needs only
+  # `unit`, NOT `checks`, so it finishes while `checks` is still running; the required `verify` then
+  # needs only this job's RESULT, not its steps. A single blob merges fine, so affected mode (one
+  # shard) takes exactly the same path.
+  coverage:
+    needs: [scope, unit]
+    # Deliberately no `!cancelled()`: a failed shard leaves no reports to merge, and `verify` fails
+    # closed on `needs.unit.result` anyway. Skipping keeps the log honest instead of adding a second,
+    # confusing red for the same cause.
+    if: ${{ github.event_name != 'workflow_dispatch' && needs.scope.outputs.release_light != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history so the changed-lines coverage gate can diff against the PR base ref.
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: pmo-portal/package-lock.json
+      - name: Install Node dependencies
+        run: npm ci
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: unit-blob-*
@@ -277,77 +468,54 @@ jobs:
             --base "origin/$BASE_REF" \
             --coverage pmo-portal/coverage/coverage-final.json \
             --min 80
-      - name: Build
-        run: npm run build
-      - name: Entry preload list excludes recharts/markdown/compiler
-        run: npx vitest run src/lib/build/entryPreload.test.ts
-      - name: Lock wrapper process tests
-        working-directory: .
-        run: python3 -m unittest discover -s scripts/tests -v
 
-      # Restore the Deno binary into the runner tool cache first: setup-deno v2.0.5
-      # checks the tool cache (tc.find) BEFORE downloading and skips the release
-      # download on a hit — the download 504'd GitHub-side on 2026-11-08/09.
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        if: needs.scope.outputs.deno == 'true'
+  # ── REQUIRED CHECK: `main` protection requires exactly `verify` + `integration` ───────────────
+  # The aggregate gate (#2161): no test runs here — it fails closed unless every scheduled
+  # verify-stage job succeeded, or the version-only scope check passed and heavy jobs were skipped.
+  # Keeping this NAME is what preserves branch protection: the WORK moved to `checks` +
+  # `coverage`, the required CONTEXT did not. (A rename would mean editing protection, which this
+  # change deliberately does not do.)
+  # `!cancelled()` is load-bearing: a failed shard must FAIL this check, never skip it — a skipped
+  # required check counts as passing, which would let a red unit test merge.
+  verify:
+    needs: [scope, checks, deno, unit, coverage]
+    if: ${{ !cancelled() && github.event_name != 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Release-please version check passed
+        if: needs.scope.outputs.release_light == 'true'
+        run: |
+          test "${{ needs.scope.result }}" = success
+          test "${{ needs.checks.result }}" = skipped
+          test "${{ needs.deno.result }}" = skipped
+          test "${{ needs.unit.result }}" = skipped
+          test "${{ needs.coverage.result }}" = skipped
+      - name: Every verify-stage job passed
+        if: needs.scope.outputs.release_light != 'true'
+        run: |
+          test "${{ needs.scope.result }}" = success
+          test "${{ needs.checks.result }}" = success
+          test "${{ needs.unit.result }}" = success
+          test "${{ needs.coverage.result }}" = success
+      # The edge-function lane is only scheduled when `scope.deno` says the diff can affect it
+      # (#1584), so its result is asserted under the SAME condition — a skipped-but-required lane
+      # would otherwise count as a pass, and an unconditional assertion would fail every PR that
+      # legitimately skips it.
+      - name: Edge-function lane passed (when it ran)
+        if: ${{ needs.scope.outputs.release_light != 'true' && needs.scope.outputs.deno == 'true' }}
+        run: test "${{ needs.deno.result }}" = success
+      # The checkout exists only for the failure annotation below (`git log` needs a repository);
+      # depth 1 is enough for the subject line.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: ${{ failure() && github.event_name == 'push' }}
         with:
-          path: /opt/hostedtoolcache/deno
-          key: deno-${{ runner.os }}-${{ runner.arch }}-2.7.11
-      # Deno steps run only when the diff can affect them (`scope.deno`; always on push / PR to main).
-      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
-        if: needs.scope.outputs.deno == 'true'
-        with:
-          # Pinned (not `latest`/`vx.x`) for deploy-check determinism — bump deliberately.
-          # Bump the cache key above together with this version.
-          deno-version: '2.7.11'
-      # Gap: supabase/functions/** is outside tsc/ESLint (edge functions are Deno programs, not
-      # part of the pmo-portal TS project). Each function has its own deno.json import map/deps.
-      # --lock + --frozen: each fn's committed deno.lock is checked against its pinned deno.json
-      # deps — a floating/uncommitted dependency bump fails CI instead of silently drifting.
-      # Runs the SAME script `npm run verify` runs locally (scripts/deno-typecheck-edge-fns.sh) so the
-      # local gate and CI can never disagree about which functions are typechecked — a real
-      # adapter-dispatch type break was invisible to every local gate until the script existed. The
-      # script DISCOVERS the functions (every dir with a deno.json + index.ts) instead of carrying the
-      # hand-kept list this step used to hold, which had already drifted 10 functions behind.
-      - name: Deno typecheck — edge function entry points + _shared
-        if: needs.scope.outputs.deno == 'true'
-        working-directory: .
-        run: bash scripts/deno-typecheck-edge-fns.sh
-      # Boot smoke — `deno check` is type-only and Vitest resolves module-init order differently than
-      # the real runtime, so a circular-import TDZ (or any top-level throw) can pass both yet crash the
-      # deployed worker at boot (WORKER_ERROR). This imports each entrypoint's graph (Deno.serve stubbed)
-      # and fails on any import-time throw. Regression guard for the 2026-07-04 agent-chat boot crash.
-      - name: Deno boot smoke — edge function entry points load without throwing
-        if: needs.scope.outputs.deno == 'true'
-        working-directory: .
-        run: bash scripts/deno-boot-smoke-edge-fns.sh
-
-      # ⚑ RUN THE EDGE-FUNCTION UNIT TESTS. `deno check` is type-only and boot-smoke only proves the
-      # module graph loads — NEITHER executes a single assertion. Until this step existed, all ~393
-      # edge-fn tests across 44 files were LOCAL-ONLY: every money/mirror oracle built during the P3
-      # audit rounds (outbox eligibility, never-adopt, mirror lookup columns, company scoping, the
-      # approved-only gate) was invisible to CI, so a regression in any of them merged green.
-      #
-      # Two invocation traps this step encodes (both cost real debugging time):
-      #   • `_shared/` is NOT picked up by `deno test` run from a function directory — it must be
-      #     named explicitly, which is why it gets its own line below.
-      #   • the `external-*` functions need `--allow-env --allow-net --allow-read`; without them the
-      #     runner reports `NotCapable: Requires env access` as a TEST FAILURE, which reads exactly
-      #     like a broken assertion but is a missing flag.
-      - name: Deno unit tests — edge functions + _shared
-        if: needs.scope.outputs.deno == 'true'
-        working-directory: .
-        run: bash scripts/deno-test-edge-fns.sh
-
-      # The Microsoft folder-write allowlist is the one place PMO writes to Microsoft: break each tagged
-      # rule and the tests must go red (scripts/m365-record-folder-write-mutation.mjs restores the sources).
-      - name: M365 folder-write mutation witness
-        if: needs.scope.outputs.deno == 'true'
-        working-directory: .
-        run: node scripts/m365-record-folder-write-mutation.mjs
-
-      # A push to `dev` is the full suite that backstops every PR's narrowed run; when it fails, say
-      # which merge it ran on (a squash merge's subject ends in the PR number).
+          fetch-depth: 1
+      # A push to `dev` is the full suite that backstops every PR's narrowed run; when a shard or
+      # `checks` fails, name the merge the run tested (a squash merge's subject ends in the PR number).
       - name: Name the merged change
         if: ${{ failure() && github.event_name == 'push' }}
         working-directory: .
@@ -391,14 +559,16 @@ jobs:
       # config.toml. Also exclude CI-unused containers to shave the stack-up time:
       # studio (web UI — headless CI), realtime (app has 0 realtime usage), vector (log
       # shipper). Mirrors the `integration` job's stack trim (pgTAP doesn't need
-      # storage/inbucket — those are e2e-only concerns).
+      # storage/inbucket — those are e2e-only concerns). Also mailpit, imgproxy, logflare, supavisor
+      # (as scripts/supabase-start-lean.sh): no step here uses mail, images, analytics or the pooler, and
+      # mailpit's host port 54324 sits in the runner's ephemeral range ('address already in use', run 43675525098).
       - name: Start local Supabase stack
         # The stack's host ports (54321-54329) sit inside the runner's ephemeral range, so an outbound
         # connection can hold one at the moment a container binds it ('address already in use': 54324 in
         # run 43675525098, 54322 in run 43688317045). A reserved port is never handed out as a source port.
         run: |
           sudo sysctl -w net.ipv4.ip_local_reserved_ports=54320-54329
-          supabase start -x studio,realtime,vector
+          supabase start -x studio,realtime,vector,mailpit,imgproxy,logflare,supavisor
 
       - name: Financial statement script tests (local Supabase required)
         env:
@@ -442,13 +612,34 @@ jobs:
         run: node scripts/check-isolation-denominator.mjs --self-test
       - name: Isolation denominator guard
         run: node scripts/check-isolation-denominator.mjs
+      - name: Isolation proof self-test
+        run: scripts/isolation-proof.sh --self-test
 
       # pgTAP gate (0001..0060) — RLS, tenancy, SoD proofs.
       - name: pgTAP integration tests
         run: supabase test db
 
+      # Standing cross-org isolation proof (#612): two throwaway organisations on this stack (A disposable,
+      # B the attacker), the probe in read mode then write mode. Any leak, probe error, crashed probe or write
+      # probe skipped for lack of a disposable A, or a check or skip count off its expected number fails the job; the counts print in the log and the job summary.
+      # It removes both organisations on exit, so the steps after it see the database as pgTAP left it.
+      - name: Isolation proof (read and write, local stack)
+        run: scripts/with-db-lock.sh scripts/isolation-proof.sh
+
       - name: Capture rollback harness
         run: scripts/test-2195-capture-rollback.sh
+
+      # Resets to the migration before 0882 to record the replaced function bodies, then back to head.
+      - name: Assignment rollback harness
+        run: scripts/with-db-lock.sh scripts/test-2195-b1-rollback.sh
+
+      # Resets to the migration before 0903 to record the replaced function bodies and the request guard, then back to head.
+      - name: 2277 order-family rollback proof
+        run: scripts/with-db-lock.sh scripts/test-2195-order-family-rollback.sh
+
+      # #2259: the undo kind-order migration's down restores the 0882 body verbatim (runs against head, rolled back).
+      - name: Undo kind-order rollback harness
+        run: scripts/test-2259-undo-rollback.sh
 
       # AC-CQ-003 (issue #1281): contract-quantities upgrade/reversal round trip. The harness
       # inlines migration 0337 and its rollback into a generated pgTAP file (deleted on exit)
@@ -468,6 +659,28 @@ jobs:
       - name: Plans limit rollback harness
         run: scripts/test-plan-limits-rollback.sh
 
+      # AC-2255 (issue #2255): reversing 0867 must actually run — the down script collapses the
+      # per-organization dispatch cursors to the earliest one, is safe to run twice, and re-applying
+      # the migration restores the per-organization shape. The harness inlines migration 0867 and
+      # its rollback into a generated pgTAP file (deleted on exit) that rolls back, so the database
+      # is left exactly as it found it.
+      - name: Watermarks per-org rollback harness
+        run: scripts/test-watermarks-per-org-rollback.sh
+
+      # AC-OSP-005/006: reversing 0879 removes the stock-command guard objects and re-applying restores
+      # them (generated pgTAP file, deleted on exit); the race script then proves the two-session
+      # interleavings of a stock command against a document edit on the reset database.
+      - name: Stock posting rollback harness
+        run: scripts/test-odoo-stock-posting-rollback.sh
+      - name: Stock posting two-session race
+        run: scripts/with-db-lock.sh node scripts/odoo-stock-posting-race.mjs
+      - name: Stock connect rollback harness
+        run: scripts/with-db-lock.sh node scripts/test-stock-connect-rollback.mjs
+      - name: Stock connect two-session race
+        run: scripts/with-db-lock.sh node --test scripts/stock-connect-race.test.mjs
+      - name: AI credit allocation two-session race
+        run: scripts/with-db-lock.sh node --test scripts/credit-allocation-race.test.mjs
+
       # A push to `dev` is the full suite that backstops every PR's narrowed run; when it fails, say
       # which merge it ran on (a squash merge's subject ends in the PR number).
       - name: Name the merged change
@@ -476,13 +689,14 @@ jobs:
         run: echo "::error title=Full suite failed after a push::$(git log -1 --format=%s)"
 
   browser-chromium:
-    if: (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'workflow_dispatch'
+    needs: [scope]
+    if: ${{ !cancelled() && ((github.event_name == 'pull_request' && github.base_ref == 'main' && needs.scope.result == 'success' && needs.scope.outputs.release_light != 'true') || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 3
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3]
     defaults:
       run:
         working-directory: .
@@ -567,12 +781,21 @@ jobs:
         run: |
           npm run check:ux-proof
           cd .. && node --test scripts/ux-proof.test.mjs
-      - name: E2E tests (Playwright / Chromium shard ${{ matrix.shard }}/2)
+      - name: Capture full Chromium inventory
+        if: matrix.shard == 1
+        continue-on-error: true
+        working-directory: pmo-portal
+        run: npx playwright test --project=chromium --list --reporter=json > /tmp/pw-chromium-full-list.json
+      - name: Capture Chromium shard inventory (${{ matrix.shard }}/${{ strategy.job-total }})
+        continue-on-error: true
+        working-directory: pmo-portal
+        run: npx playwright test --project=chromium --shard=${{ matrix.shard }}/${{ strategy.job-total }} --list --reporter=json > /tmp/pw-chromium-${{ matrix.shard }}-list.json
+      - name: E2E tests (Playwright / Chromium shard ${{ matrix.shard }}/${{ strategy.job-total }})
         id: chromium
         working-directory: pmo-portal
         run: |
           set +e
-          PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-chromium-${{ matrix.shard }}.json npx playwright test --project=chromium --shard=${{ matrix.shard }}/2 --reporter=list,json
+          PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-chromium-${{ matrix.shard }}.json npx playwright test --project=chromium --shard=${{ matrix.shard }}/${{ strategy.job-total }} --reporter=list,json
           outcome=$?
           printf '{"schemaVersion":1,"runId":"%s","attempt":"%s","revision":"%s","shard":%s,"processOutcome":"%s"}\n' \
             "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_SHA" "${{ matrix.shard }}" \
@@ -585,6 +808,8 @@ jobs:
           name: browser-chromium-${{ matrix.shard }}
           path: |
             /tmp/pw-chromium-${{ matrix.shard }}.json
+            /tmp/pw-chromium-full-list.json
+            /tmp/pw-chromium-${{ matrix.shard }}-list.json
             /tmp/browser-shard-${{ matrix.shard }}.json
           retention-days: 1
           if-no-files-found: error
@@ -599,15 +824,20 @@ jobs:
           retention-days: 1
           if-no-files-found: ignore
 
-  integration:
-    needs: browser-chromium
-    if: ${{ always() && ((github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'workflow_dispatch') }}
+  integration-lanes:
+    needs: [scope]
+    if: ${{ always() && !cancelled() && ((github.event_name == 'pull_request' && github.base_ref == 'main' && needs.scope.result == 'success' && needs.scope.outputs.release_light != 'true') || github.event_name == 'workflow_dispatch') }}
+    outputs:
+      serial_e2e: ${{ steps.serial_e2e.outcome }}
+      consent_e2e: ${{ steps.consent_e2e.outcome }}
+      serve_adapter_dispatch: ${{ steps.serve_adapter_dispatch.outcome }}
     # The expensive job (Supabase stack + pgTAP + full Playwright e2e incl. visual-invariant
     # gate AC-VISUAL-ICON-001, ~6 min). Run it on PRs that TARGET main only — the authoritative
     # pre-merge gate. A squash-merge carries the PR-tested content; re-running on the main push
     # is redundant. PRs targeting dev get pgTAP only via the `pgtap` job above (fast lane — see
     # tiering comment below).
-    # Make this a REQUIRED status check in branch protection so a red e2e can't be merged.
+    # This work runs independently of the browser matrix; the `integration` aggregate below keeps
+    # the branch-protection context and asserts these lane outcomes alongside browser evidence.
     # Also runnable on demand for any branch (Actions → CI → "Run workflow", or
     # `gh workflow run ci.yml --ref <branch>`), so a PR to `dev` can get its e2e proof on a
     # GitHub runner instead of the shared local stack. Trigger it once per PR, after local
@@ -633,54 +863,6 @@ jobs:
       - name: E2E isolation-tag check
         working-directory: .
         run: bash scripts/check-e2e-isolation.sh
-      - name: Chromium shard dependency must succeed
-        continue-on-error: true
-        run: test "${{ needs.browser-chromium.result }}" = success
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        if: ${{ always() }}
-        with:
-          name: browser-chromium-1
-          path: /tmp/browser-shards/1
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        if: ${{ always() }}
-        with:
-          name: browser-chromium-2
-          path: /tmp/browser-shards/2
-      - name: Stage available Chromium shard reports
-        if: ${{ always() }}
-        continue-on-error: true
-        run: |
-          for shard in 1 2; do
-            report="/tmp/browser-shards/$shard/pw-chromium-$shard.json"
-            test -s "$report" && cp "$report" "/tmp/pw-chromium-$shard.json" || true
-          done
-
-      - name: Verify Chromium shard provenance and completeness
-        id: chromium_evidence
-        if: ${{ always() }}
-        continue-on-error: true
-        env:
-          EXPECTED_RUN_ID: ${{ github.run_id }}
-          EXPECTED_ATTEMPT: ${{ github.run_attempt }}
-          EXPECTED_REVISION: ${{ github.sha }}
-        run: |
-          node --input-type=module <<'NODE'
-          import { readFileSync } from 'node:fs';
-          const expected = { runId: process.env.EXPECTED_RUN_ID, attempt: process.env.EXPECTED_ATTEMPT, revision: process.env.EXPECTED_REVISION };
-          let failed = false;
-          for (const shard of [1, 2]) {
-            try {
-              const evidence = JSON.parse(readFileSync(`/tmp/browser-shards/${shard}/browser-shard-${shard}.json`, 'utf8'));
-              if (evidence.schemaVersion !== 1 || evidence.runId !== expected.runId || evidence.attempt !== expected.attempt || evidence.revision !== expected.revision || evidence.shard !== shard || evidence.processOutcome !== 'success') throw new Error('evidence mismatch');
-              if (!readFileSync(`/tmp/browser-shards/${shard}/pw-chromium-${shard}.json`, 'utf8').trim()) throw new Error('empty report');
-            } catch {
-              console.error(`browser shard ${shard}: missing, stale, or unsuccessful evidence`);
-              failed = true;
-            }
-          }
-          if (failed) process.exitCode = 1;
-          NODE
-
       - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
         with:
           version: 2.122.1
@@ -816,19 +998,6 @@ jobs:
             npx playwright install --with-deps chromium
           fi
 
-      - name: Chromium inventory partition audit
-        id: chromium_inventory
-        continue-on-error: true
-        working-directory: pmo-portal
-        env:
-          GITHUB_SHA: ${{ github.sha }}
-        run: |
-          export PLAYWRIGHT_CONFIG_PROVENANCE="$(node --input-type=module -e 'import { createHash } from "node:crypto"; import { readFileSync } from "node:fs"; const lock=JSON.parse(readFileSync("package-lock.json","utf8")); console.log(JSON.stringify({sha256:createHash("sha256").update(readFileSync("playwright.config.ts")).digest("hex"),lockedPlaywrightVersion:lock.packages["node_modules/@playwright/test"].version}))')"
-          npx playwright test --project=chromium --list --reporter=json > /tmp/pw-chromium-full-list.json
-          npx playwright test --project=chromium --shard=1/2 --list --reporter=json > /tmp/pw-chromium-1-list.json
-          npx playwright test --project=chromium --shard=2/2 --list --reporter=json > /tmp/pw-chromium-2-list.json
-          node ../scripts/check-browser-shard-inventory.mjs --full /tmp/pw-chromium-full-list.json /tmp/pw-chromium-1-list.json /tmp/pw-chromium-2-list.json /tmp/pw-chromium-1.json /tmp/pw-chromium-2.json
-
       # playwright.config.ts's `webServer` is an ARRAY of two servers (#1968: PRODUCTION builds
       # served via `vite build` + `vite preview` — CI defaults to E2E_SERVER=build): the ordinary
       # one (:3000, analytics disabled) and a second, analytics-ENABLED one (:3100, the `consent`
@@ -837,66 +1006,14 @@ jobs:
       # time). Both are started for every project invocation below since `webServer` is a top-level
       # config, not per-project. reuseExistingServer=false in CI so Playwright owns the lifecycle
       # for both.
-      - name: E2E tests (Playwright / serial)
-        id: serial_e2e
-        continue-on-error: true
-        working-directory: pmo-portal
-        run: PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-serial.json npx playwright test --project=serial --workers=1 --reporter=list,json
-
-      # Playwright clears the shared outputDir at the start of each invocation. Preserve serial
-      # traces here, before the consent project starts and clears /tmp/pmo-portal-test-results.
-      - name: Upload serial Playwright diagnostics
-        if: ${{ always() && !cancelled() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: playwright-serial-test-results
-          path: /tmp/pmo-portal-test-results/
-          retention-days: 7
-          if-no-files-found: ignore
-
-      - name: E2E tests (Playwright / consent)
-        id: consent_e2e
-        if: ${{ always() && !cancelled() }}
-        continue-on-error: true
-        working-directory: pmo-portal
-        run: PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-consent.json npx playwright test --project=consent --reporter=list,json
-
-      # ⚑ Green-by-absence gate. A SKIPPED test is not a passing one, and skips are invisible in a
-      # green tick — the last main run skipped 200. AC-INV-001 sat in that 200 for months (its guard
-      # polarity was inverted: it skipped in CI while being permanently 503-red locally, #386).
-      # Every skip must be an explicit, justified allowlist entry with a path back; a STALE entry
-      # fails too, so the list cannot quietly grow to cover everything.
-      - name: E2E skip audit — every skip is explained
-        id: e2e_skip_audit
-        if: ${{ always() && !cancelled() }}
-        continue-on-error: true
-        working-directory: .
-        # ALL THREE lane reports in ONE invocation — checked separately, a lane-scoped allowlist
-        # entry looks stale in another lane's report and the gate fails itself.
-        run: node scripts/check-e2e-skips.mjs /tmp/pw-chromium-1.json /tmp/pw-chromium-2.json /tmp/pw-serial.json /tmp/pw-consent.json
-
-      - name: E2E timing budget audit
-        id: e2e_timing_audit
-        if: ${{ always() && !cancelled() }}
-        continue-on-error: true
-        working-directory: .
-        run: node scripts/check-e2e-time-budget.mjs --summary /tmp/pw-time-budget-summary.json /tmp/pw-chromium-1.json /tmp/pw-chromium-2.json /tmp/pw-serial.json /tmp/pw-consent.json
-
-      - name: Upload E2E timing summary
-        if: ${{ always() && !cancelled() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: e2e-time-budget-summary
-          path: /tmp/pw-time-budget-summary.json
-          retention-days: 7
-          if-no-files-found: error
-
       # ERPNext P2: prove the served adapter-dispatch lane in CI (the money e2e itself is local-only —
       # it needs the Docker v15 bench + 1Password creds, which are a dev-bed concern, not CI's). The CI
       # gate is the non-ERPNext served-fn smoke (AC-ENA-001 boundary) through real Kong, proving the
       # serve/health-gate recipe holds on an ephemeral runner. Money semantics run locally + via unit tests.
-      # Keep this AFTER the ordinary e2e lane: removing the temporary edge-runtime container leaves
-      # Kong forwarding functions/v1 requests to a vanished upstream until the stack is restarted.
+      # Run early so a served-function failure reports before the long serial lane. The script
+      # exports SUPABASE_FUNCTIONS_URL only to this child process and tears down its runtime; the
+      # later consent/serial invocations do not inherit that URL, so their served-only specs remain
+      # dependency-gated and never call the removed upstream.
       # Slice-0 fix-round finding 8: reuse the SAME trapped launch/health-gate/cleanup recipe as
       # local dev (scripts/serve-functions.sh) instead of inlining a second, untrapped copy here —
       # a bare `run:` block has no signal trap at all, so a step timeout/cancellation used to leak
@@ -920,6 +1037,58 @@ jobs:
           printf '%s\n' "$SUPABASE_SECRETS" > supabase/functions/.env.local
           scripts/serve-functions.sh -- bash -c 'cd pmo-portal && npx playwright test served-fn-smoke --project=chromium --no-deps'
 
+      # serve-functions removes its temporary runtime, while Kong may still point at it; restart
+      # the stack before later e2e lanes so they start from the ordinary functions-disabled state.
+      - name: Restore ordinary local stack after served smoke
+        if: ${{ always() && !cancelled() }}
+        run: |
+          supabase stop || true
+          supabase start -x studio,realtime,vector
+
+      - name: E2E tests (Playwright / consent)
+        id: consent_e2e
+        if: ${{ always() && !cancelled() }}
+        continue-on-error: true
+        working-directory: pmo-portal
+        run: PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-consent.json npx playwright test --project=consent --reporter=list,json
+
+      # Preserve consent traces before the serial project clears /tmp/pmo-portal-test-results.
+      - name: Upload consent Playwright diagnostics
+        if: ${{ always() && !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-consent-test-results
+          path: /tmp/pmo-portal-test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: E2E tests (Playwright / serial)
+        id: serial_e2e
+        if: ${{ always() && !cancelled() }}
+        continue-on-error: true
+        working-directory: pmo-portal
+        run: PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-serial.json npx playwright test --project=serial --workers=1 --reporter=list,json
+
+      - name: Upload serial Playwright diagnostics
+        if: ${{ always() && !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-serial-test-results
+          path: /tmp/pmo-portal-test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Upload integration JSON reports for aggregate audits
+        if: ${{ always() && !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: integration-e2e-reports
+          path: |
+            /tmp/pw-serial.json
+            /tmp/pw-consent.json
+          retention-days: 1
+          if-no-files-found: warn
+
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -927,18 +1096,6 @@ jobs:
           name: playwright-report
           path: pmo-portal/playwright-report/
           retention-days: 7
-
-      - name: Required integration result requires all browser evidence and audits
-        if: ${{ always() }}
-        run: |
-          test "${{ needs.browser-chromium.result }}" = success
-          test "${{ steps.chromium_evidence.outcome }}" = success
-          test "${{ steps.chromium_inventory.outcome }}" = success
-          test "${{ steps.serial_e2e.outcome }}" = success
-          test "${{ steps.consent_e2e.outcome }}" = success
-          test "${{ steps.e2e_skip_audit.outcome }}" = success
-          test "${{ steps.e2e_timing_audit.outcome }}" = success
-          test "${{ steps.serve_adapter_dispatch.outcome }}" = success
 
       # playwright.config.ts redirects `outputDir` to `os.tmpdir()/pmo-portal-test-results` (see
       # its comment) so local `supabase functions serve`'s file watcher doesn't restart on writes
@@ -953,3 +1110,161 @@ jobs:
           name: playwright-test-results
           path: /tmp/pmo-portal-test-results/
           retention-days: 7
+
+  # Heavy integration evidence is deliberately separate from the required check name: the required
+  # `integration` aggregate below must run on light release PRs rather than being skipped.
+  integration-full:
+    needs: [scope, browser-chromium, integration-lanes]
+    if: ${{ always() && !cancelled() && ((github.event_name == 'pull_request' && github.base_ref == 'main' && needs.scope.result == 'success' && needs.scope.outputs.release_light != 'true') || github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Download Chromium shard 1 artifacts
+        id: chromium_artifact_1
+        if: ${{ always() }}
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: browser-chromium-1
+          path: /tmp/browser-shards/1
+      - name: Download Chromium shard 2 artifacts
+        id: chromium_artifact_2
+        if: ${{ always() }}
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: browser-chromium-2
+          path: /tmp/browser-shards/2
+      - name: Download Chromium shard 3 artifacts
+        id: chromium_artifact_3
+        if: ${{ always() }}
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: browser-chromium-3
+          path: /tmp/browser-shards/3
+      - name: Download integration JSON reports
+        id: integration_reports
+        if: ${{ always() }}
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: integration-e2e-reports
+          path: /tmp/integration-reports
+
+      - name: Verify Chromium shard provenance and completeness
+        id: chromium_evidence
+        if: ${{ always() }}
+        continue-on-error: true
+        env:
+          EXPECTED_RUN_ID: ${{ github.run_id }}
+          EXPECTED_ATTEMPT: ${{ github.run_attempt }}
+          EXPECTED_REVISION: ${{ github.sha }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const expected = { runId: process.env.EXPECTED_RUN_ID, attempt: process.env.EXPECTED_ATTEMPT, revision: process.env.EXPECTED_REVISION };
+          let failed = false;
+          for (const shard of [1, 2, 3]) {
+            try {
+              const evidence = JSON.parse(readFileSync(`/tmp/browser-shards/${shard}/browser-shard-${shard}.json`, 'utf8'));
+              if (evidence.schemaVersion !== 1 || evidence.runId !== expected.runId || evidence.attempt !== expected.attempt || evidence.revision !== expected.revision || evidence.shard !== shard || evidence.processOutcome !== 'success') throw new Error('evidence mismatch');
+              if (!readFileSync(`/tmp/browser-shards/${shard}/pw-chromium-${shard}.json`, 'utf8').trim()) throw new Error('empty report');
+            } catch {
+              console.error(`browser shard ${shard}: missing, stale, or unsuccessful evidence`);
+              failed = true;
+            }
+          }
+          if (failed) process.exitCode = 1;
+          NODE
+
+      - name: Chromium inventory partition audit
+        id: chromium_inventory
+        if: ${{ always() }}
+        continue-on-error: true
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          export PLAYWRIGHT_CONFIG_PROVENANCE="$(node --input-type=module -e 'import { createHash } from "node:crypto"; import { readFileSync } from "node:fs"; const lock=JSON.parse(readFileSync("pmo-portal/package-lock.json","utf8")); console.log(JSON.stringify({sha256:createHash("sha256").update(readFileSync("pmo-portal/playwright.config.ts")).digest("hex"),lockedPlaywrightVersion:lock.packages["node_modules/@playwright/test"].version}))')"
+          node scripts/check-browser-shard-inventory.mjs --full \
+            /tmp/browser-shards/1/pw-chromium-full-list.json \
+            /tmp/browser-shards/1/pw-chromium-1-list.json \
+            /tmp/browser-shards/2/pw-chromium-2-list.json \
+            /tmp/browser-shards/3/pw-chromium-3-list.json \
+            /tmp/browser-shards/1/pw-chromium-1.json \
+            /tmp/browser-shards/2/pw-chromium-2.json \
+            /tmp/browser-shards/3/pw-chromium-3.json
+
+      # A skipped test is not a passing one. The audit sees all five reports in one invocation,
+      # after both producers finish, so allowlist entries remain lane-scoped and stale entries fail.
+      - name: E2E skip audit — every skip is explained
+        id: e2e_skip_audit
+        if: ${{ always() && !cancelled() }}
+        continue-on-error: true
+        run: node scripts/check-e2e-skips.mjs /tmp/browser-shards/1/pw-chromium-1.json /tmp/browser-shards/2/pw-chromium-2.json /tmp/browser-shards/3/pw-chromium-3.json /tmp/integration-reports/pw-serial.json /tmp/integration-reports/pw-consent.json
+
+      - name: E2E timing budget audit
+        id: e2e_timing_audit
+        if: ${{ always() && !cancelled() }}
+        continue-on-error: true
+        run: node scripts/check-e2e-time-budget.mjs --summary /tmp/pw-time-budget-summary.json /tmp/browser-shards/1/pw-chromium-1.json /tmp/browser-shards/2/pw-chromium-2.json /tmp/browser-shards/3/pw-chromium-3.json /tmp/integration-reports/pw-serial.json /tmp/integration-reports/pw-consent.json
+
+      - name: Upload E2E timing summary
+        if: ${{ always() && !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-time-budget-summary
+          path: /tmp/pw-time-budget-summary.json
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Required integration result requires all browser evidence and audits
+        if: ${{ always() }}
+        run: |
+          test "${{ needs.browser-chromium.result }}" = success
+          test "${{ needs.integration-lanes.result }}" = success
+          test "${{ needs.integration-lanes.outputs.serial_e2e }}" = success
+          test "${{ needs.integration-lanes.outputs.consent_e2e }}" = success
+          test "${{ needs.integration-lanes.outputs.serve_adapter_dispatch }}" = success
+          test "${{ steps.chromium_artifact_1.outcome }}" = success
+          test "${{ steps.chromium_artifact_2.outcome }}" = success
+          test "${{ steps.chromium_artifact_3.outcome }}" = success
+          test "${{ steps.integration_reports.outcome }}" = success
+          test "${{ steps.chromium_evidence.outcome }}" = success
+          test "${{ steps.chromium_inventory.outcome }}" = success
+          test "${{ steps.e2e_skip_audit.outcome }}" = success
+          test "${{ steps.e2e_timing_audit.outcome }}" = success
+
+  # REQUIRED CONTEXT: main protection requires exactly `verify` + `integration`. This aggregate
+  # always reports for a main PR. The light lane proves scope validated every version source and
+  # confirms the heavy jobs were skipped; the normal lane fails closed on all full evidence.
+  integration:
+    needs: [scope, browser-chromium, integration-lanes, integration-full]
+    if: ${{ always() && !cancelled() && ((github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Release-please version check passed
+        if: needs.scope.outputs.release_light == 'true'
+        run: |
+          test "${{ needs.scope.result }}" = success
+          test "${{ needs.browser-chromium.result }}" = skipped
+          test "${{ needs.integration-lanes.result }}" = skipped
+          test "${{ needs.integration-full.result }}" = skipped
+      - name: Full integration evidence passed
+        if: needs.scope.outputs.release_light != 'true'
+        run: |
+          test "${{ needs.browser-chromium.result }}" = success
+          test "${{ needs.integration-lanes.result }}" = success
+          test "${{ needs.integration-full.result }}" = success

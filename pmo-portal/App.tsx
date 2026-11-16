@@ -80,7 +80,7 @@ import { useAssistantHotkey } from '@/src/hooks/useAssistantHotkey';
 import { useOwnershipCacheSync } from '@/src/hooks/useOwnershipCacheSync';
 // ADR-0045 §3: live context (route/entity/selection) source for agent runs.
 import { AgentContextProvider } from '@/src/lib/agent/context/AgentContextProvider';
-import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
+import { useAgentContextPublisher } from '@/src/lib/agent/context/useAgentContext';
 import { AccountMenu } from '@/src/components/shell/AccountMenu';
 
 // ── Lazy route chunks (lazyWithPreload: each carries an idempotent preload() —
@@ -126,6 +126,7 @@ const SalesInvoicesPage = lazyWithPreload(() => import('./pages/SalesInvoices'))
 const IncomingPaymentsPage = lazyWithPreload(() => import('./pages/IncomingPayments'));
 const ErpPurchasesPage = lazyWithPreload(() => import('./pages/ErpPurchases'));
 const FinancialStatementsPage = lazyWithPreload(() => import('./pages/FinancialStatements'));
+const JournalsPage = lazyWithPreload(() => import('./pages/Journals'));
 const ManagementPackPage = lazyWithPreload(() => import('./pages/ManagementPack'));
 const FinanceHubPage = lazyWithPreload(() => import('./pages/finance/FinanceHub'));
 const ReceivablesPage = lazyWithPreload(() => import('./pages/finance/ReceivablesPage'));
@@ -244,6 +245,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/finance/payables', chunks: [PayablesPage], namespaces: ['finance', 'financeHub'] },
   { path: '/finance/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
   { path: '/finance/statements', chunks: [FinancialStatementsPage], namespaces: ['finance'] },
+  { path: '/journals', chunks: [JournalsPage], namespaces: ['journals'] },
   { path: '/sales-invoices/:invoiceId', chunks: [SalesInvoicesPage], namespaces: ['finance'] },
   { path: '/sales-invoices', chunks: [ReceivablesPage], namespaces: ['finance', 'financeHub'] },
   { path: '/incoming-payments/:receiptId', chunks: [IncomingPaymentsPage], namespaces: ['finance'] },
@@ -462,6 +464,8 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/finance/payables', element: <FinanceAccessRoute><FeatureRoute feature="procurement" element={<PayablesPage />} /></FinanceAccessRoute> },
   { path: '/finance/reports', element: <FinanceAccessRoute><FeatureRoute feature="management_pack" element={<ManagementPackPage />} /></FinanceAccessRoute> },
   { path: '/finance/statements', element: <FinanceAccessRoute>{gated('financial_statements', <FinancialStatementsPage />)}</FinanceAccessRoute> },
+  // #895 manual journals: role-gated like the Finance hub (Finance·Executive·Admin); the RPCs re-check the role.
+  { path: '/journals', element: <FinanceAccessRoute><JournalsPage /></FinanceAccessRoute> },
   { path: '/sales-invoices', element: <FinanceLegacyRedirect to="/finance/receivables" /> },
   { path: '/sales-invoices/:invoiceId', element: gated('sales_invoices', <SalesInvoicesPage />) },
   { path: '/incoming-payments', element: <FinanceLegacyRedirect to="/finance/receivables" paymentsView /> },
@@ -557,7 +561,7 @@ export const ShellChrome: React.FC = () => {
   // The shell already has enough cached record data to render the detail breadcrumb before a lazy
   // page chunk mounts. Publish that same identity before paint so an immediate Assistant turn made
   // from the loading shell is grounded; detail pages republish the identical value once mounted.
-  const { setEntity } = useAgentContext();
+  const { setEntity } = useAgentContextPublisher();
   const routeEntity = useMemo(
     () =>
       agentEntityForPath(pathname, {
@@ -774,7 +778,7 @@ export const ShellChrome: React.FC = () => {
             moreOpen={railOpen}
           />
         }
-        drawerActions={<AccountMenu />}
+        drawerActions={<AccountMenu showIdentity />}
         rail={
           <Rail
             onNavigate={closeRail}

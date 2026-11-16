@@ -142,6 +142,10 @@ const KNOWN_REASON_CODES = new Set([
   // Custom application-level codes (AppError/InviteError), reviewed 2026-07-27.
   'BAD_REQUEST', 'DUPLICATE_EMAIL', 'INVITE_UNAUTHORIZED', 'INVALID_ROLE', 'UNKNOWN_ORG',
   'BINDING_NOT_FOUND', 'REF_NOT_FOUND', 'INTERNAL_ERROR',
+  // #2252: the invite edge fn's neutral outcome for an address that cannot be added.
+  'INVITE_NOT_ADDABLE',
+  // #2252: the invite edge fn's retryable answer for the loser of a concurrent invite.
+  'INVITE_RETRY',
   'activity-type-unconfigured', 'command-held', 'commit-rejected', 'config-rejected',
   'cross-org-link-rejected', 'employee-unlinked', 'external-owned', 'external-unreachable',
   'native-budget-not-adopted', 'native-timesheet-not-adopted', 'not-found',
@@ -150,6 +154,8 @@ const KNOWN_REASON_CODES = new Set([
   // #784 (reviewed 2026-10-07): the PMO-native revenue repository refusals.
   'native-invoice-needs-project', 'native-receipt-needs-invoice', 'native-revenue-read-only',
   'payment-in-flight-for-bill',
+  // #1508: a stock command refused for a rule of the document (422) or for who is posting it (403).
+  'stock-command-refused', 'stock-actor-refused',
   // #784 (reviewed 2026-10-07): migration 0275's refusal details, mapped to the code by `src/lib/db/revenueNative.ts`.
   'erp-owns-revenue', 'not-pmo-native', 'pmo-native',
   'payment-date-missing', 'payment-date-future', 'payment-date-before-invoice', 'receipt-amount-invalid',
@@ -157,8 +163,8 @@ const KNOWN_REASON_CODES = new Set([
   'invoice-lines-count', 'invoice-line-invalid', 'invoice-total-invalid', 'vat-rate-missing',
   'invoice-not-receivable', 'invoice-has-receipts', 'receipt-already-cancelled', 'illegal-transition',
   'sod-self-approval', 'sod-author-missing', 'native-drafts-open',
-  // #1817 (reviewed 2026-11-06): migration 0704's refusal details.
-  'claim-already-invoiced', 'no-client', 'claim-total-mismatch',
+  // #1817 (reviewed 2026-11-06): migration 0704's refusal details; 0924 adds claim-kind.
+  'claim-already-invoiced', 'no-client', 'claim-total-mismatch', 'claim-kind', 'claim-erp-raise-in-flight',
   // #1415 (migration 0731): payment-allocation refusals, mapped by `src/lib/db/revenueNative.ts`.
   'allocation-exceeds-unapplied', 'allocation-exceeds-balance', 'allocation-amount-invalid', 'allocation-duplicate-invoice',
   'allocation-client-mismatch', 'allocation-currency-mismatch', 'allocation-already-reversed', 'receipt-not-applicable',

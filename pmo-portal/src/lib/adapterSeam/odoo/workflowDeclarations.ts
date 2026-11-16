@@ -18,6 +18,7 @@ const ODOO_REVENUE_CUTOVER = 1602;
 const ODOO_EQUIPMENT = 1511;
 
 /** Why tax documents cannot be read: Odoo Community v20 has no tax document facts and PMO writes no ERP tax fields (FR-OCI-094, SD-11). */
+
 export const ODOO_TAX_DOCUMENT_UNAVAILABLE_REASON = 'Odoo Community does not expose tax-document facts, and PMO writes no ERP tax-document fields.';
 
 export const ODOO_WORKFLOWS: TierWorkflows = {
@@ -32,6 +33,7 @@ export const ODOO_WORKFLOWS: TierWorkflows = {
   'account.match': { status: 'supported', version: 1 },
   'employee.match': { status: 'pending', version: 1, issue: ODOO_LABOUR },
   'employee.send': { status: 'pending', version: 1, issue: ODOO_LABOUR },
+  'company-defaults.set': { status: 'pending', version: 1, issue: 1504 },
   'purchase.push': { status: 'supported', version: 1 },
   'bill.push': { status: 'supported', version: 1 },
   'vendor-payment.push': { status: 'supported', version: 1 },
@@ -55,4 +57,12 @@ export const ODOO_WORKFLOWS: TierWorkflows = {
   'purchase-order.revise': { status: 'supported', version: 1 },
   'equipment.push': { status: 'pending', version: 1, issue: ODOO_EQUIPMENT },
   'equipment.read': { status: 'pending', version: 1, issue: ODOO_EQUIPMENT },
+  'journal.post': { status: 'supported', version: 1 },
+  'journal.reverse': { status: 'supported', version: 1 },
 };
+
+/** Captured-purchase behavior declared by this tier. */
+export const CAPTURED_PURCHASE_CAPABILITIES = { payCapturedInvoice: false, applyStepPolicy: false } as const;
+
+/** Whether setup may match this tier's stock items and warehouses. Posting stock is decided by the domain-ownership guard and the adapter registry. */
+export const STOCK_MATCHING_CAPABILITIES = { stockMatching: true } as const;

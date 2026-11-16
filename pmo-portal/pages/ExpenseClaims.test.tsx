@@ -24,13 +24,16 @@ const h = vi.hoisted(() => ({
   create: { mutateAsync: vi.fn(), isPending: false },
   capture: { capture: vi.fn(), cleanupUnlinkedAttachment: vi.fn(), recovery: null as null | Record<string, unknown>, progress: null as number | null },
 }));
-vi.mock('@/src/hooks/useExpenseClaims', () => ({
-  useExpenseClaims: (filters: unknown) => { h.listSpy(filters); return h.dynamicFilters && Object.keys(filters as Record<string, unknown>).length > 0 ? h.filteredList : h.list; },
-  useExpenseAdvanceAging: () => h.aging,
-  useExpenseAdvanceAgingTotals: () => h.totals,
-  useOwnExpenseAdvances: () => h.own,
-  useExpenseClaimMutations: () => ({ create: h.create }),
-}));
+vi.mock('@/src/hooks/useExpenseClaims', async () => {
+  const { asPagedQuery } = await import('@/src/test/pagedQueryMock');
+  return {
+    useExpenseClaimPages: (filters: unknown) => { h.listSpy(filters); return asPagedQuery(h.dynamicFilters && Object.keys(filters as Record<string, unknown>).length > 0 ? h.filteredList : h.list); },
+    useExpenseAdvanceAging: () => h.aging,
+    useExpenseAdvanceAgingTotals: () => h.totals,
+    useOwnExpenseAdvances: () => h.own,
+    useExpenseClaimMutations: () => ({ create: h.create }),
+  };
+});
 vi.mock('@/src/hooks/useExpenseCapture', async () => {
   const ReactModule = await import('react');
   return {
@@ -49,6 +52,14 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1'
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Engineer', effectiveRole: 'Engineer' }) }));
 
 vi.mock('@/src/hooks/useImprest', () => ({ useImprestFloatChoices: () => ({ data: [] }) }));
+
+/** AC2 at PAGE level (#2102): the real `DataTable` with every cell wrapped in a render tally. */
+const dataTableCells = vi.hoisted(() => ({ cells: [] as string[] }));
+vi.mock('@/src/components/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/components/ui')>();
+  const { countingDataTable } = await import('@/src/components/ui/__tests__/helpers/countingDataTable');
+  return { ...actual, DataTable: countingDataTable(actual.DataTable, dataTableCells.cells) };
+});
 
 import ExpenseClaims from './ExpenseClaims';
 
@@ -201,10 +212,17 @@ describe('ExpenseClaims page', () => {
     expect(h.create.mutateAsync).not.toHaveBeenCalled();
   });
 
-  it('AC-EXP-060 says when the list is truncated instead of trimming silently', () => {
+  it('AC-EXP-060 says when the list is truncated instead of trimming silently (#843: x of y and the next page)', () => {
     h.list.data = { rows: [ROW], truncated: true };
-    renderPage();
-    expect(screen.getByText(/Showing the latest 200/)).toBeInTheDocument();
+    (h.list as { total?: number }).total = 201;
+    try {
+      renderPage();
+      expect(screen.getByText('Showing 1–1 of 201')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Next page' })).toBeInTheDocument();
+      expect(screen.queryByText(/Showing the latest/)).not.toBeInTheDocument();
+    } finally {
+      delete (h.list as { total?: number }).total;
+    }
   });
 
   it('AC-S12 readiness disclosure moves with the new full-page create route', async () => {
@@ -212,5 +230,48 @@ describe('ExpenseClaims page', () => {
     await userEvent.click(screen.getByRole('button', { name: 'New claim' }));
     expect(mockNavigate).toHaveBeenCalledWith('/expenses/new');
     expect(h.capture.capture).not.toHaveBeenCalled();
+  });
+
+  it('AC-PERF-2102: a 200-row page re-rendering for a filter change repaints no cell (its columns are memoised)', async () => {
+    h.list.data = {
+      rows: Array.from({ length: 200 }, (_, index) => ({
+        ...ROW,
+        id: `c${index}`,
+        claim_number: `EXP-261006${String(index).padStart(4, '0')}`,
+        title: `Site visit ${index}`,
+      })),
+      truncated: false,
+    };
+    renderPage();
+    expect(screen.getAllByRole('row').length).toBeGreaterThan(200);
+
+    dataTableCells.cells.length = 0;
+    // The status filter is page state (it re-renders the page and the URL); the rows the mocked
+    // hook returns do not change, so not one cell may run again.
+    await userEvent.selectOptions(screen.getAllByRole('combobox', { name: 'Status' })[0]!, 'Approved');
+    expect(dataTableCells.cells).toEqual([]);
+  });
+});
+
+describe('#design-1115 phone list reads one claim per row', () => {
+  it('a phone row shows what was spent, on what project and its status, without per-row field labels', async () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+      matches: false, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    try {
+      h.list.data = { rows: [{ ...ROW, amount: 12.5, currency: 'USD' }], truncated: false };
+      renderPage();
+      const open = screen.getByRole('button', { name: /Site visit/ });
+      expect(within(open).getByText('$12.50')).toBeInTheDocument();
+      const card = open.closest('[data-record-row]') as HTMLElement;
+      expect(within(card).getByText(/Harbour Upgrade/)).toBeInTheDocument();
+      expect(within(card).getByText('Submitted')).toBeInTheDocument();
+      expect(screen.queryByText('Claimant')).not.toBeInTheDocument();
+      await userEvent.click(open);
+      expect(mockNavigate).toHaveBeenCalledWith('/expenses/c1');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

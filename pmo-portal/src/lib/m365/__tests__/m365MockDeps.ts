@@ -226,6 +226,9 @@ export function mockClient(
   const rpc = vi.fn((fn: string, args?: Record<string, unknown>) => {
     // Handler behavior tests use the enabled plan by default; `opts.featureEnabled: false` models a
     // plan that resolves M365 off. Entitlement is read ONLY through this rpc, never `org_features`.
+    if (fn === 'm365_org_app_resolve') {
+      return Promise.resolve({ data: [], error: null });
+    }
     if (fn === 'service_feature_enabled') {
       return Promise.resolve({ data: opts.featureEnabled ?? true, error: null });
     }

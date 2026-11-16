@@ -209,7 +209,7 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
       ) : (
         /* Dashed capture prompt (DESIGN.md §6 capture row token) */
         <div
-          className="flex flex-wrap items-center gap-3 rounded-[calc(var(--radius)-2px)] border-[1.5px] border-dashed border-primary/35 bg-primary/[0.04] px-4 py-3"
+          className="flex flex-wrap items-center gap-3 rounded-[calc(var(--radius)-2px)] border border-dashed border-primary/35 bg-primary/[0.04] px-4 py-3"
         >
           {choosingFirst ? (
             <div className="flex min-w-0 flex-1 flex-wrap items-end gap-3">

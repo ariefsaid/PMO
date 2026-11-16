@@ -1,3 +1,4 @@
+import { logStructuredError } from '../../../../../supabase/functions/_shared/errorLog.ts';
 /** Procurement-domain dispatch preparation for the ERPNext adapter (T-31 / ADP-021 / XG04-004):
  *  the PO/GR/PI order refs (task 5.3, FR-ENA-103), the purchase project dimension, the #910
  *  vendor-payment bill/amount/currency gates, and the purchase-invoice tax resolution (#520/#876/
@@ -103,16 +104,92 @@ async function resolveLinkedPoName(serviceClient: DispatchServiceClient, orgId: 
   return (data[0] as { erp_purchase_documents?: { erp_name?: string } } | undefined)?.erp_purchase_documents?.erp_name ?? null;
 }
 
-/** `GET` the PO doc and build `item_code -> child-row name` (the `purchase_order_item` GR needs per
- *  row, R9 §4) — the ONE place a PO doc is read for this purpose. */
-async function resolvePoItemChildNames(client: ErpClientDeps, poName: string): Promise<Record<string, string>> {
-  const doc = (await getDoc(client, 'Purchase Order', poName)) as { items?: unknown };
+interface PoLine { name: string; item_code: string; amount: number; billed_amt: number; qty: number; rate: number }
+
+/** `GET` the PO doc: its lines (child-row `name` for the `purchase_order_item` a GR needs, R9 §4, and the
+ *  `po_detail` a bill needs) and its date — the ONE place a PO doc is read for this purpose. */
+async function readPo(client: ErpClientDeps, poName: string): Promise<{ lines: PoLine[]; date: string | null }> {
+  const doc = (await getDoc(client, 'Purchase Order', poName)) as { items?: unknown; transaction_date?: unknown };
   const items = Array.isArray(doc.items) ? (doc.items as Array<Record<string, unknown>>) : [];
-  const map: Record<string, string> = {};
+  const lines: PoLine[] = [];
   for (const item of items) {
-    if (typeof item.item_code === 'string' && typeof item.name === 'string') map[item.item_code] = item.name;
+    if (typeof item.item_code === 'string' && typeof item.name === 'string') {
+      lines.push({ name: item.name, item_code: item.item_code, amount: Number(item.amount) || 0, billed_amt: Number(item.billed_amt) || 0, qty: Number(item.qty), rate: Number(item.rate) });
+    }
   }
-  return map;
+  return { lines, date: typeof doc.transaction_date === 'string' ? doc.transaction_date : null };
+}
+
+const cents = (n: number): number => Math.round(n * 100);
+const money = (c: number): string => (c / 100).toFixed(2);
+
+/** The two refusals for a line whose price or quantity is unknown, in ONE place for the bill-line check and the
+ *  entered-tax bound. An unpriced line must not count as 0 (it would understate the base the withheld bound checks
+ *  against) and an unknown total (a line without a quantity) must not SKIP the bound. Returns the items total. */
+function assertLinesKnown(lines: ItemsNetLine[]): number | null {
+  if (lines.some((line) => lineRate(line) === null)) {
+    throw new AppError('This case has unpriced lines: give every line a rate, then record the invoice again.', 'config-rejected');
+  }
+  const total = itemsNetTotal(lines);
+  if (lines.length > 0 && total === null) {
+    throw new AdapterError('commit-rejected', "The supplier invoice's items total cannot be computed: a line is missing its quantity. Complete the case's lines, then record the invoice again.");
+  }
+  return total;
+}
+
+/** Every bill line, on an order or not, is sent to ERPNext: quantity above zero, rate zero or more, both real numbers.
+ *  A missing rate or quantity gets the refusals above; this adds what they do not catch (blank, quantity <= 0, negative rate).
+ *  (PMO's case lines hold quantity >= 0 and rate >= 0, so a negative line is not a PMO bill; no discount line exists.)
+ *  Runs for every rebuilt bill before any write, so a bill with no ERP order passes it too. */
+function assertBillLineNumbers(items: Array<{ item_code?: unknown; qty?: unknown; rate?: unknown }>): void {
+  assertLinesKnown(items);
+  const blank = (v: unknown) => typeof v === 'string' && v.trim() === '';
+  for (const item of items) {
+    if (blank(item.qty) || blank(item.rate) || !(Number(item.qty) > 0) || !(Number(item.rate) >= 0)) {
+      throw new AppError(`A bill line for ${String(item.item_code)} is missing its quantity or rate; quantity and rate must be numbers.`, 'commit-rejected');
+    }
+  }
+}
+
+/** Link each bill line to the one order line carrying its item (`po_item_child_name`, which `piToBody` turns into
+ *  `purchase_order` + `po_detail`; ERPNext reads the order billed only from `po_detail`). A line whose item is not on
+ *  the order stays free-standing (freight etc.). Refuses, before any ERP write, what ERPNext would only refuse after
+ *  PMO's insert (a stranded draft): a bill with no line on the order, an item on two order lines that rate and quantity cannot tell apart, a line above what
+ *  is left to bill (lines of one order line add up). `checkLeft` is off on a replay (the bill is already counted in `billed_amt`). */
+function linkBillLines<T extends { item_code?: unknown; qty?: unknown; rate?: unknown }>(
+  items: T[], lines: PoLine[], poName: string, checkLeft: boolean,
+): Array<T & { po_item_child_name?: string }> {
+  let linked = 0;
+  const askedByLine = new Map<string, number>(); // cents asked so far per order line, across the whole bill
+  const out = items.map((item) => {
+    const onOrder = lines.filter((l) => l.item_code === item.item_code);
+    if (onOrder.length === 0) {
+      // Only PMO-resolved order references reach ERPNext: drop any the caller sent on a line that is not on the order.
+      const { po_item_child_name: _a, po_detail: _b, purchase_order: _c, ...free } = item as T & Record<string, unknown>;
+      return free as T;
+    }
+    // Item on several order lines: the one line with this bill line's rate; if several share it, the one with its quantity too;
+    // none or still several → refuse, never a guess.
+    // ponytail: no position tie-break: PMO reads the case lines without an ORDER BY, so its line order is not provably the ERP order's.
+    const byRate = onOrder.length > 1 ? onOrder.filter((l) => l.rate === Number(item.rate)) : onOrder;
+    const sameLine = byRate.length > 1 ? byRate.filter((l) => l.qty === Number(item.qty)) : byRate;
+    if (sameLine.length !== 1) {
+      throw new AppError(`ERP order ${poName} has ${String(item.item_code)} on more than one line; PMO cannot tell which one this bill settles.`, 'commit-rejected');
+    }
+    linked += 1;
+    const [line] = sameLine;
+    if (checkLeft) {
+      const asked = (askedByLine.get(line.name) ?? 0) + cents(Number(item.qty) * Number(item.rate));
+      askedByLine.set(line.name, asked);
+      const left = cents(line.amount) - cents(line.billed_amt);
+      if (asked > left) {
+        throw new AppError(`ERP order ${poName} has ${money(left)} left to bill for ${String(item.item_code)}; this bill asks ${money(asked)}.`, 'commit-rejected');
+      }
+    }
+    return { ...item, po_item_child_name: line.name };
+  });
+  if (linked === 0) throw new AppError(`No line of this bill is on ERP order ${poName}.`, 'commit-rejected');
+  return out;
 }
 
 /** PO/PI cost dimensions use the same project-map resolver and org guard as the revenue path.
@@ -176,20 +253,40 @@ export async function resolveProcurementOrderRefs(
       : caseItems;
   }
 
-  if (kind === 'goods-receipt' && (resolvedItems || hasOwnItems)) {
+  // A bill reads its order only when its body is rebuilt (create/update/amend): a submit or cancel needs no order read.
+  const billRebuilt = kind === 'purchase-invoice' && buildsSalesInvoiceBody({ operation: deps.command.operation, record: { verb: (record as { verb?: unknown }).verb } });
+  if (billRebuilt) {
+    if (resolvedItems) assertBillLineNumbers(resolvedItems);
+    if (hasOwnItems) assertBillLineNumbers(record.items as Array<Record<string, unknown>>);
+  }
+  // A bill reads the order only to link the lines it has (a replayed bill needs it to rebuild its order link): no lines, no read.
+  if ((kind === 'goods-receipt' && (resolvedItems || hasOwnItems)) || (billRebuilt && (resolvedItems?.length || hasOwnItems))) {
     const poPmoId = await resolveLatestPoPmoId(deps.serviceClient, procurementId);
     const mappedPo = poPmoId ? await resolveExternalRef(deps.serviceClient as unknown as ExternalRefsLookupClient, deps.orgId, 'procurement', poPmoId) : null;
     const poExternalName = mappedPo ?? await resolveLinkedPoName(deps.serviceClient, deps.orgId, procurementId);
     if (poExternalName) {
       refs.po = poExternalName;
-      const childNames = await resolvePoItemChildNames(
+      const po = await readPo(
         { fetchImpl: deps.fetchImpl, apiKey: deps.apiKey, apiSecret: deps.apiSecret, baseUrl: binding.site_url, rateLimiter: deps.rateLimiter },
         poExternalName,
       );
-      if (resolvedItems) resolvedItems = resolvedItems.map((item) => ({ ...item, po_item_child_name: childNames[item.item_code] }));
-      if (hasOwnItems) record.items = (record.items as Array<Record<string, unknown>>).map((item) => ({
-        ...item, po_item_child_name: typeof item.item_code === 'string' ? childNames[item.item_code] : undefined,
-      }));
+      const childNames: Record<string, string> = {};
+      for (const l of po.lines) childNames[l.item_code] = l.name;
+      if (billRebuilt) {
+        const first = deps.command.operation === 'create' && !deps.replay;
+        // ERPNext 16 refuses a bill posted (today, server time) before its order's date, at insert. PMO refuses first.
+        // ponytail: UTC today + 1 day so no ERP timezone can cause a false refusal; a one-day gap stays ERPNext's own refusal.
+        if (first && binding.version_major === 16 && po.date && po.date > todayPlusDaysIso(1)) {
+          throw new AppError(`ERP order ${poExternalName} is dated ${po.date}; the bill cannot be billed before that date.`, 'commit-rejected');
+        }
+        if (resolvedItems) resolvedItems = linkBillLines(resolvedItems, po.lines, poExternalName, first);
+        if (hasOwnItems) record.items = linkBillLines(record.items as Array<Record<string, unknown>>, po.lines, poExternalName, first);
+      } else {
+        if (resolvedItems) resolvedItems = resolvedItems.map((item) => ({ ...item, po_item_child_name: childNames[item.item_code] }));
+        if (hasOwnItems) record.items = (record.items as Array<Record<string, unknown>>).map((item) => ({
+          ...item, po_item_child_name: typeof item.item_code === 'string' ? childNames[item.item_code] : undefined,
+        }));
+      }
     }
   }
 
@@ -225,10 +322,112 @@ export async function resolveProcurementOrderRefs(
  *  cross-org case is already refused by `assertCommandLinksSameOrg` (this re-read is same-org by
  *  construction; a vanished row fails closed below).
  */
+type CapturedPaymentRecord = { procurementId?: string; invoiceId?: unknown; capturedInvoiceDocumentId?: unknown; paid_amount?: unknown; references?: unknown; supplier?: unknown; pi_names?: unknown; pmo_captured_supplier?: unknown };
+
+function capturedInvoiceRefusal(code: string): never {
+  logStructuredError({ fn: 'adapter-dispatch', errorCode: code });
+  throw new AppError('capture_invoice_unavailable', 'commit-rejected');
+}
+
+function capturedQueryRefusal(stage: string, error: unknown): never {
+  const code = (error as { code?: unknown } | null)?.code;
+  const safeCode = typeof code === 'string' && /^[0-9A-Z]{5}$/.test(code) ? code : 'UNKNOWN';
+  return capturedInvoiceRefusal(`CAPTURE_${stage}_QUERY_${safeCode}`);
+}
+
+async function resolveCapturedPaymentRefs(deps: ErpDispatchFactoryDeps, record: CapturedPaymentRecord): Promise<{ refs: Record<string, string | null> }> {
+  const docId = record.capturedInvoiceDocumentId;
+  if (typeof docId !== 'string' || !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(docId)
+      || !record.procurementId || record.invoiceId != null) {
+    capturedInvoiceRefusal('CAPTURE_INVOICE_SELECTOR_INVALID');
+  }
+  const rawAmount = record.paid_amount;
+  if ((typeof rawAmount !== 'number' && typeof rawAmount !== 'string') || !/^[0-9]+(?:\.[0-9]{1,2})?$/.test(String(rawAmount))) {
+    capturedInvoiceRefusal('CAPTURE_PAYMENT_AMOUNT_INVALID');
+  }
+  const amount = Number(rawAmount);
+  if (!Number.isFinite(amount) || amount <= 0) capturedInvoiceRefusal('CAPTURE_PAYMENT_AMOUNT_INVALID');
+  // Replay payloads come only from the persisted outbox, never from a caller-controlled replay flag.
+  // Preserve its exact allocation after the ERP balance has moved.
+  if (deps.replay) {
+    const saved = Array.isArray(record.references) ? record.references : [];
+    const allocation = saved[0] as { reference_doctype?: unknown; reference_name?: unknown; allocated_amount?: unknown } | undefined;
+    if (saved.length !== 1 || allocation?.reference_doctype !== 'Purchase Invoice'
+        || typeof allocation.reference_name !== 'string' || !allocation.reference_name
+        || Number(allocation.allocated_amount) !== amount || typeof record.supplier !== 'string') {
+      capturedInvoiceRefusal('CAPTURE_REPLAY_INVALID');
+    }
+    return { refs: { pi: allocation.reference_name } };
+  }
+  delete record.references;
+  delete record.supplier;
+  delete record.pi_names;
+  delete record.pmo_captured_supplier;
+  const { data: purchase, error: caseError } = await deps.serviceClient.from('procurements')
+    .select('org_id,vendor_id,currency,record_only').eq('org_id', deps.orgId).eq('id', record.procurementId).maybeSingle();
+  const row = purchase as { org_id?: string; vendor_id?: string | null; currency?: string | null; record_only?: boolean } | null;
+  if (caseError) capturedQueryRefusal('PURCHASE', caseError);
+  if (!row || row.org_id !== deps.orgId || !row.record_only || !row.vendor_id || !row.currency) {
+    capturedInvoiceRefusal('CAPTURE_PURCHASE_UNAVAILABLE');
+  }
+  const { data: links, error: linkError } = await deps.serviceClient.from('procurement_erp_links')
+    .select('org_id,procurement_id,erp_purchase_document_id,erp_purchase_documents!inner(id,org_id,erp_doctype,erp_name,supplier,currency,erp_docstatus,is_return,outstanding_amount)')
+    .eq('org_id', deps.orgId).eq('procurement_id', record.procurementId)
+    .eq('erp_purchase_documents.org_id', deps.orgId).eq('erp_purchase_documents.erp_doctype', 'Purchase Invoice');
+  type Doc = { id?: string; org_id?: string; erp_doctype?: string; erp_name?: string; supplier?: string; currency?: string; erp_docstatus?: number; is_return?: boolean; outstanding_amount?: number | string | null };
+  type Link = { org_id?: string; procurement_id?: string; erp_purchase_document_id?: string; erp_purchase_documents?: Doc };
+  if (linkError) capturedQueryRefusal('INVOICE_LINK', linkError);
+  if (!Array.isArray(links) || links.length !== 1) capturedInvoiceRefusal('CAPTURE_INVOICE_LINK_COUNT_INVALID');
+  const link = links[0] as Link;
+  const doc = link.erp_purchase_documents;
+  if (link.org_id !== deps.orgId || link.procurement_id !== record.procurementId || link.erp_purchase_document_id !== docId) {
+    capturedInvoiceRefusal('CAPTURE_INVOICE_LINK_MISMATCH');
+  }
+  if (!doc || doc.id !== docId || doc.org_id !== deps.orgId || doc.erp_doctype !== 'Purchase Invoice') {
+    capturedInvoiceRefusal('CAPTURE_INVOICE_DOCUMENT_MISMATCH');
+  }
+  if (doc.erp_docstatus !== 1 || doc.is_return !== false || !doc.erp_name || !doc.supplier) {
+    capturedInvoiceRefusal('CAPTURE_INVOICE_STATUS_INVALID');
+  }
+  if (doc.currency !== row.currency) capturedInvoiceRefusal('CAPTURE_INVOICE_CURRENCY_INVALID');
+  if (doc.outstanding_amount == null || !Number.isFinite(Number(doc.outstanding_amount)) || Number(doc.outstanding_amount) < 0) {
+    capturedInvoiceRefusal('CAPTURE_INVOICE_BALANCE_INVALID');
+  }
+  if (Number(doc.outstanding_amount) === 0) {
+    logStructuredError({ fn: 'adapter-dispatch', errorCode: 'CAPTURE_INVOICE_SETTLED' });
+    throw new AppError('history_complete', 'commit-rejected');
+  }
+  if (amount > Number(doc.outstanding_amount)) capturedInvoiceRefusal('CAPTURE_PAYMENT_EXCEEDS_RESIDUAL');
+  const { data: org, error: orgError } = await deps.serviceClient.from('organizations').select('default_currency').eq('id', deps.orgId).maybeSingle();
+  const orgCurrency = (org as { default_currency?: unknown } | null)?.default_currency;
+  if (orgError) capturedQueryRefusal('ORG_CURRENCY', orgError);
+  if (typeof orgCurrency !== 'string' || !/^[A-Z]{3}$/.test(orgCurrency) || orgCurrency === 'XXX' || orgCurrency !== doc.currency) {
+    capturedInvoiceRefusal('CAPTURE_ORG_CURRENCY_INVALID');
+  }
+  let supplierRef: string | null;
+  try {
+    supplierRef = await resolveExternalRef(deps.serviceClient as unknown as ExternalRefsLookupClient, deps.orgId, 'companies', row.vendor_id);
+  } catch (error) {
+    const code = (error as { code?: unknown } | null)?.code;
+    const safeCode = typeof code === 'string' && /^[0-9A-Z]{5}$/.test(code) ? code : 'UNKNOWN';
+    logStructuredError({ fn: 'adapter-dispatch', errorCode: `CAPTURE_SUPPLIER_QUERY_${safeCode}` });
+    throw error;
+  }
+  const supplier = doc.supplier;
+  if (!supplierRef || (supplierRef !== supplier && supplierRef !== `Supplier:${supplier}`)) capturedInvoiceRefusal('CAPTURE_SUPPLIER_MISMATCH');
+  record.supplier = row.vendor_id;
+  record.pmo_captured_supplier = supplier;
+  record.references = [{ reference_doctype: 'Purchase Invoice', reference_name: doc.erp_name, allocated_amount: amount }];
+  return { refs: { pi: doc.erp_name, supplier } };
+}
+
 export async function resolvePaymentRefs(deps: ErpDispatchFactoryDeps): Promise<{ refs: Record<string, string | null> }> {
   const refs: Record<string, string | null> = {};
-  const record = deps.command.record as { erp_doc_kind?: string; procurementId?: string; invoiceId?: unknown; paid_amount?: unknown; references?: unknown };
+  const record = deps.command.record as { erp_doc_kind?: string; procurementId?: string; invoiceId?: unknown; capturedInvoiceDocumentId?: unknown; paid_amount?: unknown; references?: unknown; supplier?: unknown; pi_names?: unknown };
   if (record.erp_doc_kind !== 'payment' || deps.command.operation !== 'create') return { refs };
+  if (record.capturedInvoiceDocumentId !== undefined && record.capturedInvoiceDocumentId !== null) {
+    return resolveCapturedPaymentRefs(deps, record);
+  }
 
   const procurementId = typeof record.procurementId === 'string' ? record.procurementId : '';
   const invoiceId = typeof record.invoiceId === 'string' && record.invoiceId.trim() !== '' ? record.invoiceId : null;
@@ -367,16 +566,8 @@ export async function resolvePurchaseInvoiceTaxes(
   delete record.taxTemplate;
   // The items the PI will carry: the command's own, else the case's (adapter.ts substitutes `resolvedItems`).
   const lines = (Array.isArray(record.items) && record.items.length > 0 ? record.items : resolvedItems ?? []) as ItemsNetLine[];
-  // Both refusals land BEFORE any read (ADR-0072 style, DD-VWH-22): an unpriced line must not count as 0 — it
-  // would understate the base the withheld bound checks against — and an unknown total (a line without a
-  // quantity) must not SKIP the bound — ERPNext would accept the bill and every replay would then refuse it.
-  if (lines.some((line) => lineRate(line) === null)) {
-    throw new AppError('This case has unpriced lines: give every line a rate, then record the invoice again.', 'config-rejected');
-  }
-  const itemsTotal = itemsNetTotal(lines);
-  if (lines.length > 0 && itemsTotal === null) {
-    throw new AdapterError('commit-rejected', "The supplier invoice's items total cannot be computed: a line is missing its quantity. Complete the case's lines, then record the invoice again.");
-  }
+  // Both refusals land BEFORE any read (ADR-0072 style, DD-VWH-22).
+  const itemsTotal = assertLinesKnown(lines);
   const { data, error } = await deps.serviceClient.from('organizations')
     .select('input_vat_account,pph23_payable_account,pph4_2_payable_account').eq('id', deps.orgId).maybeSingle();
   if (error) throw new AppError(error.message, error.code);

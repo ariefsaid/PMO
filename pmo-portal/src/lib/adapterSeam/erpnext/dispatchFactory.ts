@@ -18,7 +18,7 @@
  * product-adapter port was introduced (ADR-0055).
  */
 import { createErpAdapter, ERPNEXT_TIER, type BudgetRangeOutbox, type BudgetRangeOperationState, type ErpAdapterDeps } from './adapter.ts';
-import { listErpItems, validateItemLines } from './itemCatalog.ts';
+import { findErpItemsByCode, validateItemLines } from './itemCatalog.ts';
 import { resolveExternalRef, type ExternalRefsLookupClient } from '../refs.ts';
 import type { Adapter } from '../contract.ts';
 import { AppError } from '../../appError.ts';
@@ -116,7 +116,8 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   // FIRST: before ref resolution (which can issue ERP GETs), before the adapter is constructed, and
   // therefore before any ERP write or outbox commit. A cross-org link must never reach ERPNext (orphan
   // money, no PMO row) nor a service-role mirror insert (this org's org_id + another tenant's FK).
-  await assertCommandLinksSameOrg(deps);
+  const capturedReplay = deps.replay && deps.command.record.erp_doc_kind === 'payment' && Boolean(deps.command.record.capturedInvoiceDocumentId);
+  if (!capturedReplay) await assertCommandLinksSameOrg(deps);
   const invoiceKind = await resolveProgressClaimInvoice(deps, binding);
   // AC-WHT-004: the withheld-tax receipt config merge — after the claim resolution, before the SI
   // project gate (the position the inline block always occupied; dispatchRevenue).
@@ -146,7 +147,9 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
       supplier: typeof savedReceipt.supplier === 'string' ? savedReceipt.supplier : null,
       po: typeof savedReceipt.po === 'string' ? savedReceipt.po : null,
     }, resolvedItems: undefined }
-    : await resolveProcurementOrderRefs(deps, binding);
+    : capturedReplay
+      ? { refs: { supplier: String(deps.command.record.pmo_captured_supplier) }, resolvedItems: undefined }
+      : await resolveProcurementOrderRefs(deps, binding);
   const { refs: revenueRefs } = await resolveRevenueRefs(deps, binding);
   // #910: the vendor-payment gate (bill anchor + amount vs outstanding) — before the outbox snapshot,
   // so a refused payment leaves no outbox row and touches no ERP.
@@ -182,8 +185,11 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
       record.items = lines;
       validateAuthoringItems = async (command, client) => {
         if (!buildsSalesInvoiceBody({ operation: command.operation, record: { verb: command.record.verb } })) return;
-        const catalog = await listErpItems(client, itemKind === 'sales-invoice' ? 'sales' : 'purchase');
-        validateItemLines(Array.isArray(command.record.items) ? command.record.items : [], catalog);
+        const commandLines = Array.isArray(command.record.items) ? command.record.items : [];
+        // #2116: read only this command's codes (not the whole catalogue), still before the create.
+        const catalog = await findErpItemsByCode(client, itemKind === 'sales-invoice' ? 'sales' : 'purchase',
+          commandLines.map((line) => (line as { item_code?: unknown } | null)?.item_code));
+        validateItemLines(commandLines, catalog);
       };
     }
   }
@@ -238,6 +244,8 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
       apiSecret: deps.apiSecret,
       baseUrl: binding.site_url,
       rateLimiter: deps.rateLimiter,
+      ...(deps.sleep ? { sleep: deps.sleep } : {}),
+      ...(deps.writeMayStart ? { writeMayStart: deps.writeMayStart } : {}),
     },
     doctypeBodies: deps.doctypeBodies ?? {},
     validateAuthoringItems,
@@ -251,7 +259,7 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
     // `resolveRevenueRefs` (task 2.3, FR-SAR-100/101/121).
     ctx: {
       refs: { ...contactRefs, ...procurementRefs, ...purchaseProjectRefs, ...revenueRefs, ...paymentRefs, ...budgetRefs, ...timesheetRefs,
-        supplier: itemKind === 'goods-receipt' ? receiptSupplier ?? null : procurementRefs.supplier ?? (await resolveSupplierRef(deps.serviceClient, deps.orgId, deps.command)) },
+        supplier: itemKind === 'goods-receipt' ? receiptSupplier ?? null : paymentRefs.supplier ?? procurementRefs.supplier ?? (await resolveSupplierRef(deps.serviceClient, deps.orgId, deps.command)) },
       config: budgetConfig,
       resolvedItems,
       ...(isBudgetCommand(deps.command) ? {

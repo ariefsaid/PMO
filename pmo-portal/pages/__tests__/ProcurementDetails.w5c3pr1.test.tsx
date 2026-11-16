@@ -3,7 +3,7 @@
  *
  * D9: Full-word lifecycle labels on the stepper nodes
  *   - Each node shows the full stage name as visible text (not just a tooltip)
- *   - The mono acronym ref (PR-xxxx, etc.) stays as the ref sub-text
+ *   - The acronym ref (PR-xxxx, etc.) stays as the ref sub-text
  *   - Each node aria-label carries "FullName: state" for screen readers
  *   - Title attribute on each node carries the full name
  *
@@ -28,6 +28,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // `useTaxTreatmentPreselect` stays the real implementation, so this suite renders the shipped
 // seeding behaviour without needing a QueryClientProvider/AuthProvider it otherwise has no use for.
 // The pre-selection rule itself is owned by src/hooks/useOrgTaxDefault.test.tsx.
+vi.mock('@/src/hooks/useProcurementFilesBatch', () => ({ useProcurementFilesBatch: () => ({ data: undefined, isError: false }) }));
 vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
 vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }) }));
 
@@ -122,6 +123,10 @@ vi.mock('@/src/components/ui', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useToast: () => ({ toast: vi.fn() }) };
 });
+// The budget panel also reads the project's canonical Budget used; stubbed like its other reads (these tests mount no QueryClient).
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: () => ({ data: undefined, isPending: false, isError: false }),
+}));
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 1000000, isPending: false, isError: false }),
 }));
@@ -484,11 +489,11 @@ describe('AC-IXD-PROC-W5-C3 non-regression: existing action-area behaviors uncha
     expect(approveBtn.className).toContain('bg-primary');
   });
 
-  it('non-regression: Reject is never a loud destructive fill (a quiet menu item)', async () => {
+  it('non-regression: Return is never a loud destructive fill (a quiet menu item)', async () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
     await openMoreActions();
-    const rejectItem = screen.getByRole('menuitem', { name: /^reject$/i });
+    const rejectItem = screen.getByRole('menuitem', { name: /^return$/i });
     expect(rejectItem.className).not.toContain('bg-destructive');
     expect(rejectItem.className).not.toContain('bg-primary');
   });

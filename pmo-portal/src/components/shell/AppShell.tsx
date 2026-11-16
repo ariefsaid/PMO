@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/src/components/ui/cn';
-import { Icon } from '@/src/components/ui/icons';
 import { RailDrawerContext } from './railDrawerContext';
 import { useFocusTrap } from '@/src/hooks/useFocusTrap';
 import { isTabSwitchNavState } from '@/src/lib/tabSwitchNav';
@@ -82,6 +81,10 @@ export const AppShell: React.FC<AppShellProps> = ({
   const drawerRef = useRef<HTMLDivElement>(null);
   // The element focused before the drawer opened (restored on close).
   const drawerTriggerRef = useRef<HTMLElement | null>(null);
+  // The navigation trigger kept after close, and the pathname at the moment a drawer link was
+  // chosen: a route committing after the drawer closed must return focus to the trigger, not main.
+  const lastTriggerRef = useRef<HTMLElement | null>(null);
+  const drawerNavFromRef = useRef<string | null>(null);
   const [assistantPrefs, setAssistantPrefs] = useState<{
     mode: PanelMode;
     width: number;
@@ -137,6 +140,16 @@ export const AppShell: React.FC<AppShellProps> = ({
       previousRecordBase?.[0] !== undefined &&
       previousRecordBase[0] === currentRecordBase?.[0];
     previousPathname.current = pathname;
+    const navFrom = drawerNavFromRef.current;
+    drawerNavFromRef.current = null;
+    const trigger = lastTriggerRef.current;
+    if (navFrom !== null && navFrom !== pathname && trigger?.isConnected) {
+      // Chosen from the navigation drawer: focus belongs on its opener (AC-SHELL-001), whether
+      // the route committed before or after the drawer closed.
+      trigger.focus();
+      mainRef.current?.scrollTo?.({ top: 0 });
+      return;
+    }
     const sameRecordTabSwitch = isTabSwitchNavState(stateRef.current) && sameRecordBase;
     if (sameRecordTabSwitch) return;
     mainRef.current?.focus();
@@ -150,7 +163,10 @@ export const AppShell: React.FC<AppShellProps> = ({
       const target = event.target;
       if (target instanceof HTMLElement) {
         const trigger = target.closest<HTMLElement>('[data-drawer-toggle]');
-        if (trigger) drawerTriggerRef.current = trigger;
+        if (trigger) {
+          drawerTriggerRef.current = trigger;
+          lastTriggerRef.current = trigger;
+        }
       }
     };
     document.addEventListener('focusin', rememberTrigger);
@@ -162,6 +178,7 @@ export const AppShell: React.FC<AppShellProps> = ({
   // On close: restore focus to the captured trigger.
   useEffect(() => {
     if (railOpen) {
+      drawerNavFromRef.current = null; // a same-route link click must not leak into a later navigation
       // Keep the tracked trigger; applying `inert` can move activeElement to body
       // before this passive effect runs. Use current focus only as a fallback.
       const activeElement = document.activeElement as HTMLElement | null;
@@ -290,9 +307,10 @@ export const AppShell: React.FC<AppShellProps> = ({
       >
         {banner}
         {/* Page gutters come from the shared token: 24px on wide screens, 16px below 922px.
-            #2061: on a phone the fixed bottom bar reserves its own height (token is 0px above
-            the phone breakpoint), so the last row is never hidden behind it. */}
-        <div className="mx-auto max-w-[1600px] px-[var(--space-page-gutter)] pb-[var(--space-page-gutter)] pt-5 max-[921px]:pt-4 max-[639px]:pb-[calc(var(--phone-nav-height)+var(--space-page-gutter))]">
+            #2061: THE one bottom inset. On a phone the page pads by the bar's measured height
+            (`--phone-nav-height`, safe area included) plus any page action bar stacked on it
+            (`--mobile-action-bar-height`) and nothing more; with neither fixed the normal gutter applies. No screen adds its own. The nav token is 0 above the phone breakpoint; the action-bar token is published at any width a bar is docked. */}
+        <div className="mx-auto max-w-[1600px] px-[var(--space-page-gutter)] pt-5 max-[921px]:pt-4 pb-[max(var(--space-page-gutter),calc(var(--phone-nav-height)+var(--mobile-action-bar-height,0px)))]">
           {children}
         </div>
       </main>
@@ -369,23 +387,16 @@ export const AppShell: React.FC<AppShellProps> = ({
               paddingBottom: 'env(safe-area-inset-bottom)',
             }}
           >
-            {/* C3: Visible close (×) button at the top of the drawer.
-                .touch-target extends the hit area to ≥44px on touch without
-                changing the visual 32px size. */}
-            <div className="flex items-center justify-end px-2 py-2">
-              <button
-                type="button"
-                aria-label={t('shell.drawer.close', 'Close navigation menu')}
-                onClick={handleClose}
-                className="touch-target grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground [&_svg]:size-[17px]"
-              >
-                <Icon name="x" />
-              </button>
-            </div>
-
             {/* Rail nav content — same node as the persistent rail. */}
             <RailDrawerContext.Provider value>
-              <div className="min-h-0 flex-1 overflow-y-auto">{rail}</div>
+              <div
+                className="min-h-0 flex-1 overflow-y-auto"
+                onClickCapture={(e) => {
+                  if (e.target instanceof Element && e.target.closest('a[href]')) {
+                    drawerNavFromRef.current = pathname;
+                  }
+                }}
+              >{rail}</div>
             </RailDrawerContext.Provider>
             {drawerActions && (
               <div className="shrink-0 border-t border-border p-2.5" data-drawer-actions>

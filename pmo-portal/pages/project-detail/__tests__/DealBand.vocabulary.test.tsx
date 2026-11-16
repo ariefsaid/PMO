@@ -51,7 +51,7 @@ describe('DealBand vocabulary i18n (#2000)', () => {
     // Stepper labels in Indonesian
     expect(screen.getByText('Prospek')).toBeInTheDocument();
     expect(screen.getByText('Penawaran')).toBeInTheDocument();
-    expect(screen.getByText('Pra-kualifikasi')).toBeInTheDocument();
+    expect(screen.getByText('Prakualifikasi')).toBeInTheDocument();
   });
 
   it('translates advance button for each pipeline stage', () => {
@@ -76,7 +76,7 @@ describe('DealBand vocabulary i18n (#2000)', () => {
         </MemoryRouter>
       </BahasaProvider>,
     );
-    expect(screen.getByRole('button', { name: 'Lanjutkan ke Pra-kualifikasi' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Lanjutkan ke Prakualifikasi' })).toBeInTheDocument();
   });
 
   it('translates won and lost journey steps in Indonesian', () => {

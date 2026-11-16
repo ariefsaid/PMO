@@ -1,5 +1,5 @@
 /**
- * Rail groups use one fixed order. Every group starts expanded, can be collapsed by keyboard or
+ * Rail groups use one fixed order per role (site work first for an engineer, money first for finance). Every group starts expanded, can be collapsed by keyboard or
  * pointer, remembers its state on this device, and the active group stays open on route changes.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -22,8 +22,7 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({ useOrgFeatures: () => ({
   }) }));
 vi.mock('@/src/hooks/useUserViews', () => ({ useUserViews: () => ({ data: [], isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
-  useTimesheetsAwaitingApproval: () => ({ data: [] }),
-  useReopenableApprovedTimesheets: () => ({ data: [] }),
+  useHasTimesheetApprovalWork: () => ({ data: false }),
 }));
 vi.mock('../ApprovalsNavCount', () => ({ ApprovalsNavCount: () => null }));
 vi.mock('@/src/hooks/useOverdueInvoiceCount', () => ({ useOverdueInvoiceCount: () => ({ isPending: true }) }));
@@ -46,12 +45,12 @@ describe('Rail navigation groups', () => {
   beforeEach(() => localStorage.removeItem('shell.navigation.collapsedGroups'));
 
   it.each([
-    ['Executive', ['/approvals', '/', '/sales', '/companies', '/contacts', '/projects', '/procurement', '/stock', '/equipment', '/incidents', '/meetings', '/calendar', '/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/timesheets', '/expenses', '/imprest']],
-    ['Project Manager', ['/approvals', '/', '/sales', '/companies', '/contacts', '/projects', '/procurement', '/stock', '/equipment', '/incidents', '/meetings', '/calendar', '/timesheets', '/expenses', '/imprest', '/my-tasks']],
-    ['Finance', ['/approvals', '/', '/sales', '/companies', '/contacts', '/projects', '/procurement', '/stock', '/equipment', '/incidents', '/meetings', '/calendar', '/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/expenses', '/imprest', '/my-tasks']],
+    ['Executive', ['/approvals', '/', '/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/journals', '/sales', '/companies', '/contacts', '/projects', '/procurement', '/stock', '/equipment', '/incidents', '/meetings', '/calendar', '/timesheets', '/expenses', '/imprest']],
+    ['Project Manager', ['/approvals', '/', '/projects', '/procurement', '/stock', '/equipment', '/incidents', '/meetings', '/calendar', '/timesheets', '/expenses', '/imprest', '/my-tasks', '/sales', '/companies', '/contacts']],
+    ['Finance', ['/approvals', '/', '/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/journals', '/projects', '/procurement', '/stock', '/equipment', '/incidents', '/meetings', '/calendar', '/expenses', '/imprest', '/my-tasks', '/sales', '/companies', '/contacts']],
     ['Engineer', ['/', '/projects', '/stock', '/equipment', '/incidents', '/meetings', '/calendar', '/timesheets', '/expenses', '/my-tasks']],
-    ['Admin', ['/approvals', '/', '/sales', '/companies', '/contacts', '/projects', '/procurement', '/stock', '/equipment', '/incidents', '/meetings', '/calendar', '/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/timesheets', '/expenses', '/imprest', '/my-tasks']],
-  ] as const)('%s keeps the pre-redesign destination set and restored order', (role, expectedHrefs) => {
+    ['Admin', ['/approvals', '/', '/projects', '/procurement', '/stock', '/equipment', '/incidents', '/meetings', '/calendar', '/sales', '/companies', '/contacts', '/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/journals', '/timesheets', '/expenses', '/imprest', '/my-tasks']],
+  ] as const)('%s keeps its destination set, in the order that role works', (role, expectedHrefs) => {
     roleState.role = role;
     renderRail();
     const nav = screen.getByRole('navigation', { name: 'Primary navigation' });
@@ -60,7 +59,7 @@ describe('Rail navigation groups', () => {
     const hrefs = [...nav.querySelectorAll('a[href]')].map((link) => link.getAttribute('href'));
 
     // Exact href membership is the pre-redesign destination-set baseline; sequence asserts the
-    // requested order while also proving the role and feature gates did not add or remove items.
+    // role's working order while also proving the role and feature gates did not add or remove items.
     expect(new Set(hrefs)).toEqual(new Set(expectedHrefs));
     expect(hrefs).toEqual(expectedHrefs);
     if (expectedHrefs.some((href) => href === '/approvals')) {

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import i18next from 'i18next';
 import { readFileSync } from 'node:fs';
@@ -10,6 +10,7 @@ import { MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { formatNumberMax2 } from '@/src/lib/format';
+import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
 import { parseMissingKeyHandler } from '@/src/lib/i18n';
 
 vi.mock('@/src/components/ui', async (importOriginal) => {
@@ -28,6 +29,7 @@ const h = vi.hoisted(() => ({
   connected: true,
   revenueMode: null as 'native' | 'erp' | null,
   tmInvoice: vi.fn(),
+  createBoq: vi.fn(),
   loadItems: vi.fn(),
   routeReady: true,
   billing: { data: null as unknown, isPending: false, isError: false, refetch: vi.fn() },
@@ -85,8 +87,15 @@ vi.mock('@/src/hooks/useTimeAndMaterials', () => ({
   useConfirmTmSignoff: () => ({ mutateAsync: h.tmMutation, isPending: false }),
   useInvoiceTmClaimNative: () => ({ mutateAsync: h.tmInvoice, isPending: false }),
 }));
+// #1278: the import wizard parses a real .xlsx; the journey drives the preview -> apply steps from a parsed sheet.
+vi.mock('@/src/lib/import', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/src/lib/import')>()), parseWorkbook: vi.fn() }));
+vi.mock('@/src/lib/repositories', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/repositories')>();
+  return { repositories: { ...actual.repositories, progressBilling: { ...actual.repositories.progressBilling, createBoq: h.createBoq, listBoq: async () => [] } } };
+});
+import { parseWorkbook } from '@/src/lib/import';
 import BillingTab from '../BillingTab';
-import { summarizeInvoiceSettlement } from '../../ContractCascade';
+import { summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
 
 const FACTS = {
   currency: 'IDR', contractNet: 1_000_000, workBilled: 250_000, dpBilled: 200_000, dpRecovered: 40_000, notSubmitted: 40_000,
@@ -121,7 +130,7 @@ beforeEach(() => {
   h.tmClaims = { data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
   h.tmMutation.mockReset().mockResolvedValue(undefined);
   h.revenueMode = null; h.tmInvoice.mockReset().mockResolvedValue('tm-1');
-  h.m = Object.fromEntries(['createBoq', 'updateBoq', 'deleteBoq', 'recordAssessment', 'createClaim', 'attachEvidence', 'withdrawClaim', 'raiseInvoice']
+  h.m = Object.fromEntries(['createBoq', 'updateBoq', 'deleteBoq', 'recordAssessment', 'createClaim', 'attachEvidence', 'withdrawClaim', 'raiseInvoice', 'raiseNativeInvoice']
     .map((name) => [name, { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false }]));
 });
 
@@ -502,10 +511,10 @@ describe('BillingTab', () => {
       new AppError('this progress claim was withdrawn, so no invoice can be raised for it', '55000'),
     );
     const { user } = await renderTabLocalized('id');
-    await user.click(within(screen.getByTestId('claim-actions-k2')).getByRole('button', { name: 'Terbitkan faktur' }));
-    await user.click(screen.getByRole('button', { name: 'Buat faktur ERP' }));
-    const toast = await findToastAnnouncement('alert', 'Tagihan ini telah ditarik. Fakturnya tidak dapat diterbitkan.');
-    expect(toast).toHaveTextContent('Tagihan ini telah ditarik. Fakturnya tidak dapat diterbitkan.');
+    await user.click(within(screen.getByTestId('claim-actions-k2')).getByRole('button', { name: 'Terbitkan invoice' }));
+    await user.click(screen.getByRole('button', { name: 'Buat invoice ERP' }));
+    const toast = await findToastAnnouncement('alert', 'Tagihan ini telah ditarik. Invoice-nya tidak dapat diterbitkan.');
+    expect(toast).toHaveTextContent('Tagihan ini telah ditarik. Invoice-nya tidak dapat diterbitkan.');
     expect(toast).not.toHaveTextContent('Update failed');
   });
 
@@ -596,12 +605,68 @@ describe('BillingTab', () => {
     expect(screen.queryByRole('button', { name: 'Record progress' })).toBeNull();
   });
 
-  it('AC-PB-008 Finance can start an invoice without ERP but cannot create a new claim', () => {
+  it('AC-PB-008 Finance can start an invoice without ERP, and the start offers the contract-line claim', async () => {
     h.connected = false;
-    renderTab();
+    const user = renderTab();
     expect(screen.queryByRole('button', { name: 'New claim' })).toBeNull();
     const summaryHeader = screen.getByRole('heading', { name: /Billing summary/ }).parentElement?.parentElement;
-    expect(within(summaryHeader!).getByRole('button', { name: 'Raise invoice' })).toBeInTheDocument();
+    await user.click(within(summaryHeader!).getByRole('button', { name: 'Raise invoice' }));
+    expect(await screen.findByRole('button', { name: /Quantity or progress claim/ })).toBeInTheDocument();
+  });
+
+  describe('AC-PBL-NAT-004 UI: an organisation with no ERP bills a progress claim in PMO (#2465)', () => {
+    beforeEach(() => { h.connected = false; });
+
+    it('offers evidence and withdraw on an open claim, and the raise once it has evidence', () => {
+      renderTab();
+      const noEvidence = within(screen.getByTestId('claim-actions-k1'));
+      expect(noEvidence.getByRole('button', { name: 'Attach evidence' })).toBeInTheDocument();
+      expect(noEvidence.getByRole('button', { name: 'Withdraw' })).toBeInTheDocument();
+      expect(noEvidence.queryByRole('button', { name: 'Raise invoice' })).toBeNull();
+      const evidenced = within(screen.getByTestId('claim-actions-k2'));
+      expect(evidenced.getByRole('button', { name: 'Raise invoice' })).toBeInTheDocument();
+    });
+
+    it('creates the invoice with the PMO mutation, never the ERP raise or the T&M one', async () => {
+      const user = renderTab();
+      await user.click(within(screen.getByTestId('claim-actions-k2')).getByRole('button', { name: 'Raise invoice' }));
+      const dialog = screen.getByRole('dialog', { name: "Create this claim's invoice?" });
+      expect(within(dialog).getByTestId('raise-figures')).toHaveTextContent('net');
+      await user.click(within(dialog).getByRole('button', { name: 'Create invoice' }));
+      expect(h.m.raiseNativeInvoice.mutateAsync).toHaveBeenCalledExactlyOnceWith('k2');
+      expect(h.m.raiseInvoice.mutateAsync).not.toHaveBeenCalled();
+      expect(h.tmInvoice).not.toHaveBeenCalled();
+      expect(await findToastAnnouncement('status', 'Invoice drafted in PMO')).toBeInTheDocument();
+    });
+
+    it('withdraws an open claim without an ERP', async () => {
+      const user = renderTab();
+      await user.click(within(screen.getByTestId('claim-actions-k1')).getByRole('button', { name: 'Withdraw' }));
+      await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Withdraw claim' }));
+      expect(h.m.withdrawClaim.mutateAsync).toHaveBeenCalledExactlyOnceWith('k1');
+    });
+
+    it('names a claim recovered in full in plain words', async () => {
+      const { AppError } = await import('@/src/lib/appError');
+      h.m.raiseNativeInvoice.mutateAsync.mockRejectedValue(new AppError('the invoice total must be above zero', 'invoice-total-invalid'));
+      const user = renderTab();
+      await user.click(within(screen.getByTestId('claim-actions-k2')).getByRole('button', { name: 'Raise invoice' }));
+      await user.click(within(screen.getByRole('dialog', { name: "Create this claim's invoice?" })).getByRole('button', { name: 'Create invoice' }));
+      expect(await findToastAnnouncement('alert', "This claim's net is zero, so there is nothing to invoice. Withdraw it.")).toBeInTheDocument();
+    });
+
+    it('offers nothing to a person who may not raise a customer invoice', () => {
+      h.role = 'Project Manager'; h.userId = 'pm-2';
+      renderTab();
+      expect(screen.queryByRole('button', { name: 'Attach evidence' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Raise invoice' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Withdraw' })).toBeNull();
+    });
+
+    it('offers nothing while the project has no client to invoice', () => {
+      renderTab(null);
+      expect(screen.queryByRole('button', { name: 'Attach evidence' })).toBeNull();
+    });
   });
 
   it('AC-PB-008 Finance gets no billing buttons when the project has no client', () => {
@@ -663,5 +728,117 @@ describe('BillingTab', () => {
       expect(within(summaryHeader!).queryByRole('button', { name: 'Raise invoice' })).toBeNull();
       expect(screen.getByRole('button', { name: 'New claim' })).toBeInTheDocument();
     });
+  });
+
+  it('AC-1278 round A item 1: a unit rate shows its exact value — 2.5 stays 2.5, 1.75 stays 1.75, a whole rate stays whole', () => {
+    const rateRow = (id: string, itemCode: string, description: string, rate: number) => ({
+      id, org_id: 'o', project_id: 'p1', earning_basis: 'unit_rate', line_no: null, import_key: null,
+      item_code: itemCode, description, unit: 'm', quantity: 4, rate, created_at: '',
+    });
+    h.boq = [
+      rateRow('r1', 'FRAC', 'Half rate', 2.5),
+      rateRow('r2', 'QUART', 'Quarter rate', 1.75),
+      rateRow('r3', 'WHOLE', 'Whole rate', 40),
+    ];
+    renderTab();
+    // Item 7: the currency is named once, in the header — never repeated on the figures.
+    expect(screen.getByText('Rate (IDR)')).toBeInTheDocument();
+    expect(within(screen.getByText('Half rate').closest('tr')!).getByText('2.5')).toBeInTheDocument();
+    expect(within(screen.getByText('Quarter rate').closest('tr')!).getByText('1.75')).toBeInTheDocument();
+    expect(within(screen.getByText('Whole rate').closest('tr')!).getByText('40')).toBeInTheDocument();
+  });
+
+  it('AC-1278 round A item 1: the line drawer shows the exact unit rate with the currency named once', () => {
+    h.boq = [{ id: 'r1', org_id: 'o', project_id: 'p1', earning_basis: 'unit_rate', line_no: null, import_key: null, item_code: 'FRAC', description: 'Half rate', unit: 'm', quantity: 4, rate: 2.5, created_at: '' }];
+    renderTab('c1', '/?open=r1&openType=billingBoq');
+    const drawer = document.querySelector('[data-drawer-panel]');
+    expect(drawer).not.toBeNull();
+    const rateLabels = within(drawer as HTMLElement).getAllByText('Rate (IDR)');
+    expect(rateLabels.length).toBeGreaterThan(0);
+    expect(within(rateLabels[0].closest('div')!).getByText('2.5')).toBeInTheDocument();
+  });
+
+  it('AC-1278 imports contract lines from a sheet: preview refuses the bad row with zero writes, apply writes only the valid one', async () => {
+    (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue({
+      headers: ['Key', 'Item code', 'Description', 'Unit', 'Quantity', 'Rate'],
+      rows: [['L-1', 'SVC-1', 'Trenching', 'm', '12.5', '40'], ['L-2', 'SVC-2', 'Cabling', 'm', '0', '40']],
+    });
+    h.createBoq.mockResolvedValue({ id: 'new' });
+    const user = renderTab();
+    await user.click(screen.getByRole('button', { name: 'Import lines' }));
+    await user.upload(screen.getByLabelText(/choose an \.xlsx file/i), new File(['x'], 'lines.xlsx'));
+    await user.click(await screen.findByRole('button', { name: /^next/i }));
+    expect(await screen.findByText(/Quantity must be a number above 0/)).toBeInTheDocument();
+    expect(h.createBoq).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByRole('button', { name: /^import 1 /i })).toBeEnabled()); // the already-there read finishes first
+    await user.click(screen.getByRole('button', { name: /^import 1 /i }));
+    await waitFor(() => expect(h.createBoq).toHaveBeenCalledTimes(1));
+    expect(h.createBoq).toHaveBeenCalledWith('p1', expect.objectContaining({ importKey: 'L-1', quantity: 12.5, rate: 40 }));
+  });
+
+  it('AC-1278 one overlay at a time: Import from the lines drawer closes the drawer, and Cancel brings it back with focus on Import lines', async () => {
+    const user = renderTab('c1', '/', 'contract-tools');
+    await user.click(screen.getByRole('button', { name: 'Edit contract lines' }));
+    expect(await screen.findByRole('dialog', { name: 'Bill of quantities' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Import lines' }));
+    // the import is the only dialog open: the drawer stepped aside
+    expect(await screen.findByRole('dialog', { name: /import contract lines/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    expect(screen.queryByRole('dialog', { name: 'Bill of quantities' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: /^cancel$/i }));
+    expect(await screen.findByRole('dialog', { name: 'Bill of quantities' })).toBeInTheDocument();
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Import lines' })).toHaveFocus());
+  });
+
+  it('AC-1278 offers the import to a role that may create contract lines, and hides it from a Viewer', () => {
+    h.role = 'Project Manager';
+    const first = renderTab();
+    expect(screen.getByRole('button', { name: 'Import lines' })).toBeInTheDocument();
+    cleanup();
+    h.role = 'Viewer';
+    renderTab();
+    expect(screen.queryByRole('button', { name: 'Import lines' })).toBeNull();
+    void first;
+  });
+
+  it('AC-1278 pasted rows import through the same preview-then-apply path as an upload', async () => {
+    h.createBoq.mockResolvedValue({ id: 'new' });
+    const user = renderTab();
+    await user.click(screen.getByRole('button', { name: 'Import lines' }));
+    await user.click(screen.getByLabelText(/paste rows copied/i));
+    await user.paste('Key\tItem code\tDescription\tUnit\tQuantity\tRate\nL-1\tSVC-1\tTrenching\tm\t12.5\t40\nL-2\tSVC-2\tCabling\tm\t0\t40');
+    await user.click(screen.getByRole('button', { name: /use pasted rows/i }));
+    await user.click(await screen.findByRole('button', { name: /^next/i }));
+    expect(await screen.findByText(/Quantity must be a number above 0/)).toBeInTheDocument();
+    expect(h.createBoq).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByRole('button', { name: /^import 1 /i })).toBeEnabled()); // the already-there read finishes first
+    await user.click(screen.getByRole('button', { name: /^import 1 /i }));
+    await waitFor(() => expect(h.createBoq).toHaveBeenCalledTimes(1));
+    expect(h.createBoq).toHaveBeenCalledWith('p1', expect.objectContaining({ importKey: 'L-1' }));
+  });
+
+  /**
+   * #2088 (WIG, Locale & i18n) — the progress dialog's default month must be the ORGANIZATION's
+   * current month, not the viewer device's: month-end entries at 03:00 on the 1st (UTC+7) belong
+   * to the new month, while the device day can still be the last of the previous month.
+   */
+  it('#2088: the progress dialog defaults to the organization month, not the device month', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      // 2026-06-30 20:00 UTC == 2026-07-01 03:00 in the org zone (Pacific/Kiritimati, UTC+14);
+      // the device zone (+07) still reads 2026-06-30.
+      vi.setSystemTime(new Date('2026-06-30T20:00:00Z'));
+      setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Pacific/Kiritimati' });
+      h.role = 'Project Manager'; h.userId = 'pm-1';
+      renderTab();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Record progress' }));
+
+      expect(await screen.findByLabelText(/^Month \(YYYY-MM\)/)).toHaveValue('2026-07');
+    } finally {
+      vi.useRealTimers();
+      resetActiveLocale();
+    }
   });
 });

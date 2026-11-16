@@ -1,3 +1,4 @@
+import { resolveOrgApp } from './orgApp.ts';
 // revoke.ts — `disconnect` handler: best-effort Microsoft revoke, then delete the local connection
 // row and audit. A pure function taking INJECTED deps (ADR-0039). No Deno.env, no client construction.
 
@@ -50,6 +51,8 @@ export async function handleDisconnect(deps: HandlerDeps): Promise<HandlerResult
   // write, so this is defense-in-depth; a bad tenant simply skips the Microsoft revoke and still
   // proceeds to the authoritative local delete below.
   try {
+    const app = await resolveOrgApp(deps, orgId);
+    if ('status' in app || app.tenantId !== connection.entra_tenant_id) throw new Error('app unavailable');
     if (!isValidTenant(connection.entra_tenant_id)) {
       throw new Error('invalid tenant');
     }
@@ -60,8 +63,8 @@ export async function handleDisconnect(deps: HandlerDeps): Promise<HandlerResult
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        client_id: env.m365ClientId,
-        client_secret: env.m365ClientSecret,
+        client_id: app.clientId,
+        client_secret: app.clientSecret,
         token: refreshToken,
       }),
     });

@@ -1,6 +1,7 @@
 {
   "listPage": {
-    "loadedMoreAvailable": "{{count}} loaded, more available"
+    "loadedMoreAvailable": "{{count}} loaded, more available",
+    "showingRange": "Showing {{from}}–{{to}} of {{total}}"
   },
   "coverage": {
     "hiddenNotLinked": "spending is not linked",
@@ -90,10 +91,15 @@
   },
   "columns": {
     "budgetUsed": "Budget used",
-    "contractWithBasis": "Contract ({{basis}})"
+    "budgetUsedShare": "% of budget used",
+    "contractWithBasis": "Contract ({{basis}})",
+    "spent": "Spent"
   },
   "card": {
-    "actualInline": "{{amount}} actual"
+    "progressShare": "{{percent}}% done",
+    "budgetShare": "{{percent}}% of budget",
+    "contractInline": "{{amount}} contract",
+    "spentInline": "{{amount}} spent"
   },
   "contractBasisNote": "Contract amounts are {{basis}}.",
   "sharedManagerNote": "Project manager: {{name}}",
@@ -113,5 +119,33 @@
       "nounPlural": "companies",
       "helper": "Optional. The company the work is finally for; leave empty when it is the client."
     }
+  },
+  "health": {
+    "atRisk": "{{count}} of {{total}} at risk",
+    "overBudget": "{{count}} over budget",
+    "late": "{{count}} late",
+    "overBudgetFilter": "Over budget",
+    "lateFilter": "Late",
+    "statusOverBudget": "{{status}} · over budget",
+    "statusAtRisk": "{{status}} · at risk",
+    "pastEnd_one": "{{count}} day past end date",
+    "pastEnd_other": "{{count}} days past end date"
+  },
+  "absence": {
+    "note": "— : {{reasons}}",
+    "internal": "internal",
+    "noSpending": "no spending linked",
+    "noPhases": "no phases",
+    "noBudget": "no budget"
+  },
+  "listOptions": "Options",
+  "exportImport": "Export and import",
+  "pagination": {
+    "label": "Pagination",
+    "previous": "Previous",
+    "previousAria": "Previous page",
+    "next": "Next",
+    "nextAria": "Next page",
+    "page": "Page {{page}}"
   }
 }

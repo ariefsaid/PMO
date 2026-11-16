@@ -70,6 +70,18 @@ describe('AC-M365SEP-013/014 — handleInitiateOrgApproval (step 2 — org appro
       expect(body.adminConsentUrl).toContain('client_id=override-client');
     });
 
+    it('AC-M365SEP-013: the stored app takes precedence over deployment values', async () => {
+      const caller = adminCaller();
+      const service = mockClient();
+      service.rpc.mockImplementation((fn: string) => Promise.resolve(fn === 'm365_org_app_resolve'
+        ? { data: [{ tenant_id: 'org-tenant', client_id: 'org-client', client_secret: 'synthetic' }], error: null }
+        : { data: null, error: null }));
+      const result = await handleInitiateOrgApproval(deps({ service, caller, userId: 'user-1' }));
+      const url = (result.body as { adminConsentUrl: string }).adminConsentUrl;
+      expect(url).toContain('/org-tenant/v2.0/adminconsent');
+      expect(url).toContain('client_id=org-client');
+    });
+
     it('AC-M365SEP-013: the handler persists NOTHING — no .from(...) write and no .rpc(...) call on either client', async () => {
       // NFR-M365SEP-005 / spec §1.5: PMO records nothing about org approval — Microsoft is the
       // authority. This assertion makes "nothing is persisted" provable rather than incidental: a
@@ -83,7 +95,8 @@ describe('AC-M365SEP-013/014 — handleInitiateOrgApproval (step 2 — org appro
       expect(service.writes).toHaveLength(0);
       expect(caller.writes).toHaveLength(0);
       // No RPC of any kind (audit / state / connection RPCs are all absent).
-      expect(service.rpc).not.toHaveBeenCalled();
+      expect(service.rpc).toHaveBeenCalledTimes(1);
+      expect(service.rpc).toHaveBeenCalledWith('m365_org_app_resolve', { p_org_id: 'org-1' });
       expect(caller.rpc).not.toHaveBeenCalled();
     });
   });
@@ -143,7 +156,8 @@ describe('AC-M365SEP-013/014 — handleInitiateOrgApproval (step 2 — org appro
       expect(service.from).toHaveBeenCalledWith('platform_operators');
       // Still persists nothing.
       expect(service.writes).toHaveLength(0);
-      expect(service.rpc).not.toHaveBeenCalled();
+      expect(service.rpc).toHaveBeenCalledTimes(1);
+      expect(service.rpc).toHaveBeenCalledWith('m365_org_app_resolve', { p_org_id: 'org-1' });
     });
   });
 });

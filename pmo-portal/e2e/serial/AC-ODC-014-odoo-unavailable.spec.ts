@@ -12,7 +12,17 @@ test.skip(!gate.ready, gate.reason);
 test.setTimeout(900_000);
 
 const BED_SCRIPT = fileURLToPath(new URL('../../../scripts/odoo-dev-bed.sh', import.meta.url));
-const bed = (verb: 'up' | 'down') => execFileSync(BED_SCRIPT, [verb], { stdio: 'pipe', timeout: 300_000 });
+// A failing script is surfaced with its own message (e.g. which settings file to reconcile), never swallowed.
+const bed = (verb: 'up' | 'down') => {
+  try {
+    return execFileSync(BED_SCRIPT, [verb], { stdio: 'pipe', timeout: 300_000 });
+  } catch (error) {
+    const stderr = String((error as { stderr?: Buffer | string }).stderr ?? '');
+    const lastLine = stderr.split('\n').map((l) => l.trim()).filter(Boolean).pop();
+    const firstMessageLine = (error as Error).message.split('\n')[0];
+    throw new Error(`odoo-dev-bed.sh ${verb} failed: ${lastLine ?? 'no output'} (${firstMessageLine})`, { cause: error });
+  }
+};
 
 // Re-check is limited to one a minute, so each press waits out the window; the answer is the card's own notice or alert.
 async function recheck(page: import('@playwright/test').Page): Promise<string> {
@@ -33,9 +43,15 @@ let projectId = '';
 // The bed is brought back even when the journey fails, so the next spec (and the next agent) finds it up.
 test.afterAll(async () => {
   test.setTimeout(300_000);
-  try { bed('up'); } catch { /* reported by the next bed user; nothing safe to add here */ }
-  await scenario?.call('product.product', 'unlink', { ids: [productId] }).catch(() => undefined);
-  await scenario?.cleanup();
+  const errors: unknown[] = [];
+  try { bed('up'); } catch (error) { errors.push(error); }
+  try {
+    await scenario?.call('product.product', 'unlink', { ids: [productId] }).catch(() => undefined);
+    await scenario?.cleanup();
+  } catch (error) { errors.push(error); }
+  // The bed's own failure leads; a cleanup error never masks it.
+  if (errors.length === 1) throw errors[0];
+  if (errors.length > 1) throw new AggregateError(errors, (errors[0] as Error).message);
 });
 
 test('AC-ODC-014: with Odoo down the item directory shows last data and the unavailable notice, nothing is queued, and Re-check clears it once Odoo is back', async ({ page }) => {
@@ -80,7 +96,11 @@ test('AC-ODC-014: with Odoo down the item directory shows last data and the unav
   await expect(page.getByTestId('odoo-connection-banner')).toContainText('Odoo cannot be reached');
 
   // The project's link screen: the mirrored cost accounts stay readable, and the notice belongs here too (soft: still a failure until the screen renders it).
+  // The link card lives inside the header's "Project details" popover (ProjectDetailHeader → ProjectErpLink; the detailsOnly
+  // rail renders none). A person opens that popover, so the journey does too — waiting without opening it is the 2026-11-10
+  // "hidden 60 s" failure (the card existed but was not shown), a test race, not app slowness.
   await page.goto(`/projects/${projectId}`);
+  await page.getByRole('button', { name: 'Project details' }).click();
   const projectLink = page.getByTestId('project-odoo-link');
   await projectLink.waitFor({ timeout: 60_000 });
   await expect(projectLink.getByLabel('Cost account')).toBeVisible();

@@ -1,3 +1,4 @@
+import { CONTRACT_LINE_BASES, contractLineProblems, defaultContractLineBasis, isAmount, isQuantity } from './contract-line-rules.mjs';
 import { encodeBudgetImportIdentity, computeBudgetLineImportKey } from './budget-import-identity.mjs';
 /**
  * pmo-load — `pmo load`: one client's starting data, through the app's own write paths (#796).
@@ -15,17 +16,22 @@ import { encodeBudgetImportIdentity, computeBudgetLineImportKey } from './budget
  * Node 22 standard library only.
  */
 
-/** Target stage → the transitions from 'Leads' that reach it (AC-CSD-014 proves each step is legal). */
+/**
+ * Target stage → the transitions from 'Leads' that reach it. The pipeline runs Leads → Quotation Submitted →
+ * PQ Submitted → Tender Submitted → Negotiation; a deal is won from Quotation Submitted (the shortest legal
+ * route), then moves on to its won stage. supabase/tests/pmo_load_stage_paths.test.sql walks each path through
+ * the real transition_project (AC-CSD-014) and scripts/pmo-load.test.mjs keeps its list equal to this one.
+ */
 export const LOAD_STAGE_PATHS = Object.freeze({
   Leads: Object.freeze([]),
-  'PQ Submitted': Object.freeze(['PQ Submitted']),
-  'Quotation Submitted': Object.freeze(['PQ Submitted', 'Quotation Submitted']),
-  'Tender Submitted': Object.freeze(['PQ Submitted', 'Quotation Submitted', 'Tender Submitted']),
-  Negotiation: Object.freeze(['PQ Submitted', 'Quotation Submitted', 'Tender Submitted', 'Negotiation']),
-  'Won, Pending KoM': Object.freeze(['PQ Submitted', 'Quotation Submitted', 'Won, Pending KoM']),
-  'Ongoing Project': Object.freeze(['PQ Submitted', 'Quotation Submitted', 'Won, Pending KoM', 'Ongoing Project']),
-  'On Hold': Object.freeze(['PQ Submitted', 'Quotation Submitted', 'Won, Pending KoM', 'On Hold']),
-  'Close Out': Object.freeze(['PQ Submitted', 'Quotation Submitted', 'Won, Pending KoM', 'Close Out']),
+  'Quotation Submitted': Object.freeze(['Quotation Submitted']),
+  'PQ Submitted': Object.freeze(['Quotation Submitted', 'PQ Submitted']),
+  'Tender Submitted': Object.freeze(['Quotation Submitted', 'PQ Submitted', 'Tender Submitted']),
+  Negotiation: Object.freeze(['Quotation Submitted', 'PQ Submitted', 'Tender Submitted', 'Negotiation']),
+  'Won, Pending KoM': Object.freeze(['Quotation Submitted', 'Won, Pending KoM']),
+  'Ongoing Project': Object.freeze(['Quotation Submitted', 'Won, Pending KoM', 'Ongoing Project']),
+  'On Hold': Object.freeze(['Quotation Submitted', 'Won, Pending KoM', 'On Hold']),
+  'Close Out': Object.freeze(['Quotation Submitted', 'Won, Pending KoM', 'Close Out']),
 });
 
 /** Stages reached by winning: loading one needs a contract value and the win artifacts. */
@@ -80,39 +86,35 @@ export const IMPORT_VERSION_NAME = 'Imported';
 export const LOAD_BUDGET_MODE = 'per_year';
 
 // Classification (#770): passed through as-is; the database checks each value against the org's own option lists.
-const CLASSIFICATION_FIELDS = Object.freeze(['service_line', 'sector', 'location', 'award_type', 'bidding_entity']);
+export const CLASSIFICATION_FIELDS = Object.freeze(['service_line', 'sector', 'location', 'award_type', 'bidding_entity']);
 const OPTIONAL_PROJECT_FIELDS = Object.freeze(['start_date', 'end_date', 'project_manager_id', 'short_name', ...CLASSIFICATION_FIELDS]);
 const PROJECT_FIELDS = new Set([
   'code', 'name', 'client', 'end_client', 'stage', 'contract_value', 'tax_treatment', 'tax_amount', 'tax_rate',
-  'tax_base_numerator', 'tax_base_denominator', 'tax_template', 'customer_contract_ref', 'contract_date', 'budget', 'contract_lines',
+  'tax_base_numerator', 'tax_base_denominator', 'tax_template', 'customer_contract_ref', 'contract_date', 'budget', 'contract_lines', 'currency',
   ...OPTIONAL_PROJECT_FIELDS,
 ]);
 const LINE_FIELDS = new Set(['category', 'description', 'budgeted_amount', 'fiscal_year', 'reference']);
 const CONTRACT_LINE_FIELDS = new Set(['key', 'line_no', 'item_code', 'description', 'unit', 'quantity', 'rate', 'basis']);
-const CONTRACT_LINE_BASES = Object.freeze(['unit_rate', 'lump_sum']);
-const COMPANY_FIELDS = new Set(['name', 'short_name']);
-const PROJECT_SELECT = 'id,code,name,short_name,client_id,status,contract_value,pmo_project_number';
+const COMPANY_FIELDS = new Set(['name', 'short_name', 'type']);
+const PROJECT_SELECT = 'id,code,name,short_name,client_id,status,contract_value,pmo_project_number,currency';
 /** PostgREST answers at most max_rows (1000) rows: a read that fills it cannot prove a key is absent. */
 const READ_CAP = 1000;
 
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
-const isText = (v) => typeof v === 'string' && v.trim() !== '';
+export const isText = (v) => typeof v === 'string' && v.trim() !== '';
 const isOptionalText = (v) => v === undefined || v === null || typeof v === 'string';
-const isDate = (v) =>
+export const isDate = (v) =>
   typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`))
   && new Date(`${v}T00:00:00Z`).toISOString().startsWith(v);
-/** numeric(14,2): finite, non-negative, below 1e12, at most two decimals. */
-const isAmount = (v) =>
-  typeof v === 'number' && Number.isFinite(v) && v >= 0 && v < 1e12 && Math.abs(Math.round(v * 100) - v * 100) < 1e-6;
-/** numeric(14,3) quantity: finite, positive, below 1e11, at most three decimals. */
-const isQuantity = (v) =>
-  typeof v === 'number' && Number.isFinite(v) && v > 0 && v < 1e11 && Math.abs(Math.round(v * 1000) - v * 1000) < 1e-6;
-const eq = (v) => `eq.${v}`;
-const params = (o) => new URLSearchParams(o);
+export const eq = (v) => `eq.${v}`;
+export const params = (o) => new URLSearchParams(o);
 
-/** A contract line's earning basis when the file gives none: a lump-sum unit earns by percent. */
-export const defaultContractLineBasis = (unit) =>
-  ['lot', 'ls', 'lump sum'].includes(String(unit).trim().toLowerCase()) ? 'lump_sum' : 'unit_rate';
+/** Contract-line limits and rule texts, shared with `pmo correct` so the two never drift. */
+export const CONTRACT_LINE_TEXT_LIMITS = Object.freeze({ description: 500, unit: 40 });
+export const AMOUNT_RULE = 'must be a non-negative amount with at most 2 decimals';
+export const QUANTITY_RULE = 'must be a positive number below 100000000000 with at most 3 decimals';
+
+export { CONTRACT_LINE_BASES, defaultContractLineBasis, isAmount, isQuantity };
 
 /** A project row's match key: the organisation's own code, else its name and client. */
 export function projectKey(p) {
@@ -159,6 +161,7 @@ export function validateLoadFile(doc) {
     else if (names.has(c.name)) add(`"${c.name}" appears twice`);
     else names.add(c.name);
     if (c.short_name !== undefined && !isText(c.short_name)) add('"short_name" must be text');
+    if (c.type !== undefined && c.type !== 'Client' && c.type !== 'Vendor') add('"type" must be "Client" or "Vendor"');
     return undefined;
   });
 
@@ -174,6 +177,10 @@ export function validateLoadFile(doc) {
     if (!isText(p.client)) add('"client" (the client company\'s legal name) is required');
     if (p.end_client !== undefined && !isText(p.end_client)) add('"end_client" must be a company\'s legal name');
     for (const k of CLASSIFICATION_FIELDS) if (!isOptionalText(p[k])) add(`"${k}" must be text`);
+    // Mirrors the projects.currency CHECK (migration 0187): three capitals, never XXX.
+    if (p.currency !== undefined && !(typeof p.currency === 'string' && /^[A-Z]{3}$/.test(p.currency) && p.currency !== 'XXX')) {
+      add('"currency" must be a three-letter currency code in capitals, such as IDR or USD');
+    }
     if (keys.has(key)) add('appears twice');
     else keys.add(key);
     if (!Object.hasOwn(LOAD_STAGE_PATHS, p.stage)) add(`"stage" must be one of: ${Object.keys(LOAD_STAGE_PATHS).join(', ')}`);
@@ -215,7 +222,7 @@ export function validateLoadFile(doc) {
       if (!isObject(l)) return addLine('must be an object');
       for (const k of Object.keys(l)) if (!LINE_FIELDS.has(k)) addLine(`unknown field "${k}"`);
       if (!BUDGET_CATEGORIES.includes(l.category)) addLine(`"category" must be one of: ${BUDGET_CATEGORIES.join(', ')}`);
-      if (!isAmount(l.budgeted_amount)) addLine('"budgeted_amount" must be a non-negative amount with at most 2 decimals');
+      if (!isAmount(l.budgeted_amount)) addLine(`"budgeted_amount" ${AMOUNT_RULE}`);
       for (const k of ['description', 'fiscal_year', 'reference']) if (!isOptionalText(l[k])) addLine(`"${k}" must be text`);
       if (BUDGET_CATEGORIES.includes(l.category) && isAmount(l.budgeted_amount) &&
           ['description', 'fiscal_year', 'reference'].every((field) => isOptionalText(l[field]))) {
@@ -233,6 +240,13 @@ export function validateLoadFile(doc) {
   return problems;
 }
 
+/** Every contract-line problem for a bare list of lines, as `[message]` (the app importer's parity oracle, #1278). */
+export function validateContractLinesFile(lines) {
+  const out = [];
+  validateContractLines(lines, (m) => out.push(m));
+  return out;
+}
+
 /** Every contract-line problem (DD-CQ-7), whether or not the project has a budget. `add` prefixes the project. */
 function validateContractLines(lines, add) {
   if (!Array.isArray(lines)) return add('"contract_lines" must be a list of lines');
@@ -241,28 +255,7 @@ function validateContractLines(lines, add) {
     const addLine = (m) => add(`contract_lines[${j}]: ${m}`);
     if (!isObject(l)) return addLine('must be an object');
     for (const k of Object.keys(l)) if (!CONTRACT_LINE_FIELDS.has(k)) addLine(`unknown field "${k}"`);
-    if (!isText(l.key)) addLine('"key" is required');
-    else if ([...l.key].length > 500) addLine('"key" must be at most 500 characters');
-    else if (seen.has(l.key)) addLine(`"key" "${l.key}" appears twice`);
-    else seen.add(l.key);
-    if (!isText(l.item_code)) addLine('"item_code" (the ERP service item) is required');
-    else if (l.item_code.length > 140) addLine('"item_code" must be at most 140 characters');
-    for (const [k, max] of [['description', 500], ['unit', 40]]) {
-      if (!isText(l[k])) addLine(`"${k}" is required`);
-      else if (l[k].length > max) addLine(`"${k}" must be at most ${max} characters`);
-    }
-    const quantityOk = isQuantity(l.quantity);
-    if (!quantityOk) addLine('"quantity" must be a positive number below 100000000000 with at most 3 decimals');
-    if (!isAmount(l.rate)) addLine('"rate" must be a non-negative amount with at most 2 decimals');
-    if (l.line_no !== undefined && l.line_no !== null) {
-      if (!Number.isInteger(l.line_no)) addLine('"line_no" must be a whole number');
-      else if (l.line_no < -2147483648 || l.line_no > 2147483647) addLine('"line_no" must fit a 32-bit integer');
-    }
-    const basisOk = l.basis === undefined || CONTRACT_LINE_BASES.includes(l.basis);
-    if (!basisOk) addLine('"basis" must be "unit_rate" or "lump_sum"');
-    if (basisOk && quantityOk && isText(l.unit) && (l.basis ?? defaultContractLineBasis(l.unit)) === 'lump_sum' && l.quantity !== 1) {
-      addLine('a lump-sum line must have quantity 1');
-    }
+    for (const m of contractLineProblems(l, seen)) addLine(m);
     return undefined;
   });
   return undefined;
@@ -278,23 +271,32 @@ export async function resolveLoad(doc, api) {
   const erpOwnsCompanies = owners.length > 0;
 
   const found = new Map(); // legal name -> row | null | 'ambiguous'
-  async function lookup(name) {
-    if (!found.has(name)) {
-      const rows = await api.get('companies', params({ select: 'id,name,short_name,type,archived_at', name: eq(name) }));
+  async function lookup(name, type = 'Client') {
+    const cacheKey = type === 'Vendor' ? `Vendor\u0000${name}` : name;
+    if (!found.has(cacheKey)) {
+      const all = await api.get('companies', params({ select: 'id,name,short_name,type,archived_at', name: eq(name) }));
+      // A supplier entry only ever matches Vendor rows: ERPNext keeps Customer and Supplier apart (#2221).
+      if (type === 'Vendor') {
+        const vendors = all.filter((r) => r.type === 'Vendor');
+        found.set(cacheKey, vendors.length === 0 ? null : vendors.length === 1 ? vendors[0] : 'ambiguous');
+        return found.get(cacheKey);
+      }
+      const rows = all;
       // ERPNext keeps Customer and Supplier apart, so one legal name can be a Client row and a Vendor row (#1316):
       // the Client wins; two rows of the same type stay a real ambiguity.
       const clients = rows.filter((r) => r.type === 'Client');
       const pick = rows.length === 1 ? rows : clients.length === 1 ? clients : rows;
-      found.set(name, pick.length === 0 ? null : pick.length === 1 ? pick[0] : 'ambiguous');
+      found.set(cacheKey, pick.length === 0 ? null : pick.length === 1 ? pick[0] : 'ambiguous');
     }
-    return found.get(name);
+    return found.get(cacheKey);
   }
 
   const companies = [];
   const refs = new Map(); // legal name -> the entry projects point at (its id is filled in on create)
   const unresolved = new Set(); // section companies already reported, so a project naming one adds no second problem
   for (const c of doc.companies ?? []) {
-    const hit = await lookup(c.name);
+    const type = c.type ?? 'Client';
+    const hit = await lookup(c.name, type);
     let problem = null;
     if (hit === 'ambiguous') problem = `company "${c.name}": more than one company has this legal name — resolve it in the app`;
     else if (hit?.archived_at) problem = `company "${c.name}" is archived — restore it in the app first`;
@@ -302,16 +304,17 @@ export async function resolveLoad(doc, api) {
     // the missing Customer through the same synchronous adapter-dispatch command as the app.
     if (problem) {
       problems.push(problem);
-      unresolved.add(c.name);
+      if (type === 'Client') unresolved.add(c.name);
       continue;
     }
     const current = hit?.short_name?.trim() || null;
     const wanted = c.short_name ?? null;
     let action = !hit && erpOwnsCompanies ? 'create_external' : 'create';
     if (hit) action = !wanted || wanted === current ? 'skip' : current === null ? 'set_short_name' : 'short_name_differs';
-    const entry = { name: c.name, id: hit?.id ?? null, action, short_name: wanted, current_short_name: current };
+    const entry = { name: c.name, id: hit?.id ?? null, action, short_name: wanted, current_short_name: current, type };
     companies.push(entry);
-    refs.set(c.name, entry);
+    // Projects point at client companies only; a supplier entry is never a project's client.
+    if (type === 'Client') refs.set(c.name, entry);
   }
 
   async function companyRef(name, role, key) {
@@ -360,6 +363,7 @@ export async function resolveLoad(doc, api) {
       value: !p.contract_value ? 'none' : current === 0 ? 'set' : current === p.contract_value ? 'same' : 'differs',
       shortName: !p.short_name ? 'none' : p.short_name === (existing?.short_name?.trim() || null) ? 'same' : existing?.short_name?.trim() ? 'differs' : 'set',
       currentShortName: existing?.short_name?.trim() || null,
+      currency: !p.currency ? 'none' : !existing ? 'new' : existing.currency === p.currency ? 'same' : 'differs',
       budget: null,
       contractLines: null,
     };
@@ -417,7 +421,7 @@ function projectPayload(e) {
   const body = { name: p.name, status: 'Leads', client_id: e.client.id };
   if (p.code !== undefined) body.code = p.code;
   if (e.endClient) body.end_client_id = e.endClient.id;
-  for (const k of OPTIONAL_PROJECT_FIELDS) if (p[k] !== undefined) body[k] = p[k];
+  for (const k of [...OPTIONAL_PROJECT_FIELDS, 'currency']) if (p[k] !== undefined) body[k] = p[k];
   return body;
 }
 
@@ -462,7 +466,7 @@ export async function applyLoad(plan, api, { dryRun, batchId = crypto.randomUUID
   for (const c of plan.companies) {
     if (c.action === 'create') {
       await write({ kind: 'company.create', name: c.name }, async () => {
-        const [row] = await api.post('companies', { name: c.name, type: 'Client', ...(c.short_name ? { short_name: c.short_name } : {}) });
+        const [row] = await api.post('companies', { name: c.name, type: c.type ?? 'Client', ...(c.short_name ? { short_name: c.short_name } : {}) });
         c.id = row.id;
         return { id: row.id };
       });
@@ -471,7 +475,7 @@ export async function applyLoad(plan, api, { dryRun, batchId = crypto.randomUUID
         if (typeof api.createExternalCompany !== 'function') {
           throw new Error('The API client cannot create an ERP-owned company');
         }
-        const row = await api.createExternalCompany({ name: c.name, type: 'Client' });
+        const row = await api.createExternalCompany({ name: c.name, type: c.type ?? 'Client' });
         if (!row?.id) throw new Error('The ERP company create command returned no canonical company id');
         c.id = row.id;
         if (c.short_name) {
@@ -494,6 +498,9 @@ export async function applyLoad(plan, api, { dryRun, batchId = crypto.randomUUID
   }
 
   for (const e of plan.projects) {
+    if (e.currency === 'differs') {
+      note({ kind: 'project.currency_conflict', key: e.key, id: e.id, current: e.existing.currency, file: e.input.currency });
+    }
     if (e.path === null) {
       note({ kind: 'project.diverged', key: e.key, id: e.id, status: e.existing.status, stage: e.input.stage });
       continue;
@@ -501,14 +508,15 @@ export async function applyLoad(plan, api, { dryRun, batchId = crypto.randomUUID
     if (e.existing) {
       note({ kind: 'project.skip', key: e.key, id: e.id, pmo_project_number: e.pmo_project_number });
     } else {
-      await write({ kind: 'project.create', key: e.key }, async () => {
+      await write({ kind: 'project.create', key: e.key, ...(e.input.currency ? { currency: e.input.currency } : {}) }, async () => {
         let row;
         try {
           [row] = await api.post('projects', projectPayload(e));
         } catch (err) {
           // #1325: a short name already used in the org is a conflict to report, not a reason to lose the project.
           if (!isShortNameConflict(err)) throw err;
-          const { short_name: _taken, ...withoutAlias } = projectPayload(e);
+          const withoutAlias = projectPayload(e);
+          delete withoutAlias.short_name;
           [row] = await api.post('projects', withoutAlias);
           note({ kind: 'project.short_name_conflict', key: e.key, id: row.id, file: e.input.short_name });
         }

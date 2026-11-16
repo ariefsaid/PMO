@@ -173,7 +173,8 @@ const DETAIL_SELECT = [
   // The DecisionSupportPanel sources committed spend via useProjectCommittedSpend (the
   // honest Σ-PO-in-Ordered..Paid basis, OD-W5-4) — NOT the static projects.budget/spent
   // columns (0 in seed, contradict the dashboards). Include the human PMO number for tax evidence.
-  'project:projects(name,short_name,code,pmo_project_number)',
+  'project:projects(name,short_name,code,pmo_project_number,project_manager_id,status)',
+  // status: the tender/pipeline stage the approval panel names beside the project. project_manager_id: the PM-scope check on the record page reads it from here, not from a second project read (#2107; UX scope only, RLS stays the authority).
   'vendor:companies(name)',
   'requested_by:profiles!procurements_requested_by_id_fkey(full_name)',
   'approved_by:profiles!procurements_approved_by_id_fkey(full_name)',
@@ -183,7 +184,8 @@ const DETAIL_SELECT = [
   // Receipts + their files.
   `receipts:procurement_receipts(*, files:procurement_receipt_files(${FILE_FIELDS}))`,
   // Invoices + their files.
-  `invoices:procurement_invoices(*, files:procurement_invoice_files(${FILE_FIELDS}))`,
+  // #1671: the voider's name for a voided bill's ledger row.
+  `invoices:procurement_invoices(*, voider:profiles!procurement_invoices_voided_by_fkey(full_name), files:procurement_invoice_files(${FILE_FIELDS}))`,
   // Slice 6.1 — four new ERP-canonical record types + transition-event log (one bounded
   // PostgREST embed, no N+1; NFR-PR-PERF-002, [PD-7]).
   `purchase_requests:purchase_requests(*, files:purchase_request_files(${FILE_FIELDS}))`,

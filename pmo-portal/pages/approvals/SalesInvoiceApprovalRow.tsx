@@ -3,10 +3,11 @@ import { useTranslation } from 'react-i18next';
 import { ApprovalRow, Button, Icon, ProjectNameLink, TaxBasisLabel } from '@/src/components/ui';
 import { useInvoiceProjectOptions } from '@/src/hooks/useFkOptions';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
-import { formatCurrency, formatCurrencyCents, formatDay } from '@/src/lib/format';
+import { formatCurrency, formatCurrencyCents, formatDay, formatNumberExact } from '@/src/lib/format';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
-import { invoiceGross, invoiceNet, nativeInvoiceSummary } from '@/src/lib/revenue/nativeInvoice';
+import { invoiceGross, invoiceNet, nativeInvoiceSummary, nativeLineName } from '@/src/lib/revenue/nativeInvoice';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
+import { FIGURE_LINE_CLASS } from '@/src/components/ui/FigureContent';
 
 const EYEBROW = 'text-control font-semibold text-muted-foreground';
 
@@ -21,7 +22,9 @@ export const SalesInvoiceApprovalPreview: React.FC<{
   /** Record-only movement of facts into the shared record header. */
   hideProject?: boolean;
   hideInvoiceDate?: boolean;
-}> = ({ inv, showFx = false, hideLines = false, hideProject = false, hideInvoiceDate = false }) => {
+  /** Record-only: the remaining facts (customer PO, raised by, draft number) live in the record header. */
+  hideFacts?: boolean;
+}> = ({ inv, showFx = false, hideLines = false, hideProject = false, hideInvoiceDate = false, hideFacts = false }) => {
   const { t } = useTranslation();
   const { data: projects } = useInvoiceProjectOptions();
   const { data: profiles } = useAssignableProfiles();
@@ -43,14 +46,14 @@ export const SalesInvoiceApprovalPreview: React.FC<{
 
   return (
     <div className="space-y-3">
-      <dl className="grid gap-2 sm:grid-cols-2">
+      {!hideFacts && <dl className="grid gap-2 sm:grid-cols-2">
         {facts.map((f) => (
           <div key={f.label} className="min-w-0 rounded-lg border border-border/70 px-3 py-2">
             <dt className={EYEBROW}>{f.label}</dt>
             <dd title={f.label === t('financeCopy.project', 'Project') ? projectName ?? undefined : undefined} className="mt-1 break-words text-control font-medium">{f.value}</dd>
           </div>
         ))}
-      </dl>
+      </dl>}
 
       {(inv.pmo_native || Boolean(lines.length)) && !hideLines ? (
         <section>
@@ -60,14 +63,15 @@ export const SalesInvoiceApprovalPreview: React.FC<{
               <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 rounded-lg border border-border/70 px-3 py-2 text-control">
                 {/* The line text wraps rather than truncates: the approver must read every word of what is billed. */}
                 <span className="min-w-[12rem] flex-1 break-words">
-                  <span className="block">{line.description ?? line.item_code ?? '—'}</span>
+                  <span className="block">{nativeLineName(line, t) ?? '—'}</span>
                   {line.description && line.item_code && (
-                    <span className="block font-mono text-control text-muted-foreground">{line.item_code}</span>
+                    <span className="block record-id">{line.item_code}</span>
                   )}
                 </span>
                 <span className="ml-auto shrink-0 tabular text-muted-foreground">
-                  {line.qty} × {money(line.rate)} ={' '}
-                  <span className="font-medium text-foreground">{money(line.amount)}</span>
+                  {/* #2089: the quantity renders in the viewer's locale, grouped. */}
+                  {formatNumberExact(line.qty)} × {money(line.rate)} ={' '}
+                  <span className={`${FIGURE_LINE_CLASS} font-medium text-foreground`}>{money(line.amount)}</span>
                 </span>
               </li>
             ))}
@@ -84,7 +88,7 @@ export const SalesInvoiceApprovalPreview: React.FC<{
       <dl className="space-y-1 text-control">
         <div className="flex items-baseline justify-between gap-3">
           <dt className="text-muted-foreground">{t('approvals.salesInvoices.net', 'Net (before tax)')}</dt>
-          <dd className="tabular">
+          <dd className={`${FIGURE_LINE_CLASS} text-right`}>
             {money(net)}
             {showFx && <FxEquivalent amount={net} currency={inv.currency} date={inv.invoice_date} />}
           </dd>
@@ -93,12 +97,18 @@ export const SalesInvoiceApprovalPreview: React.FC<{
           <dt className="text-muted-foreground">{t('approvals.salesInvoices.tax', 'Tax')}</dt>
           <dd className="flex flex-wrap items-baseline justify-end gap-x-1.5 tabular">
             <TaxBasisLabel treatment={inv.tax_treatment} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} showDetails={false} />
-            <span>{money(inv.tax_amount)}</span>
+            <span className={FIGURE_LINE_CLASS}>{money(inv.tax_amount)}</span>
           </dd>
         </div>
         <div className="flex items-baseline justify-between gap-3 border-t border-border pt-1 font-semibold">
-          <dt>{t('approvals.salesInvoices.gross', 'Total due')}</dt>
-          <dd className="tabular">
+          {/* #2345 row 2: on a PAID invoice nothing is due any more — the gross reads as the invoice
+              total (the catalogue's existing word for it, en "Invoice total" / id "Total invoice",
+              finance:receivables.invoiceTotal); before approval/unpaid it stays "Total due". The
+              figure itself never changes. */}
+          <dt>{inv.status === 'Paid'
+            ? t('finance:receivables.invoiceTotal', 'Invoice total')
+            : t('approvals.salesInvoices.gross', 'Total due')}</dt>
+          <dd className={`${FIGURE_LINE_CLASS} text-right`}>
             {money(invoiceGross(inv))}
             {showFx && <FxEquivalent amount={invoiceGross(inv)} currency={inv.currency} date={inv.invoice_date} />}
           </dd>

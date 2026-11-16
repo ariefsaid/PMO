@@ -12,20 +12,74 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ENVF="$ROOT/.env.odoo.local"
+SHARED_ENV="$HOME/.pmo-odoo-bed.env"
 COMPOSE=(docker compose -f "$ROOT/scripts/odoo-bed/compose.yml" --env-file "$ENVF")
 MODULES="purchase,stock,account,project,analytic,hr_timesheet,fleet,maintenance"
 L10N="l10n_id"
 
 ensure_env() {
-  [ -f "$ENVF" ] && return
+  [ -L "$ENVF" ] && [ -f "$ENVF" ] && return
+  if [ -f "$ENVF" ]; then
+    if [ -e "$SHARED_ENV" ]; then
+      echo "Both bed env files exist; reconcile them before continuing" >&2; return 1
+    fi
+    mv "$ENVF" "$SHARED_ENV"
+  fi
   umask 077
-  { echo "ODOO_DB_PASSWORD=$(openssl rand -hex 12)"
+  if [ ! -e "$SHARED_ENV" ]; then
+    { echo "ODOO_DB_PASSWORD=$(openssl rand -hex 12)"
     echo "ODOO_ADMIN_PASSWORD=$(openssl rand -hex 12)"
-    echo "ODOO_PORT=8069"; echo "ODOO_DB=pmo_demo"; echo "ODOO_IMAGE=odoo:20.0"; } > "$ENVF"
+    echo "ODOO_PORT=8069"; echo "ODOO_DB=pmo_demo"; echo "ODOO_IMAGE=odoo:20.0"; } > "$SHARED_ENV"
+  fi
+  chmod 600 "$SHARED_ENV"
+  ln -s "$SHARED_ENV" "$ENVF"
 }
 load_env() { set -a; . "$ENVF"; set +a; }
 odoo_run() { "${COMPOSE[@]}" run --rm --no-deps -T odoo "$@"; }
 psql_db() { "${COMPOSE[@]}" exec -T db psql -U odoo -tA "$@"; }
+
+# One login attempt over the container's own (first) address; the image trusts loopback, so only a
+# non-loopback login actually checks the password. The password is passed by NAME (-e PGPASSWORD) with
+# the value in the caller's environment, so it never appears on the host's argv.
+probe_once() {
+  PGPASSWORD="$ODOO_DB_PASSWORD" "${COMPOSE[@]}" exec -T -e PGPASSWORD db \
+    sh -c 'psql -h "$(hostname -i | cut -d" " -f1)" -U odoo -d postgres -tAc "select 1"' 2>&1
+}
+
+# Pure: probe exit code + its output -> ok | mismatch | retry.
+classify_probe() {
+  local rc="$1" out="$2"
+  if [ "$rc" -eq 0 ]; then echo ok
+  elif [[ "$out" == *"password authentication failed"* ]]; then echo mismatch
+  else echo retry; fi
+}
+
+# 0 = accepted, 1 = the password was refused, 2 = never reachable (last error line printed, no secrets).
+db_accepts_settings() {
+  local out="" rc i
+  for i in $(seq 1 "${BED_PROBE_TRIES:-15}"); do
+    rc=0; out="$(probe_once)" || rc=$?
+    case "$(classify_probe "$rc" "$out")" in
+      ok) return 0 ;;
+      mismatch) return 1 ;;
+    esac
+    sleep 2
+  done
+  printf '%s\n' "$out" | grep -v '^[[:space:]]*$' | tail -1 >&2
+  return 2
+}
+
+# Stops `up` with one plain sentence when the bed refuses the settings it was started with.
+check_bed_accepts_settings() {
+  local rc=0
+  db_accepts_settings || rc=$?
+  case "$rc" in
+    0) return 0 ;;
+    1) echo "The bed's database does not accept the settings in $ENVF; reconcile that file (or $SHARED_ENV) with the one the volumes were created with, or run 'reset'." >&2 ;;
+    *) echo "The bed's database did not become reachable over its network address." >&2 ;;
+  esac
+  return 1
+}
 
 wait_http() {
   for _ in $(seq 1 60); do
@@ -88,10 +142,45 @@ PY
 
 cmd="${1:-status}"
 case "$cmd" in
+  --self-test)
+    tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+    SHARED_ENV="$tmp/shared.env"; mkdir "$tmp/first" "$tmp/second"
+    ENVF="$tmp/first/.env.odoo.local"; ensure_env
+    ENVF="$tmp/second/.env.odoo.local"; ensure_env
+    [ -L "$tmp/first/.env.odoo.local" ] && [ -L "$ENVF" ]
+    cmp -s "$tmp/first/.env.odoo.local" "$ENVF"
+    # The live probe (compose exec + psql) is proven only against a real bed; everything around it is covered here.
+    ENVF="$tmp/second/.env.odoo.local"
+    [ "$(classify_probe 0 "")" = ok ] && [ "$(classify_probe 2 'FATAL: password authentication failed for user "odoo"')" = mismatch ] \
+      && [ "$(classify_probe 2 'connection refused')" = retry ] || { echo "self-test: classifier wrong" >&2; exit 1; }
+    sleep() { :; }; BED_PROBE_TRIES=3
+    probe_once() { echo 'psql: error: connection refused'; return 2; }
+    rc=0; db_accepts_settings 2>/dev/null || rc=$?; [ "$rc" -eq 2 ] || { echo "self-test: unreachable should be 2" >&2; exit 1; }
+    probe_once() { echo 'FATAL: password authentication failed'; return 2; }
+    rc=0; db_accepts_settings || rc=$?; [ "$rc" -eq 1 ] || { echo "self-test: refusal should be 1" >&2; exit 1; }
+    probe_once() { echo 1; }
+    db_accepts_settings || { echo "self-test: accepted login should be 0" >&2; exit 1; }
+    # Messages: refusal names the file (one line); unreachable says so without the reconcile advice.
+    db_accepts_settings() { return 1; }
+    msg="$(check_bed_accepts_settings 2>&1)" && { echo "self-test: mismatch not detected" >&2; exit 1; }
+    case "$msg" in *"does not accept the settings in $ENVF"*"reconcile"*) ;; *) echo "self-test: wrong message: $msg" >&2; exit 1 ;; esac
+    [ "$(printf '%s\n' "$msg" | wc -l)" -eq 1 ]
+    db_accepts_settings() { return 2; }
+    msg="$(check_bed_accepts_settings 2>&1)" && { echo "self-test: unreachable not detected" >&2; exit 1; }
+    case "$msg" in *"did not become reachable"*) ;; *) echo "self-test: wrong message: $msg" >&2; exit 1 ;; esac
+    case "$msg" in *reconcile*) echo "self-test: unreachable must not say reconcile" >&2; exit 1 ;; esac
+    db_accepts_settings() { return 0; }
+    check_bed_accepts_settings
+    # `up` must run the check before it seeds anything.
+    awk '/^  up\)/{u=1} u&&/check_bed_accepts_settings/{c=NR} u&&/^    seed$/{s=NR} u&&/;;/{exit} END{exit !(c && s && c<s)}' "$0" \
+      || { echo "self-test: up must call check_bed_accepts_settings before seed" >&2; exit 1; }
+    echo "shared bed env self-test passed"
+    ;;
   up)
     ensure_env; load_env
     "${COMPOSE[@]}" up -d db
     until [ "$("${COMPOSE[@]}" ps --format '{{.Health}}' db)" = healthy ]; do sleep 2; done
+    check_bed_accepts_settings
     seed
     load_chart
     mint_key
@@ -103,7 +192,7 @@ case "$cmd" in
   reset)
     ensure_env; load_env
     "${COMPOSE[@]}" down -v --remove-orphans
-    sed -i '' '/^ODOO_API_KEY=/d' "$ENVF"
+    sed -i '' '/^ODOO_API_KEY=/d' "$SHARED_ENV"
     exec "$0" up
     ;;
   status)

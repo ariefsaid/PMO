@@ -17,6 +17,9 @@ import { initials } from '@/src/lib/initials';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { usePayablesPagePosition } from '@/src/hooks/usePayablesPagePosition';
 
+/** The age bars sit in a panel on the same inset as the figure strip and the table beside it: one left edge below the page gutter. */
+const AGEING_PANEL = 'panel-card mb-5 min-w-0 p-[var(--space-content-inset)]';
+
 type PayableRow = FinancePosition['payables'][number];
 
 /** Known unpaid balances by currency; unknown balances are counted separately, never as zero. */
@@ -98,7 +101,7 @@ const PayablesPage: React.FC = () => {
       header: t('financeHub:hub.fix.payables.procurement', 'Procurement'),
       kind: 'text',
       size: 210,
-      cell: (row) => <div className="min-w-0"><div className="min-w-0 whitespace-normal break-words font-medium" title={row.procurement.title}>{row.procurement.title}</div><div className={row.procurement.code ? 'font-mono text-control text-muted-foreground' : 'text-control text-muted-foreground'}>{procurementReference(row)}</div></div>,
+      cell: (row) => <div className="min-w-0"><div className="min-w-0 whitespace-normal break-words font-medium" title={row.procurement.title}>{row.procurement.title}</div><div className={row.procurement.code ? 'record-id' : 'text-control text-muted-foreground'}>{procurementReference(row)}</div></div>,
       exportValue: (row) => `${row.procurement.title} · ${procurementReference(row)}`,
     },
     {
@@ -183,10 +186,10 @@ const PayablesPage: React.FC = () => {
           value={agePending || ageError || oldest?.ageDays === null || !oldest ? null : t('financeHub:hub.daysSinceInvoice', '{{count}} days', { count: oldest.ageDays })} loading={agePending} error={ageError}
         />}
       </KPIRow>
-      {ageingPending && <section aria-label={t('finance:area.payablesAgeingBasis', 'Invoice age, by days')} className="mb-5 min-w-0">
+      {ageingPending && <div className={AGEING_PANEL}><section aria-label={t('finance:area.payablesAgeingBasis', 'Invoice age, by days')} className="min-w-0">
         <h2 className="mb-2 text-[14px] font-semibold">{t('financeHub:hub.invoiceAge', 'Invoice age')}</h2>
         <ListState variant="loading" shape="chart" rows={1} className="p-0" loadingLabel={t('ui.listState.loading', 'Loading…')} />
-      </section>}
+      </section></div>}
       {isError && <ListState
         variant="error"
         title={t('financeHub:hub.payablesLoadError', "Couldn't load supplier invoices")}
@@ -199,7 +202,7 @@ const PayablesPage: React.FC = () => {
         onRetry={payablesPosition.retryAge}
         className="mb-5"
       />}
-      {!ageingPending && !ageingError && <AgeingStrip kind="payables" payablesStatusColors heading={t('financeHub:hub.invoiceAge', 'Invoice age')} ariaLabel={t('finance:area.payablesAgeingBasis', 'Invoice age, by days')} values={payablesPosition.payablesAgeing} unknownCounts={payablesPosition.payablesUnknownAgeing} />}
+      {!ageingPending && !ageingError && <div className={AGEING_PANEL}><AgeingStrip kind="payables" flush payablesStatusColors heading={t('financeHub:hub.invoiceAge', 'Invoice age')} ariaLabel={t('finance:area.payablesAgeingBasis', 'Invoice age, by days')} values={payablesPosition.payablesAgeing} unknownCounts={payablesPosition.payablesUnknownAgeing} /></div>}
       <div className="min-w-0" data-testid="finance-payables-table-card">
       <Toolbar data-testid="finance-payables-table-toolbar" className="gap-2 sm:gap-3">
         <SearchMini aria-label={t('financeHub:hub.searchPayables', 'Search payables')} placeholder={t('financeHub:hub.searchPayables', 'Search payables')} value={search} onChange={(event) => setSearch(event.target.value)} searchSurface="finance-payables" module="finance" resultCount={visibleRows.length} />

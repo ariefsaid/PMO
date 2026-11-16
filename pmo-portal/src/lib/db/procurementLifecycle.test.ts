@@ -233,6 +233,10 @@ describe('getProcurementDetail', () => {
     expect(mockSelect).toHaveBeenCalledWith(
       expect.stringContaining('payments:payments('),
     );
+    // The page takes the Project Manager from this embed (#2107); without it a real manager would lose their actions.
+    expect(mockSelect).toHaveBeenCalledWith(
+      expect.stringContaining('project:projects(name,short_name,code,pmo_project_number,project_manager_id,status)'),
+    );
     // statusEvents embed now includes the actor profile join for name resolution (AC-PR-PROG-012)
     expect(mockSelect).toHaveBeenCalledWith(
       expect.stringContaining('statusEvents:procurement_status_events(*, actor:profiles!'),

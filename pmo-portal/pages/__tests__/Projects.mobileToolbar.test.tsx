@@ -5,7 +5,7 @@ import '@/test/stubGetAnimations';
  * At <768px the ListPage single-renders the mobile node: status (bounded scroll),
  * search, the full view toggle (Table included — DataTable already reflows it into
  * cards), the one filter builder (#1983: Add filter + removable chips), a permission-gated
- * More actions disclosure, and one list-wide Clear all. The desktop secondary
+ * Options disclosure (views, export, import), and one list-wide Clear all. The desktop secondary
  * filters / export / import copies are absent in this branch.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -66,7 +66,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
   }),
   useProjectsMilestoneDates: () => ({ data: [], isPending: false }),
 }));
-vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => ({ data: [{ project_id: 'p1' }], isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
   useProjectsDeliverySummary: () => ({ data: {} }),
@@ -182,7 +182,8 @@ describe('AC-PRJUX-001 — loaded mobile composition', () => {
     roleBox.value = 'Project Manager';
   });
 
-  it('AC-PRJUX-001: status, search, full view toggle, Add filter, More actions, New project are reachable; desktop copies absent', () => {
+  it('AC-PRJUX-001: status, search, full view toggle, Add filter, Options, New project are reachable; desktop copies absent', async () => {
+    const user = userEvent.setup();
     renderPage();
     expect(screen.getByTestId('projects-mobile-toolbar')).toBeInTheDocument();
 
@@ -194,7 +195,12 @@ describe('AC-PRJUX-001 — loaded mobile composition', () => {
     // search
     expect(screen.getByRole('searchbox', { name: /search projects/i })).toBeInTheDocument();
 
-    // full view toggle — the selected view (Table) AND all four are reachable
+    // desktop secondary filters + export/import are NOT present in the mobile branch
+    expect(screen.queryByRole('combobox', { name: /filter by customer/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Export$/i })).not.toBeInTheDocument();
+
+    // full view toggle — one tap away in Options; the selected view (Table) AND all four are reachable
+    await user.click(screen.getByRole('button', { name: /^Options$/i }));
     const viewToggle = screen.getByRole('tablist', { name: /projects view/i });
     for (const name of ['Table', 'Cards', 'Calendar', 'Board']) {
       expect(within(viewToggle).getByRole('tab', { name: new RegExp(`^${name}$`) })).toBeInTheDocument();
@@ -203,11 +209,7 @@ describe('AC-PRJUX-001 — loaded mobile composition', () => {
 
     // disclosures
     expect(screen.getByRole('button', { name: /^Add filter$/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^More actions$/i })).toBeInTheDocument();
-
-    // desktop secondary filters + export/import are NOT present in the mobile branch
-    expect(screen.queryByRole('combobox', { name: /filter by customer/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^Export$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Options$/i })).toBeInTheDocument();
 
     // header primary action preserved
     expect(screen.getByRole('button', { name: /new project/i })).toBeInTheDocument();
@@ -240,13 +242,13 @@ describe('AC-PRJUX-001 — loaded mobile composition', () => {
     expect(search).toHaveValue('Innovate');
     await user.clear(search);
 
+    await user.click(screen.getByRole('button', { name: /^Options$/i }));
     const viewTabs = screen.getByRole('tablist', { name: /projects view/i });
     const board = within(viewTabs).getByRole('tab', { name: /^Board$/i });
     await user.click(board);
-    expect(board).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByTestId('project-kanban-board')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /^More actions$/i }));
+    await user.click(screen.getByRole('button', { name: /^Options$/i }));
     expect(screen.getByRole('button', { name: /^Export$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Import$/i })).toBeInTheDocument();
   });
@@ -259,14 +261,14 @@ describe('AC-PRJUX-001 — loaded mobile composition', () => {
     await user.click(atRiskTab);
     expect(atRiskTab).toHaveAttribute('aria-selected', 'true');
 
-    const viewTabs = screen.getByRole('tablist', { name: /projects view/i });
-    const boardTab = within(viewTabs).getByRole('tab', { name: /^Board$/i });
+    await user.click(screen.getByRole('button', { name: /^Options$/i }));
+    const boardTab = within(screen.getByRole('tablist', { name: /projects view/i })).getByRole('tab', { name: /^Board$/i });
     await user.click(boardTab);
-    expect(boardTab).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByTestId('project-kanban-board')).toBeInTheDocument();
 
     // Leave the persisted view at its default so later tests start from the same state.
-    await user.click(within(viewTabs).getByRole('tab', { name: /^Table$/i }));
+    await user.click(screen.getByRole('button', { name: /^Options$/i }));
+    await user.click(within(screen.getByRole('tablist', { name: /projects view/i })).getByRole('tab', { name: /^Table$/i }));
   });
 });
 
@@ -352,7 +354,7 @@ describe('AC-PRJUX-003 — disclosure keyboard, Escape, permission gating', () =
   it('AC-PRJUX-003: More actions exposes Export/Import/Import budgets and closes on Escape with focus restored', async () => {
     const user = userEvent.setup();
     renderPage();
-    const moreBtn = screen.getByRole('button', { name: /^More actions$/i });
+    const moreBtn = screen.getByRole('button', { name: /^Options$/i });
     await user.click(moreBtn);
     expect(screen.getByRole('button', { name: /^Export$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Import$/i })).toBeInTheDocument();
@@ -360,13 +362,13 @@ describe('AC-PRJUX-003 — disclosure keyboard, Escape, permission gating', () =
 
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('button', { name: /^Export$/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^More actions$/i })).toHaveFocus();
+    expect(screen.getByRole('button', { name: /^Options$/i })).toHaveFocus();
   });
 
   it('AC-PRJUX-003: Export closes More actions and returns focus to its trigger', async () => {
     const user = userEvent.setup();
     renderPage();
-    const moreBtn = screen.getByRole('button', { name: /^More actions$/i });
+    const moreBtn = screen.getByRole('button', { name: /^Options$/i });
     await user.click(moreBtn);
     await user.click(screen.getByRole('button', { name: /^Export$/i }));
     expect(moreBtn).toHaveAttribute('aria-expanded', 'false');
@@ -380,7 +382,7 @@ describe('AC-PRJUX-003 — disclosure keyboard, Escape, permission gating', () =
     expect(await screen.findByRole('option', { name: 'Service line' })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'Customer' })).not.toBeInTheDocument();
     await user.keyboard('{Escape}');
-    const moreBtn = screen.getByRole('button', { name: /^More actions$/i });
+    const moreBtn = screen.getByRole('button', { name: /^Options$/i });
     await user.click(moreBtn);
     expect(screen.getByRole('button', { name: /^Export$/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Import$/i })).not.toBeInTheDocument();
@@ -519,7 +521,7 @@ describe('AC-PRJUX-006 — English and Bahasa resolve every new label', () => {
     const idBuilder = JSON.parse(readFileSync(resolve(root, 'id', 'projects.json'), 'utf8')).filterBuilder;
     const keyAssertions: Array<[string, unknown, unknown]> = [
       ['projects:filterBuilder.addFilter', enBuilder.addFilter, idBuilder.addFilter],
-      ['uxs14.moreActions', en.uxs14.moreActions, id.uxs14.moreActions],
+      ['projects:listOptions', JSON.parse(readFileSync(resolve(root, 'en', 'projects.json'), 'utf8')).listOptions, JSON.parse(readFileSync(resolve(root, 'id', 'projects.json'), 'utf8')).listOptions],
       ['projects.mobile.clearAll', enMobile.clearAll, idMobile.clearAll],
       ['projects:filterBuilder.remove', enBuilder.remove, idBuilder.remove],
       ['projects.mobile.error', enMobile.error, idMobile.error],

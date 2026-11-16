@@ -90,7 +90,7 @@ const PROJECT_KANBAN_COLUMNS: ProjectKanbanColDef[] = [
   {
     key: 'internal',
     statuses: ['Internal Project'],
-    dotColor: 'hsl(var(--muted-foreground))',
+    dotColor: 'hsl(var(--mark-neutral))',
     testId: 'kanban-col-internal',
   },
 ];

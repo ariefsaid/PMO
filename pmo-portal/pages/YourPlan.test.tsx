@@ -112,6 +112,36 @@ describe('AC-PLN-013 — Your plan is read-only', () => {
     await waitFor(() => expect(api.getOwnPlan).toHaveBeenCalled());
   });
 
+  it('AC-NBR-037 (P) features pending: the plan card and limits render and only the features card loads', async () => {
+    api.listOwn.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    expect(await screen.findByText('Starter')).toBeInTheDocument();
+    expect(screen.getByText('300')).toBeInTheDocument();
+    const features = screen.getByTestId('your-plan-loading');
+    expect(features).toBeInTheDocument();
+    expect(screen.queryByText('Stock')).toBeNull();
+    expect(screen.getAllByTestId('your-plan-loading')).toHaveLength(1);
+  });
+
+  it('AC-NBR-037 (P) plan pending: the features card renders and only the plan card loads', async () => {
+    api.getOwnPlan.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    expect(await screen.findByText('Stock')).toBeInTheDocument();
+    expect(screen.getByTestId('your-plan-plan-loading')).toBeInTheDocument();
+    expect(screen.queryByTestId('your-plan-loading')).toBeNull();
+    expect(screen.queryByText('Current plan')).toBeNull();
+    expect(screen.queryByText('Starter')).toBeNull();
+  });
+
+  it('AC-NBR-037 (F) features failed: the plan card keeps its figures and the features card says it could not load', async () => {
+    api.listOwn.mockRejectedValue(new Error('boom'));
+    renderPage();
+    expect(await screen.findByText('Starter')).toBeInTheDocument();
+    expect(await screen.findByText(/could not be loaded/i)).toBeInTheDocument();
+    expect(screen.getByText('25')).toBeInTheDocument();
+    expect(screen.queryByText('Stock')).toBeNull();
+  });
+
   it('AC-PLN-013: a non-admin viewer without the Operator role is told who can see it', async () => {
     permissionState.canViewPlan = false;
     permissionState.isOperator = false;

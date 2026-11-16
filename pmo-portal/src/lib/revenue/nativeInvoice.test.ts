@@ -5,6 +5,7 @@ import {
   invoiceNumber,
   isPartlyPaid,
   nativeInvoiceSummary,
+  nativeLineName,
   overpaidBy,
   paidToDate,
   previewInvoiceDraft,
@@ -119,5 +120,19 @@ describe('invoice draft review (S16)', () => {
       [{ qty: 2, rate: 100 }],
       { treatment: 'exclusive', rate: 12, fraction: { numerator: 0, denominator: 12 } },
     )).toEqual({ subtotal: 200, tax: null, total: null, reason: 'tax-unavailable' });
+  });
+});
+
+describe('nativeLineName (#2465)', () => {
+  const t = (key: string, fallback: string) => `[${key}] ${fallback}`;
+  it('AC-NAR-041 names a claim\'s down-payment lines by role, in the viewer\'s language, not by the native item code', () => {
+    expect(nativeLineName({ role: 'down_payment', description: 'Down payment', item_code: null }, t)).toBe('[finance:financeCopy.nativeLineDownPayment] Down payment');
+    expect(nativeLineName({ role: 'down_payment_recovery', description: 'Down payment recovery', item_code: 'DOWN-PAYMENT' }, t))
+      .toBe('[finance:financeCopy.nativeLineDownPaymentRecovery] Down payment recovery');
+  });
+  it('AC-NAR-041 any other line keeps its own description, then its item code', () => {
+    expect(nativeLineName({ description: 'Route survey', item_code: 'SURVEY' }, t)).toBe('Route survey');
+    expect(nativeLineName({ description: null, item_code: 'SURVEY' }, t)).toBe('SURVEY');
+    expect(nativeLineName({ description: null, item_code: null }, t)).toBeNull();
   });
 });

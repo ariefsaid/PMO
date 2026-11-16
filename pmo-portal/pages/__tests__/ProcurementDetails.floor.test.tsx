@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { clearOwnershipCache } from '@/src/lib/adapterSeam/ownershipCache';
 const itemEligibility = vi.hoisted(() => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }));
 const recordPush = vi.hoisted(() => ({ status: 'idle' as string, error: null }));
+vi.mock('@/src/hooks/useProcurementFilesBatch', () => ({ useProcurementFilesBatch: () => ({ data: new Proxy({}, { get: () => fileState.files }), isError: false }) }));
 vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
 
 vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => itemEligibility }));
@@ -174,6 +175,10 @@ vi.mock('@/src/components/ui', async (orig) => {
   return { ...actual, useToast: () => ({ toast }) };
 });
 
+// S05: the budget panel also reads the project's canonical Budget used; stubbed like its other reads (these tests mount no QueryClient).
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: () => ({ data: undefined, isPending: false, isError: false }),
+}));
 // N8 (AC-IXD-PROC-W5-2): DecisionSupportPanel is now mounted in ProcurementDetails.
 // Stub useProjectBudget so the panel renders a real (non-loading) state without a
 // QueryClientProvider — the detail-page tests assert existing lifecycle behavior, not
@@ -406,7 +411,8 @@ describe('Procurement record floor controls', () => {
 
   it('floor: Header project link opens the matching project record', async () => {
     renderPage();
-    await userEvent.click(within(screen.getByTestId('record-header')).getByRole('link', { name: 'Open HQ Fit-Out' }));
+    // The identity line's link (the budget evidence in the header band links the same project; its own floor test below).
+    await userEvent.click(within(screen.getByTestId('record-meta')).getByRole('link', { name: 'Open HQ Fit-Out' }));
     expect(currentRoute()).toHaveTextContent(/^\/projects\/proj-1$/);
   });
 
@@ -578,17 +584,21 @@ describe('Procurement record floor controls', () => {
 
   it('floor: Hidden figures Why is keyboard reachable and names the missing source', async () => {
     // A purchase order recorded without an amount: the Ordered figure is unknown, so the record's
-    // hidden-figures line appears and its Why control opens the reason.
+    // hidden-figures line appears and its Why control opens the reason. The purchase started at the
+    // order stage (no request), so no request amount is expected and only the order is reported
+    // (#2345 row 6: the request check precedes the unknown check).
     detailState.data = { ...baseProcurement, purchase_orders: [
       { id: 'po-x', po_number: 'PO-2601010001', status: 'Issued', date: '2026-01-10', reference_number: null, amount: null, currency: 'USD', procurement_id: 'proc-001', org_id: 'org-1', created_at: '2026-01-10T00:00:00Z' },
     ] };
     renderPage();
+    // The line itself stays (this fixture also hides the budget-comparison tile — its spend mock
+    // carries no currencies), so the count is pinned at the component level, not here.
     expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/figures hidden/);
     const why = screen.getByRole('button', { name: 'Why' });
     why.focus();
     await userEvent.keyboard('{Enter}');
     expect(await screen.findByText('purchase order amount not recorded')).toBeInTheDocument();
-    expect(screen.getByText('purchase request amount not recorded')).toBeInTheDocument();
+    expect(screen.queryByText('purchase request amount not recorded')).not.toBeInTheDocument();
   });
 });
 

@@ -1,0 +1,107 @@
+{
+  "actions": {
+    "approve": "Setujui",
+    "edit": "Ubah",
+    "new": "Jurnal baru",
+    "return": "Kembalikan",
+    "reverse": "Balik",
+    "saveDraft": "Simpan draf",
+    "submit": "Ajukan",
+    "send": "Kirim ke buku besar",
+    "sent": "Jurnal dikirim ke buku besar",
+    "retrySend": "Kirim ulang"
+  },
+  "approve": {
+    "body": "Jurnal dikirim ke buku besar setelah disetujui.",
+    "title": "Setujui jurnal ini?",
+    "toast": "Jurnal disetujui",
+    "sendFailedTitle": "Disetujui, tetapi belum terkirim",
+    "sendFailedBody": "Jurnal sudah disetujui. Pengiriman ke buku besar gagal; kirim lagi."
+  },
+  "detail": {
+    "error": "Jurnal ini tidak dapat dimuat",
+    "ledgerDate": "Tanggal di buku besar",
+    "ledgerRef": "Referensi buku besar",
+    "noLines": "Belum ada baris",
+    "returned": "Dikembalikan: {{reason}}",
+    "reversalReason": "Alasan pembalikan",
+    "soleMember": "Anda satu-satunya anggota organisasi ini, jadi Anda dapat menyetujui jurnal Anda sendiri. Setelah rekan bergabung, orang kedua yang menyetujui."
+  },
+  "errors": {
+    "denied": "Anda tidak dapat melakukan perubahan ini",
+    "invalid": "Periksa baris jurnal",
+    "refused": "Jurnal tidak diterima",
+    "tooManyDecimals": "Jumlah memiliki lebih banyak desimal daripada yang dimiliki mata uang. Hapus desimal yang berlebih."
+  },
+  "form": {
+    "account": "Akun",
+    "addLine": "Tambah baris",
+    "balanceFirst": "Debet dan kredit harus sama.",
+    "credit": "Kredit",
+    "date": "Tanggal",
+    "debit": "Debet",
+    "difference": "Selisih: {{amount}}",
+    "editTitle": "Ubah jurnal",
+    "fixLines": "Setiap baris memerlukan akun dan satu jumlah.",
+    "kind": "Jenis",
+    "label": "Uraian",
+    "lineN": "Baris {{n}}",
+    "memo": "Keterangan",
+    "memoTooLong": "Batasi keterangan hingga 500 karakter.",
+    "newTitle": "Jurnal baru",
+    "project": "Proyek",
+    "projectNoun": "proyek",
+    "removeLine": "Hapus baris {{n}}",
+    "saved": "Draf disimpan",
+    "submitted": "Jurnal diajukan",
+    "debitIn": "Debet ({{currency}})",
+    "creditIn": "Kredit ({{currency}})"
+  },
+  "kinds": {
+    "accrual": "Akrual",
+    "closing": "Penutupan",
+    "correction": "Koreksi",
+    "depreciation": "Penyusutan",
+    "fee": "Biaya",
+    "funding": "Pendanaan",
+    "interest": "Bunga",
+    "reclassification": "Reklasifikasi",
+    "revaluation": "Revaluasi",
+    "taxDeposit": "Setoran pajak"
+  },
+  "list": {
+    "searchPlaceholder": "Cari jurnal…",
+    "searchAria": "Cari jurnal",
+    "noMatch": "Tidak ada jurnal yang cocok dengan pencarian ini",
+    "date": "Tanggal",
+    "empty": "Tidak ada jurnal pada tanggal ini",
+    "error": "Jurnal tidak dapat dimuat",
+    "errorSub": "Permintaan gagal. Periksa koneksi Anda lalu coba lagi.",
+    "from": "Dari",
+    "memo": "Keterangan",
+    "outside": "Di luar PMO",
+    "rowLabel": "Buka {{memo}}",
+    "status": "Status",
+    "title": "Jurnal",
+    "to": "Sampai",
+    "total": "Total"
+  },
+  "nav": {
+    "journals": "Jurnal"
+  },
+  "return": {
+    "subject": "jurnal",
+    "toast": "Jurnal dikembalikan"
+  },
+  "reverse": {
+    "body": "Draf baru menukar setiap debet dan kredit. Penyetuju kedua menyetujuinya.",
+    "confirm": "Buat draf pembalikan",
+    "date": "Tanggal pembalikan",
+    "reason": "Alasan",
+    "title": "Balik jurnal ini?",
+    "toast": "Draf pembalikan dibuat"
+  },
+  "setup": {
+    "needsDeskJournal": "Admin harus memilih jurnal Odoo untuk entri manual di pengaturan Odoo sebelum jurnal dapat diposting."
+  }
+}

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
@@ -59,6 +60,10 @@ vi.mock('@/src/hooks/useTasks', () => ({
 }));
 
 let currentUserId = 'author-1';
+vi.mock('@/src/hooks/useOrgProfilesLoader', async () => {
+  const { repositories } = await import('@/src/lib/repositories');
+  return { useOrgProfilesLoader: () => () => repositories.profile.listOrgProfiles() };
+});
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: currentUserId, org_id: 'org-1' } }),
 }));
@@ -85,6 +90,8 @@ vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({
 
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
+    // #2106: the minutes' action items now resolve through one batched read from the page's provider.
+    task: { listByIds: vi.fn().mockResolvedValue([]), get: vi.fn().mockResolvedValue(null) },
     profile: {
       listOrgProfiles: vi.fn().mockResolvedValue([
         { id: 'author-1', full_name: 'Ari Author' },
@@ -202,15 +209,19 @@ const baseMeeting = {
   updated_at: '2026-08-20T09:00:00Z',
 };
 
+/** #2106: MeetingMinutes mounts its action-item batch, which needs the app's query client. */
+const withQuery = (ui: React.ReactElement) =>
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider>;
+
 const renderPage = (role: Role = 'Engineer') => {
   realRole = role;
-  return render(
+  return render(withQuery(
     <ToastProvider>
       <MemoryRouter initialEntries={['/meetings/m1']}>
         <MeetingDetail />
       </MemoryRouter>
     </ToastProvider>,
-  );
+  ));
 };
 
 // list-working-set-return (#683): reads the URL a Meetings-index Route landed on, for the
@@ -223,7 +234,7 @@ const MeetingsIndexProbe: React.FC = () => {
 
 const renderRouted = (initialEntry: string | { pathname: string; state?: unknown }, role: Role = 'Engineer') => {
   realRole = role;
-  return render(
+  return render(withQuery(
     <ToastProvider>
       <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
@@ -232,7 +243,7 @@ const renderRouted = (initialEntry: string | { pathname: string; state?: unknown
         </Routes>
       </MemoryRouter>
     </ToastProvider>,
-  );
+  ));
 };
 
 const MeetingDetailWithBreadcrumb: React.FC = () => {
@@ -252,7 +263,7 @@ const MeetingDetailWithBreadcrumb: React.FC = () => {
 
 const renderRoutedWithBreadcrumb = (role: Role = 'Engineer') => {
   realRole = role;
-  return render(
+  return render(withQuery(
     <ToastProvider>
       <MemoryRouter initialEntries={['/meetings/m1']}>
         <Routes>
@@ -261,7 +272,7 @@ const renderRoutedWithBreadcrumb = (role: Role = 'Engineer') => {
         </Routes>
       </MemoryRouter>
     </ToastProvider>,
-  );
+  ));
 };
 
 beforeEach(() => {
@@ -334,6 +345,7 @@ describe('MeetingDetail — unsaved minutes navigation guard', () => {
   it('guards header edits during navigation and document unload with shared draft wording', async () => {
     renderRoutedWithBreadcrumb();
     await screen.findByTestId('stub-editor', {}, { timeout: 10_000 });
+    await userEvent.click(screen.getByTestId('meeting-header-edit'));
     await userEvent.type(screen.getByLabelText(/Title/), ' updated');
 
     const dirtyEvent = new Event('beforeunload', { cancelable: true });
@@ -409,7 +421,7 @@ describe('MeetingDetail — unsaved minutes navigation guard', () => {
       return <div data-testid="state-probe">{`${location.search}|${JSON.stringify(location.state)}`}</div>;
     };
     realRole = 'Engineer';
-    render(
+    render(withQuery(
       <ToastProvider>
         <MemoryRouter initialEntries={['/meetings/m1']}>
           <Routes>
@@ -418,7 +430,7 @@ describe('MeetingDetail — unsaved minutes navigation guard', () => {
           </Routes>
         </MemoryRouter>
       </ToastProvider>,
-    );
+    ));
     await screen.findByTestId('stub-editor', {}, { timeout: 10_000 });
     await userEvent.click(screen.getByTestId('stub-type'));
 
@@ -615,7 +627,7 @@ describe('MeetingDetail — the share panel (FR-MTG-032..034)', () => {
 
     attendeesState.data = [];
     attendeesState.isError = false;
-    view.rerender(<ToastProvider><MemoryRouter initialEntries={['/meetings/m1']}><MeetingDetail /></MemoryRouter></ToastProvider>);
+    view.rerender(withQuery(<ToastProvider><MemoryRouter initialEntries={['/meetings/m1']}><MeetingDetail /></MemoryRouter></ToastProvider>));
     expect(await screen.findByTestId('share-suggest-pm')).toBeInTheDocument();
   });
 
@@ -652,7 +664,7 @@ describe('MeetingDetail — the share panel (FR-MTG-032..034)', () => {
       granter: { id: 'author-1', full_name: 'Ari Author' },
     }];
     grantsState.isError = false;
-    view.rerender(<ToastProvider><MemoryRouter initialEntries={['/meetings/m1']}><MeetingDetail /></MemoryRouter></ToastProvider>);
+    view.rerender(withQuery(<ToastProvider><MemoryRouter initialEntries={['/meetings/m1']}><MeetingDetail /></MemoryRouter></ToastProvider>));
     expect(await within(screen.getByTestId('grants-list')).findByText('Paula PM')).toBeInTheDocument();
     expect(screen.queryByTestId('share-suggest-pm')).not.toBeInTheDocument();
   });
@@ -858,8 +870,9 @@ describe('MeetingDetail — states', () => {
     expect(screen.getByRole('link', { name: 'Harbour' })).toHaveAttribute('title', 'Harbour Upgrade');
   });
 
-  it('AC-002 #1325: meeting header project selector shows the short name only on the selected project id', () => {
+  it('AC-002 #1325: meeting header project selector shows the short name only on the selected project id', async () => {
     renderPage('Engineer');
+    await userEvent.click(screen.getByTestId('meeting-header-edit'));
     const select = screen.getByLabelText(/Project/);
     expect(select).toHaveValue('p1');
     expect(within(select).getByRole('option', { name: 'North Terminal' })).toHaveValue('p1');
@@ -867,7 +880,12 @@ describe('MeetingDetail — states', () => {
 
   it('AC-MTG1-005: inline header edits show Save/Cancel only when dirty and Cancel restores values', async () => {
     renderPage('Engineer');
+    // Facts first: the title appears once and no form is open until the one Edit action.
+    expect(screen.getAllByText('Kickoff with Acme')).toHaveLength(1);
+    expect(screen.queryByLabelText(/Title/)).not.toBeInTheDocument();
     expect(screen.queryByTestId('meeting-header-save')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('meeting-header-edit'));
+    expect(screen.getByTestId('meeting-header-save')).toBeDisabled();
     const title = screen.getByLabelText(/Title/) as HTMLInputElement;
     await userEvent.clear(title);
     await userEvent.type(title, 'Changed title');
@@ -878,22 +896,25 @@ describe('MeetingDetail — states', () => {
 
   it('AC-MTG1-005: a meeting refetch does not overwrite a dirty header draft', async () => {
     const view = renderPage('Engineer');
+    await userEvent.click(screen.getByTestId('meeting-header-edit'));
     const title = screen.getByLabelText(/Title/) as HTMLInputElement;
     await userEvent.clear(title);
     await userEvent.type(title, 'Typed title in progress');
     meetingState.data = { ...baseMeeting, title: 'Refetched server title' };
-    view.rerender(<ToastProvider><MemoryRouter initialEntries={['/meetings/m1']}><MeetingDetail /></MemoryRouter></ToastProvider>);
+    view.rerender(withQuery(<ToastProvider><MemoryRouter initialEntries={['/meetings/m1']}><MeetingDetail /></MemoryRouter></ToastProvider>));
     expect(screen.getByLabelText(/Title/)).toHaveValue('Typed title in progress');
   });
 
   it('AC-MTG1-005: Cancel restores the original inline header values', async () => {
     renderPage('Engineer');
+    await userEvent.click(screen.getByTestId('meeting-header-edit'));
     const title = screen.getByLabelText(/Title/) as HTMLInputElement;
     await userEvent.clear(title);
     await userEvent.type(title, 'Changed title');
     await userEvent.click(screen.getByTestId('meeting-header-cancel'));
-    expect(screen.getByLabelText(/Title/)).toHaveValue('Kickoff with Acme');
     expect(screen.queryByTestId('meeting-header-save')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('meeting-header-edit'));
+    expect(screen.getByLabelText(/Title/)).toHaveValue('Kickoff with Acme');
   });
 
   it('C1: failed header and minutes saves stay inline beside their actions and keep the drafts', async () => {
@@ -902,6 +923,7 @@ describe('MeetingDetail — states', () => {
       .mockRejectedValueOnce(Object.assign(new Error('duplicate'), { code: '23505' }));
     renderPage('Engineer');
     await screen.findByTestId('stub-editor');
+    await userEvent.click(screen.getByTestId('meeting-header-edit'));
 
     const title = screen.getByLabelText(/Title/) as HTMLInputElement;
     await userEvent.clear(title);
@@ -929,6 +951,7 @@ describe('MeetingDetail — states', () => {
 
   it('AC-MTG-029: a non-Admin author gets inline header editing + Archive but not Delete', async () => {
     renderPage('Engineer');
+    await userEvent.click(screen.getByTestId('meeting-header-edit'));
     expect(screen.getByLabelText(/Title/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /more actions/i }));
     expect(await screen.findByTestId('meeting-archive')).toBeInTheDocument();
@@ -954,12 +977,14 @@ describe('AC-PLC-005/006 (#684): Edit "When" prefill and submit follow the PROFI
 
   it('prefills "When" with the same wall time the header displays, in the profile timezone', async () => {
     renderPage('Engineer');
+    await userEvent.click(screen.getByTestId('meeting-header-edit'));
     const when = screen.getByLabelText(/When/i) as HTMLInputElement;
     expect(when.value).toBe('2026-06-14T21:15');
   });
 
   it('editing another header value keeps the occurrence instant in the profile timezone', async () => {
     renderPage('Engineer');
+    await userEvent.click(screen.getByTestId('meeting-header-edit'));
     await userEvent.clear(screen.getByLabelText(/Location/));
     await userEvent.type(screen.getByLabelText(/Location/), 'Updated room');
     await userEvent.click(screen.getByRole('button', { name: /Save meeting/ }));
@@ -970,6 +995,7 @@ describe('AC-PLC-005/006 (#684): Edit "When" prefill and submit follow the PROFI
 
   it('editing to 10:00 saves 10:00 in the profile timezone', async () => {
     renderPage('Engineer');
+    await userEvent.click(screen.getByTestId('meeting-header-edit'));
     const when = screen.getByLabelText(/When/i) as HTMLInputElement;
     // fireEvent-style direct value set + change, mirroring datetime-local input semantics.
     when.focus();
@@ -984,6 +1010,7 @@ describe('AC-PLC-005/006 (#684): Edit "When" prefill and submit follow the PROFI
 
   it('clearing "When" blocks the save with a visible error, and never falls back to the old time', async () => {
     renderPage('Engineer');
+    await userEvent.click(screen.getByTestId('meeting-header-edit'));
     const when = screen.getByLabelText(/When/i) as HTMLInputElement;
     when.focus();
     await userEvent.clear(when);

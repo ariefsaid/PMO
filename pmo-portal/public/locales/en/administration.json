@@ -91,6 +91,9 @@
       "employ": "Vendors and clients managed in Odoo",
       "journal": "Payment journal",
       "journalHint": "The bank or cash journal supplier payments are made from, unless Finance picks another.",
+      "deskJournal": "Desk journal",
+      "deskJournalHint": "The general journal manual journals are posted to.",
+      "deskJournalNone": "No general journal has been read from Odoo yet.",
       "journalNone": "No bank or cash journal has been read from Odoo yet.",
       "journalProposed": "Proposed: {{name}}",
       "journalAccept": "Accept {{name}}",
@@ -275,9 +278,68 @@
     "description": "A Feedback button in the header and, at most every 30 days, a short survey. Never while filling in a form."
   },
   "integrations": {
+    "companyAccounts": {
+      "accountsAction": "Set company accounts",
+      "accountsDialog": "Company accounts",
+      "accountsSubmit": "Save company accounts",
+      "accountsChoose": "Choose…",
+      "accountsFailed": "Could not set the company accounts. Try again.",
+      "accountsUnavailable": "Could not read the account lists.",
+      "accountsPending": "A change to the company accounts is still being saved. Reload in a few minutes to see it.",
+      "noBankAccount": "The company has no bank account yet, so there is none to choose. Create the bank account first; it is then listed here.",
+      "accountSlots": {
+        "payable": "Vendor payable account",
+        "expense": "Default expense account",
+        "cash": "Cash account",
+        "bank": "Bank account",
+        "costCentre": "Cost centre"
+      },
+      "accountsRefused": "Could not set the company accounts.",
+      "accountsRetry": "Try again",
+      "slotInSentence": {
+        "payable": "vendor payable account",
+        "expense": "default expense account",
+        "cash": "cash account",
+        "bank": "bank account",
+        "costCentre": "cost centre"
+      },
+      "refusal": {
+        "notInChart": "{{name}} is not in the ERP chart PMO has read, so it cannot be the {{slot}}. Refresh the list and choose again.",
+        "otherCompany": "{{name}} belongs to another company, so it cannot be the {{slot}}.",
+        "group": "{{name}} is a group, so it cannot be the {{slot}}. Choose an account or cost centre under it.",
+        "disabled": "{{name}} is disabled, so it cannot be the {{slot}}.",
+        "notPayable": "{{name}} is not a payable account, so it cannot be the {{slot}}.",
+        "notCash": "{{name}} is not a cash account, so it cannot be the {{slot}}.",
+        "notBank": "{{name}} is not a bank account, so it cannot be the {{slot}}.",
+        "notExpense": "{{name}} is not an expense account, so it cannot be the {{slot}}.",
+        "connectFirst": "Connect the ERP and choose its company first.",
+        "chooseOne": "Choose at least one company default.",
+        "unknownDefault": "Unknown company default: {{name}}.",
+        "chooseValue": "Choose a value for every company default you change.",
+        "notAvailable": "Setting company defaults from PMO is not available for this ERP yet",
+        "connectionChangedReload": "The ERP connection changed; reload and try again",
+        "erpRefused": "The ERP refused this change.",
+        "readBackFailed": "The ERP company could not be read back, so nothing was recorded. Try again.",
+        "notKept": "The ERP did not keep every chosen default, so nothing was recorded. Try again.",
+        "newerSaved": "A newer change to the company accounts was saved for this connection, so this one was not recorded.",
+        "connectionChanged": "The ERP connection changed while this was being set, so nothing was recorded.",
+        "notRecorded": "The change was not recorded. Try again.",
+        "companyChanged": "The company accounts were changed in the ERP after PMO read them, so nothing was saved. Reload and try again.",
+        "changeNotRecorded": "The change could not be recorded",
+        "unreachableNothingRecorded": "The ERP could not be reached, so nothing was recorded. Try again.",
+        "unreachableTryAgain": "The ERP could not be reached; try again.",
+        "requestNotCompleted": "The request could not be completed"
+      }
+    },
     "personalM365": {
       "action": {
         "retryStatus": "Retry"
+      },
+      "errors": {
+        "appNotConfigured": "Your organization needs to configure its Microsoft 365 app.",
+        "appRejected": "Microsoft rejected the app credentials. Check them and try again.",
+        "tenantRejected": "Microsoft could not find the directory. Check the directory ID.",
+        "microsoftUnreachable": "Microsoft is unavailable. Try again shortly."
       }
     },
     "identityIncomplete": "Setup incomplete",
@@ -291,7 +353,39 @@
       "retryFailed": "We could not send it again. Try again in a moment.",
       "unnamed": "A record",
       "addPeople": "Add these people in the ERP. It asks for a birth date and gender, which PMO does not hold.",
-      "accountantTask": "Ask your accountant to add a direct-cost account for: {{categories}}"
+      "accountantTask": "Ask your accountant to add a direct-cost account for: {{categories}}",
+      "refusal": {
+        "unknown": "We could not send this record. Check it in the ERP, then try again.",
+        "noun": {
+          "company": "company",
+          "project": "project",
+          "item": "item",
+          "person": "person",
+          "record": "record"
+        },
+        "gone": "This record is no longer in PMO, or (an item) no longer on an open purchase.",
+        "person": "This ERP asks for a birth date and gender for each person, which PMO does not hold. Add this person in the ERP.",
+        "personOdoo": "Odoo people are not sent from PMO yet. Add this person in Odoo.",
+        "actor": "The Admin who accepted this is no longer an Admin. Accept it again.",
+        "ambiguous": "Two ERP records match this {{noun}}. Link the right one by hand.",
+        "linked": "This record is already linked to another ERP record.",
+        "stuck": "We could not finish sending this record. Check it in the ERP, then try again.",
+        "refused": "The ERP refused this {{noun}}. Check it in the ERP, then try again.",
+        "erpReason": "ERP: {{reason}}",
+        "refusedReason": "The ERP refused this {{noun}}: {{reason}}",
+        "held": "We could not confirm whether the ERP created this record. Look for it in the ERP by name and tax id; if it is not there, send it again.",
+        "heldOdoo": "We could not confirm whether Odoo created this record. Look for it in Odoo by name and tax id; if it is not there, send it again.",
+        "planFirst": "Choose the cost-account plan for projects first, then send this project again.",
+        "projectNumber": "This project has no project number yet, so its cost account cannot be named. Give it one, then send it again.",
+        "unitUnmapped": "The ERP refused this {{noun}}: its unit has no match in Odoo yet.",
+        "notApplied": "This row could not be applied.",
+        "companyGone": "This company is no longer in PMO.",
+        "projectGone": "This project is no longer in PMO.",
+        "internalCompany": "An internal company cannot take an ERP link.",
+        "changedSince": "The ERP record changed since this was proposed.",
+        "personGone": "This person is no longer in PMO.",
+        "itemLinked": "This item is already linked."
+      }
     },
     "connect": {
       "title": "Match records",
@@ -454,12 +548,22 @@
         "currentUnavailable": "Current manager (name unavailable)"
       },
       "inviteError": {
+        "notAddable": "This address can't be invited",
+        "notAddableDetail": "Ask the person for a different address, then invite again.",
+        "retry": "This address is already being invited",
+        "retryDetail": "Try again in a moment.",
         "seatLimit": "Your plan has no seats left",
         "seatLimitDetail": "Everyone on your plan already has a seat. Ask your Operator to upgrade the plan, then invite again."
       },
       "statusError": {
         "seatLimit": "Your plan has no seats left",
         "seatLimitDetail": "Everyone on your plan already has a seat. Ask your Operator to upgrade the plan, then re-enable this user."
+      },
+      "toast": {
+        "alreadyInvited": "Already invited",
+        "alreadyInvitedDetail": "{{email}} already has a valid invite. No new email was sent.",
+        "inviteResent": "Invite sent again",
+        "inviteResentDetail": "The earlier link for {{email}} had expired. A new link is on its way."
       }
     },
     "spendApprovers": {

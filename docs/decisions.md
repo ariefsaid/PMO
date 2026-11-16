@@ -3433,6 +3433,8 @@ Owner: "full amounts on table, short on KPI cards". Table and list cells show th
 
 Root's shared runner-capacity decision required by `docs/specs/browser-test-sharding.spec.md` before workflow fanout: approve the **two-runner** candidate for the integration job (two default-lane shards plus the existing tail runner for serial, consent and served smoke). Capacity: standard GitHub-hosted runners on a public repository (no paid service, no new infra); the account's concurrent-job limit is shared with MOS, and the existing ceiling of two concurrent integration workflow runs bounds this lane at six jobs. Per-branch/daily dispatch approvals and the two-run ceiling are unchanged; fanout does not authorize extra dispatches. Exclusive workflow ownership for this change is handed to the #1188 lane. Runner count stays provisional until the first permitted full run reports shard wall times.
 
+**Owner amendment (2026-11-10, #2161 part 2):** the release workflow now uses three balanced Chromium shards (`max-parallel: 3`) while `integration-lanes` starts from `scope` alone; the required `integration` aggregate waits for both producers and checks their evidence and outcomes. That is at most four concurrent runner jobs per integration workflow, or eight across the existing two-run ceiling; the aggregate starts after the producers complete. The two-run ceiling and per-branch/daily dispatch approvals remain unchanged. The ≤15-minute PR→main wall time is a target to measure on the next authorized run, not a measured result.
+
 ## OD-UX-DISCOVER-BATCH — rendered Discover review batched per lane (owner 2026-10-20)
 
 Owner: "ok batch it, go ahead". The ADR-0030 rendered Discover pass (`design-reviewer` on the running app, every finding graduated) runs once per closed UI lane or slice group, not per PR — e.g. once after RD-S2–S4, once after RD-S6–S7, once per table-migration batch. RD-S1 gets its own pass because it ships the fixture and geometry gate the later passes reuse. Layer-1 gate-tests (geometry, money, a11y, visual) still run on every PR. Every Discover and UI build uses `impeccable` (including `impeccable detect` URL scans at 1440 and 390 on the rendered routes), `taste` and `ui-ux-pro-max` (its `search.py` domain checks) to the full extent of their scripts. Supplements `docs/qa-portfolio.md`; the per-PR Discover wording there is superseded for batching only.
@@ -3729,6 +3731,17 @@ with a transaction-local marker that names the claim. Defaults taken from the pl
 rule is unchanged (a sole-operator org cannot approve its own invoice); volume claims stay out of scope; one line per rate
 line, no item code; no re-invoice after a cancel.
 
+### DD-NCI-1 — A no-ERP org invoices a progress or down-payment claim through its own RPC (#2465, 2026-11-16)
+`create_native_progress_claim_invoice(claim)` (migration 0924) is `create_native_tm_invoice` (DD-TMN-1) for the other two claim
+kinds, with the same id-is-claim-id guard and approval rule. Its lines are the claim's own lines plus one negative line for the
+down payment recovered, so the invoice total is the claim's net (the ERP raise builds the same figures, `canonicalProgressLines`).
+Nothing in SQL ever refused creating, evidencing or withdrawing a claim without an ERP; only the Billing tab did, so the
+change there is the gate. No reader changes: every money reader goes through `sales_invoice_work_billed` and counts the row once.
+A down-payment claim needs an item, which is picked from the ERP's item list: with no ERP and no item set, the claim names one
+fixed PMO item (`native_down_payment_item()`); an ERP-owned organisation with no item is refused as before, and the ERP raise
+refuses a claim that names the PMO item, in plain words, rather than send it. A claim whose net is zero is not invoiced (nothing
+to approve or pay). A claim with a cancelled native invoice cannot be withdrawn or re-raised, as with an ERP invoice today.
+
 ### DD-1413-RESUBMIT — any approver-role member may resubmit a returned budget draft (#1413)
 Resubmit is open to every approver-role member, including the one who returned it. Nothing breaks: activation separation of duties still runs in full on the resubmitted draft.
 
@@ -3738,3 +3751,32 @@ own basis (#2208, defaulting from the organisation's default per OD-TAX-1), budg
 consumption stays before tax, and every budget-used figure and its help text says "before tax". Pending owner
 confirmation. What breaks under this interim: an organisation that budgets including recoverable tax sees budget used
 understated by the tax rate.
+
+### DD-FX-2 — rupiah equivalents read "≈ IDR … (using IDR … rate)"; the Budget tab shows a mixed-currency position in rupiah (owner, 2026-11-15, #2249; extends DD-FX-1)
+Every approximate rupiah equivalent reads `≈ IDR 1,623,456 (using IDR 18,500 rate)` (Indonesian `≈ IDR 1.623.456 (kurs IDR 18.500)`); a total summed at each row's own date reads `(using IDR rate of each date)`. The publication date sits in the element's title and screen-reader text ("JISDOR rate of 2026-10-09"). A foreign-currency equivalent of a rupiah amount is never shown. A dated document uses the latest rate on or before its date; when none exists it uses the latest rate available as of the organisation day. With no rate ever uploaded the figure reads `—`: a person who may upload exchange rates sees "Upload an exchange rate" (to Administration → Exchange rates), everyone else "No exchange rate uploaded".
+On a project's Budget tab, when the budget, spending and open orders are in different currencies, each exact figure stays in its own currency with its `≈ IDR` line beneath; **Budget used** (`≈ 42%`) and **Left after open orders** (`≈ IDR …`) are computed in rupiah at the latest rate on or before the organisation's today, each captioned "using IDR … rate". The tab has no hidden-figures row: a figure that cannot be shown reads `—` on its own card with one short caption, and the longer reason sits behind the card's help icon.
+Display only: no stored amount, export, tax basis, margin, approval limit, approval routing or money transition reads an approximate figure, and `can()` never takes one.
+
+### DD-2317-TYPECHECK — the app typecheck is four `tsc -b` projects (#2317)
+`npm run typecheck` builds, as separate processes, `tsconfig.app.json` (what `index.tsx` reaches, composite), then
+`tsconfig.server.json` (the remaining non-test code: adapter seams the edge functions run, build helpers, unimported
+modules; composite), then `tsconfig.test.json` (unit tests) and `tsconfig.tooling.json` (e2e, evals, build/lint
+configs). Later projects read earlier ones through declarations written to `<repo>/.tsbuild` (gitignored, outside
+`pmo-portal/` so guard scripts never walk it). Each extends `tsconfig.json` unchanged, so every file is still checked
+with the same options. The app/server file lists are derived from imports, never hand-edited: after a TS6307 (the app
+now imports a server file, or a new file outside `pmo-portal/`), run `node test/tsconfigProjects.mjs --write`.
+`test/tsconfigProjects.test.ts` keeps the lists exact and the partition complete. What breaks without the split: the
+single program needed 4.4–4.6 GB of heap.
+
+### OD-APPROVAL-LEFT — the approval panel's last figure is "Left after this purchase", over the whole budget (owner, 2026-11-16)
+Amends OD-W5-4 and ADR-0034 §5. The panel's figure was budget − open orders − Reserved − this request: it left out recorded spending, so a project that had already spent most of its budget looked roomy. It is now **Left after this purchase = Active budget − recorded spending − open orders − Reserved − this purchase**, in exact cents, each amount counted once, in the one pure helper `computeBudgetSignal`.
+- **Spending** is the project header's own reading (`useProjectBudgetPositions`, the same one Budget used divides): paid pre-tax on PMO, the ledger actual on ERP. No sum of its own in the page.
+- **Open orders** are the order total less the part `spent` already holds. PMO: the same row of that reading (`openCommitment`, OD-1530-COMMIT). ERP: the per-order position `project_committed_spend` (ADR-0093 §2), because the reading carries none. A paid or ledger-held part is therefore in spending and never again in open orders.
+- **Reserved stays subtracted** (FR-RB-010; subtracting it is what stopped two approvers spending the same headroom, ADR-0034). A request already inside Reserved, or already an order, is not subtracted again.
+- **Unknown is never drawn as a number.** When spending or open orders are not known (failed read, no ledger reading, another currency, purchasing kept outside PMO) the Left tile says so, with no bar and no advisory. When **only spending** is unknown and open orders and Reserved are known in the project currency, the panel also states the figure without it, under its own label ("Without spending: {amount} left after orders, reserved and this purchase."; the tile itself reads "Not known"), visible without a click on the record page, the Purchases preview and the inbox row. That amount is never shown under the Left label, in the tile, or on the bar. If open orders are also unknown, only the reason is shown.
+- The bar shows the same quantity: "Spent or committed, with this one: N%", the exact complement of the Left figure. The two over-budget advisories became one, shown when the figure is negative, naming the negative amount.
+- The old purchasing-only tile ("Not yet committed to purchases") is gone: two "left" figures on different bases is the confusion this removes. The record header line for an ordered purchase uses the same helper ("Left in budget X") and no longer counts the order twice.
+- Holding the panel until the reading and the purchasing ownership have loaded is accepted (the decision figure needs both, so it never flashes "not known").
+- A payment now refreshes the budget positions as well as committed and reserved spend, so spending cannot lag behind open orders.
+- **Approval routing is untouched.** Who approves is decided in SQL from its own sums; it never reads this figure, which stays advisory (OD-W5-4). No migration, no routing code.
+- **Known ceiling (ERP, same as the project Budget tab):** a ledger cost not linked to its order is counted as both actual and open order: conservative. A held cost posted to an account not mapped to the project is in neither. Both come from ADR-0093's mapping; this slice adds no new double count or omission.

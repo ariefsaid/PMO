@@ -65,7 +65,7 @@ import ManagementPack from '../ManagementPack';
 import { BahasaProvider } from '../../test/bahasa';
 
 const project = (id: string, name: string, currency: string, contract_net: number) => ({
-  id, name, pmo_project_number: null, code: null, status: 'Ongoing Project', currency, contract_net,
+  id, name, pmo_project_number: null, code: null, status: 'Ongoing Project', on_hand: true, currency, contract_net,
   start_date: null, end_date: null, project_manager_id: null, client_name: null,
 });
 
@@ -324,6 +324,8 @@ describe('live Reports money honesty (adapted from RevenueByProject)', () => {
       projectStatus: 'Ongoing Project',
       currency: 'IDR',
       contractNet: null,
+      holdsContract: false,
+      contractValueMissing: false,
       latestProgress: null,
       months: [],
     };
@@ -419,19 +421,19 @@ describe('live Reports money honesty (adapted from RevenueByProject)', () => {
       </BahasaProvider>,
     );
 
-    // Count cells and total show "Jumlah faktur tidak tersedia"
+    // Count cells and total show "Jumlah invoice tidak tersedia"
     const cells = screen.getAllByTestId('pack-cell-invoices');
     expect(cells.length).toBeGreaterThan(0);
     for (const cell of cells) {
-      expect(cell).toHaveTextContent('Jumlah faktur tidak tersedia');
+      expect(cell).toHaveTextContent('Jumlah invoice tidak tersedia');
     }
     const totalsRow = screen.getAllByRole('row').find((r) => within(r).queryByText(/Total · IDR/));
     expect(totalsRow).toBeDefined();
-    expect(within(totalsRow!).getByText('Jumlah faktur tidak tersedia')).toBeInTheDocument();
+    expect(within(totalsRow!).getByText('Jumlah invoice tidak tersedia')).toBeInTheDocument();
 
     // Inline status and retry button in Bahasa
-    expect(screen.getByRole('status', { name: 'Jumlah faktur tidak tersedia' })).toBeInTheDocument();
-    const retryBtn = screen.getByRole('button', { name: 'Coba lagi jumlah faktur' });
+    expect(screen.getByRole('status', { name: 'Jumlah invoice tidak tersedia' })).toBeInTheDocument();
+    const retryBtn = screen.getByRole('button', { name: 'Coba lagi jumlah invoice' });
     expect(retryBtn).toBeInTheDocument();
     await user.click(retryBtn);
     expect(revenueRefetch).toHaveBeenCalledTimes(1);
@@ -457,9 +459,9 @@ describe('live Reports money honesty (adapted from RevenueByProject)', () => {
     const pendingCells = screen.getAllByTestId('pack-cell-invoices');
     for (const cell of pendingCells) {
       expect(cell).toHaveTextContent('—');
-      expect(within(cell).getByLabelText('Memuat jumlah faktur')).toBeInTheDocument();
+      expect(within(cell).getByLabelText('Memuat jumlah invoice')).toBeInTheDocument();
     }
     const pendingTotal = screen.getAllByRole('row').find((r) => within(r).queryByText(/Total · IDR/));
-    expect(within(pendingTotal!).getByLabelText('Memuat jumlah faktur')).toBeInTheDocument();
+    expect(within(pendingTotal!).getByLabelText('Memuat jumlah invoice')).toBeInTheDocument();
   });
 });

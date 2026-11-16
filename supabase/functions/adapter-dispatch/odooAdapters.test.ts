@@ -1,12 +1,14 @@
 // #1505 O2 P3/P4/P5 (FR-OPP-002, DD-OPP-1, DD-OPP-8): the Odoo adapter factory returns the procurement adapter for the steps pushed so far
 // (purchase order create and revise, goods-receipt create, vendor bill create, vendor payment create) and refuses every other step before any outbox row, as it refuses an unusable connection or a snapshot
 // that lacks a model. Supabase is mocked over fetch; the factory is the shipped one.
+import { resolveOdooJournalAdapter } from './odooJournal.ts';
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertRejects } from '@std/assert';
 import { createClient } from '@supabase/supabase-js';
 import { installEdgeEnv, jsonResponse, supabaseRpc, supabaseSelect, withFetchMock } from '../_shared/testing/edgeTestKit.ts';
 import { resolveOdooProcurementAdapter, resolveOdooRevenueAdapter, ODOO_ADAPTER_REGISTRY } from './odooAdapters.ts';
 import { resolveOdooEquipmentAdapter } from './odooEquipment.ts';
+import { resolveOdooStockAdapter } from './odooStock.ts';
 import type { AdapterSelectContext } from './dispatchAdapters.ts';
 import { resolveOdooPaymentFacts } from '../_shared/odooPurchaseRefs.ts';
 import { reservedOdooCallBudget } from '../_shared/odooCallBudget.ts';
@@ -53,11 +55,13 @@ const world = (config?: Record<string, unknown>, { caseCurrency = 'IDR', odooCur
 ];
 
 describe('P3 the Odoo adapter factory', () => {
-  it('is the procurement, revenue (#1506 C2), companies (#1504 S8) and equipment (#1511 F4) domains\' Odoo factories', () => {
-    assertEquals(Object.keys(ODOO_ADAPTER_REGISTRY), ['procurement', 'revenue', 'companies', 'equipment']);
+  it('is the procurement, revenue (#1506 C2), companies (#1504 S8), equipment (#1511 F4) and inventory (#1508) domains\' Odoo factories', () => {
+    assertEquals(Object.keys(ODOO_ADAPTER_REGISTRY), ['procurement', 'revenue', 'companies', 'equipment', 'inventory', 'accounting']);
+    assertEquals(ODOO_ADAPTER_REGISTRY.accounting, resolveOdooJournalAdapter);
     assertEquals(ODOO_ADAPTER_REGISTRY.procurement, resolveOdooProcurementAdapter);
     assertEquals(ODOO_ADAPTER_REGISTRY.revenue, resolveOdooRevenueAdapter);
     assertEquals(ODOO_ADAPTER_REGISTRY.equipment, resolveOdooEquipmentAdapter);
+    assertEquals(ODOO_ADAPTER_REGISTRY.inventory, resolveOdooStockAdapter);
   });
 
   for (const [kind, operation] of [['purchase-order', 'create'], ['purchase-order', 'revise']] as const) {
@@ -296,4 +300,10 @@ describe('P6 the Odoo adapter factory for a vendor payment', () => {
       assertEquals(err.code, 'config-rejected');
     }
   });
+});
+
+Deno.test('#895 the accounting domain is served on both ledger tiers: Odoo by its journal adapter, ERPNext by the ERPNext adapter', async () => {
+  const { selectAdapterFactory, resolveErpAdapter } = await import('./dispatchAdapters.ts');
+  assertEquals(selectAdapterFactory('odoo', 'accounting'), resolveOdooJournalAdapter);
+  assertEquals(selectAdapterFactory('erpnext', 'accounting'), resolveErpAdapter);
 });

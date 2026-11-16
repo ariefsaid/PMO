@@ -4,12 +4,9 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
-  CLEANUP_ORDER,
   ownedBackendSql,
   ownedWaitersSql,
   ownershipPlan,
-  parseRaceTap,
-  raceTapProblems,
   sessionPrelude,
   startSession,
 } from './nightly-intent-race-session.mjs';
@@ -21,7 +18,7 @@ import {
 // queueing behind it (by their own application names), and only then is it released.
 //
 // This file runs in CI's `pgtap` job after the local Supabase stack exists, and in the release
-// `integration` path; it is excluded from `verify`'s no-DB script glob.
+// `integration-lanes` path; it is excluded from `verify`'s no-DB script glob.
 //
 // Ownership: the fixture uses one declared id namespace. Every session carries a unique application name
 // derived from this process, so waits and teardown target only our own backends. Setup refuses to write
@@ -157,7 +154,6 @@ function inventory(suffix) {
 }
 
 let baselineDigests = null;
-let fixtureCreated = false;
 
 function deleteExactOwnedIds(suffix) {
   const result = psqlSync(cleanupSql(), suffix);
@@ -238,7 +234,6 @@ async function setupFixture(journal) {
     }
     throw new Error(`fixture setup failed: ${setup.output}`);
   }
-  fixtureCreated = true;
   if (journal) writeFileSync(journal, JSON.stringify({ ...ownership, phase: 'created' }) + '\n');
 }
 
@@ -282,7 +277,6 @@ async function cleanupFixture(journal) {
   if (probe.owned !== 0) {
     // Covers the "setup COMMIT landed but the client failed" case, where the in-process flag is false.
     deleteExactOwnedIds('fixture-cleanup');
-    fixtureCreated = false;
   }
   const post = inventory('post-cleanup');
   assert.equal(post.owned, 0, 'only the owned synthetic fixture is removed');
@@ -408,7 +402,7 @@ test('AC-NS-005 concurrent manual intents serialize on the same org and one othe
       assert.equal(after.retry_failures, 0, 'manual intent never touches retry backoff');
       assert.equal(after.diagnostic_result, '', 'manual intent never touches the diagnostic result');
     } finally {
-      if (barrier && barrier.child.exitCode === null) scenarioReleaseQuietly(barrier);
+      await releaseBarrier(barrier).catch(() => {}); // best effort: never mask the test failure; stopOwnedSessions reaps
       await stopOwnedSessions([barrier, first, second]);
     }
   });
@@ -482,7 +476,7 @@ test('AC-NS-004 concurrent nightly recordings materialize every due date exactly
       );
       for (const payload of payloads) assert.equal(typeof payload.more_due, 'boolean');
     } finally {
-      if (barrier && barrier.child.exitCode === null) scenarioReleaseQuietly(barrier);
+      await releaseBarrier(barrier).catch(() => {}); // best effort: never mask the test failure; stopOwnedSessions reaps
       await stopOwnedSessions([barrier, first, second]);
     }
   });

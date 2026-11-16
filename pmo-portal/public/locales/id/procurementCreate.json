@@ -15,12 +15,12 @@
       "description": "Catat pesanan yang sudah Anda miliki"
     },
     "invoice": {
-      "title": "Tagihan pemasok",
-      "description": "Pantau tagihan pemasok"
+      "title": "Invoice supplier",
+      "description": "Pantau invoice supplier"
     },
     "payment": {
       "title": "Pembayaran terjadwal",
-      "description": "Jadwalkan pembayaran ke pemasok"
+      "description": "Jadwalkan pembayaran ke supplier"
     },
     "accounting": {
       "title": "Dokumen yang sudah ada di sistem akuntansi",
@@ -33,8 +33,8 @@
   "titleRequired": "Judul pengadaan wajib diisi.",
   "project": "Proyek",
   "selectProject": "Pilih proyek…",
-  "supplier": "Pemasok",
-  "selectSupplier": "Opsional: pilih pemasok…",
+  "supplier": "Supplier",
+  "selectSupplier": "Opsional: pilih supplier…",
   "budgetCategory": "Kategori anggaran",
   "budgetCategoryHelp": "Menentukan pemberi persetujuan",
   "budgetCategoryHelpFull": "Menentukan pemberi persetujuan: belanja dalam anggaran proyek untuk kategori ini disetujui oleh penanggung jawab proyek.",
@@ -56,11 +56,11 @@
     "loadingProjects": "Memuat proyek…",
     "projectsError": "Proyek tidak dapat dimuat.",
     "retryProjects": "Coba lagi proyek",
-    "loadingSuppliers": "Memuat pemasok…",
-    "suppliersError": "Pemasok tidak dapat dimuat.",
-    "retrySuppliers": "Coba lagi pemasok",
+    "loadingSuppliers": "Memuat supplier…",
+    "suppliersError": "Supplier tidak dapat dimuat.",
+    "retrySuppliers": "Coba lagi supplier",
     "noProjects": "Belum ada proyek. Anda dapat melanjutkan tanpa proyek atau meminta administrator menambahkannya.",
-    "noSuppliers": "Belum ada pemasok. Pemasok bersifat opsional; mintalah administrator menambahkannya jika diperlukan."
+    "noSuppliers": "Belum ada supplier. Supplier bersifat opsional; mintalah administrator menambahkannya jika diperlukan."
   },
   "saveLabel": {
     "need": "Simpan draf",
@@ -74,5 +74,7 @@
     "cancel": "Batal"
   },
   "currencyError": "Mata uang organisasi tidak dapat dimuat.",
-  "currencyLoading": "Memuat mata uang organisasi…"
+  "currencyLoading": "Memuat mata uang organisasi…",
+  "backToProject": "proyek",
+  "backToStock": "Stok"
 }

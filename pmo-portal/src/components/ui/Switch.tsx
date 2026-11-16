@@ -38,9 +38,9 @@ export const Switch: React.FC<SwitchProps> = ({ checked, onChange, label, labell
       className,
     )}
   >
-    <span className="pointer-events-none inline-flex h-[22px] w-[40px] items-center rounded-full border-2 border-muted-foreground bg-background group-data-[checked]:border-primary group-data-[checked]:bg-primary">
+    <span className="pointer-events-none inline-flex h-[22px] w-[40px] items-center rounded-full border-2 border-mark-neutral bg-background group-data-[checked]:border-primary group-data-[checked]:bg-primary">
       <BaseSwitch.Thumb
-        className="pointer-events-none block size-[14px] translate-x-[2px] rounded-full bg-muted-foreground transition-transform group-data-[checked]:translate-x-[20px] group-data-[checked]:bg-primary-foreground"
+        className="pointer-events-none block size-[14px] translate-x-[2px] rounded-full bg-mark-neutral transition-transform group-data-[checked]:translate-x-[20px] group-data-[checked]:bg-primary-foreground"
       />
     </span>
   </BaseSwitch.Root>

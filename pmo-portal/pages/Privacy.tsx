@@ -26,7 +26,7 @@ const Privacy: React.FC = () => {
     target: '_blank',
     rel: 'noopener noreferrer',
     'aria-label': t('layout.helpAria', 'Contact support via WhatsApp'),
-    className: 'text-primary-text hover:underline',
+    className: 'text-primary-text underline',
   } as const;
   return (
     <LegalPageLayout title={t('privacy.title', 'Privacy Policy')} variant="privacy">
@@ -153,7 +153,7 @@ const Privacy: React.FC = () => {
             t={t}
             defaults="For privacy questions, email <1>{{email}}</1>."
             values={{ email: CONTACT_EMAIL }}
-            components={{ 1: <a href={`mailto:${CONTACT_EMAIL}`} className="text-primary-text hover:underline" /> }}
+            components={{ 1: <a href={`mailto:${CONTACT_EMAIL}`} className="text-primary-text underline" /> }}
           />
         </p>
         {HELP_URL && (

@@ -521,6 +521,31 @@ Seeded modules (Community only): `purchase stock account project analytic hr_tim
 `l10n_id`; demo data off. A bot user's API key goes to `.env.odoo.local`. The first `up` takes several minutes
 (image about 3.5 GB, module install about 2 min); later runs reuse the volumes.
 
+**Shared local bed settings.** Bed settings are shared across worktrees on the machine. The bed helper
+refuses to guess when separate pre-existing settings need reconciliation; `scripts/odoo-dev-bed.sh
+--self-test` checks the sharing behavior. Keep all local credentials in machine-private configuration.
+
+**Private run context (`scripts/odoo-bed/make-context.mjs`).** After the bed and local Supabase stack are
+running, `node scripts/odoo-bed/make-context.mjs` writes a permission-restricted machine-local context for
+the private test runner. The runner supplies the local bed and Supabase settings to the host test process;
+browser runs also need the local served-functions authorization value in both the host and served runtime.
+Keep secret values, secret names, and paths to private credential stores out of tracked files.
+
+**Scoped bed checks (#2177).** Do not reset the bed or local database for these checks. The in-process
+checks are the three setup cases in `external-connect/connect.odoo.bed.test.ts`,
+`external-set-company/discovery.bed.test.ts` and `external-set-company/costAccount.bed.test.ts`, plus
+AC-ODC-090 in `odoo-sweep/odooSweep.bed.test.ts`. AC-ODC-090 provisions and removes its own namespaced
+organization, connection, project and account; it runs whenever the complete local bed and Supabase
+context is available. AC-ODC-023 in that same file still depends on a separately prepared organization
+and remains ignored when that dependency is absent.
+
+The browser setup journeys are AC-ODC-080, AC-ODC-091, AC-ODC-093 and AC-ODC-094. Run only the approved
+fragment, one worker at a time, using the private run context and the lock order below. AC-ODC-014 is a
+separate serial journey; direct its trace and video to a private output directory when diagnosing it.
+Use placeholders in local notes for runner arguments and credentials; do not copy private values or
+secret coordinates into this public runbook. E2E skips remain governed by the e2e-skips guard, and tests
+must not be gated on `CI`.
+
 **Lock order, machine-global, outermost first: `odoo -> erpnext -> db -> test`.** `scripts/with-odoo-lock.sh`
 (`PMO_ODOO_LOCK`, default `~/.pmo-odoo.lock`) shares the core in `scripts/lib/flock-run.sh`. Wrap `up`, `reset`
 and any probe run (it creates and deletes records). The ERPNext example above lists db before erpnext; the
@@ -799,6 +824,8 @@ server-side by the security-definer RPCs (`admin_set_user_status`, `operator_gra
 
 ## Creating an org (Operator) — `operator_create_org`, DD-ORG-1 / #484
 
+> For onboarding an organization into the shared multi-tenant project, use `pmo org add` (see [docs/runbooks/pmo-cli.md § 1](runbooks/pmo-cli.md#1-seed-a-new-client-organization)); the direct RPC sequence below remains the bootstrap reference for a new project's first organization.
+
 **There is no UI and no hand-written `insert into organizations`.** Org creation happens ~3× in a
 deployment's life, and the list of companion rows a new org must carry keeps growing, so it lives in
 ONE guarded RPC instead of in an operator's memory. `authenticated` holds **no INSERT on
@@ -837,7 +864,8 @@ curl -sS -X POST "$SUPABASE_URL/rest/v1/rpc/operator_create_org" \
 ```
 
 **Errors are loud on purpose:** `42501` not an active Operator · `23503` unknown admin user ·
-`23505` org name already taken, or that user already has a profile · `P0001` a required argument was
+`23505` org name already taken (one organization per name, compared ignoring letter case and spacing,
+held by a unique index), or that user already has a profile · `P0001` a required argument was
 blank · `23514` a malformed currency. Every one of them leaves **nothing** behind — the org and its
 Admin commit together or not at all.
 

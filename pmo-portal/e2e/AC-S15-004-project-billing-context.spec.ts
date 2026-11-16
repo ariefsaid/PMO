@@ -216,13 +216,13 @@ test('AC-S15-004 Finance starts a work-order invoice from the project, saves the
     } else {
       await page.goto('/projects/' + projectId + '/overview');
     }
-    const raiseInvoice = page.getByRole('button', { name: localized('Raise invoice', 'Terbitkan faktur'), exact: true });
+    const raiseInvoice = page.getByRole('button', { name: localized('Raise invoice', 'Terbitkan invoice'), exact: true });
     await expect(raiseInvoice).toBeVisible();
     await raiseInvoice.click();
     await expect(page).toHaveURL((url) => url.pathname === `/projects/${projectId}/contract` && url.search === '');
     await expect(page.getByRole('tab', { name: localized('Contract', 'Kontrak'), selected: true })).toBeVisible();
 
-    const contractInvoice = page.getByRole('link', { name: localized('Contract invoice', 'Faktur kontrak'), exact: true });
+    const contractInvoice = page.getByRole('link', { name: localized('Contract invoice', 'Invoice kontrak'), exact: true });
     await expect(contractInvoice).toHaveAttribute('href', `/finance/receivables?create=1&project=${encodeURIComponent(projectId)}`);
     if (discoverOutputDir) {
       discoverGeometry.push({
@@ -231,7 +231,7 @@ test('AC-S15-004 Finance starts a work-order invoice from the project, saves the
       });
     }
     await contractInvoice.click();
-    const contractForm = page.getByRole('dialog', { name: localized('New invoice', 'Faktur baru') });
+    const contractForm = page.getByRole('dialog', { name: localized('New invoice', 'Invoice baru') });
     await expect(contractForm).toBeVisible();
     await expect(page).toHaveURL((url) => url.pathname === '/finance/receivables'
       && url.searchParams.get('create') === null
@@ -264,13 +264,13 @@ test('AC-S15-004 Finance starts a work-order invoice from the project, saves the
       await page.setViewportSize({ width: 1440, height: 900 });
       await setDiscoverPresentation(page, 'en', 'light');
     }
-    await page.getByRole('button', { name: localized('Raise invoice', 'Terbitkan faktur'), exact: true }).click();
+    await page.getByRole('button', { name: localized('Raise invoice', 'Terbitkan invoice'), exact: true }).click();
     await expect(page).toHaveURL((url) => url.pathname === `/projects/${projectId}/contract` && url.search === '');
     await expect(page.getByRole('tab', { name: localized('Contract', 'Kontrak'), selected: true })).toBeVisible();
 
     const orderRow = page.locator('article').filter({ hasText: workOrderNumber });
     await expect(orderRow).toBeVisible();
-    await orderRow.getByRole('button', { name: localized('Raise invoice', 'Terbitkan faktur'), exact: true }).click();
+    await orderRow.getByRole('button', { name: localized('Raise invoice', 'Terbitkan invoice'), exact: true }).click();
 
     const form = page.getByRole('dialog');
     await expect(form.getByRole('heading', { name: localized('Invoice this work order', 'Tagih Work Order ini') })).toBeVisible();
@@ -285,7 +285,7 @@ test('AC-S15-004 Finance starts a work-order invoice from the project, saves the
       chmodSync(path.join(discoverOutputDir, 'geometry.json'), 0o600);
     }
     await form.getByLabel(/amount \(excl\. PPN\)|jumlah \(belum termasuk PPN\)/i).fill(String(amount));
-    await form.getByRole('button', { name: /create draft invoice|buat draf faktur/i }).click();
+    await form.getByRole('button', { name: /create draft invoice|buat draf invoice/i }).click();
     await expect(form).toBeHidden();
 
     await page.getByRole('link', { name: /open draft|buka draf/i }).click();
@@ -308,7 +308,7 @@ test('AC-S15-004 Finance starts a work-order invoice from the project, saves the
     expect(Number(saved.data.amount)).toBe(amount);
 
     await page.reload();
-    await expect(page.getByRole('heading', { name: /draft invoice|draf faktur/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /draft invoice|draf invoice/i })).toBeVisible();
     await expect(page.getByText(projectName, { exact: true })).toBeVisible();
     // FIN-S2: the client is the record's subtitle, no longer a separate Customer field.
     await expect(page.getByText(companyName).first()).toBeVisible();

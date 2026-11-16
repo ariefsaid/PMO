@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { repositories } from '@/src/lib/repositories';
+import { parseErpSendRefusal } from '@/src/lib/integrations/erpSendRefusal';
 import { Button, StatusPill } from '@/src/components/ui';
 import type { ConnectTier } from '@/src/lib/repositories/types';
 
@@ -13,7 +14,8 @@ const POLL_MS = 10_000;
  * something to say; a status that cannot be read says nothing rather than a wrong number.
  */
 export function ErpSendStates({ enabled, tier = 'erpnext' }: { enabled: boolean; tier?: ConnectTier }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const english = (i18n.language ?? 'en').toLowerCase().startsWith('en');
   const qc = useQueryClient();
   const retry = useMutation({
     mutationFn: (id: string) => repositories.integrations.retryConnectSend(tier, id),
@@ -55,6 +57,50 @@ export function ErpSendStates({ enabled, tier = 'erpnext' }: { enabled: boolean;
     },
   }[tier];
   // only a refused or unconfirmed send leaves one of these (a matcher review row has another reason)
+  // The server stores each refusal as one English sentence. Known ones are said from the catalogue; an unknown one
+  // is shown as stored in English and as one plain line in any other language.
+  const refusalText = (text: string): string => {
+    const r = parseErpSendRefusal(text);
+    if (!r) return english ? text : t('administration:integrations.send.refusal.unknown', 'We could not send this record. Check it in the ERP, then try again.');
+    const noun = {
+      company: t('administration:integrations.send.refusal.noun.company', 'company'),
+      project: t('administration:integrations.send.refusal.noun.project', 'project'),
+      item: t('administration:integrations.send.refusal.noun.item', 'item'),
+      person: t('administration:integrations.send.refusal.noun.person', 'person'),
+      record: t('administration:integrations.send.refusal.noun.record', 'record'),
+    }[r.noun];
+    switch (r.id) {
+      case 'gone': return t('administration:integrations.send.refusal.gone', 'This record is no longer in PMO, or (an item) no longer on an open purchase.');
+      case 'person': return t('administration:integrations.send.refusal.person', 'This ERP asks for a birth date and gender for each person, which PMO does not hold. Add this person in the ERP.');
+      case 'personOdoo': return t('administration:integrations.send.refusal.personOdoo', 'Odoo people are not sent from PMO yet. Add this person in Odoo.');
+      case 'actor': return t('administration:integrations.send.refusal.actor', 'The Admin who accepted this is no longer an Admin. Accept it again.');
+      case 'ambiguous': return t('administration:integrations.send.refusal.ambiguous', 'Two ERP records match this {{noun}}. Link the right one by hand.', { noun });
+      case 'linked': return t('administration:integrations.send.refusal.linked', 'This record is already linked to another ERP record.');
+      case 'stuck': return t('administration:integrations.send.refusal.stuck', 'We could not finish sending this record. Check it in the ERP, then try again.');
+      case 'refused':
+        return english && r.reason
+          ? t('administration:integrations.send.refusal.refusedReason', 'The ERP refused this {{noun}}: {{reason}}', { noun, reason: r.reason })
+          : t('administration:integrations.send.refusal.refused', 'The ERP refused this {{noun}}. Check it in the ERP, then try again.', { noun });
+      case 'held': return r.erp === 'Odoo'
+        ? t('administration:integrations.send.refusal.heldOdoo', 'We could not confirm whether Odoo created this record. Look for it in Odoo by name and tax id; if it is not there, send it again.')
+        : t('administration:integrations.send.refusal.held', 'We could not confirm whether the ERP created this record. Look for it in the ERP by name and tax id; if it is not there, send it again.');
+      case 'planFirst': return t('administration:integrations.send.refusal.planFirst', 'Choose the cost-account plan for projects first, then send this project again.');
+      case 'projectNumber': return t('administration:integrations.send.refusal.projectNumber', 'This project has no project number yet, so its cost account cannot be named. Give it one, then send it again.');
+      case 'unitUnmapped': return t('administration:integrations.send.refusal.unitUnmapped', 'The ERP refused this {{noun}}: its unit has no match in Odoo yet.', { noun });
+      case 'notApplied': return t('administration:integrations.send.refusal.notApplied', 'This row could not be applied.');
+      case 'companyGone': return t('administration:integrations.send.refusal.companyGone', 'This company is no longer in PMO.');
+      case 'projectGone': return t('administration:integrations.send.refusal.projectGone', 'This project is no longer in PMO.');
+      case 'internalCompany': return t('administration:integrations.send.refusal.internalCompany', 'An internal company cannot take an ERP link.');
+      case 'changedSince': return t('administration:integrations.send.refusal.changedSince', 'The ERP record changed since this was proposed.');
+      case 'personGone': return t('administration:integrations.send.refusal.personGone', 'This person is no longer in PMO.');
+      case 'itemLinked': return t('administration:integrations.send.refusal.itemLinked', 'This item is already linked.');
+    }
+  };
+  // Under another language the ERP's own reason is kept verbatim (untranslated) after the translated sentence.
+  const erpWords = (text: string): string | null => {
+    const r = parseErpSendRefusal(text);
+    return r?.id === 'refused' ? r.reason : null;
+  };
   const refused = (reviews.data?.proposals ?? []).filter((p) => (p.reason === 'rejected' || p.reason === 'held') && p.reason_text);
   const toAdd = people.data?.proposals ?? [];
   if (waiting === 0 && refused.length === 0 && toAdd.length === 0) return null;
@@ -73,7 +119,10 @@ export function ErpSendStates({ enabled, tier = 'erpnext' }: { enabled: boolean;
             <li key={p.id} className='min-w-0'>
               <span className='break-words font-medium'>{p.snapshot.name ?? t('administration:integrations.send.unnamed', 'A record')}</span>{' '}
               <StatusPill variant='warn'>{t('administration:integrations.send.needsDecision', 'Needs a decision')}</StatusPill>
-              <p className='mt-1 break-words text-muted-foreground'>{p.reason_text}</p>
+              <p className='mt-1 break-words text-muted-foreground'>{refusalText(p.reason_text ?? '')}</p>
+              {!english && erpWords(p.reason_text ?? '') && (
+                <p lang='en' data-erp-reason className='mt-1 break-words text-muted-foreground'>{t('administration:integrations.send.refusal.erpReason', 'ERP: {{reason}}', { reason: erpWords(p.reason_text ?? ''), interpolation: { escapeValue: false } })}</p>
+              )}
               {p.reason === 'held' && (
                 <div className='mt-2'>
                   <Button variant='outline' size='sm' disabled={retry.isPending} onClick={() => retry.mutate(p.id)}>

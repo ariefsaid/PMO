@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -10,6 +10,8 @@ import i18next from 'i18next';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 import stockEn from '@/public/locales/en/stock.json';
+import { AppError } from '@/src/lib/appError';
+import { StockDispatchError } from '@/src/lib/stockDispatchError';
 
 const { master, documents, project } = vi.hoisted(() => ({
   master: { listUnits: vi.fn(), listItems: vi.fn(), listWarehouses: vi.fn(), listKeepers: vi.fn() },
@@ -152,6 +154,20 @@ describe('StockMovementForm', () => {
     expect(await screen.findByText('document page')).toBeInTheDocument();
   });
 
+  it('AC-OSP-006 a post Odoo refused or is holding after the save opens the saved document, and a held one is information, not a failure', async () => {
+    for (const [code, notice] of [['command-held', 'Held in Odoo'], ['external-unreachable', 'Sent to Odoo']] as const) {
+      documents.create.mockReset();
+      documents.create.mockRejectedValue(new StockDispatchError(new AppError('x', code), 'doc-9'));
+      const view = renderForm('issue');
+      await fillIssue('5');
+      await userEvent.click(screen.getByRole('button', { name: 'Post issue' }));
+      expect(await screen.findByText('document page')).toBeInTheDocument();
+      expect(screen.getAllByText(notice).length).toBeGreaterThan(0);
+      expect(documents.create).toHaveBeenCalledTimes(1);   // the Draft exists: the form never creates it again
+      view.unmount();
+    }
+  });
+
   it('FR-STK-015 sends the exact payload as decimal strings with the chosen work item', async () => {
     renderForm('issue');
     await fillIssue('2,5', 'cab', /CAB - Cable 4mm/);
@@ -234,6 +250,31 @@ describe('StockMovementForm', () => {
     master.listWarehouses.mockResolvedValue([wh('w1', 'SITE-A')]);
     await userEvent.click(screen.getByRole('button', { name: /retry/i }));
     expect(await screen.findByLabelText(/^Warehouse/)).toBeInTheDocument();
+  });
+
+  it('AC-NBR-033 (P) items pending: the header is editable and only the line editor shows loading; submit waits', async () => {
+    master.listItems.mockReturnValue(new Promise(() => {}));
+    renderForm('receive');
+    const warehouse = await screen.findByLabelText(/^Warehouse/);
+    expect(warehouse).toBeEnabled();
+    await userEvent.selectOptions(warehouse, 'w1');
+    const lines = screen.getByTestId('stock-lines-region');
+    expect(within(lines).getByTestId('liststate-loading')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /^Item/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Post receipt' })).toBeDisabled();
+  });
+
+  it('AC-NBR-033 (F) units failed: the header stays editable and the line editor shows the error with retry', async () => {
+    master.listUnits.mockRejectedValueOnce(new Error('boom'));
+    renderForm('receive');
+    await userEvent.selectOptions(await screen.findByLabelText(/^Warehouse/), 'w1');
+    const lines = screen.getByTestId('stock-lines-region');
+    expect(await within(lines).findByRole('button', { name: /retry/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Warehouse/)).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Post receipt' })).toBeDisabled();
+    await userEvent.click(within(lines).getByRole('button', { name: /retry/i }));
+    expect(await screen.findByRole('combobox', { name: /^Item/ })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Post receipt' })).toBeEnabled());
   });
 
   it('FR-STK-064 a view-as session keeps the page read-only: no submit', async () => {

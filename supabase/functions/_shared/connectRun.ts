@@ -9,7 +9,7 @@ import { AdapterError } from '../../../pmo-portal/src/lib/adapterSeam/contract.t
 import { reviewReasonText } from '../../../pmo-portal/src/lib/adapterSeam/connect/match.ts';
 import { RUN_BUDGET_MS, tickConnectRun, type ConnectRunDeps } from '../../../pmo-portal/src/lib/adapterSeam/connect/run.ts';
 import type { MasterKind, MatchOutcome, NormalisedMaster } from '../../../pmo-portal/src/lib/adapterSeam/connect/types.ts';
-import { connectAdapterForOrg } from '../_shared/connectAdapterForOrg.ts';
+import { connectAdapterForOrg, type ConnectAdapterOptions } from '../_shared/connectAdapterForOrg.ts';
 import { pmoMasters } from '../_shared/connectPmoMasters.ts';
 
 export const CONNECT_CALLS_PER_TICK = 20;
@@ -24,27 +24,34 @@ async function check<T>(q: PromiseLike<{ data: T; error: { code?: string } | nul
 }
 
 /** The row a proposal stores: only the ERP fields an accept will apply, so accept never calls the ERP (PD-ECA-2). */
-const snapshotOf = (e: NormalisedMaster | undefined) => ({ name: e?.name, taxId: e?.taxId ?? null, code: e?.code ?? null, role: e?.role });
+export const snapshotOf = (e: NormalisedMaster | undefined) => ({ name: e?.name, taxId: e?.taxId ?? null, code: e?.code ?? null, role: e?.role });
 
-function toRow(kind: MasterKind, o: MatchOutcome, erp: (id: string) => NormalisedMaster | undefined, pmoName: (id: string) => string | undefined): Record<string, unknown> {
+export function toRow(kind: MasterKind, o: MatchOutcome, erp: (id: string) => NormalisedMaster | undefined, pmoName: (id: string) => string | undefined): Record<string, unknown> {
   if (o.outcome === 'link') return { outcome: 'link', pmoIds: [o.pmoId], externalIds: [o.externalId], key: o.key, snapshot: snapshotOf(erp(o.externalId)) };
   if (o.outcome === 'bring-in') return { outcome: 'bring-in', pmoIds: [], externalIds: [o.externalId], snapshot: snapshotOf(erp(o.externalId)) };
   if (o.outcome === 'send') return { outcome: 'send', pmoIds: [o.pmoId], externalIds: [], snapshot: { name: pmoName(o.pmoId) } };
+  // #1508 stock kinds: an unmatched row is stored as the review row the proposals table accepts today (nothing to link,
+  // nothing to send) so the Admin sees it; the database slice may give it a native outcome later.
+  if (o.outcome === 'unmatched') return { outcome: 'review', pmoIds: [o.pmoId], externalIds: [], reason: 'ambiguous', reasonText: 'No matching record was found in the ERP; it stays only in PMO.', snapshot: { name: pmoName(o.pmoId) } };
   return { outcome: 'review', pmoIds: o.pmoIds, externalIds: o.externalIds, reason: o.reason, reasonText: reviewReasonText(kind, o), snapshot: {} };
 }
 
-export async function advanceConnectRuns(sc: SupabaseClient, org: { orgId: string; bindingId?: string | null }, tier: string): Promise<{ state?: 'more' | 'ready' | 'failed' }> {
+/** `budgetStopped`: whether the caller's own time budget refused or cut one of this tick's ERP tries. Such a tick is
+ *  work left for the next one, not a failure, so it is not counted against the run. */
+export interface ConnectRunOptions extends ConnectAdapterOptions { budgetStopped?: () => boolean }
+
+export async function advanceConnectRuns(sc: SupabaseClient, org: { orgId: string; bindingId?: string | null }, tier: string, opts: ConnectRunOptions = {}): Promise<{ state?: 'more' | 'ready' | 'failed' }> {
   if (!org.bindingId) return {};
   const row = await check(sc.from('erp_connect_runs').select('id, state, cursor, proposed_kinds, started_at')
     .eq('org_id', org.orgId).eq('external_tier', tier).eq('binding_id', org.bindingId).in('state', ['staging', 'proposing']).maybeSingle(), 'connect run read') as RunRow | null;
   if (!row) return {};
 
-  const failRun = async (errorClass: string, fatal: boolean) =>
+  const failRun = async (errorClass: string, fatal: boolean) => (!fatal && opts.budgetStopped?.()) ? row.state :
     await check(sc.rpc('fail_connect_run', { p_org_id: org.orgId, p_run_id: row.id, p_error_class: errorClass, p_fatal: fatal }), 'connect run failure') as 'staging' | 'proposing' | 'failed';
 
   let adapter;
   try {
-    adapter = await connectAdapterForOrg(sc, org.orgId, tier);
+    adapter = await connectAdapterForOrg(sc, org.orgId, tier, opts);
   } catch (err) {
     // an unresolvable connection is a failed tick too, so the run cannot sit open for ever
     const state = await failRun(err instanceof AdapterError ? err.code : 'unexpected', false);

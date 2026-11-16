@@ -48,6 +48,16 @@
     "cancelled": "Cancelled",
     "active": "Active"
   },
+  "journal": {
+    "draft": "Draft",
+    "submitted": "Submitted",
+    "approved": "Approved",
+    "sending": "Sending",
+    "posted": "Posted",
+    "scheduled": "Scheduled",
+    "held": "Needs a check",
+    "refused": "Refused"
+  },
   "timesheet": {
     "draft": "Draft",
     "submitted": "Submitted",
@@ -101,6 +111,7 @@
   },
   "stockDocument": {
     "draft": "Draft",
+    "onHold": "On hold",
     "posted": "Posted",
     "cancelled": "Cancelled"
   },
@@ -220,6 +231,7 @@
     "hidden_one": "{{count}} figure hidden: {{reason}}",
     "hidden_other": "{{count}} figures hidden: {{reason}}",
     "hiddenCount_one": "{{count}} figure hidden",
+    "notShown": "Not shown yet: {{figures}}",
     "hiddenCount_other": "{{count}} figures hidden",
     "why": "Why"
   }

@@ -146,6 +146,7 @@ vi.mock('@/src/hooks/useTasks', () => ({
     remove: { mutateAsync: vi.fn(), isPending: false },
     addDependency: { mutateAsync: vi.fn(), isPending: false },
     removeDependency: { mutateAsync: vi.fn(), isPending: false },
+    archive: { mutateAsync: vi.fn(), isPending: false },
   }),
 }));
 vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => <div data-testid="project-erp-link">ERP link</div> }));
@@ -297,7 +298,7 @@ describe('ProjectDetail shell (decomposition)', () => {
 
   it('2057: Copy link lives in the More actions menu', async () => {
     await renderAt('/projects/p1');
-    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Project actions' }));
     expect(await screen.findByRole('menuitem', { name: 'Copy link' })).toBeInTheDocument();
   });
 
@@ -583,7 +584,9 @@ describe('ProjectDetail shell (decomposition)', () => {
 
   it('AC-PSH-013: the won-page "Sales history" disclosure contains only its summary heading without duplicate Stage history h2', async () => {
     await renderAt('/projects/p1');
-    const summary = screen.getByText('Sales history');
+    // Sales history lives in the Project details panel (#design-1115), one tap from the header.
+    await userEvent.click(screen.getByRole('button', { name: 'Project details' }));
+    const summary = await screen.findByText('Sales history');
     expect(summary).toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 2, name: /stage history/i })).not.toBeInTheDocument();
   });

@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import i18n from 'i18next';
+import idAdministration from '../../../public/locales/id/administration.json';
 import type { ConnectProposal, ConnectStatus } from '@/src/lib/repositories/contracts/integrations';
 
 const repo = vi.hoisted(() => ({
@@ -39,9 +41,9 @@ describe('ECA3-T11 ErpSendStates', () => {
   });
 
   it('a send the ERP could not confirm is a decision with its plain reason, not a success', async () => {
-    answer(0, [proposal({ id: 'r2', kind: 'project', reason: 'held', snapshot: { name: 'Jembatan' }, reason_text: 'We could not confirm whether the ERP created this record' })]);
+    answer(0, [proposal({ id: 'r2', kind: 'project', reason: 'held', snapshot: { name: 'Jembatan' }, reason_text: 'We could not confirm whether the ERP created this record. Look for it in the ERP by name and tax id; if it is not there, send it again.' })]);
     renderIt();
-    expect(await screen.findByText('We could not confirm whether the ERP created this record')).toBeTruthy();
+    expect(await screen.findByText(/We could not confirm whether the ERP created this record/)).toBeTruthy();
     expect(screen.queryByText('Sending to the ERP')).toBeNull();
   });
 
@@ -128,5 +130,56 @@ describe('AC-ODS-003 Odoo send states', () => {
     renderOdoo();
     expect(await screen.findByText(/Add these people in Odoo/)).toBeTruthy();
     expect(repo.listConnectProposals).toHaveBeenCalledWith('odoo', 'employee', 'send', null);
+  });
+});
+
+describe('#2429 ERP send refusals read in Bahasa', () => {
+  afterEach(async () => { await i18n.changeLanguage('en'); });
+  // every sentence the server can store for a refused or unconfirmed send, as written by the send drain and its result functions
+  const KNOWN = [
+    'This record is no longer in PMO, or (an item) no longer on an open purchase.',
+    'This ERP asks for a birth date and gender for each person, which PMO does not hold. Add this person in the ERP.',
+    'Odoo people are not sent from PMO yet. Add this person in Odoo.',
+    'The Admin who accepted this is no longer an Admin. Accept it again.',
+    'Two ERP records match this company. Link the right one by hand.',
+    'This record is already linked to another ERP record.',
+    'We could not finish sending this record. Check it in the ERP, then try again.',
+    'The ERP refused this item: Value missing',
+    'The ERP refused this project. Check it in the ERP, then try again.',
+    'The ERP refused this item: its unit has no match in Odoo yet',
+    'We could not confirm whether the ERP created this record. Look for it in the ERP by name and tax id; if it is not there, send it again.',
+    'We could not confirm whether Odoo created this record. Look for it in Odoo by name and tax id; if it is not there, send it again.',
+    'Choose the cost-account plan for projects first, then send this project again.',
+    'This project has no project number yet, so its cost account cannot be named. Give it one, then send it again.',
+    'This row could not be applied',
+    'Something the server said that we never mapped',
+  ];
+  it('shows no English sentence for any known refusal, and one plain Bahasa line for an unmapped one', async () => {
+    i18n.addResourceBundle('id', 'administration', idAdministration, true, true);
+    await i18n.changeLanguage('id');
+    answer(0, KNOWN.map((text, i) => proposal({ id: `k${i}`, reason: 'rejected', snapshot: { name: `Rec ${i}` }, reason_text: text })));
+    renderIt();
+    await screen.findByText('Rec 0');
+    const lines = screen.getAllByText(/\S/).map((n) => n.textContent ?? '');
+    for (const text of KNOWN) expect(lines.filter((l) => l.includes(text)), text).toEqual([]);
+    // the ERP's own reason is kept verbatim and marked [data-erp-reason]; everything else must hold no English
+    const english = screen.queryAllByText(/ERP refused|Value missing|could not|no longer|already linked/i).filter((n) => !n.closest('[data-erp-reason]'));
+    expect(english.map((n) => n.textContent)).toEqual([]);
+    expect(screen.getAllByText('Kami tidak dapat mengirim data ini. Periksa di ERP, lalu coba lagi.')).toHaveLength(1);
+  });
+  it('under Bahasa a refusal with an ERP reason shows the translated sentence, then the ERP\'s own reason verbatim', async () => {
+    i18n.addResourceBundle('id', 'administration', idAdministration, true, true);
+    await i18n.changeLanguage('id');
+    answer(0, [proposal({ id: 'e2', reason: 'rejected', snapshot: { name: 'Semen' }, reason_text: 'The ERP refused this item: Account 5100 is not a group account' })]);
+    renderIt();
+    const reason = await screen.findByText(/^Alasan dari ERP: Account 5100 is not a group account$/);
+    expect(reason.closest('[data-erp-reason]')).not.toBeNull();
+    expect(screen.queryByText(/The ERP refused this item/)).toBeNull();
+    expect(screen.getAllByText(/\S/).some((n) => /menolak item ini/i.test(n.textContent ?? '') && /ERP/.test(n.textContent ?? ''))).toBe(true);
+  });
+  it('keeps the ERP\'s own reason in English', async () => {
+    answer(0, [proposal({ id: 'e1', reason: 'rejected', snapshot: { name: 'Semen' }, reason_text: 'The ERP refused this item: Value missing' })]);
+    renderIt();
+    expect(await screen.findByText('The ERP refused this item: Value missing')).toBeTruthy();
   });
 });

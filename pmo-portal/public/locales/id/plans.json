@@ -41,6 +41,8 @@
     "organisationHelper": "Setiap sakelar di bawah adalah status organisasi ini setelah resolusi.",
     "plan": "Paket",
     "planHelper": "Batas paket: {{seats}} kursi, {{projects}} proyek aktif, {{messages}} pesan AI per bulan.",
+    "planLoading": "Memuat paket…",
+    "planUnknown": "Paket tidak tersedia",
     "planHelperUnassigned": "Tidak ada paket dipilih. Organisasi ini diperlakukan sebagai Enterprise.",
     "unlimitedShort": "tanpa batas",
     "saving": "Menyimpan…",

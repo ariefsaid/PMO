@@ -349,11 +349,23 @@ describe('WIRE P3B: the `timesheets` domain resolves an ERPNext adapter and ride
 // Vitest project rooted in supabase/.
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 
-const SWEEP = readFileSync(
-  resolve(dirname(fileURLToPath(import.meta.url)), '../../../../supabase/functions/erpnext-sweep/index.ts'),
-  'utf8',
-);
-const SWEEP_CODE = SWEEP.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+// The live backstop wiring left `erpnext-sweep/index.ts` for its own modules (#1643); scan the files that now hold it.
+const readSweepCode = (file: string) =>
+  readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../../../supabase/functions/erpnext-sweep', file), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+const SWEEP_CODE = ['budgetBackstopLive.ts', 'timesheetBackstopLive.ts'].map(readSweepCode).join('\n');
+
+/** The body of one top-level function, from its declaration to its own closing brace at column 0. Fails
+ *  loudly when the anchor or the end moved, so a rename cannot silently turn the assertions into no-ops. */
+function sliceFunction(code: string, name: string): string {
+  const start = code.search(new RegExp(`\\bfunction ${name}\\(`));
+  expect(start, `${name} not found — the anchor moved`).toBeGreaterThan(-1);
+  const rest = code.slice(start);
+  const end = rest.search(/\n\}/);
+  expect(end, `${name} has no closing brace at column 0 — the layout moved`).toBeGreaterThan(-1);
+  return rest.slice(0, end + 2);
+}
 
 describe('H-1: the budget backstop gates its re-POST on outbox eligibility', () => {
   it('driveBudgetPush checks eligibility BEFORE dispatchMoneyWrite (never re-POSTs a terminal row)', () => {
@@ -366,10 +378,25 @@ describe('H-1: the budget backstop gates its re-POST on outbox eligibility', () 
     expect(postAt, 'dispatchMoneyWrite call not found — the anchor moved').toBeGreaterThan(-1);
     expect(guardAt, 'H-1: the guard must run BEFORE the POST, or a terminal row is re-sent').toBeLessThan(postAt);
   });
+});
 
-  it('the eligible set comes from the outbox_reconcile_candidates SoT, not a duplicated predicate', () => {
-    // A hand-rolled state/attempt filter here would be the "second door" 0131 exists to prevent.
-    expect(SWEEP_CODE).toMatch(/eligibleOutboxIds[\s\S]{0,400}listCandidatesLive\(/);
+// What this text scan binds, per backstop module: the live pass function takes its eligible set from the
+// `outbox_reconcile_candidates` call (never a hand-rolled predicate) and hands THAT set to its consumers. It
+// is scoped to the module's own pass function, so neither module's text can satisfy the other's check. That
+// every candidate the RPC admits actually reaches the consumers un-narrowed is proven behaviourally in
+// `supabase/functions/erpnext-sweep/{budget,timesheet}BackstopLive.test.ts` (Deno, real shipped pass).
+describe('H-1: the budget and timesheet backstops each take their eligible set from the candidates SoT', () => {
+  it('budget: the pass reads eligibleBudgetCandidates from listCandidatesLive and hands it to the deps and the archive pass', () => {
+    const pass = sliceFunction(readSweepCode('budgetBackstopLive.ts'), 'reconcileOrgBudgetPushesLive');
+    expect(pass).toMatch(/eligibleBudgetCandidates\s*=\s*\(await listCandidatesLive\(/);
+    expect(pass).toMatch(/budgetBackstopDepsLive\(\s*serviceClient,\s*org,\s*eligibleBudgetCandidates\b/);
+    expect(pass).toMatch(/reconcileOrgBudgetArchiveCancellationsLive\(\s*serviceClient,\s*org,\s*[^;]*\beligibleBudgetCandidates\b/);
+  });
+
+  it('timesheet: the pass reads its eligible set via timesheetEligibility(listCandidatesLive) and hands it to the deps', () => {
+    const pass = sliceFunction(readSweepCode('timesheetBackstopLive.ts'), 'reconcileOrgTimesheetPushesLive');
+    expect(pass).toMatch(/timesheetEligibility\(\s*await listCandidatesLive\(/);
+    expect(pass).toMatch(/timesheetBackstopDepsLive\(\s*serviceClient,\s*org,\s*eligibleOutboxIds\b/);
   });
 });
 
@@ -384,5 +411,45 @@ describe('FR-SCA-022: the PO revise guard is wired into the dispatch entry point
     const refusal = CODE.slice(guard, guard + 400);
     expect(refusal).toContain("error: 'commit-rejected'");
     expect(refusal).toMatch(/status: poRevise\.status/);
+  });
+});
+
+describe('WIRE STOCK (#1508): connected stock posts ride the same gates and the Odoo registry, with the DB guard as the actor rule', () => {
+  const strip = (source: string) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const AUTH = strip(readDispatchSource('authGuard.ts'));
+
+  it('WIRE STOCK: index.ts routes inventory through checkCommandAuthorization and the Odoo registry', () => {
+    expect(CODE).toMatch(/isErpDomain = [^;]*command\.domain === INVENTORY_DOMAIN/);
+    expectSourceOrder(CODE, 'stockCommandShapeError(command', 'await checkCommandAuthorization(');
+    expectSourceOrder(CODE, 'await checkCommandAuthorization(', 'selectAdapterFactory(employedTier, command.domain)');
+    expect(strip(readDispatchSource('odooAdapters.ts'))).toMatch(/inventory: resolveOdooStockAdapter/);
+    expect(strip(readDispatchSource('odooMoneyOutbox.ts'))).toMatch(/domain === 'inventory'\) return resolveOdooStockMoneyOutboxDeps\(ctx\)/);
+    expect(strip(readDispatchSource('readModelWriters.ts'))).toMatch(/inventory: inventoryWriter/);
+  });
+
+  it('inventory is owned by the Odoo tier alone, its actor rule is the DB guard\'s, and its kind maps to the domain', () => {
+    expect(AUTH).toMatch(/OWNING_TIERS[^=]*=\s*\{[\s\S]*\[INVENTORY_DOMAIN\]: \[ODOO_TIER\]/);
+    expect(AUTH).toMatch(/ROLE_RULE_DELEGATED_TO_DB_GATE = new Set\(\[[^\]]*'inventory'/);
+    expect(AUTH).toMatch(/\[STOCK_DOC_KIND\]: INVENTORY_DOMAIN/);
+  });
+
+  it('the server replaces the record and derives the key: a client key and body fields never reach the outbox', () => {
+    expectSourceOrder(CODE, 'command.record = { id: command.record.id, revision: command.record.revision, erp_doc_kind: STOCK_DOC_KIND }', 'command.idempotencyKey = stockKey(');
+    expect(CODE).toMatch(/!odooStockKeyDerivedByServer && \(command\.operation as string\) !== 'read'/);
+  });
+
+  it('a STK_ refusal answers 422 with its name, and a refusal about the actor 403, from the shared status ladder', () => {
+    expect(strip(STATUS_MAP)).toMatch(/'stock-command-refused'/);
+    expect(strip(STATUS_MAP)).toMatch(/code === 'stock-actor-refused'\) return 403/);
+  });
+
+  it('a held stock command writes its reason to the document evidence after the dispatch fails', () => {
+    expectSourceOrder(DISPATCH_ATTEMPT_CODE, 'await recordTimesheetPushFailure(appError);', 'await recordStockHold(serviceClient, orgId, command, appError);');
+  });
+
+  it('no tier name is compared outside the tier folders: the stock dispatch files route by domain and registry only', () => {
+    for (const file of ['odooStock.ts', 'readModel/inventory.ts']) {
+      expect(strip(readDispatchSource(file)), file).not.toMatch(/(?:===|!==)\s*['"](?:odoo|erpnext)['"]|['"](?:odoo|erpnext)['"]\s*(?:===|!==)/);
+    }
   });
 });

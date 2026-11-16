@@ -29,6 +29,7 @@ const detailState = {
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useProcurementFilesBatch', () => ({ useProcurementFilesBatch: () => ({ data: undefined, isError: false }) }));
 vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
 vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }) }));
 
@@ -86,6 +87,10 @@ vi.mock('@/src/components/ui', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useToast: () => ({ toast: vi.fn() }) };
 });
+// S05: the budget panel also reads the project's canonical Budget used; stubbed like its other reads (these tests mount no QueryClient).
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: () => ({ data: undefined, isPending: false, isError: false }),
+}));
 // N8 (AC-IXD-PROC-W5-2): DecisionSupportPanel now mounts in ProcurementDetails.
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 1000000, isPending: false, isError: false }),
@@ -210,7 +215,7 @@ describe('AC-IXD-PROC-A8: Admin break-glass header edit', () => {
 // B3 — Admin break-glass transitions, SoD preserved (characterization)
 // ─────────────────────────────────────────────────────────────────────────────
 describe('AC-IXD-PROC-B3: Admin break-glass transitions with SoD preserved', () => {
-  it('AC-IXD-PROC-B3: Admin who is NOT the requester sees Approve + Reject on a Requested PR', async () => {
+  it('AC-IXD-PROC-B3: Admin who is NOT the requester sees Approve + Return on a Requested PR', async () => {
     auth.realRole = 'Admin';
     auth.currentUserId = 'u-admin';
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-requester' };
@@ -218,7 +223,7 @@ describe('AC-IXD-PROC-B3: Admin break-glass transitions with SoD preserved', () 
     // Approve is the one primary action; Reject sits in the header's "More procurement actions" menu.
     expect(headerActions().getByRole('button', { name: /^Approve$/ })).toBeInTheDocument();
     await openMoreActions();
-    expect(screen.getByRole('menuitem', { name: /^Reject$/ })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /^Return$/ })).toBeInTheDocument();
   });
 
   it('AC-IXD-PROC-B3: Admin who IS the requester does NOT see Approve/Reject on a Requested PR (SoD-a)', async () => {
@@ -230,7 +235,7 @@ describe('AC-IXD-PROC-B3: Admin break-glass transitions with SoD preserved', () 
     // Open the menu first so the absence of Reject is not vacuous (it lives in "More procurement actions").
     await openMoreActions();
     expect(screen.getByRole('menuitem', { name: 'Full history' })).toBeInTheDocument();
-    expect(screen.queryByRole('menuitem', { name: /^Reject$/ })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: /^Return$/ })).toBeNull();
   });
 
   it('AC-IXD-PROC-B3: Admin (not the approver) sees Mark as Paid on a Vendor Invoiced PR', () => {

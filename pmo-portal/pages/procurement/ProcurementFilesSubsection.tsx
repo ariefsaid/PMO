@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon, ConfirmDialog, useToast } from '@/src/components/ui';
 import { useProcurementFiles } from '@/src/hooks/useProcurementFiles';
 import { FILE_INPUT_ACCEPT, VIEWABLE_EXTENSIONS } from '@/src/lib/fileConstants';
@@ -30,6 +31,9 @@ export interface ProcurementFilesSubsectionProps {
    * list query runs (one detail read serves every row); archived rows are hidden here.
    */
   files?: EmbeddedProcurementFile[];
+  /** With `files`: the caller's own read of them has not landed yet / failed (shows the same states a per-row read did). */
+  loading?: boolean;
+  failed?: boolean;
 }
 
 export type EmbeddedProcurementFile = Pick<ProcurementFileRow, 'id' | 'title' | 'file_path' | 'archived_at'> &
@@ -59,7 +63,10 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
   canWrite,
   uploadedById,
   files: embedded,
+  loading,
+  failed,
 }) => {
+  const { t } = useTranslation('procurementRecord');
   const { toast } = useToast();
   const viewer = useViewerOnDemand();
   const { list, upload, archive, download, progress, uploadError, clearUploadError, uploadDisabled } =
@@ -72,8 +79,8 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
   const files: EmbeddedProcurementFile[] = embedded
     ? embedded.filter((f) => f.archived_at == null)
     : (list.data ?? []);
-  const listPending = embedded === undefined && list.isPending;
-  const listError = embedded === undefined && list.isError;
+  const listPending = embedded === undefined ? list.isPending : Boolean(loading);
+  const listError = embedded === undefined ? list.isError : Boolean(failed);
   const uploading = progress != null;
 
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -84,7 +91,7 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
     upload.mutate(
       { file },
       {
-        onSuccess: () => toast('File attached', file.name, 'success'),
+        onSuccess: () => toast(t('files.attached', 'File attached'), file.name, 'success'),
         onError: (err: unknown) => {
           if (err instanceof UploadFailure) return; // the hook already shows the typed recovery text inline
           const { headline, detail } = classifyMutationError(err);
@@ -120,7 +127,7 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
     const target = pendingArchive;
     setPendingArchive(null);
     archive.mutate(target.id, {
-      onSuccess: () => toast('File removed', undefined, 'success'),
+      onSuccess: () => toast(t('files.removed', 'File removed'), undefined, 'success'),
       onError: (err: unknown) => {
         const { headline, detail } = classifyMutationError(err);
         toast(headline, detail, 'warning');
@@ -132,7 +139,7 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
     <div className="mt-2 flex flex-col gap-1.5 border-t border-dashed border-border/60 pt-2">
       <div className="flex items-center gap-2">
         <span className="text-sm font-semibold text-muted-foreground">
-          Attachments
+          {t('files.heading', 'Attachments')}
         </span>
         <span className="flex-1" />
         {canWrite && (
@@ -141,7 +148,7 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
               ref={inputRef}
               type="file"
               accept={FILE_INPUT_ACCEPT}
-              aria-label="Attach a file"
+              aria-label={t('files.attachInput', 'Attach a file')}
               className="sr-only"
               onChange={onPick}
             />
@@ -152,20 +159,20 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
               className="touch-target inline-flex items-center gap-1 rounded-sm text-sm font-medium text-primary-text hover:underline disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
               <Icon name="upload" className="size-3.5" />
-              {uploading ? `Uploading ${progress}%` : 'Attach file'}
+              {uploading ? t('files.uploading', 'Uploading {{progress}}%', { progress }) : t('files.attach', 'Attach file')}
             </button>
           </>
         )}
       </div>
 
       {listPending ? (
-        <p className="text-sm text-muted-foreground">Loading attachments…</p>
+        <p className="text-sm text-muted-foreground">{t('files.loading', 'Loading attachments…')}</p>
       ) : listError ? (
         <p role="alert" className="text-sm text-destructive">
-          Couldn&apos;t load attachments.
+          {t('files.loadError', "Couldn't load attachments.")}
         </p>
       ) : files.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No files attached.</p>
+        <p className="text-sm text-muted-foreground">{t('files.empty', 'No files attached.')}</p>
       ) : (
         <ul className="flex flex-col gap-1">
           {files.map((f) => {
@@ -181,8 +188,8 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
                     <button
                       type="button"
                       onClick={(e) => preview(f, e.currentTarget)}
-                      aria-label={`Preview file ${name}`}
-                      title="Preview"
+                      aria-label={t('files.previewNamed', 'Preview file {{name}}', { name })}
+                      title={t('files.preview', 'Preview')}
                       className="touch-target rounded-sm p-0.5 text-muted-foreground hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                     >
                       <Icon name="eye" className="size-4" />
@@ -191,8 +198,8 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
                   {f.file_path && <button
                     type="button"
                     onClick={() => void downloadFile(f)}
-                    aria-label={`Download file ${name}`}
-                    title="Download"
+                    aria-label={t('files.downloadNamed', 'Download file {{name}}', { name })}
+                    title={t('files.download', 'Download')}
                     className="touch-target rounded-sm p-0.5 text-muted-foreground hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                   >
                     <Icon name="download" className="size-4" />
@@ -201,8 +208,8 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
                     <button
                       type="button"
                       onClick={() => setPendingArchive(f)}
-                      aria-label={`Remove file ${name}`}
-                      title="Remove"
+                      aria-label={t('files.removeNamed', 'Remove file {{name}}', { name })}
+                      title={t('files.remove', 'Remove')}
                       className="touch-target rounded-sm p-0.5 text-muted-foreground hover:text-destructive focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                     >
                       <Icon name="x" className="size-3.5" />
@@ -224,13 +231,13 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
       <ConfirmDialog
         open={pendingArchive !== null}
         tone="destructive"
-        title="Remove this attachment?"
+        title={t('files.removeTitle', 'Remove this attachment?')}
         description={
           pendingArchive
-            ? `This removes "${filename(pendingArchive.file_path)}" from this record. It can be re-uploaded if needed.`
+            ? t('files.removeBody', 'This removes "{{name}}" from this record. It can be re-uploaded if needed.', { name: filename(pendingArchive.file_path) })
             : ''
         }
-        confirmLabel="Remove"
+        confirmLabel={t('files.remove', 'Remove')}
         loading={archive.isPending}
         onConfirm={confirmArchive}
         onCancel={() => setPendingArchive(null)}

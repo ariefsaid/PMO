@@ -1,6 +1,6 @@
 /**
  * HoursBar — single-hue hours bar row.
- * Track = bg-secondary, fill = bg-muted-foreground (Freed-Blue Status Rule, DESIGN.md §2).
+ * Track = bg-secondary, fill = bg-mark-neutral (Freed-Blue Status Rule, DESIGN.md §2).
  * A quantity/hours bar is a data indicator, NOT an interactive affordance — it must NOT
  * use bg-primary (action-blue). Neutral muted-foreground reads as "measured amount".
  * Carries role="progressbar" + aria-label for WCAG-AA (plan §6, T5).
@@ -8,11 +8,12 @@
  */
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { formatNumberExact } from '@/src/lib/format';
 
 export interface HoursBarProps {
   /** Project name (displayed as body text). */
   label: string;
-  /** Machine identifier — rendered in mono when present. */
+  /** Machine identifier — rendered as the shared record-id role when present. */
   code: string | null;
   /** This project's value (hours by default; any quantity when `formatValue` is set). */
   hours: number;
@@ -35,10 +36,12 @@ export const HoursBar: React.FC<HoursBarProps> = ({
 }) => {
   const { t } = useTranslation();
   const pct = maxHours > 0 ? (hours / maxHours) * 100 : 0;
-  const display = formatValue ? formatValue(hours) : t('dashboard.engineer.hoursShort', '{{hours}}h', { hours });
+  // #2089: the hours figure renders in the viewer's locale, and the unit stays on one line with it.
+  const formattedHours = formatNumberExact(hours);
+  const display = formatValue ? formatValue(hours) : t('dashboard.engineer.hoursShort', '{{hours}}h', { hours: formattedHours });
   // When a custom formatter is given, the formatted string is the a11y suffix;
   // otherwise fall back to the "N hours" phrasing.
-  const ariaValue = formatValue ? display : t('dashboard.engineer.hoursSpoken', '{{hours}} {{unit}}', { hours, unit: t('dashboard.engineer.hoursUnit', 'hours') });
+  const ariaValue = formatValue ? display : t('dashboard.engineer.hoursSpoken', '{{hours}} {{unit}}', { hours: formattedHours, unit: t('dashboard.engineer.hoursUnit', 'hours') });
 
   return (
     <div className="flex items-center gap-2.5 py-[5px]">
@@ -46,7 +49,7 @@ export const HoursBar: React.FC<HoursBarProps> = ({
         <div className="flex items-baseline gap-1.5 min-w-0">
           <span className="min-w-0 break-words text-control font-semibold">{label}</span>
           {code && (
-            <span className="shrink-0 break-words font-mono text-control text-muted-foreground">{code}</span>
+            <span className="shrink-0 break-words record-id">{code}</span>
           )}
         </div>
         <span
@@ -58,7 +61,7 @@ export const HoursBar: React.FC<HoursBarProps> = ({
           className="mt-1 block h-[7px] w-full overflow-hidden rounded-full bg-secondary"
         >
           <span
-            className="block h-full rounded-full bg-muted-foreground"
+            className="block h-full rounded-full bg-mark-neutral"
             style={{ width: `${pct}%` }}
           />
         </span>
