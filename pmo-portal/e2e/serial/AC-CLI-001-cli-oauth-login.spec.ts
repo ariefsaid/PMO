@@ -1,11 +1,11 @@
-// @e2e-isolation: self-isolated — registers its OWN OAuth client and three run-scoped fixture users (never a shared seed user: banning or signing out a shared one would poison every later spec), creates only projects named with the exclusive prefix "E2E CLI-001 ", and deletes all of it before and after the run.
+// @e2e-isolation: serial — adds approver-role members to the shared seed org (a parallel approval request notifies every approver in it) and registers its OWN OAuth client and three run-scoped fixture users (never a shared seed user: banning or signing out a shared one would poison every later spec), creates only projects named with the exclusive prefix "E2E CLI-001 ", and deletes all of it before and after the run.
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ownedContextOptions, requireServiceRoleKey, SEED_PASSWORD } from './helpers';
-import { ANON_KEY, SUPABASE_URL, createCliHarness } from './support/pmoCli';
+import { ownedContextOptions, requireServiceRoleKey, SEED_PASSWORD } from '../helpers';
+import { ANON_KEY, SUPABASE_URL, createCliHarness } from '../support/pmoCli';
 
 /**
  * AC-CLI-001..005 (#728) — the PMO command-line client, signed in as the user through Supabase's
