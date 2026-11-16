@@ -154,7 +154,8 @@ describe('Procurement list — inline preview (fix #5)', () => {
     const drawer = screen.getByRole('dialog');
     expect(within(drawer).getByText('Line items')).toBeInTheDocument();
     expect(within(drawer).getByText('Steel beam · IPE 300')).toBeInTheDocument();
-    expect(within(drawer).getByText('12')).toBeInTheDocument();
+    // The quantity leads the item's price line (12 × unit price).
+    expect(within(drawer).getByText(/^12 ×/)).toBeInTheDocument();
     expect(within(drawer).getByText('Next step')).toBeInTheDocument();
     expect(within(drawer).getByText('Request')).toBeInTheDocument();
     expect(within(drawer).getByText('Waiting on approver')).toBeInTheDocument();

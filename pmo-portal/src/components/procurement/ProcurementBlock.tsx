@@ -1100,7 +1100,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       >
         {selected && (
           <div className="space-y-6">
-            <section className="grid grid-cols-2 gap-x-5 gap-y-4 border-b border-border/70 pb-5 text-sm">
+            <section className="grid grid-cols-2 gap-x-5 gap-y-4 text-sm">
               <div className="space-y-1">
                 <div className="text-sm text-muted-foreground">{t('projectDetail.procurement.detail.category', 'Category')}</div>
                 <div className="font-medium">{categoryLabel(selected.budget_category)}</div>
@@ -1152,7 +1152,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
 
             {/* The request's budget evidence, the same block the record page shows (tinted when it waits on the viewer). */}
             {canSeeMoney && drawerDetailLoaded && drawerDetails && drawerDetails.project_id && stageForStatus(drawerDetails.status) === 'Request' && (
-              <div className={drawerMain?.transition.to === 'Approved' ? 'rounded-lg border border-warning/25 bg-waiting-surface p-[var(--space-content-inset)]' : 'empty:hidden'}>
+              // Tinted edge to edge when the decision waits on the viewer, its content on the drawer body's own inset.
+              <div className={drawerMain?.transition.to === 'Approved' ? '-mx-[var(--space-content-inset)] border-y border-warning/25 bg-waiting-surface px-[var(--space-content-inset)] py-5' : 'empty:hidden'}>
                 <DecisionSupportPanel
                   bare
                   projectId={drawerDetails.project_id}
@@ -1232,11 +1233,11 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                         <span className="block text-foreground">{item.name}{item.description ? ` · ${item.description}` : ''}</span>
                         <span className="block tabular text-muted-foreground">
                           {canSeeMoney
-                            ? `${formatQuantity(String(item.quantity), getNumberLocale())} × ${formatCurrency(Number(item.rate), drawerDetails!.currency)}`
+                            ? `${formatQuantity(String(item.quantity), getNumberLocale())} × ${formatCurrency(Number(item.rate), drawerDetails!.currency ?? selected.currency)}`
                             : formatQuantity(String(item.quantity), getNumberLocale())}
                         </span>
                       </span>
-                      {canSeeMoney && (() => { const line = itemsNetTotal([{ quantity: item.quantity, rate: item.rate }]); return line === null ? null : <span className="shrink-0 whitespace-nowrap font-medium tabular text-foreground">{formatCurrency(line, drawerDetails!.currency)}</span>; })()}
+                      {canSeeMoney && (() => { const line = itemsNetTotal([{ quantity: item.quantity, rate: item.rate }]); return line === null ? null : <span className="shrink-0 whitespace-nowrap font-medium tabular text-foreground">{formatCurrency(line, drawerDetails!.currency ?? selected.currency)}</span>; })()}
                     </li>
                   ))}
                 </ul>

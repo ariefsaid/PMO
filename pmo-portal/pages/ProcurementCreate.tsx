@@ -319,7 +319,7 @@ export default function ProcurementCreate() {
 
   if (!have) {
     return (
-      <div className="mx-auto w-full max-w-[880px] p-4 pb-6 md:p-6">
+      <div className="mx-auto w-full max-w-[880px] pb-6">
         <BackBar label={backLabel} onBack={backToProcurement} />
         <ProcurementIntake
           choices={choices}
@@ -366,7 +366,7 @@ export default function ProcurementCreate() {
   const cancelCreate = canCaptureDocuments && !readOrigin(location.search) ? changeType : backToProcurement;
 
   return (
-    <div className="mx-auto w-full max-w-[880px] p-4 pb-6 md:p-6">
+    <div className="mx-auto w-full max-w-[880px] pb-6">
       <BackBar label={backLabel} onBack={backToProcurement} />
       <form id="procurement-create-form" className="mx-auto w-full max-w-[880px]" onSubmit={submit} noValidate>
         <header className="mb-6 flex items-center justify-between gap-4 border-b border-border pb-4">

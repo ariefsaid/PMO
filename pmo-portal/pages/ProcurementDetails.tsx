@@ -70,7 +70,8 @@ import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { RecordHistory } from '@/src/components/history/RecordHistory';
 import { RecordCaptureForm, type CreateRecordInput, type RecordKind } from './procurement/RecordCaptureForm';
 import { LinkErpDocumentsDialog } from './procurement/LinkErpDocumentsDialog';
-import { DecisionSupportPanel, PANEL_VISIBLE_STATUSES } from '@/src/components/procurement/DecisionSupportPanel';
+import { DecisionSupportPanel } from '@/src/components/procurement/DecisionSupportPanel';
+import { PANEL_VISIBLE_STATUSES } from '@/src/lib/procurement/computeBudgetSignal';
 import { ProcurementBudgetSignal, ProcurementStageTracker, ProcurementMoneySummary, ProcurementTimeline } from './procurement/detail/ProcurementDetailPanels';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
 import { selectedQuotation } from '../components/procurement';
@@ -618,7 +619,7 @@ const ProcurementDetails: React.FC = () => {
   // The approver's decision: the limit and separation-of-duties facts read as one line, then the optional note.
   const decidesHere = mainAction?.to === 'Approved';
   const decisionLine = [approverLimitLine, decisionContextNote].filter(Boolean);
-  const approvalNote = mainAction?.to === 'Approved' && <label key="approval-note" className="block max-w-xl text-control font-medium text-foreground">{t('procurementRecord:approval.note', 'Approval note (optional)')}
+  const approvalNote = mainAction?.to === 'Approved' && <label key="approval-note" className="block text-control font-medium text-foreground">{t('procurementRecord:approval.note', 'Approval note (optional)')}
     <textarea data-testid="procurement-notes-input" value={notesInput} onChange={(event) => setNotesInput(event.target.value)} rows={2} className="mt-1 block w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
   </label>;
   const headerNotes = [
@@ -635,8 +636,18 @@ const ProcurementDetails: React.FC = () => {
   const requestStage = stageForStatus(p.status) === 'Request';
   // The same visibility the panel applies to itself, so the money block leaves the total out only where the panel shows it.
   const showsBudgetImpact = Boolean(p.project_id) && PANEL_VISIBLE_STATUSES.includes(p.status) && may('view', 'procurement');
+  const decisionAside = decidesHere ? (
+    <div className="flex flex-col gap-4">
+      {decisionLine.length > 0 && <p data-testid="sod-ready-hint" className="flex items-start gap-2 text-control text-foreground">
+        <Icon name={p.approvalRoute?.reason === 'within_budget' ? 'check' : 'info'} className={`mt-0.5 size-4 shrink-0 ${p.approvalRoute?.reason === 'within_budget' ? 'text-success-text' : 'text-muted-foreground'}`} aria-hidden="true" />
+        <span>{decisionLine.map((part, i) => <React.Fragment key={i}>{i > 0 && ' · '}<span>{part}</span></React.Fragment>)}</span>
+      </p>}
+      {approvalNote}
+    </div>
+  ) : null;
   const budgetImpact = requestStage && p.project_id ? <DecisionSupportPanel
     bare
+    aside={decisionAside}
     projectId={p.project_id}
     totalValue={Number(p.total_value)}
     projectName={p.project ? projectDisplayName(p.project) : null}
@@ -673,7 +684,9 @@ const ProcurementDetails: React.FC = () => {
             <ProcurementStatusPill status={p.status} />
           </span>
         }
-        meta={meta.length ? <span data-testid="record-meta" className="flex flex-col gap-y-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-2 [&_a]:font-normal">{meta.map((part, i) => <span key={part.key} className="sm:whitespace-nowrap">{i > 0 && <span data-meta-dot aria-hidden="true" className="mr-2 hidden text-muted-foreground sm:inline">·</span>}{part}</span>)}</span> : undefined}
+        // Each later item carries its dot before it in a fixed 16px slot; the row is shifted left by one slot inside a
+        // clipping wrapper, so the dot that starts a wrapped line falls outside it and no line begins with "·".
+        meta={meta.length ? <span className="block overflow-hidden"><span data-testid="record-meta" className="flex flex-col gap-y-1 sm:-ml-4 sm:flex-row sm:flex-wrap sm:items-center [&_a]:font-normal">{meta.map((part, i) => <span key={part.key} className={i === 0 ? 'sm:whitespace-nowrap sm:pl-4' : 'sm:whitespace-nowrap'}>{i > 0 && <span data-meta-dot aria-hidden="true" className="hidden w-4 text-center text-muted-foreground sm:inline-block">·</span>}{part}</span>)}</span></span> : undefined}
         // Where no action is offered, the slot says who the purchase waits on (#1404).
         actions={waitingNote || !isNarrow ? <>
           {waitingNote && <span className="min-w-0 text-sm text-muted-foreground">{waitingNote}</span>}
@@ -694,16 +707,11 @@ const ProcurementDetails: React.FC = () => {
         menuLabel={t('procurementRecord:moreActions', 'More procurement actions')}
         band={
           <div className="flex flex-col gap-4">
+            {/* The decision waits on this viewer: a tinted band from edge to edge of the header panel, its content on
+                the panel's own inset (the negative margins only undo the band's top padding and the panel inset). */}
             {decidesHere && (
-              <div data-testid="procurement-decision" className="rounded-lg border border-warning/25 bg-waiting-surface p-[var(--panel-inset)]">
-                {budgetImpact}
-                <div className={`flex flex-col gap-3 ${showsBudgetImpact ? 'mt-4 border-t border-warning/25 pt-4' : ''}`}>
-                  {decisionLine.length > 0 && <p data-testid="sod-ready-hint" className="flex items-start gap-2 text-control text-foreground">
-                    <Icon name={p.approvalRoute?.reason === 'within_budget' ? 'check' : 'info'} className={`mt-0.5 size-4 shrink-0 ${p.approvalRoute?.reason === 'within_budget' ? 'text-success-text' : 'text-muted-foreground'}`} aria-hidden="true" />
-                    <span>{decisionLine.join(' · ')}</span>
-                  </p>}
-                  {approvalNote}
-                </div>
+              <div data-testid="procurement-decision" className="-mx-[var(--panel-inset)] -mt-4 border-b border-warning/25 bg-waiting-surface px-[var(--panel-inset)] py-6">
+                {showsBudgetImpact ? budgetImpact : decisionAside}
               </div>
             )}
             <ProcurementStageTracker procurement={p} linkedDocuments={linkedDocs} />

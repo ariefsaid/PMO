@@ -38,17 +38,9 @@ import { useProjectCommittedSpend, useProjectReservedSpend } from '@/src/hooks/u
 import { usePermission } from '@/src/auth/usePermission';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import { formatCurrency, formatNumberExact } from '@/src/lib/format';
-import { computeBudgetSignal } from '@/src/lib/procurement/computeBudgetSignal';
+import { computeBudgetSignal, PANEL_VISIBLE_STATUSES } from '@/src/lib/procurement/computeBudgetSignal';
 import { AT_RISK_THRESHOLD } from '@/src/lib/dashboardConstants';
 
-/** Pre-Ordered statuses where the panel is a live decision-support tool (ADR-0034 §6). */
-export const PANEL_VISIBLE_STATUSES: ProcurementStatus[] = [
-  'Draft',
-  'Requested',
-  'Approved',
-  'Vendor Quoted',
-  'Quote Selected',
-];
 
 const UnavailableComparison: React.FC<{ reason: string }> = ({ reason }) => {
   const inFigureScope = useFigureReport([{ label: 'Budget comparison', reason }]);
@@ -74,6 +66,8 @@ export interface DecisionSupportPanelProps {
   currency: string;
   /** Inside a record header's band: no frame of its own, a rule above it (the header panel is the frame). */
   bare?: boolean;
+  /** Record page only: the decision's own facts and note, placed under the decision figure (or at the end in other states). */
+  aside?: React.ReactNode;
 }
 
 /** The panel's frame: a card on its own, or a bare block inside the record header's band (the page draws its rule or surface). */
@@ -91,6 +85,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   status,
   currency,
   bare = false,
+  aside = null,
 }) => {
   const { t } = useTranslation('procurement');
   // Committed and Reserved sum every request on the project. A role that reads only the requests it
@@ -125,23 +120,34 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       {t('decisionSupport.openProject', 'Open project')}
     </Link>
   );
-  const heading = (
-    <div className={`flex flex-wrap items-baseline gap-x-1 gap-y-1 ${bare ? 'mb-4' : 'mb-3'}`}>
-      <h2 className={bare ? 'text-section font-semibold text-foreground' : 'text-control font-semibold text-muted-foreground'}>
-        {t('decisionSupport.heading', 'Budget impact')}
-      </h2>
+  const projectLine = (
+    <>
       {projectName ? (
         <ProjectNameLink
           projectId={scopedProjectId}
           name={projectName}
           legalName={projectLegalName}
-          className="text-control font-medium text-foreground"
+          className={bare ? 'text-control font-normal text-muted-foreground' : 'text-control font-medium text-foreground'}
         />
       ) : null}
       {projectStatus && PIPELINE_STATUSES.includes(projectStatus) ? (
         <StatusPill record="project" state={projectStatus} wrap={false} className="ml-1" />
       ) : null}
-      {bare && <span className="ml-auto pl-4">{openProjectLink}</span>}
+    </>
+  );
+  // Record page: title and Open project on one line, the project it measures on the line under it.
+  const heading = bare ? (
+    <div className="mb-4 grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 gap-y-0.5">
+      <h2 className="text-section font-semibold text-foreground">{t('decisionSupport.heading', 'Budget impact')}</h2>
+      <span>{openProjectLink}</span>
+      {(projectName || projectStatus) && <div className="col-span-2 flex flex-wrap items-baseline gap-x-1">{projectLine}</div>}
+    </div>
+  ) : (
+    <div className="mb-3 flex flex-wrap items-baseline gap-x-1 gap-y-1">
+      <h2 className="text-control font-semibold text-muted-foreground">
+        {t('decisionSupport.heading', 'Budget impact')}
+      </h2>
+      {projectLine}
     </div>
   );
 
@@ -167,6 +173,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             <div className="skel h-[14px] w-1/2" />
           </div>
           {totalRow}
+          {aside}
         </Frame>
     );
   }
@@ -180,6 +187,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             {t('decisionSupport.budgetUnavailable', "Budget unavailable: budget impact can't be shown right now.")}
           </p>
           {totalRow}
+          {aside}
         </Frame>
     );
   }
@@ -195,6 +203,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             {t('decisionSupport.noActiveBudget', 'No active budget set for this project.')}
           </p>
           {totalRow}
+          {aside}
         </Frame>
     );
   }
@@ -210,6 +219,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       <Frame bare={bare}>{heading}
         <UnavailableComparison reason={t('decisionSupport.currencyUnavailable', 'Budget comparison unavailable for these currencies.')} />
         {totalRow}
+          {aside}
       </Frame>
     );
   }
@@ -241,6 +251,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
     return <Frame bare={bare}>{heading}
       <UnavailableComparison reason={t('decisionSupport.amountUnavailable', 'Budget comparison unavailable for these amounts.')} />
       {totalRow}
+          {aside}
     </Frame>;
   }
   const { afterRequest, otherReserved } = signal;
@@ -348,6 +359,15 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       </p>
     </div>
   ) : null;
+  // Over-budget advisory — non-blocking, once. ErrBanner is role="status" (gentle, not an alert) and carries the
+  // amount in text (WCAG SC 1.4.1, not color-only). Approval is still permitted (OD-W5-4/OD-W5-5).
+  const overBudget = spendingKnown && !requestInOtherCurrency && afterRequest < 0 ? (
+    <ErrBanner
+      className="mt-3 mb-0"
+      title={t('decisionSupport.overBudgetTitle', 'Over budget')}
+      sub={t('decisionSupport.overBudgetAfter', { defaultValue: '{{amount}} over the budget after this purchase. Approval is still permitted; this is advisory only.', amount: formatCurrency(-afterRequest, currency) })}
+    />
+  ) : null;
   // The parts Left is made of, as one list with a shared right edge for the amounts.
   const partsList = (
     <dl data-testid="budget-impact-parts" className="min-w-0 divide-y divide-border">
@@ -370,14 +390,18 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         {bare ? (
           // Record page: the decision figure leads on the left; the list on the right is what it is made of.
           leftTile ? (
-            <div className="grid gap-x-10 gap-y-6 @2xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+            // Two columns: the figure with the decision under it, the parts beside them. Stacked (phone, drawer) the
+            // parts follow the figure and the decision comes last, next to the action bar.
+            <div className="grid gap-x-10 gap-y-6 @3xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] @3xl:grid-rows-[auto_1fr]">
               <div className="min-w-0">
                 <StatTiles tiles={[leftTile]} columns={1} variant="bare" />
                 {bar}
+                {overBudget}
               </div>
-              {partsList}
+              <div className="min-w-0 @3xl:col-start-2 @3xl:row-span-2 @3xl:row-start-1">{partsList}</div>
+              {aside && <div className="min-w-0 @3xl:col-start-1 @3xl:row-start-2">{aside}</div>}
             </div>
-          ) : partsList
+          ) : <>{partsList}{aside && <div className="mt-6">{aside}</div>}</>
         ) : (
           <>
             {bar}
@@ -394,15 +418,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
           </p>
         )}
 
-        {/* Over-budget advisory — non-blocking, once. ErrBanner is role="status" (gentle, not an alert) and
-            carries the amount in text (WCAG SC 1.4.1, not color-only). Approval is still permitted (OD-W5-4/OD-W5-5). */}
-        {spendingKnown && !requestInOtherCurrency && afterRequest < 0 && (
-          <ErrBanner
-            className="mt-3 mb-0"
-            title={t('decisionSupport.overBudgetTitle', 'Over budget')}
-            sub={t('decisionSupport.overBudgetAfter', { defaultValue: '{{amount}} over the budget after this purchase. Approval is still permitted; this is advisory only.', amount: formatCurrency(-afterRequest, currency) })}
-          />
-        )}
+        {!bare && overBudget}
 
         {/* Explicit affordance to drill into the project budget detail.
             Styled as a quiet link (not a competing CTA) — the decision zone

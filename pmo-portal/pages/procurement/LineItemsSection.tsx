@@ -61,7 +61,7 @@ export interface LineItemsSectionProps {
 }
 const CellInput: React.FC<React.ComponentPropsWithRef<'input'> & { numeric?: boolean; createForm?: boolean }> = ({ numeric, createForm, className = '', ...rest }) => (
   <Input {...rest} type="text" inputMode={numeric ? 'decimal' : undefined}
-    className={(createForm ? 'h-[var(--control-height)] max-sm:min-h-11 max-sm:text-base ' : 'h-8 ') + 'w-full rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring ' + (numeric ? 'tabular text-right ' : '') + className} />
+    className={(createForm ? 'h-[var(--control-height)] max-sm:min-h-11 max-sm:text-base ' : 'h-8 ') + 'w-full rounded-md border border-input bg-background px-2 text-sm font-normal text-foreground outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring ' + (numeric ? 'tabular text-right ' : '') + className} />
 );
 
 const CREATE_ADD_ROW_ID = '__create_line_item__' as const;
@@ -132,7 +132,8 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
   const addLineAmountLabel = addLineAmount === null
     ? '—'
     : currencyKnown
-      ? formatCurrencyCents(addLineAmount, currency)
+      // Cents only when the line has them; a whole amount reads like the rows and the total below it.
+      ? Number.isInteger(addLineAmount) ? formatCurrency(addLineAmount, currency) : formatCurrencyCents(addLineAmount, currency)
       : unknownAmount;
   const handleAddKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== 'Enter') return;
@@ -196,14 +197,16 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
         return <span className="font-medium">{it.name}{erpItems && it.description && <span className="mt-1 block font-normal text-muted-foreground">{it.description}</span>}</span>;
       },
     },
-    { key: 'quantity', header: t('lineItems.quantity', 'Qty'), kind: 'number', align: 'num', size: createFormLayout ? 84 : 88, cell: (row) => {
+    { key: 'quantity', header: t('lineItems.quantity', 'Qty'), kind: 'number', align: 'num', size: createFormLayout ? 80 : 88, cell: (row) => {
       if (row.kind === 'add') return <div className="space-y-1" data-add-cell><CellInput createForm numeric aria-label={t('lineItems.newItemQuantity', 'New item quantity')} placeholder={isDesktop ? '0' : t('lineItems.quantity', 'Qty')} value={draft.quantity} onChange={(e) => { updateAddDraft({ quantity: e.target.value }); setAddErrors((p) => ({ ...p, quantity: undefined })); }} onKeyDown={handleAddKeyDown} /><FieldError>{addErrors.quantity}</FieldError></div>;
       const it = row.item;
       return editable && editingId === it.id ? <div className="space-y-1"><CellInput disabled={!valuesEditable} numeric aria-label={`Edit quantity for ${it.name}`} value={editDraft.quantity} onChange={(e) => { setEditDraft((d) => ({ ...d, quantity: e.target.value })); setEditErrors((p) => ({ ...p, quantity: undefined })); }} /><FieldError>{editErrors.quantity}</FieldError></div> : Number(it.quantity);
     } },
     // #2485: a rupiah price needs 13 characters (1.380.000.000) beside its prefix, so the create form gives the price
-    // column that room and pads the input only as far as the currency symbol is wide.
-    { key: 'rate', header: t('lineItems.unitPrice', 'Unit price'), kind: 'money', align: 'num', size: createFormLayout ? 176 : 150, cell: (row) => {
+    // column that room and pads the input only as far as the currency symbol is wide. The create form's columns sum to
+    // 750px (the description keeps the primary column's 240px floor), the form's width at a 1024 screen, so it never
+    // scrolls sideways; wider screens scale them evenly.
+    { key: 'rate', header: t('lineItems.unitPrice', 'Unit price'), kind: 'money', align: 'num', size: createFormLayout ? 164 : 150, cell: (row) => {
       if (row.kind === 'add') return <div className="space-y-1" data-add-cell>
         <div className="relative">
           {currencyKnown && <span aria-hidden="true" className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-control text-muted-foreground">{currencySymbol(currency)}</span>}
@@ -214,7 +217,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
       const it = row.item;
       return editable && editingId === it.id ? <div className="space-y-1"><CellInput disabled={!valuesEditable} numeric aria-label={`Edit unit price for ${it.name}`} ref={editRateMask.ref} value={editDraft.rate} onChange={editRateMask.onChange} /><FieldError>{editErrors.rate}</FieldError></div> : currencyKnown ? formatCurrency(Number(it.rate), currency) : unknownAmount;
     } },
-    { key: 'amount', header: t('lineItems.lineTotal', 'Line total'), kind: 'money', align: 'num', size: createFormLayout ? 168 : 150, cell: (row) => {
+    { key: 'amount', header: t('lineItems.lineTotal', 'Line total'), kind: 'money', align: 'num', size: createFormLayout ? 146 : 150, cell: (row) => {
       if (row.kind === 'add') return <span data-add-cell aria-label={t('lineItems.newLineTotal', 'New line total')} className="tabular inline-flex h-[var(--control-height)] items-center text-muted-foreground">{addLineAmountLabel}</span>;
       const it = row.item;
       const amount = editable && editingId === it.id
@@ -223,7 +226,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
       return <span className="font-medium">{amount === null ? '—' : !currencyKnown ? unknownAmount : formatCurrency(amount, currency)}</span>;
     } },
   ];
-  if (editable) columns.push({ key: 'actions', header: createFormLayout ? <span className="sr-only">{t('lineItems.rowActions', 'Row actions')}</span> : t('lineItems.rowActions', 'Row actions'), kind: 'actions', size: createFormLayout ? 104 : 150, cell: (row) => {
+  if (editable) columns.push({ key: 'actions', header: createFormLayout ? <span className="sr-only">{t('lineItems.rowActions', 'Row actions')}</span> : t('lineItems.rowActions', 'Row actions'), kind: 'actions', size: createFormLayout ? 120 : 150, cell: (row) => {
     if (row.kind === 'add') return <div className="flex flex-col gap-1" data-add-cell><div className="flex h-[var(--control-height)] items-center"><Button size="sm" variant="outline" aria-label={t('lineItems.addLineItem', 'Add line item')} disabled={!draft.name.trim()} loading={busy} onClick={() => void submitAdd()}><Icon name="plus" />{t('lineItems.add', 'Add')}</Button></div>{addMutationError && <p role="alert" className="text-sm text-destructive-text">{addMutationError.headline}. {addMutationError.detail}</p>}</div>;
     const it = row.item;
     return editingId === it.id ? <div className="flex flex-col gap-1"><div className="flex gap-1"><Button size="sm" variant="primary" loading={busy} onClick={() => void submitEdit(it.id)}>{t('lineItems.save', 'Save')}</Button><Button size="sm" variant="ghost" onClick={() => { setEditingId(null); setEditMutationError(null); }}>{t('lineItems.cancel', 'Cancel')}</Button></div>{editMutationError && <p role="alert" className="text-sm text-destructive-text">{editMutationError.headline}. {editMutationError.detail}</p>}</div> : <div className="flex gap-1"><Button size="sm" variant="ghost" aria-label={`Edit ${it.name}`} onClick={() => startEdit(it)}>{t('lineItems.edit', 'Edit')}</Button><Button size="sm" variant="ghost" iconOnly aria-label={`Remove ${it.name}`} onClick={() => { setDeleteMutationError(null); setDeleteTarget(it); }}><Icon name="x" /></Button></div>;

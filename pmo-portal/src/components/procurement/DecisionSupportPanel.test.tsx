@@ -755,7 +755,7 @@ describe('AC-RB-015 — Left after this purchase counts the whole budget', () =>
     renderPanel(primary(), 'id');
     const tile = tileOf(/^sisa setelah pembelian ini$/i);
     expect(within(tile).getByText('Setelah pengeluaran, pesanan, dan cadangan')).toBeInTheDocument();
-    expect(screen.getByText('Terpakai atau terikat, termasuk yang ini: 98%')).toBeInTheDocument();
+    expect(screen.getByText('Terikat, termasuk pembelian ini: 98%')).toBeInTheDocument();
     expect(screen.queryByText('Left after this purchase')).not.toBeInTheDocument();
   });
 
@@ -896,9 +896,9 @@ describe('AC-RB-015 — over budget (the Cascade case)', () => {
   it('id: the same, in Bahasa, never "Anggaran terpakai" in the bar', () => {
     renderPanel(cascade(), 'id');
     const bar = screen.getByRole('progressbar');
-    const caption = screen.getByText(/^Terpakai atau terikat, termasuk yang ini: 198%$/);
+    const caption = screen.getByText(/^Terikat, termasuk pembelian ini: 198%$/);
     expect(caption.textContent).not.toMatch(/anggaran terpakai/i);
-    expect(bar.getAttribute('aria-label')).toMatch(/^Terpakai atau terikat, termasuk yang ini: 198% dari /);
+    expect(bar.getAttribute('aria-label')).toMatch(/^Terikat, termasuk pembelian ini: 198% dari /);
     expect(screen.getByRole('status').textContent).toMatch(/Melebihi anggaran/);
     expect(within(tileOf(/^anggaran terpakai$/i)).getByText('104%')).toBeInTheDocument();
   });
