@@ -232,16 +232,15 @@ begin
   return true;
 exception when sqlstate '42501' then return false;
 end $$;
+-- The user list is fixed before the role switch: each reader call changes the JWT, which would change what profiles shows.
+create temp table rank_users as select id, role from profiles where org_id = 'a0923000-0000-0000-0000-0000000009a0';
+grant select on rank_users to authenticated;
 set local role authenticated;
-select is((select array_agg(p.role::text order by p.role::text) filter (where pg_temp.reads_positions(p.id))
-             from profiles p where p.org_id = 'a0923000-0000-0000-0000-0000000009a0'),
-          (select array_agg(p.role::text order by p.role::text) filter (where public.holds_spend_approval_authority(p.role))
-             from profiles p where p.org_id = 'a0923000-0000-0000-0000-0000000009a0'),
+select is(coalesce((select array_agg(u.role::text order by u.role::text) filter (where pg_temp.reads_positions(u.id)) from rank_users u), array[]::text[]),
+          coalesce((select array_agg(u.role::text order by u.role::text) filter (where public.holds_spend_approval_authority(u.role)) from rank_users u), array[]::text[]),
   'AC-APR-053: the roles that read the budget positions are exactly the roles that hold approval rank');
-select is((select array_agg(p.role::text order by p.role::text) filter (where pg_temp.reads_actuals(p.id))
-             from profiles p where p.org_id = 'a0923000-0000-0000-0000-0000000009a0'),
-          (select array_agg(p.role::text order by p.role::text) filter (where public.holds_spend_approval_authority(p.role))
-             from profiles p where p.org_id = 'a0923000-0000-0000-0000-0000000009a0'),
+select is(coalesce((select array_agg(u.role::text order by u.role::text) filter (where pg_temp.reads_actuals(u.id)) from rank_users u), array[]::text[]),
+          coalesce((select array_agg(u.role::text order by u.role::text) filter (where public.holds_spend_approval_authority(u.role)) from rank_users u), array[]::text[]),
   'AC-APR-053: the roles that read project spending are exactly the roles that hold approval rank (the rest get 42501)');
 reset role;
 
