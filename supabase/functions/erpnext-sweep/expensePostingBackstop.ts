@@ -7,7 +7,7 @@
  * `committed`): pass (1) skips the expenses domain and the intent queue below never lists a pushed intent, so nothing
  * else would — and while it stays unfinished, 0134 refuses the next command for the same record (the cancel).
  *
- * Then per intent, least recently attempted first (round robin — the whole batch is stamped before any is processed,
+ * Then per intent, least recently attempted first (round robin — each intent is stamped right before it is processed,
  * so stuck intents cannot starve new ones behind the per-tick bound):
  *  1. an outbox row already exists for its key → REPLAY it from the frozen payload (the outbox owns recovery;
  *     re-deciding could change a body whose digest is already bound — idempotency-key-payload-mismatch);
@@ -70,10 +70,13 @@ export interface ExpenseBackstopDeps<Row extends { id: string } = ExpenseIntentR
   resolve(truth: Truth): Promise<BackstopResolution<Refs>>;
   recordOutcome(row: Row, outcome: ExpenseOutcome): Promise<void>;
   driveFresh(row: Row, truth: Truth, refs: Refs): Promise<void>;
-  /** Stamp the listed intents' last attempt (the round-robin order of `listPending`). */
+  /** Stamp an intent's last attempt right before it runs (the round-robin order of `listPending`). */
   markAttempted(orgId: string, intentIds: string[]): Promise<void>;
   /** Outbox commands left `committed` whose intent is already `pushed` — finished by a finalize-only replay. */
   listStranded(orgId: string): Promise<Array<{ row: Row; outbox: ExpenseOutboxRef }>>;
+  /** #2149: true once this tick must start no new row (the org's ERPNext did not answer, or no full ERP try fits the
+   *  invocation's budget). A row not started is left exactly as it is, unstamped; the next tick takes it. */
+  stopNewRows?(): boolean;
 }
 
 export interface ReconcileOrgExpensePostingsResult {
@@ -96,6 +99,7 @@ export async function reconcileOrgExpensePostings<Row extends { id: string } = E
 ): Promise<ReconcileOrgExpensePostingsResult> {
   const result: ReconcileOrgExpensePostingsResult = { finished: 0, driven: 0, replayed: 0, waiting: 0, held: 0, refused: 0, failed: 0, errors: [] };
   for (const { row, outbox } of await deps.listStranded(org.orgId)) {
+    if (deps.stopNewRows?.()) return result;
     try {
       // Only a completed finish counts; a not-due or recorded outcome is retried next tick.
       if ((await deps.replay(row, outbox)) === 'completed') result.finished += 1;
@@ -105,8 +109,11 @@ export async function reconcileOrgExpensePostings<Row extends { id: string } = E
     }
   }
   const rows = await deps.listPending(org.orgId, EXPENSE_BACKSTOP_TICK_LIMIT);
-  if (rows.length > 0) await deps.markAttempted(org.orgId, rows.map((r) => r.id));
   for (const row of rows) {
+    if (deps.stopNewRows?.()) break;
+    // #2149: stamped when its turn comes, one row at a time: a row a stopped tick never reaches keeps its place (and its
+    // retry clock), and the next tick resumes from it. A row that kills the isolate is still stamped before it runs.
+    await deps.markAttempted(org.orgId, [row.id]);
     try {
       const outbox = await deps.findOutbox(row);
       if (outbox) {

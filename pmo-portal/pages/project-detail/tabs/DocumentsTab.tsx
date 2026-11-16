@@ -47,7 +47,7 @@ import DocumentsDialogs, { transitionActionLabel } from './DocumentsDialogs';
 /** Rows per register page (the shared list pager's page size). */
 const DOCUMENT_PAGE_SIZE = 50;
 
-interface DocumentsTabProps {
+export interface DocumentsTabProps {
   projectId: string;
   /** Reports the register row count (null while unavailable) so the parent chrome can badge it. */
   onCountChange?: (count: number | null) => void;
