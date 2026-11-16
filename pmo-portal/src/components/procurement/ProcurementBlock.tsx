@@ -630,9 +630,9 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         kind: 'text',
         rowHeader: true,
         // #1791: with Category shown the list must fit the scroller at 1440; the title clamps to two lines and the code · supplier line to one, each with its full text in `title`.
-        // #2434: 220 leaves the supplier room beside the uncut number; Next step, Raised by and In stage give the width back.
-        size: 220,
-        minSize: 220,
+        // #2434: 216 leaves the supplier room beside the uncut number; Next step, Raised by and In stage give the width back.
+        size: 216,
+        minSize: 216,
         sortKey: 'title',
         cell: (row) => (
           <div className="min-w-0 space-y-1">
@@ -672,8 +672,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         header: t('projectDetail.procurement.table.nextStep', 'Next step'),
         kind: 'text',
         // #1791 ruling: the label wraps to two lines, then truncates with the full text in `title`.
-        size: 150,
-        minSize: 150,
+        size: 146,
+        minSize: 146,
         cell: (row) => {
           const next = nextStepText(row.status, canDecideRow(row), t);
           return <Tooltip content={next}><span title={next} className={`block min-w-0 w-full max-w-full line-clamp-2 break-words ${row.status === 'Requested' && canDecideRow(row) ? 'font-medium text-primary-text' : 'text-muted-foreground'}`}>{next}</span></Tooltip>;
