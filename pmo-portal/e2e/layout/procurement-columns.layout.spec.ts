@@ -82,7 +82,7 @@ for (const locale of ['en', 'id'] as const) test(`@layout #1791/#2497: at 1440px
   expect(m.titleMax).toBeLessThanOrEqual(2);
 });
 
-for (const locale of ['en', 'id'] as const) test(`@layout #1791: at 390px every procurement tab sits whole inside the tab strip (${locale})`, async ({ page }) => {
+for (const locale of ['en', 'id'] as const) test(`@layout #1791: at 390px the procurement tabs sit on one line and the selected tab is whole inside the strip (${locale})`, async ({ page }) => {
   await page.route('**/rest/v1/profiles?*', async (route) => {
     if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(route.request().url())) return route.fallback();
     const response = await route.fetch({ maxRetries: 2 });
@@ -99,7 +99,14 @@ for (const locale of ['en', 'id'] as const) test(`@layout #1791: at 390px every 
   const edges = await page.evaluate(() => {
     const list = document.querySelector<HTMLElement>('[role="tablist"]')!;
     const box = list.getBoundingClientRect();
-    return Array.from(list.querySelectorAll<HTMLElement>('[role="tab"]')).map((t) => { const r = t.getBoundingClientRect(); return { left: r.left - box.left, right: box.right - r.right }; });
+    return Array.from(list.querySelectorAll<HTMLElement>('[role="tab"]')).map((t) => { const r = t.getBoundingClientRect(); return { top: Math.round(r.top), selected: t.getAttribute('aria-selected') === 'true', left: r.left - box.left, right: box.right - r.right }; });
   });
-  for (const e of edges) { expect(e.left).toBeGreaterThanOrEqual(0); expect(e.right).toBeGreaterThanOrEqual(0); }
+  // Owner 2026-11-17: one line that scrolls sideways, never two wrapped lines.
+  expect(new Set(edges.map((e) => e.top)).size).toBe(1);
+  await expect.poll(async () => page.evaluate(() => {
+    const list = document.querySelector<HTMLElement>('[role="tablist"]')!;
+    const box = list.getBoundingClientRect();
+    const r = list.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')!.getBoundingClientRect();
+    return r.left >= box.left - 0.5 && r.right <= box.right + 0.5;
+  })).toBe(true);
 });
