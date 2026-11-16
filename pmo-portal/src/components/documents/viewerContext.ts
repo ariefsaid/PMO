@@ -8,7 +8,7 @@ export type ViewerState =
   | { phase: 'failed'; target: DocumentViewTarget; kind: PreviewFailureKind; retryAfterSeconds?: number };
 
 export interface DocumentViewerApi {
-  /** Open the panel for one document. `opener` is the control to refocus on close (defaults to the focused element). */
+  /** Open the viewer for one document. `opener` is the control to refocus on close (defaults to the focused element). */
   open: (target: DocumentViewTarget, opener?: HTMLElement | null) => void;
   close: () => void;
 }

@@ -487,7 +487,6 @@
       "paid": "Dibayar",
       "paidSource": "Jumlah invoice dikurangi saldo terutang menurut akuntansi; ini adalah pelunasan invoice, bukan kas yang diterima.",
       "marginSource": "Pendapatan pekerjaan tertagih dikurangi pengeluaran tercatat yang lengkap dalam mata uang yang sama.",
-      "stageAria": "{{label}} sebesar {{percent}}% dari kontrak",
       "noBoq": "Nilai pesanan dan pengiriman tidak dilacak sebelum proyek memiliki daftar kuantitas.",
       "invoiceError": "Pelunasan invoice tidak dapat dimuat.",
       "cashUnavailable": "Kas berdasarkan penerimaan belum tersedia.",
