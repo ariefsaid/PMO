@@ -113,7 +113,7 @@ describe('procurement record panels', () => {
 describe('procurement budget signal currency', () => {
   it('shows compatible project headroom', () => {
     render(<ProcurementBudgetSignal projectId="p-1" totalValue={50} status="Requested" currency="USD" />);
-    expect(screen.getByText(/Budget not yet committed \$700/)).toBeInTheDocument();
+    expect(screen.getByText(/Not yet committed to purchases \$700/)).toBeInTheDocument();
   });
   it('does not compare a foreign request with project headroom', () => {
     render(<ProcurementBudgetSignal projectId="p-1" totalValue={50} status="Requested" currency="EUR" />);

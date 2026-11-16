@@ -42,7 +42,6 @@ it('links the project in header facts and keeps Project and Invoice date facts o
           isPending={false}
           isError={false}
           data={[target]}
-          mode="erp"
           organizationToday="2026-10-16"
           onBack={vi.fn()}
           refetch={vi.fn()}
@@ -75,7 +74,6 @@ it('keeps all four invoice lifecycle steps named in the timeline', () => {
           isPending={false}
           isError={false}
           data={[target]}
-          mode="erp"
           organizationToday="2026-10-16"
           onBack={vi.fn()}
           refetch={vi.fn()}
@@ -108,7 +106,6 @@ it('keeps the invoice number in one unbreakable text node in the record title', 
           isPending={false}
           isError={false}
           data={[longNumberTarget]}
-          mode="erp"
           organizationToday="2026-10-16"
           onBack={vi.fn()}
           refetch={vi.fn()}
@@ -140,7 +137,6 @@ it('a paid invoice no longer prompts "Ready to send" — per the status rules a 
           isPending={false}
           isError={false}
           data={[paidTarget]}
-          mode="erp"
           organizationToday="2026-10-16"
           onBack={vi.fn()}
           refetch={vi.fn()}
@@ -171,7 +167,6 @@ it('a paid invoice without a recorded receipt keeps the approved-PDF download wh
           isPending={false}
           isError={false}
           data={[paidTarget]}
-          mode="erp"
           organizationToday="2026-10-16"
           onBack={vi.fn()}
           refetch={vi.fn()}
@@ -200,7 +195,6 @@ it('an unpaid invoice keeps the "Ready to send" prompt with its handoff download
           isPending={false}
           isError={false}
           data={[target]}
-          mode="erp"
           organizationToday="2026-10-16"
           onBack={vi.fn()}
           refetch={vi.fn()}

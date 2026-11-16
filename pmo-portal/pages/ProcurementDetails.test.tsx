@@ -181,6 +181,10 @@ vi.mock('@/src/components/ui', async (orig) => {
   return { ...actual, useToast: () => ({ toast }) };
 });
 
+// S05: the budget panel also reads the project's canonical Budget used; stubbed like its other reads (these tests mount no QueryClient).
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: () => ({ data: undefined, isPending: false, isError: false }),
+}));
 // N8 (AC-IXD-PROC-W5-2): DecisionSupportPanel is now mounted in ProcurementDetails.
 // Stub useProjectBudget so the panel renders a real (non-loading) state without a
 // QueryClientProvider — the detail-page tests assert existing lifecycle behavior, not
@@ -624,6 +628,23 @@ describe('AC-805: role-gated transition actions (FR-PROC-006, UI gate)', () => {
     expect(await screen.findByRole('menuitem', { name: 'Reject' })).toBeInTheDocument();
     expect(await screen.findByRole('menuitem', { name: 'Cancel procurement' })).toBeInTheDocument();
     expect(budgetEvidence).toBeInTheDocument();
+  });
+
+  it('S05: an approver deciding a purchase for a project still in the pipeline sees its tender stage at the decision heading', () => {
+    mockEffectiveRole = 'Finance';
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other', project: { ...baseProcurement.project, status: 'Tender Submitted' } };
+    renderPage();
+    const heading = screen.getByRole('heading', { name: /budget impact/i }).parentElement as HTMLElement;
+    expect(within(heading).getByText('Tender submitted')).toBeInTheDocument();
+  });
+
+  it('S05: a won, running project shows no tender stage', () => {
+    mockEffectiveRole = 'Finance';
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other', project: { ...baseProcurement.project, status: 'Ongoing Project' } };
+    renderPage();
+    const heading = screen.getByRole('heading', { name: /budget impact/i }).parentElement as HTMLElement;
+    expect(within(heading).queryByText('Ongoing')).not.toBeInTheDocument();
+    expect(within(heading).queryByText('Tender submitted')).not.toBeInTheDocument();
   });
 
   it('AC-S20-002: policy and separation-of-duties detail follows financial evidence without losing its explanation', () => {

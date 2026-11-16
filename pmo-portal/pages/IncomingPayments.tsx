@@ -182,7 +182,8 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
         || p.customer_name?.toLowerCase().includes(q));
   }, [all, search, searchParams, statusFilter]);
 
-  const state: 'loading' | 'empty' | 'error' | undefined = isPending || mode === undefined
+  // #2197 A3: rows gate on the receipt read alone; the revenue mode only holds the action cells.
+  const state: 'loading' | 'empty' | 'error' | undefined = isPending
     ? 'loading'
     : isError || !data
       ? 'error'
@@ -248,7 +249,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
   const notReported = t('uxs06.notReported', 'Not reported');
   const { columns, exportColumns } = receiptColumns({ t, embedded, location, invoiceNumberById, odoo });
 
-  const rowMenu = (p: IncomingPaymentRow): RowMenuItem[] => {
+  const builtRowMenu = (p: IncomingPaymentRow): RowMenuItem[] => {
     const items: RowMenuItem[] = embedded
       ? [{ label: t('finance:receivables.viewPayment', 'View payment'), onClick: () => openPaymentPanel(p) }]
       : [];
@@ -259,6 +260,10 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
       items.push({ label: t('financeCopy.cancel', "Cancel"), onClick: () => setCancelTarget(p), danger: true });
     return items;
   };
+  // While the revenue mode is unknown the action cells hold their slot as one disabled entry.
+  const rowMenu = (p: IncomingPaymentRow): RowMenuItem[] => mode === undefined
+    ? [{ label: t('ui.listState.loading', 'Loading…'), onClick: () => undefined, disabled: true }]
+    : builtRowMenu(p);
 
   const onCancelConfirm = async () => {
     if (!cancelTarget || odooOffline) return;
@@ -279,7 +284,9 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
   };
 
   const filtersNode = state !== 'loading' && (
-          <ViewToggle<StatusFilter>
+          mode === undefined
+          ? <div data-testid="status-filters-pending" aria-busy="true" className="pointer-events-none"><ViewToggle<StatusFilter> options={[{ value: 'All', label: incomingPaymentStatusLabel('All', t) }]} value="All" onChange={() => undefined} ariaLabel={t('financeCopy.filterByStatus', "Filter by status")} /></div>
+          : <ViewToggle<StatusFilter>
             options={statusFilters.map((f) => ({ value: f, label: incomingPaymentStatusLabel(f, t) }))}
             value={statusFilter}
             onChange={(v) => {
@@ -380,6 +387,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
       )}
 
       {state === undefined && (
+        <div data-testid="receipts-list-body" className="contents">
         <DataTable<IncomingPaymentRow>
           rows={filtered}
           columns={columns}
@@ -419,6 +427,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
           emptyTitle={t('financeCopy.noPaymentsMatchYourFilters', "No payments match your filters")}
           emptySub={t('financeCopy.tryADifferentStatusOrClearTheSearch', "Try a different status or clear the search.")}
         tableId="incomingpayments-table" />
+        </div>
       )}
 
       {/* Create modal */}
