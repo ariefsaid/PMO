@@ -117,7 +117,7 @@ export function OdooConnectionCard() {
       <div className="flex flex-wrap items-center gap-2">
         <Icon name="plug" aria-hidden="true" />
         <h3 className="text-group font-semibold text-foreground">Odoo</h3>
-        {state && <StatusPill variant={pill[state].v} className="min-w-0 max-w-full shrink whitespace-normal break-words">{pill[state].label}</StatusPill>}
+        {state && <StatusPill wrap variant={pill[state].v} className="min-w-0 max-w-full shrink">{pill[state].label}</StatusPill>}
       </div>
 
       {conn.isPending && <ListState variant="loading" rows={2} />}
