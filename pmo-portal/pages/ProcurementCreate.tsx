@@ -16,6 +16,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { itemsNetTotal } from '@/src/lib/itemsNet';
 import { BudgetCategoryHelp } from './procurement/BudgetCategoryHelp';
 import { LineItemsSection } from './procurement/LineItemsSection';
+import { readOrigin, readRestockLine } from '@/src/lib/stockRequestPurchase';
 import { BUDGET_CATEGORY_OPTIONS } from './procurement/budgetCategoryOptions';
 import type { BudgetCategory } from '@/src/lib/budget/categoryAccountMap';
 
@@ -123,11 +124,18 @@ export default function ProcurementCreate() {
   const [haveChoice, setHave] = useState<ProcurementHave | null>(() => parseHave(params.get('have')));
   // B3: a role that can only raise a need has one choice, so it starts straight on that form.
   const have: ProcurementHave | null = canCaptureDocuments ? haveChoice : 'need';
-  const [title, setTitle] = useState('');
+  // The page the request was started from (explicit `from`); a pre-filled line when started from Stock.
+  const [origin] = useState(() => readOrigin(location.search));
+  const [restock] = useState(() => readRestockLine(location.search));
+  const [initialTitle] = useState(() => (restock ? params.get('title') ?? '' : ''));
+  const initialLineCount = restock ? 1 : 0;
+  const [title, setTitle] = useState(initialTitle);
   const [selectedProject, setSelectedProject] = useState<string | null>(projectId);
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [budgetCategory, setBudgetCategory] = useState('');
-  const [lines, setLines] = useState<DraftLine[]>([]);
+  const [lines, setLines] = useState<DraftLine[]>(() => restock
+    ? [{ id: crypto.randomUUID(), name: restock.name, quantity: restock.quantity, rate: 0, amount: 0, description: null }]
+    : []);
   const [addRowHasInput, setAddRowHasInput] = useState(false);
   const [blockedAddRowMessage, setBlockedAddRowMessage] = useState<string | null>(null);
   const addRowDescriptionRef = useRef<HTMLInputElement>(null);
@@ -147,7 +155,7 @@ export default function ProcurementCreate() {
   const leaveLabel = saveNeedsAttention ? t('unsaved.leave', 'Leave') : undefined;
   const stayLabel = saveNeedsAttention ? t('unsaved.stay', 'Stay') : undefined;
   const dirty = saving || attempt !== null || (
-    title !== '' || supplierId !== null || budgetCategory !== '' || lines.length > 0 || addRowHasInput || selectedProject !== projectId
+    title !== initialTitle || supplierId !== null || budgetCategory !== '' || lines.length > initialLineCount || addRowHasInput || selectedProject !== projectId
   );
   const holdLeave = useCallback((leave: () => void) => setPendingLeave(() => leave), []);
   const updateAddRowDirty = useCallback((hasInput: boolean) => {
@@ -156,7 +164,7 @@ export default function ProcurementCreate() {
   }, []);
   const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: holdLeave });
   const backToProcurement = () => {
-    guardLeave(() => navigate('/procurement'));
+    guardLeave(() => navigate(origin ?? '/procurement'));
   };
   // Discard means discard: the whole draft goes, not just the chosen type (C7). The project
   // preselected by the link is the form's starting value, not typed input, so it stays.
@@ -300,7 +308,7 @@ export default function ProcurementCreate() {
   if (!have) {
     return (
       <div className="mx-auto w-full max-w-7xl p-4 pb-6 md:p-6">
-        <BackBar label={t('backToProcurement', 'Procurement')} onBack={backToProcurement} />
+        <BackBar label={origin?.startsWith('/stock') ? t('backToStock', 'Stock') : t('backToProcurement', 'Procurement')} onBack={backToProcurement} />
         <ProcurementIntake
           choices={choices}
           onChoose={choose}
@@ -343,7 +351,7 @@ export default function ProcurementCreate() {
     setHave(null);
   };
   // Footer Cancel mirrors Change type for capture roles and the list exit for need-only roles.
-  const cancelCreate = canCaptureDocuments ? changeType : backToProcurement;
+  const cancelCreate = canCaptureDocuments && !origin ? changeType : backToProcurement;
 
   return (
     <div className="mx-auto w-full max-w-[880px] p-4 pb-6 md:p-6">

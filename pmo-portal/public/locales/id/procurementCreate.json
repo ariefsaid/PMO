@@ -74,5 +74,6 @@
     "cancel": "Batal"
   },
   "currencyError": "Mata uang organisasi tidak dapat dimuat.",
-  "currencyLoading": "Memuat mata uang organisasi…"
+  "currencyLoading": "Memuat mata uang organisasi…",
+  "backToStock": "Stok"
 }
