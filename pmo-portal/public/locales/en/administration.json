@@ -353,7 +353,39 @@
       "retryFailed": "We could not send it again. Try again in a moment.",
       "unnamed": "A record",
       "addPeople": "Add these people in the ERP. It asks for a birth date and gender, which PMO does not hold.",
-      "accountantTask": "Ask your accountant to add a direct-cost account for: {{categories}}"
+      "accountantTask": "Ask your accountant to add a direct-cost account for: {{categories}}",
+      "refusal": {
+        "unknown": "We could not send this record. Check it in the ERP, then try again.",
+        "noun": {
+          "company": "company",
+          "project": "project",
+          "item": "item",
+          "person": "person",
+          "record": "record"
+        },
+        "gone": "This record is no longer in PMO, or (an item) no longer on an open purchase.",
+        "person": "This ERP asks for a birth date and gender for each person, which PMO does not hold. Add this person in the ERP.",
+        "personOdoo": "Odoo people are not sent from PMO yet. Add this person in Odoo.",
+        "actor": "The Admin who accepted this is no longer an Admin. Accept it again.",
+        "ambiguous": "Two ERP records match this {{noun}}. Link the right one by hand.",
+        "linked": "This record is already linked to another ERP record.",
+        "stuck": "We could not finish sending this record. Check it in the ERP, then try again.",
+        "refused": "The ERP refused this {{noun}}. Check it in the ERP, then try again.",
+        "erpReason": "ERP: {{reason}}",
+        "refusedReason": "The ERP refused this {{noun}}: {{reason}}",
+        "held": "We could not confirm whether the ERP created this record. Look for it in the ERP by name and tax id; if it is not there, send it again.",
+        "heldOdoo": "We could not confirm whether Odoo created this record. Look for it in Odoo by name and tax id; if it is not there, send it again.",
+        "planFirst": "Choose the cost-account plan for projects first, then send this project again.",
+        "projectNumber": "This project has no project number yet, so its cost account cannot be named. Give it one, then send it again.",
+        "unitUnmapped": "The ERP refused this {{noun}}: its unit has no match in Odoo yet.",
+        "notApplied": "This row could not be applied.",
+        "companyGone": "This company is no longer in PMO.",
+        "projectGone": "This project is no longer in PMO.",
+        "internalCompany": "An internal company cannot take an ERP link.",
+        "changedSince": "The ERP record changed since this was proposed.",
+        "personGone": "This person is no longer in PMO.",
+        "itemLinked": "This item is already linked."
+      }
     },
     "connect": {
       "title": "Match records",
