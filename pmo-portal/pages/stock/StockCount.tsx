@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { StockLinesLoading } from '@/src/components/stock/LinesLoading';
-import { COUNT_LINES_MIN } from '@/src/components/stock/linesLoadingHeights';
+import { writeOffLinesReserve } from '@/src/components/stock/linesLoadingHeights';
 import { Button, ConfirmDialog, FormGrid, FormSection, ListState, MobileActionBar, SelectField, TextArea, TextField, UnsavedChangesDialog, useToast, Icon } from '@/src/components/ui';
 import { StockTabs } from '@/src/components/stock/StockTabs';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
@@ -297,7 +297,7 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
 
           <FormSection legend={t(kind === 'count' ? 'count.sections.sheet' : 'form.sections.lines')}>
             <div data-testid="stock-lines-region">
-            {linesPending && <StockLinesLoading minHeight={COUNT_LINES_MIN} />}
+            {linesPending && <StockLinesLoading reserve={writeOffLinesReserve({ kind, hasWarehouse: !!warehouseId, draftLines: draft ? lines.length : undefined, inDirectionLines: lines.filter((l) => l.direction === 'in').length })} />}
             {!linesPending && linesError && <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={retryLines} />}
             {linesSettled && (<>
             {warehouseId && onHand.isError && (

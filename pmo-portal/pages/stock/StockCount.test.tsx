@@ -266,6 +266,16 @@ describe('StockCount', () => {
     expect(screen.getByRole('button', { name: 'Save draft' })).toBeDisabled();
   });
 
+  it('AC-NBR-032 (P) the loading reserve is the smaller form until a warehouse is chosen', async () => {
+    master.listItems.mockReturnValue(new Promise(() => {}));
+    renderAt('/stock/new/count');
+    const warehouse = await screen.findByLabelText(/^Warehouse/);
+    const reserve = () => screen.getByTestId('stock-lines-loading').style.getPropertyValue('--lines-phone');
+    expect(reserve()).toBe('234px');
+    await userEvent.selectOptions(warehouse, 'w1');
+    expect(reserve()).toBe('290px');
+  });
+
   it('AC-NBR-032 (F) units failed: the header stays editable and the line editor shows the error with retry', async () => {
     master.listUnits.mockRejectedValueOnce(new Error('boom'));
     renderAt('/stock/new/count');
