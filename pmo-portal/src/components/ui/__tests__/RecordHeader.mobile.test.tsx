@@ -94,7 +94,7 @@ describe('RecordHeader mobile identity layout', () => {
     expect(container.querySelector('h1')).toHaveTextContent('Cascade Foods 6.0 MW Ground-Mount PV');
   });
   it('AC-SHELL-002: a title hidden on the phone stays one clipped line (the global h1 text-wrap must not unclip it)', () => {
-    render(<RecordHeader name="Innovate Corp HQ Fit-Out" titleInAppBarOnPhone />);
+    render(<RecordHeader name="Innovate Corp HQ Fit-Out" status={null} titleInAppBarOnPhone />);
     // The unlayered `h1 { text-wrap: balance }` outranks the layered sr-only `white-space: nowrap`, so the
     // 1px title wrapped one character per line and its clipped text boxes reached under the phone bottom bar.
     expect(screen.getByRole('heading').className).toMatch(/max-md:!\[text-wrap-mode:nowrap\]/);
