@@ -20,7 +20,7 @@ async function lowItem() {
 async function openRequest(page: import('@playwright/test').Page, code: string) {
   await signIn(page, 'engineer@acme.test');
   await page.goto('/stock');
-  await page.getByRole('checkbox', { name: /below reorder level/i }).check();
+  await page.getByRole('checkbox', { name: /below reorder level/i }).click();
   await page.getByRole('button', { name: `Request purchase for ${code}` }).click();
   await expect(page).toHaveURL(/\/procurement\/new\?/);
 }
