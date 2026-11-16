@@ -318,6 +318,8 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const { archive, remove, setContractValue } = useProjectMutations();
   const navigate = useNavigate();
   const isDesktopHeader = useIsDesktop();
+  // Below this width the actions leave the name too little room beside its status, so the status drops under the name.
+  const isWideHeader = useIsDesktop(1280);
 
   // The page's state verb (Raise invoice, Chase payment) can render nothing: only a button that is actually
   // there takes the one filled slot; otherwise Edit does.
@@ -404,13 +406,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       {project.code && <span className="record-id min-w-0 break-words">{project.code}</span>}
     </span>
   ) : null;
-  // One band (#design-1115): identity line and facts line sit under the title, inside the header.
-  const meta = compact ? (identityLine || facts ? (
-    <div className="flex min-w-0 flex-col gap-1">
-      {identityLine}
-      {facts}
-    </div>
-  ) : undefined) : (
+  const plainMeta = (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       {customerName && <span className="font-medium text-foreground">{customerName}</span>}
       {orderReference && <span>{orderReference}</span>}
@@ -640,40 +636,43 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   ) : undefined;
   const statusPill = <StatusPill record="project" state={status} />;
   const statusWithEndDate = (
-    <span className="flex min-w-0 items-center gap-2 max-md:shrink-0 md:flex-wrap">
+    <span className="flex min-w-0 flex-wrap items-center gap-2">
       {statusPill}
       {pastEndDays !== null && pastEndDays > 0 && (
         <StatusPill variant="warn">{t('projectDetail.header.pastEnd', { count: pastEndDays, defaultValue_one: '{{count}} day past end date', defaultValue_other: '{{count}} days past end date' })}</StatusPill>
       )}
     </span>
   );
-  // Phone: the status pill joins the action row (one row less above the work).
-  const statusOnPhoneRow = compact && !isDesktopHeader;
-  const compactLock = showCompactContractLock && !statusOnPhoneRow ? (
+  // The name leads the card on every width (no top bar carries it). Where the row is too narrow for the name
+  // beside its status, the status tags drop under the name; the identity and facts lines follow in that order.
+  const onPhone = compact && !isDesktopHeader;
+  const statusUnderName = compact && !isWideHeader;
+  const compactLock = showCompactContractLock && !onPhone ? (
         <button type="button" title={t('projectDetail.header.contractLocked', 'Contract value is locked for your role')} aria-label={t('projectDetail.header.contractLocked', 'Contract value is locked for your role')} aria-expanded={lockReasonOpen}
           aria-controls="contract-value-lock-reason" onClick={() => setLockReasonOpen(open => !open)}
           className="grid size-6 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
           <Icon name="lock" className="size-3.5" />
         </button>
   ) : null;
-  // Phone: the status row holds status, late pill and menu only; Project details sits at the end of the customer line (no row of its own), and the lock's words live inside it.
-  const phoneMeta = statusOnPhoneRow && detailsPanel && (identityLine || facts)
-    ? (
-      <div className="flex min-w-0 flex-col gap-1">
+  // One band (#design-1115): [status tags], identity line and facts line sit under the name, inside the header.
+  // Phone: Project details sits at the end of the identity line (no row of its own), and the lock's words live inside it.
+  const compactMeta = (
+    <div className="flex min-w-0 flex-col gap-1">
+      {statusUnderName && statusWithEndDate}
+      {onPhone && detailsPanel ? (
         <span className="flex w-full items-center justify-between gap-2">
           {identityLine}
           <span className="-my-3 -mr-1.5 ml-auto shrink-0">{detailsPanel}</span>
         </span>
-        {facts}
-      </div>
-    )
-    : meta;
+      ) : identityLine}
+      {facts}
+    </div>
+  );
   const actions = compact ? (
     <>
-      {statusOnPhoneRow && statusWithEndDate}
       {secondaryAction}
-      {phoneMeta === meta && detailsPanel}
-      {!statusOnPhoneRow && compactLock}
+      {!onPhone && detailsPanel}
+      {!onPhone && compactLock}
       {extraEdit}
     </>
   ) : extraEdit;
@@ -801,19 +800,16 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         icon={compact ? null : (projectDisplayName(project).trim().charAt(0) || '•').toUpperCase()}
         iconColor={projectIconColor()}
         name={<span title={project.name}>{projectDisplayName(project)}</span>}
-        status={statusOnPhoneRow ? undefined : statusWithEndDate}
+        status={statusUnderName ? undefined : statusWithEndDate}
         statusBelowMetaOnMobile
-        titleInAppBarOnPhone
-        // Phone: the app bar carries the one visible title, so the h1 stays for assistive tech only.
-        // Phone keeps identity/status; the persistent Details rail below the
-        // selected work already carries these codes, customer and PO facts.
-        meta={phoneMeta}
-        metaFullWidth={compact && isDesktopHeader}
+        meta={compact ? compactMeta : plainMeta}
+        metaFullWidth={compact}
+        actionsOnTitleRow={onPhone}
         actions={actions}
         primaryAction={headerPrimary}
         menuItems={menuItems}
         menuLabel={t('projectDetail.header.projectActions', 'Project actions')}
-        className="mb-3! max-md:mb-2! max-md:[&_[data-testid=record-header-actions]]:w-full max-md:[&_[data-testid=record-header-actions]]:justify-between max-md:[&_[data-testid=record-header-actions]]:gap-1 max-md:[&_[data-testid=record-header-actions]]:flex-nowrap"
+        className="mb-3! max-md:mb-2!"
       />
 
       {showCompactContractLock && (
