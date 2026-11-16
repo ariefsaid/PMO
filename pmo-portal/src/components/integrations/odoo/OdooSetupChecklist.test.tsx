@@ -10,6 +10,8 @@ const h = vi.hoisted(() => ({
   employ: vi.fn(),
   accounts: { data: { rows: [{ external_id: '210', name: 'Advance Liability', code: '210', attrs: {} }, { external_id: '88', name: 'Tax Prepayments', code: '1350', attrs: {} }], total: 2 }, isError: false },
   accountSummary: { data: { inactive: 0, tombstoned: 0, asOf: new Date().toISOString() } },
+  journals: { data: { rows: [{ external_id: '7', name: 'Miscellaneous Operations', code: 'MISC', attrs: { type: 'general' } }], total: 1 }, isError: false, isPending: false },
+  setDesk: vi.fn(),
 }));
 vi.mock('@/src/hooks/useOdoo', () => ({
   useOdooConnection: () => h.conn,
@@ -18,10 +20,11 @@ vi.mock('@/src/hooks/useOdoo', () => ({
   useOdooSetup: () => ({ mutateAsync: h.save, isPending: false }),
   useOdooConnectStatus: () => h.status,
   useOdooEmploy: () => ({ mutateAsync: h.employ, isPending: false }),
-  useMasterRecords: () => h.accounts,
+  useMasterRecords: (input: { kind: string }) => (input.kind === 'journal' ? h.journals : h.accounts),
   useMasterSummary: () => h.accountSummary,
 }));
 vi.mock('./useOdooCan', () => ({ useOdooCan: () => h.can }));
+vi.mock('@/src/hooks/useJournals', () => ({ useSetDeskJournal: () => ({ mutateAsync: h.setDesk, isPending: false }) }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => h.owned }));
 
 import { KIND_SPECS } from '@/src/lib/adapterSeam/odoo/kinds';
@@ -38,7 +41,7 @@ it('FR-ODC-110 an Odoo org lists the Odoo steps and none of ERPNext\'s activity-
   h.conn.data = read({});
   render(<OdooSetupChecklist />);
   const names = screen.getAllByRole('listitem').map((li) => li.getAttribute('aria-label'));
-  expect(names).toEqual(['Odoo connected', 'Company chosen', 'Odoo apps available', 'Map once', 'Payment journal', 'Customer-advance account', 'Tax-prepaid account', 'Sends finished', 'Vendors and clients managed in Odoo', 'Purchases go to Odoo']);
+  expect(names).toEqual(['Odoo connected', 'Company chosen', 'Odoo apps available', 'Map once', 'Payment journal', 'Desk journal', 'Customer-advance account', 'Tax-prepaid account', 'Sends finished', 'Vendors and clients managed in Odoo', 'Purchases go to Odoo']);
   expect(screen.queryByText(/activity type/i)).not.toBeInTheDocument();
   expect(screen.queryByText(/budget categor/i)).not.toBeInTheDocument();
 });
@@ -311,5 +314,54 @@ describe('AC-ODS-006 send purchases to Odoo', () => {
     await userEvent.click(within(item(STEP)).getByRole('button', { name: 'Send purchases to Odoo' }));
     await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Send purchases' }));
     expect(await within(item(STEP)).findByRole('alert')).toHaveTextContent('Odoo is missing something this needs. Check the connection again, then try again.');
+  });
+});
+
+describe('#895 owner ruling 4: an Admin chooses the Odoo journal for desk entries', () => {
+  beforeEach(() => { h.can = { setValue: true, manage: true }; h.owned.data = []; h.setDesk.mockReset().mockResolvedValue(undefined); });
+
+  it('the Admin picks a general journal and saves it through set_desk_journal', async () => {
+    h.conn.data = read({});
+    render(<OdooSetupChecklist />);
+    const row = item('Desk journal');
+    expect(doneOf('Desk journal')).toBe(false);
+    await userEvent.selectOptions(within(row).getByRole('combobox', { name: 'Desk journal' }), '7');
+    await userEvent.click(within(row).getByRole('button', { name: 'Save' }));
+    expect(h.setDesk).toHaveBeenCalledWith('7');
+  });
+
+  it('a chosen desk journal shows Done with its name', () => {
+    h.conn.data = read({ desk_journal_id: 7 });
+    render(<OdooSetupChecklist />);
+    expect(doneOf('Desk journal')).toBe(true);
+    expect(within(item('Desk journal')).getByText('Miscellaneous Operations')).toBeInTheDocument();
+  });
+
+  it('a refused save says so', async () => {
+    h.conn.data = read({});
+    h.setDesk.mockRejectedValueOnce(new AppError('not a general journal of this connection', 'P0001'));
+    render(<OdooSetupChecklist />);
+    const row = item('Desk journal');
+    await userEvent.selectOptions(within(row).getByRole('combobox', { name: 'Desk journal' }), '7');
+    await userEvent.click(within(row).getByRole('button', { name: 'Save' }));
+    expect(await within(row).findByRole('alert')).toHaveTextContent('The journal could not be saved. Try again.');
+  });
+
+  it('no general journal read from Odoo yet says so and offers no Save', () => {
+    h.conn.data = read({});
+    const saved = h.journals.data;
+    h.journals.data = { rows: [], total: 0 };
+    try {
+      render(<OdooSetupChecklist />);
+      expect(within(item('Desk journal')).getByText('No general journal has been read from Odoo yet.')).toBeInTheDocument();
+      expect(within(item('Desk journal')).queryByRole('button')).toBeNull();
+    } finally { h.journals.data = saved; }
+  });
+
+  it('Finance is not shown the Admin-only desk journal step', () => {
+    h.conn.data = read({});
+    h.can = { setValue: true, manage: false };
+    render(<OdooSetupChecklist />);
+    expect(screen.queryByRole('listitem', { name: 'Desk journal' })).toBeNull();
   });
 });

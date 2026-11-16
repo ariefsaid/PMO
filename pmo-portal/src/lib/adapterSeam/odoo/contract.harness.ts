@@ -14,6 +14,7 @@ import { createOdooSetupAdapter, LIST_PAGE, type OdooConnectCtx } from './connec
 import { createFakeOdoo, type FakeOdoo } from './fakeOdoo.ts';
 import { createOdooProcurementAdapter, readOrderLines, type PaymentFacts } from './procurementAdapter.ts';
 import { readActuals } from './contract.ledger.harness.ts';
+import { createOdooJournalHarness } from './contract.journal.harness.ts';
 import { productionProcurement, productionPurchase } from './contract.production.harness.ts';
 import type { BillCtx, BillInput } from './purchase/billBody.ts';
 import { parseOdooExternalRef } from './purchase/anchors.ts';
@@ -218,6 +219,7 @@ export function createOdooHarness(): ErpHarness {
 
   return {
     tier: 'odoo',
+    journal: createOdooJournalHarness,
 
     async matchParty(party: ErpPartyInput, existing: readonly PmoPartyCandidate[]): Promise<PartyMatchResult> {
       const { fake, adapter } = fakeConnection();

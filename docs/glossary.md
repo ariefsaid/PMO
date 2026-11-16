@@ -372,6 +372,26 @@ the UI; never "float". Its figures: **Limit** (*batas kas*, the approved amount 
 
 ---
 
+## Manual journals (#895)
+
+**Manual journal** — a balanced set of debit and credit lines that Finance writes in PMO for a ledger move no other
+record makes (a bank fee, interest, an accrual, a correction). It is drafted, submitted, approved by a second
+approver and then posted to the connected ledger, where it shows as Posted, Scheduled (dated later in the ledger),
+Needs a check or Refused. A posted one is undone only by a reversal: a new manual journal with every side swapped.
+Ledger moves PMO did not write are listed beside them as *outside PMO*, read-only.
+
+**Second approver** — the Finance, Executive or Admin member who approves or returns a manual journal. Never anyone
+who wrote it (its maker or any editor) and, for a reversal, nobody who wrote the original. Rank does not matter.
+One exception: when the organisation has only one member (one profile in total, whatever its status), that member
+approves their own journal, and the approval is recorded as made by the sole member. A second member, even a disabled
+one, brings the second-approver rule back for good: the organisation keeps a permanent "has had a second member"
+marker, so removing that member later does not restore the exemption.
+
+**Desk journal** — the one general Odoo journal that manual journals post to, chosen by an Admin in Odoo setup.
+Until it is chosen, manual journals cannot post to Odoo.
+
+---
+
 ## Stock & inventory (#1512)
 
 **Stock item** — a material the organisation holds and tracks by quantity. Has a code, name and one base unit. Not a

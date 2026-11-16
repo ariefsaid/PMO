@@ -29,6 +29,7 @@ import { contactToBody, contactCanonicalFromDoc } from './bodies/contact.ts';
 import { budgetToBody, budgetFromDoc } from './bodies/budget.ts';
 import { expenseJournalToBody, expenseJournalFromDoc } from './bodies/expenseJournal.ts';
 import { imprestTransferToBody } from './bodies/imprestTransfer.ts';
+import { manualJournalFromDoc, manualJournalToBody } from './bodies/manualJournal.ts';
 import { expensePaymentToBody, expensePaymentFromDoc } from './bodies/expensePayment.ts';
 
 export const DOCTYPE_BODIES: Partial<Record<ErpDocKind, DoctypeBodyFns>> = {
@@ -60,4 +61,6 @@ export const DOCTYPE_BODIES: Partial<Record<ErpDocKind, DoctypeBodyFns>> = {
   'expense-receipt': { toBody: expensePaymentToBody, fromDoc: expensePaymentFromDoc },
   // #1515 §9 — head office → a site float's cash account; read back like any expense journal.
   'imprest-transfer': { toBody: imprestTransferToBody, fromDoc: expenseJournalFromDoc },
+  // #895 — the accountant's desk manual journal (and its reversal, a swapped journal); read back as the journal result.
+  'manual-journal': { toBody: manualJournalToBody, fromDoc: manualJournalFromDoc },
 };

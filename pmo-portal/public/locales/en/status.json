@@ -48,6 +48,16 @@
     "cancelled": "Cancelled",
     "active": "Active"
   },
+  "journal": {
+    "draft": "Draft",
+    "submitted": "Submitted",
+    "approved": "Approved",
+    "sending": "Sending",
+    "posted": "Posted",
+    "scheduled": "Scheduled",
+    "held": "Needs a check",
+    "refused": "Refused"
+  },
   "timesheet": {
     "draft": "Draft",
     "submitted": "Submitted",

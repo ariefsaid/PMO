@@ -75,6 +75,17 @@ describe('status map', () => {
     }
   });
 
+  it('#895 journal states: a held journal Needs a check (amber), Scheduled is not Posted, Refused is red', () => {
+    const t = (_k: string, d: string) => d;
+    expect(['draft', 'submitted', 'approved', 'sending', 'posted', 'scheduled', 'held', 'refused'].map((s) => statusLabel('journal', s, t)))
+      .toEqual(['Draft', 'Submitted', 'Approved', 'Sending', 'Posted', 'Scheduled', 'Needs a check', 'Refused']);
+    expect(statusTone('journal', 'held')).toBe('waiting');
+    expect(statusTone('journal', 'submitted')).toBe('waiting');
+    expect(statusTone('journal', 'refused')).toBe('exception');
+    expect(statusTone('journal', 'posted')).toBe('done');
+    expect(statusTone('journal', 'scheduled')).toBe('neutral');
+  });
+
   it('tone maps onto the existing StatusPill variants and never onto the action blue', () => {
     expect(TONES.map(toneVariant)).toEqual(['neutral', 'warn', 'lost', 'won']);
     expect(statusVariantOf('task', 'Blocked')).toBe('lost');
