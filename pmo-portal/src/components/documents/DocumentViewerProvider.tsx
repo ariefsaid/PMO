@@ -5,7 +5,7 @@ import { DocumentViewerContext, type DocumentViewerApi, type ViewerState } from 
 import { PreviewFailure, type DocumentViewTarget } from './types';
 
 /**
- * One active document owns the side panel (FR-001). The panel opens and shows its loading state before any
+ * One active document owns the viewer dialog (FR-001). It opens and shows its loading state before any
  * source I/O (NFR-004); `load` runs on open and on Retry only, a late result for a superseded or closed
  * document is dropped (FR-011), and the result (a short-lived URL) lives in this component's state only:
  * never in the query cache, a log or storage (NFR-002).
@@ -51,7 +51,7 @@ export function DocumentViewerProvider({ children }: { children: ReactNode }) {
     requestAnimationFrame(() => { if (el?.isConnected) el.focus({ preventScroll: true }); });
   }, []);
 
-  // A render error in the image (expired URL, deleted object) is a failed load, not a blank panel.
+  // A render error in the image (expired URL, deleted object) is a failed load, not a blank viewer.
   const renderFailed = useCallback(() => {
     setState((s) => (s.phase === 'ready' ? { phase: 'failed', target: s.target, kind: 'unavailable' } : s));
   }, []);
@@ -61,7 +61,7 @@ export function DocumentViewerProvider({ children }: { children: ReactNode }) {
     if (target) run(target);
   }, [run]);
 
-  // A route change closes the panel so a stale document never covers a new page; a search/filter change keeps it.
+  // A route change closes the viewer so a stale document never covers a new page; a search/filter change keeps it.
   const { pathname } = useLocation();
   const lastPath = useRef(pathname);
   useEffect(() => {

@@ -66,7 +66,7 @@ describe('document-preview AC-004 recovery states', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('No file is attached.');
     expect(screen.queryByRole('button', { name: 'Download' })).not.toBeInTheDocument();
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
-    expect(screen.queryByTitle('Plan.png')).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog').querySelector('iframe')).toBeNull();
   });
 
   it('rate_limited: Retry is disabled until the retry-after has elapsed', async () => {

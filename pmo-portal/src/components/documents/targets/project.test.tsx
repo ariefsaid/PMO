@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MicrosoftReference, ReferenceOwner } from '@/src/lib/m365/reference';
 import { PreviewFailure } from '../types';
 import { Harness } from '../Harness';
-import { renderViewer } from '../testkit';
+import { findFrame, renderViewer } from '../testkit';
 import { projectDocumentTarget } from './project';
 
 const previewMicrosoftDocument = vi.hoisted(() => vi.fn());
@@ -36,7 +36,7 @@ describe('document-preview AC-012 controlled documents', () => {
   it('a Draft opens with no latest-source notice and no controlled block', async () => {
     previewMicrosoftDocument.mockResolvedValue({ mode: 'embed', provider: 'microsoft', url: 'https://tenant.sharepoint.com/e' });
     await open(owner({ status: 'Draft', drift_state: null, version_id_at_issue: null }));
-    await screen.findByTitle('Plan');
+    await findFrame('Plan');
     expect(screen.queryByText(/not the approved version/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Approved version/)).not.toBeInTheDocument();
   });
@@ -44,7 +44,7 @@ describe('document-preview AC-012 controlled documents', () => {
   it('an Approved document labels the latest source explicitly and keeps its pin, drift state and history', async () => {
     previewMicrosoftDocument.mockResolvedValue({ mode: 'embed', provider: 'microsoft', url: 'https://tenant.sharepoint.com/e' });
     await open(owner());
-    await screen.findByTitle('Plan');
+    await findFrame('Plan');
     expect(screen.getByText('Latest in SharePoint. This is not the approved version.')).toBeInTheDocument();
     expect(screen.getByText('Approved version 2.0')).toBeInTheDocument();
     expect(screen.getByText('File content differs from its issue-time baseline.')).toBeInTheDocument();
@@ -54,7 +54,7 @@ describe('document-preview AC-012 controlled documents', () => {
   it('an Issued document gets the notice and drift state but no approved-version history', async () => {
     previewMicrosoftDocument.mockResolvedValue({ mode: 'embed', provider: 'microsoft', url: 'https://tenant.sharepoint.com/e' });
     await open(owner({ status: 'Issued' }));
-    await screen.findByTitle('Plan');
+    await findFrame('Plan');
     expect(screen.getByText('Issued version 2.0')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Check approved version/ })).not.toBeInTheDocument();
   });
@@ -71,7 +71,7 @@ describe('document-preview AC-012 controlled documents', () => {
   it('opening and closing writes nothing: no status, approval, drift or document call', async () => {
     previewMicrosoftDocument.mockResolvedValue({ mode: 'embed', provider: 'microsoft', url: 'https://tenant.sharepoint.com/e' });
     await open(owner());
-    await screen.findByTitle('Plan');
+    await findFrame('Plan');
     await userEvent.click(screen.getByRole('button', { name: 'Close' }));
     for (const fn of Object.values(writes)) expect(fn).not.toHaveBeenCalled();
   });

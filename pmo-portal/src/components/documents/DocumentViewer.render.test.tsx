@@ -2,7 +2,7 @@ import { fireEvent, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { storageTarget } from './targets/storage';
-import { renderViewer, target } from './testkit';
+import { findFrame, renderViewer, target } from './testkit';
 import { Harness } from './Harness';
 import { officeViewerUrl } from './renderers';
 import type { PreviewResult } from './types';
@@ -22,7 +22,7 @@ describe('document-preview AC-005 renderers inside the panel', () => {
 
   it('a PDF renders in a titled frame', async () => {
     await show({ mode: 'pdf', url: 'https://signed.test/a.pdf' });
-    const frame = (await screen.findByTitle('Doc.bin')) as HTMLIFrameElement;
+    const frame = await findFrame('Doc.bin');
     expect(frame.tagName).toBe('IFRAME');
     expect(frame).toHaveAttribute('src', 'https://signed.test/a.pdf');
     expect(frame).toHaveAttribute('tabindex', '0');
@@ -31,7 +31,7 @@ describe('document-preview AC-005 renderers inside the panel', () => {
 
   it('a Microsoft embed is sandboxed, titled and has no referrer', async () => {
     await show({ mode: 'embed', provider: 'microsoft', url: 'https://tenant.sharepoint.com/embed' });
-    const frame = await screen.findByTitle('Doc.bin');
+    const frame = await findFrame('Doc.bin');
     expect(frame).toHaveAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups');
     expect(frame).toHaveAttribute('referrerpolicy', 'no-referrer');
     expect(screen.queryByText('If the preview stays blank, download the file.')).not.toBeInTheDocument();
@@ -39,7 +39,7 @@ describe('document-preview AC-005 renderers inside the panel', () => {
 
   it('the public Office viewer frame always shows the blank-frame hint, and an iframe load event proves nothing', async () => {
     await show({ mode: 'embed', provider: 'office-online', url: officeViewerUrl('https://signed.test/a.docx?t=1') }, { download: vi.fn() });
-    const frame = await screen.findByTitle('Doc.bin');
+    const frame = await findFrame('Doc.bin');
     expect(frame.getAttribute('src')).toMatch(/^https:\/\/view\.officeapps\.live\.com\/op\/embed\.aspx\?src=/);
     fireEvent.load(frame);
     expect(screen.getByText('If the preview stays blank, download the file.')).toBeInTheDocument();
@@ -64,7 +64,7 @@ describe('document-preview AC-005 renderers inside the panel', () => {
     renderViewer(<Harness targets={[t]} />);
     await userEvent.click(screen.getByRole('button', { name: 'Preview Brief.docx' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
-    const src = (await screen.findByTitle('Brief.docx')).getAttribute('src');
+    const src = (await findFrame('Brief.docx')).getAttribute('src');
     expect(src).toContain(encodeURIComponent('https://signed.test/a.docx?t=2'));
     expect(getSignedUrl).toHaveBeenCalledTimes(2);
   });
