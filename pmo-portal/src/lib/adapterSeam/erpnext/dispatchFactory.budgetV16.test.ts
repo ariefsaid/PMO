@@ -117,11 +117,13 @@ function rangeServiceClient(rpc: (name: string, args?: Record<string, unknown>) 
 async function makeRangeAdapter(
   serviceClient: ReturnType<typeof rangeServiceClient>,
   fetchImpl: typeof fetch,
+  writeMayStart?: () => boolean,
 ) {
   return resolveErpDispatchAdapter({
     serviceClient: serviceClient as never,
     orgId: 'org', command: rangeCommand() as never,
     fetchImpl, apiKey: 'key', apiSecret: 'secret', doctypeBodies: DOCTYPE_BODIES,
+    ...(writeMayStart ? { writeMayStart } : {}),
   });
 }
 
@@ -214,5 +216,21 @@ describe('whole-project range outbox RPC adapter', () => {
 
     expect(serviceClient.rpc).toHaveBeenCalledWith('advance_budget_range_outbox_stage', expect.any(Object));
     expect(fetchImpl).toHaveBeenCalledWith(expect.stringContaining('/api/resource/Budget'), expect.objectContaining({ method: 'POST' }));
+  });
+
+  it('#2149: the caller\'s no-time-left signal reaches the adapter: no pre-POST stage is written and nothing is sent', async () => {
+    const fetchImpl = makeRangeFetcher();
+    const serviceClient = rangeServiceClient(async (name) => name === 'read_budget_range_outbox_state'
+      ? { data: null, error: null }
+      : { data: 1, error: null });
+    const adapter = await makeRangeAdapter(serviceClient, fetchImpl, () => false);
+    await expect(adapter.commit({
+      ...rangeCommand(), outboxCommit: {
+        id: RANGE_OUTBOX, generation: 4, payloadDigest: RANGE_DIGEST, identity: RANGE_IDENTITY,
+      },
+    } as never)).rejects.toMatchObject({ code: 'external-unreachable' });
+
+    expect(serviceClient.rpc).not.toHaveBeenCalledWith('advance_budget_range_outbox_stage', expect.any(Object));
+    expect(fetchImpl).not.toHaveBeenCalledWith(expect.stringContaining('/api/resource/Budget'), expect.objectContaining({ method: 'POST' }));
   });
 });
