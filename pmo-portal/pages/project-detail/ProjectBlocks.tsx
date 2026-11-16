@@ -518,7 +518,7 @@ const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children
               <div role="row" key={milestone.id} className={cn(PHASE_GRID, 'border-b border-border/70 py-2.5 last:border-b-0')}>
                 <span role="cell" className={cn('min-w-0 break-words text-foreground max-md:col-span-1', milestone.id === current?.id ? 'font-medium' : 'font-normal')}>
                   {milestone.name}
-                  {blockingTasks.length > 0 && <span className="mt-0.5 flex flex-wrap gap-x-3">{blockingTasks.map((task) => <Link key={task.id} to={`/projects/${projectId}/tasks?open=${encodeURIComponent(task.id)}`} className="hit-area-24 font-medium text-primary-text hover:underline">{task.name}</Link>)}</span>}
+                  {blockingTasks.length > 0 && <span className="mt-0.5 flex flex-wrap gap-x-3">{blockingTasks.map((task) => <Link key={task.id} to={`/projects/${projectId}/tasks?open=${encodeURIComponent(task.id)}`} className="hit-area-24 font-semibold text-primary-text hover:underline">{task.name}</Link>)}</span>}
                 </span>
                 <span role="cell" className="tabular-nums text-muted-foreground md:text-right max-md:col-span-2 max-md:row-start-2 max-md:inline">
                   {milestone.target_date ? <>{cue(t('projectDetail.delivery.colDue', 'Due'))}{formatDayYear(milestone.target_date)}</> : '—'}
