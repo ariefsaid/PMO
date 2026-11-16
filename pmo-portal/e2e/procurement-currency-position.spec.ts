@@ -66,7 +66,12 @@ test('the budget position compares compatible currency and identifies foreign de
   ]));
   await expect(page.getByRole('heading', { name: 'Budget impact' })).toBeVisible();
   await expect(page.getByText(/Other currencies:.*300/)).toBeVisible();
-  await expect(page.getByTestId('stat-tile').filter({ hasText: 'After this procurement' })).toContainText('750');
+  // Left after this purchase counts spending too. This project has no ledger reading yet, so spending is not
+  // known: the Left figure is not drawn (the page's one hidden-figures line says so) and the amount without
+  // spending (1000 budget − 200 reserved − 50 this request) sits under its own label, never as the Left figure.
+  await expect(page.getByTestId('stat-tile').filter({ hasText: 'Left after this purchase' })).toHaveCount(0);
+  await expect(page.getByTestId('figures-hidden')).toContainText('not known yet');
+  await expect(page.getByText(/Spending not known yet\. Without it:.*750 left after orders, reserved and this purchase\./)).toBeVisible();
 });
 
 test('a procurement in an incompatible currency shows no headroom comparison', async ({ page }) => {
@@ -77,4 +82,5 @@ test('a procurement in an incompatible currency shows no headroom comparison', a
   // told there is no comparison, and no headroom figure is claimed.
   await expect(page.getByText(/In a different currency: not compared with the budget/i).first()).toBeVisible();
   await expect(page.getByText(/headroom remaining/)).not.toBeVisible();
+  await expect(page.getByText('Left after this purchase')).toHaveCount(0);
 });
