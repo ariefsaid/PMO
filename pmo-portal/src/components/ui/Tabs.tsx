@@ -21,7 +21,7 @@ export interface TabItem<V extends string = string> {
 
 export interface TabsProps<V extends string = string> {
   /** Record pages: the heading sits inside the bordered record header, so the first label starts on that inset instead of the page edge. */
-  insetFirstTab?: boolean;
+  insetFirstTab?: boolean | 'panel';
   items: TabItem<V>[];
   value: V;
   onChange: (value: V) => void;
@@ -130,7 +130,11 @@ export function Tabs<V extends string = string>({
               // snap-start: this tab is the snap destination when scrolling the strip.
               // shrink-0: prevents tabs from squishing (needed for proper snap behaviour).
               'relative h-[var(--table-head-height)] shrink-0 snap-start px-4 text-control font-normal',
-              insetFirstTab ? 'first:ps-[calc(var(--space-content-inset)+1px)]' : 'first:ps-0',
+              insetFirstTab === 'panel'
+                ? 'first:ps-[calc(var(--panel-inset)+1px)]'
+                : insetFirstTab
+                  ? 'first:ps-[calc(var(--space-content-inset)+1px)]'
+                  : 'first:ps-0',
               active
                 // AC-RAM-004 (#688): raw text-primary as small text is ~3.5:1 on the dark canvas
                 // (sub-AA, DESIGN.md accessibility posture). text-primary-text is the AA on-canvas
