@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next';
 import { Calendar } from '@/src/components/shadcn/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/src/components/shadcn/popover';
-import { formatDayYear } from '@/src/lib/format';
+import { formatIsoDay } from '@/src/lib/format';
 import { getDateFnsLocale } from '@/src/lib/locale/activeLocale';
 import { ISO_DAY, parseDayInput, toIsoDay } from '@/src/lib/parseDayInput';
 import { cn } from './cn';
@@ -88,7 +88,7 @@ export const DateField: React.FC<DateFieldProps> = ({
   }, [value]);
 
   // A value that is not a real day (a stale draft) stays visible as it is, never as a dash.
-  const shown = parseDayInput(value) === value ? formatDayYear(value) : (value ?? '');
+  const shown = parseDayInput(value) === value ? formatIsoDay(value) : (value ?? '');
   const invalidMessage = unreadable
     ? t('dateField.invalid', { defaultValue: 'Enter a date like 16 Nov 2026' })
     : undefined;
