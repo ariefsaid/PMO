@@ -98,7 +98,7 @@ const FxEquivalent: React.FC<FxEquivalentProps> = ({ amount, currency, date, com
     if (compact) {
       return (
         <span className="block min-w-0 text-control font-normal tabular text-muted-foreground">
-          <span aria-hidden="true" title={note ? `${equivalent} · ${note}` : undefined} className="block truncate whitespace-nowrap">
+          <span aria-hidden="true" title={note ? `${equivalent} · ${note}` : undefined} className="block whitespace-normal break-words">
             {equivalent}
           </span>
           <span className="sr-only">{note ? `${equivalent} (${note})` : equivalent}</span>
