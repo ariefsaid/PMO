@@ -184,25 +184,20 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean; /*
         </p>
       )}
       <dl className="grid min-w-0 gap-y-2" aria-label={t('projectDetail.money.cascadeLabel', 'Contract to payment')}>
-        {steps.map((step) => {
-          const percent = share(step.value);
-          return (
-            <div key={step.key} className="grid min-w-0 grid-cols-[5.5rem_minmax(0,1fr)_auto] items-center gap-x-3">
-              <dt className="text-sm text-muted-foreground">{step.label}</dt>
-              <dd className="min-w-0">
-                {percent !== null && (step.key === 'invoiced' || step.key === 'paid') && <ProgressBar value={percent} tone={step.key === 'invoiced' ? 'primary' : 'success'} widthless className="w-full" aria-label={t('projectDetail.money.stageAria', '{{label}} is {{percent}}% of contract', { label: step.label, percent })} />}
-              </dd>
-              <dd className="text-right text-sm">
-                {step.key === 'contract'
-                  ? <span data-testid="contract-value-amount">{explain(step.source, whole(step.value))}</span>
-                  : explain(step.source, whole(step.value))}
-              </dd>
-              {step.key === 'contract' && contractValue !== null && (
-                <dd className="col-span-2 col-start-2 text-right"><FxEquivalent amount={contractValue} currency={project.currency} date={project.contract_date} compact /></dd>
-              )}
-            </div>
-          );
-        })}
+        {steps.map((step) => (
+          // The shares are stated once in the line above; each row is a plain label and amount, so every amount ends on one edge.
+          <div key={step.key} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3">
+            <dt className="text-sm text-muted-foreground">{step.label}</dt>
+            <dd className="text-right text-sm tabular-nums">
+              {step.key === 'contract'
+                ? <span data-testid="contract-value-amount">{explain(step.source, whole(step.value))}</span>
+                : explain(step.source, whole(step.value))}
+            </dd>
+            {step.key === 'contract' && contractValue !== null && (
+              <dd className="col-span-2 text-right"><FxEquivalent amount={contractValue} currency={project.currency} date={project.contract_date} compact /></dd>
+            )}
+          </div>
+        ))}
       </dl>
       {marginAmount !== null && (
         <dl className="mt-4 flex min-w-0 flex-wrap gap-x-8 gap-y-3 border-t border-border/70 pt-3">
