@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { changedLocaleKeys, localeKeyUsers, localeSourceFiles, MAX_LOCAL_SPECS, isSerialSpec, planPhases, printPhases, resultsRoot, runCapped, runPhases, serialTestMatch } from './affected-e2e.mjs';
+import { isAffectedInput, selectFor, changedLocaleKeys, localeKeyUsers, localeSourceFiles, MAX_LOCAL_SPECS, isSerialSpec, planPhases, printPhases, resultsRoot, runCapped, runPhases, serialTestMatch } from './affected-e2e.mjs';
 
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptsDir, '..');
@@ -257,4 +257,31 @@ test('select: one finance key selects far fewer specs than the namespace-wide fa
     assert.deepEqual(select([file], routeData, [specA, specB], () => new Set([pFile])), [specA], 'narrowed to /projects');
     assert.deepEqual(select([file], routeData, [specA, specB], () => new Set()), [], 'no changed keys selects nothing');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+// #2388: every changed file under pmo-portal/ except e2e/ is an input; each newly admitted folder
+// must now select journeys, not just pass the filter.
+const ADMITTED = [
+  ['src/lib (not repositories)', 'pmo-portal/src/lib/billingKind.ts'],
+  ['src/lib/db', 'pmo-portal/src/lib/db/companies.ts'],
+  ['src/auth', 'pmo-portal/src/auth/policy.ts'],
+  ['top-level components', 'pmo-portal/components/ProcurementBoard.tsx'],
+  ['App.tsx', 'pmo-portal/App.tsx'],
+];
+for (const [label, file] of ADMITTED) {
+  test(`affected-e2e #2388 admits ${label} and selects journeys`, () => {
+    assert.equal(isAffectedInput(file), true);
+    assert.ok(selectFor([file]).length > 0, `${file} selected no specs`);
+  });
+}
+test('affected-e2e #2388 keeps e2e/ and non-app paths out', () => {
+  assert.equal(isAffectedInput('pmo-portal/e2e/AC-CO-001-companies-crud.spec.ts'), false);
+  assert.equal(isAffectedInput('docs/x.md'), false);
+});
+test('affected-e2e #2388 the local cap still refuses a broad selection', () => {
+  const files = Array.from({ length: MAX_LOCAL_SPECS + 1 }, (_, i) => `e2e/a${i}.spec.ts`);
+  const { calls, spawnE2E } = recordingSpawn();
+  const err = console.error; console.error = () => {};
+  try { assert.equal(runCapped(planPhases(files), false, spawnE2E), 1); } finally { console.error = err; }
+  assert.equal(calls.length, 0);
 });
