@@ -64,6 +64,8 @@
     { "value": "Edit {{account}}", "reason": "edit is an Indonesian verb (KBBI: edit, mengedit); the #693 Bahasa pass pins this budget-map row action's accessible name (Edit 5100 - Direct Costs)" },
     { "value": "Action item", "reason": "the ONE Bahasa term for a meeting-minutes action item, pinned by AC-MTG-025: the Indonesian minutes copy keeps the English term and forbids butir tindakan" },
     { "value": "Timesheet", "reason": "the one Bahasa word for this record: Indonesian contractor offices use the borrowed English term (OD-I18N-1 house style)" },
+    { "value": "{{n}} total", "reason": "total is an Indonesian word with the same spelling (KBBI: total), the count prefix is a placeholder — the Bahasa preview reads '2 total'" },
+    { "value": "{{n}} valid", "reason": "valid is an Indonesian word with the same spelling (KBBI: valid), the count prefix is a placeholder — the Bahasa preview reads '1 valid'" },
     { "value": "Supplier", "reason": "kept in English in Bahasa like Timesheet and Dasbor (owner ruling 2026-11-16)" },
     { "value": "{{count}} supplier", "reason": "the same kept English term; Bahasa has no singular/plural form (owner ruling 2026-11-16)" }
   ]

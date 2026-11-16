@@ -1,9 +1,107 @@
 {
+  "entity": {
+    "contractLines": "baris kontrak",
+    "contractLine": "baris kontrak"
+  },
+  "wizard": {
+    "title": "Impor {{entity}}",
+    "close": "Tutup",
+    "back": "Kembali",
+    "cancel": "Batal",
+    "next": "Lanjut",
+    "done": "Selesai",
+    "step": {
+      "mapping": "Cocokkan kolom",
+      "preview": "Tinjau sebelum mengimpor",
+      "committing": "Mengimpor…",
+      "result": "Impor selesai",
+      "resultPartial": "Sebagian baris tidak diimpor"
+    },
+    "subtitle": {
+      "upload": "Unggah file .xlsx (hingga {{max}} baris).",
+      "mapping": "Pastikan setiap kolom terpetakan ke bidangnya.",
+      "preview": "Baris yang tidak valid dilewati. Hanya baris valid yang diimpor.",
+      "committing": "Membuat satu catatan per baris valid.",
+      "result": "Begini hasilnya."
+    },
+    "importButton_one": "Impor {{count}} {{entity}}",
+    "importButton_other": "Impor {{count}} {{entity}}"
+  },
+  "upload": {
+    "chooseFile": "Pilih file .xlsx",
+    "headersNote": "Baris pertama harus judul kolom. Hingga {{max}} baris.",
+    "reading": "Membaca file…"
+  },
+  "mapping": {
+    "requiredAlert": "Petakan semua bidang wajib untuk melanjutkan.",
+    "notMapped": "— Belum dipetakan —",
+    "column": "Kolom {{n}}",
+    "requiredLegend": "* Wajib. Impor tidak bisa dilanjutkan sebelum kolomnya dipilih."
+  },
   "preview": {
     "row": "Baris",
     "status": "Status",
     "valid": "Valid",
     "skipped": "Dilewati",
-    "tableName": "Pratinjau baris impor"
+    "tableName": "Pratinjau baris impor",
+    "validCount": "{{n}} valid",
+    "invalidCount": "{{n}} tidak valid",
+    "totalCount": "{{n}} total",
+    "rowNumber": "Baris {{n}}",
+    "alreadyCount": "{{n}} sudah ada"
+  },
+  "committing": {
+    "progress": "Mengimpor {{done}} / {{total}}…"
+  },
+  "result": {
+    "created": "{{n}} dibuat",
+    "skipped": "{{n}} dilewati karena sudah diimpor",
+    "failed": "{{n}} gagal",
+    "rowNamed": "Baris {{n}} ({{label}}): ",
+    "rowReason": "Baris {{n}}: ",
+    "invalid": "{{n}} dilewati karena kesalahan",
+    "listName": "Baris yang tidak diimpor",
+    "alreadyImported": "Sudah diimpor.",
+    "notCreated": "Tidak dibuat"
+  },
+  "paste": {
+    "label": "Atau tempel baris yang disalin dari spreadsheet",
+    "helper": "Sertakan baris judul kolom. Kolom dipisah tab, seperti saat disalin dari lembar kerja.",
+    "use": "Gunakan baris yang ditempel"
+  },
+  "contractLines": {
+    "key": "Referensi baris",
+    "itemCode": "Kode item",
+    "description": "Deskripsi",
+    "unit": "Satuan",
+    "quantity": "Kuantitas",
+    "rate": "Harga satuan",
+    "rateWithCurrency": "Harga satuan ({{code}})",
+    "lineNo": "Nomor baris",
+    "earningBasis": "Dikenakan per",
+    "error": {
+      "keyRequired": "Referensi baris wajib diisi.",
+      "keyTooLong": "Referensi baris maksimal {{max}} karakter.",
+      "keyDuplicate": "Referensi baris \"{{value}}\" muncul dua kali.",
+      "keyDuplicateRows": "Referensi baris \"{{value}}\" muncul dua kali (baris {{first}} dan {{second}}).",
+      "itemCodeRequired": "Kode item wajib diisi.",
+      "itemCodeTooLong": "Kode item maksimal {{max}} karakter.",
+      "descriptionRequired": "Deskripsi wajib diisi.",
+      "descriptionTooLong": "Deskripsi maksimal {{max}} karakter.",
+      "unitRequired": "Satuan wajib diisi.",
+      "unitTooLong": "Satuan maksimal {{max}} karakter.",
+      "quantity": "Kuantitas harus berupa angka di atas 0 (maksimal 3 desimal).",
+      "rate": "Harga satuan harus berupa angka 0 atau lebih (maksimal 2 desimal).",
+      "lineNoWhole": "No. baris harus berupa angka bulat.",
+      "lineNoRange": "No. baris di luar rentang yang diizinkan.",
+      "basis": "Dikenakan per harus unit rate atau lump sum.",
+      "lumpSumQuantity": "Baris lump sum harus memiliki kuantitas 1."
+    },
+    "keyHint": "Unik untuk setiap baris. Baris yang referensinya sudah ada di kontrak ini dilewati.",
+    "lineNoHint": "Opsional. Menentukan urutan baris; baris tanpa nomor di paling akhir.",
+    "earningBasisHint": "Opsional. Harga satuan (kuantitas × harga) atau lump sum (satu jumlah, kuantitas 1).",
+    "alreadyThere": "Sudah ada di kontrak ini.",
+    "existingUnavailable": "Tidak dapat memeriksa baris yang sudah ada di kontrak ini. Baris yang sudah ada akan dilewati saat impor.",
+    "nothingNew": "Tidak ada yang perlu diimpor: semua baris yang valid sudah ada di kontrak ini."
   }
 }
