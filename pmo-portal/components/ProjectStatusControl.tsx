@@ -50,8 +50,10 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
   triggerVariant = 'outline',
   triggerSize = 'sm',
 }) => {
-  const { t } = useTranslation(['common', 'boardDrag']);
-  const statusLabel = useProjectStatusLabel();
+  const { t, i18n } = useTranslation(['common', 'boardDrag']);
+  // English keeps the stored stage names this menu always showed ("Loss Tender"); other languages read the label map.
+  const mapLabel = useProjectStatusLabel();
+  const statusLabel = (s: string) => (i18n.resolvedLanguage === 'id' ? mapLabel(s) : s);
   const can = usePermission();
   const mutation = useProjectTransition();
   const { toast } = useToast();
