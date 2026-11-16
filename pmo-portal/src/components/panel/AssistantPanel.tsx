@@ -97,18 +97,38 @@ const ErrorCard: React.FC<ErrorCardProps> = ({ onRetry }) => {
   );
 };
 
+/** Localised text for an attachment error. Lib messages (English, by type) are mapped by type; a message
+ * already localised at the source (PromptBar's transcode failure) passes through untouched. */
+function attachmentErrorText(
+  error: { type: string; message: string },
+  t: (key: string, options: Record<string, unknown>) => string,
+): string {
+  const m = error.message;
+  const max = m.match(/^File exceeds (\d+) MB limit$/)?.[1];
+  if (max) return t('attachError.oversize', { max, defaultValue: m });
+  if (m === 'File type not allowed') return t('attachError.type', { defaultValue: m });
+  if (/^Upload (failed|timed out|cancelled)/.test(m)) {
+    const key = error.type === 'timeout' ? 'timeout' : error.type === 'cancel' ? 'cancel' : 'server';
+    return t(`attachError.${key}`, { defaultValue: m });
+  }
+  return m;
+}
+
 // ── Out-of-credits card (FR-AUC-016, NFR-AUC-A11Y-001/002) ─────────────────────
-const OutOfCreditsCard: React.FC = () => (
+const OutOfCreditsCard: React.FC = () => {
+  const { t } = useTranslation('assistantPanel');
+  return (
   <div
     role="status"
     aria-live="polite"
     className="mx-4 my-2 rounded-md border border-border bg-secondary/40 px-3 py-2 text-sm"
   >
     <p className="font-medium text-foreground">
-      You&apos;ve used up your assistant credits for now — contact your admin to request more.
+      {t('outOfCredits', "You've used up your assistant credits for now — contact your admin to request more.")}
     </p>
   </div>
-);
+  );
+};
 
 // ── Main panel component ──────────────────────────────────────────────────────
 
@@ -282,7 +302,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
   const doneSteps = activityTrail.filter((s) => s.done);
   const doneCount = doneSteps.length;
   const lastDoneStep = doneSteps[doneSteps.length - 1];
-  const lastActivity = lastDoneStep ? friendlyActivity(lastDoneStep.label) : undefined;
+  const lastActivity = lastDoneStep ? friendlyActivity(lastDoneStep.label, t) : undefined;
 
   // ── Staleness re-render tick (FR-AGP-022) ────────────────────────────────
   // isStuck is a point-in-time derivation (now - lastProgressAt). The hook's own 5s server-
@@ -538,7 +558,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
         {isDesktop && (
           <div
             role="slider"
-            aria-label="Resize assistant panel"
+            aria-label={t('resize', 'Resize assistant panel')}
             aria-valuemin={PANEL_WIDTH_MIN}
             aria-valuemax={PANEL_WIDTH_MAX}
             aria-valuenow={width}
@@ -616,12 +636,12 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
           <>
             {threadsLoading && (
               <div className="border-b border-border px-4 py-2">
-                <LoadingState label="Loading conversations…" />
+                <LoadingState label={t('loadingConversations', 'Loading conversations…')} />
               </div>
             )}
             {threadsError && (
               <p role="alert" className="border-b border-border px-4 py-2 text-sm text-destructive-text">
-                Couldn&apos;t load your conversations.
+                {t('loadConversationsError', "Couldn't load your conversations.")}
               </p>
             )}
             {!threadsLoading && !threadsError && (
@@ -669,7 +689,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
               aria-atomic="true"
               className="px-4 py-1 text-sm text-muted-foreground"
             >
-              A write action awaits your decision
+              {t('approvalAwaiting', 'A write action awaits your decision')}
             </div>
           )}
 
@@ -683,7 +703,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
               aria-atomic="true"
               className="px-4 py-1 text-sm text-muted-foreground"
             >
-              A question awaits your answer
+              {t('questionAwaiting', 'A question awaits your answer')}
             </div>
           )}
 
@@ -698,10 +718,10 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
             className="border-t border-border px-3 py-2 text-sm text-muted-foreground"
           >
             {attachments.error
-              ? attachments.error.message
+              ? attachmentErrorText(attachments.error, t)
               : Object.keys(attachments.progress).length > 0
-                ? 'Uploading attachment…'
-                : `${pendingAttachmentIds.length} attachment${pendingAttachmentIds.length === 1 ? '' : 's'} ready`}
+                ? t('uploadingAttachment', 'Uploading attachment…')
+                : t('attachmentsReady', { count: pendingAttachmentIds.length, defaultValue_one: '{{count}} attachment ready', defaultValue_other: '{{count}} attachments ready' })}
           </div>
         )}
 

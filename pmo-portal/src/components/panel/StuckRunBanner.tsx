@@ -13,6 +13,7 @@
  * role="status"/card token treatment (AssistantPanel.tsx).
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { AgentRunStatus } from '@/src/lib/agent/runtime/port';
 import { STUCK_RUN_STALE_MS } from './stuckRun.constants';
 
@@ -37,6 +38,7 @@ export const StuckRunBanner: React.FC<StuckRunBannerProps> = ({
   onRetry,
   onCancel,
 }) => {
+  const { t } = useTranslation('assistantPanel');
   if (!ACTIVE_STATUSES.includes(status)) return null;
   if (lastProgressAt === null) return null;
 
@@ -46,36 +48,36 @@ export const StuckRunBanner: React.FC<StuckRunBannerProps> = ({
   const completedSteps = doneCount ?? 0;
   const body =
     completedSteps > 0
-      ? `This is a bigger question — ${completedSteps} step${
-          completedSteps === 1 ? '' : 's'
-        } done so far${lastActivity ? ` (last: ${lastActivity})` : ''}. You can keep waiting or stop.`
-      : 'This is taking a little longer than usual — you can keep waiting, or stop and try again.';
+      ? lastActivity
+        ? t('stuck.biggerLast', { count: completedSteps, last: lastActivity, defaultValue_one: 'This is a bigger question — {{count}} step done so far (last: {{last}}). You can keep waiting or stop.', defaultValue_other: 'This is a bigger question — {{count}} steps done so far (last: {{last}}). You can keep waiting or stop.' })
+        : t('stuck.bigger', { count: completedSteps, defaultValue_one: 'This is a bigger question — {{count}} step done so far. You can keep waiting or stop.', defaultValue_other: 'This is a bigger question — {{count}} steps done so far. You can keep waiting or stop.' })
+      : t('stuck.slower', 'This is taking a little longer than usual — you can keep waiting, or stop and try again.');
 
   return (
     <div
       role="status"
       aria-live="polite"
-      aria-label="Still working"
+      aria-label={t('stuck.label', 'Still working')}
       className="mx-4 my-2 rounded-md border border-border bg-secondary/40 px-3 py-2 text-sm"
     >
-      <p className="font-medium text-foreground">Still working…</p>
+      <p className="font-medium text-foreground">{t('stuck.title', 'Still working…')}</p>
       <p className="mt-0.5 text-xs text-muted-foreground">{body}</p>
       <div className="mt-2 flex gap-2">
         <button
           type="button"
           onClick={onCancel}
-          aria-label="Stop"
+          aria-label={t('stop', 'Stop')}
           className="h-8 rounded-md border border-transparent bg-primary px-3 py-0 text-xs font-medium text-primary-foreground hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          Stop
+          {t('stop', 'Stop')}
         </button>
         <button
           type="button"
           onClick={onRetry}
-          aria-label="Retry"
+          aria-label={t('retry', 'Retry')}
           className="h-8 rounded-md border border-border px-3 py-0 text-xs font-medium text-foreground hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          Retry
+          {t('retry', 'Retry')}
         </button>
       </div>
     </div>

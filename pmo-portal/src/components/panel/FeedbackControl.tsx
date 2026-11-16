@@ -21,7 +21,7 @@ const DOWNVOTE_REASONS: { value: DownvoteReason; label: string }[] = [
   { value: 'not_helpful', label: 'Not helpful' },
   { value: 'wrong_tool', label: 'Wrong tool' },
   { value: 'too_slow', label: 'Too slow' },
-];
+]; // English defaults; rendered through feedback.<value>
 
 interface FeedbackControlProps {
   eventId: string;
@@ -83,7 +83,7 @@ export const FeedbackControl: React.FC<FeedbackControlProps> = ({ eventId, runId
       </div>
 
       {pickerOpen && (
-        <div role="group" aria-label="What went wrong?" className="flex flex-wrap gap-1">
+        <div role="group" aria-label={t('feedback.whatWentWrong', 'What went wrong?')} className="flex flex-wrap gap-1">
           {DOWNVOTE_REASONS.map((r) => (
             <button
               key={r.value}
@@ -91,7 +91,7 @@ export const FeedbackControl: React.FC<FeedbackControlProps> = ({ eventId, runId
               onClick={() => handleReason(r.value)}
               className="rounded-md border border-border px-2 py-0.5 text-sm text-foreground hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              {r.label}
+              {t(`feedback.${r.value}`, r.label)}
             </button>
           ))}
         </div>

@@ -81,7 +81,7 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = React.memo(({
       return (
         <div className="flex justify-end">
           <div className="max-w-[85%] break-words rounded-2xl bg-secondary px-3.5 py-2 text-sm text-secondary-foreground">
-            <span className="sr-only">You said: </span>
+            <span className="sr-only">{t('youSaid', 'You said: ')}</span>
             {event.text ?? ''}
           </div>
         </div>
@@ -117,7 +117,7 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = React.memo(({
         return (
           <div>
             <p className="mb-1 text-[11px] font-semibold text-muted-foreground">
-              Answer needed
+              {t('answerNeeded', 'Answer needed')}
             </p>
             <QuestionChips
               prompt={q.prompt}
@@ -159,7 +159,7 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = React.memo(({
             role="status"
             className="rounded-md border border-border bg-secondary/40 px-3 py-2 text-sm text-muted-foreground"
           >
-            I&apos;ve reached my step limit for this question — you can follow up to continue.
+            {t('stepLimit', "I've reached my step limit for this question — you can follow up to continue.")}
           </div>
         );
       }
@@ -178,7 +178,7 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = React.memo(({
       const sysPayload = event.payload as WriteResolvedPayload | undefined;
       if (sysPayload?.event === 'write_resolved') {
         const label =
-          sysPayload.decision === 'approved' ? 'Write approved ✓' : 'Write denied';
+          sysPayload.decision === 'approved' ? t('writeApproved', 'Write approved ✓') : t('writeDenied', 'Write denied');
         return (
           <div className="text-center text-sm text-muted-foreground">{label}</div>
         );

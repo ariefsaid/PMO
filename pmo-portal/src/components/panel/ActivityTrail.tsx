@@ -12,6 +12,7 @@
  * type. Renders nothing when the trail is empty (the StreamingIndicator covers that case).
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { TrailStep } from '@/src/hooks/useAssistantPanel';
 import { Crossfade } from '@/src/components/ui/Crossfade';
 import { friendlyActivity } from '@/src/lib/agent/activityLabel';
@@ -34,6 +35,7 @@ const Spinner: React.FC = () => (
 );
 
 export const ActivityTrail: React.FC<ActivityTrailProps> = ({ items }) => {
+  const { t } = useTranslation('assistantPanel');
   if (items.length === 0) return null;
 
   return (
@@ -41,7 +43,7 @@ export const ActivityTrail: React.FC<ActivityTrailProps> = ({ items }) => {
       role="log"
       aria-live="polite"
       aria-atomic="false"
-      aria-label="Assistant activity"
+      aria-label={t('activityLabel', 'Assistant activity')}
       className="space-y-1 py-1 text-sm text-muted-foreground motion-reduce:animate-none"
     >
       {items.map((step) => (
@@ -60,7 +62,7 @@ export const ActivityTrail: React.FC<ActivityTrailProps> = ({ items }) => {
             )}
           </Crossfade>
           <span className={step.done ? 'text-muted-foreground/70' : 'text-muted-foreground'}>
-            {friendlyActivity(step.label)}
+            {friendlyActivity(step.label, t)}
             {!step.done && '…'}
           </span>
           {step.done && step.detail && (

@@ -134,7 +134,7 @@ export const PromptBar: React.FC<PromptBarProps> = ({
           // image) — surface a transcode-specific error, distinct from the upload path.
           onAttachmentError?.({
             type: 'type',
-            message: 'Could not process this image. Try a different file.',
+            message: t('attachError.transcode', 'Could not process this image. Try a different file.'),
           });
           return;
         }
@@ -147,7 +147,7 @@ export const PromptBar: React.FC<PromptBarProps> = ({
         /* classified error already recorded by useAgentAttachments */
       });
     },
-    [onAttachFile, onAttachmentError, inputDisabled],
+    [onAttachFile, onAttachmentError, inputDisabled, t],
   );
 
   const handleAttachChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -236,8 +236,8 @@ export const PromptBar: React.FC<PromptBarProps> = ({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={inputDisabled}
-              aria-label="Attach file"
-              title="Attach file"
+              aria-label={t('attachFile', 'Attach file')}
+              title={t('attachFile', 'Attach file')}
               className={cn(
                 'touch-target col-start-1 row-start-1 grid size-8 shrink-0 place-items-center self-end rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 sm:row-start-2 [&_svg]:size-4',
                 focusRing,

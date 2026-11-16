@@ -10,6 +10,7 @@
  * FR-AP-013.
  */
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { TranscriptEntry, ChipStateMap, AnsweredMap, RunPhase } from '@/src/hooks/useAssistantPanel';
 import type { DownvoteReason } from '@/src/lib/db/agentEvents';
 import { TranscriptItem } from './TranscriptItem';
@@ -90,6 +91,7 @@ export const Chat: React.FC<ChatProps> = ({ transcript, emptySlot, chipStateMap,
   const containerRef = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);
   // NFR-AP-PERF-003: when true, all entries are shown (user clicked "Show earlier")
+  const { t } = useTranslation('assistantPanel');
   const [showAll, setShowAll] = useState(false);
 
   // Reset showAll when a new conversation clears the transcript
@@ -135,7 +137,7 @@ export const Chat: React.FC<ChatProps> = ({ transcript, emptySlot, chipStateMap,
     >
       <div
         role="log"
-        aria-label="Conversation"
+        aria-label={t('conversation', 'Conversation')}
         aria-live="polite"
         aria-relevant="additions"
         className="flex flex-col gap-4"
@@ -150,7 +152,7 @@ export const Chat: React.FC<ChatProps> = ({ transcript, emptySlot, chipStateMap,
               onClick={() => setShowAll(true)}
               className="rounded px-2 py-1 underline hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              Show earlier ({hiddenCount} hidden)
+              {t('showEarlier', 'Show earlier ({{count}} hidden)', { count: hiddenCount })}
             </button>
           </div>
         )}

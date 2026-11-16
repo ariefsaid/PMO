@@ -7,6 +7,7 @@
  * component never receives another user's thread.
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { AgentThreadListItem } from '@/src/lib/db/agentThreads';
 
 interface ThreadListProps {
@@ -30,9 +31,10 @@ function scopeLabel(scope: AgentThreadListItem['scope']): string | null {
 }
 
 export const ThreadList: React.FC<ThreadListProps> = ({ threads, onOpen }) => {
+  const { t } = useTranslation('assistantPanel');
   return (
     <div className="border-b border-border px-2 py-2">
-      <ul aria-label="Recent conversations" className="flex flex-col gap-0.5">
+      <ul aria-label={t('recentConversations', 'Recent conversations')} className="flex flex-col gap-0.5">
         {threads.map((thread) => {
           const label = scopeLabel(thread.scope);
           return (
@@ -47,7 +49,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({ threads, onOpen }) => {
                     data-pinned-marker
                     className="shrink-0 text-sm font-medium text-muted-foreground"
                   >
-                    Pinned
+                    {t('pinned', 'Pinned')}
                     {/* Separator so the accessible name reads "Pinned. <title>" instead of
                         concatenating directly onto the title (F2, NFR-AGP-A11Y-003). */}
                     <span className="sr-only">. </span>
@@ -65,7 +67,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({ threads, onOpen }) => {
         })}
       </ul>
       {threads.length === 0 && (
-        <p className="px-2 py-1.5 text-sm text-muted-foreground">No conversations yet.</p>
+        <p className="px-2 py-1.5 text-sm text-muted-foreground">{t('noConversations', 'No conversations yet.')}</p>
       )}
     </div>
   );

@@ -22,7 +22,7 @@ export const Thinking: React.FC<{ label?: string | null }> = ({ label }) => {
     return () => clearInterval(id);
   }, []);
 
-  const text = label ? friendlyActivity(label) : t('working', "Working on your answer");
+  const text = label ? friendlyActivity(label, t) : t('working', "Working on your answer");
 
   return (
     <div className="flex items-center gap-2.5 py-1">

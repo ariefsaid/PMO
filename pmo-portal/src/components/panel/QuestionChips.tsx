@@ -16,6 +16,7 @@
  *     look re-clickable for a question that's done.
  */
 import React, { useId, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export interface QuestionChipsProps {
   prompt: string;
@@ -39,6 +40,7 @@ export const QuestionChips: React.FC<QuestionChipsProps> = ({
   selectedOptionId,
   resolvedText,
 }) => {
+  const { t } = useTranslation('assistantPanel');
   const [freeText, setFreeText] = useState('');
   const inputId = useId();
 
@@ -95,14 +97,14 @@ export const QuestionChips: React.FC<QuestionChipsProps> = ({
 
       {resolvedText !== undefined && (
         <p className="mt-2 text-xs text-muted-foreground">
-          You answered: <span className="font-medium text-foreground">{resolvedText}</span>
+          {t('youAnswered', 'You answered: ')}<span className="font-medium text-foreground">{resolvedText}</span>
         </p>
       )}
 
       {allowFreeText && (
         <div className="mt-2 flex gap-2">
           <label htmlFor={inputId} className="sr-only">
-            Your answer
+            {t('yourAnswer', 'Your answer')}
           </label>
           <input
             id={inputId}
@@ -114,16 +116,16 @@ export const QuestionChips: React.FC<QuestionChipsProps> = ({
               if (e.key === 'Enter') submitFreeText();
             }}
             className="h-8 flex-1 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-            placeholder="Type an answer…"
+            placeholder={t('answerPlaceholder', 'Type an answer…')}
           />
           <button
             type="button"
             disabled={controlsDisabled}
             onClick={submitFreeText}
-            aria-label="Submit"
+            aria-label={t('submit', 'Submit')}
             className="h-8 rounded-md border border-border px-3 py-0 text-xs font-medium text-foreground hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Submit
+            {t('submit', 'Submit')}
           </button>
         </div>
       )}

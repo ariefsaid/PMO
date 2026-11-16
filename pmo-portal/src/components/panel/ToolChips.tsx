@@ -5,18 +5,25 @@
  * Adapted from MIT-licensed sources; notice in ./THIRD_PARTY_NOTICE.md.
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Icon } from '@/src/components/ui/icons';
 
 /** Derives a human-readable label from the tool payload (single source of truth). */
-function toolLabel(payload: unknown): string {
+function toolLabel(payload: unknown, t: TFunction<'assistantPanel'>): string {
   const p = payload as { entity?: string; rowCount?: number } | undefined;
   if (p?.entity) {
-    return `Looked up ${p.entity}${typeof p.rowCount === 'number' ? ` · ${p.rowCount} rows` : ''}`;
+    const entity = t(`entities.${p.entity}`, { defaultValue: p.entity });
+    return typeof p.rowCount === 'number'
+      ? t('toolChips.lookedUpRows', { entity, count: p.rowCount, defaultValue: 'Looked up {{entity}} · {{count}} rows' })
+      : t('toolChips.lookedUp', { entity, defaultValue: 'Looked up {{entity}}' });
   }
-  return 'Checking your data…';
+  return t('toolChips.checking', 'Checking your data…');
 }
 
-export const ToolChips: React.FC<{ payloads: unknown[] }> = ({ payloads }) => (
+export const ToolChips: React.FC<{ payloads: unknown[] }> = ({ payloads }) => {
+  const { t } = useTranslation('assistantPanel');
+  return (
   <ul className="flex flex-wrap gap-1.5">
     {payloads.map((payload, i) => (
       <li
@@ -24,8 +31,9 @@ export const ToolChips: React.FC<{ payloads: unknown[] }> = ({ payloads }) => (
         className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary/40 px-2.5 py-1 text-sm text-muted-foreground"
       >
         <Icon name="check" aria-hidden className="size-3.5 shrink-0" />
-        <span className="tabular-nums">{toolLabel(payload)}</span>
+        <span className="tabular-nums">{toolLabel(payload, t)}</span>
       </li>
     ))}
   </ul>
-);
+  );
+};
