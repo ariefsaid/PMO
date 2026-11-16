@@ -1,7 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, Icon, RecordSection, useToast } from '@/src/components/ui';
-import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
+import { Button, ConfirmDialog, Icon, RecordMenu, RecordSection, useToast } from '@/src/components/ui';
 import { ReceiptPreviewButton } from '@/src/components/documents/targets/ReceiptPreviewButton';
 import { useExpenseReceipts } from '@/src/hooks/useExpenseReceipts';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -19,7 +18,6 @@ export const ExpenseReceiptsCard: React.FC<ExpenseReceiptsCardProps> = ({ claimI
   const { t } = useTranslation();
   const { toast } = useToast();
   const { list, upload, archive, download, progress, uploadError, clearUploadError } = useExpenseReceipts(claimId);
-  const isNarrow = useIsNarrow();
   const inputRef = useRef<HTMLInputElement>(null);
   const [pendingRemove, setPendingRemove] = useState<ExpenseReceiptRow | null>(null);
   const files = list.data ?? [];
@@ -85,29 +83,27 @@ export const ExpenseReceiptsCard: React.FC<ExpenseReceiptsCardProps> = ({ claimI
           {files.map((f) => {
             const name = fileName(f.file_path);
             return (
-              <li key={f.id} className="flex items-center gap-2 py-2 text-sm first:pt-0 last:pb-0">
-                <Icon name="file" className="size-3.5 shrink-0 text-muted-foreground" />
-                <span className={isNarrow ? 'min-w-0 flex-1 break-all line-clamp-2' : 'min-w-0 flex-1 truncate'} title={name}>{name}</span>
-                <span className="flex shrink-0 items-center gap-1">
-                  <ReceiptPreviewButton
-                    id={f.id}
-                    fileName={name}
-                    filePath={f.file_path}
-                    getSignedUrl={download}
-                    onDownload={() => open(f)}
-                    iconOnly={isNarrow}
-                  />
-                  <Button variant="ghost" size="sm" onClick={() => void open(f)}
-                    aria-label={t('expenses.receipts.download', 'Download {{name}}', { name })}>
-                    <Icon name="download" />
-                  </Button>
-                  {canWrite && (
-                    <Button variant="ghost" size="sm" onClick={() => setPendingRemove(f)}
-                      aria-label={t('expenses.receipts.remove', 'Remove {{name}}', { name })}>
-                      <Icon name="x" />
-                    </Button>
-                  )}
-                </span>
+              // One settled file row: icon, name on one line, a labelled Preview, then one menu for the rest
+              // (Download, Remove → confirm), so no two small targets sit side by side.
+              <li key={f.id} className="flex items-center gap-3 py-2 text-sm first:pt-0 last:pb-0">
+                <Icon name="file" className="size-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate" title={name}>{name}</span>
+                <ReceiptPreviewButton
+                  id={f.id}
+                  fileName={name}
+                  filePath={f.file_path}
+                  getSignedUrl={download}
+                  onDownload={() => open(f)}
+                  label={t('expenseClaims:receipts.previewShort', 'Preview')}
+                />
+                <RecordMenu
+                  ariaLabel={t('expenseClaims:receipts.menuAria', 'Receipt actions: {{name}}', { name })}
+                  triggerClassName="border-transparent bg-transparent"
+                  items={[
+                    { key: 'download', label: t('expenseClaims:receipts.downloadShort', 'Download'), onSelect: () => void open(f) },
+                    ...(canWrite ? [{ key: 'remove', label: t('expenseClaims:receipts.removeShort', 'Remove'), danger: true, onSelect: () => setPendingRemove(f) }] : []),
+                  ]}
+                />
               </li>
             );
           })}

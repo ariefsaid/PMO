@@ -80,11 +80,11 @@ const ExpenseClaims: React.FC = () => {
   // any unrelated re-render must not rebuild it. Only a language change can.
   const columns = useMemo<Column<ExpenseClaimListRow>[]>(() => [
     { key: 'claim_number', header: t('expenses.columns.number', 'Number'),
-      cell: (r) => <span className="whitespace-nowrap font-medium">{r.claim_number ?? '—'}</span>,
+      cell: (r) => <span className="whitespace-nowrap">{r.claim_number ?? '—'}</span>,
       exportValue: (r) => r.claim_number ?? '' },
     { key: 'kind', header: t('expenses.columns.kind', 'Type'), cell: (r) => expenseKindLabel(r.kind, t), exportValue: (r) => r.kind },
     { key: 'title', header: t('expenses.columns.title', 'Title'),
-      cell: (r) => <span className="truncate" title={r.title}>{r.title}</span>, exportValue: (r) => r.title },
+      cell: (r) => <span className="truncate font-semibold" title={r.title}>{r.title}</span>, exportValue: (r) => r.title },
     { key: 'claimant', header: t('expenses.columns.claimant', 'Claimant'),
       cell: (r) => r.claimant?.full_name ?? '—', exportValue: (r) => r.claimant?.full_name ?? '' },
     { key: 'project', header: t('expenses.columns.project', 'Project'),
@@ -163,25 +163,28 @@ const ExpenseClaims: React.FC = () => {
               onActivate={(r) => navigate(`/expenses/${r.id}`)}
               rowLabel={(r) => t('expenses.table.rowLabel', 'Open {{title}}', { title: r.title })}
               tableId="expenseclaims-table"
-              total={total}
-              pagination={{ page, pageSize: EXPENSE_PAGE_SIZE, onPageChange: setPage }}
               mobileCardTitle={(r) => (
                 <span className="flex min-w-0 items-start justify-between gap-3">
-                  <span className="min-w-0 break-words font-medium">{r.title}</span>
-                  <span className="shrink-0 font-semibold tabular-nums">{formatCurrency(Number(r.amount), r.currency, { precision: 'minor' })}</span>
+                  <span className="min-w-0 break-words font-semibold">{r.title}</span>
+                  <span className="shrink-0 tabular-nums">{formatCurrency(Number(r.amount), r.currency, { precision: 'minor' })}</span>
                 </span>
               )}
               mobileCardDetails={(r) => (
-                <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-control text-muted-foreground">
-                  <StatusPill record="expense" state={r.status} />
-                  <span className="min-w-0 break-words">{[
-                    r.project ? projectDisplayName(r.project) : t('expenses.overhead', 'Overhead'),
-                    r.budget_category ? budgetCategoryLabel(r.budget_category, t) : null,
-                    r.kind === 'advance' ? expenseKindLabel(r.kind, t) : null,
-                    r.claim_number, r.claimant?.full_name,
-                  ].filter(Boolean).join(' · ')}</span>
+                // Status sits in the line it qualifies (no row of its own); who and which number go last, quieter.
+                <div className="min-w-0 space-y-1 text-control text-muted-foreground">
+                  <p className="min-w-0 break-words">
+                    <StatusPill record="expense" state={r.status} className="mr-2 align-middle" />
+                    {[
+                      r.project ? projectDisplayName(r.project) : t('expenses.overhead', 'Overhead'),
+                      r.budget_category ? budgetCategoryLabel(r.budget_category, t) : null,
+                      r.kind === 'advance' ? expenseKindLabel(r.kind, t) : null,
+                    ].filter(Boolean).join(' · ')}
+                  </p>
+                  {(r.claim_number || r.claimant?.full_name) && <p className="min-w-0 break-words">{[r.claim_number, r.claimant?.full_name].filter(Boolean).join(' · ')}</p>}
                 </div>
               )}
+              total={total}
+              pagination={{ page, pageSize: EXPENSE_PAGE_SIZE, onPageChange: setPage }}
             />
           )}
         </>

@@ -7,13 +7,13 @@
     "reject": "Reject",
     "reopenPlan": "Edit and resubmit",
     "requestFunding": "Request funding",
-    "requestReplenishment": "Request replenishment",
+    "requestReplenishment": "Request top-up",
     "submitPlan": "Submit plan"
   },
   "amount": {
-    "approveTitle": "Approve the proposed float amount?",
-    "current": "Current float: {{amount}}",
-    "error": "Couldn't load the float amount changes",
+    "approveTitle": "Approve the proposed limit?",
+    "current": "Current limit: {{amount}}",
+    "error": "Couldn't load the limit changes",
     "history": {
       "amount": "Amount",
       "date": "Date",
@@ -22,14 +22,14 @@
       "status": "Status",
       "who": "Proposed by"
     },
-    "newAmount": "New float amount",
+    "newAmount": "New limit",
     "open": "Proposed {{amount}} on {{date}}: awaiting a senior approver.",
-    "propose": "Propose new amount",
-    "proposeConfirm": "Propose amount",
-    "proposeTitle": "Propose a new float amount",
+    "propose": "Propose new limit",
+    "proposeConfirm": "Propose limit",
+    "proposeTitle": "Propose a new limit",
     "proposed": "Amount proposed",
-    "rejectTitle": "Reject the proposed float amount?",
-    "title": "Float amount"
+    "rejectTitle": "Reject the proposed limit?",
+    "title": "Limit"
   },
   "approvals": {
     "error": "Couldn't load site cash awaiting you",
@@ -38,45 +38,45 @@
     "label": "Site cash awaiting you",
     "plan": "Plan {{month}}",
     "planKind": "Site cash plan",
-    "toApprove": "Replenishment to approve",
-    "toPay": "Replenishment to pay"
+    "toApprove": "Top-up to approve",
+    "toPay": "Top-up to pay"
   },
   "cash": {
     "title": "ERP cash account",
     "fixed": "· set once, cannot be changed",
-    "unset": "No cash account set. This float's cash movements are not posted to the ERP.",
+    "unset": "Not linked to an accounting cash account yet, so these movements stay in PMO.",
     "label": "ERP cash account name",
     "set": "Set account",
     "confirmTitle": "Set the cash account to {{account}}?",
-    "confirmBody": "The ERP checks it. Once set it cannot be changed, so set it before the float first moves cash.",
+    "confirmBody": "The ERP checks it. Once set it cannot be changed, so set it before this site cash first moves money.",
     "done": "Cash account set",
-    "locked": "This float's cash account can't be changed",
-    "taken": "That account belongs to another float",
+    "locked": "This site cash's cash account can't be changed",
+    "taken": "That account belongs to another site cash",
     "unfit": "That isn't a usable cash account",
     "unsupported": "The ERP connection can't take a cash account yet"
   },
   "confirm": {
-    "countBook": "Cash in hand by the books: {{amount}}",
+    "countBook": "Expected cash in hand: {{amount}}",
     "countTitle": "Record a cash count",
     "counted": "Counted cash",
-    "fundingBody": "Asks Finance to put cash into the float up to its amount.",
-    "fundingTitle": "Request funding for this float?",
+    "fundingBody": "Asks Finance to put cash in, up to the limit.",
+    "fundingTitle": "Request funding for this site cash?",
     "note": "Note (optional)",
     "noteRequired": "Note (required: the count differs from the books)",
     "notes": "Note (optional)",
     "reference": "Payment reference (optional)",
     "repTitle": "{{action}} {{number}}: {{amount}}?",
-    "requestBody": "Asks Finance to refill the float with the {{amount}} of receipts waiting.",
-    "requestTitle": "Request replenishment?"
+    "requestBody": "Asks Finance to top up the site cash with the {{amount}} of receipts waiting.",
+    "requestTitle": "Request a top-up?"
   },
   "counts": {
-    "book": "Book {{amount}}",
-    "counted": "Counted {{amount}}",
     "error": "Couldn't load counts",
     "none": "No cash count recorded yet.",
     "title": "Cash counts",
-    "variance": "Variance {{amount}}",
-    "loading": "Loading cash counts…"
+    "loading": "Loading cash counts…",
+    "countedLabel": "Counted",
+    "bookLabel": "Expected",
+    "varianceLabel": "Difference"
   },
   "note": {
     "readFull": "Read full note"
@@ -85,17 +85,17 @@
     "active": "Active",
     "back": "Site cash",
     "custodian": "Custodian: {{name}}",
-    "errorTitle": "Couldn't load this float",
-    "notFound": "Float not found",
+    "errorTitle": "Couldn't load this site cash",
+    "notFound": "Site cash not found",
     "notFoundSub": "It doesn't exist, or you don't have access to it.",
     "position": "Position",
-    "positionError": "Couldn't load this float's position",
-    "positionErrorSub": "No figure is shown and float actions are paused until the position loads.",
-    "floatName": "Float {{id}}",
-    "archived": "Archived"
+    "positionError": "Couldn't load the cash position",
+    "positionErrorSub": "No figure is shown and actions are paused until the position loads.",
+    "archived": "Archived",
+    "floatRef": "Ref. {{id}}"
   },
   "establish": {
-    "amount": "Float amount",
+    "amount": "Limit",
     "chooseProjectFirst": "Choose a project to see eligible custodians.",
     "custodian": "Custodian",
     "custodianNoun": "custodian",
@@ -105,10 +105,10 @@
     },
     "project": "Project",
     "projectNoun": "project",
-    "submit": "Establish float",
-    "subtitle": "A float is cash held on site by one custodian for one project.",
-    "title": "Establish site float",
-    "toast": "Float established"
+    "submit": "Set up site cash",
+    "subtitle": "Site cash is money held on site by one custodian for one project.",
+    "title": "Set up site cash",
+    "toast": "Site cash set up"
   },
   "exception": {
     "admin": "This is outside the approved site cash plan. No senior approver can act on it, so an Admin decides it.",
@@ -117,13 +117,13 @@
     "noRoute": "This is outside the approved site cash plan, so a senior approver decides it."
   },
   "form": {
-    "chargeToFloat": "Charge to site float",
-    "currentFloat": "The float it is charged to",
+    "chargeToFloat": "Charge to site cash",
+    "currentFloat": "The site cash it is charged to",
     "exceptionHint": "This is above this month's plan: it goes to a senior approver as an out-of-plan item.",
     "helper": "Cash paid out of site cash held by the custodian.",
     "limitHint": "Above the procurement limit ({{limit}}): site cash will refuse this. Raise it as a procurement request.",
-    "linkFailed": "Saved, but not charged to the site float",
-    "noFloat": "Not charged to a float",
+    "linkFailed": "Saved, but not charged to the site cash",
+    "noFloat": "Not charged to site cash",
     "remainingHint": "Remaining this month for this category: {{amount}}.",
     "unknownCurrency": "Unknown"
   },
@@ -133,10 +133,10 @@
       "project": "Project"
     },
     "countOk": "Matched",
-    "description": "Cash held on site, by float: what is in hand, what is out as advances and what is waiting to be replenished.",
-    "empty": "No site floats yet",
-    "emptySub": "Finance or an Admin establishes a float for a project and names its custodian.",
-    "error": "Couldn't load site cash floats",
+    "description": "Cash held on site, per project: what is in hand, what is out as advances and what is waiting for a top-up.",
+    "empty": "No site cash yet",
+    "emptySub": "Finance or an Admin sets up site cash for a project and names its custodian.",
+    "error": "Couldn't load site cash",
     "errorSub": "The request failed. Check your connection and try again.",
     "positionUnavailable": "Unavailable",
     "rowLabel": "Open {{project}}",
@@ -152,15 +152,15 @@
       "approveTitle": "Approve the {{month}} plan?",
       "cancelTitle": "Cancel the {{month}} plan?",
       "notes": "Note to the author (optional)",
-      "rejectTitle": "Reject the {{month}} plan?"
+      "rejectTitle": "Reject the {{month}} plan?",
+      "keep": "Keep plan"
     },
-    "draftNumber": "Draft",
     "drawn": "Drawn",
     "error": "Couldn't load plans",
     "exception": "Out of plan",
     "exceptions": "Exceptions",
     "hideLines": "Hide lines",
-    "late": "Late",
+    "late": "Approved after the month began",
     "linesError": "Couldn't load the plan lines",
     "month": "Month",
     "new": "New plan",
@@ -184,21 +184,25 @@
     "toast": {
       "created": "Draft plan created",
       "updated": "Plan updated"
-    }
+    },
+    "allPlans": "All plans",
+    "totalLabel": "Total",
+    "menuAria": "More actions for the {{month}} plan"
   },
   "position": {
-    "advancesOut": "Advances out",
+    "advancesOut": "Advances given",
     "cash": "Cash in hand",
-    "float": "Float",
-    "gap": "Gap",
+    "float": "Limit",
+    "gap": "Still needed",
     "gapFlag": "Books do not balance",
-    "inFlight": "Replenishment in flight",
-    "lastCount": "Last count {{date}}: variance {{variance}}",
+    "inFlight": "Top-up on its way",
+    "lastCount": "Last count {{date}}: difference {{variance}}",
     "lastCountColumn": "Last count",
-    "notFunded": "Not yet funded",
+    "notFunded": "Not funded yet",
     "receiptsWaiting": "Receipts waiting",
     "topUp": "Top-up due {{amount}}",
-    "varianceFlag": "Count variance"
+    "varianceFlag": "Count differs",
+    "limitPending": "{{amount}} waiting for approval"
   },
   "posting": {
     "pending": "Posting to ERP",
@@ -208,26 +212,26 @@
     "truncated": "Showing posting status for the first {{count}} movements only."
   },
   "receipts": {
-    "error": "Couldn't load the float's records",
-    "inRequest": "In a replenishment request",
-    "none": "Nothing has been charged to this float yet.",
-    "replenished": "Replenished",
+    "error": "Couldn't load these records",
+    "inRequest": "Paid, in a top-up request",
+    "none": "Nothing has been charged to this site cash yet.",
+    "replenished": "Paid, topped up",
     "title": "Receipts",
-    "waiting": "Waiting"
+    "waiting": "Paid, waiting for top-up"
   },
   "rep": {
     "actions": "Actions",
     "amount": "Amount",
-    "error": "Couldn't load replenishments",
+    "error": "Couldn't load top-ups",
     "funding": "Funding",
     "kind": "Type",
-    "none": "No replenishments yet",
+    "none": "No top-ups yet",
     "noneSub": "The custodian requests one when receipts are waiting.",
-    "emptyLine": "No replenishments yet. The custodian requests one when receipts are waiting.",
+    "emptyLine": "No top-ups yet. The custodian requests one when receipts are waiting.",
     "number": "Number",
-    "replenishment": "Replenishment",
+    "replenishment": "Top-up",
     "status": "Status",
-    "title": "Replenishments"
+    "title": "Top-ups"
   },
   "status": {
     "approved": "Approved",
@@ -246,7 +250,7 @@
   "history": {
     "title": "History",
     "noReceipts": "No receipts yet",
-    "noReplenishments": "No replenishments yet",
+    "noReplenishments": "No top-ups yet",
     "noCounts": "No cash counts yet"
   }
 }

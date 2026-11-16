@@ -1603,7 +1603,6 @@
       "removeAria": "Remove line {{description}}",
       "removeTitle": "Remove this line?",
       "save": "Save line",
-      "sectionLegend": "Expense",
       "title": "Lines",
       "total": "Total",
       "type": "Type"
@@ -1613,7 +1612,6 @@
       "attach": "Attach receipt",
       "attachAria": "Choose a receipt file",
       "attached": "Receipt attached",
-      "download": "Download {{name}}",
       "empty": "No receipts attached.",
       "preview": "Preview receipt",
       "error": "Couldn't load receipts.",
@@ -4408,7 +4406,7 @@
       "formNotConnected": "Expense posting is off. This saves in PMO only.",
       "formInactive": "Expense posting is off. This saves in PMO only.",
       "formUnknown": "Couldn't check expense posting. This saves in PMO only.",
-      "cardInactive": "Not posted to accounting: expense posting isn't active for this organization.",
+      "cardInactive": "Kept in PMO only: expense posting to accounting is off.",
       "cardUnknown": "Couldn't check whether this claim will reach accounting."
     }
   },

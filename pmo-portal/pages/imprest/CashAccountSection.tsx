@@ -20,8 +20,8 @@ export const CashAccountSection: React.FC<{ floatId: string; account: string | n
   const holdLeave = useCallback((leave: () => void, stay: () => void) => setPendingLeave({ leave, stay }), []);
   useUnsavedChangesGuard({ dirty: Boolean(name), guardHistory: true, onBlocked: holdLeave });
   const refusals = {
-    'imprest-cash-account-locked': t('imprest:cash.locked', "This float's cash account can't be changed"),
-    'imprest-cash-account-taken': t('imprest:cash.taken', 'That account belongs to another float'),
+    'imprest-cash-account-locked': t('imprest:cash.locked', "This site cash's cash account can't be changed"),
+    'imprest-cash-account-taken': t('imprest:cash.taken', 'That account belongs to another site cash'),
     'imprest-cash-account-unfit': t('imprest:cash.unfit', "That isn't a usable cash account"),
     'imprest-cash-account-unsupported': t('imprest:cash.unsupported', "The ERP connection can't take a cash account yet"),
   };
@@ -38,7 +38,7 @@ export const CashAccountSection: React.FC<{ floatId: string; account: string | n
           <p><span className="font-medium">{account}</span> <span className="text-muted-foreground">{t('imprest:cash.fixed', '· set once, cannot be changed')}</span></p>
         ) : (
           <div className="space-y-2">
-            <p className="text-muted-foreground">{t('imprest:cash.unset', 'No cash account set. This float\'s cash movements are not posted to the ERP.')}</p>
+            <p className="text-muted-foreground">{t('imprest:cash.unset', 'Not linked to an accounting cash account yet, so these movements stay in PMO.')}</p>
             {may('edit', 'imprestFloat') && (
               <div className="flex flex-wrap items-end gap-2">
                 <TextField label={t('imprest:cash.label', 'ERP cash account name')} value={name} onChange={setName} spellCheck={false} />
@@ -51,7 +51,7 @@ export const CashAccountSection: React.FC<{ floatId: string; account: string | n
       <ConfirmDialog
         open={confirming}
         title={t('imprest:cash.confirmTitle', 'Set the cash account to {{account}}?', { account: value })}
-        description={<p>{t('imprest:cash.confirmBody', 'The ERP checks it. Once set it cannot be changed, so set it before the float first moves cash.')}</p>}
+        description={<p>{t('imprest:cash.confirmBody', 'The ERP checks it. Once set it cannot be changed, so set it before this site cash first moves money.')}</p>}
         confirmLabel={t('imprest:cash.set', 'Set account')}
         loading={bind.isPending}
         onConfirm={() => void submit()}

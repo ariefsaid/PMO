@@ -15,7 +15,7 @@ import {
 import { availableExpenseActions, settlementPreview } from '@/src/lib/expenses/expenseRules';
 import { approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatDay } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { statusLabel } from '@/src/lib/status/statusMap';
 import { ExpenseDecisionBar } from './expenses/ExpenseDecisionBar';
@@ -44,6 +44,7 @@ const ExpenseClaimDetail: React.FC = () => {
   const projectChoices = useProjectChoices();
   const ownAdvances = useOwnAdvanceOptions(claim?.advance_id ?? null);
   const [editOpen, setEditOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
   const backLabel = t('expenses.detail.back', 'Expenses');
   const goBack = () => navigate('/expenses');
 
@@ -94,6 +95,28 @@ const ExpenseClaimDetail: React.FC = () => {
     }
   };
   const returnedToastLabel = statusLabel('expense', 'Rejected', t);
+  // The record's one finding, under the title: where the claim is and who has it next (from fields and the route the page already reads).
+  const lineCount = linesQuery.data?.length ?? 0;
+  const approverNames = route && route.route !== 'admin' && route.approvers.length > 0
+    ? route.approvers.map((a) => a.fullName).join(t('expenseClaims:detail.statusLine.joiner', ' or ')) : null;
+  const statusLine = claim.status === 'Draft' && !hasReturnDetails
+    ? (claim.kind === 'claim' ? t('expenseClaims:detail.statusLine.draft', { defaultValue: 'Not sent yet · {{count}} lines', count: lineCount }) : t('expenseClaims:detail.statusLine.draftAdvance', 'Not sent yet'))
+    : claim.status === 'Submitted' && claim.submitted_at
+      ? approverNames
+        ? t('expenseClaims:detail.statusLine.with', { defaultValue: 'With {{names}} since {{date}} · lines locked', names: approverNames, date: formatDay(claim.submitted_at) })
+        : t('expenseClaims:detail.statusLine.waiting', { defaultValue: 'Waiting for approval since {{date}} · lines locked', date: formatDay(claim.submitted_at) })
+      : claim.status === 'Approved' && claim.approved_at
+        ? t('expenseClaims:detail.statusLine.approved', { defaultValue: 'Approved {{date}} · waiting for payment', date: formatDay(claim.approved_at) })
+        : claim.status === 'Paid' && (claim.paid_on ?? claim.paid_at)
+          ? t('expenseClaims:detail.statusLine.paid', { defaultValue: 'Paid {{date}}', date: formatDay((claim.paid_on ?? claim.paid_at) as string) })
+          : null;
+  const menuItems = [
+    ...(canEdit ? [{ key: 'edit', label: t('expenses.detail.editDetails', 'Edit details'), onSelect: () => setEditOpen(true) }] : []),
+    ...(actions.includes('cancel') ? [{
+      key: 'cancel', danger: true, onSelect: () => setCancelOpen(true),
+      label: claim.kind === 'claim' ? t('expenseClaims:actions.cancelClaim', 'Cancel claim') : t('expenses.actions.cancel', 'Cancel'),
+    }] : []),
+  ];
   const money = (v: number) => formatCurrency(v, claim.currency, { precision: 'minor' });
   // Facts that no other part of the screen states. A claim's amount is its Lines total, so only an advance (no lines) shows it here.
   const stats: PageStat[] = [
@@ -113,6 +136,7 @@ const ExpenseClaimDetail: React.FC = () => {
       <RecordHeader
         panelInset
         actionsOnTitleRow
+        clampNameOnMobile
         name={claim.title}
         status={
           <span data-testid="expense-status" data-status={claim.status}>
@@ -133,9 +157,12 @@ const ExpenseClaimDetail: React.FC = () => {
           </span>
         }
         stats={stats}
-        actions={<ExpenseDecisionBar claim={claim} actions={actions} advanceOutstanding={outstanding} hideReopen={canReopenFromBanner} returnedToastLabel={returnedToastLabel} />}
-        menuItems={canEdit ? [{ key: 'edit', label: t('expenses.detail.editDetails', 'Edit details'), onSelect: () => setEditOpen(true) }] : undefined}
+        actions={<ExpenseDecisionBar claim={claim} actions={actions} advanceOutstanding={outstanding}
+          submitBlockedReason={claim.kind === 'claim' && linesQuery.isSuccess && lineCount === 0 ? t('expenseClaims:actions.submitNeedsLine', 'Add a line first') : undefined} hideReopen={canReopenFromBanner} returnedToastLabel={returnedToastLabel}
+          cancelOpen={cancelOpen} onCancelOpenChange={setCancelOpen} />}
+        menuItems={menuItems.length > 0 ? menuItems : undefined}
       >
+        {statusLine && <p data-testid="expense-status-line" className="text-foreground">{statusLine}</p>}
         {claim.advance_id && (
           <p>
             <Link to={`/expenses/${claim.advance_id}`} className="text-primary-text hover:underline">

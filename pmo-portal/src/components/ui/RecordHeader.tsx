@@ -23,6 +23,8 @@ export interface RecordHeaderProps {
   statusBelowMetaOnMobile?: boolean;
   /** Phone: the shell's app bar already shows the name, so the h1 stays for assistive tech only (one visible title). */
   titleInAppBarOnPhone?: boolean;
+  /** Phone: the name takes at most two lines with the status under it; a tap on a cut name shows it whole. */
+  clampNameOnMobile?: boolean;
   /** Quiet identity line under the title (reference number, client). Not a sentence. */
   meta?: React.ReactNode;
   metaId?: string;
@@ -77,6 +79,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
   status,
   statusBelowMetaOnMobile = false,
   titleInAppBarOnPhone = false,
+  clampNameOnMobile = false,
   meta,
   metaId,
   metaFullWidth = false,
@@ -97,6 +100,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
   const label = menuLabel ?? t('uxs14.moreActions', 'More actions');
   const hasMenu = Boolean(menuItems && menuItems.length > 0);
   const isDrawer = variant === 'drawer';
+  const [nameOpen, setNameOpen] = React.useState(false);
   const zone = actions || primaryAction || hasMenu ? (
     <span data-testid="record-header-actions" className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
       {actionsAfterPrimary ? <>{primaryAction}{actions}</> : <>{actions}{primaryAction}</>}
@@ -129,13 +133,18 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
             statusBelowMetaOnMobile
               ? 'grid grid-cols-[minmax(0,1fr)_auto] items-baseline sm:flex sm:flex-nowrap'
               : 'flex flex-nowrap items-baseline',
+            clampNameOnMobile && 'max-sm:flex-col max-sm:items-start max-sm:gap-1',
           )}>
-            <h1 className={cn(
+            <h1
+              title={clampNameOnMobile && typeof name === 'string' ? name : undefined}
+              onClick={clampNameOnMobile ? () => setNameOpen((open) => !open) : undefined}
+              className={cn(
               'min-w-0 text-page font-semibold',
               statusBelowMetaOnMobile
                 ? 'col-span-2 row-start-1 break-words sm:col-span-1 sm:row-start-auto sm:flex-[0_1_auto]'
                 : 'flex-[0_1_auto] truncate',
               titleInAppBarOnPhone && 'max-md:sr-only',
+              clampNameOnMobile && cn('max-sm:max-w-full max-sm:whitespace-normal max-sm:break-words', !nameOpen && 'max-sm:line-clamp-2'),
               !isDrawer && 'sm:truncate',
             )}>{name}</h1>
             {status != null && status !== false && <span className={cn(

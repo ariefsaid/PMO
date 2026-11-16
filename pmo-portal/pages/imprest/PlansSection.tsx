@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, ListState, RecordSection, SelectField, StatusPill, TextArea, TextField, useToast } from '@/src/components/ui';
+import { Button, ConfirmDialog, ListState, RecordMenu, RecordSection, SelectField, StatusPill, TextArea, TextField, useToast } from '@/src/components/ui';
+import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 import { CanWrite } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -76,6 +77,8 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
   /** The usage block already says there is no plan: do not say it twice below it. */
   usageEmpty?: boolean }> = ({ floatId, custodianId, currency, currentMonth, usage, usageEmpty = false }) => {
   const { t } = useTranslation();
+  // Phone: three buttons fill the row's line in Bahasa (the group then starts near the text edge), so Cancel moves into the row's ⋯ menu.
+  const isNarrow = useIsNarrow();
   const { toast } = useToast();
   const userId = useAuth().currentUser?.id ?? null;
   const { realRole } = useEffectiveRole();
@@ -101,11 +104,11 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
       flush
       actions={
         <CanWrite entity="imprestPlan" action="create">
-          <div className="flex flex-wrap items-center justify-end gap-2">
-          <SelectField hideLabel compact label={t('imprest:plan.month', 'Month')} value={month} onChange={setMonth}
+          <div data-actions-wide="" className="flex flex-wrap items-center justify-end gap-2 max-sm:w-full">
+          <SelectField hideLabel compact wrapperClassName="max-sm:basis-full" label={t('imprest:plan.month', 'Month')} value={month} onChange={setMonth}
             options={[{ value: currentMonth, label: t('imprest:plan.thisMonth', 'This month ({{month}})', { month: monthLabel(currentMonth) }) },
               { value: nextMonth(currentMonth), label: t('imprest:plan.nextMonth', 'Next month ({{month}})', { month: monthLabel(nextMonth(currentMonth)) }) }]} />
-          <Button variant={plans.isPending || plans.isError || !plans.data || plans.data.rows.length === 0 ? 'primary' : 'outline'} disabled={create.isPending}
+          <Button variant={plans.isPending || plans.isError || !plans.data || plans.data.rows.length === 0 ? 'primary' : 'outline'} size="sm" disabled={create.isPending}
             onClick={() => void run(() => create.mutateAsync({ floatId, month }), t('imprest:plan.toast.created', 'Draft plan created'))}>
             {t('imprest:plan.new', 'New plan')}
           </Button>
@@ -121,18 +124,25 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
         )}
         {!plans.isPending && !plans.isError && plans.data && (plans.data.rows.length === 0
           ? <p className="text-sm text-muted-foreground">{t('imprest:plan.noPlans', 'No plans yet. The custodian drafts one per month.')}</p>
-          : <ul className="divide-y divide-border">
+          : <>
+          {usage != null && <h3 className="pb-2 pt-[var(--panel-inset)] text-sm font-semibold text-foreground">{t('imprest:plan.allPlans', 'All plans')}</h3>}
+          <ul className="divide-y divide-border">
             {plans.data.rows.map((plan) => {
               const actions = availablePlanActions({ userId, realRole, custodianId, plan });
               const editable = userId === plan.author_id && (plan.status === 'Draft' || plan.status === 'Rejected');
+              // The first row sits under its heading at the panels' heading gap (12-16 px to its text), not a row's own 16 px padding on top.
               return (
-                <li key={plan.id} className={cn('py-4 text-sm', usage == null && 'first:pt-0')}>
+                <li key={plan.id} className="py-4 text-sm first:pt-0">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                    <span className="font-medium">{monthLabel(plan.month)}</span>
-                    <span className="text-muted-foreground">{plan.number ?? t('imprest:plan.draftNumber', 'Draft')}</span>
+                    <span className="font-semibold">{monthLabel(plan.month)}</span>
+                    {/* A draft has no number yet; its pill already says Draft. */}
+                    {plan.number && <span className="text-muted-foreground">{plan.number}</span>}
                     <StatusPill record="imprest" state={plan.status} />
-                    {plan.is_late && <span className="text-muted-foreground">{t('imprest:plan.late', 'Late')}</span>}
-                    <span className="flex-1 text-right tabular-nums">{formatCurrency(Number(plan.total), currency)}</span>
+                    {plan.is_late && <span className="text-muted-foreground">{t('imprest:plan.late', 'Approved after the month began')}</span>}
+                    {/* The figure carries its noun, so the row reads without a table header. */}
+                    <span className="ml-auto tabular-nums"><span className="mr-1 text-muted-foreground">{t('imprest:plan.totalLabel', 'Total')}</span>{formatCurrency(Number(plan.total), currency)}</span>
+                    {/* Phone: the row's buttons take their own line, right-aligned like a panel's heading actions, so no text starts on a button's inset. */}
+                    <div className="flex flex-wrap items-center gap-2 max-sm:basis-full max-sm:justify-end">
                     <Button variant="ghost" size="sm" aria-expanded={open === plan.id} onClick={() => setOpen((c) => (c === plan.id ? null : plan.id))}>
                       {open === plan.id ? t('imprest:plan.hideLines', 'Hide lines') : t('imprest:plan.showLines', 'Show lines')}
                     </Button>
@@ -140,14 +150,19 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
                     {actions.includes('reopenPlan') && <Button variant="outline" size="sm" disabled={transition.isPending} onClick={() => void move(plan, 'reopenPlan')}>{t('imprest:actions.reopenPlan', 'Edit and resubmit')}</Button>}
                     {actions.includes('approvePlan') && <Button variant="primary" size="sm" onClick={() => setDialog({ plan, action: 'approvePlan' })}>{t('imprest:actions.approve', 'Approve')}</Button>}
                     {actions.includes('rejectPlan') && <Button variant="outline" size="sm" onClick={() => setDialog({ plan, action: 'rejectPlan' })}>{t('imprest:actions.reject', 'Reject')}</Button>}
-                    {actions.includes('cancelPlan') && <Button variant="ghost" size="sm" onClick={() => setDialog({ plan, action: 'cancelPlan' })}>{t('imprest:actions.cancel', 'Cancel')}</Button>}
+                    {actions.includes('cancelPlan') && (isNarrow
+                      ? <RecordMenu ariaLabel={t('imprest:plan.menuAria', 'More actions for the {{month}} plan', { month: monthLabel(plan.month) })}
+                          items={[{ key: 'cancel', label: t('imprest:actions.cancel', 'Cancel'), danger: true, onSelect: () => setDialog({ plan, action: 'cancelPlan' }) }]} />
+                      : <Button variant="ghost" size="sm" onClick={() => setDialog({ plan, action: 'cancelPlan' })}>{t('imprest:actions.cancel', 'Cancel')}</Button>)}
+                    </div>
                   </div>
                   {plan.decision_notes && plan.status === 'Rejected' && <p role="note" className="mt-1 text-muted-foreground">{t('imprest:plan.rejectionNote', 'Rejected: {{note}}', { note: plan.decision_notes })}</p>}
                   {open === plan.id && <div className="mt-2 border-t border-border pt-2"><PlanLines plan={plan} currency={currency} editable={editable} /></div>}
                 </li>
               );
             })}
-          </ul>)}
+          </ul>
+          </>)}
       </div>}
       <ConfirmDialog
         open={dialog !== null}
@@ -160,6 +175,8 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
           {dialog?.action === 'rejectPlan' && <TextArea label={t('imprest:plan.confirm.notes', 'Note to the author (optional)')} value={notes} onChange={setNotes} />}
         </div>}
         confirmLabel={dialog?.action === 'approvePlan' ? t('imprest:actions.approve', 'Approve') : dialog?.action === 'rejectPlan' ? t('imprest:actions.reject', 'Reject') : t('imprest:actions.cancel', 'Cancel')}
+        // Cancelling a plan: the dismiss button must not also read "Cancel".
+        cancelLabel={dialog?.action === 'cancelPlan' ? t('imprest:plan.confirm.keep', 'Keep plan') : undefined}
         loading={transition.isPending}
         onConfirm={() => { if (dialog) void move(dialog.plan, dialog.action, notes.trim() ? { notes: notes.trim() } : {}); }}
         onCancel={() => { setDialog(null); setNotes(''); }}

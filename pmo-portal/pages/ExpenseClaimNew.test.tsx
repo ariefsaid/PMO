@@ -176,7 +176,7 @@ describe('Expense claim one-page capture (AC-EXP1-001..005)', () => {
  it('AC-EXP1-005 keeps the create permission gate unchanged', () => { h.may.mockReturnValue(false); renderPage(); expect(screen.getByText(/do not have permission/i)).toBeInTheDocument(); expect(h.create).not.toHaveBeenCalled(); expect(h.capture).not.toHaveBeenCalled(); });
  it('AC-EXP1-003 leaving an untouched page creates no claim or lines', () => { renderPage(); fireEvent.click(screen.getByRole('button', { name: 'Cancel' })); expect(h.navigate).toHaveBeenCalledWith('/expenses'); expect(h.create).not.toHaveBeenCalled(); expect(h.capture).not.toHaveBeenCalled(); expect(h.addLine).not.toHaveBeenCalled(); });
  it('holds navigation after entry until the user confirms discarding unsaved values', () => { renderPage(); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Unsaved trip' } }); fireEvent.click(screen.getByRole('button', { name: 'Cancel' })); expect(screen.getByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument(); expect(h.navigate).not.toHaveBeenCalled(); fireEvent.click(screen.getByRole('button', { name: 'Keep editing' })); expect(h.navigate).not.toHaveBeenCalled(); expect(screen.getByLabelText(/Title/)).toHaveValue('Unsaved trip'); expect(h.create).not.toHaveBeenCalled(); expect(h.capture).not.toHaveBeenCalled(); });
- it('treats a float selection by itself as unsaved and keeps it after Keep editing', () => { h.choices = [{ float_id: 'f1', project_name: 'Project One', custodian_name: 'Custodian', currency: 'IDR' }]; renderPage(); fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p1' } }); fireEvent.change(screen.getByLabelText('Charge to site float'), { target: { value: 'f1' } }); expect(screen.getByLabelText(/Title/)).toHaveValue(''); fireEvent.click(screen.getByRole('button', { name: 'Cancel' })); expect(screen.getByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument(); expect(h.navigate).not.toHaveBeenCalled(); fireEvent.click(screen.getByRole('button', { name: 'Keep editing' })); expect(screen.getByLabelText('Charge to site float')).toHaveValue('f1'); expect(h.navigate).not.toHaveBeenCalled(); expect(h.capture).not.toHaveBeenCalled(); });
+ it('treats a float selection by itself as unsaved and keeps it after Keep editing', () => { h.choices = [{ float_id: 'f1', project_name: 'Project One', custodian_name: 'Custodian', currency: 'IDR' }]; renderPage(); fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p1' } }); fireEvent.change(screen.getByLabelText('Charge to site cash'), { target: { value: 'f1' } }); expect(screen.getByLabelText(/Title/)).toHaveValue(''); fireEvent.click(screen.getByRole('button', { name: 'Cancel' })); expect(screen.getByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument(); expect(h.navigate).not.toHaveBeenCalled(); fireEvent.click(screen.getByRole('button', { name: 'Keep editing' })); expect(screen.getByLabelText('Charge to site cash')).toHaveValue('f1'); expect(h.navigate).not.toHaveBeenCalled(); expect(h.capture).not.toHaveBeenCalled(); });
  it('suggests a title from the selected receipt until the claimant edits it', () => { renderPage(); fireEvent.change(screen.getByLabelText('Receipt (optional)'), { target: { files: [new File(['receipt'], 'site-visit.pdf', { type: 'application/pdf' })] } }); expect(screen.getByLabelText(/Title/)).toHaveValue('site-visit'); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Reviewed visit' } }); fireEvent.change(screen.getByLabelText('Receipt (optional)'), { target: { files: [new File(['receipt'], 'another.pdf', { type: 'application/pdf' })] } }); expect(screen.getByLabelText(/Title/)).toHaveValue('Reviewed visit'); });
  it('AC-EXP1-004 lands on the saved draft and cleans up an unconfirmed receipt when capture fails', async () => { h.capture.mockRejectedValueOnce(Object.assign(new Error('receipt upload failed'), { claimId: 'claim-1', draftSaved: true })); renderPage(); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Travel expenses' } }); fireEvent.change(screen.getByLabelText('Receipt (optional)'), { target: { files: [new File(['receipt'], 'receipt.pdf', { type: 'application/pdf' })] } }); fireEvent.click(screen.getByRole('button', { name: 'Save draft' })); await waitFor(() => expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true })); expect(h.cleanup).toHaveBeenCalledTimes(1); expect(h.cleanup).toHaveBeenCalledWith({ beforeConfirmationOnly: true }); await waitFor(() => expect(document.querySelector('[data-sonner-toast]')).toHaveTextContent(/receipt upload failed/i)); });
  it('AC-EXP1-004 prevents overlapping submissions until the capture request settles', async () => { let resolveCapture!: (claimId: string) => void; h.capture.mockImplementationOnce(() => new Promise((resolve) => { resolveCapture = resolve; })); renderPage(); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Trip' } }); const saveButton = screen.getByRole('button', { name: 'Save draft' }); fireEvent.click(saveButton); fireEvent.click(saveButton); expect(h.capture).toHaveBeenCalledTimes(1); expect(saveButton).toBeDisabled(); resolveCapture('claim-1'); await waitFor(() => expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true })); });
@@ -245,7 +245,7 @@ describe('Expense claim one-page capture (AC-EXP1-001..005)', () => {
  it('sends the chosen advance with the header', async () => { renderPage(); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Trip' } }); fireEvent.change(screen.getByLabelText('Settle against advance'), { target: { value: 'adv-1' } }); fireEvent.change(screen.getByLabelText(/^Date/), { target: { value: '2026-10-20' } }); fireEvent.change(screen.getByLabelText(/^Type/), { target: { value: 'Travel' } }); fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: 'Fare' } }); fireEvent.change(screen.getByLabelText(/^Amount/), { target: { value: '5' } }); fireEvent.click(screen.getByRole('button', { name: 'Save draft' })); await waitFor(() => expect(h.capture).toHaveBeenCalled()); expect(h.capture.mock.calls[0][0].header).toMatchObject({ advanceId: 'adv-1' }); });
 });
 
-describe('Charge to site float (AC-IMP-084, FR-IMP-072)', () => {
+describe('Charge to site cash (AC-IMP-084, FR-IMP-072)', () => {
   const FLOATS = [{ float_id: 'f1', custodian_name: 'Cass Custodian', remaining: 500000 }];
   const fill = (amount: string) => {
     fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Diesel' } });
@@ -256,12 +256,12 @@ describe('Charge to site float (AC-IMP-084, FR-IMP-072)', () => {
   };
   beforeEach(() => { vi.clearAllMocks(); h.may.mockReturnValue(true); h.claims = []; h.readiness = 'ready'; h.choices = FLOATS; h.choicesArgs = []; h.limit = null; h.orgCurrency = { currency: 'IDR', isResolved: true, isError: false }; h.setFloat.mockResolvedValue(undefined); h.capture.mockResolvedValue('claim-1'); h.cleanup.mockResolvedValue(undefined); });
 
-  it('AC-IMP-084 Charge to site float lists only floats on the chosen project', () => {
+  it('AC-IMP-084 Charge to site cash lists only floats on the chosen project', () => {
     renderPage();
     expect(h.choicesArgs.at(-1)?.[0]).toBeUndefined();
     fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p1' } });
     expect(h.choicesArgs.at(-1)?.[0]).toBe('p1');
-    const field = screen.getByLabelText('Charge to site float');
+    const field = screen.getByLabelText('Charge to site cash');
     expect(within(field).getByRole('option', { name: /Cass Custodian/ })).toHaveValue('f1');
     fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p2' } });
     expect(h.choicesArgs.at(-1)?.[0]).toBe('p2');
@@ -272,7 +272,7 @@ describe('Charge to site float (AC-IMP-084, FR-IMP-072)', () => {
     renderPage();
     fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p1' } });
     expect(screen.queryByLabelText('Settle against advance')).toBeNull(); // adv-1 is on f1, nothing is charged to f1 yet
-    fireEvent.change(screen.getByLabelText('Charge to site float'), { target: { value: 'f1' } });
+    fireEvent.change(screen.getByLabelText('Charge to site cash'), { target: { value: 'f1' } });
     expect(within(screen.getByLabelText('Settle against advance')).getByRole('option', { name: /EXP-1/ })).toHaveValue('adv-1');
   });
 
@@ -280,14 +280,14 @@ describe('Charge to site float (AC-IMP-084, FR-IMP-072)', () => {
     h.choices = [];
     renderPage();
     fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p1' } });
-    expect(screen.queryByLabelText('Charge to site float')).toBeNull();
+    expect(screen.queryByLabelText('Charge to site cash')).toBeNull();
   });
 
   it('AC-IMP-084 the field shows the month\'s remaining and the exception hint', () => {
     renderPage();
     fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p1' } });
     fireEvent.change(screen.getByLabelText('Budget category'), { target: { value: 'Vehicle' } });
-    fireEvent.change(screen.getByLabelText('Charge to site float'), { target: { value: 'f1' } });
+    fireEvent.change(screen.getByLabelText('Charge to site cash'), { target: { value: 'f1' } });
     fill('700000');
     expect(screen.getByText(/500,000/)).toBeInTheDocument();
     expect(screen.getByText(/above this month's plan/i)).toBeInTheDocument();
@@ -300,7 +300,7 @@ describe('Charge to site float (AC-IMP-084, FR-IMP-072)', () => {
     renderPage();
     fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p1' } });
     fireEvent.change(screen.getByLabelText('Budget category'), { target: { value: 'Vehicle' } });
-    fireEvent.change(screen.getByLabelText('Charge to site float'), { target: { value: 'f1' } });
+    fireEvent.change(screen.getByLabelText('Charge to site cash'), { target: { value: 'f1' } });
     fill('100');
     const note = screen.getByRole('note');
     expect(note).toHaveTextContent(formatCurrency(500000, 'USD'));
@@ -311,7 +311,7 @@ describe('Charge to site float (AC-IMP-084, FR-IMP-072)', () => {
     h.choices = [{ ...FLOATS[0], project_name: 'North Terminal' }, { ...FLOATS[0], float_id: 'f2', project_name: 'Depot', remaining: 1 }];
     renderPage();
     fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p1' } });
-    const field = screen.getByLabelText('Charge to site float');
+    const field = screen.getByLabelText('Charge to site cash');
     expect(within(field).getByRole('option', { name: 'North Terminal · Cass Custodian' })).toHaveValue('f1');
     expect(within(field).getByRole('option', { name: 'Depot · Cass Custodian' })).toHaveValue('f2');
   });
@@ -320,7 +320,7 @@ describe('Charge to site float (AC-IMP-084, FR-IMP-072)', () => {
     h.limit = 2000000;
     renderPage();
     fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p1' } });
-    fireEvent.change(screen.getByLabelText('Charge to site float'), { target: { value: 'f1' } });
+    fireEvent.change(screen.getByLabelText('Charge to site cash'), { target: { value: 'f1' } });
     fill('2500000');
     expect(screen.getByText(/procurement limit/i)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText(/^Amount/), { target: { value: '1500000' } });
@@ -334,7 +334,7 @@ describe('Charge to site float (AC-IMP-084, FR-IMP-072)', () => {
     renderPage();
     fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p1' } });
     fireEvent.change(screen.getByLabelText('Budget category'), { target: { value: 'Vehicle' } });
-    fireEvent.change(screen.getByLabelText('Charge to site float'), { target: { value: 'f1' } });
+    fireEvent.change(screen.getByLabelText('Charge to site cash'), { target: { value: 'f1' } });
     fill('200');
 
     const note = screen.getByRole('note');
@@ -347,7 +347,7 @@ describe('Charge to site float (AC-IMP-084, FR-IMP-072)', () => {
   it('AC-IMP-084 a chosen float is charged to the saved claim', async () => {
     renderPage();
     fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p1' } });
-    fireEvent.change(screen.getByLabelText('Charge to site float'), { target: { value: 'f1' } });
+    fireEvent.change(screen.getByLabelText('Charge to site cash'), { target: { value: 'f1' } });
     fill('100000');
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(h.setFloat).toHaveBeenCalledWith({ claimId: 'claim-1', floatId: 'f1' }));
@@ -366,9 +366,9 @@ describe('Charge to site float (AC-IMP-084, FR-IMP-072)', () => {
   it('AC-IMP-084 changing the project drops the chosen float', async () => {
     renderPage();
     fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p1' } });
-    fireEvent.change(screen.getByLabelText('Charge to site float'), { target: { value: 'f1' } });
+    fireEvent.change(screen.getByLabelText('Charge to site cash'), { target: { value: 'f1' } });
     fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p2' } });
-    expect(screen.getByLabelText('Charge to site float')).toHaveValue('');
+    expect(screen.getByLabelText('Charge to site cash')).toHaveValue('');
     fill('100000');
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(h.navigate).toHaveBeenCalled());
@@ -379,7 +379,7 @@ describe('Charge to site float (AC-IMP-084, FR-IMP-072)', () => {
     h.setFloat.mockRejectedValueOnce(Object.assign(new Error('float is not on this project'), { code: 'P0001' }));
     renderPage();
     fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p1' } });
-    fireEvent.change(screen.getByLabelText('Charge to site float'), { target: { value: 'f1' } });
+    fireEvent.change(screen.getByLabelText('Charge to site cash'), { target: { value: 'f1' } });
     fill('100000');
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true }));
