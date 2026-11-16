@@ -1361,7 +1361,8 @@ describe('DocumentsTab — the register floor (care-10c)', () => {
     renderTab('Admin', 'admin-1', '/?page=3');
     expect(within(screen.getByTestId('documents-register-assembly')).getByRole('status')).toHaveTextContent('Showing 101–120 of 120');
     // A search that still matches more than one page: only the reset (not the out-of-range clamp) returns it to page 1.
-    await userEvent.type(screen.getByLabelText(/Search documents/i), 'Additional Document');
+    // Three characters are enough to match every generated row; each keystroke re-renders a 50-row page (~0.3 s in jsdom).
+    await userEvent.type(screen.getByLabelText(/Search documents/i), 'Add');
     expect(screen.getByTestId('route-search')).not.toHaveTextContent('page=');
     expect(within(screen.getByTestId('documents-register-assembly')).getByRole('status')).toHaveTextContent(/Showing 1–50 of 1\d\d/);
   });
