@@ -194,6 +194,26 @@ describe('ProjectBudget Option A', () => {
     expect(screen.getByRole('combobox', { name: 'Version' })).toHaveClass('h-[var(--control-height-sm)]');
     expect(screen.getByRole('button', { name: 'Export' })).toHaveClass('min-h-[var(--control-height-sm)]');
   });
+  it('#2426-b keeps the Not budgeted label whole: it wraps, never clips or truncates', () => {
+    state.versions.data = [active() as unknown as BudgetVersionWithItems];
+    state.position.ledgerBasis = 'pmo';
+    state.position.rows = [{ category: 'Labor', budget: 100, actual: 0 }, { category: 'Services', budget: 0, actual: 30 }];
+    renderPage();
+    const label = within(screen.getByRole('row', { name: /Services/u })).getByText('Not budgeted');
+    const pill = label.closest('span[class*="rounded-full"]') as HTMLElement;
+    expect(pill.className).not.toMatch(/whitespace-nowrap|shrink-0/u);
+    for (let el: HTMLElement | null = label; el && el.tagName !== 'TR'; el = el.parentElement) {
+      expect(el.className).not.toMatch(/(^|\s)(truncate|text-ellipsis|overflow-hidden)(\s|$)/u);
+    }
+  });
+
+  it('#2426-b keeps the currency and tax-basis pill as one unbreakable unit', () => {
+    state.versions.data = [active() as unknown as BudgetVersionWithItems];
+    renderPage();
+    const unit = screen.getAllByText(/^USD/u).find((el) => el.textContent?.includes('·')) as HTMLElement;
+    expect(unit).toHaveClass('whitespace-nowrap');
+  });
+
   it('R2-P1b #12 labels the remaining figure as left after spend', () => {
     state.versions.data = [active() as unknown as BudgetVersionWithItems];
     state.position.rows = [{ category: 'Labor', budget: 100, actual: 35 }];

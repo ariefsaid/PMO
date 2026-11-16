@@ -621,7 +621,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     return exact && exact !== tile ? { value: tile, exactValue: exact } : { value: tile };
   };
   const spendingSetupLink = canManageAccounting ? { to: '/administration/accounting#budget-account-map', label: t('projectDetail.cost.finishSetup', 'Finish spending setup') } : undefined;
-  const budgetUnit = <span className="text-sm text-muted-foreground">{project.currency}{project.tax_treatment && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-sm" /></>}</span>;
+  const budgetUnit = <span className="whitespace-nowrap text-sm text-muted-foreground">{project.currency}{project.tax_treatment && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-sm" /></>}</span>;
   // #2330: paid spending with no budget category sits in the Uncategorized row; the strip says so once, in full.
   const uncategorizedNote = position.uncategorized && canSeeActuals && totalSpent !== null
     ? position.uncategorized.amount === null
@@ -715,8 +715,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         : <Tooltip content={categoryUtilizationFormula}><span tabIndex={0}><ProgressBar compact value={Math.round(row.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} percent used', { category: budgetCategoryLabel(row.category, t) })} /></span></Tooltip>,
     },
     {
-      key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', size: 125, minSize: 112,
-      cell: (row) => { const status = getStatus(row); return status ? <StatusPill variant={status.variant} wrap={false}>{status.label}</StatusPill> : null; },
+      key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', size: 150, minSize: 128,
+      cell: (row) => { const status = getStatus(row); return status ? <StatusPill variant={status.variant}>{status.label}</StatusPill> : null; },
     },
   ];
   const actualTotals = enrichedRows.length ? [{
