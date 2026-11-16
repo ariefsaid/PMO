@@ -26,4 +26,9 @@ describe('Tabs first-tab left edge', () => {
     expect(cls).toContain('first:ps-[calc(var(--panel-inset)+1px)]');
     expect(cls).not.toContain('first:ps-0');
   });
+
+  it('a wrapping phone tab row on a record page keeps every row on the record header inset', () => {
+    render(<Tabs items={items} value="a" onChange={() => {}} ariaLabel="Views" idBase="t4" insetFirstTab wrapOnPhone />);
+    expect(screen.getByRole('tablist').className).toContain('max-sm:[&>[role=tab]]:ps-[calc(var(--space-content-inset)+1px)]');
+  });
 });

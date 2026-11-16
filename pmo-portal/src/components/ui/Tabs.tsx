@@ -110,7 +110,9 @@ export function Tabs<V extends string = string>({
         // Uses #000 (opaque mask) to transparent — compositor only, no repaint.
         // Reduced-motion: the mask is CSS, no animation; always-on is correct.
         '[mask-image:linear-gradient(to_right,#000_calc(100%-28px),transparent_100%)]',
-        wrapOnPhone && 'max-sm:flex-wrap max-sm:overflow-x-visible max-sm:[mask-image:none] max-sm:[&>[role=tab]]:ps-0',
+        wrapOnPhone && 'max-sm:flex-wrap max-sm:overflow-x-visible max-sm:[mask-image:none]',
+        // Wrapped rows all start on the same edge: the gutter, or the record header inset when the heading sits inside one.
+        wrapOnPhone && (insetFirstTab ? 'max-sm:[&>[role=tab]]:ps-[calc(var(--space-content-inset)+1px)]' : 'max-sm:[&>[role=tab]]:ps-0'),
         className,
       )}
     >
