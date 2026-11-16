@@ -210,6 +210,7 @@
           "dpHeld": "Dihitung dari uang muka yang ditagih dikurangi uang muka yang dipulihkan."
         },
         "openLabel": "Buka klaim {{kind}} dari {{date}}",
+        "emptySubNative": "Satu tagihan menagih uang muka atau kuantitas yang diterima sebagai satu invoice.",
         "evidence": "Bukti",
         "noEvidence": "Belum ada bukti yang dilampirkan.",
         "evidenceFirst": "Klaim harus dilengkapi bukti sebelum draf invoice dapat dibuat.",

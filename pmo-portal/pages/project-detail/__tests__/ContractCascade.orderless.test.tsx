@@ -206,7 +206,12 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     expect(screen.queryByRole('heading', { name: 'Not yet ordered' })).not.toBeInTheDocument();
     const lines = screen.getByRole('region', { name: 'Contract lines' });
     expect(within(lines).getByText('Line')).toBeInTheDocument();
-    expect(within(lines).getByTestId('contract-balance-b1')).toHaveTextContent(/10\s*ea/);
+    // Ordered and Remaining would only repeat the Contract column when nothing is ordered.
+    const headers = within(lines).getAllByRole('columnheader').map((header) => header.textContent);
+    expect(headers).toEqual(expect.arrayContaining(['Item', 'Contract', 'Value']));
+    expect(headers).not.toContain('Ordered');
+    expect(headers).not.toContain('Remaining');
+    expect(within(lines).queryByTestId('contract-balance-b1')).not.toBeInTheDocument();
   });
 
   it('a project with a customer order keeps the order chain, the unordered value and the billing steps', () => {
@@ -219,6 +224,8 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     expect(screen.getByRole('region', { name: 'Billing' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Not yet ordered' })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Contract lines' })).not.toBeInTheDocument();
+    const headers = within(screen.getByRole('region', { name: 'Not yet ordered' })).getAllByRole('columnheader').map((header) => header.textContent);
+    expect(headers).toEqual(expect.arrayContaining(['Item', 'Contract', 'Ordered', 'Remaining', 'Value']));
   });
 
   it('names a draft customer order as the blocker and links to that order', () => {
@@ -344,6 +351,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
   it('AC-CQ-020 exposes the remaining contract quantity on its visible not-yet-ordered row', () => {
     h.boq = { data: [{ id: 'b1', quantity: 1_900, rate: 50_000, item_code: 'KM-1', description: 'Cable route', unit: 'km' }], isPending: false, isError: false, refetch: vi.fn() };
     h.billing = { data: { contractNet: 95_000_000, dpBilled: 0, dpRecovered: 0, contractLines: [{ boqItemId: 'b1', contractBalance: 903, allocations: [] }] }, isPending: false, isError: false, refetch: vi.fn() };
+    h.orders = { data: [{ id: 'wo-1', status: 'Issued' }], isPending: false, isError: false, refetch: vi.fn() };
     renderCascade();
 
     expect(screen.getByTestId('contract-balance-b1')).toHaveTextContent(/903\s*km/);

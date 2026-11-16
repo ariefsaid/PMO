@@ -210,6 +210,7 @@
           "dpHeld": "Computed as invoiced down payment less recovered down payment."
         },
         "openLabel": "Open {{kind}} claim from {{date}}",
+        "emptySubNative": "A claim bills a down payment or accepted quantities as one invoice.",
         "evidence": "Evidence",
         "noEvidence": "No evidence attached yet.",
         "evidenceFirst": "Claims need evidence attached before an invoice draft can be raised.",
