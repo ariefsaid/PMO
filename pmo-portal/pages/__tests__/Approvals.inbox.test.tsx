@@ -92,7 +92,7 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
     data: {
       id: id ?? 'pr1',
       title: 'Steel beams',
-      project: { name: 'Apollo', code: 'PRJ-014' },
+      project: { name: 'Apollo', code: 'PRJ-014', status: 'Tender Submitted' },
       vendor: null,
       items: (id && detailItems[id]) || [{ id: 'li1', name: 'Beam', quantity: 1, rate: 48000, amount: 48000, description: null }],
     },
@@ -107,8 +107,8 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
   return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
 });
 vi.mock('@/pages/procurement/DecisionSupportPanel', () => ({
-  DecisionSupportPanel: ({ projectName }: { projectName?: string | null }) => (
-    <div data-testid="decision-support">Budget · {projectName}</div>
+  DecisionSupportPanel: ({ projectName, projectStatus, captionInTooltip }: { projectName?: string | null; projectStatus?: string | null; captionInTooltip?: boolean }) => (
+    <div data-testid="decision-support" data-project-status={projectStatus ?? ''} data-caption-in-tooltip={captionInTooltip ? 'yes' : 'no'}>Budget · {projectName}</div>
   ),
 }));
 
@@ -284,6 +284,14 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     const preview = screen.getByRole('region', { name: /Approval preview/i });
     expect(screen.getByRole('tab', { name: /All/i })).toHaveAttribute('aria-selected', 'true');
     expect(within(preview).getByRole('heading', { name: /Steel beams/i })).toBeInTheDocument();
+  });
+
+  it('S05: the inbox preview hands the budget panel the project\'s tender stage, so the approver sees it where they decide', () => {
+    renderAs('Project Manager');
+    const preview = screen.getByRole('region', { name: /Approval preview/i });
+    expect(within(preview).getByTestId('decision-support')).toHaveAttribute('data-project-status', 'Tender Submitted');
+    // the tight inbox row keeps the figure's label and moves its caption into the tooltip
+    expect(within(preview).getByTestId('decision-support')).toHaveAttribute('data-caption-in-tooltip', 'yes');
   });
 
   it('L3-APPROVALS: clicking the Timesheets filter deep-links straight to that queue and preview', async () => {

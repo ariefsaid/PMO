@@ -188,7 +188,7 @@ export const ProcurementBudgetSignal: React.FC<ProcurementBudgetSignalProps> = (
   }
   const { available, afterRequest } = signal;
   // "Available" read as a cash balance; it is the budget less commitments, before actual spend, and says so.
-  const label = t('money.budgetSignal', 'Budget not yet committed {{available}} · {{after}} after this procurement', {
+  const label = t('money.budgetSignalPurchases', 'Not yet committed to purchases {{available}} · {{after}} after this procurement', {
     available: formatCurrency(available, currency),
     after: formatCurrency(afterRequest, currency),
   });

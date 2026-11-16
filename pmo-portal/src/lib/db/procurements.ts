@@ -8,7 +8,7 @@ export type ProcurementRow = Tables<'procurements'>;
 
 /** A procurement row with project/vendor/requester names resolved in SQL (kills render-time .find()). */
 export type ProcurementWithRefs = ProcurementRow & {
-  project: { name: string; short_name?: string | null; code: string | null; pmo_project_number?: string | null; project_manager_id?: string | null } | null;
+  project: { name: string; short_name?: string | null; code: string | null; pmo_project_number?: string | null; project_manager_id?: string | null; status?: string | null } | null;
   vendor: { name: string } | null;
   requested_by: { full_name: string } | null;
   /** #803: present only on a Requested row whose route was read (see attachApprovalRoutes). */

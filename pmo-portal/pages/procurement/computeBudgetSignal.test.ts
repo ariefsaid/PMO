@@ -171,3 +171,13 @@ it('rejects derived positions at the cent representation boundary', () => {
   expect(() => computeBudgetSignal({ ...base, status: 'Approved', budget: 0, committed: 0, reserved: limit - 1, totalValue: -1.01 })).toThrow();
   expect(() => computeBudgetSignal({ ...base, budget: 0, committed: limit - 1, reserved: 0, totalValue: 1.01 })).toThrow();
 });
+
+describe('computeBudgetSignal — approval policy stays purchasing-only (S05)', () => {
+  it('budget 1000 / open orders 400 / reserved 50 / new request 25 → 550 left, 525 after, 47.5% in use; recorded spending is not an input', () => {
+    const s = computeBudgetSignal({ projectCurrency: 'USD', budgetCurrency: 'USD', requestCurrency: 'USD',
+      budget: 1000, committed: 400, reserved: 50, totalValue: 25, status: 'Requested' });
+    expect(s.available).toBe(550);
+    expect(s.afterRequest).toBe(525);
+    expect(((1000 - s.afterRequest) / 1000) * 100).toBe(47.5);
+  });
+});
