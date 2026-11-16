@@ -179,15 +179,22 @@ describe('AC-JR-W1-05: ProcurementDetails project name links', () => {
     expect(projectLinks[0].getAttribute('href')).toBe('/projects/proj-1');
   });
 
-  it('review 12: without a request number the header meta starts with the project, not a stray "·"', () => {
+  it('review 12 (updated by one-type r6): without a request number the header meta starts with the project; each later item carries its own aria-hidden dot before it, so none hangs at a line end', () => {
     detailState.data = { ...baseProcurement, code: null };
     renderPage();
     const link = screen.getAllByRole('link', { name: /Open Bridge Alpha/i })[0];
-    const meta = link.parentElement!.parentElement!;
+    const meta = link.closest('[data-testid="record-meta"]') as HTMLElement;
     expect(meta.textContent?.trim().startsWith('·')).toBe(false);
-    // The restructured header (#1404) reads project · supplier · raised-by (avatar initial + "Raised by").
-    expect(meta.textContent?.trim().startsWith('Bridge Alpha · ')).toBe(true);
+    expect(meta.textContent?.trim().startsWith('Bridge Alpha')).toBe(true);
     expect(meta.textContent).toContain('Raised by Eng User');
+    // r6 supersedes r3's "no dots": sm+ shows a muted dot BEFORE every item after the first.
+    const dots = Array.from(meta.querySelectorAll('[data-meta-dot]'));
+    expect(dots.length).toBe(meta.children.length - 1);
+    dots.forEach((dot) => { expect(dot.getAttribute('aria-hidden')).toBe('true'); expect(dot.className).toContain('hidden'); expect(dot.className).toContain('sm:inline'); });
+    expect(meta.lastElementChild!.textContent?.trim().endsWith('·')).toBe(false);
+    // Below sm the items stack one per line.
+    expect(meta.className).toContain('flex-col');
+    expect(meta.className).toContain('sm:flex-row');
   });
 
   it('AC-JR-W1-05: moneyContext in Approve confirm shows project name as a link', async () => {

@@ -321,7 +321,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         )}
       </span>
       {item.code && (
-        <span title={item.code} className="min-w-0 max-w-[45%] break-words text-right font-mono text-control text-muted-foreground break-words">
+        <span title={item.code} className="min-w-0 max-w-[45%] break-words text-right record-id break-words">
           {renderCodeLabel(item.code, item.codeTokens)}
         </span>
       )}

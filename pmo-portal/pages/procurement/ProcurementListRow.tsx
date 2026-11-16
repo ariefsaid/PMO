@@ -241,7 +241,7 @@ export const ProcurementListRowBase: React.FC<ProcurementListRowBaseProps> = ({ 
             {row.title}
           </Link>
           {row.code && (
-            <div className="font-mono text-sm text-muted-foreground">
+            <div className="record-id">
               {row.code}
             </div>
           )}
