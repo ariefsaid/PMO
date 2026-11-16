@@ -1,6 +1,7 @@
 // @e2e-isolation: dedicated-row — owns task 81000000-0000-0000-0000-000000000019 on SP-2401; no other spec reads it.
 import { test, expect } from '@playwright/test';
-import { signIn } from './helpers';
+import { createClient } from '@supabase/supabase-js';
+import { signIn, requireServiceRoleKey } from './helpers';
 
 /**
  * AC-SCA-014 — End-to-end: completing a task moves the S-curve actual line.
@@ -38,6 +39,18 @@ test.setTimeout(120_000);
 
 const PROJECT_ID = '41000000-0000-0000-0000-000000000001';
 const IN_PROGRESS_TASK_NAME = 'PROC — AC-SCA-014 Dedicated Procurement Task';
+const TASK_ID = '81000000-0000-0000-0000-000000000019';
+
+// The journey completes the dedicated seed task, so a rerun or a retry would find it already
+// Done (folded into a collapsed group). Restore the Given state before every attempt.
+test.beforeEach(async () => {
+  const svcKey = requireServiceRoleKey();
+  if (!svcKey) throw new Error('AC-SCA-014: SUPABASE_SERVICE_ROLE_KEY is required to restore the seed task.');
+  const url = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
+  const admin = createClient(url, svcKey, { auth: { persistSession: false } });
+  const { error } = await admin.from('tasks').update({ status: 'In Progress' }).eq('id', TASK_ID);
+  if (error) throw error;
+});
 
 /**
  * Parse "actual to date N%" from the S-curve figure aria-label or figcaption.

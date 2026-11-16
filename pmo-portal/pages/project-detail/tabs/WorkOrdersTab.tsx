@@ -732,6 +732,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         onOpenNewClaim={() => setNewClaimOpen(true)}
         onAttachEvidence={setEvidenceFor}
         canRaiseClaim={(claim) => !(nativeRaise && claim.kind === 'time_materials')}
+        revenueMode={revenueMode}
         onRaiseClaim={(claim) => setRaiseFor({ claim, idempotencyKey: crypto.randomUUID() })}
         onWithdrawClaim={setWithdrawClaimFor}
       />

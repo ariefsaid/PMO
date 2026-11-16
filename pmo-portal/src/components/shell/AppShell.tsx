@@ -81,6 +81,10 @@ export const AppShell: React.FC<AppShellProps> = ({
   const drawerRef = useRef<HTMLDivElement>(null);
   // The element focused before the drawer opened (restored on close).
   const drawerTriggerRef = useRef<HTMLElement | null>(null);
+  // The navigation trigger kept after close, and the pathname at the moment a drawer link was
+  // chosen: a route committing after the drawer closed must return focus to the trigger, not main.
+  const lastTriggerRef = useRef<HTMLElement | null>(null);
+  const drawerNavFromRef = useRef<string | null>(null);
   const [assistantPrefs, setAssistantPrefs] = useState<{
     mode: PanelMode;
     width: number;
@@ -136,6 +140,16 @@ export const AppShell: React.FC<AppShellProps> = ({
       previousRecordBase?.[0] !== undefined &&
       previousRecordBase[0] === currentRecordBase?.[0];
     previousPathname.current = pathname;
+    const navFrom = drawerNavFromRef.current;
+    drawerNavFromRef.current = null;
+    const trigger = lastTriggerRef.current;
+    if (navFrom !== null && navFrom !== pathname && trigger?.isConnected) {
+      // Chosen from the navigation drawer: focus belongs on its opener (AC-SHELL-001), whether
+      // the route committed before or after the drawer closed.
+      trigger.focus();
+      mainRef.current?.scrollTo?.({ top: 0 });
+      return;
+    }
     const sameRecordTabSwitch = isTabSwitchNavState(stateRef.current) && sameRecordBase;
     if (sameRecordTabSwitch) return;
     mainRef.current?.focus();
@@ -149,7 +163,10 @@ export const AppShell: React.FC<AppShellProps> = ({
       const target = event.target;
       if (target instanceof HTMLElement) {
         const trigger = target.closest<HTMLElement>('[data-drawer-toggle]');
-        if (trigger) drawerTriggerRef.current = trigger;
+        if (trigger) {
+          drawerTriggerRef.current = trigger;
+          lastTriggerRef.current = trigger;
+        }
       }
     };
     document.addEventListener('focusin', rememberTrigger);
@@ -161,6 +178,7 @@ export const AppShell: React.FC<AppShellProps> = ({
   // On close: restore focus to the captured trigger.
   useEffect(() => {
     if (railOpen) {
+      drawerNavFromRef.current = null; // a same-route link click must not leak into a later navigation
       // Keep the tracked trigger; applying `inert` can move activeElement to body
       // before this passive effect runs. Use current focus only as a fallback.
       const activeElement = document.activeElement as HTMLElement | null;
@@ -371,7 +389,14 @@ export const AppShell: React.FC<AppShellProps> = ({
           >
             {/* Rail nav content — same node as the persistent rail. */}
             <RailDrawerContext.Provider value>
-              <div className="min-h-0 flex-1 overflow-y-auto">{rail}</div>
+              <div
+                className="min-h-0 flex-1 overflow-y-auto"
+                onClickCapture={(e) => {
+                  if (e.target instanceof Element && e.target.closest('a[href]')) {
+                    drawerNavFromRef.current = pathname;
+                  }
+                }}
+              >{rail}</div>
             </RailDrawerContext.Provider>
             {drawerActions && (
               <div className="shrink-0 border-t border-border p-2.5" data-drawer-actions>
