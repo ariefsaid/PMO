@@ -16,7 +16,7 @@ export interface ReceiptPreviewButtonProps {
   label?: string;
 }
 
-/** "Preview receipt": opens the shared side-panel viewer over the claim's own authorized signed-URL accessor. */
+/** "Preview receipt": opens the shared viewer dialog over the claim's own authorized signed-URL accessor. */
 export function ReceiptPreviewButton({ id, fileName, filePath, getSignedUrl, onDownload, iconOnly = false, label }: ReceiptPreviewButtonProps) {
   const { t } = useTranslation();
   const viewer = useViewerOnDemand();

@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { StockLinesLoading } from '@/src/components/stock/LinesLoading';
 import { writeOffLinesReserve } from '@/src/components/stock/linesLoadingHeights';
-import { Button, ConfirmDialog, FormGrid, FormSection, ListState, MobileActionBar, SelectField, TextArea, TextField, UnsavedChangesDialog, useToast, Icon } from '@/src/components/ui';
+import { Button, ConfirmDialog, FormGrid, FormSection, ListState, MobileActionBar, PageHeader, SelectField, TextArea, TextField, UnsavedChangesDialog, useToast, Icon } from '@/src/components/ui';
 import { StockTabs } from '@/src/components/stock/StockTabs';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
 import { StockError } from '@/src/components/stock/StockError';
@@ -105,10 +105,10 @@ const StockCount: React.FC = () => {
 };
 
 const Shell: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <div className="mx-auto w-full max-w-5xl px-4 py-4">
-    <h1 className="mb-4 text-page font-semibold">{title}</h1>
+  <div>
+    <PageHeader title={title} />
     <StockTabs />
-    {children}
+    <div className="max-w-5xl">{children}</div>
   </div>
 );
 
@@ -271,10 +271,11 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-4">
-      <h1 className="text-page font-semibold">{heading}</h1>
-      {draft && <p className="mt-1 mb-4 text-control text-muted-foreground">{t('count.editingDraft', 'Editing a saved draft: nothing changes in stock until you post it.')}</p>}
+    <div>
+      <PageHeader title={heading} />
       <StockTabs />
+      <div className="max-w-5xl">
+      {draft && <p className="mb-4 text-control text-muted-foreground">{t('count.editingDraft', 'Editing a saved draft: nothing changes in stock until you post it.')}</p>}
       {draft && draft.created_by !== me && <p className="mb-3 text-sm text-muted-foreground">{t('count.otherAuthorDraft', 'This draft was created by {{name}}. Only its author can save changes.', { name: draft.author?.full_name || t('count.anotherPersonName', 'another person') })}</p>}
 
       {headerPending && <div data-testid="stock-header-region" className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}
@@ -376,6 +377,7 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
         onConfirm={confirmFillFromOnHand}
         onCancel={() => setConfirmFillOpen(false)}
       />
+      </div>
     </div>
   );
 };

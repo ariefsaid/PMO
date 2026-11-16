@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, DataTable, ListState, RecordHeader, StatusPill, useToast, type Column } from '@/src/components/ui';
+import { Button, ConfirmDialog, DataTable, ListState, PageHeader, RecordHeader, StatusPill, useToast, type Column } from '@/src/components/ui';
 import { StockTabs } from '@/src/components/stock/StockTabs';
 import { useStockFailureNotice } from '@/src/components/stock/useStockErrorText';
 import { usePermission } from '@/src/auth/usePermission';
@@ -197,7 +197,8 @@ const StockDocumentDetail: React.FC = () => {
   };
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-4">
+    <div>
+      <PageHeader title={d?.number ?? t('detail.title', 'Document')} />
       <StockTabs />
       {doc.isPending && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={5} /></div>}
       {doc.isError && <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={() => void doc.refetch()} />}
@@ -205,11 +206,12 @@ const StockDocumentDetail: React.FC = () => {
         <ListState variant="empty" icon="folder" title={t('detail.notFound.title')} sub={t('detail.notFound.sub')} action={{ label: t('detail.backToList'), onClick: () => navigate('/stock/documents') }} />
       )}
       {d && (
-        <div className="space-y-4">
+        <div className="max-w-5xl space-y-4">
           <RecordHeader
             className="!mb-4"
-            name={<span>{d.number}</span>}
-            meta={`${t(`kinds.${d.kind}`)} · ${formatDay(d.occurred_on)}`}
+            headingLevel={2}
+            name={t(`kinds.${d.kind}`)}
+            meta={formatDay(d.occurred_on)}
             status={<StatusPill record="stockDocument" state={d.status === 'Draft' && held ? 'On hold' : d.status} />}
             primaryAction={canPost
               ? <Button variant="primary" size="sm" loading={m.post.isPending} onClick={() => setConfirmPost(true)}>{t('detail.post')}</Button>
