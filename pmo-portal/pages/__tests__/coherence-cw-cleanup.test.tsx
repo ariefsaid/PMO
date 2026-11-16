@@ -166,6 +166,11 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingSlipMutations: () => ({ record: { mutateAsync: vi.fn(), isPending: false }, correct: { mutateAsync: vi.fn(), isPending: false }, void: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 
+// S05: the budget panel also reads the project's canonical Budget used; stubbed like its other reads (no QueryClient mounted).
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: () => ({ data: undefined, isPending: false, isError: false }),
+}));
+
 import ProcurementDetails from '../ProcurementDetails';
 
 // ---------------------------------------------------------------------------
