@@ -11,7 +11,7 @@ import type { ExpenseClaimStatus, ExpenseClaimWithRefs } from '@/src/lib/db/expe
 
 type Dialog = 'approve' | 'reject' | 'pay' | 'cancel' | 'recordReturn' | null;
 
-/** The actions the server would allow this viewer (FR-EXP-063). `actions` comes from availableExpenseActions; the
+/** Rendered in the record header's action slot (desktop) or the sticky bar (phone). The actions the server would allow this viewer (FR-EXP-063). `actions` comes from availableExpenseActions; the
  *  RPCs decide. `advanceOutstanding`: for a claim, its linked advance's; for an advance, its own; null = unknown. */
 export interface ExpenseDecisionBarProps {
   claim: ExpenseClaimWithRefs;
@@ -19,10 +19,15 @@ export interface ExpenseDecisionBarProps {
   advanceOutstanding: number | null;
   hideReopen?: boolean;
   returnedToastLabel?: string;
+  /** Cancel lives in the record's ⋯ menu: the parent owns the menu item and opens the confirm through these two props. */
+  cancelOpen?: boolean;
+  onCancelOpenChange?: (open: boolean) => void;
+  /** Why Submit is held (e.g. a claim with no lines): Submit shows disabled with this reason beside it. The server refuses too. */
+  submitBlockedReason?: string;
 }
 
-export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, actions, advanceOutstanding, hideReopen = false, returnedToastLabel }) => {
-  const { t } = useTranslation();
+export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, actions, advanceOutstanding, hideReopen = false, returnedToastLabel, cancelOpen = false, onCancelOpenChange, submitBlockedReason }) => {
+  const { t } = useTranslation(['common', 'expenseClaims']);
   const { toast } = useToast();
   const { transition, recordReturn } = useExpenseClaimMutations();
   const isNarrow = useIsNarrow();
@@ -34,7 +39,8 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
   const showReopen = actions.includes('reopen') && !hideReopen;
   if (actions.length === 0 || (hideReopen && actions.every((action) => action === 'reopen'))) return null;
 
-  const close = () => { setDialog(null); setDecisionError(null); setNotes(''); setReference(''); setReturnAmount(''); };
+  const cancelInMenu = onCancelOpenChange !== undefined;
+  const close = () => { setDialog(null); setDecisionError(null); setNotes(''); setReference(''); setReturnAmount(''); onCancelOpenChange?.(false); };
   const openDialog = (next: Dialog) => { setDecisionError(null); setDialog(next); };
   const run = async (work: () => Promise<unknown>, success: string) => {
     setDecisionError(null);
@@ -63,22 +69,25 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
 
   // #2061: on a phone the SAME actions render in the sticky bottom bar (same dialogs, same
   // handlers, same SoD checks) instead of the in-flow row — one placement, never two paths.
+  const cancelLabel = claim.kind === 'claim' ? t('expenseClaims:actions.cancelClaim', 'Cancel claim') : t('expenses.actions.cancel', 'Cancel');
   const barActions: MobileDecisionAction[] = [
-    ...(actions.includes('submit') ? [{ key: 'submit', label: t('expenses.actions.submit', 'Submit for approval'), variant: 'primary' as const, disabled: transition.isPending, onSelect: () => void move('Submitted', t('expenses.toast.submitted', 'Submitted for approval')) }] : []),
+    ...(actions.includes('submit') ? [{ key: 'submit', label: t('expenses.actions.submit', 'Submit for approval'), variant: 'primary' as const, disabled: transition.isPending || !!submitBlockedReason, onSelect: () => void move('Submitted', t('expenses.toast.submitted', 'Submitted for approval')) }] : []),
     ...(showReopen ? [{ key: 'reopen', label: t('expenses.actions.reopen', 'Edit and resubmit'), variant: 'primary' as const, disabled: transition.isPending, onSelect: () => void move('Draft', t('expenses.toast.reopened', 'Back to Draft')) }] : []),
     ...(actions.includes('reject') ? [{ key: 'reject', label: t('expenses.actions.reject', 'Reject'), variant: 'outline' as const, onSelect: () => openDialog('reject') }] : []),
     ...(actions.includes('approve') ? [{ key: 'approve', label: t('expenses.actions.approve', 'Approve'), variant: 'primary' as const, onSelect: () => openDialog('approve') }] : []),
     ...(actions.includes('pay') ? [{ key: 'pay', label: t('expenses.actions.pay', 'Mark paid'), variant: 'primary' as const, onSelect: () => openDialog('pay') }] : []),
     ...(actions.includes('recordReturn') ? [{ key: 'recordReturn', label: t('expenses.actions.recordReturn', 'Record cash returned'), variant: 'outline' as const, onSelect: () => openDialog('recordReturn') }] : []),
-    ...(actions.includes('cancel') ? [{ key: 'cancel', label: t('expenses.actions.cancel', 'Cancel'), variant: 'ghost' as const, onSelect: () => openDialog('cancel') }] : []),
+    ...(actions.includes('cancel') && !cancelInMenu ? [{ key: 'cancel', label: cancelLabel, variant: 'ghost' as const, onSelect: () => openDialog('cancel') }] : []),
   ];
+  const showButtons = barActions.length > 0;
 
   return (
     <>
-    {!isNarrow && (
-    <div className="mb-4 flex flex-wrap gap-2" data-testid="expense-decision-bar">
+    {!isNarrow && showButtons && (
+    <span className="flex flex-wrap items-center gap-2" data-testid="expense-decision-bar">
+      {actions.includes('submit') && submitBlockedReason && <span id={`${claim.id}-submit-reason`} className="text-control text-muted-foreground">{submitBlockedReason}</span>}
       {actions.includes('submit') && (
-        <Button variant="primary" disabled={transition.isPending}
+        <Button variant="primary" disabled={transition.isPending || !!submitBlockedReason} aria-describedby={submitBlockedReason ? `${claim.id}-submit-reason` : undefined}
           onClick={() => void move('Submitted', t('expenses.toast.submitted', 'Submitted for approval'))}>
           {t('expenses.actions.submit', 'Submit for approval')}
         </Button>
@@ -95,10 +104,11 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
       {actions.includes('recordReturn') && (
         <Button variant="outline" onClick={() => openDialog('recordReturn')}>{t('expenses.actions.recordReturn', 'Record cash returned')}</Button>
       )}
-      {actions.includes('cancel') && <Button variant="ghost" onClick={() => openDialog('cancel')}>{t('expenses.actions.cancel', 'Cancel')}</Button>}
-    </div>
+      {actions.includes('cancel') && !cancelInMenu && <Button variant="ghost" onClick={() => openDialog('cancel')}>{cancelLabel}</Button>}
+    </span>
     )}
-    <MobileDecisionBar actions={barActions} context={identity} label={identity} />
+    <MobileDecisionBar actions={barActions} label={identity}
+      context={actions.includes('submit') && submitBlockedReason ? <span className="text-control">{submitBlockedReason}</span> : undefined} />
 
       <ConfirmDialog
         open={dialog === 'approve'}
@@ -179,7 +189,7 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
       />
 
       <ConfirmDialog
-        open={dialog === 'cancel'}
+        open={cancelInMenu ? cancelOpen : dialog === 'cancel'}
         tone="destructive"
         title={t('expenses.confirm.cancelTitle', 'Cancel {{number}}?', { number: claim.claim_number ?? claim.title })}
         description={<div className="space-y-3"><p>{t('expenses.confirm.cancelDescription', 'It stays on record as Cancelled and can no longer be approved or paid.')}</p><DecisionContextSummary identity={identity} amount={formattedAmount} /></div>}

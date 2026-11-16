@@ -133,9 +133,9 @@ test('AC-IMP-090 site imprest: replenish settled receipts and route an out-of-pl
   await signIn(page, 'pm@acme.test');
   await page.goto(floatUrl);
   await expect(page.getByTestId('figure-receipts')).toContainText(/500[.,]000/, { timeout: 20_000 });
-  await page.getByRole('button', { name: 'Request replenishment' }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Request replenishment' }).click();
-  await expect(page.getByRole('button', { name: 'Request replenishment' })).toHaveCount(0, { timeout: 15_000 });
+  await page.getByRole('button', { name: 'Request top-up' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Request top-up' }).click();
+  await expect(page.getByRole('button', { name: 'Request top-up' })).toHaveCount(0, { timeout: 15_000 });
 
   // 2. A second person approves it on the same page. The custodian never sees Approve.
   await signIn(page, 'finance@acme.test');
@@ -159,7 +159,7 @@ test('AC-IMP-090 site imprest: replenish settled receipts and route an out-of-pl
   await expect(page.getByTestId('figure-receipts')).toContainText(/(^|\D)0(\D|$)/);
   await expect(page.getByTestId('figure-gap')).toContainText(/(^|\D)0(\D|$)/);
   await expect(page.getByText('Books do not balance')).toHaveCount(0);
-  await expect(page.locator('li', { hasText: `${tag} diesel` })).toContainText('Replenished');
+  await expect(page.locator('li', { hasText: `${tag} diesel` })).toContainText('Paid, topped up');
 
   // 5. Out of plan: the Engineer files a float claim above the month's remaining (2,000,000 planned, 500,000 drawn).
   await signIn(page, 'engineer@acme.test');
@@ -167,7 +167,7 @@ test('AC-IMP-090 site imprest: replenish settled receipts and route an out-of-pl
   await page.getByRole('textbox', { name: /Title/ }).fill(`${tag} out of plan`);
   await page.getByLabel('Project').selectOption({ label: tag });
   await page.getByLabel('Budget category').selectOption({ label: 'Vehicle' });
-  await page.getByLabel('Charge to site float').selectOption({ index: 1 });
+  await page.getByLabel('Charge to site cash').selectOption({ index: 1 });
   await page.getByLabel(/^Date/).fill(new Date().toISOString().slice(0, 10));
   await page.getByLabel(/^Type/).selectOption('Travel');
   await page.getByLabel(/^Description/).fill('Truck hire');
