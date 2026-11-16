@@ -620,5 +620,10 @@
     "warehouse-unmapped": "Gudang {{warehouse}} belum dicocokkan dengan gudang Odoo.",
     "location-ambiguous": "Lokasi stok Odoo gudang {{warehouse}} tidak ada, diarsipkan, atau ambigu.",
     "location-unavailable": "Lokasi stok Odoo gudang {{warehouse}} tidak ada, diarsipkan, atau ambigu."
+  },
+  "requestPurchase": {
+    "column": "Isi ulang",
+    "action": "Ajukan pembelian",
+    "rowLabel": "Ajukan pembelian untuk {{item}}"
   }
 }
