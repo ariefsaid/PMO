@@ -696,8 +696,7 @@ describe('contract billing block', () => {
     expect(figure('In work orders')).toHaveTextContent(/\$500.*50% of contract/);
     expect(figure('Delivered')).toHaveTextContent(/\$400.*40% of contract/);
     expect(figure('Invoiced')).toHaveTextContent(/\$250.*25% of contract/);
-    expect(figure('Paid')).toHaveTextContent(/\$200.*20% of contract/);
-    expect(figure('Received')).toHaveTextContent('$150');
+    expect(figure('Paid')).toHaveTextContent(/\$200.*20% of contract.*Received \$150/);
   });
 
   it('explains settled invoice value that has no matched receipt and links to matching', () => {

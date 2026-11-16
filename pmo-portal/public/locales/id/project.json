@@ -500,6 +500,7 @@
       "marginOutRestricted": "Margin kotor disembunyikan karena ada pengeluaran terbatas.",
       "marginOutActuals": "Margin kotor tidak ditampilkan sampai pengeluaran tertaut untuk setiap kategori anggaran.",
       "marginOutNoInvoices": "Margin kotor mulai dihitung sejak invoice pertama dalam mata uang proyek.",
+      "receivedCaption": "Diterima {{amount}}",
       "ofBudget": "dari anggaran {{amount}}",
       "shareOfContract": "{{percent}}% dari kontrak",
       "cascadeLabel": "Kontrak hingga pembayaran",

@@ -500,6 +500,7 @@
       "marginOutRestricted": "Gross margin is hidden because some spending is restricted.",
       "marginOutActuals": "Gross margin is left out until spending is linked for every budget category.",
       "marginOutNoInvoices": "Gross margin starts with the first invoice in the project currency.",
+      "receivedCaption": "Received {{amount}}",
       "ofBudget": "of {{amount}} budget",
       "shareOfContract": "{{percent}}% of contract",
       "cascadeLabel": "Contract to payment",

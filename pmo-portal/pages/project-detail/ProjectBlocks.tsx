@@ -176,7 +176,8 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean; /*
   const spentKnown = pos.canSeeActual && !pos.isPending && !pos.isError && pos.spent !== null;
   const figures = [
     ...steps,
-    ...(cashReceived === null ? [] : [{
+    // Received qualifies Paid (settled in accounting vs cash matched), so it is Paid's caption; its own figure only when Paid is unknown.
+    ...(cashReceived === null || paid !== null ? [] : [{
       key: 'received', label: t('projectDetail.money.cashReceivedFigure', 'Received'), value: cashReceived,
       source: t('projectDetail.money.cashReceivedSource', 'Customer receipts matched to this project’s invoices.'),
     }]),
@@ -205,6 +206,7 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean; /*
                 <FigureContent value={tile(step.value)} exactValue={whole(step.value)} />
               </dd>
               {pct !== null && <dd className="mt-1 text-control tabular-nums text-muted-foreground">{t('projectDetail.money.shareOfContract', '{{percent}}% of contract', { percent: pct })}</dd>}
+              {step.key === 'paid' && cashReceived !== null && <dd data-testid="money-lead-cash" className="mt-1 text-control tabular-nums text-muted-foreground">{t('projectDetail.money.receivedCaption', 'Received {{amount}}', { amount: tile(cashReceived) })}</dd>}
               {budgetCaption && <dd className="mt-1 text-control tabular-nums text-muted-foreground">{budgetCaption}</dd>}
               {step.key === 'contract' && <dd className="mt-1"><FxEquivalent amount={step.value} currency={project.currency} date={project.contract_date} compact /></dd>}
             </div>
