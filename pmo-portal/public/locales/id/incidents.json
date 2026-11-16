@@ -1,0 +1,69 @@
+{
+  "title": "Insiden",
+  "file": "Laporkan insiden",
+  "edit": "Ubah insiden",
+  "save": "Simpan insiden",
+  "search": "Cari insiden",
+  "filterByStatus": "Filter status",
+  "openRow": "Buka {{type}}",
+  "reported": "Dilaporkan {{date}}",
+  "col": { "incident": "Insiden", "severity": "Tingkat", "status": "Status", "date": "Tanggal", "location": "Lokasi" },
+  "action": { "edit": "Ubah", "delete": "Hapus", "next": "Langkah berikutnya", "clearFilters": "Hapus filter" },
+  "severity": { "Low": "Rendah", "Medium": "Sedang", "High": "Tinggi", "Critical": "Kritis" },
+  "error": { "title": "Insiden tidak dapat dimuat", "sub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi." },
+  "empty": {
+    "title": "Belum ada insiden",
+    "sub": "Jika ada masalah di proyek atau lokasi, laporkan di sini agar bisa diselidiki dan ditutup.",
+    "noMatchTitle": "Tidak ada insiden yang cocok dengan filter",
+    "noMatchSub": "Coba status lain atau hapus pencarian."
+  },
+  "pager": { "label": "Halaman", "range": "{{from}}–{{to}} dari {{total}}", "prev": "Halaman sebelumnya", "next": "Halaman berikutnya" },
+  "toast": { "closed": "Insiden ditutup", "started": "Penyelidikan dimulai", "deleted": "Insiden dihapus", "filed": "Insiden dilaporkan", "updated": "Insiden diperbarui" },
+  "transition": {
+    "advance": "Lanjutkan insiden?",
+    "confirm": "Konfirmasi",
+    "Investigating": {
+      "action": "Mulai penyelidikan",
+      "title": "Mulai menyelidiki {{type}}?",
+      "body": "Insiden dipindah ke Diselidiki agar tim bisa mencatat temuan. Tutup insiden setelah penyelidikan selesai."
+    },
+    "Closed": {
+      "action": "Tutup insiden",
+      "title": "Tutup {{type}}?",
+      "body": "Insiden ditandai Ditutup. Ini status akhir; jika ada informasi baru, laporkan insiden lanjutan."
+    }
+  },
+  "delete": {
+    "title": "Hapus {{type}}?",
+    "titleFallback": "Hapus insiden?",
+    "body": "Laporan insiden dihapus permanen dan tidak bisa dikembalikan. Pertimbangkan menutupnya agar jejak audit tetap ada.",
+    "confirm": "Hapus insiden"
+  },
+  "detail": {
+    "notFoundTitle": "Insiden tidak ditemukan",
+    "notFoundSub": "Insiden ini tidak ada atau tidak terlihat oleh Anda. Kembali ke daftar untuk mencarinya.",
+    "errorTitle": "Insiden tidak dapat dimuat",
+    "errorSub": "Terjadi kesalahan saat mengambil laporan insiden.",
+    "section": "Detail insiden",
+    "description": "Deskripsi",
+    "noDescription": "Belum ada deskripsi.",
+    "viewProject": "Lihat proyek",
+    "type": "Jenis"
+  },
+  "form": {
+    "section": "Apa yang terjadi",
+    "date": "Tanggal",
+    "severity": "Tingkat",
+    "type": "Jenis",
+    "typePlaceholder": "mis. Nyaris celaka, Kerusakan alat, Tumpahan",
+    "location": "Lokasi",
+    "locationPlaceholder": "mis. Lokasi Regional B",
+    "project": "Proyek",
+    "projectNoun": "proyek",
+    "projectPlaceholder": "Opsional — kaitkan proyek…",
+    "description": "Deskripsi",
+    "descriptionPlaceholder": "Apa yang terjadi, siapa yang terlibat, dan tindakan langsung yang diambil.",
+    "dateRequired": "Tanggal insiden wajib diisi.",
+    "typeRequired": "Jenis insiden wajib diisi."
+  }
+}
