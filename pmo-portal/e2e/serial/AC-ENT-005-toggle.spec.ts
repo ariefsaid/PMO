@@ -1,6 +1,7 @@
 // @e2e-isolation: serial — mutates org-global state (see design 2026-07-11-e2e-parallel-isolation).
 import { test, expect, type Page } from '@playwright/test';
 import { signIn } from '../helpers';
+import { clearFeatureOverride } from './_orgFeatureHelpers';
 
 /**
  * AC-ENT-005  Administration › Features › Operator toggle — real cross-stack journey
@@ -31,6 +32,10 @@ import { signIn } from '../helpers';
  */
 
 test.setTimeout(120_000);
+
+// The seed has no `org_features` row for incidents (module off by default); the journey writes one. Remove it after the
+// run so the org returns to its plan default instead of keeping an override row that reads "on".
+test.afterEach(() => clearFeatureOverride('incidents'));
 
 /** The Incidents rail nav link (text "Incidents"). */
 const incidentsRail = (page: Page) => page.getByRole('link', { name: /^incidents$/i });
