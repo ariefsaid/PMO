@@ -115,10 +115,10 @@ const ExpenseClaims: React.FC = () => {
         )
       }
       filters={
-        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+        <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:flex-wrap">
           <SelectField label={t('expenses.filters.status', 'Status')} hideLabel value={status} onChange={setStatus} options={statusOptions} wrapperClassName="w-full sm:w-auto" className="w-full sm:w-auto" />
           <SelectField label={t('expenses.filters.category', 'Budget category')} hideLabel value={category} onChange={setCategory} options={categoryOptions} wrapperClassName="w-full sm:w-auto" className="w-full sm:w-auto" />
-          <SelectField label={t('expenses.filters.kind', 'Type')} hideLabel value={kind} onChange={setKind} options={kindOptions} wrapperClassName="col-span-2 w-full sm:w-auto" className="w-full sm:w-auto" />
+          <SelectField label={t('expenses.filters.kind', 'Type')} hideLabel value={kind} onChange={setKind} options={kindOptions} wrapperClassName="w-full sm:w-auto" className="w-full sm:w-auto" />
         </div>
       }
     >
