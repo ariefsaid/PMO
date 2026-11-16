@@ -295,11 +295,14 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
           />
           <SelectField
             label={t('console.plan', 'Plan')}
-            value={orgPlan.isPending ? '' : effectivePlanId}
+            value={orgPlan.isSuccess ? effectivePlanId : ''}
             options={planOptions}
+            placeholder={orgPlan.isError ? t('console.planUnknown', 'Plan unavailable') : t('console.planLoading', 'Loading plan…')}
             onChange={(value) => planMutation.mutate({ orgId: selectedOrgId, planId: value })}
             helper={
-              orgPlanRow
+              !orgPlan.isSuccess
+                ? <span aria-hidden="true" data-testid="plan-helper-reserve" className="block h-10 lg:h-5" />
+                : orgPlanRow
                 ? t('console.planHelper', 'Plan limits: {{seats}} seats, {{projects}} active projects, {{messages}} AI messages a month.', {
                     seats: orgPlanRow.seatLimit ?? t('console.unlimitedShort', 'unlimited'),
                     projects: orgPlanRow.projectLimit ?? t('console.unlimitedShort', 'unlimited'),

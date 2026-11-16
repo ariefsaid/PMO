@@ -295,6 +295,29 @@ describe('AC-PLN-012 — Operator console', () => {
     expect(screen.getByTestId('operator-console-loading')).toBeInTheDocument();
   });
 
+  it('AC-NBR-036 (P) the Plan field shows no plan name and no limits until the plan read resolves', async () => {
+    api.getOrgPlan.mockReturnValue(new Promise(() => {}));
+    renderConsole();
+    const plan = await screen.findByLabelText('Plan');
+    expect(plan).toHaveValue('');
+    expect((plan as HTMLSelectElement).selectedOptions[0]).toHaveTextContent(/loading plan/i);
+    expect(screen.queryByText(/treated as enterprise/i)).toBeNull();
+    expect(screen.queryByText(/unlimited/i)).toBeNull();
+    expect(screen.queryByText(/plan limits/i)).toBeNull();
+    expect(screen.queryByText(/no plan assigned/i)).toBeNull();
+  });
+
+  it('AC-NBR-036 (F) a failed plan read shows the error with Retry and never a plan or limits', async () => {
+    api.getOrgPlan.mockRejectedValue(Object.assign(new Error('boom'), { code: 'PGRST301' }));
+    renderConsole();
+    expect(await screen.findByText(/plan registry could not be loaded/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /retry|try again/i })).toBeInTheDocument();
+    expect(screen.getByLabelText('Plan')).toHaveValue('');
+    expect(screen.queryByText(/unlimited/i)).toBeNull();
+    expect(screen.queryByText(/plan limits/i)).toBeNull();
+    expect(screen.queryByText(/no plan assigned/i)).toBeNull();
+  });
+
   it('AC-NBR-036 (F) a failed override read keeps the header and selectors and says so where the switches would be', async () => {
     api.listOverrides.mockRejectedValue(Object.assign(new Error('boom'), { code: 'PGRST301' }));
     renderConsole();

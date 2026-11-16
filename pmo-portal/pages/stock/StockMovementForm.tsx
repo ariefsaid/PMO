@@ -5,6 +5,8 @@ import {
   Button, FormActions, FormGrid, FormSection, ListState, MobileActionBar, SelectField, TextArea, TextField, UnsavedChangesDialog, useToast, Icon,
 } from '@/src/components/ui';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
+import { StockLinesLoading } from '@/src/components/stock/LinesLoading';
+import { MOVEMENT_LINES_MIN } from '@/src/components/stock/linesLoadingHeights';
 import { useStockErrorText, useStockFailureNotice } from '@/src/components/stock/useStockErrorText';
 import { StockDispatchError } from '@/src/lib/stockDispatchError';
 import { FormErrorStrip } from '@/src/components/ui/FormFields';
@@ -239,7 +241,7 @@ const StockMovementForm: React.FC = () => {
 
           <FormSection legend={t('form.sections.lines')}>
             <div data-testid="stock-lines-region">
-            {linesPending && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}
+            {linesPending && <StockLinesLoading minHeight={MOVEMENT_LINES_MIN[kind] ?? MOVEMENT_LINES_MIN.receive} />}
             {!linesPending && linesError && <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={retryLines} />}
             {linesSettled && <div className="space-y-4">
               {lines.map((l, idx) => {
