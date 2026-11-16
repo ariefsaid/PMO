@@ -21,11 +21,11 @@
     "draft": "Draf",
     "requested": "Diminta",
     "approved": "Disetujui",
-    "vendorQuoted": "Penawaran pemasok",
+    "vendorQuoted": "Penawaran supplier",
     "quoteSelected": "Penawaran dipilih",
     "ordered": "Pesanan pembelian",
     "received": "Penerimaan barang",
-    "vendorInvoiced": "Faktur pemasok",
+    "vendorInvoiced": "Faktur supplier",
     "paid": "Dibayar",
     "rejected": "Dikembalikan",
     "cancelled": "Dibatalkan"
@@ -47,6 +47,16 @@
     "paid": "Dibayar",
     "cancelled": "Dibatalkan",
     "active": "Aktif"
+  },
+  "journal": {
+    "draft": "Draf",
+    "submitted": "Diajukan",
+    "approved": "Disetujui",
+    "sending": "Sedang dikirim",
+    "posted": "Diposting",
+    "scheduled": "Terjadwal",
+    "held": "Perlu dicek",
+    "refused": "Ditolak"
   },
   "timesheet": {
     "draft": "Draf",
@@ -221,6 +231,7 @@
     "hidden_one": "{{count}} angka disembunyikan: {{reason}}",
     "hidden_other": "{{count}} angka disembunyikan: {{reason}}",
     "hiddenCount_one": "{{count}} angka disembunyikan",
+    "notShown": "Belum ditampilkan: {{figures}}",
     "hiddenCount_other": "{{count}} angka disembunyikan",
     "why": "Mengapa"
   }

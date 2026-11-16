@@ -636,7 +636,7 @@ client's acceptance, not an invoice, receipt or replacement document register.
   refunded explicitly, never silently lost.
 - **OD-CQ-4 — load path.** Operator loads contract lines with `pmo load` from the budget workbook
   price sheet (description, unit rate, estimated quantity, unit), or SPK when no workbook exists.
-  Same guarded surface and `--dry-run` as draft budgets; no in-app import now (#1278).
+  Same guarded surface and `--dry-run` as draft budgets. The in-app import (#1278) is the same load path on the Billing tab: an uploaded `.xlsx` or pasted spreadsheet rows, the same validation as `pmo load`, a zero-write preview, and a known key skipped, never updated.
 
 ### 8.2 Director rulings (DD-CQ-1..8, 2026-10-21)
 
@@ -936,7 +936,7 @@ client's acceptance, not an invoice, receipt or replacement document register.
 
 ### 8.9 Out of scope
 
-In-app import (#1278); loading allocations/BASTs; management-pack recognition change (#765 follow-up);
+Loading allocations/BASTs; management-pack recognition change (#765 follow-up);
 retention; a new ERP command, automatic invoice or automatic DP refund; editing original issued order
 money; automatically marking an acceptance Confirmed or evidence attached; BAST-period accounting;
 ERP-side quantity tracking; currency conversion; changing claim submit SoD or per-project DP scope.

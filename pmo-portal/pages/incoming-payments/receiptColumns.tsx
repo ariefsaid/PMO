@@ -55,12 +55,12 @@ export function receiptColumns({ t, embedded, location, invoiceNumberById, odoo 
       key: 'ip_number',
       header: t('financeCopy.payment', "Payment #"),
       cell: (p) => embedded ? (
-        <span className="truncate font-mono text-control" title={receiptNumber(p) ?? ''}>{receiptNumber(p) ?? '—'}</span>
+        <span className="truncate record-id" title={receiptNumber(p) ?? ''}>{receiptNumber(p) ?? '—'}</span>
       ) : (
         <Link
           to={`/incoming-payments/${encodeURIComponent(p.id)}${location.search}`}
           state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }}
-          className="truncate font-mono text-control text-foreground underline-offset-2 hover:underline focus-visible:underline"
+          className="truncate record-id font-semibold text-foreground underline-offset-2 hover:underline focus-visible:underline"
           title={receiptNumber(p) ?? ''}
         >
           {receiptNumber(p) ?? '—'}
@@ -80,7 +80,7 @@ export function receiptColumns({ t, embedded, location, invoiceNumberById, odoo 
           : settled?.[0]?.invoice_number ?? (p.sales_invoice_id ? invoiceNumberById.get(p.sales_invoice_id) ?? null : null);
         const more = settled && settled.length > 1 ? settled.length - 1 : 0;
         const text = first && more > 0 ? t('uxs06.invoiceAndMore', '{{first}} +{{count}} more', { first, count: more }) : first;
-        return <span className="truncate font-mono text-control" title={settled?.map((a) => a.invoice_number).join(', ') ?? first ?? ''}>{text ?? '—'}</span>;
+        return <span className="truncate record-id" title={settled?.map((a) => a.invoice_number).join(', ') ?? first ?? ''}>{text ?? '—'}</span>;
       },
       exportValue: (p) => (p.pmo_native && displayAllocations(p, invoiceNumberOf) ? displayAllocations(p, invoiceNumberOf)!.map((a) => a.invoice_number).join(', ') : undefined)
         ?? displayAllocations(p, invoiceNumberOf)?.map((a) => a.invoice_number).join(', ')
@@ -165,7 +165,7 @@ export function receiptColumns({ t, embedded, location, invoiceNumberById, odoo 
     },
     {
       key: 'withholding_slip_number', header: t('financeCopy.withholdingSlip', "Withholding slip"),
-      cell: (p) => <span className="font-mono text-control">{p.withholding_slip_number ?? '—'}</span>,
+      cell: (p) => <span className="record-id">{p.withholding_slip_number ?? '—'}</span>,
       exportValue: (p) => p.withholding_slip_number ?? '',
     },
   ];

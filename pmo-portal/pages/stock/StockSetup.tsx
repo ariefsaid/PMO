@@ -95,7 +95,7 @@ const StockSetup: React.FC = () => {
   const dim = (r: { archived_at: string | null }) => (r.archived_at ? 'opacity-60' : '');
   const identity = (r: { code: string; name: string; archived_at: string | null }): React.ReactNode => (
     <div className={`min-w-0 ${dim(r)}`}>
-      <span className="block truncate font-mono text-sm font-semibold">{r.code}</span>
+      <span className="block truncate record-id font-semibold text-foreground">{r.code}</span>
       <span className="block truncate text-sm text-muted-foreground">{r.name}</span>
     </div>
   );
@@ -178,7 +178,7 @@ const StockSetup: React.FC = () => {
       <StockTabs />
       <div className="mb-4 flex flex-col items-stretch border-b border-border sm:flex-row sm:items-center">
         <Tabs<Tab>
-          className="mb-0 w-full min-w-0 border-b-0 sm:w-auto sm:flex-1"
+          className="mb-0 w-full min-w-0 border-b-0 sm:w-auto sm:flex-1 [&>[role=tab]:first-child]:pl-0"
           idBase="stock-setup"
           ariaLabel={t('setup.tabsLabel')}
           value={tab}
@@ -373,7 +373,7 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, onC
       submitError={saveError}
     >
       <FormGrid>
-        <TextField id={code.id} label={t(`setup.form.${k}.code`)} required value={code.value} onChange={code.onChange} onBlur={code.onBlur} error={code.error} mono fullWidth />
+        <TextField id={code.id} label={t(`setup.form.${k}.code`)} required value={code.value} onChange={code.onChange} onBlur={code.onBlur} error={code.error} code fullWidth />
         <TextField id={name.id} label={t(`setup.form.${k}.name`)} required value={name.value} onChange={name.onChange} onBlur={name.onBlur} error={name.error} fullWidth />
         {which === 'units' && (
           <div className="flex items-start gap-2">

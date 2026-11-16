@@ -4,6 +4,7 @@
  */
 import { createBill, isModelledBill, postBill, Rejected } from './purchase/fakeBill.ts';
 import { createPayment, isModelledPayment, postPayment, reconcileLines, RejectedPayment } from './purchase/fakePayment.ts';
+import { createEntry, createReversalWizard, isModelledEntry, postEntry, refundMoves, type JournalEnv } from './journal/fakeJournal.ts';
 
 type Row = Record<string, unknown> & { id: number };
 type Domain = unknown[];
@@ -31,8 +32,11 @@ const FIELDS: Record<string, string[]> = {
   'ir.model.fields': ['model', 'name', 'ttype'],
   'account.payment': ['name', 'state', 'memo', 'amount', 'partner_id', 'payment_type', 'partner_type', 'journal_id', 'payment_method_line_id', 'currency_id', 'date', 'move_id', 'reconciled_bill_ids', 'reconciled_invoice_ids', 'is_reconciled', 'is_matched', 'create_date', 'write_date'],
   'account.journal': ['name', 'code', 'type', 'company_id', 'active', 'inbound_payment_method_line_ids', 'outbound_payment_method_line_ids', 'default_account_id', 'write_date'],
-  'account.move': ['name', 'move_type', 'state', 'partner_id', 'ref', 'invoice_date', 'date', 'invoice_date_due', 'invoice_line_ids', 'amount_untaxed', 'amount_tax', 'amount_total', 'amount_residual', 'payment_state', 'reversed_entry_id', 'currency_id', 'company_id', 'invoice_origin', 'create_date', 'write_date'],
-  'account.move.line': ['move_id', 'move_name', 'journal_id', 'company_id', 'currency_id', 'amount_currency', 'date', 'parent_state', 'debit', 'credit', 'display_type', 'product_id', 'product_uom_id', 'quantity', 'price_unit', 'tax_ids', 'tax_line_id', 'tax_base_amount', 'analytic_distribution', 'purchase_line_id', 'stock_move_id', 'account_id', 'account_type', 'partner_id', 'balance', 'amount_residual', 'reconciled', 'write_date'],
+  'account.move': ['name', 'move_type', 'state', 'partner_id', 'ref', 'invoice_date', 'invoice_date_due', 'invoice_line_ids', 'amount_untaxed', 'amount_tax', 'amount_total', 'amount_residual', 'payment_state', 'reversed_entry_id', 'currency_id', 'company_id', 'invoice_origin', 'create_date', 'write_date',
+    // #895 manual journal entries (V-ACD1, V-ACD2)
+    'date', 'journal_id', 'line_ids', 'reversal_move_ids', 'auto_post'],
+  'account.move.reversal': ['date', 'reason', 'journal_id', 'company_id', 'move_ids', 'write_date'],
+  'account.move.line': ['move_id', 'move_name', 'name', 'journal_id', 'company_id', 'currency_id', 'amount_currency', 'date', 'parent_state', 'debit', 'credit', 'display_type', 'product_id', 'product_uom_id', 'quantity', 'price_unit', 'tax_ids', 'tax_line_id', 'tax_base_amount', 'analytic_distribution', 'purchase_line_id', 'stock_move_id', 'account_id', 'account_type', 'partner_id', 'balance', 'amount_residual', 'reconciled', 'write_date'],
   'account.tax.repartition.line': ['tax_id', 'document_type', 'repartition_type', 'account_id', 'write_date'],
   'stock.picking': ['name', 'state', 'partner_id', 'company_id', 'location_id', 'location_dest_id', 'date_done', 'move_ids', 'backorder_id', 'backorder_ids', 'return_id', 'purchase_id', 'picking_type_code', 'write_date'],
   'stock.move': ['name', 'state', 'picking_id', 'account_move_id', 'product_id', 'purchase_line_id', 'quantity', 'product_uom_qty', 'picked', 'value', 'is_valued', 'write_date'],
@@ -137,8 +141,11 @@ const userError = (message: string) => new OdooFailure(422, 'odoo.exceptions.Use
 /** A validation failure the way the bed answers one (422 with an Odoo error body). */
 const rejected = (message: string) => new OdooFailure(422, 'odoo.exceptions.ValidationError', message);
 
-/** `doubleValidation`: Odoo's purchase approval setting; a confirmed order then waits in `to approve` (bed V-OPP1). */
-export function createFakeOdoo({ key, doubleValidation = false }: { key: string; doubleValidation?: boolean }): FakeOdoo {
+/**
+ * `doubleValidation`: Odoo's purchase approval setting; a confirmed order then waits in `to approve` (bed V-OPP1). `today`: the
+ * company's day in Odoo (a reversal dated after it waits as a draft, V-ACD2); defaults to the real UTC day.
+ */
+export function createFakeOdoo({ key, doubleValidation = false, today = new Date().toISOString().slice(0, 10) }: { key: string; doubleValidation?: boolean; today?: string }): FakeOdoo {
   const store = new Map<string, Map<number, Row>>();
   const table = (m: string) => store.get(m) ?? store.set(m, new Map()).get(m)!;
   let clock = 0;
@@ -153,6 +160,9 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
   const fields = Object.fromEntries(Object.entries(FIELDS).map(([m, f]) => [m, [...f]]));
   const denied = new Set<string>();
   const dropped = new Set<string>();
+  /** Moves created as manual journal entries (#895): only these post through the journal model. */
+  const entries = new Set<number>();
+  const journalEnv: JournalEnv = { table, nextId: (m) => newId(m), stamp: () => fmt(++clock), today, markEntry: (id) => entries.add(id) };
 
   const select = (model: string, body: Record<string, unknown>) => {
     const ctx = (body.context ?? {}) as { active_test?: boolean };
@@ -559,6 +569,8 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
       for (const vals of b.vals_list as Array<Record<string, unknown>>) refuseUnknownFields(m, Object.keys(vals));
       return (b.vals_list as Array<Record<string, unknown>>).map((vals) => {
       if (m === 'account.move' && (vals.move_type === 'out_invoice' || vals.move_type === 'out_refund')) return createInvoice(vals);
+      if (m === 'account.move' && isModelledEntry(vals)) return createEntry(journalEnv, vals);
+      if (m === 'account.move.reversal') return createReversalWizard(journalEnv, vals, (b.context ?? {}) as Record<string, unknown>);
       if (m === 'account.move' && isModelledBill(vals)) return createBill({ table, nextId: newId, stamp: () => fmt(++clock) }, vals);
       if (m === 'account.payment' && isModelledPayment(vals)) return createPayment({ table, nextId: newId, stamp: () => fmt(++clock) }, vals);
       if (m === 'account.payment.register') {
@@ -664,7 +676,8 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
       for (const id of b.ids as number[]) {
         const row = table(m).get(id);
         if (row) relock(m, row);
-        if (m === 'account.move' && row?.move_type === 'in_invoice') postBill({ table, nextId: newId, stamp: () => fmt(++clock) }, row);
+        if (m === 'account.move' && row && entries.has(id)) postEntry(journalEnv, row);
+        else if (m === 'account.move' && row?.move_type === 'in_invoice') postBill({ table, nextId: newId, stamp: () => fmt(++clock) }, row);
         else if (m === 'account.move' && isCustomerMove(row)) postInvoice(row!);
         else if (m === 'account.payment' && row?.payment_type === 'inbound' && row.partner_type === 'customer') postInboundPayment(row);
         else if (m === 'account.payment' && row && 'move_id' in row) postPayment({ table, nextId: newId, stamp: () => fmt(++clock) }, row);
@@ -674,6 +687,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
       return true;
     },
     action_create_payments: (_m, b) => createPayments(b),
+    refund_moves: (_m, b) => refundMoves(journalEnv, (b.ids as number[])[0]),
     reconcile: (m, b) => {
       const rows = (b.ids as number[]).flatMap((id) => { const row = table(m).get(id); return row ? [row] : []; });
       if (!rows.some((r) => r.account_type === 'asset_receivable')) { reconcileLines({ table, nextId: newId, stamp: () => fmt(++clock) }, rows); return true; }

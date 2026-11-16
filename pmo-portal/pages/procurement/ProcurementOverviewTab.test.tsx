@@ -9,6 +9,9 @@ import type { ProgressionEvent } from '@/src/lib/db/procurementHistory';
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 1000000, isPending: false, isError: false }),
 }));
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: () => ({ data: undefined, isPending: false, isError: false }),
+}));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false }),
   useProjectReservedSpend: () => ({ data: 0, projectCurrency: 'USD', budgetCurrency: 'USD', otherCurrencies: [], isPending: false, isError: false }),
@@ -68,6 +71,11 @@ describe('ProcurementOverviewTab (bento)', () => {
   it('renders the budget signal (DecisionSupportPanel) when a project is linked', () => {
     renderTab();
     expect(screen.getByText(/Budget impact/i)).toBeInTheDocument();
+  });
+
+  it('S05: names the tender stage of a pipeline project at the budget signal heading', () => {
+    renderTab({ projectStatus: 'Tender Submitted' });
+    expect(within(screen.getByRole('heading', { name: /budget impact/i }).parentElement as HTMLElement).getByText('Tender submitted')).toBeInTheDocument();
   });
 
   it('omits the budget signal when there is no linked project (no empty card)', () => {

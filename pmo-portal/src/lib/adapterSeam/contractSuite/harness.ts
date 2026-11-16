@@ -217,8 +217,12 @@ export interface ErpHarness {
   mapInboundInvoice?: (doc: InboundInvoiceDoc) => Promise<Record<string, unknown>>;
   /** imprest.transfer: each call starts an empty fake ERP. Absent until the tier posts site cash. */
   transfer?: () => TransferHarness;
+  /** journal.post / journal.reverse (#895): each call starts an empty fake ledger. Absent until the tier posts manual journals. */
+  journal?: () => JournalHarness;
   /** purchase-order.revise: each call starts an empty fake ERP. Absent until the tier carries PO revisions (#1505). */
   revise?: () => ReviseHarness;
+  /** company-defaults.set: each call starts a fresh fake ERP company with every default empty. Absent until the tier sets them (#1504). */
+  companyDefaults?: () => CompanyDefaultsHarness;
 }
 
 export interface ReviseHarness {
@@ -236,6 +240,37 @@ export interface TransferHarness {
   lines(key: string): Array<{ account: string; debit: string; credit: string }>;
   documents(): Array<{ externalId: string; key: string }>;
   failNextWrite(fault: 'transport' | 'lost-response'): void;
+}
+
+export interface JournalHarness {
+  /** The ledger's day: a reversal dated after it is scheduled. */
+  readonly today: string;
+  /** One approved journal (or, with `reverses`, a reversal) the way the dispatch runs it: probe the key's anchor first, write only
+   *  on a miss; a retry after an answer was lost is a recovery that follows the tier's reissue policy. */
+  post(j: import('../ledgerJournal.ts').LedgerJournal): Promise<{ externalId: string; status: 'posted' | 'scheduled'; postedDate: string | null }>;
+  /** Documents the fake ledger holds, by the PMO key anchored to each ('' when none is). */
+  documents(): Array<{ externalId: string; key: string }>;
+  /** A document's lines, normalised: account, debit and credit as 2-decimal strings, in line order. */
+  lines(externalId: string): Array<{ account: string; debit: string; credit: string }>;
+  /** Writes that reached the fake ledger so far. */
+  writes(): number;
+  /** The next document write lands in the ledger and its answer is lost. */
+  failNextWrite(fault: 'lost-response'): void;
+}
+
+/** A fake ERP company for company-defaults.set (#1599 ECX-3), in PMO terms. */
+export interface CompanyDefaultsHarness {
+  /** The connected company's name; targets of another company are loaded under another name. */
+  company: string;
+  writer: import('../companyDefaults.ts').CompanyDefaultsWriter;
+  /** Place an account (`account`) or a cost centre (`cost_centre`) in the fake ERP. */
+  load(kind: 'account' | 'cost_centre', facts: import('../companyDefaults.ts').DefaultTargetFacts): void;
+  /** What the ERP company holds now, read straight from the fake (not through the writer). */
+  held(): import('../companyDefaults.ts').CompanyDefaults;
+  /** Each write that reached the ERP company, as the slots it changed. */
+  writes(): Array<import('../companyDefaults.ts').CompanyDefaultSlot[]>;
+  /** The next write is answered 200 but the ERP stores nothing (a read-back must catch it). */
+  dropNextWrite(): void;
 }
 
 export type Suite = (harness: ErpHarness) => void;

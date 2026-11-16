@@ -183,7 +183,8 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
         || p.customer_name?.toLowerCase().includes(q));
   }, [all, search, searchParams, statusFilter]);
 
-  const state: 'loading' | 'empty' | 'error' | undefined = isPending || mode === undefined
+  // #2197 A3: rows gate on the receipt read alone; the revenue mode only holds the action cells.
+  const state: 'loading' | 'empty' | 'error' | undefined = isPending
     ? 'loading'
     : isError || !data
       ? 'error'
@@ -249,7 +250,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
   const notReported = t('uxs06.notReported', 'Not reported');
   const { columns, exportColumns } = receiptColumns({ t, embedded, location, invoiceNumberById, odoo });
 
-  const rowMenu = (p: IncomingPaymentRow): RowMenuItem[] => {
+  const builtRowMenu = (p: IncomingPaymentRow): RowMenuItem[] => {
     const items: RowMenuItem[] = embedded
       ? [{ label: t('finance:receivables.viewPayment', 'View payment'), onClick: () => openPaymentPanel(p) }]
       : [];
@@ -260,6 +261,10 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
       items.push({ label: t('financeCopy.cancel', "Cancel"), onClick: () => setCancelTarget(p), danger: true });
     return items;
   };
+  // While the revenue mode is unknown the action cells hold their slot as one disabled entry.
+  const rowMenu = (p: IncomingPaymentRow): RowMenuItem[] => mode === undefined
+    ? [{ label: t('ui.listState.loading', 'Loading…'), onClick: () => undefined, disabled: true }]
+    : builtRowMenu(p);
 
   const onCancelConfirm = async () => {
     if (!cancelTarget || odooOffline) return;
@@ -280,7 +285,9 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
   };
 
   const filtersNode = state !== 'loading' && (
-          <ViewToggle<StatusFilter>
+          mode === undefined
+          ? <div data-testid="status-filters-pending" aria-busy="true" className="pointer-events-none"><ViewToggle<StatusFilter> options={[{ value: 'All', label: incomingPaymentStatusLabel('All', t) }]} value="All" onChange={() => undefined} ariaLabel={t('financeCopy.filterByStatus', "Filter by status")} /></div>
+          : <ViewToggle<StatusFilter>
             options={statusFilters.map((f) => ({ value: f, label: incomingPaymentStatusLabel(f, t) }))}
             value={statusFilter}
             onChange={(v) => {
@@ -381,6 +388,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
       )}
 
       {state === undefined && (
+        <div data-testid="receipts-list-body" className="contents">
         <DataTable<IncomingPaymentRow>
           rows={filtered}
           columns={columns}
@@ -417,6 +425,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
           emptyTitle={t('financeCopy.noPaymentsMatchYourFilters', "No payments match your filters")}
           emptySub={t('financeCopy.tryADifferentStatusOrClearTheSearch', "Try a different status or clear the search.")}
         tableId="incomingpayments-table" />
+        </div>
       )}
 
       {/* Create modal */}
@@ -500,8 +509,8 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
           amount: panelPayment.amount == null ? '—' : formatCurrency(panelPayment.amount, panelPayment.currency),
         }) : ''}
         subtitle={panelPayment ? <span className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-control">{receiptNumber(panelPayment) ?? '—'}</span>
-          {panelInvoice && <span className="font-mono text-control">{invoiceNumber(panelInvoice) ?? '—'}</span>}
+          <span className="record-id">{receiptNumber(panelPayment) ?? '—'}</span>
+          {panelInvoice && <span className="record-id">{invoiceNumber(panelInvoice) ?? '—'}</span>}
           {panelInvoice?.project_id && projectOptions.find((project) => project.value === panelInvoice.project_id)?.contractualName && <span className="text-control">{projectOptions.find((project) => project.value === panelInvoice.project_id)?.contractualName}</span>}
         </span> : undefined}
         icon={<Icon name="dollar" />}
@@ -523,7 +532,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
             <div><dt className="text-control text-muted-foreground">{t('finance:receivables.cash', 'Cash received')}</dt><dd className="mt-1 tabular">{panelPayment.received_amount == null ? notReported : formatCurrency(panelPayment.received_amount, panelPayment.currency, { precision: 'minor' })}</dd></div>
             <div><dt className="text-control text-muted-foreground">{t('finance:receivables.withheld', 'Tax withheld')}</dt><dd className="mt-1 tabular">{panelPayment.withheld_amount == null ? notReported : formatCurrency(panelPayment.withheld_amount, panelPayment.currency, { precision: 'minor' })}</dd></div>
             <div><dt className="text-control text-muted-foreground">{t('finance:receivables.notApplied', 'Not yet applied')}</dt><dd className="mt-1 tabular">{panelUnapplied == null ? notReported : formatCurrency(panelUnapplied, panelPayment.currency, { precision: 'minor' })}</dd></div>
-            <div><dt className="text-control text-muted-foreground">{t('finance:receivables.withholdingSlip', 'Withholding slip')}</dt><dd className="mt-1 font-mono">{panelPayment.withholding_slip_number ?? '—'}</dd></div>
+            <div><dt className="text-control text-muted-foreground">{t('finance:receivables.withholdingSlip', 'Withholding slip')}</dt><dd className="mt-1 record-id text-foreground">{panelPayment.withholding_slip_number ?? '—'}</dd></div>
           </dl>
           <section aria-labelledby="receivable-payment-invoices">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -536,7 +545,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
             </div>
             {panelAllocations?.length ? <ul className="divide-y divide-border/70">
               {panelAllocations.map((allocation, index) => <li key={`${allocation.invoice_id ?? allocation.invoice_number ?? 'invoice'}-${index}`} className="flex items-center justify-between gap-3 py-2 text-sm">
-                <span className="font-mono">{allocation.invoice_number ?? (allocation.invoice_id ? invoiceNumberOf(allocation.invoice_id) : null) ?? '—'}</span>
+                <span className="record-id text-foreground">{allocation.invoice_number ?? (allocation.invoice_id ? invoiceNumberOf(allocation.invoice_id) : null) ?? '—'}</span>
                 <span className="flex items-center gap-2">
                   <span className="tabular">{allocation.amount != null && allocation.currency && Number.isFinite(Number(allocation.amount)) ? formatCurrency(Number(allocation.amount), allocation.currency, { precision: 'minor' }) : notReported}</span>
                   {canApplyHere && panelPayment.allocations?.[index] && (

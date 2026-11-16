@@ -142,7 +142,7 @@ const OrgProjectNumberPattern: React.FC = () => {
               onBlur={() => undefined}
               error={issueText}
               helper={t('admin.projectNumberPattern.example', 'Example: PRE-{CLIENT}-{YY}-{SEQ4}')}
-              mono
+              code
               disabled={mutation.isPending}
             />
             {validation.valid && (previewYear === null ? (
@@ -161,7 +161,7 @@ const OrgProjectNumberPattern: React.FC = () => {
             ) : (
               <p data-testid="org-project-number-pattern-preview" className="text-control text-muted-foreground">
                 {t('uxs31.projectNumberPattern.preview', 'Preview:')}{' '}
-                <span className="font-mono">{previewProjectNumber(draft, previewYear)}</span>
+                <span className="record-id">{previewProjectNumber(draft, previewYear)}</span>
                 <span className="ml-1.5">
                   {t('uxs31.projectNumberPattern.previewNote', 'Illustrative only; the actual number is assigned when a project is created.')}
                 </span>

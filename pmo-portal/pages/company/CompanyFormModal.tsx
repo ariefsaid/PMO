@@ -256,7 +256,7 @@ export const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
               onChange={clientNumberSegmentField.onChange}
               onBlur={clientNumberSegmentField.onBlur}
               placeholder={t('companies.form.clientNumberSegment.placeholder', 'e.g. RIS')}
-              mono
+              code
             />
           )}
         </FormGrid>

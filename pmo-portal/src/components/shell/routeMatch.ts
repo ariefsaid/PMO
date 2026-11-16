@@ -39,7 +39,7 @@ export const MODULES: ModuleDef[] = [
     labelKey: 'shell.nav.dashboard', path: '/' },
   {
     module: 'sales',
-    icon: 'pipeline',
+    icon: 'funnel',
     label: 'Sales Pipeline', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.sales',
     path: '/sales',
@@ -105,7 +105,7 @@ export const MODULES: ModuleDef[] = [
   },
   {
     module: 'vendors',
-    icon: 'cart',
+    icon: 'companies',
     label: 'Suppliers', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.vendors',
     path: '/companies?type=Vendor',
@@ -165,7 +165,7 @@ export const MODULES: ModuleDef[] = [
   // Project-level Tasks remain available for oversight; Executive navigation is unchanged.
   {
     module: 'my-tasks',
-    icon: 'tasks',
+    icon: 'clipboard-check',
     label: 'My Tasks', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.myTasks',
     path: '/my-tasks',
@@ -207,7 +207,7 @@ export const MODULES: ModuleDef[] = [
     roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
   },
   {
-    module: 'finance-receivables', icon: 'download', label: 'Receivables', // i18n-exempt: translated at render via labelKey
+    module: 'finance-receivables', icon: 'invoices', label: 'Receivables', // i18n-exempt: translated at render via labelKey
     labelKey: 'financeHub:hub.receivables', feature: 'revenue',
     path: '/finance/receivables', roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
   },
@@ -217,7 +217,7 @@ export const MODULES: ModuleDef[] = [
     path: '/finance/payables', roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
   },
   {
-    module: 'finance-reports', icon: 'reports', label: 'Reports', // i18n-exempt: translated at render via labelKey
+    module: 'finance-reports', icon: 'chart-column', label: 'Reports', // i18n-exempt: translated at render via labelKey
     labelKey: 'financeHub:hub.reports', feature: 'management_pack',
     path: '/finance/reports', roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
   },
@@ -225,6 +225,11 @@ export const MODULES: ModuleDef[] = [
     module: 'finance-statements', icon: 'statements', label: 'Statements', // i18n-exempt: translated at render via labelKey
     labelKey: 'financeHub:hub.statements', feature: 'financial_statements',
     path: '/finance/statements', roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
+  },
+  {
+    module: 'journals', icon: 'table', label: 'Journals', // i18n-exempt: translated at render via labelKey
+    labelKey: 'journals:nav.journals',
+    path: '/journals', roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
   },
   // Administration: Exec·Admin (shown in Rail's foot section for those roles only).
   {

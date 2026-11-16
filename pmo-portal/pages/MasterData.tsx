@@ -153,7 +153,7 @@ export default function MasterDataPage() {
                     {locationsCut && <p role="status" className="text-control text-muted-foreground">{t('administration:odoo.master.locationsCut', 'Some locations are not shown.')}</p>}
                     {rows.map((w) => (
                       <section key={w.id} role="group" aria-label={`${w.name}${w.code ? ` (${w.code})` : ''}`} className="rounded-lg border border-border bg-card p-3">
-                        <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-foreground">{w.name}{w.code && <span className="font-mono text-control text-muted-foreground">{w.code}</span>}{status(w)}</h2>
+                        <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-foreground">{w.name}{w.code && <span className="record-id">{w.code}</span>}{status(w)}</h2>
                         <ul className="mt-2 divide-y divide-border text-sm">
                           {locs.filter((l) => l.attrs.warehouse_id === w.external_id).map((l) => (
                             <li key={l.id} className="flex items-center justify-between gap-3 py-1.5"><span className="min-w-0 break-words">{l.name}</span><span className="text-control text-muted-foreground">{text(l.attrs.usage)}</span></li>

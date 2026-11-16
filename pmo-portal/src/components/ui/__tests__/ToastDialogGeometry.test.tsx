@@ -82,4 +82,34 @@ describe('Toast and dialog geometry', () => {
     await waitFor(() => expect(toast!.style.getPropertyValue('--toast-top-inset')).toBe('108px'));
     expect(before).not.toBe('108px');
   });
+  // AC-TM-018 (phone): the drawer header wraps taller AFTER the viewport resize event has fired
+  // (fonts and reflow settle later), so a window-resize-only measurement leaves the toast on a
+  // stale inset, painted over the header. The header's own size changes must re-measure.
+  it('AC-TM-018 re-measures the drawer header when the header itself grows, with no window resize', async () => {
+    const callbacks: ResizeObserverCallback[] = [];
+    const original = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = class {
+      constructor(cb: ResizeObserverCallback) { callbacks.push(cb); }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
+    try {
+      render(
+        <ToastProvider>
+          <Drawer open title="Time-and-materials claim" onClose={() => undefined}>
+            <p>Drawer body</p>
+          </Drawer>
+        </ToastProvider>,
+      );
+      const toast = document.querySelector<HTMLElement>('[data-toast-container]');
+      await waitFor(() => expect(toast).toHaveAttribute('data-overlay-drawer', 'true'));
+      const header = document.querySelector<HTMLElement>('[data-drawer-header]')!;
+      vi.spyOn(header, 'getBoundingClientRect').mockReturnValue({ bottom: 151, top: 0, left: 0, right: 390, width: 390, height: 151, x: 0, y: 0, toJSON: () => ({}) } as DOMRect);
+      act(() => { callbacks.forEach((cb) => cb([], {} as ResizeObserver)); });
+      await waitFor(() => expect(toast!.style.getPropertyValue('--toast-top-inset')).toBe('163px'));
+    } finally {
+      globalThis.ResizeObserver = original;
+    }
+  });
 });

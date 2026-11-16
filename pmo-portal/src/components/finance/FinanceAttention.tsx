@@ -115,7 +115,7 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
                   aria-label={t('financeHub:hub.fix.overdue.openInvoice', { defaultValue: 'Open {{client}} invoice {{number}}', client, number: invoiceNumber(invoice) ?? '—' })}
                   className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-3 hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
                 >
-                  <span className="min-w-0 break-words"><span className="font-normal">{client}</span><span className="font-mono text-muted-foreground"> · {invoiceNumber(invoice) ?? '—'}</span></span>
+                  <span className="min-w-0 break-words"><span className="font-normal">{client}</span><span className="record-id"> · {invoiceNumber(invoice) ?? '—'}</span></span>
                   <LateText className="justify-self-end whitespace-nowrap" emphasis={isUrgent}>{partlyPaid
                         ? t('finance:receivables.statusPartlyPaidLate', { count: daysOverdue, n: String(daysOverdue), defaultValue_one: 'Partly paid · {{n}} day overdue', defaultValue_other: 'Partly paid · {{n}} days overdue' })
                         : t('status:age.overdue', { count: daysOverdue, n: String(daysOverdue), defaultValue_one: '{{n}} day overdue', defaultValue_other: '{{n}} days overdue' })}</LateText>

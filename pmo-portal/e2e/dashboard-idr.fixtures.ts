@@ -180,7 +180,7 @@ function reportFactsFixture(body: unknown): unknown {
   const id = uuid(9003);
   return { ...facts,
     projects: [{ id, name: NAMES[0], pmo_project_number: null, code: null,
-      status: 'Ongoing Project', currency: 'IDR', contract_net: FINANCE_FIXTURE.contract,
+      status: 'Ongoing Project', on_hand: true, currency: 'IDR', contract_net: FINANCE_FIXTURE.contract,
       start_date: null, end_date: null, project_manager_id: null, client_name: null }],
     invoiced: [{ project_id: id, currency: 'IDR', month,
       net: FINANCE_FIXTURE.receivable, invoice_count: 1 }],

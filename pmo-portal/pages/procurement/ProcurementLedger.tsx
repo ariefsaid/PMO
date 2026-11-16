@@ -15,7 +15,7 @@
  *
  * DESIGN.md tokens only; no raw hex/px. No horizontal bleed @390/360 (DataTable
  * md→card handles mobile). WCAG-AA: filter chips are keyboard-operable buttons
- * with aria-pressed; status pills are dot+label (never color-only); mono IDs.
+ * with aria-pressed; status pills are dot+label (never color-only); record-id reference lines.
  *
  * File column: zero per-row network calls on mount. File presence (fileTitle /
  * fileCount / fileHref) is pre-built from the bundle by buildLedgerRows. The cell
@@ -25,7 +25,6 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  CardPad,
   DataTable,
   StatusPill,
   TaxBasisLabel,
@@ -168,7 +167,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
     header: <LedgerHeader translationKey="procurementLedger.systemNumber" fallback="System #" />,
     cell: (row) =>
       row.systemNumber ? (
-        <span className="font-mono text-sm font-semibold">{row.systemNumber}</span>
+        <span className="record-id font-semibold text-foreground">{row.systemNumber}</span>
       ) : (
         <span className="text-sm text-muted-foreground">—</span>
       ),
@@ -178,7 +177,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
     header: <LedgerHeader translationKey="procurementLedger.externalRef" fallback="External ref" />,
     cell: (row) =>
       row.externalRef ? (
-        <span className="font-mono text-sm text-muted-foreground">{row.externalRef}</span>
+        <span className="record-id">{row.externalRef}</span>
       ) : (
         <span className="text-sm text-muted-foreground">—</span>
       ),
@@ -188,7 +187,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
     header: <GroupRefHeader />,
     cell: (row) =>
       row.groupRef ? (
-        <span className="font-mono text-sm text-muted-foreground">{row.groupRef}</span>
+        <span className="record-id">{row.groupRef}</span>
       ) : (
         <span className="text-sm text-muted-foreground">—</span>
       ),
@@ -551,8 +550,8 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
         />
       )}
 
-      {/* Capture affordance + note */}
-      <CardPad>
+      {/* Capture affordance + note: below the frame, on the page gutter (the capture box's own text then sits on the panel inset). */}
+      <div className="py-4">
         {detail.pre_cutover && (
           // FR-ECA-030: ordered before the ERP connection, so receipts, bills and payments stay in PMO. Information, not an alert.
           <p data-testid="ledger-pre-cutover" className="mb-2.5 text-sm text-muted-foreground">
@@ -593,7 +592,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
         <p className="mt-3 text-sm text-muted-foreground">
           {t('procurementLedger.ledgerNote', 'Every record appears once, chronological. Empty record types show nothing.')}
         </p>
-      </CardPad>
+      </div>
     </div>
   );
 };

@@ -130,7 +130,7 @@ export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = (
                 <div>
                   <span className={`mb-1 block text-sm font-semibold ${isCurrent ? 'text-foreground' : done ? 'text-success-text' : 'text-muted-foreground'}`}>{stageLabel}</span>
                   {/* O14: the current stage reads in neutral ink; blue stays reserved for the one main action. */}
-                  <span aria-hidden="true" className={`block h-1.5 rounded-full ${partial ? 'bg-secondary' : done ? 'bg-success' : isCurrent ? 'bg-muted-foreground' : 'bg-secondary'}`}>
+                  <span aria-hidden="true" className={`block h-1.5 rounded-full ${partial ? 'bg-secondary' : done ? 'bg-success' : isCurrent ? 'bg-input' : 'bg-secondary'}`}>
                     {partial && <span className="block h-full w-1/2 rounded-full bg-success" />}
                   </span>
                 </div>
@@ -188,7 +188,7 @@ export const ProcurementBudgetSignal: React.FC<ProcurementBudgetSignalProps> = (
   }
   const { available, afterRequest } = signal;
   // "Available" read as a cash balance; it is the budget less commitments, before actual spend, and says so.
-  const label = t('money.budgetSignal', 'Budget not yet committed {{available}} · {{after}} after this procurement', {
+  const label = t('money.budgetSignalPurchases', 'Not yet committed to purchases {{available}} · {{after}} after this procurement', {
     available: formatCurrency(available, currency),
     after: formatCurrency(afterRequest, currency),
   });
@@ -416,7 +416,7 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
                     </span>
                     <span className="whitespace-nowrap text-sm text-muted-foreground max-[640px]:col-start-2 max-[640px]:row-start-1">{showDate(entry.date, t('timeline.dateMissing', 'Date not recorded'))}</span>
                     <span className="min-w-0 max-[640px]:col-start-2">
-                      <span className="block text-sm font-medium">{entry.label}{entry.number ? <span className="ml-1 font-mono text-sm">{entry.number}</span> : null}</span>
+                      <span className="block text-sm font-medium">{entry.label}{entry.number ? <span className="ml-1 record-id text-foreground">{entry.number}</span> : null}</span>
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
                         {entry.actor && <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
                           <Avatar name={entry.actor} size="xs" decorative fallback="" />

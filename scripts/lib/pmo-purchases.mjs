@@ -347,8 +347,10 @@ export async function runRecordOnly(api, groups, { dryRun }) {
   }
   return out;
 }
-export async function runUndoRecordOnly(api, purchase, reason, { dryRun }) {
-  return api.rpc('undo_captured_purchase', { p_procurement_id: purchase, p_reason: reason, p_dry_run: Boolean(dryRun) });
+/** Undo a captured purchase, or with attachRequestId only the invoices one order-family placement attached to it (#2277). */
+export async function runUndoRecordOnly(api, purchase, reason, { dryRun, attachRequestId = null }) {
+  return api.rpc('undo_captured_purchase', { p_procurement_id: purchase, p_reason: reason, p_dry_run: Boolean(dryRun),
+    ...(attachRequestId ? { p_attach_request_id: attachRequestId } : {}) });
 }
 
 /**

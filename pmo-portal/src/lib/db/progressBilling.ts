@@ -36,6 +36,8 @@ export interface BoqItemInput {
   rate: number;
   earningBasis: EarningBasis;
   lineNo: number | null;
+  /** The import identity (`pmo load` / the contract-lines importer); null/absent for a hand-entered line. */
+  importKey?: string | null;
 }
 
 export interface ProgressClaimInput {
@@ -86,6 +88,7 @@ export async function createBoqItem(projectId: string, input: BoqItemInput): Pro
   const { data, error } = await supabase.from('boq_items').insert({
     project_id: projectId, item_code: input.itemCode, description: input.description, unit: input.unit,
     quantity: input.quantity, rate: input.rate, earning_basis: input.earningBasis, line_no: input.lineNo,
+    ...(input.importKey ? { import_key: input.importKey } : {}),
   }).select().single();
   if (error) fail(error);
   return data as BoqItemRow;

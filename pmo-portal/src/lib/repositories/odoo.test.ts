@@ -139,3 +139,15 @@ it('AC-OCI-090 adopts a held invoice using its account.move document number', as
     p_outbox_id: 'c1', p_resolution: 'adopt', p_external_record_id: 'account.move:42',
   })]);
 });
+
+it('#895 a journal picker can ask for one Odoo journal type (general journals for desk entries)', async () => {
+  h.setResult({ data: [], error: null, count: 0 });
+  await odooRepository.listMasterRecords({ kind: 'journal', page: 1, pageSize: 100, journalType: 'general' });
+  expect(h.calls).toContainEqual(['eq', 'kind', 'journal']);
+  expect(h.calls).toContainEqual(['eq', 'attrs->>type', 'general']);
+});
+
+it('#895 getConnection hands the client the chosen desk journal so the setup step can show Done', async () => {
+  h.setResult({ data: { status: 'active', activated_at: null, config: { desk_journal_id: 7, desk_journal_id_set_by: 'u1' } }, error: null });
+  expect((await odooRepository.getConnection()).config).toEqual({ desk_journal_id: 7 });
+});

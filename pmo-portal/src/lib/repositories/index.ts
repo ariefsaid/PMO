@@ -66,6 +66,7 @@ import {
 } from './workOrders';
 import { expenseClaimRepository, expenseReceiptsRepository } from './expenses';
 import { imprestRepository } from './imprest';
+import { journalRepository } from './journals';
 import { equipmentRepository } from './equipment';
 import { timeAndMaterialsRepository } from './timeAndMaterials';
 import { integrationsRepository } from './integrations';
@@ -123,6 +124,7 @@ export const repositories: Repositories = {
   procurementFiles: procurementFilesRepository,
   expenseClaim: expenseClaimRepository,
   imprest: imprestRepository,
+  journal: journalRepository,
   equipment: equipmentRepository,
   timeAndMaterials: timeAndMaterialsRepository,
   expenseReceipts: expenseReceiptsRepository,
@@ -182,6 +184,7 @@ export type {
   ProcurementFileRepository,
   ExpenseClaimRepository,
   ImprestRepository,
+  JournalRepository,
   EquipmentRepository,
   TimeAndMaterialsRepository,
   ExpenseReceiptRepository,

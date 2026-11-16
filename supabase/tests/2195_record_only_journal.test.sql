@@ -244,7 +244,7 @@ select lives_ok($test$select public.create_record_only_journal_purchase(jsonb_se
 select throws_ok($test$select public.create_record_only_journal_purchase(jsonb_set(jsonb_set(pg_temp.journal_group(),'{journal_lines,0,voucher_no}','"JV-PARTY"'),'{vendor_confirmed}','false'),true)$test$, '22023','supplier_mismatch','AC-ROP-007 confirmation cannot override a known conflicting supplier');
 select throws_ok($test$select public.create_record_only_journal_purchase(jsonb_set(pg_temp.journal_group(),'{journal_lines,0,voucher_no}','"JV-PARTY"'),true)$test$, '22023','supplier_mismatch','AC-ROP-007 a conflicting known supplier is refused');
 select ok(not has_function_privilege('anon','public.create_record_only_journal_purchase(jsonb,boolean)','execute'),'AC-ROP-005 anonymous create is revoked');
-select ok(not has_function_privilege('anon','public.undo_captured_purchase(uuid,text,boolean)','execute'),'AC-ROP-005 anonymous undo is revoked');
+select ok(not has_function_privilege('anon','public.undo_captured_purchase(uuid,text,boolean,uuid)','execute'),'AC-ROP-005 anonymous undo is revoked');
 select throws_ok($test$select public.create_record_only_journal_purchase(jsonb_set(pg_temp.journal_group(),'{vendor_confirmed}','false'),true)$test$, '22023','vendor_confirmation_required','AC-ROP-007 a missing supplier needs explicit confirmation');
 select throws_ok($test$select public.create_record_only_journal_purchase(jsonb_set(pg_temp.journal_group(),'{vendor_id}','"21950000-0000-0000-0000-000000000902"'),true)$test$, '22023','vendor_not_found','AC-ROP-006 a foreign vendor is not disclosed');
 select throws_ok($test$select public.create_record_only_journal_purchase(jsonb_set(pg_temp.journal_group(),'{journal_lines,0,project_id}','"21950000-0000-0000-0000-0000000000d2"'),true)$test$, '22023','project_mismatch','AC-ROP-007 mixed projects are refused');
@@ -278,7 +278,7 @@ set local request.jwt.claims = '{"sub":"21950000-0000-0000-0000-0000000000a4","r
 select set_config('rop.multiline_applied',public.create_record_only_journal_purchase(jsonb_set(pg_temp.journal_group(),'{journal_lines}',(pg_temp.journal_group()->'journal_lines') || '[{"erp_doctype":"Journal Entry","voucher_no":"JV-4","project_id":"21950000-0000-0000-0000-0000000000d1","account":"Project Subcontractors - X"}]'::jsonb),false)::text,true);
 select is((select total_value from public.procurements where id=(current_setting('rop.multiline_applied')::jsonb->>'procurement_id')::uuid),60::numeric,'AC-ROP-001 multiple lines create one purchase with their sum');
 select is((select count(*)::int from public.erp_journal_line_links where procurement_id=(current_setting('rop.multiline_applied')::jsonb->>'procurement_id')::uuid),2,'AC-ROP-001 both lines attach to that purchase');
-select has_function('public','undo_captured_purchase',array['uuid','text','boolean'], 'AC-ROP-009 undo RPC exists');
+select has_function('public','undo_captured_purchase',array['uuid','text','boolean','uuid'], 'AC-ROP-009 undo RPC exists');
 select lives_ok($test$select public.undo_captured_purchase((select id from procurements where title='Historical purchase edited'),'Incorrect link',false)$test$, 'AC-ROP-009 Admin undoes record');
 select is((select status::text from public.procurements where title='Historical purchase edited'),'Cancelled','AC-ROP-009 undo cancels wrapper');
 select is((select count(*)::int from public.project_erp_journal_lines('21950000-0000-0000-0000-0000000000d1') where voucher_no='JV-1' and procurement_id is null),1,'AC-ROP-009 undo releases source');

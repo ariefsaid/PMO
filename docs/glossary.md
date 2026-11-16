@@ -215,6 +215,9 @@ reporting manager.
 
 **Spend approver** — a user designated to approve spending for a project.
 
+**Supplier** — the party a purchase is bought from. Kept in English in Bahasa (like Timesheet and
+Dasbor), not translated as "Pemasok" (owner, 16 Nov).
+
 **Task dependency** — a directed relation stating that one task depends on another task (see
 **Task**).
 
@@ -334,6 +337,10 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Sales invoice** — a customer-facing invoice associated with a project and optionally a work order, carrying amount, currency, status and tax details.
 
+**Left to bill** — signed contract value (net of tax) less invoiced to date, per held contract (on-hand status, not archived: the Contract on hand set, whatever the selected period) and currency at a month; it does not depend on the revenue recognition basis. The management pack derives it once and every report tile, row, total, export and the home dashboard read that one figure (#2203). A held contract with no contract value is not in it; the total stays a number and the count of such contracts is said beside it ("N contracts with no value, not in the total").
+
+**Remaining work** — signed contract value less recognised revenue to date in the management pack; it follows the recognition basis (progress, earned value or invoiced) and is distinct from Left to bill. Formerly named "backlog" in the pack (DD-MMP-3).
+
 **Incoming payment** — a customer payment record, optionally linked to a sales invoice, carrying amount, currency, status and receipt/withholding details.
 
 ---
@@ -350,9 +357,38 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Expense claim evidence** — a file attached to an expense claim as supporting documentation.
 
+**Site cash** (Bahasa *kas lapangan*) — cash one custodian holds on site for one project (code: imprest float). One name in
+the UI; never "float". Its figures: **Limit** (*batas kas*, the approved amount it is topped up to), **Cash in hand**,
+**Advances given**, **Receipts waiting** (paid claims not yet refilled), **Top-up on its way**, **Still needed**.
+
+**Top-up** (*tambahan dana*) — a request to refill site cash with the receipts waiting (code: replenishment). **Funding**
+(*pendanaan*) is the first cash put in, up to the limit.
+
+**Cash count** — the custodian's count of cash in hand: **Counted**, **Expected** (by the books) and the **Difference**.
+
 **Vendor withholding slip** — a numbered vendor tax record for a tax period, currency, withholding type, tax base and withheld amount, with status and revision.
 
 **Vendor withholding slip bill** — an association of a slip to a vendor invoice preserving the withheld amount, type and currency at recording.
+
+---
+
+## Manual journals (#895)
+
+**Manual journal** — a balanced set of debit and credit lines that Finance writes in PMO for a ledger move no other
+record makes (a bank fee, interest, an accrual, a correction). It is drafted, submitted, approved by a second
+approver and then posted to the connected ledger, where it shows as Posted, Scheduled (dated later in the ledger),
+Needs a check or Refused. A posted one is undone only by a reversal: a new manual journal with every side swapped.
+Ledger moves PMO did not write are listed beside them as *outside PMO*, read-only.
+
+**Second approver** — the Finance, Executive or Admin member who approves or returns a manual journal. Never anyone
+who wrote it (its maker or any editor) and, for a reversal, nobody who wrote the original. Rank does not matter.
+One exception: when the organisation has only one member (one profile in total, whatever its status), that member
+approves their own journal, and the approval is recorded as made by the sole member. A second member, even a disabled
+one, brings the second-approver rule back for good: the organisation keeps a permanent "has had a second member"
+marker, so removing that member later does not restore the exemption.
+
+**Desk journal** — the one general Odoo journal that manual journals post to, chosen by an Admin in Odoo setup.
+Until it is chosen, manual journals cannot post to Odoo.
 
 ---
 
@@ -406,6 +442,15 @@ recording that evidence does not instruct the accounting system to buy again.
 
 **Captured purchase** — a purchase whose document evidence has been recorded in PMO.
 It describes how evidence arrived, not a separate purchase lifecycle.
+
+**Order family** — one ERP purchase order and every submitted supplier invoice that bills it; the order and its
+invoices always sit in one purchase, so the order's commitment and its invoices' cost are counted once.
+
+**Family placement** — an active Admin's decision that an order family belongs to one PMO project, recorded as one
+record-only purchase (new) or as invoices attached to the order's captured purchase (attach).
+
+**Attachment** — the invoices one family placement linked to a purchase that already held the order; it can be
+undone on its own, leaving the purchase and its order.
 
 **Capture** — the act of recording a purchase document in PMO. Whether it also creates a document
 in the connected accounting system depends on the chosen entry path; record-only capture does not.
