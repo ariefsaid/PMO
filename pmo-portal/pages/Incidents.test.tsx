@@ -62,6 +62,7 @@ vi.mock('@/src/auth/impersonation', () => ({
 }));
 
 import Incidents from './Incidents';
+import { formatDayYear } from '@/src/lib/format';
 
 const seed = [
   {
@@ -404,7 +405,7 @@ describe('Incidents — create-form date default (AC-W6-IXD-INCDATE)', () => {
     renderPage('Engineer');
     await userEvent.click(screen.getByRole('button', { name: /File incident/i }));
     const dialog = screen.getByRole('dialog');
-    expect(within(dialog).getByLabelText(/Date/i)).toHaveValue(todayLocal());
+    expect(within(dialog).getByLabelText(/Date/i)).toHaveValue(formatDayYear(todayLocal()));
   });
 
   it('AC-W6-IXD-INCDATE: the Edit form keeps the incident stored date (not today)', async () => {
@@ -413,7 +414,7 @@ describe('Incidents — create-form date default (AC-W6-IXD-INCDATE)', () => {
     await userEvent.click(within(row).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /^Edit$/i }));
     const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByLabelText(/Date/i)).toHaveValue('2026-03-15');
+    expect(within(dialog).getByLabelText(/Date/i)).toHaveValue('15 Mar 2026');
   });
 });
 

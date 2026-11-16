@@ -17,6 +17,7 @@ import { useCommandIntent } from '@/src/hooks/useCommandIntent';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import { OdooJournalSelect } from '@/src/components/procurement/OdooDirectoryPickers';
 import { nativeReceiptInvoiceCandidates } from './applicableInvoices';
+import { DateField } from '@/src/components/ui/DateField';
 
 /** Form values for the payment modal. */
 interface FormValues {
@@ -513,7 +514,7 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
               </FormGrid>
             </div>
           </div>
-          <TextField
+          <DateField
             id={dateField.id}
             label={native ? t('financeCopy.paymentDateLabel', 'Payment date') : t('financeCopy.date', "Date")}
             max={native ? today : undefined}
@@ -523,7 +524,6 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
             onBlur={dateField.onBlur}
             required
             error={dateField.error}
-            type="date"
             className="w-48"
           />
         </FormGrid>

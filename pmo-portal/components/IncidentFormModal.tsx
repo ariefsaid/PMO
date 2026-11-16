@@ -12,6 +12,7 @@ import {
 } from '@/src/components/ui';
 import { useProjectOptions } from '@/src/hooks/useFkOptions';
 import type { IncidentRow, IncidentSeverity, IncidentInput } from '@/src/lib/db/incidents';
+import { DateField } from '@/src/components/ui/DateField';
 
 /** Severity options for the file/edit form (the `incident_severity` enum). */
 const SEVERITY_OPTIONS = [
@@ -152,10 +153,9 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
     >
       <FormSection legend="What happened">
         <FormGrid>
-          <TextField
+          <DateField
             id={dateField.id}
             label="Date"
-            type="date"
             required
             value={dateField.value}
             onChange={dateField.onChange}

@@ -111,6 +111,7 @@ export {
   type FormSectionProps,
   type FormActionsProps,
 } from './FormFields';
+export { DateField, type DateFieldProps } from './DateField';
 export { FormFooter, type FormFooterProps } from './FormFooter';
 export { useMoneyInputMask } from './useMoneyInputMask';
 export { Combobox, type ComboboxProps, type ComboboxOption } from './Combobox';

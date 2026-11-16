@@ -1,6 +1,7 @@
 import React from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Button, ConfirmDialog, Icon, LifecycleStepper, RecordActionZone, TaxBasisLabel } from '@/src/components/ui';
+import { DateField } from '@/src/components/ui/DateField';
 import { LostReasonFields } from '@/components/project-status/LostReasonFields';
 import { lostReasonLabel, lostReasonValid } from '@/src/lib/lostReasons';
 import { formatCurrency, formatDecisionDateNumeric } from '@/src/lib/format';
@@ -156,12 +157,8 @@ export const DealActionsZone: React.FC<{ d: DealActions; children?: React.ReactN
           className={`h-8 rounded-md border bg-background px-2.5 text-control outline-none placeholder:text-muted-foreground ${d.refError ? 'border-destructive' : 'border-input'}`} />
         {d.refError && <span id="won-ref-err" className="text-control text-destructive">{d.refError}</span>}
       </div>
-      <div className="flex flex-col gap-1">
-        <label htmlFor="won-date" className="text-control font-semibold">{t('projectDetail.pipeline.contractDateLabel', 'Contract date')}</label>
-        <input id="won-date" type="date" max={d.today} value={d.contractDate} onChange={(e) => { d.setContractDate(e.target.value); d.setDateError(null); }} aria-invalid={!!d.dateError} aria-describedby={d.dateError ? 'won-date-err' : undefined}
-          className={`h-8 rounded-md border bg-background px-2.5 text-control outline-none ${d.dateError ? 'border-destructive' : 'border-input'}`} />
-        {d.dateError && <span id="won-date-err" className="text-control text-destructive">{d.dateError}</span>}
-      </div>
+      <DateField id="won-date" compact label={t('projectDetail.pipeline.contractDateLabel', 'Contract date')} max={d.today} value={d.contractDate}
+        onChange={(v) => { d.setContractDate(v); d.setDateError(null); }} error={d.dateError} />
       <div className="flex gap-2">
         <Button variant="primary" size="sm" loading={d.pending} onClick={d.submitWon}>{t('projectDetail.pipeline.confirmWon', 'Confirm won')}</Button>
         <Button variant="ghost" size="sm" onClick={() => d.setShowWonPanel(false)}>{t('projectDetail.pipeline.cancel', 'Cancel')}</Button>

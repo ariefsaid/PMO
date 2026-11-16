@@ -11,6 +11,7 @@ import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import { CATEGORY_OPTIONS } from '@/src/lib/documentCategories';
 import type { MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 import { DocumentDriftBadge } from '@/src/components/m365/DocumentDriftBadge';
+import { DateField } from '@/src/components/ui/DateField';
 
 /**
  * Auto-bump the revision mark: A→B, 3→4. Increment a full numeric suffix, preserving its width, or the last letter; otherwise return empty string for manual entry.
@@ -156,10 +157,9 @@ export const NewRevisionModal: React.FC<NewRevisionModalProps> = ({
             onChange={setRevision}
             placeholder="e.g. B"
           />
-          <TextField
+          <DateField
             id="rev-date"
             label="Document date"
-            type="date"
             value={docDate}
             onChange={setDocDate}
           />

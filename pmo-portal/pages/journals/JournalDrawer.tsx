@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Badge, Button, ConfirmDialog, DataTable, Drawer, ListState, ReasonDialog, StatusPill, TextArea, TextField, useToast,
+  Badge, Button, ConfirmDialog, DataTable, Drawer, ListState, ReasonDialog, StatusPill, TextArea, useToast,
   type Column,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
@@ -13,6 +13,7 @@ import { formatExactCents, parseExactCents } from '@/src/lib/exactDecimal';
 import { ApprovedSendFailure } from '@/src/lib/journals/approvedSendFailure';
 import type { JournalDetail, JournalLineRow, JournalListRow } from '@/src/lib/db/journals';
 import { journalErrorOverrides, journalKindLabel } from './journalWords';
+import { DateField } from '@/src/components/ui/DateField';
 
 /** numeric(18,2) from PostgREST (string or number) as exact two-decimal text; '' for zero. */
 const exactText = (v: string | number): string => {
@@ -182,7 +183,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({ row, currency, cur
       <ConfirmDialog open={dialog === 'reverse'} title={t('journals:reverse.title', 'Reverse this journal?')}
         description={<div className="space-y-3">
           <p>{t('journals:reverse.body', 'A new draft swaps every debit and credit. A second approver approves it.')}</p>
-          <TextField label={t('journals:reverse.date', 'Reversal date')} type="date" required value={reverseDate} onChange={setReverseDate} />
+          <DateField label={t('journals:reverse.date', 'Reversal date')} required value={reverseDate} onChange={setReverseDate} />
           <TextArea label={t('journals:reverse.reason', 'Reason')} required maxLength={500} value={reverseReason} onChange={setReverseReason} />
         </div>}
         confirmLabel={t('journals:reverse.confirm', 'Draft the reversal')} loading={busy} error={error}

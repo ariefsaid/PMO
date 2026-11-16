@@ -12,6 +12,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatDay, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { ExpenseClaimLineRow, ExpenseLineInput, ExpenseType } from '@/src/lib/db/expenseClaims';
 import { expenseTypeLabel } from './expenseLabels';
+import { DateField } from '@/src/components/ui/DateField';
 
 /** A claim's lines (FR-EXP-003/063). Editable only by the claimant while Draft/Rejected (RLS is the authority);
  *  the claim total is the server's Σ lines — the footer sum here is display, in integer cents. */
@@ -235,7 +236,7 @@ const ExpenseLineFormModal: React.FC<{
       submitError={saveError}
     >
       <FormGrid>
-          <TextField id={dateField.id} type="date" required label={t('expenses.lines.date', 'Date')} value={dateField.value}
+          <DateField id={dateField.id} required label={t('expenses.lines.date', 'Date')} value={dateField.value}
             onChange={dateField.onChange} onBlur={dateField.onBlur} error={dateField.error} />
           <SelectField id={typeField.id} label={t('expenses.lines.type', 'Type')} value={typeField.value}
             onChange={(v) => typeField.onChange(v)} onBlur={typeField.onBlur}
