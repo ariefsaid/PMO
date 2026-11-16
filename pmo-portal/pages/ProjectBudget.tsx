@@ -680,6 +680,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       size: 250,
       cell: (row) => {
         const name = budgetCategoryLabel(row.category, t);
+        // #2426: Uncategorized has no budget lines to open, so its name is text and the row does not activate.
+        if (row.category === UNCATEGORIZED) return <span className="min-w-0 truncate font-medium text-foreground">{name}</span>;
         return <button type="button" className="min-w-0 truncate text-left font-medium text-foreground underline-offset-2 hover:underline" aria-label={t('projectDetail.budget.openCategory', 'Open {{category}} budget details', { category: name })} onClick={(event) => { event.stopPropagation(); openCategory(row); }}>{name}</button>;
       },
       secondaryCell: (row) => row.category === UNCATEGORIZED && position.uncategorized && canSeeActuals
@@ -1014,7 +1016,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
               rows={enrichedRows}
               columns={actualColumns}
               rowKey={(row) => row.category}
-              onActivate={openCategory}
+              onActivate={(row) => { if (row.category !== UNCATEGORIZED) openCategory(row); }}
               selectedKey={selectedCategory?.category}
               selection={{
                 selectedIds: selectedRows,

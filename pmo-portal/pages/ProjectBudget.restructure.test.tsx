@@ -780,6 +780,24 @@ describe('#2325 the spend-versus-budget comparison without an accounting system'
       expect(screen.queryByText(/not mapped/u)).not.toBeInTheDocument();
     });
 
+    it('#2426 Uncategorized has no budget lines to open: its name is plain text and clicking the row opens nothing', async () => {
+      setUp('pmo', null);
+      state.versions.data = [active(lines) as unknown as BudgetVersionWithItems];
+      state.comparisonRows = [
+        { category: 'Labor', budgetTotal: 5000, recorded: 700, recordedAsOf: null, mapped: true, hasLedger: true, remaining: 4300, percentUsed: 0.14 },
+        { category: null, budgetTotal: 0, recorded: 300, recordedAsOf: null, mapped: true, hasLedger: true, remaining: -300, percentUsed: null },
+      ];
+      unmappedPosition();
+      Object.assign(state.position, { uncategorized: { amount: 300 } });
+      renderPage();
+      const row = await screen.findByRole('row', { name: /Uncategorized/u });
+      expect(screen.getByRole('button', { name: /Open Labor budget details/u })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Open Uncategorized budget details/u })).not.toBeInTheDocument();
+      expect(within(row).getByText('Paid with no budget category')).toBeInTheDocument();
+      await userEvent.click(row);
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
     it('AC-BCNL-013 an accounting system connected: the table and its "not mapped" note are as before, and no comparison is read', async () => {
       setUp('erp', { status: 'active' });
       state.versions.data = [active(lines) as unknown as BudgetVersionWithItems];
