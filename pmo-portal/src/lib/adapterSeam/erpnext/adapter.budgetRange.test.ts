@@ -22,6 +22,7 @@ const EXPECTED_ROWS = [
 function harness(options: {
   recoveryState?: Record<string, unknown> | null;
   failAdvanceStage?: string;
+  writeMayStart?: () => boolean;
   createdDocOverride?: Record<string, unknown>;
   getDocOverride?: Record<string, unknown>;
   putOutcome?: 'success' | 'accept-then-timeout' | 'timeout-before-accept';
@@ -166,6 +167,7 @@ function harness(options: {
         ? ((input, init) => globalThis.fetch(input, init)) as typeof fetch
         : fetchImpl as typeof fetch,
       apiKey: 'key', apiSecret: 'secret', baseUrl: 'https://erp.test', timeoutMs: options.timeoutMs,
+      ...(options.writeMayStart ? { writeMayStart: options.writeMayStart } : {}),
     },
     doctypeBodies: DOCTYPE_BODIES,
     ctx: {
@@ -418,6 +420,20 @@ describe('whole-project range Budget durability', () => {
 
     await expect(h.adapter.commit(h.command as never)).rejects.toMatchObject({ code: 'command-held' });
     expect(h.calls.some((call) => call.method === 'POST' && call.path === '/api/resource/Budget')).toBe(false);
+  });
+
+  it('#2149: when the caller has no time left for the create, the pre-POST stage is not written, so the next try creates instead of holding', async () => {
+    let open = false;
+    const h = harness({ writeMayStart: () => open });
+
+    await expect(h.adapter.commit(h.command as never)).rejects.toMatchObject({ code: 'external-unreachable' });
+    expect(h.durableState?.stage ?? null).toBe(null);
+    expect(h.calls.some((call) => call.method === 'POST' && call.path === '/api/resource/Budget')).toBe(false);
+
+    open = true;
+    h.command.outboxCommit.generation = 2;
+    await h.adapter.commit(h.command as never);
+    expect(h.calls.filter((call) => call.method === 'POST' && call.path === '/api/resource/Budget')).toHaveLength(1);
   });
 
   it('never repeats a POST when ERP accepted it but the draft witness could not be saved', async () => {
