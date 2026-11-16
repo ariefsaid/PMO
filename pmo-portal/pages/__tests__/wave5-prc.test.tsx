@@ -301,9 +301,9 @@ describe('AC-IXD-DASH-W5-C2C — Projects list: at-risk rows sort to top in All 
     expect(deltaDeepIdx).toBeLessThan(gammaGateIdx);
   });
 
-  it('C2C-LIST-2: at-risk rows in the project cell show the "At risk" StatusPill', () => {
+  it('C2C-LIST-2: at-risk rows name the risk in their Status pill', () => {
     renderProjectsPage('/projects');
-    const atRiskPills = screen.getAllByText('At risk');
+    const atRiskPills = screen.getAllByText(/· at risk$/i);
     // Burning Beta (95%) + Delta Deep (92.5%) → 2 pills
     expect(atRiskPills.length).toBeGreaterThanOrEqual(2);
   });
@@ -313,7 +313,7 @@ describe('AC-IXD-DASH-W5-C2C — Projects list: at-risk rows sort to top in All 
     const rows = screen.getAllByRole('row');
     const steadyRow = rows.find((r) => r.textContent?.includes('Steady Alpha'));
     expect(steadyRow).toBeDefined();
-    expect(steadyRow?.textContent).not.toContain('At risk');
+    expect(steadyRow?.textContent?.toLowerCase()).not.toContain('at risk');
   });
 });
 

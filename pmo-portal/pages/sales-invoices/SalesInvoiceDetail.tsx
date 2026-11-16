@@ -19,11 +19,11 @@ interface Props {
   isPending: boolean;
   isError: boolean;
   data: SalesInvoiceRow[] | undefined;
-  mode: ReturnType<typeof import('@/src/hooks/useRevenueMode').useRevenueMode>;
   organizationToday: string | null;
   onBack: () => void;
   refetch: () => unknown;
-  recordPrimaryAction: { label: string; onClick: () => void } | null;
+  /** `pending`: the revenue mode has not answered, so the action's slot is held (a button-sized placeholder). */
+  recordPrimaryAction: { label: string; onClick: () => void; pending?: never } | { pending: true; label?: never; onClick?: never } | null;
   invoiceDisplayLabel: (invoice: SalesInvoiceRow) => string;
   projectName?: string | null;
   receiptAwaitingOdoo?: boolean;
@@ -32,7 +32,7 @@ interface Props {
   pdfDownload: ReturnType<typeof useInvoicePdfDownload>;
   dialogs: React.ReactNode;
 }
-export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode, organizationToday, onBack, refetch, recordPrimaryAction, invoiceDisplayLabel, projectName = null, receiptAwaitingOdoo = false, odoo = false, may, pdfDownload, dialogs }: Props) {
+export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, organizationToday, onBack, refetch, recordPrimaryAction, invoiceDisplayLabel, projectName = null, receiptAwaitingOdoo = false, odoo = false, may, pdfDownload, dialogs }: Props) {
   const { t } = useTranslation();
   const viewTargetNumber = viewTarget ? invoiceNumber(viewTarget) : null;
   const dueDate = viewTarget ? deriveArDueDate(viewTarget.invoice_date, viewTarget.erp_payment_terms_days, viewTarget.erp_due_date, viewTarget.received_date) : null;
@@ -43,14 +43,14 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
     ? t('financeCopy.invoiceRecordTitle', 'Invoice {{number}}', { number: '' }).trim()
     : null;
     return (
-      <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
+      <main data-testid="invoice-record" className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
         <Button variant="ghost" onClick={onBack} className="mb-4 -ml-3">
           <Icon name="back" className="size-4" />
           {t('financeCopy.backToInvoices', 'Back to Receivables')}
         </Button>
-        {mode === undefined || (isPending && !viewTarget) ? (
+        {isPending && !viewTarget ? (
           <ListState variant="loading" rows={3} />
-        ) : isError || !data ? (
+        ) : !viewTarget && (isError || !data) ? (
           <ListState
             variant="error"
             title={t('financeCopy.salesInvoicesLoadFailed', "Couldn't load sales invoices")}
@@ -81,7 +81,11 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
                   </span>
                 )}
               </>}
-              primaryAction={recordPrimaryAction ? <Button variant="primary" size="sm" onClick={recordPrimaryAction.onClick}>{recordPrimaryAction.label}</Button> : undefined}
+              primaryAction={recordPrimaryAction
+                ? recordPrimaryAction.pending
+                  ? <span data-testid="record-action-pending" aria-busy="true" aria-hidden="true" className="skel inline-block h-8 w-[9.5rem] rounded-md max-sm:h-11" />
+                  : <Button variant="primary" size="sm" onClick={recordPrimaryAction.onClick}>{recordPrimaryAction.label}</Button>
+                : undefined}
               stats={[
                 { label: t('financeCopy.project', 'Project'), value: <ProjectNameLink projectId={viewTarget.project_id} name={projectName} className="text-control" /> },
                 { label: t('uxs17.invoiceDate', 'Invoice date'), value: viewTarget.invoice_date ? formatDayYear(viewTarget.invoice_date) : t('uxs17.dateNotRecorded', 'Not recorded') },

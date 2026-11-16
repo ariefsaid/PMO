@@ -66,3 +66,32 @@ describe('project risk classification', () => {
     expect(result.current.filtered.map((p) => p.id)).toEqual(['risk']);
   });
 });
+
+describe('worst first (#design-1115)', () => {
+  const over = { id: 'over', name: 'Over', status: 'Ongoing Project', currency: 'USD' } as ProjectWithRefs;
+  const late = { id: 'late', name: 'Late', status: 'Ongoing Project', currency: 'USD', end_date: '2000-01-31' } as ProjectWithRefs;
+  const closedLate = { id: 'closed', name: 'Closed', status: 'Close Out', currency: 'USD', end_date: '2000-01-31' } as ProjectWithRefs;
+  const overMoney = { ...money, budgetPosition: { ...position('pmo'), projectId: 'over', spent: '1100', consumption: '1100', usedRatio: '1.1', usedPercent: '110', atRisk: false } };
+
+  beforeEach(() => {
+    state.projects = [safe, closedLate, late, over, risky];
+    state.money = { risk: money, over: overMoney };
+  });
+
+  it('orders at risk, then over budget, then late, then the rest in their own order', () => {
+    const { result } = renderHook(() => useProjectListModel('Project Manager', null, t));
+    expect(result.current.filtered.map((p) => p.id)).toEqual(['risk', 'over', 'late', 'safe', 'closed']);
+  });
+
+  it('counts the finding line across the whole list, and each clause filters to its rows', () => {
+    const { result, rerender } = renderHook(() => useProjectListModel('Project Manager', null, t));
+    expect(result.current.health).toEqual({ total: 5, atRisk: 1, overBudget: 1, late: 1 });
+    state.filter = 'over-budget';
+    rerender();
+    expect(result.current.filtered.map((p) => p.id)).toEqual(['over']);
+    state.filter = 'late';
+    rerender();
+    // A closed-out project is never late, the same rule the record header uses.
+    expect(result.current.filtered.map((p) => p.id)).toEqual(['late']);
+  });
+});

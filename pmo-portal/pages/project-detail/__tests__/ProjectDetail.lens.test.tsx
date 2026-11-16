@@ -327,7 +327,7 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     expect(screen.getByRole('tablist', { name: /project sections/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Budget' })).toBeInTheDocument();
     expect(screen.queryByTestId('contract-value-sod')).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Project actions' }));
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Change contract value' }));
     expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
     expect(screen.getByLabelText('Contract value')).toBeInTheDocument();

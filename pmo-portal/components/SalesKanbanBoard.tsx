@@ -41,6 +41,10 @@ interface SalesKanbanBoardProps {
   presentation?: 'board' | 'list';
   /** Active URL stage; compact rows omit a repeated status label when grouped by stage. */
   selectedStatus?: PipelineProject['status'] | null;
+  /** Column test ids whose read has not answered (Won / Lost): they show a loading state, not a count. */
+  pendingColumns?: readonly string[];
+  /** Phone list only: a skeleton tail while a further read (Won / Lost) is still loading. */
+  pendingTail?: boolean;
   /** Drag controller (DND, #1637). Absent: the board renders exactly as before. */
   drag?: {
     columnOf: (projectId: string, serverColumnId: string) => string;
@@ -282,10 +286,11 @@ const DealMoveMenu: React.FC<{
   );
 };
 
-const SalesPipelineCompactList: React.FC<Pick<SalesKanbanBoardProps, 'projects' | 'onOpen' | 'selectedStatus'>> = ({
+const SalesPipelineCompactList: React.FC<Pick<SalesKanbanBoardProps, 'projects' | 'onOpen' | 'selectedStatus' | 'pendingTail'>> = ({
   projects,
   onOpen,
   selectedStatus,
+  pendingTail = false,
 }) => {
   const { t } = useTranslation();
   const sharedExclusiveTaxBasis = canSummarizeExclusiveTaxBasis(projects);
@@ -307,10 +312,16 @@ const SalesPipelineCompactList: React.FC<Pick<SalesKanbanBoardProps, 'projects' 
           </li>
         ))}
       </ul>
+      {pendingTail && (
+        <div aria-busy="true" data-testid="sales-phone-list-pending" className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
+          {[0, 1].map((i) => <div key={i} className="skel h-[116px] rounded-lg" />)}
+        </div>
+      )}
       {/* One tax-basis word for the whole list, under the values it qualifies. The "Chance" header
           is gone: each row carries its own percent, so a header naming a column that does not exist
           said nothing. */}
-      {sharedExclusiveTaxBasis && (
+      {/* Whether the basis is shared by every row is unknown until the held reads land: no footnote to push meanwhile. */}
+      {sharedExclusiveTaxBasis && !pendingTail && (
         <p data-testid="sales-phone-figure-context" className="mt-2 text-control text-muted-foreground">
           {t('sales:exclusiveTaxSummary', 'excl. PPN')}
         </p>
@@ -342,6 +353,7 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
   onOpen,
   selectedId,
   selectedStageIndex = null,
+  pendingColumns = [],
   drag,
 }) => {
   const { t } = useTranslation();
@@ -426,6 +438,7 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
               title={colTitle}
               dotColor={col.dotColor}
               count={colProjects.length}
+              pending={pendingColumns.includes(col.testId)}
               totals={col.terminal ? lostCountsLine : undefined}
               emptyMessage={t('projects.kanban.empty', { defaultValue: 'No projects in {{stage}}', stage: colTitle })}
               selected={colIdx === selectedStageIndex}
@@ -483,6 +496,7 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = (props) => {
         projects={props.projects}
         onOpen={props.onOpen}
         selectedStatus={props.selectedStatus}
+        pendingTail={props.pendingTail}
       />
     );
   }

@@ -36,7 +36,8 @@ export const DraggableSalesBoard: React.FC<{
   projects: PipelineProject[];
   onOpen: (p: PipelineProject) => void;
   selectedStageIndex?: number | null;
-}> = ({ projects, onOpen, selectedStageIndex }) => {
+  pendingColumns?: readonly string[];
+}> = ({ projects, onOpen, selectedStageIndex, pendingColumns }) => {
   const { t } = useTranslation('boardDrag');
   const qc = useQueryClient();
   const { currentUser } = useAuth();
@@ -165,6 +166,7 @@ export const DraggableSalesBoard: React.FC<{
         projects={projects}
         onOpen={onOpen}
         selectedStageIndex={selectedStageIndex}
+        pendingColumns={pendingColumns}
         drag={{
           columnOf: moves.columnOf,
           stateOf: moves.stateOf,

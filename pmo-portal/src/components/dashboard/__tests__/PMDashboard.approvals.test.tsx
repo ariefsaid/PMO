@@ -7,7 +7,7 @@
  */
 import React from 'react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 
@@ -139,6 +139,7 @@ describe('PMDashboard approvals queue (ported N15)', () => {
 
   it('CLS: holds the approvals line open while the queue loads, so the cards below do not jump', () => {
     renderDashboard();
-    expect(screen.getAllByTestId('liststate-loading')[0].className).toMatch(/\bh-11\b/);
+    const waits = within(screen.getByTestId('waits-on-you')).getAllByTestId('liststate-loading')[0];
+    expect(waits.querySelectorAll('[data-skeleton-shape="items"] > *').length).toBeGreaterThan(0);
   });
 });

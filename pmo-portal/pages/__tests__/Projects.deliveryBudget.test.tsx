@@ -165,7 +165,8 @@ describe('Projects delivery progress + budget used', () => {
     renderPage();
 
     expect(screen.getAllByLabelText('Delivery 50%')).toHaveLength(1);
-    expect(screen.getByText('Budget used')).toBeInTheDocument();
+    // #design-1115: the header names its denominator.
+    expect(screen.getByText('% of budget used')).toBeInTheDocument();
     expect(screen.getByLabelText('53% of Active budget before tax').closest('[title]')).toHaveAttribute('title', expect.stringContaining('$2,000,000 of $3,800,000 Active budget before tax'));
     expect(screen.getByText('53%')).toBeInTheDocument();
     // PL-A: a project without phases shows a dash (its reason is the title), not prose.
@@ -204,9 +205,10 @@ describe('Projects delivery progress + budget used', () => {
     renderPage();
 
     const noMilestonesRow = screen.getByText('No Milestones Yet').closest('tr')!;
-    const budgetColumn = screen.getAllByRole('columnheader').findIndex((header) => header.textContent === 'Budget used');
+    const budgetColumn = screen.getAllByRole('columnheader').findIndex((header) => header.textContent === '% of budget used');
     const budgetCell = within(noMilestonesRow).getAllByRole('cell')[budgetColumn];
-    expect(budgetCell).toBeEmptyDOMElement();
+    // Absent reads as the one dash every column uses, never a figure.
+    expect(budgetCell).toHaveTextContent(/^—$/);
     expect(within(budgetCell).queryByText(/\$0 of \$0/i)).not.toBeInTheDocument();
   });
 });

@@ -4,6 +4,7 @@ import { Link } from 'react-router';
 import { cn } from './cn';
 import { FigureContent, FIGURE_LINE_CLASS } from './FigureContent';
 import { Icon, type IconName } from './icons';
+import { ListState } from './ListState';
 import { Tooltip } from './Tooltip';
 import { useFigureReport, type HiddenFigure } from './useFigureScope';
 import type { KPITone } from './KPITile.types';
@@ -62,6 +63,8 @@ export interface KPITileProps {
   nowrapLabel?: boolean;
   /** Screen-reader text read beside the caption (e.g. the rate's source date); not shown. */
   captionNote?: string;
+  /** Show the caption in full, wrapped, instead of one truncated line (a caption that states a fact). */
+  captionWrap?: boolean;
   /** @deprecated Use `caption`. */
   vs?: string;
   /** @deprecated A tile has one caption; the text is used as `caption` when none is given. */
@@ -85,25 +88,42 @@ export interface KPITileProps {
 }
 
 /** Inside a KPIRow the tiles become cells of one joined strip: no own frame, no decorative icon tile. */
-/** The tile's one caption: it wraps (at most two lines on a figure card) and is never truncated. */
+/** The tile's one caption: a single truncated line, or (wrap) shown whole. */
 const UNBREAKABLE = /(≈ IDR [\d.,]+ \([^)]*\)|≈ IDR [\d.,]+|\([^)]*\))/;
-const Caption: React.FC<{ children: string; note?: string; action?: { to: string; label: string } }> = ({ children, note, action }) => (
-  <div className="mt-auto text-control text-muted-foreground">
-    {/* An equivalent (amount and rate phrase together) is one unbreakable unit: a line may break before or after
-        it, never inside it. The text is not duplicated, so it reads once, in full, everywhere. */}
-    {children.split(UNBREAKABLE).map((part, i) => UNBREAKABLE.test(part) ? <span key={i} className="whitespace-nowrap">{part}</span> : part)}
-    {note && <span className="sr-only">{` (${note})`}</span>}
-    {action && <>{' · '}<Link to={action.to} className="pointer-events-auto font-medium text-primary-text underline-offset-4 hover:underline">{action.label}</Link></>}
-  </div>
-);
+const Caption: React.FC<{ children: string; wrap?: boolean; note?: string; action?: { to: string; label: string } }> = ({ children, wrap, note, action }) => {
+  const tail = (
+    <>
+      {note && <span className="sr-only">{` (${note})`}</span>}
+      {action && <>{' · '}<Link to={action.to} className="pointer-events-auto font-medium text-primary-text underline-offset-4 hover:underline">{action.label}</Link></>}
+    </>
+  );
+  return wrap ? (
+    // A phone has no hover: a caption that carries a fact is shown whole, never cut to a title.
+    // An equivalent (amount and rate phrase together) is one unbreakable unit: a line may break before or after it, never inside it.
+    <div className="mt-auto break-words text-control text-muted-foreground">
+      {children.split(UNBREAKABLE).map((part, i) => UNBREAKABLE.test(part) ? <span key={i} className="whitespace-nowrap">{part}</span> : part)}
+      {tail}
+    </div>
+  ) : (
+    <div className="mt-auto truncate text-control text-muted-foreground" title={children}>{children}{tail}</div>
+  );
+};
 
-const KPIRowContext = React.createContext(false);
+/** Inside a row: 'tile' (its own 16px inset) or 'panel' (the panels' inset, figures on shared rows). */
+const KPIRowContext = React.createContext<false | 'tile' | 'panel'>(false);
+/** A tile in a panel-inset row lays label, figure and caption on the row's shared lines from 900px up. */
+export const PANEL_TILE_LINES = 'min-[900px]:row-span-3 min-[900px]:grid min-[900px]:grid-rows-subgrid min-[900px]:gap-y-2.5';
 
 export interface KPIRowProps {
   children: React.ReactNode;
   /** Column classes for the strip, e.g. `grid-cols-2 lg:grid-cols-4`. */
   className?: string;
   'aria-label'?: string;
+  /**
+   * Tiles take the panels' inset, so a strip above panels shares their left edge; from 900px each tile's label,
+   * figure and caption sit on lines shared across the row (a label that wraps never drops its figure).
+   */
+  panelInset?: boolean;
 }
 
 /**
@@ -111,15 +131,16 @@ export interface KPIRowProps {
  * so a row of figures reads as one group rather than a grid of identical cards. A last odd cell spans the
  * row on the two-column phone layout instead of leaving a grey hole.
  */
-export const KPIRow: React.FC<KPIRowProps> = ({ children, className, 'aria-label': ariaLabel }) => (
+export const KPIRow: React.FC<KPIRowProps> = ({ children, className, 'aria-label': ariaLabel, panelInset = false }) => (
   <section
     aria-label={ariaLabel}
     className={cn(
       'grid min-w-0 gap-px overflow-hidden rounded-lg border border-border bg-border [&>*]:bg-card max-sm:[&>*:last-child:nth-child(odd)]:col-span-full',
+      panelInset && 'min-[900px]:grid-rows-[auto_auto_auto]',
       className,
     )}
   >
-    <KPIRowContext.Provider value>{children}</KPIRowContext.Provider>
+    <KPIRowContext.Provider value={panelInset ? 'panel' : 'tile'}>{children}</KPIRowContext.Provider>
   </section>
 );
 
@@ -138,6 +159,7 @@ export function KPITile({
   caption: captionProp,
   nowrapLabel = false,
   captionNote,
+  captionWrap,
   vs,
   delta,
   loading = false,
@@ -148,7 +170,8 @@ export function KPITile({
   className,
 }: KPITileProps) {
   const { t } = useTranslation();
-  const inRow = React.useContext(KPIRowContext);
+  const row = React.useContext(KPIRowContext);
+  const inRow = row !== false;
   const caption = captionProp ?? vs ?? delta?.text;
   const unknownRaw = !loading && !error && (unavailableReason != null || value == null);
   const kept = unknownRaw && keepWhenUnknown;
@@ -162,7 +185,8 @@ export function KPITile({
   if (unknown && inScope) return null;
   const isLink = to != null;
   const rootClass = cn(
-    'relative flex min-w-0 flex-col gap-2.5 bg-card px-4 pb-3.5 pt-4',
+    'relative flex min-w-0 flex-col gap-2.5 bg-card pb-3.5 pt-4',
+    row === 'panel' ? cn('px-[var(--panel-inset)]', PANEL_TILE_LINES) : 'px-4',
     !inRow && 'rounded-lg border border-border',
     // Hover-lift is an interaction affordance — only a drillable (link) tile gets it,
     // so a plain tile reads as a static surface and never promises a click it can't honor
@@ -172,7 +196,8 @@ export function KPITile({
   );
 
   const head = (
-    <div className="flex items-center gap-2">
+    // In a panel-inset row a one-line label starts level with a wrapped neighbour's first line.
+    <div className={cn('flex items-center gap-2', row === 'panel' && 'min-[900px]:self-start')}>
       {!inRow && <span
         className={cn(
           'grid size-[30px] shrink-0 place-items-center rounded-lg [&_svg]:size-4',
@@ -207,7 +232,7 @@ export function KPITile({
           aria-label={linkLabel ?? label}
           className={cn('absolute inset-0 z-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring', inRow ? 'focus-visible:-outline-offset-2' : 'rounded-lg focus-visible:outline-offset-2')}
         />
-        <div className="relative z-10 flex min-w-0 flex-1 flex-col gap-2.5 pointer-events-none">
+        <div className={cn('relative z-10 flex min-w-0 flex-1 flex-col gap-2.5 pointer-events-none', row === 'panel' && PANEL_TILE_LINES)}>
           {head}
           {loading ? (
             <div data-testid="kpi-skeleton" className="skel h-9 w-2/3" />
@@ -222,7 +247,7 @@ export function KPITile({
               <FigureContent value={shownValue} exactValue={exactValue} unavailableReason={shownReason} />
             </div>
           )}
-          {caption && <Caption note={captionNote} action={kept ? hiddenLink : undefined}>{caption}</Caption>}
+          {caption && <Caption wrap={captionWrap} note={captionNote} action={kept ? hiddenLink : undefined}>{caption}</Caption>}
         </div>
       </div>
     );
@@ -246,7 +271,24 @@ export function KPITile({
         </div>
       )}
 
-      {caption && <Caption note={captionNote} action={kept ? hiddenLink : undefined}>{caption}</Caption>}
+      {caption && <Caption wrap={captionWrap} note={captionNote} action={kept ? hiddenLink : undefined}>{caption}</Caption>}
+    </div>
+  );
+}
+
+/**
+ * A tile whose figure failed to load: its label, one line (warning icon, message, Retry) in the figure's place and
+ * the caption line held, so the strip keeps its shape. The same message pattern as a failed panel.
+ */
+export function KPITileError({ label, caption, onRetry, testId }: { label: string; caption?: string; onRetry: () => void; testId?: string }) {
+  const { t } = useTranslation('dashboard');
+  const row = React.useContext(KPIRowContext);
+  // The same quiet error line as every other failed panel on the screen (icon, message, Retry inline after it).
+  return (
+    <div data-testid={testId} className={cn('flex min-w-0 flex-col gap-2.5 bg-card pb-3.5 pt-4', row === 'panel' ? cn('px-[var(--panel-inset)]', PANEL_TILE_LINES) : 'px-4')}>
+      <span className="break-words text-control font-medium text-foreground min-[900px]:self-start">{label}</span>
+      <ListState variant="error" quiet title={t('home.figureError', "Couldn't load")} onRetry={onRetry} />
+      {caption !== undefined && <span aria-hidden className="mt-auto text-control text-muted-foreground">{caption || '\u00a0'}</span>}
     </div>
   );
 }

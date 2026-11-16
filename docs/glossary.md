@@ -215,6 +215,9 @@ reporting manager.
 
 **Spend approver** — a user designated to approve spending for a project.
 
+**Supplier** — the party a purchase is bought from. Kept in English in Bahasa (like Timesheet and
+Dasbor), not translated as "Pemasok" (owner, 16 Nov).
+
 **Task dependency** — a directed relation stating that one task depends on another task (see
 **Task**).
 
@@ -334,6 +337,10 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Sales invoice** — a customer-facing invoice associated with a project and optionally a work order, carrying amount, currency, status and tax details.
 
+**Left to bill** — signed contract value (net of tax) less invoiced to date, per held contract (on-hand status, not archived: the Contract on hand set, whatever the selected period) and currency at a month; it does not depend on the revenue recognition basis. The management pack derives it once and every report tile, row, total, export and the home dashboard read that one figure (#2203). A held contract with no contract value is not in it; the total stays a number and the count of such contracts is said beside it ("N contracts with no value, not in the total").
+
+**Remaining work** — signed contract value less recognised revenue to date in the management pack; it follows the recognition basis (progress, earned value or invoiced) and is distinct from Left to bill. Formerly named "backlog" in the pack (DD-MMP-3).
+
 **Incoming payment** — a customer payment record, optionally linked to a sales invoice, carrying amount, currency, status and receipt/withholding details.
 
 ---
@@ -349,6 +356,15 @@ _Avoid_: "live connection" unqualified — always name the leg.
 **Advance return** — an amount returned against an expense advance, with its date, reference and recorder.
 
 **Expense claim evidence** — a file attached to an expense claim as supporting documentation.
+
+**Site cash** (Bahasa *kas lapangan*) — cash one custodian holds on site for one project (code: imprest float). One name in
+the UI; never "float". Its figures: **Limit** (*batas kas*, the approved amount it is topped up to), **Cash in hand**,
+**Advances given**, **Receipts waiting** (paid claims not yet refilled), **Top-up on its way**, **Still needed**.
+
+**Top-up** (*tambahan dana*) — a request to refill site cash with the receipts waiting (code: replenishment). **Funding**
+(*pendanaan*) is the first cash put in, up to the limit.
+
+**Cash count** — the custodian's count of cash in hand: **Counted**, **Expected** (by the books) and the **Difference**.
 
 **Vendor withholding slip** — a numbered vendor tax record for a tax period, currency, withholding type, tax base and withheld amount, with status and revision.
 

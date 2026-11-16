@@ -5,7 +5,7 @@
     "quotationReceived": "Penawaran diterima",
     "quoteChosen": "Penawaran dipilih",
     "returned": "Dikembalikan",
-    "supplierNotChosen": "Pemasok belum dipilih"
+    "supplierNotChosen": "Supplier belum dipilih"
   },
   "tabs": {
     "timeline": "Linimasa",
@@ -15,7 +15,7 @@
     "details": "Detail"
   },
   "details": {
-    "supplier": "Pemasok",
+    "supplier": "Supplier",
     "budgetCategory": "Kategori anggaran",
     "accountingStatus": "Status sistem akuntansi",
     "accountingStatusValue": "{{orders}} · {{docs}}",
@@ -39,7 +39,7 @@
     "recordOrder": "Catat pesanan",
     "chooseQuote": "Pilih penawaran",
     "recordReceipt": "Catat penerimaan",
-    "recordInvoice": "Catat faktur pemasok",
+    "recordInvoice": "Catat faktur supplier",
     "recordPayment": "Catat pembayaran",
     "return": "Kembalikan",
     "rework": "Ajukan ulang",
@@ -79,7 +79,7 @@
     "quoteRequest": "Permintaan penawaran",
     "purchaseOrder": "Pesanan pembelian",
     "receipt": "Penerimaan",
-    "supplierInvoice": "Faktur pemasok",
+    "supplierInvoice": "Faktur supplier",
     "payment": "Pembayaran"
   },
   "errors": {
@@ -137,10 +137,9 @@
     "currencyUnavailable": "Perbandingan anggaran tidak tersedia untuk mata uang ini",
     "amountUnavailable": "Perbandingan anggaran tidak tersedia untuk jumlah ini",
     "noBudget": "Tidak ada anggaran aktif untuk proyek ini",
-    "budgetSignal": "Anggaran belum terikat {{available}} · {{after}} setelah pengadaan ini",
-    "budgetSignalTooltip": "Nilai tersedia = anggaran proyek dikurangi pengeluaran yang sudah terikat dan dicadangkan. “Setelah pengadaan ini” menyertakan pengadaan ini pada tahapnya saat ini. Sumber: anggaran proyek, pengeluaran pengadaan terikat, dan pengeluaran pengadaan yang dicadangkan.",
+    "budgetSignalPurchases": "Belum terikat pembelian {{available}} · {{after}} setelah pengadaan ini",
     "unknown": "{{figure}} tidak dapat dihitung karena jumlah sumber belum tersedia. Sumber: catatan pengadaan dan dokumen sistem akuntansi tertaut.",
-    "unpaidHelp": "Dihitung dari jumlah tagihan dikurangi jumlah pembayaran, atau saldo faktur sistem akuntansi tertaut. Sumber: tagihan pemasok, pembayaran, dan dokumen sistem akuntansi tertaut.",
+    "unpaidHelp": "Dihitung dari jumlah tagihan dikurangi jumlah pembayaran, atau saldo faktur sistem akuntansi tertaut. Sumber: tagihan supplier, pembayaran, dan dokumen sistem akuntansi tertaut.",
     "calculation": "Jumlah dari nilai {{figure}} yang tercatat. Sumber: catatan pengadaan dan dokumen sistem akuntansi tertaut.",
     "projectBudget": "Anggaran proyek terlacak",
     "projectBudgetTooltip": "Data anggaran proyek dan pengeluaran yang dicadangkan ditampilkan jika tersedia. Dampak penuh ditampilkan saat pengadaan masih di tahap Permintaan.",
@@ -149,7 +148,7 @@
     "source": {
       "requested": "permintaan pembelian",
       "ordered": "pesanan pembelian",
-      "invoiced": "faktur pemasok",
+      "invoiced": "faktur supplier",
       "paid": "pembayaran",
       "unpaid": "saldo faktur"
     }
@@ -166,14 +165,14 @@
     "hasFile": "Ada berkas",
     "empty": "Belum ada aktivitas yang dicatat.",
     "fromAccounting": "dari sistem akuntansi",
-    "supplierInvoice": "Faktur pemasok",
+    "supplierInvoice": "Faktur supplier",
     "receipt": "Penerimaan",
     "order": "Pesanan",
     "payment": "Pembayaran",
     "dateMissing": "Tanggal belum dicatat",
     "status": "Status",
     "dueDate": "Tanggal jatuh tempo",
-    "supplierReference": "Referensi pemasok",
+    "supplierReference": "Referensi supplier",
     "files": "berkas",
     "submitted": "Diajukan untuk persetujuan",
     "approved": "Disetujui",
@@ -186,7 +185,7 @@
       "Quote": "Penawaran",
       "PO": "Pesanan pembelian",
       "GR": "Penerimaan",
-      "Invoice": "Faktur pemasok",
+      "Invoice": "Faktur supplier",
       "Payment": "Pembayaran"
     }
   },

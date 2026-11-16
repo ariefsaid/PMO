@@ -118,13 +118,8 @@ describe('figure tiles: unknown value hides the tile and reports to ONE page lin
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
-  it('a tile shows its caption in full', () => {
-    render(<KPITile icon="dollar" tone="blue" label="Cash" value="1" caption="vs last month" />);
-    // 6d2eb92f7: a caption that explains a figure must be readable in full — it wraps, never cuts,
-    // and never collapses to a title-only tooltip.
-    const caption = screen.getByText('vs last month', { exact: true });
-    expect(caption).toBeInTheDocument();
-    expect(caption.className).not.toContain('truncate');
-    expect(caption).not.toHaveAttribute('title');
+  it('a tile shows its whole caption as text', () => {
+    render(<KPITile icon="dollar" tone="blue" label="Cash" value="1" caption="7 dengan kontrak ditandatangani" />);
+    expect(screen.getByText('7 dengan kontrak ditandatangani')).toBeInTheDocument();
   });
 });

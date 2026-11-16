@@ -15,7 +15,10 @@ export const FindingLine: React.FC<{
   offTrack?: { count: number; atLeast: boolean; total: number | undefined; unchecked?: number };
   overdue?: OverdueInvoiceNeeds;
   approvals?: number;
-}> = ({ offTrack, overdue, approvals }) => {
+  /** A read behind the line failed: with nothing to say, the line says so and offers Retry (it never vanishes). */
+  failed?: boolean;
+  onRetry?: () => void;
+}> = ({ offTrack, overdue, approvals, failed = false, onRetry }) => {
   const { t } = useTranslation('dashboard');
   const clauses: Array<{ key: string; to: string; text: string }> = [];
   if (offTrack) {
@@ -35,7 +38,15 @@ export const FindingLine: React.FC<{
     clauses.push({ key: 'finance', to: '/finance/receivables?overdue=true', text });
   }
   if (approvals) clauses.push({ key: 'approvals', to: '/approvals', text: t('home.findingApprovals', { count: approvals, defaultValue_one: '{{count}} approval waits on you', defaultValue_other: '{{count}} approvals wait on you' }) });
-  if (clauses.length === 0) return null;
+  if (clauses.length === 0) {
+    if (!failed) return null;
+    return (
+      <p data-testid="home-finding" role="status" className="flex flex-wrap items-baseline gap-x-3 text-control text-muted-foreground">
+        <span>{t('home.findingUnavailable', 'Summary unavailable')}</span>
+        {onRetry && <button type="button" onClick={onRetry} className="font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{t('home.retry', 'Retry')}</button>}
+      </p>
+    );
+  }
   return (
     <p data-testid="home-finding" className="text-control">
       {clauses.map((clause, index) => (
