@@ -773,18 +773,31 @@ export function measureRules(N) {
     const outer = tags.filter((e) => !tags.some((o) => o !== e && o.contains(e)));
     const rr = row.getBoundingClientRect();
     const trailing = outer.filter((e) => { const r = e.getBoundingClientRect(); return r.left + r.width / 2 > rr.left + rr.width / 2; }).sort((a, b) => b.getBoundingClientRect().right - a.getBoundingClientRect().right)[0];
-    if (!trailing) continue;
+    // A trailing label that is not a pill (a muted code, type or date after the row's main label) is a tag too.
+    let host = row;
+    while (visibleKids(host).length === 1 && ![...host.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) host = visibleKids(host)[0];
+    const hostKids = visibleKids(host);
+    const last = hostKids.length >= 2 ? hostKids[hostKids.length - 1] : null;
+    const lastText = last ? (last.textContent || '').trim() : '';
+    const label = last && lastText && lastText.length <= 40 && !last.matches('button, a, svg, input, select, textarea') && !last.querySelector('button, a, input, select, textarea') && last.getBoundingClientRect().left + last.getBoundingClientRect().width / 2 > rr.left + rr.width / 2 ? last : null;
+    const tag = trailing && label ? (trailing.getBoundingClientRect().right >= label.getBoundingClientRect().right ? trailing : label) : trailing || label;
+    if (!tag) continue;
     const key = row.closest('[role="listbox"], [role="menu"], ul, ol, [role="list"]') ?? row.parentElement;
     if (!lists.has(key)) lists.set(key, []);
-    lists.get(key).push(trailing);
+    lists.get(key).push(tag);
   }
   for (const [list, tags] of lists) {
+    const wrapped = [];
     for (const tag of tags) {
       const s = getComputedStyle(tag); const r = tag.getBoundingClientRect();
       const lh = s.lineHeight === 'normal' ? 1.2 * parseFloat(s.fontSize) : parseFloat(s.lineHeight);
       const content = r.height - parseFloat(s.paddingTop) - parseFloat(s.paddingBottom) - parseFloat(s.borderTopWidth) - parseFloat(s.borderBottomWidth);
       const lines = Math.max(...textRuns(tag).map((t) => t.lines), 1);
-      if (lines > 1 || content > N.tagLines * lh + 0.5) push('R2', tag, { check: 'one line', lines, contentHeight: Math.round(content * 10) / 10, lineHeight: Math.round(lh * 10) / 10 }, tag, { list: desc(list) });
+      if (lines > 1 || content > N.tagLines * lh + 0.5) wrapped.push({ tag, lines, content, lh });
+    }
+    if (wrapped.length) { // one finding per list: the first tag that wraps, and how many do
+      const w = wrapped[0];
+      push('R2', w.tag, { check: 'one line', wrapped: wrapped.length, of: tags.length, lines: Math.max(...wrapped.map((x) => x.lines)), contentHeight: Math.round(w.content * 10) / 10, lineHeight: Math.round(w.lh * 10) / 10 }, w.tag, { list: desc(list) });
     }
     if (tags.length < 2) continue;
     const rights = tags.map((t) => t.getBoundingClientRect().right);
