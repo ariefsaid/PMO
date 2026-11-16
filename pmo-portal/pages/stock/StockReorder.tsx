@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { stockUnitCode } from '@/src/lib/i18n/stockUnitLabel';
 import { Button, ConfirmDialog, DataTable, ListPage, ListState, SelectField, TextField, UnsavedChangesDialog, useToast, type Column } from '@/src/components/ui';
 import { StockTabs } from '@/src/components/stock/StockTabs';
 import { StockError } from '@/src/components/stock/StockError';
@@ -51,7 +52,7 @@ const StockReorder: React.FC = () => {
   const setM = useSetReorderLevel();
 
   const item = (items.data ?? []).find((i) => i.id === itemId);
-  const unitCode = (units.data ?? []).find((u) => u.id === item?.unit_id)?.code ?? '';
+  const unitCode = stockUnitCode((units.data ?? []).find((u) => u.id === item?.unit_id)?.code ?? '', t);
   const s = suggestion.data;
   const q = (v: string) => formatQuantity(v, loc);
 
@@ -105,9 +106,9 @@ const StockReorder: React.FC = () => {
         exportValue: (r) => r.itemCode,
       },
       { key: 'warehouse', header: t('reorder.worklist.columns.warehouse'), cell: (r) => <span className="record-id">{r.warehouseCode}</span>, exportValue: (r) => r.warehouseCode },
-      { key: 'onHand', header: t('reorder.worklist.columns.onHand'), align: 'num', cell: (r) => <span className="tabular-nums">{q(r.qtyOnHand)} <span className="text-muted-foreground">{r.unitCode}</span></span>, exportValue: (r) => r.qtyOnHand },
-      { key: 'level', header: t('reorder.worklist.columns.level'), align: 'num', cell: (r) => <span className="tabular-nums">{q(r.reorderLevel)} <span className="text-muted-foreground">{r.unitCode}</span></span>, exportValue: (r) => r.reorderLevel },
-      { key: 'qty', header: t('reorder.worklist.columns.orderQuantity'), align: 'num', cell: (r) => <span className="tabular-nums">{r.reorderQuantity ? <>{q(r.reorderQuantity)} <span className="text-muted-foreground">{r.unitCode}</span></> : ''}</span>, exportValue: (r) => r.reorderQuantity ?? '' },
+      { key: 'onHand', header: t('reorder.worklist.columns.onHand'), align: 'num', cell: (r) => <span className="tabular-nums">{q(r.qtyOnHand)} <span className="text-muted-foreground">{stockUnitCode(r.unitCode, t)}</span></span>, exportValue: (r) => r.qtyOnHand },
+      { key: 'level', header: t('reorder.worklist.columns.level'), align: 'num', cell: (r) => <span className="tabular-nums">{q(r.reorderLevel)} <span className="text-muted-foreground">{stockUnitCode(r.unitCode, t)}</span></span>, exportValue: (r) => r.reorderLevel },
+      { key: 'qty', header: t('reorder.worklist.columns.orderQuantity'), align: 'num', cell: (r) => <span className="tabular-nums">{r.reorderQuantity ? <>{q(r.reorderQuantity)} <span className="text-muted-foreground">{stockUnitCode(r.unitCode, t)}</span></> : ''}</span>, exportValue: (r) => r.reorderQuantity ?? '' },
     ];
     if (canEdit) {
       cols.push({

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { stockUnitName } from '@/src/lib/i18n/stockUnitLabel';
 import {
   ListPage, ListState, DataTable, StatusPill, ConfirmDialog, EntityFormModal, TextField, TextArea, SelectField, FormGrid,
   Checkbox, Drawer, Tabs, Button, Icon, useEntityForm, useToast, tabId, tabPanelId,
@@ -70,7 +71,7 @@ const StockSetup: React.FC = () => {
   const canArchive = may('archive', ENTITY[tab], ctx);
   const canKeepers = may('manage', 'warehouse', ctx);
 
-  const unitName = useMemo(() => new Map((allUnits.data ?? []).map((u) => [u.id, u.name])), [allUnits.data]);
+  const unitName = useMemo(() => new Map((allUnits.data ?? []).map((u) => [u.id, stockUnitName(u, t)])), [allUnits.data, t]);
   const projectName = useMemo(() => new Map((projects.data ?? []).map((p) => [p.id, p.name])), [projects.data]);
   const personName = useMemo(() => new Map((people.data ?? []).map((p) => [p.id, p.full_name ?? ''])), [people.data]);
   const onHandByItem = useMemo(() => {
@@ -96,7 +97,7 @@ const StockSetup: React.FC = () => {
   const identity = (r: { code: string; name: string; archived_at: string | null }): React.ReactNode => (
     <div className={`min-w-0 ${dim(r)}`}>
       <span className="block truncate record-id font-semibold text-foreground">{r.code}</span>
-      <span className="block truncate text-sm text-muted-foreground">{r.name}</span>
+      <span className="block truncate text-sm text-muted-foreground">{tab === 'units' ? stockUnitName(r as StockUnitRow, t) : r.name}</span>
     </div>
   );
 

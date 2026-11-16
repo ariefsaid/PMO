@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { stockUnitCode } from '@/src/lib/i18n/stockUnitLabel';
 import { Button, Checkbox, DataTable, Icon, ListPage, ListState, RecordMenu, SelectField, TextField, useUrlFilters, type Column } from '@/src/components/ui';
 import { StockFilters, StockTabs } from '@/src/components/stock/StockTabs';
 import { usePermission } from '@/src/auth/usePermission';
@@ -112,7 +113,7 @@ const StockOnHand: React.FC = () => {
       },
       {
         key: 'qty', header: t('onHand.columns.quantity'), align: 'num',
-        cell: (r) => <span className="tabular-nums">{formatQuantity(r.qtyOnHand, loc)} <span className="text-muted-foreground">{r.unitCode}</span></span>,
+        cell: (r) => <span className="tabular-nums">{formatQuantity(r.qtyOnHand, loc)} <span className="text-muted-foreground">{stockUnitCode(r.unitCode, t)}</span></span>,
         exportValue: (r) => r.qtyOnHand,
       },
     ];
@@ -261,7 +262,7 @@ const StockOnHand: React.FC = () => {
               </dd>
               <dt className="text-muted-foreground">{t('onHand.columns.quantity')}</dt>
               <dd className="tabular-nums font-semibold">
-                {formatQuantity(r.qtyOnHand, loc)} <span className="font-normal text-muted-foreground">{r.unitCode}</span>
+                {formatQuantity(r.qtyOnHand, loc)} <span className="font-normal text-muted-foreground">{stockUnitCode(r.unitCode, t)}</span>
               </dd>
               {showCost && (
                 <>

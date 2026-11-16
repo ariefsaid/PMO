@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { stockUnitCode } from '@/src/lib/i18n/stockUnitLabel';
 import {
   Button, FormActions, FormGrid, FormSection, ListState, MobileActionBar, SelectField, TextArea, TextField, UnsavedChangesDialog, useToast, Icon,
 } from '@/src/components/ui';
@@ -261,7 +262,7 @@ const StockMovementForm: React.FC = () => {
                         autoComplete="off"
                         value={l.quantity}
                         onChange={(v) => setLine(l.key, { quantity: v })}
-                        helper={kind === 'return' && src ? t('form.issuedHelper', { qty: src.quantity, unit: src.item?.unit.code ?? '' }) : unitCodeOfLine(l) ? t('form.qtyUnitHelp', 'Enter the quantity in {{unit}}.', { unit: unitCodeOfLine(l) }) : undefined}
+                        helper={kind === 'return' && src ? t('form.issuedHelper', { qty: src.quantity, unit: stockUnitCode(src.item?.unit.code ?? '', t) }) : unitCodeOfLine(l) ? t('form.qtyUnitHelp', 'Enter the quantity in {{unit}}.', { unit: stockUnitCode(unitCodeOfLine(l), t) }) : undefined}
                         error={fieldErrors[`qty${l.key}`]}
                       />
                       {kind === 'receive' && (

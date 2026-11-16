@@ -140,6 +140,16 @@
     "adjustment": "Penyesuaian",
     "count": "Stok opname"
   },
+  "unitNames": {
+    "bag": "Sak",
+    "m": "Meter",
+    "pcs": "Buah",
+    "L": "Liter"
+  },
+  "unitCodes": {
+    "bag": "sak",
+    "pcs": "buah"
+  },
   "empty": {
     "noStock": "Belum ada stok",
     "itemPicker": "Belum ada barang stok: tambahkan di Pengaturan stok."
