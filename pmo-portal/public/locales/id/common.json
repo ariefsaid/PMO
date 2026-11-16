@@ -870,7 +870,6 @@
       "loadError": "Gagal memuat {{queue}}",
       "loadErrorSub": "Coba lagi untuk memuat ulang antrean ini."
     },
-    "queueHeading": "Antrean persetujuan",
     "queueRegionLabel": "Antrean persetujuan",
     "reopen": {
       "action": "Buka kembali untuk koreksi",
@@ -902,8 +901,7 @@
     "title": "Persetujuan",
     "unknownOwner": "Tidak diketahui",
     "unknownRequester": "Peminta tidak diketahui",
-    "weekOf": "Minggu",
-    "waitingOnYou": "menunggu keputusan Anda"
+    "weekOf": "Minggu"
   },
   "combobox": {
     "search": {
@@ -1877,7 +1875,6 @@
       "project": "Proyek",
       "requester": "Pemohon",
       "value": "Nilai",
-      "age": "Umur",
       "status": "Status"
     },
     "preview": {
@@ -4592,17 +4589,6 @@
       "rejected": "Ditolak",
       "cancelled": "Dibatalkan"
     },
-    "nextStep": {
-      "draft": "Kirim untuk persetujuan",
-      "requested": "Menunggu persetujuan",
-      "approved": "Minta penawaran supplier",
-      "vendorQuoted": "Pilih penawaran",
-      "quoteSelected": "Siapkan pesanan pembelian",
-      "ordered": "Catat penerimaan",
-      "received": "Catat invoice supplier",
-      "vendorInvoiced": "Catat pembayaran"
-    },
-    "nextStepPrefix": "Langkah berikutnya:",
     "projectEmptyScope": "Daftar ini hanya memuat pembelian yang dicatat di PMO. Pembelian yang tercatat di ERPNext tampil di bawah."
   },
   "uxs29": {

@@ -325,7 +325,7 @@ const ApprovalsPage: React.FC = () => {
             >
               <h2 className="flex min-w-0 items-baseline gap-2 text-base font-semibold text-foreground">
                 <span data-testid="approvals-waiting-count" className="text-metric font-semibold tabular-nums">{queueItems.length}</span>
-                <span>{t('approvals.waitingOnYou', 'waiting on your decision')}</span>
+                <span>{t('procurement:approvalQueue.waitingOnYou', 'waiting on your decision')}</span>
               </h2>
               <div className="flex flex-wrap items-center gap-2">
                 {(activeScope === 'all' || activeScope === 'timesheets') && canApproveTimesheets && <TimesheetBulkSelect controller={timesheetBulk} />}

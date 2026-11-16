@@ -42,7 +42,9 @@ test(
     await waitReady(page);
 
     // ── Narrow: the grouped view's Status filter=Paid, then a search ("Meridian") that removes the Atlas Paid row ──────
-    await page.getByRole('combobox', { name: 'Status' }).selectOption('Paid');
+    // #2497: the filter is the app's own picker: open it, choose Paid.
+    await page.getByRole('combobox', { name: 'Status', exact: true }).click();
+    await page.getByRole('option', { name: 'Paid', exact: true }).click();
     await expect(page).toHaveURL(/[?&]status=Paid/);
     await expect(page.getByText('PV Modules — Atlas 2.8 MW')).toBeVisible();
     await expect(page.getByText('String Inverters & Combiner Boxes')).not.toBeVisible();
@@ -73,7 +75,7 @@ test(
     await expect(page).toHaveURL(/[?&]status=Paid/, { timeout: 10_000 });
     await expect(page).toHaveURL(/[?&]q=Meridian/);
     await waitReady(page);
-    await expect(page.getByRole('combobox', { name: 'Status' })).toHaveValue('Paid');
+    await expect(page.getByRole('combobox', { name: 'Status', exact: true })).toHaveText('Paid');
     await expect(search).toHaveValue('Meridian');
     // The narrowed SET came back, not just the URL: the searched-out and filtered-out rows stay
     // out. Scoped to the row's title `<link>` role so the locator can't transiently match the

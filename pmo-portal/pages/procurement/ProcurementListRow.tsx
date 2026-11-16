@@ -18,7 +18,7 @@ import { ProcurementStatusPill } from '@/src/components/procurement/ProcurementS
 import { trackProcurementDetailOpened } from '@/src/lib/analytics';
 import { useProcurementDetail } from '@/src/hooks/useProcurementDetail';
 import { useListReturn } from '@/src/hooks/useListReturn';
-import { nextStepText } from '@/src/components/procurement/ProcurementBlock';
+import { nextStepText } from '@/src/components/procurement/nextStepText';
 import { deriveProcurementRow } from '@/src/lib/procurement/rowDerivations';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { formatCurrency, formatNumberExact } from '@/src/lib/format';
