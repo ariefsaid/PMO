@@ -10,8 +10,15 @@ vi.mock('@/src/hooks/useProcurementFilesBatch', () => ({ useProcurementFilesBatc
 
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
 vi.mock('@/src/hooks/useBudget', () => ({ useProjectBudget: () => ({ data: 1000, isPending: false, isError: false }) }));
+const positionsState = vi.hoisted(() => ({ spent: '0.00' as string | null }));
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: (ids: string[]) => ({
+    data: Object.fromEntries(ids.map((id) => [id, { projectId: id, ledgerBasis: 'pmo', currency: 'USD', spent: positionsState.spent, openCommitment: '100.00' }])),
+    isPending: false, isError: false,
+  }),
+}));
 vi.mock('@/src/hooks/useProcurements', () => ({
-  useProjectCommittedSpend: () => ({ data: 100, isPending: false, isError: false }),
+  useProjectCommittedSpend: () => ({ data: 100, otherCurrencies: [], commitmentSource: 'pmo', ownershipPending: false, isPending: false, isError: false }),
   useProjectReservedSpend: () => ({ data: 200, projectCurrency: 'USD', budgetCurrency: 'USD', isPending: false, isError: false }),
 }));
 
@@ -111,11 +118,24 @@ describe('procurement record panels', () => {
 
 
 describe('procurement budget signal currency', () => {
-  it('shows compatible project headroom', () => {
-    render(<ProcurementBudgetSignal projectId="p-1" totalValue={50} status="Requested" currency="USD" />);
-    expect(screen.getByText(/Not yet committed to purchases \$700/)).toBeInTheDocument();
+  it('AC-RB-018: an ordered purchase is counted once: budget 1000, open orders 100 (include it), reserved 200, spent 0 → "Left in budget $700"', () => {
+    positionsState.spent = '0.00';
+    render(<ProcurementBudgetSignal projectId="p-1" totalValue={50} status="Ordered" currency="USD" />);
+    expect(screen.getByText('Left in budget $700')).toBeInTheDocument();
+  });
+  it('recorded spending is subtracted too: spent 150 → $550', () => {
+    positionsState.spent = '150.00';
+    render(<ProcurementBudgetSignal projectId="p-1" totalValue={50} status="Ordered" currency="USD" />);
+    expect(screen.getByText('Left in budget $550')).toBeInTheDocument();
+  });
+  it('spending not known → no number, says so', () => {
+    positionsState.spent = null;
+    render(<ProcurementBudgetSignal projectId="p-1" totalValue={50} status="Ordered" currency="USD" />);
+    expect(screen.getByText('Budget left not known yet')).toBeInTheDocument();
+    expect(screen.queryByText(/\$/)).toBeNull();
   });
   it('does not compare a foreign request with project headroom', () => {
+    positionsState.spent = '0.00';
     render(<ProcurementBudgetSignal projectId="p-1" totalValue={50} status="Requested" currency="EUR" />);
     expect(screen.getByText(/comparison unavailable/i)).toBeInTheDocument();
   });

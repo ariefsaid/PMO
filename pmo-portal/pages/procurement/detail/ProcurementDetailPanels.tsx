@@ -7,6 +7,8 @@ import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { LedgerRow } from '@/src/lib/db/procurementLedger';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
 import { useProjectBudget } from '@/src/hooks/useBudget';
+import { useProjectBudgetPositions } from '@/src/hooks/useProjectBudgetPositions';
+import { wholeBudgetInputs } from '@/src/lib/budget/wholeBudgetInputs';
 import { useProjectCommittedSpend, useProjectReservedSpend } from '@/src/hooks/useProcurements';
 import { usePermission } from '@/src/auth/usePermission';
 import { procurementMoney, type ProcurementMoneyKind } from '@/src/lib/procurement/procurementMoney';
@@ -163,11 +165,12 @@ export const ProcurementBudgetSignal: React.FC<ProcurementBudgetSignalProps> = (
   const may = usePermission();
   const scopedProjectId = may('view', 'procurement') ? projectId : null;
   const budget = useProjectBudget(scopedProjectId ?? '');
-  const committed = useProjectCommittedSpend(scopedProjectId);
+  const committed = useProjectCommittedSpend(scopedProjectId, true);
   const reserved = useProjectReservedSpend(scopedProjectId);
+  const positions = useProjectBudgetPositions(scopedProjectId ? [scopedProjectId] : []);
 
   if (!scopedProjectId) return null;
-  if (budget.isPending || committed.isPending || reserved.isPending) {
+  if (budget.isPending || committed.isPending || reserved.isPending || positions.isPending || committed.ownershipPending) {
     return <span className="text-sm font-normal text-muted-foreground">{t('money.budgetLoading', 'Budget signal loading')}</span>;
   }
   if (budget.isError || committed.isError || reserved.isError) {
@@ -180,18 +183,19 @@ export const ProcurementBudgetSignal: React.FC<ProcurementBudgetSignalProps> = (
     return <span className="text-sm font-normal text-muted-foreground">{t('money.currencyUnavailable', 'Budget comparison unavailable for these currencies')}</span>;
   }
 
+  // Spending and open orders come from the same readings as the approval panel (wholeBudgetInputs). The purchase is
+  // already an order here, so it is counted in them and not subtracted again.
+  const inputs = wholeBudgetInputs(positions.isError ? undefined : positions.data?.[scopedProjectId], committed, reserved.projectCurrency);
+  if (inputs === null || inputs.spent === null) {
+    return <span className="text-control font-normal text-muted-foreground">{t('money.budgetLeftUnknown', 'Budget left not known yet')}</span>;
+  }
   let signal;
   try {
-    signal = computeBudgetSignal({ budget: budget.data, committed: committed.data ?? 0, reserved: reserved.data ?? 0, totalValue, status, projectCurrency: reserved.projectCurrency, budgetCurrency: reserved.budgetCurrency, requestCurrency: currency });
+    signal = computeBudgetSignal({ budget: budget.data, spent: inputs.spent, openOrders: inputs.openOrders, reserved: reserved.data ?? 0, totalValue, status, projectCurrency: reserved.projectCurrency, budgetCurrency: reserved.budgetCurrency, requestCurrency: currency });
   } catch {
     return <span className="text-sm font-normal text-muted-foreground">{t('money.amountUnavailable', 'Budget comparison unavailable for these amounts')}</span>;
   }
-  const { available, afterRequest } = signal;
-  // "Available" read as a cash balance; it is the budget less commitments, before actual spend, and says so.
-  const label = t('money.budgetSignalPurchases', 'Not yet committed to purchases {{available}} · {{after}} after this procurement', {
-    available: formatCurrency(available, currency),
-    after: formatCurrency(afterRequest, currency),
-  });
+  const label = t('money.budgetLeft', 'Left in budget {{left}}', { left: formatCurrency(signal.afterRequest, currency) });
   const otherPositions = [...(reserved.otherCurrencies ?? []), ...(committed.otherCurrencies ?? [])];
   const otherCurrencyNotice = otherPositions.length ? t('money.otherCurrenciesExcluded', ' · Other currencies excluded from comparison') : '';
   return <span className="text-control font-normal text-muted-foreground">{label}{otherCurrencyNotice}</span>;
