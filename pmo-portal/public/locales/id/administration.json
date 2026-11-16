@@ -320,7 +320,12 @@
         "notKept": "ERP tidak menyimpan semua akun yang dipilih, jadi tidak ada yang dicatat. Coba lagi.",
         "newerSaved": "Perubahan akun perusahaan yang lebih baru sudah disimpan untuk koneksi ini, jadi perubahan ini tidak dicatat.",
         "connectionChanged": "Koneksi ERP berubah saat perubahan ini sedang diatur, jadi tidak ada yang dicatat.",
-        "notRecorded": "Perubahan tidak dicatat. Coba lagi."
+        "notRecorded": "Perubahan tidak dicatat. Coba lagi.",
+        "companyChanged": "Akun perusahaan diubah di ERP setelah PMO membacanya, jadi tidak ada yang disimpan. Muat ulang dan coba lagi.",
+        "changeNotRecorded": "Perubahan tidak dapat dicatat",
+        "unreachableNothingRecorded": "ERP tidak dapat dihubungi, jadi tidak ada yang dicatat. Coba lagi.",
+        "unreachableTryAgain": "ERP tidak dapat dihubungi; coba lagi.",
+        "requestNotCompleted": "Permintaan tidak dapat diselesaikan"
       }
     },
     "personalM365": {

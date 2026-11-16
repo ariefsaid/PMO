@@ -47,6 +47,11 @@ const EXACT: Record<string, string> = {
   'A newer change to the company accounts was saved for this connection, so this one was not recorded.': 'newerSaved',
   'The ERP connection changed while this was being set, so nothing was recorded.': 'connectionChanged',
   'The change was not recorded. Try again.': 'notRecorded',
+  'The company accounts were changed in the ERP after PMO read them, so nothing was saved. Reload and try again.': 'companyChanged',
+  'The change could not be recorded': 'changeNotRecorded',
+  'The ERP could not be reached, so nothing was recorded. Try again.': 'unreachableNothingRecorded',
+  'The ERP could not be reached; try again.': 'unreachableTryAgain',
+  'The request could not be completed': 'requestNotCompleted',
 };
 
 export function matchCompanyDefaultsRefusal(raw: string | null | undefined): CompanyDefaultsRefusal | null {
