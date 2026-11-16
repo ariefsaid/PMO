@@ -689,7 +689,7 @@ export function measureRules(N) {
     return runs;
   };
   // Painted extent of a block: its text, media, controls, and any bordered or filled surface inside it (or itself).
-  const extentOf = (block) => {
+  const extentOf = (block, skip) => {
     let left = Infinity; let right = -Infinity; let top = Infinity; let bottom = -Infinity;
     const add = (r) => { left = Math.min(left, r.left); right = Math.max(right, r.right); top = Math.min(top, r.top); bottom = Math.max(bottom, r.bottom); };
     for (const t of textRuns(block)) add(t);
@@ -697,7 +697,7 @@ export function measureRules(N) {
       if (e.closest('.sr-only') || !isVisible(e) || !inFlow(e)) continue;
       const tag = e.tagName.toLowerCase();
       if (tag !== 'svg' && e.closest('svg')) continue; // an svg is one painted box
-      if (/^(img|svg|canvas|video|input|select|textarea|button|progress|meter)$/.test(tag) || hasBorder(e) || hasFill(e)) add(e.getBoundingClientRect());
+      if (/^(img|svg|canvas|video|input|select|textarea|button|progress|meter)$/.test(tag) || ((hasBorder(e) || hasFill(e)) && !(skip && skip(e)))) add(e.getBoundingClientRect());
     }
     return Number.isFinite(left) ? { left, right, top, bottom } : null;
   };
@@ -752,7 +752,8 @@ export function measureRules(N) {
     for (const block of visibleKids(card)) {
       if (block === (wrap || heading)) { past = true; continue; }
       if (!past) continue;
-      const ext = extentOf(block);
+      const band = (e) => { const r = e.getBoundingClientRect(); return r.left <= edgeLeft + N.tolerance && r.right >= edgeRight - N.tolerance; }; // a header or footer band runs edge to edge: it is a surface, not content
+      const ext = extentOf(block, band);
       if (!ext) continue;
       const tableEl = block.tagName === 'TABLE' ? block : block.querySelector('table');
       const mediaOnly = /^(IMG|SVG|CANVAS|VIDEO|FIGURE)$/.test(block.tagName.toUpperCase());
@@ -799,7 +800,7 @@ export function measureRules(N) {
     const lastText = last ? (last.textContent || '').trim() : '';
     const others = last ? hostKids.slice(0, -1).reduce((sum, k) => sum + k.getBoundingClientRect().width, 0) : 0;
     // a secondary label: short, not interactive, in the row's right half, and no wider than what comes before it (a timeline's text after its date is content)
-    const label = last && lastText && lastText.length <= 40 && !last.matches('button, a, svg, input, select, textarea') && !last.querySelector('button, a, input, select, textarea') && last.getBoundingClientRect().left + last.getBoundingClientRect().width / 2 > rr.left + rr.width / 2 && last.getBoundingClientRect().width <= others + 24 ? last : null;
+    const label = last && lastText && lastText.length <= 24 && !last.matches('button, a, svg, input, select, textarea') && !last.querySelector('button, a, input, select, textarea') && last.getBoundingClientRect().left + last.getBoundingClientRect().width / 2 > rr.left + rr.width / 2 && last.getBoundingClientRect().width <= others + 24 ? last : null;
     const tag = trailing && label ? (trailing.getBoundingClientRect().right >= label.getBoundingClientRect().right ? trailing : label) : trailing || label;
     if (!tag) continue;
     const key = row.closest('[role="listbox"], [role="menu"], ul, ol, [role="list"]') ?? row.parentElement;
