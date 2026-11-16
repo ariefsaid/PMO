@@ -374,7 +374,8 @@
     "overBudgetTitle": "Melebihi anggaran",
     "overBudgetAfter": "{{amount}} di atas anggaran setelah pembelian ini. Persetujuan tetap bisa dilakukan; ini hanya peringatan.",
     "leftOtherCurrency": "Pesanan terbuka dalam mata uang lain: {{amounts}}",
-    "leftWithoutSpending": "Pengeluaran belum diketahui. Tanpa itu: sisa {{amount}} setelah pesanan, cadangan, dan pembelian ini.",
+    "leftWithoutSpending": "Tanpa pengeluaran: sisa {{amount}} setelah pesanan, cadangan, dan pembelian ini.",
+    "leftNotKnown": "Belum diketahui",
     "leftOrdersUnknown": "Pesanan terbuka belum diketahui",
     "leftSpendingUnknown": "Pengeluaran belum diketahui"
   },

@@ -374,7 +374,8 @@
     "overBudgetTitle": "Over budget",
     "overBudgetAfter": "{{amount}} over the budget after this purchase. Approval is still permitted; this is advisory only.",
     "leftOtherCurrency": "Open orders in another currency: {{amounts}}",
-    "leftWithoutSpending": "Spending not known yet. Without it: {{amount}} left after orders, reserved and this purchase.",
+    "leftWithoutSpending": "Without spending: {{amount}} left after orders, reserved and this purchase.",
+    "leftNotKnown": "Not known",
     "leftOrdersUnknown": "Open orders not known yet",
     "leftSpendingUnknown": "Spending not known yet"
   },

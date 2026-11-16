@@ -926,10 +926,13 @@ describe('AC-RB-017 — unknown figures are not drawn', () => {
     renderPanel(asked());
     // the Left tile: never a number
     expect(leftTile().textContent).not.toMatch(/\$/);
-    expect(within(leftTile()).getByText('Spending not known yet')).toBeInTheDocument();
-    // the explicit line: visible without a click, with the amount, under its own words
-    const line = screen.getByText(/^Spending not known yet\. Without it:/);
-    expect(line.textContent).toBe('Spending not known yet. Without it: $525 left after orders, reserved and this purchase.');
+    const notKnown = within(leftTile()).getByText('Not known');
+    expect(notKnown.className).toMatch(/whitespace-nowrap/);
+    expect(notKnown.className).toMatch(/text-muted-foreground/);
+    // the explicit line: visible without a click, with the amount, under its own words, and no repeat of the tile
+    const line = screen.getByText(/^Without spending:/);
+    expect(line.textContent).toBe('Without spending: $525 left after orders, reserved and this purchase.');
+    expect(line.textContent).not.toMatch(/not known/i);
     expect(leftTile().contains(line)).toBe(false);
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     expect(screen.queryByText(/over budget/i)).not.toBeInTheDocument();
@@ -943,7 +946,7 @@ describe('AC-RB-017 — unknown figures are not drawn', () => {
     orders(990, 0, { spent: null });
     renderPanel(asked());
     // 1,000 − 990 − 50 − 25 = −65
-    expect(screen.getByText(/Without it: -\$65 left/)).toBeInTheDocument();
+    expect(screen.getByText(/Without spending: -\$65 left/)).toBeInTheDocument();
     expect(screen.queryByText(/over budget/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
   });
@@ -954,8 +957,8 @@ describe('AC-RB-017 — unknown figures are not drawn', () => {
     reservedState.data = 50;
     positionState.reading = reading({ spent: null });
     renderPanel({ ...asked(), captionInTooltip: true });
-    expect(within(tileOf(/^left after this purchase/i)).getByText('Spending not known yet')).toBeInTheDocument();
-    expect(screen.getByText('Spending not known yet. Without it: $525 left after orders, reserved and this purchase.')).toBeInTheDocument();
+    expect(within(tileOf(/^left after this purchase/i)).getByText('Not known')).toBeInTheDocument();
+    expect(screen.getByText('Without spending: $525 left after orders, reserved and this purchase.')).toBeInTheDocument();
   });
 
   it('spending only unknown: Bahasa line', () => {
@@ -964,8 +967,9 @@ describe('AC-RB-017 — unknown figures are not drawn', () => {
     reservedState.data = 50;
     positionState.reading = reading({ spent: null });
     renderPanel(asked(), 'id');
-    expect(screen.getByText('Pengeluaran belum diketahui. Tanpa itu: sisa $525 setelah pesanan, cadangan, dan pembelian ini.')).toBeInTheDocument();
-    expect(within(tileOf(/^sisa setelah pembelian ini$/i)).getByText('Pengeluaran belum diketahui')).toBeInTheDocument();
+    expect(screen.getByText('Tanpa pengeluaran: sisa $525 setelah pesanan, cadangan, dan pembelian ini.')).toBeInTheDocument();
+    const notKnown = within(tileOf(/^sisa setelah pembelian ini$/i)).getByText('Belum diketahui');
+    expect(notKnown.className).toMatch(/whitespace-nowrap/);
   });
 
   it('spending only unknown, inside a figure scope: the page line carries the Left reason, the explicit line stays visible', async () => {
@@ -975,7 +979,7 @@ describe('AC-RB-017 — unknown figures are not drawn', () => {
     positionState.reading = reading({ spent: null });
     renderPanel(asked(), undefined, true);
     expect(await screen.findByTestId('figures-hidden')).toHaveTextContent('Spending not known yet');
-    expect(screen.getByText(/Without it: \$525 left after orders, reserved and this purchase\./)).toBeInTheDocument();
+    expect(screen.getByText(/Without spending: \$525 left after orders, reserved and this purchase\./)).toBeInTheDocument();
   });
 
   it('spending only unknown and already reserved: the line does not subtract the request twice', () => {
@@ -984,7 +988,7 @@ describe('AC-RB-017 — unknown figures are not drawn', () => {
     reservedState.data = 75; // incl. this 25
     positionState.reading = reading({ spent: null });
     renderPanel({ ...asked(), status: 'Approved' });
-    expect(screen.getByText(/Without it: \$525 left/)).toBeInTheDocument();
+    expect(screen.getByText(/Without spending: \$525 left/)).toBeInTheDocument();
   });
 
   const ordersUnknown: ReadonlyArray<readonly [string, () => void]> = [
@@ -1003,7 +1007,7 @@ describe('AC-RB-017 — unknown figures are not drawn', () => {
     renderPanel(asked());
     expect(leftTile().textContent).not.toMatch(/\$/);
     expect(within(leftTile()).getByText(_name === 'open orders in another currency' ? /^Open orders in another currency/ : 'Open orders not known yet')).toBeInTheDocument();
-    expect(screen.queryByText(/Without it/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Without spending/)).not.toBeInTheDocument();
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     expect(screen.queryByText(/over budget/i)).not.toBeInTheDocument();
     // no purchasing-only number anywhere beyond the tiles that never held one
@@ -1016,7 +1020,7 @@ describe('AC-RB-017 — unknown figures are not drawn', () => {
     positionState.reading = reading({ spent: null });
     renderPanel({ ...asked(), currency: 'EUR' });
     expect(screen.queryByText(/left after this purchase/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Without it/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Without spending/)).not.toBeInTheDocument();
   });
 
   it('loading: the panel waits for the reading and for who owns purchasing, so Left never flashes "not known"', () => {

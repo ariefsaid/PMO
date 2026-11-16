@@ -87,7 +87,7 @@ describe('AC-RB-015/017: Left after this purchase in the Purchases preview', () 
 
   it('spending not known: the page line carries the reason, and the amount without spending is shown under its own label (not in the Left tile)', async () => {
     const preview = await open('Active');
-    expect(await within(preview).findByText('Spending not known yet. Without it: $975 left after orders, reserved and this purchase.')).toBeInTheDocument();
+    expect(await within(preview).findByText('Without spending: $975 left after orders, reserved and this purchase.')).toBeInTheDocument();
     expect(screen.getByTestId('figures-hidden')).toHaveTextContent('Spending not known yet');
     expect(within(preview).queryByText(/^left after this purchase$/i)).not.toBeInTheDocument();
   });

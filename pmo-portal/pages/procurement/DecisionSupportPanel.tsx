@@ -277,6 +277,8 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         // One short line each, so the reason fits its cell: open orders unknown (inputs null) or only spending unknown.
         : inputs === null ? t('decisionSupport.leftOrdersUnknown', 'Open orders not known yet')
         : t('decisionSupport.leftSpendingUnknown', 'Spending not known yet'),
+      // Only spending unknown: the tile says one short word, the sentence under the tiles carries the fallback.
+      ...(inputs !== null ? { unavailableShort: t('decisionSupport.leftNotKnown', 'Not known') } : {}),
     }]),
   ];
   // Only spending is unknown: the figure without it, under its own label, so it is never read as the Left figure.
@@ -313,7 +315,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
 
         {withoutSpending !== null && (
           <p className="mt-3 text-control text-muted-foreground tabular">
-            {t('decisionSupport.leftWithoutSpending', { defaultValue: 'Spending not known yet. Without it: {{amount}} left after orders, reserved and this purchase.', amount: formatCurrency(withoutSpending, currency) })}
+            {t('decisionSupport.leftWithoutSpending', { defaultValue: 'Without spending: {{amount}} left after orders, reserved and this purchase.', amount: formatCurrency(withoutSpending, currency) })}
           </p>
         )}
 
