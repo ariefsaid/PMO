@@ -130,6 +130,7 @@
     "approved": "Approved",
     "ordered": "Ordered",
     "received": "Received",
+    "invoiced": "Invoiced",
     "paid": "Paid",
     "empty": "No procurements at {{stage}}",
     "open": "Open {{title}}"

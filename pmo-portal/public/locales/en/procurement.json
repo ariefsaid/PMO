@@ -319,7 +319,10 @@
     "inStageDays_other": "{{count}} days",
     "filters": "Filters",
     "inStageDaysLong_one": "{{count}} day in stage",
-    "inStageDaysLong_other": "{{count}} days in stage"
+    "inStageDaysLong_other": "{{count}} days in stage",
+    "projectColumn": "Project",
+    "inStageToday": "Today",
+    "paidShare": "{{percent}} paid"
   },
   "common": {
     "loading": "Loading…",
@@ -740,7 +743,8 @@
   "approvalQueue": {
     "headingAll": "Purchases and timesheets",
     "waitingDays_one": "{{count}} day waiting",
-    "waitingDays_other": "{{count}} days waiting"
+    "waitingDays_other": "{{count}} days waiting",
+    "waitingOnYou": "waiting on your decision"
   },
   "voidBill": {
     "action": "Void bill",

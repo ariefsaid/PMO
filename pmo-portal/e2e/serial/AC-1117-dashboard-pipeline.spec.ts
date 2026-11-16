@@ -86,11 +86,6 @@ test('AC-1461: overdue and supplier-payable rows drill to lists whose count equa
   await pinViewerLocale(page);
   await signIn(page, 'finance@acme.test');
   const waits = page.getByTestId('waits-on-you');
-  const countFromBadge = async () => {
-    const text = (await page.getByTestId('list-page-count').textContent())?.trim() ?? '';
-    // "3" or "Showing 3 of 5" — the counted rows are the first number either way.
-    return text.match(/\d+/)?.[0] ?? '';
-  };
   /** ux/1110: the receivables page embeds the invoice list and hides its page-header count chip
    *  (`hideHeader`), so the count the user reads is the list's own filtered count — the FilterBar's
    *  "Showing X of Y". The list is not paginated, so the rendered rows are the whole filtered set
@@ -123,7 +118,8 @@ test('AC-1461: overdue and supplier-payable rows drill to lists whose count equa
   expect(supplier.count, 'seed has awaiting-payment supplier invoices').not.toBe('');
   await supplier.row.click();
   await expect(page).toHaveURL(/[?&]status=Vendor\+Invoiced/);
-  expect(await countFromBadge()).toBe(supplier.count);
+  // #2497: the purchases list says its count once, at the end of its filter bar ("Showing X of Y"), as Projects does.
+  await expect.poll(() => filteredInvoiceCount()).toBe(supplier.count);
 
 });
 

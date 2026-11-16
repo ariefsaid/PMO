@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { pickOption } from '@/test/pickOption';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router';
@@ -268,7 +269,7 @@ describe('Procurement index — IA-3 (real data)', () => {
 
     expect(more).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByRole('button', { name: 'Import procurements' })).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Status')).toHaveValue('Paid');
+    expect(screen.getByRole('combobox', { name: 'Status' })).toHaveTextContent('Paid');
     expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
   });
 
@@ -287,7 +288,8 @@ describe('Procurement index — IA-3 (real data)', () => {
   it('AC-S19-002: the canonical full status label and next-step copy are localized in Bahasa', () => {
     renderPageInLocale('id', '/procurement?tab=all&view=grouped');
     expect(screen.getByText('Penawaran supplier')).toBeInTheDocument();
-    expect(screen.getByText(/Langkah berikutnya:\s*Pilih penawaran/)).toBeInTheDocument();
+    // #2497: the next step sits under the status in the same words as the table, with no label in front.
+    expect(screen.getByText('Pilih penawaran')).toBeInTheDocument();
   });
 
   it('search filters real rows by title/code (AC-504)', async () => {
@@ -311,7 +313,7 @@ describe('Procurement index — IA-3 (real data)', () => {
 
   it('status filter narrows the list (Paid only)', async () => {
     renderPage('/procurement?tab=all&view=grouped');
-    await userEvent.selectOptions(screen.getByLabelText('Status'), 'Paid');
+    await pickOption('Status', 'Paid');
     expect(screen.queryByText('Workstations & AV')).not.toBeInTheDocument();
     expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
   });
@@ -322,7 +324,7 @@ describe('Procurement index — IA-3 (real data)', () => {
     expect(screen.getByText('Workstations & AV')).toBeInTheDocument();
     expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
 
-    await user.selectOptions(screen.getByLabelText('Status'), 'Paid');
+    await pickOption('Status', 'Paid');
     expect(screen.queryByText('Workstations & AV')).not.toBeInTheDocument();
     expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
     expect(screen.getByTestId('route-path')).toHaveTextContent('status=Paid');
@@ -426,7 +428,7 @@ describe('Procurement list working set — AC-LRC-001/002', () => {
   it('AC-LRC-001: renders the URL-backed working set (status + search + view) and refresh/copy reproduces it', () => {
     renderPage('/procurement?status=Paid&q=Crane&view=grouped');
     // The URL-driven status choice is selected.
-    expect(screen.getByLabelText('Status')).toHaveValue('Paid');
+    expect(screen.getByRole('combobox', { name: 'Status' })).toHaveTextContent('Paid');
     // The URL-driven search is present in the search box.
     expect(screen.getByLabelText(/Search procurements/i)).toHaveValue('Crane');
     // Only the matching row renders.
@@ -436,7 +438,7 @@ describe('Procurement list working set — AC-LRC-001/002', () => {
 
   it('AC-LRC-001: a control change writes ONE replace of the list URL (no history entry per click)', async () => {
     renderPage('/procurement?view=grouped');
-    await userEvent.selectOptions(screen.getByLabelText('Status'), 'Paid');
+    await pickOption('Status', 'Paid');
     expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
     // View change persists AND writes the URL in one event (board renders, the status set moments
     // earlier survives untouched — it is not a keystroke this event should drop).

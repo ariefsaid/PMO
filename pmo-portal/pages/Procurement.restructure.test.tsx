@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { pickOption } from '@/test/pickOption';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
@@ -187,7 +188,8 @@ describe('Procurement list restructure', () => {
     ];
     renderPage();
     expect(screen.getByRole('tab', { name: /^All/ })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByTestId('list-page-count')).toHaveTextContent('Showing 2 of 2');
+    // #2497: the count sits once, at the end of the filter bar (as on Projects), not beside the title.
+    expect(screen.getByText('Showing 2 of 2')).toBeInTheDocument();
   });
 
   it('Finance reaches Needs you from its tab with the oldest unpaid supplier invoice first', async () => {
@@ -312,7 +314,7 @@ describe('Procurement list restructure', () => {
     ];
     renderPage('/procurement?tab=all&view=grouped');
 
-    await userEvent.selectOptions(screen.getByLabelText('Status'), 'group:Ordered');
+    await pickOption('Status', 'Ordered');
 
     expect(screen.getByTestId('route-path')).toHaveTextContent('status=group%3AOrdered');
     expect(screen.getByText('Ordered row')).toBeInTheDocument();

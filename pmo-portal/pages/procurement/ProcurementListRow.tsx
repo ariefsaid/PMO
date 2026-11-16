@@ -18,22 +18,25 @@ import { ProcurementStatusPill } from '@/src/components/procurement/ProcurementS
 import { trackProcurementDetailOpened } from '@/src/lib/analytics';
 import { useProcurementDetail } from '@/src/hooks/useProcurementDetail';
 import { useListReturn } from '@/src/hooks/useListReturn';
-import { useProcurementNextStepLabel } from '@/src/hooks/useProjectStatusLabel';
+import { nextStepText } from '@/src/components/procurement/nextStepText';
+import { deriveProcurementRow } from '@/src/lib/procurement/rowDerivations';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import { formatCurrency, formatNumberExact, formatRelativeTime } from '@/src/lib/format';
+import { formatCurrency, formatNumberExact } from '@/src/lib/format';
 import { DecisionSupportPanel } from '@/src/components/procurement/DecisionSupportPanel';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import { FIGURE_LINE_CLASS } from '@/src/components/ui/FigureContent';
 
+const TERMINAL = new Set<string>(['Paid', 'Rejected', 'Cancelled']);
+
 /** UIP-007: one comparative desktop template, shared by the header and every row. */
 const columnGrid = 'grid grid-cols-2 gap-3 md:grid-cols-12';
+// #2497: the same columns, in the same order, as the table view: purchase · project · requester · amount · status.
 const columnFields = [
-  { key: 'request', span: 'col-span-2 md:col-span-3' },
+  { key: 'request', span: 'col-span-2 md:col-span-4' },
   { key: 'project', span: 'col-span-2 md:col-span-2' },
   { key: 'requester', span: 'md:col-span-2' },
   { key: 'value', span: 'md:col-span-2 md:text-right' },
-  { key: 'age', span: 'md:col-span-1 md:pl-4' },
-  { key: 'status', span: 'md:col-span-2' },
+  { key: 'status', span: 'md:col-span-2 md:pl-4' },
 ] as const;
 
 export const ProcurementListColumns: React.FC = () => {
@@ -43,7 +46,6 @@ export const ProcurementListColumns: React.FC = () => {
     project: t('procurement.columns.project', 'Project'),
     requester: t('procurement.columns.requester', 'Requester'),
     value: t('procurement.columns.value', 'Value'),
-    age: t('procurement.columns.age', 'Age'),
     status: t('procurement.columns.status', 'Status'),
   };
   return (
@@ -174,11 +176,13 @@ const ExpandedPanel: React.FC<{
  */
 export const ProcurementListRowBase: React.FC<ProcurementListRowBaseProps> = ({ row, openRecord }) => {
   const { t } = useTranslation();
-  const nextStepLabel = useProcurementNextStepLabel();
+  const { t: tp } = useTranslation('procurement');
   const panelId = `proc-list-panel-${useId()}`;
   const [expanded, setExpanded] = useState(false);
   const status = row.status as ProcurementStatus;
-  const nextStep = nextStepLabel(status);
+  const nextStep = TERMINAL.has(status) ? null : nextStepText(status, false, tp);
+  // Days in the current stage, as the table says it (not time since the request was created).
+  const age = deriveProcurementRow(row, []).age;
   // Native modified/new-tab clicks keep the plain href (no return context to carry into a separate
   // browsing context) — only a plain left-click is intercepted to route through the shared opener
   // (AC-LRC-005), matching the row-click behaviour.
@@ -242,9 +246,9 @@ export const ProcurementListRowBase: React.FC<ProcurementListRowBaseProps> = ({ 
           >
             {row.title}
           </Link>
-          {row.code && (
-            <div className="record-id">
-              {row.code}
+          {(row.code || row.pr_number || row.vendor?.name) && (
+            <div className="break-words text-sm text-muted-foreground">
+              {(row.code || row.pr_number) && <span className="record-id">{row.code || row.pr_number}</span>}{(row.code || row.pr_number) && row.vendor?.name && ' · '}{row.vendor?.name}
             </div>
           )}
         </div>
@@ -263,17 +267,16 @@ export const ProcurementListRowBase: React.FC<ProcurementListRowBaseProps> = ({ 
             <dt className="font-semibold md:sr-only">{t('procurement.columns.value', 'Value')}</dt>
             <dd className={`${FIGURE_LINE_CLASS} font-medium text-foreground`}>{formatCurrency(row.total_value, row.currency)}</dd>
           </div>
-          <div className={`${columnFields[4].span} min-w-0 tabular`}>
-            <dt className="font-semibold md:sr-only">{t('procurement.columns.age', 'Age')}</dt>
-            <dd>{formatRelativeTime(row.created_at)}</dd>
-          </div>
-          <div className={`${columnFields[5].span} min-w-0`}>
+          <div className={`${columnFields[4].span} min-w-0`}>
             <dt className="font-semibold md:sr-only">{t('procurement.columns.status', 'Status')}</dt>
-            <dd className="space-y-1.5">
-              <ProcurementStatusPill status={status} />
+            <dd className="space-y-1">
+              <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <ProcurementStatusPill status={status} />
+                {nextStep && <span className="whitespace-nowrap tabular">{age === 0 ? tp('procurement.inStageToday', 'Today') : tp('procurement.inStageDays', { count: age, defaultValue_one: '{{count}} day', defaultValue_other: '{{count}} days' })}</span>}
+              </span>
               {nextStep && (
                 <span data-testid="procurement-next-step" className="block break-words text-sm text-muted-foreground">
-                  {t('uxs19.nextStepPrefix', 'Next:')} {nextStep}
+                  {nextStep}
                 </span>
               )}
             </dd>

@@ -65,7 +65,7 @@
   "column": {
     "procurement": "Pengadaan",
     "project": "Proyek",
-    "raisedBy": "Diajukan oleh",
+    "raisedBy": "Pemohon",
     "externalReferences": "Referensi eksternal",
     "value": "Nilai",
     "lifecycle": "Tahapan",
@@ -75,7 +75,7 @@
   "filter": {
     "project": "Proyek",
     "supplier": "Supplier",
-    "raisedBy": "Diajukan oleh",
+    "raisedBy": "Pemohon",
     "status": "Status",
     "filters": "Filter"
   },
@@ -130,6 +130,7 @@
     "approved": "Disetujui",
     "ordered": "Dipesan",
     "received": "Diterima",
+    "invoiced": "Ditagih",
     "paid": "Dibayar",
     "empty": "Belum ada pengadaan pada tahap {{stage}}",
     "open": "Buka {{title}}"
