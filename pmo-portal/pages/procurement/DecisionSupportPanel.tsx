@@ -66,7 +66,7 @@ export interface DecisionSupportPanelProps {
   projectLegalName?: string | null;
   /** The project's own status; a project still in the pipeline (not won yet) names its stage at the heading. */
   projectStatus?: string | null;
-  /** The approvals inbox row is tight: the Left figure's caption moves into its label's tooltip. */
+  /** The approvals inbox row is tight: the Left figure's label also carries its formula for screen readers. */
   captionInTooltip?: boolean;
   /** The case's current status — drives per-stage math + the visibility boundary. */
   status: ProcurementStatus;
@@ -244,6 +244,12 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       value: formatCurrency(otherReserved, budgetCurrency),
       sub: otherCurrencyReserved ? t('decisionSupport.otherReservedCurrencies', { defaultValue: 'Approved, not yet ordered. Other currencies: {{amounts}}', amounts: otherCurrencyReserved }) : t('decisionSupport.reservedSub', 'Approved, not yet ordered'),
     },
+    // Orders placed and not yet billed, the figure Left subtracts: shown whenever it is known, so the approver can add it up.
+    ...(inputs !== null ? [{
+      label: tileLabel(t('decisionSupport.openOrders', 'Open orders')),
+      value: formatCurrency(inputs.openOrders, budgetCurrency),
+      sub: t('decisionSupport.openOrdersSub', 'Ordered, not invoiced'),
+    }] : []),
     // The project's canonical Budget used, mirroring the project header: no figure there (a project still in the
     // pipeline, or a reading that does not apply) means no tile here. Only a failed read shows a short unknown mark.
     ...(budgetUsedPct !== null ? [{
@@ -260,7 +266,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       // The whole-budget decision figure. The inbox row is tight: its caption moves into the label's tooltip.
       label: <span className="flex min-h-[2lh] items-end" title={leftTooltip}>{leftLabel}{captionInTooltip ? <span className="sr-only">. {leftTooltip}</span> : null}</span>,
       value: formatCurrency(afterRequest, currency),
-      ...(captionInTooltip ? {} : { sub: t('decisionSupport.leftAfterPurchaseSub', 'After spending, orders and reserved') }),
+      sub: t('decisionSupport.leftAfterPurchaseSub', 'After spending, orders and reserved'),
       tone: afterRequest < 0 ? ('neg' as const) : undefined,
     } : {
       // Never a number here when spending or open orders are not known (a plain-string label so a figure scope can name it).

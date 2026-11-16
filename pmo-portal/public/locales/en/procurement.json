@@ -364,6 +364,8 @@
     "currencyUnavailable": "Budget comparison unavailable for these currencies.",
     "heading": "Budget impact",
     "openProject": "Open project",
+    "openOrders": "Open orders",
+    "openOrdersSub": "Ordered, not invoiced",
     "leftAfterPurchase": "Left after this purchase",
     "leftAfterPurchaseSub": "After spending, orders and reserved",
     "leftAfterPurchaseTooltip": "Budget minus recorded spending, open orders, reserved requests and this purchase, each counted once, before tax.",

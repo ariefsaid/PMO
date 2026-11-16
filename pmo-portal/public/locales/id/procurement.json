@@ -364,6 +364,8 @@
     "currencyUnavailable": "Perbandingan anggaran tidak tersedia untuk mata uang ini.",
     "heading": "Dampak anggaran",
     "openProject": "Buka proyek",
+    "openOrders": "Pesanan terbuka",
+    "openOrdersSub": "Dipesan, belum ditagih",
     "leftAfterPurchase": "Sisa setelah pembelian ini",
     "leftAfterPurchaseSub": "Setelah pengeluaran, pesanan, dan cadangan",
     "leftAfterPurchaseTooltip": "Anggaran dikurangi pengeluaran tercatat, pesanan terbuka, permintaan yang dicadangkan, dan pembelian ini, masing-masing dihitung sekali, sebelum pajak.",

@@ -377,10 +377,10 @@ describe('AC-IXD-PROC-W5-2f — heading + the one budget bar', () => {
     expect(screen.getByRole('heading', { name: /budget impact/i })).toBeInTheDocument();
   });
 
-  it('renders the five budget figures in one strip so no empty cell appears', () => {
+  it('renders the six budget figures in one strip so no empty cell appears', () => {
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
     const tiles = within(screen.getByTestId('stat-tiles')).getAllByTestId('stat-tile');
-    expect(tiles).toHaveLength(5);
+    expect(tiles).toHaveLength(6);
     for (const tile of tiles) expect(tile).not.toBeEmptyDOMElement();
   });
 
@@ -769,10 +769,10 @@ describe('AC-RB-015 — Left after this purchase counts the whole budget', () =>
       'Anggaran dikurangi pengeluaran tercatat, pesanan terbuka, permintaan yang dicadangkan, dan pembelian ini, masing-masing dihitung sekali, sebelum pajak.');
   });
 
-  it('the inbox row (captionInTooltip) shows no sub-line under the figure; the tooltip is read by screen readers', () => {
+  it('the inbox row (captionInTooltip) shows the same sub-line under the figure as the record; the tooltip is also read by screen readers', () => {
     renderPanel({ ...primary(), captionInTooltip: true });
     const tile = tileOf(/^left after this purchase/i);
-    expect(within(tile).queryByText('After spending, orders and reserved')).not.toBeInTheDocument();
+    expect(within(tile).getByText('After spending, orders and reserved')).toBeInTheDocument();
     expect(tile.querySelector('.sr-only')?.textContent).toMatch(/each counted once/);
     expect(within(tile).getByText('$25')).toBeInTheDocument();
   });
@@ -785,7 +785,67 @@ describe('AC-RB-015 — Left after this purchase counts the whole budget', () =>
   it('shows the project figures in order: total, reserved, budget used, budget, left', () => {
     renderPanel(primary());
     const labels = within(screen.getByTestId('stat-tiles')).getAllByTestId('stat-tile').map((tile) => tile.firstElementChild?.textContent);
-    expect(labels).toEqual(['Procurement total', 'Reserved', 'Budget used', 'Project budget', 'Left after this purchase']);
+    expect(labels).toEqual(['Procurement total', 'Reserved', 'Open orders', 'Budget used', 'Project budget', 'Left after this purchase']);
+  });
+});
+
+// The approver must be able to rebuild Left from what the panel shows: budget − spent − open orders − reserved − this = left.
+describe('AC-RB-015 — the figures shown reconcile to Left', () => {
+  const money = (text: string | null | undefined) => Number((text ?? '').replace(/[^0-9.-]/g, ''));
+  const shown = (label: RegExp, pick: RegExp) => money(within(tileOf(label)).getByText(pick).textContent);
+  /** Spent is shown as Budget used (a percent of the budget); the rest are amounts. */
+  function reconcile() {
+    const budget = shown(/^project budget$/i, /\$/);
+    const spent = (shown(/^budget used$/i, /%/) / 100) * budget;
+    const orders = shown(/^open orders$/i, /\$/);
+    const reserved = shown(/^reserved$/i, /\$/);
+    const request = shown(/^procurement total$/i, /\$/);
+    return { left: shown(/^left after this purchase/i, /\$/), computed: budget - spent - orders - reserved - request };
+  }
+  const cascade = () => {
+    budgetState.data = 1000;
+    orders(300, 1040, { usedPercent: '104', usedRatio: '1.04' });
+    reservedState.data = 200;
+    return { projectId: 'p1', totalValue: 440, projectName: 'Cascade', status: 'Requested' as const };
+  };
+
+  it.each([
+    ['primary record', () => primary(), false, 25],
+    ['primary inbox row', () => ({ ...primary(), captionInTooltip: true }), true, 25],
+    ['over budget record', cascade, false, -980],
+    ['over budget inbox row', () => ({ ...cascade(), captionInTooltip: true }), true, -980],
+  ])('%s: the six figures shown add up to the Left shown (%#)', (_name, setup, _inbox, left) => {
+    renderPanel(setup());
+    const { left: shownLeft, computed } = reconcile();
+    expect(shownLeft).toBe(left);
+    expect(computed).toBe(left);
+  });
+
+  it('open orders are labelled with the catalogue term and its sub-line, en and id', () => {
+    const view = renderPanel(primary());
+    const tile = tileOf(/^open orders$/i);
+    expect(within(tile).getByText('$400')).toBeInTheDocument();
+    expect(within(tile).getByText('Ordered, not invoiced')).toBeInTheDocument();
+    view.unmount();
+    renderPanel(primary(), 'id');
+    const tileId = tileOf(/^pesanan terbuka$/i);
+    expect(within(tileId).getByText('$400')).toBeInTheDocument();
+    expect(within(tileId).getByText('Dipesan, belum ditagih')).toBeInTheDocument();
+  });
+
+  it('open orders still show while spending is not known', () => {
+    budgetState.data = 1000;
+    committedState.data = 400;
+    reservedState.data = 50;
+    positionState.reading = reading({ spent: null });
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested' });
+    expect(within(tileOf(/^open orders$/i)).getByText('$400')).toBeInTheDocument();
+  });
+
+  it('open orders not known: no Open orders tile (never drawn as zero)', () => {
+    committedState.commitmentSource = 'not-tracked';
+    renderPanel(primary());
+    expect(screen.queryByText(/^open orders$/i)).not.toBeInTheDocument();
   });
 });
 
