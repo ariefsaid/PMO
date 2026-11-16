@@ -70,13 +70,13 @@ export function readBackInvoice(pmoId: string, read: InvoiceRead, expect: Invoic
   const advanceAccount = checkAdvanceAccount(read.productLines, expect.advanceAccount);
   // Odoo re-dates a post inside a locked period instead of refusing it (#2290): the accounting `date` is the ledger's.
   const ledger = compareLedger({ date: expect.date ?? null, ref: expect.ref ?? null }, { date: move.date, ref: move.ref });
-  // One column holds one reason; the order is the order a person should look in (a moved period first once the money is readable).
+  // One column holds one reason; the order is the order a person should look in (money and account reasons first, then a moved ledger date; the ledger date always shows in its own field).
   const attention: InvoiceAttention | null = !sane ? 'money-unreadable'
-    : ledger.codes.includes('ledger-date-differs') ? 'ledger-date-differs'
-    : ledger.codes.includes('ledger-date-unreadable') ? 'ledger-date-unreadable'
     : costAccount.outcome === 'needs-attention' ? 'cost-account-missing'
     : advanceAccount.outcome === 'needs-attention' ? 'advance-account-mismatch'
     : mismatch ? 'total-mismatch'
+    : ledger.codes.includes('ledger-date-differs') ? 'ledger-date-differs'
+    : ledger.codes.includes('ledger-date-unreadable') ? 'ledger-date-unreadable'
     : ledger.codes.includes('ledger-reference-differs') ? 'ledger-reference-differs'
     : costAccount.outcome === 'unreadable' || advanceAccount.outcome === 'unreadable' ? 'lines-unreadable'
     : null;

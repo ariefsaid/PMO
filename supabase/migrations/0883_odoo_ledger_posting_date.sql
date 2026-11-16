@@ -14,9 +14,9 @@ comment on column public.procurement_invoices.erp_posting_date is
 comment on column public.sales_invoices.erp_posting_date is
   'The accounting date the ledger posted the invoice on (Odoo account.move.date); differs from invoice_date when the ledger moved it. Mirror writers only.';
 comment on column public.payments.erp_posting_date is
-  'The date the ledger posted the payment on (Odoo account.payment.date); differs from the entered date when the ledger moved it. Mirror writers only.';
+  'The date the ledger posted the payment on (the posted journal entry''s date, not account.payment.date); differs from the entered date when the ledger moved it. Mirror writers only.';
 comment on column public.incoming_payments.erp_posting_date is
-  'The date the ledger posted the receipt on (Odoo account.payment.date); differs from date when the ledger moved it. Mirror writers only.';
+  'The date the ledger posted the receipt on (the posted journal entry''s date, not account.payment.date); differs from date when the ledger moved it. Mirror writers only.';
 
 alter table public.sales_invoices
   drop constraint sales_invoices_odoo_attention_check,

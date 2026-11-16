@@ -100,6 +100,14 @@ describe('AC-ODR-004 an invoice Odoo re-dated is mirrored on the ledger date and
     expect(readBackInvoice('inv-1', read({ ref: 'OTHER' }), SENT).odoo_attention).toBe('ledger-reference-differs');
     expect(readBackInvoice('inv-1', read({ ref: 'OTHER', amount_total: 1200, amount_residual: 1200 }), SENT).odoo_attention).toBe('total-mismatch');
   });
+  it('a differing total AND a differing ledger date: the total warning shows with "PMO sent X", and the ledger date still sits in its own field', () => {
+    const r = readBackInvoice('inv-1', read({ date: '2027-01-01', amount_tax: 120, amount_total: 1120, amount_residual: 1120 }), SENT);
+    expect(r).toMatchObject({ odoo_attention: 'total-mismatch', odoo_sent_total: '1110.00', erp_posting_date: '2027-01-01' });
+  });
+  it('a missing cost account AND a differing ledger date: the account reason outranks the date', () => {
+    const r = readBackInvoice('inv-1', read({ date: '2027-01-01' }, [{ id: 1, display_type: 'product', analytic_distribution: {} }]), SENT);
+    expect(r.odoo_attention).toBe('cost-account-missing');
+  });
   it('unreadable money still comes first: a moved date does not hide it', () => {
     expect(readBackInvoice('inv-1', read({ date: '2027-01-01', amount_residual: undefined }), SENT).odoo_attention).toBe('money-unreadable');
   });

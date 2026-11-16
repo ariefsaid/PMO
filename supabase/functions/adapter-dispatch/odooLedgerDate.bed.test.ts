@@ -163,6 +163,7 @@ Deno.test({
     const ledger = movedBy(posted.moveDate, INSIDE);
     console.log(`[odr] ${stamp}: Odoo ledger date ${ledger}, PMO erp_posting_date ${result.canonical.erp_posting_date}`);
     assertEquals(result.canonical.erp_posting_date, ledger, `Odoo's ledger date is the payment's move date (the payment's own date reads ${posted.paymentDate})`);
+    assertEquals(posted.paymentDate, INSIDE, "the payment's own date is left as typed");
     assertEquals([result.canonical.odoo_outcome, result.canonical.odoo_attention], ['needs-attention', ['ledger-date-differs']]);
   },
 });
@@ -196,6 +197,7 @@ Deno.test({
     console.log(`[odr] ${stamp}: Odoo ledger date ${ledger}, PMO erp_posting_date ${result.canonical.erp_posting_date}`);
     assertEquals(result.canonical.date, INSIDE, 'the entered date stays as typed');
     assertEquals(result.canonical.erp_posting_date, ledger, `Odoo's ledger date is the payment's move date (the payment's own date reads ${posted.paymentDate})`);
+    assertEquals(posted.paymentDate, INSIDE, "the payment's own date is left as typed");
     assertEquals(result.canonical.odoo_attention, ['ledger-date-differs']);
   },
 });
@@ -234,6 +236,7 @@ Deno.test({
     console.log(`[odr] ${stamp}: Odoo ledger date ${ledger}, PMO erp_posting_date ${result.canonical.erp_posting_date}`);
     assertEquals(result.canonical.date, INSIDE, 'the entered date stays as typed');
     assertEquals(result.canonical.erp_posting_date, ledger, `Odoo's ledger date is the payment's move date (the payment's own date reads ${posted.paymentDate})`);
+    assertEquals(posted.paymentDate, INSIDE, "the payment's own date is left as typed");
     assertEquals(result.canonical.odoo_attention, ['ledger-date-differs']);
     assertEquals(result.canonical.withheld_amount, 2);
   },
