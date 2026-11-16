@@ -248,3 +248,14 @@ describe('TimesheetGrid mobile a11y: single AT tree', () => {
     expect(mobileBranch.textContent).toContain('Sat'); // weekend
   });
 });
+
+describe('#design-1115 one weekly total on the phone', () => {
+  it('drops the stack week total when the page shows it beside Save/Submit, keeps it otherwise', () => {
+    mockViewport(false);
+    const { rerender } = render(<TimesheetGrid days={days} rows={rows} editable />);
+    expect(screen.getByTestId('tsgrid-grand-total')).toHaveTextContent('21');
+    rerender(<TimesheetGrid days={days} rows={rows} editable hideMobileWeekTotal />);
+    expect(screen.queryByTestId('tsgrid-grand-total')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Row total')).toHaveLength(2);
+  });
+});

@@ -1523,8 +1523,7 @@
       "notFoundSub": "Tidak ada, atau bukan milik Anda dan Anda tidak menyetujui pengeluaran.",
       "notFoundTitle": "Tidak ditemukan",
       "outstanding": "Belum diselesaikan",
-      "reference": "Referensi pembayaran",
-      "summary": "Ringkasan"
+      "reference": "Referensi pembayaran"
     },
     "filters": {
       "allCategories": "Semua kategori",
@@ -1603,7 +1602,6 @@
       "removeAria": "Hapus rincian {{description}}",
       "removeTitle": "Hapus rincian ini?",
       "save": "Simpan rincian",
-      "sectionLegend": "Pengeluaran",
       "title": "Rincian",
       "total": "Total",
       "type": "Jenis"
@@ -1613,7 +1611,6 @@
       "attach": "Lampirkan bukti",
       "attachAria": "Pilih berkas bukti",
       "attached": "Bukti terlampir",
-      "download": "Unduh {{name}}",
       "empty": "Belum ada bukti terlampir.",
       "preview": "Pratinjau bukti",
       "error": "Gagal memuat bukti.",
@@ -4411,7 +4408,7 @@
       "formNotConnected": "Posting biaya nonaktif. Ini hanya disimpan di PMO.",
       "formInactive": "Posting biaya nonaktif. Ini hanya disimpan di PMO.",
       "formUnknown": "Tidak dapat memeriksa posting biaya. Ini hanya disimpan di PMO.",
-      "cardInactive": "Belum diposting ke akuntansi: posting biaya tidak aktif untuk organisasi ini.",
+      "cardInactive": "Hanya tersimpan di PMO: posting biaya ke akuntansi nonaktif.",
       "cardUnknown": "Tidak dapat memeriksa apakah klaim ini akan masuk ke akuntansi."
     }
   },
@@ -4619,7 +4616,7 @@
       "firstExpenseHelp": "Tambahkan tanda terima, rincian pengeluaran lengkap, atau keduanya. Berkas tanda terima baru diunggah setelah Anda menyimpan.",
       "expenseTypePlaceholder": "Pilih jenis",
       "expenseTypeRequired": "Pilih jenis pengeluaran.",
-      "receipt": "Tanda terima (opsional)",
+      "receipt": "Bukti (opsional)",
       "chooseReceiptFile": "Pilih berkas tanda terima",
       "chooseReceipt": "Pilih tanda terima",
       "removeReceipt": "Hapus",

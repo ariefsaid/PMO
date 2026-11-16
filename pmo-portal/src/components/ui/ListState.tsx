@@ -334,50 +334,25 @@ export const ListState: React.FC<ListStateProps> = ({
     );
   }
 
-  if (variant === 'error' && quiet) {
-    // One line under the panel's heading, where its first row would be: a small warning icon (the only red) on the
-    // first text line, then one text block holding the message with Retry inline after it, so a long message wraps
-    // beside the icon and Retry follows the text (never alone under the icon). Retry's touch padding is cancelled by
-    // its negative margin, so it never grows the line. The panel ends at the line; it holds no blank space.
+  if (variant === 'error') {
+    const safeSub = safeErrorBody(sub);
+    // One error treatment app-wide: a warning icon (the only red) on the first text line, then ONE text block with
+    // the message (and its detail) and Retry following the text, so a long message wraps beside the icon and Retry
+    // wraps under the TEXT, never alone under the icon. Retry's touch padding is cancelled by its negative margin, so
+    // it never grows the line. Inside a panel (`quiet`) it is a plain line under the heading; standing alone it keeps
+    // a tinted frame and a destructive headline.
     return (
-      <div role="alert" aria-live="assertive" className={cn('flex items-start gap-x-2 py-2 text-control', className)}>
+      <div role="alert" aria-live="assertive" className={cn('flex items-start gap-x-2 text-control', quiet ? 'py-2' : 'rounded-lg border border-destructive/30 bg-destructive/[0.07] px-4 py-3', className)}>
         <span className="flex h-lh shrink-0 items-center"><Icon name="alert" aria-hidden className="size-5 text-destructive" /></span>
         <div className="min-w-0 flex-1 text-foreground">
-          {title && (titleAsPageHeading ? <h1 className="inline">{title}</h1> : <span>{title}</span>)}{' '}
+          {/* O18: a page whose only content is this error keeps its level-one heading. */}
+          {title && (titleAsPageHeading
+            ? <h1 className={cn(safeSub ? 'block' : 'inline', !quiet && 'font-semibold text-destructive-text')}>{title}</h1>
+            : <span className={cn(safeSub && 'block', !quiet && 'font-semibold text-destructive-text')}>{title}</span>)}
+          {safeSub && <span className="mt-px text-muted-foreground">{safeSub}</span>}{' '}
           <button type="button" onClick={onRetry} className="-my-1.5 ms-1 inline-block whitespace-nowrap py-1.5 font-medium text-primary-text hover:underline max-[640px]:-my-3 max-[640px]:py-3 pointer-coarse:-my-3 pointer-coarse:py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
             {resolvedRetryLabel}
           </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (variant === 'error') {
-    const safeSub = safeErrorBody(sub);
-    // One line with its action beside it when the cell is wide enough; otherwise the action drops under the
-    // text. The message keeps its natural width (it never squeezes into a column beside the button).
-    return (
-      <div className={cn('@container flex flex-col', className)}>
-        <div
-          role="alert"
-          aria-live="assertive"
-          className="flex flex-1 flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-lg border border-destructive/30 bg-destructive/[0.07] px-4 py-3"
-        >
-          <div className="flex min-w-0 max-w-full items-center gap-3">
-            {/* In a narrow cell the icon gives way, so the message keeps one line. */}
-            <Icon name="alert" className="hidden size-5 shrink-0 text-destructive @[19rem]:block" />
-            <div className="min-w-0">
-              {/* O18: a page whose only content is this error keeps its level-one heading. */}
-              {title && (titleAsPageHeading
-                ? <h1 className="text-control font-semibold text-destructive-text">{title}</h1>
-                : <div className="text-control font-semibold text-destructive-text">{title}</div>)}
-              {safeSub && <div className="mt-px text-control text-muted-foreground">{safeSub}</div>}
-            </div>
-          </div>
-          <Button variant="outline" size="sm" onClick={onRetry} className="shrink-0">
-            <Icon name="refresh" />
-            {resolvedRetryLabel}
-          </Button>
         </div>
       </div>
     );

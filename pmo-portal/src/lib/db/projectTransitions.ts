@@ -34,7 +34,9 @@ export interface TransitionProjectOpts {
 // ---------------------------------------------------------------------------
 // Transition map — single TS source, mirrors the SQL literal inside
 // transition_project() (FR-PR-001/003/012; the map's owning acceptance proof
-// is pgTAP — supabase/tests/project_transition_map.test.sql, AC-1000).
+// is pgTAP — supabase/tests/project_transition_map.test.sql, AC-1000). The pgTAP file
+// supabase/tests/project_transition_map_parity.test.sql holds the same map as one literal and walks every
+// pair through the real RPC; projectTransitions.test.ts asserts this list equals that literal.
 // Note: status literals are EXACT enum spellings, including 'Won, Pending KoM' with comma.
 // The map is the DRAG/drop + inline-menu affordance seam (PipelineLens, DraggableSalesBoard);
 // the RPC remains the only enforcement authority.
@@ -42,8 +44,8 @@ export interface TransitionProjectOpts {
 
 export const LEGAL_PROJECT_TRANSITIONS: Record<string, string[]> = {
   'Leads':               ['Quotation Submitted', 'Loss Tender', 'Internal Project', 'Declined'],
-  'Quotation Submitted': ['PQ Submitted', 'Loss Tender', 'Declined'],
-  'PQ Submitted':        ['Tender Submitted', 'Quotation Submitted', 'Leads', 'Won, Pending KoM', 'Loss Tender', 'Declined'],
+  'Quotation Submitted': ['PQ Submitted', 'Won, Pending KoM', 'Loss Tender', 'Declined'],
+  'PQ Submitted':        ['Tender Submitted', 'Quotation Submitted', 'Leads', 'Loss Tender', 'Declined'],
   'Tender Submitted':    ['Negotiation', 'PQ Submitted', 'Won, Pending KoM', 'Loss Tender', 'Declined'],
   'Negotiation':         ['Won, Pending KoM', 'Tender Submitted', 'Loss Tender', 'Declined'],
   'Won, Pending KoM':    ['Ongoing Project', 'On Hold', 'Close Out'],
