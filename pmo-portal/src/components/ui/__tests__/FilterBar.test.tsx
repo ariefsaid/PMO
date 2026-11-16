@@ -4,6 +4,7 @@ import { axe } from 'jest-axe';
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { FilterBar } from '../FilterBar';
 import { useUrlFilters } from '../useUrlFilters';
+import { pickOption } from '@/test/pickOption';
 
 const filters = [
   { key: 'status', label: 'Status', kind: 'segment' as const, options: [{ value: 'open', label: 'Open' }, { value: 'closed', label: 'Closed' }] },
@@ -20,12 +21,15 @@ function Example() {
 function setup(path = '/?other=keep') { return render(<MemoryRouter initialEntries={[path]}><Example /></MemoryRouter>); }
 afterEach(() => vi.unstubAllGlobals());
 describe('FilterBar', () => {
-  it('updates search, segments and selects in the URL, and clears only its own filters', () => {
+  it('updates search, segments and selects in the URL, and clears only its own filters', async () => {
     setup();
+    // Nothing chosen yet: no "Clear all" to press.
+    expect(screen.queryByRole('button', { name: 'Clear all' })).not.toBeInTheDocument();
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search records' }), { target: { value: 'bridge' } });
     fireEvent.click(screen.getByRole('button', { name: 'Open' }));
-    fireEvent.change(screen.getByRole('combobox', { name: 'Project' }), { target: { value: 'one' } });
-    expect(screen.getByRole('combobox', { name: 'Project' })).toHaveValue('one');
+    // #2497: a select filter is the app's own picker, never the browser's select.
+    await pickOption('Project', 'One');
+    expect(screen.getByRole('combobox', { name: 'Project' })).toHaveTextContent('One');
     expect(screen.getByTestId('url')).toHaveTextContent('other=keep&q=bridge&status=open&project=one');
     expect(screen.getByText('Showing 2 of 5')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Clear all' }));

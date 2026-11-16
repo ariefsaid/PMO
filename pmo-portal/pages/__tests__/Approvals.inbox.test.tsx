@@ -217,7 +217,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     }];
     renderAs('Project Manager');
 
-    const queue = screen.getByRole('heading', { name: /Purchases and timesheets/i });
+    const queue = screen.getByRole('heading', { name: /waiting on your decision/i });
     const history = screen.getByText('Approved history and corrections');
     expect(queue.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(history.closest('details')).not.toHaveAttribute('open');

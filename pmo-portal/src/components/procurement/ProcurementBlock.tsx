@@ -34,7 +34,7 @@ import { useProcurementDetail } from '@/src/hooks/useProcurementDetail';
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { repositories } from '@/src/lib/repositories';
-import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
+import { PROCUREMENT_LIFECYCLE_ORDER, type ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
@@ -127,6 +127,7 @@ type PendingDecision = { rows: ProcurementWithRefs[]; target: DecisionTarget };
 type CurrencyTotal = { currency: string; value: number };
 type ProcurementBudgetCategory = NonNullable<ProcurementWithRefs['budget_category']>;
 
+const LIFECYCLE_RANK = new Map<string, number>(PROCUREMENT_LIFECYCLE_ORDER.map((status, index) => [status, index]));
 const TERMINAL_STATUSES: ProcurementStatus[] = ['Paid', 'Rejected', 'Cancelled'];
 const UNCATEGORIZED_FILTER = '__uncategorized__';
 const UNASSIGNED_FILTER = '__unassigned__';
@@ -417,7 +418,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         case 'title': return row.title;
         case 'category': return categoryLabel(row.budget_category);
         case 'value': return derivationFor(row).money.mostReal?.amount ?? 0;
-        case 'stage': return statusName(row.status);
+        // #2497: the status column carries the age too, so it sorts by lifecycle step, then by days in that step.
+        case 'stage': return (LIFECYCLE_RANK.get(row.status) ?? 99) * 1_000_000 + derivationFor(row).age;
         case 'age': return derivationFor(row).age;
         case 'owner': return row.requested_by?.full_name ?? '';
         case 'project': return row.project ? projectDisplayName(row.project) : '';
