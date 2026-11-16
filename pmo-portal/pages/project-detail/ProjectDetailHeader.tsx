@@ -23,6 +23,7 @@ import {
 } from '@/src/components/ui';
 import { Popover, PopoverContent, PopoverTrigger } from '@/src/components/shadcn/popover';
 import { buttonClasses } from '@/src/components/ui/buttonClasses';
+import { cn } from '@/src/components/ui/cn';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -395,15 +396,21 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     : null;
   // Identity line (customer · project number, body colour), then the facts line (muted) from `facts`.
   // The position under the title says "customer", so the label is spoken only (sr-only).
+  // A separator never starts or ends a line: each item carries its dot on its left, and the row sits 16px left of
+  // an overflow-hidden box, so the dot of whichever item starts a line falls in the clipped gutter.
+  const identityItem = 'relative min-w-0 break-words pl-4 before:absolute before:left-[5px] before:text-muted-foreground before:content-["·"]';
   const identityLine = (customerName || project.code) ? (
-    <span data-testid="project-identity-line" className="flex min-w-0 flex-wrap items-baseline gap-x-2 text-control text-foreground">
-      {customerName && (
-        <span title={customerName} className="min-w-0 break-words">
-          <span className="sr-only">{t('projects:filterBuilder.customer', 'Customer')} </span>{customerName}
-        </span>
-      )}
-      {customerName && project.code && <span aria-hidden="true" className="text-muted-foreground">·</span>}
-      {project.code && <span className="record-id min-w-0 break-words">{project.code}</span>}
+    <span data-testid="project-identity-line" className="block min-w-0 overflow-hidden text-control text-foreground">
+      <span className="-ml-4 flex min-w-0 flex-wrap items-baseline">
+        {customerName && (
+          <span title={customerName} className={identityItem}>
+            <span className="sr-only">{t('projects:filterBuilder.customer', 'Customer')} </span>{customerName}
+          </span>
+        )}
+        {/* A space for assistive tech and copied text; a flex row drops it from layout. */}
+        {customerName && project.code && ' '}
+        {project.code && <span className={cn('record-id', identityItem)}>{project.code}</span>}
+      </span>
     </span>
   ) : null;
   const plainMeta = (
