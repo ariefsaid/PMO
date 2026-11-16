@@ -22,6 +22,7 @@
   ],
   "files": [
     "../scripts/lib/budget-import-identity.d.mts",
+    "../scripts/lib/contract-line-rules.d.mts",
     "../supabase/functions/_shared/microsoftDocumentPreview.ts",
     "../supabase/functions/_shared/microsoftDocumentReference.ts",
     "../supabase/functions/_shared/microsoftFolderConvention.ts",

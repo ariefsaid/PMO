@@ -274,7 +274,7 @@ const EquipmentAssetDetail: React.FC = () => {
   return (
     <div>
       <RecordHeader icon="$" name={asset.name}
-        status={<span className="font-mono text-sm text-muted-foreground">{asset.code}</span>}
+        status={<span className="record-id">{asset.code}</span>}
         meta={<span className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span>{t('equipment:assets.unitLine', 'Logged in {{unit}}', { unit: unitLabel(t, asset.default_unit) })}</span>
           {asset.external_ref && <span>{t('equipment:assets.refLine', 'ERP reference {{ref}}', { ref: asset.external_ref })}</span>}

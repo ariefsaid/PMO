@@ -2120,7 +2120,6 @@
           "claimed": "Ditagih",
           "item": "Item",
           "quantity": "Kontrak",
-          "rate": "Harga satuan",
           "remaining": "Sisa untuk ditagih"
         },
         "confirmDelete": {

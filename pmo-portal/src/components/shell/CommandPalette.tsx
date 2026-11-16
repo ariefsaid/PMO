@@ -44,6 +44,9 @@ interface CommandPaletteProps {
 
 /** Skeleton rows shown while the record lists load. */
 const SKELETON_COUNT = 4;
+/** A query carrying a digit or a dash reads as a record number, not a place name. */
+const LOOKS_LIKE_CODE = /[\d-]/;
+
 /** Debounce (ms) applied to the query before the record/reference search reacts. */
 const FILTER_DEBOUNCE_MS = 120;
 
@@ -318,7 +321,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         )}
       </span>
       {item.code && (
-        <span title={item.code} className="min-w-0 max-w-[45%] break-words text-right font-mono text-control text-muted-foreground break-words">
+        <span title={item.code} className="min-w-0 max-w-[45%] break-words text-right record-id break-words">
           {renderCodeLabel(item.code, item.codeTokens)}
         </span>
       )}
@@ -328,6 +331,36 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   // The draft goes to the assistant as typed (debouncedQuery is lowercased for matching).
   const askAiQuery = debounced.trim();
   const showAskAi = !!onAskAi && !showLoading && searchSettled && askAiQuery.length > 0;
+
+  const recordsLead = LOOKS_LIKE_CODE.test(debouncedQuery);
+  const recordsGroup = recordResults.items.length > 0 && (
+    <Command.Group
+      value="Records"
+      heading={groupHeading(groupLabel('Records'))}
+    >
+      {recordResults.items.map((item) => renderRow(item, `${RECORD_VALUE_PREFIX}${item.id}`))}
+      {recordResults.overflow > 0 && (
+        <Command.Item
+          forceMount
+          disabled
+          value="note:records-overflow"
+          className="px-2.5 py-1.5 text-control text-muted-foreground"
+        >
+          {t('shell.palette.moreResults', '+{{count}} more: refine your search', { count: recordResults.overflow })}
+        </Command.Item>
+      )}
+      {searchSettled && debouncedQuery.length >= 2 && referenceSearch.data?.hasMore && (
+        <Command.Item
+          forceMount
+          disabled
+          value="note:records-hasmore"
+          className="px-2.5 py-1.5 text-control text-muted-foreground"
+        >
+          {t('shell.palette.uxs40.moreReferenceMatches', 'More reference matches; refine your search')}
+        </Command.Item>
+      )}
+    </Command.Group>
+  );
 
   return (
     <Dialog.Root
@@ -428,6 +461,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   )}
                 </Command.Empty>
 
+                {/* A typed number or code is looking for a record: records lead, places follow. */}
+                {recordsLead && recordsGroup}
                 {staticGroups.map((group) => (
                   <Command.Group
                     key={group.name}
@@ -438,34 +473,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   </Command.Group>
                 ))}
 
-                {recordResults.items.length > 0 && (
-                  <Command.Group
-                    value="Records"
-                    heading={groupHeading(groupLabel('Records'))}
-                  >
-                    {recordResults.items.map((item) => renderRow(item, `${RECORD_VALUE_PREFIX}${item.id}`))}
-                    {recordResults.overflow > 0 && (
-                      <Command.Item
-                        forceMount
-                        disabled
-                        value="note:records-overflow"
-                        className="px-2.5 py-1.5 text-control text-muted-foreground"
-                      >
-                        {t('shell.palette.moreResults', '+{{count}} more: refine your search', { count: recordResults.overflow })}
-                      </Command.Item>
-                    )}
-                    {searchSettled && debouncedQuery.length >= 2 && referenceSearch.data?.hasMore && (
-                      <Command.Item
-                        forceMount
-                        disabled
-                        value="note:records-hasmore"
-                        className="px-2.5 py-1.5 text-control text-muted-foreground"
-                      >
-                        {t('shell.palette.uxs40.moreReferenceMatches', 'More reference matches; refine your search')}
-                      </Command.Item>
-                    )}
-                  </Command.Group>
-                )}
+                {!recordsLead && recordsGroup}
 
                 {/* Zero-result Ask AI fallback (when the agent assistant is enabled). It must sit
                     at the LIST level (not inside a group or Empty): cmdk's result sorting can

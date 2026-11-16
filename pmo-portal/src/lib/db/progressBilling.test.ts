@@ -125,6 +125,14 @@ describe('progress billing DAL', () => {
     });
   });
 
+  it('AC-1278 an imported BoQ line carries its import key on insert; a hand-entered line carries none', async () => {
+    h.result.data = { id: 'b1' };
+    await createBoqItem('p1', { itemCode: 'A-1', description: 'Cable', unit: 'km', quantity: 1, rate: 50, earningBasis: 'unit_rate', lineNo: null, importKey: 'L-1' });
+    expect(h.chain.insert).toHaveBeenLastCalledWith(expect.objectContaining({ import_key: 'L-1' }));
+    await createBoqItem('p1', { itemCode: 'A-2', description: 'Cable', unit: 'km', quantity: 1, rate: 50, earningBasis: 'unit_rate', lineNo: null });
+    expect(h.chain.insert.mock.calls.at(-1)![0]).not.toHaveProperty('import_key');
+  });
+
   it('AC-CQ-001 a BoQ update sends basis and line number, not import_key or work order', async () => {
     h.result.data = [{ id: 'b1' }];
     await updateBoqItem('b1', { itemCode: 'A-1', description: 'Cable', unit: 'lot', quantity: 1, rate: 50, earningBasis: 'lump_sum', lineNo: null });

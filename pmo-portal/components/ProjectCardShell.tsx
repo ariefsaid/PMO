@@ -132,7 +132,7 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
             <span className="min-w-0 shrink truncate">{client ?? '—'}</span>
             {ids && <>
               <span aria-hidden>·</span>
-              <span className="min-w-0 truncate font-mono text-sm" title={ids}>{ids}</span>
+              <span className="min-w-0 truncate record-id" title={ids}>{ids}</span>
             </>}
           </div>
         ) : (
@@ -144,13 +144,13 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
               <span className="truncate">{client ?? '—'}</span>
             )}
             {pmoNumber && (
-              <span className="break-all font-mono text-sm">
-                <span className="font-sans">{t('projects.identifiers.pmo', 'PMO Project Number')}:</span> {pmoNumber}
+              <span className="record-id">
+                {t('projects.identifiers.pmo', 'PMO Project Number')}: {pmoNumber}
               </span>
             )}
             {clientCode && (
-              <span className="break-all font-mono text-sm">
-                <span className="font-sans">{t('projects.identifiers.client', 'Client Project Code')}:</span> {clientCode}
+              <span className="record-id">
+                {t('projects.identifiers.client', 'Client Project Code')}: {clientCode}
               </span>
             )}
           </div>

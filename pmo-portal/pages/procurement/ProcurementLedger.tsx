@@ -15,7 +15,7 @@
  *
  * DESIGN.md tokens only; no raw hex/px. No horizontal bleed @390/360 (DataTable
  * md→card handles mobile). WCAG-AA: filter chips are keyboard-operable buttons
- * with aria-pressed; status pills are dot+label (never color-only); mono IDs.
+ * with aria-pressed; status pills are dot+label (never color-only); record-id reference lines.
  *
  * File column: zero per-row network calls on mount. File presence (fileTitle /
  * fileCount / fileHref) is pre-built from the bundle by buildLedgerRows. The cell
@@ -163,7 +163,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
     header: <LedgerHeader translationKey="procurementLedger.systemNumber" fallback="System #" />,
     cell: (row) =>
       row.systemNumber ? (
-        <span className="font-mono text-sm font-semibold">{row.systemNumber}</span>
+        <span className="record-id font-semibold text-foreground">{row.systemNumber}</span>
       ) : (
         <span className="text-sm text-muted-foreground">—</span>
       ),
@@ -173,7 +173,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
     header: <LedgerHeader translationKey="procurementLedger.externalRef" fallback="External ref" />,
     cell: (row) =>
       row.externalRef ? (
-        <span className="font-mono text-sm text-muted-foreground">{row.externalRef}</span>
+        <span className="record-id">{row.externalRef}</span>
       ) : (
         <span className="text-sm text-muted-foreground">—</span>
       ),
@@ -183,7 +183,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
     header: <GroupRefHeader />,
     cell: (row) =>
       row.groupRef ? (
-        <span className="font-mono text-sm text-muted-foreground">{row.groupRef}</span>
+        <span className="record-id">{row.groupRef}</span>
       ) : (
         <span className="text-sm text-muted-foreground">—</span>
       ),

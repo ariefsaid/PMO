@@ -53,7 +53,7 @@ export function QueueButton({
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-control text-muted-foreground">
             <span>{row.requested_by?.full_name ?? t('approvals.unknownRequester', 'Unknown requester')}</span>
             <span>·</span>
-            <span className="font-mono">{row.code ?? row.id.slice(0, 8)}</span>
+            <span className="record-id">{row.code ?? row.id.slice(0, 8)}</span>
           </div>
         </div>
         <div className="mt-2 text-control text-muted-foreground">

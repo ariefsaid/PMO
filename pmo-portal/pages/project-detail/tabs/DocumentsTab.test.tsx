@@ -1025,7 +1025,7 @@ describe('DocumentsTab — document preview (AC-W5-C6-D12)', () => {
     const drawer = await openPreview('Site Plan');
     const labelId = drawer.getAttribute('aria-labelledby');
     expect(document.getElementById(labelId!)?.textContent).toContain('Site Plan');
-    // Read-first body: code (mono), category, status pill.
+    // Read-first body: code, category, status pill.
     expect(within(drawer).getByText('DOC-001')).toBeInTheDocument();
     expect(within(drawer).getByText('Drawing')).toBeInTheDocument();
   });

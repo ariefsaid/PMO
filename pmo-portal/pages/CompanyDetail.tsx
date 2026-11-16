@@ -236,7 +236,7 @@ const CompanyDetail: React.FC = () => {
             {company.client_number_segment && (
               <Field
                 label={t('companyDetail.field.clientNumberSegment', 'Client number segment')}
-                value={<span className="font-mono">{company.client_number_segment}</span>}
+                value={<span className="record-id text-foreground">{company.client_number_segment}</span>}
               />
             )}
             {/* T18: Primary contact link — rendered in the account card when contacts exist. */}
