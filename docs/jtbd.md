@@ -136,7 +136,7 @@ or has *friction* (finishes, but with a detour, a dead end or a cut-off screen).
 friction becomes a ticket with its job story; a finished job becomes a journey test named by its id, so
 it stays finished. The reference organisation for the walk is a contractor with **no ERP**, rupiah,
 Bahasa first; the same list is walked for an ERP-connected organisation before a release that changes
-the ERP paths.
+the ERP paths. The walk itself (steps, friction types, severity) is the `friction-walk` skill.
 
 Functions map to app roles: site engineer and storekeeper → Engineer · project manager → Project
 Manager · purchasing, payables and receivables → Finance · director and finance director → Executive ·
