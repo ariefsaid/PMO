@@ -597,7 +597,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                 {t('projectDetail.workOrders.action.addCustomerOrder', 'Add customer order')}
               </Button>
             )}
-            <ExportButton rows={filteredOrders} columns={orderExportColumns} entity="Customer orders"
+            <ExportButton size="sm" rows={filteredOrders} columns={orderExportColumns} entity="Customer orders"
               label={t('common.export', 'Export')} />
           </div>
         </div>

@@ -12,7 +12,7 @@ import { useSalesInvoices } from '@/src/hooks/useRevenue';
 import { useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
-import { formatNumberMax2, formatTableMoney, formatTileMoney } from '@/src/lib/format';
+import { formatNumberMax2, formatTableMoney } from '@/src/lib/format';
 import { selectContractInvoiceFigure } from '@/src/lib/projectFinances';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -39,7 +39,6 @@ const BILLABILITY_STATE_ICONS = {
 /** Contract value summary and the customer's ordered → delivered → invoiced reading layer. */
 /** `contractTools` = the contract card's own actions (they sit in its header); `timeAndMaterials` = the T&M panel, last on the tab. */
 export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: React.ReactNode; contractTools?: React.ReactNode; timeAndMaterials?: React.ReactNode }> = ({ project, children, contractTools, timeAndMaterials }) => {
-  const tileMoney = (value: number) => formatTileMoney(value, project.currency) ?? String(value);
   const tableMoney = (value: number) => formatTableMoney(value, project.currency) ?? String(value);
   const { t } = useTranslation('project');
   const [searchParams, setSearchParams] = useSearchParams();
@@ -244,21 +243,21 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
           <CardPad key="contract-summary-body" className="pt-0">
           {isCascadeError && <ListState variant="error" title={t('projectDetail.cascade.error', "Couldn't load the contract")} onRetry={() => { void boq.refetch(); void billing.refetch(); void orders.refetch(); }} />}
           {showSummary && <React.Fragment key="contract-summary-content">
-          <ol className="grid min-w-0 grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 lg:grid-cols-5" aria-label={t('projectDetail.cascade.title', 'Contract')}>
-            <MoneyStep label={t('projectDetail.cascade.contract', 'Contract value')} value={tileMoney(contractValue)} detail={hasReadingLayer ? t('projectDetail.cascade.source.contract', 'Source: priced contract lines (quantity × rate), excluding tax.') : t('projectDetail.cascade.source.contractFallback', 'Source: the project billing summary, excluding tax.')} />
+          <ol className="grid min-w-0 grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-[repeat(auto-fill,minmax(19rem,1fr))]" aria-label={t('projectDetail.cascade.title', 'Contract')}>
+            <MoneyStep label={t('projectDetail.cascade.contract', 'Contract value')} value={tableMoney(contractValue)} detail={hasReadingLayer ? t('projectDetail.cascade.source.contract', 'Source: priced contract lines (quantity × rate), excluding tax.') : t('projectDetail.cascade.source.contractFallback', 'Source: the project billing summary, excluding tax.')} />
             {hasReadingLayer && hasCustomerOrders && <>
-              <MoneyStep label={t('projectDetail.cascade.ordered', 'Ordered')} value={tileMoney(ordered)} percentage={percent(ordered)} detail={t('projectDetail.cascade.source.ordered', 'Source: contract allocation quantities × contract rates.')} />
-              <MoneyStep label={t('projectDetail.cascade.delivered', 'Delivered')} value={tileMoney(delivered)} percentage={percent(delivered)} detail={t('projectDetail.cascade.source.delivered', 'Source: quantities accepted on confirmed BASTs × contract rates.')} />
+              <MoneyStep label={t('projectDetail.cascade.ordered', 'Ordered')} value={tableMoney(ordered)} percentage={percent(ordered)} detail={t('projectDetail.cascade.source.ordered', 'Source: contract allocation quantities × contract rates.')} />
+              <MoneyStep label={t('projectDetail.cascade.delivered', 'Delivered')} value={tableMoney(delivered)} percentage={percent(delivered)} detail={t('projectDetail.cascade.source.delivered', 'Source: quantities accepted on confirmed BASTs × contract rates.')} />
             </>}
             {canViewMoney && !projectFinances.isPending && <MoneyStep
               label={t('projectDetail.cascade.invoiced', 'Invoiced')}
-              value={contractInvoiceFigure.amount === null ? '—' : tileMoney(Number(contractInvoiceFigure.amount))}
+              value={contractInvoiceFigure.amount === null ? '—' : tableMoney(Number(contractInvoiceFigure.amount))}
               percentage={contractInvoiceFigure.percentage}
               caption={contractInvoiceBasis}
               detail={t('projectDetail.cascade.source.invoiced', 'Invoices under the signed contract, in the contract currency and tax basis. Shown as unknown when an invoice currency or tax basis differs from the contract. The percentage is of the signed contract value.')}
             />}
             {canViewMoney && settlement.balancesKnown && !invoices.isPending && !invoices.isError && <>
-              <MoneyStep label={t('projectDetail.cascade.paid', 'Paid')} value={tileMoney(settlement.paid)} percentage={percent(settlement.paid)} detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount less the accounting balance outstanding.')} />
+              <MoneyStep label={t('projectDetail.cascade.paid', 'Paid')} value={tableMoney(settlement.paid)} percentage={percent(settlement.paid)} detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount less the accounting balance outstanding.')} />
             </>}
           </ol>
           {(hasCustomerOrders || overdue > 0) && <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
@@ -436,7 +435,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
 
 const MoneyStep: React.FC<{ label: string; value: string; percentage?: number | null; caption?: string; detail: string }> = ({ label, value, percentage, caption, detail }) => {
   return (
-    <li aria-label={`${label} ${value}${percentage == null ? '' : ` ${percentage}%`}${caption ? ` ${caption}` : ''}`} className="min-w-0 border-l border-border pl-3 first:border-l-0 first:pl-0">
+    <li aria-label={`${label} ${value}${percentage == null ? '' : ` ${percentage}%`}${caption ? ` ${caption}` : ''}`} className="min-w-0">
       <div className="block">
         <Tooltip content={detail}>
           <span className="block w-fit cursor-help text-sm text-muted-foreground">{label}</span>

@@ -28,6 +28,8 @@ export interface ExportButtonProps<Row> {
   label?: string;
   /** Optional callback fired when Export dispatches (e.g. to close a mobile disclosure). */
   onExport?: () => void;
+  /** `sm` beside a panel header's other small actions, so the row's buttons share one height. */
+  size?: 'sm';
 }
 
 export function ExportButton<Row>({
@@ -38,12 +40,14 @@ export function ExportButton<Row>({
   className,
   label,
   onExport,
+  size,
 }: ExportButtonProps<Row>) {
   const { t } = useTranslation();
   const { exportXlsx, busy } = useExport();
   return (
     <Button
       variant="outline"
+      size={size}
       disabled={disabled || busy || rows.length === 0}
       loading={busy}
       onClick={() => {

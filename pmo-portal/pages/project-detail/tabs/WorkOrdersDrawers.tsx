@@ -179,7 +179,7 @@ export const WorkOrderClaimDrawer: React.FC<{
         : <Button variant="outline" size="sm" onClick={() => onAttachEvidence(claim.id)}>{t('projectDetail.billing.claims.attachEvidence', 'Attach evidence')}</Button>)}
       <Link className={buttonClasses('outline', 'sm')} to={claim.invoice ? `/sales-invoices/${encodeURIComponent(claim.id)}` : `/projects/${encodeURIComponent(projectId)}/billing`} onClick={onClose}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>
     </div>}>
-    <dl className="grid grid-cols-3 gap-4 p-4 text-sm">
+    <dl className="grid grid-cols-1 gap-4 p-4 text-sm sm:grid-cols-3">
       <QuantityFigure label={t('projectDetail.billing.claims.column.gross', 'Gross')} value={formatTableMoney(claim.gross_amount, currency) ?? ''} detail={t('projectDetail.billing.claims.source.gross', 'Source: the progress claim gross amount, copied from accepted quantities and contract rates.') } />
       <QuantityFigure label={t('projectDetail.billing.claims.column.recovery', 'DP recovery')} value={formatTableMoney(claim.dp_recovery_amount, currency) ?? ''} detail={t('projectDetail.billing.claims.source.recovery', 'Source: the down-payment amount recovered on this claim.') } />
       <QuantityFigure label={t('projectDetail.billing.claims.column.net', 'Net')} value={formatTableMoney(claimNet(Number(claim.gross_amount), Number(claim.dp_recovery_amount)), currency) ?? ''} detail={t('projectDetail.billing.claims.source.net', 'Computed as gross less down-payment recovery.') } />
