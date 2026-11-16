@@ -373,7 +373,7 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     renderExec();
     const invoiced = tile('Invoiced');
     const lines = within(invoiced).getAllByText(/115M|11\.8M/).filter((line) => line.children.length === 0);
-    expect(lines.map((line) => line.textContent?.replace(/\u00a0/g, ' '))).toEqual(['$11.8M', 'IDR 115M']);
+    expect(lines.map((line) => line.textContent?.replace(/\u00a0/g, ' '))).toEqual(['$11.8M', '+ IDR 115M']);
     expect(invoiced.querySelector('[title="$11,800,000; IDR\u00a0114,700,000"]')).not.toBeNull();
   });
 

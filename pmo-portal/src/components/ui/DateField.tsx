@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next';
 import { Calendar } from '@/src/components/shadcn/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/src/components/shadcn/popover';
-import { formatDayYear } from '@/src/lib/format';
+import { formatIsoDay } from '@/src/lib/format';
 import { getDateFnsLocale } from '@/src/lib/locale/activeLocale';
 import { ISO_DAY, parseDayInput, toIsoDay } from '@/src/lib/parseDayInput';
 import { cn } from './cn';
@@ -88,9 +88,18 @@ export const DateField: React.FC<DateFieldProps> = ({
   }, [value]);
 
   // A value that is not a real day (a stale draft) stays visible as it is, never as a dash.
-  const shown = parseDayInput(value) === value ? formatDayYear(value) : (value ?? '');
+  const shown = parseDayInput(value) === value ? formatIsoDay(value) : (value ?? '');
   const invalidMessage = unreadable
     ? t('dateField.invalid', { defaultValue: 'Enter a date like 16 Nov 2026' })
+    : undefined;
+
+  // The rule a caller gave with min/max also holds for a typed date: say so when the caller has no message of its own.
+  const rangeMessage = ISO_DAY.test(value ?? '')
+    ? min && value < min
+      ? t('dateField.beforeMin', { defaultValue: 'Choose a date on or after {{date}}', date: formatIsoDay(min) })
+      : max && value > max
+        ? t('dateField.afterMax', { defaultValue: 'Choose a date on or before {{date}}', date: formatIsoDay(max) })
+        : undefined
     : undefined;
 
   const commit = (text: string): boolean => {
@@ -108,7 +117,7 @@ export const DateField: React.FC<DateFieldProps> = ({
 
   if (coarse) {
     return (
-      <FieldShell id={rest.id} label={label} required={required} helper={helper} error={error} fullWidth={fullWidth} hideLabel={hideLabel} className={wrapperClassName}>
+      <FieldShell id={rest.id} label={label} required={required} helper={helper} error={error ?? rangeMessage} fullWidth={fullWidth} hideLabel={hideLabel} className={wrapperClassName}>
         {(ctl) => (
           <input
             {...rest}
@@ -124,7 +133,7 @@ export const DateField: React.FC<DateFieldProps> = ({
             onBlur={onBlur}
             onFocus={onFocus}
             onKeyDown={onKeyDown}
-            className={cn(shell, error && formControlInvalid, className)}
+            className={cn(shell, (error || rangeMessage) && formControlInvalid, className)}
           />
         )}
       </FieldShell>
@@ -139,7 +148,7 @@ export const DateField: React.FC<DateFieldProps> = ({
   const disabled = [minDay && { before: minDay }, maxDay && { after: maxDay }].filter((m): m is { before: Date } | { after: Date } => !!m);
 
   return (
-    <FieldShell id={rest.id} label={label} required={required} helper={helper} error={error ?? invalidMessage} fullWidth={fullWidth} hideLabel={hideLabel} className={wrapperClassName}>
+    <FieldShell id={rest.id} label={label} required={required} helper={helper} error={error ?? invalidMessage ?? rangeMessage} fullWidth={fullWidth} hideLabel={hideLabel} className={wrapperClassName}>
       {(ctl) => (
         <div ref={wrapRef} className={cn('relative', fullWidth && 'w-full', className)}>
           <input
@@ -147,7 +156,7 @@ export const DateField: React.FC<DateFieldProps> = ({
             {...ctl}
             ref={inputRef}
             aria-required={ctl['aria-required'] ?? rest['aria-required']}
-            aria-invalid={ctl['aria-invalid'] ?? (unreadable ? true : rest['aria-invalid'])}
+            aria-invalid={ctl['aria-invalid'] ?? (unreadable || rangeMessage ? true : rest['aria-invalid'])}
             name={rest.name ?? ctl.id}
             type="text"
             autoComplete="off"
@@ -177,7 +186,7 @@ export const DateField: React.FC<DateFieldProps> = ({
               onKeyDown?.(e);
               if (e.key === 'Enter' && draft !== null && !commit(draft)) e.preventDefault();
             }}
-            className={cn(shell, 'pr-9', (error || unreadable) && formControlInvalid)}
+            className={cn(shell, 'pr-9', (error || unreadable || rangeMessage) && formControlInvalid)}
           />
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger

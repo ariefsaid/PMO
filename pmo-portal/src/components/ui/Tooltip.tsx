@@ -33,7 +33,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ content, title, children, bloc
           No trigger-level delay: it overrides the app provider (delay ?? providerDelay ?? 600) and would
           re-introduce the instant flash the provider exists to stop. */}
       <BaseTooltip.Trigger
-        render={<span className={block ? 'relative flex w-full' : 'relative inline-flex'} />}
+        render={<span className={block ? 'relative flex w-full' : 'relative inline-flex min-w-0 max-w-full'} />}
       >
         {React.cloneElement(children as React.ReactElement<Record<string, unknown>>, { 'aria-describedby': open ? id : undefined })}
       </BaseTooltip.Trigger>

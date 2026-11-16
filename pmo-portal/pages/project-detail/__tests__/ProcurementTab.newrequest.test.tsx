@@ -38,6 +38,8 @@ vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => procState,
   useProjectProcurements: () => procState,
 }));
+// The drawer's budget block reads project budget data; its own tests cover it.
+vi.mock('@/src/components/procurement/DecisionSupportPanel', () => ({ DecisionSupportPanel: () => <div data-testid="decision-support-panel">Budget impact</div> }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => projectState }));
 vi.mock('@/src/hooks/useProcurementDetail', () => ({ useProcurementDetail: () => detailState }));
 vi.mock('@/src/hooks/useProjectPosition', () => ({ useBudgetPosition: () => budgetState }));

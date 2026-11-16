@@ -70,9 +70,10 @@ export const LifecycleStepper: React.FC<LifecycleStepperProps> = ({
   steps,
   variant = 'inline',
   className,
-  'aria-label': ariaLabel = 'Lifecycle',
+  'aria-label': ariaLabelProp,
 }) => {
   const { t } = useTranslation('common');
+  const ariaLabel = ariaLabelProp ?? t('ui.lifecycle', 'Lifecycle');
   const stateLabel: Record<StepState, string> = {
     done: t('ui.stepState.done', 'done'),
     current: t('ui.stepState.current', 'current'),

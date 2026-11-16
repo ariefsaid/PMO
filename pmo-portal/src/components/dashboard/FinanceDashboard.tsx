@@ -458,7 +458,7 @@ export const FinanceDashboard: React.FC = () => {
           next to a 5-row table. Full-width stack: both tables span the content width, all 5
           budget columns (incl. Utilization + "over"/"left" Variance word) are fully visible
           at 1280 and 1440 with no horizontal clip, and the lopsided-void rhythm (J4) is gone. */}
-      <section aria-label="Finance ledger" className="flex flex-col gap-4">
+      <section aria-label={t('financeLedger', 'Finance ledger')} className="flex flex-col gap-4">
         {/* N16 — Ready to pay table */}
         <Card seam>
           <CardHead className="rounded-t-lg">{t('uxs03.financeReadyToPay', 'Ready to pay')}</CardHead>

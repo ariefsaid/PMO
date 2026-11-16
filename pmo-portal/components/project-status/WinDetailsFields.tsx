@@ -1,5 +1,6 @@
 import React from 'react';
 import { DateField } from '@/src/components/ui/DateField';
+import { useTranslation } from 'react-i18next';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 
 /** Win "enter contract details" inputs, shared by the status menu and the board drop (DND, #1637). */
@@ -12,6 +13,7 @@ export const WinDetailsFields: React.FC<{
 }> = ({ idPrefix, contractRef, contractDate, onRef, onDate }) => {
   // #1638: the server refuses the next move after a win dated in the future, so a future date is not offered.
   const today = useOrgToday();
+  const { t } = useTranslation('boardDrag');
   return (
   <>
     <div>
@@ -19,7 +21,7 @@ export const WinDetailsFields: React.FC<{
         htmlFor={`contract-ref-${idPrefix}`}
         className="mb-0.5 block text-xs text-muted-foreground"
       >
-        Customer contract ref
+        {t('win.contractRef', 'Customer contract ref')}
       </label>
       <input
         id={`contract-ref-${idPrefix}`}
@@ -27,7 +29,7 @@ export const WinDetailsFields: React.FC<{
         required
         value={contractRef}
         onChange={e => onRef(e.target.value)}
-        placeholder="e.g. CPO-2026-001"
+        placeholder={t('win.contractRefPlaceholder', 'e.g. CPO-2026-001')}
         className="w-full rounded-md border border-input bg-background px-2 py-1 text-sm outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       />
     </div>
@@ -35,7 +37,7 @@ export const WinDetailsFields: React.FC<{
       id={`contract-date-${idPrefix}`}
       compact
       aria-required="true"
-      label="Contract date"
+      label={t('win.contractDate', 'Contract date')}
       value={contractDate}
       max={today}
       onChange={onDate}

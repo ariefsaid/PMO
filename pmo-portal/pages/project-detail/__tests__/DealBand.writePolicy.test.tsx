@@ -65,6 +65,7 @@ vi.mock('@tanstack/react-query', async (orig) => {
 
 import DealBand from '../../sales/DealBand';
 import { useDealActions } from '../../sales/useDealActions';
+import { latestPickableDay } from '@/test/dateField';
 
 const dealRow = {
   id: 'd1',
@@ -137,7 +138,16 @@ describe('DealBand — write policy (AC-IXD-WP-004, OD-UX-1)', () => {
   it('AC-PSH-002: the Mark won contract date cannot be picked after the org\'s today', async () => {
     renderLens();
     await userEvent.click(screen.getByRole('button', { name: /Mark won/i }));
-    expect(await screen.findByLabelText('Contract date')).toHaveAttribute('max', '2026-11-01');
+    const date = await screen.findByLabelText('Contract date');
+    // The calendar offers no day after the organisation's today...
+    expect(await latestPickableDay(userEvent.setup(), date)).toBe('2026-11-01');
+    // ...and a date typed past it is refused, with nothing sent.
+    await userEvent.type(screen.getByLabelText('Customer contract reference'), 'CPO-1');
+    await userEvent.type(date, '2 Nov 2026');
+    await userEvent.tab();
+    await userEvent.click(screen.getByRole('button', { name: /Confirm won/i }));
+    expect((await screen.findAllByText(/on or before 1 Nov 2026/)).length).toBeGreaterThan(0);
+    expect(transitionProject).not.toHaveBeenCalled();
   });
 
   it('AC-IXD-WP-004: a routine Advance shows a quiet success toast', async () => {

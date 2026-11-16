@@ -4,13 +4,16 @@ import { projectStatusGroup, type ProjectStatus } from '@/src/lib/db/projectTran
 export const isLostTarget = (to: ProjectStatus) => projectStatusGroup(to) === 'lost';
 
 /** The status menu's confirm copy, shared with the board drop (moved verbatim from ProjectStatusControl). */
-export function projectConfirmCopy(to: ProjectStatus) {
+export function projectConfirmCopy(to: ProjectStatus, t?: TFunction, label: (status: ProjectStatus) => string = (s) => s) {
+  const tr = (key: string, fallback: string, vars?: Record<string, string>) => (t ? t(key, fallback, vars) : fallback.replace(/\{\{(\w+)\}\}/g, (_, k) => vars?.[k] ?? ''));
+  const status = label(to);
   return isLostTarget(to)
-    ? { tone: 'destructive' as const, title: 'Mark project as lost',
-        description: 'This moves the project to a terminal lost stage. You can still review it, but it leaves the active pipeline.',
-        confirmLabel: 'Mark lost' }
-    : { tone: 'default' as const, title: `Move project to ${to}?`,
-        description: `This moves the project forward to the ${to} stage.`, confirmLabel: `Move to ${to}` };
+    ? { tone: 'destructive' as const, title: tr('boardDrag:confirm.lostTitle', 'Mark project as lost'),
+        description: tr('boardDrag:confirm.lostBody', 'This moves the project to a terminal lost stage. You can still review it, but it leaves the active pipeline.'),
+        confirmLabel: tr('boardDrag:confirm.lostConfirm', 'Mark lost') }
+    : { tone: 'default' as const, title: tr('boardDrag:confirm.moveTitle', 'Move project to {{status}}?', { status }),
+        description: tr('boardDrag:confirm.moveBody', 'This moves the project forward to the {{status}} stage.', { status }),
+        confirmLabel: tr('boardDrag:confirm.moveConfirm', 'Move to {{status}}', { status }) };
 }
 
 /** The menu's message for a win-eligibility decision that is not 'allowed'. */
@@ -22,6 +25,6 @@ export function winEligibilityMessage(t: TFunction, decision: string | null | un
   return t('project:winEligibility.reviewer', 'Ask your supervisor or a more senior reviewer to confirm the value before winning this project.');
 }
 
-/** Both win inputs are required before the transition may be sent. */
-export const winDetailsComplete = (contractRef: string, contractDate: string) =>
-  contractRef.trim() !== '' && contractDate !== '';
+/** Both win inputs are required before the transition may be sent, and the contract date cannot be after the organisation's today. */
+export const winDetailsComplete = (contractRef: string, contractDate: string, today?: string) =>
+  contractRef.trim() !== '' && contractDate !== '' && (today === undefined || contractDate <= today);

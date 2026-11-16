@@ -536,15 +536,14 @@ describe('ProcurementDetails — Batch-A cleanup (E4 / H2 / G5)', () => {
 
   it('AC-1404: the money card labels requested and ordered amounts from their sources', () => {
     renderPage();
-    const moneyCard = screen.getByTestId('procurement-money-summary');
-    // #2437: an amount name, not the status word the header badge already shows.
-    expect(within(moneyCard).getByText('Request total')).toBeInTheDocument();
-    // C6: the heading names the currency once, so the figures below are bare numbers.
-    expect(within(moneyCard).getByText(/Money · USD, before tax/)).toBeInTheDocument();
-    expect(within(moneyCard).getByText('$50,000')).toBeInTheDocument();
-    expect(within(moneyCard).queryByText('50,000')).not.toBeInTheDocument();
-    // Nothing ordered is no figure, so the card does not draw an empty "Ordered".
-    expect(within(moneyCard).queryByText('Order total')).not.toBeInTheDocument();
+    // On a request the budget impact carries the request's total, so the money block does not repeat it.
+    const budget = screen.getByRole('heading', { name: /budget impact/i }).closest('section') as HTMLElement;
+    expect(within(budget).getByText('Procurement total')).toBeInTheDocument();
+    expect(within(budget).getAllByText('$50,000').length).toBeGreaterThan(0);
+    expect(within(budget).queryByText('50,000')).not.toBeInTheDocument();
+    expect(screen.queryByText('Request total')).not.toBeInTheDocument();
+    // Nothing ordered is no figure, so no empty "Ordered" is drawn.
+    expect(screen.queryByText('Order total')).not.toBeInTheDocument();
   });
 });
 
@@ -623,11 +622,12 @@ describe('AC-805: role-gated transition actions (FR-PROC-006, UI gate)', () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
     const budgetEvidence = screen.getByRole('heading', { name: /budget impact/i });
-    const money = screen.getByTestId('procurement-money-summary');
+    // The request's total sits in the budget impact, beside the budget it is measured against.
+    const money = budgetEvidence.closest('section') as HTMLElement;
     const header = screen.getByTestId('record-header');
     expect(screen.getByText('Workstations for HQ')).toBeInTheDocument();
     expect(screen.getByText('PROC-2026-001')).toBeInTheDocument();
-    expect(within(money).getByText('$50,000')).toBeInTheDocument();
+    expect(within(money).getAllByText('$50,000').length).toBeGreaterThan(0);
     expect(within(header).getByRole('button', { name: 'Approve' }).className).toContain('bg-primary');
     expect(screen.getAllByRole('button', { name: 'Approve' })).toHaveLength(1);
     await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
@@ -660,7 +660,7 @@ describe('AC-805: role-gated transition actions (FR-PROC-006, UI gate)', () => {
     const evidence = screen.getByRole('heading', { name: /budget impact/i });
     const policy = screen.getByTestId('sod-ready-hint');
     expect(evidence.compareDocumentPosition(policy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(policy).toHaveTextContent(/requester cannot self-approve/i);
+    expect(policy).toHaveTextContent(/requester cannot approve their own/i);
   });
 
   it('AC-805: no Approve/Reject for Draft status (not a legal transition from Draft)', () => {
