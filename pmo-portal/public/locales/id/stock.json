@@ -1,6 +1,8 @@
 {
   "nav": "Stok",
   "setup": {
+    "backToStock": "Kembali ke Stok",
+    "odooDirectories": "Direktori Odoo",
     "title": "Pengaturan stok",
     "tabsLabel": "Data induk stok",
     "tabs": {
