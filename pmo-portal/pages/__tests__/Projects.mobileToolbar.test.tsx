@@ -66,7 +66,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
   }),
   useProjectsMilestoneDates: () => ({ data: [], isPending: false }),
 }));
-vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => ({ data: [{ project_id: 'p1' }], isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
   useProjectsDeliverySummary: () => ({ data: {} }),

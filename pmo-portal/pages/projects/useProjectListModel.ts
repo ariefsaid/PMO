@@ -81,7 +81,11 @@ export function useProjectListModel(effectiveRole: Role | null, currentUser: { i
   // (`defaultsReady`). B-11 (AC-W2-IXD-009): Engineers default to "My Projects" — they are ICs
   // who want their own assigned work, not the full org project list; all other roles default to
   // "All". `effectiveRole` is used so an impersonated-as-Engineer session gets the scoped default.
-  const roleDefault: StatusFilter = effectiveRole === 'Engineer' ? 'My Projects' : 'All';
+  // An Engineer whose own list is empty (assigned to no project here) opens on "All", not a blank table.
+  // Decided only once both reads have landed; a tab the person picks later is written to the URL and wins.
+  const ownListEmpty = !isPending && !tasksPending && !isError && !tasksError
+    && !(data ?? []).some((p) => myProjectIds.has(p.id));
+  const roleDefault: StatusFilter = effectiveRole === 'Engineer' && !ownListEmpty ? 'My Projects' : 'All';
   const { workingSet, setWorkingSet } = useListWorkingSet('projects', {
     sessionView: readProjectView(),
     projectsDefaultFilter: roleDefault,

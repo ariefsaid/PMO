@@ -261,7 +261,7 @@ describe('AC-PR-S4-001: per-stage action verbs appear in the action zone', () =>
     expect(screen.queryByRole('button', { name: /submit for approval/i })).not.toBeInTheDocument();
   });
 
-  it('Requested (PM role, non-requester): shows Approve (primary) and Reject', async () => {
+  it('Requested (PM role, non-requester): shows Approve (primary) and Return', async () => {
     roleState.realRole = 'Project Manager';
     roleState.effectiveRole = 'Project Manager';
     // u-alice is NOT the requester
@@ -269,7 +269,7 @@ describe('AC-PR-S4-001: per-stage action verbs appear in the action zone', () =>
     renderPage();
     expect(headerActions().getByRole('button', { name: /^approve$/i })).toBeInTheDocument();
     await openMoreActions();
-    expect(screen.getByRole('menuitem', { name: /^reject$/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /^return$/i })).toBeInTheDocument();
   });
 
   it('Approved: shows Record order (primary) and Request quotations (secondary, in the menu)', async () => {
@@ -778,7 +778,7 @@ describe('AC-PR-S4-008: confirm-before-write on consequential transitions', () =
     expect(mockTransition).not.toHaveBeenCalled();
   });
 
-  it('Reject opens a ConfirmDialog (destructive)', async () => {
+  it('Return opens a reason dialog and writes nothing on the first click', async () => {
     const { default: userEvent } = await import('@testing-library/user-event');
     roleState.realRole = 'Project Manager';
     roleState.effectiveRole = 'Project Manager';
@@ -786,7 +786,7 @@ describe('AC-PR-S4-008: confirm-before-write on consequential transitions', () =
     detailState.data = { ...BASE, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
     await openMoreActions();
-    await userEvent.click(screen.getByRole('menuitem', { name: /^reject$/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /^return$/i }));
     const dialog = screen.queryByRole('dialog') ?? screen.queryByRole('alertdialog');
     expect(dialog).toBeInTheDocument();
     expect(mockTransition).not.toHaveBeenCalled();
