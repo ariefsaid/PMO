@@ -28,6 +28,10 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
 // DecisionSupportPanel's budget hooks call hooks unconditionally (before its own
 // `!projectId` bail-out), so they still need stubbing even though projectId is null
 // here and the panel itself renders nothing.
+// S05: the budget panel also reads the project's canonical Budget used; stubbed like its other reads.
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: () => ({ data: undefined, isPending: false, isError: false }),
+}));
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 0, isPending: false, isError: false }),
 }));

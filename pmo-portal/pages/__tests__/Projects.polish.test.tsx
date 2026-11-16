@@ -32,7 +32,7 @@ beforeEach(() => { sessionStorage.clear(); viewport(); state.isPending = false; 
 describe('UIP-003 project recognition', () => {
   it('AC-TBL-OVERFLOW-001 AC-TBL-001: the default columns and accessible manager avatar are available', () => {
     page();
-    for (const name of ['Project', 'PM', 'Status', 'Contract', 'Actual']) {
+    for (const name of ['Project', 'PM', 'Status', 'Contract', 'Spent']) {
       expect(screen.getByRole('columnheader', { name })).toBeVisible();
     }
     expect(screen.getByText('Sample Manager')).toBeVisible();

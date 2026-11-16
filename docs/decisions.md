@@ -3740,3 +3740,14 @@ own basis (#2208, defaulting from the organisation's default per OD-TAX-1), budg
 consumption stays before tax, and every budget-used figure and its help text says "before tax". Pending owner
 confirmation. What breaks under this interim: an organisation that budgets including recoverable tax sees budget used
 understated by the tax rate.
+
+### DD-2317-TYPECHECK — the app typecheck is four `tsc -b` projects (#2317)
+`npm run typecheck` builds, as separate processes, `tsconfig.app.json` (what `index.tsx` reaches, composite), then
+`tsconfig.server.json` (the remaining non-test code: adapter seams the edge functions run, build helpers, unimported
+modules; composite), then `tsconfig.test.json` (unit tests) and `tsconfig.tooling.json` (e2e, evals, build/lint
+configs). Later projects read earlier ones through declarations written to `<repo>/.tsbuild` (gitignored, outside
+`pmo-portal/` so guard scripts never walk it). Each extends `tsconfig.json` unchanged, so every file is still checked
+with the same options. The app/server file lists are derived from imports, never hand-edited: after a TS6307 (the app
+now imports a server file, or a new file outside `pmo-portal/`), run `node test/tsconfigProjects.mjs --write`.
+`test/tsconfigProjects.test.ts` keeps the lists exact and the partition complete. What breaks without the split: the
+single program needed 4.4–4.6 GB of heap.

@@ -25,7 +25,7 @@ test('AC-ODC-091: an Odoo that already has 20 partners and 5 products fills a ne
   const token = await accessToken(scenario.admin);
 
   const names = (n: number, prefix: string) => Array.from({ length: n }, (_, i) => `${stamp} ${prefix} ${String(i + 1).padStart(2, '0')}`);
-  const suppliers = names(10, 'Pemasok'), customers = names(10, 'Pelanggan');
+  const suppliers = names(10, 'Supplier'), customers = names(10, 'Pelanggan');
   partnerIds = (await call<number[]>('res.partner', 'create', { vals_list: [
     ...suppliers.map((name) => ({ name, is_company: true, supplier_rank: 1 })),
     ...customers.map((name) => ({ name, is_company: true, customer_rank: 1 })),

@@ -99,10 +99,18 @@ export function useSalesModel() {
   const selectStage = (status: OpenFunnelStage | '') =>
     setWorkingSet((ws) => ({ ...ws, status: ws.status === status ? '' : status }));
 
+  // The page body and toolbar gate on the open read alone; Won / Lost carry their own status.
+  const sourceState = (q: { isPending: boolean; isError: boolean }): 'pending' | 'error' | 'ready' =>
+    q.isPending ? 'pending' : q.isError ? 'error' : 'ready';
+  const wonState = sourceState(wonQ);
+  const lostState = sourceState(lostQ);
+  // "Nothing here" still concludes from all three reads having settled.
+  const allSettledEmpty = wonState === 'ready' && lostState === 'ready'
+    && openProjects.length === 0 && lost.length === 0 && won.length === 0;
   const state: 'loading' | 'empty' | 'error' | undefined =
-    open.isPending || wonQ.isPending || lostQ.isPending ? 'loading'
+    open.isPending ? 'loading'
       : open.isError || !open.data ? 'error'
-        : openProjects.length === 0 && lost.length === 0 && won.length === 0 && !wonQ.isError && !lostQ.isError ? 'empty'
+        : allSettledEmpty ? 'empty'
           : undefined;
 
   const scopeLabels: Record<DealScope, string> = {
@@ -117,7 +125,7 @@ export function useSalesModel() {
 
   return {
     t, isDesktop, navigate, canViewSales, canCreate, orgCurrency,
-    open, lostQ, wonQ, state,
+    open, lostQ, wonQ, state, wonState, lostState,
     workingSet, setWorkingSet, search, setSearch, openRecord,
     scope, setScope, scopeLabels, DEAL_SCOPES, view, setView,
     selectedStatus, stageIndex, selectStage,

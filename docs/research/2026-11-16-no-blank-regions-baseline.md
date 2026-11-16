@@ -223,3 +223,24 @@ content, so a header region is measured on its own wrapper.
 
 Reading the rows: the delayed read's own region (stock lines, the plan card, the switch table) still waits for
 it, by design. A14 and A15 were dropped: their changes measured no gain and were reverted.
+
+## A1 + A3 + A4 — before/after (batch 1, branch perf/2197-a1-sales-receivables)
+
+Same method as above. The three hooks `invoice-list-body`, `receipts-list-body` and `invoice-record` were added with
+this batch, so the "before" column is origin/dev plus only those three `data-testid`s (two timed passes each, the second
+one kept). Rows 1 to 4 hold the read the region itself waits on, so they must not get worse. Rows 5 to 8 hold the sibling
+read the old gate was OR-ed with (won/lost projects, revenue mode, invoice list): the region should now beat the delay.
+
+| # | route | delayed read | region | before ms | after ms |
+|---|---|---|---|---|---|
+| 1 | /sales | `get_sales_pipeline` | pipeline-open-value-figure | 5169 | 5058 |
+| 2 | /finance/receivables | `rest/v1/sales_invoices` | invoice-list-body | 5172 | 5086 |
+| 3 | /finance/receivables?view=payments | `rest/v1/incoming_payments` | receipts-list-body | 4971 | 5116 |
+| 4 | /sales-invoices/:id | `rest/v1/sales_invoices` (list and by-id) | invoice-record | 5037 | 5073 |
+| 5 | /sales | `rest/v1/projects?` (won + lost) | pipeline-open-value-figure | 5158 | 1917 / 2082 |
+| 6 | /finance/receivables | `rest/v1/external_domain_ownership` | invoice-list-body | 4597 / 4624 | 1991 / 2426 |
+| 7 | /finance/receivables?view=payments | `rest/v1/external_domain_ownership` | receipts-list-body | 4462 / 4603 | 1919 / 2093 |
+| 8 | /sales-invoices/:id | `order=invoice_date.desc` (list only) | invoice-record | 5024 / 5131 | 2026 / 2082 |
+
+Rows 1 to 4 differ by run noise (5.0 to 5.2 s, which is the 3000 ms hold plus the page's own cold read); row 3 reads
+4971 then 5116 (+145 ms, inside the 100 to 200 ms spread of the repeated passes: 4971 and 5135 before, 5039 and 5116 after).

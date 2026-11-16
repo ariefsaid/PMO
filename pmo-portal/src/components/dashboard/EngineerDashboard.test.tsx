@@ -433,7 +433,7 @@ describe('Engineer home (one question: is my week on track?)', () => {
   it('AC-UXA-002: localizes the title, cards, week strip, statuses and actions while retaining data', () => {
     renderDashboard('id');
     expect(screen.getByRole('heading', { level: 1, name: 'Dasbor saya' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Lembar waktu minggu ini' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Timesheet minggu ini' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Tugas saya' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Dikembalikan ke saya' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Entri terbaru' })).toBeInTheDocument();

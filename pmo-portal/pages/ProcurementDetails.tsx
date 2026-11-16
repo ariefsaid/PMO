@@ -462,7 +462,7 @@ const ProcurementDetails: React.FC = () => {
   const paidNeedsValue = !hasValue && INVOICE_PAY_ROLES.has(role) && !isApprover
     && ['Draft', 'Approved', 'Quote Selected', 'Ordered', 'Received', 'Vendor Invoiced'].includes(p.status)
     && ((p.payments?.length ?? 0) > 0 || p.status === 'Vendor Invoiced');
-  const gateMsg = sodGateMessage(p, role, isRequester)
+  const gateMsg = sodGateMessage(p, role, isRequester, t)
     ?? (paidNeedsValue ? t('procurement:detail.paidNeedsValue', 'Add a line item or a document with an amount before marking this paid.') : null);
   // SoD-b teaching at Vendor Invoiced: the viewer who may release payment learns why the approver cannot, and the
   // approver who cannot pay learns who can. Display-only; the transition RPC enforces it.
@@ -607,7 +607,9 @@ const ProcurementDetails: React.FC = () => {
 
   return (
     <FigureScope>
-    <div>
+    {/* One panel inset for the whole record (the content inset, the same as the header card and its tables), so the page
+        shows two left edges: the gutter and the panel inset. */}
+    <div className="[--panel-inset:var(--space-content-inset)]">
       {/* C-IMP-1 (AC-S6-3): BackBar on mobile success render ≤920px.
           The top-bar breadcrumb owns desktop wayfinding (I7); on mobile the rail
           is collapsed and the breadcrumb is not visible, so the BackBar is the
@@ -669,6 +671,7 @@ const ProcurementDetails: React.FC = () => {
         totalValue={Number(p.total_value)}
         projectName={p.project ? projectDisplayName(p.project) : null}
         projectLegalName={p.project?.name}
+        projectStatus={p.project?.status}
         status={p.status}
         currency={p.currency}
       />}
@@ -713,6 +716,7 @@ const ProcurementDetails: React.FC = () => {
         onChange={setTab}
         ariaLabel={t('procurementDetail.tabsLabel', 'Procurement sections')}
         idBase="procurement-detail"
+        wrapOnPhone
       />
 
       <div

@@ -107,7 +107,7 @@ test(
     await expect(page.getByRole('tablist', { name: /project sections/i })).toBeVisible();
     // #975 / UIP-006 deliberately keeps the idle header to one compact read strip;
     // update this journey step to follow its lock toggle, not a permanently visible SoD note.
-    const lockToggle = page.getByRole('button', { name: /Read-only/i });
+    const lockToggle = page.getByRole('button', { name: /locked for your role/i });
     await expect(lockToggle).toBeVisible();
     await expect(lockToggle).toHaveAttribute('aria-controls', 'contract-value-lock-reason');
     await lockToggle.click();

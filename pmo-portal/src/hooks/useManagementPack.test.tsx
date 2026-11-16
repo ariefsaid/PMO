@@ -21,7 +21,7 @@ import { useManagementPack, useRecordProjectProgress } from './useManagementPack
 
 const facts = {
   from: '2026-01-01', to: '2026-01-01', timezone: 'UTC', org_currency: 'IDR', undated_invoice_count: 0,
-  projects: [{ id: 'p1', name: 'Alpha', pmo_project_number: null, code: null, status: 'Ongoing Project', currency: 'IDR',
+  projects: [{ id: 'p1', name: 'Alpha', pmo_project_number: null, code: null, status: 'Ongoing Project', on_hand: true, currency: 'IDR',
     contract_net: 10, start_date: null, end_date: null, project_manager_id: null, client_name: null }],
   invoiced: [], invoiced_before: [], progress: [],
 };

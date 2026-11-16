@@ -1,5 +1,5 @@
 import type { CellValue, ExportTable } from '@/src/lib/export';
-import { fromCents, leftToBillAt, selectBilledWorkInPeriod, selectBilledWorkOpening, unpricedIn, type ManagementPack, type PackRow } from './managementPack';
+import { fromCents, selectBilledWorkInPeriod, selectBilledWorkOpening, unpricedIn, type ManagementPack, type PackRow } from './managementPack';
 
 /** Translated column titles and cell words — the page passes `t()` results; this module stays pure. */
 export interface ManagementPackExportLabels {
@@ -19,7 +19,9 @@ export interface ManagementPackExportLabels {
   recognisedToDate: string;
   invoicedToDate: string;
   unbilled: string;
-  backlog: string;
+  leftToBill: string;
+  /** The page's one note for held contracts with no value, left out of Left to bill (#2203). */
+  leftToBillNoValue: (count: number) => string;
   basis: string;
   /** Every figure is net of tax (DD-MMP-5); OD-TAX-1 §2 forbids a bare number. */
   taxBasisValue: string;
@@ -38,30 +40,30 @@ const rowName = (row: PackRow, l: ManagementPackExportLabels): string =>
 export function buildManagementPackExport(pack: ManagementPack, l: ManagementPackExportLabels): ExportTable {
   const header = [
     l.period, l.projectNumber, l.project, l.client, l.currency, l.taxBasis, l.planned, l.recognised, l.invoicedByMonth,
-    l.selectedPeriod, l.opening, l.recognisedToDate, l.invoicedToDate, l.unbilled, l.backlog, l.basis,
+    l.selectedPeriod, l.opening, l.recognisedToDate, l.invoicedToDate, l.unbilled, l.leftToBill, l.basis,
   ];
   const body: CellValue[][] = [];
   for (const row of pack.rows) {
     row.months.forEach((m) => {
-      const leftToBill = row.kind === 'contract' ? leftToBillAt([row], row.currency, m.month) : null;
       body.push([
         m.month.slice(0, 7), row.projectNumber ?? '', rowName(row, l), row.clientName ?? '', row.currency,
         l.taxBasisValue, money(m.planned), money(m.recognised), money(m.invoiced), '', '', money(m.recognisedToDate),
-        money(m.invoicedToDate), money(m.unbilled), money(leftToBill),
+        money(m.invoicedToDate), money(m.unbilled), money(m.leftToBill),
         m.basis === 'progress' ? l.basisProgress : m.basis === 'earned' ? l.basisEarned : l.basisInvoiced,
       ]);
     });
   }
   for (const totals of pack.totals) {
     for (const t of totals.months) {
-      const leftToBill = leftToBillAt(pack.rows, totals.currency, t.month);
       const period = t.month.slice(0, 7);
       // An invoice with no amount yet makes the invoiced totals that include it unknown (blank), never a partial sum.
       const invoiced = unpricedIn(pack, totals.currency, period, period) ? null : t.invoiced;
       const invoicedToDate = unpricedIn(pack, totals.currency, null, period) ? null : t.invoicedToDate;
       body.push([
         period, '', l.total, '', totals.currency, l.taxBasisValue, money(t.planned), money(t.recognised),
-        money(invoiced), '', '', money(t.recognisedToDate), money(invoicedToDate), money(t.unbilled), money(leftToBill), '',
+        money(invoiced), '', '', money(t.recognisedToDate), money(invoicedToDate), money(t.unbilled), money(t.leftToBill),
+        // The totals row has no recognition basis; that cell carries the no-value note beside the total.
+        t.leftToBillNoValue > 0 ? l.leftToBillNoValue(t.leftToBillNoValue) : '',
       ]);
     }
   }

@@ -57,7 +57,7 @@ import BudgetVersionsDrawer from './project-detail/budget/BudgetVersionsDrawer';
 import BudgetErpNotice from './project-detail/budget/BudgetErpNotice';
 import { BudgetOdooActuals, BudgetOdooCategoryLines } from './project-detail/budget/BudgetOdooActuals';
 import { useOdooProjectActuals } from '@/src/hooks/useOdooLedger';
-import { buildBudgetSummaryRows, resolveProjectCommitment, type BudgetSummaryRow } from '@/src/lib/budget/budgetModel';
+import { UNCATEGORIZED, buildBudgetSummaryRows, resolveProjectCommitment, type BudgetSummaryRow } from '@/src/lib/budget/budgetModel';
 import BudgetProjection from './BudgetProjection';
 import { buildBudgetProjectionCsv, type BudgetProjectionExport } from '@/src/lib/budget/budgetProjectionExport';
 import { AttributedSpendingNote } from './project-detail/AttributedSpendingNote';
@@ -67,7 +67,7 @@ import DistributionGrid, { type DistributionReadinessStatus, type DistributionSo
 import BudgetModeSwitchDialog, { type BudgetModeSwitchRequest } from './project-budget/BudgetModeSwitchDialog';
 import { useBudgetReadiness } from './project-budget/BudgetReadiness';
 import { useBudgetVersionActions } from './project-budget/BudgetVersionActions';
-import { fetchBudgetPushStatus, type BudgetPushStatusRow } from '@/src/lib/repositories/budgetProjection';
+import { fetchBudgetComparison, fetchBudgetPushStatus, type BudgetPushStatusRow } from '@/src/lib/repositories/budgetProjection';
 import { repositories } from '@/src/lib/repositories';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 
@@ -252,7 +252,21 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     !pushedActiveGrains.has(JSON.stringify([target.erp_account, target.fiscal_year])),
   );
   const hasActiveErpBinding = erpBindingQuery.data?.status === 'active';
-  const view = requestedForecast && hasActiveErpBinding && activeVersion ? 'forecast' : 'actual';
+  // #2325: with no accounting system the comparison reads PMO's own paid purchases, so it needs no ERP binding.
+  const canOpenForecast = hasActiveErpBinding || position.ledgerBasis === 'pmo';
+  const view = requestedForecast && canOpenForecast && activeVersion ? 'forecast' : 'actual';
+  // #2325: on PMO's own figures the per-category Spent is the comparison's paid-purchases column (get_budget_comparison, All
+  // years): the same read and cache key as the Forecast view, so no second call. Paid purchases with no category are
+  // not read here: the Uncategorized row takes them from the project finances (uncategorizedSpent below), once.
+  const pmoBasis = position.ledgerBasis === 'pmo';
+  const pmoSpendQuery = useQuery({
+    queryKey: ['budget-comparison', currentUser?.org_id, projectId, activeVersion?.id, JSON.stringify({ kind: 'all' })],
+    queryFn: () => fetchBudgetComparison(projectId, null),
+    enabled: Boolean(pmoBasis && currentUser?.org_id && activeVersion),
+  });
+  const pmoSpendRows = pmoBasis && !pmoSpendQuery.isError && pmoSpendQuery.data?.length
+    ? pmoSpendQuery.data.filter((row) => row.category !== null).map((row) => ({ category: row.category as string, actual: row.recorded }))
+    : null;
   const orderedVersions = [...versions].sort((a, b) => a.version - b.version);
   const selectedVersion = view === 'forecast'
     ? activeVersion
@@ -505,10 +519,11 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const canSeeCommitments = canReadMoney && canReadProcurements && !procurementsQuery.isPending && !procurementsQuery.isError;
   const summaryRows = selectedVersion && canReadMoney ? buildBudgetSummaryRows({
     lines: selectedVersion.line_items,
-    actuals: position.spendRows ?? position.rows,
+    actuals: pmoSpendRows ?? position.spendRows ?? position.rows,
     procurements: procurementsQuery.data,
     canReadProcurements: canSeeCommitments,
     currency: project.currency,
+    ...(position.uncategorized ? { uncategorizedSpent: position.uncategorized.amount } : {}),
   }) : [];
   const selectedCurrency = selectedVersion?.currency || project.currency;
   // #2066: every figure carries its own currency (the Odoo spend in the Odoo company's, the budget in its version's, commitments in the project's); Left needs all three equal.
@@ -607,7 +622,15 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   };
   const spendingSetupLink = canManageAccounting ? { to: '/administration/accounting#budget-account-map', label: t('projectDetail.cost.finishSetup', 'Finish spending setup') } : undefined;
   const budgetUnit = <span className="text-sm text-muted-foreground">{project.currency}{project.tax_treatment && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-sm" /></>}</span>;
-  const spentExcludedNote = position.unknown > 0 && totalSpent !== null
+  // #2330: paid spending with no budget category sits in the Uncategorized row; the strip says so once, in full.
+  const uncategorizedNote = position.uncategorized && canSeeActuals && totalSpent !== null
+    ? position.uncategorized.amount === null
+      ? t('projectDetail.budget.uncategorizedSpendUnknown', 'Some paid spending has no budget category, so it is shown as Uncategorized.')
+      : t('projectDetail.budget.uncategorizedSpend', '{{amount}} paid has no budget category, so it is shown as Uncategorized.', { amount: formatAmount(position.uncategorized.amount) })
+    : null;
+  const spentExcludedNote = position.uncategorized
+    ? undefined
+    : position.unknown > 0 && totalSpent !== null && !pmoSpendRows
     ? t('projectDetail.budget.uncategorizedTotalKnown', 'Project spending is known; some category amounts are not mapped.')
     : spentExcluded > 0 && totalSpent !== null
       ? t('projectDetail.budget.spentExcludes', 'Excludes {{count}} unmapped categories', { count: spentExcluded })
@@ -659,7 +682,9 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         const name = budgetCategoryLabel(row.category, t);
         return <button type="button" className="min-w-0 truncate text-left font-medium text-foreground underline-offset-2 hover:underline" aria-label={t('projectDetail.budget.openCategory', 'Open {{category}} budget details', { category: name })} onClick={(event) => { event.stopPropagation(); openCategory(row); }}>{name}</button>;
       },
-      secondaryCell: () => null,
+      secondaryCell: (row) => row.category === UNCATEGORIZED && position.uncategorized && canSeeActuals
+        ? <span className="text-sm text-muted-foreground">{t('projectDetail.budget.uncategorizedRowReason', 'Paid with no budget category')}</span>
+        : null,
     },
     {
       key: 'budget', header: t('projectDetail.budget.budgetBeforeTax', 'Budget'), kind: 'money', align: 'num', size: 125, minSize: 100,
@@ -667,7 +692,11 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     },
     {
       key: 'spent', header: t('projectDetail.budget.spent', 'Spent'), kind: 'money', align: 'num', size: 125, minSize: 100,
-      cell: (row) => canSeeActuals && row.spent !== null ? <Tooltip content={actualSource}><span>{formatSpent(row.spent)}</span></Tooltip> : null,
+      cell: (row) => canSeeActuals && row.spent !== null
+        ? <Tooltip content={actualSource}><span>{formatSpent(row.spent)}</span></Tooltip>
+        : canSeeActuals && row.category === UNCATEGORIZED && position.uncategorized
+          ? <span className="text-muted-foreground">{t('projectDetail.budget.spentUnknown', 'Unknown')}</span>
+          : null,
     },
     {
       key: 'committed', header: t('projectDetail.budget.committed', 'Committed'), kind: 'money', align: 'num', size: 125, minSize: 100,
@@ -685,7 +714,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     },
     {
       key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', size: 125, minSize: 112,
-      cell: (row) => { const status = getStatus(row); return status ? <StatusPill variant={status.variant}>{status.label}</StatusPill> : null; },
+      cell: (row) => { const status = getStatus(row); return status ? <StatusPill variant={status.variant} wrap={false}>{status.label}</StatusPill> : null; },
     },
   ];
   const actualTotals = enrichedRows.length ? [{
@@ -917,6 +946,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         <KPITile icon="invoices" tone="amber" label={t('projectDetail.budget.committed', 'Committed')} {...tileAmount(totalCommitted)} unavailableReason={totalCommitted === null ? t('projectDetail.budget.commitmentsUnavailable', 'Commitments are unknown or unavailable.') : undefined} help={t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')} />
         <KPITile icon="down" tone={totalLeft !== null && totalLeft < 0 ? 'red' : 'green'} label={totalLeftLabel} {...tileAmount(totalLeft)} caption={spentExcludedNote} negative={totalLeft !== null && totalLeft < 0} unavailableReason={totalLeftUnavailableReason} hiddenLink={compatibleBasis ? spendingSetupLink : undefined} help={totalLeftFormula} />
       </KPIRow>
+      {uncategorizedNote && <p className="text-sm text-muted-foreground">{uncategorizedNote}</p>}
 
       {/* Parts of a whole: where the budget sits, drawn so the shares read at a glance. */}
       {view === 'actual' && enrichedRows.filter((row) => row.budget > 0).length >= 3 && (
@@ -956,7 +986,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
               onChange={(next) => { setBudgetView(next); setSelectedRows(new Set()); if (next === 'forecast') setDraftEditorOpen(false); }}
               options={[
                 { value: 'actual', label: t('projectDetail.budget.budgetVsActual', 'Budget vs actual') },
-                ...(hasActiveErpBinding && activeVersion ? [{ value: 'forecast' as const, label: t('projectDetail.budget.forecast', 'Forecast') }] : []),
+                ...(canOpenForecast && activeVersion ? [{ value: 'forecast' as const, label: t('projectDetail.budget.forecast', 'Forecast') }] : []),
               ]}
             />
             <span className="text-sm font-medium text-muted-foreground">{view === 'actual' ? t('projectDetail.budget.wholeProject', 'Whole project') : t('projectDetail.budget.fiscalYearInForecast', 'Fiscal year in forecast')}</span>
@@ -995,6 +1025,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
               tableId="project-budget-option-a"
               accessibleName={t('projectDetail.budget.actualTable', 'Budget vs actual by category')}
               cardBelow={600}
+              cardValuesEnd
               totals={actualTotals}
               emptyTitle={t('projectDetail.budget.noCategories', 'No budget categories in this version')}
               emptySub={t('projectDetail.budget.noCategoriesSub', 'Add budget lines to show the category breakdown.')}
@@ -1002,11 +1033,12 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
             {position.actualsPending && <p role="status" className="text-sm text-muted-foreground">{t('projectDetail.cost.spendingChecking', 'Checking spending…')}</p>}
             {position.actualsError && <p role="status" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">{t('projectDetail.budget.actualsError', "Couldn't check spending.")}<Button variant="ghost" size="sm" onClick={() => void position.refetchActuals()}>{t('common.retry', 'Retry')}</Button></p>}
           </> : versions.length === 0 ? null : <ListState variant="empty" title={t('projectDetail.budget.noActiveBudget', 'No active budget')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} />
-        ) : activeVersion ? <><AttributedSpendingNote projectId={projectId} /><BudgetProjection projectId={projectId} orgId={currentUser?.org_id} budgetVersionId={activeVersion.id} projectStartDate={project.start_date ?? null} projectEndDate={project.end_date ?? null} budgetMode={activeVersion.budget_mode} approvedBudgetYears={approvedBudgetYears} currency={project.currency} budgetCurrency={activeBudgetCurrency} canEdit={canWrite} committedByCategory={Object.fromEntries(summaryRows.map((row) => [row.category, canSeeCommitments ? row.committed : null]))} canReadCommitments={canSeeCommitments} onAdjustInDraft={adjustInDraft} onExport={(payload: BudgetProjectionExport) => {
+        ) : activeVersion ? <><AttributedSpendingNote projectId={projectId} /><BudgetProjection projectId={projectId} orgId={currentUser?.org_id} budgetVersionId={activeVersion.id} projectStartDate={project.start_date ?? null} projectEndDate={project.end_date ?? null} budgetMode={activeVersion.budget_mode} approvedBudgetYears={approvedBudgetYears} currency={project.currency} budgetCurrency={activeBudgetCurrency} canEdit={canWrite} committedByCategory={Object.fromEntries(summaryRows.map((row) => [row.category, canSeeCommitments ? row.committed : null]))} canReadCommitments={canSeeCommitments} ledgerBasis={position.ledgerBasis} onAdjustInDraft={adjustInDraft} onExport={(payload: BudgetProjectionExport) => {
           const csv = buildBudgetProjectionCsv(payload, {
             budgetCurrency: activeBudgetCurrency,
             projectCurrency: project.currency,
             categoryLabel: (category) => budgetCategoryLabel(category, t),
+            pmoBasis: position.ledgerBasis === 'pmo',
           });
           const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
           const link = document.createElement('a'); link.href = url; link.download = payload.scope.kind === 'all' ? 'ProjectBudgetComparison.csv' : 'ProjectBudgetForecast.csv'; link.click(); URL.revokeObjectURL(url);
@@ -1126,7 +1158,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           {/* C4: cost to finish and forecast final are per fiscal year, so they live in Forecast — pointed to, not printed as placeholders. */}
           <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
             {t('projectDetail.budget.forecastPointer', 'Cost to finish and forecast final are set per fiscal year in Forecast.')}
-            {hasActiveErpBinding && activeVersion && <button type="button" className="touch-target rounded-sm font-medium text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => setBudgetView('forecast')}>{t('projectDetail.budget.openForecast', 'Open Forecast')}</button>}
+            {canOpenForecast && activeVersion && <button type="button" className="touch-target rounded-sm font-medium text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => setBudgetView('forecast')}>{t('projectDetail.budget.openForecast', 'Open Forecast')}</button>}
           </p>
           {selectedCategory.used !== null && <div className="flex flex-col items-start gap-1.5"><Tooltip content={categoryUtilizationFormula}><span tabIndex={0} className="text-sm font-medium">{t('projectDetail.budget.percentUsed', '% used')}</span></Tooltip><ProgressBar value={Math.round(selectedCategory.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} percent used', { category: budgetCategoryLabel(selectedCategory.category, t) })} /></div>}
           <section aria-labelledby="budget-records-heading" className="space-y-2">

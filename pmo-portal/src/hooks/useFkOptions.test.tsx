@@ -92,7 +92,7 @@ describe('useVendorOptions — vendor FK picker', () => {
     await act(async () => {
       await financeTestI18n.changeLanguage('en');
     });
-    // The cached 'Pemasok' sub must re-translate to the new language WITHOUT a refetch.
+    // The cached 'Supplier' sub must re-translate to the new language WITHOUT a refetch.
     await waitFor(() => expect(result.current.data?.[0].sub).toBe('Supplier'));
     // The re-translation came from `select` against the CACHED rows — no second fetch.
     expect(repo.company.list).toHaveBeenCalledTimes(1);

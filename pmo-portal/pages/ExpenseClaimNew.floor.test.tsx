@@ -71,7 +71,7 @@ describe('Expense claim floor', () => {
     fireEvent.change(screen.getAllByLabelText(/^Description/)[1], { target: { value: 'Lunch' } });
     fireEvent.change(screen.getAllByLabelText(/^Amount/)[1], { target: { value: '18.25' } });
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[1]);
+    fireEvent.click(screen.getByRole('button', { name: 'Remove line 2' }));
 
     expect(screen.getAllByLabelText(/^Amount/)).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));

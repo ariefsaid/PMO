@@ -468,6 +468,17 @@ values
    '{"company":"PMO Smoke Co"}'::jsonb,'active', now(), now())
 on conflict (org_id, external_tier) do update set status = 'active', activated_at = now();
 
+-- One applied company-defaults request, so the standing isolation proof can probe its by-id read and update (#1599 ECX-3).
+insert into erp_company_default_requests (org_id, binding_id, external_tier, company, idempotency_key, chosen, state, requested_by, decided_at)
+select b.org_id, b.id, b.external_tier, 'PMO Smoke Co', 'seed-company-defaults-1', '{}'::jsonb, 'applied',
+       (select id from profiles where org_id = b.org_id and role = 'Admin' order by created_at limit 1), now()
+  from external_org_bindings b
+ where b.org_id = '00000000-0000-0000-0000-000000000001' and b.external_tier = 'erpnext'
+on conflict (org_id, idempotency_key) do nothing;
+insert into erp_cost_centre_mirror (org_id, company, erp_name, is_group, disabled)
+values ('00000000-0000-0000-0000-000000000001', 'PMO Smoke Co', 'Main - PSC', false, false)
+on conflict (org_id, company, erp_name) do nothing;
+
 -- FR-BUD-110/111 + #768: PMO category → the client's own ERP account(s). An UNMAPPED category's actuals are
 -- deliberately NULL ("no account to look at"), never 0 — 'Contingency' is left unmapped on purpose so the
 -- seeded screen shows BOTH states side by side.

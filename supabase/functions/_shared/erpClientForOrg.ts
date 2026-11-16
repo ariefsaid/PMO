@@ -20,7 +20,8 @@ export type ErpClientForOrgResult =
 export async function erpClientForOrg(
   serviceClient: SupabaseClient,
   orgId: string,
-  options: { requireCompany?: boolean } = {},
+  /** `wrapFetch`: the caller's wrap around the destination-guarded fetch (the sweep's invocation budget, #2149). */
+  options: { requireCompany?: boolean; wrapFetch?: (guarded: typeof fetch) => typeof fetch } = {},
 ): Promise<ErpClientForOrgResult> {
   const { data: binding, error } = await serviceClient
     .from('external_org_bindings')
@@ -43,7 +44,7 @@ export async function erpClientForOrg(
       client: {
         ...credentials,
         baseUrl: binding.site_url,
-        fetchImpl: guardedErpFetch(binding.site_url),
+        fetchImpl: options.wrapFetch ? options.wrapFetch(guardedErpFetch(binding.site_url)) : guardedErpFetch(binding.site_url),
         maxRetries: 0,
         versionMajor: Number.isInteger(binding.version_major) ? binding.version_major : null,
       },

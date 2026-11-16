@@ -75,22 +75,22 @@ describe('/imprest list (AC-IMP-082)', () => {
     h.positions = { f1: pos({ cash_book: 0, advances_out: 0, receipts_waiting: 0, gap: 5000000, funded_total: 0 }), f2: pos({ float_id: 'f2' }) };
     renderPage();
     const row = screen.getByRole('row', { name: /Site Alpha/ });
-    expect(within(row).getByText('Not yet funded')).toBeInTheDocument();
+    expect(within(row).getByText('Not funded yet')).toBeInTheDocument();
     expect(within(row).queryByText('Books do not balance')).toBeNull();
   });
 
   it('FR-IMP-070 a count variance is flagged on the row, a matched count is not', () => {
     h.positions = { f1: pos({ last_count_at: '2026-10-30T00:00:00Z', last_count_variance: -5000 }), f2: pos({ float_id: 'f2', last_count_at: '2026-10-30T00:00:00Z', last_count_variance: 0 }) };
     renderPage();
-    expect(within(screen.getByRole('row', { name: /Site Alpha/ })).getByText('Count variance')).toBeInTheDocument();
-    expect(within(screen.getByRole('row', { name: /Site Beta/ })).queryByText('Count variance')).toBeNull();
+    expect(within(screen.getByRole('row', { name: /Site Alpha/ })).getByText('Count differs')).toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /Site Beta/ })).queryByText('Count differs')).toBeNull();
     expect(within(screen.getByRole('row', { name: /Site Beta/ })).getByText('Matched')).toBeInTheDocument();
   });
 
   it('AC-IMP-082 a failed read shows the error state, never a zero', () => {
     h.floats = { data: undefined, isPending: false, isError: true, refetch: vi.fn() };
     renderPage();
-    expect(screen.getByText("Couldn't load site cash floats")).toBeInTheDocument();
+    expect(screen.getByText("Couldn't load site cash")).toBeInTheDocument();
     expect(screen.queryByText(/^0$/)).toBeNull();
   });
 
@@ -110,19 +110,19 @@ describe('/imprest list (AC-IMP-082)', () => {
 
   it('AC-IMP-082 only Admin or Finance may establish a float', () => {
     renderPage();
-    expect(screen.getByRole('button', { name: 'Establish float' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Set up site cash' })).toBeInTheDocument();
   });
-  it('AC-IMP-082 a Project Manager sees no Establish float button', () => {
+  it('AC-IMP-082 a Project Manager sees no Set up site cash button', () => {
     realRole = 'Project Manager';
     renderPage();
-    expect(screen.queryByRole('button', { name: 'Establish float' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Set up site cash' })).toBeNull();
   });
 
   it('AC-IMP-082 the custodian picker offers only Finance members and the chosen project\'s manager, and establishing sends the ids', async () => {
     const user = userEvent.setup();
     h.establish.mutateAsync.mockResolvedValue('f9');
     renderPage();
-    await user.click(screen.getByRole('button', { name: 'Establish float' }));
+    await user.click(screen.getByRole('button', { name: 'Set up site cash' }));
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('combobox', { name: /Project/ }));
     await user.click(await screen.findByRole('option', { name: /Site Alpha/ }));
@@ -131,8 +131,8 @@ describe('/imprest list (AC-IMP-082)', () => {
     expect(screen.getByRole('option', { name: /Finn Finance/ })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: /Eli Engineer/ })).toBeNull();
     await user.click(screen.getByRole('option', { name: /Finn Finance/ }));
-    await user.type(within(dialog).getByLabelText(/Float amount/), '5000000');
-    await user.click(within(dialog).getByRole('button', { name: 'Establish float' }));
+    await user.type(within(dialog).getByLabelText(/^Limit/), '5000000');
+    await user.click(within(dialog).getByRole('button', { name: 'Set up site cash' }));
     await waitFor(() => expect(h.establish.mutateAsync).toHaveBeenCalledWith({ projectId: 'p1', custodianId: 'u-fin', amount: 5000000 }));
   });
 
@@ -142,7 +142,7 @@ describe('/imprest list (AC-IMP-082)', () => {
     h.users = { data: [{ id: 'u-eng', full_name: 'Eli Engineer', role: 'Engineer' }], isPending: false, isError: false, refetch: vi.fn() };
     renderPage();
 
-    await user.click(screen.getByRole('button', { name: 'Establish float' }));
+    await user.click(screen.getByRole('button', { name: 'Set up site cash' }));
     const custodian = screen.getByRole('combobox', { name: /Custodian/ });
     expect(custodian).toBeDisabled();
     expect(screen.getByText('Choose a project to see eligible custodians.')).toBeInTheDocument();

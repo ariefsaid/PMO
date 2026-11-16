@@ -69,6 +69,22 @@ describe('erpnext/bodies — R9-frozen toBody', () => {
     expect(body).toEqual({ company: 'PMO Smoke Co', supplier: 'Spike Supplier', items: [{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 150000 }] });
   });
 
+  it('a bill line on the ERP order names the order and its line (po_detail), so ERPNext reads the order billed', () => {
+    const body = piToBody(rec({ items: [
+      { item_code: 'SPIKE-ITEM-1', qty: 2, rate: 100, po_item_child_name: 'po-line-1' },
+      { item_code: 'FREIGHT', qty: 1, rate: 10 },
+    ] }), CTX) as { items: Array<Record<string, unknown>> };
+    expect(body.items).toEqual([
+      { item_code: 'SPIKE-ITEM-1', qty: 2, rate: 100, purchase_order: 'PUR-ORD-2026-00001', po_detail: 'po-line-1' },
+      { item_code: 'FREIGHT', qty: 1, rate: 10 },
+    ]);
+  });
+
+  it('a bill with no ERP order sends no order fields', () => {
+    const body = piToBody(rec({ items: [{ item_code: 'X', qty: 1, rate: 1, po_item_child_name: 'l' }] }), { ...CTX, refs: { supplier: 'Spike Supplier' } }) as { items: Array<Record<string, unknown>> };
+    expect(body.items).toEqual([{ item_code: 'X', qty: 1, rate: 1 }]);
+  });
+
   it('AC-VWH-034 amounts mode sends the server-built rows with an EMPTY template (an empty table is "no tax")', () => {
     const rows = [{ charge_type: 'Actual', account_head: 'Input VAT - SC', description: 'VAT', tax_amount: 110000, category: 'Total', add_deduct_tax: 'Add', included_in_print_rate: 0 }];
     expect(piToBody(rec({ items: [{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 1000000 }], taxes: rows, taxesFromAmounts: true }), CTX))
