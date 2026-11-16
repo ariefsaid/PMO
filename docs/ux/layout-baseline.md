@@ -1,294 +1,360 @@
 # Layout baseline
 
-Failures of the rendered layout checks (`measureLayout` in `scripts/ux-proof-metrics.mjs`) per route, width and login.
-Shrink-only: a touched route may not get worse, and a route under redesign must reach zero.
-Source of truth is `layout-baseline.json`; regenerate with `scripts/ux-proof-layout-sweep.sh`.
+Failure fingerprints of the rendered layout checks (`measureLayout` in `scripts/ux-proof-metrics.mjs` and the reused taste and stageshow checks) per route, width and login.
+The counts here are for reading only; `layout-baseline.json` lists the fingerprints, and the gate fails on any fingerprint that is not listed there.
+Shrink-only: a touched route may not gain a fingerprint, and a route under redesign must reach none. Regenerate with `scripts/ux-proof-layout-sweep.sh`.
 
-| Route | Login | Width | Failures |
+| Route | Login | Width | Fingerprints |
 | --- | --- | --- | --- |
-| `/` | admin | 1440 | 5 |
-| `/` | engineer | 1440 | 3 |
-| `/` | exec | 1440 | 5 |
-| `/` | exec reads-failing | 1440 | 4 |
-| `/` | finance | 1440 | 3 |
-| `/` | pm | 1440 | 4 |
-| `/` | admin | 390 | 4 |
-| `/` | engineer | 390 | 2 |
-| `/` | exec | 390 | 4 |
-| `/` | exec reads-failing | 390 | 1 |
-| `/` | finance | 390 | 1 |
-| `/` | pm | 390 | 1 |
-| `/administration/accounting` | admin | 1440 | 1 |
-| `/administration/accounting` | admin | 390 | 1 |
-| `/administration/cost-attribution` | admin | 1440 | 0 |
-| `/administration/cost-attribution` | finance | 1440 | 0 |
-| `/administration/cost-attribution` | admin | 390 | 0 |
-| `/administration/cost-attribution` | finance | 390 | 0 |
-| `/administration/credits` | admin | 1440 | 0 |
-| `/administration/credits` | admin | 390 | 0 |
-| `/administration/exchange-rates` | admin | 1440 | 1 |
-| `/administration/exchange-rates` | finance | 1440 | 1 |
-| `/administration/exchange-rates` | admin | 390 | 1 |
-| `/administration/exchange-rates` | finance | 390 | 1 |
-| `/administration/integrations` | admin | 1440 | 6 |
-| `/administration/integrations` | admin | 390 | 6 |
-| `/administration/plan` | admin | 1440 | 0 |
-| `/administration/plan` | exec | 1440 | 0 |
-| `/administration/plan` | admin | 390 | 0 |
-| `/administration/plan` | exec | 390 | 0 |
-| `/administration/projects` | admin | 1440 | 0 |
-| `/administration/projects` | admin | 390 | 0 |
-| `/administration/users` | admin | 1440 | 1 |
-| `/administration/users` | exec | 1440 | 0 |
-| `/administration/users` | admin | 390 | 1 |
-| `/administration/users` | exec | 390 | 1 |
-| `/approvals` | exec | 1440 | 3 |
-| `/approvals` | exec reads-failing | 1440 | 0 |
-| `/approvals` | finance | 1440 | 3 |
-| `/approvals` | pm | 1440 | 3 |
-| `/approvals` | exec | 390 | 1 |
-| `/approvals` | exec reads-failing | 390 | 0 |
-| `/approvals` | finance | 390 | 1 |
-| `/approvals` | pm | 390 | 1 |
-| `/calendar` | engineer | 1440 | 1 |
-| `/calendar` | exec | 1440 | 1 |
-| `/calendar` | pm | 1440 | 1 |
-| `/calendar` | engineer | 390 | 1 |
-| `/calendar` | exec | 390 | 1 |
-| `/calendar` | pm | 390 | 1 |
-| `/companies` | exec | 1440 | 0 |
-| `/companies` | finance | 1440 | 0 |
-| `/companies` | exec | 390 | 1 |
-| `/companies` | finance | 390 | 1 |
-| `/companies/c0000000-0000-0000-0000-000000000002` | exec | 1440 | 2 |
-| `/companies/c0000000-0000-0000-0000-000000000002` | exec | 390 | 2 |
-| `/contacts` | exec | 1440 | 1 |
-| `/contacts` | exec | 390 | 1 |
-| `/contacts/ce000000-0000-0000-0000-000000000001` | exec | 1440 | 2 |
-| `/contacts/ce000000-0000-0000-0000-000000000001` | exec | 390 | 2 |
-| `/equipment` | engineer | 1440 | 0 |
-| `/equipment` | exec | 1440 | 0 |
-| `/equipment` | pm | 1440 | 0 |
-| `/equipment` | engineer | 390 | 1 |
-| `/equipment` | exec | 390 | 1 |
-| `/equipment` | pm | 390 | 1 |
-| `/equipment/assets` | pm | 1440 | 0 |
-| `/equipment/assets` | pm | 390 | 1 |
-| `/erp-purchases` | finance | 1440 | 1 |
-| `/erp-purchases` | finance | 390 | 1 |
-| `/expenses` | engineer | 1440 | 0 |
-| `/expenses` | exec | 1440 | 0 |
-| `/expenses` | finance | 1440 | 0 |
-| `/expenses` | pm | 1440 | 0 |
-| `/expenses` | engineer | 390 | 0 |
-| `/expenses` | exec | 390 | 0 |
-| `/expenses` | finance | 390 | 0 |
-| `/expenses` | pm | 390 | 0 |
-| `/expenses/2b00c401-3303-4aa5-b033-4dc3f33e52f8` | engineer | 1440 | 0 |
-| `/expenses/2b00c401-3303-4aa5-b033-4dc3f33e52f8` | engineer | 390 | 1 |
-| `/expenses/b1336ef9-e2df-42cb-9baf-c5d23a125c3f` | engineer | 1440 | 0 |
-| `/expenses/b1336ef9-e2df-42cb-9baf-c5d23a125c3f` | engineer | 390 | 1 |
-| `/expenses/new` | engineer | 1440 | 0 |
-| `/expenses/new` | pm | 1440 | 0 |
-| `/expenses/new` | engineer | 390 | 1 |
-| `/expenses/new` | pm | 390 | 1 |
-| `/finance` | exec | 1440 | 0 |
-| `/finance` | exec reads-failing | 1440 | 0 |
-| `/finance` | finance | 1440 | 0 |
-| `/finance` | finance reads-failing | 1440 | 0 |
-| `/finance` | exec | 390 | 0 |
-| `/finance` | exec reads-failing | 390 | 0 |
-| `/finance` | finance | 390 | 0 |
-| `/finance` | finance reads-failing | 390 | 0 |
-| `/finance/payables` | exec | 1440 | 1 |
-| `/finance/payables` | finance | 1440 | 1 |
-| `/finance/payables` | exec | 390 | 1 |
-| `/finance/payables` | finance | 390 | 1 |
-| `/finance/receivables` | exec | 1440 | 2 |
-| `/finance/receivables` | finance | 1440 | 2 |
-| `/finance/receivables` | exec | 390 | 0 |
-| `/finance/receivables` | finance | 390 | 0 |
-| `/finance/receivables?view=payments` | exec | 1440 | 1 |
-| `/finance/receivables?view=payments` | finance | 1440 | 1 |
-| `/finance/receivables?view=payments` | exec | 390 | 1 |
-| `/finance/receivables?view=payments` | finance | 390 | 1 |
-| `/finance/reports` | exec | 1440 | 6 |
-| `/finance/reports` | finance | 1440 | 6 |
-| `/finance/reports` | exec | 390 | 2 |
-| `/finance/reports` | finance | 390 | 2 |
-| `/finance/statements` | exec | 1440 | 1 |
-| `/finance/statements` | finance | 1440 | 1 |
-| `/finance/statements` | exec | 390 | 1 |
-| `/finance/statements` | finance | 390 | 1 |
-| `/imprest` | exec | 1440 | 0 |
-| `/imprest` | finance | 1440 | 0 |
-| `/imprest` | exec | 390 | 0 |
-| `/imprest` | finance | 390 | 0 |
-| `/incidents` | engineer | 1440 | 0 |
-| `/incidents` | exec | 1440 | 0 |
-| `/incidents` | engineer | 390 | 0 |
-| `/incidents` | exec | 390 | 0 |
-| `/incoming-payments` | exec | 1440 | 1 |
-| `/incoming-payments` | finance | 1440 | 1 |
-| `/incoming-payments` | exec | 390 | 1 |
-| `/incoming-payments` | finance | 390 | 1 |
-| `/integrations` | admin | 1440 | 1 |
-| `/integrations` | engineer | 1440 | 1 |
-| `/integrations` | exec | 1440 | 1 |
-| `/integrations` | finance | 1440 | 1 |
-| `/integrations` | pm | 1440 | 1 |
-| `/integrations` | admin | 390 | 1 |
-| `/integrations` | engineer | 390 | 1 |
-| `/integrations` | exec | 390 | 1 |
-| `/integrations` | finance | 390 | 1 |
-| `/integrations` | pm | 390 | 1 |
-| `/login` | exec | 1440 | 2 |
-| `/login` | exec | 390 | 2 |
-| `/master-data/product` | admin | 1440 | 0 |
-| `/master-data/product` | admin | 390 | 0 |
-| `/meetings` | engineer | 1440 | 0 |
-| `/meetings` | exec | 1440 | 1 |
-| `/meetings` | pm | 1440 | 0 |
-| `/meetings` | engineer | 390 | 1 |
-| `/meetings` | exec | 390 | 1 |
-| `/meetings` | pm | 390 | 1 |
-| `/meetings/ee000000-0000-0000-0000-000000000001` | pm | 1440 | 1 |
-| `/meetings/ee000000-0000-0000-0000-000000000001` | pm | 390 | 1 |
-| `/meetings/new` | pm | 1440 | 1 |
-| `/meetings/new` | pm | 390 | 1 |
-| `/my-tasks` | engineer | 1440 | 0 |
-| `/my-tasks` | finance | 1440 | 1 |
-| `/my-tasks` | pm | 1440 | 0 |
-| `/my-tasks` | engineer | 390 | 1 |
-| `/my-tasks` | finance | 390 | 1 |
-| `/my-tasks` | pm | 390 | 1 |
-| `/oauth/consent` | exec | 1440 | 2 |
-| `/oauth/consent` | exec | 390 | 2 |
-| `/procurement` | engineer | 1440 | 2 |
-| `/procurement` | exec | 1440 | 2 |
-| `/procurement` | finance | 1440 | 2 |
-| `/procurement` | pm | 1440 | 2 |
-| `/procurement` | engineer | 390 | 2 |
-| `/procurement` | exec | 390 | 2 |
-| `/procurement` | finance | 390 | 2 |
-| `/procurement` | pm | 390 | 2 |
-| `/procurement/00000000-0000-0000-0000-000000000002` | exec | 1440 | 0 |
-| `/procurement/00000000-0000-0000-0000-000000000002` | pm | 1440 | 0 |
-| `/procurement/00000000-0000-0000-0000-000000000002` | exec | 390 | 0 |
-| `/procurement/00000000-0000-0000-0000-000000000002` | pm | 390 | 0 |
-| `/procurement/00000000-0000-0000-0000-000000000008` | finance | 1440 | 0 |
-| `/procurement/00000000-0000-0000-0000-000000000008` | finance | 390 | 0 |
-| `/procurement/3971b0a9-8043-4615-ab54-cbb35013b477` | pm | 1440 | 0 |
-| `/procurement/3971b0a9-8043-4615-ab54-cbb35013b477` | pm | 390 | 0 |
-| `/procurement/60000000-0000-0000-0000-000000000008` | finance | 1440 | 1 |
-| `/procurement/60000000-0000-0000-0000-000000000008` | finance | 390 | 1 |
-| `/procurement/61000000-0000-0000-0000-000000000002` | exec | 1440 | 1 |
-| `/procurement/61000000-0000-0000-0000-000000000002` | pm | 1440 | 1 |
-| `/procurement/61000000-0000-0000-0000-000000000002` | exec | 390 | 1 |
-| `/procurement/61000000-0000-0000-0000-000000000002` | pm | 390 | 1 |
-| `/procurement/61000000-0000-0000-0000-000000000008` | exec | 1440 | 2 |
-| `/procurement/61000000-0000-0000-0000-000000000008` | exec | 390 | 1 |
-| `/procurement/new` | pm | 1440 | 0 |
-| `/procurement/new` | pm | 390 | 0 |
-| `/procurement/new?have=need` | finance | 1440 | 1 |
-| `/procurement/new?have=need` | pm | 1440 | 1 |
-| `/procurement/new?have=need` | finance | 390 | 1 |
-| `/procurement/new?have=need` | pm | 390 | 1 |
-| `/projects` | admin | 1440 | 0 |
-| `/projects` | engineer | 1440 | 4 |
-| `/projects` | exec | 1440 | 0 |
-| `/projects` | exec reads-failing | 1440 | 0 |
-| `/projects` | finance | 1440 | 0 |
-| `/projects` | pm | 1440 | 0 |
-| `/projects` | admin | 390 | 1 |
-| `/projects` | engineer | 390 | 1 |
-| `/projects` | exec | 390 | 1 |
-| `/projects` | exec reads-failing | 390 | 0 |
-| `/projects` | finance | 390 | 1 |
-| `/projects` | pm | 390 | 1 |
-| `/projects/41000000-0000-0000-0000-000000000002` | admin | 1440 | 2 |
-| `/projects/41000000-0000-0000-0000-000000000002` | engineer | 1440 | 3 |
-| `/projects/41000000-0000-0000-0000-000000000002` | exec | 1440 | 2 |
-| `/projects/41000000-0000-0000-0000-000000000002` | finance | 1440 | 2 |
-| `/projects/41000000-0000-0000-0000-000000000002` | pm | 1440 | 2 |
-| `/projects/41000000-0000-0000-0000-000000000002` | admin | 390 | 1 |
-| `/projects/41000000-0000-0000-0000-000000000002` | engineer | 390 | 2 |
-| `/projects/41000000-0000-0000-0000-000000000002` | exec | 390 | 1 |
-| `/projects/41000000-0000-0000-0000-000000000002` | finance | 390 | 1 |
-| `/projects/41000000-0000-0000-0000-000000000002` | pm | 390 | 1 |
-| `/projects/41000000-0000-0000-0000-000000000002/activity` | pm | 1440 | 0 |
-| `/projects/41000000-0000-0000-0000-000000000002/activity` | pm | 390 | 0 |
-| `/projects/41000000-0000-0000-0000-000000000002/budget` | exec | 1440 | 4 |
-| `/projects/41000000-0000-0000-0000-000000000002/budget` | finance | 1440 | 4 |
-| `/projects/41000000-0000-0000-0000-000000000002/budget` | pm | 1440 | 4 |
-| `/projects/41000000-0000-0000-0000-000000000002/budget` | exec | 390 | 4 |
-| `/projects/41000000-0000-0000-0000-000000000002/budget` | finance | 390 | 4 |
-| `/projects/41000000-0000-0000-0000-000000000002/budget` | pm | 390 | 4 |
-| `/projects/41000000-0000-0000-0000-000000000002/contract` | finance | 1440 | 5 |
-| `/projects/41000000-0000-0000-0000-000000000002/contract` | pm | 1440 | 4 |
-| `/projects/41000000-0000-0000-0000-000000000002/contract` | finance | 390 | 5 |
-| `/projects/41000000-0000-0000-0000-000000000002/contract` | pm | 390 | 4 |
-| `/projects/41000000-0000-0000-0000-000000000002/documents` | pm | 1440 | 2 |
-| `/projects/41000000-0000-0000-0000-000000000002/documents` | pm | 390 | 1 |
-| `/projects/41000000-0000-0000-0000-000000000002/materials` | pm | 1440 | 2 |
-| `/projects/41000000-0000-0000-0000-000000000002/materials` | pm | 390 | 1 |
-| `/projects/41000000-0000-0000-0000-000000000002/procurement` | pm | 1440 | 2 |
-| `/projects/41000000-0000-0000-0000-000000000002/procurement` | pm | 390 | 2 |
-| `/projects/41000000-0000-0000-0000-000000000002/tasks` | engineer | 1440 | 3 |
-| `/projects/41000000-0000-0000-0000-000000000002/tasks` | pm | 1440 | 3 |
-| `/projects/41000000-0000-0000-0000-000000000002/tasks` | engineer | 390 | 2 |
-| `/projects/41000000-0000-0000-0000-000000000002/tasks` | pm | 390 | 2 |
-| `/projects/41000000-0000-0000-0000-000000000002/tasks?view=board&scope=all` | pm | 1440 | 17 |
-| `/projects/41000000-0000-0000-0000-000000000002/tasks?view=board&scope=all` | pm | 390 | 19 |
-| `/projects/new` | exec | 1440 | 1 |
-| `/projects/new` | pm | 1440 | 1 |
-| `/projects/new` | exec | 390 | 1 |
-| `/projects/new` | pm | 390 | 1 |
-| `/receivables?view=payments` | finance | 1440 | 1 |
-| `/receivables?view=payments` | finance | 390 | 1 |
-| `/reset-password` | exec | 1440 | 2 |
-| `/reset-password` | exec | 390 | 2 |
-| `/sales` | exec | 1440 | 2 |
-| `/sales` | pm | 1440 | 2 |
-| `/sales` | exec | 390 | 19 |
-| `/sales` | pm | 390 | 19 |
-| `/sales-invoices/b5000000-0000-0000-0000-000000000001` | exec | 1440 | 1 |
-| `/sales-invoices/b5000000-0000-0000-0000-000000000001` | finance | 1440 | 1 |
-| `/sales-invoices/b5000000-0000-0000-0000-000000000001` | exec | 390 | 1 |
-| `/sales-invoices/b5000000-0000-0000-0000-000000000001` | finance | 390 | 1 |
-| `/settings/profile` | admin | 1440 | 0 |
-| `/settings/profile` | engineer | 1440 | 0 |
-| `/settings/profile` | finance | 1440 | 0 |
-| `/settings/profile` | pm | 1440 | 0 |
-| `/settings/profile` | admin | 390 | 0 |
-| `/settings/profile` | engineer | 390 | 0 |
-| `/settings/profile` | finance | 390 | 0 |
-| `/settings/profile` | pm | 390 | 0 |
-| `/stock` | engineer | 1440 | 0 |
-| `/stock` | exec | 1440 | 0 |
-| `/stock` | pm | 1440 | 0 |
-| `/stock` | engineer | 390 | 1 |
-| `/stock` | exec | 390 | 1 |
-| `/stock` | pm | 390 | 1 |
-| `/stock/documents` | pm | 1440 | 0 |
-| `/stock/documents` | pm | 390 | 1 |
-| `/stock/ledger` | pm | 1440 | 1 |
-| `/stock/ledger` | pm | 390 | 2 |
-| `/stock/new/receive` | pm | 1440 | 0 |
-| `/stock/new/receive` | pm | 390 | 0 |
-| `/stock/reorder` | pm | 1440 | 2 |
-| `/stock/reorder` | pm | 390 | 1 |
-| `/stock/setup` | pm | 1440 | 0 |
-| `/stock/setup` | pm | 390 | 1 |
-| `/timesheets` | engineer | 1440 | 2 |
-| `/timesheets` | exec | 1440 | 2 |
-| `/timesheets` | finance | 1440 | 1 |
-| `/timesheets` | pm | 1440 | 2 |
-| `/timesheets` | engineer | 390 | 2 |
-| `/timesheets` | exec | 390 | 1 |
-| `/timesheets` | finance | 390 | 1 |
-| `/timesheets` | pm | 390 | 2 |
-| `/update-password` | exec | 1440 | 2 |
-| `/update-password` | exec | 390 | 2 |
+| `/` | admin@acme.test | 1440 | 8 |
+| `/` | engineer@acme.test | 1440 | 7 |
+| `/` | exec@acme.test | 1440 | 7 |
+| `/` | exec@acme.test reads-failing | 1440 | 7 |
+| `/` | finance@acme.test | 1440 | 11 |
+| `/` | pm@acme.test | 1440 | 3 |
+| `/` | admin@acme.test | 390 | 11 |
+| `/` | engineer@acme.test | 390 | 4 |
+| `/` | exec@acme.test | 390 | 11 |
+| `/` | exec@acme.test reads-failing | 390 | 10 |
+| `/` | finance@acme.test | 390 | 13 |
+| `/` | pm@acme.test | 390 | 3 |
+| `/administration/accounting` | admin@acme.test | 1440 | 6 |
+| `/administration/accounting` | admin@acme.test | 390 | 7 |
+| `/administration/cost-attribution` | admin@acme.test | 1440 | 1 |
+| `/administration/cost-attribution` | finance@acme.test | 1440 | 1 |
+| `/administration/cost-attribution` | admin@acme.test | 390 | 0 |
+| `/administration/cost-attribution` | finance@acme.test | 390 | 0 |
+| `/administration/credits` | admin@acme.test | 1440 | 0 |
+| `/administration/credits` | admin@acme.test | 390 | 0 |
+| `/administration/exchange-rates` | admin@acme.test | 1440 | 1 |
+| `/administration/exchange-rates` | finance@acme.test | 1440 | 0 |
+| `/administration/exchange-rates` | admin@acme.test | 390 | 1 |
+| `/administration/exchange-rates` | finance@acme.test | 390 | 0 |
+| `/administration/integrations` | admin@acme.test | 1440 | 12 |
+| `/administration/integrations` | admin@acme.test | 390 | 11 |
+| `/administration/plan` | admin@acme.test | 1440 | 0 |
+| `/administration/plan` | exec@acme.test | 1440 | 0 |
+| `/administration/plan` | exec@acme.test reads-failing | 1440 | 0 |
+| `/administration/plan` | admin@acme.test | 390 | 0 |
+| `/administration/plan` | exec@acme.test | 390 | 0 |
+| `/administration/plan` | exec@acme.test reads-failing | 390 | 0 |
+| `/administration/projects` | admin@acme.test | 1440 | 2 |
+| `/administration/projects` | admin@acme.test | 390 | 2 |
+| `/administration/users` | admin@acme.test | 1440 | 0 |
+| `/administration/users` | exec@acme.test | 1440 | 0 |
+| `/administration/users` | exec@acme.test reads-failing | 1440 | 0 |
+| `/administration/users` | admin@acme.test | 390 | 0 |
+| `/administration/users` | exec@acme.test | 390 | 0 |
+| `/administration/users` | exec@acme.test reads-failing | 390 | 0 |
+| `/approvals` | exec@acme.test | 1440 | 6 |
+| `/approvals` | exec@acme.test reads-failing | 1440 | 3 |
+| `/approvals` | finance@acme.test | 1440 | 6 |
+| `/approvals` | pm@acme.test | 1440 | 3 |
+| `/approvals` | exec@acme.test | 390 | 5 |
+| `/approvals` | exec@acme.test reads-failing | 390 | 3 |
+| `/approvals` | finance@acme.test | 390 | 5 |
+| `/approvals` | pm@acme.test | 390 | 8 |
+| `/calendar` | engineer@acme.test | 1440 | 5 |
+| `/calendar` | exec@acme.test | 1440 | 5 |
+| `/calendar` | exec@acme.test reads-failing | 1440 | 1 |
+| `/calendar` | pm@acme.test | 1440 | 5 |
+| `/calendar` | engineer@acme.test | 390 | 3 |
+| `/calendar` | exec@acme.test | 390 | 3 |
+| `/calendar` | exec@acme.test reads-failing | 390 | 1 |
+| `/calendar` | pm@acme.test | 390 | 3 |
+| `/companies` | exec@acme.test | 1440 | 0 |
+| `/companies` | exec@acme.test reads-failing | 1440 | 0 |
+| `/companies` | finance@acme.test | 1440 | 0 |
+| `/companies` | exec@acme.test | 390 | 0 |
+| `/companies` | exec@acme.test reads-failing | 390 | 0 |
+| `/companies` | finance@acme.test | 390 | 0 |
+| `/companies/c0000000-0000-0000-0000-000000000002` | exec@acme.test | 1440 | 12 |
+| `/companies/c0000000-0000-0000-0000-000000000002` | exec@acme.test reads-failing | 1440 | 0 |
+| `/companies/c0000000-0000-0000-0000-000000000002` | exec@acme.test | 390 | 11 |
+| `/companies/c0000000-0000-0000-0000-000000000002` | exec@acme.test reads-failing | 390 | 0 |
+| `/contacts` | exec@acme.test | 1440 | 0 |
+| `/contacts` | exec@acme.test reads-failing | 1440 | 0 |
+| `/contacts` | exec@acme.test | 390 | 0 |
+| `/contacts` | exec@acme.test reads-failing | 390 | 0 |
+| `/contacts/ce000000-0000-0000-0000-000000000001` | exec@acme.test | 1440 | 5 |
+| `/contacts/ce000000-0000-0000-0000-000000000001` | exec@acme.test reads-failing | 1440 | 0 |
+| `/contacts/ce000000-0000-0000-0000-000000000001` | exec@acme.test | 390 | 3 |
+| `/contacts/ce000000-0000-0000-0000-000000000001` | exec@acme.test reads-failing | 390 | 0 |
+| `/equipment` | engineer@acme.test | 1440 | 0 |
+| `/equipment` | exec@acme.test | 1440 | 1 |
+| `/equipment` | exec@acme.test reads-failing | 1440 | 1 |
+| `/equipment` | pm@acme.test | 1440 | 1 |
+| `/equipment` | engineer@acme.test | 390 | 0 |
+| `/equipment` | exec@acme.test | 390 | 1 |
+| `/equipment` | exec@acme.test reads-failing | 390 | 1 |
+| `/equipment` | pm@acme.test | 390 | 1 |
+| `/equipment/assets` | pm@acme.test | 1440 | 1 |
+| `/equipment/assets` | pm@acme.test | 390 | 0 |
+| `/erp-purchases` | finance@acme.test | 1440 | 2 |
+| `/erp-purchases` | finance@acme.test | 390 | 2 |
+| `/expenses` | engineer@acme.test | 1440 | 1 |
+| `/expenses` | exec@acme.test | 1440 | 1 |
+| `/expenses` | exec@acme.test reads-failing | 1440 | 0 |
+| `/expenses` | finance@acme.test | 1440 | 1 |
+| `/expenses` | pm@acme.test | 1440 | 1 |
+| `/expenses` | engineer@acme.test | 390 | 0 |
+| `/expenses` | exec@acme.test | 390 | 0 |
+| `/expenses` | exec@acme.test reads-failing | 390 | 0 |
+| `/expenses` | finance@acme.test | 390 | 0 |
+| `/expenses` | pm@acme.test | 390 | 0 |
+| `/expenses/2b00c401-3303-4aa5-b033-4dc3f33e52f8` | engineer@acme.test | 1440 | 0 |
+| `/expenses/2b00c401-3303-4aa5-b033-4dc3f33e52f8` | engineer@acme.test | 390 | 0 |
+| `/expenses/b1336ef9-e2df-42cb-9baf-c5d23a125c3f` | engineer@acme.test | 1440 | 0 |
+| `/expenses/b1336ef9-e2df-42cb-9baf-c5d23a125c3f` | engineer@acme.test | 390 | 0 |
+| `/expenses/new` | engineer@acme.test | 1440 | 1 |
+| `/expenses/new` | pm@acme.test | 1440 | 1 |
+| `/expenses/new` | engineer@acme.test | 390 | 1 |
+| `/expenses/new` | pm@acme.test | 390 | 1 |
+| `/finance` | exec@acme.test | 1440 | 9 |
+| `/finance` | exec@acme.test reads-failing | 1440 | 4 |
+| `/finance` | finance@acme.test | 1440 | 9 |
+| `/finance` | exec@acme.test | 390 | 8 |
+| `/finance` | exec@acme.test reads-failing | 390 | 2 |
+| `/finance` | finance@acme.test | 390 | 8 |
+| `/finance/payables` | exec@acme.test | 1440 | 1 |
+| `/finance/payables` | exec@acme.test reads-failing | 1440 | 0 |
+| `/finance/payables` | finance@acme.test | 1440 | 1 |
+| `/finance/payables` | exec@acme.test | 390 | 1 |
+| `/finance/payables` | exec@acme.test reads-failing | 390 | 0 |
+| `/finance/payables` | finance@acme.test | 390 | 1 |
+| `/finance/receivables` | exec@acme.test | 1440 | 1 |
+| `/finance/receivables` | exec@acme.test reads-failing | 1440 | 0 |
+| `/finance/receivables` | finance@acme.test | 1440 | 1 |
+| `/finance/receivables` | exec@acme.test | 390 | 2 |
+| `/finance/receivables` | exec@acme.test reads-failing | 390 | 1 |
+| `/finance/receivables` | finance@acme.test | 390 | 2 |
+| `/finance/receivables?view=payments` | exec@acme.test | 1440 | 1 |
+| `/finance/receivables?view=payments` | exec@acme.test reads-failing | 1440 | 0 |
+| `/finance/receivables?view=payments` | finance@acme.test | 1440 | 1 |
+| `/finance/receivables?view=payments` | exec@acme.test | 390 | 2 |
+| `/finance/receivables?view=payments` | exec@acme.test reads-failing | 390 | 1 |
+| `/finance/receivables?view=payments` | finance@acme.test | 390 | 2 |
+| `/finance/reports` | exec@acme.test | 1440 | 1 |
+| `/finance/reports` | exec@acme.test reads-failing | 1440 | 0 |
+| `/finance/reports` | finance@acme.test | 1440 | 1 |
+| `/finance/reports` | exec@acme.test | 390 | 3 |
+| `/finance/reports` | exec@acme.test reads-failing | 390 | 0 |
+| `/finance/reports` | finance@acme.test | 390 | 3 |
+| `/finance/statements` | exec@acme.test | 1440 | 2 |
+| `/finance/statements` | exec@acme.test reads-failing | 1440 | 0 |
+| `/finance/statements` | finance@acme.test | 1440 | 2 |
+| `/finance/statements` | exec@acme.test | 390 | 1 |
+| `/finance/statements` | exec@acme.test reads-failing | 390 | 0 |
+| `/finance/statements` | finance@acme.test | 390 | 1 |
+| `/imprest` | exec@acme.test | 1440 | 1 |
+| `/imprest` | exec@acme.test reads-failing | 1440 | 0 |
+| `/imprest` | finance@acme.test | 1440 | 1 |
+| `/imprest` | exec@acme.test | 390 | 0 |
+| `/imprest` | exec@acme.test reads-failing | 390 | 0 |
+| `/imprest` | finance@acme.test | 390 | 0 |
+| `/incidents` | engineer@acme.test | 1440 | 0 |
+| `/incidents` | exec@acme.test | 1440 | 0 |
+| `/incidents` | exec@acme.test reads-failing | 1440 | 0 |
+| `/incidents` | engineer@acme.test | 390 | 0 |
+| `/incidents` | exec@acme.test | 390 | 0 |
+| `/incidents` | exec@acme.test reads-failing | 390 | 0 |
+| `/incoming-payments` | exec@acme.test | 1440 | 1 |
+| `/incoming-payments` | exec@acme.test reads-failing | 1440 | 0 |
+| `/incoming-payments` | finance@acme.test | 1440 | 1 |
+| `/incoming-payments` | exec@acme.test | 390 | 2 |
+| `/incoming-payments` | exec@acme.test reads-failing | 390 | 1 |
+| `/incoming-payments` | finance@acme.test | 390 | 2 |
+| `/integrations` | admin@acme.test | 1440 | 1 |
+| `/integrations` | engineer@acme.test | 1440 | 1 |
+| `/integrations` | exec@acme.test | 1440 | 1 |
+| `/integrations` | exec@acme.test reads-failing | 1440 | 1 |
+| `/integrations` | finance@acme.test | 1440 | 1 |
+| `/integrations` | pm@acme.test | 1440 | 1 |
+| `/integrations` | admin@acme.test | 390 | 1 |
+| `/integrations` | engineer@acme.test | 390 | 1 |
+| `/integrations` | exec@acme.test | 390 | 1 |
+| `/integrations` | exec@acme.test reads-failing | 390 | 1 |
+| `/integrations` | finance@acme.test | 390 | 1 |
+| `/integrations` | pm@acme.test | 390 | 1 |
+| `/login` | exec@acme.test | 1440 | 0 |
+| `/login` | exec@acme.test reads-failing | 1440 | 0 |
+| `/login` | exec@acme.test | 390 | 0 |
+| `/login` | exec@acme.test reads-failing | 390 | 0 |
+| `/master-data/product` | admin@acme.test | 1440 | 0 |
+| `/master-data/product` | admin@acme.test | 390 | 0 |
+| `/meetings` | engineer@acme.test | 1440 | 0 |
+| `/meetings` | exec@acme.test | 1440 | 0 |
+| `/meetings` | exec@acme.test reads-failing | 1440 | 0 |
+| `/meetings` | pm@acme.test | 1440 | 0 |
+| `/meetings` | engineer@acme.test | 390 | 0 |
+| `/meetings` | exec@acme.test | 390 | 0 |
+| `/meetings` | exec@acme.test reads-failing | 390 | 0 |
+| `/meetings` | pm@acme.test | 390 | 0 |
+| `/meetings/ee000000-0000-0000-0000-000000000001` | pm@acme.test | 1440 | 4 |
+| `/meetings/ee000000-0000-0000-0000-000000000001` | pm@acme.test | 390 | 2 |
+| `/meetings/new` | pm@acme.test | 1440 | 0 |
+| `/meetings/new` | pm@acme.test | 390 | 1 |
+| `/my-tasks` | engineer@acme.test | 1440 | 4 |
+| `/my-tasks` | finance@acme.test | 1440 | 0 |
+| `/my-tasks` | pm@acme.test | 1440 | 3 |
+| `/my-tasks` | engineer@acme.test | 390 | 4 |
+| `/my-tasks` | finance@acme.test | 390 | 0 |
+| `/my-tasks` | pm@acme.test | 390 | 3 |
+| `/oauth/consent` | exec@acme.test | 1440 | 1 |
+| `/oauth/consent` | exec@acme.test reads-failing | 1440 | 1 |
+| `/oauth/consent` | exec@acme.test | 390 | 1 |
+| `/oauth/consent` | exec@acme.test reads-failing | 390 | 1 |
+| `/procurement` | engineer@acme.test | 1440 | 1 |
+| `/procurement` | exec@acme.test | 1440 | 2 |
+| `/procurement` | exec@acme.test reads-failing | 1440 | 1 |
+| `/procurement` | finance@acme.test | 1440 | 2 |
+| `/procurement` | pm@acme.test | 1440 | 2 |
+| `/procurement` | engineer@acme.test | 390 | 1 |
+| `/procurement` | exec@acme.test | 390 | 1 |
+| `/procurement` | exec@acme.test reads-failing | 390 | 1 |
+| `/procurement` | finance@acme.test | 390 | 1 |
+| `/procurement` | pm@acme.test | 390 | 1 |
+| `/procurement/00000000-0000-0000-0000-000000000002` | exec@acme.test | 1440 | 0 |
+| `/procurement/00000000-0000-0000-0000-000000000002` | exec@acme.test reads-failing | 1440 | 0 |
+| `/procurement/00000000-0000-0000-0000-000000000002` | pm@acme.test | 1440 | 0 |
+| `/procurement/00000000-0000-0000-0000-000000000002` | exec@acme.test | 390 | 0 |
+| `/procurement/00000000-0000-0000-0000-000000000002` | exec@acme.test reads-failing | 390 | 0 |
+| `/procurement/00000000-0000-0000-0000-000000000002` | pm@acme.test | 390 | 0 |
+| `/procurement/00000000-0000-0000-0000-000000000008` | finance@acme.test | 1440 | 0 |
+| `/procurement/00000000-0000-0000-0000-000000000008` | finance@acme.test | 390 | 0 |
+| `/procurement/3971b0a9-8043-4615-ab54-cbb35013b477` | pm@acme.test | 1440 | 0 |
+| `/procurement/3971b0a9-8043-4615-ab54-cbb35013b477` | pm@acme.test | 390 | 0 |
+| `/procurement/60000000-0000-0000-0000-000000000008` | finance@acme.test | 1440 | 3 |
+| `/procurement/60000000-0000-0000-0000-000000000008` | finance@acme.test | 390 | 6 |
+| `/procurement/61000000-0000-0000-0000-000000000002` | exec@acme.test | 1440 | 3 |
+| `/procurement/61000000-0000-0000-0000-000000000002` | exec@acme.test reads-failing | 1440 | 0 |
+| `/procurement/61000000-0000-0000-0000-000000000002` | pm@acme.test | 1440 | 3 |
+| `/procurement/61000000-0000-0000-0000-000000000002` | exec@acme.test | 390 | 2 |
+| `/procurement/61000000-0000-0000-0000-000000000002` | exec@acme.test reads-failing | 390 | 0 |
+| `/procurement/61000000-0000-0000-0000-000000000002` | pm@acme.test | 390 | 7 |
+| `/procurement/61000000-0000-0000-0000-000000000008` | exec@acme.test | 1440 | 6 |
+| `/procurement/61000000-0000-0000-0000-000000000008` | exec@acme.test reads-failing | 1440 | 0 |
+| `/procurement/61000000-0000-0000-0000-000000000008` | exec@acme.test | 390 | 5 |
+| `/procurement/61000000-0000-0000-0000-000000000008` | exec@acme.test reads-failing | 390 | 0 |
+| `/procurement/new` | pm@acme.test | 1440 | 0 |
+| `/procurement/new` | pm@acme.test | 390 | 0 |
+| `/procurement/new?have=need` | finance@acme.test | 1440 | 2 |
+| `/procurement/new?have=need` | pm@acme.test | 1440 | 2 |
+| `/procurement/new?have=need` | finance@acme.test | 390 | 2 |
+| `/procurement/new?have=need` | pm@acme.test | 390 | 2 |
+| `/projects` | admin@acme.test | 1440 | 0 |
+| `/projects` | engineer@acme.test | 1440 | 1 |
+| `/projects` | exec@acme.test | 1440 | 0 |
+| `/projects` | exec@acme.test reads-failing | 1440 | 0 |
+| `/projects` | finance@acme.test | 1440 | 0 |
+| `/projects` | pm@acme.test | 1440 | 0 |
+| `/projects` | admin@acme.test | 390 | 0 |
+| `/projects` | engineer@acme.test | 390 | 0 |
+| `/projects` | exec@acme.test | 390 | 0 |
+| `/projects` | exec@acme.test reads-failing | 390 | 0 |
+| `/projects` | finance@acme.test | 390 | 0 |
+| `/projects` | pm@acme.test | 390 | 0 |
+| `/projects/41000000-0000-0000-0000-000000000002` | admin@acme.test | 1440 | 3 |
+| `/projects/41000000-0000-0000-0000-000000000002` | engineer@acme.test | 1440 | 3 |
+| `/projects/41000000-0000-0000-0000-000000000002` | exec@acme.test | 1440 | 3 |
+| `/projects/41000000-0000-0000-0000-000000000002` | exec@acme.test reads-failing | 1440 | 0 |
+| `/projects/41000000-0000-0000-0000-000000000002` | finance@acme.test | 1440 | 3 |
+| `/projects/41000000-0000-0000-0000-000000000002` | pm@acme.test | 1440 | 3 |
+| `/projects/41000000-0000-0000-0000-000000000002` | admin@acme.test | 390 | 2 |
+| `/projects/41000000-0000-0000-0000-000000000002` | engineer@acme.test | 390 | 3 |
+| `/projects/41000000-0000-0000-0000-000000000002` | exec@acme.test | 390 | 2 |
+| `/projects/41000000-0000-0000-0000-000000000002` | exec@acme.test reads-failing | 390 | 0 |
+| `/projects/41000000-0000-0000-0000-000000000002` | finance@acme.test | 390 | 3 |
+| `/projects/41000000-0000-0000-0000-000000000002` | pm@acme.test | 390 | 2 |
+| `/projects/41000000-0000-0000-0000-000000000002/activity` | pm@acme.test | 1440 | 3 |
+| `/projects/41000000-0000-0000-0000-000000000002/activity` | pm@acme.test | 390 | 2 |
+| `/projects/41000000-0000-0000-0000-000000000002/budget` | exec@acme.test | 1440 | 5 |
+| `/projects/41000000-0000-0000-0000-000000000002/budget` | exec@acme.test reads-failing | 1440 | 0 |
+| `/projects/41000000-0000-0000-0000-000000000002/budget` | finance@acme.test | 1440 | 5 |
+| `/projects/41000000-0000-0000-0000-000000000002/budget` | pm@acme.test | 1440 | 5 |
+| `/projects/41000000-0000-0000-0000-000000000002/budget` | exec@acme.test | 390 | 4 |
+| `/projects/41000000-0000-0000-0000-000000000002/budget` | exec@acme.test reads-failing | 390 | 0 |
+| `/projects/41000000-0000-0000-0000-000000000002/budget` | finance@acme.test | 390 | 4 |
+| `/projects/41000000-0000-0000-0000-000000000002/budget` | pm@acme.test | 390 | 4 |
+| `/projects/41000000-0000-0000-0000-000000000002/contract` | finance@acme.test | 1440 | 26 |
+| `/projects/41000000-0000-0000-0000-000000000002/contract` | pm@acme.test | 1440 | 7 |
+| `/projects/41000000-0000-0000-0000-000000000002/contract` | finance@acme.test | 390 | 24 |
+| `/projects/41000000-0000-0000-0000-000000000002/contract` | pm@acme.test | 390 | 5 |
+| `/projects/41000000-0000-0000-0000-000000000002/documents` | pm@acme.test | 1440 | 1 |
+| `/projects/41000000-0000-0000-0000-000000000002/documents` | pm@acme.test | 390 | 0 |
+| `/projects/41000000-0000-0000-0000-000000000002/materials` | pm@acme.test | 1440 | 6 |
+| `/projects/41000000-0000-0000-0000-000000000002/materials` | pm@acme.test | 390 | 5 |
+| `/projects/41000000-0000-0000-0000-000000000002/procurement` | pm@acme.test | 1440 | 1 |
+| `/projects/41000000-0000-0000-0000-000000000002/procurement` | pm@acme.test | 390 | 0 |
+| `/projects/41000000-0000-0000-0000-000000000002/tasks` | engineer@acme.test | 1440 | 2 |
+| `/projects/41000000-0000-0000-0000-000000000002/tasks` | pm@acme.test | 1440 | 2 |
+| `/projects/41000000-0000-0000-0000-000000000002/tasks` | engineer@acme.test | 390 | 2 |
+| `/projects/41000000-0000-0000-0000-000000000002/tasks` | pm@acme.test | 390 | 2 |
+| `/projects/41000000-0000-0000-0000-000000000002/tasks?view=board&scope=all` | pm@acme.test | 1440 | 3 |
+| `/projects/41000000-0000-0000-0000-000000000002/tasks?view=board&scope=all` | pm@acme.test | 390 | 4 |
+| `/projects/new` | exec@acme.test | 1440 | 3 |
+| `/projects/new` | exec@acme.test reads-failing | 1440 | 3 |
+| `/projects/new` | pm@acme.test | 1440 | 3 |
+| `/projects/new` | exec@acme.test | 390 | 1 |
+| `/projects/new` | exec@acme.test reads-failing | 390 | 1 |
+| `/projects/new` | pm@acme.test | 390 | 1 |
+| `/receivables?view=payments` | finance@acme.test | 1440 | 0 |
+| `/receivables?view=payments` | finance@acme.test | 390 | 0 |
+| `/reset-password` | exec@acme.test | 1440 | 1 |
+| `/reset-password` | exec@acme.test reads-failing | 1440 | 1 |
+| `/reset-password` | exec@acme.test | 390 | 1 |
+| `/reset-password` | exec@acme.test reads-failing | 390 | 1 |
+| `/sales` | exec@acme.test | 1440 | 2 |
+| `/sales` | exec@acme.test reads-failing | 1440 | 0 |
+| `/sales` | pm@acme.test | 1440 | 2 |
+| `/sales` | exec@acme.test | 390 | 7 |
+| `/sales` | exec@acme.test reads-failing | 390 | 0 |
+| `/sales` | pm@acme.test | 390 | 7 |
+| `/sales-invoices/b5000000-0000-0000-0000-000000000001` | exec@acme.test | 1440 | 2 |
+| `/sales-invoices/b5000000-0000-0000-0000-000000000001` | exec@acme.test reads-failing | 1440 | 0 |
+| `/sales-invoices/b5000000-0000-0000-0000-000000000001` | finance@acme.test | 1440 | 3 |
+| `/sales-invoices/b5000000-0000-0000-0000-000000000001` | exec@acme.test | 390 | 2 |
+| `/sales-invoices/b5000000-0000-0000-0000-000000000001` | exec@acme.test reads-failing | 390 | 0 |
+| `/sales-invoices/b5000000-0000-0000-0000-000000000001` | finance@acme.test | 390 | 3 |
+| `/settings/profile` | admin@acme.test | 1440 | 2 |
+| `/settings/profile` | engineer@acme.test | 1440 | 2 |
+| `/settings/profile` | finance@acme.test | 1440 | 2 |
+| `/settings/profile` | pm@acme.test | 1440 | 2 |
+| `/settings/profile` | admin@acme.test | 390 | 0 |
+| `/settings/profile` | engineer@acme.test | 390 | 0 |
+| `/settings/profile` | finance@acme.test | 390 | 0 |
+| `/settings/profile` | pm@acme.test | 390 | 0 |
+| `/stock` | engineer@acme.test | 1440 | 0 |
+| `/stock` | exec@acme.test | 1440 | 0 |
+| `/stock` | exec@acme.test reads-failing | 1440 | 0 |
+| `/stock` | pm@acme.test | 1440 | 0 |
+| `/stock` | engineer@acme.test | 390 | 0 |
+| `/stock` | exec@acme.test | 390 | 0 |
+| `/stock` | exec@acme.test reads-failing | 390 | 0 |
+| `/stock` | pm@acme.test | 390 | 0 |
+| `/stock/documents` | pm@acme.test | 1440 | 0 |
+| `/stock/documents` | pm@acme.test | 390 | 0 |
+| `/stock/ledger` | pm@acme.test | 1440 | 0 |
+| `/stock/ledger` | pm@acme.test | 390 | 0 |
+| `/stock/new/receive` | pm@acme.test | 1440 | 0 |
+| `/stock/new/receive` | pm@acme.test | 390 | 0 |
+| `/stock/reorder` | pm@acme.test | 1440 | 2 |
+| `/stock/reorder` | pm@acme.test | 390 | 1 |
+| `/stock/setup` | pm@acme.test | 1440 | 1 |
+| `/stock/setup` | pm@acme.test | 390 | 2 |
+| `/timesheets` | engineer@acme.test | 1440 | 1 |
+| `/timesheets` | exec@acme.test | 1440 | 2 |
+| `/timesheets` | exec@acme.test reads-failing | 1440 | 0 |
+| `/timesheets` | finance@acme.test | 1440 | 0 |
+| `/timesheets` | pm@acme.test | 1440 | 1 |
+| `/timesheets` | engineer@acme.test | 390 | 6 |
+| `/timesheets` | exec@acme.test | 390 | 1 |
+| `/timesheets` | exec@acme.test reads-failing | 390 | 0 |
+| `/timesheets` | finance@acme.test | 390 | 1 |
+| `/timesheets` | pm@acme.test | 390 | 7 |
+| `/update-password` | exec@acme.test | 1440 | 2 |
+| `/update-password` | exec@acme.test reads-failing | 1440 | 2 |
+| `/update-password` | exec@acme.test | 390 | 2 |
+| `/update-password` | exec@acme.test reads-failing | 390 | 2 |
 
-Routes measured: 72. Routes with failures: 56. Total failures: 401.
+Routes measured: 72. Routes with failures: 52. Total fingerprints: 663.

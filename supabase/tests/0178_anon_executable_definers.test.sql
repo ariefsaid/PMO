@@ -116,11 +116,16 @@
 -- ⚑ AMENDED BY 0687: `attach_erp_journal_lines` and `detach_erp_journal_line` join (+2, count 156). Role- and org-gated definers under a member's JWT; anon/PUBLIC revoked.
 -- ⚑ AMENDED BY #1472 (S6B): `switch_budget_draft_mode` joins (+1, count 157). SECURITY DEFINER writer, authenticated member JWTs
 -- only; re-asserts active membership, org and the four budget-writer roles; proved by supabase/tests/budget_draft_mode_switch.test.sql.
+-- ⚑ AMENDED BY 0887 (#895): `save_journal_draft`, `submit_journal`, `approve_journal`, `return_journal`,
+-- `request_journal_reversal` and `set_desk_journal` join (+6, count 174 with 0907 re-derived by hand from the list). SECURITY DEFINER writers under a member's JWT: each
+-- re-asserts active membership, the Finance-or-above role (Admin for set_desk_journal) and the caller's org, and
+-- approve/return re-assert the second-approver rule (journal_approver_allows); anon/PUBLIC revoked. Proved by
+-- supabase/tests/manual_journals.test.sql (AC-MJE-001/002/020). record_journal_outcome is service-role only, NOT listed.
 -- ⚑ AMENDED BY 0731 (#1415): `record_native_on_account_receipt`, `apply_native_receipt` and `unapply_native_allocation` join (+3). Finance/Admin-gated
 -- SECURITY DEFINER writers under a member's JWT (membership, role, org re-asserted; anon/PUBLIC revoked), proven by 0731_payment_allocation_*.test.sql.
 -- ⚑ AMENDED BY 0765 (#1507 S6): `switch_odoo_ledger_basis` joins (+1). Active-Admin writer under a member's JWT; anon/PUBLIC revoked; proved by odoo_ledger_basis.test.sql.
--- Current retained set: 169 names after 0910 (+1), 0907 (#564, +1), 0858 (+2), #1507 S6, #1505, #1813, #1514 D1, #1472 S6B, 0731 (+3), 0704 (#1817, +1), 0792 (#1413, +2) and 0854 (#1511 F3, +1), including #1462's archive inventory read; 0685 adds request_financial_statement_refresh (Refresh now).
--- ⚑ AMENDED BY 0910 (#1599 ECX-3): `request_company_defaults` joins the retained set (+1, 169 names). A SECURITY DEFINER writer under a
+-- Current retained set: 176 names after 0887 (#895, +6), 0885 (#1671, +1), 0910 (+1), 0907 (#564, +1), 0858 (+2), #1507 S6, #1505, #1813, #1514 D1, #1472 S6B, 0731 (+3), 0704 (#1817, +1), 0792 (#1413, +2) and 0854 (#1511 F3, +1), including #1462's archive inventory read; 0685 adds request_financial_statement_refresh (Refresh now).
+-- ⚑ AMENDED BY 0910 (#1599 ECX-3): `request_company_defaults` joins the retained set (+1). A SECURITY DEFINER writer under a
 -- member's JWT: it re-asserts active membership, org and Admin/Finance and checks every choice against the mirrors; proven by
 -- supabase/tests/erp_company_defaults.test.sql. The other 0910 functions are service-role-only or internal.
 -- ⚑ AMENDED BY 0704 (#1817): `create_native_tm_invoice` joins (+1). SECURITY DEFINER writer under a member's JWT: re-asserts active membership,
@@ -262,6 +267,10 @@ select plan(7);
 -- the caller's org, the employment of `equipment` under Odoo and each row's org before it writes; proven by
 -- supabase/tests/odoo_equipment_adoption.test.sql (AC-OFM-021). `list_equipment_asset_matches` is SECURITY INVOKER and
 -- `record_odoo_asset_created` is service-role only, so neither is listed.
+-- ⚑ AMENDED BY 0885 (#1671): `void_subcontract_bill` joins the retained set (+1, count 169 on dev's 168, re-derived by
+-- hand from the list). SECURITY DEFINER writer under a member's JWT: it re-asserts active membership, the Admin/Finance
+-- role, the caller's org, no ERP, and author ≠ voider unless the sole active member. Proven by
+-- supabase/tests/subcontract_bill_void.test.sql.
 -- ⚑ AMENDED BY 0907 (#564): `admin_move_credit_allocation` joins the retained set (+1). SECURITY DEFINER writer under a
 -- member's JWT that re-asserts active membership, the Admin role and that both users belong to the caller's org before
 -- it moves credit; proven by supabase/tests/0907_credit_allocations.test.sql and
@@ -289,6 +298,7 @@ insert into client_callable_rpc_names (proname) values
   ('attach_erp_journal_lines'),  -- 0687: Admin/Exec/PM/Finance, org from the session; 0687 pgTAP
   ('detach_erp_journal_line'),  -- 0687: Admin/Finance, org-scoped; 0687 pgTAP
   ('attribute_subcontract_bill_lines'),
+  ('void_subcontract_bill'),  -- ⚑ AMENDED BY 0885 (#1671)
   ('attest_timesheet_no_erp_document'),
   ('cancel_native_receipt'),
   ('cancel_stock_document'),
@@ -388,6 +398,12 @@ insert into client_callable_rpc_names (proname) values
   ('record_native_receipt'),
   ('record_native_on_account_receipt'),  -- 0731 (#1415)
   ('apply_native_receipt'),              -- 0731 (#1415)
+  ('save_journal_draft'),         -- 0887 (#895)
+  ('submit_journal'),             -- 0887 (#895)
+  ('approve_journal'),            -- 0887 (#895)
+  ('return_journal'),             -- 0887 (#895)
+  ('request_journal_reversal'),   -- 0887 (#895)
+  ('set_desk_journal'),           -- 0887 (#895)
   ('unapply_native_allocation'),         -- 0731 (#1415)
   ('recategorise_budget_lines'),
   ('redate_stage_entry'),
@@ -458,8 +474,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  169,
-  'AC-ACL-002 all 169 retained client-callable RPC names still have a public function');
+  176,
+  'AC-ACL-002 all 176 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -468,8 +484,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  169,
-  'AC-ACL-003 all 169 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  176,
+  'AC-ACL-003 all 176 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

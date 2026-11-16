@@ -109,6 +109,8 @@ Service/O&M). Defined in `docs/roadmap-spines.md`.
 
 **Vendor invoice** (UI: **Supplier invoice**) — a supplier billing record under a procurement case, optionally linked to a purchase order, carrying an amount, date, status and tax details.
 
+**Void (vendor bill)** — in an organisation with no ERP, an Admin or Finance user marks a mistyped PMO-native subcontract bill as voided, with a reason. Soft: the bill and its lines stay, it stops counting against the PO and the purchase's payments, and it can never be paid or un-voided. The person who captured the bill cannot void it unless they are the organisation's only active member. Distinct from an ERP cancel, which comes from the ERP (#1671).
+
 **Procurement payment** — a dated payment record under a procurement case, optionally linked to a vendor invoice, with an amount and status.
 
 **Procurement item** — a named quantity and rate on a procurement case, with a calculated or recorded amount.
@@ -341,6 +343,8 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Sales invoice** — a customer-facing invoice associated with a project and optionally a work order, carrying amount, currency, status and tax details.
 
+**Left after this purchase** — the approval panel's decision figure: Active budget − recorded spending − open orders − Reserved − this purchase, before tax, each amount counted once. A request already in Reserved, or already an order, is not subtracted again. Spending is the project header's reading (the one Budget used divides); open orders are the order total less what spending already holds. When spending or open orders are not known the figure is not shown as a number; with only spending unknown the panel states the amount without it under its own label (OD-APPROVAL-LEFT). It is advisory: approver routing never reads it. Not the same as **Left after open orders** (project Budget tab: budget less committed orders, before this purchase and Reserved).
+
 **Left to bill** — signed contract value (net of tax) less invoiced to date, per held contract (on-hand status, not archived: the Contract on hand set, whatever the selected period) and currency at a month; it does not depend on the revenue recognition basis. The management pack derives it once and every report tile, row, total, export and the home dashboard read that one figure (#2203). A held contract with no contract value is not in it; the total stays a number and the count of such contracts is said beside it ("N contracts with no value, not in the total").
 
 **Remaining work** — signed contract value less recognised revenue to date in the management pack; it follows the recognition basis (progress, earned value or invoiced) and is distinct from Left to bill. Formerly named "backlog" in the pack (DD-MMP-3).
@@ -373,6 +377,26 @@ the UI; never "float". Its figures: **Limit** (*batas kas*, the approved amount 
 **Vendor withholding slip** — a numbered vendor tax record for a tax period, currency, withholding type, tax base and withheld amount, with status and revision.
 
 **Vendor withholding slip bill** — an association of a slip to a vendor invoice preserving the withheld amount, type and currency at recording.
+
+---
+
+## Manual journals (#895)
+
+**Manual journal** — a balanced set of debit and credit lines that Finance writes in PMO for a ledger move no other
+record makes (a bank fee, interest, an accrual, a correction). It is drafted, submitted, approved by a second
+approver and then posted to the connected ledger, where it shows as Posted, Scheduled (dated later in the ledger),
+Needs a check or Refused. A posted one is undone only by a reversal: a new manual journal with every side swapped.
+Ledger moves PMO did not write are listed beside them as *outside PMO*, read-only.
+
+**Second approver** — the Finance, Executive or Admin member who approves or returns a manual journal. Never anyone
+who wrote it (its maker or any editor) and, for a reversal, nobody who wrote the original. Rank does not matter.
+One exception: when the organisation has only one member (one profile in total, whatever its status), that member
+approves their own journal, and the approval is recorded as made by the sole member. A second member, even a disabled
+one, brings the second-approver rule back for good: the organisation keeps a permanent "has had a second member"
+marker, so removing that member later does not restore the exemption.
+
+**Desk journal** — the one general Odoo journal that manual journals post to, chosen by an Admin in Odoo setup.
+Until it is chosen, manual journals cannot post to Odoo.
 
 ---
 

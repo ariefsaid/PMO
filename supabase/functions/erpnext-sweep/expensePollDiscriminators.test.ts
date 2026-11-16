@@ -90,6 +90,8 @@ const SHIPPED_WATERMARK_KEYS: Record<string, string> = {
   'expense-payment': 'expenses::Payment Entry::expense-payment',
   'expense-receipt': 'expenses::Payment Entry::expense-receipt',
   'imprest-transfer': 'expenses::Journal Entry::imprest-transfer',
+  // #895: the desk manual journal is unpolled (feedKinds UNPOLLED_KINDS); its key is pinned like every other kind's.
+  'manual-journal': 'accounting::Journal Entry',
 };
 
 Deno.test('AC-EXP-122 every kind keeps its shipped watermark key; the two expense Payment Entry kinds keep separate ones', () => {

@@ -11,6 +11,7 @@ import {
   KIND_MIRROR_TABLE,
   externalIdForKind,
   sweepKindsForOrg,
+  pollDiscriminatorForKind,
 } from './feedKinds.ts';
 import { DOCTYPE_REGISTRY } from './doctypeRegistry.ts';
 
@@ -93,11 +94,22 @@ describe('erpnext/feedKinds — sweepKindsForOrg (the sweep poll scope, #656)', 
     for (const { kind, doctype } of kinds) expect(doctype).toBe(DOCTYPE_REGISTRY[kind].doctype);
   });
 
-  it('an org that owns every current domain can poll each registry doctype exactly once', () => {
+  it('an org that owns every current domain can poll each registry doctype exactly once (except the kinds with no side mirror yet)', () => {
     const ownedDomains = [...new Set(Object.values(KIND_DOMAIN))];
     const actual = sweepKindsForOrg(ownedDomains);
-    const registeredKinds = Object.keys(DOCTYPE_REGISTRY) as Array<keyof typeof DOCTYPE_REGISTRY>;
+    // #895: a manual journal has no inbound side mirror yet, so the sweep must not poll it (a feed write would have no table).
+    const unpolled = new Set(['manual-journal']);
+    const registeredKinds = (Object.keys(DOCTYPE_REGISTRY) as Array<keyof typeof DOCTYPE_REGISTRY>).filter((kind) => !unpolled.has(kind));
     expect(actual).toEqual(registeredKinds.map((kind) => ({ kind, doctype: DOCTYPE_REGISTRY[kind].doctype })));
+    expect(sweepKindsForOrg(['accounting'])).toEqual([]);
+  });
+
+  it('#895 a Journal Entry webhook still routes to the expense journal, and the manual-journal discriminator admits only desk keys', () => {
+    expect(kindFromDoctype('Journal Entry')).toBe('expense-journal');
+    const d = pollDiscriminatorForKind('manual-journal')!;
+    expect(d.admits({ user_remark: 'journal:123e4567-e89b-12d3-a456-426614174000' })).toBe(true);
+    expect(d.admits({ user_remark: 'journal-rev:123e4567-e89b-12d3-a456-426614174000 reverses ACC-JV-1' })).toBe(true);
+    for (const bad of ['impt:x', 'journal:bad', 'exp:1', '', null]) expect(d.admits({ user_remark: bad }), String(bad)).toBe(false);
   });
 
   it('unions multiple owned domains and ignores unknown ones', () => {

@@ -13,7 +13,9 @@ B_ORG=a6120000-0000-4000-8000-00000000000b
 # A floor on checks and a ceiling on skips, per mode (skips are probes the fixtures cannot fill: no seed row, or a
 # table the copy could not write). More checks or fewer skips pass; a shrunk probe or more skips fail. Add probes
 # for new or uncovered tables; never raise a bound.
-SKIPS_READ=395 SKIPS_WRITE=273 MIN_CHECKS_READ=480 MIN_CHECKS_WRITE=602
+# 0887 (#895): journal_entries, journal_entry_lines and journal_entry_authors add 3 read-mode skips (read mode never attempts the update; write mode runs it).
+# void_subcontract_bill (#1671): read mode skips it (needs disposable tenant A, +1 skip); write mode runs it (+1 check, 0 skips).
+SKIPS_READ=399 SKIPS_WRITE=273 MIN_CHECKS_READ=491 MIN_CHECKS_WRITE=617
 
 # judge <read|write> <probe exit code> <probe output file>: print the counts, return 0 only for a clean run.
 judge(){

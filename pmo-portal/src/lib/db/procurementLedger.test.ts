@@ -755,3 +755,65 @@ describe('AC-VWH-011: a supplier invoice row carries its VAT and tax withheld (#
     expect(withholdingFigures(plain.amount, plain.taxAmount, plain.withheldAmount, plain.taxTreatment)).toBeNull();
   });
 });
+
+describe('#1671 vendor bill void — ledger projection', () => {
+  const live = {
+    id: 'vi-live', org_id: 'org-1', procurement_id: 'proc-1', vi_number: 'VI-010', status: 'Received',
+    invoice_date: '2026-11-01', created_at: '2026-11-01T00:00:00Z', po_id: 'po-1', reference_number: null, amount: 100,
+    external_ref: null, erp_docstatus: null, erp_cancelled_at: null, voided_at: null, voided_by: null, void_reason: null,
+  };
+
+  it('AC-SCV-008 a live PMO-native bill on a subcontract purchase is voidable; ERP, cancelled or non-subcontract bills are not', () => {
+    const rows = buildLedgerRows(makeDetail({
+      is_subcontract: true,
+      invoices: [
+        live,
+        { ...live, id: 'vi-erp', vi_number: 'VI-011', erp_docstatus: 1 },
+        { ...live, id: 'vi-ext', vi_number: 'VI-012', external_ref: 'EXT-1' },
+        { ...live, id: 'vi-cancelled', vi_number: 'VI-013', erp_cancelled_at: '2026-11-02T00:00:00Z' },
+        { ...live, id: 'vi-nopo', vi_number: 'VI-014', po_id: null },
+      ],
+    }));
+    const voidable = (id: string) => rows.find((r) => r.recordId === id)?.voidable;
+    expect(voidable('vi-live')).toBe(true);
+    expect(voidable('vi-erp')).toBe(false);
+    expect(voidable('vi-ext')).toBe(false);
+    expect(voidable('vi-cancelled')).toBe(false);
+    expect(voidable('vi-nopo')).toBe(false);
+    const plain = buildLedgerRows(makeDetail({ is_subcontract: false, invoices: [live] }));
+    expect(plain[0].voidable).toBe(false);
+  });
+
+  it('AC-SCV-008 each bill row names the order it was captured against, so a void refreshes that order', () => {
+    const rows = buildLedgerRows(makeDetail({
+      is_subcontract: true,
+      invoices: [live, { ...live, id: 'vi-second', vi_number: 'VI-015', po_id: 'po-2' }],
+    }));
+    expect(rows.find((r) => r.recordId === 'vi-live')?.poId).toBe('po-1');
+    expect(rows.find((r) => r.recordId === 'vi-second')?.poId).toBe('po-2');
+  });
+
+  it('AC-SCV-008 a voided bill carries the reason, when, and who voided it, and is not voidable again', () => {
+    const rows = buildLedgerRows(makeDetail({
+      is_subcontract: true,
+      invoices: [{
+        ...live, voided_at: '2026-11-03T04:05:06Z', voided_by: 'u-2', void_reason: 'typed 12 instead of 2',
+        erp_cancelled_at: '2026-11-03T04:05:06Z', voider: { full_name: 'Finance Two' },
+      }],
+    }));
+    expect(rows[0]).toMatchObject({
+      voidable: false,
+      voided: { at: '2026-11-03T04:05:06Z', reason: 'typed 12 instead of 2', byName: 'Finance Two' },
+    });
+  });
+
+  it('AC-SCV-008 only invoice rows carry void facts', () => {
+    const pr = {
+      id: 'pr-1', org_id: 'org-1', procurement_id: 'proc-1', pr_number: 'PR-1', reference_number: null,
+      status: 'Approved', date: '2026-10-01', amount: 100, created_at: '2026-10-01T00:00:00Z',
+    };
+    const rows = buildLedgerRows(makeDetail({ is_subcontract: true, purchase_requests: [pr] }));
+    expect(rows[0]).not.toHaveProperty('voidable');
+    expect(rows[0]).not.toHaveProperty('voided');
+  });
+});

@@ -137,7 +137,6 @@
     "currencyUnavailable": "Perbandingan anggaran tidak tersedia untuk mata uang ini",
     "amountUnavailable": "Perbandingan anggaran tidak tersedia untuk jumlah ini",
     "noBudget": "Tidak ada anggaran aktif untuk proyek ini",
-    "budgetSignalPurchases": "Belum terikat pembelian {{available}} · {{after}} setelah pengadaan ini",
     "unknown": "{{figure}} tidak dapat dihitung karena jumlah sumber belum tersedia. Sumber: catatan pengadaan dan dokumen sistem akuntansi tertaut.",
     "unpaidHelp": "Dihitung dari jumlah tagihan dikurangi jumlah pembayaran, atau saldo faktur sistem akuntansi tertaut. Sumber: tagihan supplier, pembayaran, dan dokumen sistem akuntansi tertaut.",
     "calculation": "Jumlah dari nilai {{figure}} yang tercatat. Sumber: catatan pengadaan dan dokumen sistem akuntansi tertaut.",
@@ -151,7 +150,9 @@
       "invoiced": "faktur supplier",
       "paid": "pembayaran",
       "unpaid": "saldo faktur"
-    }
+    },
+    "budgetLeft": "Sisa anggaran {{left}}",
+    "budgetLeftUnknown": "Sisa anggaran belum diketahui"
   },
   "timeline": {
     "filterLabel": "Filter linimasa",

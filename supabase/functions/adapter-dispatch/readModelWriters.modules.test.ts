@@ -1,3 +1,4 @@
+import { accountingWriter } from './readModel/accounting.ts';
 import { assertEquals } from '@std/assert';
 import { READ_MODEL_WRITERS } from './readModelWriters.ts';
 import { budgetWriter } from './readModel/budget.ts';
@@ -23,5 +24,6 @@ Deno.test('read-model registry is composed from the domain writer modules', () =
     timesheets: timesheetsWriter,
     expenses: expensesWriter,
     inventory: inventoryWriter,
+    accounting: accountingWriter,
   });
 });
