@@ -9,6 +9,6 @@
   "breakdown": {
     "reasonsTitle": "Mengapa deal kalah", "clientsTitle": "Menang dan kalah per klien", "none": "Tidak ada deal kalah pada periode ini.",
     "lostCount": "{{n}} kalah", "declinedCount": "{{n}} ditolak", "wonLost": "{{won}} menang, {{lost}} kalah",
-    "unknownClient": "Klien tidak dikenal", "errorTitle": "Rincian kalah gagal dimuat", "retry": "Coba lagi"
+    "unknownClient": "Tanpa klien", "errorTitle": "Rincian kalah gagal dimuat", "retry": "Coba lagi"
   }
 }

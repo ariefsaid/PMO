@@ -213,7 +213,7 @@
       "invoiceCount_one": "{{count}} faktur",
       "invoiceCount_other": "{{count}} faktur",
       "thisMonthDelta": "Bulan ini {{amount}}",
-      "leftToBill": "Sisa yang harus ditagih",
+      "leftToBill": "Sisa ditagih",
       "leftToBillHelp": "Nilai kontrak yang ditandatangani dikurangi nilai faktur sampai saat ini.",
       "leftToBillUnknownReason": "Tagihan dalam mata uang asing perlu direkonsiliasi sebelum jumlah ini dapat diketahui.",
       "unpricedReason": "Ada faktur pada periode ini yang belum memiliki nilai.",
@@ -226,7 +226,7 @@
       "earned": "Diperoleh",
       "invoices": "Faktur",
       "doneNotYetBilled": "Selesai, belum ditagih",
-      "leftToBill": "Sisa yang harus ditagih"
+      "leftToBill": "Sisa ditagih"
     },
     "export": {
       "selectedPeriodTotal": "Total periode yang dipilih",

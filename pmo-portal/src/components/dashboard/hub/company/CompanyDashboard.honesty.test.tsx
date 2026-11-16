@@ -541,6 +541,6 @@ describe('#2203 home Left to bill says the held contracts with no value beside i
     i18next.addResourceBundle('id', 'financeHub', idFinanceHub, true, true);
     await act(async () => { await i18next.changeLanguage('id'); });
     renderExec();
-    expect(tile('Sisa yang harus ditagih')).toHaveTextContent('2 kontrak tanpa nilai, tidak termasuk total');
+    expect(tile('Sisa ditagih')).toHaveTextContent('2 kontrak tanpa nilai, tidak termasuk total');
   });
 });
