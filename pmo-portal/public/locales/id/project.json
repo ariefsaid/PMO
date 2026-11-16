@@ -110,6 +110,7 @@
       "unorderedValueFormula": "Kuantitas kontrak yang belum dipesan dikalikan tarif kontraknya.",
       "viewQuantityHistory": "Lihat riwayat kuantitas",
       "notOrderedTitle": "Belum dipesan",
+      "contractLinesTitle": "Baris kontrak",
       "openUnorderedLine": "Buka riwayat kuantitas {{item}}",
       "quantityHistory": "Riwayat kuantitas",
       "noQuantityHistory": "Belum ada kuantitas pesanan pelanggan.",
@@ -209,6 +210,7 @@
           "dpHeld": "Dihitung dari uang muka yang ditagih dikurangi uang muka yang dipulihkan."
         },
         "openLabel": "Buka klaim {{kind}} dari {{date}}",
+        "emptySubNative": "Satu tagihan menagih uang muka atau kuantitas yang diterima sebagai satu invoice.",
         "evidence": "Bukti",
         "noEvidence": "Belum ada bukti yang dilampirkan.",
         "evidenceFirst": "Klaim harus dilengkapi bukti sebelum draf invoice dapat dibuat.",

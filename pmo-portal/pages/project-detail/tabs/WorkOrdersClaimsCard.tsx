@@ -30,6 +30,8 @@ const WorkOrdersClaimsCard: React.FC<{
   canBill: boolean;
   /** A claim whose invoice is raised elsewhere (a time-and-materials claim in a PMO-billed org) offers no Raise here. */
   canRaiseClaim?: (claim: ProgressClaimWithInvoice) => boolean;
+  /** Who owns billing: only an ERP-owned organisation's copy names the ERP. */
+  revenueMode?: 'erp' | 'native';
   claimsRead: { isPending: boolean; isError: boolean; refetch: () => void };
   claimRows: ProgressClaimWithInvoice[];
   openClaimDrawer: (claim: ProgressClaimWithInvoice) => void;
@@ -47,6 +49,7 @@ const WorkOrdersClaimsCard: React.FC<{
   canRecordPercent,
   canBill,
   canRaiseClaim = () => true,
+  revenueMode,
   claimsRead,
   claimRows,
   openClaimDrawer,
@@ -59,6 +62,9 @@ const WorkOrdersClaimsCard: React.FC<{
 }) => {
   const { t } = useTranslation('project');
   if (!visible) return null;
+  const emptySub = revenueMode === 'erp'
+    ? t('projectDetail.billing.claims.emptySub', 'A claim bills a down payment or accepted quantities as one invoice.')
+    : t('projectDetail.billing.claims.emptySubNative', 'A claim bills a down payment or accepted quantities as one invoice.');
 
   const projectClaimColumns: Column<ProgressClaimWithInvoice>[] = [
     { key: 'claim', header: t('projectDetail.billing.claims.column.claim', 'Claim'), kind: 'primary', rowHeader: true,
@@ -142,7 +148,7 @@ const WorkOrdersClaimsCard: React.FC<{
         </details>
         {!claimsRead.isPending && !claimsRead.isError && claimRows.length === 0 ? <ListState variant="empty"
           title={t('projectDetail.billing.claims.empty', 'No billing claims yet')}
-          sub={t('projectDetail.billing.claims.emptySub', 'A claim bills a down payment or accepted quantities as one invoice.')} /> : <DataTable<ProgressClaimWithInvoice>
+          sub={emptySub} /> : <DataTable<ProgressClaimWithInvoice>
           embedded
           rows={claimRows}
           columns={projectClaimColumns}
@@ -163,7 +169,7 @@ const WorkOrdersClaimsCard: React.FC<{
           }}
           state={claimsRead.isPending ? 'loading' : claimsRead.isError ? 'error' : claimRows.length === 0 ? 'empty' : undefined}
           emptyTitle={t('projectDetail.billing.claims.empty', 'No billing claims yet')}
-          emptySub={t('projectDetail.billing.claims.emptySub', 'A claim bills a down payment or accepted quantities as one invoice.')}
+          emptySub={emptySub}
           errorTitle={t('projectDetail.billing.claims.error', 'Couldn’t load the billing claims')}
           errorSub={t('projectDetail.billing.claims.errorSub', 'Retry, or reopen the project.')}
           onRetry={() => void claimsRead.refetch()}

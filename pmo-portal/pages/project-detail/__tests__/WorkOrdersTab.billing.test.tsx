@@ -796,6 +796,32 @@ describe('WorkOrdersTab — billing by work order: restored oracles (AC-BWO-003/
     }
   });
 
+  const renderBahasaTab = () => { h.role = 'Finance'; return render(<MemoryRouter><FinanceI18nTestProvider><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId="c-1" /></ToastProvider></FinanceI18nTestProvider></MemoryRouter>); };
+
+  it('an organisation where PMO owns billing reads no ERP in the empty claims card in Bahasa', async () => {
+    h.mode = 'native';
+    await financeTestI18n.changeLanguage('id');
+    try {
+      renderBahasaTab();
+      expect(screen.getByText('Belum ada tagihan')).toBeInTheDocument();
+      expect(screen.getByText('Satu tagihan menagih uang muka atau kuantitas yang diterima sebagai satu invoice.')).toBeInTheDocument();
+      expect(screen.queryByText(/ERP/)).not.toBeInTheDocument();
+    } finally {
+      await financeTestI18n.changeLanguage('en');
+    }
+  });
+
+  it('an ERP-owned organisation keeps the ERP wording in the empty claims card', async () => {
+    h.mode = 'erp';
+    await financeTestI18n.changeLanguage('id');
+    try {
+      renderBahasaTab();
+      expect(screen.getByText('Satu tagihan menagih uang muka atau kuantitas yang diterima sebagai satu invoice ERP.')).toBeInTheDocument();
+    } finally {
+      await financeTestI18n.changeLanguage('en');
+    }
+  });
+
   it('AC-BWO-003 the summary leads with what is still to invoice', () => {
     h.list.data = [wo(), wo({ id: 'wo-2', wo_number: 'WO-2' })];
     h.billing.data = [bill(), bill({ workOrderId: 'wo-2' })];
