@@ -703,8 +703,12 @@ export function measureRules(N) {
     return Number.isFinite(left) ? { left, right, top, bottom } : null;
   };
   const findings = [];
+  const unionRect = (src) => {
+    const list = (Array.isArray(src) ? src : [src]).map((e) => (e.getBoundingClientRect ? e.getBoundingClientRect() : e));
+    return { left: Math.min(...list.map((r) => r.left)), top: Math.min(...list.map((r) => r.top)), right: Math.max(...list.map((r) => r.right)), bottom: Math.max(...list.map((r) => r.bottom)), get width() { return this.right - this.left; }, get height() { return this.bottom - this.top; } };
+  };
   const seen = new Set();
-  const push = (rule, el, numbers, rectSource, extra = {}) => seen.has(`${rule}|${desc(el)}|${JSON.stringify(numbers)}`) ? 0 : seen.add(`${rule}|${desc(el)}|${JSON.stringify(numbers)}`) && findings.push({ rule, el: desc(el), numbers, rect: box(rectSource.getBoundingClientRect ? rectSource.getBoundingClientRect() : rectSource), ...extra });
+  const push = (rule, el, numbers, rectSource, extra = {}) => seen.has(`${rule}|${desc(el)}|${JSON.stringify(numbers)}`) ? 0 : seen.add(`${rule}|${desc(el)}|${JSON.stringify(numbers)}`) && findings.push({ rule, el: desc(el), numbers, rect: box(unionRect(rectSource)), ...extra });
 
   const stackedRects = (els) => { const rects = els.map((e) => e.getBoundingClientRect()); return rects.every((r, i) => rects.every((o, j) => i === j || r.bottom <= o.top + 1 || o.bottom <= r.top + 1)); };
 
@@ -729,6 +733,17 @@ export function measureRules(N) {
     const { heading, wrap } = found;
     const hExt = extentOf(heading);
     if (!hExt) continue;
+    // an avatar or icon that leads the heading's row starts the row: the heading's edge is the mark's
+    const hr = heading.getBoundingClientRect();
+    for (let n = heading; n && n !== card; n = n.parentElement) {
+      for (let sib = n.previousElementSibling; sib; sib = sib.previousElementSibling) {
+        if (!isVisible(sib)) continue;
+        const r = sib.getBoundingClientRect();
+        const markish = r.width <= 64 && r.height <= 64 && textRuns(sib).every((t) => t.node.textContent.trim().length <= 3);
+        if (markish && r.bottom > hr.top && r.top < hr.bottom && r.right <= hExt.left + 1) hExt.left = Math.min(hExt.left, r.left);
+      }
+      if (n === (wrap || heading)) break;
+    }
     const cr = card.getBoundingClientRect(); const cs = getComputedStyle(card);
     const innerRight = cr.right - parseFloat(cs.borderRightWidth) - parseFloat(cs.paddingRight);
     const innerLeft = cr.left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft);
@@ -755,7 +770,7 @@ export function measureRules(N) {
       const br = block.getBoundingClientRect();
       if (Math.abs((ext.left - br.left) - (br.right - ext.right)) <= 4 && ext.left - br.left > 8) continue; // content centred inside its own box
       if (freeRight <= 4 && freeLeft > 24 && ext.right - ext.left <= 0.6 * (innerRight - hExt.left)) continue; // narrow, right-aligned
-      push('R1', block, { headingX: Math.round(hExt.left * 10) / 10, blockX: Math.round(ext.left * 10) / 10, delta: Math.round((ext.left - hExt.left) * 10) / 10 }, block, { card: desc(card), heading: short(heading, 40) });
+      push('R1', block, { headingX: Math.round(hExt.left * 10) / 10, blockX: Math.round(ext.left * 10) / 10, delta: Math.round((ext.left - hExt.left) * 10) / 10 }, [card], { card: desc(card), heading: short(heading, 40) });
     }
   }
 
@@ -804,14 +819,14 @@ export function measureRules(N) {
     }
     if (wrapped.length) { // one finding per list: the first tag that wraps, and how many do
       const w = wrapped[0];
-      push('R2', w.tag, { check: 'one line', wrapped: wrapped.length, of: tags.length, lines: Math.max(...wrapped.map((x) => x.lines)), contentHeight: Math.round(w.content * 10) / 10, lineHeight: Math.round(w.lh * 10) / 10 }, w.tag, { list: desc(list) });
+      push('R2', w.tag, { check: 'one line', wrapped: wrapped.length, of: tags.length, lines: Math.max(...wrapped.map((x) => x.lines)), contentHeight: Math.round(w.content * 10) / 10, lineHeight: Math.round(w.lh * 10) / 10 }, [list], { list: desc(list) });
     }
     if (tags.length < 2 || !stackedRects(tags.map((t) => t.closest(ROW) ?? t))) continue; // a grid of items is not a column of rows
     const rights = tags.map((t) => t.getBoundingClientRect().right);
     const counts = new Map(); rights.forEach((x) => { const k = Math.round(x); counts.set(k, (counts.get(k) ?? 0) + 1); });
     const mode = [...counts.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0][0];
     const off = tags.filter((t, i) => Math.abs(rights[i] - mode) > N.tolerance);
-    if (off.length) push('R2', off[0], { check: 'shared right edge', edge: mode, rights: [...new Set(rights.map((x) => Math.round(x * 10) / 10))].slice(0, 6), tags: tags.length, off: off.length }, off[0], { list: desc(list) });
+    if (off.length) push('R2', off[0], { check: 'shared right edge', edge: mode, rights: [...new Set(rights.map((x) => Math.round(x * 10) / 10))].slice(0, 6), tags: tags.length, off: off.length }, [list], { list: desc(list) });
   }
 
   // R3 tab bars (compared across routes by tabFrameFindings) ------------------------------------
@@ -878,7 +893,7 @@ export function measureRules(N) {
       const counts = new Map(); xs.forEach((x) => { const k = Math.round(x); counts.set(k, (counts.get(k) ?? 0) + 1); });
       const mode = [...counts.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0][0];
       const off = group.filter((t, i) => Math.abs(xs[i] - mode) > N.tolerance);
-      if (off.length) push('R5', off[0], { check: edge === 'left' ? 'track start' : 'track end', edge: mode, values: [...new Set(xs.map((x) => Math.round(x * 10) / 10))].slice(0, 6), tracks: group.length, off: off.length }, off[0]);
+      if (off.length) push('R5', off[0], { check: edge === 'left' ? 'track start' : 'track end', edge: mode, values: [...new Set(xs.map((x) => Math.round(x * 10) / 10))].slice(0, 6), tracks: group.length, off: off.length }, group);
     }
   }
   const FIGURE = /^[-+(]?\s*(?:\p{Sc}|[A-Z]{3})\s*[-+]?\d[\d.,\s]*\)?$|^[-+(]?\d{1,3}(?:[,\s]\d{3})+(?:\.\d+)?\)?$|^[-+(]?\d+\.\d+\)?$|^[-+]?\d+(?:\.\d+)?\s*%$/u;
@@ -914,7 +929,7 @@ export function measureRules(N) {
         const counts = new Map(); items.forEach(({ right }) => { const k = Math.round(right); counts.set(k, (counts.get(k) ?? 0) + 1); });
         const mode = [...counts.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0][0];
         const off = items.filter(({ right }) => Math.abs(right - mode) > N.tolerance);
-        if (off.length) push('R5', off[0].t.el, { check: 'figure right edge', column: key, edge: mode, values: [...new Set(items.map(({ right }) => Math.round(right * 10) / 10))].slice(0, 6), figures: items.length, off: off.length }, off[0].t.el, { figure: off[0].t.node.textContent.trim() });
+        if (off.length) push('R5', off[0].t.el, { check: 'figure right edge', column: key, edge: mode, values: [...new Set(items.map(({ right }) => Math.round(right * 10) / 10))].slice(0, 6), figures: items.length, off: off.length }, items.map((i) => i.row), { figure: off[0].t.node.textContent.trim() });
       }
     }
   }
@@ -938,7 +953,11 @@ export function rulesReport(measured, label) {
 export function tabFrameFindings(bars, tolerance = RULE_NUMBERS.tolerance) {
   const out = [];
   const groups = new Map();
-  for (const bar of bars) { const key = `${bar.width}|${bar.labels}`; (groups.get(key) ?? groups.set(key, []).get(key)).push(bar); }
+  for (const bar of bars) {
+    const key = `${bar.width}|${bar.labels.replace(/[\d$.,]+[MKB]?/g, '')}`; // a count or amount in a label is data, not a different tab bar
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(bar);
+  }
   for (const [, group] of groups) {
     const routes = new Set(group.map((b) => b.route));
     if (routes.size < 2) continue;
