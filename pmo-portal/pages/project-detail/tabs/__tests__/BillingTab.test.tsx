@@ -91,7 +91,7 @@ vi.mock('@/src/hooks/useTimeAndMaterials', () => ({
 vi.mock('@/src/lib/import', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/src/lib/import')>()), parseWorkbook: vi.fn() }));
 vi.mock('@/src/lib/repositories', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/lib/repositories')>();
-  return { repositories: { ...actual.repositories, progressBilling: { ...actual.repositories.progressBilling, createBoq: h.createBoq } } };
+  return { repositories: { ...actual.repositories, progressBilling: { ...actual.repositories.progressBilling, createBoq: h.createBoq, listBoq: async () => [] } } };
 });
 import { parseWorkbook } from '@/src/lib/import';
 import BillingTab from '../BillingTab';
@@ -714,6 +714,7 @@ describe('BillingTab', () => {
     await user.click(await screen.findByRole('button', { name: /^next/i }));
     expect(await screen.findByText(/Quantity must be a number above 0/)).toBeInTheDocument();
     expect(h.createBoq).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByRole('button', { name: /^import 1 /i })).toBeEnabled()); // the already-there read finishes first
     await user.click(screen.getByRole('button', { name: /^import 1 /i }));
     await waitFor(() => expect(h.createBoq).toHaveBeenCalledTimes(1));
     expect(h.createBoq).toHaveBeenCalledWith('p1', expect.objectContaining({ importKey: 'L-1', quantity: 12.5, rate: 40 }));
@@ -755,6 +756,7 @@ describe('BillingTab', () => {
     await user.click(await screen.findByRole('button', { name: /^next/i }));
     expect(await screen.findByText(/Quantity must be a number above 0/)).toBeInTheDocument();
     expect(h.createBoq).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByRole('button', { name: /^import 1 /i })).toBeEnabled()); // the already-there read finishes first
     await user.click(screen.getByRole('button', { name: /^import 1 /i }));
     await waitFor(() => expect(h.createBoq).toHaveBeenCalledTimes(1));
     expect(h.createBoq).toHaveBeenCalledWith('p1', expect.objectContaining({ importKey: 'L-1' }));
