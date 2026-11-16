@@ -169,7 +169,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
               </p>
               {data.contract_invoiced !== null && <dl className="mt-1" data-testid="contract-excess-invoiced-field">
                 <dt className="text-sm text-muted-foreground">{t('projectFinances.contractInvoiced', 'Invoiced against contract')}</dt>
-                <dd className="break-words text-sm font-semibold tabular-nums" data-testid="contract-excess-invoiced">{money(data.contract_invoiced, project.currency)}</dd>
+                <dd className={`${FIGURE_LINE_CLASS} text-sm font-semibold`} data-testid="contract-excess-invoiced">{money(data.contract_invoiced, project.currency)}</dd>
               </dl>}
               {data.contract_excess.state === 'known'
                 ? <ul className="mt-2 min-w-0 divide-y divide-border/70 text-sm" aria-label={t('projectFinances.excessInvoices', 'Contract invoices behind the excess')}>
