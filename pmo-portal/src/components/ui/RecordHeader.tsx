@@ -146,8 +146,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
               statusBelowMetaOnMobile
                 ? 'col-span-2 row-start-1 break-words sm:col-span-1 sm:row-start-auto sm:flex-[0_1_auto]'
                 : 'flex-[0_1_auto] truncate',
-              // `!`: the global unlayered `h1 { text-wrap: balance }` would otherwise beat sr-only's nowrap (AC-SHELL-002).
-              titleInAppBarOnPhone && 'max-md:sr-only max-md:![text-wrap-mode:nowrap]',
+              titleInAppBarOnPhone && 'max-md:sr-only',
               clampNameOnMobile && cn('max-sm:max-w-full max-sm:whitespace-normal max-sm:break-words', !nameOpen && 'max-sm:line-clamp-2'),
               !isDrawer && 'sm:truncate',
             )}>{name}</h1>

@@ -1,6 +1,7 @@
 // @e2e-isolation: read-only — signs in, scrolls and measures; no DB writes.
 import { test, expect, type Page } from '@playwright/test';
 import { signIn, waitForFonts } from './helpers';
+import { VISUALLY_HIDDEN_SRC } from './support/visually-hidden';
 
 /**
  * AC-SHELL-002 — at phone width (390) the last content of a page is never painted under the fixed
@@ -9,7 +10,8 @@ import { signIn, waitForFonts } from './helpers';
  */
 async function coveredText(page: Page): Promise<string[]> {
   await waitForFonts(page);
-  return page.evaluate(() => {
+  return page.evaluate((hiddenSrc) => {
+    const inHiddenBox = new Function(`return ${hiddenSrc}`)() as (el: Element) => boolean;
     const bar = document.querySelector('[data-testid="phone-nav"]');
     const main = document.getElementById('main');
     if (!bar || !main) return ['(no bar or main)'];
@@ -26,6 +28,8 @@ async function coveredText(page: Page): Promise<string[]> {
       if (!n.textContent?.trim()) continue;
       const el = n.parentElement;
       if (!el || bars.some((x) => x.contains(el))) continue;
+      // Text inside a 1px clipped (sr-only) box is not painted for anyone, so nothing is covered.
+      if (inHiddenBox(el)) continue;
       // Text the browser does not paint at all (the body of a closed <details>, content-visibility hidden)
       // cannot be covered. Asked of the browser itself, not guessed from ancestors; an overflow-clipped
       // ancestor is NOT excluded: no screen needed that, and a clipped-but-painted box would still count.
@@ -45,7 +49,7 @@ async function coveredText(page: Page): Promise<string[]> {
       }
     }
     return out;
-  });
+  }, VISUALLY_HIDDEN_SRC);
 }
 
 test.describe('AC-SHELL-002 phone content clears the bottom bar', () => {
