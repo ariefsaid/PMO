@@ -19,6 +19,7 @@
  *   "user can rename on Save" is a real affordance, not just rationale.
  */
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { HydratedPrimitive } from '@/src/components/dashboard/HydratedPrimitive';
 import { ChartFrame } from '@/src/components/dashboard/ChartFrame';
@@ -52,6 +53,8 @@ interface ArtifactSlotProps {
  * 4. Offers an editable name + Save affordance (agent-proposes / user-disposes)
  */
 export const ArtifactSlot: React.FC<ArtifactSlotProps> = ({ payload, runId }) => {
+  const { t } = useTranslation('assistantPanel');
+  const composedLabel = t('artifact.composedView', { title: payload.title, defaultValue: 'Composed view: {{title}}' });
   const { compiledPanels, validationError, saveStatus, saveError, savedViewId, save } =
     useComposeArtifact(payload.spec, runId);
 
@@ -67,16 +70,16 @@ export const ArtifactSlot: React.FC<ArtifactSlotProps> = ({ payload, runId }) =>
   if (validationError !== null) {
     return (
       <section
-        aria-label={`Composed view: ${payload.title}`}
+        aria-label={composedLabel}
         className="my-2 rounded-lg border border-border bg-card p-4"
       >
         <p className="text-sm text-destructive">
-          The composed view couldn&apos;t be validated — try rephrasing your request.
+          {t('artifact.validationFailed', "The composed view couldn't be validated — try rephrasing your request.")}
         </p>
         {/* Dev-mode detail (mirrors UserViewRenderer OD-2 pattern) */}
         {import.meta.env.VITE_APP_ENV !== 'prod' && (
           <details className="mt-2 text-xs text-muted-foreground">
-            <summary className="cursor-pointer">Developer detail</summary>
+            <summary className="cursor-pointer">{t('artifact.devDetail', 'Developer detail')}</summary>
             <pre className="mt-1 overflow-auto">
               {`code: ${validationError.code}\ndetail: ${validationError.detail ?? '—'}`}
             </pre>
@@ -92,7 +95,7 @@ export const ArtifactSlot: React.FC<ArtifactSlotProps> = ({ payload, runId }) =>
 
   return (
     <section
-      aria-label={`Composed view: ${payload.title}`}
+      aria-label={composedLabel}
       className="my-2 rounded-lg border border-border bg-card p-4"
     >
       {/* Title heading (FR-CV-016) */}
@@ -120,7 +123,7 @@ export const ArtifactSlot: React.FC<ArtifactSlotProps> = ({ payload, runId }) =>
                     ? 'empty'
                     : 'ready'
                 }
-                emptyTitle={(panel.props?.emptyTitle as string | undefined) ?? 'No data'}
+                emptyTitle={(panel.props?.emptyTitle as string | undefined) ?? t('artifact.noData', 'No data')}
                 onRetry={() => retryPanel(panel)}
               >
                 <HydratedPrimitive panel={panel} data={data} />
@@ -137,30 +140,30 @@ export const ArtifactSlot: React.FC<ArtifactSlotProps> = ({ payload, runId }) =>
             {/* Blocker-4 / CV-OD-002: editable name input pre-filled with payload.title.
                 "User can rename on Save" must be a real UI affordance, not just rationale. */}
             <label className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">View name</span>
+              <span className="text-xs text-muted-foreground">{t('artifact.viewName', 'View name')}</span>
               <input
                 type="text"
-                aria-label="View name"
+                aria-label={t('artifact.viewName', 'View name')}
                 value={viewName}
                 onChange={(e) => setViewName(e.target.value)}
                 disabled={isSaving}
-                className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
               />
             </label>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                aria-label="Save composed view"
+                aria-label={t('artifact.saveLabel', 'Save composed view')}
                 aria-disabled={isSaving}
                 aria-busy={isSaving}
                 disabled={isSaving || !viewName.trim()}
                 onClick={() => void save(viewName.trim())}
-                className="h-8 rounded-md border border-border bg-primary px-3 py-0 text-xs font-medium text-primary-foreground hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-8 rounded-md border border-border bg-primary px-3 py-0 text-xs font-medium text-primary-foreground hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isSaving ? 'Saving…' : 'Save to My Views'}
+                {isSaving ? t('artifact.saving', 'Saving…') : t('artifact.saveToViews', 'Save to My Views')}
               </button>
               {saveStatus === 'error' && saveError && (
-                <span className="text-xs text-destructive">{saveError}</span>
+                <span className="text-xs text-destructive">{t('artifact.saveError', 'Could not save the view — try again.')}</span>
               )}
             </div>
           </>
@@ -169,20 +172,20 @@ export const ArtifactSlot: React.FC<ArtifactSlotProps> = ({ payload, runId }) =>
             {/* Blocker-1 / DESIGN.md Blocker-6: "Saved" text MUST use --success-text token.
                 text-green-600 bypasses the token pipeline (different L, fails AA on tinted fills,
                 breaks dark-mode). Enforced by Vitest guard test below. */}
-            <span className="text-xs font-medium text-[hsl(var(--success-text))]">Saved</span>
+            <span className="text-xs font-medium text-[hsl(var(--success-text))]">{t('artifact.saved', 'Saved')}</span>
             {savedViewId && (
               <Link
                 to={`/views/${savedViewId}`}
                 /* Blocker-2 / DESIGN.md Blocker-9: Open-view link chip MUST be h-8 (32px).
                    py-1 alone gives ~28-30px and violates the app-wide control height rule. */
-                className="h-8 rounded-md border border-border px-2 py-0 text-xs text-foreground hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring inline-flex items-center"
+                className="h-8 rounded-md border border-border px-2 py-0 text-xs text-foreground hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring inline-flex items-center"
               >
-                Open view →
+                {t('artifact.openView', 'Open view →')}
               </Link>
             )}
             {/* aria-live announcement for save success (NFR-CV-A11Y-002) */}
             <span role="status" aria-live="polite" className="sr-only">
-              View saved successfully
+              {t('artifact.savedAnnounce', 'View saved successfully')}
             </span>
           </div>
         )}

@@ -83,16 +83,6 @@ Delayed read substring: `get_project_overview_read`
 |---|---|---|
 | project-section-tabs | 5624 | no |
 
-## A7
-
-Delayed read substring: `rest/v1/sales_invoices`
-
-**/projects/41000000-0000-0000-0000-000000000005/billing** — delayed read: `rest/v1/sales_invoices` held 3000 ms
-
-| region | ms to content | beat the delayed read |
-|---|---|---|
-| raise-figures | no hook | n/a |
-
 ## A8
 
 Delayed read substring: `rest/v1/sales_invoices`
@@ -224,3 +214,28 @@ read the old gate was OR-ed with (won/lost projects, revenue mode, invoice list)
 
 Rows 1 to 4 differ by run noise (5.0 to 5.2 s, which is the 3000 ms hold plus the page's own cold read); row 3 reads
 4971 then 5116 (+145 ms, inside the 100 to 200 ms spread of the repeated passes: 4971 and 5135 before, 5039 and 5116 after).
+
+## AFTER: A5, A6, A8 (project detail batch)
+
+Same method as above (local stack, Vite dev servers, headless Chromium 1440x900, 3000 ms hold). Base = the phase 0
+branch with only the new `data-testid` hooks added; after = this batch. Three alternating timed runs per route after one
+discarded warm-up. The project in the first table is a seeded delivery project; the finance user is used where the
+primary action must exist (the Executive user is not offered it). Milliseconds to content, base then after.
+
+| route | delayed read | region | before (3 runs) | after (3 runs) |
+|---|---|---|---|---|
+| /projects/:id (delivery project) | `project_budget_positions` | needs-attention-rows | 5208 / 5182 / 5246 | 2004 / 2064 / 2125 |
+| | | needs-attention (whole card, incl. its loading row) | 5193 / 5182 / 5246 | 5032 / 5089 / 5156 |
+| | | primary-action | 2189 / 2152 / 2220 | 2119 / 2064 / 2126 |
+| | | project-section-tabs | 2189 / 2152 / 2220 | 2120 / 2065 / 2126 |
+| /projects/:id | `get_project_overview_read` | project-section-tabs (A6) | 5293 / 5198 / 5169 | 2242 / 1997 / 2283 |
+| | | primary-action | 5294 / 5199 / 5169 | 2242 / 2178 / 2311 |
+| | | needs-attention (inside the overview content) | 5294 / 5199 / 5169 | 5267 / 5053 / 5333 |
+
+Reading: no region got slower beyond run-to-run noise (about 150 ms on this box). The attention card's rows now arrive
+before the held read; the whole card, which includes the one loading row, still waits for it by design. The overview
+content region waits for the overview read, and the header, tabs and primary action no longer do.
+
+**A7:** removed from this branch (its button is on no live screen).
+**A8:** the card already takes invoices and billing from its parent (no read of its own); the hook `customer-order-card`
+is added, but the seed holds no customer orders, so the region does not render in the measured state.
