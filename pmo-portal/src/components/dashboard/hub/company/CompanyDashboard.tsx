@@ -374,7 +374,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         retry={retryOwed} />
     );
     const healthCard = (
-      <ProjectHealthCard className={cn('min-w-0 min-[900px]:col-span-6', finance && 'min-[900px]:col-start-7 min-[900px]:row-start-1', 'max-[899px]:order-4')} rows={healthRows} delivery={healthDelivery.data}
+      <ProjectHealthCard className={cn('min-w-0 min-[900px]:col-span-6', finance && 'min-[900px]:col-start-7 min-[900px]:row-start-1', 'max-[899px]:order-4', (figures.dashboardPending || figures.dashboardError) && 'min-[900px]:self-stretch')} rows={healthRows} delivery={healthDelivery.data}
         pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry}
         budgetLinkOnOverBudget={finance} />
     );

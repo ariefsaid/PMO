@@ -157,4 +157,18 @@ describe('company home states keep the filled structure', () => {
     const health = screen.getByTestId('project-health');
     expect(health.querySelector('[data-skeleton-shape="rows"]')).not.toBeNull();
   });
+  it('Project health takes its column\'s full height while loading and when failed, and ends at its rows when filled', () => {
+    const stretches = () => screen.getByTestId('project-health').className.includes('min-[900px]:self-stretch');
+    h.reads.dashboard = pending;
+    const first = renderExec();
+    expect(stretches()).toBe(true);
+    first.unmount();
+    h.reads.dashboard = failed;
+    const second = renderExec();
+    expect(stretches()).toBe(true);
+    second.unmount();
+    h.reads.dashboard = ok(dash);
+    renderExec();
+    expect(stretches()).toBe(false);
+  });
 });
