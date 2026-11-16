@@ -9,6 +9,8 @@ const analytics = vi.hoisted(() => ({ trackEmptyStateSeen: vi.fn() }));
 vi.mock('@/src/lib/analytics', () => ({ trackEmptyStateSeen: analytics.trackEmptyStateSeen }));
 
 import { ListState, type ListStateProps } from '../ListState';
+import enCommon from '../../../../public/locales/en/common.json';
+import idCommon from '../../../../public/locales/id/common.json';
 
 describe('ListState', () => {
   it('partial: announces an incomplete result and keeps its recovery action available', async () => {
@@ -158,6 +160,14 @@ describe('ListState', () => {
     expect(onRetry).toHaveBeenCalled();
   });
 
+  it('quiet error: the one line names what failed and its Retry re-runs the read', async () => {
+    const onRetry = vi.fn();
+    render(<ListState variant="error" title="Couldn't load projects" onRetry={onRetry} quiet />);
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load projects");
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
   it('C1: an error object is not rendered in the error body', () => {
     const rawError = new Error('database response detail must stay internal');
     render(
@@ -225,5 +235,26 @@ describe('ListState: empty_state_seen analytics (2026-07-13 wiring plan)', () =>
   it('O18: an error that is the whole page can carry the level-one heading', () => {
     render(<ListState variant="error" titleAsPageHeading title="Couldn't load this project" onRetry={() => undefined} />);
     expect(screen.getByRole('heading', { level: 1, name: "Couldn't load this project" })).toBeInTheDocument();
+  });
+});
+
+describe('ListState: an error with its Retry says "try again" once', () => {
+  async function renderIn(lng: 'en' | 'id', sub: string) {
+    const i18n = createInstance();
+    await i18n.init({ lng, fallbackLng: false, resources: { en: { translation: enCommon }, id: { translation: idCommon } } });
+    render(<I18nextProvider i18n={i18n}><ListState variant="error" title="x" sub={sub} onRetry={() => undefined} /></I18nextProvider>);
+    return screen.getByRole('alert').textContent ?? '';
+  }
+
+  it.each([
+    ['en', 'The list below is unaffected. Try again.', /retry|try again/gi, 'The list below is unaffected.'],
+    ['en', 'The request failed. Check your connection and try again.', /retry|try again/gi, 'Check your connection.'],
+    ['id', 'Daftar di bawah tidak terpengaruh. Coba lagi.', /coba lagi/gi, 'Daftar di bawah tidak terpengaruh.'],
+    ['id', 'Permintaan gagal. Periksa koneksi Anda dan coba lagi.', /coba lagi/gi, 'Periksa koneksi Anda.'],
+  ] as const)('%s: "%s" reads the retry word once, on the Retry action', async (lng, sub, word, kept) => {
+    const text = await renderIn(lng, sub);
+    expect(text.match(word)).toHaveLength(1);
+    expect(text).toContain(kept);
+    expect(screen.getByRole('button', { name: lng === 'en' ? 'Retry' : 'Coba lagi' })).toBeInTheDocument();
   });
 });

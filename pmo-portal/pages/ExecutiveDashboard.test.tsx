@@ -710,6 +710,18 @@ describe('company home — Overview layout (the default: one page, charts carry 
   // A chart's accessible name carries its values, one "; "-separated entry per bar or column, in drawing order.
   const tableCells = (name: string) => (screen.getByRole('img', { name: new RegExp(`^${name}\\.`) }).getAttribute('aria-label') ?? '').slice(name.length + 2).split('; ');
 
+  it('finance: work orders still to invoice wait on the finance home as their own row, opening where they are billed', async () => {
+    state.role = 'Finance';
+    needsState.items = [
+      { id: 'approvals', count: 1, label: 'approval waiting for you', href: '/approvals', tone: 'warn' },
+      { id: 'ready-to-bill', count: 2, label: 'work orders still to invoice', href: '/projects', tone: 'neutral' },
+    ];
+    renderPage();
+    const row = within(screen.getByTestId('waits-on-you')).getByRole('link', { name: /2 work orders still to invoice/ });
+    await userEvent.click(row);
+    expect(screen.getByTestId('location')).toHaveTextContent('/projects');
+  });
+
   it('an unknown or missing stored layout is Overview; Focused is only an explicit choice', () => {
     localStorage.removeItem('home-layout');
     const { unmount } = renderPage();
@@ -900,7 +912,8 @@ describe('company home — Overview layout (the default: one page, charts carry 
     renderPage();
     expect(screen.queryByRole('heading', { name: 'Why deals were lost' })).not.toBeInTheDocument();
     expect(screen.queryByText(/Not recorded/)).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Win and loss by client' })).toBeInTheDocument();
+    // One heading in every state (the block no longer renames itself as its read lands).
+    expect(screen.getByRole('heading', { name: 'Wins and losses' })).toBeInTheDocument();
     expect(screen.getByText('1 won, 1 lost')).toBeInTheDocument();
     const sales = screen.getByTestId('sales-overview');
     const winLoss = screen.getByTestId('chart-loss-reasons');

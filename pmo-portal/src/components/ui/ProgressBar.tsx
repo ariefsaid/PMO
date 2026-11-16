@@ -1,6 +1,7 @@
 import React from 'react';
 import { cn } from './cn';
 import { AT_RISK_THRESHOLD } from '@/src/lib/dashboardConstants';
+import { formatPercent } from '@/src/lib/format';
 import type { ProgressTone } from './ProgressBar.types';
 
 // Re-exported (not duplicated) from the pure sibling file (see ProgressBar.types.ts) — still the
@@ -78,7 +79,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
         aria-valuenow={clampedValue}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuetext={`${value}%`}
+        aria-valuetext={formatPercent(value / 100, 0)}
         className={cn('h-[7px] flex-1 overflow-hidden rounded-full bg-secondary', !widthless && (compact ? 'min-w-[48px]' : 'min-w-[70px]'))}
       >
         <span
@@ -87,8 +88,9 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
           style={{ width: `${width}%` }}
         />
       </span>
+      {/* #2089: a fractional share renders as a locale percent, never a raw float (33.333…%); the box grows for 1,400% rather than spill. */}
       {showValue && (
-        <span className="w-10 text-right text-control font-bold tabular tabular-nums">{value}%</span>
+        <span className="min-w-10 shrink-0 whitespace-nowrap text-right text-control font-bold tabular tabular-nums">{formatPercent(value / 100, 0)}</span>
       )}
     </span>
   );

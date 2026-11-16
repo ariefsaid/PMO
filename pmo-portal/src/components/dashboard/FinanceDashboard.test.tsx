@@ -164,7 +164,7 @@ describe('FinanceDashboard (real — exec RPC + procurements)', () => {
       render(<BahasaProvider locale="id"><MemoryRouter><FinanceDashboard /></MemoryRouter></BahasaProvider>);
       const legend = document.querySelector('figcaption')!;
       const labels = Array.from(legend.children).map((item) => item.textContent?.replace(/\d+$/, '').trim());
-      expect(labels).toEqual(['Draf', 'Pesanan pembelian', 'Faktur pemasok', 'Dibayar']);
+      expect(labels).toEqual(['Draf', 'Pesanan pembelian', 'Faktur supplier', 'Dibayar']);
     } finally {
       procurements.splice(0, procurements.length, ...previous);
     }
@@ -197,11 +197,11 @@ describe('FinanceDashboard (real — exec RPC + procurements)', () => {
     render(<BahasaProvider locale="id"><MemoryRouter><FinanceDashboard /></MemoryRouter></BahasaProvider>);
     expect(screen.getByTestId('kpi-revenue')).toHaveTextContent('Nilai kontrak berjalan');
     expect(screen.getByTestId('kpi-spend')).toHaveTextContent('Pengeluaran tercatat');
-    expect(screen.getByTestId('kpi-outstanding')).toHaveTextContent('Utang ke pemasok');
+    expect(screen.getByTestId('kpi-outstanding')).toHaveTextContent('Utang kepada supplier');
     expect(screen.queryByText('Outstanding invoices')).not.toBeInTheDocument();
     expect(screen.queryByText('Total project spend')).not.toBeInTheDocument();
     expect(screen.getByText('Aktual (buku besar ERP)')).toBeInTheDocument();
-    expect(screen.getByText('Utang pemasok (AP)')).toBeInTheDocument();
+    expect(screen.getByText('Utang supplier (AP)')).toBeInTheDocument();
     const rendered = document.body.textContent ?? '';
     for (const englishLabel of ['PRs awaiting you', 'Total project spend', 'Outstanding invoices', 'supplier-invoiced, awaiting payment', 'Ready to pay', 'Actuals (ERP ledger)', 'AP aging', 'Fiscal year', 'Total outstanding']) {
       expect(rendered).not.toContain(englishLabel);

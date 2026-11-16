@@ -85,8 +85,9 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
           <div className="truncate font-semibold" title={r.title}>
             {r.title}
           </div>
-          {/* Mono identifier per DESIGN.md Mono-For-Identifiers Rule */}
-          <div className="font-mono text-[11px] text-muted-foreground">
+          {/* Record id per DESIGN.md typography: one shared record-id role (normal family,
+              tabular figures), never a second typeface. */}
+          <div className="record-id" title={r.code ?? undefined}>
             {r.code ?? r.id.slice(0, 8)}
           </div>
         </div>

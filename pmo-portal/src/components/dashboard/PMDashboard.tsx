@@ -17,9 +17,10 @@ import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useNeedsYou } from './restructure/useNeedsYou';
 import { Button } from '@/src/components/ui/Button';
 import { Card, CardHead, CardPad } from '@/src/components/ui/Card';
+import { cn } from '@/src/components/ui/cn';
 import { ListState } from '@/src/components/ui/ListState';
 import { FigureHiddenLine, FigureScope } from '@/src/components/ui/FigureScope';
-import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
+import { KPIRow, KPITile, KPITileError } from '@/src/components/ui/KPITile';
 import { PageHeader } from '@/src/components/ui/PageHeader';
 import { Icon } from '@/src/components/ui/icons';
 import { moneyTileValue } from './dashMoney';
@@ -151,7 +152,8 @@ export const PMDashboard: React.FC = () => {
       id: item.id,
       count: item.countLabel ?? item.count,
       label: item.label,
-      amount: item.id === 'team-timesheets' && approvedHours !== null ? `${formatHours(approvedHours)} ${t('home.hoursUnit', 'h')}` : undefined,
+      // The hours are named (never a bare "36 h"), and the number never parts from its unit.
+      detail: item.id === 'team-timesheets' && approvedHours !== null ? t('home.hoursInTotal', '{{hours}}\u00a0h in total', { hours: formatHours(approvedHours) }) : undefined,
       href: item.href,
       tone: item.tone === 'lost' ? 'lost' as const : item.tone === 'neutral' ? 'neutral' as const : 'warn' as const,
     }));
@@ -178,12 +180,16 @@ export const PMDashboard: React.FC = () => {
       error={projectsError}
       onRetry={refresh}
       footer={budgetUseStatus}
-      allLink={{ to: projectsHref(userId), label: t('home.allMine', 'All {{count}} projects', { count: projects.length }) }}
+      allLink={{ to: projectsHref(userId), label: projectsPending || projectsError ? t('home.allProjectsBare', 'All projects') : t('home.allMine', 'All {{count}} projects', { count: projects.length }) }}
       emptyLabel={t('hub.pm.noProjects', 'No delivery projects assigned to you yet')}
       testId="pm-projects"
+      skeletonRows={7}
     />
   );
-  const contractTile = (
+  // A failed read keeps the tile in its place: its label and one line, never a hole in the figure strip.
+  const contractTile = projectsError ? (
+    <KPITileError testId="kpi-my-contract-value-error" label={t('hub.pm.myContractValue', 'My contract value')} caption="" onRetry={() => void projectsQuery.refetch()} />
+  ) : (
     <KPITile
       testId="kpi-my-contract-value"
       tone="green"
@@ -192,13 +198,20 @@ export const PMDashboard: React.FC = () => {
       value={contract?.value ?? null}
       exactValue={contract?.exact}
       unavailableReason={contract ? undefined : projectsError || projectsQuery.isError ? t('hub.pm.projectsFigureUnavailable', 'Project data could not be loaded. Retry to refresh this figure.') : t('home.reasonMyContract', 'a project contract value is missing')}
-      caption={contract ? t('home.projectCount', { count: projects.length, defaultValue_one: '{{count}} project', defaultValue_other: '{{count}} projects' }) : undefined}
+      caption={contract ? t('home.projectCount', { count: projects.length, defaultValue_one: '{{count}} project', defaultValue_other: '{{count}} projects' }) : projectsQuery.isPending ? '\u00a0' : undefined}
       loading={projectsQuery.isPending}
       to={projectsHref(userId)}
       linkLabel={t('hub.pm.openMyProjects', 'Open my projects')}
       help={t('hub.pm.contractHelp', 'Contract value for your delivery projects, in each project currency; currencies are not converted or added together.')}
     />
   );
+
+  // A tile with nothing to show draws nothing (it still reports why to the hidden-figures line): no empty box, no
+  // stray rule, and its neighbour closes the gap.
+  const contractShown = projectsQuery.isPending || projectsError || contract != null;
+  const contractRow = (className: string) => (contractShown
+    ? <KPIRow panelInset aria-label={t('hub.pm.kpiBand', 'My project figures')} className={className}>{contractTile}</KPIRow>
+    : contractTile);
 
   if (overview) {
     // One question: what needs me today across my projects. Waits on you is a short band (with my contract value
@@ -211,21 +224,19 @@ export const PMDashboard: React.FC = () => {
         <div className="space-y-[var(--space-panel-gap)]" data-home-layout="overview">
           {header}
           <div className="grid items-stretch gap-[var(--space-panel-gap)] min-[900px]:grid-cols-12">
-            <div className="min-w-0 min-[900px]:col-span-9 min-[900px]:row-start-1 [&>div]:h-full">
+            <div className={cn('min-w-0 min-[900px]:row-start-1 [&>div]:h-full', contractShown ? 'min-[900px]:col-span-9' : 'min-[900px]:col-span-12')}>
               {/* Exception colour once per group: a neutral panel where only overdue counts are coloured. */}
               <DashboardWaitsOnYou band plain overdueOnly rows={waitRows} pending={needs.isPending} error={needs.isError} onRetry={refresh} />
             </div>
             <div className="min-w-0 min-[900px]:col-span-12 min-[900px]:row-start-2">{projectsEl}</div>
             {/* Read after My projects (and drawn there on a phone); on a wide screen it sits beside Waits on you. */}
-            <KPIRow aria-label={t('hub.pm.kpiBand', 'My project figures')} className="grid-cols-1 min-[900px]:col-span-3 min-[900px]:col-start-10 min-[900px]:row-start-1">
-              {contractTile}
-            </KPIRow>
+            {contractRow('grid-cols-1 min-[900px]:col-span-3 min-[900px]:col-start-10 min-[900px]:row-start-1')}
           </div>
           <Card>
             <CardHead level={2}>{planTitle}</CardHead>
             <CardPad className="min-w-0">
-              {projectsQuery.isPending ? <ListState variant="loading" shape="chart" rows={4} />
-                : projectsQuery.isError ? <ListState variant="error" title={t('home.projectsError', "Couldn't load projects")} onRetry={() => { void projectsQuery.refetch(); }} />
+              {projectsQuery.isPending ? <ListState variant="loading" shape="bars" rows={8} className="max-[899px]:[&_[data-skeleton-shape]>div]:min-h-16" />
+                : projectsQuery.isError ? <ListState variant="error" title={t('home.projectsError', "Couldn't load projects")} onRetry={() => { void projectsQuery.refetch(); }} quiet />
                   : <PlanVsActualChart dense projects={projects} currency={orgCurrency} />}
             </CardPad>
           </Card>
@@ -240,9 +251,7 @@ export const PMDashboard: React.FC = () => {
         {header}
         {waitsEl}
         {projectsEl}
-        <KPIRow aria-label={t('hub.pm.kpiBand', 'My project figures')} className="grid-cols-1 min-[900px]:max-w-sm">
-          {contractTile}
-        </KPIRow>
+        {contractRow('grid-cols-1 min-[900px]:max-w-sm')}
       </div>
     </FigureScope>
   );

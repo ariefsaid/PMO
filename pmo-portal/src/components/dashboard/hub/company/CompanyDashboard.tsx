@@ -7,7 +7,8 @@ import { Card, CardHead, CardPad } from '@/src/components/ui/Card';
 import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { FigureHiddenLine, FigureScope } from '@/src/components/ui/FigureScope';
 import { Icon } from '@/src/components/ui/icons';
-import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
+import { KPIRow, KPITile, KPITileError } from '@/src/components/ui/KPITile';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { LateText } from '@/src/components/ui/LateText';
 import { isMostUrgentLateRow } from '@/src/components/ui/lateTextRows';
 import { ListState } from '@/src/components/ui/ListState';
@@ -44,7 +45,7 @@ import type { Role } from '@/src/auth/AuthContext';
 import { InvoicedTrendCard } from './InvoicedTrendCard';
 import { PlanVsActualChart } from './PlanVsActualChart';
 import { SalesFunnel } from './SalesFunnel';
-import { BudgetReviewCard, FinanceAnalysis, ReadyToPayCard } from './FinanceBlocks';
+import { BudgetReviewCard, FinanceAnalysis, PHONE_TABLE_HOLD, ReadyToPayCard } from './FinanceBlocks';
 import { useSupplierUnpaid } from './financeData';
 import { InvoicedCollectedCard, LossReasonsCard, PurchasingCard, ReceivablesAgeCard, SalesOverviewCard } from './OverviewCards';
 import { ApprovalItems } from './ApprovalItems';
@@ -78,6 +79,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const orgCurrency = useOrgCurrency();
   const data = figures.dashboard;
   const finance = role === 'Finance';
+  // Finance's billing chart grows to the ageing list beside it on a wide screen; on a phone it is the usual chart height.
+  const wide = useIsDesktop(900);
   const unpaidOf = useSupplierUnpaid(finance);
   const financePosition = useFinancePosition(finance, { withRoutes: true });
   // Same query key as the figure hooks, so no extra request; present so Retry can re-run it.
@@ -178,18 +181,18 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       ? { ...figureStatus, error: true, retry: () => { figureStatus.retry?.(); void erpPurchases.refetch(); } }
       : figureStatus;
     if (status.error) {
-      return (
-        <div key={figure.id} data-testid={`figure-error-${figure.id}`} className="flex min-w-0 flex-col gap-2.5 bg-card px-4 pb-3.5 pt-4">
-          <span className="text-control font-medium text-foreground">{label}</span>
-          <span className="text-control text-muted-foreground">{t('home.figureError', "Couldn't load")}</span>
-          {status.retry && <button type="button" onClick={status.retry} className="mt-auto self-start text-control font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{t('home.retry', 'Retry')}</button>}
-        </div>
-      );
+      // A failed tile keeps the filled tile's three lines (label, value, caption), so the band never changes shape.
+      return <KPITileError key={figure.id} testId={`figure-error-${figure.id}`} label={label} caption={caption} onRetry={() => status.retry?.()} />;
     }
-    return <KPITile key={figure.id} icon="grid" tone="blue" label={label} value={money?.value ?? null} exactValue={money?.exact} unavailableReason={money ? undefined : opts.reason ?? figure.unavailableReason} hiddenLink={opts.link} caption={caption} to={figure.href} linkLabel={label} loading={status.pending} help={helpText[figure.id]} />;
+    // While loading, the caption line is held (a blank line) so the tile is already its filled height. Every band
+    // caption is read whole, wrapping when a language needs it: a phone has no hover for a cut-off title.
+    return <KPITile key={figure.id} icon="grid" tone="blue" label={label} value={money?.value ?? null} exactValue={money?.exact} unavailableReason={money ? undefined : opts.reason ?? figure.unavailableReason} hiddenLink={opts.link} caption={status.pending && caption !== undefined ? caption || '\u00a0' : caption} captionWrap to={figure.href} linkLabel={label} loading={status.pending} help={helpText[figure.id]} />;
   };
 
   const supplier = todayFigure('supplier-payables');
+  // #2203: the held contracts with no value, left out of Left to bill, take the tile's one caption when any exist.
+  const leftToBill = todayFigure('left-to-bill');
+  const leftToBillNote = typeof leftToBill?.subline === 'string' ? leftToBill.subline : undefined;
   const toPay = typeof supplier?.subline === 'string' ? supplier.subline.replace(/^(\d+)\s.*$/, (_, n: string) => t('home.toPay', '{{count}} to pay', { count: Number(n) })) : undefined;
   const invoiced = periodFigure('invoiced');
   const collected = periodFigure('collected');
@@ -211,7 +214,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       moneyTile(todayFigure('contract-on-hand'), { caption: onHandCount === undefined ? undefined : t('home.projectCount', { count: onHandCount, defaultValue_one: '{{count}} project', defaultValue_other: '{{count}} projects' }), reason: t('home.reasonContract', 'contract values are missing') }),
       moneyTile(invoiced, { label: t('home.invoiced', 'Invoiced'), caption: periodLabel }),
       moneyTile(collected, collectedOpts),
-      moneyTile(todayFigure('left-to-bill'), { label: t('home.leftToBill', 'Left to bill'), caption: '' }),
+      moneyTile(leftToBill, { label: t('home.leftToBill', 'Left to bill'), caption: leftToBillNote ?? '' }),
       moneyTile(todayFigure('owed-clients'), { link: setUp }),
       moneyTile(supplier, { caption: toPay }),
       // Known margin is a fifth tile only when the accounting source provides it.
@@ -290,7 +293,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     { key: 'client', header: t('home.colClient', 'Client'), rowHeader: true, cell: (row) => <span className="font-medium">{row.invoice.customer_name}</span>, exportValue: (row) => row.invoice.customer_name ?? '' },
     { key: 'invoice', header: t('home.colInvoice', 'Invoice'), cell: (row) => row.invoice.pmo_number ?? row.invoice.si_number ?? row.invoice.reference_number ?? null, exportValue: (row) => row.invoice.pmo_number ?? row.invoice.si_number ?? row.invoice.reference_number ?? '' },
     { key: 'total', header: t('home.colInvoiceTotal', 'Total'), kind: 'money', align: 'num', cell: (row) => { const gross = invoiceGross(row.invoice); return gross === null ? null : formatTableMoney(gross, row.invoice.currency); }, exportValue: (row) => invoiceGross(row.invoice) ?? '' },
-    { key: 'outstanding', header: t('home.colOutstanding', 'Outstanding'), kind: 'money', align: 'num', cell: (row) => row.outstanding === null ? null : <span className={cn('tabular', isMostUrgentLateRow(overdueRows, row) ? 'text-metric font-semibold' : 'text-control font-normal')}>{formatTableMoney(row.outstanding / 100, row.invoice.currency)}</span>, exportValue: (row) => row.outstanding === null ? '' : row.outstanding / 100 },
+    { key: 'outstanding', header: t('home.colOutstanding', 'Outstanding'), kind: 'money', align: 'num', cell: (row) => row.outstanding === null ? null : <span className="tabular">{formatTableMoney(row.outstanding / 100, row.invoice.currency)}</span>, exportValue: (row) => row.outstanding === null ? '' : row.outstanding / 100 },
     { key: 'late', header: t('home.colLate', 'Overdue'), align: 'num', cell: (row) => <LateText emphasis={isMostUrgentLateRow(overdueRows, row)}>{t('home.daysOverdue', { count: row.daysOverdue, defaultValue_one: '{{count}} day overdue', defaultValue_other: '{{count}} days overdue' })}</LateText>, exportValue: (row) => row.daysOverdue },
   ];
   const activeStatuses = new Set<string>(ACTIVE_PROJECT_STATUSES);
@@ -298,11 +301,15 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
 
   const waitsEl = <DashboardWaitsOnYou rows={waitRows} pending={needs.isPending} error={needs.isError} onRetry={needs.refetch} />;
   const overdueCard = (
-    <Card>
+    <Card id="client-overdue">
       <CardHead level={2} actions={cardLink('/finance/receivables?overdue=true', t('home.allOverdue', 'All overdue'))}>{t('home.overdueFromClients', 'Client overdue')}</CardHead>
-      <div className="overflow-x-auto [--table-cell-inset:var(--panel-inset)]">
-        <DataTable rows={overdueRows} columns={overdueColumns} rowKey={(row) => row.invoice.id} onActivate={() => navigate('/finance/receivables?overdue=true')} rowLabel={(row) => t('home.openInvoiceFor', 'Open overdue invoice for {{name}}', { name: row.invoice.customer_name ?? '' })} state={financePosition.isPending ? 'loading' : financePosition.isError ? 'error' : overdueRows.length === 0 ? 'empty' : undefined} onRetry={financePosition.retry} emptyTitle={t('home.noOverdue', 'No overdue client invoices')} errorTitle={t('home.overdueError', "Couldn't load overdue invoices")} tableId="dashboard-company-overdue-clients" embedded />
-      </div>
+      {financePosition.isError && !financePosition.isPending
+        ? <div className="px-[var(--panel-inset)] pb-1"><ListState variant="error" title={t('home.overdueError', "Couldn't load overdue invoices")} onRetry={financePosition.retry} quiet /></div>
+        : (
+          <div className={cn('overflow-x-auto [--table-cell-inset:var(--panel-inset)]', financePosition.isPending && PHONE_TABLE_HOLD)}>
+            <DataTable rows={overdueRows} columns={overdueColumns} rowKey={(row) => row.invoice.id} onActivate={() => navigate('/finance/receivables?overdue=true')} rowLabel={(row) => t('home.openInvoiceFor', 'Open overdue invoice for {{name}}', { name: row.invoice.customer_name ?? '' })} state={financePosition.isPending ? 'loading' : overdueRows.length === 0 ? 'empty' : undefined} emptyTitle={t('home.noOverdue', 'No overdue client invoices')} tableId="dashboard-company-overdue-clients" embedded />
+          </div>
+        )}
     </Card>
   );
   const readyCard = <ReadyToPayCard rows={procurements.data ?? []} pending={procurements.isPending} error={procurements.isError} retry={() => void procurements.refetch()} unpaidOf={unpaidOf} today={figures.organizationToday} />;
@@ -329,7 +336,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     </div>
   );
   // Each tile carries its own error, so one failed read never hides the healthy figures beside it.
-  const tilesRow = (cols: string, tileList: React.ReactNode[]) => <KPIRow aria-label={t('dashboard:hub.company.keyFigures', 'Company figures')} className={cols}>{tileList}</KPIRow>;
+  const tilesRow = (cols: string, tileList: React.ReactNode[]) => <KPIRow panelInset aria-label={t('dashboard:hub.company.keyFigures', 'Company figures')} className={cols}>{tileList}</KPIRow>;
 
   if (overview) {
     // One grid: 12 columns, one gutter (--space-panel-gap, 24px desktop). At 1440 the canvas is 1168px:
@@ -344,11 +351,13 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     // A1: every tile fills in on its own read; there is no band-wide skeleton or band-wide error.
     // Each tile carries a secondary line so their captions end together at the band's foot.
     const bandTiles = [
-      moneyTile(todayFigure('contract-on-hand'), { caption: onHandCount === undefined ? undefined : t('home.signedContractCount', { count: onHandCount, defaultValue_one: '{{count}} with a signed contract', defaultValue_other: '{{count}} with a signed contract' }), reason: t('home.reasonContract', 'contract values are missing') }),
+      moneyTile(todayFigure('contract-on-hand'), { caption: onHandCount === undefined ? '' : t('home.signedContractCount', { count: onHandCount, defaultValue_one: '{{count}} with a signed contract', defaultValue_other: '{{count}} with a signed contract' }), reason: t('home.reasonContract', 'contract values are missing') }),
       moneyTile(invoiced, { label: t('home.invoiced', 'Invoiced'), caption: periodLabel }),
       moneyTile(collected, collectedOpts),
-      moneyTile(todayFigure('left-to-bill'), { label: t('home.leftToBill', 'Left to bill'), caption: t('home.onSignedContracts', 'On signed contracts') }),
-      figures.figureStatus('billed-margin').pending || margin?.amounts ? moneyTile(margin, { caption: t('home.marginCaption', 'Billed revenue less spending') }) : null,
+      moneyTile(leftToBill, { label: t('home.leftToBill', 'Left to bill'), caption: leftToBillNote ?? t('home.onSignedContracts', 'On signed contracts') }),
+      // One label in every state: the figure is always the known amount (AC-1414), so it says so before its read lands.
+      figures.figureStatus('billed-margin').pending || figures.figureStatus('billed-margin').error || margin?.amounts
+        ? moneyTile(margin, { label: t('dashboard:hub.company.knownMarginOnBilledWork', 'Known margin on billed work'), caption: t('home.marginCaption', 'Billed revenue less spending') }) : null,
     ].filter((tile) => tile !== null);
     const band = tilesRow('grid-cols-2 max-[899px]:[&>*:last-child:nth-child(odd)]:col-span-2 min-[900px]:grid-flow-col min-[900px]:auto-cols-fr', bandTiles);
 
@@ -365,7 +374,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         retry={retryOwed} />
     );
     const healthCard = (
-      <ProjectHealthCard className={cn('min-w-0 min-[900px]:col-span-6', (figures.dashboardError || figures.dashboardPending) && 'min-[900px]:self-start', 'max-[899px]:order-4')} rows={healthRows} delivery={healthDelivery.data}
+      <ProjectHealthCard className={cn('min-w-0 min-[900px]:col-span-6', finance && 'min-[900px]:col-start-7 min-[900px]:row-start-1', 'max-[899px]:order-4')} rows={healthRows} delivery={healthDelivery.data}
         pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry}
         budgetLinkOnOverBudget={finance} />
     );
@@ -375,7 +384,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     // The badge counts the items themselves (each approval, each invoice in a row), never the number of rows.
     const waitingTotal = approvalsTotal + otherWaits.reduce((sum, row) => sum + (typeof row.count === 'number' ? row.count : 0), 0);
     const waits = (
-      <DashboardWaitsOnYou plain count={waitingTotal || undefined} className="max-[899px]:order-3" rows={otherWaits}
+      <DashboardWaitsOnYou plain count={waitingTotal || undefined} linkCount={approvalsTotal} skeletonRows={finance ? 5 : 3} className="max-[899px]:order-3" rows={otherWaits}
         pending={needs.approvalsPending || (nothingYet && needs.isPending)} error={needs.approvalsError || (nothingYet && needs.isError)} onRetry={needs.refetch}
         lead={needs.approvals && needs.approvals.length > 0 ? <ApprovalItems entries={needs.approvals} /> : undefined}
         actions={approvalsTotal > 0 ? cardLink('/approvals', t('home.allApprovals', { count: approvalsTotal, defaultValue_one: 'All {{count}} approvals', defaultValue_other: 'All {{count}} approvals' })) : undefined} />
@@ -383,10 +392,11 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     const firstRow = (
       <>
         {healthCard}
-        <div className={cn('flex min-w-0 flex-col gap-[var(--space-panel-gap)] min-[900px]:col-span-6', 'max-[899px]:contents')}>
+        {/* Finance reads its chase queue first: on a wide screen Waits on you takes the left, first-read column. */}
+        <div className={cn('flex min-w-0 flex-col gap-[var(--space-panel-gap)] min-[900px]:col-span-6', finance && 'min-[900px]:col-start-1 min-[900px]:row-start-1', 'max-[899px]:contents')}>
           {waits}
           {owedCard}
-          {!finance && <PurchasingCard className="max-[899px]:order-7 min-[900px]:flex-1" counts={stageCounts} stageName={stageName} pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />}
+          {!finance && <PurchasingCard className="max-[899px]:order-7" counts={stageCounts} stageName={stageName} pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />}
         </div>
       </>
     );
@@ -395,7 +405,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       <Card data-testid="billing" className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-6')}>
         <CardHead level={2} actions={cardLink('/finance/receivables', t('dashboard:hub.company.openInvoices', 'Open invoices'))}>{t('home.billing', 'Billing')}</CardHead>
         <CardPad className="grid gap-x-[var(--space-panel-gap)] gap-y-5 min-[900px]:grid-cols-12">
-          <InvoicedCollectedCard className="min-w-0 min-[900px]:col-span-7" embedded chartHeight={finance ? 400 : 188} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.collectedPending} error={figures.trendError} retry={figures.trendRetry} currency={orgCurrency} />
+          <InvoicedCollectedCard className="min-w-0 min-[900px]:col-span-7" embedded chartHeight={188} fill={finance && wide} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.collectedPending} error={figures.trendError} retry={figures.trendRetry} currency={orgCurrency} />
           <div className="flex min-w-0 flex-col gap-5 min-[900px]:col-span-5">
             <LeftToBillSection limit={finance ? 3 : 5} currency={orgCurrency} rows={figures.leftToBillByProject} pending={figures.figureStatus('left-to-bill').pending} error={figures.figureStatus('left-to-bill').error} retry={retryOwed} />
             {/* Finance: what clients owe, by how long it has been due, under what is left to bill. */}
@@ -429,13 +439,17 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
               help={t('home.help.basis', 'Position today in each record currency. Invoiced, collected and won cover the period chosen.')}
               action={<div className="flex flex-wrap items-end gap-2"><PeriodPicker period={periodState.period} selectPeriod={periodState.selectPeriod} setCustomMonth={periodState.setCustomMonth} compact /><Button variant="outline" size="sm" onClick={refresh} aria-label={t('dashboard:hub.company.refresh', 'Refresh dashboard')}><Icon name="refresh" /><span className="hidden sm:inline">{t('dashboard:hub.company.refresh', 'Refresh')}</span></Button></div>}
             />
-            <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-              <FindingLine offTrack={figures.dashboardPending || figures.dashboardError ? undefined : { count: offTrackCount, atLeast: offTrackSaturated, total: activeProjectCount, unchecked }} overdue={overdue /* undefined until its own invoices read and the org day resolve */} approvals={needs.approvals?.length} />
+            {/* The summary keeps its row in every state: a skeleton while it loads, one line and Retry when it fails. */}
+            <div className="flex min-h-6 flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+              {figures.dashboardPending || needs.approvalsPending ? <div aria-hidden className="skel h-5 w-80 max-w-full" /> : null}
+              <FindingLine offTrack={figures.dashboardPending || figures.dashboardError ? undefined : { count: offTrackCount, atLeast: offTrackSaturated, total: activeProjectCount, unchecked }} overdue={overdue /* undefined until its own invoices read and the org day resolve */} approvals={needs.approvals?.length}
+                failed={!figures.dashboardPending && !needs.approvalsPending && (figures.dashboardError || needs.isError)} onRetry={refresh} />
               <FigureHiddenLine compact />
             </div>
           </div>
           {band}
-          <div data-testid="home-grid" className="grid items-stretch gap-[var(--space-panel-gap)] max-[899px]:grid-cols-1 min-[900px]:grid-cols-12">
+          {/* Every card ends at its own content in every state: a column may end higher than its neighbour, never a blank band inside a card. */}
+          <div data-testid="home-grid" className="grid items-start gap-[var(--space-panel-gap)] max-[899px]:grid-cols-1 min-[900px]:grid-cols-12">
             {firstRow}
             {billingBand}
             {lowerRows}

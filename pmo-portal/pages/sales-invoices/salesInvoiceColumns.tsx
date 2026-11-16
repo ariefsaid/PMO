@@ -21,6 +21,8 @@ interface Props {
   all: SalesInvoiceRow[];
   embedded: boolean;
   native: boolean;
+  /** The revenue mode has not answered: cells that depend on it hold back (rows still render). */
+  actionsPending?: boolean;
   location: Location;
   orgCurrency: string;
   sharedTaxBasis: TaxTreatment | null;
@@ -36,7 +38,7 @@ interface Props {
     odooOffline?: boolean;
   };
 }
-export function salesInvoiceColumns({ t, all, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus }: Props) {
+export function salesInvoiceColumns({ t, all, embedded, native, actionsPending = false, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus }: Props) {
   // FIN-S1 / T4 (AC-RD-TBL-INV-001): one primary cell (number over customer), then at most six more
   // columns. Dates other than Due, and the separate Customer, are export-only below.
   const projectLabelOf = (inv: SalesInvoiceRow) => projectOptionsById.get(inv.project_id ?? '')?.contractualName;
@@ -49,7 +51,7 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
     header: embedded ? t('finance:receivables.invoiceColumn', 'Invoice') : t('financeCopy.invoice', "Invoice #"),
     // ponytail: embedded, the client column carries the row's identity; 'primary' would force a 240px floor and push Outstanding off-screen at 1440.
     kind: embedded ? 'text' : 'primary',
-    size: embedded ? 156 : 280,
+    size: embedded ? 200 : 280,
     primaryTitle: (inv) => invoiceNumber(inv) ?? inv.customer_name ?? '',
     cell: (inv) => {
       const number = invoiceNumber(inv);
@@ -67,14 +69,17 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
         : preErp;
       return (
         <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-          {embedded ? <span className={draftLabel ? 'min-w-0 break-words text-control text-foreground' : 'min-w-0 break-all font-mono text-control text-foreground'}>{draftLabel ?? number ?? '—'}</span> : <Link
+          {/* Rule 13 (one-type): embedded, the client column is the row's one medium name, so the
+              number (or the draft stand-in) renders as the record-id role — regular, muted —
+              matching the phone card. Only the non-embedded primary cell keeps the medium ink. */}
+          {embedded ? <span className="min-w-0 truncate record-id">{draftLabel ?? number ?? '—'}</span> : <Link
             to={`/sales-invoices/${encodeURIComponent(inv.id)}${location.search}`}
             state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }}
-            className={draftLabel ? 'truncate text-control text-foreground underline-offset-2 hover:underline focus-visible:underline' : 'truncate font-mono text-control text-foreground underline-offset-2 hover:underline focus-visible:underline'}
+            className={draftLabel ? 'truncate text-control font-semibold text-foreground underline-offset-2 hover:underline focus-visible:underline' : 'truncate record-id font-semibold text-foreground underline-offset-2 hover:underline focus-visible:underline'}
             title={draftLabel ?? number ?? ''}
           >{draftLabel ?? number ?? '—'}</Link>}
           {/* #784 AC-NAR-004 (DD-NAR-11): a PMO invoice from before the ERP took revenue over is history. */}
-          {inv.pmo_native && !native && (
+          {inv.pmo_native && !native && !actionsPending && (
             <Badge title={preErpDetail}>
               {t('financeCopy.preErpBadge', 'Pre-ERP')}
               <span className="sr-only">{preErpDetail}</span>
@@ -131,7 +136,7 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
   const amountColumn: Column<SalesInvoiceRow> = {
     key: 'amount',
     header: sharedTaxBasis
-      ? <span className="inline-flex items-baseline gap-1">{t('financeCopy.amount', "Amount")}<TaxBasisLabel treatment={sharedTaxBasis} showDetails={false} className="normal-case tracking-normal" /></span>
+      ? <span className="inline-flex items-baseline gap-1 whitespace-nowrap">{t('financeCopy.amount', "Amount")}<TaxBasisLabel treatment={sharedTaxBasis} showDetails={false} className="normal-case tracking-normal" /></span>
       : t('financeCopy.amount', "Amount"),
     kind: 'money',
     align: 'num',

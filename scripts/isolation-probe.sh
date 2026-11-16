@@ -36,6 +36,11 @@ code=$(req "${hdr_service[@]}" "$BASE/rest/v1/profiles?select=org_id,status&id=e
 [ "$code" = 200 ] && jq -e --arg org "$B_ORG" 'type=="array" and length==1 and .[0].org_id==$org and .[0].status=="active"' "$BODY" >/dev/null 2>&1 || { echo 'isolation-probe: JWT_B profile must be active in B org' >&2; exit 4; }
 code=$(req "${hdr_service[@]}" "$BASE/rest/v1/platform_operators?select=user_id&user_id=eq.$uid&limit=1")
 [ "$code" = 200 ] && jq -e 'type=="array" and length==0' "$BODY" >/dev/null 2>&1 || { echo 'isolation-probe: JWT_B must be a verified non-operator' >&2; exit 4; }
+# Write mode only fires at an organisation that is marked as a test organisation: read it, never take the flag on trust.
+if [ "${PROBE_A_DISPOSABLE:-0}" = 1 ]; then
+  code=$(req "${hdr_service[@]}" "$BASE/rest/v1/organizations?select=lifecycle_state&id=eq.$A_ORG&limit=1")
+  [ "$code" = 200 ] && jq -e 'type=="array" and length==1 and .[0].lifecycle_state=="test"' "$BODY" >/dev/null 2>&1 || { echo 'isolation-probe: write mode needs tenant A to be a test organisation (lifecycle_state = test)' >&2; exit 4; }
+fi
 # Verify every supplied target before by-id RPCs can treat source-declared masking as denial.
 A_MEMBER_EMAIL=''
 while IFS=$'\t' read -r table pk id; do
@@ -203,12 +208,14 @@ c=$(rpc purchase_capture_assignment_report '{}')
 # A dry-run placement is a read: tenant B's own-org answer may name only the ids it sent.
 c=$(rpc assign_capture_invoices '{"p_rows":[{"request_id":"b0000000-0000-4000-8000-0000000000b1","source_id":"b0000000-0000-4000-8000-0000000000b2","decision":"set_aside"}],"p_expected_revision":"probe","p_dry_run":true}')
 c=$(rpc capture_assignment_claim "{\"p_org\":\"$A_ORG\",\"p_binding\":\"b0000000-0000-4000-8000-0000000000ab\",\"p_actor\":\"$A_PROFILE\",\"p_row\":{},\"p_revision\":\"probe\",\"p_dry_run\":true}")
+c=$(rpc capture_assignment_family "{\"p_org\":\"$A_ORG\",\"p_binding\":\"b0000000-0000-4000-8000-0000000000ab\",\"p_actor\":\"$A_PROFILE\",\"p_row\":{},\"p_revision\":\"probe\",\"p_dry_run\":true,\"p_batch\":null}")
 A_PROJECT=$(jq -r '.[]|select(.table=="projects")|.id' "$A_ROWS_JSON")
 if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
   c=$(rpc capture_history_apply "{\"p_actor_id\":\"$A_PROFILE\",\"p_project_id\":\"$A_PROJECT\",\"p_request_id\":\"b0000000-0000-4000-8000-0000000000aa\",\"p_revision\":\"probe\",\"p_source_ids\":[],\"p_precision\":{},\"p_dry_run\":true}")
   c=$(rpc capture_history_apply_internal "{\"p_actor_id\":\"$A_PROFILE\",\"p_project_id\":\"$A_PROJECT\",\"p_request_id\":\"b0000000-0000-4000-8000-0000000000aa\",\"p_revision\":\"probe\",\"p_source_ids\":[],\"p_precision\":{},\"p_dry_run\":true,\"p_skip_revision\":false}")
   c=$(rpc capture_source_evidence "{\"p_org\":\"$A_ORG\",\"p_binding\":\"b0000000-0000-4000-8000-0000000000ab\",\"p_source_ids\":[]}")
   c=$(rpc capture_history_batch "{\"p_actor_id\":\"$A_PROFILE\",\"p_project_id\":\"$A_PROJECT\",\"p_request_id\":\"b0000000-0000-4000-8000-0000000000aa\",\"p_revision\":\"probe\",\"p_precision\":{},\"p_groups\":[]}")
+  c=$(rpc capture_history_batch_result "{\"p_actor_id\":\"$A_PROFILE\",\"p_project_id\":\"$A_PROJECT\",\"p_request_id\":\"b0000000-0000-4000-8000-0000000000aa\",\"p_revision\":\"probe\"}")
   c=$(rpc purchase_capture_source_page "{\"p_project_id\":\"$A_PROJECT\"}")
   A_TM_CLAIM=$(jq -r '.[]|select(.table=="tm_claims")|.id' "$A_ROWS_JSON")
   rate_key=b0000000-0000-4000-8000-0000000000ac
@@ -233,6 +240,7 @@ else
   skip "capture_history_apply_internal (projects)"
   skip "capture_source_evidence (projects)"
   skip "capture_history_batch (projects)"
+  skip "capture_history_batch_result (projects)"
   skip "get_financial_statement_catalogue (projects)"
   skip "get_financial_statement (projects)"
 fi

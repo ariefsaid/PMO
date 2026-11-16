@@ -174,6 +174,21 @@ async function removeE2eDrafts() {
   }
 }
 
+// The Return journey's goal starts at a waiting Draft, so its setup is a service-role seed of one (drafted by the PM,
+// two lines): building it through the editor cost ~11 s of the 30 s test budget and the journey's four logins the rest.
+async function seedWaitingDraft(name: string) {
+  const key = requireServiceRoleKey();
+  if (!key) throw new Error('AC-732 seed needs the service role key');
+  const admin = createClient(process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? '', key, { auth: { persistSession: false } });
+  const pm = (await admin.from('profiles').select('id,org_id').eq('email', 'pm@acme.test').single().throwOnError()).data!;
+  const latest = (await admin.from('budget_versions').select('version').eq('project_id', P001).order('version', { ascending: false }).limit(1).throwOnError()).data ?? [];
+  const version = (await admin.from('budget_versions').insert({ org_id: pm.org_id, project_id: P001, version: (latest[0]?.version ?? 0) + 1, name, status: 'Draft', budget_mode: 'whole_project', created_by: pm.id }).select('id').single().throwOnError()).data!;
+  await admin.from('budget_line_items').insert([
+    { org_id: pm.org_id, budget_version_id: version.id, category: 'Labor', description: null, budgeted_amount: 600000, actual_amount: 0 },
+    { org_id: pm.org_id, budget_version_id: version.id, category: 'Materials', description: null, budgeted_amount: 400000, actual_amount: 0 },
+  ]).throwOnError();
+}
+
 test.beforeEach(removeE2eDrafts);
 test.afterEach(removeE2eDrafts);
 
@@ -338,7 +353,7 @@ test('AC-732 whole-project Draft authoring: distribution saves, goes stale on a 
 // #1413 — an approver returns the waiting Draft with a reason; the PM sees it, keeps editing, resubmits,
 // and the approver is offered Activate again.
 test('AC-1413 an approver returns a waiting Draft with a reason; the PM resubmits it and it is waiting again', async ({ page }) => {
-  await createDraftWithLines(page, 'E2E Return Budget');
+  await seedWaitingDraft('E2E Return Budget');
   const project = '/projects/40000000-0000-0000-0000-000000000001/budget';
 
   await login(page, 'finance@acme.test');

@@ -34,20 +34,14 @@ import MilestoneGroupedList from './MilestoneGroupedList';
 import { useProjectTaskColumns } from './TaskList';
 import TaskRecordDrawer from './TaskRecordDrawer';
 import TasksToolbar from './TasksToolbar';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import type { ViewMode, TaskScope, BulkAction } from './taskViewModel';
 
 /** #2104: hoisted once. A fresh `{}` per render handed the memoised task tables a new prop identity
  *  on every render even when nothing was pending. */
 const EMPTY_PENDING_PUSH: Record<string, PendingPushState> = {};
 
-function localTodayIso(): string {
-  const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${now.getFullYear()}-${month}-${day}`;
-}
-
-interface TasksTabProps {
+export interface TasksTabProps {
   projectId: string;
   projectName?: string;
   onCountChange?: (count: number | null) => void;
@@ -80,7 +74,10 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
   const { currentUser } = useAuth();
   const currentUserId = currentUser?.id ?? null;
   const organizationDay = useFxOrgDay(true).day;
-  const today = organizationDay ?? localTodayIso();
+  // #2088: the fallback for a missing fx org-day read is still an ORGANIZATION-day read
+  // (useOrgToday), never the viewer device's local day.
+  const orgToday = useOrgToday();
+  const today = organizationDay ?? orgToday;
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useTasks(projectId);
   useEffect(() => {

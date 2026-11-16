@@ -160,7 +160,7 @@ describe('AC-2: status filters wrap at phone width without horizontal scrolling'
     const scrollWrapper = statusFilter.closest('[data-testid="status-filter-scroll"]');
     expect(scrollWrapper!.className).not.toContain('scroll-fade-x');
     expect(within(statusFilter).getAllByRole('tab').map((tab) => tab.getAttribute('data-value')))
-      .toEqual(['', 'My Projects', 'Ongoing', 'Completed', 'at-risk']);
+      .toEqual(['All', 'My Projects', 'Ongoing', 'Completed', 'at-risk']);
   });
 
   it('Procurement: the list-tabs tablist is itself an overflow-x-auto container (AC-2)', () => {

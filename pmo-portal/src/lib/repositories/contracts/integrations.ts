@@ -185,9 +185,23 @@ export type ConnectReviewChoice =
   | { action: 'bring-in'; externalId: string }
   | { action: 'send'; pmoId: string };
 
+/** #1599 ECX-3: the ERP company defaults PMO sets, in PMO terms (`adapterSeam/companyDefaults.ts`). */
+export type CompanyDefaultSlot = 'payable' | 'expense' | 'cash' | 'bank' | 'cost_centre';
+export interface CompanyDefaultOptions {
+  company: string;
+  options: Record<CompanyDefaultSlot, string[]>;
+  /** A request for this connection is still being saved; Save waits for it. */
+  pending: boolean;
+}
+export interface CompanyDefaultsSetResponse { ok: true; written: CompanyDefaultSlot[]; defaults: Record<CompanyDefaultSlot, string | null> }
+
 export interface IntegrationsRepository {
   getErpSetup(): Promise<ErpSetupReadiness>;
   saveErpDefaults(input: { activityType: string; receivableAccount: string }): Promise<{ ok: true }>;
+  /** #1599 ECX-3: for each company default, the mirrored accounts (or cost centres) of the right kind (Admin/Finance). */
+  getCompanyDefaultOptions(): Promise<CompanyDefaultOptions>;
+  /** #1599 ECX-3: set the chosen company defaults in the ERP; the answer is what the ERP read back. */
+  setCompanyDefaults(values: Partial<Record<CompanyDefaultSlot, string>>): Promise<CompanyDefaultsSetResponse>;
   listErpProjects(query: string): Promise<ErpProjectOption[]>;
   linkErpProject(projectId: string, erpProject: string, expectedErpProject: string | null): Promise<ErpProjectLink>;
   ensureErpProject(projectId: string): Promise<ErpProjectLink>;

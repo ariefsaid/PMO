@@ -15,8 +15,12 @@
  *
  * Available = Budget − Committed − Reserved (the over-commitment-safe headroom).
  *
- * The five figures (text-labelled, a11y: text-not-color-only per DESIGN.md §4):
- *   This request · Reserved (other) · Available · Project budget · After this request.
+ * The figures (text-labelled, a11y: text-not-color-only per DESIGN.md §4):
+ *   This request · Reserved (other) · Not yet committed to purchases · Budget used · Project budget ·
+ *   After this request.
+ * "Not yet committed to purchases" is the policy figure above (Available) and says it leaves out recorded
+ * spending; "Budget used" is the project's canonical reading (the same shared positions read the project
+ * header uses, no sum of its own) so the approver sees both beside each other.
  * Over-budget is a non-blocking advisory (approval still permitted — OD-W5-4/OD-W5-5).
  *
  * Per-stage "After this request" math (ADR-0034 §5 — the double-count fix): when the
@@ -32,11 +36,15 @@ import { StatTiles } from '@/src/components/ui/StatTiles';
 import { ErrBanner } from '@/src/components/ui/ErrBanner';
 import { useFigureReport } from '@/src/components/ui/useFigureScope';
 import { ProjectNameLink } from '@/src/components/ui/ProjectNameLink';
+import { StatusPill } from '@/src/components/ui/StatusPill';
 import { useProjectBudget } from '@/src/hooks/useBudget';
+import { useProjectBudgetPositions } from '@/src/hooks/useProjectBudgetPositions';
+import { PIPELINE_STATUSES } from '@/src/lib/db/projectTransitions';
+import { projectBudgetUsedPercent } from '@/src/lib/projectFinances';
 import { useProjectCommittedSpend, useProjectReservedSpend } from '@/src/hooks/useProcurements';
 import { usePermission } from '@/src/auth/usePermission';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatNumberExact } from '@/src/lib/format';
 import { computeBudgetSignal } from './computeBudgetSignal';
 import { AT_RISK_THRESHOLD } from '@/src/lib/dashboardConstants';
 
@@ -63,6 +71,10 @@ export interface DecisionSupportPanelProps {
   projectName: string | null | undefined;
   /** Contractual title behind a short `projectName`. */
   projectLegalName?: string | null;
+  /** The project's own status; a project still in the pipeline (not won yet) names its stage at the heading. */
+  projectStatus?: string | null;
+  /** The approvals inbox row is tight: the purchasing figure's caption moves into its label's tooltip. */
+  captionInTooltip?: boolean;
   /** The case's current status — drives per-stage math + the visibility boundary. */
   status: ProcurementStatus;
   /** The procurement's own ISO-4217 currency. */
@@ -74,6 +86,8 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   totalValue,
   projectName,
   projectLegalName,
+  projectStatus,
+  captionInTooltip = false,
   status,
   currency,
 }) => {
@@ -91,6 +105,8 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   const budget = useProjectBudget(scopedProjectId ?? '');
   const committed = useProjectCommittedSpend(scopedProjectId);
   const reservedQ = useProjectReservedSpend(scopedProjectId);
+  // The canonical Budget used reading is shown beside the purchasing figure; it never holds the panel back.
+  const positions = useProjectBudgetPositions(scopedProjectId ? [scopedProjectId] : []);
 
   // Bail out — no project linked (takes precedence over the status gate, FR-RB-020),
   // or a viewer whose purchasing read is limited to their own requests.
@@ -101,7 +117,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   if (!PANEL_VISIBLE_STATUSES.includes(status)) return null;
 
   const heading = (
-    <div className="mb-3 flex items-baseline gap-1">
+    <div className="mb-3 flex flex-wrap items-baseline gap-x-1 gap-y-1">
       <h2 className="text-control font-semibold text-muted-foreground">
         {t('decisionSupport.heading', 'Budget impact')}
       </h2>
@@ -113,6 +129,9 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
           className="text-control font-medium text-foreground"
         />
       ) : null}
+      {projectStatus && PIPELINE_STATUSES.includes(projectStatus) ? (
+        <StatusPill record="project" state={projectStatus} wrap={false} className="ml-1" />
+      ) : null}
     </div>
   );
 
@@ -122,7 +141,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   // ── Loading state ──────────────────────────────────────────────────────────
   if (isPending) {
     return (
-      <Card variant="bare" className="mb-4">
+      <Card className="mb-4">
         <CardPad>
           {heading}
           <div className="flex flex-col gap-2" aria-label="Loading budget impact">
@@ -137,7 +156,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   // ── Error state ────────────────────────────────────────────────────────────
   if (isError) {
     return (
-      <Card variant="bare" className="mb-4">
+      <Card className="mb-4">
         <CardPad>
           {heading}
           <p className="text-control text-muted-foreground">
@@ -153,7 +172,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   // ── No active budget ───────────────────────────────────────────────────────
   if (budgetAmount === 0) {
     return (
-      <Card variant="bare" className="mb-4">
+      <Card className="mb-4">
         <CardPad>
           {heading}
           <p className="text-control text-muted-foreground">
@@ -172,7 +191,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   if (!currency || !projectCurrency || !budgetCurrency ||
       (!requestInOtherCurrency && (currency !== projectCurrency || budgetCurrency !== projectCurrency))) {
     return (
-      <Card variant="bare" className="mb-4"><CardPad>{heading}
+      <Card className="mb-4"><CardPad>{heading}
         <UnavailableComparison reason={t('decisionSupport.currencyUnavailable', 'Budget comparison unavailable for these currencies.')} />
       </CardPad></Card>
     );
@@ -195,7 +214,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       ? computeBudgetSignal({ budget: budgetAmount, committed: committedSpend, reserved, totalValue: 0, status: 'Draft', projectCurrency, budgetCurrency, requestCurrency: projectCurrency })
       : computeBudgetSignal({ budget: budgetAmount, committed: committedSpend, reserved, totalValue, status, projectCurrency, budgetCurrency, requestCurrency: currency });
   } catch {
-    return <Card variant="bare" className="mb-4"><CardPad>{heading}
+    return <Card className="mb-4"><CardPad>{heading}
       <UnavailableComparison reason={t('decisionSupport.amountUnavailable', 'Budget comparison unavailable for these amounts.')} />
     </CardPad></Card>;
   }
@@ -210,37 +229,59 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   const roundedHeadroomPct = 100 - roundedUsedPct;
   const impactTone = usedAfterPct >= AT_RISK_THRESHOLD * 100 ? 'bg-destructive' : usedAfterPct >= 70 ? 'bg-warning' : 'bg-success';
 
+  const budgetUsedPct = projectBudgetUsedPercent(positions.data?.[scopedProjectId], projectCurrency);
+  const budgetUsedReadFailed = positions.isError && !(projectStatus && PIPELINE_STATUSES.includes(projectStatus));
+
+  // A long label wraps to two lines; every label reserves two and sits on the bottom so the figures line up across a row.
+  const tileLabel = (text: string) => <span className="flex min-h-[2lh] items-end">{text}</span>;
+  const uncommittedLabel = t('decisionSupport.uncommittedToPurchases', 'Not yet committed to purchases');
+  const uncommittedCaption = otherCurrencyCommitted
+    ? t('decisionSupport.otherCurrencyCommitments', { defaultValue: 'Not counting commitments in other currencies: {{amounts}}', amounts: otherCurrencyCommitted })
+    : t('decisionSupport.notCountingRecordedSpending', 'Not counting recorded spending');
   const tiles = [
     {
-      label: t('decisionSupport.thisProcurement', 'Procurement total'),
+      label: tileLabel(t('decisionSupport.thisProcurement', 'Procurement total')),
       value: formatCurrency(totalValue, currency),
       ...(requestInOtherCurrency ? { sub: t('decisionSupport.notCompared', 'In a different currency: not compared with the budget') } : {}),
     },
     {
-      label: 'Reserved',
+      label: tileLabel(t('decisionSupport.reserved', 'Reserved')),
       value: formatCurrency(otherReserved, budgetCurrency),
-      sub: otherCurrencyReserved ? t('decisionSupport.otherReservedCurrencies', { defaultValue: 'Approved, not yet ordered. Other currencies: {{amounts}}', amounts: otherCurrencyReserved }) : 'approved, not yet ordered',
+      sub: otherCurrencyReserved ? t('decisionSupport.otherReservedCurrencies', { defaultValue: 'Approved, not yet ordered. Other currencies: {{amounts}}', amounts: otherCurrencyReserved }) : t('decisionSupport.reservedSub', 'Approved, not yet ordered'),
     },
     {
-      // The budget less commitments and reservations, before actual spend: not a cash balance, so it is not called "Available".
-      label: t('decisionSupport.uncommitted', 'Not yet committed'),
+      // The budget less open orders and reservations, before recorded spending: what is still free for purchases, not a cash balance.
+      // 0373: committed spend in another currency is not subtracted (no conversion); say so rather than hide it.
+      label: captionInTooltip && !otherCurrencyCommitted
+        ? <span className="flex min-h-[2lh] items-end" title={uncommittedCaption}>{uncommittedLabel}<span className="sr-only">. {uncommittedCaption}</span></span>
+        : tileLabel(uncommittedLabel),
+      ...(captionInTooltip && !otherCurrencyCommitted ? {} : { sub: uncommittedCaption }),
       value: formatCurrency(available, budgetCurrency),
       tone: available < 0 ? ('neg' as const) : undefined,
-      // 0373: committed spend in another currency is not subtracted (no conversion); say so rather than hide it.
-      sub: otherCurrencyCommitted ? `Not counting commitments in other currencies: ${otherCurrencyCommitted}` : t('decisionSupport.actualsNotCounted', 'Actual spend not counted'),
     },
-    { label: 'Project budget', value: formatCurrency(budgetAmount, budgetCurrency) },
+    // The project's canonical Budget used, mirroring the project header: no figure there (a project still in the
+    // pipeline, or a reading that does not apply) means no tile here. Only a failed read shows a short unknown mark.
+    ...(budgetUsedPct !== null ? [{
+      label: tileLabel(t('decisionSupport.budgetUsed', 'Budget used')),
+      value: `${formatNumberExact(budgetUsedPct)}%`,
+      sub: t('decisionSupport.budgetUsedBasis', 'Recorded spending, before tax'),
+    }] : budgetUsedReadFailed ? [{
+      label: tileLabel(t('decisionSupport.budgetUsed', 'Budget used')),
+      value: '—',
+      exactValue: t('decisionSupport.budgetUsedUnknown', 'Budget used is unknown or unavailable.'),
+    }] : []),
+    { label: tileLabel(t('decisionSupport.projectBudget', 'Project budget')), value: formatCurrency(budgetAmount, budgetCurrency) },
     ...(requestInOtherCurrency ? [] : [{
-      label: t('decisionSupport.afterThisProcurement', 'After this procurement'),
+      label: tileLabel(t('decisionSupport.afterThisProcurement', 'After this procurement')),
       value: formatCurrency(afterRequest, currency),
       // Whole percent and its exact complement to used always total 100.
-      sub: t('decisionSupport.headroom', { defaultValue: '{{pct}}% headroom left', pct: roundedHeadroomPct }),
+      sub: t('decisionSupport.headroom', { defaultValue: '{{pct}}% headroom left', pct: formatNumberExact(roundedHeadroomPct) }),
       tone: afterRequest < 0 ? ('neg' as const) : undefined,
     }]),
   ];
 
   return (
-    <Card variant="bare" className="mb-4">
+    <Card className="mb-4">
       <CardPad>
         {heading}
 
@@ -251,7 +292,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         <div className="mb-4">
           <div
             role="progressbar"
-            aria-label={t('decisionSupport.barLabel', { defaultValue: 'Budget used after this procurement: {{pct}}% of {{budget}}', pct: Math.round(usedAfterPct), budget: formatCurrency(budgetAmount, budgetCurrency) })}
+            aria-label={t('decisionSupport.committedBarLabel', { defaultValue: 'Committed to purchases, with this one: {{pct}}% of {{budget}}', pct: Math.round(usedAfterPct), budget: formatCurrency(budgetAmount, budgetCurrency) })}
             aria-valuenow={Math.max(0, Math.min(100, Math.round(usedAfterPct)))}
             aria-valuemin={0}
             aria-valuemax={100}
@@ -261,11 +302,12 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             <span className={impactTone} style={{ width: `${thisPct}%` }} />
           </div>
           <p className="mt-1 text-control text-muted-foreground tabular">
-            {t('decisionSupport.barCaption', { defaultValue: 'Budget in use with this purchase: {{pct}}%', pct: Math.round(usedAfterPct) })}
+            {t('decisionSupport.committedBarCaption', { defaultValue: 'Committed to purchases, with this one: {{pct}}%', pct: formatNumberExact(Math.round(usedAfterPct)) })}
           </p>
         </div>
         {/* The strip's column queries resolve against the nearest ANCESTOR container, so give it one. */}
-        <div className="@container"><StatTiles tiles={tiles} columns={tiles.length >= 5 ? 5 : 4} variant="bare" /></div>
+        {/* Six tiles go 2 rows of 3: six abreast crowd to 3-4px gaps in Bahasa at 1440. */}
+        <div className="@container"><StatTiles tiles={tiles} columns={tiles.length >= 6 ? 3 : 5} variant="bare" /></div>
 
         {/* Over-available advisory — non-blocking. ErrBanner is role="status" (gentle,
             not an alert) and carries the dollar overage in text (WCAG SC 1.4.1, not

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import {
@@ -14,10 +14,13 @@ import type {
   BoqItemInput, BoqItemRow, ProgressAssessmentInput, ProgressClaimInput, ProgressClaimWithInvoice,
 } from '@/src/lib/db/progressBilling';
 import { useBoqItems, useProgressBillingMutations, useProjectBilling, useProjectClaims } from '@/src/hooks/useProgressBilling';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useProjectWorkOrderLines } from '@/src/hooks/useWorkOrderAcceptances';
 import { useDocuments } from '@/src/hooks/useDocuments';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
+import { ImportButton, ImportWizard } from '@/src/components/import';
+import { makeContractLineImportDescriptor } from '@/src/lib/import';
 import BoqItemFormModal from '../BoqItemFormModal';
 import MaterialAllowanceModal from '../MaterialAllowanceModal';
 import ProgressAssessmentModal from '../ProgressAssessmentModal';
@@ -38,7 +41,7 @@ import { useRevenueRouteReady } from '@/src/hooks/useOwnershipCacheSync';
  * Figures come from get_project_billing and are derived with the management pack's helpers (DD-PBL-9).
  * ⚑ Nothing ERP-bound or destructive writes on one click; the server is the authority on every rule.
  */
-interface BillingTabProps {
+export interface BillingTabProps {
   projectId: string;
   currency: string;
   /** The project's client — the invoice customer. No client, no billing buttons. */
@@ -47,13 +50,6 @@ interface BillingTabProps {
   projectManagerId: string | null;
   /** Keep contract line tools available while the contract cascade owns the reading surface. */
   mode?: 'full' | 'contract-tools';
-}
-
-/** `YYYY-MM` in the browser's zone. ponytail: only the dialog's default — the user can change it and the
- *  server truncates to the month; switch to the org timezone if month-end entries land in the wrong month. */
-function thisMonth(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
 /** A lump-sum line is one lot: its progress is a fraction (0.4) shown as a percent (40%). */
@@ -80,6 +76,9 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const may = usePermission();
   const { currentUser } = useAuth();
   const { realRole, effectiveRole } = useEffectiveRole();
+  // #2088: the progress dialog's default month is the ORGANIZATION's current month, not the
+  // viewer device's — a month-end entry at 03:00 on the 1st (UTC+7) belongs to the new month.
+  const orgToday = useOrgToday();
   const { toast } = useToast();
   const erp = useErpItemOptions('sales');
   const revenueMode = useRevenueMode();
@@ -104,12 +103,34 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const [claimFormOpen, setClaimFormOpen] = useState(false);
   const [assessOpen, setAssessOpen] = useState(false);
   const [contractLinesOpen, setContractLinesOpen] = useState(false);
+  // One overlay at a time (#1278 round B): the import wizard needs the width of a dialog, so opening it from the
+  // lines drawer closes the drawer first and reopens it, focus back on "Import lines", when the wizard closes.
+  // The wizard is hosted here, not in the button, because the button unmounts with the drawer.
+  const [importOpen, setImportOpen] = useState(false);
+  const reopenLinesAfterImport = useRef(false);
+  const focusImportOnReopen = useRef(false);
+  const importTriggerRef = useRef<HTMLButtonElement>(null);
+  const openImport = useCallback(() => {
+    reopenLinesAfterImport.current = contractLinesOpen;
+    setContractLinesOpen(false);
+    setImportOpen(true);
+  }, [contractLinesOpen]);
+  const closeImport = (didImport: boolean) => {
+    setImportOpen(false);
+    if (didImport) { void boq.refetch(); void billing.refetch(); }
+    if (reopenLinesAfterImport.current) {
+      reopenLinesAfterImport.current = false;
+      focusImportOnReopen.current = true;
+      setContractLinesOpen(true);
+    }
+  };
   const [evidenceFor, setEvidenceFor] = useState<string | null>(null);
   // The idempotency key is minted when the confirm opens, so a retry of the same confirm reuses it (ADR-0058).
   const [raiseFor, setRaiseFor] = useState<{ claim: ProgressClaimWithInvoice; idempotencyKey: string } | null>(null);
   const [withdrawFor, setWithdrawFor] = useState<ProgressClaimWithInvoice | null>(null);
 
   const boqRows = useMemo(() => boq.data ?? [], [boq.data]);
+  const boqImportDescriptor = useMemo(() => makeContractLineImportDescriptor(projectId, t, currency), [projectId, t, currency]);
   const claimRows = useMemo(() => claims.data ?? [], [claims.data]);
   const canViewMoney = may('view', 'salesInvoice');
   const openRecordId = searchParams.get('open');
@@ -253,18 +274,22 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const lineProject = Boolean(summary && summary.contractLines.length > 0);
 
   const boqColumns: Column<BoqItemRow>[] = [
-    { key: 'item', header: t('projectDetail.billing.boq.column.item', 'Item'), cell: (row) => (
+    // Round B (#1278): explicit widths for the three columns the lines drawer shows before it scrolls, so Contract
+    // and Rate are never squeezed and a quantity with its unit stays on one line.
+    { key: 'item', header: t('projectDetail.billing.boq.column.item', 'Item'), size: 176, cell: (row) => (
       <div className="flex flex-col">
         <span className="font-semibold">{row.item_code}</span>
         <span className="text-sm text-muted-foreground">{row.description}</span>
       </div>
     ) },
-    { key: 'quantity', header: t('projectDetail.billing.boq.column.quantity', 'Contract'), align: 'num',
-      cell: (row) => <Tooltip content={t('projectDetail.billing.boq.source.contract', 'Source: priced contract line quantity and unit.')}><span className="cursor-help tabular">{row.earning_basis === 'lump_sum'
+    { key: 'quantity', header: t('projectDetail.billing.boq.column.quantity', 'Contract'), align: 'num', size: 120,
+      cell: (row) => <Tooltip content={t('projectDetail.billing.boq.source.contract', 'Source: priced contract line quantity and unit.')}><span className="cursor-help whitespace-nowrap tabular">{row.earning_basis === 'lump_sum'
         ? t('projectTabs:contractQuantities.billing.boq.lumpSum', 'Lump sum')
         : `${formatNumberExact(Number(row.quantity))} ${row.unit}`}</span></Tooltip> },
-    ...(canViewMoney ? [{ key: 'rate', header: t('projectDetail.billing.boq.column.rate', 'Rate'), align: 'num' as const,
-      cell: (row: BoqItemRow) => <Tooltip content={t('projectDetail.billing.boq.rateSource', 'Source: the priced contract line rate.') }><span className="cursor-help tabular">{cents(row.rate)}</span></Tooltip> }] : []),
+    ...(canViewMoney ? [{ key: 'rate', header: t('projectDetail.billing.boq.column.rateWithCurrency', 'Rate ({{code}})', { code: currency }), align: 'num' as const, size: 176,
+      // Round A items 1+7 (#1278): a unit rate shows its EXACT value (2.5 stays 2.5, a whole rate stays whole) —
+      // never rounded to the currency's display decimals — and carries no currency symbol: the header names it once.
+      cell: (row: BoqItemRow) => <Tooltip content={t('projectDetail.billing.boq.rateSource', 'Source: the priced contract line rate.') }><span className="cursor-help tabular">{formatNumberExact(Number(row.rate))}</span></Tooltip> }] : []),
     ...(hasLines ? [
       { key: 'ordered', header: t('projectTabs:contractQuantities.billing.boq.column.ordered', 'Ordered'), align: 'num' as const, cell: (row: BoqItemRow) => {
         const f = lineFactsById.get(row.id);
@@ -401,27 +426,23 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     && !claims.isPending && !claims.isError && claimRows.length === 0;
   const evidenceClaim = claimRows.find((c) => c.id === evidenceFor);
 
-  const boqCard = (
-    <Card>
-      <CardHead
-        level={2}
-        className="text-base"
-        actions={
-          <>
-            {mode === 'full' && canAssess && boqRows.length > 0 && (
-              <Button variant="outline" size="sm" onClick={() => setAssessOpen(true)}>
-                {t('projectDetail.billing.assessment.record', 'Record progress')}
-              </Button>
-            )}
-            {may('create', 'boqItem') && (
-              <Button variant="primary" size="sm" onClick={() => setBoqFormFor(null)}>{t('projectDetail.billing.boq.add', 'Add line')}</Button>
-            )}
-          </>
-        }
-      >
-        {t('projectDetail.billing.boq.title', 'Bill of quantities')}
-      </CardHead>
-      <CardPad flush>
+  const boqActions = (
+    <>
+      {mode === 'full' && canAssess && boqRows.length > 0 && (
+        <Button variant="outline" size="sm" onClick={() => setAssessOpen(true)}>
+          {t('projectDetail.billing.assessment.record', 'Record progress')}
+        </Button>
+      )}
+      {/* #1278: ImportButton is itself gated on can('create','boqItem'); RLS stays the authority. */}
+      <ImportButton entity="boqItem" descriptor={boqImportDescriptor} label={t('projectDetail.billing.boq.import', 'Import lines')}
+        onOpen={openImport} triggerRef={importTriggerRef} />
+      {may('create', 'boqItem') && (
+        <Button variant="primary" size="sm" onClick={() => setBoqFormFor(null)}>{t('projectDetail.billing.boq.add', 'Add line')}</Button>
+      )}
+    </>
+  );
+
+  const boqTable = (
         <DataTable<BoqItemRow>
           embedded
           rows={boqRows}
@@ -440,8 +461,24 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
             ...(may('delete', 'boqItem') ? [{ label: t('projectDetail.billing.boq.delete', 'Delete'), danger: true, onClick: () => setDeleteFor(row) }] : []),
           ]}
         tableId="project-detail-tabs-billingtab-1-table" />
-      </CardPad>
+  );
+
+  const boqCard = (
+    <Card>
+      <CardHead level={2} className="text-base" actions={boqActions}>
+        {t('projectDetail.billing.boq.title', 'Bill of quantities')}
+      </CardHead>
+      <CardPad flush>{boqTable}</CardPad>
     </Card>
+  );
+
+  // In the drawer the drawer's own title already says "Bill of quantities": no second heading, so the actions sit
+  // on one row above the table instead of squeezing the title into two lines.
+  const boqDrawerBody = (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-end gap-1.5">{boqActions}</div>
+      <Card><CardPad flush>{boqTable}</CardPad></Card>
+    </div>
   );
 
   const boqDetailDrawer = boqDetailFor && (() => {
@@ -456,7 +493,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       </div>}>
       <dl className="grid grid-cols-2 gap-4 p-4 text-sm">
         <SourcedFigure label={t('projectDetail.billing.boq.column.quantity', 'Contract')} value={quantityText(item, Number(item.quantity))} detail={t('projectDetail.billing.boq.source.contract', 'Source: priced contract line quantity and unit.')} />
-        {canViewMoney && <SourcedFigure label={t('projectDetail.billing.boq.column.rate', 'Rate')} value={cents(item.rate)} detail={t('projectDetail.billing.boq.rateSource', 'Source: the priced contract line rate.')} />}
+        {canViewMoney && <SourcedFigure label={t('projectDetail.billing.boq.column.rateWithCurrency', 'Rate ({{code}})', { code: currency })} value={formatNumberExact(Number(item.rate))} detail={t('projectDetail.billing.boq.rateSource', 'Source: the priced contract line rate.')} />}
         {fact && <>
           <SourcedFigure label={t('projectTabs:contractQuantities.billing.boq.column.ordered', 'Ordered')} value={quantityText(item, fact.orderedQuantity)} detail={t('projectDetail.billing.boq.source.ordered', 'Source: quantities allocated to customer orders.')} />
           <SourcedFigure label={t('projectDetail.cascade.colLeftToOrder', 'Left to order')} value={quantityText(item, fact.contractBalance)} detail={t('projectDetail.billing.boq.source.balance', 'Computed as contract quantity less ordered quantity.')} />
@@ -628,10 +665,16 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         </div>
         {timeAndMaterials}
         {raiseInvoiceDialog}
-        <Drawer open={contractLinesOpen} nestedOpen={Boolean(boqDetailFor)} title={t('projectDetail.billing.boq.title', 'Bill of quantities')}
+        <Drawer open={contractLinesOpen} nestedOpen={Boolean(boqDetailFor)} width="lg" title={t('projectDetail.billing.boq.title', 'Bill of quantities')}
+          initialFocus={() => {
+            if (!focusImportOnReopen.current) return true;
+            focusImportOnReopen.current = false;
+            return importTriggerRef.current ?? true;
+          }}
           onClose={() => setContractLinesOpen(false)}>
-          <div className="p-4">{boqCard}</div>
+          {boqDrawerBody}
         </Drawer>
+        {importOpen && <ImportWizard descriptor={boqImportDescriptor} onClose={closeImport} />}
         {boqDetailDrawer}
         {claimDetailDrawer}
         {allowanceFor && <MaterialAllowanceModal projectId={projectId} workItem={allowanceFor} onClose={() => setAllowanceFor(null)} />}
@@ -640,7 +683,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
             onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail} />
         )}
         {assessOpen && (
-          <ProgressAssessmentModal boqItems={boqRows} assessedByBoqItem={summary?.assessedByBoqItem ?? {}} defaultMonth={thisMonth()}
+          <ProgressAssessmentModal boqItems={boqRows} assessedByBoqItem={summary?.assessedByBoqItem ?? {}} defaultMonth={orgToday.slice(0, 7)}
             onClose={() => setAssessOpen(false)} onSave={saveAssessment} onError={fail} />
         )}
         {deleteFor && (
@@ -744,6 +787,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
 
       {timeAndMaterials}
 
+      {importOpen && <ImportWizard descriptor={boqImportDescriptor} onClose={closeImport} />}
       {allowanceFor && <MaterialAllowanceModal projectId={projectId} workItem={allowanceFor} onClose={() => setAllowanceFor(null)} />}
       {boqFormFor !== undefined && (
         <BoqItemFormModal item={boqFormFor} currencySymbolPrefix={currencySymbol(currency)}
@@ -752,7 +796,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       {boqDetailDrawer}
       {claimDetailDrawer}
       {assessOpen && (
-        <ProgressAssessmentModal boqItems={boqRows} assessedByBoqItem={summary?.assessedByBoqItem ?? {}} defaultMonth={thisMonth()}
+        <ProgressAssessmentModal boqItems={boqRows} assessedByBoqItem={summary?.assessedByBoqItem ?? {}} defaultMonth={orgToday.slice(0, 7)}
           onClose={() => setAssessOpen(false)} onSave={saveAssessment} onError={fail} />
       )}
       {claimFormOpen && (

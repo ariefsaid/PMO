@@ -1,4 +1,3 @@
-import { applyErpContactFeed } from '../_shared/erpnextContacts.ts';
 export { resolveInvoiceProject, resolveInvoiceProjects } from '../_shared/projectInvoiceAttribution.ts';
 /**
  * erpnext-sweep — Deno Edge Function entry point (task 8.6, AC-ENA-045/071, ADR-0055 §3 + ADR-0058 §Consequences).
@@ -61,33 +60,26 @@ export { resolveInvoiceProject, resolveInvoiceProjects } from '../_shared/projec
  * `sweepOrgDoctypesLive` wiring itself is proven in companyScopedSweep/sweepWedge.test.ts. The
  * remaining Deno.serve wrapper is
  * INTEGRATION-ONLY — verified by `deno check` + the boot-smoke.
+ *
+ * Module map (THEME-BACK-40, #1643): this file keeps the handler, the per-org cycle, the outbox recovery
+ * pass and the statement / ledger / purchase / accounting feeds, and wires the passes that live beside it —
+ * `doctypePoll.ts` (2), `linkRepair.ts` (the receipt and invoice-project repairs), `budgetBackstopLive.ts` (5),
+ * `timesheetBackstopLive.ts` (6), `expensePostingBackstopLive.ts` (7), `imprestPostingBackstopLive.ts` (7b), over the
+ * shared layers `moneyWriteLive.ts` (every pass's DispatchMoneyWriteDeps), `budgetOutboxFacts.ts`,
+ * `sweepShared.ts`, `outboxRows.ts` and `sweepCadence.ts`. The modules never import this file; it
+ * re-exports their names so existing importers keep resolving.
  */
 
 // Deno-native imports (not in pmo-portal/package.json)
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts';
-import { runSweep } from '../../../pmo-portal/src/lib/adapterSeam/applyEngine.ts';
-import { listErpChangesSinceWatermark } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/sweepCursor.ts';
-import { applyErpFeedEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/applyFeed.ts';
-// HIGH-A: which per-change apply failure is a terminal ack-and-skip vs. a halt (see feedErrorPolicy.ts).
-import { erpFeedApplyErrorPolicy } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedErrorPolicy.ts';
-import { createErpFeedDeps, ERPNEXT_TIER, surfaceActionRequired } from '../_shared/erpnextFeedDeps.ts';
-import { buildAllocationDetails, salesInvoiceLookup } from '../_shared/receiptAllocations.ts';
-import { resolveInvoiceProjects } from '../_shared/projectInvoiceAttribution.ts';
-import { DOCTYPE_REGISTRY, reissueOnInconclusiveAbsence, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
-import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
+import { ERPNEXT_TIER, surfaceActionRequired } from '../_shared/erpnextFeedDeps.ts';
 // Luna BLOCK 6: each body module declares the list-endpoint fields ITS `fromDoc` reads, next to the
 // mapper — the poll is built from those so the two cannot drift apart.
-import { allocationsOf } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/incomingPayment.ts';
-import { featureKeyForKind, KIND_DOMAIN, sweepKindsForOrg } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
+import { sweepKindsForOrg } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
 import { sweepFieldsForKind, KINDS_NEEDING_FULL_DOC, PAYMENT_TYPE_BY_KIND, pollFiltersForKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/pollSpec.ts';
-import { buildImprestPostingCommand, parseImprestGateTruth } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/imprestPostingCommand.ts';
-import { memoiseImprestResolveReads, resolveImprestPosting, type ImprestResolveDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/imprestPostingResolve.ts';
-import { imprestTransferKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/imprestTransferKey.ts';
-import { IMPREST_TRANSFER_KEY_RE } from '../../../pmo-portal/src/lib/adapterSeam/imprestTransfer.ts';
 import { advanceConnectRuns } from './connectRun.ts';
 import { drainConnectSends } from './connectSends.ts';
-import { reconcileOrgImprestPostings, type ImprestBackstopDeps, type ImprestIntentRow } from './imprestPostingBackstop.ts';
 import { feedLedgerMirrors } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/ledgerMirrorFeed.ts';
 import { feedPurchaseMirror, type PurchaseFeedServiceClient } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/purchaseMirrorFeed.ts';
 import { fetchStatementAccounts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountFetch.ts';
@@ -106,201 +98,49 @@ export const STATEMENT_SOURCE_READ_REQUEST_TIMEOUT_MS = 5_000;
 export const STATEMENT_SOURCE_READ_STAGE_TIMEOUT_MS = 7_000;
 import { feedAccountMirror } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountMirrorFeed.ts';
 import { refreshAccountingSnapshots, type OrgAccountingScope } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountingFanout.ts';
-import { dispatchMoneyWrite as dispatchMoneyWriteCore, type DispatchMoneyWriteDeps, type ExternalRefMapping, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
-import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
-import { erpnextRequest, ErpError, getDoc, withProbeBudget, ERP_PROBE_TIMEOUT_MS, type ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
-import { AdapterError } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
-import { readJsonBounded, fetchWithDeadline, FetchDeadlineError } from '../_shared/fetchWithDeadline.ts';
-import { recordErrorEvent, type ErrorEventSupabaseLike } from '../_shared/errorEvent.ts';
-import {
-  lookupConfirmedErpEmployee,
-  readBudgetLineItems,
-  readCategoryAccountMap,
-  resolveErpDispatchAdapter,
-  withPaymentTypeDiscriminator,
-} from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
-// FR-BFY-075: the sweep re-runs the SAME gate the foreground dispatch runs, never a second copy.
-import {
-  runBudgetGate,
-  type BudgetGateProjectRow,
-  type BudgetGateResult,
-  type BudgetVersionGateRow,
-  type FiscalYearRow,
-} from '../../../pmo-portal/src/lib/budget/budgetGate.ts';
-import { guardedErpFetch, isPermittedErpSiteUrl } from '../_shared/erpHostGuard.ts';
-import { resolveErpAuthPair, createErpAuthPairCache, type ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
-import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
-import { checkErpnextCommandAuthorization, checkOutboxReplayAuthorization, replayMayIssueErpWrite } from '../adapter-dispatch/authGuard.ts';
-import { assertNotPreCutover, PRE_CUTOVER_CODE } from '../../../pmo-portal/src/lib/adapterSeam/cutoverGate.ts';
-import { checkQueuedProcurementCreate } from '../adapter-dispatch/procurementGateGuard.ts';
-import { getReadModelWriter } from '../adapter-dispatch/readModelWriters.ts';
-import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
-import { erpDatetime, probeErpByAnchorKey, probeErpByPaymentComposite, probeCapturedPayment, withholdingMatchFromPayload, type ErpProbeDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
-import { ERPNEXT_COMPANIES_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
-import { admitsDocForBindingCompany } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/companyScope.ts';
+import type { DispatchMoneyWriteDeps, OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
+import { getDoc, withProbeBudget, type ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
+import { createErpAuthPairCache, type ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 // BLOCK 1 / B5: the pull-adopt barrier now lives in `_shared/` so the WEBHOOK adopt path raises the
 // IDENTICAL guard (round-9 FIX 1). Re-exported below so this module's existing test imports still resolve.
 import { createInFlightAnchorProbe, type InFlightAnchorProbe } from '../_shared/inFlightAnchorProbe.ts';
-import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
-import { findOutboxRowByKey, outboxRowOf } from './outboxRows.ts';
 import {
-  type ErpSweepCadence, fullSweepDue, HOURLY_INVOCATION_DEADLINE_MS, SWEEP_BACKFILL_EVERY_MINUTES, SWEEP_FULL_INTERVAL_MS,
+  type ErpSweepCadence, fullSweepDue, HOURLY_INVOCATION_DEADLINE_MS, HOURLY_TRY_DEADLINE_MS, SWEEP_INVOCATION_DEADLINE_MS, SWEEP_BACKFILL_EVERY_MINUTES, SWEEP_FULL_INTERVAL_MS,
   SWEEP_RETRY_DELAY_SECONDS, statementPassDue, STATEMENT_PASS_INTERVAL_MS, STATEMENT_PASS_RETRY_DELAY_SECONDS, sweepCadenceAt,
+  sweepRetryDelaySeconds, sweepTurn,
 } from './sweepCadence.ts';
 export {
   type ErpSweepCadence, fullSweepDue, SWEEP_BACKFILL_EVERY_MINUTES, SWEEP_FULL_INTERVAL_MS, SWEEP_RETRY_DELAY_SECONDS,
   statementPassDue, STATEMENT_PASS_INTERVAL_MS, STATEMENT_PASS_RETRY_DELAY_SECONDS, sweepCadenceAt,
 };
-// P3c slice 5 (FR-BUD-141, AC-BUD-023) — the budget push's sweep backstop, pure orchestration.
-import {
-  reconcileOrgBudgetPushes,
-  type BudgetBackstopDeps,
-  type BudgetMirrorCandidateRow,
-  type BudgetBackstopVersionRow,
-} from './budgetBackstop.ts';
-import {
-  reconcileOrgBudgetArchiveCancellations,
-  type BudgetArchiveBackstopDeps,
-  type BudgetArchiveCancelIntent,
-} from './budgetArchiveBackstop.ts';
-// ⚑ rm-1472 — the parked-unit resume. `buildBudgetDispatchPlan` is the SAME gate wiring the
-// foreground activation uses, so a resumed unit is derived, keyed and authorized exactly as the
-// activation would have derived it (no second push path, no second key derivation).
-import {
-  BUDGET_ARCHIVE_CANCEL_WAIT,
-  budgetArchiveCancelState,
-  buildBudgetDispatchPlan,
-  recordBudgetPushFailure,
-} from '../adapter-dispatch/budgetDispatch.ts';
-import { commandForBudgetUnit } from '../adapter-dispatch/commandUnit.ts';
-import { checkCreateTargetUnmapped } from '../adapter-dispatch/transitionTargetGuard.ts';
-import { resolveErpBindingRow } from '../adapter-dispatch/dispatchAdapters.ts';
-import { budgetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetPushKey.ts';
-import { budgetVersionIdOf, decodeFiscalYear, encodeFiscalYear } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
-import { budgetAccountArchiveKey, budgetAccountIdentity, budgetAccountPushKey, budgetLegacyArchiveKey, budgetLegacyIdentity, budgetRangeIdentity, parseBudgetIdentity } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
-import { resolveV16BudgetAccounts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountPlan.ts';
-import { parseExactCents } from '../../../pmo-portal/src/lib/exactDecimal.ts';
 
-/** FR-BFY-075 — the named state a sweep budget recovery takes when the CURRENT gate would refuse the
- *  frozen year/body. Surfaced per candidate; the row itself is left untouched (no POST, no state
- *  change), so the recovery resumes by itself once the operator resolves the cause. */
-const BUDGET_SWEEP_GATE_HELD = 'budget-sweep-gate-held';
-
-/** The bare `budget_version_id` of an outbox identity — the mirror FK / version-read fact (FR-BFY-038).
- *  A pre-fan-out bare id is returned unchanged. */
-function bareBudgetVersionId(pmoRecordId: string): string {
-  return pmoRecordId.includes(':') ? budgetVersionIdOf(pmoRecordId) : pmoRecordId;
-}
-
-/** The fiscal year a year-qualified outbox identity NAMES, or `null` for a pre-fan-out bare id. It is
- *  read out of the identity, never derived: the identity is what the dispatch itself resolved. */
-function fiscalYearOfIdentity(pmoRecordId: string): string | null {
-  const sep = pmoRecordId.indexOf(':');
-  if (sep < 0) return null;
-  try {
-    return parseBudgetIdentity(pmoRecordId).fiscalYear ?? (decodeFiscalYear(pmoRecordId.slice(sep + 1)) || null);
-  } catch {
-    return null;
-  }
-}
-
-function toFiscalYearOfIdentity(pmoRecordId: string): string | null {
-  try {
-    const identity = parseBudgetIdentity(pmoRecordId);
-    return identity.kind === 'range' ? identity.toFiscalYear : null;
-  } catch { return null; }
-}
-
-function accountOfIdentity(pmoRecordId: string): string | null {
-  try { return parseBudgetIdentity(pmoRecordId).erpAccount; } catch { return null; }
-}
-
-/** ⚑ BLOCKER 3 (FU-2) — the orphan dedup key. The budget mirror grain is (budget_version_id ×
- *  fiscal_year), so an outbox orphan is a duplicate of a mirror row ONLY when BOTH match. A NUL (\u0000)
- *  delimiter — which neither a UUID nor an ERPNext Fiscal Year name can contain — keeps the
- *  composite unambiguous. */
-function budgetDedupKey(versionId: string, fiscalYear: string | null | undefined, account?: string | null, toFiscalYear?: string | null): string {
-  return `${versionId}\u0000${fiscalYear ?? ''}\u0000${toFiscalYear ?? ''}\u0000${account ?? ''}`;
-}
 import { ERPNEXT_BUDGET_DOMAIN, ERPNEXT_EXPENSES_DOMAIN, ERPNEXT_TIMESHEETS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
-// #775 phase B (ADR-0081) — the expense posting pass (7), the only originator of expense postings.
-import { buildExpensePostingCommand, parseExpenseGateTruth } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingCommand.ts';
-import { memoiseExpenseResolveReads, resolveExpensePosting, type ExpenseResolveDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingResolve.ts';
-import { EXPENSE_POSTING_KEY_PREFIX, expenseOutboxIdentity, expensePostingIdentity, expensePostingKey, type ExpensePosting } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingKey.ts';
-import type { ErpAccountFacts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expenseAccountRules.ts';
-import { reconcileOrgExpensePostings, backstopPassResult, type ExpenseBackstopDeps, type ExpenseIntentRow, type ExpenseOutcome } from './expensePostingBackstop.ts';
-// P3b task 6.4 (FR-TSP-045, AC-TSP-022) — the timesheet push's sweep backstop, pure orchestration.
-import {
-  reconcileOrgTimesheetPushes,
-  type TimesheetBackstopDeps,
-  type TimesheetMirrorCandidateRow,
-  type TimesheetPushSubject,
-} from './timesheetBackstop.ts';
-// ⚑ The ONE derivation of the timesheet key, IMPORTED — never re-implemented here. Two originators with
-// drifted keys means the outbox 4-tuple does not collide and the client is billed a DUPLICATED WEEK of
-// hours. (This is why the key was moved out of `repositories/index.ts`, which no edge fn can load.)
-import { timesheetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/timesheetPushKey.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 import { withJobRun, type JobSummary } from '../_shared/jobRun.ts';
+// The passes extracted beside this file (#1643), and the names this file re-exports from them.
+import { type ListOutboxCandidates, DOMAIN_FEATURE_KEY, featureDisabled, type OrgBinding, erpClientForBinding, listCandidatesLive, moneyRowsStopped, sweepTryFits, type SweepBudget } from './sweepShared.ts';
+import { repairInvoiceProjectsLive, repairOrgLinksLive } from './linkRepair.ts';
+import { SWEEP_TICK_MAX_DOCS, SWEEP_TICK_TIME_BUDGET_MS, SWEEP_TICK_MAX_DOCS_ENV, SWEEP_TICK_TIME_BUDGET_MS_ENV, sweepOrgDoctypesLive } from './doctypePoll.ts';
+import { buildReconcileDepsLive, dispatchMoneyWrite } from './moneyWriteLive.ts';
+import { PRE_CUTOVER_CODE } from '../../../pmo-portal/src/lib/adapterSeam/cutoverGate.ts';
+import { reconcileOrgBudgetPushesLive } from './budgetBackstopLive.ts';
+import { reconcileOrgTimesheetPushesLive } from './timesheetBackstopLive.ts';
+import { reconcileOrgExpensePostingsLive } from './expensePostingBackstopLive.ts';
+import { reconcileOrgImprestPostingsLive } from './imprestPostingBackstopLive.ts';
+export { imprestResolveDepsLive, imprestPostingBackstopDepsLive } from './imprestPostingBackstopLive.ts';
+export { expenseResolveDepsLive, expensePostingBackstopDepsLive } from './expensePostingBackstopLive.ts';
+export { absentQueueBudget, timesheetBackstopDepsLive } from './timesheetBackstopLive.ts';
+export { BUDGET_ARCHIVE_CANCEL_HELD, BUDGET_ARCHIVE_RESUME_ACTOR_UNAUTHORIZED, type BudgetArchiveWaitResumeOutcome, BUDGET_ARCHIVE_CANCEL_SUPERSEDED, budgetArchiveWaitResumeLive, budgetBackstopDepsLive } from './budgetBackstopLive.ts';
+export { buildOutboxProbe, buildReconcileDepsLive, moneyWriteReplayOptions, moneyWriteReadModelContext, dispatchMoneyWrite, buildMoneyWriteDepsLive, readErpFiscalYearsLive } from './moneyWriteLive.ts';
+export { inFlightAnchorFilter, sweepWatermarkDomain, SWEEP_LIST_MAX_PAGES, SWEEP_TICK_MAX_DOCS, SWEEP_TICK_TIME_BUDGET_MS, orderedSweepKindsForOrg, SWEEP_TICK_MAX_DOCS_ENV, SWEEP_TICK_TIME_BUDGET_MS_ENV, type SweepTickBudgetOpts, sweepOrgDoctypesLive } from './doctypePoll.ts';
+export { type RepairUnlinkedReceiptsDeps, repairUnlinkedReceipts, repairInvoiceProjectsLive, listReceiptRepairCandidates, resolveReceiptSalesInvoice, repairOrgLinksLive } from './linkRepair.ts';
+export { type ListOutboxCandidates, DOMAIN_FEATURE_KEY, featureDisabled } from './sweepShared.ts';
 
 export { createInFlightAnchorProbe, type InFlightAnchorProbe };
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
-
-function sweepErrorCode(error: unknown): string {
-  if (error instanceof ErpError && Number.isInteger(error.status) && error.status >= 100 && error.status <= 599) {
-    return `erp-http-${error.status}`;
-  }
-  if (error instanceof FetchDeadlineError || (error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name))) {
-    return 'erp-timeout';
-  }
-  if (error instanceof AdapterError && error.code === 'external-unreachable') return 'erp-unreachable';
-  if (error instanceof Error) return 'apply-failed';
-  return 'unknown';
-}
-
-const SWEEP_ERROR_EVENT_TIMEOUT_MS = 2_000;
-
-async function recordSweepErrorEvent(supabase: ErrorEventSupabaseLike, event: Parameters<typeof recordErrorEvent>[1]): Promise<void> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    await Promise.race([
-      recordErrorEvent(supabase, event),
-      new Promise<void>((resolve) => { timer = setTimeout(resolve, SWEEP_ERROR_EVENT_TIMEOUT_MS); }),
-    ]);
-  } catch {
-    // Best effort by design: reporting a failed doctype must not stall its siblings.
-  } finally {
-    if (timer !== undefined) clearTimeout(timer);
-  }
-}
-
-
-/**
- * The `filterRow` predicate for one kind: skips any document the in-flight probe claims.
- *
- * Returns `undefined` only when there is nothing to apply (an anchor-less kind with no base filter), so
- * the poll keeps its exact pre-existing shape. The caller's own `filterRow` (the BLOCK A1 `payment_type`
- * discriminator) is preserved and evaluated FIRST — a row it already rejects costs no outbox read.
- */
-export function inFlightAnchorFilter(
-  kind: ErpDocKind,
-  probe: InFlightAnchorProbe,
-  baseFilter?: (row: Record<string, unknown>) => boolean,
-): ((row: Record<string, unknown>) => Promise<boolean>) | undefined {
-  const anchorField = DOCTYPE_REGISTRY[kind].anchorField;
-  // deno-lint-ignore require-await -- preserve async rejection semantics for a synchronous baseFilter.
-  if (!anchorField) return baseFilter ? async (row) => baseFilter(row) : undefined;
-  return async (row: Record<string, unknown>): Promise<boolean> => {
-    if (baseFilter && !baseFilter(row)) return false;
-    const anchor = row[anchorField];
-    if (typeof anchor !== 'string' || anchor === '') return true;
-    return !(await probe(anchor));
-  };
-}
-
 
 // #656: the domain→doctype poll rule (Luna BLOCK 9) lives in `erpnext/feedKinds.ts` — ONE copy, shared
 // with the activation read-permission probe (`external-set-company`). Re-exported for existing importers.
@@ -310,93 +150,10 @@ export { sweepKindsForOrg };
 export { sweepFieldsForKind, KINDS_NEEDING_FULL_DOC, PAYMENT_TYPE_BY_KIND, pollFiltersForKind };
 
 
-/**
- * The poll watermark key (FR-ENA-080: org × doctype), stored in `external_sync_watermarks.domain`. Unchanged
- * `<domain>::<doctype>` for every kind that is alone on its (domain, doctype) — so no shipped cursor resets — and
- * qualified with the kind when two kinds share BOTH (#775 phase B: `expense-payment` and `expense-receipt` are one
- * domain on one doctype; one shared cursor would let the first kind's poll advance past the second's changes).
- * Exported for direct unit testing (AC-EXP-122).
- */
-export function sweepWatermarkDomain(kind: ErpDocKind): string {
-  const doctype = DOCTYPE_REGISTRY[kind].doctype;
-  const domain = KIND_DOMAIN[kind];
-  // `expense-journal` shipped alone on its (domain, doctype); a kind added later (`imprest-transfer`) is the one that gets
-  // qualified, so the shipped cursor is not reset.
-  const shared = kind !== 'expense-journal' && (Object.keys(DOCTYPE_REGISTRY) as ErpDocKind[])
-    .some((other) => other !== kind && KIND_DOMAIN[other] === domain && DOCTYPE_REGISTRY[other].doctype === doctype);
-  return shared ? `${domain}::${doctype}::${kind}` : `${domain}::${doctype}`;
-}
-
-/**
- * Luna round-5 BLOCK 4 — the sweep's outbox-recovery probe (`DispatchMoneyOutboxDeps.probeByRemarksKey`).
- *
- * Extracted from `buildReconcileDepsLive` so the discriminator guard is directly unit-provable
- * (`outboxProbeDiscriminator.test.ts`) rather than reachable only through a live Supabase + ERP wiring.
- *
- * Three shapes, one per anchor policy (ADR-0058 §3):
- *  - NO anchor field  ⇒ no probe at all (the kind has no recovery anchor; R3 adoption is forgone).
- *  - IMMUTABLE anchor (Purchase Invoice / Purchase Receipt `remarks`) ⇒ the plain anchor `like` probe.
- *  - MUTABLE anchor (Payment Entry `reference_no`) ⇒ the C-1 composite deterministic probe when this
- *    row's persisted payload carries its inputs, ELSE the anchor probe — and THAT fallback is the
- *    BLOCK-4 hole: `payment` (Pay) and `incoming-payment` (Receive) share the one `Payment Entry`
- *    doctype, so a bare anchor `like` could adopt a document of the WRONG direction whenever the two
- *    share a `reference_no` (an outgoing supplier payment mirrored as an incoming customer receipt —
- *    and a later `cancelPayment` then cancels the wrong, real, outgoing payment).
- *    `withPaymentTypeDiscriminator` (dispatchFactory.ts — the SAME guard the synchronous dispatch
- *    fallback uses, imported rather than re-implemented) conjoins the server-side `payment_type` filter
- *    AND the post-fetch validator, so a doc that does not STATE its direction is refused, not adopted.
- *    It is a no-op for every non-Payment-Entry kind (byte-for-byte).
- */
-export function buildOutboxProbe(args: {
-  probeDeps: ErpProbeDeps;
-  /** The command's `erp_doc_kind` — the AUTHORITATIVE direction source for a Payment Entry. */
-  kind: string;
-  anchorField: string | null;
-  anchorMutable: boolean;
-  /** The outbox row's persisted `payload` (the composite probe's inputs, ADR-0058 C-1). */
-  payload: Record<string, unknown>;
-}): (domain: string, idempotencyKey: string) => Promise<{ externalRecordId: string; canonical?: PmoRecord } | null> {
-  const { kind, anchorField, anchorMutable, payload } = args;
-  const probeDeps = { ...args.probeDeps, requireSubmitted: Boolean(payload.capturedInvoiceDocumentId) };
-  // BLOCK 4: the discriminated deps are what EVERY anchor-probe path in here uses.
-  const anchorProbeDeps = withPaymentTypeDiscriminator(probeDeps, kind);
-  if (!anchorField) return () => Promise.resolve(null);
-  if (!anchorMutable) return (_domain, idempotencyKey) => probeErpByAnchorKey(anchorProbeDeps, idempotencyKey);
-  // deno-lint-ignore require-await -- preserve async rejection semantics for malformed persisted payloads.
-  return async (_domain, idempotencyKey) => {
-    // The direction comes from the KIND (what PMO commanded), falling back to the persisted payload
-    // only for a kind that is not one of the two Payment Entry kinds — never a bare 'Pay' default,
-    // which would probe the wrong direction for a Receive row whose payload omitted `payment_type`.
-    if (payload.capturedInvoiceDocumentId) return probeCapturedPayment(probeDeps, idempotencyKey, payload);
-    const paymentType: 'Pay' | 'Receive' =
-      PAYMENT_TYPE_BY_KIND[kind as ErpDocKind] ?? (payload.payment_type === 'Receive' ? 'Receive' : 'Pay');
-    if (!payload.party || payload.paid_amount == null) return probeErpByAnchorKey(anchorProbeDeps, idempotencyKey);
-    return probeErpByPaymentComposite(probeDeps, idempotencyKey, {
-      partyType: String(payload.party_type ?? 'Supplier'),
-      party: String(payload.party),
-      paidAmount: payload.paid_amount as string | number,
-      piNames: Array.isArray(payload.pi_names) ? (payload.pi_names as string[]) : [],
-      siNames: Array.isArray(payload.si_names) ? (payload.si_names as string[]) : [],
-      createdAfter: String(payload.created_after ?? ''),
-      paymentType,
-      ...withholdingMatchFromPayload(payload),
-      // #775 phase B — an Employee Payment Entry's cited approval Journal Entry and its two accounts (frozen with
-      // the command; conjoined only for an Employee party).
-      journalNames: Array.isArray(payload.je_names) ? (payload.je_names as string[]) : undefined,
-      paidFrom: typeof payload.paid_from === 'string' ? payload.paid_from : undefined,
-      paidTo: typeof payload.paid_to === 'string' ? payload.paid_to : undefined,
-    });
-  };
-}
-
 // ────────────────────────────────────────────────────────────────────────────────────────────────
 // (1) The outbox recovery pass — ADR-0058 §Consequences. Delegates to the REAL dispatchMoneyWrite per
 //     candidate so the sweep path and the retry path share ONE reconciliation algorithm.
 // ────────────────────────────────────────────────────────────────────────────────────────────────
-
-/** Lists outbox reconcile candidates for an org via the SECURITY DEFINER RPC (mig 0095). The
- *  candidate rows are the `OutboxRow` camelCase shape `dispatchMoneyWrite` consumes. */
-export type ListOutboxCandidates = (orgId: string) => Promise<OutboxRow[]>;
 
 /** Builds the DispatchMoneyWriteDeps for one candidate row (the sweep wires the real outbox deps +
  *  adapter + read-model writers per org; the test injects mocks). Async-capable so the live wiring can
@@ -409,26 +166,6 @@ export interface ReconcileOrgOutboxResult {
   /** Per-candidate outcomes (`ok` on a terminal reconcile; `error` when dispatchMoneyWrite threw — the
    *  sweep logs + continues so one bad row does not abort the pass). */
   errors: Array<{ id: string; error: string }>;
-}
-
-/**
- * domain → the plan switch that entitles it (0534). A domain with no switch (`budget`, core
- * `expenses`) is never held here. `companies` is the CRM master feed.
- */
-export const DOMAIN_FEATURE_KEY: Record<string, string> = {
-  procurement: 'procurement',
-  revenue: 'revenue',
-  companies: 'crm',
-};
-
-/** True when 0534's entitlement read says this org's module is switched off. A read that FAILED for this
- *  org holds every gated key (fail-closed): "we could not read the switch" is never evidence it is on.
- *  Terminal recovery is unaffected — a candidate ERP already accepted still finalizes (see the pass). */
-export function featureDisabled(
-  org: { disabledFeatureKeys?: readonly string[]; featuresUnreadable?: boolean },
-  key: string,
-): boolean {
-  return org.featuresUnreadable === true || (org.disabledFeatureKeys ?? []).includes(key);
 }
 
 /**
@@ -457,6 +194,8 @@ export async function reconcileOrgOutbox(
     disabledFeatureKeys?: readonly string[];
     /** This org's entitlement read failed: every gated domain is held (fail-closed). */
     featuresUnreadable?: boolean;
+    /** #2149: true once this tick must start no new row (see `OrgBinding.stopNewMoneyRows`). */
+    stopNewMoneyRows?: () => boolean;
   },
   buildDeps: BuildReconcileDeps,
   dispatch: typeof dispatchMoneyWrite = dispatchMoneyWrite,
@@ -538,6 +277,10 @@ export async function reconcileOrgOutbox(
     // #775 phase B (ADR-0081): `expenses` is owned by pass (7) ALONE — it replays its own outbox rows (the same
     // dispatchMoneyWrite) after checking the intent, so driving them here too would burn 0131's attempt budget 2×.
     if (candidate.domain === ERPNEXT_EXPENSES_DOMAIN) continue;
+    // #2149: once this org's ERPNext has not answered (or no full ERP try fits the invocation's budget), no further row is
+    // driven: each would wait the same deadline. The row is left exactly as it is — no claim, nothing recorded — and the
+    // next tick drives it. The holds above need no ERP call, so they are still reported.
+    if (moneyRowsStopped(org)) continue;
     try {
       await dispatch(await buildDeps(candidate));
       reconciled += 1;
@@ -564,45 +307,6 @@ export async function reconcileOrgOutbox(
 // ────────────────────────────────────────────────────────────────────────────────────────────────
 // (2)+(3)+(4) The per-org sweep cycle: doctype modified-poll → ledger feed → accounting refresh.
 // ────────────────────────────────────────────────────────────────────────────────────────────────
-
-/** A loaded per-org ERPNext binding (the external_org_bindings row, PMO-shaped). */
-interface OrgBinding {
-  orgId: string;
-  /** Present on live bindings; optional only for backward-compatible legacy test fixtures. */
-  bindingId?: string | null;
-  siteUrl: string;
-  secretRef: string;
-  company: string;
-  config: Record<string, unknown>;
-  /** Luna BLOCK 9: the PMO domains this org actually assigned to the ERPNext tier
-   *  (`external_domain_ownership`) — the sweep polls only these. */
-  ownedDomains: string[];
-  // task FIX-6 (Quality MINOR 4): the handshake-stamped ERPNext major version lives on the
-  // `external_org_bindings.version_major` COLUMN (§4.1), never inside `config` (which has no
-  // `version` key — `report_filter_shape`/`aging_report_names`/the account defaults live there).
-  versionMajor: number | null;
-  /** AC-TSP-022: the moment this org's ERPNext binding was activated. The timesheet backstop's
-   *  `absent` queue is scoped to it — hours approved BEFORE the integration existed are never
-   *  retroactively posted to the client's ledger by a background sweep. OPTIONAL so the existing
-   *  per-pass tests keep their fixtures byte-for-byte; absent/null ⇒ the `absent` queue yields NOTHING,
-   *  which is the fail-safe answer (never a retroactive push). `listEmployingOrgsLive` always sets it. */
-  activatedAt?: string | null;
-  /** Holder fence for statement-source writes in this sweep tick. */
-  statementLockHolder?: string;
-  statementReplayNeeded?: boolean;
-  /** 0534: the plan-switch keys that resolve OFF for this org (service_resolved_org_features).
-   *  OPTIONAL so existing per-pass/cycle fixtures stay byte-for-byte; absent ⇒ nothing is held. */
-  disabledFeatureKeys?: string[];
-  /** 0534: this org's entitlement read FAILED this tick. Set only for the org whose read failed, and it
-   *  holds every gated key for it (fail-closed) while terminal recovery still runs. OPTIONAL so existing
-   *  fixtures stay byte-for-byte; absent ⇒ the read succeeded (or was never attempted). */
-  featuresUnreadable?: boolean;
-  /** 0358: when this org's full (hourly) sweep last completed under its lock; null = never / unknown. */
-  lastFullSweepAt?: string | null;
-  /** 0642: when this org's native statement pass last PUBLISHED (its own marker, independent of the
-   *  full run); null = never / unknown. Optional so existing cycle fixtures stay byte-for-byte. */
-  lastStatementPassAt?: string | null;
-}
 
 /**
  * 0642 — one native statement pass outcome, as the shipped `refreshStatementReportBatch` reports it.
@@ -677,9 +381,17 @@ export interface ErpSweepCycleDeps {
   markFullSweepDone?: (org: OrgBinding) => Promise<void>;
   /** THEME-BACK-07: an unfinished or failed full run is deferred, not stamped: due again in `dueInSeconds`. */
   deferFullSweep?: (org: OrgBinding, dueInSeconds: number) => Promise<void>;
-  /** Invocation-wide clock and the moment past which no further hourly pass starts (money passes still run). */
+  /** Invocation-wide clock and the moment past which no further hourly pass starts (money rows can still start until no
+   *  full ERP try fits the invocation budget). */
   nowMs?: () => number;
   hourlyDeadlineAtMs?: number;
+  /** #2149: the invocation's one deadline (`SWEEP_INVOCATION_DEADLINE_MS` after entry) every ERP try shares. */
+  invocationDeadlineAtMs?: number;
+  /** #2149: the earlier deadline the hourly and statement passes' ERP tries share (`HOURLY_TRY_DEADLINE_MS` after entry). */
+  hourlyTryDeadlineAtMs?: number;
+  /** This tick's place in the once-a-minute schedule (`sweepTurn`): it picks which organisation with no failed hourly
+   *  run goes first, so they take turns. Without it they go in the order their hourly work waited. */
+  turn?: number;
 }
 
 
@@ -725,10 +437,32 @@ export async function runErpSweepCycle(
   cache?: ErpAuthPairCache,
   cadence: ErpSweepCadence = 'full',
 ): Promise<ErpSweepCycleResult> {
-  // The org whose hourly work waited longest (never-run first) goes first, so a slow org cannot starve the rest.
-  const orgs = [...(await deps.listEmployingOrgs())].sort((a, b) =>
-    (a.lastFullSweepAt ? Date.parse(a.lastFullSweepAt) || 0 : 0) - (b.lastFullSweepAt ? Date.parse(b.lastFullSweepAt) || 0 : 0));
+  // An org whose last hourly runs failed (#1642's count, which a silent ERPNext also adds to) goes after every other org,
+  // so its ERP tries cannot spend the time the others' money passes need. Within each group, the org whose hourly work
+  // waited longest (never-run first) goes first, so a slow org cannot starve the rest.
+  const failing = (o: OrgBinding) => ((o.fullSweepFailures ?? 0) > 0 ? 1 : 0);
+  const waitedSince = (o: OrgBinding) => (o.lastFullSweepAt ? Date.parse(o.lastFullSweepAt) || 0 : 0);
+  const orgs = [...(await deps.listEmployingOrgs())].sort((a, b) => failing(a) - failing(b) || waitedSince(a) - waitedSince(b));
+  // The organisations with no failed hourly run take turns going first: this tick's turn picks one of them by a fixed
+  // order (org id), so over N consecutive ticks each of N such organisations leads once, however slowly another's
+  // ERPNext answers. The rest keep the waited-longest order; failing organisations still go last.
+  if (deps.turn !== undefined) {
+    const rotating = orgs.filter((o) => failing(o) === 0).map((o) => o.orgId).sort();
+    if (rotating.length > 1) {
+      const leadId = rotating[((deps.turn % rotating.length) + rotating.length) % rotating.length];
+      const at = orgs.findIndex((o) => o.orgId === leadId);
+      orgs.unshift(...orgs.splice(at, 1));
+    }
+  }
   const pastDeadline = () => deps.hourlyDeadlineAtMs !== undefined && (deps.nowMs ?? Date.now)() >= deps.hourlyDeadlineAtMs;
+  // #2149: one budget for the whole invocation; each org's ERP fetch spends it (`orgErpFetch`).
+  const budget: SweepBudget | undefined = deps.invocationDeadlineAtMs === undefined ? undefined
+    : { deadlineAtMs: deps.invocationDeadlineAtMs, nowMs: deps.nowMs ?? Date.now };
+  const tryFits = () => sweepTryFits(budget);
+  // #2149: the hourly and statement passes spend an earlier deadline, so they end in time for the next org's money passes.
+  const hourlyBudget: SweepBudget | undefined = budget === undefined || deps.hourlyTryDeadlineAtMs === undefined ? budget
+    : { ...budget, deadlineAtMs: Math.min(deps.hourlyTryDeadlineAtMs, budget.deadlineAtMs) };
+  const hourlyFits = () => sweepTryFits(hourlyBudget);
   const perOrg: ErpSweepCycleResult['perOrg'] = [];
   for (const org of orgs) {
     const errors: string[] = [];
@@ -748,6 +482,15 @@ export async function runErpSweepCycle(
       }
       org.statementLockHolder = lockHolder;
     }
+    // #2149: an ERP request this org's passes make that gets no answer marks the org (`orgErpFetch`); from then on this
+    // tick starts no further ERP work for it, so one silent ERPNext cannot spend the invocation that other orgs share.
+    // Rows not started stay exactly as they are and run on the next tick.
+    // No row or pass starts unless a full minimum try still fits the invocation's budget.
+    delete org.erpUnanswered;
+    org.sweepBudget = budget;
+    const erpUnanswered = () => org.erpUnanswered === true;
+    org.stopNewMoneyRows = () => erpUnanswered() || !tryFits();
+    const moneyOpen = () => !moneyRowsStopped(org);
     // The tick forces the full sweep (an explicit request, or a backfilling binding); otherwise each org
     // runs its hourly work when its last completed full run is stale (0358).
     const hourly = cadence === 'full' || (deps.isFullSweepDue?.(org) ?? false);
@@ -800,7 +543,7 @@ export async function runErpSweepCycle(
     // (5) P3c — the budget push's sweep backstop (FR-BUD-141). The money passes (5)–(7) run right after (1) and BEFORE
     // the hourly block: if the hourly block dies (isolate CPU kill) the org stays due, and money must not starve behind
     // it. Same try/catch shape as its siblings so one org's failure never aborts the loop.
-    if (deps.reconcileOrgBudgetPushes) {
+    if (deps.reconcileOrgBudgetPushes && moneyOpen()) {
       try {
         const r = await deps.reconcileOrgBudgetPushes(org);
         if (r.error) errors.push(`budget:${r.error}`);
@@ -810,7 +553,7 @@ export async function runErpSweepCycle(
     }
     // (6) P3b — the timesheet push's sweep backstop (FR-TSP-045). Same try/catch shape as its siblings
     // so one org's failure never aborts the loop.
-    if (deps.reconcileOrgTimesheetPushes) {
+    if (deps.reconcileOrgTimesheetPushes && moneyOpen()) {
       try {
         const r = await deps.reconcileOrgTimesheetPushes(org);
         if (r.error) errors.push(`timesheet:${r.error}`);
@@ -820,7 +563,7 @@ export async function runErpSweepCycle(
     }
     // (7) #775 phase B — expense postings: an approval posted by this pass reaches the GL mirror on a later
     // full tick's ledger feed (3). Same try/catch shape as its siblings.
-    if (deps.reconcileOrgExpensePostings) {
+    if (deps.reconcileOrgExpensePostings && moneyOpen()) {
       try {
         const r = await deps.reconcileOrgExpensePostings(org);
         if (r.error) errors.push(`expenses:${r.error}`);
@@ -830,7 +573,7 @@ export async function runErpSweepCycle(
     }
     // (7b) #1515 S6 — site float transfers (replenishments paid into a float with an ERP cash account), same domain and
     // ownership as (7). Same try/catch shape as its siblings.
-    if (deps.reconcileOrgImprestPostings) {
+    if (deps.reconcileOrgImprestPostings && moneyOpen()) {
       try {
         const r = await deps.reconcileOrgImprestPostings(org);
         if (r.error) errors.push(`imprest:${r.error}`);
@@ -839,7 +582,8 @@ export async function runErpSweepCycle(
       }
     }
     // (8) ECA2-T13 — a person is waiting on the connect screen, so this runs on every tick, money-only included.
-    if (deps.advanceConnectRun) {
+    // #2149: like every ERP step, (8) and (8b) start only while a full minimum try fits; their client spends the budget.
+    if (deps.advanceConnectRun && !erpUnanswered() && tryFits()) {
       try {
         const r = await deps.advanceConnectRun(org);
         if (r.error) errors.push(`connect:${r.error}`);
@@ -847,7 +591,7 @@ export async function runErpSweepCycle(
         errors.push(`connect:${err instanceof Error ? err.message : String(err)}`);
       }
     }
-    if (deps.drainConnectSends) {
+    if (deps.drainConnectSends && !erpUnanswered() && tryFits()) {
       try {
         const r = await deps.drainConnectSends(org);
         if (r.error) errors.push(`sends:${r.error}`);
@@ -859,8 +603,11 @@ export async function runErpSweepCycle(
     // tick skips them (the money passes (5)–(7) above have already run).
     // Change-driven statements run on EVERY tick (money-only included) so "Refresh now" and a confirmed posting are
     // not held up to an hourly window. `legacy` (feature off, checker error, any error here) keeps today's hourly pass.
+    if (erpUnanswered()) errors.push('erp-unanswered: ERPNext did not answer; this organisation\'s remaining passes run on the next tick');
+    // #2149: from here on only statement and hourly passes run; their ERP tries spend the earlier hourly deadline.
+    org.sweepBudget = hourlyBudget;
     let changeDriven = false;
-    if (deps.planChangeDrivenStatements && deps.refreshNativeStatements && deps.forceStatementPass !== true) {
+    if (deps.planChangeDrivenStatements && deps.refreshNativeStatements && deps.forceStatementPass !== true && !erpUnanswered() && hourlyFits()) {
       let decision: ChangeDrivenDecision = { kind: 'legacy' };
       try {
         decision = await deps.planChangeDrivenStatements(org);
@@ -879,14 +626,17 @@ export async function runErpSweepCycle(
     }
     let sweep: { applied: number } | undefined;
     let ledger: ErpSweepCycleResult['perOrg'][number]['ledger'];
+    let fullRunSettled = false;
     if (hourly) {
       // `truncated`: work was left for the next tick (not an error). `failed`: a pass errored (retry after a delay).
       let truncated = false; // out of invocation time: later passes wait
       let walkIncomplete = false; // doctype walk hit its page quantum: later passes still run, the run is deferred
       let hourlyStarted = false;
       const hourlyFrom = errors.length; // money-pass errors above never hold the hourly marker back
+      delete org.sweepBudgetStopped;
       try {
-        if (pastDeadline()) {
+        // #2149: an org whose ERPNext did not answer starts no hourly work (its failed run is stamped below).
+        if (pastDeadline() || erpUnanswered() || !hourlyFits()) {
           truncated = true;
         } else {
           hourlyStarted = true;
@@ -898,8 +648,9 @@ export async function runErpSweepCycle(
       } catch (err) {
         errors.push(`sweep:${err instanceof Error ? err.message : String(err)}`);
       }
-      // Past the invocation's hourly deadline the remaining passes wait for the next tick.
-      const stillTime = () => !truncated && !(truncated = pastDeadline());
+      // Past the hourly start limit, or once no full ERP try fits the hourly deadline (#2149), the remaining passes wait for
+      // the next tick.
+      const stillTime = () => !truncated && !(truncated = pastDeadline() || !hourlyFits());
       // (2b) late-link self-heal — AFTER the doctype sweep, so an invoice adopted THIS tick is already
       //      mapped when the receipts that cite it are re-checked (Luna BLOCK 6).
       if (deps.repairOrgLinks && stillTime()) {
@@ -954,17 +705,31 @@ export async function runErpSweepCycle(
       // Stamp the completed full run (0358) only when every hourly pass finished and none failed; otherwise defer
       // (continue next tick when work was left, retry after a delay when a pass failed). Statement-side errors
       // retry on their own cadence and do not hold the marker back. A tick that dies before here leaves the org due.
-      const failed = errors.slice(hourlyFrom).some((e) => !e.startsWith('native-statement:') && !e.startsWith('statement:') && !e.startsWith('statement-pass-mark:'));
-      const unfinished = truncated || walkIncomplete || ledgerBehind;
+      // #2149: a pass whose ERP try the budget refused or cut ran out of time: the run continues next tick, it did not fail.
+      const cutByBudget = org.sweepBudgetStopped === true;
+      const failed = !cutByBudget && errors.slice(hourlyFrom).some((e) => !e.startsWith('native-statement:') && !e.startsWith('statement:') && !e.startsWith('statement-pass-mark:'));
+      const unfinished = truncated || walkIncomplete || ledgerBehind || cutByBudget;
       // An org whose hourly work never started keeps its marker: a defer would reset how long it has waited
-      // and let a slow earlier org go first again on every tick.
-      const settle = !hourlyStarted ? undefined : unfinished || failed ? deps.deferFullSweep?.bind(null, org, failed ? SWEEP_RETRY_DELAY_SECONDS : 0) : deps.markFullSweepDone?.bind(null, org);
+      // and let a slow earlier org go first again on every tick. (An org whose ERPNext did not answer is the one
+      // exception: its failed run is stamped below.)
+      const settle = !hourlyStarted ? undefined : unfinished || failed ? deps.deferFullSweep?.bind(null, org, failed ? sweepRetryDelaySeconds(org.fullSweepFailures ?? 0) : 0) : deps.markFullSweepDone?.bind(null, org);
       if (settle) {
+        fullRunSettled = true;
         try {
           await settle();
         } catch (err) {
           errors.push(`full-run-mark:${err instanceof Error ? err.message : String(err)}`);
         }
+      }
+    }
+    // #2149: an ERPNext that did not answer on an hourly tick is a failed run (#1642): the failure count orders the org after the
+    // others on later ticks and its hourly retry backs off. A money-only tick records nothing, so the hourly pass keeps its
+    // normal time once ERPNext answers. Its rows stay as they are and run once it answers.
+    if (hourly && !fullRunSettled && erpUnanswered() && deps.deferFullSweep) {
+      try {
+        await deps.deferFullSweep(org, sweepRetryDelaySeconds(org.fullSweepFailures ?? 0));
+      } catch (err) {
+        errors.push(`full-run-mark:${err instanceof Error ? err.message : String(err)}`);
       }
     }
     perOrg.push({ orgId: org.orgId, cadence: hourly ? 'full' : 'money-only', ...(statement ? { statement } : {}), reconcile, sweep, ledger, errors });
@@ -973,6 +738,9 @@ export async function runErpSweepCycle(
     // resolution failure can't leave a stale org resident for a later org's passes.
     cache?.delete(org.orgId);
     } finally {
+      delete org.stopNewMoneyRows;
+      delete org.sweepBudget;
+      delete org.sweepBudgetStopped;
       if (deps.releaseStatementLock && org.statementLockHolder) {
         try {
           await deps.releaseStatementLock(org.orgId, org.statementLockHolder);
@@ -1056,15 +824,17 @@ export async function listEmployingOrgsLive(serviceClient: SupabaseClient): Prom
   // 0358: each org's last completed full run. A failed read leaves every org unknown, i.e. due — the
   // hourly work then runs rather than silently stopping (logged).
   const lastFullByOrg = new Map<string, string>();
+  const fullFailuresByOrg = new Map<string, number>();
   {
     const { data: runs, error: runsError } = await serviceClient.from('erp_sweep_full_run')
-      .select('org_id, completed_at')
+      .select('org_id, completed_at, consecutive_failures')
       .in('org_id', activated.map((r) => r.org_id));
     if (runsError) {
       console.error(`[erpnext-sweep] erp_sweep_full_run load failed: code=${runsError.code ?? 'none'} message=${runsError.message}`);
     } else {
-      for (const row of (runs as Array<{ org_id: string; completed_at: string }> | null) ?? []) {
+      for (const row of (runs as Array<{ org_id: string; completed_at: string; consecutive_failures?: number }> | null) ?? []) {
         lastFullByOrg.set(row.org_id, row.completed_at);
+        fullFailuresByOrg.set(row.org_id, row.consecutive_failures ?? 0);
       }
     }
   }
@@ -1090,6 +860,7 @@ export async function listEmployingOrgsLive(serviceClient: SupabaseClient): Prom
     orgId: r.org_id,
     bindingId: r.id ?? null,
     lastFullSweepAt: lastFullByOrg.get(r.org_id) ?? null,
+    fullSweepFailures: fullFailuresByOrg.get(r.org_id) ?? 0,
     lastStatementPassAt: lastStatementByOrg.get(r.org_id) ?? null,
     siteUrl: r.site_url,
     secretRef: r.secret_ref,
@@ -1347,628 +1118,6 @@ async function allActiveBindingsHavePublishedStatementGeneration(serviceClient: 
   return true;
 }
 
-/** Re-read ONE ERP doc in full (Luna BLOCK 6) — the list endpoint omits child tables, and a Receive
- *  Payment Entry's `references` child rows carry the Sales Invoice link the money read-model needs. */
-async function fetchErpDoc(client: ErpClientDeps, doctype: string, name: string): Promise<Record<string, unknown>> {
-  const body = await erpnextRequest(client, {
-    method: 'GET',
-    path: `/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`,
-  });
-  return ((body as { data?: Record<string, unknown> } | null)?.data ?? {}) as Record<string, unknown>;
-}
-
-// #651 / ADR-0072: ONE resolver for both directions — `_shared/erpAuthPair.ts`. The inline Vault-first
-// block that used to live here (and its env-fallback-on-vault-error) is gone: a store that cannot answer
-// now refuses (FR-ENA-018). `cache` is optional so the per-pass unit tests keep their two-arg call.
-async function erpClientForOrg(
-  serviceClient: SupabaseClient,
-  org: OrgBinding,
-  cache?: ErpAuthPairCache,
-): Promise<ErpClientDeps> {
-  const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, org, cache);
-  return { fetchImpl: guardedErpFetch(org.siteUrl), apiKey, apiSecret, baseUrl: org.siteUrl };
-}
-
-/** The outbox-recovery listCandidates RPC wrapper (camelCase → OutboxRow). */
-/** 0357: the org's `failed` outbox rows still waiting out their retry delay (not due, not exhausted). */
-async function listRetryPendingLive(serviceClient: SupabaseClient, orgId: string): Promise<ReadonlySet<string>> {
-  const { data, error } = await serviceClient.rpc('outbox_retry_pending', { p_org_id: orgId });
-  if (error) throw new AppError(error.message, error.code);
-  return new Set(((data as unknown[] | null) ?? []).map(String));
-}
-
-function listCandidatesLive(serviceClient: SupabaseClient): ListOutboxCandidates {
-  return async (orgId: string) => {
-    const { data, error } = await serviceClient.rpc('outbox_reconcile_candidates', { p_org_id: orgId });
-    if (error) throw new AppError(error.message, error.code);
-    const rows = (data as Array<Record<string, unknown>> | null) ?? [];
-    return rows.map(outboxRowOf);
-  };
-}
-
-// ── #916: the doctype walk's per-tick budgets ──────────────────────────────────────────────────
-// The walk used to list + apply EVERY doctype's full modified-poll inside one invocation; on a full
-// year of books that hit the edge runtime's CPU hard limit (HTTP 546) mid-pass, stranding actuals /
-// Paid status / receipts. Both budgets make the walk a bounded quantum per tick: the per-doctype
-// watermark (`external_sync_watermarks`) is the persisted cursor, the listing order is the total
-// order `modified asc, name asc`, and the cursor filter is INCLUSIVE — so the next tick resumes
-// exactly at the boundary (no document skipped, none double-applied; the writers are idempotent
-// upserts and the per-row source-mod guard re-applies an equal stamp idempotently). The first sweep
-// after a reset or a new binding (cursor NULL → oldest-first backfill) is resumable by construction.
-
-/** Max ERP list PAGES ONE doctype's poll may fetch in one tick (2 × the 500-row page = ≤1000 docs
- *  listed per doctype). The same bounded-pages shape as the ledger feed (#901), tighter because the
- *  walk APPLIES each doc through ~4 DB round-trips where the ledger batch-upserts. */
-export const SWEEP_LIST_MAX_PAGES = 2;
-
-/** Max documents LISTED across one org's whole walk in one tick — the walk stops before starting
- *  another doctype once spent (a doctype already started finishes its own bounded quantum, so the
- *  worst-case overrun is ONE doctype's `SWEEP_LIST_MAX_PAGES × 500`). */
-export const SWEEP_TICK_MAX_DOCS = 1_000;
-
-/** Whole-tick wall-clock budget for the walk (the pass-2 doctype loop), measured from the INVOCATION
- *  start the serve handler stamps, so every org's walk in the tick shares one clock. Wall clock is a
- *  PROXY here — the hard constraint is CPU time, which the doc budgets bound directly; this stops a
- *  slow/unreachable ERP from holding the worker while staying far under any CPU limit. */
-// Leaves 25 seconds beyond the native statement stage for context, admission and teardown. The
-// 100-second invocation budget remains below the conservative 150-second Edge wall-clock ceiling.
-export const SWEEP_TICK_TIME_BUDGET_MS = 100_000;
-
-/**
- * #916 fix round (starvation): ONE org's doctypes ordered LEAST-RECENTLY-ATTEMPTED first.
- *
- * The fixed registry order plus the shared tick budget let an always-busy registry-earlier doctype
- * (e.g. a Timesheet backlog) consume the whole document budget EVERY tick, so the registry-later
- * doctypes (revenue / budget / timesheet pushes) never ran again. The per-doctype watermark row
- * carries the attempt recency — `external_sync_watermarks.updated_at`, stamped when the walk starts
- * and refreshed again when its cursor advances — so halted work yields priority to siblings. Rows
- * sort ASC by `updated_at`; a doctype with NO row (never attempted) comes first. Ties keep registry order
- * (the sort is stable), which is exactly the pre-fix behavior on a fresh org.
- *
- * Exported for direct unit testing (the sweepTickBudget starvation test drives it through the
- * shipped `sweepOrgDoctypesLive`).
- */
-export async function orderedSweepKindsForOrg(
-  serviceClient: SupabaseClient,
-  orgId: string,
-  ownedDomains: readonly string[],
-): Promise<Array<{ kind: ErpDocKind; doctype: string }>> {
-  const kinds = sweepKindsForOrg(ownedDomains);
-  if (kinds.length <= 1) return kinds;
-  const domains = kinds.map(({ kind }) => sweepWatermarkDomain(kind));
-  let rows: Array<{ domain: string; updated_at: string | null }>;
-  try {
-    const { data, error } = await serviceClient.from('external_sync_watermarks')
-      .select('domain, updated_at')
-      .eq('org_id', orgId).eq('external_tier', ERPNEXT_TIER)
-      .in('domain', domains);
-    if (error) throw new AppError(error.message, error.code);
-    rows = (data as Array<{ domain: string; updated_at: string | null }> | null) ?? [];
-  } catch (err) {
-    // Ordering is a fairness optimization, not a correctness control: a failed recency read degrades
-    // this tick to the registry order (logged) rather than skipping the org's sweep.
-    console.error(`[erpnext-sweep] org ${orgId}: watermark-recency load failed `
-      + `${err instanceof Error ? err.message : String(err)} — this tick keeps registry order`);
-    return kinds;
-  }
-  const lastAttemptAtMs = new Map<string, number>();
-  for (const row of rows) {
-    const t = Date.parse(row.updated_at ?? '');
-    lastAttemptAtMs.set(row.domain, Number.isFinite(t) ? t : 0);
-  }
-  // Never-run (no row) → 0 → sorts first; ASC = least-recently-attempted first; stable sort keeps
-  // registry order within ties.
-  const recency = ({ kind }: { kind: ErpDocKind }): number => lastAttemptAtMs.get(sweepWatermarkDomain(kind)) ?? 0;
-  return [...kinds].sort((a, b) => recency(a) - recency(b));
-}
-
-/** Operator overrides (the "clock/env read" DI class): `ERPNEXT_SWEEP_TICK_MAX_DOCS` /
- *  `ERPNEXT_SWEEP_TICK_TIME_BUDGET_MS`. A missing/invalid value falls back to the shipped default. */
-export const SWEEP_TICK_MAX_DOCS_ENV = 'ERPNEXT_SWEEP_TICK_MAX_DOCS';
-export const SWEEP_TICK_TIME_BUDGET_MS_ENV = 'ERPNEXT_SWEEP_TICK_TIME_BUDGET_MS';
-
-/** Optional per-tick budget knobs for the doctype walk. Absent ⇒ the shipped defaults above, clocked
- *  from `Date.now()` at entry (the `nowMs: number = Date.now()` default-param pattern). The serve
- *  handler passes the INVOCATION's start + its env reads; tests inject a controllable clock. */
-export interface SweepTickBudgetOpts {
-  /** The moment this tick began (the serve handler's entry), so the whole invocation shares one
-   *  elapsed-time budget. Default: `nowMs()` at call. */
-  tickStartMs?: number;
-  /** Injected clock. Default `Date.now`. */
-  nowMs?: () => number;
-  /** Overrides `SWEEP_TICK_MAX_DOCS` (tests). */
-  tickMaxDocs?: number;
-  /** Overrides `SWEEP_TICK_TIME_BUDGET_MS` (tests). */
-  tickTimeBudgetMs?: number;
-  /** Overrides the per-doctype listing quantum `SWEEP_LIST_MAX_PAGES` (tests). */
-  maxListPages?: number;
-}
-
-/** The per-org sweep: runSweep per doctype with the lineage-aware apply injected, per-doctype watermark.
- *  #916: the walk is BOUNDED per tick — each doctype lists at most `SWEEP_LIST_MAX_PAGES` pages, and
- *  the whole walk stops (finishing the doctype in flight; watermarks are persisted per doctype by
- *  `runSweep`) once the tick's document or elapsed-time budget is spent. A budget stop is NORMAL
- *  operation — never an error — the remaining doctypes resume next tick from their own watermarks.
- *  #916 fix round: the doctypes run LEAST-RECENTLY-ATTEMPTED first (never-run first), so a doctype
- *  the budget keeps skipping cannot starve forever behind an always-busy registry-earlier sibling. */
-export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache, opts: SweepTickBudgetOpts = {}): Promise<{ applied: number; error?: string; complete: boolean }> {
-  // This is the inbound ERP read pass. The global switch holds polling and leaves every cursor alone;
-  // outbox reconciliation and accepted-command closure run in their separate passes.
-  if (featureDisabled(org, 'erp_sync')) return { applied: 0, error: 'feature-off:erp_sync', complete: true };
-  const nowMs = opts.nowMs ?? Date.now;
-  const tickStartMs = opts.tickStartMs ?? nowMs();
-  const tickMaxDocs = opts.tickMaxDocs ?? SWEEP_TICK_MAX_DOCS;
-  const tickTimeBudgetMs = opts.tickTimeBudgetMs ?? SWEEP_TICK_TIME_BUDGET_MS;
-  const client = await erpClientForOrg(serviceClient, org, cache);
-  let applied = 0;
-  // HIGH-A: one doctype's failure is RECORDED and the loop CONTINUES. It used to `return`, so a single
-  // refused/unreachable doctype abandoned every doctype after it for that org this tick — and with
-  // `DOCTYPE_REGISTRY`'s order that meant a Timesheet problem silently stopped `employee` and `budget`
-  // (the money-control push's own feed) from sweeping at all.
-  const doctypeErrors: string[] = [];
-  // #916: the tick's spent budget. `docsThisTick` counts documents LISTED (the quantum the walk
-  // touches) — incremented the moment each doctype's bounded listing returns, regardless of the
-  // apply outcome; the clock is read BEFORE each doctype so a doctype in flight always finishes
-  // (its watermark then persists a clean resume point — aborting a batch mid-apply would stall:
-  // the watermark only advances after the whole listed batch applies).
-  let docsThisTick = 0;
-  let walkedDoctypes = 0;
-  // False once any doctype stopped short (tick budget, page quantum) so the caller does not stamp the run complete.
-  let complete = true;
-  // BLOCK 1 / round-7 B5: the pull-adopt guard. NOT a snapshot — the probe asks the outbox about each
-  // CANDIDATE document at the moment the poll sees it, so neither a stale key set nor PostgREST's
-  // `max_rows` ceiling can let a PMO-originated document be pull-adopted into a SECOND PMO row. A read
-  // failure throws out of the poll below (fail closed): polling with a blind guard is exactly the state
-  // that duplicated money rows. One probe per org tick shares the memo across that org's doctypes.
-  const inFlightProbe = createInFlightAnchorProbe(serviceClient, org.orgId);
-  // Luna BLOCK 9: only the doctypes whose PMO domain this org actually assigned to the ERPNext tier —
-  // ordered least-recently-completed first (#916 fix round: see `orderedSweepKindsForOrg`).
-  // 0534: a domain whose module resolves off is skipped entirely; its watermark is untouched, so the
-  // feed resumes exactly where it stopped when the switch comes back on.
-  const sweepKinds = (await orderedSweepKindsForOrg(serviceClient, org.orgId, org.ownedDomains))
-    .filter(({ kind }) => {
-      const key = featureKeyForKind(kind);
-      return !key || !featureDisabled(org, key);
-    });
-  for (const { kind, doctype } of sweepKinds) {
-    const elapsedMs = nowMs() - tickStartMs;
-    if (docsThisTick >= tickMaxDocs || elapsedMs >= tickTimeBudgetMs) {
-      console.warn(
-        `[erpnext-sweep] org ${org.orgId}: tick budget reached after ${walkedDoctypes} doctype walk(s) `
-          + `(${docsThisTick}/${tickMaxDocs} docs listed, ${elapsedMs}/${tickTimeBudgetMs} ms elapsed) — the remaining `
-          + 'doctypes resume next tick from their persisted watermarks (#916)',
-      );
-      complete = false;
-      break;
-    }
-    walkedDoctypes += 1;
-    const domain = KIND_DOMAIN[kind];
-    const bodyFns = DOCTYPE_BODIES[kind];
-    if (!bodyFns) continue; // not yet wired — skip (inert until the slice that wires it lands)
-    // WIRE 3 / round-7 B4 (CROSS-TENANT): scope the poll to the ERP Company this binding represents.
-    // An ERPNext site hosts many Companies; without this the poll adopted ANOTHER tenant's Sales
-    // Invoices / Receive PEs into this org's revenue and AR views, with no error anywhere.
-    // `null` means UNSCOPEABLE (a company-scoped kind on a binding that names no company) — skip the
-    // kind entirely and log it as the configuration error it is. It is deliberately NOT `[]` ("no
-    // company dimension, sweep freely"), which is what would sweep the whole ERP site into one tenant.
-    const poll = pollFiltersForKind(kind, org.company || null);
-    if (poll === null) {
-      console.error(
-        `[erpnext-sweep] org ${org.orgId}: binding names no ERP company — the company-scoped '${kind}' poll is `
-          + 'SKIPPED (an unscopeable poll would adopt every company on the site). Set config.company on the binding.',
-      );
-      continue;
-    }
-    const feedDeps = createErpFeedDeps(serviceClient as unknown as SupabaseClient, org.orgId, kind);
-    // Per-doctype watermark (FR-ENA-080: org × doctype) — keyed on a namespaced domain value so each
-    // doctype has its own cursor row on external_sync_watermarks (the applyEngine ctx.domain stays the
-    // PMO domain for external_refs; the watermark key is the sweep's own concern).
-    const wmDomain = sweepWatermarkDomain(kind);
-    // #1607: the cursor this tick last saw. Every write states it (expected_cursor), so a party link that rewound the cursor
-    // meanwhile is kept by the database instead of being overwritten by this older tick.
-    let expectedCursor: string | null = null;
-    const watermarkDeps = {
-      readWatermark: async () => {
-        const { data } = await serviceClient.from('external_sync_watermarks').select('watermark_cursor')
-          .eq('org_id', org.orgId).eq('external_tier', ERPNEXT_TIER).eq('domain', wmDomain).maybeSingle();
-        return (data as { watermark_cursor?: string | null } | null)?.watermark_cursor ?? null;
-      },
-      advanceWatermark: async (cursor: string) => {
-        // `updated_at` is stamped EXPLICITLY (PostgREST's ON CONFLICT DO UPDATE sets every supplied
-        // column): it refreshes the attempt recency used by orderedSweepKindsForOrg. Left implicit,
-        // it would stay at first-insert and ordering would degenerate after a doctype's first walk.
-        const { error } = await serviceClient.from('external_sync_watermarks').upsert(
-          {
-            org_id: org.orgId,
-            external_tier: ERPNEXT_TIER,
-            domain: wmDomain,
-            watermark_cursor: cursor,
-            ...(expectedCursor === null ? {} : { expected_cursor: expectedCursor }),
-            last_error: null,
-            last_error_at: null,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'org_id,external_tier,domain' },
-        );
-        if (error) throw new AppError(error.message, error.code);
-        expectedCursor = cursor;
-      },
-    };
-    // Luna BLOCK A1: `payment`/`incoming-payment` share the `Payment Entry` doctype — fetch
-    // `payment_type` and filter the poll (server-side + defense-in-depth post-fetch) so a Pay doc is
-    // NEVER adopted by the incoming-payment poll and vice-versa. #775 phase B adds the party/key
-    // discriminator; all of it is `pollFiltersForKind` (above).
-    // Luna BLOCK 6: fetch exactly the fields THIS kind's mapper consumes (money included), plus — where
-    // the canonical depends on a child table the list endpoint cannot return (the Receive PE's
-    // `references`) — re-read each changed doc in full.
-    const fields = sweepFieldsForKind(kind, org.versionMajor ?? undefined);
-    const hydrateDoc = KINDS_NEEDING_FULL_DOC.includes(kind)
-      ? (name: string) => fetchErpDoc(client, doctype, name)
-      : undefined;
-    try {
-      // Stamp the ATTEMPT, not only successful cursor advances: a halted doctype spent this tick's
-      // listing budget too, and must yield priority to siblings on the next invocation.
-      const { data: priorWatermark, error: priorWatermarkError } = await serviceClient.from('external_sync_watermarks')
-        .select('watermark_cursor').eq('org_id', org.orgId).eq('external_tier', ERPNEXT_TIER).eq('domain', wmDomain).maybeSingle();
-      if (priorWatermarkError) throw new AppError(priorWatermarkError.message, priorWatermarkError.code);
-      expectedCursor = (priorWatermark as { watermark_cursor?: string | null } | null)?.watermark_cursor ?? null;
-      const { error: attemptError } = await serviceClient.from('external_sync_watermarks').upsert({
-        org_id: org.orgId, external_tier: ERPNEXT_TIER, domain: wmDomain,
-        watermark_cursor: (priorWatermark as { watermark_cursor?: string | null } | null)?.watermark_cursor ?? '',
-        ...(expectedCursor === null ? {} : { expected_cursor: expectedCursor }),
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'org_id,external_tier,domain' });
-      if (attemptError) throw new AppError(attemptError.message, attemptError.code);
-      const result = await runSweep(
-        { tier: ERPNEXT_TIER, domain },
-        {
-          ...feedDeps,
-          ...watermarkDeps,
-          applyChange: (ctx, externalRecordId, canonical, sourceModMs, d) =>
-            kind === 'contact' ? applyErpContactFeed(serviceClient, org.orgId, externalRecordId, canonical, sourceModMs) : applyErpFeedEvent(ctx, externalRecordId, canonical, sourceModMs, d as Parameters<typeof applyErpFeedEvent>[4]),
-          // HIGH-A: a document PMO must NEVER adopt (a Desk-created Budget/Timesheet, or a procurement
-          // doc whose PMO case link only the dispatch path can make) throws BY DESIGN. That is a
-          // terminal, already-surfaced outcome for that ONE document — ack it and keep going, so the
-          // watermark still advances and the changes behind it (a Desk cancel of a PMO-pushed Budget)
-          // apply. Anything unclassified still halts this doctype, unadvanced, for the next tick.
-          applyErrorPolicy: erpFeedApplyErrorPolicy,
-          listChanges: async (cursor) => {
-            const listed = await listErpChangesSinceWatermark(
-              {
-                client,
-                doctype,
-                fields,
-                includeAmendedFrom: DOCTYPE_REGISTRY[kind].submittable,
-                fromDoc: bodyFns.fromDoc,
-                ...(hydrateDoc ? { hydrateDoc } : {}),
-                // WIRE 3: the company conjunct rides alongside BLOCK A1's payment_type discriminator.
-                extraFilters: poll.extraFilters,
-                // BLOCK A1's post-fetch discriminator AND WIRE 3's per-document company gate — the
-                // server-side filters above are an optimization, these are the authority — composed under
-                // BLOCK 1's in-flight-adopt guard (`inFlightAnchorFilter` returns the base filter
-                // unchanged when it has nothing of its own to add).
-                ...(() => {
-                  const filterRow = inFlightAnchorFilter(kind, inFlightProbe, poll.admits);
-                  return filterRow ? { filterRow } : {};
-                })(),
-                // #916: the bounded listing quantum — the walk resumes at the persisted cursor.
-                maxPages: opts.maxListPages ?? SWEEP_LIST_MAX_PAGES,
-              },
-              cursor,
-            );
-            // #916 fix round (budget undercount): the tick's document budget counts rows LISTED
-            // (fetched) — the quantum the walk touches — NOT rows that applied. A 1,000-row listing
-            // whose apply fails, or whose rows a per-row filter drops, costs the walk exactly as much
-            // as one that applies; counting outcomes re-spent the same tick on the same work (a
-            // failing doctype left the budget at zero and every later doctype walked anyway).
-            // Counted HERE, the moment the listing returns, so the budget is spent regardless of the
-            // apply outcome below (including a halt that aborts this doctype mid-batch).
-            docsThisTick += listed.listedCount;
-            if (!listed.caughtUp) complete = false;
-            return listed;
-          },
-        },
-      );
-      applied += result.applied;
-      // A successful walk with no changed rows has no cursor to advance, but it still recovers
-      // the doctype and must clear its previous failure state.
-      const { error: clearError } = await serviceClient.from('external_sync_watermarks').update({ last_error: null, last_error_at: null })
-        .eq('org_id', org.orgId).eq('external_tier', ERPNEXT_TIER).eq('domain', wmDomain).not('last_error', 'is', null);
-      if (clearError) throw new AppError(clearError.message, clearError.code);
-      // Never silent: an acked-and-skipped document (never-adopt / lossy hint) is logged with its ERP
-      // name so an operator can see exactly what the poll declined to import.
-      for (const s of result.skipped) {
-        console.warn(`[erpnext-sweep] org ${org.orgId} ${doctype} ${s.externalRecordId}: acked+skipped — ${s.error}`);
-      }
-    } catch (err) {
-      // Full upstream detail stays in function logs only; watermarks are member-readable, so persist
-      // only a diagnostic code derived from the error class/status.
-      console.error(`[erpnext-sweep] ${doctype} walk failed`, err);
-      const safeError = sweepErrorCode(err);
-      try {
-        const { error } = await serviceClient.from('external_sync_watermarks').update({ last_error: safeError })
-          .eq('org_id', org.orgId).eq('external_tier', ERPNEXT_TIER).eq('domain', wmDomain);
-        if (error) console.error('[erpnext-sweep] SWEEP_ERROR_WATERMARK_WRITE_FAILED');
-      } catch {
-        console.error('[erpnext-sweep] SWEEP_ERROR_WATERMARK_WRITE_FAILED');
-      }
-      const alertAt = nowMs();
-      let shouldAlert = false;
-      try {
-        const { data, error } = await serviceClient.from('external_sync_watermarks')
-          .update({ last_error_at: new Date(alertAt).toISOString() })
-          .eq('org_id', org.orgId).eq('external_tier', ERPNEXT_TIER).eq('domain', wmDomain)
-          .or(`last_error_at.is.null,last_error_at.lt.${new Date(alertAt - 3_600_000).toISOString()}`)
-          .select('id');
-        if (error) console.error('[erpnext-sweep] SWEEP_ERROR_ALERT_CLAIM_FAILED');
-        else shouldAlert = Boolean(data?.length);
-      } catch {
-        console.error('[erpnext-sweep] SWEEP_ERROR_ALERT_CLAIM_FAILED');
-      }
-      if (shouldAlert) {
-        await recordSweepErrorEvent(serviceClient as unknown as ErrorEventSupabaseLike, {
-          fn: 'erpnext-sweep',
-          errorCode: 'sweep-doctype-failed',
-          contextId: wmDomain,
-          orgId: org.orgId,
-        });
-      }
-      // An unreachable adapter (or one doctype's failure) is recorded but does NOT abort the other
-      // doctypes/orgs (AC-CUA-044 sibling: the next schedule retries).
-      doctypeErrors.push(`${doctype}: sweep failed`);
-      continue;
-    }
-  }
-  return { applied, complete, ...(doctypeErrors.length > 0 ? { error: doctypeErrors.join(' | ') } : {}) };
-}
-
-// ────────────────────────────────────────────────────────────────────────────────────────────────
-// The late-link self-heal (Luna BLOCK 6). A Receive Payment Entry adopted BEFORE the Sales Invoice it
-// cites resolves `sales_invoice_id` to NULL — and its own ERP row does not change when that invoice is
-// later adopted, so the modified-poll never re-surfaces it and the payment stays attached to no
-// invoice forever. This pass re-checks the org's unlinked ERP-sourced receipts each tick.
-// ────────────────────────────────────────────────────────────────────────────────────────────────
-
-export interface RepairUnlinkedReceiptsDeps {
-  /** The org's ERP-sourced receipts still missing their invoice link (bounded per tick). */
-  listUnlinkedReceipts: () => Promise<Array<{ id: string; erpName: string | null }>>;
-  /** Stamp every attempt so failures cannot monopolise the bounded scan. */
-  stampAllocationCheck?: (id: string) => Promise<void>;
-  /** Re-read one Payment Entry in full (its `references` child rows are not list-endpoint fields). */
-  fetchDoc: (erpName: string) => Promise<Record<string, unknown>>;
-  /** The PMO id the cited Sales Invoice ERP name now maps to, or `null` if still unmapped. */
-  resolveSalesInvoicePmoId: (siErpName: string) => Promise<string | null>;
-  /** Write the repaired link. */
-  link: (ipId: string, salesInvoicePmoId: string) => Promise<void>;
-  /** S-06: re-mirror the receipt's invoice allocations (the ERP document's `references`, normalised). Called only when the
-   *  document states them — a missing table is unknown coverage and writes nothing. */
-  mirrorAllocations?: (ipId: string, allocations: NonNullable<ReturnType<typeof allocationsOf>>) => Promise<void>;
-}
-
-/**
- * Link every unlinked receipt whose cited invoice has since been adopted. A receipt with no
- * `references` is a genuine on-account payment and is left alone; a receipt whose invoice is still
- * unmapped is left alone too (a guessed link is a WRONG money attribution — it retries next tick). One
- * unreadable doc is recorded and skipped, never aborting the pass. Exported for direct unit testing.
- */
-export async function repairUnlinkedReceipts(
-  deps: RepairUnlinkedReceiptsDeps,
-): Promise<{ repaired: number; errors: Array<{ id: string; error: string }> }> {
-  const unlinked = await deps.listUnlinkedReceipts();
-  let repaired = 0;
-  const errors: Array<{ id: string; error: string }> = [];
-  for (const receipt of unlinked) {
-    try {
-      if (!receipt.erpName) continue;
-      const doc = await deps.fetchDoc(receipt.erpName);
-      const allocations = allocationsOf(doc.references);
-      if (allocations !== undefined) await deps.mirrorAllocations?.(receipt.id, allocations);
-      // The legacy single link selects the first mapped Sales Invoice in ERP order; the
-      // complete allocation list remains in allocation_details.
-      for (const allocation of allocations ?? []) {
-        const salesInvoicePmoId = await deps.resolveSalesInvoicePmoId(allocation.reference_name);
-        if (salesInvoicePmoId) {
-          await deps.link(receipt.id, salesInvoicePmoId);
-          repaired += 1;
-          break;
-        }
-      }
-    } catch (err) {
-      errors.push({ id: receipt.id, error: err instanceof Error ? err.message : String(err) });
-    } finally {
-      try {
-        await deps.stampAllocationCheck?.(receipt.id);
-      } catch (err) {
-        errors.push({ id: receipt.id, error: `stamp allocation check: ${err instanceof Error ? err.message : String(err)}` });
-      }
-    }
-  }
-  return { repaired, errors };
-}
-
-/** The per-tick scan bound for the late-link repair: an org with many genuine on-account receipts must
- *  not turn the pass into an unbounded per-tick ERP read (NFR-ENA-PERF-001, interactive over bulk). */
-const UNLINKED_RECEIPT_SCAN_LIMIT = 100;
-
-/** The live wiring of the late-link self-heal for one org. Runs ONLY for an org that owns the revenue
- *  domain (Luna BLOCK 9) — a procurement-only org has no receipts to repair. */
-export async function repairInvoiceProjectsLive(
-  serviceClient: SupabaseClient,
-  org: OrgBinding,
-  afterId: string | null,
-  cache?: ErpAuthPairCache,
-): Promise<{ scanned: number; repaired: number; unresolved: number; failedIds: string[]; nextCursor: string | null; done: boolean }> {
-  if (!org.ownedDomains.includes('revenue')) {
-    return { scanned: 0, repaired: 0, unresolved: 0, failedIds: [], nextCursor: afterId, done: true };
-  }
-  const candidateQuery = serviceClient.from('sales_invoices').select('id,si_number,erp_project,erp_modified')
-    .eq('org_id', org.orgId).is('project_id', null).eq('pmo_native', false)
-    .not('si_number', 'is', null).order('id', { ascending: true }).limit(100);
-  const candidateResult = await (afterId ? candidateQuery.gt('id', afterId) : candidateQuery) as unknown as {
-    data: Array<{ id: string; si_number: string | null; erp_project: string | null; erp_modified: string | null }> | null;
-    error: { message: string; code?: string } | null;
-  };
-  const { data, error } = candidateResult;
-  if (error) throw new AppError(error.message, error.code);
-  const rows = data ?? [];
-  if (rows.length === 0) {
-    return { scanned: 0, repaired: 0, unresolved: 0, failedIds: [], nextCursor: afterId, done: true };
-  }
-  const refsResult = await serviceClient.from('external_refs').select('pmo_record_id,external_record_id')
-    .eq('org_id', org.orgId).eq('domain', 'revenue').in('pmo_record_id', rows.map((row) => row.id)) as unknown as {
-      data: Array<{ pmo_record_id: string; external_record_id: string }> | null;
-      error: { message: string; code?: string } | null;
-    };
-  if (refsResult.error) throw new AppError(refsResult.error.message, refsResult.error.code);
-  const refs = new Map((refsResult.data ?? []).map((ref) => [ref.pmo_record_id, ref.external_record_id]));
-  let erpClient: ErpClientDeps | null = null;
-  const getErpClient = async () => erpClient ??= await erpClientForOrg(serviceClient, org, cache);
-  const sources: Array<{ row: (typeof rows)[number]; erpProject: string }> = [];
-  const failedIds: string[] = [];
-  let processed = 0;
-  let fetched = 0;
-  let unresolved = 0;
-  for (const row of rows) {
-    if (row.erp_project !== null) {
-      sources.push({ row, erpProject: row.erp_project });
-      processed++;
-      continue;
-    }
-    const erpName = refs.get(row.id);
-    if (!erpName || erpName !== row.si_number) {
-      unresolved++;
-      processed++;
-      continue;
-    }
-    if (fetched >= 10) break;
-    fetched++;
-    try {
-      const doc = await fetchErpDoc(await getErpClient(), DOCTYPE_REGISTRY['sales-invoice'].doctype, erpName);
-      if (doc.name !== erpName || !admitsDocForBindingCompany('sales-invoice', doc, org.company)) {
-        unresolved++;
-        processed++;
-        continue;
-      }
-      const canonical = DOCTYPE_BODIES['sales-invoice']!.fromDoc(doc);
-      const erpProject = typeof canonical.erp_project === 'string' ? canonical.erp_project : null;
-      if (erpProject !== null) {
-        let hydration = serviceClient.from('sales_invoices').update({ erp_project: erpProject })
-          .eq('org_id', org.orgId).eq('id', row.id).is('project_id', null).is('erp_project', null);
-        hydration = row.erp_modified === null
-          ? hydration.is('erp_modified', null)
-          : hydration.eq('erp_modified', row.erp_modified);
-        const { data: hydrated, error: hydrationError } = await hydration.select('id') as unknown as {
-          data: Array<{ id: string }> | null; error: { message: string; code?: string } | null;
-        };
-        if (hydrationError) throw new AppError(hydrationError.message, hydrationError.code);
-        if (!hydrated?.some((entry) => entry.id === row.id)) {
-          unresolved++;
-          processed++;
-          continue;
-        }
-        sources.push({ row, erpProject });
-      } else {
-        unresolved++;
-      }
-      processed++;
-    } catch {
-      failedIds.push(row.id);
-      break;
-    }
-  }
-  let repaired = 0;
-  try {
-    const resolution = await resolveInvoiceProjects(serviceClient, org.orgId, sources.map((source) => source.erpProject));
-    for (const source of sources) {
-      const projectId = resolution.get(source.erpProject);
-      if (!projectId) { unresolved++; continue; }
-      const { data: filled, error: fillError } = await serviceClient.rpc('fill_sales_invoice_project', {
-        p_org_id: org.orgId, p_si_id: source.row.id, p_project_id: projectId, p_erp_project: source.erpProject,
-      });
-      if (fillError) throw new AppError(fillError.message, fillError.code);
-      if (filled === true) repaired++;
-      else unresolved++;
-    }
-  } catch (err) {
-    // A persistent fill error is retried next tick; log it so a systematic DB failure is visible.
-    console.error('invoice project backfill fill failed', { orgId: org.orgId, error: err instanceof Error ? err.message : String(err) });
-    failedIds.push(...sources.map((source) => source.row.id));
-  }
-  const failed = failedIds.length > 0;
-  const capped = fetched >= 10 && processed < rows.length && !failed;
-  return {
-    scanned: rows.length, repaired, unresolved, failedIds: [...new Set(failedIds)],
-    nextCursor: failed ? afterId : capped ? rows[processed - 1]?.id ?? afterId : rows.at(-1)?.id ?? afterId,
-    done: !failed && !capped && rows.length < 100,
-  };
-}
-
-export async function listReceiptRepairCandidates(serviceClient: SupabaseClient, orgId: string): Promise<Array<{ id: string; erpName: string | null }>> {
-  // S-06: also receipts whose allocations were never mirrored, or cite an invoice PMO had not adopted then.
-  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const base = () => serviceClient.from('incoming_payments')
-    .select('id,allocation_checked_at').eq('org_id', orgId).not('erp_docstatus', 'is', null)
-    .or(`allocation_checked_at.is.null,allocation_checked_at.lte.${cutoff}`)
-    .order('allocation_checked_at', { ascending: true, nullsFirst: true })
-    .limit(UNLINKED_RECEIPT_SCAN_LIMIT);
-  const [unlinked, unmirrored, unresolved] = await Promise.all([
-    base().is('sales_invoice_id', null),
-    base().is('allocation_details', null),
-    base().filter('allocation_details', 'cs', '[{"invoice_id":null}]'),
-  ]);
-  const failed = [unlinked, unmirrored, unresolved].find((r) => r.error);
-  if (failed?.error) throw new AppError(failed.error.message, failed.error.code);
-  const rows = [...new Map([unlinked, unmirrored, unresolved]
-    .flatMap((r) => (r.data as Array<{ id: string; allocation_checked_at: string | null }> | null) ?? []).map((r) => [r.id, r])).values()]
-    .sort((a, b) => (a.allocation_checked_at ?? '').localeCompare(b.allocation_checked_at ?? ''))
-    .slice(0, UNLINKED_RECEIPT_SCAN_LIMIT);
-  if (rows.length === 0) return [];
-  // The ERP name lives on external_refs (the mirror row carries no ERP name column).
-  const { data: refs, error: refErr } = await serviceClient.from('external_refs')
-    .select('pmo_record_id, external_record_id').eq('org_id', orgId).eq('domain', 'revenue')
-    .in('pmo_record_id', rows.map((r) => r.id));
-  if (refErr) throw new AppError(refErr.message, refErr.code);
-  const byId = new Map(((refs as Array<{ pmo_record_id: string; external_record_id: string }> | null) ?? [])
-    .map((r) => [r.pmo_record_id, r.external_record_id]));
-  return rows.map((row) => ({ id: row.id, erpName: byId.get(row.id) ?? null }));
-}
-
-export async function resolveReceiptSalesInvoice(serviceClient: SupabaseClient, orgId: string, siErpName: string): Promise<string | null> {
-  return (await salesInvoiceLookup(serviceClient, orgId)(siErpName))?.id ?? null;
-}
-
-export async function repairOrgLinksLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ repaired: number; error?: string }> {
-  if (!org.ownedDomains.includes('revenue')) return { repaired: 0 };
-  try {
-    const client = await erpClientForOrg(serviceClient, org, cache);
-    const result = await repairUnlinkedReceipts({
-      listUnlinkedReceipts: () => listReceiptRepairCandidates(serviceClient, org.orgId),
-      stampAllocationCheck: async (ipId) => {
-        const { error } = await (serviceClient.from('incoming_payments').update({ allocation_checked_at: new Date().toISOString() })
-          .eq('org_id', org.orgId).eq('id', ipId) as unknown as Promise<{ error: { message: string; code?: string } | null }>);
-        if (error) throw new AppError(error.message, error.code);
-      },
-      fetchDoc: (erpName) => fetchErpDoc(client, DOCTYPE_REGISTRY['incoming-payment'].doctype, erpName),
-      resolveSalesInvoicePmoId: (siErpName) => resolveReceiptSalesInvoice(serviceClient, org.orgId, siErpName),
-      mirrorAllocations: async (ipId, allocations) => {
-        const details = await buildAllocationDetails(allocations, salesInvoiceLookup(serviceClient, org.orgId));
-        const { error } = await (serviceClient.from('incoming_payments').update({ allocation_details: details })
-          .eq('org_id', org.orgId).eq('id', ipId) as unknown as Promise<{ error: { message: string; code?: string } | null }>);
-        if (error) throw new AppError(error.message, error.code);
-      },
-      link: async (ipId, salesInvoicePmoId) => {
-        const { error } = await (serviceClient.from('incoming_payments').update({ sales_invoice_id: salesInvoicePmoId })
-          .eq('org_id', org.orgId).eq('id', ipId) as unknown as Promise<{ error: { message: string; code?: string } | null }>);
-        if (error) throw new AppError(error.message, error.code);
-      },
-    });
-    const first = result.errors[0];
-    return { repaired: result.repaired, ...(first ? { error: `${first.id}:${first.error}` } : {}) };
-  } catch (err) {
-    return { repaired: 0, error: err instanceof Error ? err.message : String(err) };
-  }
-}
-
 /** The statement-source read budget is intentionally separate from the ordinary ledger client. */
 type StatementReadOutcome<T> = { ok: true; value: T } | { ok: false; error: unknown };
 type StatementSourceReadResults = {
@@ -2022,7 +1171,7 @@ function errorMessage(error: unknown): string {
 export async function feedOrgLedgersLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<OrgLedgerFeedResult> {
   let client: ErpClientDeps;
   try {
-    client = await erpClientForOrg(serviceClient, org, cache);
+    client = await erpClientForBinding(serviceClient, org, cache);
   } catch (err) {
     return { gl: 0, ple: 0, glCaughtUp: false, pleCaughtUp: false, error: errorMessage(err) };
   }
@@ -2180,7 +1329,7 @@ export function reportVersionFromOrg(org: Pick<OrgBinding, 'versionMajor'>): str
  */
 export async function feedOrgPurchasesLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ fed: number; error?: string }> {
   try {
-    const client = await erpClientForOrg(serviceClient, org, cache);
+    const client = await erpClientForBinding(serviceClient, org, cache);
     const startedAt = new Date().toISOString();
     const runId = crypto.randomUUID();
     if (org.bindingId) {
@@ -2206,7 +1355,7 @@ export async function feedOrgPurchasesLive(serviceClient: SupabaseClient, org: O
 
 export async function refreshOrgAccountingLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ error?: string }> {
   try {
-    const client = await erpClientForOrg(serviceClient, org, cache);
+    const client = await erpClientForBinding(serviceClient, org, cache);
     const reportVersion = reportVersionFromOrg(org);
     const scope: OrgAccountingScope = {
       orgId: org.orgId,
@@ -2231,1847 +1380,6 @@ export async function refreshOrgAccountingLive(serviceClient: SupabaseClient, or
     return err ? { error: err } : {};
   } catch (err) {
     return { error: err instanceof Error ? err.message : String(err) };
-  }
-}
-
-// ────────────────────────────────────────────────────────────────────────────────────────────────
-// (5) P3c — the budget push's sweep backstop, live wiring (FR-BUD-141, AC-BUD-023, budgetBackstop.ts).
-// ────────────────────────────────────────────────────────────────────────────────────────────────
-
-/** Read the EXISTING `external_command_outbox` row for this budget version's deterministic key, if
- *  any (FR-BUD-141: the SAME key the foreground path derives — `budgetPushKey` — so this finds the
- *  SAME candidate rather than minting a second one; the two originators collide safely, ADR-0058). */
-async function findBudgetOutboxRow(
-  serviceClient: SupabaseClient,
-  orgId: string,
-  versionId: string,
-  idempotencyKey: string,
-): Promise<OutboxRow | null> {
-  return findOutboxRowByKey(serviceClient, orgId, ERPNEXT_BUDGET_DOMAIN, versionId, idempotencyKey);
-}
-
-/**
- * ⚑ NEW-4 (audit round 4, 2026-07-22) — park a budget mirror row at `held` as a COMPARE-AND-SET.
- *
- * The row's eligibility was established by `listPendingBudgetPushes` earlier in the SAME tick
- * (`push_state in ('pending','failed')`, not tombstoned), and the FOREGROUND dispatch path runs
- * concurrently on the very same row. Both `held` writes used to be keyed on `(org_id,
- * budget_version_id)` alone, so between the list and the write an operator's Retry could move the row
- * to `committing` — or all the way to `pushed` against a real ERPNext Budget — and the blind update
- * relabelled that live success as `held`. The money screen then reported "ERPNext is still enforcing
- * the previous budget" over a budget ERPNext IS enforcing, and because `held` is excluded from this
- * very work queue, nothing ever re-drove it. A read-then-blind-write across a concurrent writer is a
- * lost update, not a state machine.
- *
- * So the update REPEATS the listing's own predicate: it matches only a row still in the state that
- * justified holding it. A row that has moved on is simply not matched, and the tick moves on with it.
- */
-function holdBudgetMirrorRow(
-  serviceClient: SupabaseClient,
-  orgId: string,
-  row: BudgetMirrorCandidateRow,
-  reason: string,
-): PromiseLike<{ error: { message: string; code?: string } | null }> {
-  const { budget_version_id: budgetVersionId, push_state: pushState, fiscal_year: fiscalYear, to_fiscal_year: toFiscalYear } = row;
-  const account = typeof row.erp_account === 'string' && row.erp_account !== '' ? row.erp_account : null;
-  const mirrorName = account ? 'budget_version_account_erp_mirror' : 'budget_version_erp_mirror';
-  // ⚑ MEDIUM-2: an `absent` candidate (an outbox-only orphan — a dispatch that died between the ERP
-  // commit and the mirror write) has NO row to compare-and-set against, so an update-only hold wrote
-  // zero rows and the refusal was invisible: exactly the stranded-and-unseen outcome this pass exists to
-  // end. Its durable state must be CREATED. A 23505 means the foreground (or another tick) created the
-  // row first — theirs is the newer truth, leave it exactly as it is. (The `timesheet_erp_mirror` twin,
-  // `parkTimesheetMirrorRow`, takes the same shape for the same reason.)
-  if (pushState === BUDGET_MIRROR_ABSENT) {
-    return (async () => {
-      // ⚑ LOW-1 (audit round 6) — `fiscal_year` is `text NOT NULL` with no default (0137 §1) and
-      // `stamp_org_id` stamps only `org_id`, so the insert that omitted it raised 23502 — which the
-      // 23505 guard does NOT absorb, so this recovery branch threw instead of recording the durable
-      // `held` state it exists to write. Dead on arrival.
-      //
-      // ⚑ And the missing year may NOT be derived to make the insert go through. Since HIGH-1,
-      // `budget_version_erp_mirror.fiscal_year` is the authority `get_budget_projection` scopes PMO's
-      // budget column by, so a guessed year here would put a wrong-year Budget/Variance/Utilization on
-      // the primary money screen — the exact defect HIGH-1 removed, re-entered through a recovery path.
-      // With no year on record there is no grain to hold, so nothing is written; the caller's
-      // `surfaceActionRequired` is what tells a human, and it runs either way.
-      if (!fiscalYear) return { error: null };
-      const { error } = await serviceClient
-        .from(mirrorName)
-        .insert({
-          org_id: orgId,
-          budget_version_id: budgetVersionId,
-          fiscal_year: fiscalYear,
-          ...(account ? { to_fiscal_year: toFiscalYear ?? null, erp_account: account, budget_intent: row.budget_intent ?? 'ensure' } : {}),
-          push_state: 'held',
-          push_error: reason,
-        });
-      return { error: error && error.code !== '23505' ? error : null };
-    })();
-  }
-  // ⚑ BLOCK 1 (FU-2 round 2) — A HOLD IS ABOUT ONE YEAR, and the mirror's grain is
-  // `(budget_version_id × fiscal_year)`. Keyed on the version alone this CAS matched every
-  // `pending`/`failed` row of the version, so exhausting FY2027's attempts also stamped FY2026 `held`
-  // with FY2027's reason — and `listPendingBudgetPushes` excludes `held`, so a perfectly recoverable
-  // year left the backstop queue PERMANENTLY (ERPNext then holds no overspend control for it and
-  // nothing will ever install one, while `hold_releasable` is false because its own outbox row is not
-  // `held`). With no year on record there is no grain to hold, so nothing is written at all — the same
-  // posture the `absent`/INSERT branch above already takes, and for the same reason: a guessed year
-  // writes a wrong-year state onto the primary money screen.
-  if (!fiscalYear) return Promise.resolve({ error: null });
-  let hold = serviceClient
-    .from(mirrorName)
-    .update({ push_state: 'held', push_error: reason })
-    .eq('org_id', orgId)
-    .eq('budget_version_id', budgetVersionId)
-    .eq('fiscal_year', fiscalYear);
-  if (account) {
-    hold = hold.eq('erp_account', account) as typeof hold;
-    hold = toFiscalYear == null ? hold.is('to_fiscal_year', null) as typeof hold : hold.eq('to_fiscal_year', toFiscalYear) as typeof hold;
-  }
-  return hold
-    // the SAME eligibility `listPendingBudgetPushes` asserted — never a state this pass did not observe
-    .in('push_state', ['pending', 'failed'])
-    .is('erp_cancelled_at', null);
-}
-
-/** THEME-BACK-06 (0427): stamp the rows a queue pass just selected, so the next tick serves the rows it
- *  did NOT select first. Written for rows that are skipped, waiting or failing too — that is the point. */
-async function stampQueueAttempt(serviceClient: SupabaseClient, table: string, orgId: string, column: string, ids: string[]): Promise<void> {
-  if (ids.length === 0) return;
-  const { error } = await serviceClient.from(table)
-    .update({ last_attempt_at: new Date().toISOString() }).eq('org_id', orgId).in(column, ids);
-  if (error) throw new AppError(error.message, error.code);
-}
-
-/** The queues' fair order, as a comparator over the rows' own keys: never attempted first, then the
- *  longest-waiting, then the oldest, then id (the same total order the SQL `order by` uses). */
-function byQueueFairness(a: { last_attempt_at?: string | null; created_at?: string | null; id?: string | null }, b: { last_attempt_at?: string | null; created_at?: string | null; id?: string | null }): number {
-  return (a.last_attempt_at ?? '').localeCompare(b.last_attempt_at ?? '')
-    || (a.created_at ?? '').localeCompare(b.created_at ?? '')
-    || (a.id ?? '').localeCompare(b.id ?? '');
-}
-
-/** The synthetic candidate state for a budget push whose OUTBOX row exists but whose mirror row does
- *  not — the crash-between-the-ERP-write-and-the-finalize window (⚑ MEDIUM-2). */
-const BUDGET_MIRROR_ABSENT = 'absent';
-
-/** ⚑ rm-1472 — the named reason a unit is parked when an archive cancellation needs a PERSON (the
- *  intent is `held`, or no recorded actor is left to attribute the replacement push to). It is
- *  distinct from the generic `budget-push-no-outbox-candidate` so the screen says "a person must
- *  resolve the predecessor's cancellation", not "this push lost its command". */
-export const BUDGET_ARCHIVE_CANCEL_HELD = 'budget-archive-cancellation-held';
-
-/** ⚑ M-2 (review r8) — the named reason a parked unit is HELD because the recorded activator is no
- *  longer allowed to push a budget. Distinct from `BUDGET_ARCHIVE_CANCEL_HELD`: the cancellation itself
- *  is settled and fine, so telling an operator "the cancellation needs a person" would send them to the
- *  wrong place. */
-export const BUDGET_ARCHIVE_RESUME_ACTOR_UNAUTHORIZED = 'budget-archive-resume-actor-unauthorized';
-
-/** What the resume driver did with one version's parked units this tick. */
-export type BudgetArchiveWaitResumeOutcome = 'driven' | 'waiting' | 'held';
-
-/** ⚑ rm-1472 — the named reason a parked unit is RETIRED: the re-derived plan no longer contains that
- *  account, because the archive cancellation tombstoned the document it named. Nothing will ever push
- *  it, so it must stop looking queued (and must not re-run the gate on every tick). */
-export const BUDGET_ARCHIVE_CANCEL_SUPERSEDED = 'budget-archive-cancellation-superseded';
-
-/** Hold every unit of one version that is still parked on the archive-cancellation wait. Scoped by
- *  org + version and fenced on the wait marker itself, so a unit the foreground just pushed (or that
- *  a person already resolved) can never be relabelled by this pass. */
-async function holdWaitingBudgetUnits(
-  serviceClient: SupabaseClient,
-  orgId: string,
-  versionId: string,
-  reason: string,
-): Promise<void> {
-  const { error } = await serviceClient.from('budget_version_account_erp_mirror')
-    .update({ push_state: 'held', push_error: reason })
-    .eq('org_id', orgId)
-    .eq('budget_version_id', versionId)
-    .eq('push_error', BUDGET_ARCHIVE_CANCEL_WAIT)
-    .is('erp_cancelled_at', null)
-    .in('push_state', ['pending', 'failed']);
-  if (error) throw new AppError(error.message, error.code);
-}
-
-/** Park a version's waiting units because a PERSON must act (a held cancellation, no recorded activator
- *  to attribute the replacement push to, or an activator who may no longer push) — and say so once on
- *  the operator surface, under the reason the units are parked with. */
-async function parkWaitingBudgetUnitsForPerson(
-  serviceClient: SupabaseClient,
-  orgId: string,
-  versionId: string,
-  projectId: string,
-  reason: string = BUDGET_ARCHIVE_CANCEL_HELD,
-): Promise<void> {
-  await holdWaitingBudgetUnits(serviceClient, orgId, versionId, reason);
-  await surfaceActionRequired(serviceClient, orgId, reason, { versionId, projectId });
-}
-
-/** Retire every parked unit the re-derived plan no longer contains: the account left the plan because
- *  the archive cancellation tombstoned the very document that unit named, so nothing will ever push
- *  it. Leaving it on the wait marker made the screen say "queued" forever AND re-ran the gate for it on
- *  every tick. Retired with a reason, never silently, and never as a push that happened. */
-async function retirePlanAbsentWaitingUnits(
-  serviceClient: SupabaseClient,
-  orgId: string,
-  versionId: string,
-  units: ReadonlyArray<{ identity: string }>,
-): Promise<void> {
-  const planned = new Set(units.map((unit) => unit.identity));
-  const { data, error } = await serviceClient.from('budget_version_account_erp_mirror')
-    .select('id,fiscal_year,to_fiscal_year,erp_account')
-    .eq('org_id', orgId)
-    .eq('budget_version_id', versionId)
-    .eq('push_error', BUDGET_ARCHIVE_CANCEL_WAIT)
-    .is('erp_cancelled_at', null)
-    .in('push_state', ['pending', 'failed']);
-  if (error) throw new AppError(error.message, error.code);
-  for (const row of (data ?? []) as Array<{ id?: string; fiscal_year?: string; to_fiscal_year?: string | null; erp_account?: string | null }>) {
-    if (typeof row.id !== 'string' || typeof row.fiscal_year !== 'string') continue;
-    let identity: string;
-    try {
-      identity = row.to_fiscal_year
-        ? budgetRangeIdentity(versionId, row.fiscal_year, row.to_fiscal_year, row.erp_account ?? '')
-        : budgetAccountIdentity(versionId, row.fiscal_year, row.erp_account ?? '');
-    } catch {
-      continue;
-    }
-    if (planned.has(identity)) continue;
-    const { error: holdError } = await serviceClient.from('budget_version_account_erp_mirror')
-      .update({ push_state: 'held', push_error: BUDGET_ARCHIVE_CANCEL_SUPERSEDED })
-      .eq('org_id', orgId)
-      .eq('id', row.id)
-      .eq('push_error', BUDGET_ARCHIVE_CANCEL_WAIT)
-      .in('push_state', ['pending', 'failed']);
-    if (holdError) throw new AppError(holdError.message, holdError.code);
-  }
-}
-
-/** The person who ACTIVATED this version — read from the archive request the activation itself queued.
- *
- *  ⚑ I-1 (review r8) — the activation actor is RECORDED, once, and it is the only honest attribution a
- *  resumed mint can carry. `queue_budget_archive_cancel` (0579) inserts its `budget_archive_requests`
- *  row with `queued_by_activation=true` and `requested_by=auth.uid()` in the SAME transaction that
- *  stamps the successor's `activated_at=now()`, and inside one transaction `now()` is the transaction
- *  timestamp — so `created_at = <this version's activated_at>` names exactly that activation's own
- *  request.
- *
- *  The shipped behaviour read the ACTOR off the latest settled `budget_archive_cancel_intents` row on
- *  the PROJECT instead. That fence is project-wide, so a manual archive (or a later activation of a
- *  different version) superseded this version's row and the replacement Budget was minted as whoever
- *  last touched the project's cancellation queue — someone who may be the version's own drafter (the
- *  SoD breach 0579/FR-BUD-102 forbid) or may since have been deactivated.
- *
- *  Zero matches ⇒ this activation queued no cancellation of its own, so NO activator is recorded: hold
- *  for a person, never guess. More than one ⇒ ambiguous, hold for a person as well.
- */
-async function budgetActivationActor(
-  serviceClient: SupabaseClient,
-  orgId: string,
-  projectId: string,
-  activatedAt: string,
-): Promise<string | null> {
-  const { data, error } = await serviceClient.from('budget_archive_requests')
-    .select('id,requested_by')
-    .eq('org_id', orgId)
-    .eq('project_id', projectId)
-    .eq('queued_by_activation', true)
-    .eq('created_at', activatedAt)
-    .limit(2);
-  if (error) throw new AppError(error.message, error.code);
-  const rows = (data ?? []) as Array<{ requested_by?: unknown }>;
-  if (rows.length !== 1) return null;
-  const actor = rows[0]?.requested_by;
-  return typeof actor === 'string' && actor !== '' ? actor : null;
-}
-
-/**
- * ⚑ rm-1472 — RESUME a version whose units were parked by the budget gate's `202
- * budget-cancellation-pending`.
- *
- * The defect this removes: the gate parks v16 range units as `pending` with
- * `push_error='waiting-for-budget-archive-cancellation'` and writes NO outbox row (the fan-out never
- * begins). Nothing re-ran the gate when the cancellations settled, so ERPNext kept enforcing nothing
- * while PMO said "Version activated" — and the backstop, which only looks for an EXISTING outbox row,
- * parked the units `held` and ended automatic recovery for good.
- *
- * The release is the SAME gate, run again from CURRENT truth (`buildBudgetDispatchPlan`): it re-reads
- * the plan, re-derives each unit's year-qualified identity and server key from `activated_at`, and
- * re-plans against the now-tombstoned predecessor history — so a resumed unit is byte-identical to
- * what the activation would have produced had the cancellation already settled. Each unit then goes
- * through the ordinary `dispatchMoneyWrite`/outbox path (SoD re-authorization, claim fencing,
- * one-in-flight, one-document-per-record), never a second push path.
- *
- * Fail-closed and quiet where that is right:
- *  - fence `pending` → the units stay parked on the wait (a later tick retries);
- *  - fence `held`, no RECORDED activator, or an activator who may no longer push → the units are HELD
- *    with a named reason + one action-required notice (waiting longer would release nothing);
- *  - the gate refusing → its own durable failure row is written by the gate itself, and the units stay
- *    parked so the pass resumes by itself once a person fixes the cause (the FR-BFY-075 posture).
- */
-export function budgetArchiveWaitResumeLive(
-  serviceClient: SupabaseClient,
-  org: OrgBinding,
-  cache?: ErpAuthPairCache,
-): (versionId: string, projectId: string | null, activatedAt: string | null) => Promise<BudgetArchiveWaitResumeOutcome> {
-  // One gate run per version per tick: several parked units of one version must not each re-run it.
-  const perVersion = new Map<string, Promise<BudgetArchiveWaitResumeOutcome>>();
-  return (versionId, projectId, activatedAt) => {
-    const running = perVersion.get(versionId);
-    if (running) return running;
-    const started = resumeWaitingBudgetVersion(serviceClient, org, versionId, projectId, activatedAt, cache);
-    perVersion.set(versionId, started);
-    return started;
-  };
-}
-
-async function resumeWaitingBudgetVersion(
-  serviceClient: SupabaseClient,
-  org: OrgBinding,
-  versionId: string,
-  projectId: string | null,
-  activatedAt: string | null,
-  cache?: ErpAuthPairCache,
-): Promise<BudgetArchiveWaitResumeOutcome> {
-  // The fence is project-scoped (that is the grain the gate reasons on) and the attribution is keyed on
-  // the activation stamp. Without either there is nothing to prove, so never release: leave the units
-  // parked for a later tick (the backstop never calls this without an Active, stamped version).
-  if (!projectId || !activatedAt) return 'waiting';
-  const state = await budgetArchiveCancelState(serviceClient, org.orgId, projectId);
-  if (state === 'pending') return 'waiting';
-  if (state === 'held') {
-    await parkWaitingBudgetUnitsForPerson(serviceClient, org.orgId, versionId, projectId);
-    return 'held';
-  }
-  // ⚑ I-1 — the ACTIVATOR of this version, never the latest archive intent on the project.
-  const actorUserId = await budgetActivationActor(serviceClient, org.orgId, projectId, activatedAt);
-  if (!actorUserId) {
-    // No activation-queued request names this version's activation (or more than one does): nobody is
-    // recorded as having activated it, so there is no honest attribution. Never guess — hold.
-    await parkWaitingBudgetUnitsForPerson(serviceClient, org.orgId, versionId, projectId);
-    return 'held';
-  }
-  // Re-authorize the recorded activator NOW (never trust that they were allowed when the activation was
-  // requested) — the same rule the synchronous dispatch and the outbox replay apply.
-  const authorization = await checkErpnextCommandAuthorization(serviceClient as never, org.orgId, actorUserId, {
-    domain: ERPNEXT_BUDGET_DOMAIN,
-    record: { erp_doc_kind: 'budget' },
-  });
-  if (!authorization.ok) {
-    // ⚑ M-2 — its own reason: the cancellation settled fine, the PERSON cannot push any more.
-    await parkWaitingBudgetUnitsForPerson(serviceClient, org.orgId, versionId, projectId, BUDGET_ARCHIVE_RESUME_ACTOR_UNAUTHORIZED);
-    return 'held';
-  }
-
-  // The SAME gate the activation ran. Its own reads are org-checked (the gate refuses a version or a
-  // project outside `deps.orgId`) and every per-version read is keyed on the version the parked row
-  // names, so a service-role client here cannot widen anything.
-  const command: AdapterCommand = {
-    domain: ERPNEXT_BUDGET_DOMAIN,
-    operation: 'create',
-    // `commandForBudgetUnit` replaces this with the unit's own server-derived key; it never reaches
-    // the outbox (the fan-out mints one per unit, exactly as `dispatchBudgetPush` does).
-    idempotencyKey: '',
-    record: { id: versionId, erp_doc_kind: 'budget' },
-  };
-  const plan = await buildBudgetDispatchPlan({
-    command,
-    // The sweep carries no user JWT; the gate's org assertions are the tenancy boundary here.
-    callerClient: serviceClient,
-    serviceClient,
-    orgId: org.orgId,
-    erpAuth: cache ?? createErpAuthPairCache(),
-    headers: new Headers(),
-    resolveBinding: resolveErpBindingRow,
-  });
-  // A Response means the gate refused (its 422 writes its own durable failure row) or a cancellation
-  // became unsettled again (202). Either way nothing is pushed and the units stay parked: the pass
-  // resumes by itself once the cause is fixed. NEVER silent — a resume that keeps refusing is a stuck
-  // money push and must be visible in the tick's own logs.
-  if (plan instanceof Response) {
-    console.warn(`[erpnext-sweep] org ${org.orgId} budget ${versionId}: archive-cancellation resume not released (HTTP ${plan.status}) ${await plan.clone().text()}`);
-    return 'waiting';
-  }
-
-  // ⚑ M-1 (review r8) — THE ONE REMAINING WINDOW, deliberately fail-closed. The gate above cleared
-  // this version's wait marker on its settled path (budgetDispatch.ts: `push_error: null` for every
-  // planned unit) BEFORE any unit below reaches `dispatchMoneyWrite`. A crash in between leaves a unit
-  // `pending`, `push_error` NULL and no outbox row, so the next tick's backstop no longer recognizes it
-  // as parked and holds it `budget-push-no-outbox-candidate` — which re-runs every gate and mints under
-  // the retrying person's own authority. Recovery for that window is therefore the HELD path (a person),
-  // never a second automatic release; it can never double-mint, because a unit with no outbox row has no
-  // ERP document either. Narrowing it further would mean clearing the marker per unit after its outbox
-  // row exists, which the gate (shared with the synchronous activation path) does not do.
-  for (const unit of plan.units ?? []) {
-    const unitCommand = commandForBudgetUnit(command, unit);
-    try {
-      // BLOCK #4, per unit, on the year-qualified identity — the same pre-outbox guard the served
-      // fan-out runs, so a resume can never mint a second ERP document for an already-mapped unit.
-      const createTarget = await checkCreateTargetUnmapped(serviceClient as never, org.orgId, unitCommand, unit.idempotencyKey);
-      if (!createTarget.ok) {
-        await recordBudgetPushFailure({
-          serviceClient, orgId: org.orgId, command: unitCommand,
-          budgetVersionMajor: plan.versionMajor, failure: new AppError(createTarget.message, 'commit-rejected'),
-        });
-        continue;
-      }
-      await dispatchMoneyWrite(await buildMoneyWriteDepsLive(serviceClient, org, {
-        command: unitCommand,
-        actorUserId,
-        outboxRecordId: unit.identity,
-        persistPayload: true,
-      }, cache));
-    } catch (err) {
-      // PER-UNIT containment (the served fan-out's rule): one account's refusal must not abandon the
-      // rest of the fan-out, and it is recorded durably rather than swallowed.
-      const failure = err instanceof AppError ? err : new AppError(err instanceof Error ? err.message : String(err), 'commit-rejected');
-      try {
-        await recordBudgetPushFailure({
-          serviceClient, orgId: org.orgId, command: unitCommand,
-          budgetVersionMajor: plan.versionMajor, failure,
-        });
-      } catch { /* the durable write must never mask the original failure */ }
-      console.warn(`[erpnext-sweep] org ${org.orgId} budget ${versionId} resume unit ${unit.identity}: ${failure.message}`);
-    }
-  }
-  await retirePlanAbsentWaitingUnits(serviceClient, org.orgId, versionId, plan.units ?? []);
-  return 'driven';
-}
-
-/** The live `BudgetBackstopDeps` for one org — the mirror's own work queue (FR-BUD-123, index-served
- *  on `(org_id, push_state)`), the re-asserted version gate (FR-BUD-102), and driving a found
- *  candidate through the EXACT SAME `dispatchMoneyWrite`/`buildReconcileDepsLive` machinery the
- *  outbox-recovery pass (1) already uses — one algorithm, shared. */
-export function budgetBackstopDepsLive(
-  serviceClient: SupabaseClient,
-  org: OrgBinding,
-  /** ⚑ MEDIUM-2: the budget-domain rows `outbox_reconcile_candidates` (0131) STILL ADMITS — the id set
-   *  the attempts-exhausted gate already used, plus each row's `pmo_record_id` so the queue can also
-   *  find an outbox-only ORPHAN (a dispatch that died between the ERP commit and the mirror write). */
-  eligibleBudgetCandidates: ReadonlyArray<{ id: string; pmo_record_id: string; fiscal_year?: string | null; to_fiscal_year?: string | null; budget_intent?: 'ensure' | 'remove' | null }>,
-  /** 0357: `failed` rows waiting out their retry delay (`outbox_retry_pending`) — not due, not exhausted. */
-  retryPendingIds: ReadonlySet<string> = new Set(),
-  /** ⚑ rm-1472 — the parked-unit resume. A row whose own `push_error` says it is waiting on an
-   *  archive cancellation is NOT an outbox orphan: the fan-out never began, so there is nothing for
-   *  this queue to find. The resume runs the gate again (once per version per tick) and releases the
-   *  units through it, attributed to the version's ACTIVATION actor (read from the request that
-   *  activation queued — I-1). Absent ⇒ such a row is left exactly as it is, never relabelled `held`. */
-  resumeArchiveWait?: (versionId: string, projectId: string | null, activatedAt: string | null) => Promise<BudgetArchiveWaitResumeOutcome>,
-): BudgetBackstopDeps {
-  const eligibleOutboxIds = new Set(eligibleBudgetCandidates.map((c) => c.id));
-  return {
-    listPendingBudgetPushes: async (orgId, limit) => {
-      const [legacyResult, accountResult] = await Promise.all([
-        serviceClient.from('budget_version_erp_mirror')
-          .select('id,budget_version_id,push_state,erp_cancelled_at,fiscal_year,created_at,last_attempt_at,push_error')
-          .eq('org_id', orgId).in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null)
-          .order('last_attempt_at', { ascending: true, nullsFirst: true }).order('created_at', { ascending: true }).order('id', { ascending: true }).limit(limit),
-        serviceClient.from('budget_version_account_erp_mirror')
-          .select('id,budget_version_id,push_state,erp_cancelled_at,fiscal_year,to_fiscal_year,erp_account,budget_intent,created_at,last_attempt_at,push_error')
-          .eq('org_id', orgId).in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null)
-          .order('last_attempt_at', { ascending: true, nullsFirst: true }).order('created_at', { ascending: true }).order('id', { ascending: true }).limit(limit),
-      ]);
-      if (legacyResult.error) throw new AppError(legacyResult.error.message, legacyResult.error.code);
-      if (accountResult.error) throw new AppError(accountResult.error.message, accountResult.error.code);
-      const toCandidate = (r: Record<string, unknown>, accountGrained: boolean): BudgetMirrorCandidateRow => ({
-        id: typeof r.id === 'string' ? r.id : null,
-        budget_version_id: String(r.budget_version_id),
-        push_state: String(r.push_state),
-        erp_cancelled_at: (r.erp_cancelled_at as string | null) ?? null,
-        fiscal_year: (r.fiscal_year as string | null) ?? null,
-        to_fiscal_year: accountGrained ? (r.to_fiscal_year as string | null) ?? null : null,
-        ...(accountGrained ? {
-          erp_account: (r.erp_account as string | null) ?? null,
-          budget_intent: (r.budget_intent as 'ensure' | 'remove' | null) ?? null,
-        } : { erp_account: null, budget_intent: 'ensure' as const }),
-        push_error: (r.push_error as string | null) ?? null,
-        created_at: (r.created_at as string | null) ?? null,
-        last_attempt_at: (r.last_attempt_at as string | null) ?? null,
-      });
-      const mirrored = [
-        // #1364: the empty-year row is a refusal record for the screen (project dates), not a push to drive.
-        ...((legacyResult.data as Array<Record<string, unknown>> | null) ?? [])
-          .filter((r) => r.fiscal_year !== '')
-          .map((r) => toCandidate(r, false)),
-        ...((accountResult.data as Array<Record<string, unknown>> | null) ?? [])
-          .filter((r) => typeof r.erp_account === 'string' && r.erp_account !== '')
-          .map((r) => toCandidate(r, true)),
-      ].sort(byQueueFairness)
-        .slice(0, limit);
-      // ⚑ MEDIUM-2 — …plus the OUTBOX-ONLY orphans. Nothing writes a `budget_version_erp_mirror` row
-      // before the dispatch (every mirror writer lives inside `adapter-dispatch`'s finalize), so a
-      // dispatch that died after `adapter.commit` and before `finalize_outbox` left an outbox row
-      // `committing`/`quarantined` with NO mirror row and NO `external_refs` row — invisible to pass 1
-      // (which skips this domain by design) AND to this queue, while ERPNext held a live, submitted
-      // Budget that `get_budget_projection` reported as 'never-pushed' (and, with the FR-BUD-121 upsert,
-      // while the PREVIOUS budget was already a tombstone). This is not a second eligibility door: the
-      // set IS `outbox_reconcile_candidates`, and `reconcileOrgBudgetPushes` still re-reads the version
-      // and refuses anything that is no longer `Active` (FR-BUD-102). A version that already HAS a mirror
-      // row is never double-queued — the mirror row carries the recorded failure history and wins.
-      // ⚑ BLOCKER 3 (FU-2): dedup by (budget_version_id, fiscal_year), NEVER by version alone. Once the
-      // identity is year-qualified the fiscal year travels with it: a crashed FY2027 push must still be
-      // reconciled even when FY2026 already has a mirror row for the SAME version. A version-only `known`
-      // set silently discarded that orphan (its version had *a* mirror), stranding a live ERP Budget PMO
-      // reports as never-pushed. A pre-fan-out bare orphan (no year on record) keeps version-level
-      // suppression — pre-fan-out there is exactly one year per version, so the two agree.
-      const knownComposite = new Set(mirrored.map((r) => budgetDedupKey(r.budget_version_id, r.fiscal_year, r.erp_account, r.to_fiscal_year)));
-      const knownVersions = new Set(mirrored.map((r) => r.budget_version_id));
-      const orphans = eligibleBudgetCandidates
-        // ⚑ FR-BFY-032: an outbox row's `pmo_record_id` is now the YEAR-QUALIFIED identity, so the
-        // bare `budget_version_id` (the mirror's FK, and this queue's own key) is PARSED out of it, and
-        // the fiscal year is READ from it (falling back to the outbox canonical for a pre-fan-out row).
-        .map((c) => ({
-          ...c,
-          versionId: bareBudgetVersionId(c.pmo_record_id),
-          year: fiscalYearOfIdentity(c.pmo_record_id) ?? c.fiscal_year ?? null,
-          toYear: toFiscalYearOfIdentity(c.pmo_record_id) ?? c.to_fiscal_year ?? null,
-          account: accountOfIdentity(c.pmo_record_id),
-        }))
-        // Suppress only an exact version/year/account mirror. Bare legacy rows keep version suppression.
-        .filter((c) => c.account !== null
-          ? !knownComposite.has(budgetDedupKey(c.versionId, c.year, c.account, c.toYear))
-          : c.year ? !knownComposite.has(budgetDedupKey(c.versionId, c.year, null, c.toYear)) : !knownVersions.has(c.versionId))
-        .map((c) => ({
-          id: c.id,
-          budget_version_id: c.versionId,
-          push_state: BUDGET_MIRROR_ABSENT,
-          erp_cancelled_at: null,
-          fiscal_year: c.year,
-          to_fiscal_year: c.toYear,
-          erp_account: c.account,
-          budget_intent: c.budget_intent ?? 'ensure',
-          created_at: null,
-        }));
-      return [...mirrored, ...orphans]
-        .sort(byQueueFairness)
-        .slice(0, limit);
-    },
-    markAttempted: async (orgId, rows) => {
-      // Only rows with a mirror row of their own can be stamped; an `absent` orphan is an outbox row.
-      const real = rows.filter((r) => r.push_state !== BUDGET_MIRROR_ABSENT && typeof r.id === 'string');
-      await stampQueueAttempt(serviceClient, 'budget_version_erp_mirror', orgId, 'id', real.filter((r) => !r.erp_account).map((r) => String(r.id)));
-      await stampQueueAttempt(serviceClient, 'budget_version_account_erp_mirror', orgId, 'id', real.filter((r) => !!r.erp_account).map((r) => String(r.id)));
-    },
-    readBudgetVersion: async (versionId) => {
-      // FR-BUD-102: re-read under SERVICE ROLE (the sweep carries no user JWT) — scoped to this org
-      // explicitly, since service role bypasses RLS. Never trust the mirror row's own push_state.
-      const { data, error } = await serviceClient
-        .from('budget_versions')
-        .select('id, status, activated_at, project_id')
-        .eq('id', versionId)
-        .eq('org_id', org.orgId)
-        .maybeSingle();
-      if (error) throw new AppError(error.message, error.code);
-      return (data as BudgetBackstopVersionRow | null) ?? null;
-    },
-    driveBudgetPush: async (row: BudgetMirrorCandidateRow, version: BudgetBackstopVersionRow) => {
-      // ⚑ FR-BFY-031/032 — the backstop must derive the SAME per-year identity + key the foreground
-      // dispatch derived, or it finds no outbox row at all and parks a perfectly recoverable push as
-      // `budget-push-no-outbox-candidate`. A candidate with no fiscal year on record is a PRE-fan-out
-      // row (its outbox row was written under the bare id and the single-year key) — never a guess: the
-      // legacy shape is used verbatim for it.
-      const encodedFiscalYear = row.fiscal_year ? encodeFiscalYear(row.fiscal_year) : null;
-      const identity = row.erp_account
-        ? row.to_fiscal_year
-          ? budgetRangeIdentity(row.budget_version_id, String(row.fiscal_year ?? ''), row.to_fiscal_year, row.erp_account)
-          : budgetAccountIdentity(row.budget_version_id, String(row.fiscal_year ?? ''), row.erp_account)
-        : encodedFiscalYear ? `${row.budget_version_id}:${encodedFiscalYear}` : row.budget_version_id;
-      const idempotencyKey = row.erp_account
-        ? budgetAccountPushKey(identity, version.activated_at)
-        : encodedFiscalYear
-          ? budgetPushKey(row.budget_version_id, encodedFiscalYear, version.activated_at)
-          : budgetPushKey(row.budget_version_id, version.activated_at);
-      const outboxRow = await findBudgetOutboxRow(serviceClient, org.orgId, identity, idempotencyKey);
-      if (!outboxRow) {
-        // ⚑ rm-1472 — A PARKED UNIT IS NOT AN ORPHAN. When the gate parked this unit behind an
-        // unsettled predecessor cancellation, the fan-out never began, so "no outbox row" is the
-        // EXPECTED state, not the crash-between-commit-and-finalize window the hold below is for.
-        // Relabelling it `held` (the shipped behaviour) ended automatic recovery for good: ERPNext had
-        // cancelled the old Budgets, the new one was never sent, and PMO still said "Version active".
-        // Release is the SAME gate, re-run by the resume driver; while the fence still says pending the
-        // row stays parked on its own reason and the next tick tries again.
-        if (row.push_error === BUDGET_ARCHIVE_CANCEL_WAIT) {
-          if (resumeArchiveWait) await resumeArchiveWait(row.budget_version_id, version.project_id ?? null, version.activated_at ?? null);
-          return;
-        }
-        // FR-BUD-102 ("never finalize with a NULL actor"): the foreground dispatch never even reached
-        // the outbox for this activation (e.g. the browser tab died mid-request before the fetch) — so
-        // there is no RECORDED actor to reconcile against. Never mint a fresh, unattributed outbox row
-        // here; hold for an operator instead (never silently dropped — FR-BUD-123).
-        const { error } = await holdBudgetMirrorRow(serviceClient, org.orgId, row, 'budget-push-no-outbox-candidate');
-        if (error) throw new AppError(error.message, error.code);
-        await surfaceActionRequired(serviceClient, org.orgId, 'budget-push-no-outbox-candidate', { versionId: row.budget_version_id });
-        return;
-      }
-      // ⚑ H-1 (audit r3): re-drive ONLY through `0131`'s ONE eligibility door. `findBudgetOutboxRow`
-      // matches by key with no state/attempt/age filter, so on its own it would re-POST a
-      // terminally-rejected budget EVERY cron tick forever — and re-create the ERP Budget the moment an
-      // operator removes the blocker. `outbox_reconcile_candidates` is the single authority for "may this
-      // row be reconciled now" (bounded by state + attempt_count + age, 0131); a row absent from it is
-      // committed-already, attempt-exhausted, quarantined-not-due, or too old. Not a second door — the
-      // SAME door the outbox-recovery pass uses. An absent-but-existing row is held for the operator, not
-      // silently re-sent (FR-BUD-123: never dropped, never auto-looped past its budget).
-      if (!eligibleOutboxIds.has(outboxRow.id)) {
-        // ⚑ HIGH-1 (audit round 5, found by the AC-BUD-032 e2e) — NOT-DUE-YET IS NOT ATTEMPTS-EXHAUSTED.
-        // `outbox_reconcile_candidates` answers "may this row be reconciled NOW", and it deliberately
-        // omits two states that are simply not due: a `committing` row inside its 60 s lease and a
-        // `quarantined` row before its visibility window elapses (0131). Both are ABOUT to become
-        // claimable. Parking them `held` — a state this queue excludes — ended the automatic recovery
-        // for good, and it is the ordinary shape of a transient ERP failure on the budget push (the
-        // dispatch marks NOTHING so the row stays reclaimable, and the next cron tick, seconds later,
-        // saw a `failed` mirror plus a not-yet-due outbox row). Leave them for a later tick; the
-        // attempt/age bound itself is untouched for every state that really has run out.
-        // 0357: a `failed` row waiting out its retry delay is likewise not due — never exhausted.
-        if (outboxRow.state === 'committing' || outboxRow.state === 'quarantined' || retryPendingIds.has(outboxRow.id)) return;
-        const { error } = await holdBudgetMirrorRow(serviceClient, org.orgId, row, 'budget-push-attempts-exhausted');
-        if (error) throw new AppError(error.message, error.code);
-        await surfaceActionRequired(serviceClient, org.orgId, 'budget-push-attempts-exhausted', { versionId: row.budget_version_id });
-        return;
-      }
-      // Re-authorizes against the RECORDED actor (`buildReconcileDepsLive`'s `checkOutboxReplayAuthorization`
-      // + `reauthorizeRecoveryReissue`) — the SAME discipline every other domain's recovery reissue
-      // already enforces; a null-actor row is refused THERE, never silently reissued.
-      await dispatchMoneyWrite(await buildReconcileDepsLive(serviceClient, org, outboxRow));
-    },
-  };
-}
-
-/** The live per-org budget backstop pass (P3c slice 5, AC-BUD-023). Gated on the ACTIVE ERPNext BINDING,
- *  not a `domain_externally_owned('budget')` row: budget is Posture B (FR-BUD-006(a)/FR-BUD-010 — it NEVER
- *  gets an ownership row; employment IS the binding). ⚑ FIX 2026-07-24: this gate previously read
- *  `ownedDomains.includes('budget')`, which is now ALWAYS false once the forbidden ownership row is gone —
- *  so the backstop stopped running and a stale `committing` budget row was never quarantined (AC-BUD-032
- *  regression). Gate on `activatedAt` (the same signal `orgEmploysErpnext` uses); the empty-candidate
- *  filter below still makes this a no-op for an org with no budget outbox rows. */
-async function reconcileOrgBudgetPushesLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ driven: number; error?: string }> {
-  if (!org.activatedAt) return { driven: 0 };
-  try {
-    // The SoT eligibility set (0131), fetched ONCE per pass — the backstop may only re-drive a row this
-    // RPC still admits. Scoped to the budget domain; any other domain's candidates are irrelevant here.
-    const eligibleBudgetCandidates = (await listCandidatesLive(serviceClient)(org.orgId))
-      .filter((c) => c.domain === ERPNEXT_BUDGET_DOMAIN)
-      // LOW-1: the canonical the dispatch recorded is the ONLY in-DB statement of an outbox-only
-      // orphan's fiscal year. It is carried, never derived (a derived year would mis-scope the budget
-      // projection — HIGH-1).
-      .map((c) => ({
-        id: c.id,
-        pmo_record_id: c.pmoRecordId,
-        fiscal_year: typeof (c.canonical as Record<string, unknown> | null)?.fiscal_year === 'string'
-          ? ((c.canonical as Record<string, string>).fiscal_year)
-          : null,
-        to_fiscal_year: typeof (c.canonical as Record<string, unknown> | null)?.to_fiscal_year === 'string'
-          ? ((c.canonical as Record<string, string>).to_fiscal_year)
-          : toFiscalYearOfIdentity(c.pmoRecordId),
-        budget_intent: (c.canonical as Record<string, unknown> | null)?.budget_intent === 'remove' ? 'remove' as const : 'ensure' as const,
-      }));
-    const retryPendingIds = await listRetryPendingLive(serviceClient, org.orgId);
-    const result = await reconcileOrgBudgetPushes(
-      budgetBackstopDepsLive(
-        serviceClient, org, eligibleBudgetCandidates, retryPendingIds,
-        // ⚑ rm-1472 — units the gate parked behind an unsettled archive cancellation are resumed here,
-        // through the SAME gate, once that fence settles.
-        budgetArchiveWaitResumeLive(serviceClient, org, cache),
-      ),
-      { orgId: org.orgId },
-    );
-    // NEW-3: per-row throws are contained so the queue drains, but they are NEVER silent — a row that
-    // keeps throwing is a stuck money push and must be visible in the tick's own result.
-    for (const e of result.errors) {
-      console.warn(`[erpnext-sweep] org ${org.orgId} budget ${e.budgetVersionId}: backstop row failed — ${e.error}`);
-    }
-    const archiveResult = await reconcileOrgBudgetArchiveCancellationsLive(
-      serviceClient, org, new Set(eligibleBudgetCandidates.map((candidate) => candidate.id)), retryPendingIds, cache,
-    );
-    for (const e of archiveResult.errors) {
-      console.warn(`[erpnext-sweep] org ${org.orgId} budget archive intent ${e.id}: ${e.error}`);
-    }
-    const errorCount = result.errors.length + archiveResult.errors.length;
-    return { driven: result.driven + archiveResult.driven, error: errorCount ? `${errorCount} budget row(s) failed` : undefined };
-  } catch (err) {
-    return { driven: 0, error: err instanceof Error ? err.message : String(err) };
-  }
-}
-
-/** FR-BUD-122 — the durable, explicit archive-cancellation queue. #1462: legacy-aware. */
-async function readBudgetArchiveLifecycleLive(
-  serviceClient: SupabaseClient,
-  job: BudgetArchiveCancelIntent,
-): Promise<{ status: string; activatedAt: string | null; activeSuccessorUsesTarget: boolean; cancellationState: string | null } | null> {
-  const { data: version, error: versionError } = await serviceClient.from('budget_versions')
-    .select('id,org_id,project_id,status,activated_at')
-    .eq('id', job.budget_version_id).eq('org_id', job.org_id).maybeSingle();
-  if (versionError) throw new AppError(versionError.message, versionError.code);
-  if (!version || version.project_id !== job.project_id) return null;
-  if (!job.request_id) return null;
-  const { data: request, error: requestError } = await serviceClient.from('budget_archive_requests')
-    .select('id,org_id,project_id,budget_version_id,requested_by,cancel_erp')
-    .eq('id', job.request_id).eq('org_id', job.org_id).maybeSingle();
-  if (requestError) throw new AppError(requestError.message, requestError.code);
-  if (!request || request.project_id !== job.project_id || request.budget_version_id !== job.budget_version_id ||
-      request.requested_by !== job.actor_user_id || request.cancel_erp !== true) return null;
-  const { data: active, error: activeError } = await serviceClient.from('budget_versions')
-    .select('id').eq('org_id', job.org_id).eq('project_id', job.project_id)
-    .eq('status', 'Active').neq('id', job.budget_version_id).limit(1);
-  if (activeError) throw new AppError(activeError.message, activeError.code);
-  const activeIds = (active ?? []).map((row) => row.id);
-  let activeSuccessorUsesTarget = false;
-  const legacy = job.source_kind === 'legacy';
-  const identity = legacy
-    ? budgetLegacyIdentity(job.budget_version_id, job.fiscal_year)
-    : job.to_fiscal_year
-      ? budgetRangeIdentity(job.budget_version_id, job.fiscal_year, job.to_fiscal_year, job.erp_account!)
-      : budgetAccountIdentity(job.budget_version_id, job.fiscal_year, job.erp_account!);
-  const archiveKey = legacy
-    ? budgetLegacyArchiveKey(identity, job.activated_at_witness)
-    : budgetAccountArchiveKey(identity, job.activated_at_witness);
-  const outbox = await findBudgetOutboxRow(serviceClient, job.org_id, identity, archiveKey);
-  const cancellationState: string | null = outbox?.state ?? null;
-  if (activeIds.length > 0) {
-    // ⚑ #1462 — a successor can hold the SAME live ERP document through EITHER mirror kind and EITHER
-    // grain: a v16 account row for the same account, or a legacy year row that names the same document.
-    // A cancellation must be superseded when the active version still needs the document, whichever
-    // table proves it — checking one table would cancel a control the successor version relies on.
-    const { data: successorTargets, error: successorError } = await serviceClient.from('budget_version_account_erp_mirror')
-      .select('id').eq('org_id', job.org_id).in('budget_version_id', activeIds)
-      .eq('erp_budget_name', job.erp_budget_name)
-      .is('erp_cancelled_at', null).neq('erp_docstatus', 2).limit(1);
-    if (successorError) throw new AppError(successorError.message, successorError.code);
-    if ((successorTargets ?? []).length > 0) {
-      activeSuccessorUsesTarget = true;
-    } else {
-      const { data: legacyTargets, error: legacyError } = await serviceClient.from('budget_version_erp_mirror')
-        .select('id').eq('org_id', job.org_id).in('budget_version_id', activeIds)
-        .eq('erp_budget_name', job.erp_budget_name)
-        .is('erp_cancelled_at', null).neq('erp_docstatus', 2).limit(1);
-      if (legacyError) throw new AppError(legacyError.message, legacyError.code);
-      activeSuccessorUsesTarget = (legacyTargets ?? []).length > 0;
-    }
-  }
-  return {
-    status: version.status,
-    activatedAt: version.activated_at,
-    activeSuccessorUsesTarget,
-    cancellationState,
-  };
-}
-
-async function budgetArchiveTargetStillLiveAndOwnedLive(
-  serviceClient: SupabaseClient,
-  job: BudgetArchiveCancelIntent,
-): Promise<boolean> {
-  const sourceKind = job.source_kind ?? 'account';
-  const { data: binding, error: bindingError } = await serviceClient.from('external_org_bindings')
-    .select('version_major,activated_at').eq('org_id', job.org_id).eq('external_tier', ERPNEXT_TIER).maybeSingle();
-  if (bindingError) throw new AppError(bindingError.message, bindingError.code);
-  // A legacy document remains visible after a re-bind but automatic cancellation is enabled only on a
-  // v15 binding until the v16 upgraded shape has actual test-bed evidence.
-  const supported = sourceKind === 'legacy'
-    ? binding?.version_major === 15
-    : binding?.version_major === 16;
-  if (!supported || !binding?.activated_at) return false;
-
-  let identity: string;
-  if (sourceKind === 'legacy') {
-    const { data: mirror, error: legacyMirrorError } = await serviceClient.from('budget_version_erp_mirror')
-      .select('id,org_id,budget_version_id,fiscal_year,push_state,erp_budget_name,erp_docstatus,erp_cancelled_at,activated_at_witness,pushed_project_start_date,pushed_project_end_date')
-      .eq('id', job.source_mirror_id).eq('org_id', job.org_id)
-      .eq('budget_version_id', job.budget_version_id).eq('fiscal_year', job.fiscal_year).maybeSingle();
-    if (legacyMirrorError) throw new AppError(legacyMirrorError.message, legacyMirrorError.code);
-    const legacyMirror = mirror as {
-      id?: string; erp_budget_name?: string | null; erp_docstatus?: number | null;
-      erp_cancelled_at?: string | null; activated_at_witness?: string | null;
-      pushed_project_start_date?: string | null; pushed_project_end_date?: string | null;
-    } | null;
-    if (!legacyMirror || legacyMirror.erp_budget_name !== job.erp_budget_name ||
-        legacyMirror.activated_at_witness !== job.activated_at_witness ||
-        legacyMirror.pushed_project_start_date !== job.pushed_project_start_date ||
-        legacyMirror.pushed_project_end_date !== job.pushed_project_end_date) return false;
-    const isStillLive = legacyMirror.erp_cancelled_at === null && legacyMirror.erp_docstatus !== 2;
-    const alreadyCancelled = legacyMirror.erp_cancelled_at != null && legacyMirror.erp_docstatus === 2;
-    if (!isStillLive && !alreadyCancelled) return false;
-    try { identity = budgetLegacyIdentity(job.budget_version_id, job.fiscal_year); }
-    catch { return false; }
-    const { data: legacyRef, error: legacyRefError } = await serviceClient.from('external_refs')
-      .select('external_record_id').eq('org_id', job.org_id).eq('domain', ERPNEXT_BUDGET_DOMAIN)
-      .eq('external_tier', ERPNEXT_TIER).eq('pmo_record_id', identity)
-      .eq('external_record_id', job.erp_budget_name).maybeSingle();
-    if (legacyRefError) throw new AppError(legacyRefError.message, legacyRefError.code);
-    return !!legacyRef;
-  }
-
-  const mirrorQuery = serviceClient.from('budget_version_account_erp_mirror')
-    .select('id,org_id,budget_version_id,fiscal_year,to_fiscal_year,erp_account,budget_intent,push_state,erp_budget_name,erp_docstatus,erp_cancelled_at,erp_modified,activated_at_witness,pushed_project_start_date,pushed_project_end_date')
-    .eq('id', job.source_mirror_id).eq('org_id', job.org_id)
-    .eq('budget_version_id', job.budget_version_id).eq('fiscal_year', job.fiscal_year)
-    .eq('erp_account', job.erp_account);
-  const scopedMirror = job.to_fiscal_year == null
-    ? mirrorQuery.is('to_fiscal_year', null)
-    : mirrorQuery.eq('to_fiscal_year', job.to_fiscal_year);
-  const { data: mirror, error: mirrorError } = await scopedMirror.maybeSingle();
-  if (mirrorError) throw new AppError(mirrorError.message, mirrorError.code);
-  const accountRow = mirror as Record<string, unknown> | null;
-  if (!accountRow || (accountRow.to_fiscal_year ?? null) !== (job.to_fiscal_year ?? null) ||
-      accountRow.erp_budget_name !== job.erp_budget_name ||
-      (job.to_fiscal_year != null && accountRow.erp_modified !== job.erp_modified) ||
-      accountRow.activated_at_witness !== job.activated_at_witness || accountRow.budget_intent !== 'remove' ||
-      accountRow.pushed_project_start_date !== job.pushed_project_start_date ||
-      accountRow.pushed_project_end_date !== job.pushed_project_end_date) return false;
-  const isStillLive = accountRow.erp_cancelled_at === null && accountRow.erp_docstatus !== 2 &&
-    ['pending', 'failed', 'held', 'pushed'].includes(String(accountRow.push_state));
-  const alreadyCancelled = accountRow.erp_cancelled_at !== null && accountRow.erp_docstatus === 2;
-  if (!isStillLive && !alreadyCancelled) return false;
-
-  try { identity = job.to_fiscal_year
-    ? budgetRangeIdentity(job.budget_version_id, job.fiscal_year, job.to_fiscal_year, job.erp_account!)
-    : budgetAccountIdentity(job.budget_version_id, job.fiscal_year, job.erp_account!); }
-  catch { return false; }
-  const { data: externalRef, error: refError } = await serviceClient.from('external_refs')
-    .select('external_record_id').eq('org_id', job.org_id).eq('domain', ERPNEXT_BUDGET_DOMAIN)
-    .eq('external_tier', ERPNEXT_TIER).eq('pmo_record_id', identity)
-    .eq('external_record_id', job.erp_budget_name).maybeSingle();
-  if (refError) throw new AppError(refError.message, refError.code);
-  return !!externalRef;
-}
-
-async function reconcileOrgBudgetArchiveCancellationsLive(
-  serviceClient: SupabaseClient,
-  org: OrgBinding,
-  eligibleOutboxIds: ReadonlySet<string>,
-  retryPendingIds: ReadonlySet<string>,
-  cache?: ErpAuthPairCache,
-): Promise<{ driven: number; errors: Array<{ id: string; error: string }> }> {
-  const deps: BudgetArchiveBackstopDeps = {
-    listPending: async (orgId, limit) => {
-      const { data, error } = await serviceClient.from('budget_archive_cancel_intents')
-        .select('id,org_id,request_id,project_id,budget_version_id,source_mirror_id,source_kind,actor_user_id,fiscal_year,to_fiscal_year,erp_modified,erp_account,erp_budget_name,activated_at_witness,pushed_project_start_date,pushed_project_end_date')
-        .eq('org_id', orgId).eq('state', 'pending')
-        .order('last_attempt_at', { ascending: true, nullsFirst: true })
-        .order('created_at', { ascending: true }).order('id', { ascending: true }).limit(limit);
-      if (error) throw new AppError(error.message, error.code);
-      return (data ?? []) as unknown as BudgetArchiveCancelIntent[];
-    },
-    markAttempted: (orgId, jobs) => stampQueueAttempt(serviceClient, 'budget_archive_cancel_intents', orgId, 'id', jobs.map((j) => j.id)),
-    readLifecycle: (job) => readBudgetArchiveLifecycleLive(serviceClient, job),
-    targetIsStillLiveAndOwned: (job) => budgetArchiveTargetStillLiveAndOwnedLive(serviceClient, job),
-    driveCancellation: async (job) => {
-      // #1462 — the SOURCE KIND selects the identity, the archive key and the grain. A legacy job names an
-      // old year-grained document and must never borrow the account plan's identity.
-      const legacy = (job.source_kind ?? 'account') === 'legacy';
-      const identity = legacy
-        ? budgetLegacyIdentity(job.budget_version_id, job.fiscal_year)
-        : job.to_fiscal_year
-          ? budgetRangeIdentity(job.budget_version_id, job.fiscal_year, job.to_fiscal_year, job.erp_account!)
-          : budgetAccountIdentity(job.budget_version_id, job.fiscal_year, job.erp_account!);
-      const idempotencyKey = legacy
-        ? budgetLegacyArchiveKey(identity, job.activated_at_witness)
-        : budgetAccountArchiveKey(identity, job.activated_at_witness);
-      const outbox = await findBudgetOutboxRow(serviceClient, job.org_id, identity, idempotencyKey);
-      if (outbox?.state === 'confirmed') return true;
-      if (outbox && !eligibleOutboxIds.has(outbox.id)) {
-        if (outbox.state === 'committing' || outbox.state === 'quarantined' || retryPendingIds.has(outbox.id)) return false;
-        throw new AppError('budget archive cancellation outbox is no longer eligible for automatic retry', 'commit-rejected');
-      }
-      if (outbox) {
-        await dispatchMoneyWrite(await buildReconcileDepsLive(serviceClient, org, outbox, cache));
-        return true;
-      }
-
-      const authorization = await checkErpnextCommandAuthorization(serviceClient as never, job.org_id, job.actor_user_id, {
-        domain: ERPNEXT_BUDGET_DOMAIN,
-        record: { erp_doc_kind: 'budget' },
-      });
-      if (!authorization.ok) throw new AppError(authorization.message, 'commit-rejected');
-
-      const command: AdapterCommand = {
-        domain: ERPNEXT_BUDGET_DOMAIN,
-        operation: 'create',
-        idempotencyKey,
-        record: {
-          id: job.budget_version_id,
-          erp_doc_kind: 'budget',
-          projectId: job.project_id,
-          fiscal_year: job.fiscal_year,
-          ...(job.to_fiscal_year ? { to_fiscal_year: job.to_fiscal_year, budget_mode: 'whole_project' } : {}),
-          ...(job.to_fiscal_year ? { budget_predecessor_modified: job.erp_modified } : {}),
-          ...(legacy
-            ? { source_kind: 'legacy' }
-            : { erp_account: job.erp_account }),
-          budget_intent: 'remove',
-          budget_predecessor: job.erp_budget_name,
-          outbox_identity: identity,
-          project_start_date: job.pushed_project_start_date,
-          project_end_date: job.pushed_project_end_date,
-          activated_at: job.activated_at_witness,
-          budget_archive_cancel_job_id: job.id,
-          budget_archive_source_mirror_id: job.source_mirror_id,
-          line_items: [],
-        },
-      };
-      await dispatchMoneyWrite(await buildMoneyWriteDepsLive(serviceClient, org, {
-        command,
-        actorUserId: job.actor_user_id,
-        outboxRecordId: identity,
-        persistPayload: true,
-      }, cache));
-      return true;
-    },
-    markComplete: async (job) => {
-      const { data, error } = await serviceClient.from('budget_archive_cancel_intents')
-        .update({ state: 'complete', last_error: null, updated_at: new Date().toISOString() })
-        .eq('id', job.id).eq('org_id', job.org_id).eq('state', 'pending').select('id');
-      if (error) throw new AppError(error.message, error.code);
-      if (!Array.isArray(data) || data.length !== 1) {
-        throw new AppError('budget archive cancellation intent changed before completion', 'commit-rejected');
-      }
-    },
-    markSuperseded: async (job) => {
-      const { data, error } = await serviceClient.rpc('transition_budget_archive_cancel_intent', {
-        p_org_id: job.org_id, p_intent_id: job.id, p_action: 'superseded', p_reason: null,
-      });
-      if (error) throw new AppError(error.message, error.code);
-      if (data === 'stale') throw new AppError('archive cancellation witness changed', 'archive-witness-stale');
-    },
-    markHeld: async (job, reason) => {
-      const { data, error } = await serviceClient.rpc('transition_budget_archive_cancel_intent', {
-        p_org_id: job.org_id, p_intent_id: job.id, p_action: 'held', p_reason: reason,
-      });
-      if (error) throw new AppError(error.message, error.code);
-      if (data === 'stale') throw new AppError('archive cancellation witness changed', 'archive-witness-stale');
-      await surfaceActionRequired(serviceClient, job.org_id, 'budget-archive-cancel-held', {
-        projectId: job.project_id, versionId: job.budget_version_id,
-        fiscalYear: job.fiscal_year, account: job.erp_account,
-        sourceKind: job.source_kind ?? 'account',
-      });
-    },
-    noteRetry: async (job, reason) => {
-      const { data, error } = await serviceClient.rpc('transition_budget_archive_cancel_intent', {
-        p_org_id: job.org_id, p_intent_id: job.id, p_action: 'retry', p_reason: reason,
-      });
-      if (error) throw new AppError(error.message, error.code);
-      if (data === 'stale') throw new AppError('archive cancellation witness changed', 'archive-witness-stale');
-      await surfaceActionRequired(serviceClient, job.org_id, 'budget-archive-cancel-retry', {
-        projectId: job.project_id, versionId: job.budget_version_id,
-        fiscalYear: job.fiscal_year, account: job.erp_account,
-        sourceKind: job.source_kind ?? 'account',
-      });
-    },
-  };
-  const result = await reconcileOrgBudgetArchiveCancellations(deps, org.orgId);
-  return { driven: result.driven, errors: result.errors };
-}
-
-// ────────────────────────────────────────────────────────────────────────────────────────────────
-// (6) P3b — the timesheet push's sweep backstop, live wiring (FR-TSP-045, AC-TSP-022,
-//     timesheetBackstop.ts). The structural twin of pass (5).
-// ────────────────────────────────────────────────────────────────────────────────────────────────
-
-/** Read the EXISTING `external_command_outbox` row for this timesheet's deterministic key, if any —
- *  the SAME key the Approvals UI derives (`timesheetPushKey`), so this finds the SAME candidate rather
- *  than minting a second one; the two originators collide safely (ADR-0058). */
-// deno-lint-ignore require-await -- preserve async promise/error behavior while forwarding the query result.
-async function findTimesheetOutboxRow(
-  serviceClient: SupabaseClient,
-  orgId: string,
-  timesheetId: string,
-  idempotencyKey: string,
-): Promise<OutboxRow | null> {
-  return findOutboxRowByKey(serviceClient, orgId, ERPNEXT_TIMESHEETS_DOMAIN, timesheetId, idempotencyKey);
-}
-
-/**
- * Park a timesheet mirror row (`held` or `failed`) as a COMPARE-AND-SET — the NEW-4 lesson from the
- * budget twin, applied here by construction.
- *
- * The row's eligibility was established by `listPendingTimesheetPushes` earlier in the SAME tick, and
- * the FOREGROUND push (the Approvals UI's Retry, or a fresh approval) runs concurrently on the very same
- * row. A blind update keyed on `(org_id, timesheet_id)` alone would relabel a live success — a row that
- * moved to `pushed` against a real ERPNext Timesheet — as `held`, and `held` is excluded from this very
- * work queue, so nothing would ever re-drive it. A read-then-blind-write across a concurrent writer is a
- * lost update, not a state machine. So the update REPEATS the listing's own predicate.
- *
- * ⚑ Luna FU-1a round-8 BLOCK — a HELD park also records that the ERP OUTCOME IS UNKNOWN. This park is
- * the second producer of "PMO does not know what ERPNext holds": a command whose attempts ran out may
- * have run them out AFTER a submit landed (a post-submit unknown is retried as `external-unreachable`,
- * `erpnext/adapter.ts`), so `held` here carries exactly the doubt the dispatch's own `command-held`
- * carries. Recording it only as `push_state='held'` leaves the re-open fence resting on a PMO QUEUE
- * STATE — and that state is precisely what an operator's `release_outbox_hold` clears when they restore
- * the backstop route. The witness is sticky and first-observed-wins in the DB (migration 0157 §2), so
- * re-parking on a later tick is idempotent. A `failed` park is NOT an unknown: those reasons
- * (`timesheet-push-gate-refused`, `timesheet-push-no-outbox-candidate`) all mean nothing was sent.
- */
-async function parkTimesheetMirrorRow(
-  serviceClient: SupabaseClient,
-  orgId: string,
-  row: TimesheetMirrorCandidateRow,
-  pushState: 'held' | 'failed',
-  reason: string,
-): Promise<{ error: { message: string; code?: string } | null }> {
-  const patch: Record<string, unknown> = { push_state: pushState, push_error: reason };
-  if (pushState === 'held') patch.post_submit_unknown_at = new Date().toISOString();
-  // AC-TSP-022: an `absent` candidate (an approved sheet with NO mirror row) has nothing to
-  // compare-and-set against — its durable state must be CREATED, or the refusal is invisible and the
-  // sheet is re-driven from scratch every tick. A 23505 means the foreground (or another tick) created
-  // the row first: theirs is the newer truth, so leave it exactly as it is.
-  if (row.push_state === MIRROR_ABSENT) {
-    const { error } = await serviceClient
-      .from('timesheet_erp_mirror')
-      .insert({ org_id: orgId, timesheet_id: row.timesheet_id, ...patch });
-    return { error: error && error.code !== '23505' ? error : null };
-  }
-  return await serviceClient
-    .from('timesheet_erp_mirror')
-    .update(patch)
-    .eq('org_id', orgId)
-    .eq('timesheet_id', row.timesheet_id)
-    // the SAME eligibility `listPendingTimesheetPushes` asserted — never a state this pass did not observe
-    .in('push_state', ['pending', 'failed'])
-    .is('erp_cancelled_at', null);
-}
-
-/** The synthetic candidate state for an APPROVED sheet that has no `timesheet_erp_mirror` row at all. */
-const MIRROR_ABSENT = 'absent';
-
-/** How far back the `absent` queue looks for an approved-but-never-attempted sheet (14 days). See
- *  `listApprovedSheetsWithoutMirror` for why the scan must be bounded at all. */
-const ABSENT_SHEET_LOOKBACK_MS = 14 * 24 * 60 * 60 * 1000;
-
-/**
- * Mint the timesheet push's outbox row for an approval whose foreground dispatch never reached the
- * server, ATTRIBUTED to the sheet's own `approved_by` (AC-TSP-022 / FR-TSP-045).
- *
- * The row is byte-identical to the one `adapter-dispatch` would have inserted for the same approval:
- * the SAME deterministic key, the SAME `create` operation, and the SAME payload shape built from the
- * SAME server-read gate output (`repositories/index.ts` `pushApproved` + the dispatch's own gate
- * substitution) — so the digest matches and the two originators reconcile as one command instead of
- * rejecting each other with `idempotency-key-payload-mismatch`.
- *
- * ⚑ MINTED THROUGH THE FENCE (Luna code review BLOCK 1, migration 0151 §B). This used to INSERT into
- * `external_command_outbox` directly, which put the sweep OUTSIDE the per-sheet `ts-correct:` advisory
- * lock that the re-open (`transition_timesheet` Approved→Draft) and the sync push both honour. That was
- * live money: the gate read sees the 40-hour sheet `Approved`, the approver re-opens it (the lock is
- * taken, no outbox row exists yet, PMO commits `Draft`), and the sweep then mints and POSTs the
- * ORIGINAL hours anyway — the corrected week is pushed later and ERPNext holds BOTH generations (72
- * hours on the client's project). A second status read here could not close it; the status check and
- * the INSERT must be one transaction under the lock, which is exactly what the guard RPC is.
- *
- * Returns `{ row }` to drive, or `{ row: null, refusal }`:
- *   • a 23505 says a concurrent writer owns this record's in-flight command (a different key under
- *     0116's one-in-flight index) — the re-read below finds their row, or nothing to drive;
- *   • a P0001 says the FENCE refused (`timesheet-no-longer-approved` — the re-open won the lock). The
- *     reason is handed back so the caller records WHY, and nothing is pushed.
- */
-async function mintTimesheetOutboxRow(
-  serviceClient: SupabaseClient,
-  orgId: string,
-  timesheetId: string,
-  idempotencyKey: string,
-  approvedAt: string,
-  subject: TimesheetPushSubject,
-): Promise<{ row: OutboxRow | null; refusal: string | null }> {
-  const payload: Record<string, unknown> = {
-    id: timesheetId,
-    erp_doc_kind: 'timesheet',
-    user_id: subject.userId,
-    approved_at: approvedAt,
-    entries: subject.entries,
-  };
-  const payloadDigest = await canonicalCommandDigest({ domain: ERPNEXT_TIMESHEETS_DOMAIN, operation: 'create', record: payload });
-  const { error } = await serviceClient.rpc('insert_timesheet_outbox_pending', {
-    p_org: orgId,
-    p_domain: ERPNEXT_TIMESHEETS_DOMAIN,
-    p_record_id: timesheetId,
-    p_key: idempotencyKey,
-    p_tier: ERPNEXT_TIER,
-    p_operation: 'create',
-    p_payload: payload,
-    p_digest: payloadDigest,
-    // 0108 §C: the RECORDED actor every later re-authorization (`checkOutboxReplayAuthorization`) and
-    // every mirror attribution keys on. Never null here — the caller only mints with a resolved approver.
-    p_actor: subject.approvedBy,
-  });
-  // P0001 = THE FENCE REFUSED: the sheet is no longer Approved (a re-open committed while this pass was
-  // deciding). Nothing was inserted; the week's old hours must never be posted. Recorded, not pushed.
-  if (error?.code === 'P0001') return { row: null, refusal: error.message };
-  // 23505 = the foreground raced us (same 4-tuple ⇒ the read below finds THEIR row and we reconcile to
-  // it) or a different command for this record is already in flight (0116 ⇒ nothing to find, caller
-  // records it). Any other error is a real DB fault and is contained per-row by the caller.
-  if (error && error.code !== '23505') throw new AppError(error.message, error.code);
-  return { row: await findTimesheetOutboxRow(serviceClient, orgId, timesheetId, idempotencyKey), refusal: null };
-}
-
-/**
- * ⚑ AC-TSP-022 — the `absent` half of the work queue: APPROVED sheets with NO mirror row.
- *
- * The mirror is written by `adapter-dispatch` itself, so the very failure this backstop exists for —
- * the browser dying BEFORE the fetch reaches the server — leaves no mirror row AND no outbox row, i.e.
- * nothing at all for a mirror-only queue to find. Those weeks were stranded silently: PMO said
- * Approved, the client's ERP never heard about the hours, and no surface said otherwise.
- *
- * ⚑ SCOPED TO THE BINDING'S OWN LIFETIME (`approved_at >= activated_at`). Hours approved BEFORE the org
- * connected ERPNext are deliberately out of scope: back-filling a client's ledger with historical
- * payroll costing is a migration decision a human makes, never a side effect of switching the
- * integration on. An org with no activation stamp is not employing at all (`listEmployingOrgsLive`
- * already filters those out) — a missing stamp here yields NO candidates, which is the fail-safe answer.
- */
-async function listApprovedSheetsWithoutMirror(
-  serviceClient: SupabaseClient,
-  org: OrgBinding,
-  limit: number,
-  nowMs: number = Date.now(),
-): Promise<TimesheetMirrorCandidateRow[]> {
-  if (limit <= 0 || !org.activatedAt) return [];
-  // ⚑ BOUNDED LOOKBACK, and not a nicety: a sheet keeps its mirror row forever once it has one, so an
-  // unbounded `approved_at asc` scan fills its whole page with long-settled sheets as the org's history
-  // grows and would never reach a NEW stranded week — the queue would starve itself silently. The
-  // window is orders of magnitude wider than the recovery it serves (the cron ticks hourly, so a
-  // stranded week is normally recovered within the hour); anything older than it is a human's problem,
-  // not something to post to a client's ledger unannounced.
-  const lookbackFloor = new Date(nowMs - ABSENT_SHEET_LOOKBACK_MS).toISOString();
-  const floor = lookbackFloor > org.activatedAt ? lookbackFloor : org.activatedAt;
-  // ⚑ HIGH-3 (audit round 5) — THE ANTI-JOIN IS IN THE QUERY, so `limit` bounds the CANDIDATES FOUND,
-  // not the rows SCANNED. It used to page `timesheets` first and subtract the mirrored ones in JS: a
-  // 120-person org approves ~240 sheets in the trailing 14 days, so the 200-row page filled with
-  // already-mirrored sheets and the `absent` queue came back EMPTY — the backstop silently did nothing
-  // at exactly the volume that makes it matter. `is('timesheet_erp_mirror', null)` on the embedded
-  // resource is PostgREST's anti-join (the 1:1 FK `timesheet_erp_mirror.timesheet_id → timesheets.id`,
-  // 0136 §1): it is part of the WHERE clause, so LIMIT applies to sheets that have no mirror row.
-  const { data, error } = await serviceClient
-    .from('timesheets')
-    .select('id, timesheet_erp_mirror!left(timesheet_id)')
-    .eq('org_id', org.orgId)
-    .eq('status', 'Approved')
-    .gte('approved_at', floor)
-    .is('timesheet_erp_mirror', null)
-    .order('approved_at', { ascending: true })
-    .limit(limit);
-  if (error) throw new AppError(error.message, error.code);
-  return ((data as Array<{ id: string }> | null) ?? []).map((r) => ({
-    timesheet_id: r.id,
-    push_state: MIRROR_ABSENT,
-    erp_cancelled_at: null,
-  }));
-}
-
-/**
- * ⚑ HIGH-3 — the `absent` queue's own RESERVED share of a tick, so a saturated mirror queue can never
- * zero it. The absent half used to be handed `limit - mirrored.length`: ONE org-wide misconfiguration
- * (say every push failing `activity-type-unconfigured`) parks ≥`limit` `failed` mirror rows, which are
- * re-listed every tick, so the absent budget was 0 PERMANENTLY and a genuinely stranded week could
- * never be seen again. The header comment reasoned carefully about absent sheets not starving mirror
- * rows; the converse was unguarded. A reserved floor keeps both halves bounded (total ≤ 1.25×limit)
- * and neither can be starved by the other.
- */
-export function absentQueueBudget(limit: number, mirroredCount: number): number {
-  const reserved = Math.ceil(limit * 0.25);
-  return Math.max(limit - mirroredCount, Math.min(reserved, limit));
-}
-
-/** The live `TimesheetBackstopDeps` for one org. */
-export function timesheetBackstopDepsLive(
-  serviceClient: SupabaseClient,
-  org: OrgBinding,
-  eligibleOutboxIds: ReadonlySet<string>,
-  /** 0357: `failed` rows waiting out their retry delay (`outbox_retry_pending`) — not due, not exhausted. */
-  retryPendingIds: ReadonlySet<string> = new Set(),
-  /** 0534 (held module): when set, the queue is restricted to these timesheet ids — the ones whose outbox
-   *  command is already `committed`, i.e. ERP accepted the week and only the local finalize is outstanding.
-   *  Omit it while the module is on. */
-  recoverableOnlyIds?: ReadonlySet<string>,
-): TimesheetBackstopDeps {
-  return {
-    listPendingTimesheetPushes: async (orgId, limit) => {
-      // ⚑ Everything this pass must NEVER re-drive is expressed HERE, as query predicates:
-      //   • only `pending`/`failed` — so `pushed` (done), `held` (ADR-0058-terminal until an operator)
-      //     and `pushing` (an in-flight claim, owned by the stale-claim path — a naive re-POST would
-      //     mint a SECOND ERP Timesheet) are never even fetched;
-      //   • `erp_cancelled_at is null` — a Desk-cancelled sheet is never re-created (FR-TSP-084: never
-      //     fight the accountant).
-      // Index-served on (org_id, push_state) and bounded, ordered oldest-first so the queue is fair.
-      const { data, error } = await serviceClient
-        .from('timesheet_erp_mirror')
-        .select('id, timesheet_id, push_state, erp_cancelled_at, last_attempt_at')
-        .eq('org_id', orgId)
-        .in('push_state', ['pending', 'failed'])
-        .is('erp_cancelled_at', null)
-        // Fair order (0427): never attempted first, then the longest-waiting — see `stampQueueAttempt`.
-        .order('last_attempt_at', { ascending: true, nullsFirst: true })
-        .order('created_at', { ascending: true })
-        .order('id', { ascending: true })
-        .limit(limit);
-      if (error) throw new AppError(error.message, error.code);
-      const mirrored = ((data as Array<{ timesheet_id: string; push_state: string; erp_cancelled_at: string | null; last_attempt_at: string | null }> | null) ?? [])
-        .map((r) => ({ timesheet_id: r.timesheet_id, push_state: r.push_state, erp_cancelled_at: r.erp_cancelled_at, last_attempt_at: r.last_attempt_at }));
-      // …plus the `absent` half: APPROVED sheets that never got a mirror row at all (see
-      // `listApprovedSheetsWithoutMirror` — the browser-died-before-the-fetch case this pass exists
-      // for). Mirror rows come FIRST, and each half has a bounded budget NEITHER of which the other can
-      // drive to zero (`absentQueueBudget`, HIGH-3): a large backlog of never-attempted sheets cannot
-      // starve rows that already have recorded retryable state, and — the converse the original design
-      // missed — a saturated `failed` mirror queue cannot blind the stranded-sheet detector.
-      const absent = await listApprovedSheetsWithoutMirror(serviceClient, org, absentQueueBudget(limit, mirrored.length));
-      const rows = [...mirrored, ...absent];
-      // 0534: while the module is held, only rows whose command ERP already accepted are recoverable.
-      return recoverableOnlyIds ? rows.filter((r) => recoverableOnlyIds.has(r.timesheet_id)) : rows;
-    },
-
-    markAttempted: async (orgId, rows) => {
-      await stampQueueAttempt(serviceClient, 'timesheet_erp_mirror', orgId, 'timesheet_id',
-        rows.filter((r) => r.push_state !== 'absent').map((r) => r.timesheet_id));
-    },
-
-    assertApprovedForPush: async (row) => {
-      // FR-TSP-045 / R-SWEEP: re-assert 0138's gate under SERVICE ROLE, resolving the actor to the
-      // sheet's OWN `approved_by` (the admin-connect `p_actor` precedent). The sweep never "trusts
-      // itself" past the status check — this RPC is server truth for status + authorization + entries.
-      const { data: sheet, error: sheetErr } = await serviceClient
-        .from('timesheets')
-        .select('approved_by')
-        .eq('id', row.timesheet_id)
-        .eq('org_id', org.orgId)   // service role bypasses RLS — scope explicitly
-        .maybeSingle();
-      if (sheetErr) throw new AppError(sheetErr.message, sheetErr.code);
-      const approvedBy = (sheet as { approved_by?: string | null } | null)?.approved_by ?? null;
-      if (!approvedBy) {
-        // No recorded approver ⇒ nothing resolvable to re-authorize against, and 0138 fails closed on a
-        // null actor anyway. A REFUSAL (recorded, visible), never a fabricated actor.
-        return { ok: false, reason: 'timesheet-push-no-recorded-approver' };
-      }
-      const gate = await serviceClient.rpc('approved_timesheet_for_push', {
-        p_timesheet_id: row.timesheet_id,
-        p_actor: approvedBy,
-      });
-      if (gate.error) {
-        // ⚑ 0138 raises P0001 ('timesheet-not-approved') and 42501 (cross-org, or its (a2) OFFBOARDING
-        // gate on the resolved actor — a deactivated approver). Those are INTENDED refusals: recorded
-        // per-row, never a wedge. Anything else is a real transport/DB failure and THROWS, so NEW-3's
-        // per-row containment surfaces it as an error rather than silently marking the sheet failed.
-        const code = gate.error.code;
-        if (code === 'P0001' || code === '42501' || code === 'P0002') {
-          return { ok: false, reason: gate.error.message };
-        }
-        throw new AppError(gate.error.message, code);
-      }
-      const gateRow = (gate.data as Array<{ approved_at?: string | null; user_id?: string | null; entries?: unknown }> | null)?.[0];
-      const approvedAt = gateRow?.approved_at ?? null;
-      if (!approvedAt) {
-        // The key's own input. `ts:<id>:null` would be the SAME key for every future approval of this
-        // sheet, so only the first would ever reach ERP — fail closed rather than key on a fiction.
-        return { ok: false, reason: 'timesheet-push-no-approved-at-witness' };
-      }
-      // The gate's OWN server-read subject — whose week it is, which hours may be posted, and the actor
-      // (`approved_by`) an outbox row minted below is attributed to. Nothing here comes from a payload.
-      return {
-        ok: true,
-        approvedAt,
-        subject: {
-          approvedBy,
-          userId: String(gateRow?.user_id ?? ''),
-          entries: Array.isArray(gateRow?.entries) ? (gateRow.entries as unknown[]) : [],
-        },
-      };
-    },
-
-    recordGateRefusal: async (row, reason) => {
-      // Durable + operator-visible. `failed` (not `held`): a refusal caused by an offboarded approver is
-      // resolved by re-activating them or by a privileged user re-pushing, both of which SHOULD let this
-      // pass pick the row up again — `held` would exclude it from this queue permanently.
-      const { error } = await parkTimesheetMirrorRow(serviceClient, org.orgId, row, 'failed', reason);
-      if (error) throw new AppError(error.message, error.code);
-      await surfaceActionRequired(serviceClient, org.orgId, 'timesheet-push-gate-refused', { timesheetId: row.timesheet_id });
-    },
-
-    driveTimesheetPush: async (row: TimesheetMirrorCandidateRow, approvedAt: string, subject?: TimesheetPushSubject) => {
-      const idempotencyKey = timesheetPushKey(row.timesheet_id, approvedAt);
-      let outboxRow = await findTimesheetOutboxRow(serviceClient, org.orgId, row.timesheet_id, idempotencyKey);
-      // ⚑ AC-TSP-022 — the foreground dispatch never reached the outbox for this approval (the browser
-      // died before the fetch). MINT the command here, attributed to the sheet's own `approved_by`.
-      //
-      // This is deliberately NOT the budget twin's rule. Budget holds because a version carries no actor
-      // of its own — an outbox row minted for it would be genuinely UNATTRIBUTED (FR-BUD-102's "never
-      // finalize with a NULL actor"). A timesheet always has one: its approver, read SERVER-SIDE by
-      // `approved_timesheet_for_push` (0138) with `p_actor => approved_by`, which re-asserts that
-      // actor's authorization AND offboarding status on every single tick. So the minted row is
-      // attributable and auditable — and an approver who has since been deactivated is REFUSED by that
-      // gate (recorded as a failure, per-row contained), never quietly pushed.
-      //
-      // The key is the SAME deterministic `timesheetPushKey` the Approvals UI derives, so a race with
-      // the user's own push collides on the outbox 4-tuple (23505) and reconciles to the winner instead
-      // of minting a second week of hours.
-      let minted = false;
-      let mintRefusal: string | null = null;
-      if (!outboxRow && subject?.approvedBy) {
-        const mint = await mintTimesheetOutboxRow(serviceClient, org.orgId, row.timesheet_id, idempotencyKey, approvedAt, subject);
-        outboxRow = mint.row;
-        mintRefusal = mint.refusal;
-        minted = outboxRow !== null;
-      }
-      if (!outboxRow) {
-        // Nothing to drive and nothing mintable: the FENCE refused (the sheet was re-opened — Luna
-        // BLOCK 1, and then the reason says exactly that), or the gate handed back no actor at all
-        // (never attribute a money-adjacent command to nobody), or a DIFFERENT command for this record
-        // is already in flight and owns the outcome (0116). `failed`, not `held`: all of those clear
-        // themselves, and `held` would exclude the row from this queue permanently.
-        const reason = mintRefusal ?? 'timesheet-push-no-outbox-candidate';
-        const { error } = await parkTimesheetMirrorRow(serviceClient, org.orgId, row, 'failed', reason);
-        if (error) throw new AppError(error.message, error.code);
-        await surfaceActionRequired(
-          serviceClient,
-          org.orgId,
-          mintRefusal ? 'timesheet-push-gate-refused' : 'timesheet-push-no-outbox-candidate',
-          { timesheetId: row.timesheet_id },
-        );
-        return;
-      }
-      // ⚑ H-1 (the budget twin's audit finding, applied here by construction): re-drive ONLY through
-      // `0131`'s ONE eligibility door. `findTimesheetOutboxRow` matches by key with no state/attempt/age
-      // filter, so on its own it would re-POST a terminally-rejected timesheet EVERY cron tick forever.
-      // `outbox_reconcile_candidates` is the single authority for "may this row be reconciled now"
-      // (bounded by state + attempt_count + age); a row absent from it is committed-already,
-      // attempt-exhausted, quarantined-not-due, or too old. Not a second door — the SAME door pass 1 uses.
-      // A row minted a moment ago is `pending` with zero attempts — the eligibility set was read at the
-      // START of this pass and cannot contain it. Re-reading the whole set per mint would be the same
-      // answer at more cost; what must NOT happen is treating a brand-new command as attempt-exhausted.
-      if (!minted && !eligibleOutboxIds.has(outboxRow.id)) {
-        // ⚑ Luna round-3 BLOCK 2 — NOT-DUE-YET IS NOT ATTEMPTS-EXHAUSTED (the budget twin's ⚑ HIGH-1,
-        // applied here). `outbox_reconcile_candidates` deliberately omits two states that are simply not
-        // due: a `committing` row inside its 60 s lease and a `quarantined` row before its visibility
-        // window elapses (0131). Both are ABOUT to become claimable by the stale-claim/recovery pass.
-        // Parking them `held` was terminal in every direction at once: `held` is excluded from THIS
-        // queue, the generic outbox pass skips timesheets, and the outbox row keeps the record's one
-        // in-flight slot (0116) — so the submitted ERP Timesheet is never adopted, the mirror never
-        // converges, and the re-open fence (which refuses on a non-terminal outbox row) refuses the week
-        // forever. And this is the ORDINARY shape of a post-submit unknown, whose whole point is that the
-        // dispatch marks NOTHING so the row stays reclaimable: the next tick, seconds later, sees a
-        // `failed` mirror plus a not-yet-due `committing` row. Leave it; the attempt/age bound is
-        // untouched for every state that really has run out.
-        // 0357: a `failed` row waiting out its retry delay is likewise not due — never exhausted.
-        if (outboxRow.state === 'committing' || outboxRow.state === 'quarantined' || retryPendingIds.has(outboxRow.id)) return;
-        const { error } = await parkTimesheetMirrorRow(serviceClient, org.orgId, row, 'held', 'timesheet-push-attempts-exhausted');
-        if (error) throw new AppError(error.message, error.code);
-        await surfaceActionRequired(serviceClient, org.orgId, 'timesheet-push-attempts-exhausted', { timesheetId: row.timesheet_id });
-        return;
-      }
-      // Re-authorizes against the RECORDED actor (`buildReconcileDepsLive`'s
-      // `checkOutboxReplayAuthorization` + `reauthorizeRecoveryReissue`) — the SAME discipline every
-      // other domain's recovery reissue enforces.
-      await dispatchMoneyWrite(await buildReconcileDepsLive(serviceClient, org, outboxRow));
-    },
-  };
-}
-
-/** ⚑ 0131 is the ONE eligibility door. The id set a backstop pass may re-drive IS
- *  `outbox_reconcile_candidates`' own answer (`listCandidatesLive`) — never a second, hand-rolled
- *  state/attempt predicate, which is exactly the "second door" 0131 exists to prevent. This applies
- *  that single read to the timesheet domain and additionally returns the `committed`-record allow-list
- *  the held-module pass needs: while a module is switched off, only a week ERP already accepted stays
- *  drivable, because its LOCAL finalize is the one thing left outstanding (closure is never held,
- *  FR-PLN-006). The shape is deliberate and pinned: `eligibleOutboxIds` is projected from THAT call in
- *  one hop (`dispatchGateWiring.test.ts` H-1), never re-derived from a hand-rolled predicate. */
-function timesheetEligibility(
-  candidates: readonly OutboxRow[],
-  held: boolean,
-): { eligibleOutboxIds: ReadonlySet<string>; recoverable: ReadonlySet<string> | null } {
-  const domainCandidates = candidates.filter((c) => c.domain === ERPNEXT_TIMESHEETS_DOMAIN);
-  const recoverable = held
-    ? new Set(domainCandidates.filter((c) => c.state === 'committed').map((c) => c.pmoRecordId))
-    : null;
-  return {
-    eligibleOutboxIds: new Set(
-      domainCandidates.filter((c) => recoverable === null || recoverable.has(c.pmoRecordId)).map((c) => c.id),
-    ),
-    recoverable,
-  };
-}
-
-/** The live per-org timesheet backstop pass (P3b task 6.4, AC-TSP-022). Domain-gated (Luna BLOCK 9): an
- *  org that never assigned the `timesheets` domain to this tier has nothing to reconcile. */
-async function reconcileOrgTimesheetPushesLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ driven: number; error?: string }> {
-  if (!org.ownedDomains.includes(ERPNEXT_TIMESHEETS_DOMAIN)) return { driven: 0 };
-  // 0534: a switched-off module is HELD, not driven — reported with the typed reason so ops can see
-  // it, and resumed on the next tick after re-enable (nothing is dropped or abandoned).
-  //
-  // ⚑ CLOSURE IS NEVER HELD (FR-PLN-006): the pass still runs while held, restricted to sheets whose
-  // outbox command is `committed` — ERP already accepted that week, so only its LOCAL finalize is
-  // outstanding and leaving it would strand payroll-costing hours for the whole off interval.
-  const held = featureDisabled(org, 'timesheets');
-  try {
-    // The SoT eligibility set (0131), fetched ONCE per pass — the backstop may only re-drive a row this
-    // RPC still admits. Scoped to the timesheets domain; other domains' candidates are irrelevant here.
-    const { eligibleOutboxIds, recoverable } = timesheetEligibility(
-      await listCandidatesLive(serviceClient)(org.orgId), held,
-    );
-    const result = await reconcileOrgTimesheetPushes(
-      timesheetBackstopDepsLive(serviceClient, org, eligibleOutboxIds,
-        await listRetryPendingLive(serviceClient, org.orgId), recoverable ?? undefined),
-      { orgId: org.orgId },
-    );
-    // NEW-3: per-row throws are contained so the queue drains, but they are NEVER silent — a row that
-    // keeps throwing is a stuck payroll-costing push and must be visible in the tick's own result.
-    for (const e of result.errors) {
-      console.warn(`[erpnext-sweep] org ${org.orgId} timesheet ${e.timesheetId}: backstop row failed — ${e.error}`);
-    }
-    return {
-      driven: result.driven,
-      error: held
-        ? `feature-off:timesheets${result.errors.length ? `; ${result.errors.length} timesheet row(s) failed` : ''}`
-        : (result.errors.length ? `${result.errors.length} timesheet row(s) failed` : undefined),
-    };
-  } catch (err) {
-    return { driven: 0, error: err instanceof Error ? err.message : String(err) };
-  }
-}
-
-// ────────────────────────────────────────────────────────────────────────────────────────────────
-// (7) #775 phase B — the expense posting pass, the ONLY originator of expense postings (ADR-0081).
-// ────────────────────────────────────────────────────────────────────────────────────────────────
-
-/** The live reads `resolveExpensePosting` needs (FR-EXP-106). ERP reads use the probe budget (one attempt, tight
- *  deadline) — this runs before the outbox claim, so a slow ERP fails the attempt instead of hanging the tick.
- *  Exported for its unit test (`expenseResolveDepsLive.test.ts`). */
-export function expenseResolveDepsLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): ExpenseResolveDeps {
-  const text = (value: unknown): string | null => (typeof value === 'string' && value.trim() ? value.trim() : null);
-  let erpClient: ErpClientDeps | null = null;
-  const client = async (): Promise<ErpClientDeps> => {
-    if (!erpClient) {
-      const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, org, cache);
-      erpClient = withProbeBudget({ fetchImpl: guardedErpFetch(org.siteUrl), apiKey, apiSecret, baseUrl: org.siteUrl });
-    }
-    return erpClient;
-  };
-  const getOrNull = async (doctype: string, name: string): Promise<Record<string, unknown> | null> => {
-    try {
-      return (await getDoc(await client(), doctype, name)) as Record<string, unknown>;
-    } catch (err) {
-      if (err instanceof ErpError && err.status === 404) return null;
-      throw err;
-    }
-  };
-  return {
-    readBinding: () => Promise.resolve({
-      company: text(org.company),
-      cashAccount: text(org.config.default_cash_account) ?? text(org.config.default_bank_account),
-      costCenter: text(org.config.cost_center),
-      projectMap: (org.config.project_map as Record<string, string> | undefined) ?? {},
-    }),
-    readConfirmedEmployee: async (profileId) => {
-      const lookup = await lookupConfirmedErpEmployee(serviceClient as never, org.orgId, profileId);
-      return lookup.status === 'ok' ? lookup.employee : null;
-    },
-    readAccountMap: async () => {
-      const { data, error } = await serviceClient.from('expense_account_map').select('account_key, erp_account').eq('org_id', org.orgId);
-      if (error) throw new AppError(error.message, error.code);
-      return Object.fromEntries(((data as Array<{ account_key: string; erp_account: string }> | null) ?? [])
-        .map((r) => [r.account_key, r.erp_account]));
-    },
-    readApprovalPosting: async (claimId) => {
-      const { data, error } = await serviceClient.from('expense_posting_erp_mirror')
-        .select('push_state, erp_name, erp_cancelled_at')
-        .eq('org_id', org.orgId).eq('posting_identity', `${claimId}:approval`).maybeSingle();
-      if (error) throw new AppError(error.message, error.code);
-      return (data as { push_state: string; erp_name: string | null; erp_cancelled_at: string | null } | null) ?? null;
-    },
-    // Any outbox command for the approval itself (its key prefix; the cancel shares the approval's identity).
-    readApprovalOutboxExists: async (claimId) => {
-      const { data, error } = await serviceClient.from('external_command_outbox').select('id')
-        .eq('org_id', org.orgId).eq('domain', ERPNEXT_EXPENSES_DOMAIN)
-        .eq('pmo_record_id', expenseOutboxIdentity('approval', claimId))
-        .like('idempotency_key', `${EXPENSE_POSTING_KEY_PREFIX.approval}:%`).limit(1);
-      if (error) throw new AppError(error.message, error.code);
-      return Array.isArray(data) && data.length > 0;
-    },
-    readErpAccounts: async (names) => {
-      const facts: ErpAccountFacts[] = [];
-      for (const name of names) {
-        const doc = await getOrNull('Account', name);
-        if (doc) facts.push({ ...doc, name } as ErpAccountFacts);
-      }
-      return facts;
-    },
-    // One Company read gives both facts; the supplier payable account is ERPNext's LIVE value, never the binding's copy.
-    readErpCompany: async (company) => {
-      const doc = await getOrNull('Company', company);
-      return doc ? { currency: text(doc.default_currency), defaultPayableAccount: text(doc.default_payable_account) } : null;
-    },
-    readErpJournalDocstatus: async (name) => {
-      const doc = await getOrNull(DOCTYPE_REGISTRY['expense-journal'].doctype, name);
-      return typeof doc?.docstatus === 'number' ? doc.docstatus : null;
-    },
-  };
-}
-
-/** Why an existing outbox row that 0131 no longer offers is parked: what an operator must look at. */
-function expenseOutboxHoldReason(state: string): string {
-  if (state === 'confirmed') return 'expense-posting-mirror-diverged';
-  if (state === 'held') return 'command-held';
-  return 'expense-posting-attempts-exhausted';
-}
-
-/** The posting a deterministic expense key names (`<prefix>:<subject>:<stamp>`), or null for any other key. */
-function expensePostingOfKey(idempotencyKey: string): ExpensePosting | null {
-  const prefix = idempotencyKey.split(':', 1)[0];
-  const hit = (Object.entries(EXPENSE_POSTING_KEY_PREFIX) as Array<[ExpensePosting, string]>).find(([, p]) => p === prefix);
-  return hit ? hit[0] : null;
-}
-
-const EXPENSE_INTENT_COLUMNS = 'id, posting, posting_identity, claim_id, return_id, state_stamp, push_state, push_error';
-
-/** The live deps of pass (7). `eligibleOutbox` is 0131's expenses candidate set, read once per pass. Exported so the
- *  replay/hold routing is unit-proven against a fake client (`expensePostingBackstopLive.test.ts`). */
-export function expensePostingBackstopDepsLive(
-  serviceClient: SupabaseClient,
-  org: OrgBinding,
-  eligibleOutbox: readonly OutboxRow[],
-  cache?: ErpAuthPairCache,
-  /** 0357: `failed` rows waiting out their retry delay (`outbox_retry_pending`) — not due, not exhausted. */
-  retryPendingIds: ReadonlySet<string> = new Set(),
-): ExpenseBackstopDeps {
-  const eligibleOutboxIds = new Set(eligibleOutbox.map((row) => row.id));
-  // #2120: one resolver read set per pass (this org, this tick) — the binding, account map and ERP Company are read
-  // once however many intents the pass resolves; per-claim reads (employee, approval, accounts) stay per claim.
-  const resolveReads = memoiseExpenseResolveReads(expenseResolveDepsLive(serviceClient, org, cache));
-  // Compare-and-set: only a pending/failed, not-cancelled intent moves (a concurrent landing stays `pushed`).
-  // The notice is deduplicated by surfaceActionRequired against an unread one for the same posting and reason.
-  const recordOutcome = async (row: ExpenseIntentRow, outcome: ExpenseOutcome): Promise<void> => {
-    const patch: Record<string, unknown> = { push_state: outcome.state, push_error: outcome.reason };
-    // 0358: each failure lengthens the posting's retry delay (`expense_posting_queue`).
-    if (outcome.state === 'failed') patch.attempt_count = (row.attempt_count ?? 0) + 1;
-    if (outcome.state === 'pushed') {
-      patch.erp_name = outcome.erpName ?? null;
-      patch.pushed_at = new Date().toISOString();
-    }
-    const { error } = await serviceClient.from('expense_posting_erp_mirror').update(patch)
-      .eq('org_id', org.orgId).eq('id', row.id).in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null);
-    if (error) throw new AppError(error.message, error.code);
-    if (outcome.state !== 'pushed') {
-      await surfaceActionRequired(serviceClient, org.orgId, outcome.state === 'held' ? 'expense-posting-held' : 'expense-posting-failed',
-        { postingIdentity: row.posting_identity, reason: outcome.reason });
-    }
-  };
-  const classify = (err: unknown): ExpenseOutcome => {
-    const code = (err as { code?: unknown } | null)?.code;
-    return {
-      state: code === 'command-held' ? 'held' : 'failed',
-      reason: typeof code === 'string' ? code : err instanceof Error ? err.message : String(err),
-    };
-  };
-  return {
-    // Round robin (NFR-EXP-013): never-attempted first, then least recently attempted — index-served (0270 §3).
-    // 0358: a failed posting is queued again only after its retry delay (2^n minutes, capped at an hour).
-    listPending: async (orgId, limit) => {
-      const { data, error } = await serviceClient.rpc('expense_posting_queue', { p_org_id: orgId, p_limit: limit });
-      if (error) throw new AppError(error.message, error.code);
-      return (data as ExpenseIntentRow[] | null) ?? [];
-    },
-    markAttempted: async (orgId, intentIds) => {
-      const { error } = await serviceClient.from('expense_posting_erp_mirror')
-        .update({ last_attempt_at: new Date().toISOString() }).eq('org_id', orgId).in('id', intentIds);
-      if (error) throw new AppError(error.message, error.code);
-    },
-    // A command left `committed` (finalize-only: the ERP document exists) whose intent the read-model writer already
-    // marked `pushed`. Finishing it issues no ERP write; leaving it blocks the record's next command (0134).
-    listStranded: async (orgId) => {
-      const committed = eligibleOutbox.filter((row) => row.state === 'committed' && row.domain === ERPNEXT_EXPENSES_DOMAIN);
-      const byIdentity = new Map<string, OutboxRow>();
-      for (const outbox of committed) {
-        const posting = expensePostingOfKey(outbox.idempotencyKey);
-        const subject = outbox.pmoRecordId.split(':', 1)[0];
-        if (posting && subject) byIdentity.set(expensePostingIdentity(posting, subject), outbox);
-      }
-      if (byIdentity.size === 0) return [];
-      const { data, error } = await serviceClient.from('expense_posting_erp_mirror')
-        .select(EXPENSE_INTENT_COLUMNS)
-        .eq('org_id', orgId).eq('push_state', 'pushed').in('posting_identity', [...byIdentity.keys()]);
-      if (error) throw new AppError(error.message, error.code);
-      return ((data as ExpenseIntentRow[] | null) ?? []).flatMap((row) => {
-        const outbox = byIdentity.get(row.posting_identity);
-        return outbox ? [{ row, outbox }] : [];
-      });
-    },
-    findOutbox: (row) => {
-      const posting = row.posting as ExpensePosting;
-      const subject = row.return_id ?? row.claim_id;
-      return findOutboxRowByKey(serviceClient, org.orgId, ERPNEXT_EXPENSES_DOMAIN,
-        expenseOutboxIdentity(posting, subject), expensePostingKey(posting, subject, row.state_stamp));
-    },
-    replay: async (row, ref) => {
-      const outbox = ref as OutboxRow;
-      if (!eligibleOutboxIds.has(outbox.id)) {
-        // Not due yet: a lease or quarantine window (0131), or a failed row's retry delay (0357).
-        if (outbox.state === 'committing' || outbox.state === 'quarantined' || retryPendingIds.has(outbox.id)) return 'waiting';
-        await recordOutcome(row, { state: 'held', reason: expenseOutboxHoldReason(outbox.state) });
-        return 'held';
-      }
-      // A replay that may issue a NEW ERP write re-asserts the recorded actor's CURRENT role/rank — the gate's actor
-      // half (0270 §5), which the generic replay authorization (active membership only for expenses) does not run.
-      // A refusal leaves the outbox row untouched; the intent is recorded failed and retried.
-      if (replayMayIssueErpWrite(outbox.state)) {
-        const { error } = await serviceClient.rpc('expense_posting_actor_check', { p_org_id: org.orgId, p_mirror_id: row.id });
-        if (error) {
-          if (error.code === '42501' || error.code === 'P0002') {
-            await recordOutcome(row, { state: 'failed', reason: error.message });
-            return 'refused';
-          }
-          throw new AppError(error.message, error.code);
-        }
-      }
-      try {
-        await dispatchMoneyWrite(await buildReconcileDepsLive(serviceClient, org, outbox, cache));
-      } catch (err) {
-        // A stranded finish (the intent is already pushed) has nothing to record: the pass reports it and retries.
-        if (row.push_state === 'pushed') throw err;
-        const outcome = classify(err);
-        await recordOutcome(row, outcome);
-        return outcome.state === 'held' ? 'held' : 'failed';
-      }
-      return 'completed';
-    },
-    assertGate: async (row) => {
-      const { data, error } = await serviceClient.rpc('expense_posting_for_push', { p_org_id: org.orgId, p_mirror_id: row.id });
-      if (error) {
-        if (error.code === 'P0001' || error.code === 'P0002' || error.code === '42501') return { ok: false, reason: error.message };
-        throw new AppError(error.message, error.code);
-      }
-      return { ok: true, truth: parseExpenseGateTruth(data) };
-    },
-    resolve: (truth) => resolveExpensePosting(truth, resolveReads),
-    recordOutcome,
-    driveFresh: async (row, truth, refs) => {
-      const built = buildExpensePostingCommand(truth, refs, erpDatetime(Date.now() - 60_000));
-      const auth = await checkErpnextCommandAuthorization(serviceClient as never, org.orgId, truth.actor_id, {
-        domain: ERPNEXT_EXPENSES_DOMAIN, record: { erp_doc_kind: built.record.erp_doc_kind },
-      });
-      if (!auth.ok) {
-        await recordOutcome(row, { state: 'failed', reason: auth.message });
-        return;
-      }
-      const command: AdapterCommand = {
-        domain: ERPNEXT_EXPENSES_DOMAIN, operation: built.operation,
-        record: built.record as AdapterCommand['record'], idempotencyKey: built.idempotencyKey,
-      };
-      try {
-        await dispatchMoneyWrite(await buildMoneyWriteDepsLive(serviceClient, org,
-          { command, actorUserId: truth.actor_id, outboxRecordId: built.outboxIdentity, persistPayload: true }, cache));
-      } catch (err) {
-        await recordOutcome(row, classify(err));
-      }
-    },
-  };
-}
-
-/** Pass (7), domain-gated (an org that has not employed `expenses` has nothing to post). */
-async function reconcileOrgExpensePostingsLive(
-  serviceClient: SupabaseClient,
-  org: OrgBinding,
-  cache?: ErpAuthPairCache,
-): Promise<{ driven: number; error?: string }> {
-  if (!org.ownedDomains.includes(ERPNEXT_EXPENSES_DOMAIN)) return { driven: 0 };
-  try {
-    const eligibleOutbox = (await listCandidatesLive(serviceClient)(org.orgId)).filter((c) => c.domain === ERPNEXT_EXPENSES_DOMAIN);
-    const result = await reconcileOrgExpensePostings(
-      expensePostingBackstopDepsLive(serviceClient, org, eligibleOutbox, cache, await listRetryPendingLive(serviceClient, org.orgId)),
-      { orgId: org.orgId },
-    );
-    for (const e of result.errors) {
-      console.warn(`[erpnext-sweep] org ${org.orgId} expense intent ${e.intentId}: ${e.error}`);
-    }
-    return backstopPassResult(result, 'expense');
-  } catch (err) {
-    return { driven: 0, error: err instanceof Error ? err.message : String(err) };
-  }
-}
-
-// ────────────────────────────────────────────────────────────────────────────────────────────────
-// (7b) #1515 S6 — site float transfers: head office bank → a float's ERP cash account, once per paid replenishment.
-// The expense pass's orchestration (imprestPostingBackstop.ts) over `imprest_posting_erp_mirror`; same outbox domain
-// (`expenses`), so 0270 §5b's read scope covers its rows.
-// ────────────────────────────────────────────────────────────────────────────────────────────────
-
-const IMPREST_INTENT_COLUMNS = 'id, posting_identity, replenishment_id, state_stamp, push_state, push_error, attempt_count';
-/** A failed transfer is retried after 2^attempts minutes, capped at an hour (the 0358 expense queue's delay). */
-const imprestRetryDelayMs = (attempts: number): number => Math.min(60, 2 ** Math.min(attempts, 10)) * 60_000;
-
-/** The live reads the resolver needs. ERP reads reuse the expense pass's probe-budget client. Exported for its unit test. */
-export function imprestResolveDepsLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): ImprestResolveDeps {
-  const text = (value: unknown): string | null => (typeof value === 'string' && value.trim() ? value.trim() : null);
-  const erp = expenseResolveDepsLive(serviceClient, org, cache);
-  return {
-    // The head office end is the binding's BANK account (it funds site cash). No fallback to the company cash account: that
-    // would post a cash-to-cash "Bank Entry"; an unset bank account refuses (imprest-head-office-account-unconfigured).
-    readBinding: () => Promise.resolve({
-      company: text(org.company),
-      headOfficeAccount: text(org.config.default_bank_account),
-    }),
-    readErpAccounts: erp.readErpAccounts,
-    readErpCompany: async (company) => {
-      const c = await erp.readErpCompany(company);
-      return c ? { currency: c.currency } : null;
-    },
-  };
-}
-
-/** The live deps of pass (7b). `eligibleOutbox` is 0131's expenses candidate set, read once per pass. */
-export function imprestPostingBackstopDepsLive(
-  serviceClient: SupabaseClient,
-  org: OrgBinding,
-  eligibleOutbox: readonly OutboxRow[],
-  cache?: ErpAuthPairCache,
-  retryPendingIds: ReadonlySet<string> = new Set(),
-  /** 0534 (held module): list NOTHING as new work — only the stranded/finalize-only pass runs. */
-  holdNewWork = false,
-): ImprestBackstopDeps {
-  const eligibleOutboxIds = new Set(eligibleOutbox.map((row) => row.id));
-  // #2120: the binding and ERP Company are read once per pass (this org, this tick); accounts stay per transfer.
-  const resolveReads = memoiseImprestResolveReads(imprestResolveDepsLive(serviceClient, org, cache));
-  const recordOutcome: ImprestBackstopDeps['recordOutcome'] = async (row, outcome) => {
-    const patch: Record<string, unknown> = { push_state: outcome.state, push_error: outcome.reason };
-    if (outcome.state === 'failed') patch.attempt_count = (row.attempt_count ?? 0) + 1;
-    if (outcome.state === 'pushed') {
-      patch.erp_name = outcome.erpName ?? null;
-      patch.pushed_at = new Date().toISOString();
-    }
-    // Compare-and-set: only a pending/failed, not-cancelled intent moves (a concurrent landing stays `pushed`).
-    const { error } = await serviceClient.from('imprest_posting_erp_mirror').update(patch)
-      .eq('org_id', org.orgId).eq('id', row.id).in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null);
-    if (error) throw new AppError(error.message, error.code);
-    if (outcome.state !== 'pushed') {
-      await surfaceActionRequired(serviceClient, org.orgId, outcome.state === 'held' ? 'imprest-posting-held' : 'imprest-posting-failed',
-        { postingIdentity: row.posting_identity, reason: outcome.reason });
-    }
-  };
-  const classify = (err: unknown) => {
-    const code = (err as { code?: unknown } | null)?.code;
-    return {
-      state: (code === 'command-held' ? 'held' : 'failed') as 'held' | 'failed',
-      reason: typeof code === 'string' ? code : err instanceof Error ? err.message : String(err),
-    };
-  };
-  return {
-    // Round robin: never-attempted first, then least recently attempted; a failed intent waits out its retry delay.
-    listPending: async (orgId, limit) => {
-      // 0534: a held module mints nothing new; the stranded/finalize-only pass above still runs.
-      if (holdNewWork) return [];
-      const { data, error } = await serviceClient.from('imprest_posting_erp_mirror').select(`${IMPREST_INTENT_COLUMNS}, last_attempt_at`)
-        .eq('org_id', orgId).in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null)
-        .order('last_attempt_at', { ascending: true, nullsFirst: true }).order('created_at', { ascending: true }).limit(limit);
-      if (error) throw new AppError(error.message, error.code);
-      const now = Date.now();
-      return ((data as Array<ImprestIntentRow & { last_attempt_at: string | null }> | null) ?? []).filter((r) =>
-        r.push_state !== 'failed' || !r.last_attempt_at || now - Date.parse(r.last_attempt_at) >= imprestRetryDelayMs(r.attempt_count ?? 0));
-    },
-    markAttempted: async (orgId, intentIds) => {
-      const { error } = await serviceClient.from('imprest_posting_erp_mirror')
-        .update({ last_attempt_at: new Date().toISOString() }).eq('org_id', orgId).in('id', intentIds);
-      if (error) throw new AppError(error.message, error.code);
-    },
-    // A command left `committed` whose intent the read-model writer already marked `pushed`: finish it (no ERP write).
-    listStranded: async (orgId) => {
-      const byIdentity = new Map<string, OutboxRow>();
-      for (const outbox of eligibleOutbox) {
-        if (outbox.state !== 'committed' || !IMPREST_TRANSFER_KEY_RE.test(outbox.idempotencyKey)) continue;
-        byIdentity.set(outbox.pmoRecordId, outbox);
-      }
-      if (byIdentity.size === 0) return [];
-      const { data, error } = await serviceClient.from('imprest_posting_erp_mirror').select(IMPREST_INTENT_COLUMNS)
-        .eq('org_id', orgId).eq('push_state', 'pushed').in('posting_identity', [...byIdentity.keys()]);
-      if (error) throw new AppError(error.message, error.code);
-      return ((data as ImprestIntentRow[] | null) ?? []).flatMap((row) => {
-        const outbox = byIdentity.get(row.posting_identity);
-        return outbox ? [{ row, outbox }] : [];
-      });
-    },
-    findOutbox: (row) => findOutboxRowByKey(serviceClient, org.orgId, ERPNEXT_EXPENSES_DOMAIN, row.posting_identity,
-      imprestTransferKey({ subject_id: row.replenishment_id, state_stamp: row.state_stamp })),
-    replay: async (row, ref) => {
-      const outbox = ref as OutboxRow;
-      if (!eligibleOutboxIds.has(outbox.id)) {
-        if (outbox.state === 'committing' || outbox.state === 'quarantined' || retryPendingIds.has(outbox.id)) return 'waiting';
-        await recordOutcome(row, { state: 'held', reason: expenseOutboxHoldReason(outbox.state) });
-        return 'held';
-      }
-      // A replay that may issue a NEW ERP write re-asserts the gate (status, stamp, recorded actor's CURRENT standing).
-      if (replayMayIssueErpWrite(outbox.state)) {
-        const { error } = await serviceClient.rpc('imprest_posting_for_push', { p_org_id: org.orgId, p_mirror_id: row.id });
-        if (error) {
-          if (error.code === '42501' || error.code === 'P0001' || error.code === 'P0002') {
-            await recordOutcome(row, { state: 'failed', reason: error.message });
-            return 'refused';
-          }
-          throw new AppError(error.message, error.code);
-        }
-      }
-      try {
-        await dispatchMoneyWrite(await buildReconcileDepsLive(serviceClient, org, outbox, cache));
-      } catch (err) {
-        if (row.push_state === 'pushed') throw err;
-        const outcome = classify(err);
-        await recordOutcome(row, outcome);
-        return outcome.state === 'held' ? 'held' : 'failed';
-      }
-      return 'completed';
-    },
-    assertGate: async (row) => {
-      const { data, error } = await serviceClient.rpc('imprest_posting_for_push', { p_org_id: org.orgId, p_mirror_id: row.id });
-      if (error) {
-        if (error.code === 'P0001' || error.code === 'P0002' || error.code === '42501') return { ok: false, reason: error.message };
-        throw new AppError(error.message, error.code);
-      }
-      return { ok: true, truth: parseImprestGateTruth(data) };
-    },
-    resolve: (truth) => resolveImprestPosting(truth, resolveReads),
-    recordOutcome,
-    driveFresh: async (row, truth, refs) => {
-      const built = buildImprestPostingCommand(truth, refs);
-      const auth = await checkErpnextCommandAuthorization(serviceClient as never, org.orgId, truth.actor_id, {
-        domain: ERPNEXT_EXPENSES_DOMAIN, record: { erp_doc_kind: built.record.erp_doc_kind },
-      });
-      if (!auth.ok) {
-        await recordOutcome(row, { state: 'failed', reason: auth.message });
-        return;
-      }
-      const command: AdapterCommand = {
-        domain: ERPNEXT_EXPENSES_DOMAIN, operation: built.operation,
-        record: built.record as AdapterCommand['record'], idempotencyKey: built.idempotencyKey,
-      };
-      try {
-        await dispatchMoneyWrite(await buildMoneyWriteDepsLive(serviceClient, org,
-          { command, actorUserId: truth.actor_id, outboxRecordId: built.outboxIdentity, persistPayload: true }, cache));
-      } catch (err) {
-        await recordOutcome(row, classify(err));
-      }
-    },
-  };
-}
-
-/** Pass (7b), domain-gated like (7): an org that has not employed `expenses` has nothing to post. */
-async function reconcileOrgImprestPostingsLive(
-  serviceClient: SupabaseClient,
-  org: OrgBinding,
-  cache?: ErpAuthPairCache,
-): Promise<{ driven: number; error?: string }> {
-  if (!org.ownedDomains.includes(ERPNEXT_EXPENSES_DOMAIN)) return { driven: 0 };
-  // 0534: `imprest` off holds the site-float transfers (this pass's ONLY subject). Core expense
-  // postings keep running — expense claims are a never-gatable key (0533), so the split is per pass,
-  // never per domain. Held, never dropped: the mirror row's queue resumes on re-enable.
-  //
-  // ⚑ CLOSURE IS NEVER HELD (FR-PLN-006): the pass still FINISHES commands ERP already accepted. A
-  // `committed` outbox row whose intent the read-model writer already marked `pushed` is completed by
-  // the finalize-only replay with no ERP write — leaving it would keep the intent unfinished for the
-  // whole off interval. Only NEW transfers are held.
-  const held = featureDisabled(org, 'imprest');
-  try {
-    const eligibleOutbox = (await listCandidatesLive(serviceClient)(org.orgId)).filter((c) => c.domain === ERPNEXT_EXPENSES_DOMAIN);
-    const result = await reconcileOrgImprestPostings(
-      imprestPostingBackstopDepsLive(serviceClient, org, eligibleOutbox, cache,
-        await listRetryPendingLive(serviceClient, org.orgId), held),
-      { orgId: org.orgId },
-    );
-    for (const e of result.errors) {
-      console.warn(`[erpnext-sweep] org ${org.orgId} imprest intent ${e.intentId}: ${e.error}`);
-    }
-    const summary = backstopPassResult(result, 'imprest');
-    return held ? { ...summary, error: ['feature-off:imprest', summary.error].filter(Boolean).join('; ') } : summary;
-  } catch (err) {
-    return { driven: 0, error: err instanceof Error ? err.message : String(err) };
   }
 }
 
@@ -4205,7 +1513,7 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
       // Feature off ⇒ today's path (which returns {} for a switched-off module).
       if (featureDisabled(org, 'financial_statements')) return { kind: 'legacy' };
       return await planChangeDrivenStatements(
-        serviceClient as unknown as ChangeDrivenService, org, () => erpClientForOrg(serviceClient, org, erpAuth), Date.now(),
+        serviceClient as unknown as ChangeDrivenService, org, () => erpClientForBinding(serviceClient, org, erpAuth), Date.now(),
       );
     },
     settleChangeDrivenStatements: (org, run, result) =>
@@ -4235,7 +1543,7 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
         return { errorCode: 'native-context-unavailable' };
       }
       try {
-        const client = await erpClientForOrg(serviceClient, org, erpAuth);
+        const client = await erpClientForBinding(serviceClient, org, erpAuth);
         const remainingTickBudgetMs = Math.max(0, tickBudget.tickTimeBudgetMs - (Date.now() - tickBudget.tickStartMs));
         const result = await refreshStatementReportBatch({
           orgId: org.orgId,
@@ -4269,6 +1577,9 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
     reconcileOrgExpensePostings: (org) => reconcileOrgExpensePostingsLive(serviceClient, org, erpAuth),
     nowMs: Date.now,
     hourlyDeadlineAtMs: handlerEntryMs + HOURLY_INVOCATION_DEADLINE_MS,
+    invocationDeadlineAtMs: handlerEntryMs + SWEEP_INVOCATION_DEADLINE_MS,
+    hourlyTryDeadlineAtMs: handlerEntryMs + HOURLY_TRY_DEADLINE_MS,
+    turn: sweepTurn(handlerEntryMs),
     deferFullSweep: async (org, dueInSeconds) => {
       if (!org.statementLockHolder) throw new Error('no sweep lock held');
       const { data, error } = await serviceClient.rpc('defer_erp_full_sweep', { p_org_id: org.orgId, p_holder: org.statementLockHolder, p_due_in_seconds: dueInSeconds });
@@ -4305,586 +1616,3 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
   }, erpAuth, cadence);
   return json({ ok: true, cadence: tickCadenceSummary(cadence, cycle), ...cycle });
 }, { summarize: summarizeErpSweep }));
-
-/** A terminal `last_error` marker the held-refusal stamp must never replace (0868: a rejected captured payment). */
-const TERMINAL_LAST_ERROR = 'captured_invoice_payment_rejected';
-
-/**
- * #1680: records a held pre-connection step's refusal in the row's own `last_error`, so the recovery pass reports it once
- * and stays quiet while the same refusal repeats (`reconcileOrgOutbox`). Writes `last_error` only — no state, attempt or
- * `updated_at` change, so the row's place in the candidate list and its retry timing are exactly as before — and only on
- * the unclaimed row the sweep read (same state, same claim generation). A terminal marker is never replaced, including
- * one written concurrently (the update filter). Best effort: a failed write is logged by its code and the row reports
- * again on the next tick, which is the behaviour before #1680.
- */
-async function recordHeldRefusal(serviceClient: SupabaseClient, orgId: string, row: OutboxRow, message: string): Promise<void> {
-  if (row.lastError === message || row.lastError === TERMINAL_LAST_ERROR) return;
-  try {
-    const { error } = await serviceClient.from('external_command_outbox').update({ last_error: message })
-      .eq('id', row.id).eq('org_id', orgId).eq('state', row.state).eq('claim_generation', row.claimGeneration)
-      .or(`last_error.is.null,last_error.neq.${TERMINAL_LAST_ERROR}`);
-    if (error) console.warn('[erpnext-sweep] held-refusal stamp failed', error.code ?? 'unknown');
-  } catch {
-    console.warn('[erpnext-sweep] held-refusal stamp failed', 'thrown');
-  }
-}
-
-/**
- * The full per-candidate `DispatchMoneyWriteDeps` wiring (SPEC-REVIEW RULING — the `not-implemented`
- * sentinel is retired: the C-1 'held' state makes sweep-side reconciliation the operational PE-recovery
- * path). Reassembles the SAME building blocks adapter-dispatch uses per request — `createDbMoneyOutboxDeps`
- * (the fenced outbox ops + the composite/anchor probe + the reissue policy), `resolveErpDispatchAdapter`
- * (the per-org ERP adapter), and the read-model writers — reconstructing the command from the outbox row
- * + its persisted `payload.erp_doc_kind`. Inert in practice until an org is flipped AND a money command
- * leaves a candidate (no employing org ⇒ no candidate ⇒ this never fires — "inert-by-empty-map").
- */
-export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org: OrgBinding, row: OutboxRow, cache?: ErpAuthPairCache): Promise<DispatchMoneyWriteDeps> {
-  // Re-read the persisted operation + payload (the OutboxRow projection drops them) to reconstruct the command.
-  // `actor_user_id` (0108): the ORIGINAL command's verified caller. Without it a sweep-finalized SI
-  // mirror lands `author_user_id = NULL`, and the approver≠author SoD check then passes for everyone.
-  const { data, error } = await serviceClient.from('external_command_outbox')
-    .select('operation, payload, actor_user_id, procurement_input_digest').eq('id', row.id).maybeSingle();
-  if (error || !data) throw new AppError(`outbox row ${row.id} not readable for reconcile`, error?.code ?? 'not-found');
-  const rowExtra = data as { operation: 'create' | 'update' | 'transition'; payload: Record<string, unknown> | null; actor_user_id: string | null; procurement_input_digest: string | null };
-  const payload = rowExtra.payload ?? {};
-
-  // WIRE 1 / round-7 B6 — RE-ASSERT authorization before replaying a FROZEN command. The recovery pass
-  // reconstructs the command from the persisted payload and calls `dispatchMoneyWrite` directly, so a
-  // replay re-runs NONE of the synchronous dispatch gates: without this, a user could issue a money
-  // command, be demoted / deactivated / have their org's domain ownership revoked, and the cron would
-  // still POST it up to 24 hours later. The rule is not forked — this is the SAME
-  // `checkErpnextCommandAuthorization` the synchronous path runs, against the row's RECORDED actor
-  // (0108 §C) and the org's CURRENT state.
-  //
-  // Runs BEFORE credential/adapter resolution, so a refusal never touches ERP. It THROWS, which
-  // `reconcileOrgOutbox` records as a per-candidate error while leaving the row byte-for-byte as it is
-  // (no state change, no ERP call) — held for an operator and surfaced as `reconcile:<id>:<message>`,
-  // exactly like the `domain-not-owned` hold. A money row is never dropped. `reconcileOrgOutbox`'s
-  // `ownedDomains` pre-filter stays as the cheap early-out; THIS is the authority.
-  const replayAuth = await checkOutboxReplayAuthorization(serviceClient as never, org.orgId, {
-    id: row.id,
-    state: row.state,
-    domain: row.domain,
-    operation: rowExtra.operation,
-    pmoRecordId: row.pmoRecordId,
-    actorUserId: rowExtra.actor_user_id,
-    payload,
-  });
-  if (!replayAuth.ok) throw new AppError(replayAuth.message, 'commit-rejected');
-  // ECA-4 backstop (FR-ECA-030): dispatch refuses a later step of a purchase ordered before the connection, so no such
-  // row should exist; one that does (queued before this rule) is held here, before credentials, rather than re-driven.
-  // Same states as the authorization above: only a replay that can mint a new ERP document is checked.
-  if (replayMayIssueErpWrite(row.state)) {
-    try {
-      await assertNotPreCutover(serviceClient as never, { domain: row.domain, record: payload });
-    } catch (err) {
-      if ((err as { code?: unknown } | null)?.code === PRE_CUTOVER_CODE) await recordHeldRefusal(serviceClient, org.orgId, row, (err as Error).message);
-      throw err;
-    }
-  }
-
-  let trustedReceiptSnapshot = false;
-  if (rowExtra.procurement_input_digest != null) {
-    const marker = payload.pmo_gr_snapshot as { raw_digest?: unknown; supplier?: unknown; po?: unknown } | undefined;
-    const { created_after: _createdAfter, ...material } = payload;
-    const digest = await canonicalCommandDigest({ domain: row.domain, operation: rowExtra.operation, record: material });
-    if (row.domain !== 'procurement' || rowExtra.operation !== 'create' || payload.erp_doc_kind !== 'goods-receipt'
-        || !/^[0-9a-f]{64}$/.test(rowExtra.procurement_input_digest)
-        || !marker || marker.raw_digest !== rowExtra.procurement_input_digest
-        || (marker.supplier !== null && typeof marker.supplier !== 'string')
-        || (marker.po !== null && typeof marker.po !== 'string') || row.payloadDigest !== digest) {
-      throw new AppError('receipt snapshot is inconsistent', 'commit-rejected');
-    }
-    trustedReceiptSnapshot = true;
-  }
-
-  // ⚑ FR-BFY-075 (review finding 5) — RE-RUN THE BUDGET GATE FOR THE FROZEN YEAR, BEFORE ANY POST.
-  //
-  // Everything below reconstructs a command that was frozen when the operator activated the budget —
-  // possibly hours ago. The project's dates, the client's `Fiscal Year` calendar, the version's line
-  // items and the category map can ALL have moved since. Without this the sweep would install an ERP
-  // `Budget` for a year the project no longer occupies (or a figure PMO no longer stands behind), with
-  // no operator present and no gate having agreed to it. It is the SAME `runBudgetGate` the foreground
-  // path runs — not a second copy of the rule — reading the CURRENT truth.
-  //
-  // Read under SERVICE ROLE: the sweep carries no user JWT, and the row's recorded actor was
-  // re-authorized immediately above (0108 §C). Every read is explicitly org-scoped, since service role
-  // bypasses RLS.
-  //
-  // A refusal THROWS with the named `budget-sweep-gate-held` code. `reconcileOrgOutbox` records it as a
-  // per-candidate error and leaves the row EXACTLY as it is — no state change, no ERP call — so the
-  // operator sees it and the recovery resumes by itself the moment the cause is fixed. (It is not
-  // transitioned to the outbox `held` state: this path holds no claim, so it cannot make a fenced
-  // write-back, and a `held` row would additionally need an Admin release even after the operator had
-  // already corrected the dates. The money-critical property — never POST a body the current gate would
-  // reject — is what the throw guarantees.)
-  await assertBudgetSweepGate(serviceClient, org, payload, row, cache, rowExtra.actor_user_id);
-
-  const command: AdapterCommand = {
-    domain: row.domain as AdapterCommand['domain'],
-    operation: rowExtra.operation,
-    record: payload as AdapterCommand['record'],
-    idempotencyKey: row.idempotencyKey,
-  };
-  return buildMoneyWriteDepsLive(serviceClient, org,
-    { command, actorUserId: rowExtra.actor_user_id, outboxRecordId: row.pmoRecordId, persistPayload: false, trustedReceiptSnapshot }, cache);
-}
-
-/**
- * The money-write deps for ONE command, given its actor and outbox identity — the body `buildReconcileDepsLive`
- * always had, extracted so the expense pass (#775 phase B) can drive a FRESH command through the identical
- * outbox/probe/fence/re-authorization machinery. `persistPayload` is set only for a fresh command: it makes the
- * outbox INSERT carry the payload and the recorded actor (a recovery row already has both).
- */
-export function moneyWriteReplayOptions(persistPayload: boolean): { replay: boolean } {
-  return { replay: !persistPayload };
-}
-
-export function moneyWriteReadModelContext(args: { orgId: string; actorUserId: string | null; isReplay?: boolean }) {
-  return {
-    orgId: args.orgId,
-    callerUserId: args.actorUserId ?? undefined,
-    isReplay: args.isReplay ?? false,
-  };
-}
-
-/** Runs after a swept money write lands (set by `buildMoneyWriteDepsLive`). */
-type SweepAfterSuccess = { afterSuccess?: () => Promise<void> };
-
-/**
- * ECA-6: every sweep dispatch goes through here, so a replace the sweep finishes spends its consent exactly as the
- * foreground push does. Runs only after `dispatchMoneyWrite` resolves; a spend failure is logged, not surfaced (the
- * consent names a document that is now cancelled, so it unlocks nothing).
- */
-export async function dispatchMoneyWrite(deps: DispatchMoneyWriteDeps & SweepAfterSuccess): ReturnType<typeof dispatchMoneyWriteCore> {
-  const result = await dispatchMoneyWriteCore(deps);
-  await deps.afterSuccess?.();
-  return result;
-}
-
-export async function buildMoneyWriteDepsLive(
-  serviceClient: SupabaseClient,
-  org: OrgBinding,
-  args: { command: AdapterCommand; actorUserId: string | null; outboxRecordId: string; persistPayload: boolean; trustedReceiptSnapshot?: boolean },
-  cache?: ErpAuthPairCache,
-): Promise<DispatchMoneyWriteDeps & SweepAfterSuccess> {
-  const command = args.command;
-  const operation = command.operation as 'create' | 'update' | 'transition';
-  const payload = command.record as Record<string, unknown>;
-  const kind = payload.erp_doc_kind;
-  const entry = typeof kind === 'string' && kind in DOCTYPE_REGISTRY ? DOCTYPE_REGISTRY[kind as ErpDocKind] : undefined;
-  const bodyFns = typeof kind === 'string' ? DOCTYPE_BODIES[kind as ErpDocKind] : undefined;
-  if (!entry || !bodyFns) {
-    // Loud (never a silent no-op): a candidate whose kind we cannot resolve needs an operator, not a POST.
-    throw new AppError(`erpnext-sweep reconcile: unresolvable erp_doc_kind '${String(kind)}' for ${command.domain}/${args.outboxRecordId}`, 'commit-rejected');
-  }
-
-  const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, org, cache);
-  // BLOCK 1 (money double-POST): the recovery probe must not burn the claim budget. withProbeBudget
-  // caps it (maxRetries 0 + tighter deadline) so a hung probe surfaces as unreachable instead of
-  // consuming the whole 300s quarantine window and letting a claimant POST after its own reissue.
-  const client = withProbeBudget({ fetchImpl: guardedErpFetch(org.siteUrl), apiKey, apiSecret, baseUrl: org.siteUrl });
-
-  // ECA-6: a budget replace the sweep finishes names its recorded consent; it is spent once the write lands.
-  let occupantConsentId: string | null = null;
-  const adapter = await resolveErpDispatchAdapter({
-    serviceClient: serviceClient as never,
-    orgId: org.orgId,
-    actorUserId: args.actorUserId ?? undefined,
-    command,
-    fetchImpl: guardedErpFetch(org.siteUrl),
-    apiKey,
-    apiSecret,
-    rateLimiter: { acquire: async () => {} },
-    onOccupantConsent: (id) => { occupantConsentId = id; },
-    doctypeBodies: DOCTYPE_BODIES,
-    // #858: recovery replays the persisted items/taxes (inside the digest) and makes no ERPNext read to rebuild them.
-    // Fresh expense commands carry their own frozen payload and must use the ordinary first-build path.
-    ...moneyWriteReplayOptions(args.persistPayload),
-    trustedReceiptSnapshot: args.trustedReceiptSnapshot,
-  });
-
-  const anchorField = entry.anchorField;
-  const probeDeps = { client, doctype: entry.doctype, anchorField: anchorField ?? '', fromDoc: bodyFns.fromDoc, pmoRecordId: args.outboxRecordId };
-  const encodeExternalRecordId = (mapping: ExternalRefMapping): string =>
-    mapping.domain === ERPNEXT_COMPANIES_DOMAIN ? `${entry.doctype}:${mapping.externalRecordId}` : mapping.externalRecordId;
-
-  const { created_after: _createdAfter, ...digestPayload } = payload;
-  const payloadDigest = await canonicalCommandDigest({ domain: command.domain, operation: command.operation, record: digestPayload });
-  const money = createDbMoneyOutboxDeps({
-    serviceClient: serviceClient as never,
-    orgId: org.orgId,
-    externalTier: ERPNEXT_TIER,
-    operation,
-    // C-1 per-kind reissue policy: a mutable-anchor (PE) inconclusive recovery is HELD, never reissued.
-    // ⚑ HIGH-1: an `upsertOnGrain` kind (ERP `Budget`) has no anchor at ALL, but ERP itself enforces its
-    // natural grain, so the dispatch factory's server-derived grain read is a conclusive probe and a
-    // recovery may reissue — holding instead made the upsert's unenforced-grain window PERMANENT. The
-    // rule lives in ONE place (`reissueOnInconclusiveAbsence`, doctypeRegistry.ts) so the sync dispatch
-    // and the sweep can never disagree about whether a money command may be re-minted.
-    reissueOnInconclusiveAbsence: reissueOnInconclusiveAbsence(entry),
-    payloadDigest,
-    encodeExternalRecordId,
-    // BLOCK 4: one shared builder — the mutable-anchor (Payment Entry) FALLBACK carries the same
-    // `payment_type` discriminator the synchronous dispatch fallback uses, so a Receive recovery can
-    // never adopt a Pay document (and vice-versa) through a shared `reference_no`.
-    probeByRemarksKey: buildOutboxProbe({ probeDeps, kind: String(kind), anchorField, anchorMutable: entry.anchorMutable === true, payload }),
-    // FIX 2 (round-9 SHOULD-FIX): a post-window RECOVERY REISSUE (a quarantined immutable-anchor row
-    // whose probe misses → a fresh ERP POST) re-asserts the RECORDED actor's CURRENT authorization. The
-    // pre-dispatch `checkOutboxReplayAuthorization` above re-authorizes only pending/failed (so it does
-    // not also block an ADOPT of a real ERP doc); this closes the quarantined→reissue gap with the SAME
-    // `checkErpnextCommandAuthorization` rule the synchronous gate + that replay check run. Consulted by
-    // `dispatch.ts` ONLY on the actual reissue branch — an adopt or a mutable-anchor hold never calls it.
-    // Fail-CLOSED on an unattributable row; a refusal HOLDS the row for an operator (never dropped).
-    // #775 phase B — a FRESH command (the expense pass) persists its frozen payload + recorded actor at INSERT, so a
-    // later replay re-reads exactly what was digested and re-authorizes the same person.
-    ...(args.persistPayload ? { payload, actorUserId: args.actorUserId ?? undefined } : {}),
-    reauthorizeRecoveryReissue: async () => {
-      if (!args.actorUserId) {
-        return { ok: false, message: `outbox row ${args.outboxRecordId} has no recorded actor — reissue held for an operator` };
-      }
-      const res = await checkErpnextCommandAuthorization(serviceClient as never, org.orgId, args.actorUserId, {
-        domain: command.domain,
-        record: { erp_doc_kind: payload.erp_doc_kind },
-      });
-      if (!res.ok) return { ok: res.ok, message: res.message };
-      // A reissued procurement create answers the org's CURRENT purchase rules (the same question the outbox claim
-      // asks of a pending or failed row), so a rule turned on after the command was queued refuses the new document.
-      return checkQueuedProcurementCreate(serviceClient as never, org.orgId, { domain: command.domain, operation, record: payload }, args.actorUserId);
-    },
-  });
-
-  const writeReadModel = async (canonical: PmoRecord, options?: { isReplay?: boolean }): Promise<void> => {
-    await getReadModelWriter(command.domain).upsert(
-      { serviceClient: serviceClient as never, ...moneyWriteReadModelContext({
-        orgId: org.orgId, actorUserId: args.actorUserId, isReplay: options?.isReplay,
-      }) },
-      canonical,
-      command,
-    );
-  };
-  const recordExternalRef = (mapping: ExternalRefMapping): Promise<void> =>
-    recordExternalRefWrite(serviceClient as never, { ...mapping, externalRecordId: encodeExternalRecordId(mapping), orgId: org.orgId });
-
-  // FR-BFY-032: the outbox row + `external_refs` are keyed on the row's OWN `pmo_record_id` — the
-  // year-qualified `<vid>:<encoded_fy>` for a budget fan-out, the bare record id for every other
-  // domain (where the two are the same string, so this is byte-for-byte).
-  const afterSuccess = async (): Promise<void> => {
-    if (!occupantConsentId) return;
-    const { error: spendError } = await serviceClient.rpc('consume_budget_occupant_consent', {
-      p_org_id: org.orgId, p_id: occupantConsentId, p_actor_id: args.actorUserId,
-    });
-    if (spendError) console.error('[erpnext-sweep] could not spend the budget replace consent:', spendError.message);
-  };
-  return { adapter, command, writeReadModel, recordExternalRef, money, outboxRecordId: args.outboxRecordId, afterSuccess };
-}
-
-/**
- * FR-BFY-075 — the frozen budget command's gate re-run. A no-op for every other domain.
- *
- * Refuses when the CURRENT gate would refuse (unresolvable/ambiguous calendar, a project that no longer
- * occupies the year, an un-phased line on a now-multi-FY project, an unmapped category) AND when the
- * gate passes but its plan no longer contains the frozen year — a re-phase moves a year out of the plan
- * without the gate itself objecting, and POSTing that year would enforce a budget PMO no longer states.
- */
-async function assertBudgetArchiveSweepGate(
-  serviceClient: SupabaseClient,
-  org: OrgBinding,
-  payload: Record<string, unknown>,
-  outbox: OutboxRow,
-  outboxActorUserId: string | null,
-): Promise<void> {
-  const jobId = typeof payload.budget_archive_cancel_job_id === 'string' ? payload.budget_archive_cancel_job_id : '';
-  if (!jobId) throw new AppError('budget archive recovery HELD: cancellation job witness is missing', BUDGET_SWEEP_GATE_HELD);
-  const { data, error } = await serviceClient.from('budget_archive_cancel_intents')
-    .select('id,org_id,request_id,project_id,budget_version_id,source_mirror_id,source_kind,actor_user_id,fiscal_year,to_fiscal_year,erp_modified,erp_account,erp_budget_name,activated_at_witness,pushed_project_start_date,pushed_project_end_date,state')
-    .eq('id', jobId).eq('org_id', org.orgId).maybeSingle();
-  if (error) throw new AppError(error.message, error.code);
-  const job = data as (BudgetArchiveCancelIntent & { state: string }) | null;
-  if (!job) throw new AppError('budget archive recovery HELD: cancellation job no longer exists', BUDGET_SWEEP_GATE_HELD);
-
-  const { data: request, error: requestError } = await serviceClient.from('budget_archive_requests')
-    .select('id,org_id,project_id,budget_version_id,requested_by,cancel_erp')
-    .eq('id', job.request_id).eq('org_id', job.org_id).maybeSingle();
-  if (requestError) throw new AppError(requestError.message, requestError.code);
-  if (!request || request.project_id !== job.project_id || request.budget_version_id !== job.budget_version_id ||
-      request.requested_by !== job.actor_user_id || request.cancel_erp !== true ||
-      outboxActorUserId !== job.actor_user_id) {
-    throw new AppError('budget archive recovery HELD: original archive request or actor changed', BUDGET_SWEEP_GATE_HELD);
-  }
-
-  const versionId = String(payload.id ?? '');
-  const legacy = (job.source_kind ?? 'account') === 'legacy';
-  let identity: string;
-  let key: string;
-  try {
-    identity = legacy
-      ? budgetLegacyIdentity(job.budget_version_id, job.fiscal_year)
-      : job.to_fiscal_year
-        ? budgetRangeIdentity(job.budget_version_id, job.fiscal_year, job.to_fiscal_year, job.erp_account!)
-        : budgetAccountIdentity(job.budget_version_id, job.fiscal_year, job.erp_account!);
-    key = legacy
-      ? budgetLegacyArchiveKey(identity, job.activated_at_witness)
-      : budgetAccountArchiveKey(identity, job.activated_at_witness);
-  } catch { throw new AppError('budget archive recovery HELD: cancellation identity is invalid', BUDGET_SWEEP_GATE_HELD); }
-  if (versionId !== job.budget_version_id || payload.projectId !== job.project_id ||
-      payload.budget_archive_source_mirror_id !== job.source_mirror_id ||
-      payload.fiscal_year !== job.fiscal_year ||
-      (legacy ? job.to_fiscal_year != null : (payload.to_fiscal_year ?? null) !== (job.to_fiscal_year ?? null)) ||
-      (job.to_fiscal_year != null && (payload.budget_mode !== 'whole_project' ||
-        payload.budget_predecessor_modified !== job.erp_modified)) ||
-      (legacy ? payload.erp_account != null : payload.erp_account !== job.erp_account) ||
-      (legacy ? payload.source_kind !== 'legacy' : payload.source_kind != null) ||
-      payload.budget_intent !== 'remove' || payload.budget_predecessor !== job.erp_budget_name ||
-      payload.outbox_identity !== identity || payload.activated_at !== job.activated_at_witness ||
-      outbox.pmoRecordId !== identity || outbox.idempotencyKey !== key) {
-    throw new AppError('budget archive recovery HELD: frozen cancellation does not match its durable intent', BUDGET_SWEEP_GATE_HELD);
-  }
-
-  // A committed document is already cancelled in ERPNext; only finalize its PMO read model. Pending,
-  // failed and post-window quarantined replays can all issue a new write and must recheck lifecycle.
-  if (outbox.state === 'committed' || outbox.state === 'confirmed') return;
-  if (job.state !== 'pending') {
-    throw new AppError('budget archive recovery HELD: cancellation intent is no longer pending', BUDGET_SWEEP_GATE_HELD);
-  }
-  const lifecycle = await readBudgetArchiveLifecycleLive(serviceClient, job);
-  if (!lifecycle || lifecycle.status !== 'Archived' || lifecycle.activatedAt !== job.activated_at_witness || lifecycle.activeSuccessorUsesTarget) {
-    throw new AppError('budget archive recovery HELD: archived version or active target witness changed', BUDGET_SWEEP_GATE_HELD);
-  }
-  if (!(await budgetArchiveTargetStillLiveAndOwnedLive(serviceClient, job))) {
-    throw new AppError('budget archive recovery HELD: ERP Budget predecessor witness changed', BUDGET_SWEEP_GATE_HELD);
-  }
-}
-
-async function assertBudgetSweepGate(
-  serviceClient: SupabaseClient,
-  org: OrgBinding,
-  payload: Record<string, unknown>,
-  outbox: OutboxRow,
-  cache?: ErpAuthPairCache,
-  outboxActorUserId: string | null = null,
-): Promise<void> {
-  if (payload.erp_doc_kind !== 'budget') return;
-  const versionId = String(payload.id ?? '');
-  const frozenYear = typeof payload.fiscal_year === 'string' ? payload.fiscal_year : '';
-  if (!versionId || !frozenYear) {
-    throw new AppError(
-      `erpnext-sweep budget recovery: the frozen command names no version/fiscal year — refusing to POST it (${versionId}/${frozenYear})`,
-      BUDGET_SWEEP_GATE_HELD,
-    );
-  }
-  if (payload.budget_archive_cancel_job_id !== undefined) {
-    await assertBudgetArchiveSweepGate(serviceClient, org, payload, outbox, outboxActorUserId);
-    return;
-  }
-  let plan: BudgetGateResult;
-  try {
-    plan = await runBudgetGate({
-      orgId: org.orgId,
-      versionId,
-      readVersion: async (id) => {
-        const { data, error } = await serviceClient
-          .from('budget_versions')
-          .select('id, org_id, project_id, status, activated_at, budget_mode')
-          .eq('id', id)
-          .eq('org_id', org.orgId)
-          .maybeSingle();
-        if (error) throw new AppError(error.message, error.code);
-        return (data as BudgetVersionGateRow | null) ?? null;
-      },
-      readProject: async (id) => {
-        const { data, error } = await serviceClient
-          .from('projects')
-          .select('id, org_id, start_date, end_date')
-          .eq('id', id)
-          .eq('org_id', org.orgId)
-          .maybeSingle();
-        if (error) throw new AppError(error.message, error.code);
-        return (data as BudgetGateProjectRow | null) ?? null;
-      },
-      readLineItems: (id) => readBudgetLineItems(serviceClient as never, id),
-      readCategoryMap: () => readCategoryAccountMap(serviceClient as never, org.orgId),
-      readFiscalYears: () => readErpFiscalYearsLive(serviceClient, org, cache),
-    });
-  } catch (err) {
-    const reason = err instanceof Error ? err.message : String(err);
-    throw new AppError(
-      `erpnext-sweep budget recovery HELD for fiscal year ${frozenYear}: the push gate would now refuse this budget — ${reason}`,
-      BUDGET_SWEEP_GATE_HELD,
-    );
-  }
-  const versionMajor = org.versionMajor ?? 15;
-  if (versionMajor !== 16) {
-    if (!plan.plan.some((entry) => entry.fiscal_year === frozenYear)) {
-      throw new AppError(
-        `erpnext-sweep budget recovery HELD for fiscal year ${frozenYear}: the active budget no longer phases any line to that year, ` +
-          `so PMO no longer states a budget for it (current plan: ${plan.plan.map((e) => e.fiscal_year).join(', ') || 'none'})`,
-        BUDGET_SWEEP_GATE_HELD,
-      );
-    }
-    return;
-  }
-
-  let identity: ReturnType<typeof parseBudgetIdentity>;
-  try {
-    identity = parseBudgetIdentity(outbox.pmoRecordId);
-  } catch {
-    throw new AppError('erpnext-sweep budget recovery HELD: frozen account identity is invalid', BUDGET_SWEEP_GATE_HELD);
-  }
-  const account = identity.erpAccount;
-  const frozenAccount = typeof payload.erp_account === 'string' ? payload.erp_account : null;
-  const isWholeProjectRange = plan.budgetMode === 'whole_project';
-  if (!account || !frozenAccount || account !== frozenAccount || identity.versionId !== versionId ||
-      identity.fiscalYear !== frozenYear ||
-      (isWholeProjectRange
-        ? identity.kind !== 'range' || identity.toFiscalYear !== payload.to_fiscal_year
-        : identity.kind !== 'annual' || identity.toFiscalYear !== null)) {
-    throw new AppError('erpnext-sweep budget recovery HELD: frozen account identity is missing or inconsistent', BUDGET_SWEEP_GATE_HELD);
-  }
-  let currentKey: string;
-  try {
-    currentKey = budgetAccountPushKey(outbox.pmoRecordId, plan.activatedAt);
-  } catch {
-    throw new AppError('erpnext-sweep budget recovery HELD: current activation witness is invalid', BUDGET_SWEEP_GATE_HELD);
-  }
-  if (currentKey !== outbox.idempotencyKey) {
-    throw new AppError('erpnext-sweep budget recovery HELD: activation changed since this account intent was created', BUDGET_SWEEP_GATE_HELD);
-  }
-
-  if (isWholeProjectRange) {
-    const range = plan.range;
-    if (!range || !plan.distributionRows || range.fromFiscalYear !== frozenYear ||
-        range.toFiscalYear !== identity.toFiscalYear || payload.budget_mode !== 'whole_project') {
-      throw new AppError('erpnext-sweep budget recovery HELD: approved range basis is missing or changed', BUDGET_SWEEP_GATE_HELD);
-    }
-    let desiredRangeAccounts: ReturnType<typeof resolveV16BudgetAccounts>;
-    try { desiredRangeAccounts = resolveV16BudgetAccounts(plan.sourceLineItems, plan.categoryMap); }
-    catch (err) {
-      throw new AppError(`erpnext-sweep budget recovery HELD: current range account resolution failed — ${err instanceof Error ? err.message : String(err)}`, BUDGET_SWEEP_GATE_HELD);
-    }
-    const removeRangeAccount = payload.budget_intent === 'remove';
-    if (!removeRangeAccount) {
-      const accountMap = plan.categoryMap.filter((row) => row.erp_account === account).map((row) => row.category)
-        .filter((category) => plan.sourceLineItems.some((line) => line.category === category));
-      const yearAmounts = payload.year_amounts;
-      if (accountMap.length !== 1 || !Array.isArray(yearAmounts) || yearAmounts.length !== range.fiscalYears.length) {
-        throw new AppError('erpnext-sweep budget recovery HELD: frozen range amount vector is missing or ambiguous', BUDGET_SWEEP_GATE_HELD);
-      }
-      const categoryRows = plan.distributionRows.filter((row) => row.category === accountMap[0]);
-      const expected = range.fiscalYears.map((year, index) => {
-        const row = categoryRows.find((candidate) => candidate.fiscal_year === year.name && candidate.ordinal === index);
-        const amount = row ? parseExactCents(row.amount) : null;
-        if (amount === null) throw new AppError('erpnext-sweep budget recovery HELD: approved range row is missing or malformed', BUDGET_SWEEP_GATE_HELD);
-        return { year: year.name, amount };
-      });
-      const actual = yearAmounts.map((candidate) => {
-        if (!candidate || typeof candidate !== 'object') return null;
-        const value = candidate as Record<string, unknown>;
-        return typeof value.year === 'string' && typeof value.amount === 'string'
-          ? { year: value.year, amount: parseExactCents(value.amount) }
-          : null;
-      });
-      if (actual.some((row, index) => row === null || row.year !== expected[index]?.year || row.amount !== expected[index]?.amount)) {
-        throw new AppError('erpnext-sweep budget recovery HELD: frozen range amount vector differs from the approved distribution', BUDGET_SWEEP_GATE_HELD);
-      }
-    }
-    if (removeRangeAccount) {
-      if (desiredRangeAccounts.some((row) => row.account === account)) {
-        throw new AppError('erpnext-sweep budget recovery HELD: removed range account is desired again', BUDGET_SWEEP_GATE_HELD);
-      }
-      const predecessor = typeof payload.budget_predecessor === 'string' ? payload.budget_predecessor : '';
-      if (!predecessor) throw new AppError('erpnext-sweep budget recovery HELD: range removal has no predecessor witness', BUDGET_SWEEP_GATE_HELD);
-      const prior = await serviceClient.from('budget_version_account_erp_mirror')
-        .select('budget_version_id,erp_budget_name,to_fiscal_year,budget_versions!inner(project_id)')
-        .eq('org_id', org.orgId).eq('budget_versions.project_id', plan.projectId)
-        .eq('fiscal_year', frozenYear).eq('to_fiscal_year', identity.toFiscalYear)
-        .eq('erp_account', account).eq('erp_budget_name', predecessor)
-        .eq('budget_intent', 'ensure').is('erp_cancelled_at', null).maybeSingle();
-      if (prior.error || !prior.data || (prior.data as { to_fiscal_year?: unknown }).to_fiscal_year !== identity.toFiscalYear) {
-        throw new AppError('erpnext-sweep budget recovery HELD: range predecessor has no exact same-org project/range/account witness', BUDGET_SWEEP_GATE_HELD);
-      }
-      const priorVersionId = String((prior.data as { budget_version_id?: unknown }).budget_version_id ?? '');
-      let reverseIdentity: string;
-      try { reverseIdentity = budgetRangeIdentity(priorVersionId, frozenYear, identity.toFiscalYear!, account); }
-      catch { throw new AppError('erpnext-sweep budget recovery HELD: range predecessor identity is invalid', BUDGET_SWEEP_GATE_HELD); }
-      const reverseRef = await serviceClient.from('external_refs').select('external_record_id')
-        .eq('org_id', org.orgId).eq('domain', 'budget').eq('external_tier', ERPNEXT_TIER)
-        .eq('pmo_record_id', reverseIdentity).eq('external_record_id', predecessor).maybeSingle();
-      if (reverseRef.error || !reverseRef.data) throw new AppError('erpnext-sweep budget recovery HELD: range predecessor has no reverse reference witness', BUDGET_SWEEP_GATE_HELD);
-    } else if (!desiredRangeAccounts.some((row) => row.account === account)) {
-      throw new AppError('erpnext-sweep budget recovery HELD: range account is no longer desired by the current map', BUDGET_SWEEP_GATE_HELD);
-    }
-    return;
-  }
-
-  let desired: ReturnType<typeof resolveV16BudgetAccounts>;
-  try {
-    desired = resolveV16BudgetAccounts(
-      plan.plan.find((entry) => entry.fiscal_year === frozenYear)?.line_items ?? [],
-      plan.categoryMap,
-    );
-  } catch (err) {
-    throw new AppError(`erpnext-sweep budget recovery HELD: current account resolution failed — ${err instanceof Error ? err.message : String(err)}`, BUDGET_SWEEP_GATE_HELD);
-  }
-  const remove = payload.budget_intent === 'remove';
-  if (remove) {
-    if (desired.some((row) => row.account === account) || !plan.inSpanFiscalYears.includes(frozenYear)) {
-      throw new AppError('erpnext-sweep budget recovery HELD: removed account is desired again or year is outside the current project span', BUDGET_SWEEP_GATE_HELD);
-    }
-    const predecessor = typeof payload.budget_predecessor === 'string' ? payload.budget_predecessor : '';
-    if (!predecessor) throw new AppError('erpnext-sweep budget recovery HELD: removal has no predecessor witness', BUDGET_SWEEP_GATE_HELD);
-    const prior = await serviceClient.from('budget_version_account_erp_mirror')
-      .select('budget_version_id,erp_budget_name,budget_versions!inner(project_id)')
-      .eq('org_id', org.orgId).eq('budget_versions.project_id', plan.projectId)
-      .eq('fiscal_year', frozenYear).eq('erp_account', account).eq('erp_budget_name', predecessor)
-      .eq('budget_intent', 'ensure').is('erp_cancelled_at', null).maybeSingle();
-    if (prior.error || !prior.data) throw new AppError('erpnext-sweep budget recovery HELD: predecessor has no same-org project/account witness', BUDGET_SWEEP_GATE_HELD);
-    const priorVersionId = String((prior.data as { budget_version_id?: unknown }).budget_version_id ?? '');
-    let reverseIdentity: string;
-    try { reverseIdentity = budgetAccountIdentity(priorVersionId, frozenYear, account); }
-    catch { throw new AppError('erpnext-sweep budget recovery HELD: predecessor identity is invalid', BUDGET_SWEEP_GATE_HELD); }
-    const reverseRef = await serviceClient.from('external_refs').select('external_record_id')
-      .eq('org_id', org.orgId).eq('domain', 'budget').eq('external_tier', ERPNEXT_TIER)
-      .eq('pmo_record_id', reverseIdentity).eq('external_record_id', predecessor).maybeSingle();
-    if (reverseRef.error || !reverseRef.data) throw new AppError('erpnext-sweep budget recovery HELD: predecessor has no reverse reference witness', BUDGET_SWEEP_GATE_HELD);
-  } else if (!desired.some((row) => row.account === account)) {
-    throw new AppError('erpnext-sweep budget recovery HELD: account is no longer desired by the current map', BUDGET_SWEEP_GATE_HELD);
-  }
-}
-
-/** The client's OWN fiscal calendar, read live (the same doctype read the foreground gate makes). */
-export async function readErpFiscalYearsLive(
-  serviceClient: SupabaseClient,
-  org: OrgBinding,
-  cache?: ErpAuthPairCache,
-): Promise<FiscalYearRow[]> {
-  const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, org, cache);
-  if (!(await isPermittedErpSiteUrl(org.siteUrl))) throw new AppError('ERPNext destination is not permitted', 'external-unreachable');
-  const url = new URL('/api/resource/Fiscal Year', org.siteUrl);
-  url.searchParams.set('fields', JSON.stringify(['name', 'year_start_date', 'year_end_date']));
-  url.searchParams.set('limit_page_length', '0');
-  // ⚑ Server-side hang guard (money path) — mirrors the foreground gate's fiscal read: bound this raw
-  // fetch so a slow/down ERPNext can't block the sweep worker forever; a deadline (or network failure)
-  // fails CLOSED as `external-unreachable` (same as a non-2xx).
-  let res: Response;
-  try {
-    res = await fetchWithDeadline(
-      guardedErpFetch(org.siteUrl),
-      url.toString(),
-      // #655: never follow a redirect off the admin-nominated host; a 3xx fails the `!res.ok` check below.
-      { headers: { Authorization: `token ${apiKey}:${apiSecret}`, Accept: 'application/json' }, redirect: 'manual' },
-      ERP_PROBE_TIMEOUT_MS,
-    );
-  } catch {
-    throw new AppError('could not read the ERPNext fiscal calendar (unreachable)', 'external-unreachable');
-  }
-  if (!res.ok) throw new AppError(`could not read the ERPNext fiscal calendar (HTTP ${res.status})`, 'external-unreachable');
-  const body = await readJsonBounded<{ data?: unknown }>(res, 'could not read the ERPNext fiscal calendar (unreachable)');
-  const rows = Array.isArray(body.data) ? body.data : [];
-  return rows.filter(
-    (r): r is FiscalYearRow =>
-      typeof (r as FiscalYearRow)?.name === 'string' &&
-      typeof (r as FiscalYearRow)?.year_start_date === 'string' &&
-      typeof (r as FiscalYearRow)?.year_end_date === 'string',
-  );
-}

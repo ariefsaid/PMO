@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { FinancialStatementsSection, type FinancialStatementsSectionState } from '@/src/components/financial-statements/FinancialStatementsSection';
 import { NativeStatementPair } from '@/src/components/financial-statements/NativeStatementPair';
 import { StatementPeriodPicker, type StatementPeriodKind } from '@/src/components/financial-statements/StatementPeriodPicker';
@@ -38,10 +39,11 @@ type RefreshWatch = {
   deadline: number;
 };
 
-function latestSuppliedPair(periods: readonly FinancialStatementPair[], kind: StatementPeriodKind): FinancialStatementPair | null {
+function latestSuppliedPair(periods: readonly FinancialStatementPair[], kind: StatementPeriodKind, today: string): FinancialStatementPair | null {
   const choices = periods.filter((pair) => pair.kind === kind).slice().sort((left, right) => left.currentStart.localeCompare(right.currentStart));
   if (choices.length === 0) return null;
-  const today = new Date().toISOString().slice(0, 10);
+  // #2088: `today` is the organization's business day (threaded from useOrgToday), not the UTC day —
+  // otherwise a UTC+7 org opening the page before 07:00 local is held on the previous period.
   const begun = choices.filter((pair) => pair.currentStart <= today);
   return begun[begun.length - 1] ?? choices[choices.length - 1] ?? null;
 }
@@ -66,6 +68,8 @@ const FinancialStatements: React.FC = () => {
   const { session, currentUser, loading, profileError } = useAuth();
   const { realRole } = useEffectiveRole();
   const may = usePermission();
+  // #2088: "latest begun period" is judged against the organization's business day.
+  const orgToday = useOrgToday();
   const identityReady = !loading && profileError === null && session?.user.id === currentUser?.id &&
     currentUser?.status === 'active' && Boolean(currentUser.org_id?.trim()) && realRole === currentUser.role;
   const companyReadAllowed = identityReady && may('view', 'financialStatements');
@@ -133,7 +137,7 @@ const FinancialStatements: React.FC = () => {
     () => (catalogue?.state === 'complete' ? catalogue.periods : []).filter((pair) => pair.kind === periodKind),
     [catalogue, periodKind],
   );
-  const initialPair = useMemo(() => latestSuppliedPair(catalogue?.periods ?? [], periodKind), [catalogue, periodKind]);
+  const initialPair = useMemo(() => latestSuppliedPair(catalogue?.periods ?? [], periodKind, orgToday), [catalogue, periodKind, orgToday]);
   const selectedPair = periodStart === null
     ? initialPair
     : kindPeriods.find((pair) => pair.currentStart === periodStart) ?? null;
@@ -332,10 +336,15 @@ const FinancialStatements: React.FC = () => {
     refreshing: t('financialStatements.refreshing', 'Refreshing statements…'),
   };
 
+  const lineCount = isValidRead && detailRead && detailRead.result.viewKind === 'account_breakdown'
+    ? detailRead.result.payload.current.rows.filter((row) => Object.keys(row).length > 0).length
+    : undefined;
+
   return (
     <ListPage
       title={t('financeHub:hub.statements', 'Statements')}
-     
+      count={lineCount}
+      total={lineCount}
       className="min-w-0"
     >
       {odooMode.error && <LedgerModeNotice className="mb-4" onRetry={odooMode.retry} />}
@@ -360,7 +369,7 @@ const FinancialStatements: React.FC = () => {
                 // the new period kind plus the period reset to that kind's latest pair.
                 setFilters({
                   periodKind: nextKind === 'month' ? '' : nextKind,
-                  periodStart: latestSuppliedPair(catalogue.periods, nextKind)?.currentStart ?? '',
+                  periodStart: latestSuppliedPair(catalogue.periods, nextKind, orgToday)?.currentStart ?? '',
                 });
               }}
               onPeriodChange={(nextPeriodStart: string) => setFilter('periodStart', nextPeriodStart)}

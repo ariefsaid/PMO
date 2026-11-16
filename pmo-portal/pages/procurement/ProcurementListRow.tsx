@@ -20,9 +20,10 @@ import { useProcurementDetail } from '@/src/hooks/useProcurementDetail';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { useProcurementNextStepLabel } from '@/src/hooks/useProjectStatusLabel';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import { formatCurrency, formatRelativeTime } from '@/src/lib/format';
+import { formatCurrency, formatNumberExact, formatRelativeTime } from '@/src/lib/format';
 import { DecisionSupportPanel } from './DecisionSupportPanel';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
+import { FIGURE_LINE_CLASS } from '@/src/components/ui/FigureContent';
 
 /** UIP-007: one comparative desktop template, shared by the header and every row. */
 const columnGrid = 'grid grid-cols-2 gap-3 md:grid-cols-12';
@@ -115,6 +116,7 @@ const ExpandedPanel: React.FC<{
             totalValue={detail.data.total_value}
             projectName={detail.data.project ? projectDisplayName(detail.data.project) : undefined}
             projectLegalName={detail.data.project?.name}
+            projectStatus={detail.data.project?.status}
             status={detail.data.status}
             currency={detail.data.currency}
           />
@@ -135,7 +137,8 @@ const ExpandedPanel: React.FC<{
                     >
                       <span className="truncate">{item.name}</span>
                       <span className="tabular text-muted-foreground shrink-0">
-                        {item.quantity} × {formatCurrency(item.rate, detail.data.currency)} ={' '}
+                        {/* #2089: the quantity renders in the viewer's locale, grouped. */}
+                        {formatNumberExact(item.quantity)} × {formatCurrency(item.rate, detail.data.currency)} ={' '}
                         <span className="font-medium text-foreground">
                           {formatCurrency(lineTotal, detail.data.currency)}
                         </span>
@@ -240,7 +243,7 @@ export const ProcurementListRowBase: React.FC<ProcurementListRowBaseProps> = ({ 
             {row.title}
           </Link>
           {row.code && (
-            <div className="font-mono text-sm text-muted-foreground">
+            <div className="record-id">
               {row.code}
             </div>
           )}
@@ -258,7 +261,7 @@ export const ProcurementListRowBase: React.FC<ProcurementListRowBaseProps> = ({ 
           </div>
           <div data-procurement-value className={`${columnFields[3].span} min-w-0 tabular`}>
             <dt className="font-semibold md:sr-only">{t('procurement.columns.value', 'Value')}</dt>
-            <dd className="break-words font-medium text-foreground">{formatCurrency(row.total_value, row.currency)}</dd>
+            <dd className={`${FIGURE_LINE_CLASS} font-medium text-foreground`}>{formatCurrency(row.total_value, row.currency)}</dd>
           </div>
           <div className={`${columnFields[4].span} min-w-0 tabular`}>
             <dt className="font-semibold md:sr-only">{t('procurement.columns.age', 'Age')}</dt>

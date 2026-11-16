@@ -7,7 +7,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TimesheetEntryWithProject } from '@/src/lib/db/timesheets';
-import { formatMonthDay } from '@/src/lib/format';
+import { formatMonthDay, formatNumberExact } from '@/src/lib/format';
 
 export interface EntryListProps {
   entries: TimesheetEntryWithProject[];
@@ -48,7 +48,7 @@ export const EntryList: React.FC<EntryListProps> = ({ entries }) => {
               <div className="flex items-baseline gap-1.5 min-w-0">
                 <span className="min-w-0 break-words text-control font-semibold">{entry.project?.name ?? t('dashboard.engineer.unknownProject', 'Unknown')}</span>
                 {entry.project?.code && (
-                  <span className="shrink-0 break-words font-mono text-control text-muted-foreground">
+                  <span className="shrink-0 break-words record-id">
                     {entry.project.code}
                   </span>
                 )}
@@ -56,7 +56,8 @@ export const EntryList: React.FC<EntryListProps> = ({ entries }) => {
               <p className="mt-0.5 break-words text-control text-muted-foreground">{noteText}</p>
             </div>
             <span className="w-10 shrink-0 text-right text-control font-semibold tabular text-foreground">
-              {entry.hours}h
+              {/* #2089: hours render in the viewer's locale (id: "7,5"), never a raw dot decimal. */}
+              {formatNumberExact(entry.hours)}h
             </span>
           </li>
         );

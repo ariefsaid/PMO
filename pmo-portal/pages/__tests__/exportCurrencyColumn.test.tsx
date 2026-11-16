@@ -129,13 +129,16 @@ async function exportFrom(node: React.ReactElement) {
     </QueryClientProvider>,
   );
   const user = userEvent.setup();
-  const exportButton = screen.queryByRole('button', { name: /export/i });
+  // The export action itself, never a menu trigger that merely mentions export ("Export and import").
+  const exportAction = () => screen.queryAllByRole('button', { name: /export/i }).find((button) => !/import/i.test(button.textContent ?? ''));
+  const exportButton = exportAction();
   if (!exportButton) {
     const more = screen.queryByRole('button', { name: /^More$/i })
-      ?? screen.getByRole('button', { name: /^More actions$/i });
+      ?? screen.queryByRole('button', { name: /^More actions$/i })
+      ?? screen.getByRole('button', { name: /^(Export and import|Options)$/i });
     await user.click(more);
   }
-  await user.click(screen.getByRole('button', { name: /export/i }));
+  await user.click(exportAction()!);
   await waitFor(() => expect(hoisted.captured).toHaveLength(1));
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(hoisted.captured[0]);

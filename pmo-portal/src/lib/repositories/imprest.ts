@@ -4,7 +4,8 @@ import { wrap } from './repositoryErrors';
 import type { ImprestRepository } from './contracts/imprest';
 
 export const imprestRepository: ImprestRepository = {
-  listFloats: () => wrap(() => dal.listFloats()),
+  listFloats: (page) => wrap(() => dal.listFloats(page)),
+  countFloats: () => wrap(() => dal.countFloats()),
   getFloat: (floatId) => wrap(() => dal.getFloat(floatId)),
   getPosition: (floatId) => wrap(() => dal.getPosition(floatId)),
   getPlanUsage: (floatId, month) => wrap(() => dal.getPlanUsage(floatId, month)),

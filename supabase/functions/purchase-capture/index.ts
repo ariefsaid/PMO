@@ -35,6 +35,15 @@ function feedGuidance(health: { feed_state?: unknown; purchases_started_at?: unk
   return { feed: { state: health.feed_state, last_synced_at: synced, guidance: health.feed_state === 'running' ? 'sync_running_retry_in_minutes' : 'erpnext_sync_stopped_check_integrations' } };
 }
 
+/** #2349: what the operator does about each cause of source_settings_unreadable; a refusal names the access the integration user needs. */
+const SETTINGS_GUIDANCE: Record<string, string> = {
+  refused: 'grant_integration_user_read_system_settings',
+  not_found: 'check_erp_site_address_and_product',
+  unreachable: 'check_erp_reachable_then_retry',
+  malformed_reply: 'check_erp_system_settings_reply_then_retry',
+  version_unknown: 'rerun_integration_version_check',
+};
+
 export async function handlePurchaseCaptureRequest(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') return json('ok');
   if (req.method !== 'POST') return json({ error: 'METHOD_NOT_ALLOWED' }, 405);
@@ -69,8 +78,23 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   const binding = bindings[0];
   const config = binding.config as { company?: unknown } | null;
   const adapter = await captureAdapterForOrg(binding.external_tier, service, profile.org_id, config, { erpCalls: body.action !== 'assign' });
+  // A retry of a request that already finished answers from the stored result, so an unreadable or oversized ERP read never hides the outcome.
+  // Keep in step with capture_history_batch (0866): same procurement switch, same "every group processed" rule, same refused count. Only precision_changed cannot be compared here.
+  const storedResult = async (): Promise<Response | null> => {
+    if (body.action !== 'apply') return null;
+    const { data: featureOn } = await service.rpc('service_feature_enabled', { p_org_id: profile.org_id, p_key: 'procurement' });
+    if (featureOn !== true) return null;
+    const { data } = await service.rpc('capture_history_batch_result', { p_actor_id: userId, p_project_id: projectId, p_request_id: body.requestId, p_revision: body.expectedRevision });
+    if (data?.complete !== true) return null;
+    // The batch keeps its groups and one result per group, not the first answer's proposals: list every source it covered, with what happened to it, so a retry never reads as nothing to do.
+    const stored = (data.results ?? []) as Array<{ outcome?: string; reason?: string; procurement_id?: string; project_id?: string; source_ids?: string[] }>;
+    const refused = stored.filter(result => result.outcome === 'refused').length;
+    const proposals = stored.flatMap(result => (result.source_ids ?? []).map(id => ({ id, outcome: result.outcome === 'refused' ? 'refused' : 'matched', projectId: result.project_id,
+      ...(result.procurement_id ? { purchaseId: result.procurement_id } : {}), ...(result.reason ? { reason: result.reason } : {}) })));
+    return json({ complete: refused === 0, resume: false, next_index: stored.length, results: data.results, refused, proposals, already_completed: true, request_id: body.requestId, revision: body.expectedRevision, erp_write: false });
+  };
   if (body.action === 'assign' && !adapter.capabilities?.invoiceAssignment) return json({ complete: false, missing: ['invoice_assignment', ...(!adapter.supported ? adapter.missing : [])], erp_write: false }, 409);
-  if (!adapter.supported) return json({ complete: false, missing: adapter.missing, erp_write: false }, adapter.status);
+  if (!adapter.supported) return await storedResult() ?? json({ complete: false, missing: adapter.missing, erp_write: false }, adapter.status);
   if (body.action === 'assign') {
     const caller = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false }, global: { headers: { Authorization: `Bearer ${token}` } } });
     const { data, error } = await caller.rpc('assign_capture_invoices', { p_rows: body.rows, p_expected_revision: body.expectedRevision, p_dry_run: body.dryRun });
@@ -90,7 +114,7 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
     return { supported: true as const, generation: data.revision as string, items: data.lines.map((row: unknown) => adapter.mapLedger(row)), nextCursor: data.next_cursor as string | null };
   }, { limit: 20, expectedGeneration: docs.generation });
   if (docs.missing.includes('page_limit') || ledger.missing.includes('page_limit')) {
-    return json({ complete: false, missing: [...docs.missing.map(reason => reason === 'page_limit' ? 'source_limit_exceeded' : reason), ...ledger.missing.map(reason => reason === 'page_limit' ? 'ledger_limit_exceeded' : reason)],
+    return await storedResult() ?? json({ complete: false, missing: [...docs.missing.map(reason => reason === 'page_limit' ? 'source_limit_exceeded' : reason), ...ledger.missing.map(reason => reason === 'page_limit' ? 'ledger_limit_exceeded' : reason)],
       proposals: [], guidance: projectId === null ? 'run_per_project' : 'scope_still_exceeds_limit', revision: body.action === 'apply' ? body.expectedRevision : docs.generation,
       ...(body.action === 'apply' ? { request_id: body.requestId } : {}), erp_write: false });
   }
@@ -104,10 +128,18 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   const precisionReader = adapter.precision;
   const kinds = new Set(docs.items.map(row => (row.kind === 'order' || row.kind === 'supplier_invoice' ? row.kind : null)).filter((x): x is 'order' | 'supplier_invoice' => x !== null));
   const precision: Partial<Record<'order' | 'supplier_invoice', number>> = {};
+  // The first cause seen of an unreadable System Settings; the reason stays in missing, so nothing defaults to a scale.
+  let sourceSettings: { source_settings?: { cause: string; guidance: string } } = {};
+  const refuse = (result: { reason: string; cause?: string }) => {
+    missing.push(result.reason);
+    if (result.reason === 'source_settings_unreadable' && !sourceSettings.source_settings && result.cause && SETTINGS_GUIDANCE[result.cause]) {
+      sourceSettings = { source_settings: { cause: result.cause, guidance: SETTINGS_GUIDANCE[result.cause] } };
+    }
+  };
   for (const kind of kinds) {
     const result = await precisionReader.read(company, kind);
     if (result.ok) precision[kind] = result.scale;
-    else missing.push(result.reason);
+    else refuse(result);
   }
   let ledgerScale = precision.order ?? precision.supplier_invoice;
   if (precision.order !== undefined && precision.supplier_invoice !== undefined && precision.order !== precision.supplier_invoice) {
@@ -117,7 +149,7 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   if (kinds.size === 0 && ledger.items.length > 0) {
     const result = await precisionReader.read(company, 'journal');
     if (result.ok) ledgerScale = result.scale;
-    else missing.push(result.reason);
+    else refuse(result);
   }
   const { data: finalWitness, error: finalWitnessError } = await caller.rpc('purchase_capture_source_page', { p_cursor: null, p_project_id: projectId, p_limit: 1 });
   if (finalWitnessError || typeof finalWitness?.revision !== 'string' || finalWitness.revision !== docs.generation) missing.push('generation_changed');
@@ -130,7 +162,7 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   const complete = docs.complete && ledger.complete && missing.length === 0;
   const proposals = proposeCapture(sources, projectId as string | null, { sourceId: binding.id, generation: docs.generation ?? '', accountScope: 'budget_map', complete, classifications });
   if (body.action === 'apply') {
-    if (!complete) return json({ complete: false, missing: [...new Set(missing)], proposals, revision: docs.generation, request_id: body.requestId, ...feed, erp_write: false });
+    if (!complete) return (missing.includes('precision_changed') ? null : await storedResult()) ?? json({ complete: false, missing: [...new Set(missing)], proposals, revision: docs.generation, request_id: body.requestId, ...feed, ...sourceSettings, erp_write: false });
     const families = new Map<string, typeof proposals>();
     for (const proposal of proposals) {
       const source = sources.find(item => item.id === proposal.id);
@@ -160,7 +192,8 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   }
   // PMO-side placements, from the database's own ledger reading (an invoice no ERP project carries, placed on a project by an Admin).
   type AssignmentRow = { decision_id: string; source_id: string; source: string | null; decision: string; project_id: string | null; procurement_id: string | null;
-    assignment_origin: string | null; tagged_in_erp?: boolean; erp_project_id?: string | null; erp_tag_unmapped?: boolean; placed: string; excluded: Array<{ account: string; amount: string; kind: string }> };
+    assignment_origin: string | null; tagged_in_erp?: boolean; erp_project_id?: string | null; erp_tag_unmapped?: boolean; placed: string; excluded: Array<{ account: string; amount: string; kind: string }>;
+    family_request_id?: string | null; family_order_id?: string | null };
   let assignmentRows: AssignmentRow[] | null = [];
   {
     const { data, error } = await caller.rpc('purchase_capture_assignment_report', { p_project_id: projectId });
@@ -175,7 +208,8 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
     const excluded = row.excluded.map(line => ({ account: line.account, kind: line.kind, amountMinor: minor(line.amount) }));
     if (placedMinor === null || excluded.some(line => line.amountMinor === null)) missing.push('ledger_amount_unknown');
     return { decisionId: row.decision_id, sourceId: row.source_id, source: row.source, decision: row.decision, projectId: row.project_id, procurementId: row.procurement_id,
-      assignmentOrigin: row.assignment_origin, taggedInErp: row.tagged_in_erp === true, erpProjectId: row.erp_project_id ?? null, erpTagUnmapped: row.erp_tag_unmapped === true, placedMinor, excluded };
+      assignmentOrigin: row.assignment_origin, taggedInErp: row.tagged_in_erp === true, erpProjectId: row.erp_project_id ?? null, erpTagUnmapped: row.erp_tag_unmapped === true, placedMinor, excluded,
+      familyRequestId: row.family_request_id ?? null, familyOrderId: row.family_order_id ?? null };
   });
   const projectIds = projectId ? [projectId as string] : [...new Set([...sources.flatMap(source => source.projectIds), ...ledger.items.flatMap(line => line.projectId ? [line.projectId] : []),
     ...assignments.flatMap(item => item.projectId ? [item.projectId] : [])])];
@@ -227,11 +261,15 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
     if (group) group.push(line); else otherByKind.set(line.kind ?? 'other', [line]);
   }
   const otherUnassigned = [...otherByKind.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([kind, lines]) => ({ kind, count: lines.length, total: netTotal(lines) }));
+  // An unassigned invoice that bills exactly one order names that order, so the order and its invoices can be placed as one family (#2277).
+  const orderByFamily = new Map(sources.filter(source => source.kind === 'order' && source.familyId).map(source => [source.familyId, source.id]));
+  const orderOf = (source: (typeof sources)[number]): string | null => source.familyId?.startsWith('order:') ? orderByFamily.get(source.familyId) ?? null : null;
   const unassignedDocuments = sources.filter(source => source.projectIds.length === 0 && !decided.has(source.id)).map(source => ({ id: source.id,
     kind: source.kind, state: source.state, source: source.reference ?? null,
-    reason: proposals.find(proposal => proposal.id === source.id)?.reason ?? 'project_unmapped' }));
+    reason: proposals.find(proposal => proposal.id === source.id)?.reason ?? 'project_unmapped',
+    ...(source.kind === 'supplier_invoice' ? { order_source_id: orderOf(source) } : {}) }));
   return json({ complete: complete && missing.length === 0 && unassigned.length === 0 && reports.every(report => report.complete), revision: docs.generation,
-    ...(body.action === 'preview' ? { proposals } : {}), reports, ...(assignmentRows === null ? {} : { assignments }), unassigned, other_unassigned: otherUnassigned, unassigned_documents: unassignedDocuments, missing: [...new Set(missing)], ...feed, erp_write: false });
+    ...(body.action === 'preview' ? { proposals } : {}), reports, ...(assignmentRows === null ? {} : { assignments }), unassigned, other_unassigned: otherUnassigned, unassigned_documents: unassignedDocuments, missing: [...new Set(missing)], ...feed, ...sourceSettings, erp_write: false });
 }
 
 if (import.meta.main) serveWithErrorReporting('purchase-capture', handlePurchaseCaptureRequest);

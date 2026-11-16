@@ -30,10 +30,10 @@ describe('AC-IMP-084 an advance and an edited Draft are charged to a site float'
     const onSubmit = renderForm({});
     fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Site cash advance' } });
     fireEvent.change(screen.getByLabelText(/^Amount/), { target: { value: '1000' } });
-    expect(screen.queryByLabelText('Charge to site float')).toBeNull(); // no project yet, no float
+    expect(screen.queryByLabelText('Charge to site cash')).toBeNull(); // no project yet, no float
     fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p1' } });
-    expect(within(screen.getByLabelText('Charge to site float')).getByRole('option', { name: /Cass Custodian/ })).toHaveValue('f1');
-    fireEvent.change(screen.getByLabelText('Charge to site float'), { target: { value: 'f1' } });
+    expect(within(screen.getByLabelText('Charge to site cash')).getByRole('option', { name: /Cass Custodian/ })).toHaveValue('f1');
+    fireEvent.change(screen.getByLabelText('Charge to site cash'), { target: { value: 'f1' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalled());
     expect(onSubmit.mock.calls[0][0]).toMatchObject({ kind: 'advance', imprestFloatId: 'f1' });
@@ -53,8 +53,8 @@ describe('AC-IMP-084 an advance and an edited Draft are charged to a site float'
       kind: 'claim',
       initial: { title: 'Diesel', projectId: 'p1', budgetCategory: 'Vehicle', purpose: null, amount: 0, advanceId: null, imprestFloatId: 'f1' },
     });
-    expect(screen.getByLabelText('Charge to site float')).toHaveValue('f1');
-    fireEvent.change(screen.getByLabelText('Charge to site float'), { target: { value: '' } });
+    expect(screen.getByLabelText('Charge to site cash')).toHaveValue('f1');
+    fireEvent.change(screen.getByLabelText('Charge to site cash'), { target: { value: '' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalled());
     expect(onSubmit.mock.calls[0][0]).toMatchObject({ imprestFloatId: null });

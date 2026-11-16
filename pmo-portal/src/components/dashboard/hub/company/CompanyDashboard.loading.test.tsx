@@ -84,7 +84,7 @@ describe('company home loading gates: one read pending', () => {
   it('the management pack still loading holds only Invoiced and Left to bill; Contract on hand, Project health and Owed by clients show', () => {
     h.reads.pack = pending;
     renderExec();
-    expect(tile('Contract on hand')).toHaveTextContent('$8M');
+    expect(tile('Contract on hand · excl. tax')).toHaveTextContent('$8M');
     expect(within(tile('Invoiced')).getByTestId('kpi-skeleton')).toBeInTheDocument();
     expect(within(screen.getByTestId('project-health')).getByRole('link', { name: /River project/ })).toBeInTheDocument();
     expect(screen.getByTestId('owed-to-us')).toHaveTextContent('$40K');
@@ -93,7 +93,7 @@ describe('company home loading gates: one read pending', () => {
   it('client invoices still loading hold only Owed by clients; the figures band and the supplier side show', () => {
     h.reads.invoices = pending;
     renderExec();
-    expect(tile('Contract on hand')).toHaveTextContent('$8M');
+    expect(tile('Contract on hand · excl. tax')).toHaveTextContent('$8M');
     expect(tile('Invoiced')).toHaveTextContent('$1.2M');
     expect(within(screen.getByTestId('owed-to-us')).getAllByTestId('liststate-loading').length).toBeGreaterThan(0);
     expect(screen.getByTestId('owed-to-suppliers')).toHaveTextContent('No supplier invoice to pay');
@@ -102,7 +102,7 @@ describe('company home loading gates: one read pending', () => {
   it('the dashboard read still loading holds Contract on hand and Project health; Invoiced shows', () => {
     h.reads.dashboard = pending;
     renderExec();
-    expect(within(tile('Contract on hand')).getByTestId('kpi-skeleton')).toBeInTheDocument();
+    expect(within(tile('Contract on hand · excl. tax')).getByTestId('kpi-skeleton')).toBeInTheDocument();
     expect(tile('Invoiced')).toHaveTextContent('$1.2M');
   });
 });
@@ -113,14 +113,14 @@ describe('company home loading gates: one read failed', () => {
     renderExec();
     expect(tile('Invoiced')).toHaveTextContent("Couldn't load");
     expect(tile('Invoiced')).not.toHaveTextContent('$0');
-    expect(tile('Contract on hand')).toHaveTextContent('$8M');
+    expect(tile('Contract on hand · excl. tax')).toHaveTextContent('$8M');
     expect(screen.getByTestId('owed-to-us')).toHaveTextContent('$40K');
   });
 
   it('a failed dashboard read says so on Contract on hand and in Project health; Invoiced and Owed by clients show', () => {
     h.reads.dashboard = failed;
     renderExec();
-    expect(tile('Contract on hand')).toHaveTextContent("Couldn't load");
+    expect(tile('Contract on hand · excl. tax')).toHaveTextContent("Couldn't load");
     expect(within(screen.getByTestId('project-health')).getByText("Couldn't load projects")).toBeInTheDocument();
     expect(tile('Invoiced')).toHaveTextContent('$1.2M');
     expect(screen.getByTestId('owed-to-us')).toHaveTextContent('$40K');
@@ -129,8 +129,32 @@ describe('company home loading gates: one read failed', () => {
   it('failed client invoices say so in Owed by clients; the figures band and the supplier side show', () => {
     h.reads.invoices = failed;
     renderExec();
-    expect(screen.getByTestId('owed-to-us')).toHaveTextContent("Couldn't load client invoices");
-    expect(tile('Contract on hand')).toHaveTextContent('$8M');
+    expect(screen.getByTestId('owed-to-us')).toHaveTextContent("Couldn't load invoices");
+    expect(tile('Contract on hand · excl. tax')).toHaveTextContent('$8M');
     expect(screen.getByTestId('owed-to-suppliers')).toHaveTextContent('No supplier invoice to pay');
+  });
+});
+
+describe('company home states keep the filled structure', () => {
+  it('a failed dashboard read keeps the margin tile in the figures band (same tiles as loaded)', () => {
+    h.reads.dashboard = failed;
+    renderExec();
+    expect(within(band()).getByText(/margin on billed work/i)).toBeInTheDocument();
+    expect(within(band()).getAllByText("Couldn't load")).toHaveLength(2);
+  });
+
+  it('the failed tile is one line: its message and Retry sit together', () => {
+    h.reads.dashboard = failed;
+    renderExec();
+    const failedTile = screen.getByTestId('figure-error-contract-on-hand');
+    expect(within(failedTile).getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    expect(failedTile).toHaveTextContent(/Couldn't load.*Retry/);
+  });
+
+  it('Project health loads as rows, not four short lines, so the column keeps its height', () => {
+    h.reads.dashboard = pending;
+    renderExec();
+    const health = screen.getByTestId('project-health');
+    expect(health.querySelector('[data-skeleton-shape="rows"]')).not.toBeNull();
   });
 });

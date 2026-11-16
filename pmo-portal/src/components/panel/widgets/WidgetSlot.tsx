@@ -13,17 +13,13 @@
 import React from 'react';
 import { WIDGET_PAYLOAD_SCHEMA, type WidgetPayload } from '@/src/lib/agent/widgets/schema';
 import { renderWidget } from './registry';
+import { WidgetFallback } from './WidgetFallback';
 
 export const WidgetSlot: React.FC<{ widget: unknown }> = ({ widget }) => {
   const parsed = WIDGET_PAYLOAD_SCHEMA.safeParse(widget); // FR-ATC-004 — SAME schema, second gate
   if (!parsed.success) {
     return (
-      <div
-        role="note"
-        className="rounded-md border border-border bg-secondary/40 px-3 py-2 text-xs text-muted-foreground"
-      >
-        This result couldn&apos;t be displayed.
-      </div>
+      <WidgetFallback />
       // FR-ATC-006 / NFR-ATC-SEC-002 — fixed safe string, real text node (A11Y-003)
     );
   }

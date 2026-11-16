@@ -2,7 +2,7 @@ import React from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, CardHead } from '@/src/components/ui/Card';
 import { chartTheme } from '@/src/components/ui/chartTheme';
-import { ListState } from '@/src/components/ui/ListState';
+import { ListState, type SkeletonSpec } from '@/src/components/ui/ListState';
 import { useFigureReport } from '@/src/components/ui/useFigureScope';
 import { tooltipContentStyle, tooltipCursorFill, tooltipLabelStyle } from '@/src/components/dashboard/chartChrome';
 import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
@@ -131,27 +131,43 @@ const PlainTick: React.FC<{ x?: number; y?: number; payload?: { value: string | 
 
 /** The column chart's top margin: the headroom a value label above the tallest column needs. */
 const COLUMN_PLOT_TOP = 22;
-/** Below this column width a value label is wider than its column. */
-const NARROW_COLUMN_PX = 12;
 
 /** `peak` mode: one label on the tallest column and one on the latest month's first series, nothing else. */
-const peakLabel = (data: Array<{ a: number | null; b?: number | null }>, series: 'a' | 'b') => (props: { x?: number | string; y?: number | string; width?: number | string; index?: number; value?: unknown }) => {
-  const { x = 0, y = 0, width = 0, index = 0, value } = props;
+const peakLabel = (data: Array<{ a: number | null; b?: number | null }>, series: 'a' | 'b') => (props: { x?: number | string; y?: number | string; width?: number | string; height?: number | string; index?: number; value?: unknown }) => {
+  const { x = 0, y = 0, width = 0, height, index = 0, value } = props;
   const { peak, last } = peakLabelIndexes(data);
   const isPeak = peak?.index === index && peak.series === series;
   const isLast = series === 'a' && index === last && !(peak?.index === index && peak.series === 'b');
   if (value == null || value === '' || !(isPeak || isLast)) return null;
-  // Columns narrower than a label (a phone): only the latest month is labelled, in the headroom above the
-  // tallest column, ending at its own column, so it never sits on a neighbour or leaves the plot.
-  if (Number(width) < NARROW_COLUMN_PX) {
-    if (!isLast) return null;
-    return <text x={Number(x) + Number(width)} y={COLUMN_PLOT_TOP - 6} textAnchor="end" style={LABEL_STYLE}>{String(value)}</text>;
-  }
-  // Near the right edge the label ends at the column so it never leaves the plot.
-  const anchor = index >= data.length - 2 ? 'end' : 'middle';
-  const anchorX = anchor === 'end' ? Number(x) + Number(width) : Number(x) + Number(width) / 2;
-  return <text x={anchorX} y={Number(y) - 5} textAnchor={anchor} style={LABEL_STYLE}>{String(value)}</text>;
+  // Each label sits directly above its own column, also where the column is narrower than the label (a phone).
+  // Near an edge it starts or ends at its column so it never leaves the plot.
+  const anchor = index >= data.length - 2 ? 'end' : index === 0 ? 'start' : 'middle';
+  const anchorX = anchor === 'end' ? Number(x) + Number(width) : anchor === 'start' ? Number(x) : Number(x) + Number(width) / 2;
+  return <text x={anchorX} y={labelTop(data, series, { x: Number(x), y: Number(y), width: Number(width), height: Number(height), index }, String(value), anchor) - 5} textAnchor={anchor} style={LABEL_STYLE}>{String(value)}</text>;
 };
+
+/**
+ * The top a value label must clear: a label wider than its column runs over the months beside it, so it sits above
+ * the tallest column (either series) under its text. The month step comes from the bar width and MonthColumns' gaps
+ * (barGap 2, barCategoryGap 14% each side); the pixel scale from this column's own height.
+ * ponytail: text width is estimated (0.62em per character at the 14px label), not measured.
+ */
+function labelTop(data: Array<{ a: number | null; b?: number | null }>, series: 'a' | 'b', bar: { x: number; y: number; width: number; height: number; index: number }, text: string, anchor: 'start' | 'middle' | 'end') {
+  const own = data[bar.index]?.[series] ?? 0;
+  // A column drawn at its minimum size has no usable scale: keep the label on the column.
+  if (!(bar.height > 2) || !own) return bar.y;
+  const two = data.some((row) => row.b != null);
+  const step = (two ? 2 * bar.width + 2 : bar.width) / 0.72;
+  const textWidth = text.length * LABEL_STYLE.fontSize * 0.62;
+  const anchorX = anchor === 'end' ? bar.x + bar.width : anchor === 'start' ? bar.x : bar.x + bar.width / 2;
+  const left = anchor === 'end' ? anchorX - textWidth : anchor === 'middle' ? anchorX - textWidth / 2 : anchorX;
+  const bandStart = bar.x - 0.14 * step - (series === 'b' ? bar.width + 2 : 0);
+  const from = Math.max(0, bar.index + Math.floor((left - bandStart) / step));
+  const to = Math.min(data.length - 1, bar.index + Math.floor((left + textWidth - bandStart) / step));
+  let tallest = own;
+  for (let index = from; index <= to; index += 1) tallest = Math.max(tallest, data[index].a ?? 0, data[index].b ?? 0);
+  return bar.y + bar.height - tallest * (bar.height / own);
+}
 
 /** A value label above a column: every non-zero column, or only the latest (`lastOnly`). Zero columns carry no label. */
 const columnLabel = (data: Array<{ a: number | null; b?: number | null }>, series: 'a' | 'b', lastOnly: boolean, side: 'middle' | 'end' | 'start' = 'middle', paired = false, centerOnBar = false) => (props: { x?: number | string; y?: number | string; width?: number | string; height?: number | string; index?: number; value?: unknown }) => {
@@ -315,17 +331,22 @@ export const ChartCard: React.FC<{
   embedded?: boolean;
   /** Take the parent's spare height (a flex column); the body becomes a flex column for a `fill` chart. */
   fill?: boolean;
+  /** Height the filled chart takes, so its loading skeleton holds the same space. */
+  pendingHeight?: number;
+  /** The filled body's silhouette, drawn while loading (default: a column chart). */
+  skeleton?: SkeletonSpec;
   children: React.ReactNode;
-}> = ({ title, actions, known = true, hiddenReason, pending = false, error, className, testId, embedded = false, fill = false, children }) => {
+}> = ({ title, actions, known = true, hiddenReason, pending = false, error, className, testId, embedded = false, fill = false, pendingHeight, skeleton, children }) => {
   const hide = !pending && !error && !known;
   useFigureReport(hide && hiddenReason ? [{ label: title, reason: hiddenReason }] : []);
   if (hide) return null;
-  const body = pending ? <ListState variant="loading" shape="chart" rows={2} />
-    : error ? <ListState variant="error" title={error.title} onRetry={error.retry} />
-      : children;
+  const shape: SkeletonSpec = { shape: 'chart', rows: 2, ...skeleton, minHeight: skeleton?.minHeight ?? pendingHeight };
+  const loadingBody = <ListState variant="loading" shape={shape.shape} rows={shape.rows} minHeight={shape.minHeight} />;
+  const errorBody = error ? <ListState variant="error" title={error.title} onRetry={error.retry} quiet /> : null;
+  const body = pending ? loadingBody : error ? errorBody : children;
   if (embedded) {
     return (
-      <section className={className} data-testid={testId} aria-label={title}>
+      <section className={`${className ?? ''} flex flex-col`} data-testid={testId} aria-label={title}>
         <div className="mb-2 flex items-baseline justify-between gap-3"><h3 className="text-control font-semibold">{title}</h3>{actions}</div>
         {body}
       </section>
@@ -335,9 +356,7 @@ export const ChartCard: React.FC<{
     <Card className={[fill ? 'flex flex-1 flex-col' : '', className ?? ''].join(' ').trim() || undefined} data-testid={testId} aria-label={title}>
       <CardHead level={2} actions={actions}>{title}</CardHead>
       <div className={fill ? 'flex flex-1 flex-col px-[var(--panel-inset)] pb-4' : 'px-[var(--panel-inset)] pb-4'}>
-        {pending ? <ListState variant="loading" shape="chart" rows={2} />
-          : error ? <ListState variant="error" title={error.title} onRetry={error.retry} />
-            : children}
+        {body}
       </div>
     </Card>
   );

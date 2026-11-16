@@ -22,7 +22,7 @@ export const ApprovalItems: React.FC<{ entries: ApprovalPopulationEntry[]; limit
                 <span className="block break-words text-control font-medium">{item.what}</span>
                 <span className="block break-words text-control text-muted-foreground">{[item.who, waited].filter(Boolean).join(' · ')}</span>
               </span>
-              <span className="text-right text-control font-semibold tabular">{item.amount}</span>
+              <span className="text-right text-control tabular">{item.amount}</span>
               <Icon name="chev" className="size-4 shrink-0 text-muted-foreground" />
             </Link>
           </li>

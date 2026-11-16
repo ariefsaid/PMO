@@ -4,7 +4,7 @@ import { supabase } from '@/src/lib/supabase/client';
 import { fetchAllPages } from '@/src/lib/pagedRead';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
 import { wrap, throwInvokeError } from './repositoryErrors';
-import type { ClickUpListItem, ConnectAcceptResult, ConnectCounts, ConnectCredential, ConnectResponse, ConnectStagedRecord, DisconnectResponse, ErpProjectLink, ErpProjectOption, ErpSetupReadiness, ExternalTier, IntegrationBinding, IntegrationHealth, IntegrationsRepository, LinkInput, LinkResponse, ProjectBinding, UnlinkInput, UnlinkResponse } from './contracts/integrations';
+import type { CompanyDefaultOptions, CompanyDefaultsSetResponse, ClickUpListItem, ConnectAcceptResult, ConnectCounts, ConnectCredential, ConnectResponse, ConnectStagedRecord, DisconnectResponse, ErpProjectLink, ErpProjectOption, ErpSetupReadiness, ExternalTier, IntegrationBinding, IntegrationHealth, IntegrationsRepository, LinkInput, LinkResponse, ProjectBinding, UnlinkInput, UnlinkResponse } from './contracts/integrations';
 
 export async function erpSetupRequest<T>(setupAction: string, input: Record<string, unknown> = {}, tier: 'erpnext' | 'odoo' = 'erpnext'): Promise<T> {
   return wrap(async () => {
@@ -28,6 +28,8 @@ function addCounts(into: ConnectCounts, from: ConnectCounts): void {
 export const integrationsRepository: IntegrationsRepository = {
   getErpSetup: () => erpSetupRequest<ErpSetupReadiness>('readiness'),
   saveErpDefaults: (input) => erpSetupRequest<{ ok: true }>('save-defaults', input),
+  getCompanyDefaultOptions: () => erpSetupRequest<CompanyDefaultOptions>('company-defaults-options'),
+  setCompanyDefaults: (values) => erpSetupRequest<CompanyDefaultsSetResponse>('set-company-defaults', { values }),
   ensureErpProject: (projectId) => erpSetupRequest<ErpProjectLink>('ensure-project', { projectId }),
   listErpProjects: async (query) => (await erpSetupRequest<{ projects: ErpProjectOption[] }>('list-projects', { query })).projects,
   linkErpProject: (projectId, erpProject, expectedErpProject) => erpSetupRequest<ErpProjectLink>('link-project', { projectId, erpProject, expectedErpProject }),

@@ -232,6 +232,17 @@ describe('Project Manager home (one question: what needs me, which of my project
     expect(within(projectsRegion()).queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
   });
 
+  it('a failed project read never prints a count: the link reads "All projects", and the contract tile keeps its place with its own Retry', () => {
+    state.projects.data = undefined;
+    state.projects.isPending = false;
+    state.projects.isError = true;
+    renderDashboard();
+
+    expect(within(projectsRegion()).getByRole('link', { name: /^All projects/ })).toBeInTheDocument();
+    expect(within(projectsRegion()).queryByText(/All \d+ projects/)).not.toBeInTheDocument();
+    expect(screen.getByTestId('kpi-my-contract-value-error')).toHaveTextContent(/Couldn't load.*Retry/);
+  });
+
   it('adds only my overdue and due-today task counts to Waits on you', () => {
     state.myTasks.data = [
       { id: 'late', status: 'In Progress', end_date: '2026-11-07' },
@@ -449,6 +460,14 @@ describe('Project Manager home — layouts', () => {
     for (const column of columns.slice(1)) expect(column).toHaveClass('text-right');
     const amountCells = within(chartTable).getAllByRole('cell');
     expect(amountCells[0]).toHaveClass('text-right', 'tabular-nums');
+  });
+
+  it('Overview with no delivery projects: no empty figure box, and Plan vs actual says so in one line', () => {
+    state.projects.data = [];
+    renderDashboard();
+    // Nothing to show: no figure region is announced (its neighbour takes the row).
+    expect(screen.queryByRole('region', { name: 'My project figures' })).not.toBeInTheDocument();
+    expect(screen.getByText('No projects to compare yet')).toBeInTheDocument();
   });
 
   it('Focused: the calm build, one figure and no charts', () => {

@@ -10,6 +10,9 @@ import { MemoryRouter, useLocation } from 'react-router';
 import i18next from 'i18next';
 import { ToastProvider } from '@/src/components/ui/Toast';
 import idDashboard from '../../../../../public/locales/id/dashboard.json';
+import idFinanceHub from '../../../../../public/locales/id/financeHub.json';
+import { buildManagementPack } from '@/src/lib/reports/managementPack';
+import type { ManagementPackFacts, PackFactsProject } from '@/src/lib/db/managementPack';
 
 const base = {
   active_projects: 2,
@@ -192,7 +195,7 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
   it('AC-RD-SPEND-001: Contract on hand states the contract total only, never a remaining or "left" figure that could hide missing actuals', () => {
     h.dash = { ...base, on_hand_actual_coverage_count: 1, on_hand_actual_coverage_total: 2 };
     renderExec();
-    const contract = tile('Contract on hand');
+    const contract = tile('Contract on hand · excl. tax');
     expect(contract).toHaveTextContent('$8M');
     expect(contract).not.toHaveTextContent(/left|remaining|partial/i);
   });
@@ -201,8 +204,8 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     h.dash = { ...base };
   h.pipeline = { stages: [], projects: [] };
     renderExec();
-    expect(tile('Contract on hand')).toHaveTextContent('2 with a signed contract');
-    const link = within(figures()).getByRole('link', { name: /Contract on hand/ });
+    expect(tile('Contract on hand · excl. tax')).toHaveTextContent('2 with a signed contract');
+    const link = within(figures()).getByRole('link', { name: /Contract on hand · excl\. tax/ });
     expect(link).toHaveAttribute('href', '/projects?filter=on-hand');
     fireEvent.click(link);
     expect(screen.getByTestId('location')).toHaveTextContent('/projects?filter=on-hand');
@@ -213,7 +216,7 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
       { status: 'Ongoing Project', count: 1 }, { status: 'Close Out', count: 2 }, { status: 'On Hold', count: 1 }, { status: 'Won, Pending KoM', count: 1 }, { status: 'Leads', count: 9 },
     ] };
     renderExec();
-    expect(tile('Contract on hand')).toHaveTextContent('5 with a signed contract');
+    expect(tile('Contract on hand · excl. tax')).toHaveTextContent('5 with a signed contract');
   });
 
   it('AC-UXA-003: labels the Ongoing project count in Bahasa and links to that set', async () => {
@@ -221,8 +224,8 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     await act(async () => { await i18next.changeLanguage('id'); });
     h.dash = { ...base, active_projects: 2 };
     renderExec();
-    expect(tile('Kontrak berjalan')).toHaveTextContent('2 dengan kontrak ditandatangani');
-    expect(within(figures()).getByRole('link', { name: /Kontrak berjalan/ })).toHaveAttribute('href', '/projects?filter=on-hand');
+    expect(tile('Kontrak berjalan · di luar pajak')).toHaveTextContent('2 dengan kontrak ditandatangani');
+    expect(within(figures()).getByRole('link', { name: /Kontrak berjalan · di luar pajak/ })).toHaveAttribute('href', '/projects?filter=on-hand');
   });
 
   it('AC-RD-RISK-001: unbudgeted active projects are named once, in the page\'s Why list with a link, so no off-track project is not read as all clear', async () => {
@@ -342,7 +345,7 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
       ],
     };
     renderExec();
-    const contract = tile('Contract on hand');
+    const contract = tile('Contract on hand · excl. tax');
     expect(contract).toHaveTextContent('IDR 2B');
     expect(contract).toHaveTextContent('$1M');
     expect(contract).not.toHaveTextContent(/USD\s*\$/);
@@ -427,6 +430,15 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
   });
 });
 
+describe('home figure band: every caption is read whole (a phone has no hover)', () => {
+  it.each(['Executive', 'Finance'] as const)('%s band: no tile caption is cut to one line with a title-only remainder', (role) => {
+    renderDashboard(role);
+    const band = figures();
+    const cut = [...band.querySelectorAll('.truncate')].map((element) => element.textContent);
+    expect(cut).toEqual([]);
+  });
+});
+
 describe('pipeline currency safety', () => {
   const stage = { status: 'Leads', count: 2, total_value: 3000, weighted_value: 1500, win_probability: 0.5 };
   const project = (currency: string) => ({ status: 'Leads', currency, contract_value: 1000 });
@@ -482,4 +494,47 @@ it('focused owed caption omits mixed currency amounts when it cannot show separa
   renderExec();
   expect(tile('Owed by clients')).toHaveTextContent('2 overdue');
   expect(tile('Owed by clients')).not.toHaveTextContent('$1K + IDR 2K overdue');
+});
+
+describe('#2203 home Left to bill says the held contracts with no value beside its total', () => {
+  const project = (over: Partial<PackFactsProject>): PackFactsProject => ({
+    id: 'p1', name: 'Alpha', pmo_project_number: null, code: null, status: 'Ongoing Project', on_hand: true, currency: 'USD',
+    contract_net: 1_000_000, start_date: null, end_date: null, project_manager_id: null, client_name: null, ...over,
+  });
+  const packFacts = (projects: PackFactsProject[]): ManagementPackFacts => ({
+    from: '2026-03-01', to: '2026-04-01', timezone: 'UTC', org_currency: 'USD', undated_invoice_count: 0, projects,
+    invoiced: [
+      { project_id: 'p1', currency: 'USD', month: '2026-03-01', net: 200_000, invoice_count: 1 },
+      { project_id: 'p6', currency: 'USD', month: '2026-03-01', net: 50_000, invoice_count: 1 },
+    ],
+    invoiced_before: [], progress: [],
+  });
+  const noValue = project({ id: 'p6', name: 'Zeta', contract_net: 0 });
+
+  it('AC-LTB-005: a held contract with no value is said beside the Left to bill total, which stays $800K', () => {
+    h.pack = buildManagementPack(packFacts([project({}), noValue]));
+    renderExec();
+    const leftToBill = tile('Left to bill');
+    expect(leftToBill).toHaveTextContent('$800K');
+    expect(leftToBill).toHaveTextContent('1 contract with no value, not in the total');
+  });
+
+  it('AC-LTB-005: with every held contract valued there is no note', () => {
+    h.pack = buildManagementPack(packFacts([project({})]));
+    renderExec();
+    expect(tile('Left to bill')).toHaveTextContent('$800K');
+    expect(screen.queryByText(/with no value/)).not.toBeInTheDocument();
+  });
+
+  it('AC-LTB-005: the home note reads in Bahasa Indonesia, plural-correct in English', async () => {
+    h.pack = buildManagementPack(packFacts([project({}), noValue, { ...noValue, id: 'p7', name: 'Eta' }]));
+    const { unmount } = renderExec();
+    expect(tile('Left to bill')).toHaveTextContent('2 contracts with no value, not in the total');
+    unmount();
+    i18next.addResourceBundle('id', 'dashboard', idDashboard, true, true);
+    i18next.addResourceBundle('id', 'financeHub', idFinanceHub, true, true);
+    await act(async () => { await i18next.changeLanguage('id'); });
+    renderExec();
+    expect(tile('Sisa yang harus ditagih')).toHaveTextContent('2 kontrak tanpa nilai, tidak termasuk total');
+  });
 });

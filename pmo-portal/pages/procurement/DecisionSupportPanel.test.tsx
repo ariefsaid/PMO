@@ -55,7 +55,26 @@ vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectReservedSpend: (projectId: unknown) => { reservedArgs.push(projectId); return reservedState; },
 }));
 
+// The canonical Budget used reading (S03/S04): the panel reads it through the same hook the project header uses.
+const positionState = {
+  reading: undefined as CanonicalBudgetReading | undefined,
+  isPending: false,
+  isError: false,
+};
+const positionArgs: string[][] = [];
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: (ids: string[]) => {
+    positionArgs.push(ids);
+    return {
+      data: positionState.reading ? Object.fromEntries(ids.map((id) => [id, positionState.reading])) : undefined,
+      isPending: positionState.isPending,
+      isError: positionState.isError,
+    };
+  },
+}));
+
 import { DecisionSupportPanel } from './DecisionSupportPanel';
+import type { CanonicalBudgetReading } from '@/src/lib/db/projectMoney';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
 
@@ -93,6 +112,15 @@ function tileValue(label: RegExp): HTMLElement {
   return within(tile).getByText(/\$/);
 }
 
+/** The plan's primary project: Active budget 1,000, recorded spending 500 (50% before tax), open orders 400. */
+function reading(over: Partial<CanonicalBudgetReading> = {}): CanonicalBudgetReading {
+  return {
+    projectId: 'p1', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '1000.00',
+    spent: '500.00', openCommitment: '400.00', consumption: '900.00', complete: true, usedRatio: '0.9', usedPercent: '90',
+    consumptionVariance: '-100.00', riskEligible: true, atRisk: true, ...over,
+  };
+}
+
 beforeEach(() => {
   committedState.otherCurrencies = [];
   budgetState.data = undefined;
@@ -108,6 +136,10 @@ beforeEach(() => {
   reservedState.isPending = false;
   reservedState.isError = false;
   viewerRole = 'Project Manager';
+  positionState.reading = reading();
+  positionState.isPending = false;
+  positionState.isError = false;
+  positionArgs.length = 0;
   committedArgs.length = 0;
   reservedArgs.length = 0;
 });
@@ -237,6 +269,27 @@ describe('AC-IXD-PROC-W5-2d — four figures rendered (committed basis)', () => 
     expect(screen.getByText('Setelah pengadaan ini')).toBeInTheDocument();
   });
 
+  it('rule 15 + Bahasa: a 1,000,000 budget stays on one line and every label is Bahasa', () => {
+    budgetState.data = 1_000_000;
+    committedState.data = 0;
+    renderPanel({ projectId: 'proj-1', totalValue: 22_500, projectName: 'HQ Fit-Out' }, 'id');
+    const budgetTile = screen.getByText('Anggaran proyek').closest('[data-testid="stat-tile"]') as HTMLElement;
+    expect(within(budgetTile).getByText(/1,000,000/).closest('.whitespace-nowrap')).not.toBeNull();
+    expect(screen.getByText('Dicadangkan')).toBeInTheDocument();
+    expect(screen.getByText('Disetujui, belum dipesan')).toBeInTheDocument();
+    expect(screen.queryByText('Reserved')).not.toBeInTheDocument();
+    expect(screen.queryByText('Project budget')).not.toBeInTheDocument();
+  });
+
+  it('rule 15: a budget too wide for half a phone row takes the whole row, label above, number unbroken', () => {
+    budgetState.data = 1_240_000_000;
+    committedState.data = 0;
+    renderPanel({ projectId: 'proj-1', totalValue: 22_500, projectName: 'HQ Fit-Out' }, 'id');
+    const budgetTile = screen.getByText('Anggaran proyek').closest('[data-testid="stat-tile"]') as HTMLElement;
+    expect(budgetTile.className).toContain('col-span-2');
+    expect(within(budgetTile).getByText(/1,240,000,000/).closest('.whitespace-nowrap')).not.toBeNull();
+  });
+
   it('AC-RD-MONEY-002: approval money is the exact full amount, never a short unit (OD-MONEY-FMT: KPI cards only)', () => {
     budgetState.data = 1_240_000_000;
     committedState.data = 0;
@@ -249,7 +302,7 @@ describe('AC-IXD-PROC-W5-2d — four figures rendered (committed basis)', () => 
   it('renders "Available" label (budget − committed − reserved; reserved=0 here)', () => {
     // budget=1,200,000; committed=986,600; reserved=0 → available=213,400
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
-    expect(screen.getByText(/^not yet committed$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^not yet committed to purchases$/i)).toBeInTheDocument();
     expect(screen.getByText(/\$213,400/)).toBeInTheDocument();
   });
 
@@ -311,10 +364,10 @@ describe('AC-IXD-PROC-W5-2f — heading + no progress bar', () => {
     expect(screen.getByRole('heading', { name: /budget impact/i })).toBeInTheDocument();
   });
 
-  it('renders the five budget figures in a five-column strip at sm+ so no empty sixth cell appears', () => {
+  it('renders the six budget figures in a six-column strip at sm+ so no empty cell appears', () => {
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
     const tiles = within(screen.getByTestId('stat-tiles')).getAllByTestId('stat-tile');
-    expect(tiles).toHaveLength(5);
+    expect(tiles).toHaveLength(6);
     for (const tile of tiles) expect(tile).not.toBeEmptyDOMElement();
   });
 
@@ -329,7 +382,7 @@ describe('AC-IXD-PROC-W5-2f — heading + no progress bar', () => {
     expect(bar).toHaveAttribute('aria-valuenow', '60');
     expect(bar.getAttribute('aria-label')).toMatch(/60%/);
     expect(bar.getAttribute('aria-label')).toMatch(/\$1,000/);
-    expect(screen.getByText(/Budget in use with this purchase: 60%/)).toBeInTheDocument();
+    expect(screen.getByText('Committed to purchases, with this one: 60%')).toBeInTheDocument();
     // The figure behind the bar: 1000 − 300 − 200 − 100 left after this procurement.
     expect(tileValue(/^after this procurement$/i).textContent).toMatch(/\$400\b/);
   });
@@ -340,7 +393,7 @@ describe('AC-IXD-PROC-W5-2f — heading + no progress bar', () => {
     reservedState.data = 200;
     renderPanel({ projectId: 'proj-1', totalValue: 179, projectName: 'HQ Fit-Out', status: 'Requested' });
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '68');
-    expect(screen.getByText('Budget in use with this purchase: 68%')).toBeInTheDocument();
+    expect(screen.getByText('Committed to purchases, with this one: 68%')).toBeInTheDocument();
     const tile = screen.getByText(/^after this procurement$/i).closest('[data-testid="stat-tile"]');
     expect(tile).not.toBeNull();
     expect(within(tile as HTMLElement).getByText('32% headroom left')).toBeInTheDocument();
@@ -404,10 +457,10 @@ describe('AC-RB-004 — Available = Budget − Committed − Reserved', () => {
     reservedState.data = 200;
     renderPanel({ projectId: 'p1', totalValue: 0, projectName: 'X', status: 'Requested' });
 
-    const label = screen.getByText('Not yet committed');
+    const label = screen.getByText('Not yet committed to purchases');
     const tile = label.closest('[data-testid="stat-tile"]') as HTMLElement;
     expect(within(tile).getByText(/\$500\b/)).toBeInTheDocument();
-    expect(within(tile).getByText('Actual spend not counted')).toBeInTheDocument();
+    expect(within(tile).getByText('Not counting recorded spending')).toBeInTheDocument();
   });
 
   it('AC-RB-004: shows Available $500 for budget 1000 / committed 300 / reserved 200', () => {
@@ -415,9 +468,9 @@ describe('AC-RB-004 — Available = Budget − Committed − Reserved', () => {
     committedState.data = 300;
     reservedState.data = 200;
     renderPanel({ projectId: 'p1', totalValue: 0, projectName: 'X', status: 'Requested' });
-    expect(screen.getByText(/^not yet committed$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^not yet committed to purchases$/i)).toBeInTheDocument();
     // Scope to the Available tile (After this request also shows $500 here).
-    expect(tileValue(/^not yet committed$/i).textContent).toMatch(/\$500\b/);
+    expect(tileValue(/^not yet committed to purchases$/i).textContent).toMatch(/\$500\b/);
   });
   it('0373: commitments in other currencies are named under Available, never subtracted as project currency', () => {
     budgetState.data = 1000;
@@ -425,7 +478,7 @@ describe('AC-RB-004 — Available = Budget − Committed − Reserved', () => {
     committedState.otherCurrencies = [{ currency: 'EUR', amount: 90 }];
     reservedState.data = 200;
     renderPanel({ projectId: 'p1', totalValue: 0, projectName: 'X', status: 'Requested' });
-    expect(tileValue(/^not yet committed$/i).textContent).toMatch(/\$500\b/);
+    expect(tileValue(/^not yet committed to purchases$/i).textContent).toMatch(/\$500\b/);
     expect(screen.getByText('Not counting commitments in other currencies: €90')).toBeInTheDocument();
   });
   it('0373: no other-currency note when every commitment is in the project currency', () => {
@@ -440,7 +493,7 @@ describe('AC-RB-004 — Available = Budget − Committed − Reserved', () => {
     committedState.data = 800;
     reservedState.data = 400; // available = -200
     renderPanel({ projectId: 'p1', totalValue: 0, projectName: 'X', status: 'Requested' });
-    const neg = tileValue(/^not yet committed$/i);
+    const neg = tileValue(/^not yet committed to purchases$/i);
     expect(neg.textContent).toMatch(/-?\$200/);
     expect(neg.className).toMatch(/destructive/);
   });
@@ -452,7 +505,7 @@ describe('AC-RB-004 — Available = Budget − Committed − Reserved', () => {
     reservedState.projectCurrency = 'EUR';
     reservedState.budgetCurrency = 'EUR';
     renderPanel({ projectId: 'p1', totalValue: 0, projectName: 'X', status: 'Requested', currency: 'EUR' });
-    const availableLabel = screen.getByText(/^not yet committed$/i);
+    const availableLabel = screen.getByText(/^not yet committed to purchases$/i);
     const availableTile = availableLabel.closest('[data-testid="stat-tile"]') as HTMLElement;
     expect(within(availableTile).getByText(/€500\b/)).toBeInTheDocument();
     expect(within(availableTile).queryByText(/\$/)).not.toBeInTheDocument();
@@ -559,7 +612,7 @@ describe('AC-RB-012 — no-budget state', () => {
     reservedState.data = 500;
     renderPanel({ projectId: 'p1', totalValue: 10, projectName: 'X', status: 'Requested' });
     expect(screen.getByText(/no active budget/i)).toBeInTheDocument();
-    expect(screen.queryByText(/^not yet committed$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^not yet committed to purchases$/i)).not.toBeInTheDocument();
   });
 });
 
@@ -639,7 +692,7 @@ it('#1354 labels each figure in its own currency: the request in its currency, b
   const valueOf = (label: RegExp) => within(screen.getByText(label).closest('[data-testid="stat-tile"]') as HTMLElement);
   expect(valueOf(/^procurement total$/i).getByText(/€50\b/)).toBeInTheDocument();
   expect(valueOf(/^project budget$/i).getByText(/\$1,000\b/)).toBeInTheDocument();
-  expect(valueOf(/^not yet committed$/i).getByText(/\$500\b/)).toBeInTheDocument();
+  expect(valueOf(/^not yet committed to purchases$/i).getByText(/\$500\b/)).toBeInTheDocument();
   expect(valueOf(/^reserved$/i).getByText(/\$200\b/)).toBeInTheDocument();
   expect(screen.queryByText(/headroom remaining/i)).not.toBeInTheDocument();
   expect(screen.queryByText(/over available budget/i)).not.toBeInTheDocument();
@@ -656,4 +709,235 @@ it('marks an amount outside exact representation as unavailable', () => {
   budgetState.data = 100_000_000_000_000;
   renderPanel({ projectId: 'proj-1', totalValue: 50, projectName: 'Project' });
   expect(screen.getByText(/comparison unavailable/i)).toBeInTheDocument();
+});
+
+
+// ===========================================================================
+// S05 — the approval panel names its figure, shows the project's Budget used beside it and the tender stage.
+// Display only: the panel's own policy (budget − open orders − reserved) is unchanged.
+// ===========================================================================
+const tileOf = (label: RegExp) => screen.getByText(label).closest('[data-testid="stat-tile"]') as HTMLElement;
+
+describe('S05 — purchasing figure is named for what it counts', () => {
+  it('names the figure "Not yet committed to purchases" and says plainly that recorded spending is not in it', () => {
+    budgetState.data = 1000;
+    committedState.data = 400;
+    reservedState.data = 50;
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested' });
+    const tile = tileOf(/^not yet committed to purchases$/i);
+    expect(within(tile).getByText(/\$550\b/)).toBeInTheDocument();
+    expect(within(tile).getByText('Not counting recorded spending')).toBeInTheDocument();
+  });
+
+  it('keeps the policy numbers: 525 after the request, 47.5% of the budget in use (shown as whole percent)', () => {
+    budgetState.data = 1000;
+    committedState.data = 400;
+    reservedState.data = 50;
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested' });
+    expect(within(tileOf(/^after this procurement$/i)).getByText(/\$525\b/)).toBeInTheDocument();
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '48');
+  });
+
+  it('Bahasa: the figure and its sub-line are Indonesian', () => {
+    budgetState.data = 1000;
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested' }, 'id');
+    const tile = tileOf(/^belum terikat pembelian$/i);
+    expect(within(tile).getByText('Belum termasuk pengeluaran tercatat')).toBeInTheDocument();
+    expect(screen.queryByText('Not yet committed to purchases')).not.toBeInTheDocument();
+  });
+});
+
+describe('S05 — the inbox row moves the purchasing figure\'s caption into its tooltip', () => {
+  it('captionInTooltip: the label stays, the caption is a tooltip (and read by screen readers), not a line under the figure', () => {
+    budgetState.data = 1000;
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested', captionInTooltip: true }, 'id');
+    const label = screen.getByText(/^belum terikat pembelian/i);
+    const tile = label.closest('[data-testid="stat-tile"]') as HTMLElement;
+    expect(label.closest('[title]')).toHaveAttribute('title', 'Belum termasuk pengeluaran tercatat');
+    expect(tile.querySelectorAll('.text-muted-foreground')).toHaveLength(0);
+  });
+  it('the record page keeps the caption under the figure', () => {
+    budgetState.data = 1000;
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested' }, 'id');
+    expect(within(tileOf(/^belum terikat pembelian$/i)).getByText('Belum termasuk pengeluaran tercatat')).toBeInTheDocument();
+  });
+  it('a caption naming other currencies is money information and stays visible', () => {
+    budgetState.data = 1000;
+    committedState.otherCurrencies = [{ currency: 'EUR', amount: 5 }];
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested', captionInTooltip: true });
+    expect(within(tileOf(/^not yet committed to purchases$/i)).getByText(/Not counting commitments in other currencies/)).toBeInTheDocument();
+  });
+});
+
+describe('S05 — the project\'s Budget used sits beside it', () => {
+  it('shows the canonical Budget used (recorded spending ÷ Active budget, before tax) right after the purchasing figure', () => {
+    budgetState.data = 1000;
+    committedState.data = 400;
+    reservedState.data = 50;
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested' });
+    const labels = within(screen.getByTestId('stat-tiles')).getAllByTestId('stat-tile').map((tile) => tile.firstElementChild?.textContent);
+    const at = labels.indexOf('Not yet committed to purchases');
+    expect(labels[at + 1]).toBe('Budget used');
+    const tile = tileOf(/^budget used$/i);
+    expect(within(tile).getByText('50%')).toBeInTheDocument();
+    expect(within(tile).getByText('Recorded spending, before tax')).toBeInTheDocument();
+  });
+
+  it('reads the project through the shared positions hook, with no sum of its own', () => {
+    budgetState.data = 1000;
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested' });
+    expect(positionArgs.at(-1)).toEqual(['p1']);
+  });
+
+  it('ERP basis: the ledger actual is the spending, so 300 of 1,000 reads 30%', () => {
+    budgetState.data = 1000;
+    positionState.reading = reading({ ledgerBasis: 'erp', spent: '300.00' });
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested' });
+    expect(within(tileOf(/^budget used$/i)).getByText('30%')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['spending unknown', { spent: null }],
+    ['reading in another currency', { currency: 'EUR', budgetCurrency: 'EUR' }],
+    ['no Active budget in the reading', { activeBudgetAmount: null }],
+  ] as const)('%s → no Budget used tile, as the project header draws none', (_name, over) => {
+    budgetState.data = 1000;
+    positionState.reading = reading(over);
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested' });
+    expect(screen.queryByText(/^budget used$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/unknown or unavailable/i)).not.toBeInTheDocument();
+    // the purchasing figure is still drawn
+    expect(within(tileOf(/^not yet committed to purchases$/i)).getByText(/\$1,000\b/)).toBeInTheDocument();
+  });
+
+  it.each(['Tender Submitted', 'PQ Submitted'])('a project still in the pipeline (%s): no Budget used tile and no hidden-figures line, not even on a failed read', async (projectStatus) => {
+    budgetState.data = 1000;
+    positionState.reading = undefined;
+    positionState.isError = true;
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', projectStatus, status: 'Requested' }, undefined, true);
+    expect(await screen.findByText(/^project budget$/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^budget used$/i)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
+    expect(screen.queryByText(/unknown or unavailable/i)).not.toBeInTheDocument();
+  });
+
+  it('a running project whose read failed keeps a short unknown mark in the tile, never a sentence, and no hidden-figures line', async () => {
+    budgetState.data = 1000;
+    positionState.reading = undefined;
+    positionState.isError = true;
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', projectStatus: 'Active', status: 'Requested' }, undefined, true);
+    const tile = tileOf(/^budget used$/i);
+    expect(tile.textContent).toContain('—');
+    expect(tile.querySelector('[role="status"]')).toBeNull();
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
+    expect(screen.getByText(/^project budget$/i)).toBeInTheDocument();
+  });
+
+  it('while the reading loads, no Budget used tile is drawn and the rest of the panel is not held back', () => {
+    budgetState.data = 1000;
+    positionState.reading = undefined;
+    positionState.isPending = true;
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested' });
+    expect(screen.queryByText(/^budget used$/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/^project budget$/i)).toBeInTheDocument();
+  });
+
+  it('a request in another currency still shows the project figures including Budget used, with no after-request tile', () => {
+    budgetState.data = 1000;
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested', currency: 'EUR' });
+    expect(within(tileOf(/^budget used$/i)).getByText('50%')).toBeInTheDocument();
+    expect(screen.queryByText(/^after this procurement$/i)).not.toBeInTheDocument();
+  });
+
+  it('the no-budget and currency-mismatch refusals are unchanged and draw no Budget used', () => {
+    budgetState.data = 0;
+    const first = renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested' });
+    expect(screen.getByText(/no active budget/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^budget used$/i)).not.toBeInTheDocument();
+    first.unmount();
+    budgetState.data = 1000;
+    reservedState.budgetCurrency = 'EUR';
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested' });
+    expect(screen.getByText(/comparison unavailable/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^budget used$/i)).not.toBeInTheDocument();
+  });
+
+  it('Bahasa: Budget used reads in Indonesian', () => {
+    budgetState.data = 1000;
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested' }, 'id');
+    const tile = tileOf(/^anggaran terpakai$/i);
+    expect(within(tile).getByText('50%')).toBeInTheDocument();
+    expect(within(tile).getByText('Pengeluaran tercatat, sebelum pajak')).toBeInTheDocument();
+  });
+
+  it('issues no position read for a status the panel hides', () => {
+    budgetState.data = 1000;
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Ordered' });
+    expect(positionArgs.every((ids) => ids.length === 0)).toBe(true);
+  });
+});
+
+describe('S05 — the tender stage is visible where the decision is made', () => {
+  const heading = () => screen.getByRole('heading', { name: /budget impact|dampak anggaran/i }).parentElement as HTMLElement;
+
+  it.each(['Leads', 'PQ Submitted', 'Quotation Submitted', 'Tender Submitted', 'Negotiation'])(
+    'a project still in the pipeline (%s) shows its stage beside the project name',
+    (projectStatus) => {
+      budgetState.data = 1000;
+      renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', projectStatus, status: 'Requested' });
+      const stage = projectStatus === 'Leads' ? 'Leads' : projectStatus === 'PQ Submitted' ? 'PQ submitted'
+        : projectStatus === 'Quotation Submitted' ? 'Quotation submitted' : projectStatus === 'Tender Submitted' ? 'Tender submitted' : 'Negotiation';
+      expect(within(heading()).getByText(stage)).toBeInTheDocument();
+    },
+  );
+
+  it('the stage shows in the loading, no-budget and unavailable states too, because the decision still happens there', () => {
+    budgetState.data = 0;
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', projectStatus: 'Tender Submitted', status: 'Requested' });
+    expect(within(heading()).getByText('Tender submitted')).toBeInTheDocument();
+  });
+
+  it('a won or running project shows no stage pill', () => {
+    budgetState.data = 1000;
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', projectStatus: 'Ongoing Project', status: 'Requested' });
+    expect(within(heading()).queryByText('Ongoing')).not.toBeInTheDocument();
+  });
+
+  it('Bahasa: the stage reads in Indonesian', () => {
+    budgetState.data = 1000;
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', projectStatus: 'Tender Submitted', status: 'Requested' }, 'id');
+    expect(within(heading()).getByText('Tender diajukan')).toBeInTheDocument();
+    expect(within(heading()).queryByText('Tender submitted')).not.toBeInTheDocument();
+  });
+});
+
+describe('S05: the bar has its own label, one label one number', () => {
+  // Cascade case: recorded spending 1,040 of 1,000 (Budget used 104%) while the bar measures committed 300 + reserved 200 + this 440 = 940 (94%).
+  const cascade = () => {
+    budgetState.data = 1000;
+    committedState.data = 300;
+    reservedState.data = 200;
+    positionState.reading = reading({ spent: '1040.00', usedPercent: '104', usedRatio: '1.04' });
+    return { projectId: 'p1', totalValue: 440, projectName: 'Cascade', status: 'Requested' as const };
+  };
+
+  it('en: the visible caption and the aria-label name the committed figure and never say "Budget used"; the tile keeps the header figure', () => {
+    renderPanel(cascade());
+    const bar = screen.getByRole('progressbar');
+    const caption = screen.getByText(/^Committed to purchases, with this one: 94%$/);
+    expect(caption.textContent).not.toMatch(/budget used/i);
+    expect(bar.getAttribute('aria-label')).toBe('Committed to purchases, with this one: 94% of $1,000');
+    expect(bar.getAttribute('aria-label')).not.toMatch(/budget used/i);
+    expect(within(tileOf(/^budget used$/i)).getByText('104%')).toBeInTheDocument();
+  });
+
+  it('id: the same, in Bahasa, never "Anggaran terpakai"', () => {
+    renderPanel(cascade(), 'id');
+    const bar = screen.getByRole('progressbar');
+    const caption = screen.getByText(/^Terikat pembelian, termasuk yang ini: 94%$/);
+    expect(caption.textContent).not.toMatch(/anggaran terpakai/i);
+    expect(bar.getAttribute('aria-label')).toMatch(/^Terikat pembelian, termasuk yang ini: 94% dari /);
+    expect(bar.getAttribute('aria-label')).not.toMatch(/anggaran terpakai/i);
+    expect(within(tileOf(/^anggaran terpakai$/i)).getByText('104%')).toBeInTheDocument();
+  });
 });

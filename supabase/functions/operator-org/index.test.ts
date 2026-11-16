@@ -31,7 +31,7 @@ Deno.test({ name: 'AC-ONB-001: inactive operators cannot use either action or ex
 
 const valid = { action: 'create', name: 'Acme', admin_email: 'a@example.test', admin_full_name: 'Admin', default_currency: 'USD', default_locale: 'en', default_timezone: 'UTC', plan_id: 'standard' };
 const org = '11111111-1111-4111-8111-111111111111';
-interface Scenario { orgExists?: boolean; orgAdmin?: boolean; profile?: boolean; lookupError?: boolean; account?: 'pending' | 'active' | 'other'; orgError?: boolean; planError?: boolean; rateLimited?: boolean; status?: boolean; inviteExisting?: boolean; unknownPlan?: boolean; noPlan?: boolean; manyStages?: boolean; manyAdmins?: boolean; pagedAccount?: boolean; }
+interface Scenario { orgExists?: boolean; orgAdmin?: boolean; profile?: boolean; lookupError?: boolean; account?: 'pending' | 'active' | 'other'; orgError?: boolean; rateLimited?: boolean; status?: boolean; inviteExisting?: boolean; unknownPlan?: boolean; noPlan?: boolean; manyStages?: boolean; manyAdmins?: boolean; pagedAccount?: boolean; orgName?: string; nameLookupError?: boolean; }
 // Migration 0530 revoked these tables from EVERY API role (service_role included): they have no
 // table path. The mock must refuse them exactly like the real REST layer (403, PG 42501) in every
 // scenario, so a handler that reads them directly can never pass a test again.
@@ -53,7 +53,22 @@ async function run(body: Record<string, unknown>, s: Scenario = {}) {
     }
     else if (path.endsWith('/rpc/operator_plan_catalogue')) value = s.unknownPlan ? [{ plan_id: 'starter' }, { plan_id: 'growth' }] : [{ plan_id: 'starter' }, { plan_id: 'standard' }];
     else if (path.endsWith('/rpc/operator_org_plan')) value = s.noPlan ? null : 'standard';
-    else if (path === '/rest/v1/organizations') value = (s.orgExists || s.status) ? [{ id: org, name: 'Acme', lifecycle_state: null }] : [];
+    else if (path === '/rest/v1/organizations') {
+      // Behaves like PostgREST: an `ilike` name filter matches letter case only, never spacing.
+      const nameFilter = url.searchParams.get('name');
+      const stored = s.orgName ?? 'Acme';
+      const matches = !nameFilter || nameFilter.toLowerCase() === `ilike.${stored.toLowerCase()}`;
+      value = (s.orgExists || s.status) && matches ? [{ id: org, name: stored, lifecycle_state: null }] : [];
+    }
+    // #2264: the database decides "same name" with org_name_key (pgTAP 0906 proves the key). This stand-in folds
+    // whitespace (incl. U+0085, U+200B, U+FEFF) and case the same way so the handler's use of the answer is tested.
+    else if (path.endsWith('/rpc/organization_id_by_name')) {
+      const key = (v: string) => v.replace(/[\s\u0085\u200b\ufeff]+/g, ' ').trim().toLowerCase();
+      const asked = key(JSON.parse(calls[calls.length - 1].body).p_name ?? '');
+      if (s.nameLookupError) { status = 500; value = { code: 'XX000', message: 'failure' }; }
+      else if (asked === '') { status = 400; value = { code: 'P0001', message: 'org_name_required' }; }
+      else value = s.orgExists && asked === key(s.orgName ?? 'Acme') ? org : null;
+    }
     else if (s.status && path === '/rest/v1/profiles') {
       const rows = [
         { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', org_id: org, role: 'Admin', status: 'active' },
@@ -89,8 +104,7 @@ async function run(body: Record<string, unknown>, s: Scenario = {}) {
     }
     else if (path === '/auth/v1/admin/users') value = { users: s.account && url.searchParams.get('page') === '1' ? [{ id: 'admin', email: s.account === 'other' ? 'other@example.test' : 'a@example.test', last_sign_in_at: s.account === 'active' ? '2026-01-01' : null, user_metadata: { invite_pending: true } }] : [] };
     else if (path === '/auth/v1/invite') value = { id: 'admin', email: 'a@example.test', last_sign_in_at: s.inviteExisting ? '2026-01-01' : null, user_metadata: { invite_pending: true } };
-    else if (path.endsWith('/rpc/operator_create_org')) { value = s.orgError ? { message: 'failure' } : org; status = s.orgError ? 500 : 200; }
-    else if (path.endsWith('/rpc/operator_set_org_plan')) { value = s.planError ? { message: 'failure' } : null; status = s.planError ? 500 : 200; }
+    else if (path.endsWith('/rpc/operator_create_org_with_setup')) { value = s.orgError ? { message: 'failure' } : org; status = s.orgError ? 500 : 200; }
     else { console.error('unexpected request', path); throw new Error(`unexpected request ${path}`); }
     return new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json', ...(s.status && path === '/rest/v1/pipeline_stage_config' ? { 'content-range': s.manyStages ? '0-0/1001' : '0-0/1' } : {}), ...(s.status && path === '/rest/v1/profiles' ? { 'content-range': `0-0/${profileCount}` } : {}) } });
   }) as typeof fetch;
@@ -118,22 +132,35 @@ test('AC-ONB-004: create invites then creates and assigns under the caller token
   check(invites.length === 1, 'one invitation');
   check(new URLSearchParams(invites[0].query).get('redirect_to') === 'https://example.test/update-password', 'server redirect');
   check(JSON.parse(invites[0].body).data.invite_pending === true, 'pending metadata');
-  const create = r.calls.find(c => c.path.endsWith('/rpc/operator_create_org'));
-  const plan = r.calls.find(c => c.path.endsWith('/rpc/operator_set_org_plan'));
+  const create = r.calls.find(c => c.path.endsWith('/rpc/operator_create_org_with_setup'));
   check(create && JSON.parse(create.body).p_admin_user_id === 'admin', 'invited account is first admin');
-  check(plan && JSON.parse(plan.body).p_org_id === org && JSON.parse(plan.body).p_plan_id === 'standard', 'requested plan assigned');
-  for (const name of ['operator_create_org','operator_set_org_plan']) check(r.calls.some(c => c.path.endsWith('/rpc/' + name) && c.key === 'Bearer caller'), name);
+  check(create && JSON.parse(create.body).p_plan_id === 'standard' && create.key === 'Bearer caller', 'requested plan travels in the single create call on the caller token');
+  check(!r.calls.some(c => ['operator_create_org', 'operator_set_org_plan', 'operator_toggle_feature', 'operator_set_org_lifecycle_state'].some(n => c.path.endsWith('/rpc/' + n))), 'no separate plan, feature or state call');
   const catalogue = r.calls.find(c => c.path.endsWith('/rpc/operator_plan_catalogue'));
   check(catalogue && catalogue.key === 'Bearer caller', 'plan catalogue read carries the CALLER token, not the service key');
   check(!r.calls.some(c => planTablePaths.includes(c.path)), 'no direct read of the grant-revoked plan tables');
 });
+test('AC-ONB-004: features and starting state travel in the single create call', async () => {
+  const features = [{ key: 'crm', enabled: true }, { key: 'stock', enabled: false }];
+  const r = await run({ ...valid, features, lifecycle_state: 'test' }); check(r.status === 200 && r.body.created === true, 'created');
+  const create = r.calls.find(c => c.path.endsWith('/rpc/operator_create_org_with_setup'));
+  const sent = create ? JSON.parse(create.body) : {};
+  check(JSON.stringify(sent.p_features) === JSON.stringify(features) && sent.p_lifecycle_state === 'test', 'features and state sent with the create');
+  const bare = await run(valid); const bareSent = JSON.parse(bare.calls.find(c => c.path.endsWith('/rpc/operator_create_org_with_setup'))!.body);
+  check(JSON.stringify(bareSent.p_features) === '[]' && bareSent.p_lifecycle_state === null, 'defaults: no features, state left unset');
+});
+test('AC-ONB-004: malformed features or an unknown state are refused before lookups', async () => {
+  for (const [extra, code] of [[{ features: 'crm' }, 'BAD_FEATURES'], [{ features: [{ key: 'crm' }] }, 'BAD_FEATURES'], [{ features: [{ key: '', enabled: true }] }, 'BAD_FEATURES'], [{ lifecycle_state: 'suspended' }, 'BAD_STATE']] as const) {
+    const r = await run({ ...valid, ...extra }); check(r.status === 400 && r.body.error === code, code); check(!r.calls.some(c => c.path.endsWith('/rpc/rate_limit_hit') || c.path === '/auth/v1/invite'), 'no rate limit or invitation');
+  }
+});
 test('AC-ONB-005: failed create names its step and retains account', async () => {
   const r = await run(valid, { orgError: true }); check(r.status === 502 && r.body.step === 'create_org', 'failure response'); check(!r.calls.some(c => c.method === 'DELETE'), 'no deletion');
 });
-test('AC-ONB-006: same organization and admin is idempotent even without plan assignment', async () => {
-  const r = await run(valid, { orgExists: true, orgAdmin: true }); check(r.status === 200 && r.body.created === false && r.body.org_id === org, 'existing organization'); check(!r.calls.some(c => c.path === '/auth/v1/invite' || c.path.endsWith('/rpc/operator_create_org') || c.path.endsWith('/rpc/operator_set_org_plan')), 'no writes');
+test('AC-ONB-006: same organization and admin is idempotent and writes nothing', async () => {
+  const r = await run(valid, { orgExists: true, orgAdmin: true }); check(r.status === 200 && r.body.created === false && r.body.org_id === org, 'existing organization'); check(!r.calls.some(c => c.path === '/auth/v1/invite' || c.path.endsWith('/rpc/operator_create_org_with_setup')), 'no writes');
 });
-test('pending profile-less account is reused', async () => { const r = await run(valid, { account: 'pending' }); check(r.status === 200 && r.body.org_id === org && r.body.created === true && !r.calls.some(c => c.path === '/auth/v1/invite') && r.calls.some(c => c.path.endsWith('/rpc/operator_create_org')), 'account reused'); });
+test('pending profile-less account is reused', async () => { const r = await run(valid, { account: 'pending' }); check(r.status === 200 && r.body.org_id === org && r.body.created === true && !r.calls.some(c => c.path === '/auth/v1/invite') && r.calls.some(c => c.path.endsWith('/rpc/operator_create_org_with_setup')), 'account reused'); });
 test('signed-in profile-less account is refused', async () => { const r = await run(valid, { account: 'active' }); check(r.status === 409 && r.body.error === 'ADMIN_ACCOUNT_EXISTS', 'signed-in account refused'); });
 test('rate limited create returns 429', async () => { const r = await run(valid, { rateLimited: true }); check(r.status === 429 && r.body.error === 'RATE_LIMITED', 'rate limit'); });
 
@@ -151,13 +178,12 @@ test('AC-ONB-007: status includes only the requested organization', async () => 
   check(!r.calls.some(c => planTablePaths.includes(c.path)), 'no direct read of the grant-revoked plan tables');
 });
 
-test('lookup failures refuse issuance and plan failures retain the account', async () => {
+test('lookup failures refuse issuance and retain the account', async () => {
   const lookup = await run(valid, { lookupError: true }); check(lookup.status === 502 && lookup.body.error === 'LOOKUP_FAILED' && !lookup.calls.some(c => c.path === '/auth/v1/invite'), 'lookup failure');
-  const plan = await run(valid, { planError: true }); check(plan.status === 502 && plan.body.error === 'PLAN_ASSIGN_FAILED' && plan.body.org_id === org && plan.body.step === 'assign_plan', 'plan failure');
-  for (const r of [lookup, plan]) check(!r.calls.some(c => c.method === 'DELETE'), 'no account deleted');
+  check(!lookup.calls.some(c => c.method === 'DELETE'), 'no account deleted');
 });
 
-test('a previously signed-in account returned by invite is not adopted', async () => { const r = await run(valid, { inviteExisting: true }); check(r.status === 409 && r.body.error === 'ADMIN_ACCOUNT_EXISTS' && !r.calls.some(c => c.path.endsWith('/rpc/operator_create_org')), 'signed-in account must not be adopted'); });
+test('a previously signed-in account returned by invite is not adopted', async () => { const r = await run(valid, { inviteExisting: true }); check(r.status === 409 && r.body.error === 'ADMIN_ACCOUNT_EXISTS' && !r.calls.some(c => c.path.endsWith('/rpc/operator_create_org_with_setup')), 'signed-in account must not be adopted'); });
 
 test('unknown plan and invalid status id fail before any issuance', async () => {
   const plan = await run(valid, { unknownPlan: true }); check(plan.status === 400 && plan.body.error === 'UNKNOWN_PLAN' && !plan.calls.some(c => c.path === '/auth/v1/invite'), 'unknown plan');
@@ -194,4 +220,31 @@ test('account scan continues past short pages', async () => {
 test('different address is not the existing organization admin', async () => {
   const r = await run({ ...valid, admin_email: 'different@example.test' }, { orgExists: true, orgAdmin: true });
   check(r.status === 409 && r.body.error === 'ORG_NAME_TAKEN', 'different admin is refused');
+});
+
+test('AC-ORG-025: a re-run with a spacing variant of the name and the same Admin is the safe repeat', async () => {
+  const r = await run({ ...valid, name: 'acme \u00a0\t WORKS' }, { orgExists: true, orgAdmin: true, orgName: 'Acme Works' });
+  check(r.status === 200 && r.body.created === false && r.body.org_id === org, 'existing organization returned');
+  check(!r.calls.some(c => c.path === '/auth/v1/invite' || c.path.endsWith('/rpc/operator_create_org_with_setup')), 'no writes');
+  const lookup = r.calls.find(c => c.path.endsWith('/rpc/organization_id_by_name'));
+  check(lookup && lookup.key === 'Bearer service', 'the name is matched by the database key');
+});
+test('AC-ORG-025: a spacing variant of a taken name with a new Admin is refused before any invitation', async () => {
+  const r = await run({ ...valid, name: 'Acme\u200b\u0085Works', admin_email: 'new@example.test' }, { orgExists: true, orgAdmin: true, orgName: 'Acme Works' });
+  check(r.status === 409 && r.body.error === 'ORG_NAME_TAKEN', 'taken name refused');
+  check(!r.calls.some(c => c.path === '/auth/v1/invite'), 'no invitation sent');
+  check(!r.calls.some(c => c.path === '/auth/v1/admin/users' || c.path.endsWith('/rpc/operator_create_org_with_setup')), 'no account scan or create');
+});
+test('AC-ORG-026: a name the database key reads as blank is refused before any invitation', async () => {
+  const r = await run({ ...valid, name: '\u200b\u0085' });
+  check(r.status === 400 && r.body.error === 'ORG_NAME_REQUIRED', 'blank name refused');
+  check(!r.calls.some(c => c.path === '/auth/v1/invite'), 'no invitation sent');
+});
+test('AC-ORG-030: when the name lookup fails the create is refused and no invitation is sent', async () => {
+  const r = await run(valid, { nameLookupError: true });
+  check(r.status === 502 && r.body.error === 'LOOKUP_FAILED', 'lookup failure refused');
+  check(r.calls.some(c => c.path.endsWith('/rpc/organization_id_by_name')), 'the name lookup was asked');
+  check(!r.calls.some(c => c.path === '/auth/v1/invite'), 'no invitation sent');
+  check(!r.calls.some(c => c.path === '/auth/v1/admin/users' || c.path === '/rest/v1/profiles'), 'no account or profile scan');
+  check(!r.calls.some(c => c.path.endsWith('/rpc/operator_create_org_with_setup')), 'no organization created');
 });

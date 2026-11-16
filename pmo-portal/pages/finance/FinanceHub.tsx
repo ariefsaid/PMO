@@ -10,6 +10,7 @@ import { BudgetDraftReview } from '@/src/components/finance/BudgetDraftReview';
 import { Button, Card, CardHead, CardPad, Icon, ListState, PageHeader } from '@/src/components/ui';
 import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
 import { FigureHiddenLine, FigureScope } from '@/src/components/ui/FigureScope';
+import { MobileActionBar } from '@/src/components/ui/MobileActionBar';
 import { moneyTileProps } from '@/src/components/finance/moneyTile';
 import { AgeingStrip } from '@/src/components/finance/AgeingStrip';
 import FinanceRevenueTrend from '@/src/components/finance/FinanceRevenueTrend';
@@ -174,7 +175,7 @@ const FinanceHub: React.FC = () => {
 
   return (
     <FigureScope>
-    <div className="min-w-0 pb-20 sm:pb-0">
+    <div className="min-w-0">
       <PageHeader
         title={t('financeHub:hub.title', 'Finance')}
         help={<>
@@ -182,7 +183,11 @@ const FinanceHub: React.FC = () => {
           <p>{t('financeHub:hub.helpBudgetDrafts', 'Budget drafts: check each against its source, tick the ones to activate, then confirm once. Each is activated and recorded on its own.')}</p>
         </>}
         helpSubject={t('financeHub:hub.title', 'Finance')}
-        action={canAct ? <div className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-background p-3 sm:static sm:inset-auto sm:z-auto sm:border-0 sm:bg-transparent sm:p-0"><Button variant="primary" onClick={() => navigate('/finance/receivables?create=1')} className="w-full shrink-0 sm:w-auto"><Icon name="plus" />{t('financeHub:hub.newInvoice', 'New invoice')}</Button></div> : undefined}
+        action={canAct ? (
+          <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-background p-3 sm:static sm:inset-auto sm:z-auto sm:border-0 sm:bg-transparent sm:p-0">
+            <Button variant="primary" onClick={() => navigate('/finance/receivables?create=1')} className="w-full shrink-0 sm:w-auto"><Icon name="plus" />{t('financeHub:hub.newInvoice', 'New invoice')}</Button>
+          </MobileActionBar>
+        ) : undefined}
       />
       <div className="mb-3"><FigureHiddenLine /></div>
       {/* ECA-5: Finance accepts invoice pairs here. Receivables is hidden while an ERP owns revenue, so this is the page Finance can always reach; self-hides when there is nothing to review. */}

@@ -6,6 +6,7 @@ import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import { cn } from '@/src/components/ui/cn';
 import type { AgeingBuckets, PayablesAgeingBuckets } from '@/src/lib/finance/financePosition';
 import { SplitBar, type SplitBarPart } from './SplitBar';
+import { FIGURE_LINE_CLASS } from '@/src/components/ui/FigureContent';
 
 type AgeingKind = 'receivables' | 'payables';
 type AgeingValues = Record<string, AgeingBuckets | PayablesAgeingBuckets>;
@@ -28,6 +29,8 @@ export interface AgeingStripProps {
    * each, and every currency after the first is one line of its non-zero buckets, with no second bar.
    */
   quiet?: boolean;
+  /** A host that frames the strip in its own panel owns the spacing below it: no bottom margin of the strip's own, and the legend's colour dots hang in the panel's inset so the labels start on it. */
+  flush?: boolean;
 }
 
 const RECEIVABLE_BUCKETS = ['notDue', 'noDueDate', 'd1_30', 'd31_60', 'd61_90', 'over90'] as const;
@@ -49,7 +52,7 @@ const PAYABLE_STATUS_COLORS: Record<BucketKey, string> = {
   d61_90: chartTheme.series.warning,
 };
 
-export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLabel, values, unknownCounts = {}, noDueDateCounts = {}, unknownTotal = 0, payablesStatusColors = false, quiet = false }) => {
+export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLabel, values, unknownCounts = {}, noDueDateCounts = {}, unknownTotal = 0, payablesStatusColors = false, flush = false, quiet = false }) => {
   const { t } = useTranslation();
   const { currency: orgCurrency, isResolved } = useOrgCurrencyState();
   const bucketKeys: readonly BucketKey[] = kind === 'receivables' ? RECEIVABLE_BUCKETS : PAYABLE_BUCKETS;
@@ -79,7 +82,7 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLab
       : (buckets as PayablesAgeingBuckets | undefined)?.[key as keyof PayablesAgeingBuckets] ?? 0;
 
   return (
-    <section aria-label={ariaLabel ?? title} className="mb-5 min-w-0">
+    <section aria-label={ariaLabel ?? title} className={cn('min-w-0', !flush && 'mb-5')}>
       <h2 className="mb-2 text-[14px] font-semibold">{title}</h2>
       {currencies.length === 0 && <p className="text-sm text-muted-foreground">{unknownTotal > 0
         ? t('finance:area.ageingUnknown', { defaultValue: unknownTotal === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count: unknownTotal })
@@ -141,7 +144,7 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLab
                     <span className="min-w-0 break-words text-control text-muted-foreground">{labels[key]}</span>
                     {unknown > 0 && amount === 0
                       ? <span className="text-right text-control text-muted-foreground">{unknownLabel}</span>
-                      : <span className={cn('max-w-full break-all text-right tabular text-sm', amount === 0 ? 'font-normal text-muted-foreground' : 'font-semibold text-foreground')}>{formatCurrency(amount / 100, currency)}</span>}
+                      : <span className={cn(FIGURE_LINE_CLASS, 'text-right text-sm', amount === 0 ? 'font-normal text-muted-foreground' : 'font-semibold text-foreground')}>{formatCurrency(amount / 100, currency)}</span>}
                     {unknown > 0 && amount !== 0 && <span className="col-span-full text-right text-control text-muted-foreground">{t('financeHub:hub.fix.ageing.plusUnknown', { defaultValue: '+ {{label}}', label: unknownLabel })}</span>}
                     {noDueDateCount > 0 && <span className="col-span-full text-right text-control text-muted-foreground">{t('finance:area.ageingNoDueDateCount', { count: noDueDateCount, defaultValue_one: '{{count}} invoice', defaultValue_other: '{{count}} invoices' })}</span>}
                   </div>

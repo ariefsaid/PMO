@@ -37,7 +37,7 @@ test('AC-ODA-022: Finance sees the same Odoo project amount and reconciliation o
     if (signed.error) throw signed.error;
     const switched = await actorClient.rpc('switch_odoo_ledger_basis', { p_confirm_difference: false, p_reason: null });
     if (switched.error) throw switched.error;
-    const serviceRpc = admin.rpc.bind(admin) as unknown as (name: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+    const serviceRpc = (admin.rpc as unknown as (name: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message: string } | null }>).bind(admin);
     await must('link project', serviceRpc('link_odoo_cost_account', { p_org_id: orgId, p_actor_id: scenario.admin.id, p_project_id: projectId, p_account_id: String(analytic) }));
     const [odooAccount] = await call<Array<{ code: string }>>('account.account', 'read', { ids: [account], fields: ['code'] });
     await must('map expense account', admin.from('budget_category_account_map').insert({ org_id: orgId, erp_account: odooAccount.code, category: 'Materials' }).select('id'));

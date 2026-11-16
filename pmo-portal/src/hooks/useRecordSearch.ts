@@ -133,14 +133,16 @@ export function useRecordSearch(
 
     if (mayViewProcurement) {
       for (const pr of procurements.data ?? []) {
-        const procurementCode = pr.code ?? pr.pr_number ?? undefined;
+        // Both numbers a person may hold find the case: its own code and its purchase-request number.
+        const procurementCodes = [...new Set([pr.code, pr.pr_number].filter((value): value is string => Boolean(value)))];
         out.push({
           id: `procurement:${pr.id}`,
           group: 'Records',
           title: pr.title,
           sub: t('shell.palette.recordProcurement', 'Procurement'),
-          code: procurementCode,
-          codeTokens: procurementCode ? [procurementCode] : undefined,
+          code: procurementCodes.join(' · ') || undefined,
+          codeTokens: procurementCodes.length ? procurementCodes : undefined,
+          searchCodes: procurementCodes.length ? procurementCodes : undefined,
           icon: 'procurement',
           run: () => navigate(`/procurement/${pr.id}`),
         });

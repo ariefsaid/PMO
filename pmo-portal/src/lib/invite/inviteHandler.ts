@@ -49,6 +49,8 @@ export class InviteError extends Error {
   constructor(
     public code: InviteErrorCode,
     public status: number,
+    /** Set on DUPLICATE_EMAIL: the authorized target org, so the wrapper can answer an identical repeat. */
+    public targetOrgId?: string,
   ) {
     super(code);
   }
@@ -115,7 +117,7 @@ export async function authorizeInvite(
     p_org_id: targetOrgId,
     p_email: email,
   });
-  if (dup === true) throw new InviteError('DUPLICATE_EMAIL', 409);
+  if (dup === true) throw new InviteError('DUPLICATE_EMAIL', 409, targetOrgId);
 
   // Seat limit (FR-PLN-010, AC-PLN-009): `assert_seat_available` (migration 0535) counts the org's
   // active profiles — a pending invite IS one of those rows — under the organisation row lock, and

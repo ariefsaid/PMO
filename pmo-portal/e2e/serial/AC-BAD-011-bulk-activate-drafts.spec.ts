@@ -40,8 +40,19 @@ async function removeBulkDrafts() {
   }
 }
 
+// Its two Ongoing projects (and their Active, immutable budgets) outlive the run and would count in the
+// company-wide on-hand figures that AC-701 / AC-1117 assert on a later run in the same database; archived
+// projects drop out of those figures (as AC-CQ-020 does for its own project).
+async function archiveBulkProjects() {
+  await serviceClient().from('projects').update({ archived_at: new Date().toISOString() })
+    .like('name', 'E2E bulk %').is('archived_at', null).throwOnError();
+}
+
 test.beforeEach(removeBulkDrafts);
-test.afterEach(removeBulkDrafts);
+test.afterEach(async () => {
+  await removeBulkDrafts();
+  await archiveBulkProjects();
+});
 
 test('AC-BAD-011 Finance ticks two imported drafts on the Finance hub and activates them in one confirmed step', async ({ page }) => {
   const admin = serviceClient();

@@ -1,0 +1,27 @@
+// e2e journeys, evals and the build/lint configs. Files that belong to tsconfig.app.json or
+// tsconfig.server.json are read from their emitted declarations rather than checked again. Keep
+// `include` in step with the matching `exclude` entries of tsconfig.test.json
+// (test/tsconfigProjects.test.ts checks the two together).
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "incremental": true,
+    "tsBuildInfoFile": "../.tsbuild/tooling.tsbuildinfo"
+  },
+  "include": [
+    "e2e",
+    "evals",
+    "playwright.config.ts",
+    "vitest.eval.config.ts",
+    "vite.config.ts",
+    "eslint.config.js"
+  ],
+  "references": [
+    {
+      "path": "./tsconfig.app.json"
+    },
+    {
+      "path": "./tsconfig.server.json"
+    }
+  ]
+}

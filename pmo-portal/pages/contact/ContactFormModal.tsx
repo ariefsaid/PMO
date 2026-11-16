@@ -262,6 +262,7 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
             onChange={titleField.onChange}
             onBlur={titleField.onBlur}
             placeholder={t('contacts.form.jobTitle.placeholder', 'e.g. Procurement Lead')}
+            autoComplete="organization-title"
           />
         </FormGrid>
       </FormSection>
@@ -276,17 +277,20 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
             onChange={emailField.onChange}
             onBlur={emailField.onBlur}
             placeholder="name@example.com"
-            autoComplete="email"
+            // #2092: a contact is a THIRD PARTY — "email" would offer the signed-in user's own address.
+            autoComplete="off"
           />
           <TextField
             disabled={mirrorReadOnly}
             id={phoneField.id}
             label={t('contacts.form.phone.label', 'Phone')}
+            type="tel"
             value={phoneField.value}
             onChange={phoneField.onChange}
             onBlur={phoneField.onBlur}
             placeholder={t('contacts.form.phone.placeholder', 'e.g. +1 555 010 0000')}
-            autoComplete="tel"
+            // #2092: "tel" would offer the signed-in user's own number; this is somebody else's.
+            autoComplete="off"
           />
           <TextArea
             id={notesField.id}

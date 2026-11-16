@@ -37,7 +37,7 @@ const pack = {
   from: '2026-01-01', to: '2026-10-31', timezone: 'UTC', undatedInvoiceCount: 0,
   months: ['2026-10'],
   rows: [],
-  totals: [{ currency: 'USD', months: [{ month: '2026-10', planned: 0, recognised: 0, invoiced: 0, invoiceCount: 0, recognisedToDate: 0, invoicedToDate: 0, invoiceCountToDate: 0, unbilled: 0, backlog: 0 }] }],
+  totals: [{ currency: 'USD', months: [{ month: '2026-10', planned: 0, recognised: 0, invoiced: 0, invoiceCount: 0, recognisedToDate: 0, invoicedToDate: 0, invoiceCountToDate: 0, unbilled: 0, remainingWork: 0, leftToBill: 0 }] }],
 };
 const h = vi.hoisted(() => ({ dash: null as unknown, win: null as unknown, pack: { months: [] as string[], rows: [] as unknown[], totals: [] as unknown[] }, procurementList: vi.fn(), erpPurchases: vi.fn() }));
 
@@ -123,7 +123,7 @@ describe('company dashboard procurement reads (PERF-FIN-1)', () => {
     renderExec('Executive');
     const suppliers = screen.getByTestId('owed-to-suppliers');
 
-    expect(await within(suppliers).findByText("Couldn't load supplier invoices")).toBeInTheDocument();
+    expect(await within(suppliers).findByText("Couldn't load invoices")).toBeInTheDocument();
     await waitFor(() => expect(h.erpPurchases).toHaveBeenCalledTimes(1));
 
     await userEvent.click(within(suppliers).getByRole('button', { name: 'Retry' }));
@@ -145,7 +145,8 @@ describe('company dashboard layout stability (CLS) and loading gates', () => {
     const band = screen.getByRole('region', { name: 'Company figures' });
     expect(within(band).queryAllByTestId('kpi-skeleton')).toHaveLength(0);
     expect(within(screen.getByTestId('owed-to-suppliers')).getAllByTestId('liststate-loading').length).toBeGreaterThan(0);
+    // The approvals list holds its rows while the queue loads (row silhouettes, not a collapsed line).
     const approvals = within(screen.getByTestId('waits-on-you')).getAllByTestId('liststate-loading')[0];
-    expect(approvals.className).toMatch(/\bh-11\b/);
+    expect(approvals.querySelectorAll('[data-skeleton-shape="items"] > *').length).toBeGreaterThanOrEqual(3);
   });
 });

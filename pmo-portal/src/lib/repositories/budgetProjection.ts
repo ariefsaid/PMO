@@ -64,7 +64,8 @@ export interface BudgetProjectionCellRow {
 
 /** One scope's comparison of approved budget to ledger-recorded spending (AC-013/015). */
 export interface BudgetComparisonRow {
-  category: BudgetCategory;
+  /** `null` is the row for paid purchases with no budget category (an org with no accounting system, 0897). */
+  category: BudgetCategory | null;
   /** Explicit zero is known; null means no approved amount can be stated for this category/scope. */
   budgetTotal: number | null;
   /** Explicit zero is known; null means unmapped or the ledger has not been read for this scope. */
