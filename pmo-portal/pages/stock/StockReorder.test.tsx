@@ -40,14 +40,14 @@ const noHistory = {
 
 const LocationProbe = () => {
   const location = useLocation();
-  return <output data-testid="location" data-search={location.search} />;
+  return <output data-testid="location" data-search={location.search} data-path={location.pathname + location.search} />;
 };
 
 const renderPage = (role: Role = 'Project Manager', viewAs: Role | null = null, initialEntry = '/reorder') => {
   realRole = role;
   effectiveRole = viewAs;
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<QueryClientProvider client={qc}><ToastProvider><MemoryRouter initialEntries={[initialEntry]}><LocationProbe /><Link to="/next">Continue</Link><Routes><Route path="/reorder" element={<StockReorder />} /><Route path="/next" element={<p>Next page</p>} /></Routes></MemoryRouter></ToastProvider></QueryClientProvider>);
+  return render(<QueryClientProvider client={qc}><ToastProvider><MemoryRouter initialEntries={[initialEntry]}><LocationProbe /><Link to="/next">Continue</Link><Routes><Route path="/reorder" element={<StockReorder />} /><Route path="/next" element={<p>Next page</p>} /><Route path="/procurement/new" element={<p>new purchase</p>} /></Routes></MemoryRouter></ToastProvider></QueryClientProvider>);
 };
 
 async function pickPair(itemLabel: RegExp = /^Item/, whLabel: string | RegExp = 'Warehouse') {
@@ -211,15 +211,37 @@ describe('StockReorder', () => {
     expect(reorder.setLevel).toHaveBeenCalledWith({ warehouseId: 'w1', itemId: 'i1', level: null });
   });
 
-  it('FR-STK-054 the worklist lists items at or below their level and has no "Create purchase request" action', async () => {
+  it('AC-STK-035 the worklist lists items at or below their level; its only purchase action is "Request purchase", which opens a pre-filled form and creates nothing', async () => {
     renderPage();
     const table = await screen.findByRole('table', { name: 'Below reorder level' });
     expect(within(table).getByText('CAB')).toBeInTheDocument();
     expect(within(table).getByText('CEN')).toBeInTheDocument();
     expect(within(table).getByText(/^27/)).toBeInTheDocument();
     expect(within(table).getByText(/^50/)).toBeInTheDocument();
-    expect(screen.queryByText(/purchase request/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /create/i })).not.toBeInTheDocument();
+  });
+
+  it('AC-STK-RESTOCK-3 a worklist row offers "Request purchase" to any role that may raise a request, an Engineer included', async () => {
+    renderPage('Engineer');
+    const table = await screen.findByRole('table', { name: 'Below reorder level' });
+    expect(within(table).getByRole('button', { name: 'Request purchase for CAB' })).toBeInTheDocument();
+  });
+
+  it('AC-STK-RESTOCK-4 it opens the purchase form for that item at the shortfall, the store\'s project, and returns here', async () => {
+    master.listWarehouses.mockResolvedValue([{ ...wh, kind: 'site', project_id: 'p1' }]);
+    renderPage('Engineer');
+    await userEvent.click(await screen.findByRole('button', { name: 'Request purchase for CAB' }));
+    const u = new URL((await screen.findByTestId('location')).getAttribute('data-path')!, 'http://x');
+    expect(u.pathname).toBe('/procurement/new');
+    expect(u.searchParams.get('lineName')).toBe('Cable 4mm (m)');
+    expect(u.searchParams.get('lineQty')).toBe('23');
+    expect(u.searchParams.get('project')).toBe('p1');
+    expect(u.searchParams.get('from')).toBe('/reorder');
+  });
+
+  it('AC-STK-RESTOCK-3 a view-as session cannot raise the request', async () => {
+    renderPage('Admin', 'Engineer');
+    await screen.findByRole('table', { name: 'Below reorder level' });
+    expect(screen.queryByRole('button', { name: /^Request purchase/ })).not.toBeInTheDocument();
   });
 
   it('PQ-6 an Engineer sees the suggestion and the worklist but no Accept, Edit or Clear', async () => {

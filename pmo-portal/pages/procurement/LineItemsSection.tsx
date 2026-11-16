@@ -48,6 +48,8 @@ export interface LineItemsSectionProps {
   /** A form-level message shown beside the create-form entry row. */
   blockedAddRowMessage?: string | null;
   valuesEditable?: boolean;
+  /** Starting values for the create-form entry row (a typed line that is not yet added). */
+  initialDraft?: Partial<ItemDraft>;
   onAdd: (input: { name: string; quantity: number; rate: number; description?: string }) => Promise<unknown>;
   onUpdate: (id: string, patch: { name: string; quantity?: number; rate?: number; description?: string }) => Promise<unknown>;
   erpItems?: { loadOptions: () => Promise<ComboboxOption[]> };
@@ -67,10 +69,10 @@ type LineTableRow =
   | { id: string; kind: 'item'; item: ProcurementItemRow }
   | { id: typeof CREATE_ADD_ROW_ID; kind: 'add' };
 
-export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, editable, createFormLayout = false, onAddRowInputChange, addRowDescriptionRef, blockedAddRowMessage, valuesEditable = true, onAdd, onUpdate, onDelete, onError, busy, currency, currencyKnown = true, erpItems }) => {
+export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, editable, createFormLayout = false, onAddRowInputChange, addRowDescriptionRef, blockedAddRowMessage, valuesEditable = true, initialDraft, onAdd, onUpdate, onDelete, onError, busy, currency, currencyKnown = true, erpItems }) => {
   const { t } = useTranslation('procurement');
   const isDesktop = useIsDesktop();
-  const [draft, setDraft] = useState<ItemDraft>(EMPTY_DRAFT);
+  const [draft, setDraft] = useState<ItemDraft>(() => ({ ...EMPTY_DRAFT, ...initialDraft }));
   const [addErrors, setAddErrors] = useState<LineItemErrors>({});
   const [addMutationError, setAddMutationError] = useState<{ headline: string; detail: string } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);

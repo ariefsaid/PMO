@@ -16,7 +16,7 @@
       "code": "Kode",
       "name": "Nama",
       "unit": "Satuan",
-      "onHand": "Stok tersedia",
+      "onHand": "Sisa stok",
       "wholeOnly": "Jumlah",
       "leadTime": "Waktu tunggu",
       "kind": "Jenis",
@@ -166,7 +166,7 @@
     "STK_KIND_UNAVAILABLE": "Jenis dokumen ini belum tersedia.",
     "STK_IMMUTABLE": "Dokumen yang sudah diposting atau dibatalkan tidak bisa diubah.",
     "STK_STALE": "Draf ini berubah sejak Anda membukanya. Periksa versi terbarunya, lalu posting.",
-    "STK_INSUFFICIENT_DETAIL": "Hanya tersedia {{available}}; Anda meminta {{requested}}.",
+    "STK_INSUFFICIENT_DETAIL": "Sisa hanya {{available}}; Anda meminta {{requested}}.",
     "STK_ACTOR": "Hanya anggota aktif organisasi ini yang dapat memposting stok.",
     "STK_COMPANY": "Perusahaan Odoo tidak lagi cocok dengan koneksi ini. Minta Admin memeriksa pengaturan Odoo.",
     "STK_COMMAND": "Dokumen ini bukan draf terkini yang dapat diposting. Buka lagi dan periksa.",
@@ -196,7 +196,7 @@
     "columns": {
       "item": "Barang",
       "warehouse": "Gudang",
-      "quantity": "Tersedia",
+      "quantity": "Sisa",
       "avgCost": "Biaya rata-rata",
       "value": "Nilai"
     },
@@ -290,7 +290,7 @@
     "actionFailed": "Tindakan gagal",
     "postConfirm": {
       "title": "Posting dokumen stok ini?",
-      "description": "{{number}} akan diposting dan jumlah stok yang tersedia akan berubah sesuai baris ini. Dokumen ini tidak dapat diubah lagi."
+      "description": "{{number}} akan diposting dan sisa stok akan berubah sesuai baris ini. Dokumen ini tidak dapat diubah lagi."
     },
     "confirm": {
       "title": "Batalkan draf ini?",
@@ -562,7 +562,7 @@
       "columns": {
         "item": "Barang",
         "warehouse": "Gudang",
-        "onHand": "Tersedia",
+        "onHand": "Sisa",
         "level": "Level pemesanan ulang",
         "orderQuantity": "Jumlah pesanan",
         "actions": "Aksi"
@@ -620,5 +620,10 @@
     "warehouse-unmapped": "Gudang {{warehouse}} belum dicocokkan dengan gudang Odoo.",
     "location-ambiguous": "Lokasi stok Odoo gudang {{warehouse}} tidak ada, diarsipkan, atau ambigu.",
     "location-unavailable": "Lokasi stok Odoo gudang {{warehouse}} tidak ada, diarsipkan, atau ambigu."
+  },
+  "requestPurchase": {
+    "column": "Isi ulang",
+    "action": "Ajukan pembelian",
+    "rowLabel": "Ajukan pembelian untuk {{item}}"
   }
 }

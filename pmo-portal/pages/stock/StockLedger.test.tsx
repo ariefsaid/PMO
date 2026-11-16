@@ -401,4 +401,13 @@ describe('FR-STK-041 floor: every control on the trace still works', () => {
     expect(await screen.findByText('ISS-8')).toBeInTheDocument();
     expect(reports.ledgerPage.mock.calls[2][0]).toMatchObject({ beforeSeq: 9 });
   });
+
+  it('AC-STOCK-LAYOUT-002 the cost-bearing columns that show at 1440 fit the 1166px panel without a sideways scroll', () => {
+    // The fixed-layout table cannot shrink below the sum of its column sizes; the panel at 1440 is 1166px
+    // (1440 - 224 sidebar - 2 x 25 gutter). Columns that never show on screen are left out of the sum.
+    const cols = buildLedgerColumns({ t: i18next.getFixedT('en', 'stock'), loc: 'en-US', currency: 'IDR', showCost: true });
+    const shown = cols.filter((c) => !c.exportOnly && !/\b2xl:table-cell\b/.test(c.colClassName ?? ''));
+    const total = shown.reduce((sum, c) => sum + (c.minSize ?? c.size ?? 0), 0);
+    expect(total).toBeLessThanOrEqual(1166);
+  });
 });
