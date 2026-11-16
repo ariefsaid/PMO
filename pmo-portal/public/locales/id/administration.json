@@ -368,6 +368,7 @@
         "linked": "Data ini sudah terhubung ke data ERP lain.",
         "stuck": "Kami tidak dapat menyelesaikan pengiriman data ini. Periksa di ERP, lalu coba lagi.",
         "refused": "ERP menolak {{noun}} ini. Periksa di ERP, lalu coba lagi.",
+        "erpReason": "Alasan dari ERP: {{reason}}",
         "refusedReason": "ERP menolak {{noun}} ini. Periksa di ERP, lalu coba lagi.",
         "held": "Kami tidak dapat memastikan apakah ERP sudah membuat data ini. Cari di ERP dengan nama dan NPWP; jika tidak ada, kirim lagi.",
         "heldOdoo": "Kami tidak dapat memastikan apakah Odoo sudah membuat data ini. Cari di Odoo dengan nama dan NPWP; jika tidak ada, kirim lagi.",

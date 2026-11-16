@@ -368,6 +368,7 @@
         "linked": "This record is already linked to another ERP record.",
         "stuck": "We could not finish sending this record. Check it in the ERP, then try again.",
         "refused": "The ERP refused this {{noun}}. Check it in the ERP, then try again.",
+        "erpReason": "ERP: {{reason}}",
         "refusedReason": "The ERP refused this {{noun}}: {{reason}}",
         "held": "We could not confirm whether the ERP created this record. Look for it in the ERP by name and tax id; if it is not there, send it again.",
         "heldOdoo": "We could not confirm whether Odoo created this record. Look for it in Odoo by name and tax id; if it is not there, send it again.",

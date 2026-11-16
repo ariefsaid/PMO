@@ -96,6 +96,11 @@ export function ErpSendStates({ enabled, tier = 'erpnext' }: { enabled: boolean;
       case 'itemLinked': return t('administration:integrations.send.refusal.itemLinked', 'This item is already linked.');
     }
   };
+  // Under another language the ERP's own reason is kept verbatim (untranslated) after the translated sentence.
+  const erpWords = (text: string): string | null => {
+    const r = parseErpSendRefusal(text);
+    return r?.id === 'refused' ? r.reason : null;
+  };
   const refused = (reviews.data?.proposals ?? []).filter((p) => (p.reason === 'rejected' || p.reason === 'held') && p.reason_text);
   const toAdd = people.data?.proposals ?? [];
   if (waiting === 0 && refused.length === 0 && toAdd.length === 0) return null;
@@ -115,6 +120,9 @@ export function ErpSendStates({ enabled, tier = 'erpnext' }: { enabled: boolean;
               <span className='break-words font-medium'>{p.snapshot.name ?? t('administration:integrations.send.unnamed', 'A record')}</span>{' '}
               <StatusPill variant='warn'>{t('administration:integrations.send.needsDecision', 'Needs a decision')}</StatusPill>
               <p className='mt-1 break-words text-muted-foreground'>{refusalText(p.reason_text ?? '')}</p>
+              {!english && erpWords(p.reason_text ?? '') && (
+                <p className='mt-1 break-words text-muted-foreground'>{t('administration:integrations.send.refusal.erpReason', 'ERP: {{reason}}', { reason: erpWords(p.reason_text ?? ''), interpolation: { escapeValue: false } })}</p>
+              )}
               {p.reason === 'held' && (
                 <div className='mt-2'>
                   <Button variant='outline' size='sm' disabled={retry.isPending} onClick={() => retry.mutate(p.id)}>
