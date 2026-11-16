@@ -86,18 +86,14 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
   it('shows an unknown last count variance as a dash', () => {
     h.position = ok({ ...POSITION, last_count_variance: null });
     renderPage();
-    expect(screen.getByText(/Last count.*variance/)).toHaveTextContent('variance —');
+    expect(screen.getByText(/Last count.*difference/)).toHaveTextContent('difference —');
   });
 
-  it('lets a person open the full cash count note', async () => {
+  it('lets a person read the full cash count note', async () => {
     const note = 'Cash purchase was missing from the receipt log.';
     h.counts = ok({ rows: [{ id: 'count-1', counted_at: '2026-11-02T00:00:00Z', counted_amount: 990000, book_amount: 1000000, variance: -10000, note }], truncated: false });
     renderPage();
-    const disclosure = screen.getByText('Read full note').closest('details');
-    expect(disclosure).not.toHaveAttribute('open');
-    await userEvent.click(screen.getByText('Read full note'));
-    expect(disclosure).toHaveAttribute('open');
-    expect(within(disclosure!).getByText(note)).toBeVisible();
+    expect(screen.getByText(note)).toBeVisible();
   });
 
   it('AC-RSN-005 shows each returned top-up decision on its own row', () => {
@@ -121,6 +117,34 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     expect(within(vehicle).queryByText('Out of plan')).toBeNull();
   });
 
+  it('an empty month plan says so in one line and offers New plan for this month, with no table', async () => {
+    h.position = ok({ ...POSITION, plan_lines: [] });
+    const user = userEvent.setup();
+    renderPage();
+    const line = screen.getByText('No approved plan this month. Spend is out of plan until one is approved.');
+    expect(screen.queryByRole('table', { name: /plan/i })).toBeNull();
+    expect(screen.queryByRole('columnheader', { name: 'Budget category' })).toBeNull();
+    expect(line).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'New plan' }));
+    expect(h.m.createPlan.mutateAsync).toHaveBeenCalledWith({ floatId: 'f1', month: '2026-11-01' });
+  });
+
+  it('the month plan and the plan list are one Plans panel with one New plan, whatever the month holds', () => {
+    h.position = ok({ ...POSITION, plan_lines: [] });
+    h.plans = ok({ rows: [{ id: 'pl1', month: '2026-11-01', status: 'Submitted', number: null, author_id: 'u-cust', float_id: 'f1' }], truncated: false });
+    renderPage();
+    expect(screen.getByText('No approved plan this month. Spend is out of plan until one is approved.')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'New plan' })).toHaveLength(1);
+    expect(screen.queryByRole('heading', { name: 'Plans', level: 2 })).toBeInTheDocument();
+  });
+
+  it('no replenishments reads as one line with no column headers', () => {
+    h.reps = ok({ rows: [], truncated: false });
+    renderPage();
+    expect(screen.getByText('No top-ups yet')).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Number' })).toBeNull();
+  });
+
   it('C5 does not say there are no cash counts while their read is pending', () => {
     h.counts = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
     renderPage();
@@ -131,7 +155,8 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
   it('C13 identifies this float and shows its archived status', () => {
     h.floats = ok({ ...FLOAT, archived_at: '2026-11-01T00:00:00Z' });
     renderPage();
-    expect(screen.getByRole('heading', { name: /Float f1 · Site Alpha/ })).toBeInTheDocument();
+    // The project names the float; the short identifier follows it.
+    expect(screen.getByRole('heading', { name: /^Site Alpha\s*Ref. f1$/ })).toBeInTheDocument();
     expect(screen.getByText('Archived')).toBeInTheDocument();
     expect(screen.queryByText('Active')).not.toBeInTheDocument();
   });
@@ -141,37 +166,37 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     h.floats = { data: undefined, isPending: false, isError: true, refetch: retry };
     const user = userEvent.setup();
     renderPage();
-    const alert = screen.getByText("Couldn't load this float").closest('[role="alert"]') as HTMLElement;
+    const alert = screen.getByText("Couldn't load this site cash").closest('[role="alert"]') as HTMLElement;
     await user.click(within(alert).getByRole('button', { name: 'Retry' }));
     expect(retry).toHaveBeenCalledTimes(1);
   });
 
-  it('AC-IMP-082 the custodian sees Request replenishment and not Approve', () => {
+  it('AC-IMP-082 the custodian sees Request top-up and not Approve', () => {
     setViewer('u-cust', 'Finance');
     renderPage();
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Request replenishment' })).toBeNull(); // the Requested one already covers the waiting receipts
+    expect(screen.queryByRole('button', { name: 'Request top-up' })).toBeNull(); // the Requested one already covers the waiting receipts
     h.reps = ok({ rows: [], truncated: false });
     cleanup();
     renderPage();
-    expect(screen.getByRole('button', { name: 'Request replenishment' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Request top-up' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
   });
 
   it('AC-IMP-082 a non-custodian Finance user sees Approve on a Requested replenishment', () => {
     renderPage();
     expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Request replenishment' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Request top-up' })).toBeNull();
   });
 
   it('AC-IMP-082 a failed position read shows its cause and retries that read, not zeros', async () => {
     const retry = vi.fn();
     h.position = { data: undefined, isPending: false, isError: true, refetch: retry };
     renderPage();
-    const errorTitle = screen.getByText("Couldn't load this float's position");
+    const errorTitle = screen.getByText("Couldn't load the cash position");
     const error = errorTitle.closest('[role="alert"]') as HTMLElement | null;
     expect(error).not.toBeNull();
-    expect(within(error!).getByText('No figure is shown and float actions are paused until the position loads.')).toBeInTheDocument();
+    expect(within(error!).getByText('No figure is shown and actions are paused until the position loads.')).toBeInTheDocument();
     expect(screen.queryByText(/Books do not balance/)).toBeNull();
     expect(screen.queryByRole('row', { name: /Vehicle/ })).toBeNull();
     await userEvent.click(within(error!).getByRole('button', { name: 'Retry' }));
@@ -185,7 +210,7 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     h.counts = { data: undefined, isPending: false, isError: true, refetch: countsRetry };
     renderPage();
 
-    const receiptsError = await screen.findByText("Couldn't load the float's records");
+    const receiptsError = await screen.findByText("Couldn't load these records");
     const countsError = await screen.findByText("Couldn't load counts");
     await userEvent.click(within(receiptsError.closest('[role="alert"]') as HTMLElement).getByRole('button', { name: 'Retry' }));
     await userEvent.click(within(countsError.closest('[role="alert"]') as HTMLElement).getByRole('button', { name: 'Retry' }));
@@ -197,11 +222,11 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     setViewer('u-cust', 'Finance');
     h.reps = ok({ rows: [{ ...REP, status: 'Approved', approved_by: 'u-fin' }], truncated: false });
     renderPage();
-    expect(screen.queryByRole('button', { name: 'Request replenishment' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Request top-up' })).toBeNull();
     cleanup();
     h.reps = ok({ rows: [{ ...REP, amount: 1000000 }], truncated: false }); // only part of the waiting receipts is covered
     renderPage();
-    expect(screen.getByRole('button', { name: 'Request replenishment' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Request top-up' })).toBeInTheDocument();
   });
 
   it('AC-IMP-082 funded cash the holdings do not explain is flagged as books not balancing, by the shortfall', () => {
@@ -216,7 +241,7 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     h.position = ok({ ...POSITION, cash_book: 0, advances_out: 0, receipts_waiting: 0, gap: 5000000, funded_total: 0, last_count_at: null, last_count_variance: null });
     h.reps = ok({ rows: [], truncated: false });
     renderPage();
-    expect(screen.getByText('Not yet funded')).toBeInTheDocument();
+    expect(screen.getByText('Not funded yet')).toBeInTheDocument();
     expect(screen.queryByText('Books do not balance')).toBeNull();
     expect(screen.getByRole('button', { name: 'Request funding' })).toBeInTheDocument();
   });
@@ -261,7 +286,7 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     h.reps = { data: undefined, isPending: false, isError: true, refetch: retry };
     const user = userEvent.setup();
     renderPage();
-    const alert = screen.getByText("Couldn't load replenishments").closest('[role="alert"]') as HTMLElement;
+    const alert = screen.getByText("Couldn't load top-ups").closest('[role="alert"]') as HTMLElement;
     await user.click(within(alert).getByRole('button', { name: 'Retry' }));
     expect(retry).toHaveBeenCalledTimes(1);
   });
@@ -299,7 +324,7 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
   it('AC-IMP-003 an enlarged float shows the top-up due, not a defect', () => {
     h.position = ok({ ...POSITION, float_amount: 6000000, gap: 1000000 });
     renderPage();
-    expect(screen.getByText(/Top-up due/)).toBeInTheDocument();
+    expect(within(screen.getByTestId('figure-gap')).getByText(/1,000,000/)).toBeInTheDocument();
     expect(screen.queryByText('Books do not balance')).toBeNull();
   });
 
@@ -308,7 +333,7 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     setViewer('u-cust', 'Finance');
     h.reps = ok({ rows: [{ ...REP, amount: 1000000 }], truncated: false }); // 1,000,000 of the 3,500,000 waiting is already requested
     renderPage();
-    await user.click(screen.getByRole('button', { name: 'Request replenishment' }));
+    await user.click(screen.getByRole('button', { name: 'Request top-up' }));
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toHaveTextContent(/2,500,000/);
     expect(dialog).not.toHaveTextContent(/3,500,000/);
@@ -330,9 +355,9 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     setViewer('u-cust', 'Finance');
     h.reps = ok({ rows: [], truncated: false });
     renderPage();
-    await user.click(screen.getByRole('button', { name: 'Request replenishment' }));
+    await user.click(screen.getByRole('button', { name: 'Request top-up' }));
     expect(h.m.requestReplenishment.mutateAsync).not.toHaveBeenCalled();
-    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Request replenishment' }));
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Request top-up' }));
     await waitFor(() => expect(h.m.requestReplenishment.mutateAsync).toHaveBeenCalledWith({ floatId: 'f1', kind: 'replenishment' }));
   });
 
@@ -358,9 +383,9 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
       { id: 'c2', claim_number: 'EXP-2', kind: 'claim', title: 'Tyres', amount: 200000, status: 'Paid', imprest_replenishment_id: null, is_plan_exception: false, currency: 'IDR' },
     ], truncated: false });
     renderPage();
-    expect(within(screen.getByText('EXP-1').closest('li') as HTMLElement).getByText('Replenished')).toBeInTheDocument();
-    expect(within(screen.getByText('EXP-3').closest('li') as HTMLElement).getByText('In a replenishment request')).toBeInTheDocument();
-    expect(within(screen.getByText('EXP-2').closest('li') as HTMLElement).getByText('Waiting')).toBeInTheDocument();
+    expect(within(screen.getByText('EXP-1').closest('li') as HTMLElement).getByText('Paid, topped up')).toBeInTheDocument();
+    expect(within(screen.getByText('EXP-3').closest('li') as HTMLElement).getByText('Paid, in a top-up request')).toBeInTheDocument();
+    expect(within(screen.getByText('EXP-2').closest('li') as HTMLElement).getByText('Paid, waiting for top-up')).toBeInTheDocument();
   });
 
   it('C16 a receipt in an open replenishment names the request it sits in', () => {
@@ -370,7 +395,7 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     ], truncated: false });
     renderPage();
     const li = screen.getByText('EXP-3').closest('li') as HTMLElement;
-    expect(within(li).getByText('In a replenishment request')).toBeInTheDocument();
+    expect(within(li).getByText('Paid, in a top-up request')).toBeInTheDocument();
     expect(li).toHaveTextContent('REP-5');
   });
 
@@ -381,14 +406,14 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
       { id: 'c2', claim_number: 'EXP-2', kind: 'claim', title: 'Tyres', amount: 200000, status: 'Paid', imprest_replenishment_id: null, is_plan_exception: false, currency: 'IDR' },
     ], truncated: false });
     renderPage();
-    expect(within(screen.getByText('EXP-1').closest('li') as HTMLElement).getByText('Replenished')).toBeInTheDocument();
-    expect(within(screen.getByText('EXP-2').closest('li') as HTMLElement).getByText('Waiting')).toBeInTheDocument();
+    expect(within(screen.getByText('EXP-1').closest('li') as HTMLElement).getByText('Paid, topped up')).toBeInTheDocument();
+    expect(within(screen.getByText('EXP-2').closest('li') as HTMLElement).getByText('Paid, waiting for top-up')).toBeInTheDocument();
   });
 
   it('AC-IMP-082 a float the viewer cannot see is not found', () => {
     h.floats = ok(null);
     renderPage();
-    expect(screen.getByText('Float not found')).toBeInTheDocument();
+    expect(screen.getByText('Site cash not found')).toBeInTheDocument();
   });
 
   it('AC-IMP-072 a failed posting is shown beside its replenishment', () => {
