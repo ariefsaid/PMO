@@ -57,7 +57,7 @@ test(
     // listbox.option.first().click() races the lazy load→ready re-render → a lost selection that
     // then blocks the Create-project submit on the "Select a company" validation error — the dominant
     // create-flow flake under the single-DB parallel suite). See helpers.pickComboboxOption.
-    await pickComboboxOption(page, page, /client company/i, 'first');
+    await pickComboboxOption(page, page, /client company/i, /^Meridian Steelworks/);
     await page.getByRole('button', { name: /^Create project$/i }).click();
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/u, { timeout: 15_000 });
 
