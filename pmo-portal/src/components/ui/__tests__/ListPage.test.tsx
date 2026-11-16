@@ -13,7 +13,7 @@ describe('ListPage shell', () => {
     );
     expect(screen.getByRole('heading', { name: /Companies/ })).toBeInTheDocument();
     // count chip rides with the title
-    expect(screen.getByTestId('list-page-count')).toHaveTextContent('42');
+    expect(screen.getByTestId('list-page-count')).toHaveTextContent(/^42$/);
     // the primary action lives in the header (top-right), not the toolbar
     const header = screen.getByTestId('list-page-header');
     expect(within(header).getByRole('button', { name: 'New company' })).toBeInTheDocument();
@@ -99,7 +99,7 @@ describe('ListPage shell', () => {
     expect(screen.getByTestId('list-page-count')).toHaveTextContent('Showing 5 of 20');
   });
 
-  it('renders count chip as "{count}" when count >= total or total is undefined', () => {
+  it('#1791: shows "Showing x of y" even when count equals total, and a bare count when total is undefined', () => {
     const { rerender } = render(
       <ListPage
         title="Companies"
@@ -107,7 +107,7 @@ describe('ListPage shell', () => {
         total={20}
       />,
     );
-    expect(screen.getByTestId('list-page-count')).toHaveTextContent('20');
+    expect(screen.getByTestId('list-page-count')).toHaveTextContent('Showing 20 of 20');
 
     rerender(
       <ListPage
