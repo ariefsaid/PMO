@@ -62,7 +62,7 @@
   --secondary-foreground: var(--muted-foreground);
   --muted: 210 14.2857% 97.2549%;
   /* Neutral-800 keeps supporting text AA on pale secondary surfaces and chart overlays. */
-  --muted-foreground: 216 12% 22%;
+  --muted-foreground: 216 10% 40%;
   --accent: 210 14.2857% 97.2549%;
   --accent-foreground: 218.1818 12.3596% 17.451%;
   --count-foreground: var(--muted-foreground);
