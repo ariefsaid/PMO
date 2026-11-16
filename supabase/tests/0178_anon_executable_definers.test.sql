@@ -477,8 +477,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  176,
-  'AC-ACL-002 all 176 retained client-callable RPC names still have a public function');
+  177,
+  'AC-ACL-002 all 177 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -487,8 +487,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  176,
-  'AC-ACL-003 all 176 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  177,
+  'AC-ACL-003 all 177 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
