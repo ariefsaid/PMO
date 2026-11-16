@@ -5,7 +5,7 @@
   },
   "project": {
     "leads": "Prospek",
-    "pqSubmitted": "Pra-kualifikasi diajukan",
+    "pqSubmitted": "Prakualifikasi diajukan",
     "quotationSubmitted": "Penawaran diajukan",
     "tenderSubmitted": "Tender diajukan",
     "negotiation": "Negosiasi",
@@ -21,11 +21,11 @@
     "draft": "Draf",
     "requested": "Diminta",
     "approved": "Disetujui",
-    "vendorQuoted": "Penawaran pemasok",
+    "vendorQuoted": "Penawaran supplier",
     "quoteSelected": "Penawaran dipilih",
     "ordered": "Pesanan pembelian",
     "received": "Penerimaan barang",
-    "vendorInvoiced": "Faktur pemasok",
+    "vendorInvoiced": "Faktur supplier",
     "paid": "Dibayar",
     "rejected": "Dikembalikan",
     "cancelled": "Dibatalkan"
@@ -221,6 +221,7 @@
     "hidden_one": "{{count}} angka disembunyikan: {{reason}}",
     "hidden_other": "{{count}} angka disembunyikan: {{reason}}",
     "hiddenCount_one": "{{count}} angka disembunyikan",
+    "notShown": "Belum ditampilkan: {{figures}}",
     "hiddenCount_other": "{{count}} angka disembunyikan",
     "why": "Mengapa"
   }

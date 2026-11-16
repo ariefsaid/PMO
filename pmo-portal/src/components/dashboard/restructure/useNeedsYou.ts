@@ -132,7 +132,7 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
     if (overdue) {
       const base = counted(t, 'needs.overdueInvoice', 'client invoice overdue', 'client invoices overdue', overdue.count);
       const detail = [
-        overdue.oldestDays !== null ? t('needs.oldestOverdue', 'Oldest {{days}}d', { days: overdue.oldestDays }) : null,
+        overdue.oldestDays !== null ? t('needs.oldestOverdue', 'Oldest {{days}} days', { days: overdue.oldestDays }) : null,
         overdue.unknownBalances > 0 ? t('needs.balancesNotSynced', '{{count}} unsynced balance', { count: overdue.unknownBalances }) : null,
       ].filter(Boolean).join(' · ');
       add({ id: 'overdue-invoices', count: overdue.count, label: base, detail: detail || undefined, amount: overdue.unknownBalances > 0 ? undefined : amountsText(overdue.knownTotals, t, orgCurrency), href: '/finance/receivables?overdue=true', tone: 'lost' });
@@ -327,6 +327,8 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     queryFn: () => repositories.task.listDueRows(pmProjectIds),
     enabled: Boolean(orgId && role === 'Project Manager' && pmProjectsQuery.data),
   });
+  // Disabled until the projects read lands (never, when it fails): a read that cannot start is not pending.
+  const projectTasksPending = projectTasks.isPending && projectTasks.fetchStatus !== 'idle';
   // PERF-DASH-1: own timesheets and tasks feed the Engineer view only.
   const timesheetsQuery = useTimesheets(role === 'Engineer');
   const myTasksQuery = useMyTasks(role === 'Engineer');
@@ -432,7 +434,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const needsPending = companyRole
     ? dashboardQuery.isPending || salesInvoiceQuery.isPending || (procurementApprovalRole && procurementsQuery.isPending) || workOrdersQuery.isPending || organizationDay.isPending || budgetReviewQuery.isPending || approvalSourcesPending || !invoiceNeeds && !salesInvoiceQuery.isError && !organizationDay.isError
     : role === 'Project Manager'
-      ? pmProjectsQuery.isPending || pmBudgetPositionsPending || projectTasks.isPending || organizationDay.isPending || approvalSourcesPending
+      ? pmProjectsQuery.isPending || pmBudgetPositionsPending || projectTasksPending || organizationDay.isPending || approvalSourcesPending
       : role === 'Engineer'
         ? timesheetsQuery.isPending || myTasksQuery.isPending || expenseClaimsQuery.isPending || organizationDay.isPending
         : false;
@@ -481,7 +483,8 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     overdueInvoices: companyRole ? invoiceNeeds : undefined,
     approvalsPending: approvalSourcesPending,
     approvalsError: approvalSourcesError,
-    isPending: needsPending,
+    // A failed read ends the wait: a dependent read that never starts must not keep the skeleton up.
+    isPending: needsPending && !needsError,
     isError: needsError,
     refetch,
     pmProjects: pmProjectsQuery.data,

@@ -10,6 +10,8 @@ node_modules
 dist
 dist-ssr
 *.local
+# Declarations + build info written by `npm run typecheck` (tsc -b; pmo-portal/tsconfig.app.json)
+.tsbuild/
 
 # macOS
 .DS_Store

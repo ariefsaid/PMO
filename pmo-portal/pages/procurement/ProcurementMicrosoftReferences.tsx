@@ -158,7 +158,7 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
   function renderItem(row: ProcurementDocumentRow) {
     const reference = procurementReference(row);
     return (
-      <li key={row.id} aria-label={reference?.name ?? row.type} className="flex min-w-0 flex-wrap items-start justify-between gap-2 px-1 py-2">
+      <li key={row.id} aria-label={reference?.name ?? row.type} className="flex min-w-0 flex-wrap items-start justify-between gap-2 py-2">
         <div className="flex min-w-0 flex-1 flex-col gap-1">{renderLink(row)}</div>
         {canEdit && (
           <Button
@@ -186,8 +186,8 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
   const pickerContext = { kind: 'procurement', request_number: requestNumber, created_at: createdAt } as const;
 
   return (
-    <section aria-labelledby="proc-case-references-heading" className="mt-6 border-t border-border pt-4">
-      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 px-1">
+    <section aria-labelledby="proc-case-references-heading" className="panel-card mt-4 min-w-0 p-[var(--panel-inset)]">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
         <h2 id="proc-case-references-heading" className="min-w-0 break-words text-[14px] font-semibold text-foreground">
           {listName}
         </h2>
@@ -205,7 +205,7 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
           )}
         </div>
       </div>
-      <p className="mt-1 px-1 text-sm text-muted-foreground">
+      <p className="mt-1 text-sm text-muted-foreground">
         {t('m365Documents.procurement.intro', 'SharePoint and OneDrive files and folders linked to this case. PMO stores the link, not the file.')}
       </p>
       <div ref={stateRef} className="mt-2 scroll-mb-28">
@@ -223,7 +223,7 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
             variant="empty"
             title={t('m365Documents.procurement.emptyTitle', 'No links yet')}
             sub={canCreate ? t('m365Documents.procurement.emptySub', 'Link a SharePoint or OneDrive file or folder to this case.') : t('m365Documents.procurement.emptySubReadOnly', 'Nothing has been linked to this case.')}
-            className="py-6"
+            className="!items-start !justify-start !px-0 !py-4 !text-left"
           />
         ) : (
           <>

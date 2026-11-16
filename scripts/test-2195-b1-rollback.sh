@@ -34,7 +34,7 @@ db_url="${PMO_DB_URL:-postgresql://postgres:postgres@127.0.0.1:54322/postgres}"
 prev="$(ls supabase/migrations/*.sql | sed 's#.*/##' | awk -F_ '$1<"0882"{v=$1} END{print v}')"
 query="select '''' || p.oid::regprocedure::text || ''',''' || md5(pg_get_functiondef(p.oid)) || ''',''' || coalesce(p.proacl::text,'') || '''' from pg_proc p
  where p.pronamespace='public'::regnamespace and p.proname in ('cost_attribution_engine','cost_attribution_allocations','cost_attribution_org_actuals','cost_attribution_project_actuals','link_erp_purchase_documents','undo_captured_purchase','api_client_request_guard','capture_revision') order by 1"
-supabase db reset --version "$prev" >/dev/null 2>&1
+supabase db reset --no-seed --version "$prev" >/dev/null 2>&1
 psql "$db_url" -Atc "$query" | sed 's/^/(/; s/$/)/' > "$hashes"
 [ "$(wc -l < "$hashes")" -eq 8 ] || { echo "expected 8 recorded functions"; exit 1; }
 paste -sd, "$hashes" > "$hashes.csv" && mv "$hashes.csv" "$hashes"

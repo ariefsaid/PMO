@@ -182,7 +182,7 @@ export function createFigureAgreementRepositoryModule<T extends { repositories: 
     reports: override('reports', {
       managementPack: async () => ({
         from: '2026-11-01', to: '2026-11-01', timezone: 'UTC', org_currency: 'USD', undated_invoice_count: 0,
-        projects: [{ id: primary.id, name: primary.name, pmo_project_number: 'S01-001', code: primary.code, status: primary.status, currency: 'USD', contract_net: 1000, start_date: '2026-01-01', end_date: '2026-12-31', project_manager_id: fixture.users.projectManager.id, client_name: 'Synthetic Client' }],
+        projects: [{ id: primary.id, name: primary.name, pmo_project_number: 'S01-001', code: primary.code, status: primary.status, on_hand: true, currency: 'USD', contract_net: 1000, start_date: '2026-01-01', end_date: '2026-12-31', project_manager_id: fixture.users.projectManager.id, client_name: 'Synthetic Client' }],
         invoiced: [
           { project_id: primary.id, currency: 'USD', month: '2026-11-01', net: 60, invoice_count: 1 },
           { project_id: primary.id, currency: 'USD', month: '2026-11-01', net: 50, invoice_count: 1 },

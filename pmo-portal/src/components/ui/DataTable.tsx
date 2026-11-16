@@ -1,4 +1,5 @@
 import React, { useContext, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { PaginationFooter, type PaginationState } from './PaginationFooter';
 import { getCoreRowModel, useReactTable, type ColumnDef, type RowSelectionState, type Updater } from '@tanstack/react-table';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
@@ -116,6 +117,7 @@ interface DataTablePropsBase<Row> {
    * screen-reader-reachable affordance WITHOUT overriding the `<tr>`'s implicit
    * `role="row"`. Omit when the first cell already renders its own focusable
    * control (e.g. a name button) to avoid nesting interactive elements.
+   * Answer '' for a row that does not open: it gets no button and no pointer.
    */
   rowLabel?: (row: Row) => string;
   /** Optional accessible name for the active table or mobile list structure. */
@@ -123,6 +125,8 @@ interface DataTablePropsBase<Row> {
   /** Compact mobile title and details for record cards that do not need a field-by-field definition list. */
   mobileCardTitle?: (row: Row) => React.ReactNode;
   mobileCardDetails?: (row: Row) => React.ReactNode;
+  /** Cards: right-align numeric values (and totals) so every figure ends on the card's one right edge. Default keeps them at the label column's x. */
+  cardValuesEnd?: boolean;
   /** Optional DOM target id for a row that a route will scroll to and focus programmatically. */
   rowTarget?: (row: Row) => string | undefined;
   selectedKey?: string;
@@ -176,6 +180,8 @@ interface DataTablePropsBase<Row> {
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
   loadMoreLabel?: string;
+  /** Numbered pages at the foot (needs `total`). When set, the "Load more" footer is replaced by the shared pager. */
+  pagination?: PaginationState;
   /** Optional controlled multi-row selection. */
   selection?: DataTableSelection<Row>;
   /** Callback notifying when the table's inner scrollport has overflowing content on the right. */
@@ -255,6 +261,7 @@ export function DataTable<Row>({
   accessibleName,
   mobileCardTitle,
   mobileCardDetails,
+  cardValuesEnd,
   tableId,
   groupBy,
   groupHeader,
@@ -267,6 +274,7 @@ export function DataTable<Row>({
   onLoadMore,
   isLoadingMore = false,
   loadMoreLabel,
+  pagination,
   selection,
   onOverflowChange,
 }: DataTableProps<Row>) {
@@ -507,12 +515,14 @@ export function DataTable<Row>({
           totals={totals}
           mobileCardTitle={mobileCardTitle}
           mobileCardDetails={mobileCardDetails}
+          cardValuesEnd={cardValuesEnd}
         />
       )}
       {caveats.length > 0 && <p id={caveatId} className="border-t border-border/70 px-[var(--table-cell-inset)] py-2 text-control text-muted-foreground">
         {caveats.map((caveat, index) => <React.Fragment key={index}>{index > 0 && ' '}<span className="text-warning-foreground">*</span> {caveat.reason}{caveat.remedy && <> {caveat.remedy}</>}</React.Fragment>)}
       </p>}
-      {(hasMore || total !== undefined) && (
+      {pagination && total !== undefined && <PaginationFooter pagination={pagination} total={total} shown={rows.length} />}
+      {!pagination && (hasMore || total !== undefined) && (
         <ListState
           variant="partial"
           partialLayout="centeredAction"

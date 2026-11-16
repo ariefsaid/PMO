@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, FigureHiddenLine, FigureScope, ListState, MobileActionBar, SelectField, Tabs, tabId, tabPanelId, WhenNearViewport, type TabItem } from '@/src/components/ui';
+import { Button, ListState, MobileActionBar, SelectField, Tabs, Tooltip, tabId, tabPanelId, WhenNearViewport, type TabItem } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
@@ -28,6 +28,8 @@ interface Props {
   setArea: (area: Area) => void;
   isPipeline: boolean;
   header: React.ReactNode;
+  /** The overview's shared read has not answered: the shell shows, the overview content loads. */
+  overviewPending?: boolean;
 }
 
 type CountedArea = 'procurement' | 'tasks' | 'documents';
@@ -51,7 +53,7 @@ const BELOW_FOLD = '[content-visibility:auto] [contain-intrinsic-size:auto_480px
 const PipelineRecordBlocks: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
   const { t } = useTranslation('project');
   return (
-    <div className="grid min-w-0 gap-[var(--space-panel-gap)] xl:grid-cols-2">
+    <div className="grid min-w-0 gap-[var(--space-section)] xl:grid-cols-2">
       <ProjectActivity projectId={project.id} compact title={t('projectDetail.activity.notesTitle', 'Notes and activity')} />
       {/* Its own boundary: the rest of the Overview must not wait on the Documents chunk. */}
       <div className="min-w-0"><React.Suspense fallback={<ListState variant="loading" rows={3} className="min-h-40" />}><DocumentsTab projectId={project.id} projectCode={project.code} /></React.Suspense></div>
@@ -60,11 +62,11 @@ const PipelineRecordBlocks: React.FC<{ project: ProjectWithRefs }> = ({ project 
 };
 
 /** The overview, led by the approved role-specific composition: money cockpit for finance roles, task lead for engineers. */
-const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean; onOpen: (a: Area) => void }> = ({ project, isPipeline, onOpen }) => {
+const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean; onOpen: (a: Area) => void; /** The Activity panel (delivery projects only). */ activity?: React.ReactNode }> = ({ project, isPipeline, onOpen, activity }) => {
   const lens = useLens();
   const may = usePermission();
   const attention = useProjectAttention(project, lens);
-  const attentionProps = { items: attention.items, isPending: attention.isPending, error: attention.error, excludeKeys: lens === 'delivery' ? attention.myVisibleTaskKeys : undefined };
+  const attentionProps = { items: attention.items, isPending: attention.isPending, pendingSources: attention.pendingSources, error: attention.error, excludeKeys: lens === 'delivery' ? attention.myVisibleTaskKeys : undefined };
   const visibleDeliveryAttention = lens === 'delivery'
     ? attention.items.filter((item) => !attention.myVisibleTaskKeys.has(item.key))
     : [];
@@ -76,11 +78,12 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
     : null, [isPipeline, project.id]);
   const openBudget = useCallback(() => onOpen('budget'), [onOpen]);
   const canSeeMoney = may('view', 'salesInvoice');
+  const calm = !attention.isPending && !attention.error && attention.items.length === 0;
   if (isPipeline) {
     if (lens === 'delivery') {
       return (
-        <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
-          <div className={`grid min-w-0 gap-[var(--space-panel-gap)] ${showDeliveryAttention ? 'xl:grid-cols-2' : 'xl:grid-cols-1'}`}>
+        <div className="flex min-w-0 flex-col gap-[var(--space-section)]">
+          <div className={`grid min-w-0 gap-[var(--space-section)] ${showDeliveryAttention ? 'xl:grid-cols-2' : 'xl:grid-cols-1'}`}>
             <MyOpenTasks projectId={project.id} />
             {showDeliveryAttention && <ProjectAttention {...attentionProps} className="min-w-0" />}
           </div>
@@ -90,19 +93,20 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
       );
     }
     return (
-      <div className="grid min-w-0 gap-[var(--space-panel-gap)] xl:grid-cols-2">
+      <div className="grid min-w-0 gap-[var(--space-section)] xl:grid-cols-2">
         <CostBlock project={project} isPipeline onOpenBudget={openBudget} />
         <DeliveryBlock projectId={project.id} isPipeline={isPipeline} />
         {/* AC-PMP-006: invoices and spending already recorded against a deal stay visible before it is won. */}
-        {canSeeMoney && <div className="min-w-0 xl:col-span-2"><ProjectFinancesSection project={project} /></div>}
+        {/* One surface language: the finances sit in a panel like their neighbours, never bare on the page. */}
+        {canSeeMoney && <div className="panel-card min-w-0 p-[var(--panel-inset)] xl:col-span-2 [&>section]:border-y-0 [&>section]:py-0"><ProjectFinancesSection project={project} /></div>}
         <div className="min-w-0 xl:col-span-2"><PipelineRecordBlocks project={project} /></div>
       </div>
     );
   }
   return (
     lens === 'delivery' ? (
-      <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
-        <div className={`grid min-w-0 gap-[var(--space-panel-gap)] ${showDeliveryAttention ? 'xl:grid-cols-2' : 'xl:grid-cols-1'}`}>
+      <div className="flex min-w-0 flex-col gap-[var(--space-section)]">
+        <div className={`grid min-w-0 gap-[var(--space-section)] ${showDeliveryAttention ? 'xl:grid-cols-2' : 'xl:grid-cols-1'}`}>
           <MyOpenTasks projectId={project.id} />
           {showDeliveryAttention && <ProjectAttention {...attentionProps} className="min-w-0" />}
         </div>
@@ -110,30 +114,36 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
             wait until the block nears the viewport (WhenNearViewport renders children immediately
             where IntersectionObserver is absent, so unit tests and old browsers are unchanged).
             A short list takes a third beside the wide timeline, not a full-width card. */}
-        <div className="grid min-w-0 items-start gap-[var(--space-panel-gap)] xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <div className="grid min-w-0 items-start gap-[var(--space-section)] xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
           <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock></div>
           <WhenNearViewport>
             <BillingMilestonesBlock projectId={project.id} />
           </WhenNearViewport>
         </div>
+        {activity}
       </div>
     ) : (
-      <FigureScope><div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
-        <FigureHiddenLine compact />
-        {/* Phone reads attention → money → budget. At xl, the attention and money rows align,
-            then Budget spans the canvas so the shorter right column does not end halfway down the page. */}
-        <div className={`grid min-w-0 gap-[var(--space-panel-gap)] ${canSeeMoney ? 'xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]' : 'xl:grid-cols-2'}`}>
-          <ProjectAttention items={attention.items} isPending={attention.isPending} error={attention.error} fillRow={canSeeMoney} className="min-w-0 xl:col-start-1 xl:row-start-1" />
-          {canSeeMoney && <div className="min-w-0 xl:col-start-2 xl:row-start-1"><MoneyBlock project={project} fillRow /></div>}
-          <div className={`min-w-0 ${canSeeMoney ? 'xl:col-span-2 xl:col-start-1 xl:row-start-2' : ''}`}><CostBlock project={project} onOpenBudget={openBudget} showUnit={!canSeeMoney} /></div>
+      <div className="flex min-w-0 flex-col gap-[var(--space-section)]">
+        {/* One question: is this project OK, and what needs me now? Needs attention leads (the work), Money position beside it;
+            then Budget and the Phase timeline span the canvas on one shared row grid. Each panel names its own figures that
+            cannot be computed yet, so nothing sits bare between the tabs and the panels.
+            Grid at xl (1440): canvas ≈ 1440 − 224 sidebar − 2×24 gutters = 1168; 2fr + 3fr with one section gap (32px, the RecordStack token, as on the claim record) = 454 + 682. */}
+        {/* Nothing needs you: Needs attention becomes a slim full-width band, so it never stretches beside Money position. */}
+        <div className={`grid min-w-0 gap-[var(--space-section)] ${canSeeMoney ? 'xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]' : 'xl:grid-cols-2'}`}>
+          <ProjectAttention items={attention.items} isPending={attention.isPending} pendingSources={attention.pendingSources} error={attention.error} fillRow={canSeeMoney && !calm} className={`min-w-0 xl:col-start-1 xl:row-start-1 ${calm ? 'xl:col-span-2' : ''}`} />
+          {canSeeMoney && <div className={`min-w-0 ${calm ? 'xl:col-span-2 xl:col-start-1 xl:row-start-2' : 'xl:col-start-2 xl:row-start-1'}`}><MoneyBlock project={project} fillRow={!calm} footer={<BillingMilestonesBlock projectId={project.id} empty="line" />} /></div>}
+          <div className={`min-w-0 ${canSeeMoney ? `xl:col-span-2 xl:col-start-1 ${calm ? 'xl:row-start-3' : 'xl:row-start-2'}` : ''}`}><CostBlock project={project} onOpenBudget={openBudget} showUnit={!canSeeMoney} /></div>
         </div>
-        <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
+        {/* An empty milestones slot (its line lives in Money position) takes no gap. */}
+        <div className="flex min-w-0 flex-col gap-[var(--space-section)] [&>[data-near-viewport=seen]:empty]:hidden">
           <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock></div>
           <WhenNearViewport>
-            <BillingMilestonesBlock projectId={project.id} />
+            <BillingMilestonesBlock projectId={project.id} empty={canSeeMoney ? 'none' : 'panel'} />
           </WhenNearViewport>
+          {/* Activity closes the overview: present, but never competing with the work above (Lessons). */}
+          {activity}
         </div>
-      </div></FigureScope>
+      </div>
     )
   );
 };
@@ -191,7 +201,7 @@ function useVisibleAreas(isPipeline: boolean): Area[] {
 }
 
 /** The project's areas as tabs under one header (owner pick A+C, #1402); activity opens from the Overview foot. */
-const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, header }) => {
+const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, header, overviewPending = false }) => {
   const { t } = useTranslation('project');
   const labels = useAreaLabels();
   const sectionsLabel = t('projectDetail.tabs.ariaLabel', 'Project sections');
@@ -265,15 +275,17 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
           className="mb-0! pr-8 max-md:[&_[role=tab]]:px-2.5 max-md:[&_[role=tab][aria-selected=true]]:scroll-mr-7"
         />
       </div>
-      <div role="tabpanel" id={tabPanelId('project-detail', panel)} aria-labelledby={tabId('project-detail', panel)} className="pt-4 md:pt-8">
+      <div role="tabpanel" id={tabPanelId('project-detail', panel)} aria-labelledby={tabId('project-detail', panel)} className="pt-4 md:pt-6">
         <Suspended>
-          {panel === 'overview'
-            ? <OverviewContent project={project} isPipeline={isPipeline} onOpen={setArea} />
+          {panel === 'overview' && overviewPending
+            ? <ListState variant="loading" shape="detail" rows={6} className="min-h-80" testId="project-detail-panel-loading" />
+            : panel === 'overview'
+            ? <OverviewContent project={project} isPipeline={isPipeline} onOpen={setArea}
+                activity={isPipeline ? null : <ActivityFooter projectId={project.id} initialOpen={area === 'activity'} />} />
             : <AreaContent project={project} area={panel} onCountChange={onCountChange} />}
         </Suspended>
       </div>
-      {/* Activity is about the project as a whole, so it lives on Overview only (owner, 2026-10-27). */}
-      {panel === 'overview' && !isPipeline && <ActivityFooter projectId={project.id} initialOpen={area === 'activity'} />}
+      {/* Activity is about the project as a whole, so it lives on Overview only (owner, 2026-10-27), placed inside it. */}
     </>
   );
 };
@@ -292,7 +304,12 @@ export const PrimaryProjectAction: React.FC<{ project: ProjectWithRefs; isPipeli
   if (receivables.data) {
     return <ProjectActionButton mobileBar={mobileBar} to={receivables.data.to}>{t('projectDetail.action.chasePayment', 'Chase payment')}</ProjectActionButton>;
   }
-  if (chaseOnly || receivables.isPending || receivables.isError) return null;
+  // Pending reads show the slot's loading state (no label that could change); a failed read holds a disabled button. Permission still returns null above.
+  if (receivables.isPending) return <ActionSlotLoading mobileBar={mobileBar} />;
+  if (receivables.isError) {
+    return <HeldActionButton mobileBar={mobileBar} unavailable>{chaseOnly ? t('projectDetail.action.chasePayment', 'Chase payment') : t('projectDetail.action.raiseInvoice', 'Raise invoice')}</HeldActionButton>;
+  }
+  if (chaseOnly) return null;
   return <RaiseInvoiceAction project={project} mobileBar={mobileBar} />;
 };
 
@@ -300,7 +317,10 @@ const RaiseInvoiceAction: React.FC<{ project: ProjectWithRefs; mobileBar: boolea
   const { t } = useTranslation('project');
   const finances = useProjectFinances(project.id);
   const billing = useProjectBilling(project.id);
-  if (finances.isPending || finances.isError || billing.isPending || billing.isError) return null;
+  if (finances.isError || billing.isError) {
+    return <HeldActionButton mobileBar={mobileBar} unavailable>{t('projectDetail.action.raiseInvoice', 'Raise invoice')}</HeldActionButton>;
+  }
+  if (finances.isPending || billing.isPending) return <ActionSlotLoading mobileBar={mobileBar} />;
   const lines = billing.data?.contractLines ?? [];
   const billableQuantity = lines.reduce((sum, line) => sum + line.allocations.reduce(
     (allocationSum, allocation) => allocationSum + (allocation.acceptedQuantity ?? 0) - allocation.claimedQuantity,
@@ -313,10 +333,44 @@ const RaiseInvoiceAction: React.FC<{ project: ProjectWithRefs; mobileBar: boolea
   return <ProjectActionButton mobileBar={mobileBar} to={`/projects/${project.id}/contract`}>{t('projectDetail.action.raiseInvoice', 'Raise invoice')}</ProjectActionButton>;
 };
 
+/** The action's slot while the reads that decide it are loading: the button's space, no label. */
+const ActionSlotLoading: React.FC<{ mobileBar: boolean }> = ({ mobileBar }) => {
+  const block = <span aria-busy="true" data-testid="primary-action" className={`block animate-pulse rounded-md bg-muted ${mobileBar ? 'h-11 w-full' : 'h-8 w-32'}`} />;
+  return mobileBar
+    ? (
+      <>
+        <div aria-hidden="true" className="h-20 md:hidden" />
+        <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-background px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 md:hidden">{block}</MobileActionBar>
+      </>
+    )
+    : block;
+};
+
+/** The action's slot when a read it depends on failed: same label and size, disabled. */
+const HeldActionButton: React.FC<{ mobileBar: boolean; unavailable: boolean; children: React.ReactNode }> = ({ mobileBar, unavailable, children }) => {
+  const { t } = useTranslation('project');
+  const button = (
+    <Button variant="primary" size={mobileBar ? 'default' : 'sm'} className={mobileBar ? 'touch-target w-full' : undefined} disabled data-testid={unavailable ? 'primary-action' : undefined}>
+      {children}
+    </Button>
+  );
+  const held = unavailable
+    ? <Tooltip content={t('projectDetail.billing.summary.unavailable', 'Billing summary is unavailable.')}>{button}</Tooltip>
+    : <span aria-busy="true" data-testid="primary-action" className="inline-flex">{button}</span>;
+  return mobileBar
+    ? (
+      <>
+        <div aria-hidden="true" className="h-20 md:hidden" />
+        <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-background px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 md:hidden">{held}</MobileActionBar>
+      </>
+    )
+    : held;
+};
+
 const ProjectActionButton: React.FC<{ mobileBar: boolean; to: string; children: React.ReactNode }> = ({ mobileBar, to, children }) => {
   const navigate = useNavigate();
   const button = (
-    <Button variant="primary" size={mobileBar ? 'default' : 'sm'} className={mobileBar ? 'touch-target w-full' : undefined} onClick={() => navigate(to)}>
+    <Button variant="primary" size={mobileBar ? 'default' : 'sm'} className={mobileBar ? 'touch-target w-full' : undefined} onClick={() => navigate(to)} data-testid="primary-action">
       {children}
     </Button>
   );

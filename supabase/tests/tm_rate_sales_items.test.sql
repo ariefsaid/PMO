@@ -1,7 +1,7 @@
 -- #1802 — ERP sales-item mapping is line-level metadata written through the rate-card RPC.
 begin;
 create extension if not exists pgtap;
-select plan(32);
+select plan(34);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('18020000-0000-0000-0000-0000000000a1', 'TM Sales Item Org A', 'IDR', 'UTC'),
@@ -102,6 +102,13 @@ select lives_ok($q$select end_contract_rate_line(
   'AC-TM-018 ending a mapped rate line creates its final version');
 select is((select sales_item_code from public.contract_rate_lines where line_key='18020000-0000-0000-0000-0000000000e1' and is_current),
   'LABOUR-BULK', 'AC-TM-018 ending a mapped rate line keeps its sales item on the new current version');
+
+select throws_ok($q$select save_contract_rate_line(
+  '[{"line_key":"18020000-0000-0000-0000-0000000000e7","project_id":"18020000-0000-0000-0000-0000000000c1","kind":"labour","label":"Bulk A","unit":"hour","rate":1000,"currency":"IDR","effective_from":"2026-11-01"},{"line_key":"18020000-0000-0000-0000-0000000000e8","project_id":"18020000-0000-0000-0000-0000000000c1","kind":"labour","label":"Bulk B","unit":"hour","rate":2000,"currency":"IDR","effective_from":"2026-11-01"},{"project_id":"18020000-0000-0000-0000-0000000000c1","kind":"labour","label":"Bulk C","unit":"hour","rate":3000,"currency":"USD","effective_from":"2026-11-01"}]')$q$,
+  '23514', null, 'AC-CTM-006 a rates array whose third row is refused raises that refusal');
+select is((select count(*)::int from public.contract_rate_lines
+            where line_key in ('18020000-0000-0000-0000-0000000000e7', '18020000-0000-0000-0000-0000000000e8')), 0,
+  'AC-CTM-006 a refused rates array saves none of its rows (one transaction)');
 
 reset role;
 insert into public.contract_rate_lines (id, org_id, project_id, line_key, version, is_current, kind, label, unit, rate, effective_from, created_by) values

@@ -13,11 +13,14 @@ const h = vi.hoisted(() => ({
   establish: { mutateAsync: vi.fn(), isPending: false },
 }));
 
-vi.mock('@/src/hooks/useImprest', () => ({
-  useImprestFloats: () => h.floats,
-  useImprestPosition: (id: string) => ({ data: h.positions[id], isPending: !(id in h.positions), isError: false }),
-  useEstablishFloat: () => h.establish,
-}));
+vi.mock('@/src/hooks/useImprest', async () => {
+  const { asPagedQuery } = await import('@/src/test/pagedQueryMock');
+  return {
+    useImprestFloatPages: () => asPagedQuery(h.floats),
+    useImprestPosition: (id: string) => ({ data: h.positions[id], isPending: !(id in h.positions), isError: false }),
+    useEstablishFloat: () => h.establish,
+  };
+});
 vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => h.projects }));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => h.users }));
 let realRole: Role = 'Finance';
@@ -63,10 +66,10 @@ beforeEach(() => {
 });
 
 describe('Imprest float list floor', () => {
-  it('floor: empty-state Establish float opens the form and navigates to the new float', async () => {
+  it('floor: empty-state Set up site cash opens the form and navigates to the new float', async () => {
     h.floats = { ...h.floats, data: { rows: [], truncated: false } };
     renderPage();
-    const establishButtons = screen.getAllByRole('button', { name: 'Establish float' });
+    const establishButtons = screen.getAllByRole('button', { name: 'Set up site cash' });
     await userEvent.click(establishButtons[1]);
     const dialog = await screen.findByRole('dialog');
 
@@ -74,8 +77,8 @@ describe('Imprest float list floor', () => {
     await userEvent.click(await screen.findByRole('option', { name: /Site Alpha/ }));
     await userEvent.click(within(dialog).getByRole('combobox', { name: /Custodian/ }));
     await userEvent.click(await screen.findByRole('option', { name: /Finn Finance/ }));
-    await userEvent.type(within(dialog).getByLabelText(/Float amount/), '5000000');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Establish float' }));
+    await userEvent.type(within(dialog).getByLabelText(/^Limit/), '5000000');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Set up site cash' }));
 
     await waitFor(() => expect(h.establish.mutateAsync).toHaveBeenCalledWith({ projectId: 'p1', custodianId: 'u-fin', amount: 5000000 }));
     expect(await screen.findByText('float record')).toBeInTheDocument();
@@ -109,7 +112,7 @@ describe('Imprest float list floor', () => {
     });
     h.users = { data: undefined, isPending: false, isError: true, refetch: retry };
     const view = renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Establish float' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Set up site cash' }));
     const dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('combobox', { name: /Project/ }));
     await userEvent.click(await screen.findByRole('option', { name: /Site Alpha/ }));
@@ -122,18 +125,18 @@ describe('Imprest float list floor', () => {
     expect(await screen.findByRole('option', { name: /Finn Finance/ })).toBeInTheDocument();
   });
 
-  it('floor: Establish float stays disabled until all required fields are complete', async () => {
+  it('floor: Set up site cash stays disabled until all required fields are complete', async () => {
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Establish float' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Set up site cash' }));
     const dialog = await screen.findByRole('dialog');
-    const submit = within(dialog).getByRole('button', { name: 'Establish float' });
+    const submit = within(dialog).getByRole('button', { name: 'Set up site cash' });
     expect(submit).toBeDisabled();
 
     await userEvent.click(within(dialog).getByRole('combobox', { name: /Project/ }));
     await userEvent.click(await screen.findByRole('option', { name: /Site Alpha/ }));
     await userEvent.click(within(dialog).getByRole('combobox', { name: /Custodian/ }));
     await userEvent.click(await screen.findByRole('option', { name: /Finn Finance/ }));
-    await userEvent.type(within(dialog).getByLabelText(/Float amount/), '5000000');
+    await userEvent.type(within(dialog).getByLabelText(/^Limit/), '5000000');
 
     expect(submit).toBeEnabled();
   });

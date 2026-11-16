@@ -62,7 +62,7 @@
   --secondary-foreground: var(--muted-foreground);
   --muted: 210 14.2857% 97.2549%;
   /* Neutral-800 keeps supporting text AA on pale secondary surfaces and chart overlays. */
-  --muted-foreground: 216 12% 22%;
+  --muted-foreground: 216 10% 40%;
   --accent: 210 14.2857% 97.2549%;
   --accent-foreground: 218.1818 12.3596% 17.451%;
   --count-foreground: var(--muted-foreground);
@@ -973,8 +973,26 @@ details[open] > summary:not(.list-none)::before { transform: rotate(45deg); }
 h1, h2, h3 { text-wrap: balance; }
 p { text-wrap: pretty; }
 
-/* Assistant "typing" cue: dots fade in a wave (no bounce). */
-@keyframes thinking-dot { 0%, 80%, 100% { opacity: 0.3; } 40% { opacity: 1; } }
+/* Assistant working cue: a 3x3 pixel grid with a travelling wavefront, a shimmering label,
+   and a fading caret on streaming text. Reduced motion freezes all three to a quiet static state. */
+@keyframes pixel-on { 0%, 100% { opacity: 0.15; } 18%, 42% { opacity: 1; } 62% { opacity: 0.15; } }
+@keyframes shimmer-text { 0% { background-position: 150%; } 100% { background-position: -50%; } }
+@keyframes caret-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+.loading-cell { opacity: 0.15; animation: pixel-on 650ms ease-in-out var(--cell-delay, 0ms) infinite; }
+.loading-label {
+  background-image: linear-gradient(90deg, hsl(var(--muted-foreground)) 35%, hsl(var(--foreground)) 50%, hsl(var(--muted-foreground)) 65%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer-text 1.4s linear infinite;
+}
+.stream-caret { animation: caret-blink 1s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .loading-cell { animation: none; opacity: 0.5; }
+  .loading-label { animation: none; background: none; color: hsl(var(--muted-foreground)); }
+  .stream-caret { animation: none; }
+}
 
 /* recharts measures label text in an off-screen span (aria-hidden, top -20000px) that it leaves in the body.
    Nobody sees it; hiding it keeps its box (measurement still works) and keeps it out of text audits. */

@@ -1,4 +1,5 @@
 import { formatExactCents } from '@/src/lib/exactDecimal';
+import { UNCATEGORIZED } from '@/src/lib/budget/budgetProjection';
 import type { BudgetComparisonRow, BudgetProjectionCellRow } from '@/src/lib/repositories/budgetProjection';
 
 export type BudgetProjectionExport =
@@ -9,6 +10,8 @@ interface BudgetProjectionExportOptions {
   budgetCurrency: string;
   projectCurrency: string;
   categoryLabel: (category: string) => string;
+  /** No accounting system: recorded is PMO's own paid purchases before tax, not an ERP ledger amount. */
+  pmoBasis?: boolean;
 }
 
 /** Fraction (0.57) to a two-decimal percent string ("57.00"), shifted in integers so binary floats never leak. */
@@ -23,7 +26,7 @@ const quoteCsvCell = (value: string | number) => `"${String(value).replaceAll('"
 
 export function buildBudgetProjectionCsv(
   payload: BudgetProjectionExport,
-  { budgetCurrency, projectCurrency, categoryLabel }: BudgetProjectionExportOptions,
+  { budgetCurrency, projectCurrency, categoryLabel, pmoBasis = false }: BudgetProjectionExportOptions,
 ): string {
   const compatibleCurrencyBasis = budgetCurrency === projectCurrency;
   const annualFiscalYear = payload.scope.kind === 'year' ? payload.scope.year : '';
@@ -42,16 +45,16 @@ export function buildBudgetProjectionCsv(
   const headers = payload.scope.kind === 'all' ? comparisonHeaders : annualHeaders;
   const rows = payload.scope.kind === 'all'
     ? (payload.rows as BudgetComparisonRow[]).map((row) => [
-      'All years (project to date)', '', categoryLabel(row.category), row.budgetTotal ?? '', 'Active budget version',
+      'All years (project to date)', '', categoryLabel(row.category ?? UNCATEGORIZED), row.budgetTotal ?? '', 'Active budget version',
       row.recorded ?? '', row.recorded === null
-        ? !row.mapped ? 'No ledger account mapped' : !row.hasLedger ? 'No ledger reading' : 'ERP ledger amount unavailable'
-        : 'ERP ledger',
+        ? pmoBasis ? 'Paid purchases unavailable' : !row.mapped ? 'No ledger account mapped' : !row.hasLedger ? 'No ledger reading' : 'ERP ledger amount unavailable'
+        : pmoBasis ? 'Paid purchases before tax' : 'ERP ledger',
       row.recordedAsOf ?? '', compatibleCurrencyBasis ? row.remaining ?? '' : '',
       compatibleCurrencyBasis && row.percentUsed !== null ? exactPercent(row.percentUsed) : '',
     ])
     : (payload.rows as BudgetProjectionCellRow[]).map((row) => [
       'Fiscal year', annualFiscalYear, categoryLabel(row.category), row.pmoBudgetAmount ?? '', 'Active budget version',
-      row.actualsToDate ?? '', 'ERP ledger', row.actualsAsOf ?? '', row.pmoEtc, row.projectedFinalCost ?? '',
+      row.actualsToDate ?? '', pmoBasis ? 'Not split by year' : 'ERP ledger', row.actualsAsOf ?? '', row.pmoEtc, row.projectedFinalCost ?? '',
       compatibleCurrencyBasis ? row.projectedVariance ?? '' : '',
     ]);
   return [headers, ...rows].map((row) => row.map(quoteCsvCell).join(',')).join('\r\n');

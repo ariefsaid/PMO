@@ -62,7 +62,7 @@ test('AC-AT2-001 user attaches a PDF and asks about it', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Assistant' })).toBeVisible({ timeout: 10_000 });
   await page.getByRole('button', { name: 'Assistant' }).click();
 
-  const panel = page.getByRole('complementary', { name: /agent assistant/i });
+  const panel = page.getByTestId('assistant-panel');
   await expect(panel).toBeVisible({ timeout: 5_000 });
 
   // Upload the fixture PDF via the hidden file input. Playwright drives the

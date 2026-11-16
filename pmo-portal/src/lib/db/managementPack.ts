@@ -27,6 +27,11 @@ export interface PackFactsProject {
   end_date: string | null;
   project_manager_id: string | null;
   client_name: string | null;
+  /**
+   * On an on-hand status and not archived (the Contract on hand set). The pack also returns projects
+   * only because they were billed in the window; those carry false. Left to bill counts only true.
+   */
+  on_hand: boolean;
 }
 
 /**
@@ -44,6 +49,20 @@ export type PackFactsInvoiced = Pick<Tables<'sales_invoice_work_billed'>, 'proje
 /** The RPC groups pre-range facts by project and currency, like invoiced but without month. Reusing the derived
  * type keeps the shared view's deliberate currency/net narrowing aligned across both aggregates. */
 export type PackFactsInvoicedBefore = Omit<PackFactsInvoiced, 'month'>;
+
+/** Billed work before the range on projects the pack does not list (closed or archived), per currency. */
+export interface PackFactsInvoicedHistory {
+  currency: string;
+  net: number;
+  invoice_count: number;
+}
+
+/** Dated work invoices with no net (no amount yet), per currency and month, through the as-at month. */
+export interface PackFactsUnpriced {
+  currency: string;
+  month: string;
+  invoice_count: number;
+}
 
 export interface PackFactsProgress {
   project_id: string;
@@ -72,6 +91,10 @@ export interface ManagementPackFacts {
   progress: PackFactsProgress[];
   /** Absent on a pre-0810 server; treated as no contract-line projects. */
   earned?: PackFactsEarned[];
+  /** Absent on a pre-0908 server; treated as none. */
+  invoiced_history?: PackFactsInvoicedHistory[];
+  /** Absent on a pre-0908 server; treated as none. */
+  unpriced?: PackFactsUnpriced[];
 }
 
 export interface ProjectProgressInput {

@@ -53,10 +53,10 @@ const pack = {
   rows: [{
     key: 'p1|USD|contract', kind: 'contract', projectId: 'p1', projectName: 'Alpha', projectNumber: null,
     clientName: 'Acme', projectManagerId: null, projectStatus: 'Ongoing Project', currency: 'USD',
-    contractNet: 50_000_000, latestProgress: null,
-    months: [{ month: '2026-06', planned: 0, recognised: 0, invoiced: 30_000_000, invoiceCount: 1, recognisedToDate: 0, invoicedToDate: 30_000_000, invoiceCountToDate: 1, unbilled: 0, backlog: 20_000_000, basis: 'invoiced' }],
+    contractNet: 50_000_000, holdsContract: true, latestProgress: null,
+    months: [{ month: '2026-06', planned: 0, recognised: 0, invoiced: 30_000_000, invoiceCount: 1, recognisedToDate: 0, invoicedToDate: 30_000_000, invoiceCountToDate: 1, unbilled: 0, remainingWork: 50_000_000, leftToBill: 20_000_000, basis: 'invoiced' }],
   }],
-  totals: [{ currency: 'USD', months: [{ month: '2026-06', planned: 0, recognised: 0, invoiced: 30_000_000, invoiceCount: 1, recognisedToDate: 0, invoicedToDate: 30_000_000, invoiceCountToDate: 1, unbilled: 0, backlog: 20_000_000 }] }],
+  totals: [{ currency: 'USD', months: [{ month: '2026-06', planned: 0, recognised: 0, invoiced: 30_000_000, invoiceCount: 1, recognisedToDate: 0, invoicedToDate: 30_000_000, invoiceCountToDate: 1, unbilled: 0, remainingWork: 50_000_000, leftToBill: 20_000_000 }] }],
 };
 
 // Keep the company-hub data sources deterministic so these checks bind KPI destinations and names.
@@ -157,7 +157,7 @@ describe('AC-IXD-DASH-W5-C2A — Executive dashboard drills', () => {
   // - Supplier payables count Vendor Invoiced procurements → the exact status filter.
   // - Pipeline is the open-stage set → /sales (the Sales card's link).
   const executiveDrills = [
-    ['Contract on hand', '/projects?filter=on-hand'],
+    ['Contract on hand · excl. tax', '/projects?filter=on-hand'],
     ['Owed by clients', '/finance/receivables'],
     ['Owed to suppliers', '/procurement?status=Vendor+Invoiced'],
   ] as const;
@@ -178,7 +178,7 @@ describe('AC-IXD-DASH-W5-C2A — Executive dashboard drills', () => {
 
   it('AC-UX-017: contract on hand shows its amount with currency; the left-after-spending line is gone from the tile', () => {
     renderExec();
-    const contractTile = companyFigureTile('Contract on hand');
+    const contractTile = companyFigureTile('Contract on hand · excl. tax');
     expect(contractTile).toHaveTextContent('$6M');
     expect(contractTile).not.toHaveTextContent(/Left after spending/);
     expect(within(contractTile).getByRole('link')).toHaveAttribute('href', '/projects?filter=on-hand');

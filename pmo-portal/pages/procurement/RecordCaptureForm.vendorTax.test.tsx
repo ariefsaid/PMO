@@ -208,7 +208,7 @@ describe('supplier invoice Bahasa copy (PR-2/PR-3)', () => {
     expect(screen.getByRole('option', { name: 'Eksklusif: PPN ditambahkan' })).toBeInTheDocument();
     expect(screen.getByText(/Inklusif: PPN sudah termasuk dalam jumlah tagihan/)).toBeInTheDocument();
     expect(screen.getByText('Jumlah pajak')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Simpan faktur pemasok' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Simpan faktur supplier' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Batal' })).toBeInTheDocument();
   });
 });
@@ -295,8 +295,8 @@ describe('ERP-connected bill (amounts sent as fixed rows) — AC-VWH-031', () =>
     expect(screen.getByRole('option', { name: 'Diterima' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Dijadwalkan' })).toBeInTheDocument();
     expect(screen.getByLabelText('Tanggal faktur')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Simpan faktur pemasok' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Simpan faktur supplier' })).toBeInTheDocument();
     expect(screen.getByTestId('vi-items-net').textContent).toMatch(/^Total item, sebelum pajak: /);
-    await waitFor(() => expect(screen.getAllByTestId('vi-tax-suggested-from')[0].textContent).toMatch(/^Default pemasok 11% dari /));
+    await waitFor(() => expect(screen.getAllByTestId('vi-tax-suggested-from')[0].textContent).toMatch(/^Default supplier 11% dari /));
   });
 });

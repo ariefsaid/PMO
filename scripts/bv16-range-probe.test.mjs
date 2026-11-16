@@ -41,7 +41,7 @@ function response(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
-function createBench({ wrongReadback = false, versionMajor = 16 } = {}) {
+function createBench({ wrongReadback = false, versionMajor = 16, versionShape = 'object' } = {}) {
   const calls = [];
   const projects = new Set();
   const budgets = new Map();
@@ -63,7 +63,7 @@ function createBench({ wrongReadback = false, versionMajor = 16 } = {}) {
       return response({ data: { name } });
     }
     if (path === '/api/method/frappe.utils.change_log.get_versions' && method === 'GET') {
-      return response({ message: { frappe: `${versionMajor}.0.0`, erpnext: `${versionMajor}.33.0` } });
+      return response({ message: { frappe: `${versionMajor}.0.0`, erpnext: versionShape === 'string' ? `${versionMajor}.33.0` : { version: `${versionMajor}.33.0` } } });
     }
     if (path === '/api/resource/Fiscal Year' && method === 'GET') {
       return response({ data: FISCAL_YEARS });
@@ -182,6 +182,18 @@ test('budget-whole-project Slice 1 real-route rehearsal reads back yearly rows, 
   assert.equal(bench.calls.filter((call) => call.url.pathname === '/api/method/frappe.client.submit').length, 2);
   assert.ok(bench.calls.every((call) => call.url.origin === config().rehearsalOrigin && call.redirect === 'manual'));
   assert.doesNotMatch(stdout.join('') + stderr.join(''), /local-service-key|local-fixture-secret|v16-rehearsal\.example\.test|Salary|COGS|BUD-|PROJ-/);
+});
+
+test('budget-whole-project Slice 1 continues to accept a string version response', async () => {
+  const bench = createBench({ versionShape: 'string' });
+  const result = await runRangeProbe(config(), {
+    explicitOptIn: true,
+    fetchImpl: bench.fetch,
+    stdout: () => {},
+    stderr: () => {},
+    newId: () => '11111111-1111-4111-8111-111111111111',
+  });
+  assert.equal(result.exitCode, 0);
 });
 
 test('budget-whole-project Slice 1 real-route rehearsal cancels submitted probe documents after a read-back failure', async () => {

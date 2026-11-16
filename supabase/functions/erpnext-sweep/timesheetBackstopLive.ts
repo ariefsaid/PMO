@@ -13,7 +13,7 @@ import { reconcileOrgTimesheetPushes, type TimesheetBackstopDeps, type Timesheet
 // drifted keys means the outbox 4-tuple does not collide and the client is billed a DUPLICATED WEEK of
 // hours. (This is why the key was moved out of `repositories/index.ts`, which no edge fn can load.)
 import { timesheetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/timesheetPushKey.ts';
-import { featureDisabled, type OrgBinding, listRetryPendingLive, listCandidatesLive, stampQueueAttempt } from './sweepShared.ts';
+import { featureDisabled, type OrgBinding, listRetryPendingLive, listCandidatesLive, stampQueueAttempt, moneyRowsStopped } from './sweepShared.ts';
 import { buildReconcileDepsLive, dispatchMoneyWrite } from './moneyWriteLive.ts';
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -269,6 +269,7 @@ export function timesheetBackstopDepsLive(
       return recoverableOnlyIds ? rows.filter((r) => recoverableOnlyIds.has(r.timesheet_id)) : rows;
     },
 
+    stopNewRows: () => moneyRowsStopped(org),
     markAttempted: async (orgId, rows) => {
       await stampQueueAttempt(serviceClient, 'timesheet_erp_mirror', orgId, 'timesheet_id',
         rows.filter((r) => r.push_state !== 'absent').map((r) => r.timesheet_id));
