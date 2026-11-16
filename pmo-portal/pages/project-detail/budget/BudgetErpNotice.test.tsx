@@ -361,8 +361,8 @@ describe('AC-ECA-031 an ERP budget PMO did not create', () => {
   it('offers the two ways forward beside the refusal, to Finance', async () => {
     h.pushStatus.mockResolvedValue([refused()]);
     renderNotice('Finance');
-    expect(await screen.findByRole('button', { name: 'Use the ERP figures as a draft' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Replace the ERP budget with this version' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /^Use the ERP figures as a draft/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Replace the ERP budget with this version/ })).toBeInTheDocument();
     expect(h.occupantAccounts).toHaveBeenCalledWith('v1', FY);
   });
 
@@ -370,7 +370,7 @@ describe('AC-ECA-031 an ERP budget PMO did not create', () => {
     h.pushStatus.mockResolvedValue([push({ pushState: 'failed', pushError: 'commit-rejected', fiscalYear: FY })]);
     renderNotice('Finance');
     await notice();
-    expect(screen.queryByRole('button', { name: 'Use the ERP figures as a draft' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Use the ERP figures as a draft/ })).not.toBeInTheDocument();
     expect(h.occupantAccounts).not.toHaveBeenCalled();
   });
 });

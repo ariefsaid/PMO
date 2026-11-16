@@ -61,7 +61,8 @@ describe('ProjectedMarginBars (Exec — real useSalesPipeline)', () => {
   it('labels the section and each bar for assistive tech', () => {
     wrap(<ProjectedMarginBars stages={stages} currency="USD" />);
     expect(screen.getByRole('group', { name: /Weighted pipeline value by stage/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/Tender Submitted:/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /^Tender Submitted: \$600,000$/ })).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: /^Tender Submitted: .* weighted$/ })).toBeInTheDocument();
   });
 
   it('uses the primary channel for every single-series weighted-value bar', () => {

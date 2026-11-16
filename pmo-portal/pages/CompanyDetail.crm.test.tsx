@@ -439,7 +439,7 @@ describe('CompanyDetail — activity card vs a failed contacts read (PGA02-002)'
   it('a11y(#2086): a contact row link names the person and their job title', () => {
     contactsState.data = contacts;
     renderPage();
-    expect(screen.getByRole('link', { name: 'Open Jane Doe — Procurement Lead' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open John Roe' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open Jane Doe — Procurement Lead' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open John Roe' })).toBeInTheDocument();
   });
 });

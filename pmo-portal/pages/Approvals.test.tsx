@@ -774,7 +774,7 @@ describe('Approvals page — P3b ERP push attention + Employee-link confirm (AC-
 
     expect(screen.getByText('Jane Doe')).toBeInTheDocument();
     expect(screen.getByText(/unique work_email match/)).toBeInTheDocument();
-    const confirmBtn = screen.getByRole('button', { name: /^confirm$/i });
+    const confirmBtn = screen.getByRole('button', { name: /^confirm — jane doe$/i });
 
     await userEvent.click(confirmBtn);
     const dialog = screen.getByRole('dialog');
@@ -800,7 +800,7 @@ describe('Approvals page — P3b ERP push attention + Employee-link confirm (AC-
 
     expect(screen.getByRole('heading', { name: 'Approvals' })).toBeInTheDocument();
     expect(screen.getByText(/No active PMO profiles are available/i)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^confirm$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^confirm/i })).not.toBeInTheDocument();
   });
 
   it('AC-S30-003: an Admin explicitly selects the alternate identity and a failed confirmation keeps it for retry', async () => {
@@ -831,7 +831,7 @@ describe('Approvals page — P3b ERP push attention + Employee-link confirm (AC-
     expect(screen.getByText(/Hours would be attributed to/)).toHaveTextContent('Casey Reviewer');
     expect(confirmMutation.mutateAsync).not.toHaveBeenCalled();
 
-    await userEvent.click(screen.getByRole('button', { name: /^confirm$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^confirm — synthetic erp worker$/i }));
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveTextContent('Synthetic ERP Worker');
     expect(dialog).toHaveTextContent('candidate-b@example.test');
@@ -852,7 +852,7 @@ describe('Approvals page — P3b ERP push attention + Employee-link confirm (AC-
     renderPage();
 
     expect(screen.getByText('Jane Doe')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^confirm$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^confirm/i })).not.toBeInTheDocument();
   });
 
   // ⚑ I-13 (rendered Discover pass) — Retry gave ZERO feedback: no toast, no state change, no console

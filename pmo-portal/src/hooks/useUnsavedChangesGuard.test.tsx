@@ -155,10 +155,10 @@ describe('useUnsavedChangesGuard', () => {
     const keepEditing = screen.getByRole('button', { name: 'Keep editing' });
     expect(keepEditing).toHaveFocus();
     expect(Array.from(dialog.querySelectorAll('button')).map((button) => button.textContent)).toEqual([
-      'Keep editing',
       'Discard',
+      'Keep editing',
     ]);
-    expect(screen.getByRole('button', { name: 'Discard' })).toHaveClass('bg-destructive-solid');
+    expect(screen.getByRole('button', { name: 'Discard' })).toHaveClass('text-destructive-text');
 
     await user.keyboard('{Escape}');
 
