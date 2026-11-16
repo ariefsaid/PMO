@@ -4,7 +4,7 @@ import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter } from 'react-router';
 import { axe } from 'jest-axe';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import enViewer from '@/public/locales/en/documentViewer.json';
 import idViewer from '@/public/locales/id/documentViewer.json';
 import { DocumentViewerProvider } from './DocumentViewerProvider';
@@ -108,19 +108,52 @@ describe('document-preview AC-013 accessibility', () => {
     expect(document.body.contains(document.activeElement)).toBe(true);
   });
 
-  it('at 320px the panel is full width and its action row wraps, with no fixed width beyond 320', async () => {
-    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 320 });
+  it('the title is one truncated line with the full title available, the facts line is its description, and a backdrop press closes it', async () => {
+    const long = 'A very long document title that will not fit on a single line of the viewer header.pdf';
+    const t = target({ name: long, key: long, sourceLabel: 'SharePoint', detail: 'Rev B · Approved', load: result({ mode: 'image', url: 'https://signed.test/a.png' }) });
+    await mount('en', [t]);
+    const opener = screen.getByRole('button', { name: `Preview ${long}` });
+    opener.focus();
+    await userEvent.click(opener);
+    const dialog = await screen.findByRole('dialog', { name: long });
+    expect(within(dialog).getByRole('heading', { name: long })).toHaveAttribute('title', long);
+    expect(dialog).toHaveAccessibleDescription('Rev B · Approved · Source: SharePoint');
+    await userEvent.click(screen.getByTestId('viewer-scrim'));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(opener).toHaveFocus());
+  });
+
+  describe('on a phone', () => {
+    const matchMedia = window.matchMedia;
+    beforeEach(() => {
+      window.matchMedia = ((query: string) => ({
+        matches: false, media: query, onchange: null,
+        addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+      })) as typeof window.matchMedia;
+    });
+    afterEach(() => { window.matchMedia = matchMedia; });
+
+    it('Close stays in the header and Download and Open in source sit below the document', async () => {
+      const t = state('Image.png', result({ mode: 'image', url: 'https://signed.test/a.png' }));
+      await mount('en', [t]);
+      await userEvent.click(screen.getByRole('button', { name: 'Preview Image.png' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Image.png' });
+      const image = await within(dialog).findByRole('img');
+      const follows = (el: HTMLElement) => Boolean(image.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING);
+      expect(follows(within(dialog).getByRole('button', { name: 'Download' }))).toBe(true);
+      expect(follows(within(dialog).getByRole('button', { name: 'Open in SharePoint' }))).toBe(true);
+      expect(follows(within(dialog).getByRole('button', { name: 'Close' }))).toBe(false);
+    });
+  });
+
+  it('on a desktop every action sits in the header, above the document', async () => {
     const t = state('Image.png', result({ mode: 'image', url: 'https://signed.test/a.png' }));
     await mount('en', [t]);
     await userEvent.click(screen.getByRole('button', { name: 'Preview Image.png' }));
     const dialog = await screen.findByRole('dialog', { name: 'Image.png' });
-    expect(dialog.className).toContain('max-md:w-full');
-    expect(dialog.querySelector('.flex-wrap')).not.toBeNull();
-    for (const el of dialog.querySelectorAll<HTMLElement>('*')) {
-      const width = parseFloat(el.style.width || '0');
-      const min = parseFloat(el.style.minWidth || '0');
-      expect(width).toBeLessThanOrEqual(320);
-      expect(min).toBeLessThanOrEqual(320);
+    const image = await within(dialog).findByRole('img');
+    for (const name of ['Download', 'Open in SharePoint', 'Close']) {
+      expect(Boolean(image.compareDocumentPosition(within(dialog).getByRole('button', { name })) & Node.DOCUMENT_POSITION_PRECEDING)).toBe(true);
     }
   });
 });

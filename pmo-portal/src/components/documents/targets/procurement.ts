@@ -5,7 +5,7 @@ import { storageTarget, type SignedUrlAccessor } from './storage';
 
 export type ProcurementFileLike = Pick<ProcurementFileRow, 'id' | 'title' | 'file_path' | 'source' | 'ms_web_url' | 'ms_item_name'>;
 
-/** The file name the panel shows: the Microsoft item name, else the storage key's last segment, else the title. */
+/** The file name the viewer shows: the Microsoft item name, else the storage key's last segment, else the title. */
 export function procurementFileName(file: ProcurementFileLike): string {
   if (file.source === 'onedrive' && file.ms_item_name) return file.ms_item_name;
   const fromPath = file.file_path?.split('/').pop();

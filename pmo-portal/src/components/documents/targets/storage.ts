@@ -18,7 +18,7 @@ export interface StorageTargetInput {
   download?: () => void | Promise<void>;
 }
 
-/** A classified, user-readable download refusal (FR-010): the panel states the reason. */
+/** A classified, user-readable download refusal (FR-010): the viewer states the reason. */
 async function downloadFile(filePath: string, getSignedUrl: SignedUrlAccessor): Promise<void> {
   let url: string;
   try {
@@ -36,7 +36,7 @@ async function downloadFile(filePath: string, getSignedUrl: SignedUrlAccessor): 
 /**
  * One adapter for every private-Storage document: project files, purchase attachments and receipts. The
  * signed URL is acquired on open and on every Retry (never cached or prefetched, NFR-002/004); Office files
- * go to Microsoft's public viewer with that fresh URL (FR-009), and anything else is a Download-only panel.
+ * go to Microsoft's public viewer with that fresh URL (FR-009), and anything else is a Download-only viewer.
  */
 export function storageTarget(input: StorageTargetInput): DocumentViewTarget {
   const { key, name, filePath, getSignedUrl } = input;

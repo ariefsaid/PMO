@@ -112,7 +112,7 @@ describe('document-preview AC-001 the ledger previews a SharePoint-backed attach
   });
 });
 
-describe('document-preview AC-001 every entry point opens the side-panel viewer', () => {
+describe('document-preview AC-001 every entry point opens the viewer dialog', () => {
   it.each(surfaces)('$name', async ({ ui, control, fileName, preList }) => {
     preList?.();
     const open = vi.fn<DocumentViewerApi['open']>();
