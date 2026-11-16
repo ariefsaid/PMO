@@ -637,9 +637,11 @@ export const NoteCell: React.FC<{
       title={value}
       value={value}
       onChange={(next) => onNoteChange?.(rowId, next)}
+      // 10px above and below one 24px line = the phone's 44px field minimum, so the gap from text to
+      // rule is the same whether the note is one line or wraps (#2440). Desktop has no 44px minimum.
       // Demoted to a single bottom hairline (Single-Border Rule) so the note reads
       // quieter than the bordered hour cells; touch-target keeps a ≥44px hit-area.
-      className="touch-target mt-1 w-full resize-none overflow-hidden rounded-none border-0 border-b border-border bg-transparent px-0 py-1 text-base leading-6 text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring md:text-control"
+      className="touch-target mt-1 w-full resize-none overflow-hidden rounded-none border-0 border-b border-border bg-transparent px-0 py-2.5 md:py-1 text-base leading-6 text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring md:text-control"
     />
   );
 };
