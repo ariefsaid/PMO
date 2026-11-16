@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import type { TFunction } from 'i18next';
 import { mayDecideRoutedApproval, approvalRouteNote, type ApprovalRoute } from './approvalRoute';
@@ -53,13 +54,22 @@ describe('AC-APR-030 approvalRouteNote', () => {
       "Approval for this procurement is routed to Ana Approver: it is within the project's Materials budget.",
     );
   });
-  it('AC-APR-030: an Engineer is not told the spend is within budget (their visibility can understate it)', () => {
-    const note = approvalRouteNote(route(), 'Materials', t, 'Engineer');
-    expect(note).toBe('Approval for this procurement is routed to Ana Approver: they are the approver set for this project.');
+  it('AC-APR-033: a request seen below approval rank says who decides it, with no figure', () => {
+    const note = approvalRouteNote(route({ route: 'org', reason: 'spending_not_visible' }), 'Materials', t);
+    expect(note).toBe(
+      "Approval for this procurement is routed to Ana Approver: whether it fits the project's Materials budget is checked when it is decided.",
+    );
     expect(note).not.toContain('within');
   });
-  it('AC-APR-030: a Project Manager still sees the within-budget line', () => {
-    expect(approvalRouteNote(route(), 'Materials', t, 'Project Manager')).toContain("within the project's Materials budget");
+  it('AC-APR-032: spending that is not known says so', () => {
+    expect(approvalRouteNote(route({ route: 'org', reason: 'spending_unknown' }), 'Materials', t)).toContain(
+      "what is already spent on the project's Materials budget is not known yet.",
+    );
+  });
+  it('AC-APR-031: over the project budget counting what is spent', () => {
+    expect(approvalRouteNote(route({ route: 'org', reason: 'exceeds_project' }), 'Materials', t)).toContain(
+      "it would take the project's budget over its limit, counting what is already spent.",
+    );
   });
   it('AC-APR-030: joins a senior set with "or" and states overhead', () => {
     const r = route({
@@ -93,7 +103,23 @@ describe('AC-APR-030 approvalRouteNote', () => {
   });
   it('AC-APR-030: over-line names the category', () => {
     expect(approvalRouteNote(route({ route: 'org', reason: 'exceeds_line' }), 'Labor', t)).toContain(
-      "would take the project's Labor budget over its limit",
+      "would take the project's Labor budget over its limit, counting what is already spent.",
     );
+  });
+});
+
+describe('AC-APR-031..033 reason wording in both languages', () => {
+  type Catalogue = { procurementDetail: { route: { why: Record<string, string> } }; routeWhy: Record<string, string> };
+  const read = (lang: string, file: string) => JSON.parse(readFileSync(`public/locales/${lang}/${file}.json`, 'utf8')) as Catalogue;
+  const why = (lang: string) => read(lang, 'common').procurementDetail.route.why;
+  const wording = (lang: string, key: string) => (key === 'exceedsLine' ? why(lang).exceedsLine : read(lang, 'procurement').routeWhy[key]);
+  it.each(['exceedsLine', 'exceedsProject', 'spendingUnknown', 'spendingNotVisible'])('%s is written in en and id', (key) => {
+    expect(wording('en', key)).toBeTruthy();
+    expect(wording('id', key)).toBeTruthy();
+    expect(wording('id', key)).not.toBe(wording('en', key));
+  });
+  it('the below-rank sentence is gone: the server now names who decides', () => {
+    expect(why('en').projectApprover).toBeUndefined();
+    expect(why('id').projectApprover).toBeUndefined();
   });
 });

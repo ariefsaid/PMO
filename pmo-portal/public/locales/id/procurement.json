@@ -773,5 +773,10 @@
       "purchaseOrder": "Simpan pesanan pembelian",
       "goodsReceipt": "Simpan penerimaan"
     }
+  },
+  "routeWhy": {
+    "exceedsProject": "pengadaan ini akan melampaui batas anggaran proyek, termasuk yang sudah dibelanjakan.",
+    "spendingUnknown": "pengeluaran pada anggaran {{category}} proyek belum diketahui.",
+    "spendingNotVisible": "kesesuaiannya dengan anggaran {{category}} proyek diperiksa saat diputuskan."
   }
 }

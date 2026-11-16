@@ -2051,9 +2051,8 @@
       "note": "Persetujuan pengadaan ini diarahkan ke {{names}}: {{why}}",
       "nameJoiner": " atau ",
       "why": {
-        "projectApprover": "mereka adalah penyetuju yang ditetapkan untuk proyek ini.",
         "withinBudget": "pengadaan ini masih dalam anggaran {{category}} proyek.",
-        "exceedsLine": "pengadaan ini akan melampaui batas anggaran {{category}} proyek.",
+        "exceedsLine": "pengadaan ini akan melampaui batas anggaran {{category}} proyek, termasuk yang sudah dibelanjakan.",
         "noProject": "ini pengeluaran overhead, tidak dibebankan ke proyek.",
         "noCategory": "kategori anggarannya belum diisi, jadi tidak dapat dicek terhadap anggaran proyek.",
         "noActiveBudget": "proyek belum memiliki anggaran aktif.",
