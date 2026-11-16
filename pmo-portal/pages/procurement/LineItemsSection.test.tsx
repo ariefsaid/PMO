@@ -266,10 +266,16 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     const quantity = screen.getByLabelText('New item quantity');
     const rate = screen.getByLabelText('New item unit price');
     expect(quantity).toHaveValue('');
-    expect(quantity).toHaveAttribute('placeholder', 'Qty');
+    expect(quantity).toHaveAttribute('placeholder', '0');
     expect(rate).toHaveValue('');
-    expect(rate).toHaveAttribute('placeholder', 'Unit price');
+    expect(rate).toHaveAttribute('placeholder', '0');
     expect(rate.parentElement).toHaveTextContent('IDR');
+  });
+
+  it('desktop create entry row names the description input and hides the "New line" label visually', () => {
+    renderSection({ items: [], createFormLayout: true });
+    expect(screen.getByRole('textbox', { name: 'New item description' })).toBeInTheDocument();
+    expect(screen.getByText('New line')).toHaveClass('sr-only');
   });
 
   it('does not show a currency prefix before the organisation currency resolves', () => {
