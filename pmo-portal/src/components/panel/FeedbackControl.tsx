@@ -11,6 +11,7 @@
  * unchanged server-side (Error-Handling table), no destructive client effect.
  */
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { DownvoteReason } from '@/src/lib/db/agentEvents';
 import { askWhatWentWrong, trackAgentFeedbackRated } from '@/src/lib/analytics';
 import { safeTrack } from '@/src/lib/analytics/safeTrack';
@@ -33,6 +34,7 @@ const thumbButtonClasses =
   'rounded-md px-1.5 py-0.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 export const FeedbackControl: React.FC<FeedbackControlProps> = ({ eventId, runId, onRate }) => {
+  const { t } = useTranslation('assistantPanel');
   const [rating, setRating] = useState<'up' | 'down' | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const anchorId = eventId.replace(/[^\w-]/g, '');
@@ -63,20 +65,20 @@ export const FeedbackControl: React.FC<FeedbackControlProps> = ({ eventId, runId
         <button
           type="button"
           onClick={handleUp}
-          aria-label="Good response"
+          aria-label={t('goodLabel', 'Good response')}
           aria-pressed={rating === 'up'}
           className={thumbButtonClasses}
         >
-          Good
+          {t('good', 'Good')}
         </button>
         <button
           type="button"
           onClick={handleDown}
-          aria-label="Bad response"
+          aria-label={t('badLabel', 'Bad response')}
           aria-pressed={rating === 'down'}
           className={thumbButtonClasses}
         >
-          Bad
+          {t('bad', 'Bad')}
         </button>
       </div>
 

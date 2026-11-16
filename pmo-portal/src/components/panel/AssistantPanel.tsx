@@ -440,7 +440,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
   // ── Desktop non-modal vs mobile modal role/attributes ────────────────────
   const desktopProps = {
     role: 'complementary' as const,
-    'aria-label': 'Agent assistant',
+    'aria-label': t('panelLabel', 'Agent assistant'),
   };
 
   const mobileProps = {
@@ -570,18 +570,18 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
               <button
                 type="button"
                 onClick={handleToggleMode}
-                aria-label={mode === 'overlay' ? 'Dock assistant panel' : 'Switch to overlay'}
+                aria-label={mode === 'overlay' ? t('dockLabel', 'Dock assistant panel') : t('overlayLabel', 'Switch to overlay')}
                 aria-pressed={mode === 'docked'}
                 className="touch-target grid h-8 place-items-center rounded-md px-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                {mode === 'overlay' ? 'Dock' : 'Overlay'}
+                {mode === 'overlay' ? t('dock', 'Dock') : t('overlay', 'Overlay')}
               </button>
             )}
             {/* ADR-0043 (FR-AGP-020): History toggle — expands the ThreadList region. */}
             <button
               type="button"
               onClick={toggleHistory}
-              aria-label="History"
+              aria-label={t('history', 'History')}
               aria-expanded={historyOpen}
               className="touch-target grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-[17px]"
             >
@@ -591,8 +591,8 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
             <button
               type="button"
               onClick={handleNewConversation}
-              aria-label="New conversation"
-              title="New conversation"
+              aria-label={t('newConversation', 'New conversation')}
+              title={t('newConversation', 'New conversation')}
               className="touch-target grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-[17px]"
             >
               <Icon name="plus" />
@@ -601,7 +601,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
             <button
               type="button"
               onClick={closePanel}
-              aria-label="Close assistant"
+              aria-label={t('close', 'Close assistant')}
               className="touch-target grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-[17px]"
             >
               <Icon name="x" />

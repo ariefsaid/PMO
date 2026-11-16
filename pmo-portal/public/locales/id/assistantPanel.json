@@ -33,5 +33,18 @@
   "errorBody": "Tidak dapat memperoleh jawaban. Coba lagi akan mengirim ulang pertanyaan Anda.",
   "sendLabel": "Kirim pesan",
   "stopLabel": "Berhenti membuat jawaban",
-  "askLabel": "Ajukan pertanyaan"
+  "askLabel": "Ajukan pertanyaan",
+  "dock": "Sematkan",
+  "overlay": "Melayang",
+  "dockLabel": "Sematkan panel asisten",
+  "overlayLabel": "Ubah ke mode melayang",
+  "history": "Riwayat",
+  "newConversation": "Percakapan baru",
+  "close": "Tutup asisten",
+  "panelLabel": "Asisten agen",
+  "good": "Bagus",
+  "goodLabel": "Jawaban bagus",
+  "bad": "Buruk",
+  "badLabel": "Jawaban buruk",
+  "assistantSaid": "Asisten: "
 }

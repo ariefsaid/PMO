@@ -33,5 +33,18 @@
   "errorBody": "Couldn't get an answer. Retry sends your question again.",
   "sendLabel": "Send message",
   "stopLabel": "Stop generating",
-  "askLabel": "Ask a question"
+  "askLabel": "Ask a question",
+  "dock": "Dock",
+  "overlay": "Overlay",
+  "dockLabel": "Dock assistant panel",
+  "overlayLabel": "Switch to overlay",
+  "history": "History",
+  "newConversation": "New conversation",
+  "close": "Close assistant",
+  "panelLabel": "Agent assistant",
+  "good": "Good",
+  "goodLabel": "Good response",
+  "bad": "Bad",
+  "badLabel": "Bad response",
+  "assistantSaid": "Assistant: "
 }

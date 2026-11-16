@@ -5,6 +5,7 @@
  * A3: status{needs-approval} → <ApprovalChip>; system{write_resolved} → inline notice.
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { NeedsApprovalPayload, WriteResolvedPayload, QuestionPayload } from '@/src/lib/agent/runtime/port';
 import type { DownvoteReason } from '@/src/lib/db/agentEvents';
 import { StreamingText } from './StreamingText';
@@ -70,6 +71,7 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = React.memo(({
   onAnswer,
   onRate,
 }) => {
+  const { t } = useTranslation('assistantPanel');
   const { event } = entry;
 
   switch (event.type) {
@@ -89,7 +91,7 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = React.memo(({
       return (
         <div data-transcript-item className="max-w-[90%]">
           <div data-testid="assistant-bubble" className="text-sm text-foreground">
-            <span className="sr-only">Assistant: </span>
+            <span className="sr-only">{t('assistantSaid', 'Assistant: ')}</span>
             <StreamingText text={event.text ?? ''} streaming={streaming} />
           </div>
           {onRate && <FeedbackControl eventId={event.id} runId={event.runId} onRate={onRate} />}
