@@ -6,6 +6,7 @@ import { formatExactMoney, numberSymbols } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { formatExactCents, parseExactCents } from '@/src/lib/exactDecimal';
 import { yearsInSpan, type FiscalYearSpan } from '@/src/lib/budget/budgetDistribution';
+import { FIGURE_LINE_CLASS } from '@/src/components/ui/FigureContent';
 import {
   categoryTotals,
   DistributionValidationError,
@@ -541,7 +542,7 @@ const DistributionGrid: React.FC<DistributionGridProps> = ({
                           return (
                             <div key={year.name} className="flex min-w-0 items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2 text-control">
                               <span className="shrink-0 font-medium">{year.name}</span>
-                              <span className="min-w-0 break-words text-right tabular-nums">{amount ? formatMoney(amount) : '—'}</span>
+                              <span className={`${FIGURE_LINE_CLASS} text-right`}>{amount ? formatMoney(amount) : '—'}</span>
                             </div>
                           );
                         }
