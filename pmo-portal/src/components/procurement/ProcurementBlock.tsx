@@ -1090,8 +1090,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
               event.preventDefault();
               openFullPage(selected);
             }}
-            // The decision buttons lead; opening the page is the quiet way out (one filled action, one outline).
-            className={buttonClasses('ghost', 'sm')}
+            // Beside the step's own buttons it is the quiet way out; alone it keeps the outline so its text meets the edge.
+            className={buttonClasses(drawerMain ? 'ghost' : 'outline', 'sm')}
           >
             {t('projectDetail.procurement.detail.openFullRecord', 'Open full page')}
           </Link>

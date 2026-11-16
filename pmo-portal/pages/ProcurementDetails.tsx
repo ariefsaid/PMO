@@ -714,7 +714,7 @@ const ProcurementDetails: React.FC = () => {
                 {showsBudgetImpact ? budgetImpact : decisionAside}
               </div>
             )}
-            <ProcurementStageTracker procurement={p} linkedDocuments={linkedDocs} />
+            <ProcurementStageTracker procurement={p} linkedDocuments={linkedDocs} isEngineer={isEngineer} />
             {/* Money carries the record's one "N figures hidden · Why" line, under the figures it reports on. The
                 request total is not repeated here while the budget impact above already shows the same amount. */}
             <ProcurementMoneySummary procurement={p} linkedDocuments={linkedDocs} isEngineer={isEngineer} omitRequestedEqualTo={showsBudgetImpact ? Number(p.total_value) : undefined} budgetSignal={isEngineer || (requestStage && p.project_id) ? undefined : <ProcurementBudgetSignal

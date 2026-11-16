@@ -26,6 +26,7 @@ import { useTranslation } from 'react-i18next';
 import { Card, CardPad } from '@/src/components/ui/Card';
 import { StatTiles, type StatTile } from '@/src/components/ui/StatTiles';
 import { ErrBanner } from '@/src/components/ui/ErrBanner';
+import { Icon } from '@/src/components/ui/icons';
 import { useFigureReport } from '@/src/components/ui/useFigureScope';
 import { ProjectNameLink } from '@/src/components/ui/ProjectNameLink';
 import { StatusPill } from '@/src/components/ui/StatusPill';
@@ -135,12 +136,12 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       ) : null}
     </>
   );
-  // Record page: title and Open project on one line, the project it measures on the line under it.
+  // Record page: one line, the title, the project it measures (truncated, never wrapped) and Open project at the end.
   const heading = bare ? (
-    <div className="mb-4 grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 gap-y-0.5">
-      <h2 className="text-section font-semibold text-foreground">{t('decisionSupport.heading', 'Budget impact')}</h2>
-      <span>{openProjectLink}</span>
-      {(projectName || projectStatus) && <div className="col-span-2 flex flex-wrap items-baseline gap-x-1">{projectLine}</div>}
+    <div className="mb-2 flex min-w-0 items-baseline gap-x-2">
+      <h2 className="shrink-0 text-section font-semibold text-foreground">{t('decisionSupport.heading', 'Budget impact')}</h2>
+      <span className="min-w-0 truncate">{projectLine}</span>
+      <span className="ml-auto shrink-0 pl-2">{openProjectLink}</span>
     </div>
   ) : (
     <div className="mb-3 flex flex-wrap items-baseline gap-x-1 gap-y-1">
@@ -361,23 +362,29 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   ) : null;
   // Over-budget advisory — non-blocking, once. ErrBanner is role="status" (gentle, not an alert) and carries the
   // amount in text (WCAG SC 1.4.1, not color-only). Approval is still permitted (OD-W5-4/OD-W5-5).
-  const overBudget = spendingKnown && !requestInOtherCurrency && afterRequest < 0 ? (
+  const overBudgetSub = t('decisionSupport.overBudgetAfter', { defaultValue: '{{amount}} over the budget after this purchase. Approval is still permitted; this is advisory only.', amount: formatCurrency(-afterRequest, currency) });
+  // Inside the record header the advisory is a line, not a box in a box (the band is already the surface).
+  const overBudget = spendingKnown && !requestInOtherCurrency && afterRequest < 0 ? bare ? (
+    <p role="status" className="mt-3 flex items-start gap-2 text-control text-foreground">
+      <Icon name="alert" className="mt-0.5 size-4 shrink-0 text-destructive-text" aria-hidden="true" />
+      <span><span className="font-semibold text-destructive-text">{t('decisionSupport.overBudgetTitle', 'Over budget')}</span> · {overBudgetSub}</span>
+    </p>
+  ) : (
     <ErrBanner
       className="mt-3 mb-0"
       title={t('decisionSupport.overBudgetTitle', 'Over budget')}
-      sub={t('decisionSupport.overBudgetAfter', { defaultValue: '{{amount}} over the budget after this purchase. Approval is still permitted; this is advisory only.', amount: formatCurrency(-afterRequest, currency) })}
+      sub={overBudgetSub}
     />
   ) : null;
-  // The parts Left is made of, as one list with a shared right edge for the amounts.
+  // The parts Left is made of, as one row of figures in the money block's style (label, amount, one caption).
   const partsList = (
-    <dl data-testid="budget-impact-parts" className="min-w-0 divide-y divide-border">
+    // Narrow (phone, drawer): ledger rows, label left and amount right. Wide: five figures in one row.
+    <dl data-testid="budget-impact-parts" className="grid grid-cols-1 @3xl:grid-cols-5 @3xl:gap-x-6">
       {recordParts.map((part) => (
-        <div key={part.key} className="flex items-baseline justify-between gap-x-6 py-2 first:pt-0 last:pb-0">
-          <dt className="min-w-0">
-            <span className="block text-control font-medium text-foreground">{part.label}</span>
-            {part.sub && <span className="block text-control text-muted-foreground">{part.sub}</span>}
-          </dt>
-          <dd className="shrink-0 whitespace-nowrap text-group font-medium text-foreground tabular-nums" title={part.exactValue}>{part.value}</dd>
+        <div key={part.key} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] content-start items-baseline gap-x-6 border-b border-border py-2 first:pt-0 last:border-b-0 last:pb-0 @3xl:grid-cols-1 @3xl:border-b-0 @3xl:py-0">
+          <dt className="text-control font-medium text-foreground">{part.label}</dt>
+          <dd className="whitespace-nowrap text-right text-group font-medium text-foreground tabular-nums @3xl:mt-1 @3xl:text-left" title={part.exactValue}>{part.value}</dd>
+          {part.sub && <dd className="mt-0.5 text-control text-muted-foreground">{part.sub}</dd>}
         </div>
       ))}
     </dl>
@@ -388,20 +395,13 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         {heading}
 
         {bare ? (
-          // Record page: the decision figure leads on the left; the list on the right is what it is made of.
-          leftTile ? (
-            // Two columns: the figure with the decision under it, the parts beside them. Stacked (phone, drawer) the
-            // parts follow the figure and the decision comes last, next to the action bar.
-            <div className="grid gap-x-10 gap-y-6 @3xl:grid-cols-[minmax(0,1fr)_minmax(0,30rem)] @3xl:grid-rows-[auto_1fr]">
-              <div className="min-w-0">
-                <StatTiles tiles={[leftTile]} columns={1} variant="bare" />
-                {bar}
-                {overBudget}
-              </div>
-              <div className="min-w-0 @3xl:col-start-2 @3xl:row-span-2 @3xl:row-start-1">{partsList}</div>
-              {aside && <div className="min-w-0 @3xl:col-start-1 @3xl:row-start-2">{aside}</div>}
-            </div>
-          ) : <>{partsList}{aside && <div className="mt-6">{aside}</div>}</>
+          // Record page: the decision figure and its bar, the parts it is made of, then the decision itself.
+          <>
+            {leftTile && <StatTiles tiles={[leftTile]} columns={1} variant="bare" />}
+            {bar}
+            {overBudget}
+            <div className={leftTile ? 'mt-6' : undefined}>{partsList}</div>
+          </>
         ) : (
           <>
             {bar}
@@ -419,6 +419,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         )}
 
         {!bare && overBudget}
+        {bare && aside && <div className="mt-6 border-t border-warning/25 pt-4">{aside}</div>}
 
         {/* Explicit affordance to drill into the project budget detail.
             Styled as a quiet link (not a competing CTA) — the decision zone

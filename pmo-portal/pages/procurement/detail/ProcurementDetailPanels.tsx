@@ -54,9 +54,11 @@ function totalAmount(values: readonly (number | string | null | undefined)[]): n
 export interface ProcurementStageTrackerProps {
   procurement: ProcurementDetail;
   linkedDocuments: readonly ErpPurchaseRow[];
+  /** Invoices and payments are Finance's: an engineer sees the pay stage's count, never its amount. */
+  isEngineer?: boolean;
 }
 
-export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = ({ procurement, linkedDocuments }) => {
+export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = ({ procurement, linkedDocuments, isEngineer = false }) => {
   const { t } = useTranslation('procurementRecord');
   const dates = stageDates(procurement, linkedDocuments.map((doc) => ({ doctype: doc.doctype, docDate: doc.docDate })));
   const current = STAGES.findIndex((stage) => stage.label === stageForStatus(procurement.status));
@@ -125,7 +127,7 @@ export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = (
                     : '';
             const meta = [date ? showDate(date, t('timeline.dateMissing', 'Date not recorded')) : null, state].filter(Boolean).join(' · ');
             // The stage's amount reads on its own line, so it never wraps behind a dot.
-            const stageAmount = count > 0 && !partial ? amountByStage[stage.key] : null;
+            const stageAmount = count > 0 && !partial && !(isEngineer && stage.key === 'pay') ? amountByStage[stage.key] : null;
             return (
               <li key={stage.key} aria-current={isCurrent ? 'step' : undefined} className="min-w-0">
                 <div>
@@ -273,9 +275,9 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
 
   // Header band content (after the stage track): label, budget line, figures, then the hidden-figures line it reports.
   return (
-    <section data-testid="procurement-money-summary" aria-labelledby="procurement-money-heading" className="border-t border-border pt-4">
+    <section data-testid="procurement-money-summary" aria-labelledby="procurement-money-heading" className="border-t border-border pt-3">
       <h2 id="procurement-money-heading" className="text-control font-semibold text-foreground">{t('money.title', { defaultValue: 'Money · {{currency}}, before tax', currency: procurement.currency })}</h2>
-      {budgetSignal != null && budgetSignal !== false && <p className="mt-1 text-control font-normal text-muted-foreground">{budgetSignal}</p>}
+      {budgetSignal != null && budgetSignal !== false && <p className="mt-3 text-control font-normal text-muted-foreground">{budgetSignal}</p>}
       {visible.length > 0 && (
           <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-5">
             {visible.map(({ kind }) => {
