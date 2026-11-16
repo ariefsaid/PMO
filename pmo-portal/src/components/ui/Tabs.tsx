@@ -20,6 +20,8 @@ export interface TabItem<V extends string = string> {
 }
 
 export interface TabsProps<V extends string = string> {
+  /** Record pages: the heading sits inside the bordered record header, so the first label starts on that inset instead of the page edge. */
+  insetFirstTab?: boolean | 'panel';
   items: TabItem<V>[];
   value: V;
   onChange: (value: V) => void;
@@ -48,6 +50,8 @@ export interface TabsProps<V extends string = string> {
  * Each tab follows the 52px shared rhythm and exceeds the WCAG 2.5.5 44px
  * touch-target floor on coarse pointers.
  *
+ * The first tab has no left padding, so its label starts on the same edge as the page heading above it.
+ *
  * Tokens: `primary` underline (`.ptab-active::after`), `muted-foreground` inactive
  * text, `border` bottom divider. No new tokens; the mask-image gradient uses #000
  * (opaque mask, not a color) to transparent — compositor-only, no repaint.
@@ -59,6 +63,7 @@ export function Tabs<V extends string = string>({
   ariaLabel,
   idBase,
   className,
+  insetFirstTab = false,
   wrapOnPhone = false,
 }: TabsProps<V>) {
   const listRef = useRef<HTMLDivElement>(null);
@@ -105,7 +110,9 @@ export function Tabs<V extends string = string>({
         // Uses #000 (opaque mask) to transparent — compositor only, no repaint.
         // Reduced-motion: the mask is CSS, no animation; always-on is correct.
         '[mask-image:linear-gradient(to_right,#000_calc(100%-28px),transparent_100%)]',
-        wrapOnPhone && 'max-sm:flex-wrap max-sm:overflow-x-visible max-sm:[mask-image:none] max-sm:[&>[role=tab]]:ps-0',
+        wrapOnPhone && 'max-sm:flex-wrap max-sm:overflow-x-visible max-sm:[mask-image:none]',
+        // Wrapped rows all start on the same edge: the gutter, or the record header inset when the heading sits inside one.
+        wrapOnPhone && (insetFirstTab ? 'max-sm:[&>[role=tab]]:ps-[calc(var(--space-content-inset)+1px)]' : 'max-sm:[&>[role=tab]]:ps-0'),
         className,
       )}
     >
@@ -124,7 +131,12 @@ export function Tabs<V extends string = string>({
               // 52px tab rhythm; remains above the WCAG 2.5.5 coarse-pointer target floor.
               // snap-start: this tab is the snap destination when scrolling the strip.
               // shrink-0: prevents tabs from squishing (needed for proper snap behaviour).
-              'relative h-[var(--table-head-height)] shrink-0 snap-start px-4 text-control font-normal first:ps-0',
+              'relative h-[var(--table-head-height)] shrink-0 snap-start px-4 text-control font-normal',
+              insetFirstTab === 'panel'
+                ? 'first:ps-[calc(var(--panel-inset)+1px)]'
+                : insetFirstTab
+                  ? 'first:ps-[calc(var(--space-content-inset)+1px)]'
+                  : 'first:ps-0',
               active
                 // AC-RAM-004 (#688): raw text-primary as small text is ~3.5:1 on the dark canvas
                 // (sub-AA, DESIGN.md accessibility posture). text-primary-text is the AA on-canvas

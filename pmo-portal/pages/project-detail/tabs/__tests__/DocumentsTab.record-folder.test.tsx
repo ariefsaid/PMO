@@ -39,6 +39,7 @@ const m365Feature = vi.hoisted(() => ({ on: true }));
 vi.mock('@/src/auth/useFeature', () => ({ useFeature: (key: string) => key !== 'm365_integration' || m365Feature.on }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
 
+import { chooseAddOption, addOptionLabels } from './addDocumentMenu';
 import DocumentsTab from '../DocumentsTab';
 
 const row = (over: Record<string, unknown>) => ({
@@ -60,7 +61,8 @@ const renderTab = (role: Role = 'Project Manager', viewAs?: Role) =>
       </ImpersonationProvider>
     </QueryClientProvider>,
   );
-const create = () => screen.queryAllByRole('button', { name: 'Create folder in SharePoint' });
+/** How many times the Add document control offers the folder step (0 or 1). */
+const folderOffers = async () => (await addOptionLabels(userEvent)).filter((label) => label === 'Create folder in SharePoint').length;
 
 beforeEach(() => {
   m365Feature.on = true;
@@ -72,30 +74,30 @@ beforeEach(() => {
 });
 
 describe('AC-M365DOC-071 DocumentsTab mount', () => {
-  it('shows exactly one Create folder action to a writer when the register has only plain/file refs', () => {
+  it('shows exactly one Create folder action to a writer when the register has only plain/file refs', async () => {
     docsState.data = [row({}), row({ id: 'd2', source: 'onedrive', ms_item_kind: 'file' })];
     renderTab('Project Manager');
-    expect(create()).toHaveLength(1);
+    expect(await folderOffers()).toBe(1);
   });
 
-  it('RF-7 hides the Create folder action when Microsoft 365 is off for the org', () => {
+  it('RF-7 hides the Create folder action when Microsoft 365 is off for the org', async () => {
     m365Feature.on = false;
     renderTab('Project Manager');
-    expect(create()).toHaveLength(0);
+    expect(await folderOffers()).toBe(0);
   });
 
-  it('hides it when the register holds a folder reference (direct open does not depend on the connection)', () => {
+  it('hides it when the register holds a folder reference (direct open does not depend on the connection)', async () => {
     docsState.data = [row({ id: 'f1', source: 'onedrive', ms_item_kind: 'folder' })];
     renderTab('Project Manager');
-    expect(create()).toHaveLength(0);
+    expect(await folderOffers()).toBe(0);
   });
 
-  it('a read-only role (Engineer) and view-only impersonation see no action', () => {
+  it('a read-only role (Engineer) and view-only impersonation see no action', async () => {
     renderTab('Engineer');
-    expect(create()).toHaveLength(0);
+    expect(await folderOffers()).toBe(0);
     document.body.innerHTML = '';
     renderTab('Admin', 'Engineer');
-    expect(create()).toHaveLength(0);
+    expect(await folderOffers()).toBe(0);
   });
 
   it('adds no Issue/Approve/version controls of its own and leaves the Add document control in place', () => {
@@ -107,11 +109,11 @@ describe('AC-M365DOC-071 DocumentsTab mount', () => {
   it('a failed ensure leaves the register rows rendered and offers the one retry', async () => {
     ensure.mockRejectedValue(new AppError('RAW-UPSTREAM-MARKER', 'GRAPH_ERROR'));
     renderTab('Project Manager');
-    await userEvent.setup().click(create()[0]);
+    await chooseAddOption(userEvent.setup(), 'Create folder in SharePoint');
     expect((await screen.findByTestId('record-folder-failure')).textContent).toContain('Folder not linked.');
     expect(screen.getByText('Foundation GA')).toBeTruthy();
     expect(document.body.textContent).not.toContain('RAW-UPSTREAM');
-    expect(create()).toHaveLength(1);
+    expect(await folderOffers()).toBe(1);
   });
 
   it('shows a failure recorded by the create-time coordinator after navigation', () => {
@@ -126,7 +128,7 @@ describe('AC-M365DOC-071 DocumentsTab mount', () => {
     ensure.mockResolvedValue({ state: 'created', document_id: '22222222-2222-4222-8222-222222222222' });
     const spy = vi.spyOn(qc, 'invalidateQueries');
     renderTab('Project Manager');
-    await userEvent.setup().click(create()[0]);
+    await chooseAddOption(userEvent.setup(), 'Create folder in SharePoint');
     await waitFor(() => expect(spy).toHaveBeenCalledWith({ queryKey: ['project-documents', 'org-1', 'p1'] }));
     expect(ensure).toHaveBeenCalledWith({ kind: 'project', id: 'p1' });
   });

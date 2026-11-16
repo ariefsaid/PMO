@@ -865,7 +865,8 @@
         "preview": "Preview",
         "download": "Download",
         "copyLink": "Copy link",
-        "openSharePoint": "Open in SharePoint"
+        "openSharePoint": "Open in SharePoint",
+        "view": "View file"
       },
       "bulk": {
         "statusUpdated": "Status updated for {{count}} documents",
@@ -903,7 +904,12 @@
       },
       "field": {
         "microsoft": "Microsoft 365 item"
-      }
+      },
+      "add": {
+        "upload": "Upload a document",
+        "folderPending": "Creating folder…"
+      },
+      "filters": "Filters"
     },
     "procurement": {
       "erpCard": {

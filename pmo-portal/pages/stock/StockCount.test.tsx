@@ -254,6 +254,41 @@ describe('StockCount', () => {
     expect(await screen.findByTestId('system-1')).toHaveTextContent('100');
   });
 
+  it('AC-NBR-032 (P) items pending: the header is editable and only the line editor shows loading; submit waits', async () => {
+    master.listItems.mockReturnValue(new Promise(() => {}));
+    renderAt('/stock/new/count');
+    const warehouse = await screen.findByLabelText(/^Warehouse/);
+    expect(warehouse).toBeEnabled();
+    await userEvent.selectOptions(warehouse, 'w1');
+    const lines = screen.getByTestId('stock-lines-region');
+    expect(within(lines).getByTestId('liststate-loading')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /^Item/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save draft' })).toBeDisabled();
+  });
+
+  it('AC-NBR-032 (P) the loading reserve is the smaller form until a warehouse is chosen', async () => {
+    master.listItems.mockReturnValue(new Promise(() => {}));
+    renderAt('/stock/new/count');
+    const warehouse = await screen.findByLabelText(/^Warehouse/);
+    const reserve = () => screen.getByTestId('stock-lines-loading').style.getPropertyValue('--lines-phone');
+    expect(reserve()).toBe('234px');
+    await userEvent.selectOptions(warehouse, 'w1');
+    expect(reserve()).toBe('290px');
+  });
+
+  it('AC-NBR-032 (F) units failed: the header stays editable and the line editor shows the error with retry', async () => {
+    master.listUnits.mockRejectedValueOnce(new Error('boom'));
+    renderAt('/stock/new/count');
+    await userEvent.selectOptions(await screen.findByLabelText(/^Warehouse/), 'w1');
+    const lines = screen.getByTestId('stock-lines-region');
+    expect(await within(lines).findByRole('button', { name: /retry/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Warehouse/)).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Save draft' })).toBeDisabled();
+    await userEvent.click(within(lines).getByRole('button', { name: /retry/i }));
+    expect(await screen.findByRole('combobox', { name: /^Item/ })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save draft' })).toBeEnabled());
+  });
+
   it('FR-STK-064 a view-as session keeps the page read-only', async () => {
     renderAt('/stock/new/count', 'Admin', 'Engineer');
     await userEvent.selectOptions(await screen.findByLabelText(/^Warehouse/), 'w1');

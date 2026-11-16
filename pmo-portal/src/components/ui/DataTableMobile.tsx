@@ -125,7 +125,7 @@ function DataTableMobileCardInner<Row>({
         {/* Card title — activation button if rowLabel+onActivate supplied. Text that
             outgrows the card wraps so its full meaning stays visible at phone widths. */}
         <div className="flex min-w-0 flex-1 items-start gap-2">
-          {selection && <span className="shrink-0" onClick={(event) => event.stopPropagation()}>
+          {selection && <span className="mt-0.5 shrink-0" onClick={(event) => event.stopPropagation()}>
             <Checkbox
               checked={isSelected}
               onChange={(checked) => modelRow.toggleSelected(checked)}
