@@ -132,13 +132,12 @@ const renderPage = (role: string) => {
 /** Clicks the real Export affordance and returns the parsed workbook's first sheet. */
 async function exportWorkbook() {
   const user = userEvent.setup();
-  const exportButton = screen.queryByRole('button', { name: /export/i });
+  const exportButton = screen.queryByRole('button', { name: /^export$/i });
   if (!exportButton) {
-    const more = screen.queryByRole('button', { name: /^More$/i })
-      ?? screen.getByRole('button', { name: /^More actions$/i });
+    const more = screen.getByRole('button', { name: /^(Export and import|Options)$/i });
     await user.click(more);
   }
-  await user.click(screen.getByRole('button', { name: /export/i }));
+  await user.click(screen.getByRole('button', { name: /^export$/i }));
   await waitFor(() => expect(hoisted.captured).toHaveLength(1));
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(hoisted.captured[0]);
@@ -243,10 +242,10 @@ describe('Projects persona money visibility — contract figure gated on the sha
     } };
     renderPage('Project Manager');
     const ws = await exportWorkbook();
-    expect(ws.getRow(2).getCell(col(ws, 'Actual')).value).toBe('$104.25 USD');
+    expect(ws.getRow(2).getCell(col(ws, 'Spent')).value).toBe('$104.25 USD');
     expect(ws.getRow(2).getCell(col(ws, 'Progress')).value).toBe(78);
     expect(ws.getRow(2).getCell(col(ws, 'Budget used')).value).toBe(104);
-    expect(ws.getRow(3).getCell(col(ws, 'Actual')).value).toBe('');
+    expect(ws.getRow(3).getCell(col(ws, 'Spent')).value).toBe('');
     expect(ws.getRow(3).getCell(col(ws, 'Progress')).value).toBe('');
     expect(ws.getRow(3).getCell(col(ws, 'Budget used')).value).toBe('');
   });
@@ -255,7 +254,7 @@ describe('Projects persona money visibility — contract figure gated on the sha
     projectMoneyState.data = { p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '9007199254740993.99', asOf: null, excludesRestrictedRows: false, complete: true, categories: [{ category: 'Labor', mapped: true, amount: '9007199254740993.99' }] }, activeBudgetAmount: null, activeBudgetCurrency: null, hasActiveBudget: false } };
     renderPage('Project Manager');
     const ws = await exportWorkbook();
-    expect(ws.getRow(2).getCell(col(ws, 'Actual')).value).toBe('$9,007,199,254,740,993.99 USD');
+    expect(ws.getRow(2).getCell(col(ws, 'Spent')).value).toBe('$9,007,199,254,740,993.99 USD');
   });
 
   it('exports zero and meaningful unavailable reasons without inventing values', async () => {
@@ -272,10 +271,10 @@ describe('Projects persona money visibility — contract figure gated on the sha
     };
     renderPage('Project Manager');
     const ws = await exportWorkbook();
-    expect(ws.getRow(2).getCell(col(ws, 'Actual')).value).toBe('$0.00 USD');
+    expect(ws.getRow(2).getCell(col(ws, 'Spent')).value).toBe('$0.00 USD');
     expect(ws.getRow(2).getCell(col(ws, 'Progress')).value).toBe(0);
     expect(ws.getRow(2).getCell(col(ws, 'Budget used')).value).toBe(0);
-    expect(ws.getRow(3).getCell(col(ws, 'Actual')).value).toBe('Restricted excluded');
+    expect(ws.getRow(3).getCell(col(ws, 'Spent')).value).toBe('Restricted excluded');
     expect(ws.getRow(3).getCell(col(ws, 'Budget used')).value).toBe('');
   });
 
@@ -296,7 +295,7 @@ describe('Projects persona money visibility — contract figure gated on the sha
     projectMoneyState.isError = true;
     renderPage('Project Manager');
     const ws = await exportWorkbook();
-    for (const header of ['Actual', 'Progress', 'Budget used']) expect(ws.getRow(2).getCell(col(ws, header)).value).toBe('');
+    for (const header of ['Spent', 'Progress', 'Budget used']) expect(ws.getRow(2).getCell(col(ws, header)).value).toBe('');
   });
 
   it('exports only columns shown on the table, plus the contract currency', async () => {
@@ -320,14 +319,14 @@ describe('Projects persona money visibility — contract figure gated on the sha
     tasksState.isPending = state === 'pending';
     const { rerender } = renderPage('Engineer');
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /more/i }));
-    const button = screen.getByRole('button', { name: /export/i });
+    await user.click(screen.getByRole('button', { name: /^(export and import|options)$/i }));
+    const button = screen.getByRole('button', { name: /^export$/i });
     expect(button).toBeDisabled();
     fireEvent.click(button);
     expect(hoisted.captured).toHaveLength(0);
     await user.click(screen.getByRole('tab', { name: /^all$/i }));
-    if (!screen.queryByRole('button', { name: /export/i })) await user.click(screen.getByRole('button', { name: /more/i }));
-    expect(screen.getByRole('button', { name: /export/i })).toBeEnabled();
+    if (!screen.queryByRole('button', { name: /^export$/i })) await user.click(screen.getByRole('button', { name: /^(export and import|options)$/i }));
+    expect(screen.getByRole('button', { name: /^export$/i })).toBeEnabled();
     const all = await exportWorkbook();
     expect([2, 3].map((r) => all.getRow(r).getCell(col(all, 'Project')).value)).toEqual(['Alpha Reach HQ Fit-Out', 'Beta IDR Rollout']);
     hoisted.captured = [];

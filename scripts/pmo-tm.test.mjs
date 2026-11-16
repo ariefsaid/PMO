@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 
 import { run, writeCredentials } from './pmo.mjs';
 import { MAX_CLAIM_RANGE_DAYS, TM_READ_RPCS, explainError, formatAssignees, formatClaims, formatPreview, formatRateCard, validateClaimList, validatePreview, validateRatesList } from './lib/pmo-tm.mjs';
+import { TM_WRITE_RPCS, explainWriteError, rateRowProblems, planRates } from './lib/pmo-tm-write.mjs';
 
 const PROJECT = '11111111-1111-1111-1111-111111111111';
 const LINE_KEY = '33333333-3333-3333-3333-333333333333';
@@ -55,6 +56,43 @@ const ASSIGNEES = [
   { project_id: PROJECT, line_key: LINE_KEY, user_id: ENGINEER, effective_from: '2026-01-01', effective_to: null },
 ];
 
+const FINANCE_A = '66666666-6666-6666-6666-666666666666';
+const OTHER = '77777777-7777-7777-7777-777777777777';
+const DOCUMENT = '88888888-8888-8888-8888-888888888888';
+const SOURCE = '99999999-9999-9999-9999-999999999999';
+const NEW_CLAIM = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const DRAFT = { ...CLAIMS[0], status: 'Draft', prepared_by: FINANCE_A, signoff_prepared_by: FINANCE_A, document_id: DOCUMENT };
+const SOURCES = [{
+  id: SOURCE, entry_id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', entry_date: '2026-01-05', person_id: ENGINEER, person_name: 'Siti Engineer',
+  asset_id: null, asset_name: null, basis: 'work', units: 8, unit: 'hour', line_label: 'Site engineer', is_selected: true,
+  person_unit_total: 8, total_count: 1, signoff_is_current: true,
+}];
+const DOC = { id: DOCUMENT, project_id: PROJECT, title: 'January hours', revision: 'A', status: 'Issued', file_path: 'org/p/d/jan.pdf' };
+const RATE_ROW = { project_id: PROJECT, kind: 'labour', label: 'Surveyor', unit: 'hour', rate: 60000, currency: 'IDR', effective_from: '2026-01-01' };
+const ASSIGN_ROW = { project_id: PROJECT, line_key: LINE_KEY, user_id: OTHER, effective_from: '2027-01-01' };
+
+/** The signed-in user (readMe) plus the profile reads a command makes (names, member status). */
+function signedIn(role, { id = FINANCE_A, status = 'active', people = [] } = {}) {
+  return {
+    'GET /auth/v1/user': [200, { id, email: 'a@example.test' }],
+    'GET /rest/v1/profiles': (_body, url) => (url.searchParams.get('select') === 'full_name,role,status'
+      ? [200, [{ full_name: 'Signed In', role, status }]]
+      : [200, people]),
+  };
+}
+/** Every read a write command's plan makes, answered with the fixtures above. */
+const READS = () => ({
+  ...signedIn('Finance', { people: [{ id: ENGINEER, full_name: 'Siti Engineer', status: 'active' }, { id: OTHER, full_name: 'Other Person', status: 'active' }] }),
+  'GET /rest/v1/projects': [200, [{ id: PROJECT, currency: 'IDR' }]],
+  'GET /rest/v1/contract_rate_lines': [200, RATES],
+  'GET /rest/v1/contract_rate_assignees': [200, ASSIGNEES],
+  'GET /rest/v1/project_documents': [200, [DOC]],
+  'POST /rest/v1/rpc/preview_tm_claim': [200, PREVIEW_ROWS],
+  'POST /rest/v1/rpc/list_tm_claims': [200, [DRAFT]],
+  'POST /rest/v1/rpc/list_tm_claim_source_details': [200, SOURCES],
+});
+
 async function fake(handlers = {}) {
   const requests = [];
   const server = http.createServer(async (req, res) => {
@@ -69,7 +107,8 @@ async function fake(handlers = {}) {
     };
     const answer = handlers[`${req.method} ${url.pathname}`];
     if (answer === undefined) return send(404, { message: `unexpected ${req.method} ${url.pathname}` });
-    const [status, json] = typeof answer === 'function' ? answer(parsed) : answer;
+    if (answer === 'drop') return req.socket.destroy();
+    const [status, json] = typeof answer === 'function' ? answer(parsed, url) : answer;
     return send(status, json);
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -83,6 +122,14 @@ async function fake(handlers = {}) {
 const rpcCalls = (server) => server.requests
   .filter((request) => request.path.startsWith('/rest/v1/rpc/'))
   .map((request) => request.path.slice('/rest/v1/rpc/'.length));
+/** Every RPC a request reached that is not one of the three admitted reads: i.e. every write that arrived. */
+const writesSent = (server) => rpcCalls(server).filter((name) => !TM_READ_RPCS.includes(name));
+function jsonFile(value) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pmo-tm-file-'));
+  const file = path.join(dir, 'rows.json');
+  fs.writeFileSync(file, JSON.stringify(value));
+  return file;
+}
 
 async function cli(argv, server) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pmo-tm-'));
@@ -363,7 +410,7 @@ test('AC-TM-017 a bad query is refused before any request (exit 2)', async () =>
       assert.equal(r.error.code, 'invalid_tm_query', `${argv.join(' ')} → ${JSON.stringify(r.error)}`);
       assert.ok(r.error.details.length >= 1);
     }
-    for (const argv of [['tm', 'claim', 'assemble', '--project', PROJECT], ['tm', 'rates', 'set'], ['tm', 'wipe']]) {
+    for (const argv of [['tm', 'wipe'], ['tm', 'rates', 'delete'], ['tm', 'claim', 'approve']]) {
       const r = await cli(argv, f);
       assert.equal(r.code, 2, `${argv.join(' ')} → ${r.out}${JSON.stringify(r.error)}`);
       assert.match(r.error.message, /Unknown tm command/);
@@ -408,4 +455,513 @@ test('AC-TM-017 formatPreview totals an unpriced window and falls back to the id
   assert.match(named, /Siti Engineer\s+no rate line is assigned to this person/);
   assert.match(named, /Total 0\.00/);
   assert.match(formatPreview(only), new RegExp(`^Unrated \\(listed, not billed\\):\\n  .*${ENGINEER}`, 'm'));
+});
+
+test('AC-CTM-016 the CLI T&M writer list is exactly the database tm_write_rpcs tier (latest api_client_request_guard)', () => {
+  assert.deepEqual([...TM_WRITE_RPCS].sort(), guardList('tm_write_rpcs'));
+});
+
+test('AC-CTM-010 explainWriteError gives each refusal code a headline and keeps the server\'s words', () => {
+  for (const [code, head] of [
+    ['42501', /^Not allowed \(role or separation of duties\): server says no$/],
+    ['22023', /^Invalid input: server says no$/],
+    ['23505', /^Conflicts with an existing record: server says no$/],
+    ['23514', /^Does not match the project or its document: server says no$/],
+    ['40001', /^Changed since it was read: re-read with `pmo tm rates list` and run again: server says no$/],
+    ['55000', /^Not ready to proceed: server says no$/],
+    ['P0001', /^Refused in the claim's current state: server says no$/],
+    ['P0002', /^Not found: server says no$/],
+  ]) assert.match(explainWriteError({ code, message: 'server says no' }), head);
+  assert.equal(explainWriteError({ code: 'XX000', message: 'boom' }), 'boom');
+});
+
+test('AC-CTM-004 rateRowProblems refuses a malformed rate line and names each problem', () => {
+  assert.deepEqual(rateRowProblems(RATE_ROW), []);
+  assert.deepEqual(rateRowProblems({ ...RATE_ROW, line_key: LINE_KEY, expected_version: 2 }), []);
+  for (const [row, re] of [
+    [{ ...RATE_ROW, rate: 1.234 }, /at most 2 decimals/],
+    [{ ...RATE_ROW, rate: -1 }, /zero or more/],
+    [{ ...RATE_ROW, rate: '60000' }, /rate must be a number/],
+    [{ ...RATE_ROW, currency: 'idr' }, /three-letter code/],
+    [{ ...RATE_ROW, org_id: PROJECT }, /"org_id" is not a rate-line field/],
+    [{ ...RATE_ROW, label: '  ' }, /label is required/],
+    [{ ...RATE_ROW, unit: 'week' }, /unit must be hour or day/],
+    [{ ...RATE_ROW, effective_from: '2026-02-30' }, /effective_from must be a date/],
+    [{ ...RATE_ROW, effective_to: '2025-12-31' }, /on or after effective_from/],
+    [{ ...RATE_ROW, line_key: LINE_KEY }, /both line_key and expected_version/],
+    [{ ...RATE_ROW, standby_rate: 10 }, /only for equipment lines/],
+    [{ ...RATE_ROW, kind: 'equipment' }, /asset_id \(uuid\) is required/],
+    [{ ...RATE_ROW, sales_item_code: 'a\nb' }, /no control characters/],
+  ]) assert.match(rateRowProblems(row).join('; '), re, JSON.stringify(row));
+  assert.deepEqual(rateRowProblems('x'), ['each rate line must be a JSON object']);
+});
+
+const stubApi = ({ card = RATES, currency = 'IDR', rpc } = {}) => ({
+  get: async (table) => (table === 'contract_rate_lines' ? card : table === 'projects' ? [{ id: PROJECT, currency }] : []),
+  rpc: rpc ?? (async (name) => { throw new Error(`unexpected rpc ${name}`); }),
+});
+
+test('AC-CTM-004 planRates classifies each row: create, new version, unchanged or refused', async () => {
+  const current = RATES[1];
+  const edit = { project_id: PROJECT, line_key: LINE_KEY, expected_version: 2, kind: 'labour', label: 'Site engineer', unit: 'hour', currency: 'IDR' };
+  const plan = await planRates(stubApi(), [
+    RATE_ROW,
+    { ...edit, rate: 55000, effective_from: '2026-07-01' },
+    { ...edit, rate: current.rate, effective_from: current.effective_from },
+    { ...edit, expected_version: 1, rate: 55000, effective_from: '2026-07-01' },
+    { ...RATE_ROW, label: 'site ENGINEER ' },
+    { ...RATE_ROW, currency: 'USD', label: 'Driver' },
+    { ...edit, line_key: OTHER, rate: 1, effective_from: '2026-07-01' },
+  ]);
+  assert.deepEqual(plan.map((row) => row.action), ['create', 'new version', 'unchanged', 'refused', 'refused', 'refused', 'refused']);
+  assert.match(plan[0].line_key, UUID_RE);
+  assert.match(plan[3].problems.join(), /version 2, the file expects 1/);
+  assert.match(plan[4].problems.join(), /already has a current labour line labelled "site ENGINEER"/);
+  assert.match(plan[5].problems.join(), /not the project's currency \(IDR\)/);
+  assert.match(plan[6].problems.join(), /no current rate line has this line_key/);
+});
+
+test('AC-CTM-004 two new labour lines with the same label in one file: the second is refused', async () => {
+  const plan = await planRates(stubApi(), [RATE_ROW, { ...RATE_ROW, label: 'surveyor' }]);
+  assert.deepEqual(plan.map((row) => row.action), ['create', 'refused']);
+});
+
+test('NFR-CTM-003 a card read that hits the bound is refused, never planned from', async () => {
+  const card = Array.from({ length: 1001 }, (_, i) => ({ ...RATES[1], line_key: `${i}`, label: `L${i}` }));
+  await assert.rejects(planRates(stubApi({ card }), [RATE_ROW]), /1000 or more current rate lines/);
+});
+
+test('AC-CTM-004 a rates file with a refused row sends nothing, with or without --apply', async () => {
+  const f = await fake(READS());
+  try {
+    const file = jsonFile([RATE_ROW, { ...RATE_ROW, label: 'A', currency: 'USD' }, { ...RATE_ROW, label: 'B', rate: 1.234 }, { ...RATE_ROW, label: 'C', rate: -1 }, { ...RATE_ROW, label: 'site engineer' }]);
+    for (const extra of [[], ['--apply']]) {
+      const r = await cli(['tm', 'rates', 'set', file, ...extra], f);
+      assert.equal(r.code, 2, r.out);
+      assert.deepEqual(r.json.rows.map((row) => row.action), ['create', 'refused', 'refused', 'refused', 'refused']);
+      assert.match(r.json.note, /Nothing was sent: 4 row\(s\) refused/);
+    }
+    assert.deepEqual(writesSent(f), []);
+  } finally { await f.close(); }
+});
+
+test('AC-CTM-005 a created line prints its minted line_key; rerunning the file refuses it as a duplicate label without a write', async () => {
+  const card = [...RATES];
+  const f = await fake({
+    ...READS(),
+    'GET /rest/v1/contract_rate_lines': () => [200, card],
+    'POST /rest/v1/rpc/save_contract_rate_line': (body) => {
+      for (const line of body.p_line) card.push({ ...line, version: 1, is_current: true });
+      return [200, body.p_line.map((line) => ({ id: line.line_key, line_key: line.line_key, version: 1, changed: true }))];
+    },
+  });
+  try {
+    const file = jsonFile([RATE_ROW]);
+    const first = await cli(['tm', 'rates', 'set', file, '--apply'], f);
+    assert.equal(first.code, 0, JSON.stringify(first.error));
+    assert.match(first.json.saved[0].line_key, UUID_RE);
+    assert.equal(first.json.current[0].label, 'Surveyor');
+    const second = await cli(['tm', 'rates', 'set', file, '--apply'], f);
+    assert.equal(second.code, 2);
+    assert.match(second.json.rows[0].problems.join(), /already has a current labour line labelled "Surveyor"/);
+    assert.deepEqual(writesSent(f), ['save_contract_rate_line'], 'one write, from the first run only');
+  } finally { await f.close(); }
+});
+
+test('AC-CTM-006 a three-row file is one call; the server refusing it is reported, exit 1', async () => {
+  const f = await fake({
+    ...READS(),
+    'POST /rest/v1/rpc/save_contract_rate_line': [409, { code: '23505', message: 'a new rate version cannot rewrite an already applied effective window' }],
+  });
+  try {
+    const r = await cli(['tm', 'rates', 'set', jsonFile([RATE_ROW, { ...RATE_ROW, label: 'Driver' }, { ...RATE_ROW, label: 'Welder' }]), '--apply'], f);
+    assert.equal(r.code, 1);
+    assert.equal(r.error.code, '23505');
+    assert.equal(r.error.message, 'Conflicts with an existing record: a new rate version cannot rewrite an already applied effective window');
+    const saves = f.requests.filter((q) => q.path === '/rest/v1/rpc/save_contract_rate_line');
+    assert.equal(saves.length, 1);
+    assert.equal(saves[0].body.p_line.length, 3);
+  } finally { await f.close(); }
+});
+
+test('AC-CTM-007 assign set: an identical row is skipped, an overlap is refused in the server\'s words, a new row is created', async () => {
+  const f = await fake({
+    ...READS(),
+    'POST /rest/v1/rpc/set_contract_rate_assignee': (body) => (body.p_user === ENGINEER
+      ? [409, { code: '23505', message: 'person already has a labour line over those dates' }]
+      : [200, 'cccccccc-cccc-cccc-cccc-cccccccccccc']),
+  });
+  try {
+    const rows = [
+      { project_id: PROJECT, line_key: LINE_KEY, user_id: ENGINEER, effective_from: '2026-01-01' },
+      { project_id: PROJECT, line_key: LINE_KEY, user_id: ENGINEER, effective_from: '2026-06-01', effective_to: '2026-06-30' },
+      { project_id: PROJECT, line_key: LINE_KEY, user_id: OTHER, effective_from: '2026-01-01' },
+    ];
+    const preview = await cli(['tm', 'assign', 'set', jsonFile(rows)], f);
+    assert.equal(preview.code, 0, JSON.stringify(preview.error));
+    assert.deepEqual(preview.json.rows.map((row) => row.action), ['skip', 'create', 'create']);
+    assert.match(preview.json.rows[1].warnings.join(), /overlaps this person's assignment from 2026-01-01/);
+    assert.deepEqual(writesSent(f), []);
+    const r = await cli(['tm', 'assign', 'set', jsonFile(rows), '--apply'], f);
+    assert.equal(r.code, 1);
+    assert.deepEqual(r.json.rows.map((row) => row.action), ['skip', 'refused', 'created']);
+    assert.equal(r.json.rows[1].problems[0], 'Conflicts with an existing record: person already has a labour line over those dates');
+    assert.equal(r.json.rows[2].assignment_id, 'cccccccc-cccc-cccc-cccc-cccccccccccc');
+    const sent = f.requests.filter((q) => q.path === '/rest/v1/rpc/set_contract_rate_assignee').map((q) => q.body);
+    assert.deepEqual(sent, [
+      { p_project: PROJECT, p_line_key: LINE_KEY, p_user: ENGINEER, p_from: '2026-06-01', p_to: '2026-06-30' },
+      { p_project: PROJECT, p_line_key: LINE_KEY, p_user: OTHER, p_from: '2026-01-01', p_to: null },
+    ]);
+  } finally { await f.close(); }
+});
+
+test('AC-CTM-007 a malformed assignment row is refused locally and never sent', async () => {
+  const f = await fake(READS());
+  try {
+    const r = await cli(['tm', 'assign', 'set', jsonFile([{ ...ASSIGN_ROW, user_id: 'nobody' }]), '--apply'], f);
+    assert.equal(r.code, 2, 'nothing reached the server: exit 2, as the preview');
+    assert.match(r.json.rows[0].problems.join(), /user_id must be a person id/);
+    assert.deepEqual(writesSent(f), []);
+  } finally { await f.close(); }
+});
+
+test('AC-CTM-008 an overlapping Draft claim for the same project and work order is reported already_assembled; no writer is called', async () => {
+  const f = await fake(READS());
+  try {
+    const r = await cli(['tm', 'claim', 'assemble', '--project', PROJECT, '--from', '2026-01-10', '--to', '2026-01-20', '--apply'], f);
+    assert.equal(r.code, 0, JSON.stringify(r.error));
+    assert.equal(r.json.status, 'already_assembled');
+    assert.equal(r.json.claim.id, CLAIM);
+    assert.deepEqual(writesSent(f), []);
+  } finally { await f.close(); }
+});
+
+test('AC-CTM-009 an assembled total that differs from the preview prints both with a warning', async () => {
+  let listed = 0;
+  const f = await fake({
+    ...READS(),
+    'POST /rest/v1/rpc/list_tm_claims': () => (listed++ === 0
+      ? [200, []]
+      : [200, [{ ...DRAFT, id: NEW_CLAIM, period_from: '2026-02-01', period_to: '2026-02-28', gross_amount: 6400000 }]]),
+    'POST /rest/v1/rpc/assemble_tm_claim': [200, NEW_CLAIM],
+  });
+  try {
+    const r = await cli(['tm', 'claim', 'assemble', '--project', PROJECT, '--from', '2026-02-01', '--to', '2026-02-28', '--apply'], f);
+    assert.equal(r.code, 0, JSON.stringify(r.error));
+    assert.equal(r.json.claim_id, NEW_CLAIM);
+    assert.deepEqual(r.json.warning.total_changed, { preview: '6000000.00', assembled: '6400000.00' });
+    assert.deepEqual(f.requests.find((q) => q.path === '/rest/v1/rpc/assemble_tm_claim').body, { p_project: PROJECT, p_from: '2026-02-01', p_to: '2026-02-28' });
+  } finally { await f.close(); }
+});
+
+test('FR-CTM-023 claim sources lists each source, whether it is still in the claim, and whether the sign-off is current', async () => {
+  const f = await fake(READS());
+  try {
+    const r = await cli(['tm', 'claim', 'sources', CLAIM], f);
+    assert.equal(r.code, 0, JSON.stringify(r.error));
+    assert.deepEqual(rpcCalls(f), ['list_tm_claim_source_details']);
+    assert.deepEqual(f.requests.find((q) => q.path.includes('/rpc/')).body, { p_claim: CLAIM });
+    assert.equal(r.json.signoff_is_current, true);
+    assert.deepEqual(r.json.sources, [{ source_id: SOURCE, date: '2026-01-05', who: 'Siti Engineer', units: 8, unit: 'hour', line: 'Site engineer', basis: 'work', in_claim: true }]);
+  } finally { await f.close(); }
+});
+
+test('FR-CTM-024 claim deselect removes each named source once, skips one already out, then prints the new total', async () => {
+  const f = await fake({ ...READS(), 'POST /rest/v1/rpc/deselect_tm_source': [200, null] });
+  try {
+    const gone = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
+    const r = await cli(['tm', 'claim', 'deselect', CLAIM, SOURCE, gone, '--project', PROJECT, '--apply'], f);
+    assert.equal(r.code, 0, JSON.stringify(r.error));
+    assert.deepEqual(r.json.sources.map((s) => s.action), ['deselect', 'skip']);
+    assert.deepEqual(f.requests.filter((q) => q.path === '/rest/v1/rpc/deselect_tm_source').map((q) => q.body), [{ p_claim: CLAIM, p_source: SOURCE }]);
+    assert.equal(r.json.claim.gross_amount, 6000000);
+  } finally { await f.close(); }
+});
+
+test('D3 a claim command refuses a claim that is not on the named project, before any write', async () => {
+  const f = await fake({ ...READS(), 'POST /rest/v1/rpc/list_tm_claims': [200, []] });
+  try {
+    const r = await cli(['tm', 'claim', 'deselect', CLAIM, SOURCE, '--project', PROJECT, '--apply'], f);
+    assert.equal(r.code, 2);
+    assert.match(r.error.details.join(), /no claim .* on project/);
+    assert.deepEqual(writesSent(f), []);
+  } finally { await f.close(); }
+});
+
+test('AC-CTM-014 withdrawing a claim that is already withdrawn reports already_withdrawn and sends nothing', async () => {
+  const f = await fake({ ...READS(), 'POST /rest/v1/rpc/list_tm_claims': [200, [{ ...DRAFT, status: 'Withdrawn' }]] });
+  try {
+    const r = await cli(['tm', 'claim', 'withdraw', CLAIM, '--project', PROJECT, '--apply'], f);
+    assert.equal(r.code, 0, JSON.stringify(r.error));
+    assert.deepEqual(r.json, { status: 'already_withdrawn', claim_id: CLAIM });
+    assert.deepEqual(writesSent(f), []);
+  } finally { await f.close(); }
+});
+
+test('FR-CTM-025 the withdraw preview shows the status and what it releases', async () => {
+  const f = await fake(READS());
+  try {
+    const r = await cli(['tm', 'claim', 'withdraw', CLAIM, '--project', PROJECT], f);
+    assert.equal(r.code, 0, JSON.stringify(r.error));
+    assert.equal(r.json.claim.status, 'Draft');
+    assert.match(r.json.releases, /^1 source\(s\) become claimable again/);
+  } finally { await f.close(); }
+});
+
+test('AC-CTM-012 preparing against a Draft document or one without a file warns that confirmation will refuse it', async () => {
+  for (const [doc, re] of [[{ ...DOC, status: 'Draft' }, /Issued or Approved/], [{ ...DOC, file_path: null }, /has no file/]]) {
+    const f = await fake({ ...READS(), 'GET /rest/v1/project_documents': [200, [doc]] });
+    try {
+      const r = await cli(['tm', 'signoff', 'prepare', CLAIM, '--project', PROJECT, '--document', DOCUMENT], f);
+      assert.equal(r.code, 0, JSON.stringify(r.error));
+      assert.match(r.json.warnings.join(), re);
+      assert.deepEqual(writesSent(f), []);
+    } finally { await f.close(); }
+  }
+});
+
+test('FR-CTM-030 a document from another project is refused before sending', async () => {
+  const f = await fake({ ...READS(), 'GET /rest/v1/project_documents': [200, [{ ...DOC, project_id: OTHER }]] });
+  try {
+    const r = await cli(['tm', 'signoff', 'prepare', CLAIM, '--project', PROJECT, '--document', DOCUMENT, '--apply'], f);
+    assert.equal(r.code, 2);
+    assert.match(r.error.details.join(), /must belong to the claim's project/);
+    assert.deepEqual(writesSent(f), []);
+  } finally { await f.close(); }
+});
+
+/** One row per write command: its preview argv, its RPC, the exact body the app sends, the server's answer. */
+const COMMANDS = () => [
+  { argv: ['tm', 'rates', 'set', jsonFile([RATE_ROW])], rpc: 'save_contract_rate_line', answer: [200, [{ id: 'r1', line_key: LINE_KEY, version: 1, changed: true }]],
+    body: (b) => { assert.deepEqual(Object.keys(b), ['p_line']); const { line_key, ...rest } = b.p_line[0]; assert.match(line_key, UUID_RE); assert.deepEqual(rest, RATE_ROW); } },
+  { argv: ['tm', 'assign', 'set', jsonFile([ASSIGN_ROW])], rpc: 'set_contract_rate_assignee', answer: [200, 'cccccccc-cccc-cccc-cccc-cccccccccccc'],
+    body: { p_project: PROJECT, p_line_key: LINE_KEY, p_user: OTHER, p_from: '2027-01-01', p_to: null } },
+  { argv: ['tm', 'claim', 'assemble', '--project', PROJECT, '--from', '2026-02-01', '--to', '2026-02-28'], rpc: 'assemble_tm_claim', answer: [200, CLAIM],
+    body: { p_project: PROJECT, p_from: '2026-02-01', p_to: '2026-02-28' } },
+  { argv: ['tm', 'claim', 'deselect', CLAIM, SOURCE, '--project', PROJECT], rpc: 'deselect_tm_source', answer: [200, null], body: { p_claim: CLAIM, p_source: SOURCE } },
+  { argv: ['tm', 'claim', 'withdraw', CLAIM, '--project', PROJECT], rpc: 'withdraw_tm_signoff', answer: [200, null], body: { p_claim: CLAIM } },
+  { argv: ['tm', 'signoff', 'prepare', CLAIM, '--project', PROJECT, '--document', DOCUMENT], rpc: 'prepare_tm_signoff', answer: [200, null], body: { p_claim: CLAIM, p_document: DOCUMENT } },
+];
+
+// assemble needs "no overlapping Draft": the fixture's Draft covers January, the command's window is February.
+test('AC-CTM-001 every write command without --apply sends only reads and calls no writer', async () => {
+  for (const { argv } of COMMANDS()) {
+    const f = await fake(READS());
+    try {
+      const r = await cli(argv, f);
+      assert.equal(r.code, 0, `${argv.join(' ')} → ${JSON.stringify(r.error ?? r.json)}`);
+      assert.equal(r.json.applied, false);
+      assert.deepEqual(writesSent(f), [], argv.join(' '));
+      for (const q of f.requests) {
+        assert.ok(q.method === 'GET' || TM_READ_RPCS.includes(q.path.slice('/rest/v1/rpc/'.length)), `${argv.join(' ')} sent ${q.method} ${q.path}`);
+      }
+    } finally { await f.close(); }
+  }
+});
+
+test('AC-CTM-002 every write command with --apply calls its one RPC once, with the app\'s arguments and no org, caller or amount', async () => {
+  for (const { argv, rpc, answer, body } of COMMANDS()) {
+    const f = await fake({ ...READS(), [`POST /rest/v1/rpc/${rpc}`]: answer });
+    try {
+      const r = await cli([...argv, '--apply'], f);
+      assert.equal(r.code, 0, `${argv.join(' ')} → ${JSON.stringify(r.error ?? r.json)}`);
+      assert.deepEqual(writesSent(f), [rpc]);
+      const sent = f.requests.find((q) => q.path === `/rest/v1/rpc/${rpc}`).body;
+      if (typeof body === 'function') body(sent); else assert.deepEqual(sent, body);
+      const posted = JSON.stringify(f.requests.filter((q) => q.method !== 'GET').map((q) => q.body));
+      assert.doesNotMatch(posted, /"(org_id|p_org|created_by|prepared_by|amount|gross_amount|p_amount)"/);
+      assert.equal(posted.includes(FINANCE_A), false, 'the caller\'s id is never sent');
+    } finally { await f.close(); }
+  }
+});
+
+test('AC-CTM-003 a Project Manager, Engineer, Executive or inactive Finance member is refused before any RPC, naming the app', async () => {
+  for (const [role, status] of [['Project Manager', 'active'], ['Engineer', 'active'], ['Executive', 'active'], ['Finance', 'disabled']]) {
+    for (const { argv } of COMMANDS()) {
+      for (const extra of [[], ['--apply']]) {
+        const f = await fake({ ...READS(), ...signedIn(role, { status }) });
+        try {
+          const r = await cli([...argv, ...extra], f);
+          assert.equal(r.code, 2, `${role} ${argv.join(' ')}`);
+          assert.equal(r.error.code, 'tm_role_refused');
+          assert.match(r.error.message, /active Admin or Finance member/);
+          assert.match(r.error.message, /Contract & billing → Time and materials/);
+          assert.deepEqual(rpcCalls(f), []);
+        } finally { await f.close(); }
+      }
+    }
+  }
+});
+
+test('AC-CTM-010 a server refusal prints its headline and the server\'s own message, exit 1', async () => {
+  for (const code of ['42501', 'P0001', 'P0002', '22023', '23505', '23514', '40001', '55000']) {
+    const f = await fake({ ...READS(), 'POST /rest/v1/rpc/withdraw_tm_signoff': [400, { code, message: `server reason ${code}` }] });
+    try {
+      const r = await cli(['tm', 'claim', 'withdraw', CLAIM, '--project', PROJECT, '--apply'], f);
+      assert.equal(r.code, 1);
+      assert.equal(r.error.code, code);
+      assert.equal(r.error.message, explainWriteError({ code, message: `server reason ${code}` }));
+      assert.ok(r.error.message.endsWith(`: server reason ${code}`));
+    } finally { await f.close(); }
+  }
+});
+
+test('FR-CTM-008 a write whose connection drops reports an unknown outcome, names the read to check, and is not retried', async () => {
+  const f = await fake({ ...READS(), 'POST /rest/v1/rpc/withdraw_tm_signoff': 'drop' });
+  try {
+    const r = await cli(['tm', 'claim', 'withdraw', CLAIM, '--project', PROJECT, '--apply'], f);
+    assert.equal(r.code, 1);
+    assert.equal(r.error.code, 'outcome_unknown');
+    assert.match(r.error.details.check, /^pmo tm claim list --project /);
+    assert.equal(writesSent(f).length, 1, 'sent once, never retried');
+  } finally { await f.close(); }
+});
+
+test('AC-CTM-001 a write command with missing input is refused before any RPC (exit 2)', async () => {
+  const f = await fake(READS());
+  try {
+    for (const argv of [['tm', 'rates', 'set'], ['tm', 'claim', 'assemble', '--project', PROJECT], ['tm', 'claim', 'withdraw', 'not-a-uuid', '--project', PROJECT]]) {
+      const r = await cli(argv, f);
+      assert.equal(r.code, 2, `${argv.join(' ')} → ${JSON.stringify(r.error)}`);
+    }
+    assert.deepEqual(rpcCalls(f), []);
+  } finally { await f.close(); }
+});
+
+// ── fix round: truncated reads, rerun after a dropped connection, partial deselect, exit codes ──────────────────────────
+
+const sourceId = (i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`;
+const manySources = (n) => Array.from({ length: n }, (_, i) => ({ ...SOURCES[0], id: sourceId(i + 1), total_count: n }));
+/** The server's row cap (max_rows = 1000) and PostgREST's limit/offset over an ordered list. */
+const paged = (rows) => (_body, url) => {
+  const offset = Number(url.searchParams.get('offset') ?? 0);
+  const limit = Math.min(Number(url.searchParams.get('limit') ?? 1000), 1000);
+  return [200, rows.slice(offset, offset + limit)];
+};
+
+test('NFR-CTM-003 claim sources pages past the server row cap and lists every source', async () => {
+  const f = await fake({ ...READS(), 'POST /rest/v1/rpc/list_tm_claim_source_details': paged(manySources(1001)) });
+  try {
+    const r = await cli(['tm', 'claim', 'sources', CLAIM], f);
+    assert.equal(r.code, 0, JSON.stringify(r.error));
+    assert.equal(r.json.sources.length, 1001);
+    assert.equal(r.json.sources[1000].source_id, sourceId(1001));
+  } finally { await f.close(); }
+});
+
+test('NFR-CTM-003 claim deselect finds a source past the server row cap and removes it', async () => {
+  const f = await fake({ ...READS(), 'POST /rest/v1/rpc/list_tm_claim_source_details': paged(manySources(1001)), 'POST /rest/v1/rpc/deselect_tm_source': [200, null] });
+  try {
+    const r = await cli(['tm', 'claim', 'deselect', CLAIM, sourceId(1001), '--project', PROJECT, '--apply'], f);
+    assert.equal(r.code, 0, JSON.stringify(r.error));
+    assert.deepEqual(r.json.sources.map((s) => s.action), ['deselect']);
+    assert.deepEqual(f.requests.filter((q) => q.path === '/rest/v1/rpc/deselect_tm_source').map((q) => q.body), [{ p_claim: CLAIM, p_source: sourceId(1001) }]);
+  } finally { await f.close(); }
+});
+
+test('NFR-CTM-003 a source list that stops short of its own total is refused, never planned from', async () => {
+  const rows = manySources(1500);
+  const f = await fake({ ...READS(), 'POST /rest/v1/rpc/list_tm_claim_source_details': (_b, url) => [200, Number(url.searchParams.get('offset') ?? 0) === 0 ? rows.slice(0, 1000) : []], 'POST /rest/v1/rpc/deselect_tm_source': [200, null] });
+  try {
+    const r = await cli(['tm', 'claim', 'deselect', CLAIM, sourceId(1400), '--project', PROJECT, '--apply'], f);
+    assert.equal(r.code, 2);
+    assert.match(r.error.message, /Nothing was sent/);
+    assert.deepEqual(writesSent(f), []);
+  } finally { await f.close(); }
+});
+
+test('NFR-CTM-003 a claim list that fills the server row cap is refused before a write is planned', async () => {
+  const claims = Array.from({ length: 1000 }, (_, i) => ({ ...DRAFT, id: sourceId(i + 1) }));
+  const f = await fake({ ...READS(), 'POST /rest/v1/rpc/list_tm_claims': [200, claims] });
+  try {
+    const r = await cli(['tm', 'claim', 'withdraw', sourceId(1), '--project', PROJECT, '--apply'], f);
+    assert.equal(r.code, 2);
+    assert.match(r.error.details.join(), /1000 or more claims/);
+    assert.deepEqual(writesSent(f), []);
+  } finally { await f.close(); }
+});
+
+test('NFR-CTM-003 a rate card that fills the server row cap (1000) is refused, not planned from', async () => {
+  const card = Array.from({ length: 1000 }, (_, i) => ({ ...RATES[1], line_key: `${i}`, label: `L${i}` }));
+  await assert.rejects(planRates(stubApi({ card }), [RATE_ROW]), /1000 or more current rate lines/);
+});
+
+test('AC-CTM-005 a rates write that was saved is reported as saved when the read-back is over the bound, not as "Nothing was sent"', async () => {
+  let reads = 0;
+  const f = await fake({
+    ...READS(),
+    'GET /rest/v1/contract_rate_lines': () => (reads++ === 0 ? [200, RATES] : [200, Array.from({ length: 1000 }, (_, i) => ({ ...RATES[1], line_key: `${i}`, label: `L${i}` }))]),
+    'POST /rest/v1/rpc/save_contract_rate_line': (body) => [200, body.p_line.map((line) => ({ line_key: line.line_key, version: 1, changed: true }))],
+  });
+  try {
+    const r = await cli(['tm', 'rates', 'set', jsonFile([RATE_ROW]), '--apply'], f);
+    assert.equal(r.code, 0, r.out);
+    assert.equal(r.json.applied, true);
+    assert.match(r.json.saved[0].line_key, UUID_RE);
+    assert.match(r.json.readback_note, /Saved\. Reading it back failed.*pmo tm rates list --project/);
+    assert.doesNotMatch(r.out, /Nothing was sent/);
+  } finally { await f.close(); }
+});
+
+const EQUIP_ROW = { project_id: PROJECT, kind: 'equipment', asset_id: '12121212-1212-4212-8212-121212121212', label: 'Excavator', unit: 'hour', rate: 900000, standby_rate: 300000, currency: 'IDR', effective_from: '2026-01-01' };
+
+test('AC-CTM-005 rerunning a new equipment line that was already saved reports it as already saved and sends nothing', async () => {
+  const card = [...RATES];
+  const f = await fake({
+    ...READS(),
+    'GET /rest/v1/contract_rate_lines': () => [200, card],
+    'POST /rest/v1/rpc/save_contract_rate_line': (body) => {
+      for (const line of body.p_line) card.push({ ...line, version: 1, is_current: true });
+      return [200, body.p_line.map((line) => ({ line_key: line.line_key, version: 1, changed: true }))];
+    },
+  });
+  try {
+    const file = jsonFile([EQUIP_ROW]);
+    const first = await cli(['tm', 'rates', 'set', file, '--apply'], f);
+    assert.equal(first.code, 0, JSON.stringify(first.error));
+    const second = await cli(['tm', 'rates', 'set', file, '--apply'], f);
+    assert.equal(second.code, 0, second.out);
+    assert.deepEqual(second.json.rows.map((row) => row.action), ['unchanged']);
+    assert.equal(second.json.rows[0].line_key, first.json.saved[0].line_key);
+    assert.match(second.json.note, /Nothing to save/);
+    assert.deepEqual(writesSent(f), ['save_contract_rate_line'], 'one write, from the first run only');
+  } finally { await f.close(); }
+});
+
+test('AC-CTM-005 a new equipment line whose content differs from the saved one for that asset is still created', async () => {
+  const saved = { ...EQUIP_ROW, line_key: '13131313-1313-4313-8313-131313131313', version: 1, is_current: true };
+  const plan = await planRates(stubApi({ card: [...RATES, saved] }), [{ ...EQUIP_ROW, rate: 950000 }]);
+  assert.deepEqual(plan.map((row) => row.action), ['create']);
+});
+
+test('FR-CTM-024 a deselect batch refused part-way reports which sources are out and which were not sent', async () => {
+  const three = manySources(3);
+  const f = await fake({
+    ...READS(),
+    'POST /rest/v1/rpc/list_tm_claim_source_details': [200, three],
+    'POST /rest/v1/rpc/deselect_tm_source': (body) => (body.p_source === sourceId(2)
+      ? [409, { code: 'P0001', message: 'the claim is no longer a Draft' }]
+      : [200, null]),
+  });
+  try {
+    const r = await cli(['tm', 'claim', 'deselect', CLAIM, sourceId(1), sourceId(2), sourceId(3), '--project', PROJECT, '--apply'], f);
+    assert.equal(r.code, 1, r.out);
+    assert.equal(r.json.applied, true);
+    assert.deepEqual(r.json.sources.map((s) => s.action), ['deselect', 'refused', 'not_sent']);
+    assert.match(r.json.sources[1].problems[0], /the claim is no longer a Draft/);
+    assert.deepEqual(r.json.deselected, [sourceId(1)]);
+    assert.deepEqual(r.json.not_deselected, [sourceId(2), sourceId(3)]);
+    assert.equal(writesSent(f).length, 2, 'the third source is never sent');
+  } finally { await f.close(); }
+});
+
+test('AC-CTM-007 assign set --apply with every assignment already present exits 0 and says it is already done', async () => {
+  const f = await fake(READS());
+  try {
+    const r = await cli(['tm', 'assign', 'set', jsonFile([{ project_id: PROJECT, line_key: LINE_KEY, user_id: ENGINEER, effective_from: '2026-01-01' }]), '--apply'], f);
+    assert.equal(r.code, 0, r.out);
+    assert.equal(r.json.applied, false);
+    assert.match(r.json.note, /Already done/);
+    assert.deepEqual(writesSent(f), []);
+  } finally { await f.close(); }
 });

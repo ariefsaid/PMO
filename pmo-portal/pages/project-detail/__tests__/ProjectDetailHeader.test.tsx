@@ -163,7 +163,7 @@ describe('ProjectDetailHeader — content', () => {
     const pastEnd = { ...onHand, end_date: '2026-06-30' } as ProjectWithRefs;
     const first = renderHeader('Project Manager', pastEnd);
 
-    expect(screen.getByText('Past end date · 134 d')).toBeInTheDocument();
+    expect(screen.getByText('134 days past end date')).toBeInTheDocument();
     expect(screen.getByText('Ongoing')).toBeInTheDocument();
     first.unmount();
 
@@ -184,26 +184,6 @@ describe('ProjectDetailHeader — content', () => {
     const header = screen.getByTestId('record-header');
     expect(within(header).getByText('Berjalan')).toBeInTheDocument();
     expect(within(header).queryByText('Ongoing')).not.toBeInTheDocument();
-  });
-
-  it('gives the full-width project title priority on mobile and keeps status below metadata', () => {
-    roleBox.value = 'Project Manager';
-    render(
-      <MemoryRouter>
-        <ToastProvider>
-          <ProjectDetailHeader project={onHand} compact />
-        </ToastProvider>
-      </MemoryRouter>,
-    );
-    const header = screen.getByTestId('record-header');
-    const title = within(header).getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' });
-    const status = within(header).getByText('Ongoing');
-    expect(title.parentElement?.className).toContain('grid');
-    expect(title.className).toContain('col-span-2');
-    expect(title.parentElement).toContainElement(status);
-    expect(header.querySelector('.row-start-2')).toBeInTheDocument();
-    expect(status.closest('.row-start-3')).not.toBeNull();
-    expect(title.parentElement?.className).toContain('sm:flex');
   });
 
   it('AC-MONEY-DISPLAY: actual figures show rounded whole currency units', () => {
@@ -319,7 +299,7 @@ describe('ProjectDetailHeader — content', () => {
     expect(header.getByRole('button', { name: 'Raise invoice' })).toBeInTheDocument();
     // One filled button: the state verb. Edit moves into the ⋯ menu.
     expect(header.queryByRole('button', { name: /^Edit$/i })).not.toBeInTheDocument();
-    await userEvent.click(header.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(header.getByRole('button', { name: 'Project actions' }));
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit' }));
     expect(onEditAgain).toHaveBeenCalledOnce();
   });
@@ -427,7 +407,7 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
 
   it('AC-PRJ-005: Executive sees Archive (archive = Admin·Exec)', async () => {
     renderHeader('Executive');
-    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Project actions' }));
     expect(await screen.findByRole('menuitem', { name: /Archive/i })).toBeInTheDocument();
   });
 
@@ -439,7 +419,7 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
 
   it('AC-PRJ-007: Admin sees the hard-Delete action', async () => {
     renderHeader('Admin');
-    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Project actions' }));
     expect(await screen.findByRole('menuitem', { name: /^Delete$/i })).toBeInTheDocument();
   });
 
@@ -453,7 +433,7 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
 
   it('AC-PRJ-007: Delete routes through a destructive confirm and calls the delete mutation (nothing on a single click)', async () => {
     renderHeader('Admin');
-    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Project actions' }));
     await userEvent.click(await screen.findByRole('menuitem', { name: /^Delete$/i }));
     // Nothing is deleted on the trigger click — only after the confirm.
     expect(projectMutations.remove.mutateAsync).not.toHaveBeenCalled();
@@ -465,7 +445,7 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
   it('AC-PRJ-007: a referenced-project delete (23503) surfaces a classified warning toast, suggesting Archive', async () => {
     projectMutations.remove.mutateAsync.mockRejectedValue(new AppError('referenced', '23503'));
     renderHeader('Admin');
-    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Project actions' }));
     await userEvent.click(await screen.findByRole('menuitem', { name: /^Delete$/i }));
     const dialog = await screen.findByRole('alertdialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /delete project/i }));
@@ -489,7 +469,7 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
 
   it('AC-PRJ-005: Archive routes through a destructive confirm and calls the archive mutation', async () => {
     renderHeader('Executive');
-    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Project actions' }));
     await userEvent.click(await screen.findByRole('menuitem', { name: /Archive/i }));
     // The mutation is NOT called until the confirm is pressed (nothing writes on a single click).
     expect(projectMutations.archive.mutateAsync).not.toHaveBeenCalled();

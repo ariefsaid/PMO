@@ -260,7 +260,7 @@ describe('Budget vs actual block carries the snapshot behaviours', () => {
     h.versions = { data: [activeVersion([['Labor', 150]])], isPending: false, isError: false };
     h.budgetPosition = position({ activeBudgetAmount: '150.00', spent: '50.00', consumption: '50.00', usedRatio: '0.3333', usedPercent: '33', consumptionVariance: '-100.00' });
     renderOverviewMoney();
-    expect(await within(costBlock()).findByText(/Left after orders \$100/)).toBeInTheDocument();
+    expect(await within(costBlock()).findByText(/Left after open orders \$100/)).toBeInTheDocument();
     expect(within(costBlock()).getByText(/Committed \$0/)).toBeInTheDocument();
     expect(within(costBlock()).getByText('Within budget')).toBeInTheDocument();
     expect(within(costBlock()).queryByText(/over budget/i)).not.toBeInTheDocument();
