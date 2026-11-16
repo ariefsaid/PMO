@@ -100,7 +100,7 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
   if (isError) {
     return (
       <div className="flex min-w-0 flex-1 flex-col justify-end">
-        <ListState variant="error" title={t('finance:area.attentionLoadError', "Couldn't load finance activity")} onRetry={onRetry} />
+        <ListState variant="error" quiet title={t('finance:area.attentionLoadError', "Couldn't load finance activity")} onRetry={onRetry} />
       </div>
     );
   }

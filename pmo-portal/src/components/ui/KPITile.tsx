@@ -93,21 +93,12 @@ const Caption: React.FC<{ children: string; wrap?: boolean }> = ({ children, wra
     <div className="mt-auto truncate text-control text-muted-foreground" title={children}>{children}</div>
   );
 
-/** A failed figure: the same one-line message and Retry as every other failed read, in the tile's value slot. */
-const ErrorLine: React.FC<{ message?: string; onRetry?: () => void }> = ({ message, onRetry }) => {
-  const { t } = useTranslation();
-  return (
-    <div role="alert" className="pointer-events-auto relative z-10 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-      <span className="text-control font-semibold text-destructive-text">{message ?? "Couldn't load"}</span>
-      {onRetry && (
-        <Button type="button" variant="outline" size="sm" onClick={onRetry}>
-          <Icon name="refresh" />
-          {t('ui.listState.retry', 'Retry')}
-        </Button>
-      )}
-    </div>
-  );
-};
+/** A failed figure: the same quiet error line (warning icon, message, Retry after it) as every other failed region. */
+const ErrorLine: React.FC<{ message?: string; onRetry?: () => void }> = ({ message, onRetry }) => (
+  <div className="pointer-events-auto relative z-10 min-w-0">
+    <ListState variant="error" quiet title={message ?? "Couldn't load"} onRetry={onRetry ?? (() => {})} />
+  </div>
+);
 
 /** Inside a row: 'tile' (its own 16px inset) or 'panel' (the panels' inset, figures on shared rows). */
 const KPIRowContext = React.createContext<false | 'tile' | 'panel'>(false);
@@ -242,7 +233,7 @@ export function KPITile({
               <FigureContent value={value} exactValue={exactValue} unavailableReason={unavailableReason} />
             </div>
           )}
-          {caption && <Caption wrap={captionWrap}>{caption}</Caption>}
+          {caption && !error && <Caption wrap={captionWrap}>{caption}</Caption>}
         </div>
       </div>
     );
@@ -266,7 +257,7 @@ export function KPITile({
         </div>
       )}
 
-      {caption && <Caption wrap={captionWrap}>{caption}</Caption>}
+      {caption && !error && <Caption wrap={captionWrap}>{caption}</Caption>}
     </div>
   );
 }

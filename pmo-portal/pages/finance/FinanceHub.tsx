@@ -160,12 +160,12 @@ const FinanceHub: React.FC = () => {
         <div className="grid items-start gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2">
           <div>
             {receivablesPending ? <ListState variant="loading" rows={2} className="p-0" /> : receivablesError ? (
-              <ListState variant="error" title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} onRetry={finance.retry} />
+              <ListState variant="error" quiet title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} onRetry={finance.retry} />
             ) : <AgeingStrip kind="receivables" quiet heading={t('financeHub:hub.receivables', 'Receivables')} values={finance.position.receivablesAgeing} unknownCounts={receivablesUnknownAgeing.counts} noDueDateCounts={finance.position.receivablesNoDueDateCounts} unknownTotal={receivablesUnknownWithoutAge} />}
           </div>
           <div>
             {payablesRegionPending ? <ListState variant="loading" rows={2} className="p-0" /> : payablesRegionError ? (
-              <ListState variant="error" title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} onRetry={finance.retry} />
+              <ListState variant="error" quiet title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} onRetry={finance.retry} />
             ) : <AgeingStrip kind="payables" quiet payablesStatusColors heading={t('financeHub:hub.payables', 'Payables')} values={finance.position.payablesAgeing} unknownCounts={payablesUnknownAgeing} />}
           </div>
         </div>

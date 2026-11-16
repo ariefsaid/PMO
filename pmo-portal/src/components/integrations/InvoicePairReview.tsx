@@ -5,7 +5,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { repositories } from '@/src/lib/repositories';
 import { formatCurrency, formatDay } from '@/src/lib/format';
 import type { AcceptedInvoicePair, InvoicePairProposal, UnpairedReason } from '@/src/lib/db/revenue';
-import { Button, ConfirmDialog } from '@/src/components/ui';
+import { Button, ConfirmDialog, ListState } from '@/src/components/ui';
 import { externalDomainOwnershipKey } from '@/src/hooks/approvalsQueryKeys';
 import { AppError } from '@/src/lib/appError';
 
@@ -140,12 +140,7 @@ export function InvoicePairReview({ orgId }: { orgId?: string }) {
       {notice && <p role='status' className='font-medium'>{notice}</p>}
       {error && <p role='alert' className='text-destructive'>{error}</p>}
       {failed.map((f) => (
-        <div key={f.text} role='alert' className='flex flex-wrap items-center gap-2 text-destructive'>
-          <span>{f.text}</span>
-          <Button size='sm' variant='outline' loading={f.query.isFetching} onClick={() => void f.query.refetch()}>
-            {t('invoicePairs.retry', 'Retry')}
-          </Button>
-        </div>
+        <ListState key={f.text} variant='error' quiet title={f.text} onRetry={() => void f.query.refetch()} />
       ))}
 
       {clear.length > 0 && (

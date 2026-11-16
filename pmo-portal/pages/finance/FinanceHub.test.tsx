@@ -227,6 +227,25 @@ describe('Finance hub', () => {
     expect(screen.queryByText("Couldn't load finance figures")).not.toBeInTheDocument();
   });
 
+  it('#2438 every failed cell reads the same way: a warning, one message, ONE Retry, and no caption beside it', () => {
+    state.financeSources.invoicesError = true;
+    state.financeSources.procurementsError = true;
+    state.figures.isError = true;
+    renderHub();
+
+    const alerts = screen.getAllByRole('alert');
+    expect(alerts.length).toBeGreaterThanOrEqual(5);
+    for (const alert of alerts) {
+      expect(within(alert).getAllByRole('button', { name: 'Retry' })).toHaveLength(1);
+      // The warning sits with the message; the Retry control carries no icon of its own.
+      expect(alert.querySelectorAll('svg:not(button svg)')).toHaveLength(1);
+      expect(alert.querySelectorAll('button svg')).toHaveLength(0);
+    }
+    const payablesTile = screen.getByRole('link', { name: 'Open Payables' }).parentElement as HTMLElement;
+    expect(payablesTile).not.toHaveTextContent('unpaid');
+    expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
+  });
+
   it('I2 mounts the invoice pair review on the page Finance lands on, handing it the caller org', () => {
     renderHub('Finance');
     expect(screen.getByTestId('invoice-pair-review')).toHaveTextContent('org-1');
