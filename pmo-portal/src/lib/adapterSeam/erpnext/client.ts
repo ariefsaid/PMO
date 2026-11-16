@@ -699,6 +699,12 @@ export async function cancelDoc(deps: ErpClientDeps, doctype: string, name: stri
   return unwrapFrappeDoc(await erpnextRequest(deps, { method: 'PUT', path: doctypePath(doctype, name), body: { docstatus: 2 } }));
 }
 
+/** `DELETE /api/resource/<DocType>/<name>` — ERPNext deletes only a draft (a submitted document is cancelled, never
+ *  deleted). Used to replace a draft the create itself left behind (#895 `lookUpByKeyFirst`). */
+export async function deleteDoc(deps: ErpClientDeps, doctype: string, name: string): Promise<void> {
+  await erpnextRequest(deps, { method: 'DELETE', path: doctypePath(doctype, name) });
+}
+
 /** `PUT /api/resource/<DocType>/<name>` with a plain field patch, no `docstatus` (task 3.3) — a
  *  non-submittable doctype (a party — Supplier/Customer) has no docstatus lifecycle, so its update
  *  is a direct field PUT (never `submitDoc`/`cancelDoc`'s docstatus transition). */

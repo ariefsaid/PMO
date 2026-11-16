@@ -1,0 +1,106 @@
+{
+  "actions": {
+    "approve": "Approve",
+    "edit": "Edit",
+    "new": "New journal",
+    "return": "Return",
+    "reverse": "Reverse",
+    "saveDraft": "Save draft",
+    "submit": "Submit",
+    "send": "Send to the ledger",
+    "sent": "Journal sent to the ledger",
+    "retrySend": "Retry send"
+  },
+  "approve": {
+    "body": "It is sent to the ledger once approved.",
+    "title": "Approve this journal?",
+    "toast": "Journal approved",
+    "sendFailedTitle": "Approved, but not sent",
+    "sendFailedBody": "The journal is approved. Sending it to the ledger failed; send it again."
+  },
+  "detail": {
+    "error": "Couldn't load this journal",
+    "ledgerDate": "Ledger date",
+    "ledgerRef": "Ledger reference",
+    "noLines": "No lines yet",
+    "returned": "Returned: {{reason}}",
+    "reversalReason": "Reversal reason",
+    "soleMember": "You're the only member of this organisation, so you can approve your own journal. Once a colleague joins, a second person approves."
+  },
+  "errors": {
+    "denied": "You cannot make this change",
+    "invalid": "Check the journal lines",
+    "refused": "The journal was not accepted"
+  },
+  "form": {
+    "account": "Account",
+    "addLine": "Add line",
+    "balanceFirst": "Debits and credits must be equal.",
+    "credit": "Credit",
+    "date": "Date",
+    "debit": "Debit",
+    "difference": "Difference: {{amount}}",
+    "editTitle": "Edit journal",
+    "fixLines": "Each line needs an account and one amount.",
+    "kind": "Kind",
+    "label": "Label",
+    "lineN": "Line {{n}}",
+    "memo": "Memo",
+    "memoTooLong": "Keep the memo to 500 characters.",
+    "newTitle": "New journal",
+    "project": "Project",
+    "projectNoun": "project",
+    "removeLine": "Remove line {{n}}",
+    "saved": "Draft saved",
+    "submitted": "Journal submitted",
+    "debitIn": "Debit ({{currency}})",
+    "creditIn": "Credit ({{currency}})"
+  },
+  "kinds": {
+    "accrual": "Accrual",
+    "closing": "Closing",
+    "correction": "Correction",
+    "depreciation": "Depreciation",
+    "fee": "Fee",
+    "funding": "Funding",
+    "interest": "Interest",
+    "reclassification": "Reclassification",
+    "revaluation": "Revaluation",
+    "taxDeposit": "Tax deposit"
+  },
+  "list": {
+    "searchPlaceholder": "Search journals…",
+    "searchAria": "Search journals",
+    "noMatch": "No journals match this search",
+    "date": "Date",
+    "empty": "No journals in these dates",
+    "error": "Couldn't load journals",
+    "errorSub": "The request failed. Check your connection and try again.",
+    "from": "From",
+    "memo": "Memo",
+    "outside": "Outside PMO",
+    "rowLabel": "Open {{memo}}",
+    "status": "Status",
+    "title": "Journals",
+    "to": "To",
+    "total": "Total"
+  },
+  "nav": {
+    "journals": "Journals"
+  },
+  "return": {
+    "subject": "journal",
+    "toast": "Journal returned"
+  },
+  "reverse": {
+    "body": "A new draft swaps every debit and credit. A second approver approves it.",
+    "confirm": "Draft the reversal",
+    "date": "Reversal date",
+    "reason": "Reason",
+    "title": "Reverse this journal?",
+    "toast": "Reversal drafted"
+  },
+  "setup": {
+    "needsDeskJournal": "An Admin must choose the Odoo journal for desk entries in Odoo setup before journals can post."
+  }
+}

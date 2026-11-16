@@ -5,7 +5,7 @@ import { isBudgetPushCommand } from './budgetDispatch.ts';
 import { withPaymentTypeDiscriminator } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 import { ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
-import { DOCTYPE_REGISTRY, reissueOnInconclusiveAbsence, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
+import { DOCTYPE_REGISTRY, probeAdoptsSubmittedOnly, reissueOnInconclusiveAbsence, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
 import { erpDatetime, probeErpByAnchorKey, probeErpByPaymentComposite, probeCapturedPayment, withholdingMatchFromPayload } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
 import { resolveExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
@@ -62,7 +62,9 @@ export async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext, resol
   // reclaimed and REISSUED, and then still POST a second money document. `dispatch.ts`'s claim budget
   // refuses that POST; this stops the probe eating the budget in the first place.
   const client = withProbeBudget({ fetchImpl: guardedErpFetch(binding.site_url), apiKey, apiSecret, baseUrl: binding.site_url });
-  const probeDeps = { client, doctype: entry.doctype, anchorField: anchorField ?? '', fromDoc: bodyFns.fromDoc, pmoRecordId: ctx.command.record.id };
+  // #895: a kind that replaces its own draft on create (`lookUpByKeyFirst`) adopts only a submitted document here.
+  const probeDeps = { client, doctype: entry.doctype, anchorField: anchorField ?? '', fromDoc: bodyFns.fromDoc, pmoRecordId: ctx.command.record.id,
+    requireSubmitted: probeAdoptsSubmittedOnly(kind) };
 
   // C-1 (companies "<Doctype>:<name>" encoding): now that external_refs is written INSIDE the fenced
   // finalize_outbox RPC (H-1), the companies-domain doctype prefix that used to live in the

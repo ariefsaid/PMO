@@ -65,6 +65,10 @@ select set_eq(
             -- before adding: neither src/lib/db/fxRates.ts nor the fx repository embeds profiles
             -- from fx_rates, so no unqualified embed exists. Recorded, not waived.
             ('fx_rates -> profiles'),
+            -- 0887 (#895): journal_entries carries maker_id AND approver_id, both -> profiles. Checked before
+            -- adding: the journals DAL reads journal_entries with select('*') and no embed; names resolve through
+            -- the profiles directory by id. Any future embed must name its constraint.
+            ('journal_entries -> profiles'),
             ('platform_operators -> profiles'),
             ('procurements -> profiles'),
             ('projects -> profiles'),

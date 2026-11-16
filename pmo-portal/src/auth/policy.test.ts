@@ -1053,3 +1053,54 @@ describe('can() — time-and-materials rate card and sign-off (#1514 T7; the 051
     expect(can('confirm', 'tmSignoff', { realRole: 'Finance', currentUserId: 'u1', record: { preparedBy: 'u1', viewOnly: true } })).toBe(false);
   });
 });
+
+describe('#895 manual journals: the desk and the second approver', () => {
+  const ctxFor = (realRole: Role | null, record: Record<string, unknown>, currentUserId: string | null = 'u-approver') =>
+    ({ realRole, currentUserId, record });
+
+  it('FR-MJE-010 view, create and edit a journal = Admin·Executive·Finance', () => {
+    for (const action of ['view', 'create', 'edit'] as const) {
+      expect(allowedRoles(action, 'journal')).toEqual(['Admin', 'Executive', 'Finance']);
+    }
+  });
+
+  it('FR-MJE-033 approve is offered to a Finance-or-above member who did not write the journal', () => {
+    const record = { maker_id: 'u-maker', author_ids: ['u-maker', 'u-editor'] };
+    expect(allowedRoles('approve', 'journal', { currentUserId: 'u-approver', record })).toEqual(['Admin', 'Executive', 'Finance']);
+  });
+
+  it('FR-MJE-033 approve is hidden from the maker and from any editor, whatever their role', () => {
+    const record = { maker_id: 'u-maker', author_ids: ['u-maker', 'u-editor'] };
+    for (const realRole of ['Admin', 'Executive', 'Finance'] as const) {
+      expect(can('approve', 'journal', ctxFor(realRole, record, 'u-maker'))).toBe(false);
+      expect(can('approve', 'journal', ctxFor(realRole, record, 'u-editor'))).toBe(false);
+    }
+    // the maker counts even when the author set has not been read yet
+    expect(can('approve', 'journal', ctxFor('Finance', { maker_id: 'u-maker', author_ids: [] }, 'u-maker'))).toBe(false);
+  });
+
+  it('FR-MJE-033 a reversal is not approved by anyone who wrote the original', () => {
+    const record = { maker_id: 'u-rev', author_ids: ['u-rev'], original_author_ids: ['u-orig'] };
+    expect(can('approve', 'journal', ctxFor('Finance', record, 'u-orig'))).toBe(false);
+    expect(can('approve', 'journal', ctxFor('Finance', record, 'u-third'))).toBe(true);
+  });
+
+  it('FR-MJE-033 approve denies a Project Manager, an Engineer, a view-as session, a missing user and a missing record', () => {
+    const record = { maker_id: 'u-maker', author_ids: ['u-maker'] };
+    expect(can('approve', 'journal', ctxFor('Project Manager', record))).toBe(false);
+    expect(can('approve', 'journal', ctxFor('Engineer', record))).toBe(false);
+    expect(can('approve', 'journal', ctxFor('Finance', { ...record, viewOnly: true }))).toBe(false);
+    expect(can('approve', 'journal', ctxFor('Finance', record, null))).toBe(false);
+    expect(can('approve', 'journal', { realRole: 'Finance', currentUserId: 'u-approver' })).toBe(false);
+  });
+
+  it('AC-MJE-002 the only member the org has ever had is offered approve on their own journal', () => {
+    const record = { maker_id: 'u-maker', author_ids: ['u-maker'], sole_active_member: true };
+    expect(can('approve', 'journal', ctxFor('Finance', record, 'u-maker'))).toBe(true);
+    // still Finance-or-above, still not while viewing as another role
+    expect(can('approve', 'journal', ctxFor('Project Manager', record, 'u-maker'))).toBe(false);
+    expect(can('approve', 'journal', ctxFor('Finance', { ...record, viewOnly: true }, 'u-maker'))).toBe(false);
+    // without the server's sole-member answer the author is still refused
+    expect(can('approve', 'journal', ctxFor('Finance', { ...record, sole_active_member: false }, 'u-maker'))).toBe(false);
+  });
+});

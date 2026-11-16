@@ -28,7 +28,7 @@
  * consume it generically.
  */
 import { describe, expect, it } from 'vitest';
-import { DOCTYPE_REGISTRY, reissueOnInconclusiveAbsence } from './doctypeRegistry.ts';
+import { DOCTYPE_REGISTRY, probeAdoptsSubmittedOnly, reissueOnInconclusiveAbsence } from './doctypeRegistry.ts';
 
 describe('erpnext/doctypeRegistry', () => {
   it('FR-ENA-014 maps every PMO erp_doc_kind to its exact Frappe doctype name + submittable + anchorField', () => {
@@ -74,6 +74,8 @@ describe('erpnext/doctypeRegistry', () => {
       'expense-receipt': { doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no', anchorMutable: true },
       // #1515 §9 — the expense-journal twin for a site float's cash transfer (immutable `user_remark` anchor).
       'imprest-transfer': { doctype: 'Journal Entry', submittable: true, submitOnCreate: true, anchorField: 'user_remark', anchorMutable: false },
+      // #895 — the accountant's desk manual journal (immutable `user_remark` anchor, OBS-ACD-003).
+      'manual-journal': { doctype: 'Journal Entry', submittable: true, submitOnCreate: true, anchorField: 'user_remark', anchorMutable: false, lookUpByKeyFirst: true },
     });
   });
 
@@ -86,8 +88,16 @@ describe('erpnext/doctypeRegistry', () => {
     expect(shared).toEqual([
       ['Payment Entry', ['payment', 'incoming-payment', 'expense-payment', 'expense-receipt']],
       // #1515 §9: a site float transfer is a Journal Entry too; its `impt:` key (not the doctype) places it.
-      ['Journal Entry', ['expense-journal', 'imprest-transfer']],
+      ['Journal Entry', ['expense-journal', 'imprest-transfer', 'manual-journal']],
     ]);
+  });
+
+  it('AC-MJE-004 #895: a manual journal is a submitted Journal Entry anchored on its immutable user_remark, so a conclusive miss may reissue once', () => {
+    expect(DOCTYPE_REGISTRY['manual-journal']).toEqual({ doctype: 'Journal Entry', submittable: true, submitOnCreate: true, anchorField: 'user_remark', anchorMutable: false, lookUpByKeyFirst: true });
+    expect(probeAdoptsSubmittedOnly('manual-journal')).toBe(true);
+    expect(probeAdoptsSubmittedOnly('expense-journal')).toBe(false);
+    expect(probeAdoptsSubmittedOnly('not-a-kind')).toBe(false);
+    expect(reissueOnInconclusiveAbsence(DOCTYPE_REGISTRY['manual-journal'])).toBe(true);
   });
 
   it('every anchored kind (anchorField != null) is submittable (the money-doc recovery surface)', () => {
