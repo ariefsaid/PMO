@@ -171,6 +171,7 @@
     "src/lib/adapterSeam/odoo/ledger/ledgerReconcile.ts",
     "src/lib/adapterSeam/odoo/ledger/stockCostAccount.ts",
     "src/lib/adapterSeam/odoo/ledger/stockCostFeed.ts",
+    "src/lib/adapterSeam/odoo/ledgerReadBack.ts",
     "src/lib/adapterSeam/odoo/procurementAdapter.ts",
     "src/lib/adapterSeam/odoo/purchase/billBody.ts",
     "src/lib/adapterSeam/odoo/purchase/billReadBack.ts",
