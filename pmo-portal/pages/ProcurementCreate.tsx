@@ -155,8 +155,11 @@ export default function ProcurementCreate() {
     if (!hasInput) setBlockedAddRowMessage(null);
   }, []);
   const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: holdLeave });
+  // Leaving unsaved returns to where the form was started: the project's procurement tab when the
+  // link carried `?project=`, the Procurement list otherwise (an Engineer has no list in the menu).
+  const originPath = projectId ? `/projects/${encodeURIComponent(projectId)}/procurement` : '/procurement';
   const backToProcurement = () => {
-    guardLeave(() => navigate('/procurement'));
+    guardLeave(() => navigate(originPath));
   };
   // Discard means discard: the whole draft goes, not just the chosen type (C7). The project
   // preselected by the link is the form's starting value, not typed input, so it stays.
