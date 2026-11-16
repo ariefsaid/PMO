@@ -1,8 +1,9 @@
 import { expect, type Page, type Locator } from '@playwright/test';
 import { pinEnglishLocale, signIn, waitForFonts } from '../helpers';
+import { VISUALLY_HIDDEN_SRC } from './visually-hidden';
 
 export async function findBleeders(page: Page, vw: number) {
-  return page.evaluate((vw) => {
+  return page.evaluate(([vw, hiddenSrc]) => {
     const tol = 2;
     const inScroller = (el: Element): boolean => {
       let p = el.parentElement;
@@ -13,11 +14,12 @@ export async function findBleeders(page: Page, vw: number) {
       }
       return false;
     };
+    const inClippedBox = new Function(`return ${hiddenSrc}`)() as (el: Element) => boolean;
     const out: { tag: string; cls: string; right: number; text: string }[] = [];
     document.querySelectorAll('body *').forEach((el) => {
       const r = el.getBoundingClientRect();
       if (r.width === 0 || r.height === 0) return;
-      if (r.right > vw + tol && !inScroller(el)) {
+      if (r.right > vw + tol && !inScroller(el) && !inClippedBox(el)) {
         out.push({
           tag: el.tagName.toLowerCase(),
           cls: (el.getAttribute('class') ?? '').slice(0, 60),
@@ -29,7 +31,7 @@ export async function findBleeders(page: Page, vw: number) {
     // De-dup parents that share the same right edge (report the outermost few).
     out.sort((a, b) => b.right - a.right);
     return out.slice(0, 12);
-  }, vw);
+  }, [vw, VISUALLY_HIDDEN_SRC] as const);
 }
 
 interface OversizedIcon {
