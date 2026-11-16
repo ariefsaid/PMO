@@ -54,17 +54,29 @@ beforeEach(() => {
 
 afterEach(() => { vi.restoreAllMocks(); });
 
+describe('ExpenseReceiptsCard on a phone', () => {
+  it('Preview keeps its accessible name on a phone', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({ matches: query.includes('max-width: 639px'), addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+    renderCardWithViewer(false);
+    expect(screen.getByRole('button', { name: 'Preview receipt' })).toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+});
+
 describe('ExpenseReceiptsCard', () => {
-  it('AC-EXP-066 every viewer can download; only a writer can attach or remove', () => {
+  it('AC-EXP-066 every viewer can download; only a writer can attach or remove', async () => {
     const { rerender } = renderCard(false);
     expect(screen.getByText('receipt.pdf')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Preview receipt' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Download receipt.pdf' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Attach receipt' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Remove receipt.pdf' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Receipt actions: receipt.pdf' }));
+    expect(await screen.findByRole('menuitem', { name: 'Download' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Remove' })).toBeNull();
+    await userEvent.keyboard('{Escape}');
     rerender(card(true));
     expect(screen.getByRole('button', { name: 'Attach receipt' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Remove receipt.pdf' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Receipt actions: receipt.pdf' }));
+    expect(await screen.findByRole('menuitem', { name: 'Remove' })).toBeInTheDocument();
   });
 });
 
@@ -103,7 +115,8 @@ describe('floor: receipt controls', () => {
   it('floor: Download receipt saves that receipt file', async () => {
     const open = vi.spyOn(window, 'open').mockReturnValue(null);
     renderCard(false);
-    await userEvent.click(screen.getByRole('button', { name: 'Download receipt.pdf' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Receipt actions: receipt.pdf' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Download' }));
 
     await waitFor(() => expect(h.download).toHaveBeenCalledWith(RECEIPT.file_path, { download: true }));
     await waitFor(() => expect(open).toHaveBeenCalledWith(SIGNED_URL, '_blank', 'noopener,noreferrer'));
@@ -111,7 +124,8 @@ describe('floor: receipt controls', () => {
 
   it('floor: confirming Remove archives that receipt', async () => {
     renderCard(true);
-    await userEvent.click(screen.getByRole('button', { name: 'Remove receipt.pdf' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Receipt actions: receipt.pdf' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Remove' }));
     const dialog = await screen.findByRole('alertdialog');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Remove' }));
 
@@ -120,7 +134,8 @@ describe('floor: receipt controls', () => {
 
   it('floor: cancelling Remove keeps the receipt and writes nothing', async () => {
     renderCard(true);
-    await userEvent.click(screen.getByRole('button', { name: 'Remove receipt.pdf' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Receipt actions: receipt.pdf' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Remove' }));
     const dialog = await screen.findByRole('alertdialog');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
 
@@ -133,9 +148,9 @@ describe('floor: receipt controls', () => {
     const open = vi.spyOn(window, 'open').mockReturnValue(null);
     renderCard(false);
     expect(screen.queryByRole('button', { name: 'Attach receipt' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Remove receipt.pdf' })).toBeNull();
-
-    await userEvent.click(screen.getByRole('button', { name: 'Download receipt.pdf' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Receipt actions: receipt.pdf' }));
+    expect(screen.queryByRole('menuitem', { name: 'Remove' })).toBeNull();
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Download' }));
     await waitFor(() => expect(open).toHaveBeenCalledWith(SIGNED_URL, '_blank', 'noopener,noreferrer'));
     expect(h.upload.mutate).not.toHaveBeenCalled();
     expect(h.archive.mutate).not.toHaveBeenCalled();

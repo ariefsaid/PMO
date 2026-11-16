@@ -16,7 +16,7 @@ vi.mock('@/src/components/ui', async (importOriginal) => {
 const ok = (data: unknown) => ({ data, isPending: false, isError: false, refetch: vi.fn() });
 const mut = () => ({ mutateAsync: vi.fn().mockResolvedValue('x'), isPending: false });
 const h = vi.hoisted(() => ({
-  userId: 'u-auth', realRole: 'Project Manager' as string, plans: null as unknown, lines: null as unknown,
+  userId: 'u-auth', realRole: 'Project Manager' as string, plans: null as unknown, lines: null as unknown, narrow: false,
   m: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
 }));
 vi.mock('@/src/hooks/useImprest', () => ({
@@ -24,6 +24,7 @@ vi.mock('@/src/hooks/useImprest', () => ({
   useCreatePlan: () => h.m.createPlan, useSavePlanLine: () => h.m.savePlanLine,
   useDeletePlanLine: () => h.m.deletePlanLine, useTransitionPlan: () => h.m.transitionPlan,
 }));
+vi.mock('@/src/components/ui/useIsNarrow', () => ({ useIsNarrow: () => h.narrow }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.realRole, effectiveRole: h.realRole }) }));
 
@@ -34,7 +35,7 @@ const renderIt = () => render(<ToastProvider><PlansSection floatId="f1" custodia
 
 describe('FR-IMP-071 plans section', () => {
   beforeEach(() => {
-    h.userId = 'u-auth'; h.realRole = 'Project Manager';
+    h.userId = 'u-auth'; h.realRole = 'Project Manager'; h.narrow = false;
     h.plans = ok({ rows: [plan()], truncated: false });
     h.lines = ok([{ id: 'l1', plan_id: 'pl1', budget_category: 'Vehicle', planned_amount: 800000 }]);
     h.m = { createPlan: mut(), savePlanLine: mut(), deletePlanLine: mut(), transitionPlan: mut() };
@@ -57,6 +58,18 @@ describe('FR-IMP-071 plans section', () => {
     expect(newPlan).toHaveAttribute('data-variant', 'primary');
     await user.click(newPlan);
     await waitFor(() => expect(h.m.createPlan.mutateAsync).toHaveBeenCalledWith({ floatId: 'f1', month: '2026-11-01' }));
+  });
+  it('FR-IMP-071 on a phone the plan row keeps Cancel in its ⋯ menu, and cancelling from there still cancels the plan', async () => {
+    const user = userEvent.setup();
+    h.narrow = true;
+    renderIt();
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'More actions for the Nov 2026 plan' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Cancel' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByRole('button', { name: 'Keep plan' })).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(h.m.transitionPlan.mutateAsync).toHaveBeenCalledWith({ id: 'pl1', to: 'Cancelled' }));
   });
   it('FR-IMP-071 submitting moves the plan to Submitted', async () => {
     const user = userEvent.setup();

@@ -130,6 +130,8 @@ const EquipmentUsagePage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the name lookups derive from assets/projects, already deps
   }, [mine, added, opened, assetFilter, assets, projects]);
 
+  const rowCount = gridRows.filter((r) => r.field === 'quantity').length;
+
   const classifiedFailure = (err: unknown) => {
     const c = classifyMutationError(err);
     return c.detail ? `${c.headline}. ${c.detail}` : c.headline;
@@ -322,6 +324,7 @@ const EquipmentUsagePage: React.FC = () => {
   return (
     <ListPage
       title={t('equipment:usage.title', 'Equipment')}
+      count={tab === 'log' && !usageQ.isPending && !usageQ.isError && usageQ.data ? rowCount : undefined}
       primaryAction={tab === 'log' && submittable ? <CanWrite entity="equipmentUsage" action="create" ctx={writeCtx}>
         <Button variant="primary" disabled={transition.isPending || submitting} onClick={() => void submitWeek()}>{t('equipment:usage.submitWeek', 'Submit week')}</Button>
       </CanWrite> : undefined}

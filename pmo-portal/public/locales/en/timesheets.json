@@ -50,5 +50,8 @@
     "reasonNothingNew": "Last week's projects are already in this week",
     "toastHeadline": "Rows copied from last week",
     "toastDetail": "Review the copied hours, then save the week."
+  },
+  "footer": {
+    "fixHoursToSubmit": "Fix the hours marked in red to submit"
   }
 }

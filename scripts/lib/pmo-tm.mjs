@@ -34,13 +34,13 @@ export class TmQueryError extends Error {
   }
 }
 
-function isCalendarDate(value) {
+export function isCalendarDate(value) {
   if (typeof value !== 'string' || !DATE.test(value)) return false;
   const parsed = new Date(`${value}T00:00:00Z`);
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
-function projectProblem(project) {
+export function projectProblem(project) {
   if (project === undefined || project === null || String(project).trim() === '') return 'name a project with --project <id>';
   if (!UUID.test(String(project))) return '--project must be a project id (uuid)';
   return null;
