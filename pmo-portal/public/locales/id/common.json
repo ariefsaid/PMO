@@ -4475,7 +4475,6 @@
     "previewGapSummary_other": "{{dates}} tanggal tanpa kurs dalam {{count}} rentang"
   },
   "uxs17": {
-    "deliverySection": "Pengiriman kepada klien",
     "receivedByClient": "Sudah diterima klien",
     "readyToSend": "Siap dikirim",
     "receivedDateSummary": "Penerimaan oleh klien tercatat pada {{date}}.",

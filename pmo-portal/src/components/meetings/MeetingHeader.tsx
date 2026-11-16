@@ -67,6 +67,8 @@ const MeetingHeader: React.FC<MeetingHeaderProps> = ({
   const { update } = useMeetingMutations();
   const [headerDraft, setHeaderDraft] = useState(() => headerDraftFor(meeting));
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Facts first: the edit form opens from one action, never as the header's resting state.
+  const [editing, setEditing] = useState(false);
   const headerDraftRef = useRef(headerDraft);
   headerDraftRef.current = headerDraft;
   const syncedHeaderRef = useRef<{ meetingId: string; draft: HeaderDraft } | null>(null);
@@ -102,6 +104,7 @@ const MeetingHeader: React.FC<MeetingHeaderProps> = ({
       syncedHeaderRef.current = { meetingId: meeting.id, draft: savedDraft };
       setHeaderDraft(savedDraft);
       setSaveError(null);
+      setEditing(false);
       toast(t('meetingDetail.toast.updated', 'Meeting updated'), savedDraft.title, 'success');
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -112,12 +115,12 @@ const MeetingHeader: React.FC<MeetingHeaderProps> = ({
 
   return (
     <RecordHeader
-      name={canEdit ? (headerDraft.title || meeting.title) : meeting.title}
+      name={meeting.title}
       icon={(meeting.title.trim().charAt(0) || '•').toUpperCase()}
       status={meeting.archived_at
         ? <StatusPill variant="neutral">{tMeetings('pill.archived', 'Archived')}</StatusPill>
         : <StatusPill variant="violet">{t('meetingDetail.pill.meeting', 'Meeting')}</StatusPill>}
-      meta={canEdit ? (
+      meta={canEdit && editing ? (
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <TextField
             id="meeting-header-title"
@@ -169,14 +172,14 @@ const MeetingHeader: React.FC<MeetingHeaderProps> = ({
           )}
         </span>
       )}
-      primaryAction={canEdit && headerDirty ? (
+      primaryAction={canEdit && editing ? (
         <span className="flex min-w-0 flex-col items-start gap-2">
           <span className="flex flex-wrap items-center gap-2">
           <Button
             variant="primary"
             size="sm"
             data-testid="meeting-header-save"
-            disabled={update.isPending || !headerDraft.title.trim() || !zonedDatetimeLocalToInstant(headerDraft.occurredAt)}
+            disabled={!headerDirty || update.isPending || !headerDraft.title.trim() || !zonedDatetimeLocalToInstant(headerDraft.occurredAt)}
             onClick={() => void saveHeader()}
           >
             {tMeetingCreate('save', 'Save meeting')}
@@ -185,13 +188,22 @@ const MeetingHeader: React.FC<MeetingHeaderProps> = ({
             variant="ghost"
             size="sm"
             data-testid="meeting-header-cancel"
-            onClick={() => setHeaderDraft(serverDraft)}
+            onClick={() => { setHeaderDraft(serverDraft); setSaveError(null); setEditing(false); }}
           >
             {tMeetingCreate('cancel', 'Cancel')}
           </Button>
           </span>
           <FieldError id="meeting-header-save-error">{saveError}</FieldError>
         </span>
+      ) : canEdit && !meeting.archived_at ? (
+        <Button
+          variant="outline"
+          size="sm"
+          data-testid="meeting-header-edit"
+          onClick={() => setEditing(true)}
+        >
+          {tMeetings('editDetails', 'Edit details')}
+        </Button>
       ) : canArchive && meeting.archived_at ? (
         <Button
           variant="primary"

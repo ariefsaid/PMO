@@ -1,7 +1,7 @@
 import { Avatar } from '@/src/components/ui/Avatar';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Card, CardHead, CardPad, Icon, useFigureReport, type HiddenFigure } from '@/src/components/ui';
+import { FigureHiddenLine, Icon, RecordSection, useFigureReport, useFigureScope, type HiddenFigure } from '@/src/components/ui';
 import { formatCurrency, formatDay } from '@/src/lib/format';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { LedgerRow } from '@/src/lib/db/procurementLedger';
@@ -90,8 +90,8 @@ export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = (
   const partialReceive = procurement.receipts.some((receipt) => receipt.status === 'Partial');
 
   return (
-    <Card aria-label={t('stage.trackerLabel', 'Procurement stages')} data-testid="procurement-stage-tracker">
-      <CardPad>
+    // Header band content: it sits on the header panel's inset, so it has no frame of its own.
+    <section aria-label={t('stage.trackerLabel', 'Procurement stages')} data-testid="procurement-stage-tracker">
         <ol className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
           {STAGES.map((stage, index) => {
             const count = rowsByStage[stage.key];
@@ -141,8 +141,7 @@ export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = (
             );
           })}
         </ol>
-      </CardPad>
-    </Card>
+    </section>
   );
 };
 
@@ -204,8 +203,9 @@ export const ProcurementBudgetSignal: React.FC<ProcurementBudgetSignalProps> = (
   return <span className="text-control font-normal text-muted-foreground">{label}{otherCurrencyNotice}</span>;
 };
 
+// Amount names, never status words: the header's badge already says Requested / Paid (#2437, the status reads once).
 const moneyLabels: Record<ProcurementMoneyKind, string> = {
-  requested: 'Requested', ordered: 'Ordered', invoiced: 'Invoiced', paid: 'Paid', unpaid: 'Unpaid',
+  requested: 'Request total', ordered: 'Order total', invoiced: 'Invoiced', paid: 'Payments', unpaid: 'Unpaid',
 };
 
 /** The document a missing figure comes from, so the hidden-figures line cannot be read as the procurement total. */
@@ -215,6 +215,7 @@ const moneySources: Record<ProcurementMoneyKind, string> = {
 
 export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = ({ procurement, linkedDocuments, isEngineer, budgetSignal }) => {
   const { t } = useTranslation('procurementRecord');
+  const figureScope = useFigureScope();
   const money = procurementMoney({
     total_value: procurement.total_value,
     purchase_requests: procurement.purchase_requests.map((row) => ({ amount: row.amount })),
@@ -258,24 +259,25 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
     reason: t('money.sourceMissing', '{{figure}} amount not recorded', { figure: t(`money.source.${entry.kind}`, moneySources[entry.kind]) }),
   })));
   const visible = shown.filter((entry) => !entry.hidden);
-  // No figure and no budget line: no empty card.
-  if (visible.length === 0 && !budgetSignal && !isEngineer) return null;
+  // The record's one hidden-figures line lives here, so any figure hidden on the record keeps this block.
+  const anyHidden = shown.some((entry) => entry.hidden) || (figureScope?.hidden.length ?? 0) > 0;
+  // No figure, no hidden figure and no budget line: no empty block.
+  if (visible.length === 0 && !anyHidden && !budgetSignal && !isEngineer) return null;
 
+  // Header band content (after the stage track): label, budget line, figures, then the hidden-figures line it reports.
   return (
-    <Card data-testid="procurement-money-summary">
-      <CardHead className="flex flex-wrap items-center gap-x-4 gap-y-1" subline={budgetSignal}>
-        <span>{t('money.title', { defaultValue: 'Money · {{currency}}, before tax', currency: procurement.currency })}</span>
-      </CardHead>
+    <section data-testid="procurement-money-summary" aria-labelledby="procurement-money-heading" className="border-t border-border pt-4">
+      <h2 id="procurement-money-heading" className="text-control font-semibold text-foreground">{t('money.title', { defaultValue: 'Money · {{currency}}, before tax', currency: procurement.currency })}</h2>
+      {budgetSignal != null && budgetSignal !== false && <p className="mt-1 text-control font-normal text-muted-foreground">{budgetSignal}</p>}
       {visible.length > 0 && (
-        <CardPad>
-          <div className="grid grid-cols-2 gap-x-5 gap-y-4 sm:grid-cols-5">
+          <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-5">
             {visible.map(({ kind }) => {
               const figure = money[kind];
               const lead = kind === 'unpaid';
               return (
                 <div key={kind}>
                   <p className="mb-1 text-control font-medium text-foreground">{t(`money.${kind}`, moneyLabels[kind])}</p>
-                  <p className={`${lead ? 'text-section font-semibold' : 'text-group font-medium'} text-foreground tabular-nums`}>
+                  <p className={`${lead ? 'text-section font-semibold' : 'text-group font-medium'} whitespace-nowrap text-foreground tabular-nums`}>
                     {formatCurrency(figure.amount ?? 0, procurement.currency)}
                   </p>
                   {lead && nextDueDate && <p className={`mt-0.5 text-control ${overdueDays > 0 ? 'font-medium text-destructive' : 'text-muted-foreground'}`}>
@@ -287,10 +289,11 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
               );
             })}
           </div>
-        </CardPad>
       )}
-      {isEngineer && <p className="px-[var(--panel-inset)] pb-[var(--panel-inset)] text-sm text-muted-foreground">{t('money.financeOnly', 'Invoices and payments are handled by Finance.')}</p>}
-    </Card>
+      {isEngineer && <p className="mt-3 text-control text-muted-foreground">{t('money.financeOnly', 'Invoices and payments are handled by Finance.')}</p>}
+      {/* "N figures hidden · Why" sits under the figures it reports on, never on the page background. */}
+      <FigureHiddenLine compact className="mt-3 text-control text-muted-foreground" />
+    </section>
   );
 };
 
@@ -397,14 +400,11 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
   const filesBatch = useProcurementFilesBatch(procurement.id, fileParents);
 
   return (
-    <Card data-testid="procurement-timeline">
-      <CardHead
-        className="flex-wrap"
-        actions={<button type="button" onClick={onFullHistory} className="shrink-0 text-sm font-medium text-primary-text underline underline-offset-2">{t('timeline.fullHistory', 'Full history')}</button>}
-      >
-        {t('timeline.title', 'Timeline')}
-      </CardHead>
-      <CardPad>
+    <RecordSection
+      data-testid="procurement-timeline"
+      title={t('timeline.title', 'Timeline')}
+      actions={<button type="button" onClick={onFullHistory} className="shrink-0 text-sm font-medium text-primary-text underline underline-offset-2">{t('timeline.fullHistory', 'Full history')}</button>}
+    >
         <div role="group" aria-label={t('timeline.filterLabel', 'Timeline filter')} className="mb-3 flex flex-wrap gap-2">
           {(['all', 'financial', 'has-file'] as const).map((value) => (
             <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className={`rounded-md px-2.5 py-1 text-sm ${filter === value ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
@@ -456,7 +456,6 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
             ))}
           </ol>
         )}
-      </CardPad>
-    </Card>
+    </RecordSection>
   );
 };

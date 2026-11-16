@@ -122,9 +122,9 @@ describe('DealBand — RBAC write-affordance gate (A-1)', () => {
     expect(screen.queryByText('$1,200,000')).not.toBeInTheDocument();
   });
 
-  it('leads the phone view with the current stage and one next action, with detail closed', async () => {
+  it('leads the phone band with the one next action and the journey, with detail closed (#2421: the stage is the header pill, not repeated)', async () => {
     renderAs('Project Manager');
-    expect(screen.getByText('Tender Submitted')).toBeInTheDocument();
+    expect(screen.queryByText('Current stage')).toBeNull();
     expect(screen.getByRole('button', { name: /Advance to/i })).toBeInTheDocument();
     const details = screen.getByText('More project details').closest('details');
     expect(details).not.toHaveAttribute('open');

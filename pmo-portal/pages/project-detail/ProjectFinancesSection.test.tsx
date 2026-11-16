@@ -696,6 +696,9 @@ describe('ProjectFinancesSection billing kinds (#1471)', () => {
     expect(within(known).getByText('Invoiced above contract by 100')).toBeInTheDocument();
     expect(within(known).getByText('Invoiced against contract')).toBeInTheDocument();
     expect(within(known).getByTestId('contract-excess-invoiced')).toHaveTextContent('1,100');
+    // #2346: the invoiced-against-contract figure is one unbroken line
+    expect(within(known).getByTestId('contract-excess-invoiced')).toHaveClass('whitespace-nowrap');
+    expect(within(known).getByTestId('contract-excess-invoiced')).not.toHaveClass('break-words');
     unmount();
     h.query.data = payload({
       contract_invoiced: '1100.00', remaining_to_invoice: '-100.00', invoices: [usdBucket('1100.00')],

@@ -25,8 +25,8 @@ const History: React.FC<{ projectId: string }> = ({ projectId }) => {
 
 /**
  * The deal page's lead band (#1426): where the deal stands and what to do next, with the win-gate
- * message, and the figures beside it. The tabs follow in ProjectDetail. On phone the stage and the one
- * next action lead, and everything else sits behind "More project details".
+ * message, and the figures beside it. The tabs follow in ProjectDetail. On phone the header's status pill is the one stage and the one
+ * next action leads, and everything else sits behind "More project details".
  */
 const DealBand: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
   const { t } = useTranslation('project');
@@ -61,10 +61,6 @@ const DealBand: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
     return (
       <>
         <div className="mb-4 space-y-3">
-          <div>
-            <p className="text-control font-medium text-muted-foreground">{t('projectDetail.pipeline.currentStage', 'Current stage')}</p>
-            <h2 className="text-base font-semibold text-foreground">{stageLabel(project.status as never)}</h2>
-          </div>
           {!d.canTransition ? (
             <p className="line-clamp-1 text-sm text-muted-foreground">{t('projectDetail.pipeline.readOnlyShort', 'Project manager manages this pipeline.')}</p>
           ) : (

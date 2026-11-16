@@ -92,7 +92,7 @@ describe('PlanVsActualChart', () => {
   it('uses the measured lighter neutral contract bar with foreground labels', () => {
     render(<MemoryRouter><PlanVsActualChart projects={[p({ id: 'a', name: 'Alpha' })]} currency="USD" /></MemoryRouter>);
     const chart = screen.getByRole('img', { name: /plan vs actual by project/i });
-    expect(chart).toHaveAttribute('data-contract-fill', 'hsl(var(--muted-foreground) / 0.54)');
+    expect(chart).toHaveAttribute('data-contract-fill', 'hsl(var(--mark-neutral) / 0.54)');
     expect(chart).toHaveAttribute('data-contract-label-fill', 'hsl(var(--foreground))');
   });
 

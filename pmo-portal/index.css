@@ -63,6 +63,8 @@
   --muted: 210 14.2857% 97.2549%;
   /* Neutral-800 keeps supporting text AA on pale secondary surfaces and chart overlays. */
   --muted-foreground: 216 10% 40%;
+  /* Non-text marks (status dots, bars, switch) keep their own grey so text grey moves text only. */
+  --mark-neutral: 216 12% 22%;
   --accent: 210 14.2857% 97.2549%;
   --accent-foreground: 218.1818 12.3596% 17.451%;
   --count-foreground: var(--muted-foreground);
@@ -218,6 +220,7 @@
   --secondary-foreground: var(--muted-foreground);
   --muted: 206.6667 11.6883% 15.098%;
   --muted-foreground: 211.0345 17.7914% 68.0392%;
+  --mark-neutral: 211.0345 17.7914% 68.0392%;
   --accent: 207.2727 12.0879% 17.8431%;
   --accent-foreground: 211.2 20.6612% 76.2745%;
   --count-foreground: var(--muted-foreground);
@@ -351,6 +354,7 @@
   --color-secondary-foreground: hsl(var(--secondary-foreground));
   --color-muted: hsl(var(--muted));
   --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-mark-neutral: hsl(var(--mark-neutral));
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
   --color-destructive: hsl(var(--destructive));

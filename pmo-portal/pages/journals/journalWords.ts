@@ -22,6 +22,7 @@ export function journalKindLabel(t: TFunction, kind: JournalKind | null): string
 export function journalErrorOverrides(t: TFunction): Record<string, string> {
   return {
     P0001: t('journals:errors.refused', 'The journal was not accepted'),
+    PJ422: t('journals:errors.tooManyDecimals', 'The amount has more decimals than the currency holds. Remove the extra decimals.'),
     '22023': t('journals:errors.invalid', 'Check the journal lines'),
     '42501': t('journals:errors.denied', 'You cannot make this change'),
   };

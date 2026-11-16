@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@/src/components/ui';
+import { Button, RecordSection } from '@/src/components/ui';
 import { useSalesInvoiceEvidence, useIncomingPayments } from '@/src/hooks/useRevenue';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { displayAllocations } from '@/src/lib/revenue/receiptAllocation';
@@ -11,7 +11,8 @@ import { odooOutcome } from '@/src/lib/procurement/odooOutcome';
 import { OdooOutcome } from '@/src/components/revenue/OdooOutcome';
 import { OdooCaseStatus } from '../procurement/OdooCaseStatus';
 
-export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow; odoo?: boolean }> = ({ invoice, odoo = false }) => {
+/** The invoice record's evidence panel; `totals` (net · tax · total) closes it, under the lines they sum. */
+export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow; odoo?: boolean; totals?: React.ReactNode }> = ({ invoice, odoo = false, totals }) => {
   const { t } = useTranslation();
   // The ERP evidence read serves the ERP tier only; an Odoo invoice has no lines to fetch, so it never shows a load error.
   const canFetchEvidence = !invoice.pmo_native && invoice.erp_docstatus !== null && !odoo;
@@ -63,8 +64,7 @@ export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow; o
   // lines are not announced twice (the approvals panel keeps the preview as its own lines surface).
   const lines = invoice.pmo_native ? invoice.native_lines : canFetchEvidence ? evidence.data?.lines : null;
   return (
-    <section aria-labelledby="invoice-evidence-heading" className="mb-5 border-b border-border pb-4">
-      <h2 id="invoice-evidence-heading" className="mb-3 text-base font-semibold">{t('uxs17.billEvidence', 'Bill evidence')}</h2>
+    <RecordSection headingId="invoice-evidence-heading" title={t('uxs17.billEvidence', 'Bill evidence')}>
       {odoo && (
         <div className="mb-4 space-y-3">
           {unreachable && <p role="status" className="text-control text-muted-foreground">{t('finance:odooOutcome.offlineAction', 'Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')}</p>}
@@ -203,6 +203,7 @@ export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow; o
             : t('finance:odooOutcome.taxDocumentUnavailable', 'Tax documents are unavailable in Odoo.')}</dd>
         </dl>
       )}
-    </section>
+      {totals != null && <div className="mt-5 border-t border-border pt-3">{totals}</div>}
+    </RecordSection>
   );
 };

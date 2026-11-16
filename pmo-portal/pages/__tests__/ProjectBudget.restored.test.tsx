@@ -27,6 +27,7 @@ const state = vi.hoisted(() => ({
   releaseHold: vi.fn(),
 }));
 
+vi.mock('@/src/hooks/useFxIdrRate', () => ({ useFxIdrRate: () => ({ status: 'off' }) }));
 vi.mock('@/src/hooks/useBudget', () => ({
   useBudgetDistribution: () => ({ data: null, isSuccess: true, isPending: false, isError: false, refetch: vi.fn() }),
   useProjectBudget: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
@@ -313,7 +314,7 @@ describe('version selection (AC-BD)', () => {
     // Draft amounts never fill the active-budget or budget-used tiles.
     expect(figures.textContent).not.toMatch(/125/);
     expect(figures.textContent).not.toMatch(/\d+%/);
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/figures? hidden/i);
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
   });
 
   it('B1 New version (list state) confirms before writing and the confirm names the entered version', async () => {

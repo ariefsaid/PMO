@@ -15,7 +15,7 @@ const Bar: React.FC<{ label: string; value: string | null; share: number | null;
       <span className="min-w-0 truncate font-medium">{label}</span>
       <span className="tabular font-semibold">{value}</span>
       {share !== null && <span aria-hidden="true" className="col-span-2 h-2 rounded-full bg-secondary">
-        <span className="block h-2 rounded-full bg-muted-foreground/40" style={{ width: `${Math.max(2, Math.round(share * 100))}%` }} />
+        <span className="block h-2 rounded-full bg-mark-neutral/40" style={{ width: `${Math.max(2, Math.round(share * 100))}%` }} />
       </span>}
     </button>
   </li>

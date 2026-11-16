@@ -129,7 +129,7 @@ export const DealActionButtons: React.FC<{ d: DealActions; primaryOnly?: boolean
       )}
       {!primaryOnly && d.canDecline && (
         <Button variant="outline" disabled={d.pending} onClick={() => d.setConfirmAction('declined')}>
-          <span aria-hidden className="size-1.5 rounded-full bg-muted-foreground" />{t('projectDetail.pipeline.markDeclined', 'Decline to bid')}
+          <span aria-hidden className="size-1.5 rounded-full bg-mark-neutral" />{t('projectDetail.pipeline.markDeclined', 'Decline to bid')}
         </Button>
       )}
     </div>

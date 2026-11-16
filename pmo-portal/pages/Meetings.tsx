@@ -267,17 +267,11 @@ const Meetings: React.FC = () => {
           </Button>
         )
       }
-      desktopToolbarClassName="md:grid-cols-[minmax(0,1fr)]"
+      count={data && !isPending && !isError && !isPlaceholderData ? rows.length : undefined}
+      total={total ?? '…'}
       filters={
         state !== 'loading' && (
-          <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
-            <SearchMini
-              aria-label={t('meetings.search.ariaLabel', 'Search meetings')}
-              placeholder={t('meetings.search.placeholder', 'Search notes and titles…')}
-              value={search}
-              onChange={(event) => setFilter('q', event.currentTarget.value)}
-              containerClassName="h-[var(--control-height)] w-full flex-1 max-sm:min-h-11 sm:min-w-[190px] sm:max-w-[240px]"
-            />
+          <>
             <Combobox
               className="w-full min-w-0 sm:w-[350px] sm:shrink-0 sm:flex-row sm:items-center sm:gap-2 sm:[&>span:first-child]:shrink-0 sm:[&>span:first-child]:whitespace-nowrap sm:[&>div.relative]:min-w-0 sm:[&>div.relative]:flex-1 sm:[&_[role=combobox]]:min-h-[var(--control-height)] sm:[&_[role=combobox]]:min-w-0"
               compact
@@ -309,15 +303,18 @@ const Meetings: React.FC = () => {
                 {tMeetings('filters.clear', 'Clear all')}
               </button>
             )}
-            {data && !isPending && !isError && !isPlaceholderData && (
-              <span aria-live="polite" className="ml-auto whitespace-nowrap text-control text-muted-foreground">
-                {t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', {
-                  count: rows.length,
-                  total: total ?? '…',
-                })}
-              </span>
-            )}
-          </div>
+          </>
+        )
+      }
+      search={
+        state !== 'loading' && (
+          <SearchMini
+            aria-label={t('meetings.search.ariaLabel', 'Search meetings')}
+            placeholder={t('meetings.search.placeholder', 'Search notes and titles…')}
+            value={search}
+            onChange={(event) => setFilter('q', event.currentTarget.value)}
+            containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
+          />
         )
       }
     >

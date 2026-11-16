@@ -121,7 +121,7 @@ describe('S01 budget figure agreement on real screens', () => {
     expect(overview.container.textContent).toContain('Left after open orders');
     expect(overview.container.textContent).toContain('50%');
     expect(overview.container.textContent).toContain('$500');
-    expect(overview.container.textContent).toContain('Project spending is known; some category amounts are not mapped.');
+    expect(overview.container.textContent).toContain('Not split by category');
   });
 
   it('AC-RB-015: the Requested purchase record shows Left after this purchase $25, which is the project Overview\'s Left after open orders ($100) less Reserved (50) and this purchase (25)', async () => {
@@ -170,7 +170,7 @@ describe('S01 budget figure agreement on real screens', () => {
       consumptionVariance: null, riskEligible: false, atRisk: null,
     });
     const { container } = await renderBudgetAgreementRoute();
-    await waitFor(() => expect(container.textContent).toContain('Budget used is unknown or unavailable.'));
+    await waitFor(() => expect(container.textContent).toContain('Spending is not linked'));
     expect(container.textContent).not.toMatch(/Budget used\s*0%/u);
     expect(container.textContent).not.toMatch(/Budget used\s*0(?:\.0+)?% of/u);
   });
@@ -243,7 +243,7 @@ describe('S01 budget figure agreement on real screens', () => {
     expect(overview.container.querySelector('[data-testid="project-budget-figures"]')).not.toHaveTextContent('0%');
     overview.unmount();
     const budget = await renderBudgetAgreementRoute();
-    await waitFor(() => expect(budget.container.textContent).toContain('Budget used is unknown or unavailable.'));
+    await waitFor(() => expect(budget.container.textContent).toContain('Spending is not linked'));
     expect(budget.container.textContent).not.toMatch(/Budget used\s*0%/u);
     budget.unmount();
   });
@@ -311,7 +311,7 @@ describe('S01 budget figure agreement on real screens', () => {
     overview.unmount();
     const budget = await renderBudgetAgreementRoute();
     const tiles = await screen.findByRole('region', { name: 'Budget figures' });
-    if (left === null) await waitFor(() => expect(budget.container).toHaveTextContent('Commitments are unknown or unavailable.'));
+    if (left === null) await waitFor(() => expect(budget.container).toHaveTextContent('Open orders are unknown'));
     else { await waitFor(() => expect(tiles).toHaveTextContent('Left after open orders')); expect(tiles).toHaveTextContent(left); expect(tiles).toHaveTextContent(committed); }
     budget.unmount();
   });
@@ -334,8 +334,10 @@ describe('S01 budget figure agreement on real screens', () => {
     expect(card()).not.toHaveTextContent(/Left after (?:open )?orders \$[\d,]+/u);
     overview.unmount();
     const budget = await renderBudgetAgreementRoute();
-    const expected = spent === null ? 'Spending is unknown or unavailable.' : 'Budget is unavailable for comparison';
-    await waitFor(() => expect(budget.container).toHaveTextContent(expected));
+    const budgetNotice = spent === null
+      ? 'Spending is not linked'
+      : 'Budget is unavailable';
+    await waitFor(() => expect(budget.container).toHaveTextContent(budgetNotice));
     expect(budget.container).not.toHaveTextContent(/Left after open orders\s*\$[\d,]+/u);
     budget.unmount();
   });
@@ -357,9 +359,9 @@ describe('S01 budget figure agreement on real screens', () => {
     expect(card()).not.toHaveTextContent(/Left after (?:open )?orders \$[\d,]+/u);
     overview.unmount();
     const budget = await renderBudgetAgreementRoute();
-    await waitFor(() => expect(budget.container).toHaveTextContent('Budget is unavailable for comparison'));
-    expect(budget.container).toHaveTextContent(/spending (?:is|isn.t)/iu);
-    expect(budget.container).toHaveTextContent(/commitments (?:are|is)/iu);
+    await waitFor(() => expect(budget.container).toHaveTextContent('Spending is not linked'));
+    expect(budget.container).toHaveTextContent('Open orders are unknown');
+    expect(budget.container.querySelector('[data-testid="figures-hidden"]')).toBeNull();
     expect(budget.container).not.toHaveTextContent(/Left after open orders\s*\$[\d,]+/u);
     budget.unmount();
   });

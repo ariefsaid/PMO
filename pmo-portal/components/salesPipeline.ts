@@ -70,7 +70,7 @@ export const SALES_COLUMNS: readonly SalesColumn[] = [
   ...OPEN_FUNNEL_STAGES.map((stage) => ({
     title: OPEN_STAGE_TITLES[stage],
     statuses: [stage],
-    dotColor: 'hsl(var(--muted-foreground))',
+    dotColor: 'hsl(var(--mark-neutral))',
     testId: `stage-${stage}`,
   })),
   {

@@ -3,7 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
-import { FigureHiddenLine, FigureScope } from '@/src/components/ui';
+import { FigureScope } from '@/src/components/ui';
 import { ProcurementBudgetSignal, ProcurementMoneySummary, ProcurementTimeline } from './ProcurementDetailPanels';
 
 vi.mock('@/src/hooks/useProcurementFilesBatch', () => ({ useProcurementFilesBatch: () => ({ data: undefined, isError: false }) }));
@@ -71,7 +71,7 @@ describe('procurement record panels', () => {
     expect(money).not.toHaveTextContent('amount not recorded');
   });
 
-  it('a purchase that started at the order stage reports ONE hidden figure — the order — not the request (#2345 row 6)', () => {
+  it('a purchase that started at the order stage reports ONE hidden figure — the order — not the request (#2345 row 6)', async () => {
     const orderStarted = {
       ...procurement,
       total_value: null,
@@ -80,18 +80,19 @@ describe('procurement record panels', () => {
     render(
       <FigureScope>
         <ProcurementMoneySummary procurement={orderStarted} linkedDocuments={[]} isEngineer={false} budgetSignal={null} />
-        <FigureHiddenLine />
       </FigureScope>,
     );
 
     // The order amount is genuinely unrecorded; a purchase with no request has no request figure to hide.
-    const line = screen.getByTestId('figures-hidden');
+    // The record's one hidden-figures line sits in the Money block, under the figures it reports on.
+    const line = within(screen.getByTestId('procurement-money-summary')).getByTestId('figures-hidden');
     expect(line).toHaveTextContent('1 figure hidden');
-    expect(line).toHaveTextContent('purchase order amount not recorded');
-    expect(line).not.toHaveTextContent('purchase request');
+    await userEvent.click(within(line).getByRole('button', { name: 'Why' }));
+    expect(await screen.findByText('purchase order amount not recorded')).toBeInTheDocument();
+    expect(screen.queryByText(/purchase request/)).not.toBeInTheDocument();
   });
 
-  it('a purchase with a request whose amount is missing still reports the request (#2345 row 6)', () => {
+  it('a purchase with a request whose amount is missing still reports the request (#2345 row 6)', async () => {
     const requestOnly = {
       ...procurement,
       total_value: null,
@@ -100,11 +101,14 @@ describe('procurement record panels', () => {
     render(
       <FigureScope>
         <ProcurementMoneySummary procurement={requestOnly} linkedDocuments={[]} isEngineer={false} budgetSignal={null} />
-        <FigureHiddenLine />
       </FigureScope>,
     );
 
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('purchase request amount not recorded');
+    // The count is on the face; only the reason sits behind Why.
+    const line = within(screen.getByTestId('procurement-money-summary')).getByTestId('figures-hidden');
+    expect(line).toHaveTextContent('1 figure hidden');
+    await userEvent.click(within(line).getByRole('button', { name: 'Why' }));
+    expect(await screen.findByText('purchase request amount not recorded')).toBeInTheDocument();
   });
 
   it('P5: the timeline note and the Full history link are both reachable and the link still works', async () => {

@@ -121,10 +121,10 @@
   },
   "money": {
     "title": "Nilai · {{currency}}, sebelum pajak",
-    "requested": "Diminta",
-    "ordered": "Dipesan",
+    "requested": "Total permintaan",
+    "ordered": "Total pesanan",
     "invoiced": "Ditagih",
-    "paid": "Dibayar",
+    "paid": "Pembayaran",
     "unpaid": "Belum dibayar",
     "noneRecorded": "Belum ada catatan",
     "noPurchaseRequest": "Tidak ada permintaan pembelian: dimulai pada pesanan",
