@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
@@ -25,16 +25,16 @@ const row = (over: Partial<ProcurementWithRefs>): ProcurementWithRefs =>
   }) as ProcurementWithRefs;
 
 describe('ProcurementBoard — by-stage kanban (Issue 3)', () => {
-  it('renders the five requested workflow columns', () => {
+  it('renders the six workflow columns', () => {
     render(<ProcurementBoard procurements={[]} onOpen={vi.fn()} />);
-    for (const full of ['Request', 'Approved', 'Ordered', 'Received', 'Paid']) {
+    for (const full of ['Request', 'Approved', 'Ordered', 'Received', 'Invoiced', 'Paid']) {
       expect(screen.getByText(full)).toBeInTheDocument();
     }
   });
 
   it('shows a value slot in every stage header, including empty stages', () => {
     render(<ProcurementBoard procurements={[]} onOpen={vi.fn()} />);
-    for (const stage of ['request', 'approved', 'ordered', 'received', 'paid']) {
+    for (const stage of ['request', 'approved', 'ordered', 'received', 'invoiced', 'paid']) {
       expect(screen.getByTestId(`prstage-${stage}-totals`)).toBeInTheDocument();
     }
   });
@@ -82,14 +82,25 @@ describe('ProcurementBoard — by-stage kanban (Issue 3)', () => {
       container.querySelectorAll<HTMLElement>('span.size-\\[9px\\].rounded-full'),
     );
     // one column-head dot per workflow step
-    expect(dots).toHaveLength(5);
+    expect(dots).toHaveLength(6);
     const backgrounds = dots.map((d) => d.style.background);
-    expect(backgrounds.slice(0, 4)).toEqual(
-      Array(4).fill('hsl(var(--mark-neutral))'),
+    expect(backgrounds.slice(0, 5)).toEqual(
+      Array(5).fill('hsl(var(--mark-neutral))'),
     );
-    expect(backgrounds[4]).toBe('hsl(var(--success))');
+    expect(backgrounds[5]).toBe('hsl(var(--success))');
     // no blue/primary column dot remains (matches the sales board convention)
     expect(backgrounds.some((b) => b.includes('--primary'))).toBe(false);
+  });
+
+  it('#2497: a supplier invoice not yet paid sits under Invoiced, never under Paid', () => {
+    render(<ProcurementBoard procurements={[row({ id: 'p-inv', title: 'Billed cable', status: 'Vendor Invoiced' })]} onOpen={vi.fn()} />);
+    expect(within(screen.getByTestId('prstage-invoiced')).getByText('Billed cable')).toBeInTheDocument();
+    expect(within(screen.getByTestId('prstage-paid')).queryByText('Billed cable')).toBeNull();
+  });
+
+  it('#2497: an empty column total names the currency it is counted in', () => {
+    render(<ProcurementBoard procurements={[]} onOpen={vi.fn()} homeCurrency="IDR" />);
+    expect(screen.getByTestId('prstage-approved-totals').textContent).toMatch(/IDR|Rp/);
   });
 
   it('excludes terminal off-track (Rejected/Cancelled) requests from the board', () => {

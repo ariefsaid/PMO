@@ -79,10 +79,11 @@ describe('AC-002 #1325: ProcurementListRow shows the short name', () => {
   });
 });
 
-it('shows relative age in the active locale', () => {
+// #2497: the grouped row says days in the current stage, as the table does (not time since creation).
+it('shows days in the current stage', () => {
   setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
   try {
     wrap(makeRow({ created_at: new Date(Date.now() - 2 * 86_400_000).toISOString() }));
-    expect(screen.getByText(/2 hari yang lalu/)).toBeInTheDocument();
+    expect(screen.getByText(/^2 (days|hari)$/)).toBeInTheDocument();
   } finally { resetActiveLocale(); }
 });

@@ -877,7 +877,6 @@
       "loadError": "Couldn't load {{queue}}",
       "loadErrorSub": "Try again to refresh this queue."
     },
-    "queueHeading": "Approvals queue",
     "queueRegionLabel": "Approvals queue",
     "reopen": {
       "action": "Re-open for correction",
@@ -1902,7 +1901,6 @@
       "project": "Project",
       "requester": "Requester",
       "value": "Value",
-      "age": "Age",
       "status": "Status"
     },
     "preview": {
@@ -4616,17 +4614,6 @@
       "rejected": "Rejected",
       "cancelled": "Cancelled"
     },
-    "nextStep": {
-      "draft": "Submit for approval",
-      "requested": "Await approval",
-      "approved": "Request supplier quotes",
-      "vendorQuoted": "Select quote",
-      "quoteSelected": "Prepare purchase order",
-      "ordered": "Record receipt",
-      "received": "Record supplier invoice",
-      "vendorInvoiced": "Record payment"
-    },
-    "nextStepPrefix": "Next:",
     "projectEmptyScope": "This list covers purchases recorded in PMO. Purchases recorded in ERPNext appear below."
   },
   "uxs29": {

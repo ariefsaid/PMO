@@ -101,6 +101,8 @@ export interface ComboboxProps {
   className?: string;
   /** Use the compact 30px control when this picker sits beside other compact controls. */
   compact?: boolean;
+  /** Keep the label as the accessible name only, for a picker whose caption sits beside it (a filter bar). */
+  hideLabel?: boolean;
 }
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
@@ -136,6 +138,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
   id,
   className,
   compact,
+  hideLabel,
 }) => {
   const { t } = useTranslation();
   // Callers pass the English noun; the picker's own copy reads it in the reader's language.
@@ -277,7 +280,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
 
   return (
     <div className={cn('flex flex-col', compact ? 'gap-1.5' : 'gap-2', className)}>
-      <span id={labelId} className={cn('font-semibold text-foreground', 'text-control')}>
+      <span id={labelId} className={cn('font-semibold text-foreground', 'text-control', hideLabel && 'sr-only')}>
         {label}
         {required && (
           <span aria-hidden className="ml-0.5 text-destructive">

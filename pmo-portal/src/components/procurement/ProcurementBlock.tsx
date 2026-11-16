@@ -1,15 +1,16 @@
 import React, { useCallback, useDeferredValue, useMemo, useState } from 'react';
 import { Avatar } from '@/src/components/ui/Avatar';
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
-  Badge,
   Button,
   buttonClasses,
   ConfirmDialog,
   DataTable,
   Drawer,
+  FilterBar,
   Icon,
   ListState,
   MenuButton,
@@ -18,6 +19,7 @@ import {
   useToast,
   type Column,
   type DataTableProps,
+  type FilterBarFilter,
   type RowMenuItem,
   type SortState,
 } from '@/src/components/ui';
@@ -32,19 +34,19 @@ import { useProcurementDetail } from '@/src/hooks/useProcurementDetail';
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { repositories } from '@/src/lib/repositories';
-import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
+import { PROCUREMENT_LIFECYCLE_ORDER, type ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { formatQuantity } from '@/src/lib/stockFormat';
 import { itemsNetTotal } from '@/src/lib/itemsNet';
-import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { DecisionSupportPanel } from './DecisionSupportPanel';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { formatCurrency, formatDay, formatPercent, formatShortMoney } from '@/src/lib/format';
 import { mayDecideRoutedApproval } from '@/src/lib/procurement/approvalRoute';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { ProcurementStatusPill } from './ProcurementStatusPill';
+import { nextStepText } from './nextStepText';
 import { useProcurementStatusName } from './useProcurementStatusName';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import {
@@ -78,8 +80,8 @@ export interface ProcurementBlockProps {
   rowOrder?: (a: ProcurementWithRefs, b: ProcurementWithRefs) => number;
   /** False when the host page already shows "New procurement" as its primary action. */
   showCreate?: boolean;
-  /** Extra filter controls the host page owns (e.g. the company list's URL filters), shown in the toolbar. */
-  toolbarExtra?: React.ReactNode;
+  /** The host page renders the search and filters itself (one filter bar above all its views). */
+  filtersOutside?: boolean;
   /** Clears the host page's filters too when the user clears a zero-match table. */
   onClearFilters?: () => void;
   /** Reports the already-loaded project list count to its host tab. */
@@ -128,6 +130,7 @@ type PendingDecision = { rows: ProcurementWithRefs[]; target: DecisionTarget };
 type CurrencyTotal = { currency: string; value: number };
 type ProcurementBudgetCategory = NonNullable<ProcurementWithRefs['budget_category']>;
 
+const LIFECYCLE_RANK = new Map<string, number>(PROCUREMENT_LIFECYCLE_ORDER.map((status, index) => [status, index]));
 const TERMINAL_STATUSES: ProcurementStatus[] = ['Paid', 'Rejected', 'Cancelled'];
 const UNCATEGORIZED_FILTER = '__uncategorized__';
 const UNASSIGNED_FILTER = '__unassigned__';
@@ -143,27 +146,6 @@ function stageText(stage: ProcurementStage | 'Invoiced' | 'Paid', t: (key: strin
   }
 }
 
-function nextStepText(
-  status: ProcurementStatus,
-  canApprove: boolean,
-  t: (key: string, fallback: string) => string,
-): string {
-  if (status === 'Requested') {
-    return canApprove
-      ? t('projectDetail.procurement.nextStep.approveOrReturn', 'Approve or return')
-      : t('projectDetail.procurement.nextStep.waitingOnApprover', 'Waiting on approver');
-  }
-  switch (status) {
-    case 'Draft': return t('projectDetail.procurement.nextStep.draft', 'Submit for approval');
-    case 'Approved': return t('projectDetail.procurement.nextStep.approved', 'Get quotes or order');
-    case 'Vendor Quoted': return t('projectDetail.procurement.nextStep.gettingQuotes', 'Choose a quote');
-    case 'Quote Selected': return t('projectDetail.procurement.nextStep.quoteChosen', 'Raise the order');
-    case 'Ordered': return t('projectDetail.procurement.nextStep.ordered', 'Record delivery');
-    case 'Received': return t('projectDetail.procurement.nextStep.delivered', 'Record supplier invoice');
-    case 'Vendor Invoiced': return t('projectDetail.procurement.nextStep.supplierInvoiced', 'Pay');
-    default: return t('projectDetail.procurement.noNextStep', '—');
-  }
-}
 
 function moneyBasisText(kind: NonNullable<ProcurementMoneyResult['mostReal']>['kind'], t: (key: string, fallback: string) => string): string {
   switch (kind) {
@@ -276,7 +258,7 @@ function ProcurementBudgetLeft({
 /** Amber means waiting on someone: a request left undecided for over a month. A purchase order that has been open a long time is not an exception by itself. */
 const waitingLong = (row: { status: string }, days: number) => row.status === 'Requested' && days > 30;
 
-export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(function ProcurementBlock({ projectId, rowFilter, rowOrder, showCreate = true, toolbarExtra, onClearFilters, onCountChange }) {
+export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(function ProcurementBlock({ projectId, rowFilter, rowOrder, showCreate = true, filtersOutside = false, onClearFilters, onCountChange }) {
   const { t } = useTranslation('procurement');
   // The state main action reuses the record page's labels, which live in the common catalogue.
   const { t: tCommon } = useTranslation();
@@ -343,8 +325,6 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
   const deferredSearch = useDeferredValue(search);
   const [categoryFilter, setCategoryFilter] = useState('');
   const [ownerFilter, setOwnerFilter] = useState('');
-  // Phone: the filter selects sit behind one button so the first row is not pushed below the fold.
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [sort, setSort] = useState<SortState>();
   const [pendingDecision, setPendingDecision] = useState<PendingDecision | null>(null);
   const openId = searchParams.get('open');
@@ -385,6 +365,23 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
     row.requested_by?.full_name ?? t('projectDetail.procurement.unassigned', 'Unassigned'),
   ])).entries()].sort(([, a], [, b]) => a.localeCompare(b)), [rows, t]);
 
+  const blockFilters = useMemo<FilterBarFilter[]>(() => [
+    ...(categories.length > 0 ? [{
+      key: 'category', label: t('projectDetail.procurement.table.category', 'Category'), kind: 'select' as const,
+      options: [
+        ...(rows.some((row) => !row.budget_category) ? [{ value: UNCATEGORIZED_FILTER, label: t('projectDetail.procurement.uncategorized', 'Uncategorized') }] : []),
+        ...categories.map((category) => ({ value: category, label: categoryLabel(category) })),
+      ],
+    }] : []),
+    {
+      key: 'owner', label: t('procurement.raisedBy', 'Raised by'), kind: 'select' as const,
+      options: [
+        ...(rows.some((row) => !row.requested_by_id) ? [{ value: UNASSIGNED_FILTER, label: t('projectDetail.procurement.unassigned', 'Unassigned') }] : []),
+        ...owners.map(([id, name]) => ({ value: id, label: name })),
+      ],
+    },
+  ], [categories, categoryLabel, owners, rows, t]);
+
   const filteredRows = useMemo(() => {
     const filtered = rows.filter((row) => {
       if (selectedStage && stageForStatus(row.status) !== selectedStage) return false;
@@ -402,9 +399,11 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         case 'title': return row.title;
         case 'category': return categoryLabel(row.budget_category);
         case 'value': return derivationFor(row).money.mostReal?.amount ?? 0;
-        case 'stage': return statusName(row.status);
+        // #2497: the status column carries the age too, so it sorts by lifecycle step, then by days in that step.
+        case 'stage': return (LIFECYCLE_RANK.get(row.status) ?? 99) * 1_000_000 + derivationFor(row).age;
         case 'age': return derivationFor(row).age;
         case 'owner': return row.requested_by?.full_name ?? '';
+        case 'project': return row.project ? projectDisplayName(row.project) : '';
         default: return row.updated_at;
       }
     };
@@ -417,7 +416,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         : String(left).localeCompare(String(right));
       return comparison * direction;
     });
-  }, [rows, selectedStage, categoryFilter, ownerFilter, deferredSearch, sort, statusName, categoryLabel, derivationFor]);
+  }, [rows, selectedStage, categoryFilter, ownerFilter, deferredSearch, sort, categoryLabel, derivationFor]);
 
   const selectedRows = rows.filter((row) => selectedIds.has(row.id));
   const visibleIds = filteredRows.map((row) => row.id);
@@ -569,165 +568,167 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
     );
   }, [derivationFor, role, t]);
 
+  /** Days in the current stage, said as a person would: "today" rather than a column of zeros. */
+  const ageText = useCallback((days: number) => (days === 0
+    ? t('procurement.inStageToday', 'Today')
+    : t('procurement.inStageDays', { count: days, defaultValue_one: '{{count}} day', defaultValue_other: '{{count}} days' })), [t]);
+
+  /** The purchase cell: its name, then number · supplier; below 1280 the table also folds project and requester in here. */
+  const titleCell = useCallback((row: ProcurementWithRefs, withContext: boolean) => (
+          <div className="min-w-0 space-y-0.5">
+            <button type="button" aria-label={t('table.openRow', 'Open {{name}}', { name: row.title })} onClick={() => setSelected(row)} title={row.title} className="w-full min-w-0 line-clamp-2 break-words text-left font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+              {row.title}
+            </button>
+            {(row.code || row.pr_number || row.vendor?.name) && (
+              <span className="block min-w-0 break-words text-sm font-normal text-muted-foreground">
+                {(row.code || row.pr_number) && <span className="record-id">{row.code || row.pr_number}</span>}{(row.code || row.pr_number) && row.vendor?.name && ' · '}{row.vendor?.name}
+              </span>
+            )}
+            {withContext && (row.project || row.requested_by) && (
+              <span className="hidden min-w-0 break-words text-sm font-normal text-muted-foreground md:block xl:hidden">
+                {[!projectId && row.project ? projectDisplayName(row.project) : null, row.requested_by?.full_name].filter(Boolean).join(' · ')}
+              </span>
+            )}
+          </div>
+        
+  ), [projectId, setSelected, t]);
+
   const columns = useMemo<Column<ProcurementWithRefs>[]>(() => {
-    // Owner tidy ruling 2026-10-29: when every row in view is uncategorized the
-    // Category column carries no information — hide it until a category appears.
+    // Owner tidy ruling 2026-10-29: when every row in view is uncategorized the category carries no information.
     const hideCategory = filteredRows.length > 0 && filteredRows.every((row) => !row.budget_category);
+    // #2497: one money column at 1440 — the amount in full, with how much of the invoiced amount is paid under it.
+    const paidShare = (row: ProcurementWithRefs) => {
+      const money = derivationFor(row).money;
+      if (money.invoiced.unknown || money.paid.unknown || !money.invoiced.amount) return null;
+      const paid = money.paid.amount ?? 0;
+      return { paid, invoiced: money.invoiced.amount, percent: Math.max(0, Math.min(100, (paid / money.invoiced.amount) * 100)) };
+    };
     const valueColumn: Column<ProcurementWithRefs> = {
       key: 'value',
       header: t('projectDetail.procurement.table.value', 'Value'),
       kind: 'money',
       align: 'num',
-      size: 112,
-      minSize: 105,
+      size: 172,
+      minSize: 172,
       sortKey: 'value',
-      cell: (row) => rowAmount(row),
-      exportValue: (row) => derivationFor(row).money.mostReal?.amount ?? '',
-    };
-    const settlementColumn: Column<ProcurementWithRefs> = {
-      key: 'settlement',
-      header: t('procurement.settlement', 'Paid / invoiced'),
-      kind: 'text',
-      size: 126,
-      minSize: 126,
       cell: (row) => {
-        const money = derivationFor(row).money;
-        // Nothing invoiced yet is an empty cell, so a list with no invoices drops the whole column.
-        if (money.invoiced.unknown || money.paid.unknown || !money.invoiced.amount) return null;
-        const paid = money.paid.amount ?? 0;
-        const percent = Math.max(0, Math.min(100, (paid / money.invoiced.amount) * 100));
+        const share = paidShare(row);
         return (
-          <Tooltip content={t('procurement.settlementTooltip', 'Recorded paid amount compared with recorded invoices.')}>
-            <span tabIndex={0} className="inline-flex min-w-0 w-full items-center gap-1.5 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-              <span aria-hidden="true" className="h-1.5 w-12 shrink-0 overflow-hidden rounded-full bg-secondary"><span className={`block h-full ${percent >= 100 ? 'bg-success' : 'bg-primary'}`} style={{ width: `${percent}%` }} /></span>
-              <span className="shrink-0 text-sm tabular text-muted-foreground" title={`${formatCurrency(paid, row.currency)} / ${formatCurrency(money.invoiced.amount, row.currency)}`}>
-                {/* #2089: the share is a locale-formatted percent, never a raw float. */}
-                {formatPercent(percent / 100, 1)}
-              </span>
-            </span>
-          </Tooltip>
+          <div className="flex flex-col items-end gap-1">
+            {rowAmount(row)}
+            {share && (
+              <Tooltip content={t('procurement.settlementTooltip', 'Recorded paid amount compared with recorded invoices.')}>
+                <span tabIndex={0} title={`${formatCurrency(share.paid, row.currency)} / ${formatCurrency(share.invoiced, row.currency)}`} className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm text-sm text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+                  <span aria-hidden="true" className="h-1.5 w-10 shrink-0 overflow-hidden rounded-full bg-secondary"><span className={`block h-full ${share.percent >= 100 ? 'bg-success' : 'bg-primary'}`} style={{ width: `${share.percent}%` }} /></span>
+                  {/* #2089: the share is a locale-formatted percent, never a raw float. */}
+                  {t('procurement.paidShare', '{{percent}} paid', { percent: formatPercent(share.percent / 100, 0) })}
+                </span>
+              </Tooltip>
+            )}
+          </div>
         );
       },
-      exportValue: (row) => {
-        const money = derivationFor(row).money;
-        return money.invoiced.unknown || money.paid.unknown ? '' : `${money.paid.amount ?? 0} / ${money.invoiced.amount ?? 0}`;
-      },
+      exportValue: (row) => derivationFor(row).money.mostReal?.amount ?? '',
     };
-    const categoryColumn: Column<ProcurementWithRefs> = {
-      key: 'category',
-      header: t('projectDetail.procurement.table.category', 'Category'),
-      kind: 'text',
-      // #1791: the longest category word stays whole in English and Bahasa. "Subkontraktor" is 80.1px at 14px,
-      // so 112px (80px after the cell inset) cut it mid-word at 1440; 120px leaves room. The cell wraps at spaces only.
-      size: 120,
-      minSize: 120,
-      sortKey: 'category',
-      cell: (row) => {
-        const label = categoryLabel(row.budget_category);
-        return <span title={label} className="break-normal">{label}</span>;
-      },
-      exportValue: (row) => categoryLabel(row.budget_category),
-    };
+    const exportOnly = (column: Column<ProcurementWithRefs>): Column<ProcurementWithRefs> => ({ ...column, exportOnly: true, cell: () => null });
     const tableColumns: Column<ProcurementWithRefs>[] = [
       {
         key: 'procurement',
         header: t('projectDetail.procurement.table.procurement', 'Procurement'),
         kind: 'text',
         rowHeader: true,
-        // #1791: with Category shown the list must fit the scroller at 1440; the title clamps to two lines and the code · supplier line to one, each with its full text in `title`.
-        // #2434: 208 leaves the supplier room beside the uncut number; Category took 8px.
-        size: 208,
-        minSize: 208,
+        // #2497: the one flexible column; every other column holds its widest value whole at 1440.
+        minSize: 220,
         sortKey: 'title',
-        cell: (row) => (
-          <div className="min-w-0 space-y-1">
-            <button type="button" aria-label={t('table.openRow', 'Open {{name}}', { name: row.title })} onClick={() => setSelected(row)} title={row.title} className="w-full min-w-0 line-clamp-2 break-words text-left font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-              {row.title}
-            </button>
-            {(row.code || row.vendor?.name) && (
-              <span title={[row.code, row.vendor?.name].filter(Boolean).join(' · ')} className="min-w-0 line-clamp-1 break-words text-sm text-muted-foreground">
-                {row.code && <span className="record-id">{row.code}</span>}{row.code && row.vendor?.name && ' · '}{row.vendor?.name}
-              </span>
-            )}
-          </div>
-        ),
+        cell: (row) => titleCell(row, true),
         exportValue: (row) => row.title,
       },
-      ...(hideCategory ? [] : [categoryColumn]),
-      ...(canSeeMoney ? [valueColumn] : []),
-      ...(canSeeMoney ? [settlementColumn] : []),
+      ...(projectId ? [] : [{
+        key: 'project',
+        header: t('procurement.projectColumn', 'Project'),
+        kind: 'text' as const,
+        // Below 1280 the amount and status keep their room; project and requester move into the purchase cell.
+        colClassName: 'hidden xl:table-cell',
+        size: 232,
+        minSize: 232,
+        sortKey: 'project',
+        // The budget category belongs to the project's budget, so it rides under the project name.
+        cell: (row: ProcurementWithRefs) => (
+          <div className="min-w-0 space-y-0.5">
+            {/* Only the purchase and its amount take the primary ink; the context columns read grey. */}
+            <span className="block break-words text-muted-foreground">{row.project ? projectDisplayName(row.project) : '—'}</span>
+            {!hideCategory && row.budget_category && <span className="block break-words text-sm text-muted-foreground">{categoryLabel(row.budget_category)}</span>}
+          </div>
+        ),
+        exportValue: (row: ProcurementWithRefs) => (row.project ? projectDisplayName(row.project) : ''),
+      }]),
+      ...(projectId && !hideCategory ? [{
+        key: 'category',
+        header: t('projectDetail.procurement.table.category', 'Category'),
+        kind: 'text' as const,
+        // #1791: the longest category word stays whole in English and Bahasa ("Subkontraktor" is 80.1px at 14px).
+        size: 128,
+        minSize: 128,
+        sortKey: 'category',
+        cell: (row: ProcurementWithRefs) => <span className="break-normal">{categoryLabel(row.budget_category)}</span>,
+        exportValue: (row: ProcurementWithRefs) => categoryLabel(row.budget_category),
+      }] : [exportOnly({ key: 'category', header: t('projectDetail.procurement.table.category', 'Category'), kind: 'text', cell: () => null, exportValue: (row) => categoryLabel(row.budget_category) })]),
+      // The requester shows on a project tab too: a three-column table there left a wide hole before the amount.
+      ...[{
+        key: 'owner',
+        header: t('procurement.raisedBy', 'Raised by'),
+        kind: 'text' as const,
+        colClassName: 'hidden xl:table-cell',
+        size: 156,
+        minSize: 156,
+        sortKey: 'owner',
+        // Names wrap at a space, never cut: a person reads the whole name.
+        cell: (row: ProcurementWithRefs) => <span className="break-words text-muted-foreground">{row.requested_by?.full_name ?? t('projectDetail.procurement.unassigned', 'Unassigned')}</span>,
+        exportValue: (row: ProcurementWithRefs) => row.requested_by?.full_name ?? '',
+      }],
+      ...(canSeeMoney ? [valueColumn, exportOnly({
+        key: 'settlement',
+        header: t('procurement.settlement', 'Paid / invoiced'),
+        kind: 'text',
+        cell: () => null,
+        exportValue: (row) => {
+          const money = derivationFor(row).money;
+          return money.invoiced.unknown || money.paid.unknown ? '' : `${money.paid.amount ?? 0} / ${money.invoiced.amount ?? 0}`;
+        },
+      })] : []),
       {
         key: 'stage',
         header: t('projectDetail.procurement.table.status', 'Status'),
-        kind: 'status',
-        size: 154,
-        minSize: 150,
-        sortKey: 'stage',
-        cell: (row) => (
-          <Tooltip content={stageDateTooltip(row)}>
-            <span tabIndex={0} className="inline-flex min-w-0 max-w-full rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-              <ProcurementStatusPill status={row.status} />
-            </span>
-          </Tooltip>
-        ),
-        exportValue: (row) => statusName(row.status),
-      },
-      {
-        key: 'next-step',
-        header: t('projectDetail.procurement.table.nextStep', 'Next step'),
+        // #2497: where it stands and what comes next, read together: the status in full, then the next step and its age.
         kind: 'text',
-        // #1791 ruling: the label wraps to two lines, then truncates with the full text in `title`.
-        size: 146,
-        minSize: 146,
-        cell: (row) => {
-          const next = nextStepText(row.status, canDecideRow(row), t);
-          return <Tooltip content={next}><span title={next} className={`block min-w-0 w-full max-w-full line-clamp-2 break-words ${row.status === 'Requested' && canDecideRow(row) ? 'font-medium text-primary-text' : 'text-muted-foreground'}`}>{next}</span></Tooltip>;
-        },
-        exportValue: (row) => nextStepText(row.status, canDecideRow(row), t),
-      },
-      {
-        key: 'age',
-        header: t('procurement.inStage', 'In stage'),
-        kind: 'number',
-        colClassName: projectId ? 'hidden' : undefined,
-        align: 'num',
-        size: 96,
-        minSize: 96,
-        sortKey: 'age',
+        size: 240,
+        minSize: 240,
+        sortKey: 'stage',
         cell: (row) => {
           const days = derivationFor(row).age;
+          const terminal = TERMINAL_STATUSES.includes(row.status);
+          const next = terminal ? null : nextStepText(row.status, canDecideRow(row), t);
           return (
-            <span className={`tabular ${waitingLong(row, days) ? 'text-warning-foreground' : 'text-muted-foreground'}`}>
-              {t('procurement.inStageDays', { count: days, defaultValue_one: '{{count}} day', defaultValue_other: '{{count}} days' })}
-            </span>
-          );
-        },
-        exportValue: (row) => derivationFor(row).age,
-      },
-      {
-        key: 'owner',
-        header: t('procurement.raisedBy', 'Raised by'),
-        kind: 'text',
-        colClassName: projectId ? 'hidden' : undefined,
-        size: 124,
-        minSize: 124,
-        sortKey: 'owner',
-        cell: (row) => {
-          const owner = row.requested_by?.full_name ?? t('projectDetail.procurement.unassigned', 'Unassigned');
-          return (
-            <Tooltip content={t('projectDetail.procurement.ownerTooltip', 'Requested by {{name}}. Source: procurement case.', { name: owner })}>
-              <span tabIndex={0} className="inline-flex max-w-full items-center gap-2 rounded-sm text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-                <Avatar name={owner} decorative />
-                <span title={owner} className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{owner}</span>
+            <div className="min-w-0 space-y-1">
+              <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <Tooltip content={stageDateTooltip(row)}>
+                  <span tabIndex={0} className="inline-flex rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+                    <ProcurementStatusPill status={row.status} />
+                  </span>
+                </Tooltip>
+                {!terminal && <span className={`whitespace-nowrap text-sm tabular ${waitingLong(row, days) ? 'text-warning-foreground' : 'text-muted-foreground'}`}>{ageText(days)}</span>}
               </span>
-            </Tooltip>
+              {next && <span className={`block text-sm ${row.status === 'Requested' && canDecideRow(row) ? 'font-medium text-primary-text' : 'text-muted-foreground'}`}>{next}</span>}
+            </div>
           );
         },
-        exportValue: (row) => row.requested_by?.full_name ?? '',
+        exportValue: (row) => statusName(row.status),
       },
+      exportOnly({ key: 'next-step', header: t('projectDetail.procurement.table.nextStep', 'Next step'), kind: 'text', cell: () => null, exportValue: (row) => nextStepText(row.status, canDecideRow(row), t) }),
+      exportOnly({ key: 'age', header: t('procurement.inStage', 'In stage'), kind: 'number', cell: () => null, exportValue: (row) => derivationFor(row).age }),
     ];
     return tableColumns;
-  }, [canSeeMoney, t, statusName, categoryLabel, canDecideRow, stageDateTooltip, derivationFor, projectId, setSelected, rowAmount, filteredRows]);
+  }, [canSeeMoney, t, statusName, categoryLabel, canDecideRow, stageDateTooltip, derivationFor, projectId, rowAmount, filteredRows, ageText, titleCell]);
 
   const exportColumns = columns;
   const selectedForExport = selectedRows;
@@ -737,7 +738,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
   }));
 
   const heading = t('projectDetail.procurement.title', 'Procurement');
-  const hasUnfilteredRows = rows.length > 0;
+  // A host page that filters outside hands over already-narrowed rows; an empty result is still "no match", not "none yet".
+  const hasUnfilteredRows = (filtersOutside ? scopedRows : rows).length > 0;
   const hasVisibleErpPurchases = canSeeMoney && (
     erp.isError || (erp.data ?? []).some((row) => row.procurementId === null || Number(row.outstanding ?? 0) > 0)
   );
@@ -835,7 +837,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
     <div className="space-y-4">
       {isPending ? (
         <div className={projectId ? undefined : 'rounded-lg border border-border bg-card'}><ListState variant="loading" rows={3} /></div>
-      ) : !isError && data && projectId && (
+      ) : !isError && data && (
         <ProcurementStageBand label={t('projectDetail.procurement.stageBand.label', 'Procurement stages')}>
           {stageStats.map(({ key, rows: stageRows, currencyTotals }) => {
             const stageLabel = stageText(key, t);
@@ -854,8 +856,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                   onClick={() => setSelectedStage(selectedStage === key ? null : key)}
                   className={`flex min-h-[68px] w-full min-w-0 flex-col items-start justify-center px-3 py-2 text-left transition-colors focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${selectedStage === key ? 'bg-accent outline outline-1 -outline-offset-1 outline-primary/30' : 'bg-card hover:bg-accent/40'}`}
                 >
-                  <span className="flex w-full min-w-0 items-center justify-between gap-1 text-sm font-semibold text-muted-foreground">
-                    <span className="truncate">{stageLabel}</span>
+                  <span className="flex w-full min-w-0 flex-wrap items-center justify-between gap-x-2 text-sm font-semibold text-muted-foreground">
+                    <span>{stageLabel}</span>
                     {forYou > 0 && <span className="shrink-0 font-medium text-primary-text">{t('projectDetail.procurement.forYou', '{{count}} for you', { count: forYou })}</span>}
                   </span>
                   <span className="mt-1 flex w-full min-w-0 flex-wrap items-baseline justify-start gap-x-2">
@@ -886,6 +888,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         bareEmpty={!hasUnfilteredRows}
         accessibleName={projectId ? t('projectDetail.procurement.table.accessibleName', 'Project procurement') : t('procurement.table.accessibleName', 'Procurement')}
         rowMenu={(row) => rowMenu(row)}
+        // The phone card names the requester in its details, so its title carries no context line.
+        mobileCardTitle={(row) => titleCell(row, false)}
         mobileCardDetails={(row) => {
           // L3: a phone row reads title · stage · one amount · next step; age and raiser ride along unlabelled.
           const next = TERMINAL_STATUSES.includes(row.status) ? null : nextStepText(row.status, canDecideRow(row), t);
@@ -897,7 +901,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                 <span className="inline-flex min-w-0 items-center gap-2">
                   <ProcurementStatusPill status={row.status} />
                   <span className={`text-sm tabular ${waitingLong(row, days) ? 'text-warning-foreground' : 'text-muted-foreground'}`}>
-                    {t('procurement.inStageDaysLong', { count: days, defaultValue_one: '{{count}} day in stage', defaultValue_other: '{{count}} days in stage' })}
+                    {days === 0 ? ageText(days) : t('procurement.inStageDaysLong', { count: days, defaultValue_one: '{{count}} day in stage', defaultValue_other: '{{count}} days in stage' })}
                   </span>
                 </span>
                 {canSeeMoney && rowAmount(row, true)}
@@ -942,39 +946,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         errorSub={globalErrorSub}
         onRetry={() => { void refetch(); }}
       >
-        {!projectId && !isPending && !isError && data && (
-          <div className="border-b border-border px-3 pb-2.5 pt-3 sm:px-4">
-            {/* Stages as parts of one whole: width = share of procurements; the chips below name each part. */}
-            {stageStats.filter(({ rows: stageRows }) => stageRows.length > 0).length > 1 && <div aria-hidden="true" className="mb-2.5 flex h-2 w-full gap-px overflow-hidden rounded-full bg-secondary">
-              {stageStats.filter(({ rows: stageRows }) => stageRows.length > 0).map(({ key, rows: stageRows }) => (
-                <span key={key} title={`${stageText(key, t)}: ${stageRows.length}`} style={{ flexGrow: stageRows.length }}
-                  className={key === 'Request' && canApprove && pendingProcurementApprovals(stageRows, currentUser?.id, role === 'Admin').length > 0 ? 'bg-primary' : 'bg-mark-neutral/40'} />
-              ))}
-            </div>}
-          <div role="group" aria-label={t('projectDetail.procurement.stageBand.label', 'Procurement stages')} className="flex flex-wrap gap-2">
-            {stageStats.filter(({ key, rows: stageRows }) => stageRows.length > 0 || selectedStage === key).map(({ key, rows: stageRows, currencyTotals }) => {
-              const forYou = key === 'Request' && canApprove
-                ? pendingProcurementApprovals(stageRows, currentUser?.id, role === 'Admin').length
-                : 0;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  aria-pressed={selectedStage === key}
-                  onClick={() => setSelectedStage(selectedStage === key ? null : key)}
-                  className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring sm:min-h-9 ${selectedStage === key ? 'border-primary/40 bg-accent text-foreground' : 'border-border bg-card text-muted-foreground hover:bg-accent/40 hover:text-foreground'}`}
-                >
-                  {stageText(key, t)}
-                  <span className="tabular text-foreground">{stageRows.length}</span>
-                  {canSeeMoney && currencyTotals.map((item) => <span key={item.currency} className="tabular" title={formatCurrency(item.value, item.currency)}>{formatShortMoney(item.value, item.currency)}</span>)}
-                  {forYou > 0 && <span className="font-medium text-primary-text">{t('projectDetail.procurement.forYou', '{{count}} for you', { count: forYou })}</span>}
-                </button>
-              );
-            })}
-          </div>
-          </div>
-        )}
-        <div className="flex min-h-[58px] flex-wrap items-center gap-2 border-b border-border px-3 py-2.5 sm:px-4">
+        {(selectedRows.length > 0 || !filtersOutside) && <div className="flex min-h-[58px] flex-wrap items-center gap-2 border-b border-border px-3 py-2.5 sm:px-4">
           {selectedRows.length > 0 ? (
             <>
               <span aria-live="polite" className="mr-1 text-sm font-semibold text-foreground">
@@ -1007,51 +979,23 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
             </>
           ) : (
             <>
-              <label className="flex h-11 min-w-[220px] flex-1 items-center gap-2 rounded-md border border-input bg-background px-2.5 text-sm focus-within:ring-2 focus-within:ring-ring sm:h-9 sm:max-w-[260px]">
-                <Icon name="search" className="size-4 shrink-0 text-muted-foreground" />
-                <span className="sr-only">{t('projectDetail.procurement.searchLabel', 'Search procurement')}</span>
-                <input
-                  type="search"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder={t('projectDetail.procurement.search', 'Search procurement…')}
-                  className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
-                />
-              </label>
-              <Button variant="outline" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)} className="h-11 md:hidden">
-                {t('procurement.filters', 'Filters')}
-              </Button>
-              <div className={`${filtersOpen ? 'flex' : 'hidden'} w-full min-w-0 flex-col gap-2 md:contents`}>
-              {toolbarExtra}
-              <label className="sr-only" htmlFor="procurement-category-filter">{t('projectDetail.procurement.filter.category', 'Filter by category')}</label>
-              <select
-                id="procurement-category-filter"
-                value={categoryFilter}
-                onChange={(event) => setCategoryFilter(event.target.value)}
-                className="h-11 min-w-0 max-w-full rounded-md border border-input bg-background px-2.5 text-sm sm:h-9 text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
-              >
-                <option value="">{t('projectDetail.procurement.filter.allCategories', 'Category')}</option>
-                {rows.some((row) => !row.budget_category) && <option value={UNCATEGORIZED_FILTER}>{t('projectDetail.procurement.uncategorized', 'Uncategorized')}</option>}
-                {categories.map((category) => <option key={category} value={category}>{categoryLabel(category)}</option>)}
-              </select>
-              <label className="sr-only" htmlFor="procurement-owner-filter">{t('projectDetail.procurement.filter.owner', 'Filter by owner')}</label>
-              <select
-                id="procurement-owner-filter"
-                value={ownerFilter}
-                onChange={(event) => setOwnerFilter(event.target.value)}
-                className="h-11 min-w-0 max-w-full rounded-md border border-input bg-background px-2.5 text-sm sm:h-9 text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
-              >
-                <option value="">{t('projectDetail.procurement.filter.allOwners', 'Owner')}</option>
-                {rows.some((row) => !row.requested_by_id) && <option value={UNASSIGNED_FILTER}>{t('projectDetail.procurement.unassigned', 'Unassigned')}</option>}
-                {owners.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-              </select>
-              </div>
-              {selectedStage && (
-                <Button variant="ghost" size="sm" aria-label={t('projectDetail.procurement.filter.clearStage', 'Clear stage filter')} onClick={() => setSelectedStage(null)}>
-                  <Badge active>{stageText(selectedStage, t)} <Icon name="x" className="ml-1 size-3" /></Badge>
-                </Button>
-              )}
-              <span className="flex-1" />
+              {/* The host page that owns its filters (the purchases list) shows them above every view; a project tab keeps its own here. */}
+              <FilterBar
+                className="min-w-0 flex-1"
+                searchKey="q"
+                searchLabel={t('projectDetail.procurement.searchLabel', 'Search procurement')}
+                searchPlaceholder={t('projectDetail.procurement.search', 'Search procurement…')}
+                filters={blockFilters}
+                values={{ q: search, category: categoryFilter, owner: ownerFilter }}
+                onChange={(key, value) => {
+                  if (key === 'q') setSearch(value);
+                  else if (key === 'category') setCategoryFilter(value);
+                  else setOwnerFilter(value);
+                }}
+                onClear={() => { setSearch(''); setCategoryFilter(''); setOwnerFilter(''); setSelectedStage(null); }}
+                shown={filteredRows.length}
+                total={rows.length}
+              />
               {canCreate && showCreate && (
                 <Button size="sm" onClick={() => navigate(projectId ? `/procurement/new?project=${encodeURIComponent(projectId)}` : '/procurement/new')}>
                   <Icon name="plus" />{t('projectDetail.procurement.newRequest', 'New procurement')}
@@ -1059,7 +1003,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
               )}
             </>
           )}
-        </div>
+        </div>}
 
       </ProcurementList>
 

@@ -50,7 +50,8 @@ describe('AC-S19-002: procurement daily row', () => {
     );
 
     expect(screen.getByText('Penawaran dipilih')).toBeInTheDocument();
-    expect(screen.getByText('Langkah berikutnya: Siapkan pesanan pembelian')).toBeInTheDocument();
+    // #2497: the grouped row uses the table's next-step words, without a label in front.
+    expect(screen.getByText('Ajukan pesanan')).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: /Lifecycle:/i })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Lighting package' })).toHaveAttribute(
       'href',

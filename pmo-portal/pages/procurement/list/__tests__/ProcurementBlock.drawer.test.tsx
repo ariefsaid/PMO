@@ -268,14 +268,17 @@ describe('Procurement list rows', () => {
     authState.role = 'Finance';
   });
 
-  it('B7: the stage band names only stages in use, in Request · Order · Receive · Pay words', () => {
+  // #2497: the company list uses the project tab's band: four fixed quarters, so each figure sits over its own bar.
+  it('B7: the stage band names the four stages in Request · Order · Receive · Pay words, empty ones at zero', () => {
     procState.data = [row({ id: 'o', status: 'Ordered', procurement_invoices: [] }), row({ id: 'r', status: 'Received', procurement_invoices: [] })];
     renderBlock('/procurement');
-    const band = screen.getByRole('group', { name: 'Procurement stages' });
+    const band = screen.getByRole('region', { name: 'Procurement stages' });
     const labels = within(band).getAllByRole('button').map((button) => button.textContent ?? '');
-    expect(labels).toHaveLength(2);   // stages with nothing in them are not drawn
-    expect(labels[0]).toMatch(/^Order/);
-    expect(labels[1]).toMatch(/^Receive/);
+    expect(labels).toHaveLength(4);
+    expect(labels[0]).toMatch(/^Request0/);
+    expect(labels[1]).toMatch(/^Order1/);
+    expect(labels[2]).toMatch(/^Receive1/);
+    expect(labels[3]).toMatch(/^Pay0/);
     expect(band).not.toHaveTextContent(/Ordered|Received/);
   });
 
