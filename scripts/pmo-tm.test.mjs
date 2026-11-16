@@ -528,7 +528,7 @@ test('AC-CTM-004 two new labour lines with the same label in one file: the secon
 
 test('NFR-CTM-003 a card read that hits the bound is refused, never planned from', async () => {
   const card = Array.from({ length: 1001 }, (_, i) => ({ ...RATES[1], line_key: `${i}`, label: `L${i}` }));
-  await assert.rejects(planRates(stubApi({ card }), [RATE_ROW]), /more than 1000 current rate lines/);
+  await assert.rejects(planRates(stubApi({ card }), [RATE_ROW]), /1000 or more current rate lines/);
 });
 
 test('AC-CTM-004 a rates file with a refused row sends nothing, with or without --apply', async () => {
@@ -619,7 +619,7 @@ test('AC-CTM-007 a malformed assignment row is refused locally and never sent', 
   const f = await fake(READS());
   try {
     const r = await cli(['tm', 'assign', 'set', jsonFile([{ ...ASSIGN_ROW, user_id: 'nobody' }]), '--apply'], f);
-    assert.equal(r.code, 1);
+    assert.equal(r.code, 2, 'nothing reached the server: exit 2, as the preview');
     assert.match(r.json.rows[0].problems.join(), /user_id must be a person id/);
     assert.deepEqual(writesSent(f), []);
   } finally { await f.close(); }
@@ -825,5 +825,143 @@ test('AC-CTM-001 a write command with missing input is refused before any RPC (e
       assert.equal(r.code, 2, `${argv.join(' ')} → ${JSON.stringify(r.error)}`);
     }
     assert.deepEqual(rpcCalls(f), []);
+  } finally { await f.close(); }
+});
+
+// ── fix round: truncated reads, rerun after a dropped connection, partial deselect, exit codes ──────────────────────────
+
+const sourceId = (i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`;
+const manySources = (n) => Array.from({ length: n }, (_, i) => ({ ...SOURCES[0], id: sourceId(i + 1), total_count: n }));
+/** The server's row cap (max_rows = 1000) and PostgREST's limit/offset over an ordered list. */
+const paged = (rows) => (_body, url) => {
+  const offset = Number(url.searchParams.get('offset') ?? 0);
+  const limit = Math.min(Number(url.searchParams.get('limit') ?? 1000), 1000);
+  return [200, rows.slice(offset, offset + limit)];
+};
+
+test('NFR-CTM-003 claim sources pages past the server row cap and lists every source', async () => {
+  const f = await fake({ ...READS(), 'POST /rest/v1/rpc/list_tm_claim_source_details': paged(manySources(1001)) });
+  try {
+    const r = await cli(['tm', 'claim', 'sources', CLAIM], f);
+    assert.equal(r.code, 0, JSON.stringify(r.error));
+    assert.equal(r.json.sources.length, 1001);
+    assert.equal(r.json.sources[1000].source_id, sourceId(1001));
+  } finally { await f.close(); }
+});
+
+test('NFR-CTM-003 claim deselect finds a source past the server row cap and removes it', async () => {
+  const f = await fake({ ...READS(), 'POST /rest/v1/rpc/list_tm_claim_source_details': paged(manySources(1001)), 'POST /rest/v1/rpc/deselect_tm_source': [200, null] });
+  try {
+    const r = await cli(['tm', 'claim', 'deselect', CLAIM, sourceId(1001), '--project', PROJECT, '--apply'], f);
+    assert.equal(r.code, 0, JSON.stringify(r.error));
+    assert.deepEqual(r.json.sources.map((s) => s.action), ['deselect']);
+    assert.deepEqual(f.requests.filter((q) => q.path === '/rest/v1/rpc/deselect_tm_source').map((q) => q.body), [{ p_claim: CLAIM, p_source: sourceId(1001) }]);
+  } finally { await f.close(); }
+});
+
+test('NFR-CTM-003 a source list that stops short of its own total is refused, never planned from', async () => {
+  const rows = manySources(1500);
+  const f = await fake({ ...READS(), 'POST /rest/v1/rpc/list_tm_claim_source_details': (_b, url) => [200, Number(url.searchParams.get('offset') ?? 0) === 0 ? rows.slice(0, 1000) : []], 'POST /rest/v1/rpc/deselect_tm_source': [200, null] });
+  try {
+    const r = await cli(['tm', 'claim', 'deselect', CLAIM, sourceId(1400), '--project', PROJECT, '--apply'], f);
+    assert.equal(r.code, 2);
+    assert.match(r.error.message, /Nothing was sent/);
+    assert.deepEqual(writesSent(f), []);
+  } finally { await f.close(); }
+});
+
+test('NFR-CTM-003 a claim list that fills the server row cap is refused before a write is planned', async () => {
+  const claims = Array.from({ length: 1000 }, (_, i) => ({ ...DRAFT, id: sourceId(i + 1) }));
+  const f = await fake({ ...READS(), 'POST /rest/v1/rpc/list_tm_claims': [200, claims] });
+  try {
+    const r = await cli(['tm', 'claim', 'withdraw', sourceId(1), '--project', PROJECT, '--apply'], f);
+    assert.equal(r.code, 2);
+    assert.match(r.error.details.join(), /1000 or more claims/);
+    assert.deepEqual(writesSent(f), []);
+  } finally { await f.close(); }
+});
+
+test('NFR-CTM-003 a rate card that fills the server row cap (1000) is refused, not planned from', async () => {
+  const card = Array.from({ length: 1000 }, (_, i) => ({ ...RATES[1], line_key: `${i}`, label: `L${i}` }));
+  await assert.rejects(planRates(stubApi({ card }), [RATE_ROW]), /1000 or more current rate lines/);
+});
+
+test('AC-CTM-005 a rates write that was saved is reported as saved when the read-back is over the bound, not as "Nothing was sent"', async () => {
+  let reads = 0;
+  const f = await fake({
+    ...READS(),
+    'GET /rest/v1/contract_rate_lines': () => (reads++ === 0 ? [200, RATES] : [200, Array.from({ length: 1000 }, (_, i) => ({ ...RATES[1], line_key: `${i}`, label: `L${i}` }))]),
+    'POST /rest/v1/rpc/save_contract_rate_line': (body) => [200, body.p_line.map((line) => ({ line_key: line.line_key, version: 1, changed: true }))],
+  });
+  try {
+    const r = await cli(['tm', 'rates', 'set', jsonFile([RATE_ROW]), '--apply'], f);
+    assert.equal(r.code, 0, r.out);
+    assert.equal(r.json.applied, true);
+    assert.match(r.json.saved[0].line_key, UUID_RE);
+    assert.match(r.json.readback_note, /Saved\. Reading it back failed.*pmo tm rates list --project/);
+    assert.doesNotMatch(r.out, /Nothing was sent/);
+  } finally { await f.close(); }
+});
+
+const EQUIP_ROW = { project_id: PROJECT, kind: 'equipment', asset_id: '12121212-1212-4212-8212-121212121212', label: 'Excavator', unit: 'hour', rate: 900000, standby_rate: 300000, currency: 'IDR', effective_from: '2026-01-01' };
+
+test('AC-CTM-005 rerunning a new equipment line that was already saved reports it as already saved and sends nothing', async () => {
+  const card = [...RATES];
+  const f = await fake({
+    ...READS(),
+    'GET /rest/v1/contract_rate_lines': () => [200, card],
+    'POST /rest/v1/rpc/save_contract_rate_line': (body) => {
+      for (const line of body.p_line) card.push({ ...line, version: 1, is_current: true });
+      return [200, body.p_line.map((line) => ({ line_key: line.line_key, version: 1, changed: true }))];
+    },
+  });
+  try {
+    const file = jsonFile([EQUIP_ROW]);
+    const first = await cli(['tm', 'rates', 'set', file, '--apply'], f);
+    assert.equal(first.code, 0, JSON.stringify(first.error));
+    const second = await cli(['tm', 'rates', 'set', file, '--apply'], f);
+    assert.equal(second.code, 0, second.out);
+    assert.deepEqual(second.json.rows.map((row) => row.action), ['unchanged']);
+    assert.equal(second.json.rows[0].line_key, first.json.saved[0].line_key);
+    assert.match(second.json.note, /Nothing to save/);
+    assert.deepEqual(writesSent(f), ['save_contract_rate_line'], 'one write, from the first run only');
+  } finally { await f.close(); }
+});
+
+test('AC-CTM-005 a new equipment line whose content differs from the saved one for that asset is still created', async () => {
+  const saved = { ...EQUIP_ROW, line_key: '13131313-1313-4313-8313-131313131313', version: 1, is_current: true };
+  const plan = await planRates(stubApi({ card: [...RATES, saved] }), [{ ...EQUIP_ROW, rate: 950000 }]);
+  assert.deepEqual(plan.map((row) => row.action), ['create']);
+});
+
+test('FR-CTM-024 a deselect batch refused part-way reports which sources are out and which were not sent', async () => {
+  const three = manySources(3);
+  const f = await fake({
+    ...READS(),
+    'POST /rest/v1/rpc/list_tm_claim_source_details': [200, three],
+    'POST /rest/v1/rpc/deselect_tm_source': (body) => (body.p_source === sourceId(2)
+      ? [409, { code: 'P0001', message: 'the claim is no longer a Draft' }]
+      : [200, null]),
+  });
+  try {
+    const r = await cli(['tm', 'claim', 'deselect', CLAIM, sourceId(1), sourceId(2), sourceId(3), '--project', PROJECT, '--apply'], f);
+    assert.equal(r.code, 1, r.out);
+    assert.equal(r.json.applied, true);
+    assert.deepEqual(r.json.sources.map((s) => s.action), ['deselect', 'refused', 'not_sent']);
+    assert.match(r.json.sources[1].problems[0], /the claim is no longer a Draft/);
+    assert.deepEqual(r.json.deselected, [sourceId(1)]);
+    assert.deepEqual(r.json.not_deselected, [sourceId(2), sourceId(3)]);
+    assert.equal(writesSent(f).length, 2, 'the third source is never sent');
+  } finally { await f.close(); }
+});
+
+test('AC-CTM-007 assign set --apply with every assignment already present exits 0 and says it is already done', async () => {
+  const f = await fake(READS());
+  try {
+    const r = await cli(['tm', 'assign', 'set', jsonFile([{ project_id: PROJECT, line_key: LINE_KEY, user_id: ENGINEER, effective_from: '2026-01-01' }]), '--apply'], f);
+    assert.equal(r.code, 0, r.out);
+    assert.equal(r.json.applied, false);
+    assert.match(r.json.note, /Already done/);
+    assert.deepEqual(writesSent(f), []);
   } finally { await f.close(); }
 });

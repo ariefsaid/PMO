@@ -107,15 +107,32 @@ export function rateRowProblems(row) {
 /** The plan reads the rate card with the sales-item code too, so an unchanged mapping is recognised. */
 export const RATE_PLAN_COLUMNS = Object.freeze([...RATE_LINE_COLUMNS, 'sales_item_code']);
 
-/** Bounded read: one more than the bound is asked for, and a full answer is refused rather than planned from (NFR-CTM-003). */
+/** The server returns at most this many rows per read (max_rows), so an answer this long may be cut short. */
+const SERVER_ROW_CAP = 1000;
+
+/** A list that may have been cut short is refused rather than planned from (NFR-CTM-003). */
+function assertComplete(list, what) {
+  if (list.length >= SERVER_ROW_CAP) {
+    throw new TmQueryError([`these projects have ${SERVER_ROW_CAP} or more ${what}; the CLI will not plan from a partial list. Use the app: ${TM_SCREEN}`]);
+  }
+  return list;
+}
+
+/** Bounded read: an answer that reaches the server's row cap is refused rather than planned from. */
 async function readBounded(api, table, query, what) {
   query.set('limit', String(MAX_RATE_ROWS + 1));
   const rows = await api.get(table, query);
-  const list = Array.isArray(rows) ? rows : [];
-  if (list.length > MAX_RATE_ROWS) {
-    throw new TmQueryError([`these projects have more than ${MAX_RATE_ROWS} ${what}; the CLI will not plan from a partial list. Use the app: ${TM_SCREEN}`]);
+  return assertComplete(Array.isArray(rows) ? rows : [], what);
+}
+
+/** A read after a write that went through: its failure is reported beside the saved result, never as "Nothing was sent". */
+async function readBack(read, check) {
+  try {
+    return { value: await read() };
+  } catch (error) {
+    const why = error instanceof TmQueryError ? error.problems.join('; ') : error?.message ?? String(error);
+    return { value: null, note: `Saved. Reading it back failed (${why}); check with \`${check}\`.` };
   }
-  return list;
 }
 
 async function readCurrentLines(api, projects) {
@@ -170,6 +187,11 @@ export async function planRates(api, rows) {
         }
         newLabels.add(key);
       }
+      if (row.kind === 'equipment') {
+        // A dropped connection can hide a save that went through: the same line, already current, is already done.
+        const saved = card.find((line) => line.project_id === project && line.kind === 'equipment' && sameContent(row, line));
+        if (saved) return { index, action: 'unchanged', line_key: saved.line_key, version: saved.version };
+      }
       return { index, action: 'create', line_key: crypto.randomUUID(), send: row };
     }
     const lineKey = row.line_key.toLowerCase();
@@ -202,8 +224,8 @@ export async function setRates(api, rows, { apply }) {
   const lines = toSend.map((row) => ({ ...row.send, line_key: row.line_key }));
   const saved = await write(api, 'save_contract_rate_line', { p_line: lines }, `pmo tm rates list --project ${lines[0].project_id}`);
   const keys = new Set(lines.map((line) => line.line_key));
-  const current = (await readCurrentLines(api, projectsOf(lines))).filter((line) => keys.has(line.line_key));
-  return { exit: 0, result: { applied: true, rows: shown, saved, current } };
+  const back = await readBack(async () => (await readCurrentLines(api, projectsOf(lines))).filter((line) => keys.has(line.line_key)), `pmo tm rates list --project ${lines[0].project_id}`);
+  return { exit: 0, result: { applied: true, rows: shown, saved, current: back.value, ...(back.note ? { readback_note: back.note } : {}) } };
 }
 
 const ASSIGN_KEYS = Object.freeze(['project_id', 'line_key', 'user_id', 'effective_from', 'effective_to']);
@@ -260,6 +282,11 @@ export async function setAssignees(api, rows, { apply }) {
   if (!apply) {
     return { exit: plan.some((row) => row.action === 'refused') ? 2 : 0, result: { applied: false, rows: shown(), next: 'Run the same command with --apply. Each row is saved on its own; a refused row does not stop the others.' } };
   }
+  const refusedLocally = plan.some((row) => row.action === 'refused');
+  if (!plan.some((row) => row.body)) {
+    const note = refusedLocally ? 'Nothing was sent: every row was refused before sending.' : 'Already done: every assignment already exists, so nothing was sent.';
+    return { exit: refusedLocally ? 2 : 0, result: { applied: false, rows: shown(), note } };
+  }
   for (const step of plan.filter((row) => row.body)) {
     try {
       step.assignment_id = await write(api, 'set_contract_rate_assignee', step.body, `pmo tm rates list --project ${step.body.p_project} --assignees`);
@@ -274,7 +301,7 @@ export async function setAssignees(api, rows, { apply }) {
 
 const readClaims = async (api, project) => {
   const rows = await api.rpc('list_tm_claims', { p_project: project });
-  return Array.isArray(rows) ? rows : [];
+  return assertComplete(Array.isArray(rows) ? rows : [], 'claims');
 };
 
 /** `tm claim assemble`: preview the window, refuse a second Draft for it, then assemble once (FR-CTM-020..022). */
@@ -289,11 +316,12 @@ export async function assembleClaim(api, { project, from, to, workOrder }, { app
     && (claim.work_order_id ?? null) === (body.p_work_order ?? null) && claim.period_from <= body.p_to && body.p_from <= claim.period_to);
   if (existing) return { exit: 0, result: { status: 'already_assembled', claim: existing, note: 'A Draft claim already covers this window; nothing was sent.' } };
   if (!apply) return { exit: 0, result: { applied: false, preview, next: 'Run the same command with --apply to assemble this Draft claim.' } };
-  const claimId = await write(api, 'assemble_tm_claim', body, `pmo tm claim list --project ${body.p_project}`);
-  const claim = (await readClaims(api, body.p_project)).find((row) => row.id === claimId) ?? null;
-  const result = { applied: true, claim_id: claimId, claim };
+  const newClaimId = await write(api, 'assemble_tm_claim', body, `pmo tm claim list --project ${body.p_project}`);
+  const back = await readBack(async () => (await readClaims(api, body.p_project)).find((row) => row.id === newClaimId) ?? null, `pmo tm claim list --project ${body.p_project}`);
+  const claim = back.value;
+  const result = { applied: true, claim_id: newClaimId, claim, ...(back.note ? { readback_note: back.note } : {}) };
   const assembled = claim ? Number(claim.gross_amount).toFixed(2) : null;
-  if (assembled !== preview.total) {
+  if (claim && assembled !== preview.total) {
     result.warning = { total_changed: { preview: preview.total, assembled }, note: 'Hours were approved or changed between the preview and the assembly: review the claim before preparing its sign-off.' };
   }
   return { exit: 0, result };
@@ -304,9 +332,19 @@ function claimId(claim) {
   return String(claim).toLowerCase();
 }
 
+/** Every source of a claim: the server returns at most SERVER_ROW_CAP rows, so page on `offset` until `total_count` is read. */
 const readSources = async (api, claim) => {
-  const rows = await api.rpc('list_tm_claim_source_details', { p_claim: claim });
-  return Array.isArray(rows) ? rows : [];
+  const all = [];
+  let total = null;
+  for (;;) {
+    const query = new URLSearchParams({ limit: String(SERVER_ROW_CAP), offset: String(all.length) });
+    const page = await api.rpc('list_tm_claim_source_details', { p_claim: claim }, query);
+    const rows = Array.isArray(page) ? page : [];
+    all.push(...rows);
+    total ??= Number(rows[0]?.total_count ?? 0);
+    if (all.length >= total) return all;
+    if (rows.length === 0) throw new TmQueryError([`the claim has ${total} sources but only ${all.length} could be read; the CLI will not plan from a partial list. Use the app: ${TM_SCREEN}`]);
+  }
 };
 
 /** `tm claim sources <claim>` (read): each source and whether a prepared sign-off still matches the claim. */
@@ -348,10 +386,24 @@ export async function deselectSources(api, { claim, project, sources }, { apply 
     return { source_id: id, action: 'deselect', date: source.entry_date, who: source.person_name ?? source.asset_name, units: source.units, unit: source.unit, line: source.line_label };
   });
   if (!apply) return { exit: 0, result: { applied: false, claim: claimView(found), sources: plan, next: 'Run the same command with --apply to take these sources out of the claim.' } };
-  for (const step of plan.filter((row) => row.action === 'deselect')) {
-    await write(api, 'deselect_tm_source', { p_claim: found.id, p_source: step.source_id }, `pmo tm claim sources ${found.id}`);
+  const todo = plan.filter((row) => row.action === 'deselect');
+  let failed = false;
+  for (const step of todo) {
+    if (failed) { step.action = 'not_sent'; continue; }
+    try {
+      await write(api, 'deselect_tm_source', { p_claim: found.id, p_source: step.source_id }, `pmo tm claim sources ${found.id}`);
+    } catch (error) {
+      failed = true;
+      Object.assign(step, error instanceof TmOutcomeUnknown
+        ? { action: 'outcome_unknown', problems: [error.message] }
+        : { action: 'refused', code: error.code, problems: [explainWriteError(error)] });
+    }
   }
-  return { exit: 0, result: { applied: true, sources: plan, claim: claimView(await findClaim(api, { claim: found.id, project })) } };
+  const done = todo.filter((row) => row.action === 'deselect').map((row) => row.source_id);
+  const back = await readBack(async () => claimView(await findClaim(api, { claim: found.id, project })), `pmo tm claim sources ${found.id}`);
+  const note = back.note ? { readback_note: back.note } : {};
+  if (!failed) return { exit: 0, result: { applied: true, sources: plan, claim: back.value, ...note } };
+  return { exit: 1, result: { applied: true, sources: plan, deselected: done, not_deselected: todo.filter((row) => row.action !== 'deselect').map((row) => row.source_id), claim: back.value, ...note } };
 }
 
 /** `tm claim withdraw <claim>`: withdraw_tm_signoff once; a Withdrawn claim is reported, not withdrawn twice. */

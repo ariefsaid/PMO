@@ -1954,7 +1954,7 @@ async function tmWrite(ctx, api, command, args, flags) {
 async function timeAndMaterials(ctx, positionals, flags) {
   const [area, action] = positionals;
   const api = {
-    rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }),
+    rpc: (name, body, query) => authed(ctx, 'POST', `/rest/v1/rpc/${name}${query ? `?${query}` : ''}`, { body }),
     get: (table, query) => authed(ctx, 'GET', `/rest/v1/${table}?${query}`),
     names: (ids) => readNames(ctx, 'profiles', 'full_name', ids),
   };
