@@ -20,6 +20,7 @@ vi.mock('@/src/lib/db/subcontracts', () => ({
   listWorkOrderCostVariations: vi.fn(),
   listSubcontractCapExceptions: vi.fn(),
   attributeSubcontractBillLines: vi.fn(),
+  voidSubcontractBill: vi.fn(async () => ({ id: 'inv-1' })),
   captureSubcontractVendorInvoice: vi.fn(),
 }));
 
@@ -152,5 +153,10 @@ describe('subcontract repository (src/lib/repositories/subcontracts.ts)', () => 
     await expect(repo().listSubcontractCapExceptions('proc-1')).resolves.toEqual([]);
     await repo().attributeSubcontractBillLines('inv-1', []);
     expect(dal.attributeSubcontractBillLines).toHaveBeenCalledWith('inv-1', []);
+  });
+
+  it('AC-SCV-008 voidSubcontractBill forwards the invoice id and reason to the DAL', async () => {
+    await expect(repo().voidSubcontractBill('inv-1', 'mistyped')).resolves.toEqual({ id: 'inv-1' });
+    expect(dal.voidSubcontractBill).toHaveBeenCalledWith('inv-1', 'mistyped');
   });
 });

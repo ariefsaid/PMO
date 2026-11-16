@@ -6694,6 +6694,9 @@ export type Database = {
           tax_template: string | null
           tax_treatment: string
           vi_number: string | null
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
           withheld_amount: number
           withheld_pph_type: string | null
         }
@@ -6732,6 +6735,9 @@ export type Database = {
           tax_template?: string | null
           tax_treatment: string
           vi_number?: string | null
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
           withheld_amount?: number
           withheld_pph_type?: string | null
         }
@@ -6770,6 +6776,9 @@ export type Database = {
           tax_template?: string | null
           tax_treatment?: string
           vi_number?: string | null
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
           withheld_amount?: number
           withheld_pph_type?: string | null
         }
@@ -15202,6 +15211,16 @@ export type Database = {
       valid_project_classification_options: {
         Args: { p_options: string[] }
         Returns: boolean
+      }
+      void_subcontract_bill: {
+        Args: { p_invoice_id: string; p_reason: string }
+        Returns: Database["public"]["Tables"]["procurement_invoices"]["Row"]
+        SetofOptions: {
+          from: "*"
+          to: "procurement_invoices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       void_vendor_withholding_slip: {
         Args: {

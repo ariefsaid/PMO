@@ -13,6 +13,8 @@ export interface StatTile {
    * one "N figures hidden" line; outside one it shows the reason in place. A tile with no `value` is unknown too.
    */
   unavailableReason?: string;
+  /** A short word drawn in the tile in place of `unavailableReason` (one line); the reason still goes to the hidden-figures line. */
+  unavailableShort?: string;
   /** Where the unknown figure is fixed ("Set up"); the link in the hidden-figures line. */
   hiddenLink?: { to: string; label: string };
   /** Positive → success, negative → destructive coloring on the value. */
@@ -175,7 +177,7 @@ export const StatTiles: React.FC<StatTilesProps> = ({
                 t.tone === 'neg' && 'text-destructive-text',
               )}
             >
-              <FigureContent value={t.value} exactValue={t.exactValue} unavailableReason={t.unavailableReason} />
+              <FigureContent value={t.value} exactValue={t.exactValue} unavailableReason={t.unavailableReason} unavailableShort={t.unavailableShort} />
             </div>
             {t.sub && <div className="mt-0.5 break-words text-control text-muted-foreground">{t.sub}</div>}
           </div>

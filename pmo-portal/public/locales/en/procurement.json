@@ -352,29 +352,32 @@
     "returnedDetail": "{{title}} has been returned"
   },
   "decisionSupport": {
-    "otherCurrencyCommitments": "Not counting commitments in other currencies: {{amounts}}",
     "projectBudget": "Project budget",
-    "reservedSub": "approved, not yet ordered",
+    "reservedSub": "Approved, not yet ordered",
     "reserved": "Reserved",
     "thisProcurement": "Procurement total",
     "notCompared": "In a different currency: not compared with the budget",
-    "afterThisProcurement": "After this procurement",
-    "overBudgetLead": "This procurement exceeds available budget by",
-    "committedBarLabel": "Committed to purchases, with this one: {{pct}}% of {{budget}}",
-    "committedBarCaption": "Committed to purchases, with this one: {{pct}}%",
-    "uncommittedToPurchases": "Not yet committed to purchases",
-    "notCountingRecordedSpending": "Not counting recorded spending",
     "budgetUsed": "Budget used",
     "budgetUsedBasis": "Recorded spending, before tax",
     "budgetUsedUnknown": "Budget used is unknown or unavailable.",
-    "reserved": "Reserved",
-    "reservedSub": "Approved, not yet ordered",
-    "projectBudget": "Project budget",
-    "headroom": "{{pct}}% headroom left",
     "amountUnavailable": "Budget comparison unavailable for these amounts.",
     "currencyUnavailable": "Budget comparison unavailable for these currencies.",
     "heading": "Budget impact",
-    "openProject": "Open project"
+    "openProject": "Open project",
+    "openOrders": "Open orders",
+    "openOrdersSub": "Ordered, not yet in spending",
+    "leftAfterPurchase": "Left after this purchase",
+    "leftAfterPurchaseSub": "After spending, orders and reserved",
+    "leftAfterPurchaseTooltip": "Budget minus recorded spending, open orders, reserved requests and this purchase, each counted once, before tax.",
+    "spentOrCommittedBarLabel": "Spent or committed, with this one: {{pct}}% of {{budget}}",
+    "spentOrCommittedBarCaption": "Spent or committed, with this one: {{pct}}%",
+    "overBudgetTitle": "Over budget",
+    "overBudgetAfter": "{{amount}} over the budget after this purchase. Approval is still permitted; this is advisory only.",
+    "leftOtherCurrency": "Open orders in another currency: {{amounts}}",
+    "leftWithoutSpending": "Without spending: {{amount}} left after orders, reserved and this purchase.",
+    "leftNotKnown": "Not known",
+    "leftOrdersUnknown": "Open orders not known yet",
+    "leftSpendingUnknown": "Spending not known yet"
   },
   "headerEdit": {
     "heading": "Edit procurement details",
@@ -731,6 +734,26 @@
     "headingAll": "Purchases and timesheets",
     "waitingDays_one": "{{count}} day waiting",
     "waitingDays_other": "{{count}} days waiting"
+  },
+  "voidBill": {
+    "action": "Void bill",
+    "title": "Void this bill?",
+    "reason": "Why is this bill being voided?",
+    "helper": "Kept with the bill and its history.",
+    "confirm": "Void bill",
+    "context": "{{number}} stays on the ledger as voided and stops counting against the PO, so the corrected bill can be captured.",
+    "voided": "Voided",
+    "byOn": "{{name}} · {{date}}",
+    "error": {
+      "ownBill": "You captured this bill, so another Admin or Finance user must void it.",
+      "authorUnknown": "Nobody is recorded as capturing this bill, so it cannot be voided here.",
+      "erpBound": "Your organisation records bills in its ERP. Cancel the bill there.",
+      "erpRecord": "This bill came from an ERP record. Cancel it in the ERP.",
+      "hasPayment": "This bill has a payment. Cancel the payment first.",
+      "paymentsExceed": "Payments on this purchase would be more than its remaining bills. Cancel a payment first.",
+      "already": "This bill is already voided.",
+      "generic": "The bill could not be voided. Try again."
+    }
   },
   "capture": {
     "refLabel": {

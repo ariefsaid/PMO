@@ -136,6 +136,10 @@ vi.mock('@/src/components/ui', async (orig) => {
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 1000000, isPending: false, isError: false }),
 }));
+// The panel also reads the project's budget positions (no QueryClient is mounted here).
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: () => ({ data: undefined, isPending: false, isError: false }),
+}));
 // N8 (AC-IXD-PROC-W5-2): DecisionSupportPanel also reads committed spend.
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false }),

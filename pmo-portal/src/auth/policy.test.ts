@@ -1104,3 +1104,9 @@ describe('#895 manual journals: the desk and the second approver', () => {
     expect(can('approve', 'journal', ctxFor('Finance', { ...record, sole_active_member: false }, 'u-maker'))).toBe(false);
   });
 });
+
+describe('#1671 vendor bill void (UX gate; void_subcontract_bill is the authority)', () => {
+  it('AC-SCV-008 only Admin and Finance may void a vendor bill', () => {
+    expect(allowedRoles('void', 'procurementInvoice')).toEqual(['Admin', 'Finance']);
+  });
+});

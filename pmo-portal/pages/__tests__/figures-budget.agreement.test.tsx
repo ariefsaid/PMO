@@ -39,6 +39,7 @@ const cardRoute = budgetAgreementRoutes.find((route) => route.id === 'budget.pro
 const pmHomeRoute = budgetAgreementRoutes.find((route) => route.id === 'budget.home.pm')!;
 const projectOverviewRoute = budgetAgreementRoutes.find((route) => route.id === 'budget.project.overview')!;
 const projectBudgetRoute = budgetAgreementRoutes.find((route) => route.id === 'budget.project.budget')!;
+const procurementRecordRoute = budgetAgreementRoutes.find((route) => route.id === 'budget.procurement.record')!;
 
 const renderBudgetAgreementRoute = async () => {
   // ProjectDetail's budget tab is a lazy chunk; match the project's own harness so a
@@ -121,6 +122,28 @@ describe('S01 budget figure agreement on real screens', () => {
     expect(overview.container.textContent).toContain('50%');
     expect(overview.container.textContent).toContain('$500');
     expect(overview.container.textContent).toContain('Project spending is known; some category amounts are not mapped.');
+  });
+
+  it('AC-RB-015: the Requested purchase record shows Left after this purchase $25, which is the project Overview\'s Left after open orders ($100) less Reserved (50) and this purchase (25)', async () => {
+    const record = renderFigureAgreementRoute(procurementRecordRoute);
+    const label = await screen.findByText(/^Left after this purchase$/u, undefined, { timeout: 8000 });
+    const tile = label.closest('[data-testid="stat-tile"]') as HTMLElement;
+    expect(tile).toHaveTextContent('$25');
+    record.unmount();
+
+    const overview = renderFigureAgreementRoute(projectOverviewRoute);
+    await waitFor(() => expect(overview.container.textContent).toContain('Left after open orders $100'));
+  });
+
+  it('AC-RB-015: on the ERP basis the ledger actual is the spending and the open orders come from the committed position: still $25', async () => {
+    setFigureAgreementBudgetPositionOverride({
+      projectId: 'project-figure-primary', ledgerBasis: 'erp', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '1000.00',
+      spent: '500.00', openCommitment: null, consumption: '500.00', complete: true, usedRatio: '0.5', usedPercent: '50',
+      consumptionVariance: '-500.00', riskEligible: true, atRisk: false,
+    });
+    renderFigureAgreementRoute(procurementRecordRoute);
+    const label = await screen.findByText(/^Left after this purchase$/u, undefined, { timeout: 8000 });
+    expect(label.closest('[data-testid="stat-tile"]')).toHaveTextContent('$25');
   });
 
   it('keeps the project budget total known when category allocation is unknown', async () => {

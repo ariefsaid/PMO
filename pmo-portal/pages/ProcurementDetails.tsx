@@ -418,6 +418,10 @@ const ProcurementDetails: React.FC = () => {
   const canManageFiles = may('create', 'procFile');
   // DD-EFK-1: separate Admin/Finance UX gate; the PMO setter RPC is the enforcement authority.
   const canRecordEfaktur = may('record_efaktur', 'procurementInvoice');
+  // #1671: voiding a mistyped subcontract bill is offered only while PMO owns procurement (no ERP); the
+  // void_subcontract_bill RPC is the authority for role, author separation and the ERP boundary.
+  // Hidden while the organisation has an active external binding (or that is not yet known): the server always refuses there.
+  const canVoidBill = ownership.mode === 'pmo' && ownership.orgBound === false && may('void', 'procurementInvoice');
   const canWriteWithholdingSlip = may('create', 'vendorWithholdingSlip', { record: { viewOnly: effectiveRole !== realRole } });
   // 0002_rls.sql defines procurements_update for Admin, Executive, Project Manager, and Finance;
   // 0010_procurement_rls_hardening.sql preserves that row policy while narrowing writable columns.
@@ -756,6 +760,7 @@ const ProcurementDetails: React.FC = () => {
                   'success',
                 );
               }}
+              canVoidBill={canVoidBill}
               invoices={p.invoices}
               targetInvoiceId={targetInvoiceId ?? undefined}
               canWriteWithholdingSlip={canWriteWithholdingSlip}
