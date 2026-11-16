@@ -95,6 +95,9 @@ live in `LAYOUT_NUMBERS` in `scripts/ux-proof-metrics.mjs`; this text and the se
 (check plus element, no text; repeats of one row group or card class count once). The gate fails on any
 fingerprint not listed; `docs/ux/layout-baseline.md` carries counts for reading only. A route under redesign
 reaches an empty list.
+**Five fixed rules** (owner, 16 Nov) fail whatever any baseline says; `scripts/ux-proof.sh --rules-only /route ...` prints
+them at 1440, 1024 and 390 with no baseline or word budget touched, and a plain run prints them as warnings until the screens are fixed.
+R1 card inset: in a card with a heading, every direct block starts at the heading's left x (±1), except a table or media spanning the card edge to edge. R2 trailing tag: in a list, menu or picker row a tag is one line and the tags of one list share a right edge (±1). R3 section frame: tab bars with the same labels keep one left x, top y and width across routes at a viewport (±1). R4 no lone centring: one item in a container over twice its height (and 64px) starts within the container's top padding. R5 shared ends: stacked bars share start and end x (±1); right-aligned figures of one column share their right x (±1). The numbers are `RULE_NUMBERS` in `scripts/ux-proof-metrics.mjs`.
 1. One left edge per surface (measured): every block in a panel starts at the same x (the panel inset); on the
    page, flat content and panels share the gutter. Tables stay flush; their cells keep the 16px cell inset.
    A KPI tile is its own surface with a 16px inset (DESIGN.md), so its inset is not a page-column edge.
