@@ -287,6 +287,7 @@ if (url.includes('/auth/v1/user')) { code = mode === 'invalid-token' ? 401 : 200
 else if (args.some(a => a === 'apikey: service')) {
   if (url.includes('/profiles?') && url.includes('id=eq.' + process.env.PROBE_USER)) body = [{org_id: mode === 'wrong-org' ? process.env.A_ORG : process.env.B_ORG, status: 'active'}];
   else if (url.includes('/platform_operators?')) body = mode === 'operator' ? [{user_id:process.env.PROBE_USER}] : [];
+  else if (url.includes('/organizations?')) body = [{lifecycle_state: mode === 'live-org' ? 'active' : 'test'}];
   else body = [{org_id: process.env.A_ORG, email: mode === 'quoted-email' ? '"synthetic"' : 'synthetic'}];
 } else if (url.includes('/work_order_acceptance_lines?')) {
   body = mode === 'blind-child-leak' && !url.includes('!inner')
@@ -340,6 +341,12 @@ test('operator B is refused before probing non-operator expectations', () => {
   const r = probeFixture('operator');
   assert.equal(r.status, 4, r.stdout + r.stderr);
   assert.match(r.stderr, /verified non-operator/);
+});
+test('write mode is refused when tenant A is not a test organisation', () => {
+  const r = probeFixture('live-org');
+  assert.equal(r.status, 4, r.stdout + r.stderr);
+  assert.match(r.stderr, /lifecycle_state = test/);
+  assert.doesNotMatch(r.stdout + r.stderr, /rpc .*→/);
 });
 test('runner refuses invalid B before either smoke starts', () => {
   const r = probeFixture('invalid-token', {runner:true});

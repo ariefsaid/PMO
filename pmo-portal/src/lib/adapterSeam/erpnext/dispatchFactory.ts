@@ -244,6 +244,8 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
       apiSecret: deps.apiSecret,
       baseUrl: binding.site_url,
       rateLimiter: deps.rateLimiter,
+      ...(deps.sleep ? { sleep: deps.sleep } : {}),
+      ...(deps.writeMayStart ? { writeMayStart: deps.writeMayStart } : {}),
     },
     doctypeBodies: deps.doctypeBodies ?? {},
     validateAuthoringItems,

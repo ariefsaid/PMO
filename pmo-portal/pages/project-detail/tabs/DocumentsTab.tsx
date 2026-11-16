@@ -41,7 +41,7 @@ import DocumentsToolbar from './DocumentsToolbar';
 import DocumentsBulkBar from './DocumentsBulkBar';
 import DocumentsDialogs, { transitionActionLabel } from './DocumentsDialogs';
 
-interface DocumentsTabProps {
+export interface DocumentsTabProps {
   projectId: string;
   /** Reports the register row count (null while unavailable) so the parent chrome can badge it. */
   onCountChange?: (count: number | null) => void;
