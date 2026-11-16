@@ -51,7 +51,7 @@ export const AdvanceAgingCard: React.FC = () => {
               <div aria-hidden="true" data-testid={`aging-bar-${currency}`} className="mb-2 flex h-3 w-full gap-0.5 overflow-hidden rounded-full">
                 {AGING_BUCKETS.map((bucket, i) => Number(buckets[bucket] ?? 0) > 0 && (
                   <span key={bucket} style={{ width: `${(Number(buckets[bucket]) / sum) * 100}%` }}
-                    className={i === AGING_BUCKETS.length - 1 ? 'bg-destructive' : 'bg-muted-foreground/40'} />
+                    className={i === AGING_BUCKETS.length - 1 ? 'bg-destructive' : 'bg-mark-neutral/40'} />
                 ))}
               </div>
             )}

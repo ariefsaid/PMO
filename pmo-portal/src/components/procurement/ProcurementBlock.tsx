@@ -862,7 +862,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                   </span>
                   {canSeeMoney && scaleMax > 0 && (
                     <span aria-hidden="true" data-testid={`stage-bar-${key}`} className="mt-2 block h-1.5 w-full rounded-full bg-secondary">
-                      <span className="block h-full rounded-full bg-muted-foreground/60" style={{ width: `${Math.max(0, Math.min(100, ((currencyTotals.find((item) => item.currency === scaleCurrency)?.value ?? 0) / scaleMax) * 100))}%` }} />
+                      <span className="block h-full rounded-full bg-mark-neutral/60" style={{ width: `${Math.max(0, Math.min(100, ((currencyTotals.find((item) => item.currency === scaleCurrency)?.value ?? 0) / scaleMax) * 100))}%` }} />
                     </span>
                   )}
                 </button>
@@ -941,7 +941,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
             {stageStats.filter(({ rows: stageRows }) => stageRows.length > 0).length > 1 && <div aria-hidden="true" className="mb-2.5 flex h-2 w-full gap-px overflow-hidden rounded-full bg-secondary">
               {stageStats.filter(({ rows: stageRows }) => stageRows.length > 0).map(({ key, rows: stageRows }) => (
                 <span key={key} title={`${stageText(key, t)}: ${stageRows.length}`} style={{ flexGrow: stageRows.length }}
-                  className={key === 'Request' && canApprove && pendingProcurementApprovals(stageRows, currentUser?.id, role === 'Admin').length > 0 ? 'bg-primary' : 'bg-muted-foreground/40'} />
+                  className={key === 'Request' && canApprove && pendingProcurementApprovals(stageRows, currentUser?.id, role === 'Admin').length > 0 ? 'bg-primary' : 'bg-mark-neutral/40'} />
               ))}
             </div>}
           <div role="group" aria-label={t('projectDetail.procurement.stageBand.label', 'Procurement stages')} className="flex flex-wrap gap-2">

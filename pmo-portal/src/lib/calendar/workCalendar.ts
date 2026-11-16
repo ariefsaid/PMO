@@ -52,7 +52,7 @@ export function toWorkEvents(
       end: addDays(start, 1),
       allDay: true,
       readOnly: !canMove(task),
-      color: task.status === TASK_DONE ? 'var(--color-muted-foreground)' : 'var(--color-primary)',
+      color: task.status === TASK_DONE ? 'var(--color-mark-neutral)' : 'var(--color-primary)',
       data: { kind: 'task', id: task.id, projectId: task.project_id, task },
     };
   });
