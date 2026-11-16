@@ -14,11 +14,11 @@ export function useRequestPurchase() {
   const warehouses = useStockWarehouses(false);
   // Raising a request is open to every member; view-as is view-only (UX only, RLS decides).
   const canRequest = may('create', 'procurement') && realRole === effectiveRole;
-  const request = (r: BelowReorderRow) => {
+  const request = (r: BelowReorderRow, unitValue?: string | null) => {
     const projectId = (warehouses.data ?? []).find((w) => w.id === r.warehouseId)?.project_id ?? null;
     navigate(buildRestockUrl({
       itemCode: r.itemCode, itemName: r.itemName, unitCode: r.unitCode,
-      quantity: restockQuantity(r.reorderLevel, r.qtyOnHand, r.reorderQuantity), projectId,
+      quantity: restockQuantity(r.reorderLevel, r.qtyOnHand, r.reorderQuantity), projectId, unitValue,
       from: location.pathname + location.search,
     }));
   };

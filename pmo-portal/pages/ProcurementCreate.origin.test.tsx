@@ -63,6 +63,7 @@ vi.mock('@/src/components/ui', async (importOriginal) => ({
 }));
 
 const ProcurementList = () => <div data-testid="procurement-list">Procurement</div>;
+const StockPage = () => <div data-testid="stock-page">Stock</div>;
 const ProjectProcurementTab = () => <div data-testid="project-tab">Project procurement</div>;
 
 const authValue = {
@@ -88,6 +89,7 @@ const renderAt = async (url: string) => {
     { path: '/somewhere', element: <div>start</div> },
     { path: '/procurement', element: <ProcurementList /> },
     { path: '/projects/:projectId/procurement', element: <ProjectProcurementTab /> },
+    { path: '/stock/reorder', element: <StockPage /> },
     { path: '/procurement/new', element: <ProcurementCreate /> },
   ]);
   render(
@@ -101,11 +103,12 @@ const renderAt = async (url: string) => {
 };
 
 const origins = [
-  { name: 'from a project', url: '/procurement/new?project=p1&have=need', path: '/projects/p1/procurement', page: 'project-tab' },
-  { name: 'from the list', url: '/procurement/new?have=need', path: '/procurement', page: 'procurement-list' },
+  { name: 'from a project', url: '/procurement/new?project=p1&have=need', path: '/projects/p1/procurement', page: 'project-tab', back: /^back to project$/i },
+  { name: 'from the list', url: '/procurement/new?have=need', path: '/procurement', page: 'procurement-list', back: /^back to procurement$/i },
+  { name: 'from Stock', url: '/procurement/new?project=p1&have=need&from=%2Fstock%2Freorder', path: '/stock/reorder', page: 'stock-page', back: /^back to stock$/i },
 ];
 
-describe.each(origins)('leaving the new purchase form $name', ({ url, path, page }) => {
+describe.each(origins)('AC-STK-RESTOCK-2 leaving the new purchase form $name', ({ url, path, page, back }) => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.realRole = 'Engineer';
@@ -113,7 +116,7 @@ describe.each(origins)('leaving the new purchase form $name', ({ url, path, page
 
   it('the header link lands on the origin', async () => {
     await renderAt(url);
-    fireEvent.click(screen.getByRole('button', { name: /back to procurement/i }));
+    fireEvent.click(screen.getByRole('button', { name: back }));
     await waitFor(() => expect(window.location.pathname).toBe(path));
     expect(screen.getByTestId(page)).toBeVisible();
   });

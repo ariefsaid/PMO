@@ -130,7 +130,7 @@ const StockOnHand: React.FC = () => {
         key: 'request', header: t('requestPurchase.column'), align: 'num',
         cell: (r) => {
           const b = (below.data ?? []).find((x) => x.itemId === r.itemId && x.warehouseId === r.warehouseId);
-          return b ? <Button variant="outline" size="sm" aria-label={t('requestPurchase.rowLabel', { item: r.itemCode })} onClick={() => requestPurchase(b)}>{t('requestPurchase.action')}</Button> : null;
+          return b ? <Button variant="outline" size="sm" aria-label={t('requestPurchase.rowLabel', { item: r.itemCode })} onClick={() => requestPurchase(b, r.avgCost)}>{t('requestPurchase.action')}</Button> : null;
         },
       });
     }

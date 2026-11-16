@@ -35,8 +35,23 @@ describe('readOrigin', () => {
 
 describe('readRestockLine', () => {
   it('reads a line only when name and a positive quantity are present', () => {
-    expect(readRestockLine('?lineName=Cement%20(bag)&lineQty=30')).toEqual({ name: 'Cement (bag)', quantity: 30 });
+    expect(readRestockLine('?lineName=Cement%20(bag)&lineQty=30')).toEqual({ name: 'Cement (bag)', quantity: 30, rate: null });
     expect(readRestockLine('?lineName=Cement')).toBeNull();
     expect(readRestockLine('?lineName=Cement&lineQty=0')).toBeNull();
+  });
+});
+
+import { resolveFormOrigin } from '../stockRequestPurchase';
+describe('resolveFormOrigin AC-STK-RESTOCK-2', () => {
+  it('Stock link returns to Stock; project link to the project tab; otherwise the list', () => {
+    expect(resolveFormOrigin('?from=%2Fstock%2Freorder')).toEqual({ kind: 'stock', path: '/stock/reorder' });
+    expect(resolveFormOrigin('?project=p1')).toEqual({ kind: 'project', path: '/projects/p1/procurement' });
+    expect(resolveFormOrigin('?from=https%3A%2F%2Fevil.test')).toEqual({ kind: 'procurement', path: '/procurement' });
+  });
+  it('AC-STK-RESTOCK-1 unit value is carried only when positive', () => {
+    const base = { itemCode: 'C', itemName: 'Cement', unitCode: 'bag', quantity: '3', projectId: null, from: '/stock' };
+    expect(buildRestockUrl({ ...base, unitValue: '12.5' })).toContain('lineRate=12.5');
+    expect(buildRestockUrl({ ...base, unitValue: '0' })).not.toContain('lineRate');
+    expect(buildRestockUrl(base)).not.toContain('lineRate');
   });
 });

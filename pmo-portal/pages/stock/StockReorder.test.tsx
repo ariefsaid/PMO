@@ -211,7 +211,7 @@ describe('StockReorder', () => {
     expect(reorder.setLevel).toHaveBeenCalledWith({ warehouseId: 'w1', itemId: 'i1', level: null });
   });
 
-  it('FR-STK-054 the worklist lists items at or below their level and has no "Create purchase request" action', async () => {
+  it('AC-STK-035 the worklist lists items at or below their level; its only purchase action is "Request purchase", which opens a pre-filled form and creates nothing', async () => {
     renderPage();
     const table = await screen.findByRole('table', { name: 'Below reorder level' });
     expect(within(table).getByText('CAB')).toBeInTheDocument();

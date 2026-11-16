@@ -16,7 +16,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { itemsNetTotal } from '@/src/lib/itemsNet';
 import { BudgetCategoryHelp } from './procurement/BudgetCategoryHelp';
 import { LineItemsSection } from './procurement/LineItemsSection';
-import { readOrigin, readRestockLine } from '@/src/lib/stockRequestPurchase';
+import { readOrigin, readRestockLine, resolveFormOrigin } from '@/src/lib/stockRequestPurchase';
 import { BUDGET_CATEGORY_OPTIONS } from './procurement/budgetCategoryOptions';
 import type { BudgetCategory } from '@/src/lib/budget/categoryAccountMap';
 
@@ -125,18 +125,20 @@ export default function ProcurementCreate() {
   // B3: a role that can only raise a need has one choice, so it starts straight on that form.
   const have: ProcurementHave | null = canCaptureDocuments ? haveChoice : 'need';
   // The page the request was started from (explicit `from`); a pre-filled line when started from Stock.
-  const [origin] = useState(() => readOrigin(location.search));
+  const [origin] = useState(() => resolveFormOrigin(location.search));
   const [restock] = useState(() => readRestockLine(location.search));
   const [initialTitle] = useState(() => (restock ? params.get('title') ?? '' : ''));
-  const initialLineCount = restock ? 1 : 0;
+  // A known average unit value pre-fills the line; unknown leaves the price empty, as a typed line starts.
+  const restockPriced = restock !== null && restock.rate !== null;
+  const initialLineCount = restockPriced ? 1 : 0;
   const [title, setTitle] = useState(initialTitle);
   const [selectedProject, setSelectedProject] = useState<string | null>(projectId);
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [budgetCategory, setBudgetCategory] = useState('');
-  const [lines, setLines] = useState<DraftLine[]>(() => restock
-    ? [{ id: crypto.randomUUID(), name: restock.name, quantity: restock.quantity, rate: 0, amount: 0, description: null }]
+  const [lines, setLines] = useState<DraftLine[]>(() => restock && restock.rate !== null
+    ? [{ id: crypto.randomUUID(), name: restock.name, quantity: restock.quantity, rate: restock.rate, amount: itemsNetTotal([{ quantity: restock.quantity, rate: restock.rate }]), description: null }]
     : []);
-  const [addRowHasInput, setAddRowHasInput] = useState(false);
+  const [addRowHasInput, setAddRowHasInput] = useState(restock !== null && !restockPriced);
   const [blockedAddRowMessage, setBlockedAddRowMessage] = useState<string | null>(null);
   const addRowDescriptionRef = useRef<HTMLInputElement>(null);
   const [errors, setErrors] = useState<{ title?: string; save?: { headline: string; detail: string }; conflict?: boolean }>({});
@@ -165,7 +167,8 @@ export default function ProcurementCreate() {
   const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: holdLeave });
   // Leaving unsaved returns to where the form was started: the project's procurement tab when the
   // link carried `?project=`, the Procurement list otherwise (an Engineer has no list in the menu).
-  const originPath = origin ?? (projectId ? `/projects/${encodeURIComponent(projectId)}/procurement` : '/procurement');
+  const originPath = origin.path;
+  const backLabel = origin.kind === 'stock' ? t('backToStock', 'Stock') : origin.kind === 'project' ? t('backToProject', 'project') : t('backToProcurement', 'Procurement');
   const backToProcurement = () => {
     guardLeave(() => navigate(originPath));
   };
@@ -311,7 +314,7 @@ export default function ProcurementCreate() {
   if (!have) {
     return (
       <div className="mx-auto w-full max-w-7xl p-4 pb-6 md:p-6">
-        <BackBar label={origin?.startsWith('/stock') ? t('backToStock', 'Stock') : t('backToProcurement', 'Procurement')} onBack={backToProcurement} />
+        <BackBar label={backLabel} onBack={backToProcurement} />
         <ProcurementIntake
           choices={choices}
           onChoose={choose}
@@ -354,11 +357,11 @@ export default function ProcurementCreate() {
     setHave(null);
   };
   // Footer Cancel mirrors Change type for capture roles and the list exit for need-only roles.
-  const cancelCreate = canCaptureDocuments && !origin ? changeType : backToProcurement;
+  const cancelCreate = canCaptureDocuments && !readOrigin(location.search) ? changeType : backToProcurement;
 
   return (
     <div className="mx-auto w-full max-w-[880px] p-4 pb-6 md:p-6">
-      <BackBar label={t('backToProcurement', 'Procurement')} onBack={backToProcurement} />
+      <BackBar label={backLabel} onBack={backToProcurement} />
       <form id="procurement-create-form" className="mx-auto w-full max-w-[880px]" onSubmit={submit} noValidate>
         <header className="mb-6 flex items-center justify-between gap-4 border-b border-border pb-4">
           <h1 className="text-page font-bold tracking-[-0.02em]">{t('heading', 'New procurement')}</h1>
@@ -434,6 +437,7 @@ export default function ProcurementCreate() {
               editable
               createFormLayout
               busy={saving || Boolean(attempt)}
+              initialDraft={restock && !restockPriced ? { name: restock.name, quantity: String(restock.quantity) } : undefined}
               onAdd={addLine}
               onUpdate={updateLine}
               onDelete={removeLine}
