@@ -71,7 +71,7 @@ const WorkOrdersClaimsCard: React.FC<{
     : t('projectDetail.billing.claims.emptySubNative', 'A claim bills a down payment or accepted quantities as one invoice.');
 
   const projectClaimColumns: Column<ProgressClaimWithInvoice>[] = [
-    { key: 'claim', header: t('projectDetail.billing.claims.column.claim', 'Claim'), kind: 'primary', rowHeader: true,
+    { key: 'claim', header: t('projectDetail.billing.claims.column.claim', 'Claim'), kind: 'primary', rowHeader: true, size: 240,
       cell: (claim) => claim.kind === 'down_payment' ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment') : t('projectDetail.billing.claims.kind.progress', 'Progress'),
       secondaryCell: (claim) => formatDay(claim.created_at) },
     { key: 'gross', header: t('projectDetail.billing.claims.column.gross', 'Gross'), align: 'num', kind: 'money',
@@ -83,17 +83,17 @@ const WorkOrdersClaimsCard: React.FC<{
     { key: 'net', header: t('projectDetail.billing.claims.column.net', 'Net'), align: 'num', kind: 'money',
       cell: (claim) => <Tooltip content={t('projectDetail.billing.claims.source.net', 'Computed as gross less down-payment recovery.') }><span className="cursor-help tabular-nums font-semibold">{money(claimNet(Number(claim.gross_amount), Number(claim.dp_recovery_amount)))}</span></Tooltip>,
       exportValue: (claim) => claimNet(Number(claim.gross_amount), Number(claim.dp_recovery_amount)) },
-    { key: 'invoice', header: t('projectDetail.billing.claims.column.invoice', 'Invoice'), cell: (claim) => {
+    { key: 'invoice', header: t('projectDetail.billing.claims.column.invoice', 'Invoice'), size: 176, cell: (claim) => {
       const invoiceId = claim.invoice ? claim.id : null;
       const label = claim.withdrawn_at ? t('projectDetail.billing.claims.withdrawn', 'Withdrawn') : claim.invoice ? statusLabel('salesInvoice', claim.invoice.status, t) : t('projectDetail.billing.claims.notRaised', 'Not raised');
       const variant: StatusVariant = claim.withdrawn_at ? 'lost' : claim.invoice?.status === 'Paid' ? 'won' : claim.invoice?.status === 'Unpaid' || claim.invoice?.status === 'Submitted' ? 'warn' : 'neutral';
       // A claim ready to bill shows its one action in place of "Not raised": the same gate and handler as the row menu's Raise invoice.
       if (!claim.withdrawn_at && !claim.invoice && canBill && canRaiseClaim(claim) && (claim.evidence?.length ?? 0) > 0) {
-        return <Button variant="outline" size="sm" onClick={() => onRaiseClaim(claim)}>{t('projectDetail.billing.claims.raise', 'Raise invoice')}</Button>;
+        return <Button variant="outline" size="sm" className="whitespace-nowrap" onClick={() => onRaiseClaim(claim)}>{t('projectDetail.billing.claims.raise', 'Raise invoice')}</Button>;
       }
       // Without evidence, its next step is the evidence (the row menu's Attach evidence, same gate).
       if (!claim.withdrawn_at && !claim.invoice && canBill && (claim.evidence?.length ?? 0) === 0) {
-        return <Button variant="outline" size="sm" onClick={() => onAttachEvidence(claim.id)}>{t('projectDetail.billing.claims.attachEvidence', 'Attach evidence')}</Button>;
+        return <Button variant="outline" size="sm" className="whitespace-nowrap" onClick={() => onAttachEvidence(claim.id)}>{t('projectDetail.billing.claims.attachEvidence', 'Attach evidence')}</Button>;
       }
       return <Tooltip content={t('projectDetail.billing.claims.source.invoice', 'Source: invoice status linked to this claim.') }>
         {invoiceId ? <Link to={`/sales-invoices/${encodeURIComponent(invoiceId)}`} className="cursor-help"><StatusPill variant={variant} wrap={false}>{claim.invoice?.si_number ?? label}</StatusPill></Link> : <StatusPill variant={variant} wrap={false}>{label}</StatusPill>}
