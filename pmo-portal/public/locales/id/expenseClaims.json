@@ -23,7 +23,7 @@
     "submit": "Ajukan klaim",
     "submitting": "Mengajukan…",
     "submitFailed": "Tersimpan sebagai draf, belum diajukan",
-    "removeLine": "Hapus baris {{number}}"
+    "removeLine": "Hapus rincian {{number}}"
   },
   "postings": {
     "recordedBeforeConnection": "Dicatat sebelum terhubung ke ERP"

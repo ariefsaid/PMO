@@ -51,7 +51,7 @@ const BELOW_FOLD = '[content-visibility:auto] [contain-intrinsic-size:auto_480px
 const PipelineRecordBlocks: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
   const { t } = useTranslation('project');
   return (
-    <div className="grid min-w-0 gap-[var(--space-panel-gap)] xl:grid-cols-2">
+    <div className="grid min-w-0 gap-[var(--space-section)] xl:grid-cols-2">
       <ProjectActivity projectId={project.id} compact title={t('projectDetail.activity.notesTitle', 'Notes and activity')} />
       {/* Its own boundary: the rest of the Overview must not wait on the Documents chunk. */}
       <div className="min-w-0"><React.Suspense fallback={<ListState variant="loading" rows={3} className="min-h-40" />}><DocumentsTab projectId={project.id} projectCode={project.code} /></React.Suspense></div>
@@ -80,8 +80,8 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
   if (isPipeline) {
     if (lens === 'delivery') {
       return (
-        <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
-          <div className={`grid min-w-0 gap-[var(--space-panel-gap)] ${showDeliveryAttention ? 'xl:grid-cols-2' : 'xl:grid-cols-1'}`}>
+        <div className="flex min-w-0 flex-col gap-[var(--space-section)]">
+          <div className={`grid min-w-0 gap-[var(--space-section)] ${showDeliveryAttention ? 'xl:grid-cols-2' : 'xl:grid-cols-1'}`}>
             <MyOpenTasks projectId={project.id} />
             {showDeliveryAttention && <ProjectAttention {...attentionProps} className="min-w-0" />}
           </div>
@@ -91,7 +91,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
       );
     }
     return (
-      <div className="grid min-w-0 gap-[var(--space-panel-gap)] xl:grid-cols-2">
+      <div className="grid min-w-0 gap-[var(--space-section)] xl:grid-cols-2">
         <CostBlock project={project} isPipeline onOpenBudget={openBudget} />
         <DeliveryBlock projectId={project.id} isPipeline={isPipeline} />
         {/* AC-PMP-006: invoices and spending already recorded against a deal stay visible before it is won. */}
@@ -103,8 +103,8 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
   }
   return (
     lens === 'delivery' ? (
-      <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
-        <div className={`grid min-w-0 gap-[var(--space-panel-gap)] ${showDeliveryAttention ? 'xl:grid-cols-2' : 'xl:grid-cols-1'}`}>
+      <div className="flex min-w-0 flex-col gap-[var(--space-section)]">
+        <div className={`grid min-w-0 gap-[var(--space-section)] ${showDeliveryAttention ? 'xl:grid-cols-2' : 'xl:grid-cols-1'}`}>
           <MyOpenTasks projectId={project.id} />
           {showDeliveryAttention && <ProjectAttention {...attentionProps} className="min-w-0" />}
         </div>
@@ -112,7 +112,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
             wait until the block nears the viewport (WhenNearViewport renders children immediately
             where IntersectionObserver is absent, so unit tests and old browsers are unchanged).
             A short list takes a third beside the wide timeline, not a full-width card. */}
-        <div className="grid min-w-0 items-start gap-[var(--space-panel-gap)] xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <div className="grid min-w-0 items-start gap-[var(--space-section)] xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
           <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock></div>
           <WhenNearViewport>
             <BillingMilestonesBlock projectId={project.id} />
@@ -121,19 +121,19 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
         {activity}
       </div>
     ) : (
-      <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
+      <div className="flex min-w-0 flex-col gap-[var(--space-section)]">
         {/* One question: is this project OK, and what needs me now? Needs attention leads (the work), Money position beside it;
             then Budget and the Phase timeline span the canvas on one shared row grid. Each panel names its own figures that
             cannot be computed yet, so nothing sits bare between the tabs and the panels.
-            Grid at xl (1440): canvas ≈ 1440 − 224 sidebar − 2×24 gutters = 1168; 2fr + 3fr with one 24px gap = 458 + 686. */}
+            Grid at xl (1440): canvas ≈ 1440 − 224 sidebar − 2×24 gutters = 1168; 2fr + 3fr with one section gap (32px, the RecordStack token, as on the claim record) = 454 + 682. */}
         {/* Nothing needs you: Needs attention becomes a slim full-width band, so it never stretches beside Money position. */}
-        <div className={`grid min-w-0 gap-[var(--space-panel-gap)] ${canSeeMoney ? 'xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]' : 'xl:grid-cols-2'}`}>
+        <div className={`grid min-w-0 gap-[var(--space-section)] ${canSeeMoney ? 'xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]' : 'xl:grid-cols-2'}`}>
           <ProjectAttention items={attention.items} isPending={attention.isPending} error={attention.error} fillRow={canSeeMoney && !calm} className={`min-w-0 xl:col-start-1 xl:row-start-1 ${calm ? 'xl:col-span-2' : ''}`} />
           {canSeeMoney && <div className={`min-w-0 ${calm ? 'xl:col-span-2 xl:col-start-1 xl:row-start-2' : 'xl:col-start-2 xl:row-start-1'}`}><MoneyBlock project={project} fillRow={!calm} footer={<BillingMilestonesBlock projectId={project.id} empty="line" />} /></div>}
           <div className={`min-w-0 ${canSeeMoney ? `xl:col-span-2 xl:col-start-1 ${calm ? 'xl:row-start-3' : 'xl:row-start-2'}` : ''}`}><CostBlock project={project} onOpenBudget={openBudget} showUnit={!canSeeMoney} /></div>
         </div>
         {/* An empty milestones slot (its line lives in Money position) takes no gap. */}
-        <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)] [&>[data-near-viewport=seen]:empty]:hidden">
+        <div className="flex min-w-0 flex-col gap-[var(--space-section)] [&>[data-near-viewport=seen]:empty]:hidden">
           <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock></div>
           <WhenNearViewport>
             <BillingMilestonesBlock projectId={project.id} empty={canSeeMoney ? 'none' : 'panel'} />
