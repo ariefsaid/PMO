@@ -124,10 +124,12 @@
 -- ⚑ AMENDED BY 0731 (#1415): `record_native_on_account_receipt`, `apply_native_receipt` and `unapply_native_allocation` join (+3). Finance/Admin-gated
 -- SECURITY DEFINER writers under a member's JWT (membership, role, org re-asserted; anon/PUBLIC revoked), proven by 0731_payment_allocation_*.test.sql.
 -- ⚑ AMENDED BY 0765 (#1507 S6): `switch_odoo_ledger_basis` joins (+1). Active-Admin writer under a member's JWT; anon/PUBLIC revoked; proved by odoo_ledger_basis.test.sql.
--- Current retained set: 176 names after 0887 (#895, +6), 0885 (#1671, +1), 0910 (+1), 0907 (#564, +1), 0858 (+2), #1507 S6, #1505, #1813, #1514 D1, #1472 S6B, 0731 (+3), 0704 (#1817, +1), 0792 (#1413, +2) and 0854 (#1511 F3, +1), including #1462's archive inventory read; 0685 adds request_financial_statement_refresh (Refresh now).
+-- Current retained set: 177 names after 0924 (+1), 0887 (#895, +6), 0885 (#1671, +1), 0910 (+1), 0907 (#564, +1), 0858 (+2), #1507 S6, #1505, #1813, #1514 D1, #1472 S6B, 0731 (+3), 0704 (#1817, +1), 0792 (#1413, +2) and 0854 (#1511 F3, +1), including #1462's archive inventory read; 0685 adds request_financial_statement_refresh (Refresh now).
 -- ⚑ AMENDED BY 0910 (#1599 ECX-3): `request_company_defaults` joins the retained set (+1). A SECURITY DEFINER writer under a
 -- member's JWT: it re-asserts active membership, org and Admin/Finance and checks every choice against the mirrors; proven by
 -- supabase/tests/erp_company_defaults.test.sql. The other 0910 functions are service-role-only or internal.
+-- ⚑ AMENDED BY 0924: `create_native_progress_claim_invoice` joins (+1, count 177 on dev's 176). SECURITY DEFINER writer under a member's JWT: re-asserts active
+-- membership, Admin / Finance, the org's own claim and that no ERP owns revenue; proved by supabase/tests/0924_native_progress_claim_invoice.test.sql.
 -- ⚑ AMENDED BY 0704 (#1817): `create_native_tm_invoice` joins (+1). SECURITY DEFINER writer under a member's JWT: re-asserts active membership,
 -- Admin / Finance, the org's own claim and that no ERP owns revenue; proved by supabase/tests/tm_native_invoice.test.sql.
 -- ⚑ AMENDED BY 0792 (#1413): `return_budget_version` and `resubmit_budget_version` join (+2, count 164). Member-JWT definers; re-assert org, active membership, the four budget roles and (return) the activation SoD; proved by supabase/tests/budget_return_to_pm.test.sql.
@@ -314,6 +316,7 @@ insert into client_callable_rpc_names (proname) values
   ('consent_budget_occupant_replace'),
   ('create_native_sales_invoice'),
   ('create_native_tm_invoice'),  -- ⚑ AMENDED BY 0704 (#1817)
+  ('create_native_progress_claim_invoice'),  -- ⚑ AMENDED BY 0924
   ('decide_connect_review'),
   ('create_payment'),
   ('create_procurement_invoice'),
