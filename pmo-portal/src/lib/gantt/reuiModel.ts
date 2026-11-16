@@ -28,7 +28,7 @@ export interface ReuiGanttModel {
 }
 
 const STATUS_COLOR: Record<string, string> = {
-  'To Do': 'var(--color-muted-foreground)',
+  'To Do': 'var(--color-mark-neutral)',
   'In Progress': 'var(--color-primary)',
   Done: 'var(--color-success)',
   Blocked: 'var(--color-destructive)',

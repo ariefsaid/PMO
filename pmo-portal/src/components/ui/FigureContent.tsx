@@ -6,6 +6,8 @@ export interface FigureContentProps {
   exactValue?: string;
   /** Why the figure is unknown: omit the amount and show this plain-language reason. */
   unavailableReason?: string;
+  /** A short word drawn in the tile in place of the reason (one line); the reason still goes to the page's hidden-figures line. */
+  unavailableShort?: string;
 }
 
 /**
@@ -15,7 +17,10 @@ export interface FigureContentProps {
 export const FIGURE_LINE_CLASS = 'min-w-0 whitespace-nowrap tabular';
 
 /** The figure contract shared by KPITile and StatTiles (DESIGN.md Unknowable-Is-Not-Zero rule). */
-export const FigureContent: React.FC<FigureContentProps> = ({ value, exactValue, unavailableReason }) => {
+export const FigureContent: React.FC<FigureContentProps> = ({ value, exactValue, unavailableReason, unavailableShort }) => {
+  if (unavailableReason && unavailableShort) {
+    return <span role="status" className="whitespace-nowrap text-control font-normal text-muted-foreground">{unavailableShort}</span>;
+  }
   if (unavailableReason) {
     return <span role="status" className="whitespace-normal text-control font-normal text-muted-foreground">{unavailableReason}</span>;
   }

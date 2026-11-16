@@ -411,7 +411,8 @@ describe('Procurement record floor controls', () => {
 
   it('floor: Header project link opens the matching project record', async () => {
     renderPage();
-    await userEvent.click(within(screen.getByTestId('record-header')).getByRole('link', { name: 'Open HQ Fit-Out' }));
+    // The identity line's link (the budget evidence in the header band links the same project; its own floor test below).
+    await userEvent.click(within(screen.getByTestId('record-meta')).getByRole('link', { name: 'Open HQ Fit-Out' }));
     expect(currentRoute()).toHaveTextContent(/^\/projects\/proj-1$/);
   });
 

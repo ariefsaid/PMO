@@ -364,8 +364,9 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
       {pos.actualsPending && <Note>{t('projectDetail.cost.spendingChecking', 'Checking spending…')}</Note>}
       {pos.actualsError && <Note>{t('projectDetail.cost.spendingError', "Couldn't check spending")} <Button variant="ghost" size="sm" onClick={() => void pos.refetchActuals()}>{t('common.retry', 'Retry')}</Button></Note>}
       {pos.budgetPositionError && <Note>{t('projectDetail.cost.spendingError', "Couldn't check spending")} <Button variant="ghost" size="sm" onClick={() => void pos.refetchActuals()}>{t('common.retry', 'Retry')}</Button></Note>}
-      {pos.uncategorized && pos.spent !== null && <Note>{uncategorizedSpendNote(pos.uncategorized.amount, pos.spendCurrency ?? project.currency, t)}</Note>}
-      {pos.unknown > 0 && pos.spent !== null && <Note>{t('projectDetail.budget.uncategorizedTotalKnown', 'Project spending is known; some category amounts are not mapped.')}</Note>}
+      {pos.uncategorized && pos.spent !== null
+        ? <Note>{uncategorizedSpendNote(pos.uncategorized.amount, pos.spendCurrency ?? project.currency, t)}</Note>
+        : pos.unknown > 0 && pos.spent !== null && <Note>{t('projectDetail.budget.uncategorizedTotalKnown', 'Not split by category')}</Note>}
       {pos.canSeeActual && pos.currencyDiffers && !pos.actualsPending && !pos.actualsError && (
         <Note>{t('projectDetail.cost.currencyDiffers', 'Spending is recorded in {{currency}}, not the project currency, so it is not compared with the budget.', { currency: pos.spendCurrency })}</Note>
       )}
@@ -404,7 +405,7 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
                     </span>
                     <span className="flex min-w-0 items-center max-md:min-w-32 max-md:flex-1">
                       {pct === null && maxBudget > 0 && <span aria-hidden="true" data-testid="category-budget-bar" className="h-1.5 w-full rounded-full bg-secondary">
-                        <span className="block h-full rounded-full bg-muted-foreground/60" style={{ width: `${Math.round((r.budget / maxBudget) * 100)}%` }} />
+                        <span className="block h-full rounded-full bg-mark-neutral/60" style={{ width: `${Math.round((r.budget / maxBudget) * 100)}%` }} />
                       </span>}
                       {pct !== null && <ProgressBar value={pct} showValue widthless className="w-full [&>span:last-child]:w-12" aria-label={r.budget === 0 && r.actual! > 0
                         ? t('projectDetail.cost.categoryNoBudget', '{{category}} has spending with no budget', { category: label(r.category) })

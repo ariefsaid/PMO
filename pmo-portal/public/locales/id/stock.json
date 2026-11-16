@@ -1,6 +1,8 @@
 {
   "nav": "Stok",
   "setup": {
+    "backToStock": "Kembali ke Stok",
+    "odooDirectories": "Direktori Odoo",
     "title": "Pengaturan stok",
     "tabsLabel": "Data induk stok",
     "tabs": {
@@ -203,13 +205,13 @@
       "allWarehouses": "Semua gudang",
       "search": "Cari barang",
       "belowReorder": "Di bawah level pemesanan ulang",
-      "includeZero": "Tampilkan saldo nol"
+      "includeZero": "Tampilkan sisa stok nol"
     },
     "tiles": {
       "items": "Barang",
       "warehouses": "Gudang",
-      "central": "Saldo gudang pusat",
-      "site": "Saldo gudang lokasi"
+      "central": "Sisa stok gudang pusat",
+      "site": "Sisa stok gudang lokasi"
     },
     "states": {
       "tooManyTitle": "Terlalu banyak baris",
@@ -218,10 +220,10 @@
       "emptySub": "Terima stok ke gudang dan akan tampil di sini."
     },
     "moreMovements": "Lainnya",
-    "count": "{{shown}} saldo",
-    "countOne": "1 saldo",
-    "countOfTotal": "Menampilkan {{shown}} dari {{total}} saldo",
-    "valueShown": "Nilai saldo yang ditampilkan"
+    "count": "{{shown}} sisa stok",
+    "countOne": "1 sisa stok",
+    "countOfTotal": "Menampilkan {{shown}} dari {{total}} sisa stok",
+    "valueShown": "Nilai sisa yang ditampilkan"
   },
   "documents": {
     "title": "Dokumen",
@@ -278,7 +280,7 @@
       "quantity": "Kuantitas",
       "warehouse": "Gudang",
       "change": "Perubahan",
-      "balance": "Saldo akhir",
+      "balance": "Sisa akhir",
       "value": "Nilai"
     },
     "post": "Posting",
@@ -336,9 +338,9 @@
       "warehouse": "Gudang",
       "project": "Proyek / item pekerjaan",
       "change": "Perubahan",
-      "balance": "Saldo",
+      "balance": "Sisa",
       "valueChange": "Perubahan nilai",
-      "valueBalance": "Saldo nilai",
+      "valueBalance": "Nilai sisa",
       "posted": "Diposting {{day}}",
       "by": "Oleh"
     },

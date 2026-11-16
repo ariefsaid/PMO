@@ -302,7 +302,7 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
   it('AC-L10N-B01 renders the Finance page title in Bahasa from the shipped catalogue', async () => {
     await financeTestI18n.changeLanguage('id');
     renderPage();
-    expect(await screen.findByRole('heading', { name: 'Faktur Penjualan' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Invoice Penjualan' })).toBeInTheDocument();
   });
 
   it('AC-L10N-B01 renders invoice form section labels from the shipped Bahasa catalogue', async () => {
@@ -313,9 +313,9 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     await pick(user, 'Customer', 'Acme Energy');
     await pick(user, 'Project', 'Alpha Platform');
     await financeTestI18n.changeLanguage('id');
-    expect(await screen.findByText('Detail faktur')).toBeInTheDocument();
-    expect(screen.getByText('Item faktur')).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Tinjauan draf faktur' })).toBeInTheDocument();
+    expect(await screen.findByText('Detail invoice')).toBeInTheDocument();
+    expect(screen.getByText('Item invoice')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Tinjauan draf invoice' })).toBeInTheDocument();
   });
 
   it('AC-S16-003 leads with native work description and previews totals in the project currency', async () => {

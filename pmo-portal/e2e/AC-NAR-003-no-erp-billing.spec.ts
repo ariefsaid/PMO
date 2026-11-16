@@ -79,7 +79,7 @@ test.afterEach(async () => {
 /** This run's invoice row on the Sales Invoices list, once the list has loaded. */
 async function invoiceRow(page: Page) {
   await page.goto('/sales-invoices');
-  const search = page.getByLabel(localized('Search sales invoices', 'Cari faktur penjualan'));
+  const search = page.getByLabel(localized('Search sales invoices', 'Cari invoice penjualan'));
   await expect(search).toBeVisible({ timeout: 15_000 });
   await search.fill(`${tag} Client`);
   return page.getByRole('row').filter({ hasText: `${tag} Client` });
@@ -91,7 +91,7 @@ async function recordReceipt(page: Page, amount: string, startsAt?: RegExp) {
   await page.getByRole('button', { name: localized('Receive payment', 'Terima pembayaran') }).click();
   const form = page.getByRole('dialog');
   await pickComboboxOption(form, page, /^(?:Customer|Pelanggan)/, new RegExp(`${tag} Client`));
-  await pickComboboxOption(form, page, /^(?:Sales Invoice|Faktur Penjualan)/, /INV-\d{10}/);
+  await pickComboboxOption(form, page, /^(?:Sales Invoice|Invoice Penjualan)/, /INV-\d{10}/);
   if (startsAt) await expect(form.getByLabel(localized('Amount settled', 'Jumlah yang dilunasi'))).toHaveValue(startsAt);
   await form.getByLabel(localized('Amount settled', 'Jumlah yang dilunasi')).fill(amount);
   await form.getByLabel(localized('Cash received', 'Kas diterima')).fill(amount);
@@ -103,14 +103,14 @@ test('AC-NAR-003 a no-ERP org raises an invoice, a second person approves it aft
   // Finance raises the invoice.
   await signIn(page, 'finance@acme.test');
   await page.goto('/sales-invoices');
-  await page.getByRole('button', { name: localized('New Invoice', 'Faktur Baru') }).first().click();
+  await page.getByRole('button', { name: localized('New Invoice', 'Invoice Baru') }).first().click();
   const form = page.getByRole('dialog');
   await pickComboboxOption(form, page, /^(?:Customer|Pelanggan)/, new RegExp(`${tag} Client`));
   await pickComboboxOption(form, page, /^(?:Project|Proyek)/, new RegExp(tag));
   await form.getByLabel(localized('Item code', 'Kode item')).fill('SVC-NAR');
   await form.getByLabel(localized('Description', 'Deskripsi')).fill('Site survey');
   await form.getByLabel(localized('Rate', 'Tarif')).fill('1000000');
-  await form.getByRole('button', { name: localized('Create invoice', 'Buat faktur') }).click();
+  await form.getByRole('button', { name: localized('Create invoice', 'Buat invoice') }).click();
   await expect(form).toBeHidden({ timeout: 15_000 });
   let row = await invoiceRow(page);
   // #1405 copy: invoice states keep their core value and add the visible approval/due detail.
@@ -118,33 +118,33 @@ test('AC-NAR-003 a no-ERP org raises an invoice, a second person approves it aft
 
   // The draft has a stable record URL; reload keeps its project identity, and its author gets no approval action.
   await row.getByRole('button', { name: localized('Row actions', 'Tindakan baris') }).click();
-  await page.getByRole('menuitem', { name: localized('View invoice', 'Lihat faktur') }).click();
+  await page.getByRole('menuitem', { name: localized('View invoice', 'Lihat invoice') }).click();
   await expect(page).toHaveURL(/\/sales-invoices\/[^/?]+\?q=/);
-  await expect(page.getByText(localized('Invoice record', 'Detail faktur'), { exact: true })).toBeVisible();
+  await expect(page.getByText(localized('Invoice record', 'Detail invoice'), { exact: true })).toBeVisible();
   await expect(page.getByText(localized('Not found', 'Tidak ditemukan'), { exact: true })).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: /Draft invoice|Draf faktur/ })).toContainText(tag);
+  await expect(page.getByRole('heading', { name: /Draft invoice|Draf invoice/ })).toContainText(tag);
   await expect(page.getByRole('button', { name: localized('Continue to approve', 'Lanjutkan untuk menyetujui') })).toHaveCount(0);
   await page.reload();
-  await expect(page.getByRole('heading', { name: /Draft invoice|Draf faktur/ })).toContainText(tag);
+  await expect(page.getByRole('heading', { name: /Draft invoice|Draf invoice/ })).toContainText(tag);
   await page.getByRole('button', { name: localized('Back to Receivables', 'Kembali ke Piutang') }).click();
   await expect(page).toHaveURL(/\/finance\/receivables\?q=/);
-  await expect(page.getByLabel(localized('Search sales invoices', 'Cari faktur penjualan'))).toHaveValue(`${tag} Client`);
+  await expect(page.getByLabel(localized('Search sales invoices', 'Cari invoice penjualan'))).toHaveValue(`${tag} Client`);
 
   // A second person — an Admin — approves it from the Approvals queue.
   await signIn(page, 'admin@acme.test');
   await page.goto('/approvals');
-  const queue = page.getByRole('region', { name: localized('Customer invoices awaiting you', 'Faktur pelanggan yang menunggu Anda') });
+  const queue = page.getByRole('region', { name: localized('Customer invoices awaiting you', 'Invoice pelanggan yang menunggu Anda') });
   const item = queue.getByRole('listitem').filter({ hasText: `${tag} Client` });
   await expect(item).toBeVisible({ timeout: 15_000 });
   // I-1: the approver reads the invoice before approving it — project, customer, the line, who raised it, the total due.
-  await item.getByRole('button', { name: new RegExp(`(?:Show invoice details for|Tampilkan detail faktur untuk) ${tag} Client`, 'i') }).click();
+  await item.getByRole('button', { name: new RegExp(`(?:Show invoice details for|Tampilkan detail invoice untuk) ${tag} Client`, 'i') }).click();
   await expect(item.getByRole('link', { name: new RegExp(tag) })).toBeVisible();
-  await expect(item.getByRole('list', { name: localized('Line items', 'Item faktur') })).toContainText('Site survey');
-  await expect(item.getByRole('list', { name: localized('Line items', 'Item faktur') })).toContainText('SVC-NAR');
+  await expect(item.getByRole('list', { name: localized('Line items', 'Item invoice') })).toContainText('Site survey');
+  await expect(item.getByRole('list', { name: localized('Line items', 'Item invoice') })).toContainText('SVC-NAR');
   await expect(item).toContainText(financeName);
   await expect(item).toContainText(/(?:Total due|Total tagihan)\s*\S*\s?1[.,]110[.,]000/i);
   await item.getByRole('button', { name: localized('Approve', 'Setujui') }).click();
-  await page.getByRole('button', { name: localized('Approve invoice', 'Setujui faktur') }).click();
+  await page.getByRole('button', { name: localized('Approve invoice', 'Setujui invoice') }).click();
   await expect(item).toHaveCount(0, { timeout: 15_000 });
   row = await invoiceRow(page);
   await expect(row.getByText(localizedExact('Unpaid', 'Belum dibayar'))).toBeVisible({ timeout: 15_000 });
@@ -176,5 +176,5 @@ test('AC-NAR-003 a no-ERP org raises an invoice, a second person approves it aft
   await expect(invoiceAllocation).toBeVisible();
   await invoiceAllocation.click();
   await expect(page).toHaveURL(/\/sales-invoices\/[^/?]+/);
-  await expect(page.getByRole('heading', { name: /Invoice|Faktur/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Invoice|Invoice/ })).toBeVisible();
 });

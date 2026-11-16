@@ -4,6 +4,7 @@ import React from 'react';
 
 const { projectQuery } = vi.hoisted(() => ({ projectQuery: { data: null as unknown, isPending: false, isError: false, refetch: vi.fn() } }));
 
+vi.mock('@/src/hooks/useFxIdrRate', () => ({ useFxIdrRate: () => ({ status: 'off' }) }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => projectQuery }));
 vi.mock('@/src/hooks/useBudget', () => ({ useBudgetVersions: () => ({ data: [{ status: 'Active' }] }) }));
 vi.mock('@/src/hooks/useErpnextBinding', () => ({ useErpnextBinding: () => ({ data: { status: 'active' } }) }));

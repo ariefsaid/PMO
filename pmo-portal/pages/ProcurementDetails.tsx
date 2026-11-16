@@ -7,13 +7,11 @@ import { useParams, useNavigate, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   RecordHeader,
-  Card,
-  CardHead,
-  CardPad,
+  RecordSection,
+  RecordStack,
   Button,
   Combobox,
   FigureScope,
-  FigureHiddenLine,
   ListState,
   ConfirmDialog,
   ReasonDialog,
@@ -418,6 +416,10 @@ const ProcurementDetails: React.FC = () => {
   const canManageFiles = may('create', 'procFile');
   // DD-EFK-1: separate Admin/Finance UX gate; the PMO setter RPC is the enforcement authority.
   const canRecordEfaktur = may('record_efaktur', 'procurementInvoice');
+  // #1671: voiding a mistyped subcontract bill is offered only while PMO owns procurement (no ERP); the
+  // void_subcontract_bill RPC is the authority for role, author separation and the ERP boundary.
+  // Hidden while the organisation has an active external binding (or that is not yet known): the server always refuses there.
+  const canVoidBill = ownership.mode === 'pmo' && ownership.orgBound === false && may('void', 'procurementInvoice');
   const canWriteWithholdingSlip = may('create', 'vendorWithholdingSlip', { record: { viewOnly: effectiveRole !== realRole } });
   // 0002_rls.sql defines procurements_update for Admin, Executive, Project Manager, and Finance;
   // 0010_procurement_rls_hardening.sql preserves that row policy while narrowing writable columns.
@@ -607,11 +609,26 @@ const ProcurementDetails: React.FC = () => {
     ...(cancelAction ? [{ key: 'cancel', label: t('procurementRecord:cancelProcurement', 'Cancel procurement'), onSelect: () => onActionClick(cancelAction), danger: true }] : []),
   ];
 
+  // Header notes: each speaks about an action in the header (the error of the last step, who it waits on, the approver's
+  // limit, separation of duties, what gates Submit, the payment ceiling, the optional approval note). One line each.
+  const headerNotes = [
+    mutationError && <p key="error" role="alert" data-testid="procurement-mutation-error" className="rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">{mutationError}</p>,
+    approverLimitLine && <p key="limit" className="font-medium">{approverLimitLine}</p>,
+    decisionContextNote && <p key="sod" data-testid="sod-ready-hint">{decisionContextNote}</p>,
+    isDraft && p.items.length === 0 && mainAction?.to === 'Requested' && <p key="gate" data-testid="line-items-gate">{t('procurementRecord:gate.addLineItem', 'Add at least one line item before submitting.')}</p>,
+    isDraft && isRequester && <p key="pre-announce" data-testid="sod-pre-announce">{t('procurementRecord:sod.preAnnounce', "Submitting hands this to another approver. You can't approve your own procurement case.")}</p>,
+    routeNote && !(showVICapture || showCreateGR || showCreateVI) && <p key="route" data-testid="approval-route-note">{routeNote}</p>,
+    ceilingNotice && <div key="ceiling">{ceilingNotice}</div>,
+    mainAction?.to === 'Approved' && <label key="approval-note" className="mt-1 block max-w-xl font-medium">{t('procurementRecord:approval.note', 'Approval note (optional)')}
+      <textarea data-testid="procurement-notes-input" value={notesInput} onChange={(event) => setNotesInput(event.target.value)} rows={2} className="mt-1 block w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
+    </label>,
+  ].filter(Boolean);
+
   return (
     <FigureScope>
-    {/* One panel inset for the whole record (the content inset, the same as the header card and its tables), so the page
-        shows two left edges: the gutter and the panel inset. */}
-    <div className="[--panel-inset:var(--space-content-inset)]">
+    {/* The record frame (as on the project record): one header panel holding identity, status, the stage band, money,
+        actions and the notes that gate them; the tabs directly under it; every section a panel on the same inset. */}
+    <div>
       {/* C-IMP-1 (AC-S6-3): BackBar on mobile success render ≤920px.
           The top-bar breadcrumb owns desktop wayfinding (I7); on mobile the rail
           is collapsed and the breadcrumb is not visible, so the BackBar is the
@@ -624,7 +641,8 @@ const ProcurementDetails: React.FC = () => {
       {handoffTarget && <RunOnMount run={runHandoff} />}
       {/* The record header carries the one current-stage action and document/menu actions. */}
       <RecordHeader
-        className="mb-4"
+        panelInset
+        className="mb-3!"
         icon={null}
         name={p.title}
         statusBelowMetaOnMobile
@@ -634,11 +652,11 @@ const ProcurementDetails: React.FC = () => {
           </span>
         }
         meta={meta.length ? <span data-testid="record-meta" className="flex flex-col gap-y-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-2 [&_a]:font-normal">{meta.map((part, i) => <span key={part.key} className="sm:whitespace-nowrap">{i > 0 && <span data-meta-dot aria-hidden="true" className="mr-2 hidden text-muted-foreground sm:inline">·</span>}{part}</span>)}</span> : undefined}
-        actions={<>
+        // Where no action is offered, the slot says who the purchase waits on (#1404).
+        actions={waitingNote || !isNarrow ? <>
           {waitingNote && <span className="min-w-0 text-sm text-muted-foreground">{waitingNote}</span>}
-          {approverLimitLine && <span className="hidden text-sm text-muted-foreground lg:inline">{approverLimitLine}</span>}
           {!isNarrow && <RecordMenu items={recordMenuItems} label={t('procurementRecord:recordAnother', 'Record another document')} ariaLabel={t('procurementRecord:recordMenu', 'Record another document')} />}
-        </>}
+        </> : undefined}
         // B4: below 640px the phone action bar owns the one filled main action and the menu.
         primaryAction={mainAction && !isNarrow ? (
           returnAction && mainAction.to === 'Approved' ? (
@@ -652,39 +670,38 @@ const ProcurementDetails: React.FC = () => {
         ) : undefined}
         menuItems={mainAction && isNarrow ? undefined : moreMenuItems}
         menuLabel={t('procurementRecord:moreActions', 'More procurement actions')}
-      />
+        band={
+          <div className="flex flex-col gap-4">
+            <ProcurementStageTracker procurement={p} linkedDocuments={linkedDocs} />
+            {/* Money carries the record's one "N figures hidden · Why" line, under the figures it reports on. */}
+            <ProcurementMoneySummary procurement={p} linkedDocuments={linkedDocs} isEngineer={isEngineer} budgetSignal={isEngineer || (stageForStatus(p.status) === 'Request' && p.project_id) ? undefined : <ProcurementBudgetSignal
+              projectId={p.project_id}
+              totalValue={Number(p.total_value)}
+              status={p.status}
+              currency={p.currency}
+            />} />
+            {/* Request stage: the budget evidence for the approval, before the policy notes that follow it. */}
+            {stageForStatus(p.status) === 'Request' && p.project_id && <DecisionSupportPanel
+              bare
+              projectId={p.project_id}
+              totalValue={Number(p.total_value)}
+              projectName={p.project ? projectDisplayName(p.project) : null}
+              projectLegalName={p.project?.name}
+              projectStatus={p.project?.status}
+              status={p.status}
+              currency={p.currency}
+            />}
+            {/* #1505 P8: what Odoo has not settled for this case, on every tab (renders nothing otherwise). */}
+            <OdooCaseStatus procurementId={p.id} className="border-t border-border pt-4" />
+          </div>
+        }
+      >
+        {/* The notes that speak about the header's actions sit inside the header, under its band. */}
+        {headerNotes.length > 0 ? headerNotes : null}
+      </RecordHeader>
 
-      {/* Same hidden-figures line as the project record and the home: "N figures hidden · Why" —
-          the Why opens the reasons (and any fix) so a person can act on them. */}
-      <FigureHiddenLine compact className="mb-3 text-control text-muted-foreground" />
-      {mutationError && <p role="alert" data-testid="procurement-mutation-error" className="mb-3 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">{mutationError}</p>}
-      <div className="space-y-3">
-        <ProcurementStageTracker procurement={p} linkedDocuments={linkedDocs} />
-        <ProcurementMoneySummary procurement={p} linkedDocuments={linkedDocs} isEngineer={isEngineer} budgetSignal={isEngineer || (stageForStatus(p.status) === 'Request' && p.project_id) ? undefined : <ProcurementBudgetSignal
-          projectId={p.project_id}
-          totalValue={Number(p.total_value)}
-          status={p.status}
-          currency={p.currency}
-        />} />
-      </div>
-      {ceilingNotice && <div className="mt-2">{ceilingNotice}</div>}
-      {stageForStatus(p.status) === 'Request' && p.project_id && <DecisionSupportPanel
-        projectId={p.project_id}
-        totalValue={Number(p.total_value)}
-        projectName={p.project ? projectDisplayName(p.project) : null}
-        projectLegalName={p.project?.name}
-        projectStatus={p.project?.status}
-        status={p.status}
-        currency={p.currency}
-      />}
-      {approverLimitLine && <p className="mt-2 text-sm font-medium text-muted-foreground">{approverLimitLine}</p>}
-      {decisionContextNote && <p data-testid="sod-ready-hint" className="mb-3 text-sm text-muted-foreground">{decisionContextNote}</p>}
-      {isDraft && p.items.length === 0 && mainAction?.to === 'Requested' && <p data-testid="line-items-gate" className="mb-3 text-sm text-muted-foreground">{t('procurementRecord:gate.addLineItem', 'Add at least one line item before submitting.')}</p>}
-      {isDraft && isRequester && <p data-testid="sod-pre-announce" className="mb-3 text-sm text-muted-foreground">{t('procurementRecord:sod.preAnnounce', "Submitting hands this to another approver. You can't approve your own procurement case.")}</p>}
-      {routeNote && !(showVICapture || showCreateGR || showCreateVI) && <p data-testid="approval-route-note" className="mb-3 text-sm text-muted-foreground">{routeNote}</p>}
-      {mainAction?.to === 'Approved' && <label className="mb-4 mt-2 block max-w-xl text-sm font-medium text-muted-foreground">{t('procurementRecord:approval.note', 'Approval note (optional)')}
-        <textarea data-testid="procurement-notes-input" value={notesInput} onChange={(event) => setNotesInput(event.target.value)} rows={2} className="mt-1 block w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
-      </label>}
+      {/* The header edit form opens as a panel under the header, before the tabs. */}
+      <div className="mb-3 flex flex-col gap-3 empty:hidden [&>*]:mb-0!">
       {/* Draft-header edit (requester while Draft/Rejected) — opened from the header Edit action */}
       {canEditHeader && headerEditOpen && (
         <ProcurementHeaderEdit
@@ -707,11 +724,9 @@ const ProcurementDetails: React.FC = () => {
           }}
         />
       )}
+      </div>
 
-      {/* #1505 P8: what Odoo has not settled for this case, on every tab (renders nothing otherwise). */}
-      <OdooCaseStatus procurementId={p.id} />
-
-      {/* Deep-linkable detail sections */}
+      {/* Deep-linkable detail sections, directly under the header (as on the project record). */}
       <Tabs<ProcTab>
         items={procTabs}
         value={tab}
@@ -720,6 +735,7 @@ const ProcurementDetails: React.FC = () => {
         idBase="procurement-detail"
         insetFirstTab
         wrapOnPhone
+        className="mb-0!"
       />
 
       <div
@@ -727,11 +743,12 @@ const ProcurementDetails: React.FC = () => {
         id={tabPanelId('procurement-detail', tab)}
         aria-labelledby={tabId('procurement-detail', tab)}
         data-testid={`procurement-tabpanel-${tab}`}
+        className="pt-4 md:pt-6"
       >
-        {tab === 'timeline' && <div className="space-y-4">
+        {tab === 'timeline' && <RecordStack>
           <ProcurementTimeline procurement={p} ledgerRows={ledgerRows} linkedDocuments={linkedDocs} isEngineer={isEngineer} canWriteFiles={canManageFiles} uploadedById={currentUserId} onFullHistory={() => setHistoryOpen((open) => !open)} />
-          {historyOpen && <Card data-testid="procurement-full-history"><CardHead actions={<Button variant="outline" size="sm" onClick={() => setHistoryOpen(false)}>{t('procurementRecord:close', 'Close')}</Button>}>{t('procurementRecord:timeline.fullHistory', 'Full history')}</CardHead><CardPad><RecordHistory entityType="procurement" entityId={p.id} includeChildren /></CardPad></Card>}
-        </div>}
+          {historyOpen && <RecordSection data-testid="procurement-full-history" title={t('procurementRecord:timeline.fullHistory', 'Full history')} actions={<Button variant="outline" size="sm" onClick={() => setHistoryOpen(false)}>{t('procurementRecord:close', 'Close')}</Button>}><RecordHistory entityType="procurement" entityId={p.id} includeChildren /></RecordSection>}
+        </RecordStack>}
 
         {tab === 'items' && <ProcurementItemsTab p={p} ownership={ownership} ownershipReady={ownershipReady} casePushInFlight={casePushInFlight} canEditItems={canEditItems} canEditItemValues={canEditItemValues} itemEligibility={itemEligibility} erpItems={erpItems} crud={crud} onMutationError={onMutationError} currentUserId={currentUserId} managerId={managerId} />}
 
@@ -740,7 +757,7 @@ const ProcurementDetails: React.FC = () => {
             Financial / Has file. Capture affordance at bottom (LedgerCaptureRow).
             ProcurementRecordsSection / DocRow / ProcurementDocumentsSection removed. ░░ */}
         {tab === 'files' && (
-          <Card variant="bare">
+          <RecordStack>
             {!isEngineer ? <ProcurementLedger
               detail={p}
               rows={ledgerRows}
@@ -757,6 +774,7 @@ const ProcurementDetails: React.FC = () => {
                   'success',
                 );
               }}
+              canVoidBill={canVoidBill}
               invoices={p.invoices}
               targetInvoiceId={targetInvoiceId ?? undefined}
               canWriteWithholdingSlip={canWriteWithholdingSlip}
@@ -780,7 +798,7 @@ const ProcurementDetails: React.FC = () => {
               gates={gates}
             /> : <ProcurementTimeline procurement={p} ledgerRows={ledgerRows} linkedDocuments={linkedDocs} isEngineer canWriteFiles={canManageFiles} uploadedById={currentUserId} onFullHistory={() => { setHistoryOpen(true); setTab('timeline'); }} />}
             {vendorPickerOpen && canSetVendor && (
-              <div role="dialog" aria-label={t('bupot.setVendor', 'Set supplier')} className="mt-3 flex flex-wrap items-end gap-3 rounded-md border border-border p-3">
+              <div role="dialog" aria-label={t('bupot.setVendor', 'Set supplier')} className="panel-card flex flex-wrap items-end gap-3 p-[var(--panel-inset)]">
                 <Combobox
                   label={t('bupot.vendor', 'Supplier')}
                   noun={t('bupot.vendor', 'Supplier').toLowerCase()}
@@ -823,7 +841,7 @@ const ProcurementDetails: React.FC = () => {
             {!isEngineer && <LinkedErpDocuments procurementId={p.id} />}
             {!isEngineer && <AttachedJournalLines procurementId={p.id} projectId={p.project_id} />}
             <ProcurementMicrosoftReferences procurementId={p.id} requestNumber={p.pr_number} createdAt={p.created_at} targets={attachTargets} />
-          </Card>
+          </RecordStack>
         )}
 
         {/* ░░ Vendor quotes tab — Slice 3: VendorQuotesTab (bid comparison).
@@ -837,8 +855,7 @@ const ProcurementDetails: React.FC = () => {
         {tab === 'details' && <ProcurementDetailsTab rows={detailRows} canEditHeader={canEditHeader} onEdit={() => setHeaderEditOpen(true)} />}
       </div>
 
-      {captureKind && <div className="mt-4" data-testid="procurement-record-capture">
-        <CardHead actions={<Button variant="outline" size="sm" onClick={() => guardCaptureLeave(closeCapture)}>{t('procurementRecord:close', 'Close')}</Button>}>{recordKindLabels[captureKind]}</CardHead>
+      {captureKind && <RecordSection className="mt-[var(--space-section)]" data-testid="procurement-record-capture" title={recordKindLabels[captureKind]} actions={<Button variant="outline" size="sm" onClick={() => guardCaptureLeave(closeCapture)}>{t('procurementRecord:close', 'Close')}</Button>}>
         <RecordCaptureForm
           kind={captureKind}
           onCreate={createCapturedRecord}
@@ -853,7 +870,7 @@ const ProcurementDetails: React.FC = () => {
           onClose={closeCapture}
           onDirtyChange={setCaptureDirty}
         />
-      </div>}
+      </RecordSection>}
 
       {(showVICapture || showCreateGR || showCreateVI) && <ProcurementDecisionZone
         p={p}

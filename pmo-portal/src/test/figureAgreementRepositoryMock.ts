@@ -155,8 +155,15 @@ export function createFigureAgreementRepositoryModule<T extends { repositories: 
     procurement: override('procurement', {
       list: async () => [],
       listByProject: async () => procurementOverride ?? [],
+      // The Requested purchase record (budget.procurement.record): a bare detail with no documents.
+      get: async (id: string) => ({
+        ...fixture.budget.newRequest, id, code: 'PR-S01', title: 'Synthetic purchase', created_at: '2026-11-01T00:00:00Z', vendor: null, vendor_id: null,
+        requested_by_id: fixture.users.projectManager.id, requested_by: { full_name: fixture.users.projectManager.full_name },
+        project: { name: primary.name, code: 'S01', status: 'Ongoing Project' }, approved_by: null,
+        items: [], quotations: [], receipts: [], invoices: [], purchase_requests: [], rfqs: [], purchase_orders: [], payments: [], statusEvents: [],
+      }),
       getProjectCommittedSpend: async () => committedSpend,
-      getProjectReservedSpend: async () => ({ amount: '50.00', projectCurrency: 'USD', budgetCurrency: 'USD', otherCurrencies: [] }),
+      getProjectReservedSpend: async () => ({ amount: 50, projectCurrency: 'USD', budgetCurrency: 'USD', otherCurrencies: [] }),
     }),
     revenue: override('revenue', {
       getProjectFinances: async () => currentFinances(),

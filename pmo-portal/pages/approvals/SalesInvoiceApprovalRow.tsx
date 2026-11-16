@@ -22,7 +22,9 @@ export const SalesInvoiceApprovalPreview: React.FC<{
   /** Record-only movement of facts into the shared record header. */
   hideProject?: boolean;
   hideInvoiceDate?: boolean;
-}> = ({ inv, showFx = false, hideLines = false, hideProject = false, hideInvoiceDate = false }) => {
+  /** Record-only: the remaining facts (customer PO, raised by, draft number) live in the record header. */
+  hideFacts?: boolean;
+}> = ({ inv, showFx = false, hideLines = false, hideProject = false, hideInvoiceDate = false, hideFacts = false }) => {
   const { t } = useTranslation();
   const { data: projects } = useInvoiceProjectOptions();
   const { data: profiles } = useAssignableProfiles();
@@ -44,14 +46,14 @@ export const SalesInvoiceApprovalPreview: React.FC<{
 
   return (
     <div className="space-y-3">
-      <dl className="grid gap-2 sm:grid-cols-2">
+      {!hideFacts && <dl className="grid gap-2 sm:grid-cols-2">
         {facts.map((f) => (
           <div key={f.label} className="min-w-0 rounded-lg border border-border/70 px-3 py-2">
             <dt className={EYEBROW}>{f.label}</dt>
             <dd title={f.label === t('financeCopy.project', 'Project') ? projectName ?? undefined : undefined} className="mt-1 break-words text-control font-medium">{f.value}</dd>
           </div>
         ))}
-      </dl>
+      </dl>}
 
       {(inv.pmo_native || Boolean(lines.length)) && !hideLines ? (
         <section>
@@ -100,7 +102,7 @@ export const SalesInvoiceApprovalPreview: React.FC<{
         </div>
         <div className="flex items-baseline justify-between gap-3 border-t border-border pt-1 font-semibold">
           {/* #2345 row 2: on a PAID invoice nothing is due any more — the gross reads as the invoice
-              total (the catalogue's existing word for it, en "Invoice total" / id "Total faktur",
+              total (the catalogue's existing word for it, en "Invoice total" / id "Total invoice",
               finance:receivables.invoiceTotal); before approval/unpaid it stays "Total due". The
               figure itself never changes. */}
           <dt>{inv.status === 'Paid'

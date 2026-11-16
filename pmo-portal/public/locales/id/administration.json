@@ -110,7 +110,7 @@
       "done": "Selesai",
       "todo": "Belum",
       "procurement": "Pembelian dicatat di Odoo",
-      "procurementHint": "Setelah ini, pesanan pembelian, penerimaan barang, dan tagihan supplier yang disetujui juga dibuat di Odoo."
+      "procurementHint": "Setelah ini, pesanan pembelian, penerimaan barang, dan invoice supplier yang disetujui juga dibuat di Odoo."
     },
     "picker": {
       "placeholder": "Pilih barang",
@@ -249,7 +249,7 @@
       "companiesConfirm": "Biarkan Odoo mengelola",
       "procurementAction": "Kirim pembelian ke Odoo",
       "procurementTitle": "Kirim pembelian ke Odoo?",
-      "procurementBody": "Mulai sekarang, pesanan pembelian, penerimaan barang, dan tagihan supplier yang disetujui juga dibuat di Odoo.",
+      "procurementBody": "Mulai sekarang, pesanan pembelian, penerimaan barang, dan invoice supplier yang disetujui juga dibuat di Odoo.",
       "procurementConfirm": "Kirim pembelian",
       "waitSends": "Tunggu sampai semua data sampai di Odoo."
     },
@@ -353,7 +353,39 @@
       "retryFailed": "Kami tidak dapat mengirim ulang. Coba lagi sebentar lagi.",
       "unnamed": "Sebuah data",
       "addPeople": "Tambahkan orang-orang ini di ERP. ERP meminta tanggal lahir dan jenis kelamin, yang tidak dimiliki PMO.",
-      "accountantTask": "Minta akuntan Anda menambahkan akun biaya langsung untuk: {{categories}}"
+      "accountantTask": "Minta akuntan Anda menambahkan akun biaya langsung untuk: {{categories}}",
+      "refusal": {
+        "unknown": "Kami tidak dapat mengirim data ini. Periksa di ERP, lalu coba lagi.",
+        "noun": {
+          "company": "perusahaan",
+          "project": "proyek",
+          "item": "item",
+          "person": "orang",
+          "record": "data"
+        },
+        "gone": "Data ini sudah tidak ada di PMO, atau (untuk item) sudah tidak ada di pembelian yang terbuka.",
+        "person": "ERP ini meminta tanggal lahir dan jenis kelamin setiap orang, yang tidak dimiliki PMO. Tambahkan orang ini di ERP.",
+        "personOdoo": "PMO belum mengirim data orang ke Odoo. Tambahkan orang ini di Odoo.",
+        "actor": "Admin yang menerima ini sudah bukan Admin lagi. Terima lagi.",
+        "ambiguous": "Dua data ERP cocok dengan {{noun}} ini. Hubungkan yang benar secara manual.",
+        "linked": "Data ini sudah terhubung ke data ERP lain.",
+        "stuck": "Kami tidak dapat menyelesaikan pengiriman data ini. Periksa di ERP, lalu coba lagi.",
+        "refused": "ERP menolak {{noun}} ini. Periksa di ERP, lalu coba lagi.",
+        "erpReason": "Alasan dari ERP: {{reason}}",
+        "refusedReason": "ERP menolak {{noun}} ini. Periksa di ERP, lalu coba lagi.",
+        "held": "Kami tidak dapat memastikan apakah ERP sudah membuat data ini. Cari di ERP dengan nama dan NPWP; jika tidak ada, kirim lagi.",
+        "heldOdoo": "Kami tidak dapat memastikan apakah Odoo sudah membuat data ini. Cari di Odoo dengan nama dan NPWP; jika tidak ada, kirim lagi.",
+        "planFirst": "Pilih dulu rencana akun biaya untuk proyek, lalu kirim proyek ini lagi.",
+        "projectNumber": "Proyek ini belum punya nomor proyek, sehingga akun biayanya tidak bisa diberi nama. Beri nomor, lalu kirim lagi.",
+        "unitUnmapped": "ERP menolak {{noun}} ini: satuannya belum cocok dengan satuan di Odoo.",
+        "notApplied": "Baris ini tidak dapat diterapkan.",
+        "companyGone": "Perusahaan ini sudah tidak ada di PMO.",
+        "projectGone": "Proyek ini sudah tidak ada di PMO.",
+        "internalCompany": "Perusahaan internal tidak dapat dihubungkan ke ERP.",
+        "changedSince": "Data ERP berubah sejak ini diusulkan.",
+        "personGone": "Orang ini sudah tidak ada di PMO.",
+        "itemLinked": "Item ini sudah terhubung."
+      }
     },
     "connect": {
       "title": "Cocokkan data",
@@ -437,46 +469,46 @@
     }
   },
   "invoicePairs": {
-    "title": "Faktur di kedua sisi",
-    "intro": "Sebagian faktur yang dibuat di PMO juga ada di ERP Anda. Hitung setiap penjualan sekali saja, sebagai salinan ERP. Salinan PMO tetap tersimpan dan terhubung ke faktur ERP, tetapi tidak lagi menambah pendapatan dan piutang.",
+    "title": "Invoice di kedua sisi",
+    "intro": "Sebagian invoice yang dibuat di PMO juga ada di ERP Anda. Hitung setiap penjualan sekali saja, sebagai salinan ERP. Salinan PMO tetap tersimpan dan terhubung ke invoice ERP, tetapi tidak lagi menambah pendapatan dan piutang.",
     "col": {
-      "pmo": "Faktur PMO",
-      "erp": "Faktur ERP",
+      "pmo": "Invoice PMO",
+      "erp": "Invoice ERP",
       "customer": "Pelanggan",
       "amount": "Jumlah"
     },
     "acceptAll": "Hitung masing-masing sekali",
     "needsDecision": "Perlu keputusan",
-    "needsDecisionHelp": "Faktur ini cocok dengan lebih dari satu faktur. Buka di ERP untuk membedakannya; PMO tidak akan memilih untuk Anda.",
-    "stillPmo": "Masih dihitung sebagai faktur PMO",
+    "needsDecisionHelp": "Invoice ini cocok dengan lebih dari satu invoice. Buka di ERP untuk membedakannya; PMO tidak akan memilih untuk Anda.",
+    "stillPmo": "Masih dihitung sebagai invoice PMO",
     "reason": {
-      "noMatch": "Tidak ada faktur ERP yang cocok",
-      "ambiguous": "Lebih dari satu faktur ERP yang cocok",
-      "hasReceipt": "PMO sudah mencatat pembayaran pada faktur ini",
-      "projectDiffers": "Faktur ERP berada di proyek atau $t(common:terms.clientWorkOrder) yang berbeda"
+      "noMatch": "Tidak ada invoice ERP yang cocok",
+      "ambiguous": "Lebih dari satu invoice ERP yang cocok",
+      "hasReceipt": "PMO sudah mencatat pembayaran pada invoice ini",
+      "projectDiffers": "Invoice ERP berada di proyek atau $t(common:terms.clientWorkOrder) yang berbeda"
     },
-    "countOne": "1 faktur",
-    "countOther": "{{count}} faktur",
-    "doneOne": "1 faktur kini dihitung sekali.",
-    "doneOther": "{{count}} faktur kini dihitung sekali.",
-    "failed": "Tidak ada faktur yang diubah. Daftar mungkin sudah usang; daftar telah dimuat ulang. Coba lagi.",
-    "alreadyOne": "1 faktur sudah dihitung sekali",
-    "alreadyOther": "{{count}} faktur sudah dihitung sekali",
-    "countedAs": "dihitung sebagai faktur ERP {{number}}",
-    "confirmTitle": "Hitung faktur ini sekali saja?",
+    "countOne": "1 invoice",
+    "countOther": "{{count}} invoice",
+    "doneOne": "1 invoice kini dihitung sekali.",
+    "doneOther": "{{count}} invoice kini dihitung sekali.",
+    "failed": "Tidak ada invoice yang diubah. Daftar mungkin sudah usang; daftar telah dimuat ulang. Coba lagi.",
+    "alreadyOne": "1 invoice sudah dihitung sekali",
+    "alreadyOther": "{{count}} invoice sudah dihitung sekali",
+    "countedAs": "dihitung sebagai invoice ERP {{number}}",
+    "confirmTitle": "Hitung invoice ini sekali saja?",
     "confirmBody": "Hitung {{what}} sekali saja, sebagai salinan ERP?",
     "confirmAction": "Hitung sekali",
-    "failedStale": "Tidak ada faktur yang diubah. Sebuah pasangan tidak lagi cocok dengan jelas; daftar telah dimuat ulang. Periksa lalu coba lagi.",
+    "failedStale": "Tidak ada invoice yang diubah. Sebuah pasangan tidak lagi cocok dengan jelas; daftar telah dimuat ulang. Periksa lalu coba lagi.",
     "undo": "Batalkan",
     "undoFor": "Batalkan {{number}}",
     "undoTitle": "Hitung {{number}} secara terpisah lagi?",
-    "undoBody": "Faktur PMO kembali masuk ke pendapatan dan piutang. Faktur ERP {{erp}} tetap ada, jadi jika keduanya dihitung, penjualan tampil dua kali sampai Anda memasangkannya lagi.",
+    "undoBody": "Invoice PMO kembali masuk ke pendapatan dan piutang. Invoice ERP {{erp}} tetap ada, jadi jika keduanya dihitung, penjualan tampil dua kali sampai Anda memasangkannya lagi.",
     "undoDone": "{{number}} kini dihitung secara terpisah lagi.",
     "undoFailed": "Tidak ada yang diubah. Pasangan mungkin sudah dibatalkan; daftar telah dimuat ulang.",
     "loadFailed": {
-      "propose": "Faktur yang cocok gagal dimuat.",
-      "unpaired": "Faktur yang masih dihitung sebagai faktur PMO gagal dimuat.",
-      "accepted": "Faktur yang sudah dihitung sekali gagal dimuat."
+      "propose": "Invoice yang cocok gagal dimuat.",
+      "unpaired": "Invoice yang masih dihitung sebagai invoice PMO gagal dimuat.",
+      "accepted": "Invoice yang sudah dihitung sekali gagal dimuat."
     },
     "retry": "Coba lagi"
   },

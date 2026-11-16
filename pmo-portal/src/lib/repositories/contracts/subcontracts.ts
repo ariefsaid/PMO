@@ -37,6 +37,8 @@ export interface SubcontractRepository {
   listWorkOrderCostVariations(workOrderId: string): Promise<WorkOrderCostVariationRow[]>;
   listSubcontractCapExceptions(procurementId: string): Promise<SubcontractCapExceptionRow[]>;
   attributeSubcontractBillLines(invoiceId: string, lines: AttributeSubcontractBillLineInput[]): Promise<void>;
+  /** #1671: void a mistyped PMO-native subcontract bill (no-ERP orgs); server-enforced role and SoD. */
+  voidSubcontractBill(invoiceId: string, reason: string): Promise<ProcurementInvoiceRow>;
   captureSubcontractVendorInvoice(input: CaptureSubcontractVendorInvoiceInput): Promise<ProcurementInvoiceRow>;
 }
 

@@ -448,7 +448,7 @@ describe('ProjectFinancesSection reading states', () => {
       excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: false, amount: null }] } });
     for (const [language, prompt, scope] of [
       ['en', 'Ask an administrator to complete spending setup.', 'Only invoices linked to this project are included.'],
-      ['id', 'Minta administrator menyelesaikan penyiapan pengeluaran.', 'Hanya faktur yang ditautkan ke proyek ini yang disertakan.'],
+      ['id', 'Minta administrator menyelesaikan penyiapan pengeluaran.', 'Hanya invoice yang ditautkan ke proyek ini yang disertakan.'],
     ] as const) {
       await localeI18n.changeLanguage(language);
       const view = render(<I18nextProvider i18n={localeI18n}><ProjectFinancesSection project={project} /></I18nextProvider>);
@@ -696,6 +696,9 @@ describe('ProjectFinancesSection billing kinds (#1471)', () => {
     expect(within(known).getByText('Invoiced above contract by 100')).toBeInTheDocument();
     expect(within(known).getByText('Invoiced against contract')).toBeInTheDocument();
     expect(within(known).getByTestId('contract-excess-invoiced')).toHaveTextContent('1,100');
+    // #2346: the invoiced-against-contract figure is one unbroken line
+    expect(within(known).getByTestId('contract-excess-invoiced')).toHaveClass('whitespace-nowrap');
+    expect(within(known).getByTestId('contract-excess-invoiced')).not.toHaveClass('break-words');
     unmount();
     h.query.data = payload({
       contract_invoiced: '1100.00', remaining_to_invoice: '-100.00', invoices: [usdBucket('1100.00')],

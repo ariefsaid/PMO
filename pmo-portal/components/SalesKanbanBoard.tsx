@@ -220,7 +220,7 @@ const CompactDealCard: React.FC<{
           <DealStamp project={project} />
           <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-              <span className="break-words text-[15px] font-bold tabular">
+              <span className="whitespace-nowrap text-[15px] font-bold tabular">
                 {formatCurrency(project.contract_value, project.currency)}
               </span>
               {!(hideExclusiveTaxBasis && project.tax_treatment === 'exclusive') && <TaxBasisLabel

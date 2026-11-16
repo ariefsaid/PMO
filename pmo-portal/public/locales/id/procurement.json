@@ -74,7 +74,7 @@
   },
   "ledger": {
     "paymentInErp": "Catat pembayaran di ERPNext; akan tertaut di sini pada sinkronisasi berikutnya.",
-    "billsHiddenForRole": "Tagihan supplier dan pembayaran tidak ditampilkan untuk peran Anda.",
+    "billsHiddenForRole": "Invoice supplier dan pembayaran tidak ditampilkan untuk peran Anda.",
     "awaitingApproval": "Menunggu persetujuan. Dokumen dapat dicatat setelah disetujui.",
     "approveToStart": "Setujui untuk mulai mencatat dokumen.",
     "emptyTitle": "Belum ada dokumen",
@@ -88,13 +88,13 @@
       "rfq": "Permintaan penawaran",
       "order": "Pesanan",
       "receipt": "Penerimaan barang",
-      "invoice": "Faktur supplier",
+      "invoice": "Invoice supplier",
       "payment": "Pembayaran",
       "needsRequest": "perlu permintaan pembelian dulu",
       "needsApproval": "perlu persetujuan dulu",
       "needsReceipt": "perlu penerimaan barang dulu"
     },
-    "paymentNeedsBillOdoo": "Catat faktur supplier di sini terlebih dahulu; setelah itu Anda dapat membayarnya dari sini.",
+    "paymentNeedsBillOdoo": "Catat invoice supplier di sini terlebih dahulu; setelah itu Anda dapat membayarnya dari sini.",
     "preCutover": "Dicatat sebelum terhubung ke ERP, tidak dikirim",
     "notSent": "Tidak dikirim",
     "notSentReason": "Tidak dikirim: pembelian ini dimulai sebelum terhubung ke ERP"
@@ -106,7 +106,7 @@
     "onlyAdmin": "Hanya Admin yang dapat mengubah ini.",
     "request_before_order": "Wajib permintaan sebelum pesanan",
     "approval_before_order": "Wajib persetujuan sebelum pesanan",
-    "receipt_before_invoice": "Wajib penerimaan barang sebelum faktur",
+    "receipt_before_invoice": "Wajib penerimaan barang sebelum invoice",
     "approval_before_payment": "Wajib persetujuan sebelum pembayaran",
     "saving": "Menyimpan…",
     "saved": "Tersimpan"
@@ -123,7 +123,7 @@
       "quote": "Penawaran",
       "po": "Pesanan pembelian",
       "gr": "Penerimaan barang",
-      "invoice": "Faktur supplier",
+      "invoice": "Invoice supplier",
       "payment": "Pembayaran"
     }
   },
@@ -150,7 +150,7 @@
         "approveOrReturn": "Setujui atau kembalikan",
         "waitingOnApprover": "Menunggu pemberi persetujuan",
         "approved": "Minta penawaran atau pesan",
-        "delivered": "Catat faktur supplier",
+        "delivered": "Catat invoice supplier",
         "draft": "Ajukan untuk persetujuan",
         "gettingQuotes": "Pilih penawaran",
         "ordered": "Catat pengiriman",
@@ -163,7 +163,7 @@
         "quotation": "Penawaran",
         "purchaseOrder": "Pesanan pembelian",
         "receipt": "Penerimaan",
-        "supplierInvoice": "Faktur supplier",
+        "supplierInvoice": "Invoice supplier",
         "payment": "Pembayaran"
       },
       "detail": {
@@ -276,7 +276,7 @@
       "none": "—",
       "approve": "Setujui pengadaan",
       "receive": "Catat pengiriman",
-      "pay": "Bayar faktur",
+      "pay": "Bayar invoice",
       "column": "Alasan perlu tindakan Anda"
     },
     "rowMenu": {
@@ -285,16 +285,16 @@
       "linkFile": "Tautkan file",
       "export": "Ekspor"
     },
-    "moneyTooltip": "Jumlah tercatat terbesar: dibayar, difakturkan, dipesan, lalu diminta. Sumber: catatan pengadaan.",
+    "moneyTooltip": "Jumlah tercatat terbesar: dibayar, ditagih, dipesan, lalu diminta. Sumber: catatan pengadaan.",
     "moneyUnknown": "Belum dicatat",
-    "unpaidTooltip": "Jumlah faktur dikurangi pembayaran tercatat, atau saldo terutang di ERP.",
+    "unpaidTooltip": "Jumlah invoice dikurangi pembayaran tercatat, atau saldo terutang di ERP.",
     "unpaidLine": "Belum dibayar {{amount}}",
     "unpaidInFull": "Belum dibayar seluruhnya",
     "unpaidUnknown": "Saldo belum dibayar belum dicatat",
     "noStepDates": "Belum ada tanggal langkah yang dicatat.",
     "moreActions": "Tindakan pengadaan lainnya",
-    "settlementTooltip": "Jumlah pembayaran yang tercatat dibandingkan dengan faktur yang tercatat.",
-    "settlement": "Dibayar / difakturkan",
+    "settlementTooltip": "Jumlah pembayaran yang tercatat dibandingkan dengan invoice yang tercatat.",
+    "settlement": "Dibayar / ditagih",
     "nextStepLabel": "Langkah berikutnya",
     "lineItems": "Item permintaan",
     "lineItemsUnavailable": "Baris item tidak dapat dimuat.",
@@ -352,29 +352,32 @@
     "returnedDetail": "{{title}} telah dikembalikan"
   },
   "decisionSupport": {
-    "otherCurrencyCommitments": "Belum termasuk komitmen dalam mata uang lain: {{amounts}}",
     "projectBudget": "Anggaran proyek",
-    "reservedSub": "disetujui, belum dipesan",
+    "reservedSub": "Disetujui, belum dipesan",
     "reserved": "Dicadangkan",
     "thisProcurement": "Total pengadaan",
     "notCompared": "Mata uang berbeda: tidak dibandingkan dengan anggaran",
-    "afterThisProcurement": "Setelah pengadaan ini",
-    "overBudgetLead": "Pengadaan ini melebihi anggaran yang tersedia sebesar",
-    "committedBarLabel": "Terikat pembelian, termasuk yang ini: {{pct}}% dari {{budget}}",
-    "committedBarCaption": "Terikat pembelian, termasuk yang ini: {{pct}}%",
-    "uncommittedToPurchases": "Belum terikat pembelian",
-    "notCountingRecordedSpending": "Belum termasuk pengeluaran tercatat",
     "budgetUsed": "Anggaran terpakai",
     "budgetUsedBasis": "Pengeluaran tercatat, sebelum pajak",
     "budgetUsedUnknown": "Anggaran terpakai tidak diketahui atau tidak tersedia.",
-    "reserved": "Dicadangkan",
-    "reservedSub": "Disetujui, belum dipesan",
-    "projectBudget": "Anggaran proyek",
-    "headroom": "Sisa ruang {{pct}}%",
     "amountUnavailable": "Perbandingan anggaran tidak tersedia untuk jumlah ini.",
     "currencyUnavailable": "Perbandingan anggaran tidak tersedia untuk mata uang ini.",
     "heading": "Dampak anggaran",
-    "openProject": "Buka proyek"
+    "openProject": "Buka proyek",
+    "openOrders": "Pesanan terbuka",
+    "openOrdersSub": "Dipesan, belum masuk pengeluaran tercatat",
+    "leftAfterPurchase": "Sisa setelah pembelian ini",
+    "leftAfterPurchaseSub": "Setelah pengeluaran, pesanan, dan cadangan",
+    "leftAfterPurchaseTooltip": "Anggaran dikurangi pengeluaran tercatat, pesanan terbuka, permintaan yang dicadangkan, dan pembelian ini, masing-masing dihitung sekali, sebelum pajak.",
+    "spentOrCommittedBarLabel": "Terpakai atau terikat, termasuk yang ini: {{pct}}% dari {{budget}}",
+    "spentOrCommittedBarCaption": "Terpakai atau terikat, termasuk yang ini: {{pct}}%",
+    "overBudgetTitle": "Melebihi anggaran",
+    "overBudgetAfter": "{{amount}} di atas anggaran setelah pembelian ini. Persetujuan tetap bisa dilakukan; ini hanya peringatan.",
+    "leftOtherCurrency": "Pesanan terbuka dalam mata uang lain: {{amounts}}",
+    "leftWithoutSpending": "Tanpa pengeluaran: sisa {{amount}} setelah pesanan, cadangan, dan pembelian ini.",
+    "leftNotKnown": "Belum diketahui",
+    "leftOrdersUnknown": "Pesanan terbuka belum diketahui",
+    "leftSpendingUnknown": "Pengeluaran belum diketahui"
   },
   "headerEdit": {
     "heading": "Edit rincian pengadaan",
@@ -564,7 +567,7 @@
         },
         "po_has_submitted_bill": {
           "headline": "Tidak dapat merevisi pesanan tertagih",
-          "detail": "Pesanan pembelian ini memiliki tagihan supplier yang sudah diajukan di ERP dan tidak dapat direvisi."
+          "detail": "Pesanan pembelian ini memiliki invoice supplier yang sudah diajukan di ERP dan tidak dapat direvisi."
         },
         "revision_not_issued": {
           "headline": "Revisi belum diterbitkan",
@@ -666,9 +669,9 @@
     "kind": {
       "purchase-order": "Pesanan",
       "goods-receipt": "Penerimaan barang",
-      "purchase-invoice": "Faktur supplier",
+      "purchase-invoice": "Invoice supplier",
       "payment": "Pembayaran",
-      "sales-invoice": "Faktur pelanggan",
+      "sales-invoice": "Invoice pelanggan",
       "incoming-payment": "Kuitansi pelanggan"
     },
     "waiting": {
@@ -731,6 +734,26 @@
     "headingAll": "Pembelian dan $t(common:terms.timesheet)",
     "waitingDays_one": "Menunggu {{count}} hari",
     "waitingDays_other": "Menunggu {{count}} hari"
+  },
+  "voidBill": {
+    "action": "Batalkan tagihan",
+    "title": "Batalkan tagihan ini?",
+    "reason": "Mengapa tagihan ini dibatalkan?",
+    "helper": "Disimpan bersama tagihan dan riwayatnya.",
+    "confirm": "Batalkan tagihan",
+    "context": "{{number}} tetap ada di buku besar sebagai dibatalkan dan tidak lagi dihitung terhadap PO, sehingga tagihan yang benar dapat dicatat.",
+    "voided": "Dibatalkan",
+    "byOn": "{{name}} · {{date}}",
+    "error": {
+      "ownBill": "Anda yang mencatat tagihan ini, jadi pengguna Admin atau Finance lain yang harus membatalkannya.",
+      "authorUnknown": "Tidak ada yang tercatat sebagai pencatat tagihan ini, jadi tagihan ini tidak dapat dibatalkan di sini.",
+      "erpBound": "Organisasi Anda mencatat tagihan di ERP. Batalkan tagihan di sana.",
+      "erpRecord": "Tagihan ini berasal dari catatan ERP. Batalkan di ERP.",
+      "hasPayment": "Tagihan ini sudah memiliki pembayaran. Batalkan pembayarannya terlebih dahulu.",
+      "paymentsExceed": "Pembayaran pada pembelian ini akan melebihi sisa tagihannya. Batalkan salah satu pembayaran terlebih dahulu.",
+      "already": "Tagihan ini sudah dibatalkan.",
+      "generic": "Tagihan tidak dapat dibatalkan. Coba lagi."
+    }
   },
   "capture": {
     "refLabel": {

@@ -180,7 +180,7 @@ it('a paid invoice without a recorded receipt keeps the approved-PDF download wh
     </FinanceI18nTestProvider>,
   );
 
-  expect(screen.queryByRole('heading', { name: 'Ready to send' })).not.toBeInTheDocument();
+  expect(screen.queryByText('Ready to send')).not.toBeInTheDocument();
   expect(screen.queryByText('Download the PDF and send it to your client yourself.')).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Download approved PDF' })).toBeInTheDocument();
 });
@@ -208,7 +208,7 @@ it('an unpaid invoice keeps the "Ready to send" prompt with its handoff download
     </FinanceI18nTestProvider>,
   );
 
-  expect(screen.getByRole('heading', { name: 'Ready to send' })).toBeInTheDocument();
+  expect(screen.getByText('Ready to send')).toBeInTheDocument();
   expect(screen.getByText('Download the PDF and send it to your client yourself.')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Download approved PDF' })).toBeInTheDocument();
 });

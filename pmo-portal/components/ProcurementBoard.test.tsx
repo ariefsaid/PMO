@@ -85,7 +85,7 @@ describe('ProcurementBoard — by-stage kanban (Issue 3)', () => {
     expect(dots).toHaveLength(5);
     const backgrounds = dots.map((d) => d.style.background);
     expect(backgrounds.slice(0, 4)).toEqual(
-      Array(4).fill('hsl(var(--muted-foreground))'),
+      Array(4).fill('hsl(var(--mark-neutral))'),
     );
     expect(backgrounds[4]).toBe('hsl(var(--success))');
     // no blue/primary column dot remains (matches the sales board convention)

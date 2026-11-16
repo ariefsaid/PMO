@@ -271,6 +271,8 @@ describe('project money position', () => {
     expect(result.current.spendRows).toEqual([{ category: 'Labor', actual: 90 }, { category: 'Materials', actual: null }]);
     expect(result.current.rows.map((row) => row.actual)).toEqual([null, null]);
     expect(result.current.spent).toBeNull();
+    expect(result.current.displaySpent).toEqual({ amount: 90, currency: 'IDR' });
+    expect(result.current.budgetComparisonKnown).toBe(false);
   });
 
   it('#2066 actuals in the project currency compare as before and are not flagged as a different currency', () => {
@@ -721,7 +723,7 @@ describe('contract billing block', () => {
     };
 
     renderWithQueryClient(<MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>);
-    expect(screen.getAllByText('≈ Rp 16,300,000 (JISDOR 2026-10-09)').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('≈ IDR 16,300,000 (using IDR 16,300 rate)').length).toBeGreaterThan(0);
     expect(state.fxRateCalls).toContainEqual(['USD', 'IDR', '2026-10-10', true]);
   });
 
