@@ -571,6 +571,26 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
     ? t('procurement.inStageToday', 'Today')
     : t('procurement.inStageDays', { count: days, defaultValue_one: '{{count}} day', defaultValue_other: '{{count}} days' })), [t]);
 
+  /** The purchase cell: its name, then number · supplier; below 1280 the table also folds project and requester in here. */
+  const titleCell = useCallback((row: ProcurementWithRefs, withContext: boolean) => (
+          <div className="min-w-0 space-y-0.5">
+            <button type="button" aria-label={t('table.openRow', 'Open {{name}}', { name: row.title })} onClick={() => setSelected(row)} title={row.title} className="w-full min-w-0 line-clamp-2 break-words text-left font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+              {row.title}
+            </button>
+            {(row.code || row.pr_number || row.vendor?.name) && (
+              <span className="block min-w-0 break-words text-sm font-normal text-muted-foreground">
+                {(row.code || row.pr_number) && <span className="record-id">{row.code || row.pr_number}</span>}{(row.code || row.pr_number) && row.vendor?.name && ' · '}{row.vendor?.name}
+              </span>
+            )}
+            {withContext && (row.project || row.requested_by) && (
+              <span className="hidden min-w-0 break-words text-sm font-normal text-muted-foreground md:block xl:hidden">
+                {[!projectId && row.project ? projectDisplayName(row.project) : null, row.requested_by?.full_name].filter(Boolean).join(' · ')}
+              </span>
+            )}
+          </div>
+        
+  ), [projectId, setSelected, t]);
+
   const columns = useMemo<Column<ProcurementWithRefs>[]>(() => {
     // Owner tidy ruling 2026-10-29: when every row in view is uncategorized the category carries no information.
     const hideCategory = filteredRows.length > 0 && filteredRows.every((row) => !row.budget_category);
@@ -618,23 +638,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         // #2497: the one flexible column; every other column holds its widest value whole at 1440.
         minSize: 220,
         sortKey: 'title',
-        cell: (row) => (
-          <div className="min-w-0 space-y-0.5">
-            <button type="button" aria-label={t('table.openRow', 'Open {{name}}', { name: row.title })} onClick={() => setSelected(row)} title={row.title} className="w-full min-w-0 line-clamp-2 break-words text-left font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-              {row.title}
-            </button>
-            {(row.code || row.pr_number || row.vendor?.name) && (
-              <span className="block min-w-0 break-words text-sm font-normal text-muted-foreground">
-                {(row.code || row.pr_number) && <span className="record-id">{row.code || row.pr_number}</span>}{(row.code || row.pr_number) && row.vendor?.name && ' · '}{row.vendor?.name}
-              </span>
-            )}
-            {!projectId && (
-              <span className="block min-w-0 break-words text-sm font-normal text-muted-foreground xl:hidden">
-                {[row.project ? projectDisplayName(row.project) : null, row.requested_by?.full_name].filter(Boolean).join(' · ')}
-              </span>
-            )}
-          </div>
-        ),
+        cell: (row) => titleCell(row, true),
         exportValue: (row) => row.title,
       },
       ...(projectId ? [] : [{
@@ -667,7 +671,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         cell: (row: ProcurementWithRefs) => <span className="break-normal">{categoryLabel(row.budget_category)}</span>,
         exportValue: (row: ProcurementWithRefs) => categoryLabel(row.budget_category),
       }] : [exportOnly({ key: 'category', header: t('projectDetail.procurement.table.category', 'Category'), kind: 'text', cell: () => null, exportValue: (row) => categoryLabel(row.budget_category) })]),
-      ...(projectId ? [] : [{
+      // The requester shows on a project tab too: a three-column table there left a wide hole before the amount.
+      ...[{
         key: 'owner',
         header: t('procurement.raisedBy', 'Raised by'),
         kind: 'text' as const,
@@ -678,7 +683,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         // Names wrap at a space, never cut: a person reads the whole name.
         cell: (row: ProcurementWithRefs) => <span className="break-words text-muted-foreground">{row.requested_by?.full_name ?? t('projectDetail.procurement.unassigned', 'Unassigned')}</span>,
         exportValue: (row: ProcurementWithRefs) => row.requested_by?.full_name ?? '',
-      }]),
+      }],
       ...(canSeeMoney ? [valueColumn, exportOnly({
         key: 'settlement',
         header: t('procurement.settlement', 'Paid / invoiced'),
@@ -721,7 +726,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       exportOnly({ key: 'age', header: t('procurement.inStage', 'In stage'), kind: 'number', cell: () => null, exportValue: (row) => derivationFor(row).age }),
     ];
     return tableColumns;
-  }, [canSeeMoney, t, statusName, categoryLabel, canDecideRow, stageDateTooltip, derivationFor, projectId, setSelected, rowAmount, filteredRows, ageText]);
+  }, [canSeeMoney, t, statusName, categoryLabel, canDecideRow, stageDateTooltip, derivationFor, projectId, rowAmount, filteredRows, ageText, titleCell]);
 
   const exportColumns = columns;
   const selectedForExport = selectedRows;
@@ -881,6 +886,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         bareEmpty={!hasUnfilteredRows}
         accessibleName={projectId ? t('projectDetail.procurement.table.accessibleName', 'Project procurement') : t('procurement.table.accessibleName', 'Procurement')}
         rowMenu={(row) => rowMenu(row)}
+        // The phone card names the requester in its details, so its title carries no context line.
+        mobileCardTitle={(row) => titleCell(row, false)}
         mobileCardDetails={(row) => {
           // L3: a phone row reads title · stage · one amount · next step; age and raiser ride along unlabelled.
           const next = TERMINAL_STATUSES.includes(row.status) ? null : nextStepText(row.status, canDecideRow(row), t);
