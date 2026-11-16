@@ -570,7 +570,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const NOT_SPLIT_CATEGORY = 'not-split-by-category';
   const isNotSplitRow = (row: Pick<BudgetSummaryRow, 'category'>) => row.category === NOT_SPLIT_CATEGORY;
   const notSplitSpent = spentNotSplitByCategory ? totalSpent! - enrichedRows.reduce((sum, row) => sum + (row.spent ?? 0), 0) : null;
-  const categoryRows = enrichedRows.filter((row) => !(row.category === UNCATEGORIZED && row.budget === 0 && (row.spent ?? 0) === 0 && (row.committed ?? 0) === 0));
+  const categoryRows = enrichedRows.filter((row) => !(row.category === UNCATEGORIZED && row.budget === 0 && row.spent === 0 && (row.committed ?? 0) === 0));
   const displayRows: (typeof enrichedRows) = notSplitSpent !== null && notSplitSpent !== 0
     ? [...categoryRows, { category: NOT_SPLIT_CATEGORY, budget: 0, spent: notSplitSpent, committed: 0, lines: [], left: null, used: null }]
     : categoryRows;
@@ -673,8 +673,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     : null;
   const spentExcludedNote = position.uncategorized
     ? undefined
-    : spentNotSplitByCategory
+    : spentNotSplitByCategory && position.spendRows
     ? t('projectDetail.budget.uncategorizedTotalKnown', 'Not split by category')
+    : position.unknown > 0 && totalSpent !== null && !pmoSpendRows && (position.spendRows ?? position.rows).some((row) => row.actual === null)
+    ? t('projectDetail.budget.uncategorizedTotalNotMapped', 'Project spending is known; some category amounts are not mapped.')
     : spentExcluded > 0 && totalSpent !== null
       ? t('projectDetail.budget.spentExcludes', { count: spentExcluded, defaultValue_one: 'Excludes {{count}} unmapped category', defaultValue_other: 'Excludes {{count}} unmapped categories' })
       : undefined;

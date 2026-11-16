@@ -598,6 +598,7 @@
       "hiddenNoticeOne": "{{cause}}, jadi {{figures}} tidak ditampilkan.",
       "canonicalUtilizationFormula": "Anggaran terpakai adalah pengeluaran dibagi anggaran aktif, sebelum pajak.",
       "uncategorizedTotalKnown": "Belum dipecah per kategori",
+      "uncategorizedTotalNotMapped": "Pengeluaran proyek diketahui; beberapa jumlah kategori belum dipetakan.",
       "uncategorizedSpend": "{{amount}} sudah dibayar tanpa kategori anggaran, jadi dicatat di Tanpa kategori.",
       "uncategorizedSpendUnknown": "Sebagian pengeluaran sudah dibayar tanpa kategori anggaran, jadi dicatat di Tanpa kategori.",
       "uncategorizedRowReason": "Dibayar tanpa kategori anggaran",

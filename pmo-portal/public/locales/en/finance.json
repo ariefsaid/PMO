@@ -598,6 +598,7 @@
       "hiddenNoticeOne": "{{cause}}, so {{figures}} is not shown.",
       "canonicalUtilizationFormula": "Spent as a share of budget, before tax.",
       "uncategorizedTotalKnown": "Not split by category",
+      "uncategorizedTotalNotMapped": "Project spending is known; some category amounts are not mapped.",
       "uncategorizedSpend": "{{amount}} paid has no budget category, so it is shown as Uncategorized.",
       "uncategorizedSpendUnknown": "Some paid spending has no budget category, so it is shown as Uncategorized.",
       "uncategorizedRowReason": "Paid with no budget category",
