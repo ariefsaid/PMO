@@ -607,7 +607,9 @@ const ProcurementDetails: React.FC = () => {
 
   return (
     <FigureScope>
-    <div>
+    {/* One panel inset for the whole record (the content inset, the same as the header card and its tables), so the page
+        shows two left edges: the gutter and the panel inset. */}
+    <div className="[--panel-inset:var(--space-content-inset)]">
       {/* C-IMP-1 (AC-S6-3): BackBar on mobile success render ≤920px.
           The top-bar breadcrumb owns desktop wayfinding (I7); on mobile the rail
           is collapsed and the breadcrumb is not visible, so the BackBar is the
@@ -713,6 +715,7 @@ const ProcurementDetails: React.FC = () => {
         onChange={setTab}
         ariaLabel={t('procurementDetail.tabsLabel', 'Procurement sections')}
         idBase="procurement-detail"
+        wrapOnPhone
       />
 
       <div
