@@ -369,15 +369,18 @@
     "leftAfterPurchase": "Left after this purchase",
     "leftAfterPurchaseSub": "After spending, orders and reserved",
     "leftAfterPurchaseTooltip": "Budget minus recorded spending, open orders, reserved requests and this purchase, each counted once, before tax.",
-    "spentOrCommittedBarLabel": "Spent or committed, with this one: {{pct}}% of {{budget}}",
-    "spentOrCommittedBarCaption": "Spent or committed, with this one: {{pct}}%",
+    "spentOrCommittedBarLabel": "Committed, including this purchase: {{pct}}% of {{budget}}",
+    "spentOrCommittedBarCaption": "Committed, including this purchase: {{pct}}%",
     "overBudgetTitle": "Over budget",
     "overBudgetAfter": "{{amount}} over the budget after this purchase. Approval is still permitted; this is advisory only.",
     "leftOtherCurrency": "Open orders in another currency: {{amounts}}",
     "leftWithoutSpending": "Without spending: {{amount}} left after orders, reserved and this purchase.",
     "leftNotKnown": "Not known",
     "leftOrdersUnknown": "Open orders not known yet",
-    "leftSpendingUnknown": "Spending not known yet"
+    "leftSpendingUnknown": "Spending not known yet",
+    "beforeTax": "Before tax",
+    "budgetUnavailable": "Budget unavailable: budget impact can't be shown right now.",
+    "noActiveBudget": "No active budget set for this project."
   },
   "headerEdit": {
     "heading": "Edit procurement details",
