@@ -430,6 +430,15 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
   });
 });
 
+describe('home figure band: every caption is read whole (a phone has no hover)', () => {
+  it.each(['Executive', 'Finance'] as const)('%s band: no tile caption is cut to one line with a title-only remainder', (role) => {
+    renderDashboard(role);
+    const band = figures();
+    const cut = [...band.querySelectorAll('.truncate')].map((element) => element.textContent);
+    expect(cut).toEqual([]);
+  });
+});
+
 describe('pipeline currency safety', () => {
   const stage = { status: 'Leads', count: 2, total_value: 3000, weighted_value: 1500, win_probability: 0.5 };
   const project = (currency: string) => ({ status: 'Leads', currency, contract_value: 1000 });

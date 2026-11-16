@@ -54,7 +54,7 @@ import { ProjectHealthCard } from './ProjectHealthCard';
 import { FinancesCard, LeftToBillSection } from './FinancesCard';
 import { healthOrder, overBudget, overdueTaskCount } from './homeHealth';
 
-type TileOpts = { label?: string; caption?: string; reason?: string; link?: { to: string; label: string }; hide?: boolean; captionWrap?: boolean };
+type TileOpts = { label?: string; caption?: string; reason?: string; link?: { to: string; label: string }; hide?: boolean };
 /** The order of "waits on you" rows per role (a row is drawn only when its count is above zero). */
 const WAIT_ORDER: Record<'Executive' | 'Admin' | 'Finance', string[]> = {
   Executive: ['approvals'],
@@ -184,8 +184,9 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       // A failed tile keeps the filled tile's three lines (label, value, caption), so the band never changes shape.
       return <KPITileError key={figure.id} testId={`figure-error-${figure.id}`} label={label} caption={caption} onRetry={() => status.retry?.()} />;
     }
-    // While loading, the caption line is held (a blank line) so the tile is already its filled height.
-    return <KPITile key={figure.id} icon="grid" tone="blue" label={label} value={money?.value ?? null} exactValue={money?.exact} unavailableReason={money ? undefined : opts.reason ?? figure.unavailableReason} hiddenLink={opts.link} caption={status.pending && caption !== undefined ? caption || '\u00a0' : caption} captionWrap={opts.captionWrap} to={figure.href} linkLabel={label} loading={status.pending} help={helpText[figure.id]} />;
+    // While loading, the caption line is held (a blank line) so the tile is already its filled height. Every band
+    // caption is read whole, wrapping when a language needs it: a phone has no hover for a cut-off title.
+    return <KPITile key={figure.id} icon="grid" tone="blue" label={label} value={money?.value ?? null} exactValue={money?.exact} unavailableReason={money ? undefined : opts.reason ?? figure.unavailableReason} hiddenLink={opts.link} caption={status.pending && caption !== undefined ? caption || '\u00a0' : caption} captionWrap to={figure.href} linkLabel={label} loading={status.pending} help={helpText[figure.id]} />;
   };
 
   const supplier = todayFigure('supplier-payables');
@@ -213,7 +214,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       moneyTile(todayFigure('contract-on-hand'), { caption: onHandCount === undefined ? undefined : t('home.projectCount', { count: onHandCount, defaultValue_one: '{{count}} project', defaultValue_other: '{{count}} projects' }), reason: t('home.reasonContract', 'contract values are missing') }),
       moneyTile(invoiced, { label: t('home.invoiced', 'Invoiced'), caption: periodLabel }),
       moneyTile(collected, collectedOpts),
-      moneyTile(leftToBill, { label: t('home.leftToBill', 'Left to bill'), caption: leftToBillNote ?? '', captionWrap: true }),
+      moneyTile(leftToBill, { label: t('home.leftToBill', 'Left to bill'), caption: leftToBillNote ?? '' }),
       moneyTile(todayFigure('owed-clients'), { link: setUp }),
       moneyTile(supplier, { caption: toPay }),
       // Known margin is a fifth tile only when the accounting source provides it.
@@ -353,7 +354,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       moneyTile(todayFigure('contract-on-hand'), { caption: onHandCount === undefined ? '' : t('home.signedContractCount', { count: onHandCount, defaultValue_one: '{{count}} with a signed contract', defaultValue_other: '{{count}} with a signed contract' }), reason: t('home.reasonContract', 'contract values are missing') }),
       moneyTile(invoiced, { label: t('home.invoiced', 'Invoiced'), caption: periodLabel }),
       moneyTile(collected, collectedOpts),
-      moneyTile(leftToBill, { label: t('home.leftToBill', 'Left to bill'), caption: leftToBillNote ?? t('home.onSignedContracts', 'On signed contracts'), captionWrap: true }),
+      moneyTile(leftToBill, { label: t('home.leftToBill', 'Left to bill'), caption: leftToBillNote ?? t('home.onSignedContracts', 'On signed contracts') }),
       // One label in every state: the figure is always the known amount (AC-1414), so it says so before its read lands.
       figures.figureStatus('billed-margin').pending || figures.figureStatus('billed-margin').error || margin?.amounts
         ? moneyTile(margin, { label: t('dashboard:hub.company.knownMarginOnBilledWork', 'Known margin on billed work'), caption: t('home.marginCaption', 'Billed revenue less spending') }) : null,
