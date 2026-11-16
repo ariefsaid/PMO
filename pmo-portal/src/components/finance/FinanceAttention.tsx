@@ -116,7 +116,7 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
     <section aria-label={t('finance:area.attention', 'Finance attention')} className="@container grid min-w-0 grid-cols-1 gap-0">
       {overdueCount > 0 && (
         <div>
-          <h2 className="mb-2 text-group font-semibold text-foreground">
+          <h2 className="mb-0 text-group font-semibold text-foreground">
               <span className="text-destructive-text">{t('financeHub:hub.fix.overdue.headingCount', { defaultValue: overdueCount === 1 ? 'Overdue · {{count}} invoice' : 'Overdue · {{count}} invoices', count: overdueCount })}</span>
               {/* Every currency on the one heading line: "· $640,000 · Rp 12,000,000", never a stack of lines. */}
               {overdueCurrencyLines.length > 0 && <span className="font-normal"> · {overdueCurrencyLines.join(' · ')}</span>}
