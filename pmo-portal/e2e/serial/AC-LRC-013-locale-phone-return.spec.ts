@@ -96,7 +96,7 @@ test(
     await expectNoHorizontalOverflow(page);
 
     // The Supplier type label is localized; the `?type=` URL value stays the unchanged enum.
-    await page.getByRole('tab', { name: /^Pemasok$/i }).click();
+    await page.getByRole('tab', { name: /^Supplier$/i }).click();
     await expect(page).toHaveURL(/[?&]type=Vendor/);
     const searchId = page.getByRole('searchbox', { name: 'Cari perusahaan', exact: true });
     await expect(searchId).toBeVisible();
@@ -114,7 +114,7 @@ test(
     await expect(page).toHaveURL(/[?&]type=Vendor/, { timeout: 10_000 });
     await expect(page).toHaveURL(/[?&]q=e(&|$)/);
     await waitReady(page);
-    await expect(page.getByRole('tab', { name: /^Pemasok$/i })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('tab', { name: /^Supplier$/i })).toHaveAttribute('aria-selected', 'true');
     await expect(searchId).toHaveValue('e');
     await expectNoHorizontalOverflow(page);
   },

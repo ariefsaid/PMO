@@ -12,13 +12,13 @@ vi.mock('@/src/hooks/useProcurementStageLabel', () => ({ useProcurementStageLabe
 vi.mock('@/src/hooks/useTaxTreatmentOptions', () => ({ useTaxTreatmentOptions: () => ({ options: [] }) }));
 
 describe('SP-7 supplier history labels', () => {
-  it('calls vendor_id Supplier in English and Pemasok in Indonesian', () => {
+  it('calls vendor_id Supplier in English and Supplier in Indonesian', () => {
     const translate = (key: string, options: { defaultValue?: string } | string) =>
       typeof options === 'string' ? options : options.defaultValue ?? key;
     const labels = fieldLabels(translate as never);
     expect(labels.vendor_id).toBe('Supplier');
     expect(en.history.field.vendor_id).toBe('Supplier');
-    expect(id.history.field.vendor_id).toBe('Pemasok');
+    expect(id.history.field.vendor_id).toBe('Supplier');
   });
 });
 

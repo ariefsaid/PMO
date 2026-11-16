@@ -58,7 +58,7 @@ describe('UXS-006 localized shell vocabulary', () => {
     render(<I18nextProvider i18n={i18n}><MemoryRouter><AgentRuntimeProvider><ShellChrome /><LocationProbe /></AgentRuntimeProvider></MemoryRouter></I18nextProvider>);
     const rail = screen.getByRole('navigation', { name: /primary navigation|navigasi utama/i });
     expect(within(rail).getByRole('link', { name: /^Tugas Saya/ })).toBeVisible();
-    expect(within(rail).queryByRole('link', { name: 'Pemasok' })).not.toBeInTheDocument();
+    expect(within(rail).queryByRole('link', { name: 'Supplier' })).not.toBeInTheDocument();
     expect(document.querySelector('#rail-my-tasks-hint')).toBeNull();
     const choose = async (query: string, name: RegExp, location: string, crumb: string) => {
       await user.keyboard('{Control>}k{/Control}');
@@ -74,8 +74,8 @@ describe('UXS-006 localized shell vocabulary', () => {
     // With CRM on the rail hides the Suppliers alias — and the palette Navigate group must hide
     // it too (registry parity: the vendors entry is unlessFeature-gated like its Rail twin).
     await user.keyboard('{Control>}k{/Control}');
-    await user.type(screen.getByRole('combobox'), 'pemasok');
-    expect(screen.queryByRole('option', { name: /^Pemasok$/ })).not.toBeInTheDocument();
+    await user.type(screen.getByRole('combobox'), 'supplier');
+    expect(screen.queryByRole('option', { name: /^Supplier$/ })).not.toBeInTheDocument();
     await user.keyboard('{Escape}');
     await choose('my tasks', /^Tugas Saya/, '/my-tasks', 'Tugas Saya');
     // Route-entry and rail intent preloads can still be transforming when the journey ends.

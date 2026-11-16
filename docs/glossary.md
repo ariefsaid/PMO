@@ -215,6 +215,9 @@ reporting manager.
 
 **Spend approver** — a user designated to approve spending for a project.
 
+**Supplier** — the party a purchase is bought from. Kept in English in Bahasa (like Timesheet and
+Dasbor), not translated as "Pemasok" (owner, 16 Nov).
+
 **Task dependency** — a directed relation stating that one task depends on another task (see
 **Task**).
 

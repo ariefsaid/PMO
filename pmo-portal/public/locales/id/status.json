@@ -21,11 +21,11 @@
     "draft": "Draf",
     "requested": "Diminta",
     "approved": "Disetujui",
-    "vendorQuoted": "Penawaran pemasok",
+    "vendorQuoted": "Penawaran supplier",
     "quoteSelected": "Penawaran dipilih",
     "ordered": "Pesanan pembelian",
     "received": "Penerimaan barang",
-    "vendorInvoiced": "Faktur pemasok",
+    "vendorInvoiced": "Faktur supplier",
     "paid": "Dibayar",
     "rejected": "Dikembalikan",
     "cancelled": "Dibatalkan"
