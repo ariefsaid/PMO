@@ -340,6 +340,8 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Claim evidence** — a document revision and its status attached to support a progress claim.
 
+**PMO down payment item** — the one fixed item (`DOWN-PAYMENT`) a down-payment claim names while no ERP owns revenue and the organisation has set no down-payment item; the ERP raise refuses a claim that names it. Its lines read "Down payment" and "Down payment recovery" on the invoice.
+
 **Sales invoice** — a customer-facing invoice associated with a project and optionally a work order, carrying amount, currency, status and tax details.
 
 **Left after this purchase** — the approval panel's decision figure: Active budget − recorded spending − open orders − Reserved − this purchase, before tax, each amount counted once. A request already in Reserved, or already an order, is not subtracted again. Spending is the project header's reading (the one Budget used divides); open orders are the order total less what spending already holds. When spending or open orders are not known the figure is not shown as a number; with only spending unknown the panel states the amount without it under its own label (OD-APPROVAL-LEFT). It is advisory: approver routing never reads it. Not the same as **Left after open orders** (project Budget tab: budget less committed orders, before this purchase and Reserved).

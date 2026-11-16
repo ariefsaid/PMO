@@ -96,7 +96,7 @@ export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow; o
                     <li key={`${line.item_code ?? 'line'}-${index}`} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2 text-sm">
                       <span className="min-w-0 flex-1 break-words">
                         <span className="block">{nativeLineName(line, t) ?? t('uxs17.lineDescriptionUnavailable', 'Description not available')}</span>
-                        {!line.role && line.item_code && line.description && <span className="record-id">{line.item_code}</span>}
+                        {line.item_code && line.description && <span className="record-id">{line.item_code}</span>}
                       </span>
                       <span className="tabular text-right text-muted-foreground">
                         {line.qty == null ? '—' : line.qty}{' × '}{line.rate == null ? '—' : formatCurrency(line.rate, invoice.currency, { precision: 'minor' })}{' = '}

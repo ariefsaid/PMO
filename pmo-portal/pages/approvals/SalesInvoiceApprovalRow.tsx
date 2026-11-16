@@ -64,7 +64,7 @@ export const SalesInvoiceApprovalPreview: React.FC<{
                 {/* The line text wraps rather than truncates: the approver must read every word of what is billed. */}
                 <span className="min-w-[12rem] flex-1 break-words">
                   <span className="block">{nativeLineName(line, t) ?? '—'}</span>
-                  {!line.role && line.description && line.item_code && (
+                  {line.description && line.item_code && (
                     <span className="block record-id">{line.item_code}</span>
                   )}
                 </span>
