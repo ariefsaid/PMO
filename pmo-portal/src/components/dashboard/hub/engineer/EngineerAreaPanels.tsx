@@ -55,7 +55,7 @@ export function EngineerTimesheetCard({
       <CardHead level={2} actions={status ? <StatusPill record="timesheet" state={status} /> : undefined}>{t('home.eng.thisWeek', 'This week’s timesheet')}</CardHead>
       <CardPad className="grid gap-4">
         {loading ? <ListState variant="loading" rows={3} />
-          : error ? <ListState variant="error" title={t('hub.engineer.timesheetsError', "Couldn't load your timesheets")} onRetry={onRetry} />
+          : error ? <ListState variant="error" title={t('hub.engineer.timesheetsError', "Couldn't load your timesheets")} onRetry={onRetry} quiet />
             : (
               <>
                 <div className="text-[23px] font-bold leading-none tabular">{formatNumberExact(hours)}&nbsp;{t('hub.engineer.hourUnit', 'h')}</div>
@@ -127,10 +127,10 @@ export function EngineerTasksCard({
       <CardHead level={2} subline={finding} actions={<CardLink to="/my-tasks">{t('home.eng.allTasks', 'All tasks')}</CardLink>}>{t('home.eng.myTasks', 'My tasks')}</CardHead>
       <div className="px-[var(--panel-inset)] pb-2">
         {!loading && !error && dayError && (
-          <ListState variant="error" className="mb-2" title={t('home.eng.dayUnread', "Couldn't read today's date")} onRetry={onRetry} />
+          <ListState variant="error" className="mb-2" title={t('home.eng.dayUnread', "Couldn't read today's date")} onRetry={onRetry} quiet />
         )}
         {loading ? <ListState variant="loading" rows={3} />
-          : error ? <ListState variant="error" title={t('hub.engineer.tasksError', "Couldn't load your tasks")} onRetry={onRetry} />
+          : error ? <ListState variant="error" title={t('hub.engineer.tasksError', "Couldn't load your tasks")} onRetry={onRetry} quiet />
             : rows.length === 0 ? <p className="pb-2 text-control text-muted-foreground">{t('hub.engineer.noTasksDue', 'No overdue tasks or tasks due this week.')}</p>
               : (
                 <ul className="min-w-0 divide-y divide-border">
@@ -138,8 +138,8 @@ export function EngineerTasksCard({
                     const late = today && task.end_date && task.end_date < today ? overdueAgeDays(task.end_date, today) : null;
                     return (
                       <li key={task.id} className="min-w-0">
-                        <Link to={taskHref(task)} className="flex min-h-11 min-w-0 items-center justify-between gap-3 py-2 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-                          <span className="min-w-0 flex-1">
+                        <Link to={taskHref(task)} className="flex min-h-11 min-w-0 flex-col items-start gap-x-3 gap-y-0.5 py-2 text-foreground hover:bg-accent/40 sm:flex-row sm:items-center sm:justify-between focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                          <span className="min-w-0 max-w-full flex-1">
                             <span className="block break-words text-control font-normal">{task.name}</span>
                             <span className="block break-words text-control text-muted-foreground">{task.project_name ?? t('hub.engineer.noProject', 'No project')}</span>
                           </span>
@@ -197,7 +197,7 @@ export function EngineerRecentEntriesPanel({
       <CardHead level={2} actions={<CardLink to="/timesheets">{t('home.eng.allTimesheets', 'All timesheets')}</CardLink>}>{title}</CardHead>
       <div className="px-[var(--panel-inset)] pb-2">
         {loading ? <ListState variant="loading" rows={3} />
-          : error ? <ListState variant="error" title={t('hub.engineer.timesheetsError', "Couldn't load your timesheets")} onRetry={onRetry} />
+          : error ? <ListState variant="error" title={t('hub.engineer.timesheetsError', "Couldn't load your timesheets")} onRetry={onRetry} quiet />
             : entries.length === 0 ? <p className="pb-2 text-control text-muted-foreground">{t('hub.engineer.noRecentEntries', 'No recent time entries')}</p>
               : (
                 <ul className="divide-y divide-border">

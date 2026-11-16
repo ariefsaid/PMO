@@ -73,7 +73,7 @@ export default function BudgetVersionsDrawer({
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-4 gap-y-2">
                 <div className="min-w-0">
                   <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="font-mono text-sm text-muted-foreground">v{version.version}</span>
+                    <span className="record-id">v{version.version}</span>
                     <span className="font-semibold">{version.name}</span>
                     <StatusPill record="budgetVersion" state={version.status} />
                     {version.activation_basis === 'sole_operator' && (

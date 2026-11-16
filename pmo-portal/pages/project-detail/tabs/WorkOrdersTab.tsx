@@ -659,7 +659,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               </section>
             )}
 
-            {visibleCustomerOrders.length > 0 && <div className="flex flex-col gap-4 p-[var(--panel-inset)] pt-4">{visibleCustomerOrders.map((row) => <WorkOrderCustomerOrderCard
+            {visibleCustomerOrders.length > 0 && <div data-testid="customer-order-card" className="flex flex-col gap-4 p-[var(--panel-inset)] pt-4">{visibleCustomerOrders.map((row) => <WorkOrderCustomerOrderCard
               key={row.id}
               row={row}
               currency={currency}

@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/src/components/ui/cn';
-import { Icon } from '@/src/components/ui/icons';
 import { RailDrawerContext } from './railDrawerContext';
 import { useFocusTrap } from '@/src/hooks/useFocusTrap';
 import { isTabSwitchNavState } from '@/src/lib/tabSwitchNav';
@@ -290,9 +289,10 @@ export const AppShell: React.FC<AppShellProps> = ({
       >
         {banner}
         {/* Page gutters come from the shared token: 24px on wide screens, 16px below 922px.
-            #2061: on a phone the fixed bottom bar reserves its own height (token is 0px above
-            the phone breakpoint), so the last row is never hidden behind it. */}
-        <div className="mx-auto max-w-[1600px] px-[var(--space-page-gutter)] pb-[var(--space-page-gutter)] pt-5 max-[921px]:pt-4 max-[639px]:pb-[calc(var(--phone-nav-height)+var(--space-page-gutter))]">
+            #2061: THE one bottom inset. On a phone the page pads by the bar's measured height
+            (`--phone-nav-height`, safe area included) plus any page action bar stacked on it
+            (`--mobile-action-bar-height`) and nothing more; with neither fixed the normal gutter applies. No screen adds its own. The nav token is 0 above the phone breakpoint; the action-bar token is published at any width a bar is docked. */}
+        <div className="mx-auto max-w-[1600px] px-[var(--space-page-gutter)] pt-5 max-[921px]:pt-4 pb-[max(var(--space-page-gutter),calc(var(--phone-nav-height)+var(--mobile-action-bar-height,0px)))]">
           {children}
         </div>
       </main>
@@ -369,20 +369,6 @@ export const AppShell: React.FC<AppShellProps> = ({
               paddingBottom: 'env(safe-area-inset-bottom)',
             }}
           >
-            {/* C3: Visible close (×) button at the top of the drawer.
-                .touch-target extends the hit area to ≥44px on touch without
-                changing the visual 32px size. */}
-            <div className="flex items-center justify-end px-2 py-2">
-              <button
-                type="button"
-                aria-label={t('shell.drawer.close', 'Close navigation menu')}
-                onClick={handleClose}
-                className="touch-target grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground [&_svg]:size-[17px]"
-              >
-                <Icon name="x" />
-              </button>
-            </div>
-
             {/* Rail nav content — same node as the persistent rail. */}
             <RailDrawerContext.Provider value>
               <div className="min-h-0 flex-1 overflow-y-auto">{rail}</div>

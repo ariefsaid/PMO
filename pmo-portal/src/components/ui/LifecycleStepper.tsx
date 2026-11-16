@@ -7,7 +7,7 @@ export type StepState = 'done' | 'current' | 'upcoming' | 'skipped' | 'paid';
 export interface LifecycleStep {
   label: string;
   state: StepState;
-  /** Optional mono doc reference (e.g. a PO number) shown under a bar step. */
+  /** Optional doc reference (e.g. a PO number) shown under a bar step as a record-id. */
   ref?: string;
 }
 
@@ -56,7 +56,7 @@ const BAR_FILL_CLASS: Record<StepState, string> = {
  * Lifecycle / stage stepper (DESIGN.md §5 signature pattern) — the ONE stepper.
  *
  * `bar` is the canonical even-flex BAR stepper: equal-flex steps, each a 6px rounded
- * `jbar` over a `secondary` track + a label (+ optional mono doc ref). It drives the
+ * `jbar` over a `secondary` track + a label (+ optional record-id doc ref). It drives the
  * project stage journey, the budget-version lifecycle, AND the procurement
  * PR→VQ→PO→GR→VI→Paid lifecycle. `inline` is its compact in-row pip form (table cells).
  *
@@ -163,7 +163,7 @@ export const LifecycleStepper: React.FC<LifecycleStepperProps> = ({
                 {s.label}
               </span>
               {s.ref && (
-                <span className="font-mono text-control text-muted-foreground">{s.ref}</span>
+                <span className="record-id">{s.ref}</span>
               )}
             </div>
           ))}

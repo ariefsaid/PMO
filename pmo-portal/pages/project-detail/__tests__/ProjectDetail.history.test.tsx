@@ -104,7 +104,8 @@ vi.mock('@/src/hooks/useComments', () => ({
   useComments: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 
-vi.mock('../ProjectDetailHeader', () => ({ default: () => <div>Header</div>, hasFinanceView: () => true }));
+// The header's details panel carries the sales-history disclosure (#design-1115); the stub renders it open.
+vi.mock('../ProjectDetailHeader', () => ({ default: ({ menuContent }: { menuContent?: React.ReactNode }) => <div>Header{menuContent}</div>, hasFinanceView: () => true }));
 vi.mock('../ProjectDetailRail', () => ({ default: () => <aside data-testid="project-detail-rail" /> }));
 vi.mock('../ProjectAttention', () => ({ ProjectAttention: () => null }));
 vi.mock('../ProjectBlocks', () => ({ CostBlock: () => null, DeliveryBlock: () => null, MoneyBlock: () => null }));

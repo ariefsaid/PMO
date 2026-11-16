@@ -164,10 +164,10 @@ export const NeedsAttentionCard: React.FC<{ m: SalesModel; onOpen: (p: PipelineP
       )}
       <div className={`${compact ? 'mt-2 flex gap-4 border-t border-border pt-2' : 'mt-2 grid grid-cols-1 divide-y divide-border/70 border-t border-border pt-2'} text-control`}>
         <button type="button" className={`font-medium text-primary-text hover:underline ${compact ? '' : 'flex min-h-8 items-center text-left'}`} onClick={() => m.setScope('Won')}>
-          {compact ? t('sales:options.wonCountShort', 'Won {{n}}', { n: m.won.length }) : t('sales:options.wonCount', 'Won {{n}} all time', { n: m.won.length })}
+          {compact ? t('sales:options.wonCountShort', 'Won {{n}}', { n: m.wonState === 'ready' ? m.won.length : dash }) : t('sales:options.wonCount', 'Won {{n}} all time', { n: m.wonState === 'ready' ? m.won.length : dash })}
         </button>
         <button type="button" className={`font-medium text-primary-text hover:underline ${compact ? '' : 'flex min-h-8 items-center text-left'}`} onClick={() => m.setScope('Lost')}>
-          {compact ? t('sales:options.lostCountShort', 'Lost {{n}}', { n: m.lost.length }) : t('sales:options.lostCount', 'Lost {{n}} all time', { n: m.lost.length })}
+          {compact ? t('sales:options.lostCountShort', 'Lost {{n}}', { n: m.lostState === 'ready' ? m.lost.length : dash }) : t('sales:options.lostCount', 'Lost {{n}} all time', { n: m.lostState === 'ready' ? m.lost.length : dash })}
         </button>
       </div>
     </section>
@@ -188,6 +188,8 @@ export const DealResults: React.FC<{ m: SalesModel; view?: PipelineView; onOpen?
     onOpen={onOpen ?? m.onOpen}
     stageIndex={m.stageIndex}
     selectedStatus={m.selectedStatus}
+    wonPending={m.wonState === 'pending'}
+    lostPending={m.lostState === 'pending'}
     wonError={m.wonQ.isError}
     lostError={m.lostQ.isError}
     refetchPipeline={m.open.refetch}

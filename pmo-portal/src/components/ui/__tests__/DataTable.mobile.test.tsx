@@ -233,6 +233,21 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(valueDd.className).not.toContain('text-right');
   });
 
+  it('cardValuesEnd puts every numeric value and total on the card\'s right edge, text columns untouched', () => {
+    mockViewport(false);
+    render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} cardValuesEnd totals={[{ key: 't', label: 'Total', values: { value: 212400 } }]} />);
+    const cardBranch = getCardBranch()!;
+    const ddFor = (header: string) => Array.from(cardBranch.querySelectorAll('dt')).filter((dt) => dt.textContent === header).map((dt) => dt.nextElementSibling as HTMLElement);
+    const money = ddFor('Value');
+    expect(money).toHaveLength(3); // two cards + the totals row
+    for (const dd of money) {
+      expect(dd.className).toContain('text-right');
+      expect(dd.className).toContain('tabular');
+    }
+    expect(money[0].className).toContain('[&>div]:items-end');
+    for (const dd of ddFor('Status')) expect(dd.className).not.toContain('text-right');
+  });
+
   // ── Activation (rowLabel + onActivate) ───────────────────────────────────
 
   it('when rowLabel+onActivate supplied, the card title is a <button> with the aria-label', () => {
