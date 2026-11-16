@@ -46,9 +46,9 @@ test(
 
     await page.getByLabel(/project name/i).fill(dealName);
     // Client company FK picker (Combobox): wait for the async option list to settle, then pick the
-    // first option (the bare listbox.option.first().click() races the lazy load→ready re-render →
+    // seed client, never the first option (the bare listbox.option.first().click() races the lazy load→ready re-render →
     // a lost selection that blocks the Create-project submit; see helpers.pickComboboxOption).
-    await pickComboboxOption(page, page, /client company/i, 'first');
+    await pickComboboxOption(page, page, /client company/i, /^Meridian Steelworks/);
     await page.getByRole('button', { name: /^Create project$/i }).click();
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/u, { timeout: 15_000 });
 

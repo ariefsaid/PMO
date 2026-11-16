@@ -50,9 +50,10 @@ test(
 
     // ── Step 2: fill name + pick a company → save ────────────────────────────
     await dialog.getByLabel(/full name/i).fill(name);
-    // The Company field is a native <select>; pick the first real option (index 1 skips the placeholder).
+    // The Company field is a native <select>; pick a named seed company, never the first option (the list is
+    // shared, and a parallel journey's own company can sort first and be removed before Create).
     const companySelect = dialog.getByLabel(/^Company/i);
-    await companySelect.selectOption({ index: 1 });
+    await companySelect.selectOption({ label: 'Meridian Steelworks' });
     await dialog.getByRole('button', { name: /create contact/i }).click();
 
     // GOAL ORACLE (create): modal closes; the new row is in the list.
