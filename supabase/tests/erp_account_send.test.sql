@@ -22,8 +22,8 @@ insert into profiles (id, org_id, full_name, email, role, status) values
  ('a9110000-0000-0000-0000-0000000000f3','a9110000-0000-0000-0000-000000000001','Finance off','a911-finance-off@example.com','Finance','disabled');
 insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, status, config, activated_at) values
  ('a9110000-0000-0000-0000-000000000001','erpnext','https://erp.example.test','a911_a','active','{"company":"Example Co"}', now()),
- ('a9110000-0000-0000-0000-000000000002','erpnext','https://erp-b.example.test','a911_b','active','{"company":"Example B"}', now());
--- The mirrored chart: A's bound company, another company A's ERP also holds, and B's company.
+ ('a9110000-0000-0000-0000-000000000002','erpnext','https://erp-b.example.test','a911_b','active','{"company":"Example Co"}', now());
+-- The mirrored chart: A's bound company, another company A's ERP also holds, and B's company (the same name as A's, so only the org filter keeps them apart).
 insert into erp_account_mirror (org_id, company, erp_name, account_name, root_type, report_type, parent_account, is_group, account_currency, lft, rgt, refresh_id, disabled) values
  ('a9110000-0000-0000-0000-000000000001','Example Co','Expenses - EC','Expenses','Expense','Profit and Loss',null,true,'IDR',1,8,gen_random_uuid(),false),
  ('a9110000-0000-0000-0000-000000000001','Example Co','Direct Expenses - EC','Direct Expenses','Expense','Profit and Loss','Expenses - EC',true,'IDR',2,5,gen_random_uuid(),false),
@@ -31,7 +31,7 @@ insert into erp_account_mirror (org_id, company, erp_name, account_name, root_ty
  ('a9110000-0000-0000-0000-000000000001','Example Co','Old Expenses - EC','Old Expenses','Expense','Profit and Loss','Expenses - EC',true,'IDR',6,7,gen_random_uuid(),true),
  ('a9110000-0000-0000-0000-000000000001','Example Co','Current Assets - EC','Current Assets','Asset','Balance Sheet',null,true,'IDR',9,10,gen_random_uuid(),false),
  ('a9110000-0000-0000-0000-000000000001','Other Co','Direct Expenses - OC','Direct Expenses','Expense','Profit and Loss',null,true,'IDR',11,12,gen_random_uuid(),false),
- ('a9110000-0000-0000-0000-000000000002','Example B','Direct Expenses - EB','Direct Expenses','Expense','Profit and Loss',null,true,'IDR',1,2,gen_random_uuid(),false);
+ ('a9110000-0000-0000-0000-000000000002','Example Co','Direct Expenses - EB','Direct Expenses','Expense','Profit and Loss',null,true,'IDR',1,2,gen_random_uuid(),false);
 
 set local role authenticated;
 -- 1. who may ask

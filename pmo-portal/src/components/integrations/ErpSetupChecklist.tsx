@@ -18,7 +18,7 @@ import { COMPANY_DEFAULTS, getErpSetupIncompleteness, missingAccountCategories, 
 import { ErpSendStates } from './ErpSendStates';
 import { ProjectMatchReview } from './ProjectMatchReview';
 import { ConnectProposalReview } from './ConnectProposalReview';
-import { AccountLinkNotes, DirectCostAccounts } from './DirectCostAccounts';
+import { AccountLinkNotes, DirectCostAccounts, useAccountLinkNotes } from './DirectCostAccounts';
 
 // #775 phase B — `expenses` is offered only once its release guard (#901) is open (FR-EXP-118, DD-EXP-22).
 const ERP_DOMAINS = ['companies', 'procurement', 'revenue', 'timesheets', ...(EXPENSES_EMPLOYABLE ? ['expenses'] : [])];
@@ -120,6 +120,7 @@ export function ErpSetupChecklist(
     expenses: t('integrations.erpSetup.domainNames.expenses', 'Expenses'),
   };
   const domainText = (value: string) => domainNames[value] ?? domainLabel(value);
+  const accountLinkNotes = useAccountLinkNotes();
   const incomplete = setup.data ? getErpSetupIncompleteness(setup.data) : null;
   const hasOutstandingSetup = incomplete ? Object.values(incomplete).some(Boolean) : false;
   const actionLink =
@@ -257,7 +258,7 @@ export function ErpSetupChecklist(
                   )}
                 </Button>
               </li>
-              <li id='erp-setup-budget-map' hidden={!incomplete?.budget} className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
+              <li id='erp-setup-budget-map' hidden={!incomplete?.budget && accountLinkNotes.length === 0} className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
                 <div>
                   <p className='font-medium'>
                     {t('uxs08.budgetLabel', 'Budget account setup')}
