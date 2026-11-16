@@ -110,6 +110,7 @@
       "unorderedValueFormula": "Unordered contract quantity multiplied by its contract rate.",
       "viewQuantityHistory": "View quantity history",
       "notOrderedTitle": "Not yet ordered",
+      "contractLinesTitle": "Contract lines",
       "openUnorderedLine": "Open {{item}} quantity history",
       "quantityHistory": "Quantity history",
       "noQuantityHistory": "No customer order quantities yet.",

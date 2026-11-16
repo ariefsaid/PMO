@@ -110,6 +110,7 @@
       "unorderedValueFormula": "Kuantitas kontrak yang belum dipesan dikalikan tarif kontraknya.",
       "viewQuantityHistory": "Lihat riwayat kuantitas",
       "notOrderedTitle": "Belum dipesan",
+      "contractLinesTitle": "Baris kontrak",
       "openUnorderedLine": "Buka riwayat kuantitas {{item}}",
       "quantityHistory": "Riwayat kuantitas",
       "noQuantityHistory": "Belum ada kuantitas pesanan pelanggan.",

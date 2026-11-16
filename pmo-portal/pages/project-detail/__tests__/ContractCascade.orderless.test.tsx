@@ -170,6 +170,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     h.boq = { data: [{ id: 'b1', quantity: 10, rate: 100, item_code: 'L-1', description: 'Line', unit: 'ea' }], isPending: false, isError: false, refetch: vi.fn() };
     h.billing = { data: { contractNet: 1_000, dpBilled: 0, dpRecovered: 0, contractLines: [{ boqItemId: 'b1', contractBalance: 6, allocations: [{ boqItemId: 'b1', workOrderId: 'wo-1', quantity: 4, acceptedQuantity: 4, claimedQuantity: 2 }] }] }, isPending: false, isError: false, refetch: vi.fn() };
     h.invoices = { data: [{ id: 'si-overdue', work_order_id: 'wo-1', status: 'Unpaid', amount: 500, erp_outstanding_amount: 300, erp_due_date: '2020-01-01', si_number: 'INV-OVERDUE' }], isPending: false, isError: false, refetch: vi.fn() };
+    h.orders = { data: [{ id: 'wo-1', status: 'Issued' }], isPending: false, isError: false, refetch: vi.fn() };
     renderCascade();
 
     const section = screen.getByRole('heading', { name: 'Contract' }).closest('section')!;
@@ -180,27 +181,44 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     expect(within(section).getByText('Overdue')).toBeInTheDocument();
   });
 
-  it('explains a zero billable amount when no customer order is recorded', () => {
+  const lineProject = () => {
+    h.boq = { data: [{ id: 'b1', quantity: 10, rate: 100, item_code: 'L-1', description: 'Line', unit: 'ea' }], isPending: false, isError: false, refetch: vi.fn() };
+    h.billing = { data: { contractNet: 1_000, dpBilled: 700, dpRecovered: 0, contractLines: [{ boqItemId: 'b1', contractBalance: 10, allocations: [] }] }, isPending: false, isError: false, refetch: vi.fn() };
+  };
+
+  it('a project with no customer orders keeps the contract, invoiced and paid figures and drops the order chain', () => {
+    lineProject();
+    h.invoices = { data: [{ id: 'si-1', work_order_id: null, status: 'Unpaid', amount: 500, erp_outstanding_amount: 300, erp_due_date: '2020-01-01', si_number: 'INV-1' }], isPending: false, isError: false, refetch: vi.fn() };
     renderCascade();
 
-    const checklist = screen.getByRole('region', { name: 'Billing' });
-    expect(checklist).not.toHaveTextContent('Phase progress is not billable quantity.');
-    expect(checklist).not.toHaveTextContent('No customer orders.');
-    const orderStep = within(checklist).getByTestId('billability-step-order');
-    expect(orderStep).toHaveAccessibleName('Order');
-    expect(within(orderStep).getByText('Missing')).toBeVisible();
-    expect(within(orderStep).queryByRole('link', { name: 'Add customer order' })).not.toBeInTheDocument();
-    const allocationStep = within(checklist).getByTestId('billability-step-allocation');
-    expect(allocationStep).toHaveAccessibleName('Lines');
-    expect(within(allocationStep).getByText('None')).toBeVisible();
-    const acceptanceStep = within(checklist).getByTestId('billability-step-acceptance');
-    expect(acceptanceStep).toHaveAccessibleName('Accepted');
-    expect(within(acceptanceStep).getByText('None')).toBeVisible();
-    const unclaimedStep = within(checklist).getByTestId('billability-step-unclaimed');
-    expect(unclaimedStep).toHaveAccessibleName('Unclaimed');
-    expect(within(unclaimedStep).getByText('Missing')).toBeVisible();
-    const headingRow = screen.getByRole('heading', { name: 'Billing' }).parentElement!;
-    expect(within(headingRow).getByRole('link', { name: 'Add customer order' })).toHaveAttribute('href', '/projects/p1/contract#add-customer-order');
+    const summary = screen.getByRole('heading', { name: 'Contract' }).closest('section')!;
+    for (const kept of ['Contract value', 'Invoiced', 'Paid', 'Overdue']) expect(within(summary).getByText(kept)).toBeInTheDocument();
+    expect(summary).toHaveTextContent(/Down payment/);
+    for (const dropped of ['Ordered', 'Delivered', 'Can invoice', 'Not yet ordered']) expect(within(summary).queryByText(dropped)).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Billing' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('billability-step-order')).not.toBeInTheDocument();
+  });
+
+  it('a project with no customer orders names its contract-lines table for what it lists', () => {
+    lineProject();
+    renderCascade();
+
+    expect(screen.queryByRole('heading', { name: 'Not yet ordered' })).not.toBeInTheDocument();
+    const lines = screen.getByRole('region', { name: 'Contract lines' });
+    expect(within(lines).getByText('Line')).toBeInTheDocument();
+    expect(within(lines).getByTestId('contract-balance-b1')).toHaveTextContent(/10\s*ea/);
+  });
+
+  it('a project with a customer order keeps the order chain, the unordered value and the billing steps', () => {
+    lineProject();
+    h.orders = { data: [{ id: 'wo-1', status: 'Issued' }], isPending: false, isError: false, refetch: vi.fn() };
+    renderCascade();
+
+    const summary = screen.getByRole('heading', { name: 'Contract' }).closest('section')!;
+    for (const shown of ['Ordered', 'Delivered', 'Can invoice', 'Not yet ordered']) expect(within(summary).getByText(shown)).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Billing' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Not yet ordered' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Contract lines' })).not.toBeInTheDocument();
   });
 
   it('names a draft customer order as the blocker and links to that order', () => {
@@ -357,6 +375,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     h.boq = { data: [{ id: 'b1', quantity: 10, rate: 100, item_code: 'L-1', description: 'Line', unit: 'ea' }], isPending: false, isError: false, refetch: vi.fn() };
     h.billing = { data: { contractNet: 1_000, dpBilled: 0, dpRecovered: 0, contractLines: [{ boqItemId: 'b1', contractBalance: 6, allocations: [{ boqItemId: 'b1', workOrderId: 'wo-1', quantity: 4, acceptedQuantity: 4, claimedQuantity: 2 }] }] }, isPending: false, isError: false, refetch: vi.fn() };
     h.orderBilling = { data: [{ status: 'Issued', orderNet: 400, lineCount: 1, figuresComplete: true, remaining: 0 }], isPending: false, isError: false, refetch: vi.fn() };
+    h.orders = { data: [{ id: 'wo-1', status: 'Issued' }], isPending: false, isError: false, refetch: vi.fn() };
     renderCascade();
     const section = screen.getByRole('heading', { name: 'Contract' }).closest('section')!;
     expect(within(section).getAllByText('IDR 600')).toHaveLength(1);

@@ -95,6 +95,8 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
     .reduce((sum, order) => sum + Math.max(0, order.remaining), 0);
   const canInvoice = lineCanInvoice + moneyOrderCanInvoice;
   const customerOrders = orders.data ?? [];
+  // A project with no customer order of any status has no order chain to read: ordered, delivered and billable figures would all be zero.
+  const hasCustomerOrders = customerOrders.length > 0;
   const issuedCustomerOrders = customerOrders.filter((order) => order.status === 'Issued' || order.status === 'Closed');
   const customerOrderRecorded = issuedCustomerOrders.length > 0;
   const hasContractLines = items.length > 0;
@@ -186,6 +188,10 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
     const balance = facts.get(item.id)?.contractBalance ?? 0;
     return balance > 0 ? [{ key: item.id, item, balance, allocations: facts.get(item.id)?.allocations ?? [] }] : [];
   });
+  // With no customer order every line is untouched, so the table is named for what it lists.
+  const linesTitle = hasCustomerOrders
+    ? t('projectDetail.cascade.notOrderedTitle', 'Not yet ordered')
+    : t('projectDetail.cascade.contractLinesTitle', 'Contract lines');
   const selectedUnorderedLine = openRecordType === 'contractBoq'
     ? unorderedRows.find((line) => line.key === openRecordId) ?? null
     : null;
@@ -236,7 +242,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
           {showSummary && <React.Fragment key="contract-summary-content">
           <ol className="grid min-w-0 grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 lg:grid-cols-5" aria-label={t('projectDetail.cascade.title', 'Contract')}>
             <MoneyStep label={t('projectDetail.cascade.contract', 'Contract value')} value={tileMoney(contractValue)} detail={hasReadingLayer ? t('projectDetail.cascade.source.contract', 'Source: priced contract lines (quantity × rate), excluding tax.') : t('projectDetail.cascade.source.contractFallback', 'Source: the project billing summary, excluding tax.')} />
-            {hasReadingLayer && <>
+            {hasReadingLayer && hasCustomerOrders && <>
               <MoneyStep label={t('projectDetail.cascade.ordered', 'Ordered')} value={tileMoney(ordered)} percentage={percent(ordered)} detail={t('projectDetail.cascade.source.ordered', 'Source: contract allocation quantities × contract rates.')} />
               <MoneyStep label={t('projectDetail.cascade.delivered', 'Delivered')} value={tileMoney(delivered)} percentage={percent(delivered)} detail={t('projectDetail.cascade.source.delivered', 'Source: quantities accepted on confirmed BASTs × contract rates.')} />
             </>}
@@ -251,8 +257,8 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
               <MoneyStep label={t('projectDetail.cascade.paid', 'Paid')} value={tileMoney(settlement.paid)} percentage={percent(settlement.paid)} detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount less the accounting balance outstanding.')} />
             </>}
           </ol>
-          <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
-            {billableAmountUnavailable ? (
+          {(hasCustomerOrders || overdue > 0) && <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+            {hasCustomerOrders && (billableAmountUnavailable ? (
               <span className="text-sm text-muted-foreground" role={orderBilling.isError ? 'alert' : 'status'}>
                 {orderBilling.isError
                   ? t('projectDetail.cascade.orderBillingError', "Couldn't load the billable amount.")
@@ -265,23 +271,23 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
                 <span className="text-muted-foreground">{t('projectDetail.cascade.canInvoice', 'Can invoice')}</span>
                 <strong className="font-semibold text-foreground">{tableMoney(canInvoice)}</strong>
               </span>
-            </Tooltip>}
+            </Tooltip>)}
             {overdue > 0 && <Tooltip content={t('projectDetail.cascade.source.overdue', 'Sum of positive outstanding balances on invoices past their due date.')}>
               <span className="inline-flex cursor-help items-center gap-2 text-warning-foreground tabular-nums">
                 <StatusPill variant="overdue">{t('projectDetail.cascade.overdue', 'Overdue')}</StatusPill>
                 <strong className="font-semibold">{tableMoney(overdue)}</strong>
               </span>
             </Tooltip>}
-          </div>
-          {(hasReadingLayer || Boolean(billing.data && billing.data.dpBilled > 0)) && <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-sm tabular-nums text-muted-foreground">
-            {hasReadingLayer && <Tooltip content={t('projectDetail.cascade.source.notOrderedValue', 'Source: unallocated contract quantity multiplied by its contract rate.') }><span className="cursor-help">{t('projectDetail.cascade.notOrdered', 'Not yet ordered')} <strong className="font-semibold text-foreground">{tableMoney(notYetOrdered)}</strong></span></Tooltip>}
+          </div>}
+          {((hasReadingLayer && hasCustomerOrders) || Boolean(billing.data && billing.data.dpBilled > 0)) && <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-sm tabular-nums text-muted-foreground">
+            {hasReadingLayer && hasCustomerOrders && <Tooltip content={t('projectDetail.cascade.source.notOrderedValue', 'Source: unallocated contract quantity multiplied by its contract rate.') }><span className="cursor-help">{t('projectDetail.cascade.notOrdered', 'Not yet ordered')} <strong className="font-semibold text-foreground">{tableMoney(notYetOrdered)}</strong></span></Tooltip>}
             {Boolean(billing.data && billing.data.dpBilled > 0) && <Tooltip content={t('projectDetail.cascade.source.downPayment', 'Source: project billing totals for down payment billed and recovered.') }><span className="cursor-help">· {t('projectDetail.cascade.downPaymentSummary', 'Down payment {{billed}} · recovered {{recovered}}', {
               billed: tableMoney(billing.data!.dpBilled),
               recovered: tableMoney(billing.data!.dpRecovered),
               interpolation: { escapeValue: false },
             })}</span></Tooltip>}
           </p>}
-          {billabilityDataReady && canViewMoney && (
+          {billabilityDataReady && canViewMoney && hasCustomerOrders && (
             <section className="mt-4 border-t border-border pt-4" aria-labelledby="pd-before-bill">
               <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
                 <h3 id="pd-before-bill" className="text-base font-semibold text-foreground">
@@ -371,7 +377,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
         ];
         return (
           <section aria-labelledby="pd-not-ordered" className="panel-card min-w-0">
-            <CardHead level={3} id="pd-not-ordered">{t('projectDetail.cascade.notOrderedTitle', 'Not yet ordered')}</CardHead>
+            <CardHead level={3} id="pd-not-ordered">{linesTitle}</CardHead>
             <CardPad className="pt-0">
             <DataTable<UnorderedLine>
               embedded
@@ -379,7 +385,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
               columns={columns}
               rowKey={(line) => line.key}
               rowLabel={(line) => t('projectDetail.cascade.openUnorderedLine', 'Open {{item}} quantity history', { item: line.item.description })}
-              accessibleName={t('projectDetail.cascade.notOrderedTitle', 'Not yet ordered')}
+              accessibleName={linesTitle}
               onActivate={openBoqLine}
               rowMenu={menu}
               cardBelow={720}
