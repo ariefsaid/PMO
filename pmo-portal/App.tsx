@@ -774,7 +774,7 @@ export const ShellChrome: React.FC = () => {
             moreOpen={railOpen}
           />
         }
-        drawerActions={<AccountMenu />}
+        drawerActions={<AccountMenu showIdentity />}
         rail={
           <Rail
             onNavigate={closeRail}

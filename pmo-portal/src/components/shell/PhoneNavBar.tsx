@@ -1,13 +1,18 @@
-import React from 'react';
+import React, { useLayoutEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useTerms } from '@/src/lib/i18n/terms';
 import { cn } from '@/src/components/ui/cn';
-import { Icon, type IconName } from '@/src/components/ui/icons';
+import { Icon } from '@/src/components/ui/icons';
 import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 import { ApprovalsNavCount } from './ApprovalsNavCount';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useHasTimesheetApprovalWork } from '@/src/hooks/useTimesheetApproval';
+import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
+import { FEATURE_ENV_DEFAULT, type OrgFeatureKey } from '@/src/lib/features';
+import { UserRole } from '@/types';
+import { visibleNavItems, type NavItem } from './Rail';
+import { PHONE_DESTINATION_SLOTS, ROLE_PHONE_DESTINATIONS } from './navigationOrder';
 
 export interface PhoneNavBarProps {
   /** Opens the existing full navigation: the rail's mobile drawer. */
@@ -18,39 +23,85 @@ export interface PhoneNavBarProps {
   moreOpen?: boolean;
 }
 
-type Destination = 'home' | 'approvals' | 'myTasks';
+const ROLES = new Set<string>(Object.values(UserRole));
+const asRole = (role: string | null): UserRole | null => (role && ROLES.has(role) ? (role as UserRole) : null);
 
+// On the phone the Finance slot stands for the whole money area, so it stays current on its pages.
 const isActive = (pathname: string, to: string) =>
   to === '/' ? pathname === '/' : pathname === to || pathname.startsWith(`${to}/`);
 
-const PhoneNavBarContent: React.FC<PhoneNavBarProps & { role: string | null; hasEligibleDecisions: boolean }> = ({
+/**
+ * The shell's one bottom inset. The bar publishes its real rendered height (border, label row and the
+ * device safe-area padding) as `--phone-nav-height`; the shell pads the page by it and every stacked
+ * bar and toast sits on it. The stylesheet's nominal value only covers the first paint.
+ */
+function usePublishNavHeight(ref: React.RefObject<HTMLElement | null>, active: boolean): void {
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const bar = ref.current;
+    if (!active || !bar) return;
+    const publish = () => {
+      const height = bar.getBoundingClientRect().height;
+      if (height > 0) root.style.setProperty('--phone-nav-height', `${height}px`);
+    };
+    publish();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(publish);
+    observer?.observe(bar);
+    if (!observer) window.addEventListener('resize', publish);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', publish);
+      root.style.removeProperty('--phone-nav-height');
+    };
+  }, [ref, active]);
+}
+
+const PhoneNavBarContent: React.FC<PhoneNavBarProps & { hasEligibleDecisions: boolean }> = ({
   onOpenMore,
   onOpenSearch,
   moreOpen = false,
-  role,
   hasEligibleDecisions,
 }) => {
   const { t } = useTranslation('home');
+  const { t: tc } = useTranslation();
   const terms = useTerms();
   const { pathname } = useLocation();
   const isNarrow = useIsNarrow();
+  const navRef = useRef<HTMLElement>(null);
+  usePublishNavHeight(navRef, isNarrow);
+  const { effectiveRole, realRole } = useEffectiveRole();
+  const { data: orgFeatures } = useOrgFeatures();
 
   if (!isNarrow) return null;
+  const role = asRole(effectiveRole);
 
-  const labels: Record<Destination | 'search' | 'more', string> = {
-    home: terms.dashboard,
-    approvals: t('nav.approvals', 'Approvals'),
-    myTasks: t('nav.myTasks', 'My Tasks'),
-    search: t('nav.search', 'Search'),
-    more: t('nav.more', 'More'),
+  // Same gates as the rail: the bar can only ever offer a place the rail also offers.
+  const reachable = role
+    ? visibleNavItems({
+      role,
+      realRole: asRole(realRole),
+      featureEnabled: (key: OrgFeatureKey) => orgFeatures?.[key] ?? FEATURE_ENV_DEFAULT[key],
+      canViewStatements: false,
+      userViewsEnabled: false,
+      hasEligibleTimesheets: hasEligibleDecisions,
+    })
+    : [];
+  const byPath = new Map<string, NavItem>(reachable.map((item) => [item.to, item]));
+  const picked = (ROLE_PHONE_DESTINATIONS[effectiveRole ?? ''] ?? [])
+    .map((path) => byPath.get(path))
+    .filter((item): item is NavItem => Boolean(item))
+    .slice(0, PHONE_DESTINATION_SLOTS);
+  const destinations: NavItem[] = [...(byPath.has('/') ? [byPath.get('/')!] : []), ...picked];
+
+  // The same words as the rail and the breadcrumb, so a place has one name everywhere.
+  const labels: Record<string, string> = {
+    '/': terms.dashboard,
+    '/approvals': tc('shell.nav.approvals', 'Approvals'),
+    '/my-tasks': tc('shell.nav.myTasks', 'My Tasks'),
+    '/projects': t('nav.short.projects', 'Projects'),
+    '/timesheets': t('nav.short.timesheets', 'Timesheets'),
+    '/finance': t('nav.short.finance', 'Finance'),
   };
-  const mayViewApprovals = ['Executive', 'Project Manager', 'Finance', 'Admin'].includes(role ?? '') || hasEligibleDecisions;
-  const mayViewMyTasks = ['Project Manager', 'Finance', 'Engineer', 'Admin'].includes(role ?? '');
-  const destinations: { key: Destination; to: string; icon: IconName }[] = [
-    { key: 'home', to: '/', icon: 'dashboard' },
-    ...(mayViewApprovals ? [{ key: 'approvals' as const, to: '/approvals', icon: 'approvals' as const }] : []),
-    ...(mayViewMyTasks ? [{ key: 'myTasks' as const, to: '/my-tasks', icon: 'tasks' as const }] : []),
-  ];
   const itemClass = (active: boolean) =>
     cn(
       'touch-target flex min-h-11 min-w-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-md px-1',
@@ -63,22 +114,22 @@ const PhoneNavBarContent: React.FC<PhoneNavBarProps & { role: string | null; has
 
   return (
     <nav
+      ref={navRef}
       data-testid="phone-nav"
       aria-label={t('nav.label', 'Phone navigation')}
       className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card pb-[env(safe-area-inset-bottom)]"
-      style={{ height: 'var(--phone-nav-height)' }}
     >
       <ul className="mx-auto flex h-14 max-w-[560px] items-stretch gap-0.5 px-1">
         {destinations.map((destination) => {
           const active = isActive(pathname, destination.to);
           return (
-            <li key={destination.key} className="flex min-w-0 flex-auto">
+            <li key={destination.to} className="flex min-w-0 flex-auto">
               <Link to={destination.to} className={itemClass(active)} aria-current={active ? 'page' : undefined}>
-                <Icon name={destination.icon} className="size-[18px]" />
-                <span className="inline-flex max-w-full items-center justify-center gap-1">
-                  <span className="max-w-full truncate">{labels[destination.key]}</span>
-                  {destination.key === 'approvals' && <ApprovalsNavCount />}
+                <span className="relative inline-flex" data-testid="phone-nav-icon">
+                  <Icon name={destination.icon} className="size-[18px]" />
+                  {destination.to === '/approvals' && <ApprovalsNavCount badge />}
                 </span>
+                <span className="max-w-full">{labels[destination.to] ?? destination.text}</span>
               </Link>
             </li>
           );
@@ -86,13 +137,13 @@ const PhoneNavBarContent: React.FC<PhoneNavBarProps & { role: string | null; has
         <li className="flex min-w-0 flex-auto">
           <button type="button" onClick={onOpenSearch} className={itemClass(false)}>
             <Icon name="search" className="size-[18px]" />
-            <span>{labels.search}</span>
+            <span>{t('nav.search', 'Search')}</span>
           </button>
         </li>
         <li className="flex min-w-0 flex-auto">
           <button type="button" onClick={onOpenMore} data-drawer-toggle aria-expanded={moreOpen} className={itemClass(false)}>
             <Icon name="menu" className="size-[18px]" />
-            <span>{labels.more}</span>
+            <span>{t('nav.more', 'More')}</span>
           </button>
         </li>
       </ul>
@@ -103,14 +154,14 @@ const PhoneNavBarContent: React.FC<PhoneNavBarProps & { role: string | null; has
 const EngineerPhoneNavBar: React.FC<PhoneNavBarProps> = (props) => {
   const work = useHasTimesheetApprovalWork();
   const hasEligibleDecisions = Boolean(work.data || work.isPending || work.isError);
-  return <PhoneNavBarContent {...props} role="Engineer" hasEligibleDecisions={hasEligibleDecisions} />;
+  return <PhoneNavBarContent {...props} hasEligibleDecisions={hasEligibleDecisions} />;
 };
 
-/** Fixed phone slots are hide-only: each role's available destinations keep this order. */
+/** Home, then the role's own most-used places (fixed per role), then Search and More. */
 export const PhoneNavBar: React.FC<PhoneNavBarProps> = (props) => {
   const { effectiveRole } = useEffectiveRole();
   if (effectiveRole === 'Engineer') return <EngineerPhoneNavBar {...props} />;
-  return <PhoneNavBarContent {...props} role={effectiveRole} hasEligibleDecisions={false} />;
+  return <PhoneNavBarContent {...props} hasEligibleDecisions={false} />;
 };
 
 export default PhoneNavBar;

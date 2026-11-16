@@ -108,13 +108,12 @@ describe('AC-FX-004 JISDOR equivalent display', () => {
     expect(amount).toBe(100);
   });
 
-  it('wraps a compact equivalent whole on a phone (never cut, no ellipsis) with a full accessible name', () => {
+  it('keeps a compact equivalent on one line on a phone (never cut, no ellipsis) with a full accessible name', () => {
     renderEquivalent({ compact: true });
     const clipped = screen.getByText('≈ IDR 1,623,456 (using IDR 16,234.56 rate)', { selector: '[aria-hidden="true"]' });
+    // rule 15 (#2346): one line, never cut with an ellipsis; the row gives way
+    expect(clipped).toHaveClass('whitespace-nowrap');
     expect(clipped).not.toHaveClass('truncate');
-    expect(clipped).not.toHaveClass('whitespace-nowrap');
-    expect(clipped).not.toHaveClass('overflow-hidden');
-    expect(clipped).toHaveClass('whitespace-normal', 'break-words');
     expect(clipped).toHaveAttribute('title', `${clipped.textContent} · JISDOR rate of ${D09}`);
     expect(screen.getByText(`${clipped.textContent} (JISDOR rate of ${D09})`, { selector: '.sr-only' })).toBeInTheDocument();
   });

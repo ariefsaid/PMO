@@ -237,7 +237,7 @@ describe('Projects index — IA-3 (real data)', () => {
     projectsState.data = [{ ...seed[0], pmo_project_number: 'PMO-26-0042', code: 'CLIENT-77' }] as unknown as ProjectWithRefs[];
     try {
       renderPage();
-      // PL-A: identifiers share ONE mono line (no per-row references disclosure); the label stays for AT.
+      // PL-A: identifiers share ONE muted secondary line (no per-row references disclosure); the label stays for AT.
       const ids = screen.getByTitle('PMO-26-0042 · CLIENT-77');
       expect(ids).toHaveTextContent(/^PMO-26-0042 · CLIENT-77$/);
       expect(screen.queryByText('More project references')).not.toBeInTheDocument();
@@ -675,7 +675,7 @@ describe('Projects table — compact layout (#1)', () => {
     }
   });
 
-  it('UX-019: project identity leads with name and customer; identifiers share one mono line with no disclosure', () => {
+  it('UX-019: project identity leads with name and customer; identifiers share one muted secondary line with no disclosure', () => {
     projectsState.data = [{ ...seed[0], pmo_project_number: 'PMO-SYN-001', code: 'CLIENT-SYN-44', customer_contract_ref: 'CPO-SYN-9' }] as unknown as ProjectWithRefs[];
     renderPage();
     const row = document.querySelector('tbody tr') as HTMLElement;

@@ -66,7 +66,7 @@ describe('AC-CODE-003 active Projects identities', () => {
   it('AC-CODE-003: renders both identifiers as separately labelled values in the project table', () => {
     renderProjects('/projects?view=table');
     const row = screen.getByText('Active site').closest('tr');
-    // PL-A: one mono line carries both identifiers; the PMO number keeps its label for assistive technology.
+    // PL-A: one muted line carries both identifiers; the PMO number keeps its label for assistive technology.
     expect(row).toHaveTextContent('PMO Project Number: PMO-26-7711 · CLIENT-81');
     expect(row).not.toHaveTextContent('Client Project Code:');
   });

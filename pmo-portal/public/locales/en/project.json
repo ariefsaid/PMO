@@ -179,7 +179,7 @@
           "confirm": "Delete line"
         },
         "column": {
-          "rate": "Rate",
+          "rateWithCurrency": "Rate ({{code}})",
           "claimed": "Claimed",
           "assessed": "Assessed",
           "item": "Item",
@@ -195,6 +195,7 @@
         "empty": "No bill of quantities yet",
         "overClaimed": "Over-claimed",
         "add": "Add line",
+        "import": "Import lines",
         "delete": "Delete"
       },
       "claims": {

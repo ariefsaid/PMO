@@ -81,7 +81,7 @@ export const SubcontractBillLines: React.FC<SubcontractBillLinesProps> = ({ poId
           return (
             <li key={r.boq_item_id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm">
               <label className="flex items-center gap-2">
-                <span className="w-56 truncate"><span className="font-mono">{r.item_code}</span> <span className="text-muted-foreground">{r.description}</span></span>
+                <span className="w-56 truncate"><span className="record-id text-foreground">{r.item_code}</span> <span className="text-muted-foreground">{r.description}</span></span>
                 <input
                   type="text" inputMode="decimal" aria-label={`${r.item_code} ${r.description}`}
                   value={current[r.boq_item_id] ?? ''} disabled={max <= 0}

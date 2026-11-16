@@ -836,7 +836,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const versionColumns: Column<BudgetVersionWithItems>[] = [
     {
       key: 'version', header: t('projectDetail.budget.version', 'Version'), kind: 'primary', rowHeader: true,
-      cell: (version) => <span><span className="font-mono text-sm text-muted-foreground">v{version.version}</span> <span className="font-semibold">{version.name}</span></span>,
+      cell: (version) => <span><span className="record-id">v{version.version}</span> <span className="font-semibold">{version.name}</span></span>,
       secondaryCell: (version) => versionMeta(version) ? <span className="text-sm text-muted-foreground">{versionMeta(version)}</span> : null,
     },
     { key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', cell: (version) => <StatusPill record="budgetVersion" state={version.status} /> },

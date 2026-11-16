@@ -127,7 +127,7 @@ const StockDocumentDetail: React.FC = () => {
     { key: 'no', header: '#', cell: (l) => <span className="tabular-nums">{l.line_no}</span>, exportValue: (l) => l.line_no },
     {
       key: 'item', header: t('detail.columns.item'), rowHeader: true,
-      cell: (l) => (<div className="min-w-0"><span className="block truncate font-mono text-sm font-semibold">{l.item?.code}</span><span className="block truncate text-sm text-muted-foreground">{l.item?.name}</span></div>),
+      cell: (l) => (<div className="min-w-0"><span className="block truncate record-id font-semibold text-foreground">{l.item?.code}</span><span className="block truncate text-sm text-muted-foreground">{l.item?.name}</span></div>),
       exportValue: (l) => l.item?.code ?? '',
     },
     {
@@ -176,7 +176,7 @@ const StockDocumentDetail: React.FC = () => {
   const showCost = entryRows.some((r) => r.valueDelta !== undefined);
   const entryCols: Column<StockLedgerRow>[] = useMemo(() => {
     const cols: Column<StockLedgerRow>[] = [
-      { key: 'item', header: t('detail.columns.item'), rowHeader: true, cell: (r) => <span className="font-mono text-sm">{r.itemCode}</span>, exportValue: (r) => r.itemCode },
+      { key: 'item', header: t('detail.columns.item'), rowHeader: true, cell: (r) => <span className="record-id font-semibold text-foreground">{r.itemCode}</span>, exportValue: (r) => r.itemCode },
       { key: 'wh', header: t('detail.columns.warehouse'), cell: (r) => <span className="text-sm">{r.warehouseCode}</span>, exportValue: (r) => r.warehouseCode },
       { key: 'delta', header: t('detail.columns.change'), align: 'num', cell: (r) => <span className="tabular-nums">{r.qtyDelta.startsWith('-') ? '' : '+'}{formatQuantity(r.qtyDelta, loc)} {r.unitCode}</span>, exportValue: (r) => r.qtyDelta },
       { key: 'after', header: t('detail.columns.balance'), align: 'num', cell: (r) => <span className="tabular-nums">{formatQuantity(r.qtyAfter, loc)}</span>, exportValue: (r) => r.qtyAfter },
@@ -208,7 +208,7 @@ const StockDocumentDetail: React.FC = () => {
         <div className="space-y-4">
           <RecordHeader
             className="!mb-4"
-            name={<span className="font-mono">{d.number}</span>}
+            name={<span>{d.number}</span>}
             meta={`${t(`kinds.${d.kind}`)} · ${formatDay(d.occurred_on)}`}
             status={<StatusPill record="stockDocument" state={d.status === 'Draft' && held ? 'On hold' : d.status} />}
             primaryAction={canPost

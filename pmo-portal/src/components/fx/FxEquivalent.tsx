@@ -8,6 +8,7 @@ import { useFxRate } from '@/src/hooks/useFxRates';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import { formatDay } from '@/src/lib/format';
 import { formatFxEquivalent, fxRateSourceNote } from '@/src/lib/fxEquivalent';
+import { FIGURE_LINE_CLASS } from '@/src/components/ui/FigureContent';
 
 export type FxEquivalentDate = string | 'latest' | null;
 
@@ -98,7 +99,7 @@ const FxEquivalent: React.FC<FxEquivalentProps> = ({ amount, currency, date, com
     if (compact) {
       return (
         <span className="block min-w-0 text-control font-normal tabular text-muted-foreground">
-          <span aria-hidden="true" title={note ? `${equivalent} · ${note}` : undefined} className="block whitespace-normal break-words">
+          <span aria-hidden="true" title={note ? `${equivalent} · ${note}` : equivalent} className={`block ${FIGURE_LINE_CLASS}`}>
             {equivalent}
           </span>
           <span className="sr-only">{note ? `${equivalent} (${note})` : equivalent}</span>
@@ -106,9 +107,8 @@ const FxEquivalent: React.FC<FxEquivalentProps> = ({ amount, currency, date, com
       );
     }
     return (
-      <span title={note ?? undefined} className="block w-max text-control font-normal tabular text-muted-foreground">
-        {/* A money figure never wraps (layout rule 15): "≈ IDR" stays with its number on one line; the column or the row gives way. */}
-        <span className="whitespace-nowrap">{equivalent}</span>
+      <span title={note ?? undefined} className={`block ${FIGURE_LINE_CLASS} text-control font-normal text-muted-foreground`}>
+        {equivalent}
         {note && <span className="sr-only">{` (${note})`}</span>}
       </span>
     );

@@ -9,6 +9,7 @@ import { VendorInvoiceIdentity } from '@/src/components/procurement/VendorInvoic
 import { vendorInvoiceIdentityAccessibleLabel } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
 import { bupotRefusal, type CorrectSlipInput, type VoidSlipInput } from '@/src/lib/vendorWithholdingSlip';
 import { formatCurrencyCents, formatDay } from '@/src/lib/format';
+import { FIGURE_LINE_CLASS } from '@/src/components/ui/FigureContent';
 
 interface Header { id: string; slip_number: string; slip_date: string; tax_period: string; pph_type: string; currency: string; tax_base: string; withheld_amount: string; status: string; validation_state: string; revision: number; void_reason?: string | null; linked_withheld_at_record?: string | null; linked_withheld_current?: string | null; difference?: string | null; }
 interface Bill { invoice_id: string; procurement_id: string; project_id?: string | null; reference_number?: string | null; vi_number?: string | null; invoice_date?: string | null; withheld_at_record: string; withheld_current?: string | null; difference?: string | null; currency: string; released_at?: string | null; coverage_state?: string; }
@@ -66,16 +67,16 @@ export function VendorWithholdingSlipDetails({ slipId, canWrite, onClose, onOpen
         <Fact label={t('bupot.slipDate', 'Slip date')} value={formatDay(header.slip_date)} />
         <Fact label={t('bupot.taxPeriod', 'Tax period')} value={formatDay(header.tax_period)} />
         <Fact label={t('bupot.type', 'PPh type')} value={header.pph_type === 'pph23' ? 'PPh 23' : header.pph_type === 'pph4_2' ? 'PPh 4(2)' : '—'} />
-        <Fact label={t('bupot.taxBase', 'Tax base')} value={formatCurrencyCents(Number(header.tax_base), header.currency)} />
-        <Fact label={t('bupot.withheldAmount', 'Issued withheld amount')} value={formatCurrencyCents(Number(header.withheld_amount), header.currency)} />
+        <Fact label={t('bupot.taxBase', 'Tax base')} value={formatCurrencyCents(Number(header.tax_base), header.currency)} figure />
+        <Fact label={t('bupot.withheldAmount', 'Issued withheld amount')} value={formatCurrencyCents(Number(header.withheld_amount), header.currency)} figure />
         <StatusFact label={t('bupot.validationState', 'Validation state')} variant={header.validation_state === 'reconciled' ? 'won' : header.validation_state === 'needs-review' || header.validation_state === 'unavailable' ? 'warn' : 'neutral'} value={header.validation_state === 'reconciled' ? t('bupot.reconciled', 'Reconciled') : header.validation_state === 'needs-review' ? t('bupot.state.needsReview', 'Needs review') : header.validation_state === 'unavailable' ? t('bupot.sourceUnavailableShort', 'Source data unavailable') : t('bupot.voidedStatus', 'Voided in PMO')} />
         <StatusFact label={t('bupot.status', 'Status')} variant={header.status === 'active' ? 'progress' : 'neutral'} value={header.status === 'active' ? t('bupot.active', 'Active') : t('bupot.voidedStatus', 'Voided in PMO')} />
         {header.validation_state === 'needs-review' && <p className="sm:col-span-2 rounded border border-warning/30 bg-warning/10 p-3 text-sm text-warning-foreground">{t('bupot.reviewReason', 'Bill withholding changed. Verify the source; void and record a replacement if needed.')}</p>}
         {header.validation_state === 'unavailable' && <p className="sm:col-span-2 rounded border border-warning/30 bg-warning/10 p-3 text-sm text-warning-foreground">{t('bupot.sourceUnavailable', 'Source data is unavailable. Coverage cannot be verified.')}</p>}
         {header.validation_state !== 'unavailable' && <>
-          <Fact label={t('bupot.recordedTotal', 'Recorded')} value={header.linked_withheld_at_record != null ? formatCurrencyCents(Number(header.linked_withheld_at_record), header.currency) : '—'} />
-          <Fact label={t('bupot.currentTotal', 'Current')} value={header.linked_withheld_current != null ? formatCurrencyCents(Number(header.linked_withheld_current), header.currency) : '—'} />
-          <Fact label={t('bupot.difference', 'Difference')} value={header.difference != null ? formatCurrencyCents(Number(header.difference), header.currency) : '—'} />
+          <Fact label={t('bupot.recordedTotal', 'Recorded')} value={header.linked_withheld_at_record != null ? formatCurrencyCents(Number(header.linked_withheld_at_record), header.currency) : '—'} figure />
+          <Fact label={t('bupot.currentTotal', 'Current')} value={header.linked_withheld_current != null ? formatCurrencyCents(Number(header.linked_withheld_current), header.currency) : '—'} figure />
+          <Fact label={t('bupot.difference', 'Difference')} value={header.difference != null ? formatCurrencyCents(Number(header.difference), header.currency) : '—'} figure />
         </>}
       </dl>
       <h3 className="mt-5 font-semibold">{t('bupot.bill', 'Bill')} ({bills.length})</h3>
@@ -90,7 +91,7 @@ export function VendorWithholdingSlipDetails({ slipId, canWrite, onClose, onOpen
         return <li key={bill.invoice_id} className="flex min-w-0 flex-wrap items-center justify-between gap-2 py-2">
           <div className="min-w-0 flex-1">
             <VendorInvoiceIdentity referenceNumber={bill.reference_number} viNumber={bill.vi_number} invoiceDate={bill.invoice_date} context={context} />
-            <p className="mt-1 break-words text-sm text-muted-foreground">{t('bupot.recordedTotal', 'Recorded')}: {formatCurrencyCents(Number(bill.withheld_at_record), bill.currency)} · {t('bupot.currentTotal', 'Current')}: {bill.withheld_current == null ? '—' : formatCurrencyCents(Number(bill.withheld_current), bill.currency)} · {t('bupot.difference', 'Difference')}: {bill.difference == null ? '—' : formatCurrencyCents(Number(bill.difference), bill.currency)}</p>
+            <p className="mt-1 break-words text-sm text-muted-foreground">{t('bupot.recordedTotal', 'Recorded')}: <span className={FIGURE_LINE_CLASS}>{formatCurrencyCents(Number(bill.withheld_at_record), bill.currency)}</span> · {t('bupot.currentTotal', 'Current')}: <span className={FIGURE_LINE_CLASS}>{bill.withheld_current == null ? '—' : formatCurrencyCents(Number(bill.withheld_current), bill.currency)}</span> · {t('bupot.difference', 'Difference')}: <span className={FIGURE_LINE_CLASS}>{bill.difference == null ? '—' : formatCurrencyCents(Number(bill.difference), bill.currency)}</span></p>
           </div>
           <Button variant="outline" className="touch-target max-[767px]:min-h-11" aria-label={t('bupot.openBillCase', 'Open bill {{bill}} in case {{case}}', { bill: identity, case: caseLabel })} onClick={() => onOpenProcurement?.(bill.procurement_id, slipId, bill.invoice_id)}>{t('bupot.openBill', 'Open bill in case')}</Button>
         </li>;
@@ -112,5 +113,5 @@ export function VendorWithholdingSlipDetails({ slipId, canWrite, onClose, onOpen
     <ConfirmDialog open={showVoid} title={t('bupot.confirmVoid', 'Void this PMO entry?')} description={<div className="space-y-3"><p>{t('bupot.voidWarning', 'This only removes PMO coverage. It does not cancel a DJP document.')}</p>{error && <p role="alert" className="text-destructive">{error}<Button variant="outline" onClick={() => { void query.refetch(); setShowVoid(false); }}>{t('bupot.reload', 'Reload')}</Button></p>}<TextField label={t('bupot.reason', 'Reason')} value={reason} onChange={setReason} required /></div>} confirmLabel={t('bupot.void', 'Void PMO entry')}  tone="destructive" loading={mutations.void.isPending} confirmDisabled={!reason.trim()} onConfirm={() => voidEntry()} onCancel={() => setShowVoid(false)} />
   </Card>;
 }
-function Fact({ label, value }: { label: string; value?: string | null }) { return <div className="min-w-0"><dt className="text-sm text-foreground">{label}</dt><dd className="break-words text-sm tabular-nums">{value || '—'}</dd></div>; }
+function Fact({ label, value, figure }: { label: string; value?: string | null; figure?: boolean }) { return <div className="min-w-0"><dt className="text-sm text-foreground">{label}</dt><dd className={figure ? `${FIGURE_LINE_CLASS} text-sm` : 'break-words text-sm tabular-nums'}>{value || '—'}</dd></div>; }
 function StatusFact({ label, value, variant }: { label: string; value: string; variant: 'won' | 'warn' | 'progress' | 'neutral' }) { return <div className="min-w-0"><dt className="text-sm text-foreground">{label}</dt><dd><StatusPill variant={variant}>{value}</StatusPill></dd></div>; }

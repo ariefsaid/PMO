@@ -397,3 +397,14 @@ test('AC-CLIPH-009 a failure on a later page keeps the row numbers of the pages 
   assert.deepEqual([report.results[0].row, report.results[HISTORY_PAGE - 1].row], [1, HISTORY_PAGE]);
   assert.equal(report.not_saved_import_keys.length, 3);
 });
+
+test('AC-018 undo-record-only --attach sends the attachment request so only that attachment is undone', async () => {
+  const { runUndoRecordOnly } = await import('./lib/pmo-purchases.mjs');
+  const calls = [];
+  const api = { rpc: async (name, body) => { calls.push({ name, body }); return { outcome: 'undo', erp_write: false }; } };
+  const purchase = '22222222-2222-4222-8222-222222222222'; const attach = '44444444-4444-4444-8444-444444444444';
+  await runUndoRecordOnly(api, purchase, 'Wrong invoice', { dryRun: false, attachRequestId: attach });
+  assert.deepEqual(calls[0], { name: 'undo_captured_purchase', body: { p_procurement_id: purchase, p_reason: 'Wrong invoice', p_dry_run: false, p_attach_request_id: attach } });
+  await runUndoRecordOnly(api, purchase, 'Wrong project', { dryRun: true });
+  assert.deepEqual(calls[1], { name: 'undo_captured_purchase', body: { p_procurement_id: purchase, p_reason: 'Wrong project', p_dry_run: true } });
+});
