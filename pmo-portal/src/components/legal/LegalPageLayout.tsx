@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/src/auth/useAuth';
 import { HELP_URL } from '@/src/lib/legalConfig';
+import { AuthHeader } from '@/src/auth/authFormPrimitives';
 
 /**
  * Shared chrome for the public legal pages (FR-LEG-003/004/005/024/030/031,
@@ -12,7 +13,7 @@ import { HELP_URL } from '@/src/lib/legalConfig';
  * page cannot inherit the shell's <main> (M10).
  *
  * DESIGN.md tokens: page-title (h1 24/700/-0.02em), heading (h2 20/700/-0.01em),
- * body (14/1.6), overline (11/600/0.06em). Calm control surface: content on the
+ * body (14/1.6), support (14). Calm control surface: content on the
  * tinted secondary ground, hairline border, muted-foreground secondary text —
  * no shadows (Flat-By-Default). Links use text-primary-text (the AA blue token,
  * index.css:46) — NOT text-primary (the action fill, sub-AA on dark per DESIGN.md).
@@ -58,24 +59,29 @@ export const LegalPageLayout: React.FC<LegalPageLayoutProps> = ({
         {t('layout.skip', 'Skip to main content')}
       </a>
 
+      {/* One brand header, the same AuthHeader the sign-in, reset and update-password screens carry. */}
+      <div className="mx-auto max-w-3xl px-5 pt-10 max-[921px]:px-4 max-[921px]:pt-6">
+        <AuthHeader as="div" className="justify-start" />
+      </div>
+
       <main
         id="main"
         tabIndex={-1}
-        className="mx-auto max-w-3xl px-5 pb-16 pt-10 outline-none max-[921px]:px-4 max-[921px]:pt-6"
+        className="mx-auto max-w-3xl px-5 pb-16 pt-6 outline-none max-[921px]:px-4 max-[921px]:pt-5"
       >
-        <p className="text-[11px] font-semibold text-muted-foreground">
+        <p className="text-support font-semibold text-muted-foreground">
           {t('layout.overline', 'Legal')}
         </p>
 
         {/* Page title — page-title token (24/700/-0.02em); the single h1 (AC-LEG-004/027). */}
-        <h1 className="mt-1 text-[24px] font-bold leading-[1.2] tracking-[-0.02em] text-foreground">
+        <h1 className="mt-1 text-page font-bold tracking-[-0.02em] text-foreground">
           {title}
         </h1>
 
         {/* Top navigation row (FR-LEG-024/030/031). A <div>, not <nav>, so the bare
             page has no nav landmark — "AppShell does not render" (AC-LEG-001/002) is
             unambiguous and the icon/overflow gates see a clean structure. */}
-        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-control">
           <Link to={back.to} className="font-medium text-primary-text hover:underline">
             {back.label}
           </Link>
@@ -104,13 +110,13 @@ export const LegalPageLayout: React.FC<LegalPageLayoutProps> = ({
         {/* One plain line, above the body, Indonesian locale only (C4). Add-only: the body and
             every control above it keep their existing position. */}
         {englishOnlyBody && (
-          <p className="mb-6 text-[14px] leading-[1.6] text-muted-foreground">
+          <p className="mb-6 text-control leading-[1.6] text-muted-foreground">
             {t('layout.englishOnly', 'The legal text is provided in English.')}
           </p>
         )}
 
         {/* Body/prose container (14/1.6 for readability). Children = the <h2> sections. */}
-        <div className="space-y-7 text-[14px] leading-[1.6] text-foreground">{children}</div>
+        <div className="space-y-7 text-control leading-[1.6] text-foreground">{children}</div>
       </main>
     </div>
   );
@@ -122,7 +128,7 @@ export const LegalSection: React.FC<{ title: string; children: React.ReactNode }
   children,
 }) => (
   <section className="space-y-2">
-    <h2 className="text-[20px] font-bold leading-[1.25] tracking-[-0.01em] text-foreground">
+    <h2 className="text-section font-bold tracking-[-0.01em] text-foreground">
       {title}
     </h2>
     {children}
