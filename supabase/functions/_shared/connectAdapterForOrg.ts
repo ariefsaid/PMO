@@ -14,9 +14,12 @@ import { odooClientForOrg } from './odooClientForOrg.ts';
 
 const refused = (tier: string, why: string) => new AppError(`The ${tier} connection is not ready: ${why}`, 'config-rejected');
 
-const FACTORIES: Record<string, (sc: SupabaseClient, orgId: string) => Promise<ConnectAdapter>> = {
-  erpnext: async (sc, orgId) => {
-    const r = await erpClientForOrg(sc, orgId, { requireCompany: true });
+/** `wrapErpFetch`: the caller's wrap around an ERPNext client's guarded fetch (the sweep's invocation budget, #2149). */
+export interface ConnectAdapterOptions { wrapErpFetch?: (guarded: typeof fetch) => typeof fetch }
+
+const FACTORIES: Record<string, (sc: SupabaseClient, orgId: string, opts: ConnectAdapterOptions) => Promise<ConnectAdapter>> = {
+  erpnext: async (sc, orgId, opts) => {
+    const r = await erpClientForOrg(sc, orgId, { requireCompany: true, wrapFetch: opts.wrapErpFetch });
     if ('refusal' in r) throw refused('erpnext', r.refusal);
     return createErpnextConnectAdapter(r.client, String(r.config?.company));
   },
@@ -36,7 +39,7 @@ export function hasConnectAdapterForTier(tier: string): boolean {
   return Object.hasOwn(FACTORIES, tier);
 }
 
-export async function connectAdapterForOrg(sc: SupabaseClient, orgId: string, tier: string): Promise<ConnectAdapter> {
+export async function connectAdapterForOrg(sc: SupabaseClient, orgId: string, tier: string, opts: ConnectAdapterOptions = {}): Promise<ConnectAdapter> {
   if (!hasConnectAdapterForTier(tier)) throw new AppError('Unknown ERP', 'config-rejected');
-  return await FACTORIES[tier](sc, orgId);
+  return await FACTORIES[tier](sc, orgId, opts);
 }

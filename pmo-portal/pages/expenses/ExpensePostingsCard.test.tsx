@@ -104,8 +104,8 @@ describe('ExpensePostingsCard (AC-EXP-131)', () => {
 
   describe('S-12 posting-not-active note (RF-060)', () => {
     it.each([
-      ['notConnected', "Not posted to accounting: expense posting isn't active for this organization."],
-      ['inactive', "Not posted to accounting: expense posting isn't active for this organization."],
+      ['notConnected', "Kept in PMO only: expense posting to accounting is off."],
+      ['inactive', "Kept in PMO only: expense posting to accounting is off."],
       ['unavailable', "Couldn't check whether this claim will reach accounting."],
     ])('%s with no postings says why nothing is posted', async (state, text) => {
       readinessMock.state = state;
@@ -127,7 +127,7 @@ describe('ExpensePostingsCard (AC-EXP-131)', () => {
       listMock.mockResolvedValue([{ id: 'm1', posting: 'approval', pushState: 'pushed', pushError: null, erpName: 'JV-1', erpCancelledAt: null, createdAt: 't' }]);
       renderCard();
       expect(await screen.findByText('JV-1')).toBeInTheDocument();
-      expect(screen.queryByText(/Not posted to accounting/)).toBeNull();
+      expect(screen.queryByText(/Kept in PMO only/)).toBeNull();
     });
   });
 });
