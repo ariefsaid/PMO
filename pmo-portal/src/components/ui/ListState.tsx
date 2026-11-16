@@ -252,6 +252,22 @@ function safeErrorBody(content: React.ReactNode): React.ReactNode {
  * exactly one ListState in place of their content — never hand-roll a spinner
  * or an ad-hoc empty message.
  */
+/**
+ * The Retry action already says "try again": a body that ends by saying it too would read it twice ("Coba lagi.
+ * Coba lagi"). Drop a closing "Try again." sentence, or turn a closing "… and try again." into "…", in the active
+ * language. Non-string bodies pass through.
+ */
+function withoutTryAgain(body: React.ReactNode, sentence: string, clause: string): React.ReactNode {
+  if (typeof body !== 'string') return body;
+  const text = body.trim();
+  const lower = text.toLowerCase();
+  const tail = clause.trim().toLowerCase();
+  if (tail && lower.endsWith(` ${tail}`)) return `${text.slice(0, -tail.length).trimEnd()}.`;
+  const closing = sentence.trim().toLowerCase();
+  if (closing && (lower === closing || lower.endsWith(`. ${closing}`))) return text.slice(0, -closing.length).trimEnd() || null;
+  return body;
+}
+
 export const ListState: React.FC<ListStateProps> = ({
   variant,
   partialLayout = 'row',
@@ -335,7 +351,7 @@ export const ListState: React.FC<ListStateProps> = ({
   }
 
   if (variant === 'error') {
-    const safeSub = safeErrorBody(sub);
+    const safeSub = withoutTryAgain(safeErrorBody(sub), t('ui.listState.tryAgainSentence', 'Try again.'), t('ui.listState.andTryAgain', ' and try again.'));
     // One error treatment app-wide: a warning icon (the only red) on the first text line, then ONE text block with
     // the message (and its detail) and Retry following the text, so a long message wraps beside the icon and Retry
     // wraps under the TEXT, never alone under the icon. Retry's touch padding is cancelled by its negative margin, so

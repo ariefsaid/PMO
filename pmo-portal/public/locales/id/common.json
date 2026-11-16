@@ -31,7 +31,9 @@
     },
     "listState": {
       "loading": "Memuat…",
-      "retry": "Coba lagi"
+      "retry": "Coba lagi",
+      "tryAgainSentence": "Coba lagi.",
+      "andTryAgain": " dan coba lagi."
     },
     "filterBar": {
       "all": "Semua",

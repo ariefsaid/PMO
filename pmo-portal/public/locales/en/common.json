@@ -31,7 +31,9 @@
     },
     "listState": {
       "loading": "Loading…",
-      "retry": "Retry"
+      "retry": "Retry",
+      "tryAgainSentence": "Try again.",
+      "andTryAgain": " and try again."
     },
     "filterBar": {
       "all": "All",
