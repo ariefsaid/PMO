@@ -57,7 +57,7 @@ describe('THEME-BACK-06 budget push queue', () => {
     expect(driven).toEqual([eligible]);
   });
 
-  it('stamps exactly the rows it selected, before driving any (a crash mid-pass still rotates them)', async () => {
+  it('stamps each row right before its own work (a crash mid-pass still rotates the row that crashed; #2149: one row at a time)', async () => {
     const calls: string[] = [];
     const deps: BudgetBackstopDeps = {
       listPendingBudgetPushes: async () => [{ id: 'a', budget_version_id: 'a', push_state: 'pending' }, { id: 'b', budget_version_id: 'b', push_state: 'pending' }],
@@ -66,7 +66,7 @@ describe('THEME-BACK-06 budget push queue', () => {
       markAttempted: async (_org, rows) => { calls.push(`stamp:${rows.map((r) => r.id).join(',')}`); },
     };
     await reconcileOrgBudgetPushes(deps, { orgId: 'org-1' });
-    expect(calls[0]).toBe('stamp:a,b');
+    expect(calls).toEqual(['stamp:a', 'read', 'stamp:b', 'read']);
   });
 
   it('the tick limit still bounds one pass', () => {
@@ -100,7 +100,7 @@ describe('THEME-BACK-06 timesheet push queue', () => {
       markAttempted: async (_org, rows) => { stamped.push(rows.map((r) => r.timesheet_id)); },
     };
     await reconcileOrgTimesheetPushes(deps, { orgId: 'org-1' });
-    expect(stamped).toEqual([['t1', 't2']]); // the orchestrator hands over every selected row; the live stamp skips `absent`
+    expect(stamped).toEqual([['t1'], ['t2']]); // the orchestrator hands over each row at its turn; the live stamp skips `absent`
     expect(TIMESHEET_BACKSTOP_TICK_LIMIT).toBe(200);
   });
 });

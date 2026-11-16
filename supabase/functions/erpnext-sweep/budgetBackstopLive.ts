@@ -20,7 +20,7 @@ import { budgetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/b
 import { encodeFiscalYear } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
 import { budgetAccountArchiveKey, budgetAccountIdentity, budgetAccountPushKey, budgetLegacyArchiveKey, budgetLegacyIdentity, budgetRangeIdentity } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
 import { ERPNEXT_BUDGET_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
-import { type OrgBinding, listRetryPendingLive, listCandidatesLive, stampQueueAttempt, byQueueFairness } from './sweepShared.ts';
+import { type OrgBinding, listRetryPendingLive, listCandidatesLive, stampQueueAttempt, byQueueFairness, moneyRowsStopped } from './sweepShared.ts';
 import { bareBudgetVersionId, fiscalYearOfIdentity, toFiscalYearOfIdentity, accountOfIdentity, budgetDedupKey, findBudgetOutboxRow, readBudgetArchiveLifecycleLive, budgetArchiveTargetStillLiveAndOwnedLive } from './budgetOutboxFacts.ts';
 import { buildReconcileDepsLive, dispatchMoneyWrite, buildMoneyWriteDepsLive } from './moneyWriteLive.ts';
 
@@ -508,6 +508,7 @@ export function budgetBackstopDepsLive(
         .sort(byQueueFairness)
         .slice(0, limit);
     },
+    stopNewRows: () => moneyRowsStopped(org),
     markAttempted: async (orgId, rows) => {
       // Only rows with a mirror row of their own can be stamped; an `absent` orphan is an outbox row.
       const real = rows.filter((r) => r.push_state !== BUDGET_MIRROR_ABSENT && typeof r.id === 'string');
@@ -671,6 +672,7 @@ async function reconcileOrgBudgetArchiveCancellationsLive(
       if (error) throw new AppError(error.message, error.code);
       return (data ?? []) as unknown as BudgetArchiveCancelIntent[];
     },
+    stopNewRows: () => moneyRowsStopped(org),
     markAttempted: (orgId, jobs) => stampQueueAttempt(serviceClient, 'budget_archive_cancel_intents', orgId, 'id', jobs.map((j) => j.id)),
     readLifecycle: (job) => readBudgetArchiveLifecycleLive(serviceClient, job),
     targetIsStillLiveAndOwned: (job) => budgetArchiveTargetStillLiveAndOwnedLive(serviceClient, job),
