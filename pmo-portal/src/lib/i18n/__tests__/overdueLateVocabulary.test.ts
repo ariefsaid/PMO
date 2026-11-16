@@ -17,8 +17,8 @@ import { describe, expect, it } from 'vitest';
  *
  * The id pair, decided from the existing catalogue: Indonesian has ONE word for both concepts —
  * "terlambat" — so the en late/overdue distinction collapses in id: overdue AND late both render
- * as "terlambat" (e.g. tasks "Tugas terlambat", invoices "Faktur terlambat", phases "Fase
- * terlambat"); the entity noun (tugas/faktur vs fase/tahapan) carries the distinction, with
+ * as "terlambat" (e.g. tasks "Tugas terlambat", invoices "Invoice terlambat", phases "Fase
+ * terlambat"); the entity noun (tugas/invoice vs fase/tahapan) carries the distinction, with
  * "lewat jatuh tempo" as a longer overdue variant (hub.company.oldestOverdue). So the id side
  * pins the decided age pair and asserts key parity — no id word is prohibited anywhere.
  */

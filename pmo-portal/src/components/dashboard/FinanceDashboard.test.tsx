@@ -164,7 +164,7 @@ describe('FinanceDashboard (real — exec RPC + procurements)', () => {
       render(<BahasaProvider locale="id"><MemoryRouter><FinanceDashboard /></MemoryRouter></BahasaProvider>);
       const legend = document.querySelector('figcaption')!;
       const labels = Array.from(legend.children).map((item) => item.textContent?.replace(/\d+$/, '').trim());
-      expect(labels).toEqual(['Draf', 'Pesanan pembelian', 'Faktur supplier', 'Dibayar']);
+      expect(labels).toEqual(['Draf', 'Pesanan pembelian', 'Invoice supplier', 'Dibayar']);
     } finally {
       procurements.splice(0, procurements.length, ...previous);
     }

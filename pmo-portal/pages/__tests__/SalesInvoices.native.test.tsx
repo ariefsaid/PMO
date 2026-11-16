@@ -199,7 +199,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     h.role = 'Project Manager';
     await financeTestI18n.changeLanguage('id');
     renderPage();
-    expect(screen.getByText(/Finance mengelola pembuatan faktur/)).toBeInTheDocument();
+    expect(screen.getByText(/Finance mengelola pembuatan invoice/)).toBeInTheDocument();
     await financeTestI18n.changeLanguage('en');
   });
 
@@ -489,7 +489,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
 
   it.each([
     ['en', 'Line items are kept in ERPNext for this invoice.', 'Line items'],
-    ['id', 'Rincian item untuk faktur ini disimpan di ERPNext.', 'Item faktur'],
+    ['id', 'Rincian item untuk invoice ini disimpan di ERPNext.', 'Item invoice'],
   ])('AC-991-001 FIN-S2 ERP-owned invoice record shows no empty line-items section and no standing note (%s)', async (language, note, sectionLabel) => {
     h.route = 'external';
     h.invoices.data = [nativeInvoice({
@@ -743,7 +743,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     await financeTestI18n.changeLanguage('id');
     const user = userEvent.setup();
     renderPage();
-    await user.click(screen.getAllByRole('button', { name: /Faktur Baru|New Invoice/i })[0]);
+    await user.click(screen.getAllByRole('button', { name: /Invoice Baru|New Invoice/i })[0]);
     await pick(user, 'Pelanggan', 'Acme Energy');
     await pick(user, 'Proyek', 'Alpha Platform');
     await user.type(screen.getByLabelText('Kode item'), 'SVC-7');
@@ -751,10 +751,10 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     const rate = screen.getByLabelText(/tarif/i);
     await user.clear(rate);
     await user.type(rate, '125000');
-    await user.click(screen.getByRole('button', { name: 'Buat faktur' }));
+    await user.click(screen.getByRole('button', { name: 'Buat invoice' }));
 
     const error = await screen.findByTestId('entity-modal-save-error');
-    expect(error).toHaveTextContent('Tarif PPN harus dicatat pada proyek ini sebelum faktur dapat dibuat. Isian Anda tetap tersimpan di formulir.');
+    expect(error).toHaveTextContent('Tarif PPN harus dicatat pada proyek ini sebelum invoice dapat dibuat. Isian Anda tetap tersimpan di formulir.');
     expect(within(error).getByRole('link', { name: 'Catat tarif PPN di proyek' })).toHaveAttribute('href', '/projects/proj-1');
     expect(screen.getByLabelText('Deskripsi')).toHaveValue('Inspeksi panel');
     expect(rate).toHaveValue('125,000');

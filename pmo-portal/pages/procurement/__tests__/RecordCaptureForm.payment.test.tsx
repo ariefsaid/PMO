@@ -90,7 +90,7 @@ describe('RecordCaptureForm — payment capture on a FLIPPED org (#910)', () => 
     renderPayment();
     await userEvent.type(screen.getByTestId('payment-amount-input'), '1090000');
     await userEvent.click(screen.getByTestId('payment-save-btn'));
-    expect(await screen.findByText('Pilih faktur supplier yang ditutup oleh pembayaran ini.')).toBeInTheDocument();
+    expect(await screen.findByText('Pilih invoice supplier yang ditutup oleh pembayaran ini.')).toBeInTheDocument();
   });
 
   it('prefills and submits the exact outstanding amount in Indonesian number format', async () => {

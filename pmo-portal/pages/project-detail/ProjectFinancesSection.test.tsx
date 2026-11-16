@@ -448,7 +448,7 @@ describe('ProjectFinancesSection reading states', () => {
       excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: false, amount: null }] } });
     for (const [language, prompt, scope] of [
       ['en', 'Ask an administrator to complete spending setup.', 'Only invoices linked to this project are included.'],
-      ['id', 'Minta administrator menyelesaikan penyiapan pengeluaran.', 'Hanya faktur yang ditautkan ke proyek ini yang disertakan.'],
+      ['id', 'Minta administrator menyelesaikan penyiapan pengeluaran.', 'Hanya invoice yang ditautkan ke proyek ini yang disertakan.'],
     ] as const) {
       await localeI18n.changeLanguage(language);
       const view = render(<I18nextProvider i18n={localeI18n}><ProjectFinancesSection project={project} /></I18nextProvider>);

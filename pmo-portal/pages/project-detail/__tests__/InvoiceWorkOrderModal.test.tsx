@@ -108,7 +108,7 @@ describe('InvoiceWorkOrderModal (OD-BILL-1)', () => {
         </FinanceI18nTestProvider>,
       );
       await userEvent.type(screen.getByLabelText(/Kode item/), 'SVC');
-      await userEvent.click(screen.getByRole('button', { name: 'Buat draf faktur' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Buat draf invoice' }));
       expect(await screen.findByText('Tagihan ini akan melewati nilai Work Order / SPK')).toBeInTheDocument();
       expect(screen.getByText(/Tidak ada yang ditulis ke ERPNext/)).toHaveTextContent(/Rp\s?80\.000,00/);
       expect(screen.queryByText(/only 0\.00/)).toBeNull();
