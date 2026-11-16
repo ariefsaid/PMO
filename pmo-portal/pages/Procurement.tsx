@@ -44,6 +44,7 @@ import ProcurementBoard from '../components/ProcurementBoard';
 import { readProcurementView, writeProcurementView } from '@/src/hooks/useProcurementView';
 import type { ProcurementView } from '@/src/hooks/useProcurementView';
 import { useListWorkingSet } from '@/src/hooks/useListWorkingSet';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { ErpOrphansSection } from './procurement/ErpOrphansSection';
 import { needsYou, type NeedsYouResult } from './procurement/blocks/needsYou';
@@ -403,6 +404,7 @@ const ProcurementPage: React.FC = () => {
     </dl>
   );
   const ready = !isPending && !isError && data !== undefined;
+  const isDesktop = useIsDesktop();
   const routeViewOptions: Array<{ value: ProcurementRouteView; label: string; icon: 'table' | 'cols' | 'grid' }> = useMemo(() => [
     { value: 'table', label: t('view.table', 'Table'), icon: 'table' },
     { value: 'grouped', label: t('view.grouped', 'Grouped'), icon: 'grid' },
@@ -410,7 +412,7 @@ const ProcurementPage: React.FC = () => {
   ], [t]);
   const primaryAction = (
     <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-      {tab !== 'orphans' && ready && <ViewToggle<ProcurementRouteView> options={routeViewOptions} value={currentView} onChange={onViewChange} ariaLabel={t('view.label', 'Procurement view')} />}
+      {tab !== 'orphans' && ready && isDesktop && <ViewToggle<ProcurementRouteView> options={routeViewOptions} value={currentView} onChange={onViewChange} ariaLabel={t('view.label', 'Procurement view')} />}
       <MobileToolbarDisclosure
         label={t('more', 'More')}
         className="relative shrink-0"
@@ -475,6 +477,8 @@ const ProcurementPage: React.FC = () => {
         {/* #2497: one filter bar, in one place, for all three views (and the same frame as the Projects list). */}
         {tab !== 'orphans' && ready && (
           <Toolbar standalone data-testid="list-page-toolbar" className="mb-0">
+            {/* Phone: the header has room only for its actions, so the switcher leads the filter row. */}
+            {!isDesktop && <div className="w-full"><ViewToggle<ProcurementRouteView> options={routeViewOptions} value={currentView} onChange={onViewChange} ariaLabel={t('view.label', 'Procurement view')} /></div>}
             <FilterBar
               searchKey="q"
               searchLabel={t('search.label', 'Search procurements')}
@@ -538,7 +542,7 @@ const ProcurementPage: React.FC = () => {
           )}
 
           {ready && tab !== 'orphans' && filtered.length > 0 && currentView === 'board' && (
-            <ProcurementBoard procurements={filtered} onOpen={onOpen} viewerRole={realRole as ProcurementListRole} needsYouReasons={currentNeedsReasons} />
+            <ProcurementBoard procurements={filtered} onOpen={onOpen} viewerRole={realRole as ProcurementListRole} needsYouReasons={currentNeedsReasons} homeCurrency={home} />
           )}
 
           {ready && tab !== 'orphans' && filtered.length > 0 && currentView === 'grouped' && (

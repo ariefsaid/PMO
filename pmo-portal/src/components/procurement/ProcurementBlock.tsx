@@ -142,7 +142,8 @@ function stageText(stage: ProcurementStage | 'Invoiced' | 'Paid', t: (key: strin
   }
 }
 
-function nextStepText(
+/** The next step's words, shared by the table and the grouped list so both say the same thing. */
+export function nextStepText(
   status: ProcurementStatus,
   canApprove: boolean,
   t: (key: string, fallback: string) => string,
@@ -642,8 +643,13 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
               {row.title}
             </button>
             {(row.code || row.pr_number || row.vendor?.name) && (
-              <span className="block min-w-0 break-words text-sm text-muted-foreground">
+              <span className="block min-w-0 break-words text-sm font-normal text-muted-foreground">
                 {(row.code || row.pr_number) && <span className="record-id">{row.code || row.pr_number}</span>}{(row.code || row.pr_number) && row.vendor?.name && ' · '}{row.vendor?.name}
+              </span>
+            )}
+            {!projectId && (
+              <span className="block min-w-0 break-words text-sm font-normal text-muted-foreground xl:hidden">
+                {[row.project ? projectDisplayName(row.project) : null, row.requested_by?.full_name].filter(Boolean).join(' · ')}
               </span>
             )}
           </div>
@@ -654,6 +660,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         key: 'project',
         header: t('procurement.projectColumn', 'Project'),
         kind: 'text' as const,
+        // Below 1280 the amount and status keep their room; project and requester move into the purchase cell.
+        colClassName: 'hidden xl:table-cell',
         size: 232,
         minSize: 232,
         sortKey: 'project',
@@ -681,6 +689,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         key: 'owner',
         header: t('procurement.raisedBy', 'Raised by'),
         kind: 'text' as const,
+        colClassName: 'hidden xl:table-cell',
         size: 156,
         minSize: 156,
         sortKey: 'owner',
@@ -740,7 +749,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
   }));
 
   const heading = t('projectDetail.procurement.title', 'Procurement');
-  const hasUnfilteredRows = rows.length > 0;
+  // A host page that filters outside hands over already-narrowed rows; an empty result is still "no match", not "none yet".
+  const hasUnfilteredRows = (filtersOutside ? scopedRows : rows).length > 0;
   const hasVisibleErpPurchases = canSeeMoney && (
     erp.isError || (erp.data ?? []).some((row) => row.procurementId === null || Number(row.outstanding ?? 0) > 0)
   );
@@ -857,8 +867,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                   onClick={() => setSelectedStage(selectedStage === key ? null : key)}
                   className={`flex min-h-[68px] w-full min-w-0 flex-col items-start justify-center px-3 py-2 text-left transition-colors focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${selectedStage === key ? 'bg-accent outline outline-1 -outline-offset-1 outline-primary/30' : 'bg-card hover:bg-accent/40'}`}
                 >
-                  <span className="flex w-full min-w-0 items-center justify-between gap-1 text-sm font-semibold text-muted-foreground">
-                    <span className="truncate">{stageLabel}</span>
+                  <span className="flex w-full min-w-0 flex-wrap items-center justify-between gap-x-2 text-sm font-semibold text-muted-foreground">
+                    <span>{stageLabel}</span>
                     {forYou > 0 && <span className="shrink-0 font-medium text-primary-text">{t('projectDetail.procurement.forYou', '{{count}} for you', { count: forYou })}</span>}
                   </span>
                   <span className="mt-1 flex w-full min-w-0 flex-wrap items-baseline justify-start gap-x-2">
@@ -900,7 +910,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                 <span className="inline-flex min-w-0 items-center gap-2">
                   <ProcurementStatusPill status={row.status} />
                   <span className={`text-sm tabular ${waitingLong(row, days) ? 'text-warning-foreground' : 'text-muted-foreground'}`}>
-                    {t('procurement.inStageDaysLong', { count: days, defaultValue_one: '{{count}} day in stage', defaultValue_other: '{{count}} days in stage' })}
+                    {days === 0 ? ageText(days) : t('procurement.inStageDaysLong', { count: days, defaultValue_one: '{{count}} day in stage', defaultValue_other: '{{count}} days in stage' })}
                   </span>
                 </span>
                 {canSeeMoney && rowAmount(row, true)}

@@ -7,7 +7,6 @@ import type { NeedsYouReason } from '@/pages/procurement/blocks/needsYou';
 import { useTranslation } from 'react-i18next';
 import { figureForListRow, totalsByCurrency, type ProcurementListRole } from '@/src/lib/procurement/listModel';
 import { MoneyTotalLines } from '@/pages/procurement/list/MoneyTotalLines';
-import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 
 interface ProcurementBoardProps {
   procurements: ProcurementWithRefs[];
@@ -19,6 +18,8 @@ interface ProcurementBoardProps {
   viewerRole?: ProcurementListRole;
   /** Needs-you rationale is shown on every board card while that tab is active. */
   needsYouReasons?: ReadonlyMap<string, { result: NeedsYouReason; text: string }>;
+  /** The org's currency, so an empty column's total reads "Rp 0" rather than a bare 0. */
+  homeCurrency?: string;
 }
 
 type BoardStageKey = 'request' | 'approved' | 'ordered' | 'received' | 'invoiced' | 'paid';
@@ -110,9 +111,9 @@ const ProcurementBoard: React.FC<ProcurementBoardProps> = ({
   selectedId,
   viewerRole,
   needsYouReasons,
+  homeCurrency,
 }) => {
   const { t } = useTranslation('procurementList');
-  const home = useOrgCurrency();
   const byStage = new Map<BoardStageKey, ProcurementWithRefs[]>(BOARD_STAGES.map(({ key }) => [key, []]));
   for (const procurement of procurements) {
     const stage = BOARD_STAGES.find(({ statuses }) => statuses.includes(procurement.status));
@@ -135,7 +136,7 @@ const ProcurementBoard: React.FC<ProcurementBoardProps> = ({
               title={stageTitle}
               dotColor={key === 'paid' ? 'hsl(var(--success))' : 'hsl(var(--mark-neutral))'}
               count={items.length}
-              totals={<MoneyTotalLines totals={totals} tooltip={tooltip} testId={`prstage-${key}-totals`} className="items-end" zeroCurrency={home} />}
+              totals={<MoneyTotalLines totals={totals} tooltip={tooltip} testId={`prstage-${key}-totals`} className="items-end" zeroCurrency={homeCurrency} />}
               emptyMessage={t('board.empty', { stage: stageTitle, defaultValue: `No procurements at ${stageTitle}` })}
             >
               {items.map((procurement) => (

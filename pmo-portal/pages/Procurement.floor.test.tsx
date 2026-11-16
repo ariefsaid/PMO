@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import Procurement from './Procurement';
+import { pickOption } from '@/test/pickOption';
 
 const rows = [
   { id: 'req', code: 'PR-REQ', title: 'Request case', status: 'Requested', total_value: 100, currency: 'USD', project_id: 'p1', requested_by_id: 'u1', vendor_id: 'v1', budget_category: 'Materials', created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z', project: { id: 'p1', name: 'Bridge project', code: 'P1', project_manager_id: 'u1' }, vendor: { name: 'Alpha Supply' }, requested_by: { full_name: 'Alice Requester' }, purchase_requests: [], purchase_orders: [], receipts: [], procurement_invoices: [], payments: [], status_events: [] },
@@ -88,27 +89,26 @@ describe('Procurement list floors', () => {
 
   it('floor: Clear stage filter restores every procurement row', async () => {
     renderPage();
-    await userEvent.click(within(screen.getByRole('group', { name: 'Procurement stages' })).getByRole('button', { name: /^Request/ }));
-    await userEvent.click(screen.getByRole('button', { name: 'Clear stage filter' }));
+    // #2497: the stage band is the one stage control; pressing the chosen stage again clears it.
+    const stage = () => within(screen.getByRole('region', { name: 'Procurement stages' })).getByRole('button', { name: /^Request/ });
+    await userEvent.click(stage());
+    expect(renderedTitles()).toHaveLength(1);
+    await userEvent.click(stage());
     expect(renderedTitles()).toHaveLength(4);
   });
 
-  it('floor: phone Filters disclosure opens and dismisses the stacked controls', async () => {
+  it('floor: phone Filters disclosure opens the filters and they still narrow the list', async () => {
+    window.matchMedia = ((query: string) => ({ matches: query === '(max-width: 639px)', media: query, onchange: null, addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false })) as unknown as typeof window.matchMedia;
     renderPage();
-    const filters = screen.getByRole('button', { name: 'Filters' });
-    expect(filters).toHaveAttribute('aria-expanded', 'false');
-    await userEvent.click(filters);
-    expect(filters).toHaveAttribute('aria-expanded', 'true');
-    await userEvent.selectOptions(screen.getByLabelText('Filter by category'), 'Services');
+    await userEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    await pickOption('Category', 'Services');
     expect(screen.getByText('Order case')).toBeInTheDocument();
     expect(screen.queryByText('Request case')).not.toBeInTheDocument();
-    await userEvent.click(filters);
-    expect(filters).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('floor: Project filter leaves only procurements for the selected project and writes the URL', async () => {
     renderPage('/procurement?tab=all&view=grouped');
-    await userEvent.selectOptions(screen.getByLabelText('Project'), 'p1');
+    await pickOption('Project', 'Bridge project');
     expect(screen.getByText('Request case')).toBeInTheDocument();
     expect(screen.getByText('Receipt case')).toBeInTheDocument();
     expect(screen.queryByText('Order case')).not.toBeInTheDocument();
@@ -117,7 +117,7 @@ describe('Procurement list floors', () => {
 
   it('floor: Supplier filter leaves only procurements for the selected supplier and writes the URL', async () => {
     renderPage('/procurement?tab=all&view=grouped');
-    await userEvent.selectOptions(screen.getByLabelText('Supplier'), 'v2');
+    await pickOption('Supplier', 'Beta Supply');
     expect(screen.getByText('Order case')).toBeInTheDocument();
     expect(screen.getByText('Pay case')).toBeInTheDocument();
     expect(screen.queryByText('Request case')).not.toBeInTheDocument();
@@ -126,7 +126,7 @@ describe('Procurement list floors', () => {
 
   it('floor: Raised by filter leaves only procurements for the selected requester', async () => {
     renderPage('/procurement?tab=all&view=grouped');
-    await userEvent.selectOptions(screen.getByLabelText('Raised by'), 'u1');
+    await pickOption('Raised by', 'Alice Requester');
     expect(screen.getByText('Request case')).toBeInTheDocument();
     expect(screen.getByText('Receipt case')).toBeInTheDocument();
     expect(screen.queryByText('Order case')).not.toBeInTheDocument();
@@ -134,15 +134,15 @@ describe('Procurement list floors', () => {
 
   it('floor: Category filter leaves only matching procurement rows', async () => {
     renderPage();
-    await userEvent.selectOptions(screen.getByLabelText('Filter by category'), 'Services');
+    await pickOption('Category', 'Services');
     expect(screen.getByText('Order case')).toBeInTheDocument();
     expect(screen.getByText('Pay case')).toBeInTheDocument();
     expect(screen.queryByText('Request case')).not.toBeInTheDocument();
   });
 
-  it('floor: Owner filter leaves only matching procurement rows', async () => {
+  it('floor: in the table view the Raised by filter (once also offered as "Owner") leaves only matching rows', async () => {
     renderPage();
-    await userEvent.selectOptions(screen.getByLabelText('Filter by owner'), 'u2');
+    await pickOption('Raised by', 'Bob Requester');
     expect(screen.getByText('Order case')).toBeInTheDocument();
     expect(screen.getByText('Pay case')).toBeInTheDocument();
     expect(screen.queryByText('Request case')).not.toBeInTheDocument();
