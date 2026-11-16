@@ -16,6 +16,7 @@ import { SALES_COLUMNS, resolveProjectDrop } from '../../components/salesPipelin
 import { ProjectTransitionConfirm } from '../../components/project-status/ProjectTransitionConfirm';
 import { WinDetailsFields } from '../../components/project-status/WinDetailsFields';
 import { winDetailsComplete, winEligibilityMessage } from '../../components/project-status/projectTransitionCopy';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 
 type Pending =
   | { kind: 'confirm'; project: PipelineProject; target: ProjectStatus; choice?: ProjectStatus[] }
@@ -50,6 +51,7 @@ export const DraggableSalesBoard: React.FC<{
   const [pending, setPending] = useState<Pending | null>(null);
   const [contractRef, setContractRef] = useState('');
   const [contractDate, setContractDate] = useState('');
+  const today = useOrgToday();
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
   const byId = useMemo(() => new Map(projects.map((p) => [p.id, p])), [projects]);
   const mayTransition = may('transition', 'project');
@@ -199,12 +201,12 @@ export const DraggableSalesBoard: React.FC<{
           submitLabel={t('boardDrag:winConfirm', 'Confirm won')}
           loading={mutation.isPending}
           submitError={saveError}
-          submitDisabled={!winDetailsComplete(contractRef, contractDate)}
+          submitDisabled={!winDetailsComplete(contractRef, contractDate, today)}
           dirty={contractRef !== '' || contractDate !== ''}
           onClose={cancel}
           onSubmit={(e) => {
             e.preventDefault();
-            if (winDetailsComplete(contractRef, contractDate))
+            if (winDetailsComplete(contractRef, contractDate, today))
               void commit(pending.project, 'Won, Pending KoM', { customerContractRef: contractRef.trim(), contractDate });
           }}
         >

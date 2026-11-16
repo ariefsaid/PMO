@@ -22,3 +22,15 @@ export async function latestPickableDay(user: UserEvent, field: HTMLElement): Pr
   await user.keyboard('{Escape}');
   return pickable.length ? pickable[pickable.length - 1].dataset.day ?? null : null;
 }
+
+/** The mirror of `latestPickableDay`: page back to the first month that shows a day a person cannot pick, return the first they can. */
+export async function earliestPickableDay(user: UserEvent, field: HTMLElement): Promise<string | null> {
+  await user.click(calendarButton(field));
+  await waitFor(() => expect(document.querySelector('[data-slot="popover-content"]')).not.toBeNull());
+  for (let i = 0; i < 48 && !dayButtons().some((b) => b.disabled); i += 1) {
+    await user.click(screen.getByRole('button', { name: /previous month/i }));
+  }
+  const pickable = dayButtons().filter((b) => !b.disabled);
+  await user.keyboard('{Escape}');
+  return pickable.length ? pickable[0].dataset.day ?? null : null;
+}

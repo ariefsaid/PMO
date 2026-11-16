@@ -25,6 +25,8 @@
   "contacts.pager.range",
   "dashboard.stillToInvoice.daysSinceAcceptance",
   "dashboard.uxs36CustomerFilterLoading",
+  "dateField.afterMax",
+  "dateField.beforeMin",
   "dateField.calendar",
   "dateField.invalid",
   "dateField.open",

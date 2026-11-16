@@ -925,7 +925,9 @@
   "dateField": {
     "open": "Open calendar",
     "calendar": "Calendar",
-    "invalid": "Enter a date like 16 Nov 2026"
+    "invalid": "Enter a date like 16 Nov 2026",
+    "beforeMin": "Choose a date on or after {{date}}",
+    "afterMax": "Choose a date on or before {{date}}"
   },
   "companies": {
     "accessDenied": {
