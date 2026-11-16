@@ -260,7 +260,7 @@
           "title": "Create this claim's invoice?"
         },
         "confirmRaise": {
-          "figures": "Claimed {{gross}} · down payment recovered {{recovery}} · net {{net}} (excl. PPN)",
+          "netExclTax": "Net (excl. PPN)",
           "body": "An ERP sales invoice draft is created from this claim. A different Admin or Finance user submits it.",
           "confirm": "Create ERP invoice",
           "title": "Raise this claim's invoice?"

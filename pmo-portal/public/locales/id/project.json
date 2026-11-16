@@ -260,7 +260,7 @@
           "title": "Buat invoice tagihan ini?"
         },
         "confirmRaise": {
-          "figures": "Ditagih {{gross}} · uang muka dipulihkan {{recovery}} · neto {{net}} (belum termasuk PPN)",
+          "netExclTax": "Neto (belum termasuk PPN)",
           "body": "Draf invoice penjualan ERP dibuat dari tagihan ini. Pengguna Admin atau Finance lain yang men-submit-nya.",
           "confirm": "Buat invoice ERP",
           "title": "Terbitkan invoice tagihan ini?"
@@ -369,7 +369,7 @@
       }
     },
     "drawer": {
-      "openFullPage": "Buka halaman penuh"
+      "openFullPage": "Buka halaman lengkap"
     },
     "pipeline": {
       "currentStage": "Tahap saat ini",
@@ -783,7 +783,7 @@
       "notes": "Catatan",
       "onTrack": "Sesuai rencana",
       "openForecastCategory": "Buka detail proyeksi {{category}}",
-      "openFullPage": "Buka halaman penuh",
+      "openFullPage": "Buka halaman lengkap",
       "overBudget": "Melebihi anggaran",
       "projectCommitmentsShort": "Komitmen · seluruh proyek",
       "reasonBudgetedOtherYear": "Dianggarkan pada tahun fiskal lain: {{years}}",

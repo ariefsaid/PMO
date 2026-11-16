@@ -2194,7 +2194,6 @@
         "confirmRaise": {
           "body": "An ERP sales invoice draft is created from this claim. A different Admin or Finance user submits it.",
           "confirm": "Create ERP invoice",
-          "figures": "Claimed {{gross}} · down payment recovered {{recovery}} · net {{net}} (excl. PPN)",
           "title": "Raise this claim's invoice?"
         },
         "confirmWithdraw": {

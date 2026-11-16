@@ -321,7 +321,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(figures.getAllByText('330,000')).toHaveLength(2);
     expect(screen.getByRole('heading', { name: 'Claims & down payment' })).toBeInTheDocument();
     expect(screen.getByText('Down payment held')).toBeInTheDocument();
-    expect(within(screen.getByText('Down payment held').parentElement!).getByText('330,000')).toBeInTheDocument();
+    expect(within(screen.getByText('Down payment held').parentElement!).getByText('$330,000')).toBeInTheDocument();
   });
 
   it('AC-BWO-004 Finance gets Invoice on an Issued work order with something left; it opens the dialog with what is left', async () => {
@@ -442,11 +442,12 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     const openButtons = within(section).getAllByRole('button', { name: 'Open invoice INV-ORPHAN' });
     expect(openButtons.length).toBeGreaterThan(0);
     expect(within(section).getAllByText(formatDay('2026-10-04')).length).toBeGreaterThan(0);
-    expect(within(section).getAllByText('12,346').length).toBeGreaterThan(0);
-    expect(within(section).getAllByText('10,000').length).toBeGreaterThan(0);
-    expect(within(section).getAllByText('2,346').length).toBeGreaterThan(0);
+    expect(within(section).getAllByText('$12,346').length).toBeGreaterThan(0);
+    expect(within(section).getAllByText('$10,000').length).toBeGreaterThan(0);
+    expect(within(section).getAllByText('$2,346').length).toBeGreaterThan(0);
     expect(section).toHaveTextContent('Unpaid');
-    expect(section.textContent).not.toMatch(/\$|\.00/);
+    // Every amount names its currency in whole units: no decimals.
+    expect(section.textContent).not.toMatch(/\.00/);
     await user.click(openButtons[0]);
     expect(within(screen.getByRole('dialog')).getByRole('link', { name: 'Open full page' })).toHaveAttribute('href', '/sales-invoices/si-orphan');
     expect(screen.getByTestId('route-search')).toHaveTextContent('open=si-orphan&openType=workOrderInvoice');
@@ -550,7 +551,7 @@ describe('WorkOrdersTab — a claim is billed in PMO when no ERP owns revenue (#
     await user.click(await screen.findByRole('menuitem', { name: 'Raise invoice' }));
     const dialog = screen.getByRole('dialog', { name: "Create this claim's invoice?" });
     expect(within(dialog).getByText(/A draft invoice is created in PMO/)).toBeInTheDocument();
-    expect(within(dialog).getByTestId('raise-figures')).toHaveTextContent('net');
+    expect(within(dialog).getByTestId('raise-figures')).toHaveTextContent('Net');
     await user.click(within(dialog).getByRole('button', { name: 'Create invoice' }));
     expect(h.m.raiseNativeInvoice.mutateAsync).toHaveBeenCalledExactlyOnceWith('claim-1');
     expect(h.m.raiseInvoice.mutateAsync).not.toHaveBeenCalled();

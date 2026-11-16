@@ -2194,7 +2194,6 @@
         "confirmRaise": {
           "body": "Draf invoice penjualan ERP dibuat dari tagihan ini. Pengguna Admin atau Finance lain yang men-submit-nya.",
           "confirm": "Buat invoice ERP",
-          "figures": "Ditagih {{gross}} · uang muka dipulihkan {{recovery}} · neto {{net}} (belum termasuk PPN)",
           "title": "Terbitkan invoice tagihan ini?"
         },
         "confirmWithdraw": {
