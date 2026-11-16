@@ -268,7 +268,9 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       value: null,
       unavailableReason: (committed.otherCurrencies ?? []).length > 0
         ? t('decisionSupport.leftOtherCurrency', { defaultValue: 'Open orders in another currency: {{amounts}}', amounts: otherCurrencyCommitted })
-        : t('decisionSupport.leftUnknown', 'Spending or open orders not known yet'),
+        // One short line each, so the reason fits its cell: open orders unknown (inputs null) or only spending unknown.
+        : inputs === null ? t('decisionSupport.leftOrdersUnknown', 'Open orders not known yet')
+        : t('decisionSupport.leftSpendingUnknown', 'Spending not known yet'),
     }]),
   ];
   // Only spending is unknown: the figure without it, under its own label, so it is never read as the Left figure.

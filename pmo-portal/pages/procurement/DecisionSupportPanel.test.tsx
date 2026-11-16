@@ -866,7 +866,7 @@ describe('AC-RB-017 — unknown figures are not drawn', () => {
     renderPanel(asked());
     // the Left tile: never a number
     expect(leftTile().textContent).not.toMatch(/\$/);
-    expect(within(leftTile()).getByText('Spending or open orders not known yet')).toBeInTheDocument();
+    expect(within(leftTile()).getByText('Spending not known yet')).toBeInTheDocument();
     // the explicit line: visible without a click, with the amount, under its own words
     const line = screen.getByText(/^Spending not known yet\. Without it:/);
     expect(line.textContent).toBe('Spending not known yet. Without it: $525 left after orders, reserved and this purchase.');
@@ -894,7 +894,7 @@ describe('AC-RB-017 — unknown figures are not drawn', () => {
     reservedState.data = 50;
     positionState.reading = reading({ spent: null });
     renderPanel({ ...asked(), captionInTooltip: true });
-    expect(within(tileOf(/^left after this purchase/i)).getByText('Spending or open orders not known yet')).toBeInTheDocument();
+    expect(within(tileOf(/^left after this purchase/i)).getByText('Spending not known yet')).toBeInTheDocument();
     expect(screen.getByText('Spending not known yet. Without it: $525 left after orders, reserved and this purchase.')).toBeInTheDocument();
   });
 
@@ -905,7 +905,7 @@ describe('AC-RB-017 — unknown figures are not drawn', () => {
     positionState.reading = reading({ spent: null });
     renderPanel(asked(), 'id');
     expect(screen.getByText('Pengeluaran belum diketahui. Tanpa itu: sisa $525 setelah pesanan, cadangan, dan pembelian ini.')).toBeInTheDocument();
-    expect(within(tileOf(/^sisa setelah pembelian ini$/i)).getByText('Pengeluaran atau pesanan terbuka belum diketahui')).toBeInTheDocument();
+    expect(within(tileOf(/^sisa setelah pembelian ini$/i)).getByText('Pengeluaran belum diketahui')).toBeInTheDocument();
   });
 
   it('spending only unknown, inside a figure scope: the page line carries the Left reason, the explicit line stays visible', async () => {
@@ -914,7 +914,7 @@ describe('AC-RB-017 — unknown figures are not drawn', () => {
     reservedState.data = 50;
     positionState.reading = reading({ spent: null });
     renderPanel(asked(), undefined, true);
-    expect(await screen.findByTestId('figures-hidden')).toHaveTextContent('Spending or open orders not known yet');
+    expect(await screen.findByTestId('figures-hidden')).toHaveTextContent('Spending not known yet');
     expect(screen.getByText(/Without it: \$525 left after orders, reserved and this purchase\./)).toBeInTheDocument();
   });
 
@@ -942,6 +942,7 @@ describe('AC-RB-017 — unknown figures are not drawn', () => {
     setup();
     renderPanel(asked());
     expect(leftTile().textContent).not.toMatch(/\$/);
+    expect(within(leftTile()).getByText(_name === 'open orders in another currency' ? /^Open orders in another currency/ : 'Open orders not known yet')).toBeInTheDocument();
     expect(screen.queryByText(/Without it/)).not.toBeInTheDocument();
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     expect(screen.queryByText(/over budget/i)).not.toBeInTheDocument();
@@ -1024,7 +1025,7 @@ describe('S05 — the project\'s Budget used sits beside it', () => {
     renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', projectStatus, status: 'Requested' }, undefined, true);
     expect(await screen.findByText(/^project budget$/i)).toBeInTheDocument();
     expect(screen.queryByText(/^budget used$/i)).not.toBeInTheDocument();
-    expect(await screen.findByTestId('figures-hidden')).toHaveTextContent('Spending or open orders not known yet');
+    expect(await screen.findByTestId('figures-hidden')).toHaveTextContent('Spending not known yet');
     expect(screen.getByTestId('figures-hidden')).not.toHaveTextContent('Budget used');
     expect(screen.queryByText(/unknown or unavailable/i)).not.toBeInTheDocument();
   });
@@ -1037,7 +1038,7 @@ describe('S05 — the project\'s Budget used sits beside it', () => {
     const tile = tileOf(/^budget used$/i);
     expect(tile.textContent).toContain('—');
     expect(tile.querySelector('[role="status"]')).toBeNull();
-    expect(await screen.findByTestId('figures-hidden')).toHaveTextContent('Spending or open orders not known yet');
+    expect(await screen.findByTestId('figures-hidden')).toHaveTextContent('Spending not known yet');
     expect(screen.getByTestId('figures-hidden')).not.toHaveTextContent('Budget used');
     expect(screen.getByText(/^project budget$/i)).toBeInTheDocument();
   });

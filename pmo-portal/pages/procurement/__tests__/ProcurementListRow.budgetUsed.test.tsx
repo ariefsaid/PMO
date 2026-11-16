@@ -60,7 +60,7 @@ describe('S05: Budget used in the Purchases preview', () => {
     const preview = await open('Tender Submitted');
     expect(await within(preview).findByText(/^project budget$/i)).toBeInTheDocument();
     expect(within(preview).queryByText(/^budget used$/i)).not.toBeInTheDocument();
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('Spending or open orders not known yet');
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('Spending not known yet');
     expect(screen.getByTestId('figures-hidden')).not.toHaveTextContent('Budget used');
     expect(screen.queryByText(/unknown or unavailable/i)).not.toBeInTheDocument();
   });
@@ -71,7 +71,7 @@ describe('S05: Budget used in the Purchases preview', () => {
     const tile = (await within(preview).findByText(/^budget used$/i)).closest('[data-testid="stat-tile"]') as HTMLElement;
     expect(tile.textContent).toContain('—');
     expect(tile.querySelector('[role="status"]')).toBeNull();
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('Spending or open orders not known yet');
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('Spending not known yet');
     expect(screen.getByTestId('figures-hidden')).not.toHaveTextContent('Budget used');
   });
 });
@@ -88,7 +88,7 @@ describe('AC-RB-015/017: Left after this purchase in the Purchases preview', () 
   it('spending not known: the page line carries the reason, and the amount without spending is shown under its own label (not in the Left tile)', async () => {
     const preview = await open('Active');
     expect(await within(preview).findByText('Spending not known yet. Without it: $975 left after orders, reserved and this purchase.')).toBeInTheDocument();
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('Spending or open orders not known yet');
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('Spending not known yet');
     expect(within(preview).queryByText(/^left after this purchase$/i)).not.toBeInTheDocument();
   });
 });

@@ -371,9 +371,10 @@
     "spentOrCommittedBarCaption": "Spent or committed, with this one: {{pct}}%",
     "overBudgetTitle": "Over budget",
     "overBudgetAfter": "{{amount}} over the budget after this purchase. Approval is still permitted; this is advisory only.",
-    "leftUnknown": "Spending or open orders not known yet",
     "leftOtherCurrency": "Open orders in another currency: {{amounts}}",
-    "leftWithoutSpending": "Spending not known yet. Without it: {{amount}} left after orders, reserved and this purchase."
+    "leftWithoutSpending": "Spending not known yet. Without it: {{amount}} left after orders, reserved and this purchase.",
+    "leftOrdersUnknown": "Open orders not known yet",
+    "leftSpendingUnknown": "Spending not known yet"
   },
   "headerEdit": {
     "heading": "Edit procurement details",

@@ -371,9 +371,10 @@
     "spentOrCommittedBarCaption": "Terpakai atau terikat, termasuk yang ini: {{pct}}%",
     "overBudgetTitle": "Melebihi anggaran",
     "overBudgetAfter": "{{amount}} di atas anggaran setelah pembelian ini. Persetujuan tetap bisa dilakukan; ini hanya peringatan.",
-    "leftUnknown": "Pengeluaran atau pesanan terbuka belum diketahui",
     "leftOtherCurrency": "Pesanan terbuka dalam mata uang lain: {{amounts}}",
-    "leftWithoutSpending": "Pengeluaran belum diketahui. Tanpa itu: sisa {{amount}} setelah pesanan, cadangan, dan pembelian ini."
+    "leftWithoutSpending": "Pengeluaran belum diketahui. Tanpa itu: sisa {{amount}} setelah pesanan, cadangan, dan pembelian ini.",
+    "leftOrdersUnknown": "Pesanan terbuka belum diketahui",
+    "leftSpendingUnknown": "Pengeluaran belum diketahui"
   },
   "headerEdit": {
     "heading": "Edit rincian pengadaan",
