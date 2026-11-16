@@ -140,7 +140,7 @@ describe('AC-BUPOT-017 capture form', () => {
     expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     expect(screen.getByRole('checkbox', { name: /SUP-DUP-7.*VI-7001.*Case North.*Harbor works.*PRJ-2641.*1 Oct 2026/ })).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: /SUP-DUP-7.*VI-7002.*Case South.*Canal works.*PRJ-2642/ })).toBeInTheDocument();
-    expect(screen.getByText(locale === 'en' ? 'Supplier invoice reference not recorded' : 'Referensi faktur pemasok belum dicatat')).toBeInTheDocument();
+    expect(screen.getByText(locale === 'en' ? 'Supplier invoice reference not recorded' : 'Referensi faktur supplier belum dicatat')).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent('invoice-a');
     await financeTestI18n.changeLanguage('en');
   });

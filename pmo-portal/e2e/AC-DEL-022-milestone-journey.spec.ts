@@ -142,11 +142,12 @@ test('AC-DEL-022: a PM creates a milestone, adds a task under it, marks it Done 
   await page.getByRole('tab', { name: /overview/i }).click();
 
   // ── GOAL ORACLE part 1: milestone strip effective % = 100% ──────────────────
-  // The redesigned stepper removed "From tasks" text; each phase card (<section>) now shows
-  // the effective % as a large headline number. With input_pct=null the effective % equals the
-  // task-derived value, so asserting the phase card reads 100% preserves the full-strength oracle.
-  const phaseCard = page.locator('section').filter({ hasText: MILESTONE_NAME });
-  await expect(phaseCard.getByText('100%', { exact: true })).toBeVisible({ timeout: 20_000 });
+  // The phase timeline is a table (#design-1115): each phase row carries its effective % in the
+  // Progress column, a bar named "<phase> N% complete". A Weight column also reads "100%" when this
+  // is the only phase (its share of the project), so the oracle names the phase's progress, not any
+  // "100%". With input_pct=null the effective % equals the task-derived value: full-strength oracle.
+  const phaseCard = page.getByRole('region', { name: 'Phase timeline' });
+  await expect(phaseCard.getByRole('progressbar', { name: `${MILESTONE_NAME} 100% complete` })).toBeVisible({ timeout: 20_000 });
 
   // ── GOAL ORACLE part 2: Projects list shows delivery chip 100% ───────────────
   await page.goto('/projects');

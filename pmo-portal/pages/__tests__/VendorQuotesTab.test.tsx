@@ -557,10 +557,10 @@ describe('AC-1410: supplier wording in quote comparison', () => {
     expect(screen.getByText('Compare and select a supplier quote')).toBeInTheDocument();
   });
 
-  it('uses pemasok wording in the Bahasa quote comparison', () => {
+  it('uses supplier wording in the Bahasa quote comparison', () => {
     render(<BahasaProvider locale="id"><VendorQuotesTab {...defaultProps} quotations={[]} /></BahasaProvider>);
 
-    expect(screen.getByText('Bandingkan dan pilih penawaran pemasok')).toBeInTheDocument();
+    expect(screen.getByText('Bandingkan dan pilih penawaran supplier')).toBeInTheDocument();
   });
 });
 

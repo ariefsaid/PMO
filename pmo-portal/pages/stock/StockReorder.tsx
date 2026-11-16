@@ -101,13 +101,13 @@ const StockReorder: React.FC = () => {
         key: 'item', header: t('reorder.worklist.columns.item'), rowHeader: true, stickyLeft: true,
         cell: (r) => (
           <div className="min-w-0">
-            <span className="block truncate font-mono text-sm font-semibold">{r.itemCode}</span>
+            <span className="block truncate record-id font-semibold text-foreground">{r.itemCode}</span>
             <span className="block truncate text-sm text-muted-foreground">{r.itemName}</span>
           </div>
         ),
         exportValue: (r) => r.itemCode,
       },
-      { key: 'warehouse', header: t('reorder.worklist.columns.warehouse'), cell: (r) => <span className="font-mono text-sm">{r.warehouseCode}</span>, exportValue: (r) => r.warehouseCode },
+      { key: 'warehouse', header: t('reorder.worklist.columns.warehouse'), cell: (r) => <span className="record-id">{r.warehouseCode}</span>, exportValue: (r) => r.warehouseCode },
       { key: 'onHand', header: t('reorder.worklist.columns.onHand'), align: 'num', cell: (r) => <span className="tabular-nums">{q(r.qtyOnHand)} <span className="text-muted-foreground">{r.unitCode}</span></span>, exportValue: (r) => r.qtyOnHand },
       { key: 'level', header: t('reorder.worklist.columns.level'), align: 'num', cell: (r) => <span className="tabular-nums">{q(r.reorderLevel)} <span className="text-muted-foreground">{r.unitCode}</span></span>, exportValue: (r) => r.reorderLevel },
       { key: 'qty', header: t('reorder.worklist.columns.orderQuantity'), align: 'num', cell: (r) => <span className="tabular-nums">{r.reorderQuantity ? <>{q(r.reorderQuantity)} <span className="text-muted-foreground">{r.unitCode}</span></> : ''}</span>, exportValue: (r) => r.reorderQuantity ?? '' },

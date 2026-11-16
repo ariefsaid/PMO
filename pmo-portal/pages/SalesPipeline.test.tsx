@@ -863,12 +863,11 @@ describe('SalesPipeline subtraction (SUB-H)', () => {
     expect(within(tender).queryByText(/CLIENT-82/)).toBeNull();
   });
 
-  it('SUB-H table name cell is one mono line "PMO number · client code" with the labels in its title', async () => {
+  it('SUB-H table name cell is one muted line "PMO number · client code" with the labels in its title', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
     const row = screen.getByText('Northwind ERP Rollout').closest('tr')!;
     const ids = within(row as HTMLElement).getByText('PMO-26-7712 · CLIENT-82');
-    expect(ids).toHaveClass('font-mono');
     expect(ids).toHaveAttribute('title', 'PMO Project Number: PMO-26-7712 · Client Project Code: CLIENT-82');
     expect(within(row as HTMLElement).queryByText(/PMO Project Number:/)).toBeNull();
   });
@@ -994,7 +993,7 @@ describe('SalesPipeline table on the shared contract (T4)', () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
     const row = screen.getByText('Regional Services').closest('tr') as HTMLElement;
-    expect(row.querySelector('.font-mono')).toBeNull();
+    expect(row.querySelector('.record-id')).toBeNull();
   });
 
   it('T4 amounts are full figures, never compacted', async () => {

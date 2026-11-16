@@ -2,10 +2,11 @@ import React from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, CardHead } from '@/src/components/ui/Card';
 import { chartTheme } from '@/src/components/ui/chartTheme';
-import { ListState } from '@/src/components/ui/ListState';
+import { ListState, type SkeletonSpec } from '@/src/components/ui/ListState';
 import { useFigureReport } from '@/src/components/ui/useFigureScope';
 import { tooltipContentStyle, tooltipCursorFill, tooltipLabelStyle } from '@/src/components/dashboard/chartChrome';
 import { peakLabelIndexes } from './chartLabels';
+import { wrapProjectName } from './hub/company/projectName';
 
 /**
  * Home graphics (screen-rules "Graphics"): bars carry their value as a direct label, one neutral series colour,
@@ -38,14 +39,16 @@ export interface BarRow {
   tone2?: ChartTone;
 }
 
-const truncate = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
-
-const NameTick: React.FC<{ x?: number; y?: number; payload?: { value: string }; max: number }> = ({ x = 0, y = 0, payload, max }) => (
-  <text x={x - 6} y={y} dy={5} textAnchor="end" style={{ fontSize: 14, fill: INK }}>
-    <title>{payload?.value}</title>
-    {truncate(payload?.value ?? '', max)}
-  </text>
-);
+/** A name on up to two lines (names are read whole; only a name longer than two lines ends in an ellipsis). */
+const NameTick: React.FC<{ x?: number; y?: number; payload?: { value: string }; max: number }> = ({ x = 0, y = 0, payload, max }) => {
+  const lines = wrapProjectName(payload?.value ?? '', max);
+  return (
+    <text x={x - 6} y={y} dy={lines.length > 1 ? -3 : 5} textAnchor="end" style={{ fontSize: 14, fill: INK }}>
+      <title>{payload?.value}</title>
+      {lines.map((line, index) => <tspan key={index} x={x - 6} dy={index === 0 ? 0 : 16}>{line}</tspan>)}
+    </text>
+  );
+};
 
 /**
  * Horizontal bars, one row per item (a comparison, a ranking, a funnel on one scale). Pass `value2` for paired bars
@@ -62,11 +65,13 @@ export const BarList: React.FC<{
   /** Row pitch for single bars (default 34px). */
   rowPitch?: number;
 }> = ({ rows, ariaLabel, seriesNames, nameWidth: fixedNameWidth, domainMax, rowPitch = 34 }) => {
-  // The name column fits the longest name (up to 22 characters; longer names end in an ellipsis).
+  // The name column fits the longest name (up to 22 characters a line); a longer name takes a second line.
   const nameWidth = fixedNameWidth ?? Math.min(190, Math.max(96, Math.ceil(Math.max(0, ...rows.map((row) => row.name.length)) * 8.4)));
+  const nameChars = Math.floor(nameWidth / 8.4);
+  const wraps = rows.some((row) => wrapProjectName(row.name, nameChars).length > 1);
   const paired = rows.some((row) => row.value2 !== undefined);
   const data = rows.map((row) => ({ ...row, a: row.value, b: row.value2 ?? null }));
-  const rowHeight = paired ? 62 : rowPitch;
+  const rowHeight = paired ? 62 : wraps ? Math.max(rowPitch, 44) : rowPitch;
   const max = domainMax ?? Math.max(1, ...rows.flatMap((row) => [row.value ?? 0, row.value2 ?? 0]));
   return (
     <div>
@@ -74,7 +79,7 @@ export const BarList: React.FC<{
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} layout="vertical" margin={{ top: 2, right: 80, bottom: 2, left: 0 }} barCategoryGap="20%" barGap={4} barSize={paired ? 16 : 18}>
             <XAxis type="number" hide domain={[0, max]} />
-            <YAxis type="category" dataKey="name" width={nameWidth} tick={<NameTick max={Math.floor(nameWidth / 8.4)} />} tickLine={false} axisLine={false} interval={0} />
+            <YAxis type="category" dataKey="name" width={nameWidth} tick={<NameTick max={nameChars} />} tickLine={false} axisLine={false} interval={0} />
             <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(_value, key, item) => [(key === 'a' ? item.payload.label : item.payload.label2) ?? '', key === 'a' ? seriesNames?.[0] ?? '' : seriesNames?.[1] ?? '']} />
             <Bar dataKey="a" radius={[0, 4, 4, 0]} isAnimationActive={false} minPointSize={2}>
               {data.map((row) => <Cell key={row.id} fill={toneFill[row.tone ?? 'neutral']} />)}
@@ -122,18 +127,45 @@ const PlainTick: React.FC<{ x?: number; y?: number; payload?: { value: string | 
   </text>
 );
 
+/** The column chart's top margin: the headroom a value label above the tallest column needs. */
+const COLUMN_PLOT_TOP = 22;
+
 /** `peak` mode: one label on the tallest column and one on the latest month's first series, nothing else. */
-const peakLabel = (data: Array<{ a: number | null; b?: number | null }>, series: 'a' | 'b') => (props: { x?: number | string; y?: number | string; width?: number | string; index?: number; value?: unknown }) => {
-  const { x = 0, y = 0, width = 0, index = 0, value } = props;
+const peakLabel = (data: Array<{ a: number | null; b?: number | null }>, series: 'a' | 'b') => (props: { x?: number | string; y?: number | string; width?: number | string; height?: number | string; index?: number; value?: unknown }) => {
+  const { x = 0, y = 0, width = 0, height, index = 0, value } = props;
   const { peak, last } = peakLabelIndexes(data);
   const isPeak = peak?.index === index && peak.series === series;
   const isLast = series === 'a' && index === last && !(peak?.index === index && peak.series === 'b');
   if (value == null || value === '' || !(isPeak || isLast)) return null;
-  // Near the right edge the label ends at the column so it never leaves the plot.
-  const anchor = index >= data.length - 2 ? 'end' : 'middle';
-  const anchorX = anchor === 'end' ? Number(x) + Number(width) : Number(x) + Number(width) / 2;
-  return <text x={anchorX} y={Number(y) - 5} textAnchor={anchor} style={LABEL_STYLE}>{String(value)}</text>;
+  // Each label sits directly above its own column, also where the column is narrower than the label (a phone).
+  // Near an edge it starts or ends at its column so it never leaves the plot.
+  const anchor = index >= data.length - 2 ? 'end' : index === 0 ? 'start' : 'middle';
+  const anchorX = anchor === 'end' ? Number(x) + Number(width) : anchor === 'start' ? Number(x) : Number(x) + Number(width) / 2;
+  return <text x={anchorX} y={labelTop(data, series, { x: Number(x), y: Number(y), width: Number(width), height: Number(height), index }, String(value), anchor) - 5} textAnchor={anchor} style={LABEL_STYLE}>{String(value)}</text>;
 };
+
+/**
+ * The top a value label must clear: a label wider than its column runs over the months beside it, so it sits above
+ * the tallest column (either series) under its text. The month step comes from the bar width and MonthColumns' gaps
+ * (barGap 2, barCategoryGap 14% each side); the pixel scale from this column's own height.
+ * ponytail: text width is estimated (0.62em per character at the 14px label), not measured.
+ */
+function labelTop(data: Array<{ a: number | null; b?: number | null }>, series: 'a' | 'b', bar: { x: number; y: number; width: number; height: number; index: number }, text: string, anchor: 'start' | 'middle' | 'end') {
+  const own = data[bar.index]?.[series] ?? 0;
+  // A column drawn at its minimum size has no usable scale: keep the label on the column.
+  if (!(bar.height > 2) || !own) return bar.y;
+  const two = data.some((row) => row.b != null);
+  const step = (two ? 2 * bar.width + 2 : bar.width) / 0.72;
+  const textWidth = text.length * LABEL_STYLE.fontSize * 0.62;
+  const anchorX = anchor === 'end' ? bar.x + bar.width : anchor === 'start' ? bar.x : bar.x + bar.width / 2;
+  const left = anchor === 'end' ? anchorX - textWidth : anchor === 'middle' ? anchorX - textWidth / 2 : anchorX;
+  const bandStart = bar.x - 0.14 * step - (series === 'b' ? bar.width + 2 : 0);
+  const from = Math.max(0, bar.index + Math.floor((left - bandStart) / step));
+  const to = Math.min(data.length - 1, bar.index + Math.floor((left + textWidth - bandStart) / step));
+  let tallest = own;
+  for (let index = from; index <= to; index += 1) tallest = Math.max(tallest, data[index].a ?? 0, data[index].b ?? 0);
+  return bar.y + bar.height - tallest * (bar.height / own);
+}
 
 /** A value label above a column: every non-zero column, or only the latest (`lastOnly`). Zero columns carry no label. */
 const columnLabel = (data: Array<{ a: number | null; b?: number | null }>, series: 'a' | 'b', lastOnly: boolean, side: 'middle' | 'end' | 'start' = 'middle', paired = false, centerOnBar = false) => (props: { x?: number | string; y?: number | string; width?: number | string; index?: number; value?: unknown }) => {
@@ -189,11 +221,11 @@ export const MonthColumns: React.FC<{
       <div className={[minWidth ? 'overflow-x-auto' : '', fill ? 'flex flex-1 flex-col' : ''].join(' ').trim() || undefined} role={minWidth ? 'region' : undefined} aria-label={minWidth ? ariaLabel : undefined} tabIndex={minWidth ? 0 : undefined}>
         <div role="img" className={fill ? 'flex-1' : undefined} aria-label={`${ariaLabel}. ${points.map((point) => `${point.tick}: ${[point.labelA && `${two && seriesNames?.[0] ? `${seriesNames[0]} ` : ''}${point.labelA}`, point.labelB && `${seriesNames?.[1] ? `${seriesNames[1]} ` : ''}${point.labelB}`].filter(Boolean).join(', ')}`).join('; ')}`} style={fill ? { minHeight: height, minWidth } : { height, minWidth }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 22, right: two && !valueAxis ? 40 : 4, bottom: 0, left: 4 }} barGap={2} barCategoryGap="14%">
+            <BarChart data={data} margin={{ top: COLUMN_PLOT_TOP, right: two && !valueAxis ? 40 : 4, bottom: 0, left: 4 }} barGap={2} barCategoryGap="14%">
               {valueAxis && <CartesianGrid vertical={false} stroke={chartTheme.grid} strokeOpacity={0.6} />}
               <XAxis dataKey="tick" tick={<PlainTick anchor="middle" dy={14} />} tickLine={false} stroke={chartTheme.grid} interval={tickInterval} />
               {valueAxis
-                ? <YAxis width={52} tickCount={4} interval={0} axisLine={false} tickLine={false} domain={[0, 'auto']} tick={<PlainTick anchor="end" dy={4} format={valueAxis} />} />
+                ? <YAxis width={76} tickCount={4} interval={0} axisLine={false} tickLine={false} domain={[0, 'auto']} tick={<PlainTick anchor="end" dy={4} format={valueAxis} />} />
                 : <YAxis hide domain={[0, 'auto']} />}
               <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(_value, key, item) => [(key === 'a' ? item.payload.labelA : item.payload.labelB) ?? '', key === 'a' ? seriesNames?.[0] ?? '' : seriesNames?.[1] ?? '']} />
               <Bar dataKey="a" fill={toneFill.accent} radius={[4, 4, 0, 0]} isAnimationActive={false} minPointSize={2}>
@@ -283,17 +315,22 @@ export const ChartCard: React.FC<{
   testId?: string;
   /** Inside another card: a titled section with no frame of its own. */
   embedded?: boolean;
+  /** Height the filled chart takes, so its loading skeleton holds the same space. */
+  pendingHeight?: number;
+  /** The filled body's silhouette, drawn while loading (default: a column chart). */
+  skeleton?: SkeletonSpec;
   children: React.ReactNode;
-}> = ({ title, actions, known = true, hiddenReason, pending = false, error, className, testId, embedded = false, children }) => {
+}> = ({ title, actions, known = true, hiddenReason, pending = false, error, className, testId, embedded = false, pendingHeight, skeleton, children }) => {
   const hide = !pending && !error && !known;
   useFigureReport(hide && hiddenReason ? [{ label: title, reason: hiddenReason }] : []);
   if (hide) return null;
-  const body = pending ? <ListState variant="loading" shape="chart" rows={2} />
-    : error ? <ListState variant="error" title={error.title} onRetry={error.retry} />
-      : children;
+  const shape: SkeletonSpec = { shape: 'chart', rows: 2, ...skeleton, minHeight: skeleton?.minHeight ?? pendingHeight };
+  const loadingBody = <ListState variant="loading" shape={shape.shape} rows={shape.rows} minHeight={shape.minHeight} />;
+  const errorBody = error ? <ListState variant="error" title={error.title} onRetry={error.retry} quiet /> : null;
+  const body = pending ? loadingBody : error ? errorBody : children;
   if (embedded) {
     return (
-      <section className={className} data-testid={testId} aria-label={title}>
+      <section className={`${className ?? ''} flex flex-col`} data-testid={testId} aria-label={title}>
         <div className="mb-2 flex items-baseline justify-between gap-3"><h3 className="text-control font-semibold">{title}</h3>{actions}</div>
         {body}
       </section>
@@ -303,9 +340,7 @@ export const ChartCard: React.FC<{
     <Card className={className} data-testid={testId} aria-label={title}>
       <CardHead level={2} actions={actions}>{title}</CardHead>
       <div className="px-[var(--panel-inset)] pb-4">
-        {pending ? <ListState variant="loading" shape="chart" rows={2} />
-          : error ? <ListState variant="error" title={error.title} onRetry={error.retry} />
-            : children}
+        {body}
       </div>
     </Card>
   );

@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { useTranslation } from 'react-i18next';
 import { Toaster, toast as sonnerToast, type ToastClassnames } from 'sonner';
 import { Icon, type IconName } from './icons';
+import { useIsNarrow } from './useIsNarrow';
 
 export type ToastKind = 'info' | 'success' | 'warning' | 'error';
 
@@ -23,12 +24,14 @@ const isUrgentKind = (kind: ToastKind) => kind === 'warning' || kind === 'error'
 
 /** Emit + style come from the library surface; every class is a DESIGN.md token. */
 const TOAST_CLASSNAMES: ToastClassnames = {
-  toast: 'pointer-events-auto flex w-[min(360px,calc(100vw-2.5rem))] items-start gap-2 rounded-overlay border border-border bg-card px-3 py-3 text-control text-foreground shadow-[var(--shadow-lg)] [&_svg]:size-4 [&_svg]:shrink-0',
+  toast: 'pointer-events-auto flex w-[min(360px,calc(100vw-2.5rem))] items-start gap-2 rounded-overlay border border-border bg-card py-3 pl-3 pr-11 max-[639px]:w-full text-control text-foreground shadow-[var(--shadow-lg)] [&_svg]:size-4 [&_svg]:shrink-0',
   content: 'min-w-0 flex-1',
   title: 'font-semibold',
   description: 'text-muted-foreground',
+  // Inside the toast, top-right, on every width. Sonner's own stylesheet places the button on the
+  // top-left corner and half outside; `!` wins over that library rule. No positioning code.
   closeButton:
-    'absolute left-0 top-0 z-10 flex size-[var(--control-height-sm)] -translate-x-1/3 -translate-y-1/3 items-center justify-center rounded-full border border-border bg-card text-muted-foreground hover:bg-surface-hover hover:text-foreground active:bg-surface-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+    '!absolute !left-auto !right-2 !top-2 z-10 flex size-[var(--control-height-sm)] !translate-x-0 !translate-y-0 items-center justify-center rounded-md !border-0 !bg-transparent text-muted-foreground hover:!bg-surface-hover hover:text-foreground active:!bg-surface-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
   success: 'save-pulse',
 };
 
@@ -71,6 +74,7 @@ interface ActiveNotice {
  */
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { t } = useTranslation('common');
+  const isPhone = useIsNarrow();
   const [statusAnnouncement, setStatusAnnouncement] = useState('');
   const [alertAnnouncement, setAlertAnnouncement] = useState('');
   const statusRef = useRef('');
@@ -176,24 +180,52 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (drawer) {
         const header = drawer.querySelector<HTMLElement>(':scope > [data-drawer-header]');
         drawerInset = Math.ceil((header?.getBoundingClientRect().bottom ?? 0) + 12);
+      } else {
+        // The navigation drawer pins Approvals at its top: a toast lands below that row, not over it.
+        const pinned = Array.from(overlays)
+          .map((candidate) => candidate.querySelector<HTMLElement>('[data-rail-pinned-approvals]'))
+          .find((row): row is HTMLElement => row !== null);
+        if (pinned) drawerInset = Math.ceil(pinned.getBoundingClientRect().bottom + 12);
       }
       setOverlay((previous) => {
         const next = { dialog: overlays.length > 0, drawerInset };
         return previous.dialog === next.dialog && previous.drawerInset === next.drawerInset ? previous : next;
       });
     };
-    sync();
-    const observer = new MutationObserver(sync);
+    // The header can wrap taller after the resize event (fonts, reflow), so its own size is observed too.
+    let sizeObserver: ResizeObserver | undefined;
+    let observed: Element | null = null;
+    const watchHeader = () => {
+      const header = document.querySelector('[data-drawer-panel][aria-modal="true"] > [data-drawer-header]');
+      if (header === observed || typeof ResizeObserver === 'undefined') return;
+      sizeObserver?.disconnect();
+      observed = header;
+      if (!header) return;
+      sizeObserver ??= new ResizeObserver(sync);
+      sizeObserver.observe(header);
+    };
+    const onMutation = () => { sync(); watchHeader(); };
+    onMutation();
+    const observer = new MutationObserver(onMutation);
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-modal'] });
     window.addEventListener('resize', sync);
     return () => {
       observer.disconnect();
+      sizeObserver?.disconnect();
       window.removeEventListener('resize', sync);
     };
   }, []);
 
   const atTop = overlay.dialog || overlay.drawerInset !== null;
-  const topOffset = overlay.drawerInset !== null ? `${overlay.drawerInset}px` : 'max(12px, env(safe-area-inset-top))';
+  // Phone: toasts sit at the top under the header, full width with the page gutters, so they
+  // never cover the bottom action area, the bottom bar or the control that failed.
+  const topOffset =
+    overlay.drawerInset !== null
+      ? `${overlay.drawerInset}px`
+      : isPhone
+        ? 'calc(var(--header-h) + env(safe-area-inset-top) + 8px)'
+        : 'max(12px, env(safe-area-inset-top))';
+  const sideOffset = isPhone ? 'var(--space-page-gutter)' : '1.25rem';
   const bottomOffset = 'calc(1.25rem + var(--mobile-action-bar-height, 0px) + var(--phone-nav-height, 0px))';
 
   return (
@@ -220,9 +252,9 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         // The two regions above own announcements; the library's own polite region would
         // read every toast a second time.
         ref={(section) => section?.removeAttribute('aria-live')}
-        position={atTop ? 'top-right' : 'bottom-right'}
-        offset={{ top: topOffset, right: '1.25rem', bottom: bottomOffset }}
-        mobileOffset={{ top: topOffset, right: '1.25rem', bottom: bottomOffset }}
+        position={isPhone ? 'top-center' : atTop ? 'top-right' : 'bottom-right'}
+        offset={{ top: topOffset, right: sideOffset, left: sideOffset, bottom: bottomOffset }}
+        mobileOffset={{ top: topOffset, right: sideOffset, left: sideOffset, bottom: bottomOffset }}
         gap={10}
         visibleToasts={4}
         theme="light"

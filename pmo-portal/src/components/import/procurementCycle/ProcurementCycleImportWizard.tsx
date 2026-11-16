@@ -431,7 +431,7 @@ function CaseCard({ vg, expanded, onToggle }: { vg: ValidatedGroup; expanded: bo
           })}
         />
         <span className="min-w-0 flex-1">
-          <span className="font-mono text-control font-semibold text-foreground">{caseRef}</span>
+          <span className="record-id font-semibold text-foreground">{caseRef}</span>
           {caseTitle !== caseRef && (
             <span className="ml-2 truncate text-control text-muted-foreground">{caseTitle}</span>
           )}
@@ -503,7 +503,7 @@ function RecordRow({ row, source, currency }: { row: ValidatedRow; source: Cycle
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-control">
           {type && <span className="font-semibold text-foreground">{type}</span>}
-          {ref && <span className="font-mono text-control text-muted-foreground">{ref}</span>}
+          {ref && <span className="record-id">{ref}</span>}
           {status && <span className="text-muted-foreground">{status}</span>}
           {amount && (
             <span className="tabular-nums text-muted-foreground">
@@ -611,7 +611,7 @@ function CycleResultStep({ wiz }: { wiz: Wiz }) {
             <li key={i} className="flex items-start gap-1.5">
               <Icon name="alert" className="mt-px size-3.5 shrink-0 text-destructive" />
               <span className="text-foreground">
-                <span className="font-mono">{f.caseRef}</span>
+                <span className="record-id text-foreground">{f.caseRef}</span>
                 {f.rowNumber > 0 ? ` row ${f.rowNumber} (${f.type})` : ` (${f.type})`}:{' '}
                 <span className="text-muted-foreground">{f.error}</span>
               </span>

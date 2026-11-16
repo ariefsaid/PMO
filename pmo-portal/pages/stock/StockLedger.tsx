@@ -61,10 +61,10 @@ export function buildLedgerColumns({ t, loc, currency, showCost }: {
       // Names wrap at spaces; the document number remains one intact identifier.
       cell: (r) => (
         <div className="min-w-0">
-          <Link to={`/stock/documents/${r.documentId}`} className="block whitespace-nowrap font-mono text-sm font-semibold hover:underline">{r.documentNumber}</Link>
+          <Link to={`/stock/documents/${r.documentId}`} className="block whitespace-nowrap record-id font-semibold text-foreground hover:underline">{r.documentNumber}</Link>
           <span className="block break-normal whitespace-normal text-sm text-muted-foreground">{t(`kinds.${r.kind}`, r.kind)}</span>
           {r.actorName && (
-            <span data-testid="stock-ledger-actor" className="block break-normal whitespace-normal text-sm text-muted-foreground 2xl:hidden">{r.actorName}</span>
+            <span data-testid="stock-ledger-actor" className="hidden break-normal whitespace-normal text-sm text-muted-foreground md:block 2xl:hidden">{r.actorName}</span>
           )}
         </div>
       ),
@@ -75,21 +75,21 @@ export function buildLedgerColumns({ t, loc, currency, showCost }: {
       // The item code stays intact on desktop; its column is wide enough for the seeded long codes.
       cell: (r) => (
         <div className="min-w-0">
-          <CodeText code={r.itemCode} testId="stock-ledger-item-code" className="block break-all font-mono text-sm md:whitespace-nowrap" />
+          <CodeText code={r.itemCode} testId="stock-ledger-item-code" className="block break-all record-id font-semibold text-foreground md:whitespace-nowrap" />
           <span className="block break-normal whitespace-normal text-sm text-muted-foreground">{r.itemName}</span>
         </div>
       ),
       exportValue: (r) => r.itemCode,
     },
-    { key: 'warehouse', header: t('ledger.columns.warehouse'), size: 200, minSize: 200, colClassName: 'md:whitespace-nowrap', cell: (r) => <CodeText code={r.warehouseCode} testId="stock-ledger-warehouse-code" className="block min-w-0 break-all font-mono text-sm md:whitespace-nowrap" />, exportValue: (r) => r.warehouseCode },
+    { key: 'warehouse', header: t('ledger.columns.warehouse'), size: 200, minSize: 200, colClassName: 'md:whitespace-nowrap', cell: (r) => <CodeText code={r.warehouseCode} testId="stock-ledger-warehouse-code" className="block min-w-0 break-all record-id md:whitespace-nowrap" />, exportValue: (r) => r.warehouseCode },
     {
-      key: 'project', header: t('ledger.columns.project'), size: 176, minSize: 176, colClassName: 'hidden lg:table-cell md:whitespace-nowrap',
+      key: 'project', header: t('ledger.columns.project'), size: 136, minSize: 136, colClassName: 'hidden lg:table-cell',
       // Project names wrap at spaces; the work-item code remains one intact identifier on desktop.
-      cell: (r) => (r.projectName ? (<div className="min-w-0"><span className="block break-normal whitespace-normal text-sm">{r.projectName}</span><CodeText code={r.boqItemCode ?? ''} className="block break-all font-mono text-sm text-muted-foreground md:whitespace-nowrap" /></div>) : null),
+      cell: (r) => (r.projectName ? (<div className="min-w-0"><span className="block break-normal whitespace-normal text-sm">{r.projectName}</span><CodeText code={r.boqItemCode ?? ''} testId="stock-ledger-boq-code" className="block break-all record-id md:whitespace-nowrap" /></div>) : null),
       exportValue: (r) => r.projectName ?? '',
     },
     {
-      key: 'delta', header: t('ledger.columns.change'), align: 'num', size: 176, minSize: 176, colClassName: 'md:whitespace-nowrap',
+      key: 'delta', header: t('ledger.columns.change'), align: 'num', size: 144, minSize: 144, colClassName: 'md:whitespace-nowrap',
       // Keep the signed quantity and its unit together; the full-width flex line also applies the
       // numeric column's right alignment to the cell content, matching its header.
       cell: (r) => <span data-testid="stock-ledger-change" className={`flex w-full min-w-0 max-w-full flex-nowrap items-baseline justify-end gap-x-1 whitespace-nowrap tabular-nums ${r.qtyDelta.startsWith('-') ? 'text-destructive-text' : ''}`}><span className="whitespace-nowrap">{r.qtyDelta.startsWith('-') ? '' : '+'}{formatQuantity(r.qtyDelta, loc)}</span>{' '}<span className="whitespace-nowrap">{r.unitCode}</span></span>,
@@ -103,8 +103,8 @@ export function buildLedgerColumns({ t, loc, currency, showCost }: {
       // reachable alongside full-width codes.
       // F9d: one line per figure (`whitespace-nowrap`) — a hyphen or the space after a currency code is
       // otherwise a place the line may break, and the reader gets a minus with no number under it.
-      { key: 'vdelta', header: t('ledger.columns.valueChange'), align: 'num', size: 128, minSize: 128, colClassName: 'md:whitespace-nowrap', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatStockValue(r.valueDelta, currency, loc)}</span>, exportValue: (r) => r.valueDelta ?? '' },
-      { key: 'vafter', header: t('ledger.columns.valueBalance'), align: 'num', size: 128, minSize: 128, colClassName: 'md:whitespace-nowrap', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatStockValue(r.valueAfter, currency, loc)}</span>, exportValue: (r) => r.valueAfter ?? '' },
+      { key: 'vdelta', header: t('ledger.columns.valueChange'), align: 'num', size: 122, minSize: 122, colClassName: 'md:whitespace-nowrap', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatStockValue(r.valueDelta, currency, loc)}</span>, exportValue: (r) => r.valueDelta ?? '' },
+      { key: 'vafter', header: t('ledger.columns.valueBalance'), align: 'num', size: 122, minSize: 122, colClassName: 'md:whitespace-nowrap', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatStockValue(r.valueAfter, currency, loc)}</span>, exportValue: (r) => r.valueAfter ?? '' },
     );
   }
   // F9c ruling 4: By shows on screen only from 2xl (1536px); below that its fact rides under Document.

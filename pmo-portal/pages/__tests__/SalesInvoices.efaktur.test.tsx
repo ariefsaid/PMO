@@ -116,8 +116,7 @@ describe('SalesInvoices e-Faktur details', () => {
     expect(headers.indexOf('e-Faktur')).toBe(headers.indexOf('Due Date') + 1);
 
     const cell = cellOf('SI-one', 'e-Faktur');
-    const number = within(cell).getByText('010.001-26.12345678');
-    expect(number).toHaveClass('font-mono'); // machine-ID style, as Invoice #
+    within(cell).getByText('010.001-26.12345678');
     // the e-Faktur date is its own fact (not the 2026-10-01 invoice date), as a muted second line
     const date = within(cell).getByText(formatDateOnly('2026-09-28'));
     expect(date).toHaveClass('text-muted-foreground');

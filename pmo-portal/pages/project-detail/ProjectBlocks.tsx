@@ -2,7 +2,7 @@ import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import React, { useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, CardPad, Icon, ListState, ProgressBar, TaxBasisLabel, Tooltip, useFigureReport, type HiddenFigure } from '@/src/components/ui';
+import { Button, FigureHiddenLine, Icon, ListState, ProgressBar, RecordSection, TaxBasisLabel, Tooltip, useFigureReport, type HiddenFigure } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
@@ -12,13 +12,13 @@ import { useTasks } from '@/src/hooks/useTasks';
 import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
 import { useSalesInvoices } from '@/src/hooks/useRevenue';
 import { useMilestones } from '@/src/hooks/useMilestones';
-import { completionPct, formatDay, formatDaysOverdue, formatTableMoney } from '@/src/lib/format';
+import { completionPct, formatDayYear, daysOverdue, formatTableMoney } from '@/src/lib/format';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import { budgetLeftAfterOrders, deriveMargin } from '@/src/lib/projectFinances';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import { useProjectCommittedSpend, useProjectProcurements } from '@/src/hooks/useProcurements';
-import { buildBudgetSummaryRows, resolveProjectCommitment } from '@/src/lib/budget/budgetModel';
+import { buildBudgetSummaryRows, resolveProjectCommitment, uncategorizedSpendNote } from '@/src/lib/budget/budgetModel';
 import MilestoneStrip from './MilestoneStrip';
 import { useBudgetPosition } from '@/src/hooks/useProjectPosition';
 import { summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
@@ -39,16 +39,13 @@ export const BlockAction: React.FC<{ onClick?: () => void; to?: string; children
 
 /** Block chrome: heading, its unit/basis once, an optional action on the same baseline. */
 export const Block: React.FC<{ id: string; title: string; unit?: React.ReactNode; action?: React.ReactNode; fillRow?: boolean; children: React.ReactNode }> = ({ id, title, unit, action, fillRow = false, children }) => (
-  <section aria-labelledby={id} className={cn('min-w-0', fillRow && 'h-full')}>
-    <Card className={fillRow ? 'flex h-full flex-col' : undefined}>
-      <CardHead id={id} subline={unit} actions={action} className="pb-2">{title}</CardHead>
-      <CardPad className={cn('pt-2', fillRow && 'flex flex-1 flex-col')}>{children}</CardPad>
-    </Card>
-  </section>
+  <RecordSection headingId={id} title={title} subline={unit} actions={action} className={cn('min-w-0', fillRow && 'flex h-full flex-col')} bodyClassName={fillRow ? 'flex flex-1 flex-col' : undefined}>
+    {children}
+  </RecordSection>
 );
 
 const Headline: React.FC<{ tone?: 'danger'; tooltip?: string; children: React.ReactNode }> = ({ tone, tooltip, children }) => (
-  <p className={cn('text-lg font-semibold leading-tight tabular-nums sm:text-xl', tone === 'danger' ? 'text-destructive-text' : 'text-foreground')}>
+  <p className={cn('text-group font-semibold leading-tight tabular-nums', tone === 'danger' ? 'text-destructive-text' : 'text-foreground')}>
     {tooltip ? <Tooltip content={tooltip}><span tabIndex={0}>{children}</span></Tooltip> : children}
   </p>
 );
@@ -60,14 +57,10 @@ const FixLink: React.FC<{ to: string; children: React.ReactNode }> = ({ to, chil
   <Link to={to} className="hit-area-24 font-semibold text-primary-text hover:underline">{children}</Link>
 );
 
-const MoneyHiddenFigures: React.FC<{ figures: HiddenFigure[] }> = ({ figures }) => {
-  useFigureReport(figures);
-  return null;
-};
 
 /* ── Money: how much of the contract have we billed and collected? ─────────────────────────── */
 
-const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean }> = ({ project, fillRow = false }) => {
+const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean; /** One line at the panel foot (the empty billing milestones). */ footer?: React.ReactNode }> = ({ project, fillRow = false, footer }) => {
   const { t } = useTranslation('project');
   const whole = moneyIn(project.currency);
   const [financeDetailsOpen, setFinanceDetailsOpen] = useState(false);
@@ -180,18 +173,17 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean }> 
 
   return (
     <Block id="pd-money" title={title} unit={unit} fillRow={fillRow}>
-      <MoneyHiddenFigures figures={hidden} />
       {/* L5: the block's one answer leads, biggest — how much of the contract is billed, then collected. */}
       {invoicedShare !== null && (
         <p className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
           {explain(t('projectDetail.money.leadTooltip', 'Invoiced amount as a share of the contract. Source: non-draft, non-cancelled invoices in the project currency.'),
             t('projectDetail.money.leadInvoiced', '{{percent}}% invoiced', { percent: invoicedShare }),
-            'text-2xl font-semibold leading-tight tabular-nums text-foreground')}
+            'text-group font-semibold leading-tight tabular-nums text-foreground')}
           {paidShare !== null && <span className="text-sm tabular-nums text-muted-foreground">{t('projectDetail.money.leadPaid', '{{percent}}% paid', { percent: paidShare })}</span>}
-          {cashReceived !== null && <span data-testid="money-lead-cash" className="text-lg font-semibold tabular-nums text-foreground">{t('projectDetail.money.cashLead', 'Received {{amount}}', { amount: whole(cashReceived) })}</span>}
+          {cashReceived !== null && <span data-testid="money-lead-cash" className="text-sm tabular-nums text-foreground">{t('projectDetail.money.cashLead', 'Received {{amount}}', { amount: whole(cashReceived) })}</span>}
         </p>
       )}
-      <dl className={cn('grid min-w-0 gap-y-2', fillRow && 'flex-1')} style={fillRow ? { gridTemplateRows: `repeat(${steps.length}, minmax(min-content, 1fr))` } : undefined} aria-label={t('projectDetail.money.cascadeLabel', 'Contract to payment')}>
+      <dl className="grid min-w-0 gap-y-2" aria-label={t('projectDetail.money.cascadeLabel', 'Contract to payment')}>
         {steps.map((step) => {
           const percent = share(step.value);
           return (
@@ -229,13 +221,17 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean }> 
           <FixLink to="/finance/receivables?view=payments">{t('projectDetail.money.matchPayments', 'Match payments')}</FixLink>
         </Note>
       )}
-      <div className="mt-5 border-t border-border/70 pt-3" data-testid="money-position-details">
+      {/* The figures this panel cannot compute yet are named here, beside the ones it shows. */}
+      {hidden.length > 0 && <FigureHiddenLine compact figures={hidden.map((figure) => ({ ...figure, label: figure.label.replace(/\s*\(.*\)$/u, '') }))} className="mt-4 text-control text-muted-foreground" />}
+      {/* Details and the empty-milestones line share one row: the panel ends level with Needs attention. */}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 border-t border-border/70 pt-3" data-testid="money-position-details">
         <button type="button" aria-expanded={financeDetailsOpen} onClick={() => setFinanceDetailsOpen((open) => !open)}
           className="touch-target inline-flex items-center gap-2 cursor-pointer text-sm font-semibold text-muted-foreground hover:text-foreground">
           <Icon name="chev" className={`size-3.5 transition-transform motion-reduce:transition-none ${financeDetailsOpen ? 'rotate-90' : ''}`} />
           {t('projectDetail.money.details', 'Details')}
         </button>
-        {financeDetailsOpen && <div className="space-y-4 pt-4"><ProjectFinancesSection project={project} /></div>}
+        {footer}
+        {financeDetailsOpen && <div className="basis-full space-y-4 pt-4"><ProjectFinancesSection project={project} /></div>}
       </div>
       <ProjectProfitLossSection projectId={project.id} />
     </Block>
@@ -354,7 +350,8 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
         {committedFigure === null
           ? t('projectDetail.cost.commitmentsUnknown', 'Open orders are unknown')
           : t('projectDetail.cost.committedInOrders', 'Committed {{amount}}', { amount: whole(committedFigure) })}
-        {pos.spent === null && <> · {t('projectDetail.cost.spendingUnavailable', 'Spending is unavailable')}</>}
+        {/* The unlinked note says why spending is missing; the clause would say it twice. */}
+        {pos.spent === null && !(spendingUnlinked && !inFigureScope) && <> · {t('projectDetail.cost.spendingUnavailable', 'Spending is unavailable')}</>}
         {!budgetAvailable && <> · {t('projectDetail.cost.budgetUnavailable', 'Budget is unavailable for comparison')}</>}
         {pos.spent !== null && budgetAvailable && <> · {committedFigure === null || remaining === null
           ? t('projectDetail.cost.leftUnknown', 'Left after open orders is unknown')
@@ -362,11 +359,12 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
             ? overOnceCommitted
               ? t('projectDetail.cost.snapshotOverOnCommitments', '{{amount}} over once committed orders land', { amount: whole(Math.abs(remaining)) })
               : t('projectDetail.budget.overAfterOrdersAmount', '{{amount}} over after open orders', { amount: whole(Math.abs(remaining)) })
-            : t('projectDetail.cost.leftAfterOrders', 'Left after orders {{amount}}', { amount: whole(remaining) })}</>}
+            : t('projectDetail.cost.leftAfterOrders', 'Left after open orders {{amount}}', { amount: whole(remaining) })}</>}
       </Sub>
       {pos.actualsPending && <Note>{t('projectDetail.cost.spendingChecking', 'Checking spending…')}</Note>}
       {pos.actualsError && <Note>{t('projectDetail.cost.spendingError', "Couldn't check spending")} <Button variant="ghost" size="sm" onClick={() => void pos.refetchActuals()}>{t('common.retry', 'Retry')}</Button></Note>}
       {pos.budgetPositionError && <Note>{t('projectDetail.cost.spendingError', "Couldn't check spending")} <Button variant="ghost" size="sm" onClick={() => void pos.refetchActuals()}>{t('common.retry', 'Retry')}</Button></Note>}
+      {pos.uncategorized && pos.spent !== null && <Note>{uncategorizedSpendNote(pos.uncategorized.amount, pos.spendCurrency ?? project.currency, t)}</Note>}
       {pos.unknown > 0 && pos.spent !== null && <Note>{t('projectDetail.budget.uncategorizedTotalKnown', 'Project spending is known; some category amounts are not mapped.')}</Note>}
       {pos.canSeeActual && pos.currencyDiffers && !pos.actualsPending && !pos.actualsError && (
         <Note>{t('projectDetail.cost.currencyDiffers', 'Spending is recorded in {{currency}}, not the project currency, so it is not compared with the budget.', { currency: pos.spendCurrency })}</Note>
@@ -380,37 +378,44 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
         </Note>
       )}
       {rows.length > 0 && (
-        <ul className="mt-6 flex min-w-0 flex-col">
+        // One row grid with the Phase timeline: category, figure, then the bar column at the right edge.
+        <div className="mt-5 text-sm">
+          {/* Visual column heads; each row link already names its category and use for assistive tech. */}
+          <div aria-hidden="true" className={cn(BUDGET_GRID, 'max-md:hidden border-b border-border/70 pb-2 text-control text-muted-foreground')}>
+            <span>{t('projectDetail.cost.colCategory', 'Category')}</span>
+            <span className="text-right">{noActuals ? t('projectDetail.cost.colBudget', 'Budget') : t('projectDetail.cost.colSpentOfBudget', 'Spent of budget')}</span>
+            <span>{noActuals ? t('projectDetail.cost.colShare', 'Share of budget') : t('projectDetail.cost.colUsed', 'Used')}</span>
+          </div>
           {rows.map((r) => {
             const over = r.actual !== null && r.actual > r.budget;
             const pct = r.actual === null ? null : r.budget > 0 ? pctOf(r.actual, r.budget) : r.actual > 0 ? 101 : 0;
             const detail = t('projectDetail.cost.categoryTooltip', 'Active category budget and mapped spending before tax. Source: the active budget and project finance records.');
             return (
-              <li key={r.category} className="border-b border-border/70 last:border-b-0">
+              <div key={r.category} className="border-b border-border/70 last:border-b-0">
                 <Tooltip content={detail} block>
                   <Link to={`/projects/${project.id}/budget`} onClick={onOpenBudget ? (event) => { event.preventDefault(); onOpenBudget(); } : undefined}
                     aria-label={t('projectDetail.cost.openCategory', 'Open {{category}} in Budget', { category: label(r.category) })}
-                    className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 py-3 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:grid-cols-[minmax(8rem,0.8fr)_minmax(5rem,auto)_minmax(5rem,1fr)]">
-                    <span className="truncate text-sm font-medium text-foreground">{label(r.category)}</span>
-                    <span className={cn('text-right text-sm tabular-nums sm:order-last', over ? 'font-semibold text-destructive-text' : 'text-muted-foreground')}>
+                    className={cn(BUDGET_GRID, 'w-full py-2.5 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring')}>
+                    <span className="min-w-0 break-words font-normal text-foreground max-md:basis-full">{label(r.category)}</span>
+                    <span className={cn('whitespace-nowrap text-right tabular-nums max-md:text-left', over ? 'font-medium text-destructive-text' : 'text-muted-foreground')}>
                       {r.actual === null
                         ? whole(r.budget)
                         : t('projectDetail.cost.rowSpent', '{{spent}} of {{budget}}', { spent: whole(r.actual), budget: whole(r.budget) })}
                     </span>
-                    {pct === null && maxBudget > 0 && <span aria-hidden="true" data-testid="category-budget-bar" className="col-span-2 h-1.5 w-full rounded-full bg-secondary sm:col-span-1">
-                      <span className="block h-full rounded-full bg-muted-foreground/60" style={{ width: `${Math.round((r.budget / maxBudget) * 100)}%` }} />
-                    </span>}
-                    {pct !== null && <span className="col-span-2 w-full sm:col-span-1">
-                      <ProgressBar value={pct} widthless className="w-full" aria-label={r.budget === 0 && r.actual! > 0
+                    <span className="flex min-w-0 items-center max-md:min-w-32 max-md:flex-1">
+                      {pct === null && maxBudget > 0 && <span aria-hidden="true" data-testid="category-budget-bar" className="h-1.5 w-full rounded-full bg-secondary">
+                        <span className="block h-full rounded-full bg-muted-foreground/60" style={{ width: `${Math.round((r.budget / maxBudget) * 100)}%` }} />
+                      </span>}
+                      {pct !== null && <ProgressBar value={pct} showValue widthless className="w-full [&>span:last-child]:w-12" aria-label={r.budget === 0 && r.actual! > 0
                         ? t('projectDetail.cost.categoryNoBudget', '{{category}} has spending with no budget', { category: label(r.category) })
-                        : t('projectDetail.cost.categoryUse', '{{category}} uses {{percent}}% of budget', { category: label(r.category), percent: pct })} />
-                    </span>}
+                        : t('projectDetail.cost.categoryUse', '{{category}} uses {{percent}}% of budget', { category: label(r.category), percent: pct })} />}
+                    </span>
                   </Link>
                 </Tooltip>
-              </li>
+              </div>
             );
           })}
-        </ul>
+        </div>
       )}
     </Block>
   );
@@ -427,9 +432,13 @@ const DeliveryBlockView: React.FC<{ projectId: string; isPipeline?: boolean; chi
   return <ActiveDeliveryBlock projectId={projectId} title={title}>{children}</ActiveDeliveryBlock>;
 };
 
+/** The overview's shared row grid: the name column flexes, figure columns are fixed, and the bar column (10rem) ends every row on the panel inset. Literal strings so Tailwind sees them. */
+const PHASE_GRID = 'grid min-w-0 grid-cols-[minmax(0,1fr)_8rem] items-center gap-x-4 gap-y-1 md:grid-cols-[minmax(0,1fr)_7rem_6rem_4.5rem_5rem_10rem]';
+// Phone: one wrapping line under the category, so the bar sits beside the figure only when both fit, never over it.
+const BUDGET_GRID = 'flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 md:grid md:grid-cols-[minmax(0,1fr)_minmax(10rem,auto)_10rem]';
+
 const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children?: React.ReactNode }> = ({ projectId, title, children }) => {
   const { t } = useTranslation('project');
-  const { t: tStatus } = useTranslation('status');
   const may = usePermission();
   // #2088: phase lateness is judged against the organization's business day, never the UTC day.
   const today = useOrgToday();
@@ -455,8 +464,8 @@ const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children
   if (all.length === 0) {
     return (
       <Block id="pd-delivery" title={title} action={manage}>
+        {/* No phases, no dated points: the progress curve has nothing to draw, so it is not mounted. */}
         <p className="text-sm text-muted-foreground">{t('projectDetail.delivery.empty', 'No phases yet. Add phases to track delivery progress.')}</p>
-        {children && <div className="mt-8">{children}</div>}
       </Block>
     );
   }
@@ -464,47 +473,83 @@ const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children
   const current = all.find((milestone) => milestone.effective_pct < 100);
   const donePhases = all.filter((milestone) => milestone.effective_pct >= 100).length;
   const phasesDone = t('projectDetail.delivery.phasesDone', '{{done}} of {{total}} phases complete', { done: donePhases, total: all.length });
+  // A phase past its target is "late" (screen rules: overdue is for tasks and invoices). Exception colour once:
+  // only the latest phase is red; the others state their lateness in plain text.
+  const lateDaysOf = (milestone: (typeof all)[number]) => {
+    const started = milestone.effective_pct > 0 || milestone.task_count > 0;
+    return milestone.target_date && milestone.target_date < today && milestone.effective_pct < 100 && started
+      ? daysOverdue(milestone.target_date) : null;
+  };
+  const worstLate = all.reduce<{ id: string | null; days: number }>((worst, milestone) => {
+    const days = lateDaysOf(milestone) ?? 0;
+    return days > worst.days ? { id: milestone.id, days } : worst;
+  }, { id: null, days: 0 });
   return (
     <Block id="pd-delivery" title={title} action={action}>
       <div data-testid="phase-read-details">
         {/* The weighted % lives once, in the header facts; this block answers "which phase are we in?". */}
+        {/* #design-1115: the card leads with its answer — "Current phase: X" — and how many phases are done. */}
         <Headline tooltip={t('projectDetail.delivery.currentTooltip', 'The first phase in plan order that is not complete. Source: the project phase plan and linked task progress.')}>
-          {current?.name ?? t('projectDetail.delivery.allPhasesDone', 'All phases complete')}
+          {current
+            ? t('projectDetail.delivery.currentPhaseIs', 'Current phase: {{name}}', { name: current.name })
+            : t('projectDetail.delivery.allPhasesDone', 'All phases complete')}
         </Headline>
-        <Sub>{current ? <>{t('projectDetail.milestones.currentPhaseLabel', 'Current phase')} · {phasesDone}</> : phasesDone}</Sub>
-        <ul className="mt-4 divide-y divide-border/70">
+        <Sub>{phasesDone}</Sub>
+        {/* One row grid with the Budget block: name, figures, then the bar column (fixed width) at the right edge. */}
+        <div role="table" aria-label={title} className="mt-4 text-sm">
+          <div role="row" className={cn(PHASE_GRID, 'max-md:sr-only border-b border-border/70 pb-2 text-control text-muted-foreground')}>
+            <span role="columnheader">{t('projectDetail.delivery.colPhase', 'Phase')}</span>
+            <span role="columnheader" className="md:text-right">{t('projectDetail.delivery.colDue', 'Due')}</span>
+            <span role="columnheader" className="md:text-right">{t('projectDetail.delivery.colLateBy', 'Late by')}</span>
+            <span role="columnheader" className="md:text-right">{t('projectDetail.delivery.colWeight', 'Weight')}</span>
+            <span role="columnheader" className="md:text-right">{t('projectDetail.delivery.colTasks', 'Tasks')}</span>
+            <span role="columnheader">{t('projectDetail.delivery.colProgress', 'Progress')}</span>
+          </div>
           {all.map((milestone) => {
             const phaseTasks = (tasks.data ?? []).filter((task) => task.milestone_id === milestone.id && !task.parent_task_id);
             const doneTasks = phaseTasks.filter((task) => task.status === 'Done').length;
             const blockingTasks = phaseTasks.filter((task) => task.status === 'Blocked');
             const weightShare = totalWeight > 0 ? Math.round((milestone.weight / totalWeight) * 100) : 0;
             const pct = completionPct(milestone.effective_pct);
-            const started = milestone.effective_pct > 0 || milestone.task_count > 0;
-            const overdue = Boolean(milestone.target_date && milestone.target_date < today && milestone.effective_pct < 100 && started);
-            const lateText = overdue ? formatDaysOverdue(milestone.target_date, tStatus) : null;
+            const lateDays = lateDaysOf(milestone);
+            // On a phone the header row is hidden, so each figure carries its column name in front.
+            const cue = (label: string) => <span className="md:sr-only">{label} </span>;
             return (
-              <li key={milestone.id} className="grid min-w-0 items-center gap-x-4 gap-y-1 py-2.5 md:grid-cols-[minmax(8rem,1fr)_minmax(0,2fr)_12rem]">
-                <span className={cn('min-w-0 break-words text-sm text-foreground', milestone.id === current?.id ? 'font-semibold' : 'font-medium')}>{milestone.name}</span>
-                <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                  {milestone.target_date && (overdue
-                    ? <span className="font-medium text-destructive-text">{lateText} · {formatDay(milestone.target_date)}</span>
-                    : <span>{t('projectDetail.delivery.phaseTarget', 'Target {{date}}', { date: formatDay(milestone.target_date) })}</span>)}
-                  <span>{t('projectDetail.milestones.weightShare', '{{pct}}% of project', { pct: String(weightShare) })}</span>
-                  <span>{t('projectDetail.milestones.taskCount', '{{done}} of {{total}} tasks', { done: doneTasks, total: phaseTasks.length || milestone.task_count })}</span>
-                  {blockingTasks.map((task) => <Link key={task.id} to={`/projects/${projectId}/tasks?open=${encodeURIComponent(task.id)}`} className="hit-area-24 font-semibold text-primary-text hover:underline">{task.name}</Link>)}
+              <div role="row" key={milestone.id} className={cn(PHASE_GRID, 'border-b border-border/70 py-2.5 last:border-b-0')}>
+                <span role="cell" className={cn('min-w-0 break-words text-foreground max-md:col-span-1', milestone.id === current?.id ? 'font-medium' : 'font-normal')}>
+                  {milestone.name}
+                  {blockingTasks.length > 0 && <span className="mt-0.5 flex flex-wrap gap-x-3">{blockingTasks.map((task) => <Link key={task.id} to={`/projects/${projectId}/tasks?open=${encodeURIComponent(task.id)}`} className="hit-area-24 font-medium text-primary-text hover:underline">{task.name}</Link>)}</span>}
                 </span>
-                {/* N3: a block tooltip trigger spans the row, so the bar keeps its full track on phone (it collapsed to the label). */}
-                <Tooltip block content={t('projectDetail.delivery.phaseProgressTooltip', 'Manual phase progress when set; otherwise done phase tasks divided by the phase task count. Source: the project phase plan.')}>
-                  <span tabIndex={0} className="flex w-full min-w-0">
-                    {/* Delivery progress stays primary until the phase is complete, then success. */}
-                    <ProgressBar value={pct} tone={milestone.effective_pct >= 100 ? 'success' : 'primary'} showValue widthless className="w-full"
-                      aria-label={t('projectDetail.delivery.phaseProgressAria', '{{name}} {{pct}}% complete', { name: milestone.name, pct })} />
-                  </span>
-                </Tooltip>
-              </li>
+                <span role="cell" className="tabular-nums text-muted-foreground md:text-right max-md:col-span-2 max-md:row-start-2 max-md:inline">
+                  {milestone.target_date ? <>{cue(t('projectDetail.delivery.colDue', 'Due'))}{formatDayYear(milestone.target_date)}</> : '—'}
+                </span>
+                <span role="cell" className={cn('tabular-nums md:text-right max-md:hidden', lateDays === null ? 'text-muted-foreground' : milestone.id === worstLate.id ? 'font-medium text-destructive-text' : 'text-foreground')}>
+                  {lateDays === null ? '—' : t('projectDetail.delivery.lateByDays', '{{count}} days', { count: lateDays })}
+                </span>
+                <span role="cell" className="tabular-nums text-muted-foreground md:text-right max-md:hidden">{t('projectDetail.delivery.weightPct', '{{pct}}%', { pct: String(weightShare) })}</span>
+                <span role="cell" className="tabular-nums text-muted-foreground md:text-right max-md:hidden">{t('projectDetail.delivery.tasksOf', '{{done}} of {{total}}', { done: doneTasks, total: phaseTasks.length || milestone.task_count })}</span>
+                {/* N3: a block tooltip trigger spans the cell, so the bar keeps its full track on phone. */}
+                <span role="cell" className="min-w-0 max-md:col-start-2 max-md:row-start-1">
+                  <Tooltip block content={t('projectDetail.delivery.phaseProgressTooltip', 'Manual phase progress when set; otherwise done phase tasks divided by the phase task count. Source: the project phase plan.')}>
+                    <span tabIndex={0} className="flex w-full min-w-0">
+                      {/* Delivery progress stays primary until the phase is complete, then success. */}
+                      <ProgressBar value={pct} tone={milestone.effective_pct >= 100 ? 'success' : 'primary'} showValue widthless className="w-full [&>span:last-child]:w-12"
+                        aria-label={t('projectDetail.delivery.phaseProgressAria', '{{name}} {{pct}}% complete', { name: milestone.name, pct })} />
+                    </span>
+                  </Tooltip>
+                </span>
+                {/* Phone: late by, weight and tasks read as one line under the name. */}
+                <span className="col-span-2 text-control tabular-nums text-muted-foreground md:hidden" aria-hidden="true">
+                  {[
+                    lateDays === null ? null : t('projectDetail.delivery.phaseLate', '{{count}} days late', { count: lateDays }),
+                    t('projectDetail.milestones.weightShare', '{{pct}}% of project', { pct: String(weightShare) }),
+                    t('projectDetail.milestones.taskCount', '{{done}} of {{total}} tasks', { done: doneTasks, total: phaseTasks.length || milestone.task_count }),
+                  ].filter(Boolean).join(' · ')}
+                </span>
+              </div>
             );
           })}
-        </ul>
+        </div>
       </div>
       {children && <div className="mt-8">{children}</div>}
     </Block>

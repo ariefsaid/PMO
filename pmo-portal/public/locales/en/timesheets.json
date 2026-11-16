@@ -56,5 +56,8 @@
     "action": "Re-open week",
     "body": "{{owner}}’s approved timesheet for {{week}} goes back to Draft so it can be edited. It must be approved again afterwards.",
     "title": "Re-open this week for correction?"
+  },
+  "footer": {
+    "fixHoursToSubmit": "Fix the hours marked in red to submit"
   }
 }

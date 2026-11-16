@@ -88,9 +88,9 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
           style={{ width: `${width}%` }}
         />
       </span>
-      {/* #2089: a fractional share renders as a locale percent, never a raw float (33.333…%). */}
+      {/* #2089: a fractional share renders as a locale percent, never a raw float (33.333…%); the box grows for 1,400% rather than spill. */}
       {showValue && (
-        <span className="w-10 text-right text-control font-bold tabular tabular-nums">{formatPercent(value / 100, 0)}</span>
+        <span className="min-w-10 shrink-0 whitespace-nowrap text-right text-control font-bold tabular tabular-nums">{formatPercent(value / 100, 0)}</span>
       )}
     </span>
   );

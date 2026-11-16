@@ -6,6 +6,7 @@ import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import { cn } from '@/src/components/ui/cn';
 import type { AgeingBuckets, PayablesAgeingBuckets } from '@/src/lib/finance/financePosition';
 import { SplitBar, type SplitBarPart } from './SplitBar';
+import { FIGURE_LINE_CLASS } from '@/src/components/ui/FigureContent';
 
 type AgeingKind = 'receivables' | 'payables';
 type AgeingValues = Record<string, AgeingBuckets | PayablesAgeingBuckets>;
@@ -23,6 +24,8 @@ export interface AgeingStripProps {
   unknownTotal?: number;
   /** Use status-palette hues for payables age buckets on screens that pair this chart with status pills. */
   payablesStatusColors?: boolean;
+  /** A host that frames the strip in its own panel owns the spacing below it: no bottom margin of the strip's own, and the legend's colour dots hang in the panel's inset so the labels start on it. */
+  flush?: boolean;
 }
 
 const RECEIVABLE_BUCKETS = ['notDue', 'noDueDate', 'd1_30', 'd31_60', 'd61_90', 'over90'] as const;
@@ -44,7 +47,7 @@ const PAYABLE_STATUS_COLORS: Record<BucketKey, string> = {
   d61_90: 'hsl(var(--warning) / 0.72)',
 };
 
-export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLabel, values, unknownCounts = {}, noDueDateCounts = {}, unknownTotal = 0, payablesStatusColors = false }) => {
+export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLabel, values, unknownCounts = {}, noDueDateCounts = {}, unknownTotal = 0, payablesStatusColors = false, flush = false }) => {
   const { t } = useTranslation();
   const { currency: orgCurrency, isResolved } = useOrgCurrencyState();
   const bucketKeys: readonly BucketKey[] = kind === 'receivables' ? RECEIVABLE_BUCKETS : PAYABLE_BUCKETS;
@@ -74,7 +77,7 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLab
       : (buckets as PayablesAgeingBuckets | undefined)?.[key as keyof PayablesAgeingBuckets] ?? 0;
 
   return (
-    <section aria-label={ariaLabel ?? title} className="mb-5 min-w-0">
+    <section aria-label={ariaLabel ?? title} className={cn('min-w-0', !flush && 'mb-5')}>
       <h2 className="mb-2 text-[14px] font-semibold">{title}</h2>
       {currencies.length === 0 && <p className="text-sm text-muted-foreground">{unknownTotal > 0
         ? t('finance:area.ageingUnknown', { defaultValue: unknownTotal === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count: unknownTotal })
@@ -109,19 +112,19 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLab
               scaleMax={total}
               testId={`ageing-bar-${currency}`}
             />
-            <div data-testid={`ageing-legend-${currency}`} className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-x-3 gap-y-2">
+            <div data-testid={`ageing-legend-${currency}`} className={cn('mt-2 grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-x-3 gap-y-2', flush && '-ml-4')}>
               {bucketKeys.map((key, index) => {
                 const amount = amounts[index] ?? 0;
                 const unknown = unknownCounts[currency]?.[key] ?? 0;
                 const noDueDateCount = kind === 'receivables' && key === 'noDueDate' ? noDueDateCounts[currency] ?? 0 : 0;
                 const unknownLabel = t('financeHub:hub.fix.ageing.unknownCount', { defaultValue: unknown === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count: unknown });
                 return (
-                  <div key={key} data-testid={`ageing-bucket-${currency}-${key}`} className="grid min-w-0 grid-cols-[10px_minmax(0,1fr)_auto] items-baseline gap-x-2">
+                  <div key={key} data-testid={`ageing-bucket-${currency}-${key}`} className={cn('grid min-w-0 grid-cols-[10px_minmax(0,1fr)_auto] items-baseline', flush ? 'gap-x-1.5' : 'gap-x-2')}>
                     <span aria-hidden="true" className="size-2.5 shrink-0 rounded-full" style={{ background: bucketColors[key] }} />
                     <span className="min-w-0 break-words text-control text-muted-foreground">{labels[key]}</span>
                     {unknown > 0 && amount === 0
                       ? <span className="text-right text-control text-muted-foreground">{unknownLabel}</span>
-                      : <span className={cn('max-w-full break-all text-right tabular text-sm', amount === 0 ? 'font-normal text-muted-foreground' : 'font-semibold text-foreground')}>{formatCurrency(amount / 100, currency)}</span>}
+                      : <span className={cn(FIGURE_LINE_CLASS, 'text-right text-sm', amount === 0 ? 'font-normal text-muted-foreground' : 'font-semibold text-foreground')}>{formatCurrency(amount / 100, currency)}</span>}
                     {unknown > 0 && amount !== 0 && <span className="col-span-2 col-start-2 text-right text-control text-muted-foreground">{t('financeHub:hub.fix.ageing.plusUnknown', { defaultValue: '+ {{label}}', label: unknownLabel })}</span>}
                     {noDueDateCount > 0 && <span className="col-span-2 col-start-2 text-right text-control text-muted-foreground">{t('finance:area.ageingNoDueDateCount', { count: noDueDateCount, defaultValue_one: '{{count}} invoice', defaultValue_other: '{{count}} invoices' })}</span>}
                   </div>

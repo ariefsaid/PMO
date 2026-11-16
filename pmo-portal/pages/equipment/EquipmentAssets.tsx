@@ -44,7 +44,7 @@ const NewAssetModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       submitLabel={t('equipment:assets.create', 'Create asset')} onSubmit={submit} onClose={onClose}
       loading={form.isSubmitting} dirty={form.isDirty} submitDisabled={!form.isComplete} submitError={submitError}>
       <FormGrid>
-        <TextField label={t('equipment:assets.code', 'Code')} required mono {...code} />
+        <TextField label={t('equipment:assets.code', 'Code')} required code {...code} />
         <TextField label={t('equipment:assets.name', 'Name')} required {...name} />
         <SelectField label={t('equipment:assets.unit', 'Default unit')} value={form.values.unit} onChange={(v) => form.setValue('unit', v)}
           options={[{ value: 'hours', label: t('equipment:unit.hours', 'hours') }, { value: 'days', label: t('equipment:unit.days', 'days') }]} />
@@ -92,11 +92,11 @@ const EquipmentAssetsPage: React.FC = () => {
   };
 
   const columns: Column<EquipmentAssetRow>[] = [
-    { key: 'code', header: t('equipment:assets.code', 'Code'), kind: 'primary', rowHeader: true, cell: (a) => <span className="font-mono">{a.code}</span> },
-    { key: 'name', header: t('equipment:assets.name', 'Name'), cell: (a) => <span className="font-medium">{a.name}</span> },
+    { key: 'code', header: t('equipment:assets.code', 'Code'), kind: 'primary', rowHeader: true, cell: (a) => <span className="record-id font-semibold text-foreground">{a.code}</span> },
+    { key: 'name', header: t('equipment:assets.name', 'Name'), cell: (a) => <span>{a.name}</span> },
     { key: 'unit', header: t('equipment:assets.unit', 'Default unit'), cell: (a) => unitLabel(t, a.default_unit) },
     { key: 'ref', header: t('equipment:assets.externalRef', 'ERP reference'),
-      cell: (a) => a.external_ref ? <span className="font-mono">{a.external_ref}</span> : null },
+      cell: (a) => a.external_ref ? <span className="record-id">{a.external_ref}</span> : null },
   ];
 
   return (

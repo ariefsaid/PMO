@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
 import { MODULES } from './routeMatch';
+import { AuthContext } from '@/src/auth/AuthContext';
 
 export interface BreadcrumbPart {
   label: string;
@@ -45,8 +46,32 @@ interface BreadcrumbProps {
  *   nav). This keeps the top bar tidy at 375px without sacrificing wayfinding.
  *   Desktop (>921px) is unchanged: all parts show.
  */
+/** True while the page body carries its own visible h1 (the phone top bar then stays empty). */
+const usePageHasTitle = (): boolean => {
+  const [has, setHas] = useState(false);
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+    const check = () => setHas(Boolean(document.querySelector('main h1, #main-content h1, [role="main"] h1')));
+    check();
+    const observer = typeof MutationObserver === 'undefined' ? null : new MutationObserver(check);
+    observer?.observe(document.body, { childList: true, subtree: true });
+    return () => observer?.disconnect();
+  }, []);
+  return has;
+};
+
 export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
   const { t } = useTranslation();
+  const pageHasTitle = usePageHasTitle();
+  // The signed-in role (never a preview role): it decides which pages actually open.
+  const realRole = useContext(AuthContext)?.role ?? null;
+  // A parent crumb is a doorway only when this person can open it: a project manager on an invoice
+  // sees where the record lives ("Finance > Receivables") without a link to a page that refuses them.
+  const canOpen = (href: string | undefined): boolean => {
+    if (!href || !realRole) return true;
+    const destination = MODULES.find((module) => module.path === href.split('?')[0]);
+    return !destination?.roles || (destination.roles as string[]).includes(realRole);
+  };
   // Pending/not-found crumbs carry shared shell vocabulary keys that routeMatch attaches
   // dynamically (object properties), which catalogue extraction cannot see — so resolve those
   // two through the literal t() references below (same parser-visible pattern as Rail's
@@ -88,11 +113,15 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
                 <Icon name="chev" />
               </span>
             )}
-            {last || (!part.onClick && !part.href) ? (
+            {!last && (part.onClick || part.href) && !canOpen(part.href) ? (
+              <span title={part.title} className="break-words text-muted-foreground max-[920px]:hidden">
+                {label}
+              </span>
+            ) : last || (!part.onClick && !part.href) ? (
               <span
                 aria-current="page"
                 title={part.title}
-                className="min-w-0 break-words font-semibold text-foreground"
+                className={cn('min-w-0 break-words font-semibold text-foreground', pageHasTitle && 'max-[920px]:hidden')}
               >
                 {label}
               </span>

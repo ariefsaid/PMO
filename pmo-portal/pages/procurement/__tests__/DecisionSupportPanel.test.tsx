@@ -17,6 +17,10 @@ const budgetState = { data: 500000 as number | undefined, isPending: false, isEr
 const committedState = { data: 100000 as number | undefined, isPending: false, isError: false };
 const reservedState = { data: 0 as number | undefined, projectCurrency: 'USD', budgetCurrency: 'USD', otherCurrencies: [], isPending: false, isError: false };
 
+// The budget panel also reads the project's canonical Budget used; stubbed like its other reads (these tests mount no QueryClient).
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: () => ({ data: undefined, isPending: false, isError: false }),
+}));
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => budgetState,
 }));

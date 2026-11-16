@@ -35,17 +35,25 @@ export const FigureScope: React.FC<{ children: React.ReactNode }> = ({ children 
 };
 
 /** "3 figures hidden: accounting is not connected · Set up". Renders nothing when every figure has a value. */
-export const FigureHiddenLine: React.FC<{ className?: string; /** "N figures hidden · Why": the reasons and the fix link open from "Why". */ compact?: boolean }> = ({ className, compact = false }) => {
+export const FigureHiddenLine: React.FC<{
+  className?: string;
+  /** "N figures hidden · Why": the reasons and the fix link open from "Why". */
+  compact?: boolean;
+  /** One panel's own hidden figures (no scope): the line names them — "Not shown yet: Ordered, Delivered · Why" — inside that panel. */
+  figures?: HiddenFigure[];
+}> = ({ className, compact = false, figures }) => {
   const { t } = useTranslation('status');
   const scope = useFigureScope();
-  const hidden = scope?.hidden ?? [];
+  const hidden = figures ?? scope?.hidden ?? [];
   if (hidden.length === 0) return null;
   const reasons = [...new Set(hidden.map((h) => h.reason))];
   const links = [...new Map(hidden.flatMap((h) => (h.link ? [[h.link.to, h.link] as const] : []))).values()];
   if (compact) {
     return (
       <p role="status" data-testid="figures-hidden" className={className ?? 'text-control text-muted-foreground'}>
-        {t('figures.hiddenCount', { count: hidden.length, defaultValue_one: '{{count}} figure hidden', defaultValue_other: '{{count}} figures hidden' })}
+        {figures
+          ? t('figures.notShown', 'Not shown yet: {{figures}}', { figures: [...new Set(hidden.map((h) => h.label))].join(', ') })
+          : t('figures.hiddenCount', { count: hidden.length, defaultValue_one: '{{count}} figure hidden', defaultValue_other: '{{count}} figures hidden' })}
         {' · '}
         <Popover>
           <PopoverTrigger className="font-medium text-primary-text underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{t('figures.why', 'Why')}</PopoverTrigger>

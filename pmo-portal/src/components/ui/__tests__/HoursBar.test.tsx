@@ -18,7 +18,7 @@ describe('T5 — HoursBar', () => {
 
 
 
-  it('renders mono code when provided (T5 Mono-For-Identifiers)', () => {
+  it('renders code when provided (T5)', () => {
     render(<HoursBar label="Alpha" code="A001" hours={4} maxHours={8} />);
     expect(screen.getByText('A001')).toBeInTheDocument();
   });

@@ -19,10 +19,10 @@ export const ApprovalItems: React.FC<{ entries: ApprovalPopulationEntry[]; limit
           <li key={item.key} data-testid="approval-item">
             <Link to={item.href} className="grid min-h-11 grid-cols-[minmax(0,1fr)_auto_1rem] items-center gap-x-3 py-2.5 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
               <span className="min-w-0">
-                <span className="block truncate text-control font-medium" title={item.what}>{item.what}</span>
-                <span className="block truncate text-control text-muted-foreground">{[item.who, waited].filter(Boolean).join(' · ')}</span>
+                <span className="block break-words text-control font-medium">{item.what}</span>
+                <span className="block break-words text-control text-muted-foreground">{[item.who, waited].filter(Boolean).join(' · ')}</span>
               </span>
-              <span className="text-right text-control font-semibold tabular">{item.amount}</span>
+              <span className="text-right text-control tabular">{item.amount}</span>
               <Icon name="chev" className="size-4 shrink-0 text-muted-foreground" />
             </Link>
           </li>

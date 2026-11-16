@@ -1,6 +1,6 @@
 /**
  * Purchase Invoice `toBody`/`fromDoc` — R9 §1 frozen. `toBody` sends exactly `{company, supplier, items:
- * [{item_code, qty, rate, description?, project?}], project?, bill_no?, bill_date?, taxes_and_charges?, taxes?}` (#520). `company` is the
+ * [{item_code, qty, rate, purchase_order?, po_detail?, description?, project?}], project?, bill_no?, bill_date?, taxes_and_charges?, taxes?}` (#520). `company` is the
  * binding's configured company, stated on the body so ERPNext cannot file the bill under the integration user's default company
  * (MR already sends it; the sweep's purchase mirror feed scopes to the same company). ERPNext server-defaults
  * `credit_to`, `posting_date`/`due_date`, and all totals (docs/spikes/2026-07-11-erpnext-pe-mandatory-fields.md §1). `fromDoc` mirrors the header
@@ -41,6 +41,8 @@ export function piToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
     ...(ctx.refs.project ? { project: ctx.refs.project } : {}),
     items: items.map((i) => ({
       item_code: i.item_code, qty: i.qty, rate: i.rate,
+      // ERPNext marks the order (and its receipts) billed only from po_detail; purchase_order alone links nothing.
+      ...(ctx.refs.po && i.po_item_child_name ? { purchase_order: ctx.refs.po, po_detail: i.po_item_child_name } : {}),
       ...(ctx.refs.project ? { project: ctx.refs.project } : {}),
       ...(i.description ? { description: i.description } : {}),
     })),

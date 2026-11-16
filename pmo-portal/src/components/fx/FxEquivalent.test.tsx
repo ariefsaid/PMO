@@ -99,7 +99,9 @@ describe('AC-FX-004 JISDOR equivalent display', () => {
   it('keeps a compact equivalent to one visual line with a full accessible name', () => {
     renderEquivalent({ compact: true });
     const clipped = screen.getByText('≈ Rp 1,623,456 (JISDOR 2026-10-09)', { selector: '[aria-hidden="true"]' });
-    expect(clipped).toHaveClass('truncate', 'whitespace-nowrap');
+    // rule 15 (#2346): one line, never cut with an ellipsis; the row gives way
+    expect(clipped).toHaveClass('whitespace-nowrap');
+    expect(clipped).not.toHaveClass('truncate');
     expect(clipped).toHaveAttribute('title', clipped.textContent);
     expect(screen.getByText(clipped.textContent ?? '', { selector: '.sr-only' })).toBeInTheDocument();
   });

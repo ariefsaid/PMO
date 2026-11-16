@@ -175,6 +175,10 @@ vi.mock('@/src/components/ui', async (orig) => {
   return { ...actual, useToast: () => ({ toast }) };
 });
 
+// S05: the budget panel also reads the project's canonical Budget used; stubbed like its other reads (these tests mount no QueryClient).
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: () => ({ data: undefined, isPending: false, isError: false }),
+}));
 // N8 (AC-IXD-PROC-W5-2): DecisionSupportPanel is now mounted in ProcurementDetails.
 // Stub useProjectBudget so the panel renders a real (non-loading) state without a
 // QueryClientProvider — the detail-page tests assert existing lifecycle behavior, not

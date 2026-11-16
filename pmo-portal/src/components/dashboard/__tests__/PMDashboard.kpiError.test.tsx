@@ -60,7 +60,7 @@ describe('PMDashboard — KPI band on projects fetch error (AC-W2-4-04)', () => 
     // The failed read draws no contract figure (no fabricated zero) and the projects card explains it once, with retry.
     expect(screen.queryByTestId('kpi-my-contract-value')).not.toBeInTheDocument();
     expect(screen.queryByText('$0')).not.toBeInTheDocument();
-    screen.getByRole('button', { name: 'Retry' }).click();
+    within(screen.getByTestId('pm-projects')).getByRole('button', { name: 'Retry' }).click();
     expect(projectsRefetch).toHaveBeenCalled();
     expect(within(screen.getByTestId('pm-projects')).getAllByText(/couldn.t load projects/i)).toHaveLength(1);
   });

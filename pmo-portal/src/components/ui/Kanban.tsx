@@ -23,6 +23,8 @@ export interface KanbanColumnProps {
   presentation?: 'cards' | 'flat';
   /** Drag feedback while a card is being dragged (DND, #1637): where it may or may not land. */
   dropState?: DropState;
+  /** The column's read has not answered: count shows a dash and the body holds a skeleton (never "empty"). */
+  pending?: boolean;
 }
 
 /** Base kanban column shell — sticky header, scrollable body. Surface issues
@@ -38,9 +40,10 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
   selected = false,
   presentation = 'cards',
   dropState,
+  pending = false,
 }) => {
   const { t } = useTranslation('boardDrag');
-  const empty = React.Children.count(children) === 0;
+  const empty = !pending && React.Children.count(children) === 0;
   return (
     <div
       data-selected={selected ? 'true' : undefined}
@@ -76,7 +79,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
             </span>
           )}
           <span className="ml-auto grid h-5 min-w-[22px] place-items-center rounded-full border border-border bg-background px-2 text-support font-bold text-muted-foreground tabular">
-            {count}
+            {pending ? '—' : count}
           </span>
         </div>
         {totals && <div className="mt-2 flex items-baseline gap-2">{totals}</div>}
@@ -92,7 +95,11 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
         tabIndex={0}
         className="flex min-h-[60px] flex-col gap-2 overflow-y-auto p-2"
       >
-        {empty ? (
+        {pending ? (
+          <div aria-busy="true" data-testid="kanban-column-pending" className="flex flex-col gap-2">
+            {[0, 1, 2].map((i) => <div key={i} className="skel h-[116px] rounded-lg" />)}
+          </div>
+        ) : empty ? (
           <div className="py-6 text-center text-control text-muted-foreground">{emptyMessage}</div>
         ) : (
           children

@@ -195,8 +195,9 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
            records say planning starts on win; delivery records say there are no phases yet. */
         <div
           data-testid={compactWhenEmpty ? 'prewin-compact-planner' : 'milestone-strip-empty'}
-          className="flex items-center gap-2 py-1"
+          className="flex flex-col items-start gap-1 py-1 md:flex-row md:items-center md:gap-2"
         >
+          {/* Phone: the message sits above its link, so it keeps the line's full width. */}
           <span className="flex-1 text-sm text-muted-foreground">
             {compactWhenEmpty
               ? t('projectDetail.milestones.prewinPlaceholder', 'Delivery planning starts once this is won')

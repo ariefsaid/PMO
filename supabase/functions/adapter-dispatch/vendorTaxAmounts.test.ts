@@ -92,6 +92,9 @@ function routes(unexpected: FetchCall[]): MockRoute[] {
         ? objectResponse({ external_record_id: 'Supplier:Demo Supplier' })
         : nullObjectResponse()),
     supabaseSelect('procurement_items', () => jsonResponse([])),
+    // The purchase has no ERP order (none pushed by PMO, none linked), so the bill is sent free-standing.
+    supabaseSelect('purchase_orders', () => jsonResponse([])),
+    supabaseSelect('procurement_erp_links', () => jsonResponse([])),
     {
       label: 'outbox read', method: 'GET', pathname: '/rest/v1/external_command_outbox',
       response: (call) => {

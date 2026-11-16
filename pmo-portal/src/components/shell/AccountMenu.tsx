@@ -53,7 +53,7 @@ const MyIntegrationsItem: React.FC<{ className: string }> = ({ className }) => {
  */
 const TEXT_SIZES: TextSize[] = ['default', 'large', 'larger'];
 
-export const AccountMenu: React.FC = () => {
+export const AccountMenu: React.FC<{ showIdentity?: boolean }> = ({ showIdentity = false }) => {
   const { t } = useTranslation();
   const { currentUser, signOut } = useAuth();
   const { realRole, effectiveRole, canImpersonate, viewAs } = useEffectiveRole();
@@ -144,14 +144,14 @@ export const AccountMenu: React.FC = () => {
       <Menu.Root open={menuOpen} onOpenChange={setMenuOpen}>
         <Menu.Trigger
           aria-label={t('shell.contextBar.accountMenu', 'Account menu')}
-          className="touch-target inline-flex h-auto min-h-11 min-w-11 max-w-[220px] shrink-0 items-center gap-2 rounded-lg border border-transparent bg-card py-1 pl-1.5 pr-2.5 hover:bg-accent"
+          className={cn('touch-target inline-flex h-auto min-h-11 min-w-11 max-w-[220px] shrink-0 items-center gap-2 rounded-lg border border-transparent bg-card py-1 pl-1.5 pr-2.5 hover:bg-accent', showIdentity && 'w-full max-w-full')}
         >
           <Avatar name={currentUser?.full_name} decorative fallback="U" />
-          <span className="hidden min-w-0 max-w-[160px] flex-col items-start leading-tight sm:flex">
+          <span className={cn('min-w-0 flex-col items-start leading-tight', showIdentity ? 'flex flex-1' : 'hidden max-w-[160px] sm:flex')}>
             <span className="block max-w-full break-words text-control font-semibold">{currentUser?.full_name}</span>
             <span className="break-words text-control leading-tight text-muted-foreground">{roleName(realRole ?? effectiveRole)}</span>
           </span>
-          <Icon name="chev" className="hidden rotate-90 text-muted-foreground sm:block [&_svg]:size-3.5" />
+          <Icon name="chev" className={cn('rotate-90 text-muted-foreground [&_svg]:size-3.5', showIdentity ? 'block' : 'hidden sm:block')} />
         </Menu.Trigger>
         <Menu.Portal container={portalContainer}>
           <Menu.Positioner ref={positionerRef} side="bottom" align="end" sideOffset={8} collisionPadding={12} collisionAvoidance={{ align: 'shift' }} className="z-50">

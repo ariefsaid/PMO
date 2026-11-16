@@ -56,5 +56,8 @@
     "action": "Buka kembali pekan",
     "body": "Timesheet {{owner}} yang sudah disetujui untuk {{week}} kembali menjadi draf agar dapat diubah. Timesheet harus disetujui lagi setelahnya.",
     "title": "Buka kembali pekan ini untuk koreksi?"
+  },
+  "footer": {
+    "fixHoursToSubmit": "Perbaiki jam yang ditandai merah untuk mengajukan"
   }
 }

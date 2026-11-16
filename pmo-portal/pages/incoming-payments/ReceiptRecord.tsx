@@ -43,7 +43,7 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
       label: t('financeCopy.taxWithheld', 'Tax withheld'), testId: 'receipt-withheld',
       value: <>
         {money(receipt.withheld_amount!)}
-        {slip && <span className="mt-0.5 block font-mono text-control font-normal text-muted-foreground">{slip}</span>}
+        {slip && <span className="mt-0.5 block record-id">{slip}</span>}
       </>,
     }] : []),
     ...(withheldShown ? [{
@@ -56,8 +56,8 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
   ];
   const allocationColumns = useMemo<Column<ReceiptAllocation & { rowKey: string }>[]>(() => [
     { key: 'invoice', header: t('financeCopy.invoice', 'Invoice #'), kind: 'primary', cell: (allocation) => allocation.invoice_id
-      ? <Link to={`/sales-invoices/${encodeURIComponent(allocation.invoice_id)}`} className="font-mono text-control text-primary-text hover:underline focus-visible:underline">{allocation.invoice_number}</Link>
-      : <span className="font-mono text-control" title={t('uxs06.invoiceNotInPmo', 'This invoice is not in PMO yet.')}>{allocation.invoice_number}</span>, primaryTitle: (allocation) => allocation.invoice_number },
+      ? <Link to={`/sales-invoices/${encodeURIComponent(allocation.invoice_id)}`} className="record-id font-semibold text-primary-text hover:underline focus-visible:underline">{allocation.invoice_number}</Link>
+      : <span className="record-id font-semibold text-foreground" title={t('uxs06.invoiceNotInPmo', 'This invoice is not in PMO yet.')}>{allocation.invoice_number}</span>, primaryTitle: (allocation) => allocation.invoice_number },
     { key: 'amount', header: t('uxs06.applied', 'Applied'), kind: 'money', align: 'num', cell: (allocation) => allocation.amount != null && allocation.currency != null ? formatCurrency(Number(allocation.amount), allocation.currency, { precision: 'minor' }) : notReported },
   ], [notReported, t]);
   const number = receiptNumber(receipt);
