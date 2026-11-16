@@ -1,11 +1,42 @@
 {
+  "terms": {
+    "clientWorkOrder": "Work Order / SPK",
+    "dashboard": "Dasbor",
+    "timesheet": "Timesheet"
+  },
   "ui": {
+    "errorBoundary": {
+      "title": "Terjadi kesalahan",
+      "body": "Halaman mengalami kesalahan yang tidak terduga. Coba lagi, atau kembali ke beranda.",
+      "retry": "Coba lagi",
+      "reload": "Muat ulang",
+      "home": "$t(common:terms.dashboard)"
+    },
+    "accessDenied": {
+      "title": "Anda tidak memiliki akses ke halaman ini",
+      "sub": "Area ini hanya untuk role yang memerlukannya. Jika menurut Anda ini keliru, hubungi administrator Anda."
+    },
+    "loadingPage": {
+      "label": "Memuat halaman"
+    },
+    "stepState": {
+      "done": "selesai",
+      "current": "sedang berjalan",
+      "upcoming": "berikutnya",
+      "skipped": "dilewati",
+      "paid": "lunas"
+    },
     "listPage": {
       "showingOf": "Menampilkan {{count}} dari {{total}}"
     },
     "listState": {
       "loading": "Memuat…",
       "retry": "Coba lagi"
+    },
+    "filterBar": {
+      "all": "Semua",
+      "filters": "Filter",
+      "clear": "Hapus semua"
     },
     "recordReference": "Referensi"
   },
@@ -192,8 +223,8 @@
     "unavailable": "Tinjauan proyek ERP tidak tersedia",
     "retryHelp": "Status kesiapan tidak diketahui. Ulangi pemeriksaan atau minta administrator meninjau koneksi ERP.",
     "projectRetryHelp": "Proyek PMO tidak dapat diperbarui. Ulangi sebelum meninjau tautan.",
-    "projectNotEligible": "Tinjauan kecocokan proyek tersedia untuk proyek pengiriman atau Proyek Internal.",
-    "queueEmpty": "Tidak ada kecocokan proyek pengiriman atau Proyek Internal yang perlu ditinjau.",
+    "projectNotEligible": "Tinjauan kecocokan proyek tersedia untuk proyek dalam pelaksanaan atau Proyek Internal.",
+    "queueEmpty": "Tidak ada kecocokan proyek dalam pelaksanaan atau Proyek Internal yang perlu ditinjau.",
     "readOnlyLinked": "Minta administrator meninjau perubahan pada tautan proyek ERP ini.",
     "readOnlyHandoff": "Minta administrator meninjau kecocokan proyek ERP.",
     "openSetup": "Buka pengaturan ERP organisasi",
@@ -480,12 +511,12 @@
     },
     "taxDefault": {
       "adminOnly": "Hanya Admin yang bisa mengubah ini.",
-      "description": "Kontrak, perintah kerja, dan faktur baru memakai dasar ini. Catatan lama tidak berubah.",
+      "description": "Kontrak, $t(common:terms.clientWorkOrder), dan faktur baru memakai dasar ini. Catatan lama tidak berubah.",
       "label": "Perlakuan pajak default",
       "title": "Perlakuan pajak default",
       "toast": {
         "saved": "Perlakuan pajak default diperbarui",
-        "savedDetail": "Kontrak, perintah kerja, dan faktur baru memakai dasar ini. Catatan lama tidak berubah."
+        "savedDetail": "Kontrak, $t(common:terms.clientWorkOrder), dan faktur baru memakai dasar ini. Catatan lama tidak berubah."
       },
       "value": {
         "exclusive": "Exclusive: pajak ditambahkan di atas nilai",
@@ -593,7 +624,7 @@
         "noun": "orang",
         "placeholder": "Tetapkan manajer…",
         "search": "Cari orang…",
-        "hint": "Digunakan untuk perutean persetujuan timesheet.",
+        "hint": "Digunakan untuk perutean persetujuan $t(common:terms.timesheet).",
         "clear": "Hapus manajer"
       }
     },
@@ -734,7 +765,7 @@
       "label": "Faktur pelanggan yang menunggu Anda",
       "heading": "Faktur pelanggan yang menunggu Anda ({{count}})",
       "errorTitle": "Gagal memuat faktur yang menunggu Anda",
-      "errorSub": "Pengadaan dan lembar waktu di bawah tidak terpengaruh.",
+      "errorSub": "Pengadaan dan $t(common:terms.timesheet) di bawah tidak terpengaruh.",
       "raisedBy": "Dibuat oleh",
       "net": "Neto (sebelum pajak)",
       "tax": "Pajak",
@@ -744,9 +775,9 @@
     "bulk": {
       "approveN": "Setujui {{count}}",
       "clear": "Bersihkan",
-      "confirmDescription": "Ini menyetujui minggu yang dipilih. Anda tidak dapat menyetujui timesheet Anda sendiri. Pemisahan tugas diberlakukan.",
-      "confirmTitleMany": "Setujui {{count}} timesheet?",
-      "confirmTitleOne": "Setujui 1 timesheet?",
+      "confirmDescription": "Ini menyetujui minggu yang dipilih. Anda tidak dapat menyetujui $t(common:terms.timesheet) Anda sendiri. Pemisahan tugas diberlakukan.",
+      "confirmTitleMany": "Setujui {{count}} $t(common:terms.timesheet)?",
+      "confirmTitleOne": "Setujui 1 $t(common:terms.timesheet)?",
       "groupLabel": "Setujui massal",
       "hoursUnit": "jam",
       "rowSelect": "Pilih {{week}} milik {{owner}}",
@@ -756,7 +787,7 @@
       "toast": {
         "allOk": {
           "detail": "{{count}} disetujui",
-          "headline": "Timesheet disetujui"
+          "headline": "$t(common:terms.timesheet) disetujui"
         },
         "noneOk": {
           "detail": "{{count}} gagal (pemisahan tugas atau data usang)",
@@ -769,15 +800,15 @@
       }
     },
     "accessDenied": {
-      "sub": "Persetujuan ditujukan untuk role yang menyetujui pengadaan atau timesheet. Pekerjaan Anda ada di dashboard, proyek, dan tugas Anda.",
+      "sub": "Persetujuan ditujukan untuk role yang menyetujui pengadaan atau $t(common:terms.timesheet). Pekerjaan Anda ada di dashboard, proyek, dan tugas Anda.",
       "title": "Anda tidak memiliki akses ke persetujuan"
     },
     "attest": {
-      "body": "Nyatakan bahwa Anda telah memeriksa ERPNext dan yang tercatat di sana adalah <strong>tidak ada Timesheet</strong> untuk minggu {{person}}. Tindakan ini mencatat atestasi yang diaudit dan membuka kembali minggu tersebut untuk koreksi, tanpa menghubungi ERPNext.",
+      "body": "Nyatakan bahwa Anda telah memeriksa ERPNext dan yang tercatat di sana adalah <strong>tidak ada $t(common:terms.timesheet)</strong> untuk minggu {{person}}. Tindakan ini mencatat atestasi yang diaudit dan membuka kembali minggu tersebut untuk koreksi, tanpa menghubungi ERPNext.",
       "cancelLabel": "Batal",
       "confirmLabel": "Konfirmasi: tanpa dokumen ERP",
       "reasonLabel": "Apa yang Anda periksa di ERPNext?",
-      "reasonPlaceholder": "mis. Mencari Timesheet untuk karyawan dan minggu ini: tidak ada.",
+      "reasonPlaceholder": "mis. Mencari $t(common:terms.timesheet) untuk karyawan dan minggu ini: tidak ada.",
       "thisPerson": "orang ini",
       "title": "Konfirmasi apa yang tercatat di ERPNext"
     },
@@ -790,7 +821,7 @@
     "employeeLinks": {
       "uxs30": {
         "chooseProfile": "Pilih profil PMO aktif untuk menerima atribusi jam kerja.",
-        "confirmDescription": "Jam kerja timesheet ERP karyawan {{employee}}{{employeeNumber}} akan diatribusikan kepada pengguna PMO {{profile}}{{profileEmail}} mulai sekarang. Perubahan email di ERP tidak dapat mengalihkan tautan yang sudah dikonfirmasi secara diam-diam.",
+        "confirmDescription": "Jam kerja $t(common:terms.timesheet) ERP karyawan {{employee}}{{employeeNumber}} akan diatribusikan kepada pengguna PMO {{profile}}{{profileEmail}} mulai sekarang. Perubahan email di ERP tidak dapat mengalihkan tautan yang sudah dikonfirmasi secara diam-diam.",
         "confirmLabel": "Konfirmasi tautan",
         "confirmTitle": "Atribusikan jam kerja {{employee}} kepada {{profile}}?",
         "confirmTitleUnknown": "Konfirmasi tautan karyawan untuk {{employee}}?",
@@ -814,8 +845,8 @@
         "title": "Kasus pengadaan"
       },
       "timesheets": {
-        "emptyTitle": "Tidak ada timesheet yang menunggu keputusan Anda",
-        "title": "Timesheet"
+        "emptyTitle": "Tidak ada $t(common:terms.timesheet) yang menunggu keputusan Anda",
+        "title": "$t(common:terms.timesheet)"
       }
     },
     "noProjectLinked": "Tidak ada proyek tertaut",
@@ -828,8 +859,8 @@
     },
     "previewRegionLabel": "Pratinjau persetujuan",
     "pushAttention": {
-      "retryFailure": "Timesheet tersebut gagal dikirim",
-      "retrySuccess": "Timesheet dikirim ke ERPNext",
+      "retryFailure": "$t(common:terms.timesheet) tersebut gagal dikirim",
+      "retrySuccess": "$t(common:terms.timesheet) dikirim ke ERPNext",
       "title": "Pengiriman ke ERP yang perlu perhatian"
     },
     "queue": {
@@ -852,14 +883,14 @@
       "heading": "Riwayat persetujuan dan koreksi",
       "outcomeUnknown": "Hasil ERP tidak diketahui: administrator harus mengonfirmasi apa yang tercatat di ERPNext",
       "pushInProgress": "Pengiriman sedang berlangsung",
-      "sectionLabel": "Timesheet yang disetujui dalam {{days}} hari terakhir yang dapat dibuka kembali untuk koreksi",
+      "sectionLabel": "$t(common:terms.timesheet) yang disetujui dalam {{days}} hari terakhir yang dapat dibuka kembali untuk koreksi",
       "success": "Dibuka kembali: minggu ini kembali ke Draf untuk diedit.",
       "window": "{{days}} hari terakhir"
     },
     "scope": {
       "all": "Semua yang menunggu",
       "procurement": "Kasus pengadaan",
-      "timesheets": "Timesheet",
+      "timesheets": "$t(common:terms.timesheet)",
       "expense": "Klaim biaya",
       "invoice": "Faktur pelanggan"
     },
@@ -1362,12 +1393,12 @@
     },
     "stillToInvoice": {
       "daysSinceAcceptance": "Hari sejak BAST, belum ditagih: {{days}}",
-      "count": "Work Order: {{n}}",
+      "count": "$t(common:terms.clientWorkOrder): {{n}}",
       "daysSinceClosed": "Hari sejak ditutup: {{days}}",
-      "empty": "Tidak ada lagi yang perlu ditagih pada Work Order yang diterbitkan",
+      "empty": "Tidak ada lagi yang perlu ditagih pada $t(common:terms.clientWorkOrder) yang diterbitkan",
       "error": "Gagal memuat yang belum ditagih",
-      "incomplete": "Work Order yang tidak dijumlahkan (fakturnya tanpa jumlah atau bermata uang lain): {{n}}",
-      "title": "Belum ditagih per Work Order",
+      "incomplete": "$t(common:terms.clientWorkOrder) yang tidak dijumlahkan (fakturnya tanpa jumlah atau bermata uang lain): {{n}}",
+      "title": "Belum ditagih per $t(common:terms.clientWorkOrder)",
       "incompleteMore": "dan {{n}} lainnya",
       "clientPo": "PO klien {{po}}"
     }
@@ -1444,7 +1475,7 @@
       "truncated": "Menampilkan {{count}} uang muka tertua."
     },
     "approvals": {
-      "errorSub": "Pengadaan dan timesheet di bawah tidak terpengaruh.",
+      "errorSub": "Pengadaan dan $t(common:terms.timesheet) di bawah tidak terpengaruh.",
       "errorTitle": "Gagal memuat klaim biaya yang menunggu Anda",
       "heading": "Klaim biaya menunggu Anda ({{count}})",
       "label": "Klaim biaya menunggu Anda",
@@ -1613,7 +1644,6 @@
       "returned": "Pengembalian dicatat",
       "submitted": "Diajukan untuk persetujuan"
     },
-    "truncated": "Menampilkan {{count}} terbaru. Persempit filter untuk melihat catatan lama.",
     "type": {
       "accommodation": "Akomodasi",
       "localTransport": "Transportasi lokal",
@@ -1908,7 +1938,7 @@
       "approve": "Setujui",
       "cancelRequest": "Batalkan pengadaan",
       "confirmReceipt": "Konfirmasi penerimaan",
-      "generatePurchaseOrder": "Buat Purchase Order",
+      "generatePurchaseOrder": "Buat pesanan pembelian",
       "markAsPaid": "Tandai Lunas",
       "markVendorInvoiced": "Catat faktur pemasok",
       "reject": "Tolak",
@@ -1930,7 +1960,7 @@
       "closed": "Ditutup",
       "issued": "Diterbitkan",
       "acknowledged": "Dikonfirmasi",
-      "pending": "Tertunda",
+      "pending": "Menunggu",
       "processed": "Diproses",
       "cleared": "Lunas",
       "partial": "Sebagian",
@@ -2123,7 +2153,7 @@
         "quantity": "Kuantitas",
         "rate": "Harga satuan (belum termasuk PPN)",
         "save": "Simpan baris",
-        "subtitle": "Harga belum termasuk pajak. Work Order mengambil kuantitas dari suatu baris saat Anda mengalokasikannya.",
+        "subtitle": "Harga belum termasuk pajak. $t(common:terms.clientWorkOrder) mengambil kuantitas dari suatu baris saat Anda mengalokasikannya.",
         "titleEdit": "Ubah baris bill of quantities",
         "titleNew": "Tambah baris bill of quantities",
         "unit": "Satuan"
@@ -2148,7 +2178,7 @@
         "recoveryPct": "Dipulihkan dari setiap tagihan (%)",
         "save": "Buat tagihan",
         "scope": "Menagih",
-        "scopeContract": "Baris tanpa work order",
+        "scopeContract": "Baris tanpa $t(common:terms.clientWorkOrder)",
         "subtitle": "Satu tagihan menjadi satu faktur ERP. Lampirkan bukti sebelum menerbitkannya.",
         "title": "Tagihan baru"
       },
@@ -2334,9 +2364,9 @@
       },
       "groupLabel": "Penyerapan kontrak",
       "headroom": "Sisa pagu",
-      "noCeiling": "Proyek ini belum memiliki nilai kontrak, jadi belum ada pagu untuk diserap. Isi nilai kontrak agar Work Order dapat diukur terhadapnya.",
+      "noCeiling": "Proyek ini belum memiliki nilai kontrak, jadi belum ada pagu untuk diserap. Isi nilai kontrak agar $t(common:terms.clientWorkOrder) dapat diukur terhadapnya.",
       "overCommitted": "Melebihi pagu",
-      "overCommittedNote": "Work Order yang sudah diterbitkan melebihi pagu kontrak proyek ini sebesar jumlah di atas. Setiap penerbitannya sudah diakui atas nama seseorang.",
+      "overCommittedNote": "$t(common:terms.clientWorkOrder) yang sudah diterbitkan melebihi pagu kontrak proyek ini sebesar jumlah di atas. Setiap penerbitannya sudah diakui atas nama seseorang.",
       "title": "Penyerapan kontrak",
       "wouldOverCommit": "Draft melebihi pagu",
       "wouldOverCommitNote": "Menerbitkan seluruh draft akan membawa proyek ini melewati pagu kontrak sebesar jumlah di atas. Menerbitkan salah satunya akan meminta Anda mengakuinya secara tertulis."
@@ -2409,7 +2439,7 @@
       "taxAmount": "Jumlah pajak",
       "taxTreatment": "Perlakuan pajak",
       "tile": {
-        "actual": "Realisasi",
+        "actual": "Aktual",
         "contract": "Kontrak"
       },
       "toast": {
@@ -2557,7 +2587,7 @@
     "rail": {
       "actionsAriaLabel": "Tindakan panel proyek",
       "ariaLabel": "Panel detail proyek",
-      "customer": "Klien",
+      "customer": "Pelanggan",
       "customerPoRef": "Ref PO klien",
       "detailsHeading": "Detail",
       "notSet": "Belum diisi",
@@ -2589,7 +2619,7 @@
       "overview": "Ringkasan",
       "procurement": "Pengadaan",
       "tasks": "Tugas",
-      "workOrders": "Work Order"
+      "workOrders": "$t(common:terms.clientWorkOrder)"
     },
     "tasks": {
       "action": {
@@ -2688,7 +2718,7 @@
       "description": "Lingkup",
       "detailsLegend": "Order dari klien",
       "editSubtitle": "Hanya draft yang dapat diedit. Nilai dan dasar pajaknya diatur terpisah agar tercatat siapa yang menetapkannya.",
-      "editTitle": "Edit Work Order",
+      "editTitle": "Ubah $t(common:terms.clientWorkOrder)",
       "endDate": "Tanggal selesai",
       "errors": {
         "inclusiveTaxTooLarge": "Nilai order inclusive sudah mengandung pajaknya, jadi pajak tidak boleh lebih besar daripada nilainya sendiri",
@@ -2697,11 +2727,11 @@
         "treatmentRequired": "Pilih apakah nilai order sudah termasuk pajak",
         "value": "Isi nilai order berupa angka non-negatif dengan paling banyak 2 angka desimal"
       },
-      "newSubtitle": "Catat purchase order klien terhadap kontrak proyek ini. Statusnya dimulai sebagai draft dan baru menyerap kontrak setelah diterbitkan.",
-      "newTitle": "Work Order baru",
+      "newSubtitle": "Catat $t(common:terms.clientWorkOrder) klien terhadap kontrak proyek ini. Statusnya dimulai sebagai draft dan baru menyerap kontrak setelah diterbitkan.",
+      "newTitle": "$t(common:terms.clientWorkOrder) baru",
       "orderDate": "Tanggal order",
       "orderValue": "Nilai order",
-      "save": "Simpan Work Order",
+      "save": "Simpan $t(common:terms.clientWorkOrder)",
       "startDate": "Tanggal mulai",
       "taxAmount": "Jumlah pajak",
       "taxAmountHelper": "Isi 0 jika tidak ada pajak.",
@@ -2720,11 +2750,11 @@
       },
       "legend": "Nilai dan dasar pajak",
       "save": "Tetapkan nilai",
-      "subtitle": "Nama Anda tercatat pada angka ini. Yang menetapkan nilainya tidak boleh sekaligus menerbitkan Work Order-nya. Itulah pasangan mata kedua atas uangnya.",
+      "subtitle": "Nama Anda tercatat pada angka ini. Yang menetapkan nilainya tidak boleh sekaligus menerbitkan $t(common:terms.clientWorkOrder) itu. Itulah pasangan mata kedua atas uangnya.",
       "taxAmount": "Jumlah pajak",
       "taxAmountHelper": "Isi 0 jika tidak ada pajak.",
       "taxTreatment": "Perlakuan pajak",
-      "title": "Tetapkan nilai Work Order",
+      "title": "Tetapkan nilai $t(common:terms.clientWorkOrder)",
       "value": "Nilai order"
     },
     "workOrders": {
@@ -2741,16 +2771,16 @@
         "invoiceAction": "Tagih",
         "modal": {
           "amount": "Jumlah (belum termasuk PPN)",
-          "amountHelp": "Paling banyak {{remaining}} yang belum ditagih pada Work Order ini.",
+          "amountHelp": "Paling banyak {{remaining}} yang belum ditagih pada $t(common:terms.clientWorkOrder) ini.",
           "description": "Deskripsi",
-          "errorHeadline": "Tagihan ini akan melewati nilai Work Order",
+          "errorHeadline": "Tagihan ini akan melewati nilai $t(common:terms.clientWorkOrder)",
           "errors": {
             "amountInvalid": "Masukkan jumlah dengan paling banyak 2 angka desimal.",
-            "amountOver": "Hanya {{remaining}} yang belum ditagih pada Work Order ini.",
+            "amountOver": "Hanya {{remaining}} yang belum ditagih pada $t(common:terms.clientWorkOrder) ini.",
             "amountPositive": "Jumlah harus lebih dari nol.",
             "itemRequired": "Pilih item ERP.",
-            "refused": "Tidak ada yang ditulis ke ERPNext. Work Order ini memiliki sisa untuk ditagih {{remaining}} saat dialog ini dibuka; faktur lain atau perubahan pada Work Order mungkin telah memakainya. Tutup lalu buka kembali untuk melihat sisanya.",
-            "refusedNative": "Tidak ada yang disimpan. Work Order ini memiliki sisa untuk ditagih {{remaining}} saat dialog ini dibuka; faktur lain atau perubahan pada Work Order mungkin telah memakainya. Tutup lalu buka kembali untuk melihat sisanya.",
+            "refused": "Tidak ada yang ditulis ke ERPNext. $t(common:terms.clientWorkOrder) ini memiliki sisa untuk ditagih {{remaining}} saat dialog ini dibuka; faktur lain atau perubahan pada $t(common:terms.clientWorkOrder) mungkin telah memakainya. Tutup lalu buka kembali untuk melihat sisanya.",
+            "refusedNative": "Tidak ada yang disimpan. $t(common:terms.clientWorkOrder) ini memiliki sisa untuk ditagih {{remaining}} saat dialog ini dibuka; faktur lain atau perubahan pada $t(common:terms.clientWorkOrder) mungkin telah memakainya. Tutup lalu buka kembali untuk melihat sisanya.",
             "lineRequired": "Masukkan kode item atau deskripsi."
           },
           "item": "Item ERP",
@@ -2758,11 +2788,11 @@
           "submit": "Buat draf faktur",
           "subtitle": "Membuat draf faktur di ERPNext untuk klien proyek. Pengguna Keuangan atau Admin lain yang mengirimkannya.",
           "subtitleNative": "Membuat draf faktur di PMO untuk disetujui oleh orang Finance/Admin kedua.",
-          "title": "Tagih Work Order ini",
+          "title": "Tagih $t(common:terms.clientWorkOrder) ini",
           "createFailed": "Draf faktur tidak dapat dibuat",
           "cancel": "Batal",
           "clientPo": "PO klien pada faktur",
-          "clientPoNone": "Tidak ada pada Work Order ini"
+          "clientPoNone": "Tidak ada pada $t(common:terms.clientWorkOrder) ini"
         },
         "status": {
           "fullyInvoiced": "Sudah ditagih penuh",
@@ -2779,7 +2809,7 @@
           "anInvoice": "Sebuah faktur"
         },
         "column": "Penagihan",
-        "incompleteNote": "Salah satu faktur pada Work Order ini tidak memiliki jumlah atau memakai mata uang lain, sehingga totalnya tidak dapat dijumlahkan.",
+        "incompleteNote": "Salah satu faktur pada $t(common:terms.clientWorkOrder) ini tidak memiliki jumlah atau memakai mata uang lain, sehingga totalnya tidak dapat dijumlahkan.",
         "invoiced": "Sudah ditagih",
         "lineInvoiced": "Ditagih {{invoiced}} · dibayar {{paid}}",
         "toast": {
@@ -2788,10 +2818,10 @@
         },
         "lineOver": "Lebih {{amount}}",
         "lineRemaining": "Sisa untuk ditagih {{amount}}",
-        "loadError": "Gagal memuat penagihan Work Order ini",
+        "loadError": "Gagal memuat penagihan $t(common:terms.clientWorkOrder) ini",
         "paid": "Dibayar",
         "stillToInvoice": "Sisa untuk ditagih",
-        "summaryTitle": "Penagihan per Work Order",
+        "summaryTitle": "Penagihan per $t(common:terms.clientWorkOrder)",
         "notSubmitted": "Belum dikirim",
         "lineNet": "Nilai neto {{amount}}"
       },
@@ -2803,29 +2833,29 @@
       },
       "confirm": {
         "cancel": {
-          "body": "Pembatalan bersifat final dan tidak dapat diurungkan. Inilah cara menarik sebuah Work Order, karena tidak ada fungsi hapus. Nilainya berhenti dihitung dalam penyerapan.",
-          "confirm": "Batalkan Work Order",
-          "title": "Batalkan Work Order ini?"
+          "body": "Pembatalan bersifat final dan tidak dapat diurungkan. Inilah cara menarik sebuah $t(common:terms.clientWorkOrder), karena tidak ada fungsi hapus. Nilainya berhenti dihitung dalam penyerapan.",
+          "confirm": "Batalkan $t(common:terms.clientWorkOrder)",
+          "title": "Batalkan $t(common:terms.clientWorkOrder) ini?"
         },
         "close": {
-          "body": "Penutupan bersifat final. Nilainya tetap terhitung dalam penyerapan. Work Order yang ditutup tetap dihitung sebagai komitmen, sama seperti yang diterbitkan.",
-          "confirm": "Tutup Work Order",
-          "title": "Tutup Work Order ini?"
+          "body": "Penutupan bersifat final. Nilainya tetap terhitung dalam penyerapan. $t(common:terms.clientWorkOrder) yang ditutup tetap dihitung sebagai komitmen, sama seperti yang diterbitkan.",
+          "confirm": "Tutup $t(common:terms.clientWorkOrder)",
+          "title": "Tutup $t(common:terms.clientWorkOrder) ini?"
         },
         "issue": {
-          "body": "Work Order akan mendapat nomor WO kita, mulai menyerap kontrak proyek, dan isinya dibekukan sejak saat itu. Mengubah Work Order yang sudah terbit berarti membatalkannya dan menerbitkan penggantinya.",
-          "confirm": "Terbitkan Work Order",
-          "title": "Terbitkan Work Order ini?"
+          "body": "$t(common:terms.clientWorkOrder) akan mendapat nomor WO kita, mulai menyerap kontrak proyek, dan isinya dibekukan sejak saat itu. Mengubah $t(common:terms.clientWorkOrder) yang sudah terbit berarti membatalkannya dan menerbitkan penggantinya.",
+          "confirm": "Terbitkan $t(common:terms.clientWorkOrder)",
+          "title": "Terbitkan $t(common:terms.clientWorkOrder) ini?"
         },
         "overCommit": {
-          "body": "Anda tetap dapat menerbitkannya. Jika ya, nama dan waktu Anda tercatat pada Work Order ini sebagai pihak yang memilih melebihi pagu.",
+          "body": "Anda tetap dapat menerbitkannya. Jika ya, nama dan waktu Anda tercatat pada $t(common:terms.clientWorkOrder) ini sebagai pihak yang memilih melebihi pagu.",
           "confirm": "Akui dan terbitkan",
           "title": "Ini akan melewati pagu kontrak"
         }
       },
       "error": {
-        "sub": "Purchase order klien untuk proyek ini tidak dapat dibaca. Coba lagi, atau buka ulang proyek.",
-        "title": "Gagal memuat Work Order"
+        "sub": "$t(common:terms.clientWorkOrder) klien untuk proyek ini tidak dapat dibaca. Coba lagi, atau buka ulang proyek.",
+        "title": "Gagal memuat $t(common:terms.clientWorkOrder)"
       },
       "notYetIssued": "Belum diterbitkan",
       "status": {
@@ -2839,12 +2869,12 @@
         "inclusive": "termasuk PPN"
       },
       "toast": {
-        "created": "Draft Work Order dibuat",
-        "issuedOverCeiling": "Work Order diterbitkan melebihi pagu",
-        "issuedOverCeilingSub": "Pengakuan Anda tercatat pada Work Order ini.",
-        "transitioned": "Work Order diperbarui",
-        "updated": "Work Order diperbarui",
-        "valueSet": "Nilai Work Order ditetapkan"
+        "created": "Draft $t(common:terms.clientWorkOrder) dibuat",
+        "issuedOverCeiling": "$t(common:terms.clientWorkOrder) diterbitkan melebihi pagu",
+        "issuedOverCeilingSub": "Pengakuan Anda tercatat pada $t(common:terms.clientWorkOrder) ini.",
+        "transitioned": "$t(common:terms.clientWorkOrder) diperbarui",
+        "updated": "$t(common:terms.clientWorkOrder) diperbarui",
+        "valueSet": "Nilai $t(common:terms.clientWorkOrder) ditetapkan"
       }
     },
     "loadError": {
@@ -2897,7 +2927,7 @@
     "estimatedValue": "Nilai estimasi",
     "expectedStart": "Perkiraan mulai",
     "expectedEnd": "Perkiraan selesai",
-    "taxRequiredHint": "Nyatakan perlakuan pajak dan jumlah pajak untuk nilai kontrak ini (isi 0 jika tidak ada pajak). Tanpa itu, penyerapan work order membandingkan pagu ini dengan nilai order pada basis yang tidak diketahui.",
+    "taxRequiredHint": "Nyatakan perlakuan pajak dan jumlah pajak untuk nilai kontrak ini (isi 0 jika tidak ada pajak). Tanpa itu, penyerapan $t(common:terms.clientWorkOrder) membandingkan pagu ini dengan nilai order pada basis yang tidak diketahui.",
     "endCustomer": {
       "label": "Pelanggan akhir",
       "placeholder": "Pilih perusahaan…",
@@ -2923,7 +2953,7 @@
     },
     "atRiskPill": "Berisiko",
     "columns": {
-      "actual": "Realisasi",
+      "actual": "Aktual",
       "budgetUsed": "Anggaran terpakai",
       "contract": "Kontrak",
       "pm": "PM",
@@ -3000,7 +3030,7 @@
       "unavailable": "Pilihan tidak tersedia"
     },
     "card": {
-      "delivery": "Penyelesaian",
+      "delivery": "Pelaksanaan",
       "deliveryPercent": "Penyelesaian {{percent}}%",
       "editProject": "Ubah {{name}}"
     },
@@ -3016,7 +3046,7 @@
     },
     "status": {
       "leads": "Prospek",
-      "pqSubmitted": "Pra-kualifikasi diajukan",
+      "pqSubmitted": "Prakualifikasi diajukan",
       "quotationSubmitted": "Penawaran diajukan",
       "tenderSubmitted": "Tender diajukan",
       "negotiation": "Negosiasi",
@@ -3084,7 +3114,7 @@
       "title": "Anda tidak memiliki akses ke Pipeline Penjualan"
     },
     "column": {
-      "customer": "Klien",
+      "customer": "Pelanggan",
       "lastTouch": "Aktivitas terakhir",
       "owner": "Pemilik",
       "project": "Proyek",
@@ -3200,7 +3230,7 @@
       "approvals": "Persetujuan",
       "companies": "Perusahaan",
       "contacts": "Kontak",
-      "dashboard": "Dasbor",
+      "dashboard": "$t(common:terms.dashboard)",
       "incidents": "Insiden",
       "incomingPayments": "Pembayaran Masuk",
       "integrations": "Integrasi saya",
@@ -3214,7 +3244,7 @@
       "revenueByProject": "Pendapatan per Proyek",
       "sales": "Pipeline Penjualan",
       "salesInvoices": "Faktur Penjualan",
-      "timesheets": "Timesheet",
+      "timesheets": "$t(common:terms.timesheet)",
       "profileSettings": "Profil & preferensi",
       "expenses": "Biaya",
       "financialStatements": "Laporan keuangan",
@@ -3231,6 +3261,7 @@
       "loadMoreError": "Gagal memuat lagi. Coba lagi.",
       "loadingMore": "Memuat…",
       "loading": "Memuat notifikasi…",
+      "bellLabel": "Notifikasi, {{count}} belum dibaca",
       "noneUnread": "Tidak ada notifikasi yang belum dibaca",
       "read": "Dibaca",
       "unread": "Belum dibaca"
@@ -3322,8 +3353,8 @@
   },
   "timesheets": {
     "accessDenied": {
-      "sub": "Timesheet dan persetujuan adalah bagian dari area SDM. Pekerjaan keuangan ada di dashboard, proyek, dan pengadaan Anda.",
-      "title": "Anda tidak memiliki akses ke Timesheet"
+      "sub": "$t(common:terms.timesheet) dan persetujuan adalah bagian dari area SDM. Pekerjaan keuangan ada di dashboard, proyek, dan pengadaan Anda.",
+      "title": "Anda tidak memiliki akses ke $t(common:terms.timesheet)"
     },
     "addAProject": "Tambahkan proyek",
     "addProject": "Tambah proyek",
@@ -3341,7 +3372,7 @@
     "enterHoursToSubmit": "Isi jam untuk mengajukan",
     "error": {
       "sub": "Terjadi kesalahan saat mengambil jam Anda.",
-      "title": "Gagal memuat timesheet"
+      "title": "Gagal memuat $t(common:terms.timesheet)"
     },
     "hoursThisWeek": "{{hours}} jam minggu ini",
     "saveDraft": "Simpan draf",
@@ -3373,7 +3404,7 @@
       "description": "Ini mengirim seluruh minggu ke atasan Anda. Anda tidak dapat mengubahnya lagi sampai dikembalikan.",
       "title": "Ajukan minggu ini untuk persetujuan?"
     },
-    "title": "Timesheet",
+    "title": "$t(common:terms.timesheet)",
     "toast": {
       "deleteFailed": "Gagal menghapus",
       "reopened": {
@@ -3387,7 +3418,7 @@
       "saveFailed": "Gagal menyimpan",
       "submitted": {
         "detail": "Dikirim ke atasan Anda untuk disetujui",
-        "headline": "Timesheet diajukan"
+        "headline": "$t(common:terms.timesheet) diajukan"
       }
     },
     "unknownProject": "Proyek tidak diketahui"
@@ -3557,7 +3588,7 @@
         "companies": "Perusahaan",
         "procurement": "Pengadaan",
         "revenue": "Pendapatan",
-        "timesheets": "Lembar waktu",
+        "timesheets": "$t(common:terms.timesheet)",
         "expenses": "Biaya"
       }
     }
@@ -4140,7 +4171,7 @@
       "fiscal_year": "Tahun fiskal",
       "budgeted_amount": "Jumlah dianggarkan",
       "actual_amount": "Jumlah aktual",
-      "wo_number": "Nomor surat perintah kerja",
+      "wo_number": "Nomor $t(common:terms.clientWorkOrder)",
       "client_po_number": "Nomor PO klien",
       "title": "Judul",
       "order_value": "Nilai pesanan",
@@ -4206,7 +4237,7 @@
       "project": "Proyek",
       "budget_version": "Versi anggaran",
       "budget_line_item": "Baris anggaran",
-      "work_order": "Surat perintah kerja",
+      "work_order": "$t(common:terms.clientWorkOrder)",
       "procurement": "Pengadaan",
       "purchase_request": "Permintaan pembelian",
       "rfq": "RFQ",
@@ -4240,7 +4271,7 @@
     "filteredEmpty": {
       "project": "Tidak ada perubahan proyek",
       "budget": "Tidak ada perubahan anggaran",
-      "workOrders": "Tidak ada perubahan work order",
+      "workOrders": "Tidak ada perubahan $t(common:terms.clientWorkOrder)",
       "procurement": "Tidak ada perubahan pengadaan",
       "tasks": "Tidak ada perubahan tugas"
     },
@@ -4267,7 +4298,7 @@
       "expense_advance_return": "Uang muka biaya dikembalikan",
       "expense_claim_transition": "Status klaim biaya berubah",
       "expense_claim_approval_route": "Rute persetujuan dicatat",
-      "timesheet_create": "Timesheet dibuat",
+      "timesheet_create": "$t(common:terms.timesheet) dibuat",
       "spend_approver_add": "Penyetuju belanja ditambahkan",
       "spend_approver_remove": "Penyetuju belanja dihapus",
       "sales_invoice_transition": "Status faktur penjualan berubah",
@@ -4353,7 +4384,7 @@
   },
   "uxs28": {
     "nav": {
-      "label": "Tampilan timesheet",
+      "label": "Tampilan $t(common:terms.timesheet)",
       "myTime": "Waktu saya",
       "teamReview": "Tinjauan tim",
       "teamReviewAwaiting": "Tinjauan tim · {{n}} menunggu"
@@ -4390,9 +4421,9 @@
   },
   "uxs18": {
     "bulk": {
-      "scopeAll": "Semua {{count}} timesheet di antrean ini dapat disetujui sekaligus.",
-      "scopeOne": "1 timesheet di antrean ini dapat disetujui.",
-      "scopeSome": "{{eligible}} dari {{total}} timesheet di antrean ini dapat disetujui sekaligus."
+      "scopeAll": "Semua {{count}} $t(common:terms.timesheet) di antrean ini dapat disetujui sekaligus.",
+      "scopeOne": "1 $t(common:terms.timesheet) di antrean ini dapat disetujui.",
+      "scopeSome": "{{eligible}} dari {{total}} $t(common:terms.timesheet) di antrean ini dapat disetujui sekaligus."
     }
   },
   "uxs31": {
@@ -4524,8 +4555,8 @@
     "methodIntro": "Pilih yang akan ditagih. Proyek dan kliennya akan tetap terpilih.",
     "contractInvoice": "Faktur kontrak",
     "contractInvoiceHelp": "Buat draf faktur untuk klien proyek ini.",
-    "customerWorkOrder": "Work Order pelanggan",
-    "customerWorkOrderHelp": "Pilih Work Order, lalu tagih sisa nilainya.",
+    "customerWorkOrder": "$t(common:terms.clientWorkOrder) pelanggan",
+    "customerWorkOrderHelp": "Pilih $t(common:terms.clientWorkOrder), lalu tagih sisa nilainya.",
     "quantityProgressClaim": "Klaim kuantitas atau progres",
     "quantityProgressClaimHelp": "Mulai klaim dari pekerjaan terukur atau uang muka.",
     "contextOptionsUnavailable": "Daftar proyek dan klien tidak dapat dimuat. Coba lagi untuk memastikan konteks faktur.",
@@ -4574,7 +4605,7 @@
       "requested": "Menunggu persetujuan",
       "approved": "Minta penawaran pemasok",
       "vendorQuoted": "Pilih penawaran",
-      "quoteSelected": "Siapkan purchase order",
+      "quoteSelected": "Siapkan pesanan pembelian",
       "ordered": "Catat penerimaan",
       "received": "Catat invoice pemasok",
       "vendorInvoiced": "Catat pembayaran"

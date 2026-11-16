@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 
 export interface EntityNameLinkProps {
@@ -24,6 +25,7 @@ export const EntityNameLink: React.FC<EntityNameLinkProps> = ({
   className,
   'aria-label': ariaLabel,
 }) => {
+  const { t } = useTranslation('common');
   if (!name) {
     return <span className={cn('text-muted-foreground', className)}>—</span>;
   }
@@ -35,7 +37,7 @@ export const EntityNameLink: React.FC<EntityNameLinkProps> = ({
   return (
     <Link
       to={to}
-      aria-label={ariaLabel ?? `Open ${name}`}
+      aria-label={ariaLabel ?? t('table.openRow', 'Open {{name}}', { name })}
       className={cn(
         'break-words font-medium text-foreground underline-offset-2',
         'hover:text-primary-text hover:underline',

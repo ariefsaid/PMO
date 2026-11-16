@@ -81,9 +81,13 @@ Service/O&M). Defined in `docs/roadmap-spines.md`.
 
 **Budget line item** — an amount and description for a budget category and fiscal year within a budget version.
 
+**Correction** — a previewed, one-record change to a value the starting-data loader wrote, made with `pmo correct`; it never changes a record's identity, and a claim already created keeps the figures it was created with.
+
 **Budget projection** — a project/category/fiscal-year estimate to complete, with an optional explanatory note and currency.
 
 **Cost attribution rule** — a versioned, effective-dated rule matching external cost attributes to percentage allocations across projects; its targets carry the project shares.
+
+**Organization name** — unique across the deployment. Two names are the same when they match ignoring letter case and spacing: leading and trailing whitespace is ignored and any run of whitespace (spaces, tabs, newlines, non-breaking spaces) counts as one space, so names that look the same on screen collide. The database enforces it for every writer (unique index `organizations_name_normalized_key`, #2264), so `pmo org add` can re-run safely by name.
 
 **PMO Project Number** — the human-readable identifier PMO assigns to a project. It is unique within the organisation and independent of the organisation's own **Client Project Code** and any identifier assigned by an external system. (OD-ID-1.)
 
@@ -145,6 +149,12 @@ and credit reservations are operational detail, not part of the definition.
 **AI credit grant** — an amount of AI credit granted to an organization (or to one of its
 users) by an Operator, recorded with its grantor and an optional note. Credits are an
 append-only ledger: the balance is the sum of grants less usage, never an in-place edit.
+
+**Credit allocation** — the share of an organization's granted AI credit that an org-Admin
+sets aside for one user. Allocating divides credit the org already holds: it moves an amount
+between users, or between a user and the org's unallocated credit, and never changes the org's
+total. The allocations of an org never add up to more than its granted total. Removing a user
+returns their allocation to the org. Only an Operator grant raises the total. (#564.)
 
 **Organization feature entitlement** — one organization's enabled or disabled access to a
 named product feature. Entitlements are toggled per org by the Operator; a feature with no
@@ -374,6 +384,14 @@ Append-only. The ledger is the trace.
 
 **Consumption** — net quantity (and value) of an item taken to a project work item: issues minus returns, by period.
 It is operational and is not committed spend or an ERP actual.
+
+**Issued material cost** — where an ERP owns the organisation's inventory, the cost the ERP books to the project when material is
+issued to it (Odoo: the issue's project analytic line). It reaches the project's actuals from the ERP ledger once; the PMO stock document
+supplies only the quantity and the work item, never a second amount. An issue made in the ERP with no PMO document still counts in the
+project's actuals and is listed on consumption as having no work item. (#2282.)
+
+**Uncategorised actuals** — a project's actual cost on accounts that map to no budget category. Shown with its amount, never dropped from
+the project's actuals. (#2282.)
 
 **Reorder level / suggestion** — the on-hand quantity at which an item should be reordered at a warehouse; a
 *suggestion* is computed from past usage and only a person turns it into a level.

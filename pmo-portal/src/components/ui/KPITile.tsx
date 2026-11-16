@@ -2,7 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { cn } from './cn';
-import { FigureContent } from './FigureContent';
+import { FigureContent, FIGURE_LINE_CLASS } from './FigureContent';
 import { Icon, type IconName } from './icons';
 import { ListState } from './ListState';
 import { Tooltip } from './Tooltip';
@@ -204,7 +204,8 @@ export function KPITile({
           ) : error ? null : (
             <div
               className={cn(
-                'min-w-0 break-words text-metric font-semibold tracking-[-0.02em] tabular',
+                FIGURE_LINE_CLASS,
+                'text-metric font-semibold tracking-[-0.02em]',
                 negative ? 'text-destructive' : 'text-foreground'
               )}
             >
@@ -226,7 +227,8 @@ export function KPITile({
       ) : error ? null : (
         <div
           className={cn(
-            'min-w-0 break-words text-metric font-semibold tracking-[-0.02em] tabular',
+            FIGURE_LINE_CLASS,
+                'text-metric font-semibold tracking-[-0.02em]',
             negative ? 'text-destructive' : 'text-foreground'
           )}
         >

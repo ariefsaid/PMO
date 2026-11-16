@@ -15,7 +15,7 @@ import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { findOutboxRowByKey } from './outboxRows.ts';
 import { ERPNEXT_EXPENSES_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { backstopPassResult } from './expensePostingBackstop.ts';
-import { featureDisabled, type OrgBinding, listRetryPendingLive, listCandidatesLive } from './sweepShared.ts';
+import { featureDisabled, type OrgBinding, listRetryPendingLive, listCandidatesLive, moneyRowsStopped } from './sweepShared.ts';
 import { buildReconcileDepsLive, dispatchMoneyWrite, buildMoneyWriteDepsLive } from './moneyWriteLive.ts';
 import { expenseResolveDepsLive, expenseOutboxHoldReason } from './expensePostingBackstopLive.ts';
 
@@ -97,6 +97,7 @@ export function imprestPostingBackstopDepsLive(
       return ((data as Array<ImprestIntentRow & { last_attempt_at: string | null }> | null) ?? []).filter((r) =>
         r.push_state !== 'failed' || !r.last_attempt_at || now - Date.parse(r.last_attempt_at) >= imprestRetryDelayMs(r.attempt_count ?? 0));
     },
+    stopNewRows: () => moneyRowsStopped(org),
     markAttempted: async (orgId, intentIds) => {
       const { error } = await serviceClient.from('imprest_posting_erp_mirror')
         .update({ last_attempt_at: new Date().toISOString() }).eq('org_id', orgId).in('id', intentIds);

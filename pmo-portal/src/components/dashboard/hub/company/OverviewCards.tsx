@@ -105,7 +105,7 @@ export const SalesOverviewCard: React.FC<{
                       <li key={String(stage.status)}>
                         <Link to={`/sales?status=${encodeURIComponent(stage.status as string)}`} aria-label={value ? `${name}: ${value}` : name}
                           className="grid min-h-11 grid-cols-[minmax(7rem,9.5rem)_minmax(0,1fr)] items-center gap-x-3 text-control text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-                          <span className="break-words text-right">{name}</span>
+                          <span className="min-w-0 break-words py-1 text-right leading-tight">{name}</span>
                           <span className="flex min-w-0 items-center gap-2">
                             {state.complete && state.currencies.size === 1 && <span aria-hidden className="h-[18px] min-w-0.5 rounded-r bg-primary" style={{ width: `${Math.max(1, (stage.weighted_value / max) * 75)}%` }} />}
                             <span className="shrink-0 font-semibold tabular">{value}</span>
