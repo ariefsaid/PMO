@@ -74,7 +74,7 @@
   },
   "ledger": {
     "paymentInErp": "Catat pembayaran di ERPNext; akan tertaut di sini pada sinkronisasi berikutnya.",
-    "billsHiddenForRole": "Tagihan supplier dan pembayaran tidak ditampilkan untuk peran Anda.",
+    "billsHiddenForRole": "Faktur supplier dan pembayaran tidak ditampilkan untuk peran Anda.",
     "awaitingApproval": "Menunggu persetujuan. Dokumen dapat dicatat setelah disetujui.",
     "approveToStart": "Setujui untuk mulai mencatat dokumen.",
     "emptyTitle": "Belum ada dokumen",
@@ -567,7 +567,7 @@
         },
         "po_has_submitted_bill": {
           "headline": "Tidak dapat merevisi pesanan tertagih",
-          "detail": "Pesanan pembelian ini memiliki tagihan supplier yang sudah diajukan di ERP dan tidak dapat direvisi."
+          "detail": "Pesanan pembelian ini memiliki faktur supplier yang sudah diajukan di ERP dan tidak dapat direvisi."
         },
         "revision_not_issued": {
           "headline": "Revisi belum diterbitkan",

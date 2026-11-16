@@ -163,7 +163,7 @@
     "label": "Daftar pengadaan"
   },
   "kpi": {
-    "unpaid": "Tagihan supplier belum dibayar",
+    "unpaid": "Faktur supplier belum dibayar",
     "ordered": "Dipesan, belum ditagih",
     "notRecorded": "jumlah belum dicatat",
     "partial_one": "{{count}} belum dicatat",
@@ -179,7 +179,7 @@
   "help": {
     "value": {
       "term": "Nilai",
-      "text": "Jumlah terbaru yang tercatat: dibayar, atau tagihan supplier, atau pesanan pembelian, atau permintaan. Dipisah per mata uang."
+      "text": "Jumlah terbaru yang tercatat: dibayar, atau faktur supplier, atau pesanan pembelian, atau permintaan. Dipisah per mata uang."
     },
     "stage": {
       "term": "Di tahap",
@@ -187,7 +187,7 @@
     },
     "invoiceAge": {
       "term": "Usia tagihan",
-      "text": "Hari sejak tagihan supplier tertua yang belum dibayar bertanggal, atau dicatat bila tanpa tanggal."
+      "text": "Hari sejak faktur supplier tertua yang belum dibayar bertanggal, atau dicatat bila tanpa tanggal."
     }
   }
 }

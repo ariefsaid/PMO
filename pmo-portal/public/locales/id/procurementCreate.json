@@ -15,8 +15,8 @@
       "description": "Catat pesanan yang sudah Anda miliki"
     },
     "invoice": {
-      "title": "Tagihan supplier",
-      "description": "Pantau tagihan supplier"
+      "title": "Faktur supplier",
+      "description": "Pantau faktur supplier"
     },
     "payment": {
       "title": "Pembayaran terjadwal",

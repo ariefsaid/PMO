@@ -419,7 +419,7 @@
       "currency": "Mata uang dokumen berbeda dengan pembelian ini.",
       "gateRequest": "Organisasi Anda mewajibkan permintaan pembelian sebelum pesanan.",
       "gateApprovalOrder": "Organisasi Anda mewajibkan persetujuan sebelum pesanan.",
-      "gateReceipt": "Organisasi Anda mewajibkan penerimaan barang sebelum tagihan supplier.",
+      "gateReceipt": "Organisasi Anda mewajibkan penerimaan barang sebelum faktur supplier.",
       "gateApprovalPayment": "Organisasi Anda mewajibkan persetujuan sebelum pembayaran.",
       "spansProjects": "Faktur ini tercatat pada beberapa proyek. Tautkan dari ERPNext per proyek, atau catat di PMO.",
       "sharepointHost": "Berkas tidak berada di situs SharePoint organisasi Anda.",
