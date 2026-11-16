@@ -152,12 +152,13 @@ describe('project money position consumer parity (AC-PMP-003)', () => {
     expect(definitionValueText(section, 'Cash received')).toBe(expectedForeignCash);
   });
 
-  it('states the invoiced and paid shares once as text and draws no per-row bars', async () => {
+  it('shows each stage as a figure with no share under a known zero and draws no per-row bars', async () => {
     renderOverviewMoney();
     const money = await screen.findByRole('region', { name: /Money position/ });
     expect(await within(money).findByTestId('contract-value-amount')).toHaveTextContent('$100');
-    expect(within(money).getByText(/\d+% invoiced/)).toBeInTheDocument();
-    expect(within(money).getByText(/\d+% paid/)).toBeInTheDocument();
+    // Known zeros keep their figure; a share under a zero says nothing, so it has no caption.
+    expect(within(money).getByText('Invoiced', { selector: 'dt *' })).toBeInTheDocument();
+    expect(within(money).queryByText(/% of contract/)).not.toBeInTheDocument();
     expect(within(money).queryAllByRole('progressbar')).toHaveLength(0);
   });
 
