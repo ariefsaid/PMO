@@ -24,6 +24,11 @@ export function compareBaselines(base, head) {
   return errors;
 }
 
+/** True when every value is a list, i.e. the fingerprint format (the first version of the file stored counts). */
+export function isFingerprintFormat(baseline) {
+  return Object.values(baseline).every((value) => Array.isArray(value));
+}
+
 function selfTest() {
   const base = { a: ['x', 'y'], b: [] };
   const cases = [
@@ -41,6 +46,7 @@ function selfTest() {
     if (got !== expected) throw new Error(`self-test failed: ${name}: expected ${expected} error(s), got ${got}`);
   }
   if (compareBaselines(null, { a: ['x'] }).length) throw new Error('self-test failed: the first introduction of the file has nothing to compare against');
+  if (isFingerprintFormat({ a: 3 }) || !isFingerprintFormat({ a: ['x'], b: [] })) throw new Error('self-test failed: the count format must be told apart from the fingerprint format');
   console.log('layout-baseline guard self-test passed');
 }
 
@@ -51,6 +57,8 @@ const exists = spawnSync('git', ['cat-file', '-e', `${ref}:${FILE}`], { cwd: ROO
 let base = null;
 if (exists.status === 0) {
   base = JSON.parse(spawnSync('git', ['show', `${ref}:${FILE}`], { cwd: ROOT, encoding: 'utf8' }).stdout);
+  // A base still in the earlier count format has no fingerprints to compare; treat it as not introduced yet.
+  if (!isFingerprintFormat(base)) base = null;
 } else if (spawnSync('git', ['rev-parse', '--verify', '--quiet', ref], { cwd: ROOT }).status !== 0) {
   console.error(`layout-baseline guard: ${ref} is not available here; fetch it (git fetch origin dev) and re-run.`);
   process.exit(1);
