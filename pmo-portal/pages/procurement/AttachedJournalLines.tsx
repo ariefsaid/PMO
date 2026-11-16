@@ -42,8 +42,8 @@ export const AttachedJournalLines: React.FC<{ procurementId: string; projectId: 
       key: 'journal', header: t('erpJournal.column.journal', 'Journal'), kind: 'primary',
       primaryTitle: (l) => l.voucherNo,
       cell: (l) => (l.erpUrl
-        ? <a href={l.erpUrl} target="_blank" rel="noopener noreferrer" className="font-mono text-primary-text hover:underline">{l.voucherNo}</a>
-        : <span className="font-mono">{l.voucherNo}</span>),
+        ? <a href={l.erpUrl} target="_blank" rel="noopener noreferrer" className="record-id font-semibold text-primary-text hover:underline">{l.voucherNo}</a>
+        : <span className="record-id font-semibold text-foreground">{l.voucherNo}</span>),
       secondaryCell: (l) => l.remarks ?? null,
     },
     { key: 'date', header: t('erpJournal.column.date', 'Date'), kind: 'date', cell: (l) => formatDay(l.postingDate) },

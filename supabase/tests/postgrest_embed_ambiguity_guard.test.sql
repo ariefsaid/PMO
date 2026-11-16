@@ -56,6 +56,10 @@ select set_eq(
             -- through the assignment report RPC), so no unqualified embed exists. Any future embed
             -- must name its constraint.
             ('erp_capture_invoice_assignments -> profiles'),
+            -- 0903 (#2277): erp_capture_invoice_assignments carries source_document_id and family_order_document_id, both
+            -- -> erp_purchase_documents. Checked before adding: nothing embeds the table through PostgREST (no reference in
+            -- pmo-portal/src, pmo-portal/pages, supabase/functions or the CLI; it is read only through purchase_capture_assignment_report).
+            ('erp_capture_invoice_assignments -> erp_purchase_documents'),
             ('erp_employees -> profiles'),
             -- 0291 (#1012): fx_rates carries created_by AND updated_by, both -> profiles. Checked
             -- before adding: neither src/lib/db/fxRates.ts nor the fx repository embeds profiles

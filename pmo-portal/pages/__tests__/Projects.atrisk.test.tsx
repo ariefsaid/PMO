@@ -165,8 +165,9 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
     const progressCell = deliveryBar.closest('td')!;
     expect(within(nameCell).queryByText(/% of budget/i)).not.toBeInTheDocument();
     expect(within(progressCell).queryByText(/% of budget/i)).not.toBeInTheDocument();
-    expect(within(row).getAllByText(/^At risk$/i)).toHaveLength(1);
-    expect(within(nameCell).getByText(/^At risk$/i)).toBeInTheDocument();
+    // One status mark per row (#design-1115): the Status pill names the risk; the name cell carries none.
+    expect(within(row).getAllByText(/· at risk$/i)).toHaveLength(1);
+    expect(within(nameCell).queryByText(/^at risk$/i)).not.toBeInTheDocument();
   });
 
   it('AC-TBL-CARDS-001: the phone project card shows At risk once', () => {
@@ -182,7 +183,7 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
     })));
     renderPage();
     const card = screen.getByText('At Risk Project').closest('li')!;
-    expect(within(card).getAllByText(/^At risk$/i)).toHaveLength(1);
+    expect(within(card).getAllByText(/· at risk$/i)).toHaveLength(1);
     expect(within(card).getByRole('progressbar', { name: '95% of Active budget before tax' }).closest('[title]')).toHaveAttribute('title', expect.stringContaining('Spent as a share of budget, before tax'));
     expect(within(card).getByRole('progressbar', { name: '95% of Active budget before tax' }).closest('[title]')).toHaveAttribute('title', expect.stringContaining('$95,000 of $100,000'));
   });
@@ -204,6 +205,6 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
     expect(within(row).queryByText(/NaN/i)).not.toBeInTheDocument();
     // A known zero Active budget is not confused with an absent budget.
     expect(within(row).queryByRole('progressbar', { name: /Active budget/i })).toBeNull();
-    expect(within(row).getByText('$0 Active budget; usage unavailable')).toBeInTheDocument();
+    expect(within(row).getByRole('img', { name: '$0 Active budget; usage unavailable' })).toHaveTextContent('—');
   });
 });

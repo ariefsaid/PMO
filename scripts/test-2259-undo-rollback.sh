@@ -25,6 +25,8 @@ ref += '\nrevoke all on function public.p0_proof_undo_ref(uuid,text,boolean) fro
 dsql = Path('supabase/migrations/rollback/0896_undo_capture_kind_order_down.sql').read_text()
 if '$down$' in dsql: sys.exit('down file contains the proof delimiter')
 text = Path('scripts/2259-undo-rollback.test.sql').read_text().replace('-- @REF@', ref).replace('@DOWN@', dsql)
+# 0903 (#2277) redefines undo_captured_purchase above 0896: its down runs first in the proof's transaction, restoring 0896's body.
+text = text.replace('begin;\n', 'begin;\n' + Path('supabase/migrations/rollback/0903_capture_order_family_down.sql').read_text() + '\n', 1)
 Path(sys.argv[1]).write_text(text)
 PY
 supabase test db "$test_file"

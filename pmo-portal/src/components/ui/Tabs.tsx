@@ -27,6 +27,11 @@ export interface TabsProps<V extends string = string> {
   /** Namespace for the generated tab/panel ids so they're unique + stable per surface. */
   idBase: string;
   className?: string;
+  /**
+   * Phone width: wrap the tabs onto a second row instead of scrolling the strip. For a record with so many tabs that the
+   * strip would scroll its first tab off the left edge; every tab then stays on screen and starts on the gutter.
+   */
+  wrapOnPhone?: boolean;
 }
 
 /**
@@ -54,6 +59,7 @@ export function Tabs<V extends string = string>({
   ariaLabel,
   idBase,
   className,
+  wrapOnPhone = false,
 }: TabsProps<V>) {
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -99,6 +105,7 @@ export function Tabs<V extends string = string>({
         // Uses #000 (opaque mask) to transparent — compositor only, no repaint.
         // Reduced-motion: the mask is CSS, no animation; always-on is correct.
         '[mask-image:linear-gradient(to_right,#000_calc(100%-28px),transparent_100%)]',
+        wrapOnPhone && 'max-sm:flex-wrap max-sm:overflow-x-visible max-sm:[mask-image:none] max-sm:[&>[role=tab]]:ps-0',
         className,
       )}
     >
@@ -117,7 +124,7 @@ export function Tabs<V extends string = string>({
               // 52px tab rhythm; remains above the WCAG 2.5.5 coarse-pointer target floor.
               // snap-start: this tab is the snap destination when scrolling the strip.
               // shrink-0: prevents tabs from squishing (needed for proper snap behaviour).
-              'relative h-[var(--table-head-height)] shrink-0 snap-start px-4 text-control font-normal',
+              'relative h-[var(--table-head-height)] shrink-0 snap-start px-4 text-control font-normal first:ps-0',
               active
                 // AC-RAM-004 (#688): raw text-primary as small text is ~3.5:1 on the dark canvas
                 // (sub-AA, DESIGN.md accessibility posture). text-primary-text is the AA on-canvas

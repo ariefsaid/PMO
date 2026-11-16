@@ -15,6 +15,8 @@ const SalesInvoicesFilters: React.FC<{
   embedded: boolean;
   isDesktop: boolean;
   statusFilters: readonly StatusFilter[];
+  /** The revenue mode (which decides the chip set) has not answered: hold the chips' space. */
+  statusPending?: boolean;
   statusFilter: StatusFilter;
   onStatusChange: (value: StatusFilter) => void;
   search: string;
@@ -38,6 +40,7 @@ const SalesInvoicesFilters: React.FC<{
   embedded,
   isDesktop,
   statusFilters,
+  statusPending = false,
   statusFilter,
   onStatusChange,
   search,
@@ -83,6 +86,7 @@ const SalesInvoicesFilters: React.FC<{
             label: t('financeCopy.filterByStatus', "Filter by status"),
             kind: 'segment',
             semantics: 'tabs',
+            pending: statusPending,
             options: statusFilters.filter((f) => f !== 'All').map((f) => ({ value: f, label: salesInvoiceStatusLabel(f, t) })),
           },
         ]}

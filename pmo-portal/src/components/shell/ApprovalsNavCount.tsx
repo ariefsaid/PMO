@@ -26,7 +26,7 @@ import {
  * not trigger list reads on every route; while queues refresh, keep the last complete count for
  * this signed-in user and role until the next complete read replaces it.
  */
-export const ApprovalsNavCount: React.FC = () => {
+export const ApprovalsNavCount: React.FC<{ badge?: boolean }> = ({ badge = false }) => {
   const { t } = useTranslation();
   const queryClient = useContext(QueryClientContext);
   const auth = useContext(AuthContext);
@@ -151,8 +151,13 @@ export const ApprovalsNavCount: React.FC = () => {
   if (visibleCount === null) return null;
 
   return (
-    <span className="ml-auto inline-flex shrink-0 items-center gap-1.5">
-      <span className="tabular text-support text-muted-foreground" aria-hidden="true">
+    <span className={badge ? 'absolute -right-3 -top-1.5 inline-flex' : 'ml-auto inline-flex shrink-0 items-center gap-1.5'}>
+      <span
+        className={badge
+          ? 'tabular inline-flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[0.6875rem] font-semibold leading-4 text-primary-foreground'
+          : 'tabular text-support text-muted-foreground'}
+        aria-hidden="true"
+      >
         {visibleCount}
       </span>
       <span className="sr-only">

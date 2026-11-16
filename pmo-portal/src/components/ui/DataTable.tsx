@@ -117,6 +117,7 @@ interface DataTablePropsBase<Row> {
    * screen-reader-reachable affordance WITHOUT overriding the `<tr>`'s implicit
    * `role="row"`. Omit when the first cell already renders its own focusable
    * control (e.g. a name button) to avoid nesting interactive elements.
+   * Answer '' for a row that does not open: it gets no button and no pointer.
    */
   rowLabel?: (row: Row) => string;
   /** Optional accessible name for the active table or mobile list structure. */
@@ -124,6 +125,8 @@ interface DataTablePropsBase<Row> {
   /** Compact mobile title and details for record cards that do not need a field-by-field definition list. */
   mobileCardTitle?: (row: Row) => React.ReactNode;
   mobileCardDetails?: (row: Row) => React.ReactNode;
+  /** Cards: right-align numeric values (and totals) so every figure ends on the card's one right edge. Default keeps them at the label column's x. */
+  cardValuesEnd?: boolean;
   /** Optional DOM target id for a row that a route will scroll to and focus programmatically. */
   rowTarget?: (row: Row) => string | undefined;
   selectedKey?: string;
@@ -258,6 +261,7 @@ export function DataTable<Row>({
   accessibleName,
   mobileCardTitle,
   mobileCardDetails,
+  cardValuesEnd,
   tableId,
   groupBy,
   groupHeader,
@@ -511,6 +515,7 @@ export function DataTable<Row>({
           totals={totals}
           mobileCardTitle={mobileCardTitle}
           mobileCardDetails={mobileCardDetails}
+          cardValuesEnd={cardValuesEnd}
         />
       )}
       {caveats.length > 0 && <p id={caveatId} className="border-t border-border/70 px-[var(--table-cell-inset)] py-2 text-control text-muted-foreground">

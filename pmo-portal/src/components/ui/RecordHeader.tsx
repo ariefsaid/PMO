@@ -21,11 +21,15 @@ export interface RecordHeaderProps {
   status: React.ReactNode;
   /** Keep a long record name full width on mobile, with status below its identity line. */
   statusBelowMetaOnMobile?: boolean;
+  /** Phone: the shell's app bar already shows the name, so the h1 stays for assistive tech only (one visible title). */
+  titleInAppBarOnPhone?: boolean;
   /** Phone: the name takes at most two lines with the status under it; a tap on a cut name shows it whole. */
   clampNameOnMobile?: boolean;
   /** Quiet identity line under the title (reference number, client). Not a sentence. */
   meta?: React.ReactNode;
   metaId?: string;
+  /** Render the identity line under the whole title row (full width, beneath the actions) instead of under the title only. */
+  metaFullWidth?: boolean;
   /** The key-facts row under the title (label + value pairs). */
   stats?: PageStat[];
   /** The ONE filled primary action of the record (right side, before the overflow menu). */
@@ -74,9 +78,11 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
   name,
   status,
   statusBelowMetaOnMobile = false,
+  titleInAppBarOnPhone = false,
   clampNameOnMobile = false,
   meta,
   metaId,
+  metaFullWidth = false,
   stats,
   primaryAction,
   menuItems,
@@ -137,21 +143,23 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
               statusBelowMetaOnMobile
                 ? 'col-span-2 row-start-1 break-words sm:col-span-1 sm:row-start-auto sm:flex-[0_1_auto]'
                 : 'flex-[0_1_auto] truncate',
+              titleInAppBarOnPhone && 'max-md:sr-only',
               clampNameOnMobile && cn('max-sm:max-w-full max-sm:whitespace-normal max-sm:break-words', !nameOpen && 'max-sm:line-clamp-2'),
               !isDrawer && 'sm:truncate',
             )}>{name}</h1>
-            <span className={cn(
+            {status != null && status !== false && <span className={cn(
               'shrink-0 self-baseline',
               statusBelowMetaOnMobile && 'col-span-2 row-start-3 justify-self-start sm:col-span-1 sm:row-start-auto',
-            )}>{status}</span>
+            )}>{status}</span>}
           </div>
-          {meta && <div id={metaId} className={cn(
+          {meta && !metaFullWidth && <div id={metaId} className={cn(
             'mt-1 text-control font-normal text-muted-foreground',
-            statusBelowMetaOnMobile && 'col-span-2 row-start-2 sm:row-start-auto',
+            statusBelowMetaOnMobile && (titleInAppBarOnPhone ? 'col-span-2 row-start-1 sm:row-start-auto' : 'col-span-2 row-start-2 sm:row-start-auto'),
           )}>{meta}</div>}
         </div>
         {zone && <div className={cn('flex shrink-0 items-center gap-2', actionsOnTitleRow ? 'ml-auto max-w-full' : cn('w-full', !isDrawer && 'ml-auto sm:w-auto'))}>{zone}</div>}
       </div>
+      {meta && metaFullWidth && <div id={metaId} className="mt-1 text-control font-normal text-muted-foreground">{meta}</div>}
       {stats && stats.length > 0 && (
         <div
           className="mt-4 grid gap-4 border-t border-border pt-4"

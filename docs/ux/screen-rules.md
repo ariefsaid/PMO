@@ -85,3 +85,28 @@ Emphasis:
   A list where every row is red tells nothing.
 - A money exception gets size, not just colour: an overdue amount is shown as a figure with its age beside it.
 - No decorative bar: a bar that always reads 100% (e.g. "Contract") is removed; bars compare at least two values.
+
+## Layout
+The rendered proof (`scripts/ux-proof.sh`) measures these; per-route counts live in `docs/ux/layout-baseline.md`
+and only go down. A route under redesign reaches zero.
+1. One left edge per surface: every block in a panel starts at the same x (the panel inset); on the page,
+   flat content and panels share the gutter. Structural indents (table columns after the first, nested
+   list levels, trees, chart internals) are exempt; mark one deliberate exception `data-layout-ignore`.
+2. Spacing follows the relationship, from the scale: 16px between related groups, 24px between panels,
+   32px between sections. A heading sits at most 24px above its content. Paddings never stack: a panel
+   inside a panel, or a padded wrapper around a panel, adds no second inset.
+3. No section for one value: a heading over a single label and value becomes a line in the block above.
+4. Every action has a place: the header action slot, or a sticky bar on a phone. None floats in the
+   page flow under unrelated content.
+5. One surface language per page: bordered panels or flat sections, not a mix with different insets.
+6. Rows share a baseline: in a record row the figure and its action are centred on one line, unless the
+   figure sits in its own right-aligned numeric column shared by every row.
+7. Columns end level in every state. A row of panels ends within 48px of its tallest neighbour while the
+   page continues below it. Error and empty states are designed to that height, not collapsed to a line.
+8. A message fits its cell: one line plus its action, or the action under the text. It never wraps into a
+   narrow column beside a button.
+9. Removing words re-flows the screen: when copy goes, the blocks below close up to the scale; no hole is
+   left where text was.
+10. Secondary text under a figure uses the supporting token: 14px, regular weight, muted colour.
+11. Long lists use numbered pages with Previous / Next and "Showing a–b of n"; the page is kept in the
+    address so Back and a shared link return to it.

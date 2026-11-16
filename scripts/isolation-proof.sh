@@ -13,7 +13,7 @@ B_ORG=a6120000-0000-4000-8000-00000000000b
 # A floor on checks and a ceiling on skips, per mode (skips are probes the fixtures cannot fill: no seed row, or a
 # table the copy could not write). More checks or fewer skips pass; a shrunk probe or more skips fail. Add probes
 # for new or uncovered tables; never raise a bound.
-SKIPS_READ=392 SKIPS_WRITE=273 MIN_CHECKS_READ=472 MIN_CHECKS_WRITE=591
+SKIPS_READ=395 SKIPS_WRITE=273 MIN_CHECKS_READ=480 MIN_CHECKS_WRITE=602
 
 # judge <read|write> <probe exit code> <probe output file>: print the counts, return 0 only for a clean run.
 judge(){

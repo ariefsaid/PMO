@@ -55,11 +55,11 @@ describe('AC-BUPOT-018 withholding-slip details', () => {
     };
     const onOpenProcurement = vi.fn();
     render(<FinanceI18nTestProvider><VendorWithholdingSlipDetails slipId="slip-1" canWrite={false} onClose={vi.fn()} onOpenProcurement={onOpenProcurement} /></FinanceI18nTestProvider>);
-    expect(screen.getByText(locale === 'en' ? 'Supplier invoice reference: SUP-INV-002' : 'Referensi faktur pemasok: SUP-INV-002')).toBeInTheDocument();
-    expect(screen.getByText(locale === 'en' ? 'Supplier invoice no. (accounting): VI-002' : 'No. faktur pemasok (akuntansi): VI-002')).toBeInTheDocument();
+    expect(screen.getByText(locale === 'en' ? 'Supplier invoice reference: SUP-INV-002' : 'Referensi faktur supplier: SUP-INV-002')).toBeInTheDocument();
+    expect(screen.getByText(locale === 'en' ? 'Supplier invoice no. (accounting): VI-002' : 'No. faktur supplier (akuntansi): VI-002')).toBeInTheDocument();
     expect(document.body).toHaveTextContent(locale === 'en' ? 'Case: Case two' : 'Kasus: Case two');
     expect(document.body).toHaveTextContent('Harbor works');
-    expect(screen.getByText(locale === 'en' ? 'Supplier invoice reference not recorded' : 'Referensi faktur pemasok belum dicatat')).toBeInTheDocument();
+    expect(screen.getByText(locale === 'en' ? 'Supplier invoice reference not recorded' : 'Referensi faktur supplier belum dicatat')).toBeInTheDocument();
     expect(screen.getByText(locale === 'en' ? 'Case: Details unavailable' : 'Kasus: Detail tidak tersedia')).toBeInTheDocument();
     const open = screen.getByRole('button', { name: /SUP-INV-002.*VI-002.*Case two/ });
     fireEvent.click(open);

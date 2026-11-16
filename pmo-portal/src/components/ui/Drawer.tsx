@@ -47,6 +47,9 @@ export interface DrawerProps {
   width?: 'sm' | 'lg';
   /** Optional border-top footer slot for secondary entry points. */
   footer?: React.ReactNode;
+  /** Where focus lands when the drawer opens (default: the first tabbable). A caller returning from a flow that
+   *  closed the drawer uses it to land back on the control that started that flow. */
+  initialFocus?: React.ComponentProps<typeof BaseDrawer.Popup>['initialFocus'];
   /**
    * CW-3a: record-header anatomy. When `icon` or `status` is provided, the drawer
    * header renders the shared `RecordHeader` (name + status pill + a top-right
@@ -73,6 +76,7 @@ export const Drawer: React.FC<DrawerProps> = ({
   nestedOpen = false,
   width = 'sm',
   footer,
+  initialFocus,
   icon,
   status,
   headerActions,
@@ -136,6 +140,7 @@ export const Drawer: React.FC<DrawerProps> = ({
             // band instead of on top of it (the generic dialog remedy lands exactly
             // there). Every drawer built on this component inherits the rule.
             data-drawer-panel
+            initialFocus={initialFocus}
             aria-modal="true"
             aria-labelledby={titleId}
             aria-describedby={subtitle ? subId : undefined}

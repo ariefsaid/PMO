@@ -27,6 +27,11 @@ export interface ImportButtonProps<Input> {
    *  two buttons both reading "Import" is not a toolbar (DD-BIMP-4). */
   label?: string;
   className?: string;
+  /** When set, the CALLER hosts the wizard (render `<ImportWizard>` yourself) and this button only asks to open
+   *  it — for a button that lives inside a surface which must close first (one overlay at a time). */
+  onOpen?: () => void;
+  /** Reaches the trigger so the host can return focus to it. */
+  triggerRef?: React.Ref<HTMLButtonElement>;
 }
 
 export function ImportButton<Input>({
@@ -35,6 +40,8 @@ export function ImportButton<Input>({
   onImported,
   label = 'Import',
   className,
+  onOpen,
+  triggerRef,
 }: ImportButtonProps<Input>) {
   const may = usePermission();
   const [open, setOpen] = useState(false);
@@ -44,11 +51,11 @@ export function ImportButton<Input>({
 
   return (
     <>
-      <Button variant="outline" onClick={() => setOpen(true)} className={className}>
+      <Button ref={triggerRef} variant="outline" onClick={onOpen ?? (() => setOpen(true))} className={className}>
         <Icon name="upload" />
         {label}
       </Button>
-      {open && (
+      {open && !onOpen && (
         <ImportWizard
           descriptor={descriptor}
           onClose={(didImport) => {

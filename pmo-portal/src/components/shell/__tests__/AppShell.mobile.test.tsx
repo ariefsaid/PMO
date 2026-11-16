@@ -101,24 +101,22 @@ describe('AC-IXD-MOBILE-W4-C3 C3-2/C3-5: drawer a11y and scrim-close', () => {
 // C3-8: Visible close button inside drawer
 // ---------------------------------------------------------------------------
 describe('AC-IXD-MOBILE-W4-C3 C3-8: drawer has a visible close button', () => {
-  it('renders a close (×) button inside the drawer when open', () => {
+  const open = (onCloseRail: () => void) =>
     wrap(
-      <AppShell rail={<div>nav</div>} header={null} railOpen onCloseRail={vi.fn()}>
+      <AppShell rail={<Rail onNavigate={onCloseRail} />} header={null} railOpen onCloseRail={onCloseRail}>
         <div>x</div>
       </AppShell>
     );
-    // Must be a button with an accessible label for close
-    const closeBtn = screen.getByRole('button', { name: /close navigation/i });
-    expect(closeBtn).toBeInTheDocument();
+
+  it('renders a close (×) button inside the drawer when open', () => {
+    open(vi.fn());
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByRole('button', { name: /close navigation/i })).toBeInTheDocument();
   });
 
   it('clicking the close button calls onCloseRail', async () => {
     const onCloseRail = vi.fn();
-    wrap(
-      <AppShell rail={<div>nav</div>} header={null} railOpen onCloseRail={onCloseRail}>
-        <div>x</div>
-      </AppShell>
-    );
+    open(onCloseRail);
     await userEvent.click(screen.getByRole('button', { name: /close navigation/i }));
     expect(onCloseRail).toHaveBeenCalled();
   });
@@ -420,12 +418,11 @@ describe('AC-IXD-MOBILE-W4-C3 C3-10: breadcrumb on a phone', () => {
 describe('AC-IXD-MOBILE-W4-C3 C3-11: More and close button have .touch-target', () => {
   it('the drawer close button has .touch-target', () => {
     wrap(
-      <AppShell rail={<div>nav</div>} header={null} railOpen onCloseRail={vi.fn()}>
+      <AppShell rail={<Rail onNavigate={vi.fn()} />} header={null} railOpen onCloseRail={vi.fn()}>
         <div>x</div>
       </AppShell>
     );
-    const closeBtn = screen.getByRole('button', { name: /close navigation/i });
-    expect(closeBtn.className).toMatch(/touch-target/);
+    expect(screen.getByRole('button', { name: /close navigation/i }).className).toMatch(/touch-target/);
   });
 
   it('removes the redundant navigation trigger from the context bar', () => {
@@ -475,6 +472,9 @@ describe('AC-IXD-MOBILE-W4-C3 C3-13: content gutter uses the page-gutter token',
     const contentDiv = main.querySelector('div');
     expect(contentDiv).not.toBeNull();
     expect(contentDiv!.className).toContain('px-[var(--space-page-gutter)]');
-    expect(contentDiv!.className).toContain('max-[639px]:pb-[calc(var(--phone-nav-height)+var(--space-page-gutter))]');
+    // The page reserves exactly what is fixed at the bottom (bar + action bar), or the normal gutter when
+    // nothing is: never the fixed height PLUS a gutter (a blank band under the content at every width).
+    expect(contentDiv!.className).toContain('pb-[max(var(--space-page-gutter),calc(var(--phone-nav-height)+var(--mobile-action-bar-height,0px)))]');
+    expect(contentDiv!.className).not.toContain('+var(--space-page-gutter))]');
   });
 });

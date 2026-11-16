@@ -5,7 +5,7 @@ import { useProjectProcurements } from '@/src/hooks/useProcurements';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
-import { formatNumberWhole } from '@/src/lib/format';
+import { formatCurrency } from '@/src/lib/format';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
@@ -66,6 +66,10 @@ export function useBudgetPosition(project: ProjectWithRefs, enabled = true, opti
     const spent = canSeeActual && budgetPosition?.spent != null && budgetPosition.currency === project.currency
       ? Number(budgetPosition.spent)
       : null;
+    // Paid spending with no budget category: in the project's spent figure, in no category row.
+    const uncategorized = actuals?.uncategorized
+      ? { amount: same && actuals.uncategorized.amount !== null ? Number(actuals.uncategorized.amount) : null }
+      : null;
     const overRows = rows.filter((r) => r.actual !== null && r.actual > r.budget)
       .sort((a, b) => (b.actual! - b.budget) - (a.actual! - a.budget));
     return {
@@ -91,6 +95,7 @@ export function useBudgetPosition(project: ProjectWithRefs, enabled = true, opti
         && budgetPosition.budgetCurrency === project.currency
         && budgetPosition.atRisk === true,
       overRows,
+      uncategorized,
       unknown: rows.filter((r) => r.actual === null).length,
     };
   }, [versions.data, versions.isPending, versions.isError, versions.refetch, actuals, financesPending, financesError, refetchFinances,
@@ -152,7 +157,11 @@ const lateDays = (target: string, today: string) => Math.max(1, Math.floor((Date
 export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'pm' | 'delivery'): {
   items: AttentionItem[];
   myVisibleTaskKeys: ReadonlySet<string>;
+  /** Union of every source: the "nothing needs attention" conclusion still waits for all of them. */
   isPending: boolean;
+  /** Sources still loading / failed, so rows from settled sources can show beside one loading or error row. */
+  pendingSources: string[];
+  failedSources: string[];
   error?: { what: string; retry: () => unknown };
 } {
   const { t } = useTranslation('project');
@@ -170,6 +179,27 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
   const isPending = organizationDay.isPending || milestones.isPending || (lens === 'delivery' && tasks.isPending) || (lens !== 'delivery' && (
     budget.isPending || budget.actualsPending || budget.budgetPositionPending || receivables.isPending || (canApprove && procurements.isPending)
   ));
+  const money = lens !== 'delivery';
+  const pendingSources = [
+    ...(organizationDay.isPending ? ['today'] : []),
+    ...(milestones.isPending ? ['phases'] : []),
+    ...(lens === 'delivery' && tasks.isPending ? ['tasks'] : []),
+    ...(money && budget.isPending ? ['budget'] : []),
+    ...(money && (budget.actualsPending || budget.budgetPositionPending) ? ['spending'] : []),
+    ...(money && receivables.isPending ? ['receivables'] : []),
+    ...(canApprove && procurements.isPending ? ['procurements'] : []),
+  ];
+  const failedSources = [
+    ...(organizationDay.isError ? ['today'] : []),
+    ...(milestones.isError ? ['phases'] : []),
+    ...(lens === 'delivery' && tasks.isError ? ['tasks'] : []),
+    ...(money && budget.isError ? ['budget'] : []),
+    ...(money && (budget.actualsError || budget.budgetPositionError) ? ['spending'] : []),
+    ...(money && receivables.isError ? ['receivables'] : []),
+    ...(canApprove && procurements.isError ? ['procurements'] : []),
+  ];
+  const budgetSettled = !pendingSources.includes('budget') && !pendingSources.includes('spending');
+  const todayKnown = !organizationDay.isPending && !organizationDay.isError;
   const failedRead = organizationDay.isError ? 'today'
     : milestones.isError ? 'phases'
     : lens === 'delivery' && tasks.isError ? 'tasks'
@@ -206,6 +236,8 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
     const out: AttentionItem[] = [];
     const today = organizationDay.day ?? '';
     if (lens === 'delivery') {
+      // Overdue-ness needs the organization day: build no task row from a day that is not known yet.
+      if (!todayKnown) return out;
       const mine = (tasks.data ?? []).filter((task) => task.assignee_id === currentUser?.id && task.status !== 'Done');
       for (const task of mine) {
         const blocked = task.status === 'Blocked';
@@ -232,7 +264,7 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
       }
       return out.sort((left, right) => (left.tone === right.tone ? 0 : left.tone === 'danger' ? -1 : 1));
     }
-    if (budget.overRows.length) {
+    if (budgetSettled && budget.overRows.length) {
       const worst = budget.overRows[0];
       out.push({ key: 'budget', tone: 'danger', to: `${base}/budget`,
         what: budget.projectOver !== null
@@ -240,8 +272,8 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
           : t('projectDetail.attention.categoryOver', '{{category}} over on spending', { category: budgetCategoryLabel(worst.category, t) }),
         // The amount is the cost block's headline; here only where it comes from.
         size: budget.projectOver !== null
-          ? t('projectDetail.attention.projectOverSize', '{{amount}} {{currency}} over', { amount: formatNumberWhole(budget.projectOver), currency: project.currency })
-          : t('projectDetail.attention.categoryOverSize', '{{amount}} {{currency}} over', { amount: formatNumberWhole(worst.actual! - worst.budget), currency: project.currency }),
+          ? t('projectDetail.attention.projectOverSize', '{{amount}} over', { amount: formatCurrency(budget.projectOver, project.currency) })
+          : t('projectDetail.attention.categoryOverSize', '{{amount}} over', { amount: formatCurrency(worst.actual! - worst.budget, project.currency) }),
         explanation: t('projectDetail.attention.budgetTooltip', 'Compared mapped spending with the active budget before tax; see Budget for category detail.'),
         action: t('projectDetail.attention.budgetAction', 'Review budget') });
     }
@@ -250,20 +282,21 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
         what: receivables.data.count === 1 ? t('projectDetail.attention.arWhatOne', 'Customer invoice overdue') : t('projectDetail.attention.arWhatMany', '{{count}} customer invoices overdue', { count: receivables.data.count }),
         // Only a known balance is a figure; an unsynced balance shows age only, never the invoice total.
         size: receivables.data.balance !== null
-          ? t('projectDetail.attention.arSize', '{{amount}} {{currency}} unpaid · {{days}} days', { amount: formatNumberWhole(receivables.data.balance), currency: project.currency, days: receivables.data.oldest })
+          ? t('projectDetail.attention.arSize', '{{amount}} unpaid · {{days}} days', { amount: formatCurrency(receivables.data.balance, project.currency), days: receivables.data.oldest })
           : t('projectDetail.attention.arSizeNoBalance', '{{days}} days past due', { days: receivables.data.oldest }),
         explanation: t('projectDetail.attention.arTooltip', 'Invoice status, due date, and any known unpaid balance come from project invoices and accounting sync.'),
         action: receivables.data.count === 1 ? t('projectDetail.attention.arActionOne', 'See invoice') : t('projectDetail.attention.arActionMany', 'See invoices') });
     }
-    const late = (milestones.data ?? []).filter((m) => m.target_date && m.target_date < today && m.effective_pct < 100 && (m.effective_pct > 0 || m.task_count > 0));
+    const late = (todayKnown ? milestones.data ?? [] : []).filter((m) => m.target_date && m.target_date < today && m.effective_pct < 100 && (m.effective_pct > 0 || m.task_count > 0));
     if (late.length) {
       const worst = late.reduce((w, m) => (m.target_date! < w.target_date! ? m : w));
       // N16: late reads red here as it does on the phase rows and Tasks — one lateness colour.
       out.push({ key: 'phases', tone: 'danger', to: `${base}/tasks`,
         what: late.length === 1
           ? t('projectDetail.attention.phaseWhat', '{{name}} is late', { name: worst.name })
-          : t('projectDetail.attention.phasesWhat', '{{count}} phases late', { count: late.length }),
-        size: t('projectDetail.attention.phaseSize', '{{days}} days late', { days: lateDays(worst.target_date!, today) }),
+          : t('projectDetail.attention.phasesWhat', '{{count}} phases late, worst by {{days}} days', { count: late.length, days: lateDays(worst.target_date!, today) }),
+        // Several phases: the one sentence carries the figure; a second "days late" beside the header's would read as a contradiction.
+        size: late.length === 1 ? t('projectDetail.attention.phaseSize', '{{days}} days late', { days: lateDays(worst.target_date!, today) }) : undefined,
         action: t('projectDetail.attention.phaseAction', 'See tasks'),
         explanation: t('projectDetail.attention.phaseTooltip', 'Phase target dates and completion come from the project phase plan.') });
     }
@@ -274,14 +307,14 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
           what: waiting.length === 1
             ? t('projectDetail.attention.approveOne', 'Procurement waiting for your approval')
             : t('projectDetail.attention.approveMany', '{{count}} procurements waiting for your approval', { count: waiting.length }),
-          size: t('projectDetail.attention.approveSize', '{{count}} procurements', { count: waiting.length }),
+          size: t('projectDetail.attention.approveSize', { count: waiting.length, defaultValue_one: '{{count}} procurement', defaultValue_other: '{{count}} procurements' }),
           action: t('projectDetail.attention.approveAction', 'Review'),
           explanation: t('projectDetail.attention.approveTooltip', 'Counts project procurements that are waiting for your approval.') });
       }
     }
     return out.sort((x, y) => (x.tone === y.tone ? 0 : x.tone === 'danger' ? -1 : 1));
-  }, [lens, organizationDay.day, tasks.data, budget.overRows, budget.projectOver, receivables.data, milestones.data, procurements.data, canApprove, currentUser?.id, realRole, base, project.currency, t]);
+  }, [lens, todayKnown, budgetSettled, organizationDay.day, tasks.data, budget.overRows, budget.projectOver, receivables.data, milestones.data, procurements.data, canApprove, currentUser?.id, realRole, base, project.currency, t]);
 
-  return { items, myVisibleTaskKeys, isPending, error };
+  return { items, myVisibleTaskKeys, isPending, pendingSources, failedSources, error };
 }
 

@@ -95,7 +95,7 @@ test('AC-CHG-019: a PM edits a project\'s client and end date and the History ta
   await login(page, 'exec@acme.test');
   await page.goto('/sales');
   await openPipelineCard(page, name);
-  await page.getByRole('button', { name: 'More actions' }).click();
+  await page.getByRole('button', { name: 'Project actions' }).click();
   await page.getByRole('menuitem', { name: /Archive/i }).click();
   const archiveDialog = page.getByRole('alertdialog');
   await expect(archiveDialog).toBeVisible({ timeout: 8_000 });

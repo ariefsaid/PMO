@@ -95,7 +95,7 @@ const StockOnHand: React.FC = () => {
         key: 'item', header: t('onHand.columns.item'), rowHeader: true, stickyLeft: true,
         cell: (r) => (
           <div className="min-w-0">
-            <Link to={`/stock/ledger?item=${r.itemId}`} className="block truncate font-mono text-sm font-semibold hover:underline">{r.itemCode}</Link>
+            <Link to={`/stock/ledger?item=${r.itemId}`} className="block truncate record-id font-semibold text-foreground hover:underline">{r.itemCode}</Link>
             <span className="block truncate text-sm text-muted-foreground">{r.itemName}</span>
           </div>
         ),
@@ -105,7 +105,7 @@ const StockOnHand: React.FC = () => {
         key: 'warehouse', header: t('onHand.columns.warehouse'),
         cell: (r) => (
           <span className="block truncate text-sm">
-            {r.warehouseName}{sharedNames.has(r.warehouseName) && <span className="font-mono text-muted-foreground"> · {r.warehouseCode}</span>}
+            {r.warehouseName}{sharedNames.has(r.warehouseName) && <span className="record-id"> · {r.warehouseCode}</span>}
           </span>
         ),
         exportValue: (r) => r.warehouseName,
@@ -249,7 +249,7 @@ const StockOnHand: React.FC = () => {
           // laid out as a tight two-column list so the card stays short without losing a line.
           mobileCardTitle={(r) => (
             <div className="min-w-0">
-              <Link to={`/stock/ledger?item=${r.itemId}`} className="block min-h-11 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-sm font-semibold hover:underline">{r.itemCode}</Link>
+              <Link to={`/stock/ledger?item=${r.itemId}`} className="block min-h-11 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap record-id font-semibold text-foreground hover:underline">{r.itemCode}</Link>
               <span className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-sm text-muted-foreground">{r.itemName}</span>
             </div>
           )}
@@ -257,7 +257,7 @@ const StockOnHand: React.FC = () => {
             <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-0.5 text-control">
               <dt className="text-muted-foreground">{t('onHand.columns.warehouse')}</dt>
               <dd className="min-w-0">
-                {r.warehouseName}{sharedNames.has(r.warehouseName) && <span className="font-mono text-muted-foreground"> · {r.warehouseCode}</span>}
+                {r.warehouseName}{sharedNames.has(r.warehouseName) && <span className="record-id"> · {r.warehouseCode}</span>}
               </dd>
               <dt className="text-muted-foreground">{t('onHand.columns.quantity')}</dt>
               <dd className="tabular-nums font-semibold">

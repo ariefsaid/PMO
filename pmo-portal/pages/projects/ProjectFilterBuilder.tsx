@@ -122,6 +122,8 @@ export function ProjectFilterBuilder({ model, t, canViewMoney }: {
   const failed = [clientCompaniesResult, companiesResult, projectManagersResult].filter((r) => !r.isPending && r.isError);
   return (
     <div data-testid="project-filter-builder" className="min-w-0 max-w-full">
+      {/* One line: chips, Add filter and Clear all share the toolbar row, so setting a filter never grows the toolbar. */}
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
       <Filters<ProjectFilterValue>
         fields={fields}
         query={query}
@@ -143,10 +145,11 @@ export function ProjectFilterBuilder({ model, t, canViewMoney }: {
       {/* AC-PRJUX-002: one Clear all for the whole list (chips, status, search), back to the role default. */}
       {hasNonDefaultFilter && (
         <button type="button" onClick={clearFilters}
-          className="mt-1 text-sm font-semibold text-primary-text underline-offset-2 hover:underline">
+          className="touch-target shrink-0 whitespace-nowrap text-sm font-semibold text-primary-text underline-offset-2 hover:underline">
           {t('projects.mobile.clearAll', 'Clear all')}
         </button>
       )}
+      </div>
       {failed.length > 0 && (
         <div className="mt-1 flex items-center gap-2">
           <p role="alert" className="text-sm text-destructive">{t('projects.mobile.error', "Couldn't load options")}</p>

@@ -11,6 +11,7 @@
  * unchanged server-side (Error-Handling table), no destructive client effect.
  */
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { DownvoteReason } from '@/src/lib/db/agentEvents';
 import { askWhatWentWrong, trackAgentFeedbackRated } from '@/src/lib/analytics';
 import { safeTrack } from '@/src/lib/analytics/safeTrack';
@@ -20,7 +21,7 @@ const DOWNVOTE_REASONS: { value: DownvoteReason; label: string }[] = [
   { value: 'not_helpful', label: 'Not helpful' },
   { value: 'wrong_tool', label: 'Wrong tool' },
   { value: 'too_slow', label: 'Too slow' },
-];
+]; // English defaults; rendered through feedback.<value>
 
 interface FeedbackControlProps {
   eventId: string;
@@ -30,9 +31,10 @@ interface FeedbackControlProps {
 }
 
 const thumbButtonClasses =
-  'rounded-md px-1.5 py-0.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring';
+  'rounded-md px-1.5 py-0.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 export const FeedbackControl: React.FC<FeedbackControlProps> = ({ eventId, runId, onRate }) => {
+  const { t } = useTranslation('assistantPanel');
   const [rating, setRating] = useState<'up' | 'down' | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const anchorId = eventId.replace(/[^\w-]/g, '');
@@ -59,37 +61,37 @@ export const FeedbackControl: React.FC<FeedbackControlProps> = ({ eventId, runId
 
   return (
     <div className="mt-1 flex flex-col gap-1" data-feedback-event={anchorId}>
-      <div className="flex items-center gap-1">
+      <div className="-ml-1.5 flex items-center gap-1">
         <button
           type="button"
           onClick={handleUp}
-          aria-label="Good response"
+          aria-label={t('goodLabel', 'Good response')}
           aria-pressed={rating === 'up'}
           className={thumbButtonClasses}
         >
-          Good
+          {t('good', 'Good')}
         </button>
         <button
           type="button"
           onClick={handleDown}
-          aria-label="Bad response"
+          aria-label={t('badLabel', 'Bad response')}
           aria-pressed={rating === 'down'}
           className={thumbButtonClasses}
         >
-          Bad
+          {t('bad', 'Bad')}
         </button>
       </div>
 
       {pickerOpen && (
-        <div role="group" aria-label="What went wrong?" className="flex flex-wrap gap-1">
+        <div role="group" aria-label={t('feedback.whatWentWrong', 'What went wrong?')} className="flex flex-wrap gap-1">
           {DOWNVOTE_REASONS.map((r) => (
             <button
               key={r.value}
               type="button"
               onClick={() => handleReason(r.value)}
-              className="rounded-md border border-border px-2 py-0.5 text-xs text-foreground hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
+              className="rounded-md border border-border px-2 py-0.5 text-sm text-foreground hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              {r.label}
+              {t(`feedback.${r.value}`, r.label)}
             </button>
           ))}
         </div>
