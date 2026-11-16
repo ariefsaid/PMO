@@ -178,7 +178,7 @@ const StockSetup: React.FC = () => {
       <StockTabs />
       <div className="mb-4 flex flex-col items-stretch border-b border-border sm:flex-row sm:items-center">
         <Tabs<Tab>
-          className="mb-0 w-full min-w-0 border-b-0 sm:w-auto sm:flex-1"
+          className="mb-0 w-full min-w-0 border-b-0 sm:w-auto sm:flex-1 [&>[role=tab]:first-child]:pl-0"
           idBase="stock-setup"
           ariaLabel={t('setup.tabsLabel')}
           value={tab}

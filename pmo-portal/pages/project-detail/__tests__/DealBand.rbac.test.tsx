@@ -89,10 +89,13 @@ beforeEach(() => transitionProject.mockClear());
 describe('DealBand — RBAC write-affordance gate (A-1)', () => {
   it('AC-W2-RBAC-002: a PM sees Advance / Mark won / Mark lost (authorized)', async () => {
     renderAs('Project Manager');
-    await userEvent.click(screen.getByText('More project details'));
     expect(screen.getByRole('button', { name: /Advance to/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Mark won/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Mark lost/i })).toBeInTheDocument();
+    // #2389: on phone the outcomes live in the action menu beside Advance.
+    await userEvent.click(screen.getByRole('button', { name: /More actions/i }));
+    expect(await screen.findByRole('menuitem', { name: /Mark won/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /Mark lost/i })).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await userEvent.click(screen.getByText('More project details'));
     // #1638: the deal page carries the stage history; it opens on demand.
     expect(screen.getByText('Sales history')).toBeInTheDocument();
   });
@@ -106,6 +109,7 @@ describe('DealBand — RBAC write-affordance gate (A-1)', () => {
     expect(screen.queryByRole('button', { name: /Advance to/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Mark won/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Mark lost/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /More actions/i })).not.toBeInTheDocument();
     // A clean read-only note explains who manages the pipeline (not a wall of dead buttons).
     expect(screen.getByText(/managed by the project owner/i)).toBeInTheDocument();
   });

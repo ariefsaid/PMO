@@ -10,6 +10,7 @@ import {
   ListState,
   SelectField,
   TextField,
+  type SubmitError,
 } from '@/src/components/ui';
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { domainLabel } from './integrationLabels';
@@ -19,6 +20,20 @@ import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { ErpSendStates } from './ErpSendStates';
 import { ProjectMatchReview } from './ProjectMatchReview';
 import { ConnectProposalReview } from './ConnectProposalReview';
+import { AppError } from '@/src/lib/appError';
+import type { CompanyDefaultSlot } from '@/src/lib/repositories/types';
+import { matchCompanyDefaultsRefusal } from '@/src/lib/i18n/companyDefaultsRefusal';
+
+/** #1599 ECX-3: the company defaults PMO sets in the ERP, and the readiness key each one fills. */
+const ACCOUNT_SLOTS: ReadonlyArray<{ slot: CompanyDefaultSlot; key: string }> = [
+  { slot: 'payable', key: 'default_payable_account' },
+  { slot: 'expense', key: 'default_expense_account' },
+  { slot: 'cash', key: 'default_cash_account' },
+  { slot: 'bank', key: 'default_bank_account' },
+  { slot: 'cost_centre', key: 'cost_center' },
+];
+/** Refusals that carry plain words for the person (PMO's checks and the ERP's own reason, cleaned server-side). */
+const PLAIN_REFUSALS = new Set(['config-rejected', 'BAD_REQUEST']);
 
 // #775 phase B — `expenses` is offered only once its release guard (#901) is open (FR-EXP-118, DD-EXP-22).
 const ERP_DOMAINS = ['companies', 'procurement', 'revenue', 'timesheets', ...(EXPENSES_EMPLOYABLE ? ['expenses'] : [])];
@@ -28,7 +43,7 @@ export function ErpSetupChecklist(
     onRefreshCompany: () => void;
   },
 ) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const setup = useQuery({
     queryKey: ['integrations', 'setup', orgId],
@@ -36,10 +51,11 @@ export function ErpSetupChecklist(
     enabled: Boolean(orgId),
     retry: false,
   });
-  const [editing, setEditing] = useState<'defaults' | 'domain' | null>(null);
+  const [editing, setEditing] = useState<'defaults' | 'domain' | 'accounts' | null>(null);
   const [matchReviewOpen, setMatchReviewOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [accountsError, setAccountsError] = useState<SubmitError | null>(null);
   const defaults = useEntityForm({
     initialValues: { activityType: '', receivableAccount: '' },
     requiredFields: ['activityType', 'receivableAccount'],
@@ -50,6 +66,70 @@ export function ErpSetupChecklist(
     requiredFields: ['domain'],
     idPrefix: 'erp-domain',
   });
+  const accounts = useEntityForm<Record<CompanyDefaultSlot, string>>({
+    initialValues: { payable: '', expense: '', cash: '', bank: '', cost_centre: '' },
+    idPrefix: 'erp-accounts',
+  });
+  const accountOptions = useQuery({
+    queryKey: ['integrations', 'company-default-options', orgId],
+    queryFn: () => repositories.integrations.getCompanyDefaultOptions(),
+    enabled: editing === 'accounts',
+    retry: false,
+  });
+  const currentAccount = (key: string) => (setup.data?.defaults as Record<string, string | null | undefined> | undefined)?.[key] ?? '';
+  const openAccounts = () => {
+    accounts.reset(Object.fromEntries(ACCOUNT_SLOTS.map(({ slot, key }) => [slot, currentAccount(key)])) as Record<CompanyDefaultSlot, string>);
+    setError(null);
+    setAccountsError(null);
+    setEditing('accounts');
+  };
+  const slotLabels: Record<CompanyDefaultSlot, string> = {
+    payable: t('administration:integrations.companyAccounts.accountSlots.payable', 'Vendor payable account'),
+    expense: t('administration:integrations.companyAccounts.accountSlots.expense', 'Default expense account'),
+    cash: t('administration:integrations.companyAccounts.accountSlots.cash', 'Cash account'),
+    bank: t('administration:integrations.companyAccounts.accountSlots.bank', 'Bank account'),
+    cost_centre: t('administration:integrations.companyAccounts.accountSlots.costCentre', 'Cost centre'),
+  };
+  const slotInSentence: Record<CompanyDefaultSlot, string> = {
+    payable: t('administration:integrations.companyAccounts.slotInSentence.payable', 'vendor payable account'),
+    expense: t('administration:integrations.companyAccounts.slotInSentence.expense', 'default expense account'),
+    cash: t('administration:integrations.companyAccounts.slotInSentence.cash', 'cash account'),
+    bank: t('administration:integrations.companyAccounts.slotInSentence.bank', 'bank account'),
+    cost_centre: t('administration:integrations.companyAccounts.slotInSentence.costCentre', 'cost centre'),
+  };
+  /** A refusal in plain words, in the person's language: a known sentence by its key; the ERP's own words as they came in
+   *  English and as "the ERP refused this change" in any other language. */
+  const refusalText = (raw: string) => {
+    const match = matchCompanyDefaultsRefusal(raw);
+    if (!match) {
+      return (i18n.resolvedLanguage ?? i18n.language ?? 'en').startsWith('en')
+        ? raw
+        : t('administration:integrations.companyAccounts.refusal.erpRefused', 'The ERP refused this change.');
+    }
+    return t(`administration:integrations.companyAccounts.refusal.${match.key}`, {
+      defaultValue: raw, name: match.name, slot: match.slot ? slotInSentence[match.slot] : undefined,
+    });
+  };
+  const accountsPendingText = t('administration:integrations.companyAccounts.accountsPending', 'A change to the company accounts is still being saved. Reload in a few minutes to see it.');
+  const saveAccounts = async () => {
+    const changed = Object.fromEntries(ACCOUNT_SLOTS
+      .filter(({ slot, key }) => accounts.values[slot] && accounts.values[slot] !== currentAccount(key))
+      .map(({ slot }) => [slot, accounts.values[slot]]));
+    if (Object.keys(changed).length === 0) { setEditing(null); return; }
+    setBusy(true);
+    setAccountsError(null);
+    try {
+      await repositories.integrations.setCompanyDefaults(changed);
+      setEditing(null);
+      await refresh();
+    } catch (err) {
+      setAccountsError(err instanceof AppError && PLAIN_REFUSALS.has(String(err.code)) && err.message
+        ? { headline: t('administration:integrations.companyAccounts.accountsRefused', 'Could not set the company accounts.'), detail: refusalText(err.message) }
+        : { headline: t('administration:integrations.companyAccounts.accountsFailed', 'Could not set the company accounts. Try again.') });
+    } finally {
+      setBusy(false);
+    }
+  };
   const refresh = async () => {
     await setup.refetch();
     void qc.invalidateQueries({
@@ -80,6 +160,7 @@ export function ErpSetupChecklist(
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
+    if (editing === 'accounts') { await saveAccounts(); return; }
     const form = editing === 'defaults' ? defaults : domain;
     await form.handleSubmit(async () => {
       setBusy(true);
@@ -230,12 +311,19 @@ export function ErpSetupChecklist(
                     </p>
                   ))(missingAccountCategories(setup.data))}
                 </div>
-                <Button variant='outline' size='sm' onClick={onRefreshCompany}>
-                  {t(
-                    'uxs08.companyAction',
-                    'Review company settings',
+                <div className='grid gap-2 sm:flex sm:flex-wrap sm:justify-end'>
+                  <Button variant='outline' size='sm' onClick={onRefreshCompany}>
+                    {t(
+                      'uxs08.companyAction',
+                      'Review company settings',
+                    )}
+                  </Button>
+                  {setup.data.defaults.company && (
+                    <Button variant='ghost' size='sm' onClick={openAccounts}>
+                      {t('administration:integrations.companyAccounts.accountsAction', 'Set company accounts')}
+                    </Button>
                   )}
-                </Button>
+                </div>
               </li>
               <li id='erp-setup-activity-defaults' hidden={!incomplete?.activity} className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
                 <div className='min-w-0'>
@@ -353,20 +441,67 @@ export function ErpSetupChecklist(
           open
           title={editing === 'defaults'
             ? t('uxs08.defaultsDialog', 'Work and billing settings')
+            : editing === 'accounts'
+            ? t('administration:integrations.companyAccounts.accountsDialog', 'Company accounts')
             : t('uxs08.domainDialog', 'Information to keep updated')}
           submitLabel={editing === 'defaults'
             ? t('integrations.erpSetup.saveDefaults', 'Save defaults')
+            : editing === 'accounts'
+            ? t('administration:integrations.companyAccounts.accountsSubmit', 'Save company accounts')
             : t('uxs08.domainSubmit', 'Save information choices')}
           onSubmit={save}
           onClose={() => setEditing(null)}
           loading={busy}
-          dirty={editing === 'defaults' ? defaults.isDirty : domain.isDirty}
+          dirty={editing === 'defaults' ? defaults.isDirty : editing === 'accounts' ? accounts.isDirty : domain.isDirty}
           submitDisabled={editing === 'defaults'
             ? !defaults.isComplete
+            : editing === 'accounts'
+            ? !accountOptions.data || accountOptions.data.pending
             : !domain.isComplete}
-          submitError={error ? { headline: error } : null}
+          disabledReason={editing === 'accounts' && accountOptions.data?.pending ? accountsPendingText : undefined}
+          submitError={editing === 'accounts' ? accountsError : error ? { headline: error } : null}
         >
-          {editing === 'defaults'
+          {editing === 'accounts'
+            ? accountOptions.isPending || (accountOptions.isError && accountOptions.isFetching)
+              ? <ListState variant='loading' rows={3} />
+              : accountOptions.isError
+              ? (
+                <div className='flex flex-col items-start gap-3'>
+                  <p role='status' className='text-sm text-muted-foreground'>
+                    {t('administration:integrations.companyAccounts.accountsUnavailable', 'Could not read the account lists.')}
+                  </p>
+                  <Button variant='outline' size='sm' onClick={() => { void accountOptions.refetch(); }}>
+                    {t('administration:integrations.companyAccounts.accountsRetry', 'Try again')}
+                  </Button>
+                </div>
+              )
+              : (
+                <FormGrid>
+                  {accountOptions.data?.pending && (
+                    <p role='status' className='text-sm text-muted-foreground sm:col-span-2'>{accountsPendingText}</p>
+                  )}
+                  {ACCOUNT_SLOTS.map(({ slot }) => {
+                    const listed = accountOptions.data?.options[slot] ?? [];
+                    const current = accounts.values[slot];
+                    const values = current && !listed.includes(current) ? [current, ...listed] : listed;
+                    return (
+                      <SelectField
+                        key={slot}
+                        {...accounts.fieldProps(slot)}
+                        label={slotLabels[slot]}
+                        placeholder={t('administration:integrations.companyAccounts.accountsChoose', 'Choose…')}
+                        options={values.map((value) => ({ value, label: value }))}
+                        title={current || undefined}
+                        helper={slot === 'bank' && values.length === 0
+                          ? t('administration:integrations.companyAccounts.noBankAccount', 'The company has no bank account yet, so there is none to choose. Create the bank account first; it is then listed here.')
+                          : undefined}
+                        fullWidth
+                      />
+                    );
+                  })}
+                </FormGrid>
+              )
+            : editing === 'defaults'
             ? (
               <FormGrid>
                 <TextField

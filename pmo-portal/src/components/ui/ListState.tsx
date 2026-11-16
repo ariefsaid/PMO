@@ -12,7 +12,10 @@ interface ActionSpec {
 }
 
 /** Loading silhouettes shaped like the content they stand in for. */
-export type SkeletonShape = 'lines' | 'table' | 'cards' | 'detail' | 'chart';
+export type SkeletonShape = 'lines' | 'table' | 'cards' | 'detail' | 'chart' | 'rows' | 'items' | 'figure' | 'bars';
+
+/** A loading silhouette: its shape, row count and least height. */
+export interface SkeletonSpec { shape: SkeletonShape; rows?: number; columns?: number; minHeight?: number }
 
 interface ListStateBaseProps {
   /** Table footer alignment that keeps the continuation action in the familiar centered position. */
@@ -37,6 +40,10 @@ interface ListStateBaseProps {
   shape?: SkeletonShape;
   /** Column count for the `table` silhouette. */
   columns?: number;
+  /** Error only: one quiet line under a panel's heading (warning icon, message, Retry text button), no tinted box. */
+  quiet?: boolean;
+  /** Loading only: the body's least height, so the silhouette matches a filled panel of that height. */
+  minHeight?: number;
   /** Screen-reader loading copy (page/section loads keep their own wording). */
   loadingLabel?: string;
   /** Use a semantic status region for loading surfaces that previously announced with role=status. */
@@ -136,6 +143,63 @@ const SkeletonBody: React.FC<{ shape: SkeletonShape; rows: number; columns: numb
     );
   }
 
+  // Rows the height of a filled list row (name, facts, figures, bar), so a list does not jump when it loads.
+  if (shape === 'rows') {
+    return (
+      <div data-skeleton-shape="rows" aria-hidden="true" className="divide-y divide-border">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div key={i} className="grid gap-y-1 py-4">
+            <div className="skel h-5 w-3/5" />
+            <div className="skel h-5 w-2/5" />
+            <div className="skel mt-1 h-5 w-4/5" />
+            <div className="skel mt-1 h-2 w-full" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Two-line list rows at a filled row's pitch (name, then its supporting line; amount at the right).
+  if (shape === 'items') {
+    return (
+      <div data-skeleton-shape="items" aria-hidden="true" className="divide-y divide-border">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div key={i} className="grid grid-cols-[minmax(0,1fr)_4rem] items-center gap-x-3 py-2.5">
+            <div className="grid gap-1"><div className="skel h-5" style={{ width: `${72 - (i % 3) * 10}%` }} /><div className="skel h-4 w-2/5" /></div>
+            <div className="skel h-5" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // One figure: its value, a split bar and three short lines (legend and counts).
+  if (shape === 'figure') {
+    return (
+      <div data-skeleton-shape="figure" aria-hidden="true" className="grid gap-2">
+        <div className="skel h-8 w-1/2" />
+        <div className="skel h-2.5 w-full" />
+        <div className="skel h-5 w-2/5" />
+        <div className="skel h-5 w-1/3" />
+        <div className="skel h-5 w-3/4" />
+      </div>
+    );
+  }
+
+  // Labelled bars on one scale, one 44px row each (a ranking or a funnel).
+  if (shape === 'bars') {
+    return (
+      <div data-skeleton-shape="bars" aria-hidden="true">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div key={i} className="flex min-h-11 items-center gap-3">
+            <div className="skel h-4 w-28 shrink-0" />
+            <div className="skel h-[18px]" style={{ width: `${70 - ((i * 23) % 45)}%` }} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   if (shape === 'chart') {
     return (
       <div data-skeleton-shape="chart" aria-hidden="true" className="space-y-3">
@@ -164,6 +228,9 @@ const SkeletonBody: React.FC<{ shape: SkeletonShape; rows: number; columns: numb
   );
 };
 
+/** Shapes whose rows carry their own vertical padding (no extra inset around the silhouette). */
+const SHAPES_WITHOUT_INSET = new Set<SkeletonShape>(['rows', 'items', 'figure', 'bars']);
+
 /** Keep a failed read's body to renderable copy and elements, never raw service objects. */
 function safeErrorBody(content: React.ReactNode): React.ReactNode {
   if (Array.isArray(content)) return content.map(safeErrorBody);
@@ -185,6 +252,22 @@ function safeErrorBody(content: React.ReactNode): React.ReactNode {
  * exactly one ListState in place of their content — never hand-roll a spinner
  * or an ad-hoc empty message.
  */
+/**
+ * The Retry action already says "try again": a body that ends by saying it too would read it twice ("Coba lagi.
+ * Coba lagi"). Drop a closing "Try again." sentence, or turn a closing "… and try again." into "…", in the active
+ * language. Non-string bodies pass through.
+ */
+function withoutTryAgain(body: React.ReactNode, sentence: string, clause: string): React.ReactNode {
+  if (typeof body !== 'string') return body;
+  const text = body.trim();
+  const lower = text.toLowerCase();
+  const tail = clause.trim().toLowerCase();
+  if (tail && lower.endsWith(` ${tail}`)) return `${text.slice(0, -tail.length).trimEnd()}.`;
+  const closing = sentence.trim().toLowerCase();
+  if (closing && (lower === closing || lower.endsWith(`. ${closing}`))) return text.slice(0, -closing.length).trimEnd() || null;
+  return body;
+}
+
 export const ListState: React.FC<ListStateProps> = ({
   variant,
   partialLayout = 'row',
@@ -202,6 +285,8 @@ export const ListState: React.FC<ListStateProps> = ({
   loadingLabel,
   loadingRole,
   loadingAriaLabel,
+  quiet = false,
+  minHeight,
   className,
   testId,
   stateId,
@@ -232,7 +317,8 @@ export const ListState: React.FC<ListStateProps> = ({
         aria-busy="true"
         aria-label={loadingAriaLabel}
         aria-live="polite"
-        className={cn('p-4', className)}
+        className={cn(!SHAPES_WITHOUT_INSET.has(shape) && 'py-4', className)}
+        style={minHeight ? { minHeight } : undefined}
       >
         <span className="sr-only">{loadingLabel ?? (ready ? t('ui.listState.loading', 'Loading…') : 'Loading…')}</span>
         <SkeletonBody shape={shape} rows={rows} columns={columns} />
@@ -265,28 +351,25 @@ export const ListState: React.FC<ListStateProps> = ({
   }
 
   if (variant === 'error') {
-    const safeSub = safeErrorBody(sub);
+    const safeSub = withoutTryAgain(safeErrorBody(sub), t('ui.listState.tryAgainSentence', 'Try again.'), t('ui.listState.andTryAgain', ' and try again.'));
+    // One error treatment app-wide: a warning icon (the only red) on the first text line, then ONE text block with
+    // the message (and its detail) and Retry following the text, so a long message wraps beside the icon and Retry
+    // wraps under the TEXT, never alone under the icon. Retry's touch padding is cancelled by its negative margin, so
+    // it never grows the line. Inside a panel (`quiet`) it is a plain line under the heading; standing alone it keeps
+    // a tinted frame and a destructive headline.
     return (
-      <div
-        role="alert"
-        aria-live="assertive"
-        className={cn(
-          'flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/[0.07] px-4 py-3.5',
-          className
-        )}
-      >
-        <Icon name="alert" className="size-5 shrink-0 text-destructive" />
-        <div className="flex-1">
+      <div role="alert" aria-live="assertive" className={cn('flex items-start gap-x-2 text-control', quiet ? 'py-2' : 'rounded-lg border border-destructive/30 bg-destructive/[0.07] px-4 py-3', className)}>
+        <span className="flex h-lh shrink-0 items-center"><Icon name="alert" aria-hidden className="size-5 text-destructive" /></span>
+        <div className="min-w-0 flex-1 text-foreground">
           {/* O18: a page whose only content is this error keeps its level-one heading. */}
           {title && (titleAsPageHeading
-            ? <h1 className="text-control font-semibold text-destructive-text">{title}</h1>
-            : <div className="text-control font-semibold text-destructive-text">{title}</div>)}
-          {safeSub && <div className="mt-px text-control text-muted-foreground">{safeSub}</div>}
+            ? <h1 className={cn(safeSub ? 'block' : 'inline', !quiet && 'font-semibold text-destructive-text')}>{title}</h1>
+            : <span className={cn(safeSub && 'block', !quiet && 'font-semibold text-destructive-text')}>{title}</span>)}
+          {safeSub && <span className="mt-px text-muted-foreground">{safeSub}</span>}{' '}
+          <button type="button" onClick={onRetry} className="-my-1.5 ms-1 inline-block whitespace-nowrap py-1.5 font-medium text-primary-text hover:underline max-[640px]:-my-3 max-[640px]:py-3 pointer-coarse:-my-3 pointer-coarse:py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+            {resolvedRetryLabel}
+          </button>
         </div>
-        <Button variant="outline" size="sm" onClick={onRetry}>
-          <Icon name="refresh" />
-          {resolvedRetryLabel}
-        </Button>
       </div>
     );
   }

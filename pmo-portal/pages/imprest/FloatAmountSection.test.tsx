@@ -19,7 +19,7 @@ vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole
 import { FloatAmountSection } from './FloatAmountSection';
 
 const change = (over: Record<string, unknown> = {}) => ({ id: 'c1', float_id: 'f1', proposed_amount: 5000000, proposed_by: 'u-fin', proposer: { full_name: 'Finn Finance' }, decider: null, status: 'Proposed', proposed_at: '2026-11-02T00:00:00Z', notes: null, ...over });
-const renderIt = () => render(<MemoryRouter initialEntries={['/float']}><Link to="/next">Continue</Link><Routes><Route path="/float" element={<ToastProvider><FloatAmountSection floatId="f1" custodianId="u-cust" currency="IDR" floatAmount={0} /></ToastProvider>} /><Route path="/next" element={<p>Next page</p>} /></Routes></MemoryRouter>);
+const renderIt = () => render(<MemoryRouter initialEntries={['/float']}><Link to="/next">Continue</Link><Routes><Route path="/float" element={<ToastProvider><FloatAmountSection floatId="f1" custodianId="u-cust" currency="IDR" /></ToastProvider>} /><Route path="/next" element={<p>Next page</p>} /></Routes></MemoryRouter>);
 
 describe('FR-IMP-002 float amount', () => {
   beforeEach(() => {
@@ -52,10 +52,10 @@ describe('FR-IMP-002 float amount', () => {
     const user = userEvent.setup();
     h.changes = ok({ rows: [change({ status: 'Approved' })], truncated: false });
     renderIt();
-    await user.click(screen.getByRole('button', { name: 'Propose new amount' }));
+    await user.click(screen.getByRole('button', { name: 'Propose new limit' }));
     const dialog = await screen.findByRole('dialog');
-    await user.type(within(dialog).getByLabelText(/New float amount/), '6000000');
-    await user.click(within(dialog).getByRole('button', { name: 'Propose amount' }));
+    await user.type(within(dialog).getByLabelText(/New limit/), '6000000');
+    await user.click(within(dialog).getByRole('button', { name: 'Propose limit' }));
     await waitFor(() => expect(h.m.propose.mutateAsync).toHaveBeenCalledWith({ floatId: 'f1', amount: 6000000 }));
   });
 
@@ -63,31 +63,31 @@ describe('FR-IMP-002 float amount', () => {
     const user = userEvent.setup();
     h.changes = ok({ rows: [], truncated: false });
     renderIt();
-    await user.click(screen.getByRole('button', { name: 'Propose new amount' }));
-    const proposal = await screen.findByRole('dialog', { name: 'Propose a new float amount' });
-    const amount = within(proposal).getByLabelText(/New float amount/);
+    await user.click(screen.getByRole('button', { name: 'Propose new limit' }));
+    const proposal = await screen.findByRole('dialog', { name: 'Propose a new limit' });
+    const amount = within(proposal).getByLabelText(/New limit/);
     await user.type(amount, '6000000');
     await user.click(within(proposal).getByRole('button', { name: 'Cancel' }));
 
     const discard = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
     await user.click(within(discard).getByRole('button', { name: 'Keep editing' }));
-    expect(within(await screen.findByRole('dialog', { name: 'Propose a new float amount' })).getByLabelText(/New float amount/)).toHaveValue('6000000');
+    expect(within(await screen.findByRole('dialog', { name: 'Propose a new limit' })).getByLabelText(/New limit/)).toHaveValue('6000000');
     expect(h.m.propose.mutateAsync).not.toHaveBeenCalled();
   });
 
   it('FR-IMP-002 no propose button while a change is open or for a non-setup role', () => {
     const { unmount } = renderIt();
-    expect(screen.queryByRole('button', { name: 'Propose new amount' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Propose new limit' })).toBeNull();
     unmount();
     h.changes = ok({ rows: [], truncated: false });
     h.role = 'Executive';
     renderIt();
-    expect(screen.queryByRole('button', { name: 'Propose new amount' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Propose new limit' })).toBeNull();
   });
 
   it('FR-IMP-002 decided changes are a table with date, amount, status and who', () => {
     h.changes = ok({ rows: [change({ id: 'c0', status: 'Approved', proposed_amount: 4000000, decider: { full_name: 'Sam Senior' } })], truncated: false });
-    render(<MemoryRouter><ToastProvider><FloatAmountSection floatId="f1" custodianId="u-cust" currency="IDR" floatAmount={4000000} /></ToastProvider></MemoryRouter>);
+    render(<MemoryRouter><ToastProvider><FloatAmountSection floatId="f1" custodianId="u-cust" currency="IDR" /></ToastProvider></MemoryRouter>);
     const row = screen.getByRole('row', { name: /4,000,000/ });
     expect(within(row).getByText('Approved')).toBeInTheDocument();
     expect(within(row).getByText(/Finn Finance/)).toBeInTheDocument();
@@ -108,6 +108,6 @@ describe('FR-IMP-002 float amount', () => {
   it('FR-IMP-002 a failed read shows an error, not a missing amount', () => {
     h.changes = { data: undefined, isPending: false, isError: true, refetch: vi.fn() };
     renderIt();
-    expect(screen.getByText("Couldn't load the float amount changes")).toBeInTheDocument();
+    expect(screen.getByText("Couldn't load the limit changes")).toBeInTheDocument();
   });
 });

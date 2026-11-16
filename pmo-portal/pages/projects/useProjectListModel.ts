@@ -16,13 +16,17 @@ import { makeProjectImportDescriptor, makeBudgetImportDescriptor } from '@/src/l
 import { ON_HAND_STATUSES, INTERNAL_STATUSES } from '@/src/lib/db/projectTransitions';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { projectManagerLabel, UNASSIGNED_PROJECT_MANAGER } from '@/src/lib/projects/projectManagerLabel';
+import { projectLateDays, projectOverBudget } from '@/src/lib/projects/projectHealth';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { ProjectStatus as ProjectStatusEnum } from '../../types';
 
 export type StatusFilter = 'All' | 'My Projects' | 'Ongoing' | 'Completed' | 'at-risk'
   // #1461 dashboard-drill values (URL-only, no toolbar tab): each holds exactly the record set
   // the figure that drills into it sums or counts. Parity sources: public.on_hand_project_statuses()
   // (0044), the PM dashboard's DELIVERY set, get_win_rate's decided/won rules (0448).
-  | 'on-hand' | 'delivery' | 'ongoing-project' | 'won' | 'decided';
+  | 'on-hand' | 'delivery' | 'ongoing-project' | 'won' | 'decided'
+  // Finding-line drills (#design-1115): the "n over budget" and "n late" clauses.
+  | 'over-budget' | 'late';
 const ONGOING = [ProjectStatusEnum.Ongoing, ProjectStatusEnum.WonPendingKoM, ProjectStatusEnum.OnHold] as string[];
 const COMPLETED = [ProjectStatusEnum.CloseOut, ProjectStatusEnum.Loss] as string[];
 const ON_HAND = [...ON_HAND_STATUSES] as string[];
@@ -127,6 +131,13 @@ export function useProjectListModel(effectiveRole: Role | null, currentUser: { i
     },
     [projectMoney, moneyPending, moneyError],
   );
+  // Over budget and late read the same figures the row shows (Budget used, the record's late pill).
+  const orgToday = useOrgToday();
+  const isOverBudget = React.useCallback(
+    (p: ProjectWithRefs) => !moneyPending && !moneyError && projectOverBudget(p, projectMoney?.[p.id]),
+    [projectMoney, moneyPending, moneyError],
+  );
+  const lateDays = React.useCallback((p: ProjectWithRefs) => projectLateDays(p, orgToday), [orgToday]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -158,6 +169,10 @@ export function useProjectListModel(effectiveRole: Role | null, currentUser: { i
           case 'decided':
             // get_win_rate's decided population: every project decided in the period.
             return projectDecidedWithinMonthWindow(p.decided_at, workingSet.from, workingSet.to);
+          case 'over-budget':
+            return isOverBudget(p);
+          case 'late':
+            return lateDays(p) !== null;
           default:
             return true;
         }
@@ -177,11 +192,24 @@ export function useProjectListModel(effectiveRole: Role | null, currentUser: { i
           (p.end_client?.name ?? '').toLowerCase().includes(q) ||
           (p.end_client?.short_name ?? '').toLowerCase().includes(q),
       );
-    // AC-IXD-DASH-W5-C2C N18: within the result, sort at-risk rows to the top.
-    // Stable: JS sort is stable, so non-at-risk rows keep their original relative order.
+    // AC-IXD-DASH-W5-C2C N18 + #design-1115: worst first — at risk, then over budget, then late
+    // (longest late first). Stable: rows with no exception keep their original relative order.
     // Applied to all views so the ordering is consistent regardless of the active segment.
-    return rows.sort((a, b) => (isAtRiskActual(a) ? 0 : 1) - (isAtRiskActual(b) ? 0 : 1));
-  }, [all, workingSet, filter, search, canViewMoney, currentUser?.id, isEngineer, myProjectIds, isAtRiskActual]);
+    const rank = (p: ProjectWithRefs) => [isAtRiskActual(p) ? 0 : 1, isOverBudget(p) ? 0 : 1, -(lateDays(p) ?? 0)];
+    return rows.sort((a, b) => {
+      const ra = rank(a);
+      const rb = rank(b);
+      return ra[0] - rb[0] || ra[1] - rb[1] || ra[2] - rb[2];
+    });
+  }, [all, workingSet, filter, search, canViewMoney, currentUser?.id, isEngineer, myProjectIds, isAtRiskActual, isOverBudget, lateDays]);
+
+  // The finding line's counts: across every project the list holds, so each clause can filter to its rows.
+  const health = useMemo(() => ({
+    total: all.length,
+    atRisk: all.filter(isAtRiskActual).length,
+    overBudget: all.filter(isOverBudget).length,
+    late: all.filter((p) => lateDays(p) !== null).length,
+  }), [all, isAtRiskActual, isOverBudget, lateDays]);
 
   // Dated milestones for the calendar view — one batched read for the visible set
   // (NFR-CAL-PERF-001). Gated on view === 'calendar' so the RPC is skipped on table/cards loads.
@@ -208,6 +236,8 @@ export function useProjectListModel(effectiveRole: Role | null, currentUser: { i
     'ongoing-project': 'In delivery',
     won: 'Won',
     decided: 'Decided',
+    'over-budget': t('projects:health.overBudgetFilter', 'Over budget'),
+    late: t('projects:health.lateFilter', 'Late'),
   };
 
   // Filter-select option lists (the tokened SelectField consumes {value,label});
@@ -298,6 +328,6 @@ export function useProjectListModel(effectiveRole: Role | null, currentUser: { i
     clientCompaniesResult, companiesResult, projectManagersResult, workingSet, setWorkingSet, search, setSearch,
     filter, filterClient, filterEndCustomer, filterPM, view, onViewChange, calendarCursor, onCalendarCursorChange,
     all, filtered, deliverySummary, deliveryPending, deliveryError, projectMoney, moneyPending, moneyError, refetchMoney,
-    isAtRiskActual, milestoneDates, datesPending, datesError, refetchDates, filterLabels, customerFilterOptions,
+    isAtRiskActual, isOverBudget, lateDays, health, milestoneDates, datesPending, datesError, refetchDates, filterLabels, customerFilterOptions,
     endCustomerFilterOptions, pmFilterOptions, importDescriptor, budgetImportDescriptor, builderCount, filtersActive, hasNonDefaultFilter, clearFilters };
 }

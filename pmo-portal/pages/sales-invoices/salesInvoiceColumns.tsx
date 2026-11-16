@@ -21,6 +21,8 @@ interface Props {
   all: SalesInvoiceRow[];
   embedded: boolean;
   native: boolean;
+  /** The revenue mode has not answered: cells that depend on it hold back (rows still render). */
+  actionsPending?: boolean;
   location: Location;
   orgCurrency: string;
   sharedTaxBasis: TaxTreatment | null;
@@ -36,7 +38,7 @@ interface Props {
     odooOffline?: boolean;
   };
 }
-export function salesInvoiceColumns({ t, all, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus }: Props) {
+export function salesInvoiceColumns({ t, all, embedded, native, actionsPending = false, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus }: Props) {
   // FIN-S1 / T4 (AC-RD-TBL-INV-001): one primary cell (number over customer), then at most six more
   // columns. Dates other than Due, and the separate Customer, are export-only below.
   const projectLabelOf = (inv: SalesInvoiceRow) => projectOptionsById.get(inv.project_id ?? '')?.contractualName;
@@ -74,7 +76,7 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
             title={draftLabel ?? number ?? ''}
           >{draftLabel ?? number ?? '—'}</Link>}
           {/* #784 AC-NAR-004 (DD-NAR-11): a PMO invoice from before the ERP took revenue over is history. */}
-          {inv.pmo_native && !native && (
+          {inv.pmo_native && !native && !actionsPending && (
             <Badge title={preErpDetail}>
               {t('financeCopy.preErpBadge', 'Pre-ERP')}
               <span className="sr-only">{preErpDetail}</span>

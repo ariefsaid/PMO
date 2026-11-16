@@ -12,7 +12,7 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 /**
  * ux/1110 restore (AC-IXD-PROJ-001 / UIP-006, coordinator option C): the contract-value lock is a
  * QUIET icon button beside the value — the redesign removed the pill's visible words on purpose,
- * but the WHY must not be lost. The button's accessible name is "Read-only" (aria-label, no text
+ * but the WHY must not be lost. The button's accessible name says the contract value is locked for your role (aria-label, no text
  * node), it carries aria-controls pointing at the reason, and activating it reveals the
  * segregation-of-duties note (`contract-value-lock-reason`), worded as origin/dev had it.
  */
@@ -125,12 +125,12 @@ beforeEach(() => {
 afterEach(() => resetActiveLocale());
 
 describe('ProjectDetailHeader — the quiet contract-value lock button (ux/1110 restore, AC-IXD-PROJ-001)', () => {
-  it('AC-IXD-PROJ-001/UIP-006: a PM on a won project gets a lock button named Read-only (no visible words) wired to its reason', async () => {
+  it('AC-IXD-PROJ-001/UIP-006: a PM on a won project gets a lock button named for what it means (Contract value is locked for your role) wired to its reason', async () => {
     renderHeader('Project Manager');
 
     // Icon-only: the accessible name is carried by aria-label; no visible "Read-only" text node.
-    expect(screen.queryByText(/Read-only/i)).not.toBeInTheDocument();
-    const lock = screen.getByRole('button', { name: /Read-only/i });
+    expect(screen.queryByText(/^Contract value is locked for your role$/i)).not.toBeInTheDocument();
+    const lock = screen.getByRole('button', { name: /locked for your role/i });
     expect(lock).toBeVisible();
     expect(lock).toHaveAttribute('aria-controls', 'contract-value-lock-reason');
     expect(lock).toHaveAttribute('aria-expanded', 'false');
@@ -150,12 +150,12 @@ describe('ProjectDetailHeader — the quiet contract-value lock button (ux/1110 
   it('Finance (SoD authority) gets the Edit control, never the lock chip', () => {
     renderHeader('Finance');
     expect(screen.getByRole('button', { name: /Edit contract value/i })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Read-only/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /locked for your role/i })).not.toBeInTheDocument();
   });
 
   it('a pre-win deal has no lock control — its value is not locked yet', () => {
     renderHeader('Project Manager', preWin);
-    expect(screen.queryByRole('button', { name: /Read-only/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /locked for your role/i })).not.toBeInTheDocument();
     expect(screen.queryByTestId('contract-value-lock-reason')).not.toBeInTheDocument();
   });
 
@@ -167,8 +167,8 @@ describe('ProjectDetailHeader — the quiet contract-value lock button (ux/1110 
         </ToastProvider>
       </MemoryRouter>,
     );
-    expect(screen.queryByText(/Read-only/i)).not.toBeInTheDocument();
-    const lock = screen.getByRole('button', { name: /Read-only/i });
+    expect(screen.queryByText(/^Contract value is locked for your role$/i)).not.toBeInTheDocument();
+    const lock = screen.getByRole('button', { name: /locked for your role/i });
     expect(lock).toHaveAttribute('aria-controls', 'contract-value-lock-reason');
     await userEvent.click(lock);
     expect(within(screen.getByTestId('contract-value-lock-lane')).getByTestId('contract-value-lock-reason'))

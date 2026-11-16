@@ -11,6 +11,8 @@ import enProjects from '../public/locales/en/projects.json';
 import idProjects from '../public/locales/id/projects.json';
 import enProcurementRecord from '../public/locales/en/procurementRecord.json';
 import idProcurementRecord from '../public/locales/id/procurementRecord.json';
+import enExpenseClaims from '../public/locales/en/expenseClaims.json';
+import idExpenseClaims from '../public/locales/id/expenseClaims.json';
 import enStatus from '../public/locales/en/status.json';
 import idStatus from '../public/locales/id/status.json';
 
@@ -20,10 +22,10 @@ export const financeTestI18nReady = financeTestI18n.init({
   fallbackLng: 'en',
   defaultNS: 'common',
   fallbackNS: 'common',
-  ns: ['common', 'finance', 'project', 'procurement', 'projects', 'procurementRecord', 'status'],
+  ns: ['common', 'finance', 'project', 'procurement', 'projects', 'procurementRecord', 'status', 'expenseClaims'],
   resources: {
-    en: { common: en, finance: enFinance, project: enProject, procurement: enProcurement, projects: enProjects, procurementRecord: enProcurementRecord, status: enStatus },
-    id: { common: id, finance: idFinance, project: idProject, procurement: idProcurement, projects: idProjects, procurementRecord: idProcurementRecord, status: idStatus },
+    en: { common: en, finance: enFinance, project: enProject, procurement: enProcurement, projects: enProjects, procurementRecord: enProcurementRecord, status: enStatus, expenseClaims: enExpenseClaims },
+    id: { common: id, finance: idFinance, project: idProject, procurement: idProcurement, projects: idProjects, procurementRecord: idProcurementRecord, status: idStatus, expenseClaims: idExpenseClaims },
   },
   interpolation: { escapeValue: false },
   initImmediate: false,

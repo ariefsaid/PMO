@@ -79,6 +79,10 @@ vi.mock('@/src/components/ui', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useToast: () => ({ toast: vi.fn() }) };
 });
+// S05: the budget panel also reads the project's canonical Budget used; stubbed like its other reads (these tests mount no QueryClient).
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: () => ({ data: undefined, isPending: false, isError: false }),
+}));
 // N8 (AC-IXD-PROC-W5-2): DecisionSupportPanel now mounts in ProcurementDetails.
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 1000000, isPending: false, isError: false }),
