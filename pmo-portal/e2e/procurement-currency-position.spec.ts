@@ -71,9 +71,10 @@ test('the budget position compares compatible currency and identifies foreign de
   // spending (1000 budget − 200 reserved − 50 this request) sits under its own label, never as the Left figure.
   await expect(page.getByTestId('stat-tile').filter({ hasText: 'Left after this purchase' })).toHaveCount(0);
   await expect(page.getByTestId('figures-hidden')).toContainText('1 figure hidden');
+  // The fallback is visible without a click (ruling 3); only the reason sits behind "Why".
+  await expect(page.getByText(/Without spending:.*750 left after orders, reserved and this purchase\./)).toBeVisible();
   await page.getByTestId('figures-hidden').getByRole('button', { name: 'Why' }).click();
   await expect(page.getByText('Spending not known yet', { exact: true })).toBeVisible();
-  await expect(page.getByText(/Without spending:.*750 left after orders, reserved and this purchase\./)).toBeVisible();
 });
 
 test('a procurement in an incompatible currency shows no headroom comparison', async ({ page }) => {

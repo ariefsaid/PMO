@@ -143,10 +143,11 @@ on the same `afterRequest`, which does not subtract the request again; it shows 
 **FR-RB-017 — Unknown is never drawn as a number.** *(OD-APPROVAL-LEFT.)*
 When `spent` or `openOrders` is not known (failed read, no ledger reading for the project, a reading or open
 orders in another currency, purchasing kept outside PMO, no committed position yet), the Left tile shall show
-its reason (inside a figure scope it is counted in the page's hidden-figures line), and the bar and the
+its reason (inside a figure scope it is counted in the page's hidden-figures line; outside one the tile reads "Not known" when
+only spending is unknown), and the bar and the
 advisory shall not be drawn. When **only `spent`** is unknown and open orders and Reserved are known in the
-project currency, the panel shall also state the figure without spending under its own label — "Spending not
-known yet. Without it: {amount} left after orders, reserved and this purchase." — visible without a click, never
+project currency, the panel shall also state the figure without spending under its own label — "Without spending:
+{amount} left after orders, reserved and this purchase." — visible without a click, never
 in the Left tile or on the bar, with no advisory. When open orders are also unknown, only the reason is shown.
 A request in another currency shows no Left figure and no such line.
 
@@ -245,7 +246,7 @@ branch], FR-RB-014.)*
 **AC-RB-017 — Unknown is never drawn as a number (unit).**
 *Given* spending not known (reading null, no ledger reading, another currency, failed read) with open orders
 400 and Reserved 50, *When* the panel renders, *Then* the Left tile shows its reason and no `$` figure, there is
-no bar and no advisory, and the line "Spending not known yet. Without it: $525 left after orders, reserved and
+no bar and no advisory, and the line "Without spending: $525 left after orders, reserved and
 this purchase." is visible beside it. *Given* open orders not known (another currency, purchasing outside PMO,
 no position), *Then* only the reason is shown, with no amount. *(Owns FR-RB-017.)*
 
@@ -274,9 +275,9 @@ no position), *Then* only the reason is shown, with no amount. *(Owns FR-RB-017.
 | AC-RB-012 | No-budget state | **Unit** (RTL) | `DecisionSupportPanel.test.tsx` |
 | AC-RB-013 | Over-budget advisory (Requested) | **Unit** (RTL) | `DecisionSupportPanel.test.tsx` |
 | AC-RB-014 | No false advisory (Approved) | **Unit** (RTL) | `DecisionSupportPanel.test.tsx` |
-| AC-RB-015 | Left over the whole budget; agrees with Overview | **Unit** (formula: `computeBudgetSignal.test.ts`; panel: `DecisionSupportPanel.test.tsx`) + agreement (`pages/__tests__/figures-budget.agreement.test.tsx`) | |
-| AC-RB-016 | Already reserved: not subtracted again | **Unit** | `computeBudgetSignal.test.ts`, `DecisionSupportPanel.test.tsx` |
-| AC-RB-017 | Unknown never drawn; amount without spending under its own label | **Unit** (inputs: `src/lib/budget/wholeBudgetInputs.test.ts`; panel: `DecisionSupportPanel.test.tsx`; mounts: `ProcurementListRow.budgetUsed.test.tsx`) | |
+| AC-RB-015 | Left over the whole budget; agrees with Overview | **Unit** | `computeBudgetSignal.test.ts` (owner); also referenced: `DecisionSupportPanel.test.tsx` (panel, and the shown figures add up to Left), `pages/__tests__/figures-budget.agreement.test.tsx` (agreement) |
+| AC-RB-016 | Already reserved: not subtracted again | **Unit** | `computeBudgetSignal.test.ts` (owner); also referenced: `DecisionSupportPanel.test.tsx` |
+| AC-RB-017 | Unknown never drawn; amount without spending under its own label | **Unit** | `DecisionSupportPanel.test.tsx` (owner); also referenced: `src/lib/budget/wholeBudgetInputs.test.ts` (inputs), `ProcurementListRow.budgetUsed.test.tsx` (mount) |
 | AC-RB-018 | Header line counts an order once | **Unit** | `pages/procurement/detail/ProcurementDetailPanels.test.tsx` |
 
 **No new E2E.** No new real cross-stack journey is introduced — the panel is a read-only derivation over
