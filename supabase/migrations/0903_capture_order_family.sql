@@ -508,7 +508,7 @@ end $$;
 -- §6 Undo (0896's body, plus the lines marked 0903; its kind read keeps 0896's order: the first capture decides). Without an attachment named, every active decision on the purchase is undone and the purchase
 -- is cancelled. With one named, only that attachment's decisions and links go, its stage (and, with no invoice left, its status) comes back,
 -- and the purchase and its order stay. One function, so the API sees one signature; the command line calls it by named arguments.
-drop function public.undo_captured_purchase(uuid,text,boolean);
+drop function public.undo_captured_purchase(uuid,text,boolean);  -- 0903
 create function public.undo_captured_purchase(p_procurement_id uuid,p_reason text,p_dry_run boolean default false,p_attach_request_id uuid default null)  -- 0903
 returns jsonb language plpgsql security definer set search_path=public,pg_catalog as $$
 declare v_org uuid := public.auth_org_id(); v_kind text; v_proc public.procurements%rowtype; v_history jsonb;
@@ -629,5 +629,5 @@ begin
   return jsonb_build_object('outcome','undo','dry_run',p_dry_run,'procurement_id',p_procurement_id,'erp_write',false)  -- 0903
     || case when p_attach_request_id is not null then jsonb_build_object('attach_request_id',p_attach_request_id) else '{}'::jsonb end;  -- 0903
 end $$;
-revoke all on function public.undo_captured_purchase(uuid,text,boolean,uuid) from public, anon;
-grant execute on function public.undo_captured_purchase(uuid,text,boolean,uuid) to authenticated;
+revoke all on function public.undo_captured_purchase(uuid,text,boolean,uuid) from public, anon;  -- 0903
+grant execute on function public.undo_captured_purchase(uuid,text,boolean,uuid) to authenticated;  -- 0903
