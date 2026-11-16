@@ -9,7 +9,7 @@
 --   M3 unbudgeted category — leave a named category with spend but no budget line at NULL budget: AC-BCNL-003 → red.
 begin;
 create extension if not exists pgtap;
-select plan(38);
+select plan(42);
 
 insert into public.organizations (id, name, default_currency, default_timezone) values
   ('08970000-0000-0000-0000-000000000001', 'BCNL no ledger', 'USD', 'UTC'),
@@ -144,6 +144,24 @@ select is((select budget_total from public.get_budget_comparison('08970000-0000-
   0::numeric, 'AC-BCNL-003 a category with spend and no budget line is budgeted 0, not unknown');
 select is((select recorded from public.get_budget_comparison('08970000-0000-0000-0000-0000000000d1', null) where category = 'Equipment'),
   200::numeric, 'AC-BCNL-003 the hire charge shows on its category');
+
+-- AC-BCNL-012 ─ the page's Uncategorized row (get_project_finances -> actuals.uncategorized, built from
+-- project_finance_actuals as 0909 redefines it) and the comparison's own uncategorised row are two sources for one
+-- figure; they must agree, or the organisation's rows stop adding up to the spent total.
+select is((select (public.get_project_finances('08970000-0000-0000-0000-0000000000d1')->'actuals'->'uncategorized'->>'amount')::numeric),
+  300::numeric, 'AC-BCNL-012 the project finances state 300 uncategorised, the figure the page reads');
+select is((select (public.get_project_finances('08970000-0000-0000-0000-0000000000d1')->'actuals'->'uncategorized'->>'amount')::numeric),
+  (select recorded from public.get_budget_comparison('08970000-0000-0000-0000-0000000000d1', null) where category is null),
+  'AC-BCNL-012 the page and the comparison state the same uncategorised amount');
+select is((select (c->>'amount')::numeric
+             from jsonb_array_elements(public.get_project_finances('08970000-0000-0000-0000-0000000000d1')->'actuals'->'categories') c
+            where c->>'category' = 'Equipment'),
+  (select recorded from public.get_budget_comparison('08970000-0000-0000-0000-0000000000d1', null) where category = 'Equipment'),
+  'AC-BCNL-012 the hire charge counts the same on the page (200) as in the comparison');
+select is((select sum(recorded) from public.get_budget_comparison('08970000-0000-0000-0000-0000000000d1', null) where category is not null)
+          + (public.get_project_finances('08970000-0000-0000-0000-0000000000d1')->'actuals'->'uncategorized'->>'amount')::numeric,
+  (select amount from public.project_pmo_spent_position('08970000-0000-0000-0000-0000000000d1')),
+  'AC-BCNL-012 the categorised comparison rows plus the page uncategorised amount are the 1,500 spent position');
 
 -- AC-BCNL-010 ─ the helper takes paid purchases before tax, and a hire charge on a project in another currency is unknown.
 select is((select amount from public.project_pmo_paid_by_category('08970000-0000-0000-0000-0000000000d5') where category = 'Materials'),
