@@ -123,13 +123,29 @@ async function readPo(client: ErpClientDeps, poName: string): Promise<{ lines: P
 const cents = (n: number): number => Math.round(n * 100);
 const money = (c: number): string => (c / 100).toFixed(2);
 
+/** The two refusals for a line whose price or quantity is unknown, in ONE place for the bill-line check and the
+ *  entered-tax bound. An unpriced line must not count as 0 (it would understate the base the withheld bound checks
+ *  against) and an unknown total (a line without a quantity) must not SKIP the bound. Returns the items total. */
+function assertLinesKnown(lines: ItemsNetLine[]): number | null {
+  if (lines.some((line) => lineRate(line) === null)) {
+    throw new AppError('This case has unpriced lines: give every line a rate, then record the invoice again.', 'config-rejected');
+  }
+  const total = itemsNetTotal(lines);
+  if (lines.length > 0 && total === null) {
+    throw new AdapterError('commit-rejected', "The supplier invoice's items total cannot be computed: a line is missing its quantity. Complete the case's lines, then record the invoice again.");
+  }
+  return total;
+}
+
 /** Every bill line, on an order or not, is sent to ERPNext: quantity above zero, rate zero or more, both real numbers.
+ *  A missing rate or quantity gets the refusals above; this adds what they do not catch (blank, quantity <= 0, negative rate).
  *  (PMO's case lines hold quantity >= 0 and rate >= 0, so a negative line is not a PMO bill; no discount line exists.)
  *  Runs for every rebuilt bill before any write, so a bill with no ERP order passes it too. */
 function assertBillLineNumbers(items: Array<{ item_code?: unknown; qty?: unknown; rate?: unknown }>): void {
-  const blank = (v: unknown) => v === null || v === undefined || (typeof v === 'string' && v.trim() === '');
+  assertLinesKnown(items);
+  const blank = (v: unknown) => typeof v === 'string' && v.trim() === '';
   for (const item of items) {
-    if (blank(item.qty) || blank(item.rate) || !Number.isFinite(Number(item.qty)) || !Number.isFinite(Number(item.rate)) || !(Number(item.qty) > 0) || !(Number(item.rate) >= 0)) {
+    if (blank(item.qty) || blank(item.rate) || !(Number(item.qty) > 0) || !(Number(item.rate) >= 0)) {
       throw new AppError(`A bill line for ${String(item.item_code)} is missing its quantity or rate; quantity and rate must be numbers.`, 'commit-rejected');
     }
   }
@@ -243,7 +259,8 @@ export async function resolveProcurementOrderRefs(
     if (resolvedItems) assertBillLineNumbers(resolvedItems);
     if (hasOwnItems) assertBillLineNumbers(record.items as Array<Record<string, unknown>>);
   }
-  if ((kind === 'goods-receipt' || billRebuilt) && (resolvedItems || hasOwnItems)) {
+  // A bill reads the order only to link the lines it has (a replayed bill needs it to rebuild its order link): no lines, no read.
+  if ((kind === 'goods-receipt' && (resolvedItems || hasOwnItems)) || (billRebuilt && (resolvedItems?.length || hasOwnItems))) {
     const poPmoId = await resolveLatestPoPmoId(deps.serviceClient, procurementId);
     const mappedPo = poPmoId ? await resolveExternalRef(deps.serviceClient as unknown as ExternalRefsLookupClient, deps.orgId, 'procurement', poPmoId) : null;
     const poExternalName = mappedPo ?? await resolveLinkedPoName(deps.serviceClient, deps.orgId, procurementId);
@@ -549,16 +566,8 @@ export async function resolvePurchaseInvoiceTaxes(
   delete record.taxTemplate;
   // The items the PI will carry: the command's own, else the case's (adapter.ts substitutes `resolvedItems`).
   const lines = (Array.isArray(record.items) && record.items.length > 0 ? record.items : resolvedItems ?? []) as ItemsNetLine[];
-  // Both refusals land BEFORE any read (ADR-0072 style, DD-VWH-22): an unpriced line must not count as 0 — it
-  // would understate the base the withheld bound checks against — and an unknown total (a line without a
-  // quantity) must not SKIP the bound — ERPNext would accept the bill and every replay would then refuse it.
-  if (lines.some((line) => lineRate(line) === null)) {
-    throw new AppError('This case has unpriced lines: give every line a rate, then record the invoice again.', 'config-rejected');
-  }
-  const itemsTotal = itemsNetTotal(lines);
-  if (lines.length > 0 && itemsTotal === null) {
-    throw new AdapterError('commit-rejected', "The supplier invoice's items total cannot be computed: a line is missing its quantity. Complete the case's lines, then record the invoice again.");
-  }
+  // Both refusals land BEFORE any read (ADR-0072 style, DD-VWH-22).
+  const itemsTotal = assertLinesKnown(lines);
   const { data, error } = await deps.serviceClient.from('organizations')
     .select('input_vat_account,pph23_payable_account,pph4_2_payable_account').eq('id', deps.orgId).maybeSingle();
   if (error) throw new AppError(error.message, error.code);

@@ -503,10 +503,18 @@ describe('erpnext/dispatchFactory — Slice 5 PO/GR cross-doctype ref resolution
       expect(sent[1]).not.toHaveProperty('purchase_order');
     });
 
+    // Which refusal a bad line gets: no rate (null/missing) -> the unpriced-lines one; no usable quantity (null/missing/non-numeric)
+    // -> the items-total one (both already existed for the entered-tax path); everything else (qty <= 0, rate < 0, blank) -> the bill-line one.
+    const refusalOf = (line: { qty?: unknown; rate?: unknown }): RegExp => {
+      if (line.rate == null) return /unpriced lines/;
+      if (line.qty == null || !Number.isFinite(Number(line.qty))) return /missing its quantity/;
+      return /quantity and rate must be numbers/;
+    };
+
     it('refuses a linked line whose qty or rate is not a number, before any ERP write', async () => {
       for (const bad of [{ item_code: 'SPIKE-ITEM-1', qty: 1 }, { item_code: 'SPIKE-ITEM-1', qty: 'x', rate: 100 }]) {
         const fetchImpl = billFetch([LINE]);
-        await expect(adapterFor(billClient(), fetchImpl, false, [bad])).rejects.toThrow(/quantity and rate must be numbers/);
+        await expect(adapterFor(billClient(), fetchImpl, false, [bad])).rejects.toThrow(refusalOf(bad));
         expect(writes(fetchImpl)).toHaveLength(0);
       }
     });
@@ -516,7 +524,7 @@ describe('erpnext/dispatchFactory — Slice 5 PO/GR cross-doctype ref resolution
         { qty: 1, rate: -5 }, { qty: 1, rate: null }, { qty: 1, rate: '' }];
       for (const bad of bads) {
         const fetchImpl = billFetch([LINE]);
-        await expect(adapterFor(billClient(), fetchImpl, false, [{ item_code: 'SPIKE-ITEM-1', ...bad }])).rejects.toThrow(/quantity and rate must be numbers/);
+        await expect(adapterFor(billClient(), fetchImpl, false, [{ item_code: 'SPIKE-ITEM-1', ...bad }])).rejects.toThrow(refusalOf(bad));
         expect(writes(fetchImpl)).toHaveLength(0);
       }
     });
@@ -529,7 +537,7 @@ describe('erpnext/dispatchFactory — Slice 5 PO/GR cross-doctype ref resolution
       for (const bad of bads) {
         const fetchImpl = billFetch([LINE]);
         const items = [{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 100 }, { item_code: 'FREIGHT', ...bad }];
-        await expect(adapterFor(billClient(), fetchImpl, false, items)).rejects.toThrow(/quantity and rate must be numbers/);
+        await expect(adapterFor(billClient(), fetchImpl, false, items)).rejects.toThrow(refusalOf(bad));
         expect(writes(fetchImpl)).toHaveLength(0);
       }
     });
@@ -549,7 +557,7 @@ describe('erpnext/dispatchFactory — Slice 5 PO/GR cross-doctype ref resolution
       for (const bad of bads) {
         for (const items of [[{ item_code: 'FREIGHT', ...bad }], [{ item_code: 'FREIGHT', qty: 1, rate: 10 }, { item_code: 'SPIKE-ITEM-1', ...bad }]]) {
           const fetchImpl = billFetch([LINE]);
-          await expect(adapterFor(billClient({ noOrder: true }), fetchImpl, false, items)).rejects.toThrow(/quantity and rate must be numbers/);
+          await expect(adapterFor(billClient({ noOrder: true }), fetchImpl, false, items)).rejects.toThrow(refusalOf(bad));
           expect(writes(fetchImpl)).toHaveLength(0);
         }
       }

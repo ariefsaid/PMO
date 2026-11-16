@@ -142,7 +142,7 @@ describe('a vendor bill names its ERP order line through the served adapter-disp
         [{ item_code: 'DEMO-ITEM', qty: 1, rate: 1000000 }, { item_code: 'FREIGHT', ...bad }]);
       assertEquals(r.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
       assertEquals(r.status, 422, r.body);
-      assert(r.body.includes('quantity and rate must be numbers'), r.body);
+      assert(r.body.includes(n === 'rate null' ? 'This case has unpriced lines' : 'quantity and rate must be numbers'), r.body); // a null rate keeps its existing refusal
       assertEquals(r.erpWrites.length, 0);
       assertEquals(r.outboxInserts.length, 0);
     });
@@ -155,7 +155,7 @@ describe('a vendor bill names its ERP order line through the served adapter-disp
       const r = await dispatch({ noOrder: true }, 'ffffffff-ffff-4fff-8fff-000000000099', NO_ORDER_ITEMS(bad));
       assertEquals(r.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
       assertEquals(r.status, 422, r.body);
-      assert(r.body.includes('quantity and rate must be numbers'), r.body);
+      assert(r.body.includes(n === 'rate null' ? 'This case has unpriced lines' : 'quantity and rate must be numbers'), r.body); // a null rate keeps its existing refusal
       assertEquals(r.erpWrites.length, 0);
       assertEquals(r.outboxInserts.length, 0);
     });
