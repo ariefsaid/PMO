@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 
 export type StepState = 'done' | 'current' | 'upcoming' | 'skipped' | 'paid';
@@ -71,6 +72,14 @@ export const LifecycleStepper: React.FC<LifecycleStepperProps> = ({
   className,
   'aria-label': ariaLabel = 'Lifecycle',
 }) => {
+  const { t } = useTranslation('common');
+  const stateLabel: Record<StepState, string> = {
+    done: t('ui.stepState.done', 'done'),
+    current: t('ui.stepState.current', 'current'),
+    upcoming: t('ui.stepState.upcoming', 'upcoming'),
+    skipped: t('ui.stepState.skipped', 'skipped'),
+    paid: t('ui.stepState.paid', 'paid'),
+  };
   if (variant === 'inline') {
     return (
       <span className={cn('inline-flex items-center', className)} role="list" aria-label={ariaLabel}>
@@ -89,7 +98,7 @@ export const LifecycleStepper: React.FC<LifecycleStepperProps> = ({
             )}
             <span
               role="listitem"
-              aria-label={`${s.label}: ${s.state}`}
+              aria-label={`${s.label}: ${stateLabel[s.state]}`}
               className={cn('size-[9px] shrink-0 rounded-full', PIP_CLASS[s.state])}
             />
           </React.Fragment>
@@ -132,7 +141,7 @@ export const LifecycleStepper: React.FC<LifecycleStepperProps> = ({
             <div
               key={i}
               role="listitem"
-              aria-label={`${s.label}: ${s.state}`}
+              aria-label={`${s.label}: ${stateLabel[s.state]}`}
               aria-current={s.state === 'current' ? 'step' : undefined}
               className={cn(
                 'jstep flex min-w-[88px] flex-1 flex-col gap-1.5',

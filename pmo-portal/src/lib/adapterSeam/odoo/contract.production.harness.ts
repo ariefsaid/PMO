@@ -4,13 +4,6 @@ import { assertCommandLinksSameOrg } from '../erpnext/dispatchPreflight.ts';
 import { createFakeOdoo } from './fakeOdoo.ts';
 import type { LinkOwner, PreflightResult, ProcurementPushScenario, PushBeforeConnectionResult } from '../contractSuite/harness.ts';
 
-declare global {
-  const Deno: {
-    env: { get(name: string): string | undefined };
-    errors: { NotFound: new (message?: string) => Error };
-  };
-}
-
 const KEY = 'contract-test-key';
 const ORG: Record<'A' | 'B', string> = { A: 'org-a', B: 'org-b' };
 const CASE: Record<'A' | 'B', string> = { A: 'case-a', B: 'case-b' };

@@ -1,6 +1,7 @@
 // @e2e-isolation: serial — this journey changes the organisation-wide project-number pattern and restores it in finally.
 import { test, expect } from '@playwright/test';
-import { login, pickComboboxOption, visibleToast } from '../helpers';
+import { createClient } from '@supabase/supabase-js';
+import { login, pickComboboxOption, requireServiceRoleKey, visibleToast } from '../helpers';
 
 test.setTimeout(120_000);
 
@@ -72,6 +73,15 @@ test('AC-CODE-001 + AC-CODE-002: Admin saves a client-segment pattern and a PM c
     await expect(page.getByText('PMO Project Number', { exact: true }).locator('..')).toContainText(chosenNumber);
     await expect(page.getByText('Client Project Code', { exact: true }).locator('..')).toContainText(clientCode);
   } finally {
+    // The project (an Internal Project) and its client company outlive the run; archive both so they drop out of
+    // company-wide project and company lists on a later run in the same database. Matched by this run's own names.
+    const key = requireServiceRoleKey();
+    if (key) {
+      const admin = createClient(process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? '', key, { auth: { persistSession: false } });
+      const archivedAt = new Date().toISOString();
+      await admin.from('projects').update({ archived_at: archivedAt }).eq('name', projectName).is('archived_at', null);
+      await admin.from('companies').update({ archived_at: archivedAt }).eq('name', companyName).is('archived_at', null);
+    }
     // The org-wide setting is shared by every test; always restore its original effective value.
     await login(page, 'admin@acme.test');
     await page.goto('/administration/projects');

@@ -221,6 +221,8 @@ export function select(changed, routeData, allSpecs, localeFiles = localeSourceF
       else routeDeps.forEach((route, i) => { for (const u of users) if (route.deps.has(u)) { routeHits.add(i); break; } });
       continue;
     }
+    // The app shell itself (App.tsx) mounts every route.
+    if (routeData.file && abs === routeData.file) { routeDeps.forEach((_, i) => routeHits.add(i)); continue; }
     routeDeps.forEach((route, i) => { if (route.deps.has(abs)) routeHits.add(i); });
   }
   const paths = [...routeHits].map(i => routeDeps[i].path);
@@ -346,6 +348,11 @@ export function runCapped(phases, allowBroad = false, spawnE2E = spawnSync) {
   }
   return runPhases(phases, spawnE2E);
 }
+// Every changed file under pmo-portal/ is a journey input except the e2e specs themselves (#2388).
+export function isAffectedInput(file) {
+  return file.startsWith('pmo-portal/') && !file.startsWith('pmo-portal/e2e/');
+}
+export function selectFor(changed) { return select(changed, appRoutes(), specs()); }
 function selfTest() {
   const allSpecs = specs(), routeData = appRoutes();
   const companies = select(['pmo-portal/pages/Companies.tsx'], routeData, allSpecs).map(f => path.relative(app, f));
@@ -357,6 +364,12 @@ function selfTest() {
   ];
   if (expected.some(file => !companies.includes(file))) throw new Error(`affected-e2e Companies recall self-test failed: missing ${expected.filter(file => !companies.includes(file)).join(', ')}`);
   if (companies.length > 15) throw new Error(`affected-e2e Companies precision self-test failed: selected ${companies.length} specs (maximum 15)`);
+
+  // #2388: one case per folder the filter used to drop; each must now select journeys.
+  for (const file of ['pmo-portal/src/lib/billingKind.ts', 'pmo-portal/src/lib/db/companies.ts', 'pmo-portal/src/auth/policy.ts', 'pmo-portal/components/ProcurementBoard.tsx', 'pmo-portal/App.tsx']) {
+    if (!isAffectedInput(file) || !select([file], routeData, allSpecs).length) throw new Error(`affected-e2e #2388 admit self-test failed: ${file} selects no journeys`);
+  }
+  if (isAffectedInput('pmo-portal/e2e/x.spec.ts')) throw new Error('affected-e2e #2388 self-test failed: e2e/ must stay out');
 
   const shell = select(['pmo-portal/src/components/shell/index.ts'], routeData, allSpecs);
   if (shell.length <= 100) throw new Error(`affected-e2e shared-shell self-test failed: selected ${shell.length} specs (expected more than 100)`);
@@ -421,7 +434,7 @@ if (invokedDirectly) {
   else {
     const baseAt = args.indexOf('--base'), base = baseAt >= 0 ? args[baseAt + 1] : 'origin/dev';
     localeBase = base;
-    const changed = gitChanged(base).filter(f => /^(pmo-portal\/(pages|src\/(components|hooks|lib\/repositories))\/|pmo-portal\/public\/locales\/)/.test(f));
+    const changed = gitChanged(base).filter(isAffectedInput);
     if (!changed.length) { console.log('No supported UI paths changed.'); process.exit(0); }
     const selected = select(changed, appRoutes(), specs());
     const files = selected.map(f => path.relative(app, f));

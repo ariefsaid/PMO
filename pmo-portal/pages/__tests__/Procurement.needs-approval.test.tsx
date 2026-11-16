@@ -55,12 +55,12 @@ vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState
 vi.mock('@/src/hooks/useProcurementCrud', () => ({ useCreateProcurement: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
 import ProcurementPage from '../Procurement';
 
-const renderAs = (realRole: Role) => {
+const renderAs = (realRole: Role, path = '/') => {
   auth.role = realRole; // the signed-in session role the shared list block reads
   return render(
     <QueryClientProvider client={new QueryClient()}>
       <ImpersonationProvider realRole={realRole}>
-        <MemoryRouter>
+        <MemoryRouter initialEntries={[path]}>
           <ToastProvider>
             <ProcurementPage />
           </ToastProvider>
@@ -75,9 +75,9 @@ const statusOptionNames = () =>
 
 describe('Procurement — approver reaches requests needing approval (B-2, AC-W2-IXD-003)', () => {
   it.each<Role>(['Finance', 'Project Manager'])(
-    'AC-W2-IXD-003: %s lands on "Needs you" with the Requested PR awaiting their approval, and can filter Status to "Needs approval"',
+    'AC-W2-IXD-003: %s opens "Needs you" from its tab with the Requested PR awaiting their approval, and can filter Status to "Needs approval"',
     (role) => {
-      renderAs(role);
+      renderAs(role, '/?tab=needs-you');
       const needsYou = screen.getByRole('tab', { name: /^Needs you/ });
       expect(needsYou).toHaveAttribute('aria-selected', 'true');
       expect(needsYou).toHaveTextContent('1');
