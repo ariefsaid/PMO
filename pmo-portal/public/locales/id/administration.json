@@ -350,7 +350,38 @@
       "retryFailed": "Kami tidak dapat mengirim ulang. Coba lagi sebentar lagi.",
       "unnamed": "Sebuah data",
       "addPeople": "Tambahkan orang-orang ini di ERP. ERP meminta tanggal lahir dan jenis kelamin, yang tidak dimiliki PMO.",
-      "accountantTask": "Minta akuntan Anda menambahkan akun biaya langsung untuk: {{categories}}"
+      "accountantTask": "Minta akuntan Anda menambahkan akun biaya langsung untuk: {{categories}}",
+      "refusal": {
+        "unknown": "Kami tidak dapat mengirim data ini. Periksa di ERP, lalu coba lagi.",
+        "noun": {
+          "company": "perusahaan",
+          "project": "proyek",
+          "item": "item",
+          "person": "orang",
+          "record": "data"
+        },
+        "gone": "Data ini sudah tidak ada di PMO, atau (untuk item) sudah tidak ada di pembelian yang terbuka.",
+        "person": "ERP ini meminta tanggal lahir dan jenis kelamin setiap orang, yang tidak dimiliki PMO. Tambahkan orang ini di ERP.",
+        "personOdoo": "PMO belum mengirim data orang ke Odoo. Tambahkan orang ini di Odoo.",
+        "actor": "Admin yang menerima ini sudah bukan Admin lagi. Terima lagi.",
+        "ambiguous": "Dua data ERP cocok dengan {{noun}} ini. Hubungkan yang benar secara manual.",
+        "linked": "Data ini sudah terhubung ke data ERP lain.",
+        "stuck": "Kami tidak dapat menyelesaikan pengiriman data ini. Periksa di ERP, lalu coba lagi.",
+        "refused": "ERP menolak {{noun}} ini. Periksa di ERP, lalu coba lagi.",
+        "refusedReason": "ERP menolak {{noun}} ini. Periksa di ERP, lalu coba lagi.",
+        "held": "Kami tidak dapat memastikan apakah ERP sudah membuat data ini. Cari di ERP dengan nama dan NPWP; jika tidak ada, kirim lagi.",
+        "heldOdoo": "Kami tidak dapat memastikan apakah Odoo sudah membuat data ini. Cari di Odoo dengan nama dan NPWP; jika tidak ada, kirim lagi.",
+        "planFirst": "Pilih dulu rencana akun biaya untuk proyek, lalu kirim proyek ini lagi.",
+        "projectNumber": "Proyek ini belum punya nomor proyek, sehingga akun biayanya tidak bisa diberi nama. Beri nomor, lalu kirim lagi.",
+        "unitUnmapped": "ERP menolak {{noun}} ini: satuannya belum cocok dengan satuan di Odoo.",
+        "notApplied": "Baris ini tidak dapat diterapkan.",
+        "companyGone": "Perusahaan ini sudah tidak ada di PMO.",
+        "projectGone": "Proyek ini sudah tidak ada di PMO.",
+        "internalCompany": "Perusahaan internal tidak dapat dihubungkan ke ERP.",
+        "changedSince": "Data ERP berubah sejak ini diusulkan.",
+        "personGone": "Orang ini sudah tidak ada di PMO.",
+        "itemLinked": "Item ini sudah terhubung."
+      }
     },
     "connect": {
       "title": "Cocokkan data",
