@@ -1,4 +1,5 @@
 import React, { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { lazyWithPreload } from '@/src/lib/lazyWithPreload';
 
 // Perf: the panel pulls markdown, the viewspec compiler and the chart widgets (recharts) — none needed for
@@ -8,6 +9,22 @@ const loadPanel = () => import('./AssistantPanel').then((m) => ({ default: m.Ass
 const makePanel = () => lazyWithPreload(loadPanel);
 
 /** Contains a failed panel chunk to the panel: the shell keeps working, Retry re-imports. */
+const PanelLoadFailed: React.FC<{ onRetry: () => void }> = ({ onRetry }) => {
+  const { t } = useTranslation('assistantPanel');
+  return (
+    <div role="alert" className="fixed bottom-4 right-4 z-40 rounded-lg border border-border bg-card p-3 text-sm shadow-sm">
+      <p className="text-foreground">{t('loadFailed', 'The assistant could not load.')}</p>
+      <button
+        type="button"
+        className="mt-2 rounded-md border border-border px-3 py-1 text-xs font-medium hover:bg-accent"
+        onClick={onRetry}
+      >
+        {t('retry', 'Retry')}
+      </button>
+    </div>
+  );
+};
+
 class PanelBoundary extends React.Component<
   { onRetry: () => void; children: React.ReactNode },
   { failed: boolean }
@@ -19,19 +36,12 @@ class PanelBoundary extends React.Component<
   render() {
     if (!this.state.failed) return this.props.children;
     return (
-      <div role="alert" className="fixed bottom-4 right-4 z-40 rounded-lg border border-border bg-card p-3 text-sm shadow-sm">
-        <p className="text-foreground">The assistant could not load.</p>
-        <button
-          type="button"
-          className="mt-2 rounded-md border border-border px-3 py-1 text-xs font-medium hover:bg-accent"
-          onClick={() => {
-            this.props.onRetry();
-            this.setState({ failed: false });
-          }}
-        >
-          Retry
-        </button>
-      </div>
+      <PanelLoadFailed
+        onRetry={() => {
+          this.props.onRetry();
+          this.setState({ failed: false });
+        }}
+      />
     );
   }
 }

@@ -123,7 +123,7 @@ describe('company dashboard procurement reads (PERF-FIN-1)', () => {
     renderExec('Executive');
     const suppliers = screen.getByTestId('owed-to-suppliers');
 
-    expect(await within(suppliers).findByText("Couldn't load supplier invoices")).toBeInTheDocument();
+    expect(await within(suppliers).findByText("Couldn't load invoices")).toBeInTheDocument();
     await waitFor(() => expect(h.erpPurchases).toHaveBeenCalledTimes(1));
 
     await userEvent.click(within(suppliers).getByRole('button', { name: 'Retry' }));
@@ -145,7 +145,8 @@ describe('company dashboard layout stability (CLS) and loading gates', () => {
     const band = screen.getByRole('region', { name: 'Company figures' });
     expect(within(band).queryAllByTestId('kpi-skeleton')).toHaveLength(0);
     expect(within(screen.getByTestId('owed-to-suppliers')).getAllByTestId('liststate-loading').length).toBeGreaterThan(0);
+    // The approvals list holds its rows while the queue loads (row silhouettes, not a collapsed line).
     const approvals = within(screen.getByTestId('waits-on-you')).getAllByTestId('liststate-loading')[0];
-    expect(approvals.className).toMatch(/\bh-11\b/);
+    expect(approvals.querySelectorAll('[data-skeleton-shape="items"] > *').length).toBeGreaterThanOrEqual(3);
   });
 });

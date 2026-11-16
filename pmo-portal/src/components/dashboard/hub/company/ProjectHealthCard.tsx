@@ -12,6 +12,11 @@ import type { AttentionProject } from '@/src/lib/db/dashboard';
 import { CardLink } from './OverviewCards';
 import { bulletFor, overBudget, overdueTaskCount, type Bullet, type BulletTone } from './homeHealth';
 
+/** On a phone a project's row wraps to about 150px in English and 182px in Bahasa (longer fact lines): loading rows
+ * hold the measured pitch of the language on screen so the page does not jump when the rows land. */
+const PHONE_ROW = 'max-[899px]:[&_[data-skeleton-shape]>div]:min-h-[160px]';
+const PHONE_ROW_LONG = 'max-[899px]:[&_[data-skeleton-shape]>div]:min-h-[182px]';
+
 const FILL: Record<BulletTone, string> = { data: 'bg-primary', ahead: 'bg-warning', over: 'bg-destructive' };
 
 /** Budget track with the spent share filled and a tick at the share delivered. The words beside it carry the values. */
@@ -35,8 +40,9 @@ export const ProjectHealthCard: React.FC<{
   budgetLinkOnOverBudget?: boolean;
   className?: string;
 }> = ({ rows, delivery, pending, error, retry, budgetLinkOnOverBudget = false, className }) => {
-  const { t } = useTranslation('dashboard');
+  const { t, i18n } = useTranslation('dashboard');
   const { t: ts } = useTranslation('status');
+  const phoneRow = i18n.language?.toLowerCase().startsWith('id') ? PHONE_ROW_LONG : PHONE_ROW;
   const money = (amount: number, currency: string) => formatTileMoney(amount, currency) ?? '';
   // The link names no count: the rows are active projects, the list it opens is every project.
   const allLabel = t('home.allProjectsBare', 'All projects');
@@ -44,8 +50,8 @@ export const ProjectHealthCard: React.FC<{
     <Card data-testid="project-health" className={cn('flex flex-col', className)}>
       <CardHead level={2} actions={<CardLink to="/projects">{allLabel}</CardLink>}>{t('home.projectHealth', 'Project health')}</CardHead>
       <div className="flex-1 px-[var(--panel-inset)] pb-2">
-        {pending ? <ListState variant="loading" rows={4} />
-          : error ? <ListState variant="error" title={t('home.projectsError', "Couldn't load projects")} onRetry={retry} />
+        {pending ? <ListState variant="loading" shape="rows" rows={5} className={phoneRow} />
+          : error ? <ListState variant="error" title={t('home.projectsError', "Couldn't load projects")} onRetry={retry} quiet />
             : rows.length === 0 ? <p className="pb-2 text-control text-muted-foreground">{t('home.noActiveProjects', 'No active projects.')}</p>
               : (
                 <ul className="divide-y divide-border">
@@ -74,8 +80,8 @@ export const ProjectHealthCard: React.FC<{
                     return (
                       <li key={row.id}>
                         <Link to={href} title={name !== row.name ? row.name : undefined} className="grid gap-y-1 py-4 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-                          <span className="flex min-w-0 items-center justify-between gap-3">
-                            <span className="min-w-0 truncate text-control font-medium" title={name}>{name}</span>
+                          <span className="flex min-w-0 items-start justify-between gap-3">
+                            <span className="min-w-0 break-words text-control font-medium">{name}</span>
                             <StatusPill wrap={false} className="shrink-0" variant={toneVariant(statusTone('project', row.status) === 'exception' ? 'exception' : 'neutral')}>{statusLabel('project', row.status, ts)}</StatusPill>
                           </span>
                           <span data-testid="health-wrong" className="text-control tabular">

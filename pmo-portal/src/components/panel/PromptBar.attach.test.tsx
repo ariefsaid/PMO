@@ -1,11 +1,11 @@
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Composer } from './Composer';
+import { PromptBar } from './PromptBar';
 import { AGENT_ATTACHMENT_MAX_BYTES } from '@/src/lib/agent/attachmentMime';
 
-function renderComposer(overrides: Partial<React.ComponentProps<typeof Composer>> = {}) {
-  const props: React.ComponentProps<typeof Composer> = {
+function renderPromptBar(overrides: Partial<React.ComponentProps<typeof PromptBar>> = {}) {
+  const props: React.ComponentProps<typeof PromptBar> = {
     value: 'still send this',
     onChange: vi.fn(),
     onSend: vi.fn(),
@@ -13,7 +13,7 @@ function renderComposer(overrides: Partial<React.ComponentProps<typeof Composer>
     running: false,
     ...overrides,
   };
-  render(<Composer {...props} />);
+  render(<PromptBar {...props} />);
   return props;
 }
 
@@ -50,10 +50,10 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('Composer attachment affordance', () => {
+describe('PromptBar attachment affordance', () => {
   it('keeps the message field labelled, controlled, and editable through the shared textarea primitive', () => {
     const onChange = vi.fn();
-    renderComposer({ value: 'still send this', onChange });
+    renderPromptBar({ value: 'still send this', onChange });
     const input = screen.getByRole('textbox', { name: 'Ask a question' });
 
     expect(input).toHaveValue('still send this');
@@ -66,7 +66,7 @@ describe('Composer attachment affordance', () => {
     const user = userEvent.setup();
     const onAttachmentError = vi.fn();
     const onAttachFile = vi.fn();
-    const props = renderComposer({ onAttachmentError, onAttachFile });
+    const props = renderPromptBar({ onAttachmentError, onAttachFile });
 
     const input = attachInput();
     await user.upload(
@@ -92,7 +92,7 @@ describe('Composer attachment affordance', () => {
     const user = userEvent.setup();
     const onAttachFile = vi.fn();
     mockLargeImageTranscode();
-    renderComposer({ onAttachFile });
+    renderPromptBar({ onAttachFile });
 
     const input = attachInput();
     await user.upload(input, new File(['x'], 'photo.jpg', { type: 'image/jpeg' }));
@@ -109,7 +109,7 @@ describe('Composer attachment affordance', () => {
     // override it with a generic {type:'server'} message.
     const onAttachmentError = vi.fn();
     const onAttachFile = vi.fn().mockRejectedValue(new Error('network down'));
-    renderComposer({ onAttachmentError, onAttachFile });
+    renderPromptBar({ onAttachmentError, onAttachFile });
 
     const input = attachInput();
     fireEvent.change(input, {
@@ -127,7 +127,7 @@ describe('Composer attachment affordance', () => {
     const onAttachFile = vi.fn();
     // transcodeImage rejects (e.g. a corrupt bitmap) — the Composer owns THIS classification.
     vi.stubGlobal('createImageBitmap', vi.fn(async () => { throw new Error('bad bitmap'); }));
-    renderComposer({ onAttachmentError, onAttachFile });
+    renderPromptBar({ onAttachmentError, onAttachFile });
 
     const input = attachInput();
     fireEvent.change(input, {
@@ -144,7 +144,7 @@ describe('Composer attachment affordance', () => {
   });
 
   it('IMPORTANT-4 the visible button is the sole accessible "Attach file" control', () => {
-    renderComposer({ onAttachFile: vi.fn(), onAttachmentError: vi.fn() });
+    renderPromptBar({ onAttachFile: vi.fn(), onAttachmentError: vi.fn() });
 
     // Exactly one accessible control is named "Attach file" — the visible button.
     expect(screen.getAllByRole('button', { name: /attach file/i })).toHaveLength(1);
@@ -160,7 +160,7 @@ describe('Composer attachment affordance', () => {
 
   it('IMPORTANT-9 dropping a file routes through the same upload handler as the attach button', async () => {
     const onAttachFile = vi.fn().mockResolvedValue(undefined);
-    renderComposer({ onAttachFile });
+    renderPromptBar({ onAttachFile });
 
     // The composer container (the drop target) wraps the input row.
     const dropzone = document.querySelector('input[type="file"]')
@@ -185,7 +185,7 @@ describe('Composer attachment affordance', () => {
 describe('Composer send while an upload is in flight (T-10)', () => {
   it('disables Send and ignores Enter while uploading', async () => {
     const user = userEvent.setup();
-    const props = renderComposer({ value: 'with the file', uploading: true });
+    const props = renderPromptBar({ value: 'with the file', uploading: true });
     expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
     await user.type(screen.getByRole('textbox', { name: 'Ask a question' }), '{Enter}');
     expect(props.onSend).not.toHaveBeenCalled();

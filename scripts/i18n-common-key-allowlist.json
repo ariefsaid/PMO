@@ -261,6 +261,8 @@
   "terms.supplier",
   "terms.timesheet",
   "ui.listPage.showingOf",
+  "ui.listState.tryAgainSentence",
+  "ui.listState.andTryAgain",
   "ui.recordReference",
   "unsavedChanges.body",
   "unsavedChanges.discard",
