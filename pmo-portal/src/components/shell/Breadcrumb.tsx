@@ -97,7 +97,8 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
   return (
     <nav
       aria-label={t('shell.breadcrumb.label', 'Breadcrumb')}
-      className={cn('flex min-w-0 flex-wrap items-center gap-2 text-control', className)}
+      // One line in the 56px top bar: a long record name truncates (full name in its title) instead of wrapping out of the bar.
+      className={cn('flex min-w-0 flex-nowrap items-center gap-2 text-control', className)}
     >
       {visibleParts.map((part, i) => {
         const last = i === parts.length - 1;
@@ -108,20 +109,20 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
               // C3: the separator is hidden at mobile alongside its parent link.
               <span
                 aria-hidden
-                className="opacity-50 max-[920px]:hidden [&_svg]:size-3.5"
+                className="shrink-0 opacity-50 max-[920px]:hidden [&_svg]:size-3.5"
               >
                 <Icon name="chev" />
               </span>
             )}
             {!last && (part.onClick || part.href) && !canOpen(part.href) ? (
-              <span title={part.title} className="break-words text-muted-foreground max-[920px]:hidden">
+              <span title={part.title} className="shrink-0 whitespace-nowrap text-muted-foreground max-[920px]:hidden">
                 {label}
               </span>
             ) : last || (!part.onClick && !part.href) ? (
               <span
                 aria-current="page"
-                title={part.title}
-                className={cn('min-w-0 break-words font-semibold text-foreground', pageHasTitle && 'max-[920px]:hidden')}
+                title={part.title ?? (typeof label === 'string' ? label : undefined)}
+                className={cn('min-w-0 truncate font-semibold text-foreground', pageHasTitle && 'max-[920px]:hidden')}
               >
                 {label}
               </span>
@@ -149,7 +150,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
                   }}
                   aria-label={part.ariaLabel}
                   title={part.title}
-                  className="break-words text-muted-foreground hover:text-foreground max-[920px]:hidden"
+                  className="shrink-0 whitespace-nowrap text-muted-foreground hover:text-foreground max-[920px]:hidden"
                 >
                   {label}
                 </a>
@@ -159,7 +160,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
                   onClick={part.onClick}
                   aria-label={part.ariaLabel}
                   title={part.title}
-                  className="break-words text-muted-foreground hover:text-foreground max-[920px]:hidden"
+                  className="shrink-0 whitespace-nowrap text-muted-foreground hover:text-foreground max-[920px]:hidden"
                 >
                   {label}
                 </button>
