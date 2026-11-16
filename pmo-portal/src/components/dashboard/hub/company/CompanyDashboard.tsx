@@ -53,7 +53,7 @@ import { ProjectHealthCard } from './ProjectHealthCard';
 import { FinancesCard } from './FinancesCard';
 import { healthOrder, overBudget, overdueTaskCount } from './homeHealth';
 
-type TileOpts = { label?: string; caption?: string; reason?: string; link?: { to: string; label: string }; hide?: boolean };
+type TileOpts = { label?: string; caption?: string; reason?: string; link?: { to: string; label: string }; hide?: boolean; captionWrap?: boolean };
 /** The order of "waits on you" rows per role (a row is drawn only when its count is above zero). */
 const WAIT_ORDER: Record<'Executive' | 'Admin' | 'Finance', string[]> = {
   Executive: ['approvals'],
@@ -186,7 +186,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         </div>
       );
     }
-    return <KPITile key={figure.id} icon="grid" tone="blue" label={label} value={money?.value ?? null} exactValue={money?.exact} unavailableReason={money ? undefined : opts.reason ?? figure.unavailableReason} hiddenLink={opts.link} caption={caption} to={figure.href} linkLabel={label} loading={status.pending} help={helpText[figure.id]} />;
+    return <KPITile key={figure.id} icon="grid" tone="blue" label={label} value={money?.value ?? null} exactValue={money?.exact} unavailableReason={money ? undefined : opts.reason ?? figure.unavailableReason} hiddenLink={opts.link} caption={caption} captionWrap={opts.captionWrap} to={figure.href} linkLabel={label} loading={status.pending} help={helpText[figure.id]} />;
   };
 
   const supplier = todayFigure('supplier-payables');
@@ -214,7 +214,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       moneyTile(todayFigure('contract-on-hand'), { caption: onHandCount === undefined ? undefined : t('home.projectCount', { count: onHandCount, defaultValue_one: '{{count}} project', defaultValue_other: '{{count}} projects' }), reason: t('home.reasonContract', 'contract values are missing') }),
       moneyTile(invoiced, { label: t('home.invoiced', 'Invoiced'), caption: periodLabel }),
       moneyTile(collected, collectedOpts),
-      moneyTile(leftToBill, { label: t('home.leftToBill', 'Left to bill'), caption: leftToBillNote ?? '' }),
+      moneyTile(leftToBill, { label: t('home.leftToBill', 'Left to bill'), caption: leftToBillNote ?? '', captionWrap: true }),
       moneyTile(todayFigure('owed-clients'), { link: setUp }),
       moneyTile(supplier, { caption: toPay }),
       // Known margin is a fifth tile only when the accounting source provides it.
@@ -352,7 +352,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       moneyTile(todayFigure('contract-on-hand'), { caption: onHandCount === undefined ? undefined : t('home.signedContractCount', { count: onHandCount, defaultValue_one: '{{count}} with a signed contract', defaultValue_other: '{{count}} with a signed contract' }), reason: t('home.reasonContract', 'contract values are missing') }),
       moneyTile(invoiced, { label: t('home.invoiced', 'Invoiced'), caption: periodLabel }),
       moneyTile(collected, collectedOpts),
-      moneyTile(leftToBill, { label: t('home.leftToBill', 'Left to bill'), caption: leftToBillNote ?? t('home.onSignedContracts', 'On signed contracts') }),
+      moneyTile(leftToBill, { label: t('home.leftToBill', 'Left to bill'), caption: leftToBillNote ?? t('home.onSignedContracts', 'On signed contracts'), captionWrap: true }),
       figures.figureStatus('billed-margin').pending || margin?.amounts ? moneyTile(margin, { caption: t('home.marginCaption', 'Billed revenue less spending') }) : null,
     ].filter((tile) => tile !== null);
     const band = tilesRow('grid-cols-2 max-[899px]:[&>*:last-child:nth-child(odd)]:col-span-2 min-[900px]:grid-flow-col min-[900px]:auto-cols-fr', bandTiles);

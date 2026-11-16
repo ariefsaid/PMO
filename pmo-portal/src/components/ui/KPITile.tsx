@@ -53,6 +53,8 @@ export interface KPITileProps {
   helpLabel?: string;
   /** The tile's ONE caption (at most 6 words, truncated to one line). */
   caption?: string;
+  /** Show the caption in full, wrapped, instead of one truncated line (a caption that states a fact). */
+  captionWrap?: boolean;
   /** @deprecated Use `caption`. */
   vs?: string;
   /** @deprecated A tile has one caption; the text is used as `caption` when none is given. */
@@ -77,9 +79,13 @@ export interface KPITileProps {
 
 /** Inside a KPIRow the tiles become cells of one joined strip: no own frame, no decorative icon tile. */
 /** The tile's one caption: a single truncated line. */
-const Caption: React.FC<{ children: string }> = ({ children }) => (
-  <div className="mt-auto truncate text-control text-muted-foreground" title={children}>{children}</div>
-);
+const Caption: React.FC<{ children: string; wrap?: boolean }> = ({ children, wrap }) =>
+  wrap ? (
+    // A phone has no hover: a caption that carries a fact is shown whole, never cut to a title.
+    <div className="mt-auto break-words text-control text-muted-foreground">{children}</div>
+  ) : (
+    <div className="mt-auto truncate text-control text-muted-foreground" title={children}>{children}</div>
+  );
 
 const KPIRowContext = React.createContext(false);
 
@@ -119,6 +125,7 @@ export function KPITile({
   help,
   helpLabel,
   caption: captionProp,
+  captionWrap,
   vs,
   delta,
   loading = false,
@@ -199,7 +206,7 @@ export function KPITile({
               <FigureContent value={value} exactValue={exactValue} unavailableReason={unavailableReason} />
             </div>
           )}
-          {caption && <Caption>{caption}</Caption>}
+          {caption && <Caption wrap={captionWrap}>{caption}</Caption>}
         </div>
       </div>
     );
@@ -223,7 +230,7 @@ export function KPITile({
         </div>
       )}
 
-      {caption && <Caption>{caption}</Caption>}
+      {caption && <Caption wrap={captionWrap}>{caption}</Caption>}
     </div>
   );
 }
