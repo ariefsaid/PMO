@@ -24,8 +24,17 @@ export function sweepRetryDelaySeconds(failures: number): number {
   const n = failures > 0 ? Math.min(Math.floor(failures), 20) : 0;
   return Math.min(SWEEP_RETRY_DELAY_SECONDS * 2 ** n, SWEEP_FULL_INTERVAL_MS / 1000);
 }
-/** No hourly pass starts this long after the invocation began (the function's wall-clock cap is 150 s). */
-export const HOURLY_INVOCATION_DEADLINE_MS = 120_000;
+/** No hourly pass starts this long after the invocation began. Kept below the last moment a money try can start
+ *  (#2149: `SWEEP_INVOCATION_DEADLINE_MS` − the outcome margin − a minimum try, 115 s), so money keeps priority. */
+export const HOURLY_INVOCATION_DEADLINE_MS = 105_000;
+/** #2149: the deadline the hourly passes' ERP tries share, this long after the invocation began. A try gets at most the
+ *  time left before it minus the outcome margin, so every hourly try ends by 115 s, the last moment a money try can
+ *  start; and none starts unless a full minimum try fits, so none starts after 95 s. */
+export const HOURLY_TRY_DEADLINE_MS = 125_000;
+/** #2149: the one deadline every ERP try in an invocation shares, this long after it began. Under the function's
+ *  150 s wall-clock cap; the few seconds left cover the run summary and lock release. Each try is given at most the
+ *  time left minus the outcome-write margin, and none starts unless a full minimum try fits (`sweepShared.ts`). */
+export const SWEEP_INVOCATION_DEADLINE_MS = 145_000;
 
 /** Whether an org's hourly work is due: never run, unreadable, or completed at least 55 minutes ago. */
 export function fullSweepDue(lastFullSweepAt: string | null | undefined, nowMs: number): boolean {
