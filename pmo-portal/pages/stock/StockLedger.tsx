@@ -81,7 +81,7 @@ export function buildLedgerColumns({ t, loc, currency, showCost }: {
       ),
       exportValue: (r) => r.itemCode,
     },
-    { key: 'warehouse', header: t('ledger.columns.warehouse'), size: 200, minSize: 200, colClassName: 'md:whitespace-nowrap', cell: (r) => <CodeText code={r.warehouseCode} testId="stock-ledger-warehouse-code" className="block min-w-0 break-all record-id md:whitespace-nowrap" />, exportValue: (r) => r.warehouseCode },
+    { key: 'warehouse', header: t('ledger.columns.warehouse'), size: 136, minSize: 136, cell: (r) => <CodeText code={r.warehouseCode} testId="stock-ledger-warehouse-code" className="block min-w-0 break-all record-id" />, exportValue: (r) => r.warehouseCode },
     {
       key: 'project', header: t('ledger.columns.project'), size: 136, minSize: 136, colClassName: 'hidden lg:table-cell',
       // Project names wrap at spaces; the work-item code remains one intact identifier on desktop.
