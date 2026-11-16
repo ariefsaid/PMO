@@ -30,7 +30,8 @@
   "errors": {
     "denied": "You cannot make this change",
     "invalid": "Check the journal lines",
-    "refused": "The journal was not accepted"
+    "refused": "The journal was not accepted",
+    "tooManyDecimals": "The amount has more decimals than the currency holds. Remove the extra decimals."
   },
   "form": {
     "account": "Account",
