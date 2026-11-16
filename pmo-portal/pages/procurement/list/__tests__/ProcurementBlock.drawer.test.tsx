@@ -130,6 +130,18 @@ describe('Procurement drawer header (B4)', () => {
     await waitFor(() => expect(transitionSpy).toHaveBeenCalledWith('p-1', 'Approved'));
   });
 
+  it('shows Return as a visible drawer button beside Approve, not only in the menu, and it returns the request', async () => {
+    transitionSpy.mockClear();
+    procState.data = [row({ status: 'Requested', procurement_invoices: [], approved_by_id: null })];
+    renderBlock();
+    const drawer = screen.getByRole('dialog', { name: /Inverters/ });
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Return' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Return procurement' });
+    await userEvent.type(within(confirm).getByLabelText(/Reason for returning/), 'Needs revising');
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Return' }));
+    await waitFor(() => expect(transitionSpy).toHaveBeenCalledWith('p-1', 'Rejected', 'Needs revising'));
+  });
+
   it('AC-1578: Return from the list needs a comment and sends it with the rejection', async () => {
     transitionSpy.mockClear();
     procState.data = [row({ status: 'Requested', procurement_invoices: [], approved_by_id: null })];

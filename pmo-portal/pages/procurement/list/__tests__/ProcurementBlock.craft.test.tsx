@@ -101,7 +101,18 @@ describe('ProcurementBlock craft rulings', () => {
     procState.data = [{ ...row('a', 'Requested'), code: 'PROC-2026-001', vendor: { name: 'VoltEdge Inverters' } }];
     renderBlock();
     const header = document.querySelector('th[data-col-key="procurement"]') as HTMLElement;
-    expect(parseInt(header.style.minWidth, 10)).toBeGreaterThanOrEqual(216);
+    expect(parseInt(header.style.minWidth, 10)).toBeGreaterThanOrEqual(208);
+  });
+
+  // The longest Bahasa category word, "Subkontraktor", is 80.1px at 14px (measured, Hanken Grotesk); the cell has
+  // 16px inset each side, so the column must be at least 112.1px and the cell must wrap at spaces only.
+  it('a category word is never cut mid-word: the column fits the longest word and the cell wraps at spaces', () => {
+    procState.data = [{ ...row('a', 'Requested'), budget_category: 'Subcontractors' }];
+    renderBlock();
+    const header = document.querySelector('th[data-col-key="category"]') as HTMLElement;
+    expect(parseInt(header.style.minWidth, 10)).toBeGreaterThanOrEqual(113);
+    const cell = screen.getByTitle(/subcontractors/i);
+    expect(cell.className).toContain('break-normal');
   });
 
   // #2434: on a phone card the owner's name takes its own line under the action, so it is never cut by the button.

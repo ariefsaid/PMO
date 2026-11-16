@@ -315,12 +315,12 @@ describe('AC-IXD-WP-003: consequential procurement actions still confirm', () =>
     expect(mockTransition).not.toHaveBeenCalled();
   });
 
-  it('AC-IXD-WP-003: Reject opens a destructive confirm and does NOT write on the first click', async () => {
+  it('AC-IXD-WP-003: Return opens a reason dialog and does NOT write on the first click', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
     await openMoreActions();
-    await userEvent.click(screen.getByRole('menuitem', { name: /^reject$/i }));
-    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('menuitem', { name: /^return$/i }));
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
     expect(mockTransition).not.toHaveBeenCalled();
   });
 

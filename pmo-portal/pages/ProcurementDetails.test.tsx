@@ -615,7 +615,7 @@ describe('AC-805: role-gated transition actions (FR-PROC-006, UI gate)', () => {
     expect(screen.getByRole('button', { name: /approve/i })).toBeInTheDocument();
     const header = screen.getByTestId('record-header');
     await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
-    expect(await screen.findByRole('menuitem', { name: 'Reject' })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: 'Return' })).toBeInTheDocument();
   });
 
   it('AC-S20-001: the approver has one primary action with request and budget evidence on the page', async () => {
@@ -631,7 +631,7 @@ describe('AC-805: role-gated transition actions (FR-PROC-006, UI gate)', () => {
     expect(within(header).getByRole('button', { name: 'Approve' }).className).toContain('bg-primary');
     expect(screen.getAllByRole('button', { name: 'Approve' })).toHaveLength(1);
     await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
-    expect(await screen.findByRole('menuitem', { name: 'Reject' })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: 'Return' })).toBeInTheDocument();
     expect(await screen.findByRole('menuitem', { name: 'Cancel procurement' })).toBeInTheDocument();
     expect(budgetEvidence).toBeInTheDocument();
   });
@@ -693,13 +693,13 @@ describe('AC-805: role-gated transition actions (FR-PROC-006, UI gate)', () => {
     renderPage();
     const header = screen.getByTestId('record-header');
     await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
-    const rejectBtn = await screen.findByRole('menuitem', { name: /reject/i });
+    const rejectBtn = await screen.findByRole('menuitem', { name: /return/i });
     // at rest: outline (background fill + input border), NOT the solid destructive fill
     // Reject remains in the overflow menu; its destructive confirmation is the actual action.
     await userEvent.click(rejectBtn);
-    const dialog = await screen.findByRole('alertdialog');
-    const confirm = within(dialog).getByRole('button', { name: /reject/i });
-    expect(confirm.className).toContain('bg-destructive');
+    const dialog = await screen.findByRole('dialog');
+    const confirm = within(dialog).getByRole('button', { name: /return/i });
+    expect(confirm).toBeVisible();
   });
 });
 
@@ -773,18 +773,18 @@ describe('AC-805: Approve/Reject notes input (OD-PROC-1 optional Notes)', () => 
     );
   });
 
-  it('AC-805 / #1578: Reject confirm requires a rejection comment, then passes it as the notes', async () => {
+  it('AC-805 / #1578: Return confirm requires a reason, then passes it as the notes', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
     const header = screen.getByTestId('record-header');
     await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: /reject/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /return/i }));
     // Reject is destructive → alertdialog surface
-    const dialog = await screen.findByRole('alertdialog');
+    const dialog = await screen.findByRole('dialog');
     expect(mockTransition).not.toHaveBeenCalled();
-    expect(within(dialog).getByRole('button', { name: /reject/i })).toBeDisabled();
-    await userEvent.type(within(dialog).getByLabelText(/rejection comment/i), 'Over budget.');
-    await confirmInDialog(/reject/i);
+    expect(within(dialog).getByRole('button', { name: /return/i })).toBeDisabled();
+    await userEvent.type(within(dialog).getByLabelText(/reason for returning/i), 'Over budget.');
+    await confirmInDialog(/return/i);
     await waitFor(() =>
       expect(mockTransition).toHaveBeenCalledWith(
         expect.objectContaining({ to: 'Rejected', notes: 'Over budget.' })
@@ -799,25 +799,25 @@ describe('AC-805: Approve/Reject notes input (OD-PROC-1 optional Notes)', () => 
     await userEvent.type(screen.getByTestId('procurement-notes-input'), 'Approval-only note');
     const header = screen.getByTestId('record-header');
     await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: /reject/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /return/i }));
 
-    const dialog = await screen.findByRole('alertdialog');
+    const dialog = await screen.findByRole('dialog');
     expect(dialog).toHaveTextContent('PROC-2026-001');
     expect(dialog).toHaveTextContent('Workstations for HQ');
-    expect(dialog).toHaveTextContent('terminal action for this procurement and cannot be undone');
-    const reason = within(dialog).getByLabelText(/rejection comment/i);
+
+    const reason = within(dialog).getByLabelText(/reason for returning/i);
     await userEvent.type(reason, '  Over budget.  ');
-    await userEvent.click(within(dialog).getByRole('button', { name: /reject/i }));
+    await userEvent.click(within(dialog).getByRole('button', { name: /return/i }));
 
-    const failedDialog = await screen.findByRole('alertdialog');
+    const failedDialog = await screen.findByRole('dialog');
     expect(within(failedDialog).getByRole('alert')).toHaveTextContent("You don't have permission to do that.");
-    expect(within(failedDialog).getByLabelText(/rejection comment/i)).toHaveValue('  Over budget.  ');
+    expect(within(failedDialog).getByLabelText(/reason for returning/i)).toHaveValue('  Over budget.  ');
 
-    await userEvent.click(within(failedDialog).getByRole('button', { name: /reject/i }));
+    await userEvent.click(within(failedDialog).getByRole('button', { name: /return/i }));
     await waitFor(() => expect(mockTransition).toHaveBeenCalledTimes(2));
     expect(mockTransition).toHaveBeenNthCalledWith(1, { to: 'Rejected', notes: 'Over budget.' });
     expect(mockTransition).toHaveBeenNthCalledWith(2, { to: 'Rejected', notes: 'Over budget.' });
-    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('AC-805: notes input is NOT shown when no Approve/Reject action is available', () => {
@@ -1846,13 +1846,13 @@ describe('UI-POLISH: procurement detail surface refinements', () => {
     renderPage();
     const header = screen.getByTestId('record-header');
     await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: /^Reject$/ }));
-    const dialog = await screen.findByRole('alertdialog');
-    expect(within(dialog).getByRole('button', { name: /^Reject$/ })).toBeVisible();
+    await userEvent.click(await screen.findByRole('menuitem', { name: /^Return$/ }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('button', { name: /^Return$/ })).toBeVisible();
     expect(mockTransition).not.toHaveBeenCalled();
     expect(screen.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Requested');
     await userEvent.click(within(dialog).getByRole('button', { name: /cancel/i }));
-    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(mockTransition).not.toHaveBeenCalled();
     expect(screen.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Requested');
   });
@@ -1862,7 +1862,7 @@ describe('UI-POLISH: procurement detail surface refinements', () => {
     renderPage();
     const header = screen.getByTestId('record-header');
     await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
-    expect(await screen.findByRole('menuitem', { name: /^reject$/i })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: /^return$/i })).toBeInTheDocument();
   });
 
   // Polish #2 — the three "Cancel"s disambiguate: page action = "Cancel procurement",
