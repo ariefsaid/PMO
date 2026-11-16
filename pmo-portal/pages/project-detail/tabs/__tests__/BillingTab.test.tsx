@@ -134,7 +134,7 @@ beforeEach(() => {
     .map((name) => [name, { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false }]));
 });
 
-function renderTab(clientId: string | null = 'c1', initialEntry = '/', mode: 'full' | 'contract-tools' = 'full') {
+function renderTab(clientId: string | null = 'c1', initialEntry = '/', mode: 'full' | 'contract-tools' | 'contract-time-materials' = 'full') {
   render(<MemoryRouter initialEntries={[initialEntry]}><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId={clientId} projectManagerId="pm-1" mode={mode} /><RouteSearch /></ToastProvider></MemoryRouter>);
   return userEvent.setup();
 }
@@ -336,7 +336,7 @@ describe('BillingTab', () => {
     expect(within(drawer).getByText('rev A')).toBeInTheDocument();
     const evidenceStatus = within(drawer).getByText('Issued');
     expect(evidenceStatus).toBeInTheDocument();
-    expect(evidenceStatus).toHaveClass('whitespace-nowrap');
+    expect(evidenceStatus.parentElement).toHaveClass('whitespace-nowrap');
     // The stored row is machinery: a UUID and a status code are not words a person reads.
     expect(within(drawer).queryByText('doc-1')).toBeNull();
   });
@@ -351,7 +351,7 @@ describe('BillingTab', () => {
     expect(within(drawer).queryByText('Issued')).toBeNull();
   });
 
-  it.each(['full', 'contract-tools'] as const)('AC-TM-016 opens the existing invoice confirmation with a signed-off T&M claim preselected from %s mode', async (mode) => {
+  it.each(['full', 'contract-time-materials'] as const)('AC-TM-016 opens the existing invoice confirmation with a signed-off T&M claim preselected from %s mode', async (mode) => {
     h.claims = [claim('tm-1', {
       kind: 'time_materials', gross_amount: 400000, dp_recovery_amount: 0,
       evidence: [{ id: 'tm-evidence', document_id: 'doc-1', document_status: 'active', document_revision: 'A' }],
@@ -366,7 +366,7 @@ describe('BillingTab', () => {
     await user.click(await screen.findByRole('button', { name: /Create invoice/ }));
 
     const dialog = screen.getByRole('dialog', { name: "Raise this claim's invoice?" });
-    expect(within(dialog).getByText(/Claimed IDR/)).toBeInTheDocument();
+    expect(within(dialog).getByTestId('raise-figures')).toHaveTextContent(/Claimed\s*IDR/);
   });
 
   describe('#1817 an organisation with no ERP invoices a signed-off T&M claim in PMO', () => {
@@ -631,7 +631,7 @@ describe('BillingTab', () => {
       const user = renderTab();
       await user.click(within(screen.getByTestId('claim-actions-k2')).getByRole('button', { name: 'Raise invoice' }));
       const dialog = screen.getByRole('dialog', { name: "Create this claim's invoice?" });
-      expect(within(dialog).getByTestId('raise-figures')).toHaveTextContent('net');
+      expect(within(dialog).getByTestId('raise-figures')).toHaveTextContent('Net');
       await user.click(within(dialog).getByRole('button', { name: 'Create invoice' }));
       expect(h.m.raiseNativeInvoice.mutateAsync).toHaveBeenCalledExactlyOnceWith('k2');
       expect(h.m.raiseInvoice.mutateAsync).not.toHaveBeenCalled();

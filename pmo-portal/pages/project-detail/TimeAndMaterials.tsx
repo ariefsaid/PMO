@@ -335,7 +335,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
 
   const rateList = rateLines.isPending ? <ListState variant="loading" rows={2} />
     : rateLines.isError ? <ListState variant="error" title={t('rateCard.loadError', "Couldn't load the rate card")} onRetry={() => void rateLines.refetch()} className={compactError} />
-      : rateRows.length === 0 ? <ListState variant="empty" title={t('rateCard.emptyTitle', 'No labour rates yet')} sub={t('rateCard.empty', 'Add a rate before assembling a claim.')} className="items-start justify-start gap-2 px-0 py-3 text-left" />
+      : rateRows.length === 0 ? <ListState variant="empty" title={t('rateCard.emptyTitle', 'No labour rates yet')} sub={t('rateCard.empty', 'Add a rate before assembling a claim.')} quiet />
         : <ul className="divide-y divide-border" aria-label={t('rateCard.title', 'Rate card')}>
           {rateRows.map((line) => {
             const assignedPeople = currentAssigneesFor(line.line_key);
@@ -428,7 +428,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
           <section aria-labelledby="tm-rate-card-heading">
             <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h3 id="tm-rate-card-heading" className="text-group font-semibold text-foreground">{t('rateCard.title', 'Rate card')}</h3>
+                <h3 id="tm-rate-card-heading" className="text-control font-semibold text-foreground">{t('rateCard.title', 'Rate card')}</h3>
                 <p className="mt-1 max-w-prose text-sm text-muted-foreground">{t('rateCard.description', 'Set the customer rate for each labour role and assign the people whose approved hours it covers.')}</p>
               </div>
               {canManageRates && <Button variant="outline" size="sm" disabled={rateRows.length === 0 || rateLines.data?.truncated === true || assignments.isPending || assignments.isError || people.isPending || people.isError} onClick={() => setAssignOpen(true)}>{t('rateCard.assign', 'Assign person')}</Button>}
@@ -461,7 +461,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
           </section>
 
           <section aria-labelledby="tm-assemble-heading" className="mt-6 border-t border-border pt-5">
-            <h3 id="tm-assemble-heading" className="text-group font-semibold text-foreground">{t('assembly.title', 'Assemble a claim')}</h3>
+            <h3 id="tm-assemble-heading" className="text-control font-semibold text-foreground">{t('assembly.title', 'Assemble a claim')}</h3>
             <p className="mt-1 max-w-prose text-sm text-muted-foreground">{t('assembly.description', 'Preview approved hours for a period. Hours without an applicable rate stay outside the claim.')}</p>
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
               <TextField type="date" label={t('assembly.from', 'From')} value={periodFrom} onChange={setPeriodFrom} />
@@ -474,7 +474,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
               {preview.isError && <ListState variant="error" title={t('preview.error', "Couldn't preview approved hours")} onRetry={() => void preview.refetch()} className={compactError} />}
               {preview.data?.truncated && <p role="status" className="mb-3 text-sm text-muted-foreground">{t('preview.truncated', 'More than {{limit}} groups of hours match. Narrow the period to assemble a claim.', { limit: LIST_LIMIT })}</p>}
               {!preview.isPending && !preview.isError && previewRangeValid && previewRows.length === 0 && (
-                <ListState variant="empty" title={t('preview.empty', 'No approved hours in this period.')} className="items-start justify-start gap-2 px-0 py-3 text-left" />
+                <ListState variant="empty" title={t('preview.empty', 'No approved hours in this period.')} quiet />
               )}
               {pricedRows.length > 0 && <div className="overflow-x-auto">
                 <h4 className="mb-2 text-sm font-semibold">{t('preview.priced', 'Ready to claim')}</h4>
@@ -499,12 +499,12 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
           </section>
 
           <section aria-labelledby="tm-claims-heading" className="mt-6 border-t border-border pt-5">
-            <h3 id="tm-claims-heading" className="text-group font-semibold text-foreground">{t('claims.title', 'Time-and-materials claims')}</h3>
+            <h3 id="tm-claims-heading" className="text-control font-semibold text-foreground">{t('claims.title', 'Time-and-materials claims')}</h3>
             {actionError && <p role="alert" className="mt-3 text-sm text-destructive-text">{actionError}</p>}
             <div className="mt-3">
               {claims.isPending && <ListState variant="loading" rows={2} />}
               {claims.isError && <ListState variant="error" title={t('claims.error', "Couldn't load time-and-materials claims")} onRetry={() => void claims.refetch()} className={compactError} />}
-              {!claims.isPending && !claims.isError && claimRows.length === 0 && <ListState variant="empty" title={t('claims.empty', 'No time-and-materials claims yet.')} className="items-start justify-start gap-2 px-0 py-3 text-left" />}
+              {!claims.isPending && !claims.isError && claimRows.length === 0 && <ListState variant="empty" title={t('claims.empty', 'No time-and-materials claims yet.')} quiet />}
               {claimRows.length > 0 && <ul className="divide-y divide-border">
                 {claimRows.map((claim) => <li key={claim.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <button type="button" className="min-w-0 rounded text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" aria-label={claimOpenLabel(claim)} onClick={() => openClaimDetail(claim)}>

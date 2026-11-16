@@ -4,13 +4,13 @@ import {
   ConfirmDialog,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
-import { formatCurrency } from '@/src/lib/format';
 import { localToday } from '@/src/lib/efaktur';
 import type { WorkOrderInput, WorkOrderPatch, SetWorkOrderValueInput, WorkOrderRow } from '@/src/lib/db/workOrders';
 import type { PrepareWorkOrderAcceptanceInput, WorkOrderAcceptanceWithLines, WorkOrderLineRow } from '@/src/lib/db/workOrderAcceptances';
 import type { BoqItemRow, ProgressAssessmentInput, ProgressClaimInput, ProgressClaimWithInvoice } from '@/src/lib/db/progressBilling';
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
-import { claimNet, type ProjectBillingSummary } from '@/src/lib/progressBilling';
+import type { ProjectBillingSummary } from '@/src/lib/progressBilling';
+import { ClaimRaiseFigures } from '../ClaimRaiseFigures';
 import WorkOrderFormModal from '../WorkOrderFormModal';
 import WorkOrderValueModal from '../WorkOrderValueModal';
 import InvoiceWorkOrderModal from '../InvoiceWorkOrderModal';
@@ -317,14 +317,7 @@ const WorkOrdersModals: React.FC<{
               <p>{nativeRaise
                 ? t('projectDetail.billing.claims.confirmRaiseNative.body', 'A draft invoice is created in PMO from this claim. A different Admin or Finance user approves it.')
                 : t('projectDetail.billing.claims.confirmRaise.body', 'An ERP sales invoice draft is created from this claim. A different Admin or Finance user submits it.')}</p>
-              <p data-testid="raise-figures">
-                {t('projectDetail.billing.claims.confirmRaise.figures', 'Claimed {{gross}} · down payment recovered {{recovery}} · net {{net}} (excl. PPN)', {
-                  gross: formatCurrency(Number(raiseFor.claim.gross_amount), currency),
-                  recovery: formatCurrency(Number(raiseFor.claim.dp_recovery_amount), currency),
-                  net: formatCurrency(claimNet(Number(raiseFor.claim.gross_amount), Number(raiseFor.claim.dp_recovery_amount)), currency),
-                  interpolation: { escapeValue: false },
-                })}
-              </p>
+              <ClaimRaiseFigures gross={raiseFor.claim.gross_amount} recovery={raiseFor.claim.dp_recovery_amount} currency={currency} />
             </div>
           }
           confirmLabel={nativeRaise ? t('projectDetail.billing.claims.confirmRaiseNative.confirm', 'Create invoice') : t('projectDetail.billing.claims.confirmRaise.confirm', 'Create ERP invoice')}

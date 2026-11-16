@@ -8,7 +8,7 @@ import { BahasaProvider } from '@/test/bahasa';
 import { ProcurementListRow } from './ProcurementListRow';
 
 // The panel's own behaviour is owned by DecisionSupportPanel.test; here only what the row hands it.
-vi.mock('./DecisionSupportPanel', () => ({
+vi.mock('@/src/components/procurement/DecisionSupportPanel', () => ({
   DecisionSupportPanel: ({ projectStatus }: { projectStatus?: string | null }) => <div data-testid="decision-support" data-project-status={projectStatus ?? ''} />,
 }));
 

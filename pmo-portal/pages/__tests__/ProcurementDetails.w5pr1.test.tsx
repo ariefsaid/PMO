@@ -421,7 +421,7 @@ describe('AC-IXD-PROC-W5-1 (c): SoD-blocked state — no decision actions, the r
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
     // Since I5 the copy is SoD-aware ("You may approve or reject…") rather than the old generic copy.
-    expect(screen.getByTestId('sod-ready-hint')).toHaveTextContent(/you may approve or reject|requester cannot self.?approv/i);
+    expect(screen.getByTestId('sod-ready-hint')).toHaveTextContent(/you may approve or return|requester cannot approve their own/i);
   });
 });
 

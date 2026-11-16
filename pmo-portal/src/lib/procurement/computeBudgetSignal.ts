@@ -19,6 +19,15 @@ import { decimalUnits } from '@/src/lib/taxNormalize';
 import { COMMITTED_STATUSES, RESERVED_STATUSES } from '@/src/lib/db/procurements';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 
+/** Pre-Ordered statuses where the budget-impact panel is a live decision-support tool (ADR-0034 §6). */
+export const PANEL_VISIBLE_STATUSES: ProcurementStatus[] = [
+  'Draft',
+  'Requested',
+  'Approved',
+  'Vendor Quoted',
+  'Quote Selected',
+];
+
 export interface BudgetSignalInput {
   projectCurrency: string | null | undefined;
   budgetCurrency: string | null | undefined;

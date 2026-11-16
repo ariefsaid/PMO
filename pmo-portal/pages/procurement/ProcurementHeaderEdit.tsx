@@ -16,7 +16,7 @@ import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
 import type { ProcurementHeaderPatch } from '@/src/lib/db/procurementCrud';
 import type { BudgetCategory } from '@/src/lib/budget/categoryAccountMap';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { budgetCategoryOptions, BUDGET_CATEGORY_HELPER } from './budgetCategoryOptions';
+import { useBudgetCategoryOptions, BUDGET_CATEGORY_HELPER } from './budgetCategoryOptions';
 
 // ---------------------------------------------------------------------------
 // ProcurementHeaderEdit — the Draft-header edit panel (crud-components §3 inline
@@ -73,6 +73,7 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
 }) => {
   const { t } = useTranslation();
   const { t: tc } = useTranslation('procurementCreate');
+  const budgetCategoryOptions = useBudgetCategoryOptions();
   const [saveError, setSaveError] = React.useState<{ headline: string; detail: string } | null>(null);
   const form = useEntityForm<FormValues>({
     initialValues: { title, projectId, vendorId, budgetCategory: budgetCategory ?? '' },
@@ -174,7 +175,7 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
               label={tc('budgetCategory', 'Budget category')}
               value={form.values.budgetCategory}
               onChange={(v) => form.setValue('budgetCategory', v)}
-              options={budgetCategoryOptions(t)}
+              options={budgetCategoryOptions}
               helper={tc('budgetCategoryHelpFull', BUDGET_CATEGORY_HELPER)}
             />
           </FormGrid>

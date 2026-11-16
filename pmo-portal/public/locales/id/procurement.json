@@ -369,8 +369,8 @@
     "leftAfterPurchase": "Sisa setelah pembelian ini",
     "leftAfterPurchaseSub": "Setelah pengeluaran, pesanan, dan cadangan",
     "leftAfterPurchaseTooltip": "Anggaran dikurangi pengeluaran tercatat, pesanan terbuka, permintaan yang dicadangkan, dan pembelian ini, masing-masing dihitung sekali, sebelum pajak.",
-    "spentOrCommittedBarLabel": "Terpakai atau terikat, termasuk yang ini: {{pct}}% dari {{budget}}",
-    "spentOrCommittedBarCaption": "Terpakai atau terikat, termasuk yang ini: {{pct}}%",
+    "spentOrCommittedBarLabel": "Terikat, termasuk pembelian ini: {{pct}}% dari {{budget}}",
+    "spentOrCommittedBarCaption": "Terikat, termasuk pembelian ini: {{pct}}%",
     "overBudgetTitle": "Melebihi anggaran",
     "overBudgetAfter": "{{amount}} di atas anggaran setelah pembelian ini. Persetujuan tetap bisa dilakukan; ini hanya peringatan.",
     "leftOtherCurrency": "Pesanan terbuka dalam mata uang lain: {{amounts}}",
@@ -381,7 +381,10 @@
     "comparison": "Perbandingan anggaran",
     "loading": "Memuat dampak anggaran",
     "currencyUnknown": "mata uang tidak tersedia",
-    "otherReservedCurrencies": "Disetujui, belum dipesan. Mata uang lain: {{amounts}}"
+    "otherReservedCurrencies": "Disetujui, belum dipesan. Mata uang lain: {{amounts}}",
+    "beforeTax": "Sebelum pajak",
+    "budgetUnavailable": "Anggaran tidak tersedia: dampak anggaran belum bisa ditampilkan.",
+    "noActiveBudget": "Proyek ini belum punya anggaran aktif."
   },
   "headerEdit": {
     "heading": "Edit rincian pengadaan",

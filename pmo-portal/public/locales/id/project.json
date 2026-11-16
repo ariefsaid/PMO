@@ -260,7 +260,7 @@
           "title": "Buat invoice tagihan ini?"
         },
         "confirmRaise": {
-          "figures": "Ditagih {{gross}} · uang muka dipulihkan {{recovery}} · neto {{net}} (belum termasuk PPN)",
+          "netExclTax": "Neto (belum termasuk PPN)",
           "body": "Draf invoice penjualan ERP dibuat dari tagihan ini. Pengguna Admin atau Finance lain yang men-submit-nya.",
           "confirm": "Buat invoice ERP",
           "title": "Terbitkan invoice tagihan ini?"
@@ -369,7 +369,7 @@
       }
     },
     "drawer": {
-      "openFullPage": "Buka halaman penuh"
+      "openFullPage": "Buka halaman lengkap"
     },
     "pipeline": {
       "currentStage": "Tahap saat ini",
@@ -487,7 +487,6 @@
       "paid": "Dibayar",
       "paidSource": "Jumlah invoice dikurangi saldo terutang menurut akuntansi; ini adalah pelunasan invoice, bukan kas yang diterima.",
       "marginSource": "Pendapatan pekerjaan tertagih dikurangi pengeluaran tercatat yang lengkap dalam mata uang yang sama.",
-      "stageAria": "{{label}} sebesar {{percent}}% dari kontrak",
       "noBoq": "Nilai pesanan dan pengiriman tidak dilacak sebelum proyek memiliki daftar kuantitas.",
       "invoiceError": "Pelunasan invoice tidak dapat dimuat.",
       "cashUnavailable": "Kas berdasarkan penerimaan belum tersedia.",
@@ -784,7 +783,7 @@
       "notes": "Catatan",
       "onTrack": "Sesuai rencana",
       "openForecastCategory": "Buka detail proyeksi {{category}}",
-      "openFullPage": "Buka halaman penuh",
+      "openFullPage": "Buka halaman lengkap",
       "overBudget": "Melebihi anggaran",
       "projectCommitmentsShort": "Komitmen · seluruh proyek",
       "reasonBudgetedOtherYear": "Dianggarkan pada tahun fiskal lain: {{years}}",

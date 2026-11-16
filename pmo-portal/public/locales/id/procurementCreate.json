@@ -81,5 +81,6 @@
     "title": "Ubah detail pengadaan",
     "titlePlaceholder": "Judul pengadaan",
     "save": "Simpan pengadaan"
-  }
+  },
+  "noCategory": "Tanpa kategori"
 }

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import {
-  Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, Drawer, ListState, StatusPill, Tooltip, useToast, type Column,
+  Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, Drawer, ListState, StatusPill, Tooltip, buttonClasses, useToast, type Column,
 } from '@/src/components/ui';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
@@ -10,6 +10,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { currencySymbol, formatCurrency, formatDay, formatNumber, formatNumberExact, formatNumberMax2, formatUtcMonthYear } from '@/src/lib/format';
 import { claimNet, milli, percentOfLot, remainingQuantity, summarizeBilling } from '@/src/lib/progressBilling';
+import { ClaimRaiseFigures } from '../ClaimRaiseFigures';
 import type {
   BoqItemInput, BoqItemRow, ProgressAssessmentInput, ProgressClaimInput, ProgressClaimWithInvoice,
 } from '@/src/lib/db/progressBilling';
@@ -48,8 +49,10 @@ export interface BillingTabProps {
   clientId: string | null;
   /** Decides who may record progress (#765's rule). */
   projectManagerId: string | null;
-  /** Keep contract line tools available while the contract cascade owns the reading surface. */
-  mode?: 'full' | 'contract-tools';
+  /** Keep contract line tools available while the contract cascade owns the reading surface:
+   *  `contract-tools` = the contract card's actions and their overlays; `contract-time-materials` = the
+   *  time-and-materials block, rendered as its own panel lower on the Contract tab. */
+  mode?: 'full' | 'contract-tools' | 'contract-time-materials';
 }
 
 /** A lump-sum line is one lot: its progress is a fraction (0.4) shown as a percent (40%). */
@@ -489,12 +492,12 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const boqDetailDrawer = boqDetailFor && (() => {
     const item = boqDetailFor;
     const fact = lineFactsById.get(item.id);
-    return <Drawer open title={item.description} subtitle={`${item.item_code} · ${item.unit}`}
+    return <Drawer open width="lg" title={item.description} subtitle={`${item.item_code} · ${item.unit}`}
       status={<StatusPill variant="neutral">{t('projectDetail.billing.boq.lineStatus', 'Contract line')}</StatusPill>}
       onClose={() => closeRecord(item.id, 'billingBoq')}
       headerActions={<div className="flex flex-wrap items-center gap-2">
         {may('edit', 'boqItem') && <Button variant="outline" size="sm" onClick={() => { closeRecord(item.id, 'billingBoq'); setBoqFormFor(item); }}>{t('projectDetail.billing.boq.edit', 'Edit')}</Button>}
-      <Link className="inline-flex min-h-10 items-center text-sm font-medium text-primary-text underline underline-offset-2" to={`/projects/${encodeURIComponent(projectId)}/billing`} onClick={() => closeRecord(item.id, 'billingBoq')}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>
+      <Link className={buttonClasses('outline', 'sm')} to={`/projects/${encodeURIComponent(projectId)}/billing`} onClick={() => closeRecord(item.id, 'billingBoq')}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>
       </div>}>
       <dl className="grid grid-cols-2 gap-4 p-4 text-sm">
         <SourcedFigure label={t('projectDetail.billing.boq.column.quantity', 'Contract')} value={quantityText(item, Number(item.quantity))} detail={t('projectDetail.billing.boq.source.contract', 'Source: priced contract line quantity and unit.')} />
@@ -578,7 +581,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     </Card>
   );
 
-  const claimDetailDrawer = canViewMoney && claimDetailFor && <Drawer open
+  const claimDetailDrawer = canViewMoney && claimDetailFor && <Drawer open width="lg"
     title={claimDetailFor.kind === 'down_payment'
       ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment')
       : claimDetailFor.kind === 'time_materials'
@@ -593,7 +596,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       {!claimDetailFor.withdrawn_at && !claimDetailFor.invoice && canBill && (claimDetailFor.evidence.length > 0
         ? <Button variant="primary" size="sm" onClick={() => { closeRecord(claimDetailFor.id, 'billingClaim'); setRaiseFor({ claim: claimDetailFor, idempotencyKey: crypto.randomUUID() }); }}>{t('projectDetail.billing.claims.raise', 'Raise invoice')}</Button>
         : <Button variant="outline" size="sm" onClick={() => { closeRecord(claimDetailFor.id, 'billingClaim'); setEvidenceFor(claimDetailFor.id); }}>{t('projectDetail.billing.claims.attachEvidence', 'Attach evidence')}</Button>)}
-      <Link className="inline-flex min-h-10 items-center text-sm font-medium text-primary-text underline underline-offset-2" to={`/projects/${encodeURIComponent(projectId)}/billing`} onClick={() => closeRecord(claimDetailFor.id, 'billingClaim')}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>
+      <Link className={buttonClasses('outline', 'sm')} to={`/projects/${encodeURIComponent(projectId)}/billing`} onClick={() => closeRecord(claimDetailFor.id, 'billingClaim')}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>
     </div>}>
     <dl className="grid grid-cols-2 gap-4 p-4 text-sm">
       <SourcedFigure label={t('projectDetail.billing.claims.column.claimedLabel', 'Claimed')} value={cents(claimDetailFor.gross_amount)} detail={t('projectDetail.billing.claims.source.gross', 'Source: the progress claim gross amount, copied from accepted quantities and contract rates.')} />
@@ -610,7 +613,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   </Drawer>;
 
   const timeAndMaterials = canViewMoney && <TimeAndMaterials projectId={projectId} projectManagerId={projectManagerId} currency={currency}
-    embedded={mode === 'contract-tools'}
+    
     invoiceNumberFor={(claimId) => {
       const invoice = claimRows.find((row) => row.id === claimId)?.invoice;
       return invoice ? invoice.si_number ?? invoice.pmo_number ?? invoice.status : null;
@@ -636,14 +639,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           <p>{native
             ? t('projectDetail.billing.claims.confirmRaiseNative.body', 'A draft invoice is created in PMO from this claim. A different Admin or Finance user approves it.')
             : t('projectDetail.billing.claims.confirmRaise.body', 'An ERP sales invoice draft is created from this claim. A different Admin or Finance user submits it.')}</p>
-          <p data-testid="raise-figures">
-            {t('projectDetail.billing.claims.confirmRaise.figures', 'Claimed {{gross}} · down payment recovered {{recovery}} · net {{net}} (excl. PPN)', {
-              gross: cents(raiseFor.claim.gross_amount),
-              recovery: cents(raiseFor.claim.dp_recovery_amount),
-              net: cents(claimNet(Number(raiseFor.claim.gross_amount), Number(raiseFor.claim.dp_recovery_amount))),
-              interpolation: { escapeValue: false },
-            })}
-          </p>
+          <ClaimRaiseFigures gross={raiseFor.claim.gross_amount} recovery={raiseFor.claim.dp_recovery_amount} currency={currency} />
         </div>
       }
       confirmLabel={native ? t('projectDetail.billing.claims.confirmRaiseNative.confirm', 'Create invoice') : t('projectDetail.billing.claims.confirmRaise.confirm', 'Create ERP invoice')}
@@ -653,22 +649,24 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     />
   );
 
+  if (mode === 'contract-time-materials') {
+    return <>{timeAndMaterials}{raiseInvoiceDialog}</>;
+  }
+
   if (mode === 'contract-tools') {
     return (
       <>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setContractLinesOpen(true)}>
+            {t('projectDetail.billing.boq.manage', 'Edit contract lines')}
+          </Button>
           {canStartInvoice && <Link
-            className="touch-target inline-flex min-h-11 items-center rounded-sm text-sm font-medium text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className={buttonClasses('outline', 'sm')}
             to={`/finance/receivables?create=1&project=${encodeURIComponent(projectId)}`}
           >
             {t('uxs15.contractInvoice', 'Contract invoice')}
           </Link>}
-          <Button variant="ghost" size="sm" className="h-auto min-h-8 px-0! text-muted-foreground underline underline-offset-4"
-            onClick={() => setContractLinesOpen(true)}>
-            {t('projectDetail.billing.boq.manage', 'Edit contract lines')}
-          </Button>
         </div>
-        {timeAndMaterials}
         {raiseInvoiceDialog}
         <Drawer open={contractLinesOpen} nestedOpen={Boolean(boqDetailFor)} width="lg" title={t('projectDetail.billing.boq.title', 'Bill of quantities')}
           initialFocus={() => {

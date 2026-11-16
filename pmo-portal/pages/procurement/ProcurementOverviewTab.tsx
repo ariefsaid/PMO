@@ -18,7 +18,7 @@ import { useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, StatTiles, type StatTile } from '@/src/components/ui';
 import type { ProgressionEvent } from '@/src/lib/db/procurementHistory';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
-import { DecisionSupportPanel } from './DecisionSupportPanel';
+import { DecisionSupportPanel } from '@/src/components/procurement/DecisionSupportPanel';
 import { ProcurementProgressionTimeline } from './ProcurementProgressionTimeline';
 
 /** One row in the Overview Detail `<dl>` (the Field grammar: overline dt + dd). */

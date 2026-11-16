@@ -555,7 +555,7 @@
       "forecastCommitmentScope": "Jumlah komitmen berlaku untuk seluruh proyek; sumber saat ini tidak mengaitkannya dengan tahun fiskal. Komitmen ditampilkan terpisah dan tidak termasuk dalam proyeksi akhir tahun fiskal.",
       "forecastAttributionUnknown": "Sebagian jumlah anggaran tidak dapat dikaitkan dengan tahun fiskal ini. Tinjau alokasi baris sebelum menganggap total ini lengkap.",
       "adjustInDraft": "Sesuaikan dalam draf",
-      "openFullPage": "Buka halaman penuh",
+      "openFullPage": "Buka halaman lengkap",
       "spent": "Terpakai",
       "forecastActualsAsOf": "Sumber: buku besar ERP hingga tanggal pencatatan terakhir.",
       "forecastCommitmentSummary": "Jumlah komitmen berlaku untuk seluruh proyek dan tidak dikaitkan dengan tahun fiskal.",

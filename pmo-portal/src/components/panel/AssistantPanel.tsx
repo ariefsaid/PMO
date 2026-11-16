@@ -42,11 +42,12 @@ import {
   PANEL_WIDTH_MIN,
   PANEL_WIDTH_MAX,
   type PanelMode,
+  PANEL_DOCK_MIN_WIDTH,
 } from '@/src/lib/panel/panelPrefs';
 
 // ── Desktop/mobile breakpoint ─────────────────────────────────────────────────
-// The panel goes modal-sheet at 1024px (D-A2-1, design-plan §1.5).
-const DESKTOP_QUERY = '(min-width: 1024px)';
+// The panel goes modal-sheet below the dock width: a 400px column beside the rail would squeeze the page.
+const DESKTOP_QUERY = `(min-width: ${PANEL_DOCK_MIN_WIDTH}px)`;
 
 function useIsDesktop(): boolean {
   const [isDesktop, setIsDesktop] = React.useState(() => {

@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, FormActions, FormGrid, FormSection, ListState, MobileActionBar, SelectField, TextArea, TextField, UnsavedChangesDialog, useToast, Icon,
+  Button, FormActions, FormGrid, FormSection, ListState, MobileActionBar, PageHeader, SelectField, TextArea, TextField, UnsavedChangesDialog, useToast, Icon,
 } from '@/src/components/ui';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
 import { StockLinesLoading } from '@/src/components/stock/LinesLoading';
@@ -190,8 +190,9 @@ const StockMovementForm: React.FC = () => {
   const insufficient = parseStockError(submitError)?.code === 'STK_INSUFFICIENT';
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-4">
-      <h1 className="text-page font-semibold">{heading}</h1>
+    <div>
+      <PageHeader title={heading} />
+      <div className="max-w-5xl">
 
       {headerPending && <div data-testid="stock-header-region" className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}
       {!headerPending && headerError && <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={retryHeader} />}
@@ -330,6 +331,7 @@ const StockMovementForm: React.FC = () => {
         onDiscard={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}
         onKeepEditing={() => { const pending = pendingLeave; setPendingLeave(null); pending?.stay(); }}
       />
+      </div>
     </div>
   );
 };

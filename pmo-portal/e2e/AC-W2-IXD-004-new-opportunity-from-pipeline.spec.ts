@@ -38,7 +38,7 @@ test(
 
     // Fill in the project name and pick a client company.
     await page.getByLabel(/project name/i).fill(opportunityName);
-    await pickComboboxOption(page, page, /client company/i, 'first');
+    await pickComboboxOption(page, page, /client company/i, /^Meridian Steelworks/);
 
     // Submit and land on the new project. Back preserves the originating pipeline view.
     await page.getByRole('button', { name: /^Create project$/i }).click();
