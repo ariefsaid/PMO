@@ -120,7 +120,8 @@ test('AC-NAR-003 a no-ERP org raises an invoice, a second person approves it aft
   await row.getByRole('button', { name: localized('Row actions', 'Tindakan baris') }).click();
   await page.getByRole('menuitem', { name: localized('View invoice', 'Lihat invoice') }).click();
   await expect(page).toHaveURL(/\/sales-invoices\/[^/?]+\?q=/);
-  await expect(page.getByText(localized('Invoice record', 'Detail invoice'), { exact: true })).toBeVisible();
+  // The breadcrumb names the invoice itself (the generic "Invoice record" label is only a transient placeholder until the invoice loads).
+  await expect(page.getByRole('navigation', { name: localized('Breadcrumb', 'Jejak navigasi') }).locator('[aria-current="page"]')).toContainText(tag);
   await expect(page.getByText(localized('Not found', 'Tidak ditemukan'), { exact: true })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: /Draft invoice|Draf invoice/ })).toContainText(tag);
   await expect(page.getByRole('button', { name: localized('Continue to approve', 'Lanjutkan untuk menyetujui') })).toHaveCount(0);

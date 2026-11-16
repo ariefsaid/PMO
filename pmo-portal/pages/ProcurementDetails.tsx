@@ -605,7 +605,7 @@ const ProcurementDetails: React.FC = () => {
     { key: 'history', label: t('procurementRecord:timeline.fullHistory', 'Full history'), onSelect: () => { setHistoryOpen(true); setTab('timeline'); } },
     ...secondaryTransitionActions.map((action) => ({ key: `to-${action.to}`, label: action.label, onSelect: () => onActionClick(action) })),
     { key: 'export', label: t('procurementRecord:export', 'Export'), onSelect: exportCurrentProcurement },
-    ...(returnAction ? [{ key: 'reject', label: t('procurementDetail.action.reject', 'Reject'), onSelect: () => onActionClick(returnAction), danger: true }] : []),
+    ...(returnAction ? [{ key: 'reject', label: t('procurementRecord:action.return', 'Return'), onSelect: () => onActionClick(returnAction), danger: true }] : []),
     ...(cancelAction ? [{ key: 'cancel', label: t('procurementRecord:cancelProcurement', 'Cancel procurement'), onSelect: () => onActionClick(cancelAction), danger: true }] : []),
   ];
 
@@ -938,9 +938,8 @@ const ProcurementDetails: React.FC = () => {
 
       <ReasonDialog
         open={pendingConfirm?.kind === 'transition' && pendingConfirm.to === 'Rejected'}
-        kind="reject"
+        kind="return"
         subject={`${p.code} · ${p.title}`}
-        label={t('procurement:approvalRow.rejectionComment', 'Rejection comment')}
         context={pendingConfirm?.kind === 'transition' ? pendingConfirm.description : undefined}
         loading={confirmInFlight}
         error={mutationError}

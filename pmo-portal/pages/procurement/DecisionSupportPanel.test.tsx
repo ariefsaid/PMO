@@ -1158,7 +1158,8 @@ describe('quality 1+2 — one reading, one strip', () => {
   it('six tiles go 3 across (2 across on a phone, three rows); fewer tiles take as many columns as they have', () => {
     renderPanel(primary());
     expect(within(screen.getByTestId('stat-tiles')).getAllByTestId('stat-tile')).toHaveLength(6);
-    expect(stripClass()).toContain('@xl:grid-cols-3');
+    // 3 across waits for a 52rem strip: "Rp 126.856.000.000" is 248px at the metric size, 3 of them need ~818px (measured at 1024: 28px over at 28rem).
+    expect(stripClass()).toContain('@[52rem]:grid-cols-3');
     expect(stripClass()).not.toContain('grid-cols-5');
   });
 
