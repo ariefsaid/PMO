@@ -10,7 +10,6 @@ import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import ProjectDetail from '../ProjectDetail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
-import type { ProjectFinances } from '@/src/lib/projectFinances';
 import { repositories } from '@/src/lib/repositories';
 
 // ── shared mutable state ─────────────────────────────────────────────────────

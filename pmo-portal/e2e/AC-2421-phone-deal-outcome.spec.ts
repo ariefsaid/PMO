@@ -1,6 +1,5 @@
 // @e2e-isolation: self-isolated — creates its own uniquely named deal via service role, loses it from the phone menu, deletes it; no shared seed row is moved.
 import { test, expect } from '@playwright/test';
-import AxeBuilder from '@axe-core/playwright';
 import { createClient } from '@supabase/supabase-js';
 import { signIn, requireServiceRoleKey } from './helpers';
 
