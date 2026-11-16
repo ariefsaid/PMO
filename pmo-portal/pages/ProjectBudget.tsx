@@ -665,6 +665,12 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   };
   const spendingSetupLink = canManageAccounting ? { to: '/administration/accounting#budget-account-map', label: t('projectDetail.cost.finishSetup', 'Finish spending setup') } : undefined;
   const budgetUnit = <span className="text-sm text-muted-foreground">{project.currency}{project.tax_treatment && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-sm" /></>}</span>;
+  // #2330: paid spending with no budget category sits in the Uncategorized row; the strip says so once, in full.
+  const uncategorizedNote = position.uncategorized && canSeeActuals && totalSpent !== null
+    ? position.uncategorized.amount === null
+      ? t('projectDetail.budget.uncategorizedSpendUnknown', 'Some paid spending has no budget category, so it is shown as Uncategorized.')
+      : t('projectDetail.budget.uncategorizedSpend', '{{amount}} paid has no budget category, so it is shown as Uncategorized.', { amount: formatAmount(position.uncategorized.amount) })
+    : null;
   const spentExcludedNote = position.uncategorized
     ? undefined
     : spentNotSplitByCategory
@@ -1035,6 +1041,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         <KPITile icon="invoices" tone="amber" label={t('projectDetail.budget.committed', 'Committed')} {...tileAmount(totalCommitted)} captionWrap captionNote={equivalentNote(totalCommitted, project.currency)} caption={totalCommitted === null ? t('projectDetail.budget.captionCommitmentsUnknown', 'Open orders are unknown') : equivalentCaption(totalCommitted, project.currency)} keepWhenUnknown help={withDetail(t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.'), totalCommitted === null)} />
         <KPITile icon="down" tone={leftValueNegative ? 'red' : 'green'} label={totalLeftLabel} {...leftTile} caption={leftCaption} negative={leftValueNegative} nowrapLabel keepWhenUnknown help={withDetail(totalLeftFormula, leftTile.value === null)} />
       </KPIRow>
+      {uncategorizedNote && <p className="text-sm text-muted-foreground">{uncategorizedNote}</p>}
 
       {/* Parts of a whole: where the budget sits, drawn so the shares read at a glance. */}
       {view === 'actual' && enrichedRows.filter((row) => row.budget > 0).length >= 3 && (
