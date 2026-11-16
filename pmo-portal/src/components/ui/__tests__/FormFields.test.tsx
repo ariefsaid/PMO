@@ -609,13 +609,25 @@ describe('NumberField / TextField — hideLabel keeps the accessible name (I-4)'
  * autofill token. Fixing it here covers ~200 call sites at once.
  */
 describe('#2092 shared field defaults: autoComplete, spellCheck, name', () => {
-  it('#2092 AC1: a mono code field gets no spellcheck squiggles and no autocorrect', () => {
-    render(<TextField label="ERP account" mono value="4100-01" onChange={() => {}} />);
+  it('#2092 AC1: a code field gets no spellcheck squiggles and no autocorrect', () => {
+    render(<TextField label="ERP account" code value="4100-01" onChange={() => {}} />);
     const input = screen.getByLabelText('ERP account');
     expect(input).toHaveAttribute('spellcheck', 'false');
     expect(input).toHaveAttribute('autocomplete', 'off');
     expect(input).toHaveAttribute('autocorrect', 'off');
     expect(input).toHaveAttribute('autocapitalize', 'off');
+  });
+
+  it('one type family: a code field sets no monospace font and renders like any other field', () => {
+    render(
+      <>
+        <TextField label="Plain" value="x" onChange={() => {}} />
+        <TextField label="Reference" code value="CPO-2026-0042" onChange={() => {}} />
+      </>,
+    );
+    const code = screen.getByLabelText('Reference');
+    expect(code.className).not.toMatch(/font-mono|font-\[/);
+    expect(code.className).toBe(screen.getByLabelText('Plain').className);
   });
 
   it("#2092 AC2: a non-auth text field defaults autoComplete='off' (never the user's own saved value)", () => {

@@ -195,7 +195,7 @@ FileInput.displayName = 'FileInput';
 // Every field here is a record/form field, never a sign-in form, so the browser's saved-value
 // prompts are noise: the one exception is `type="password"`, where the browser's own credential
 // handling IS the point (nothing here is a login, but a pasted secret must not be fought).
-// A `mono` field is a code/reference: no spellcheck squiggle, and no iOS autocorrect or
+// A `code` field is a code/reference: no spellcheck squiggle, and no iOS autocorrect or
 // autocapitalisation rewriting `cpo-2026-0042`. An `email` field is somebody's address, never
 // prose, so it drops spellcheck too.
 //
@@ -204,8 +204,8 @@ const isAuthType = (type: string) => type === 'password';
 const defaultAutoComplete = (type: string, explicit: string | undefined) =>
   explicit ?? (isAuthType(type) ? undefined : 'off');
 const defaultSpellCheck = (
-  { mono, type, explicit }: { mono?: boolean; type: string; explicit: boolean | 'true' | 'false' | undefined },
-) => explicit ?? (mono || type === 'email' ? false : undefined);
+  { code, type, explicit }: { code?: boolean; type: string; explicit: boolean | 'true' | 'false' | undefined },
+) => explicit ?? (code || type === 'email' ? false : undefined);
 
 // ---- TextField ------------------------------------------------------------
 
@@ -227,8 +227,8 @@ export interface TextFieldProps
    * hand-rolled one shipped with no `aria-invalid`/`aria-describedby` at all.
    */
   hideLabel?: boolean;
-  /** Render the value in SF Mono (codes/refs). */
-  mono?: boolean;
+  /** A code or reference: browser text help off (no spellcheck, autocorrect or autocapitalise). Sets no font. */
+  code?: boolean;
 }
 
 export const TextField: React.FC<TextFieldProps> = ({
@@ -240,7 +240,7 @@ export const TextField: React.FC<TextFieldProps> = ({
   error,
   fullWidth,
   hideLabel,
-  mono,
+  code,
   wrapperClassName,
   className,
   type = 'text',
@@ -274,15 +274,14 @@ export const TextField: React.FC<TextFieldProps> = ({
             name={rest.name ?? ctl.id}
             type={effectiveType}
             autoComplete={defaultAutoComplete(type, rest.autoComplete)}
-            spellCheck={defaultSpellCheck({ mono, type, explicit: rest.spellCheck })}
-            autoCorrect={rest.autoCorrect ?? (mono ? 'off' : undefined)}
-            autoCapitalize={rest.autoCapitalize ?? (mono ? 'off' : undefined)}
+            spellCheck={defaultSpellCheck({ code, type, explicit: rest.spellCheck })}
+            autoCorrect={rest.autoCorrect ?? (code ? 'off' : undefined)}
+            autoCapitalize={rest.autoCapitalize ?? (code ? 'off' : undefined)}
             value={value}
             onChange={(e) => onChange(e.target.value)}
             className={cn(
               formControlShell,
               error && formControlInvalid,
-              mono && 'font-mono',
               isSecret && 'pr-8',
               className,
             )}
@@ -306,7 +305,7 @@ export const TextField: React.FC<TextFieldProps> = ({
 
 // ---- NumberField ----------------------------------------------------------
 
-export interface NumberFieldProps extends Omit<TextFieldProps, 'mono' | 'type'> {
+export interface NumberFieldProps extends Omit<TextFieldProps, 'code' | 'type'> {
   /** Leading adornment (e.g. "$"). */
   prefix?: string;
   /** Group valid money drafts using the active number locale while preserving partial decimals. */

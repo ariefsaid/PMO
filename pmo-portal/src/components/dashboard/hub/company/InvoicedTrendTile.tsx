@@ -6,6 +6,7 @@ import { cn } from '@/src/components/ui/cn';
 import { moneyFigure } from '@/src/lib/dashboardMoney';
 import { formatUtcMonthYearFull } from '@/src/lib/format';
 import { TREND_MONTHS, type InvoicedTrend } from '@/src/lib/dashboardTrend';
+import { FIGURE_LINE_CLASS } from '@/src/components/ui/FigureContent';
 
 const W = 400;
 const H = 88;
@@ -60,7 +61,7 @@ export const InvoicedTrendTile: React.FC<{ trend: InvoicedTrend; /** Inside a ca
     <section aria-label={label} data-testid="invoiced-trend" className={cn('flex min-w-0 flex-wrap items-center justify-between gap-x-8 gap-y-4', !bare && 'rounded-lg border border-border bg-card px-4 pb-3.5 pt-4')}>
       <div className="flex min-w-0 flex-col gap-2.5">
         <span className="text-control font-medium text-muted-foreground">{label}</span>
-        <div className="min-w-0 break-words text-[23px] font-bold leading-none tracking-[-0.02em] tabular">
+        <div className={`${FIGURE_LINE_CLASS} text-[23px] font-bold leading-none tracking-[-0.02em]`}>
           <FigureContent value={total.value} exactValue={total.exactValue} unavailableReason={total.unavailableReason} />
         </div>
         {trend.hasLine && (

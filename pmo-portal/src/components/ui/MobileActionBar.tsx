@@ -12,7 +12,7 @@ function publishMaxHeight(): void {
 /**
  * Publisher wrapper for a fixed, bottom-anchored mobile primary-action bar.
  * Its rendered height (including padding such as the device safe-area inset) is
- * shared with the toast host. Visibility is determined by actual layout, so CSS
+ * shared with the toast host. Visibility and docking are determined by actual layout, so CSS
  * breakpoints and conditional rendering remain the source of truth.
  *
  * Concurrent bars publish their maximum occupied height; every publisher is
@@ -30,7 +30,8 @@ export const MobileActionBar: React.FC<React.HTMLAttributes<HTMLDivElement>> = (
     if (!bar) return;
 
     const update = () => {
-      activeBarHeights.set(bar, bar.getBoundingClientRect().height);
+      // Only a bar docked to the viewport occupies the bottom inset; one that flows with the page at a wider width does not.
+      activeBarHeights.set(bar, getComputedStyle(bar).position === 'fixed' ? bar.getBoundingClientRect().height : 0);
       publishMaxHeight();
     };
 

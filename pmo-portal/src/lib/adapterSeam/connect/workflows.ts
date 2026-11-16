@@ -22,6 +22,8 @@ export const WORKFLOWS = {
   'account.match': { version: 1, summary: 'propose the ERP account for each PMO budget category' },
   'employee.match': { version: 1, summary: 'pair PMO people with ERP employees' },
   'employee.send': { version: 1, summary: 'create ERP employees for PMO people' },
+  // ERP setup done from PMO (#1599 ECX): clients never work in the ERP.
+  'company-defaults.set': { version: 1, summary: 'set the ERP company default accounts and cost centre chosen in PMO' },
   // Process domains
   'purchase.push': { version: 1, summary: 'send a purchase order and its receipt to the ERP' },
   'bill.push': { version: 1, summary: 'send a vendor bill to the ERP' },

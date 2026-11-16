@@ -11,7 +11,7 @@ import { canInvoiceWorkOrder } from '@/src/lib/workOrderBilling';
 import { formatCurrency, formatDay, formatDayRange } from '@/src/lib/format';
 
 /** #1640: the client's work orders as billing milestones (same records as Contract & billing; no second entry). */
-const Body: React.FC<{ projectId: string }> = ({ projectId }) => {
+const Body: React.FC<{ projectId: string; empty: 'panel' | 'none' | 'line' }> = ({ projectId, empty }) => {
   const { t } = useTranslation('project');
   const may = usePermission();
   const canCreate = may('create', 'salesInvoice');
@@ -26,15 +26,18 @@ const Body: React.FC<{ projectId: string }> = ({ projectId }) => {
   const shell = (children: React.ReactNode) => (
     <Block id="pd-billing-milestones" title={title}>{children}</Block>
   );
+  const emptyLine = (
+    <p className="text-sm text-muted-foreground">{t('projectDetail.billingMilestones.empty', 'No work orders yet.')}{' '}
+      <Link to={contractHref} className="font-medium text-primary-text hover:underline">{t('projectDetail.billingMilestones.openContract', 'Open contract & billing')}</Link></p>
+  );
+  // The one-line form (inside Money position) shows only the empty case; the panel form then stays away.
+  if (empty === 'line') return !orders.isPending && !orders.isError && rows.length === 0 ? emptyLine : null;
   if (orders.isPending || billing.isPending || age.isPending) return shell(<ListState variant="loading" rows={3} />);
   if (orders.isError || billing.isError || age.isError) {
     return shell(<ListState variant="error" title={t('projectDetail.billingMilestones.error', "Couldn't load the billing milestones")}
       onRetry={() => { void orders.refetch(); void billing.refetch(); void age.refetch(); }} />);
   }
-  if (rows.length === 0) {
-    return shell(<p className="text-sm text-muted-foreground">{t('projectDetail.billingMilestones.empty', 'No work orders yet.')}{' '}
-      <Link to={contractHref} className="font-semibold text-primary-text hover:underline">{t('projectDetail.billingMilestones.openContract', 'Open contract & billing')}</Link></p>);
-  }
+  if (rows.length === 0) return empty === 'none' ? null : shell(emptyLine);
   // Status words and tone come from the shared billingMilestone map (CW-2) via StatusPill; the
   // unknown state keeps the screen's one word ("Can't total", the same word the work-order card
   // uses) because the shared map's `unknown` name means something else (a date, not figures).
@@ -87,9 +90,10 @@ const Body: React.FC<{ projectId: string }> = ({ projectId }) => {
   );
 };
 
-/** Mounted only for the revenue read set; the queries never run otherwise (same gate as the Money block). */
-export const BillingMilestonesBlock: React.FC<{ projectId: string }> = ({ projectId }) => {
+/** Mounted only for the revenue read set; the queries never run otherwise (same gate as the Money block).
+ *  `empty`: 'panel' keeps the empty panel; 'none' hides it (its line lives in Money position); 'line' renders only that line. */
+export const BillingMilestonesBlock: React.FC<{ projectId: string; empty?: 'panel' | 'none' | 'line' }> = ({ projectId, empty = 'panel' }) => {
   const may = usePermission();
-  return may('view', 'salesInvoice') ? <Body projectId={projectId} /> : null;
+  return may('view', 'salesInvoice') ? <Body projectId={projectId} empty={empty} /> : null;
 };
 export default BillingMilestonesBlock;

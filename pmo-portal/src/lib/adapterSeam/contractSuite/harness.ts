@@ -221,6 +221,8 @@ export interface ErpHarness {
   journal?: () => JournalHarness;
   /** purchase-order.revise: each call starts an empty fake ERP. Absent until the tier carries PO revisions (#1505). */
   revise?: () => ReviseHarness;
+  /** company-defaults.set: each call starts a fresh fake ERP company with every default empty. Absent until the tier sets them (#1504). */
+  companyDefaults?: () => CompanyDefaultsHarness;
 }
 
 export interface ReviseHarness {
@@ -254,6 +256,21 @@ export interface JournalHarness {
   writes(): number;
   /** The next document write lands in the ledger and its answer is lost. */
   failNextWrite(fault: 'lost-response'): void;
+}
+
+/** A fake ERP company for company-defaults.set (#1599 ECX-3), in PMO terms. */
+export interface CompanyDefaultsHarness {
+  /** The connected company's name; targets of another company are loaded under another name. */
+  company: string;
+  writer: import('../companyDefaults.ts').CompanyDefaultsWriter;
+  /** Place an account (`account`) or a cost centre (`cost_centre`) in the fake ERP. */
+  load(kind: 'account' | 'cost_centre', facts: import('../companyDefaults.ts').DefaultTargetFacts): void;
+  /** What the ERP company holds now, read straight from the fake (not through the writer). */
+  held(): import('../companyDefaults.ts').CompanyDefaults;
+  /** Each write that reached the ERP company, as the slots it changed. */
+  writes(): Array<import('../companyDefaults.ts').CompanyDefaultSlot[]>;
+  /** The next write is answered 200 but the ERP stores nothing (a read-back must catch it). */
+  dropNextWrite(): void;
 }
 
 export type Suite = (harness: ErpHarness) => void;

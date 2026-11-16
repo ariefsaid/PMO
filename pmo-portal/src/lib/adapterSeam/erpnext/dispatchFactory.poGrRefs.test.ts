@@ -355,6 +355,284 @@ describe('erpnext/dispatchFactory — Slice 5 PO/GR cross-doctype ref resolution
       doctypeBodies: (await import('./doctypeBodies.ts')).DOCTYPE_BODIES })).rejects.toThrow('source unavailable');
   });
 
+  // A vendor bill names its ERP order line on every line the order carries, so ERPNext reads the order
+  // (and its receipts) billed; PMO refuses what ERPNext would only refuse after leaving a draft.
+  describe('vendor bill order lines', () => {
+    type OrderLine = { item_code: string; name: string; amount: number; billed_amt: number; qty?: number; rate?: number };
+    const LINE: OrderLine = { item_code: 'SPIKE-ITEM-1', name: 'po-line-1', amount: 400, billed_amt: 0, qty: 4, rate: 100 };
+
+    function billFetch(lines: OrderLine[], order: Record<string, unknown> = {}) {
+      return vi.fn(async (url: string, init?: RequestInit) => {
+        const path = decodeURIComponent(new URL(url).pathname);
+        if (path === '/api/resource/Item') return Response.json({ data: ['SPIKE-ITEM-1', 'FREIGHT'].map((name) => ({ name, item_name: 'Test item', disabled: 0, is_sales_item: 1, is_purchase_item: 1 })) });
+        if (path.startsWith('/api/resource/Purchase Order/')) {
+          return Response.json({ data: { name: 'PUR-ORD-2026-00001', docstatus: 1, transaction_date: '2026-07-01', items: lines, ...order } });
+        }
+        if (init?.method === 'POST') return new Response(JSON.stringify({ name: 'ACC-PINV-2026-00001' }), { status: 200 });
+        if (init?.method === 'PUT') return new Response(JSON.stringify({ name: 'ACC-PINV-2026-00001', docstatus: 1 }), { status: 200 });
+        return Response.json({ data: [] });
+      }) as unknown as typeof fetch;
+    }
+
+    function billClient(opts: { mapped?: boolean; noOrder?: boolean; qty?: number; rate?: number; version?: number } = {}) {
+      return multiTableClient({
+        external_org_bindings: { ...ACTIVATED_ROW, version_major: opts.version ?? 15 },
+        procurements: { org_id: 'org-1', vendor_id: 'company-1' },
+        external_refs: (filters: Record<string, string>) => filters.domain === 'companies'
+          ? [{ external_record_id: 'Supplier:Spike Supplier' }]
+          : opts.mapped ? [{ external_record_id: 'PUR-ORD-2026-00001' }] : [],
+        procurement_items: [{ name: 'SPIKE-ITEM-1', quantity: opts.qty ?? 2, rate: opts.rate ?? 100 }],
+        purchase_orders: opts.mapped ? [{ id: 'po-pmo-1' }] : [],
+        procurement_erp_links: opts.mapped || opts.noOrder ? [] : [{ erp_purchase_documents: { erp_name: 'PUR-ORD-2026-00001', erp_doctype: 'Purchase Order' } }],
+      });
+    }
+
+    async function adapterFor(client: DispatchServiceClient, fetchImpl: typeof fetch, replay = false, items?: Array<Record<string, unknown>>) {
+      const command = { domain: 'procurement' as const, operation: 'create' as const,
+        record: { id: 'pmo-pi-1', procurementId: 'proc-1', erp_doc_kind: 'purchase-invoice', ...(items ? { items } : {}) } };
+      const adapter = await resolveErpDispatchAdapter({ serviceClient: client, orgId: 'org-1', command, replay,
+        fetchImpl, apiKey: 'k', apiSecret: 's', doctypeBodies: (await import('./doctypeBodies.ts')).DOCTYPE_BODIES });
+      return { adapter, command };
+    }
+
+    const writes = (fetchImpl: typeof fetch) => (fetchImpl as unknown as { mock: { calls: unknown[][] } }).mock.calls
+      .filter(([, init]) => ['POST', 'PUT'].includes((init as RequestInit | undefined)?.method ?? 'GET'));
+
+    async function sentBillItems(client: DispatchServiceClient, fetchImpl: typeof fetch) {
+      const { adapter, command } = await adapterFor(client, fetchImpl);
+      await adapter.commit(command);
+      const post = writes(fetchImpl).find(([, init]) => (init as RequestInit).method === 'POST')!;
+      return JSON.parse((post[1] as RequestInit).body as string).items as Array<Record<string, unknown>>;
+    }
+
+    it('a bill on the linked ERP order carries the order and its line', async () => {
+      const items = await sentBillItems(billClient(), billFetch([LINE]));
+      expect(items[0]).toMatchObject({ item_code: 'SPIKE-ITEM-1', purchase_order: 'PUR-ORD-2026-00001', po_detail: 'po-line-1' });
+    });
+
+    it('a bill on the order PMO pushed carries the order and its line', async () => {
+      const items = await sentBillItems(billClient({ mapped: true }), billFetch([LINE]));
+      expect(items[0]).toMatchObject({ purchase_order: 'PUR-ORD-2026-00001', po_detail: 'po-line-1' });
+    });
+
+    it('a bill for a purchase with no ERP order is sent as before, with no ERP order read', async () => {
+      const client = multiTableClient({
+        external_org_bindings: ACTIVATED_ROW,
+        procurements: { org_id: 'org-1', vendor_id: 'company-1' },
+        external_refs: [{ external_record_id: 'Supplier:Spike Supplier' }],
+        procurement_items: [{ name: 'SPIKE-ITEM-1', quantity: 2, rate: 100 }],
+        purchase_orders: [], procurement_erp_links: [],
+      });
+      const fetchImpl = billFetch([LINE]);
+      const items = await sentBillItems(client, fetchImpl);
+      expect(items[0]).not.toHaveProperty('po_detail');
+      expect(items[0]).not.toHaveProperty('purchase_order');
+    });
+
+    it('refuses a bill none of whose lines is on the order, before any ERP write', async () => {
+      const fetchImpl = billFetch([{ ...LINE, item_code: 'OTHER' }]);
+      await expect(adapterFor(billClient(), fetchImpl)).rejects.toThrow(/No line of this bill is on ERP order PUR-ORD-2026-00001/);
+      expect(writes(fetchImpl)).toHaveLength(0);
+    });
+
+    it('refuses a bill whose item is on two order lines, before any ERP write', async () => {
+      const fetchImpl = billFetch([LINE, { ...LINE, name: 'po-line-2' }]);
+      await expect(adapterFor(billClient(), fetchImpl)).rejects.toThrow(/has SPIKE-ITEM-1 on more than one line/);
+      expect(writes(fetchImpl)).toHaveLength(0);
+    });
+
+    // One item on two order lines: the bill line takes the order line with the same rate AND quantity, never a guess.
+    // (PMO's line order is not provably the ERP order's line order: the case lines are read without an ORDER BY, so a position tie-break is not offered.)
+    const TWO = (a: Partial<OrderLine>, b: Partial<OrderLine>): OrderLine[] => [
+      { ...LINE, name: 'po-line-1', qty: 2, rate: 100, amount: 200, ...a }, { ...LINE, name: 'po-line-2', qty: 2, rate: 100, amount: 200, ...b }];
+
+    it('a bill line whose item is on two order lines at different rates is billed against the line with its rate', async () => {
+      const items = await sentBillItems(billClient({ qty: 2, rate: 150 }), billFetch(TWO({}, { rate: 150, amount: 300 })));
+      expect(items[0]).toMatchObject({ purchase_order: 'PUR-ORD-2026-00001', po_detail: 'po-line-2' });
+      const first = await sentBillItems(billClient({ qty: 2, rate: 100 }), billFetch(TWO({}, { rate: 150, amount: 300 })));
+      expect(first[0]).toMatchObject({ po_detail: 'po-line-1' });
+    });
+
+    it('a bill line whose item is on two order lines at the same rate and different quantities is billed against the line with its quantity', async () => {
+      const items = await sentBillItems(billClient({ qty: 5, rate: 100 }), billFetch(TWO({}, { qty: 5, amount: 500 })));
+      expect(items[0]).toMatchObject({ po_detail: 'po-line-2' });
+    });
+
+    it('refuses a bill line whose item is on two order lines with the same rate and quantity, before any ERP write', async () => {
+      const fetchImpl = billFetch(TWO({}, {}));
+      await expect(adapterFor(billClient({ qty: 2, rate: 100 }), fetchImpl)).rejects.toThrow(/has SPIKE-ITEM-1 on more than one line; PMO cannot tell which one this bill settles/);
+      expect(writes(fetchImpl)).toHaveLength(0);
+    });
+
+    it('refuses a bill line whose item is on two order lines and matches neither in rate and quantity, before any ERP write', async () => {
+      const fetchImpl = billFetch(TWO({}, { rate: 150, amount: 300 }));
+      await expect(adapterFor(billClient({ qty: 2, rate: 120 }), fetchImpl)).rejects.toThrow(/on more than one line/);
+      expect(writes(fetchImpl)).toHaveLength(0);
+    });
+
+    it('the amount left is checked on the chosen order line, not the other one', async () => {
+      const fetchImpl = billFetch(TWO({}, { rate: 150, amount: 300, billed_amt: 200 }));
+      await expect(adapterFor(billClient({ qty: 2, rate: 150 }), fetchImpl)).rejects.toThrow(/has 100\.00 left to bill for SPIKE-ITEM-1; this bill asks 300\.00/);
+      expect(writes(fetchImpl)).toHaveLength(0);
+    });
+
+    it('refuses a bill above what is left to bill on its order line, before any ERP write', async () => {
+      const fetchImpl = billFetch([{ ...LINE, amount: 400, billed_amt: 300 }]);
+      await expect(adapterFor(billClient({ qty: 2, rate: 100 }), fetchImpl)).rejects.toThrow(/has 100\.00 left to bill for SPIKE-ITEM-1; this bill asks 200\.00/);
+      expect(writes(fetchImpl)).toHaveLength(0);
+    });
+
+    it('refuses two bill lines that are each under what is left but together over, before any ERP write', async () => {
+      const fetchImpl = billFetch([{ ...LINE, amount: 400, billed_amt: 0 }]);
+      const items = [{ item_code: 'SPIKE-ITEM-1', qty: 3, rate: 100 }, { item_code: 'SPIKE-ITEM-1', qty: 3, rate: 100 }];
+      await expect(adapterFor(billClient(), fetchImpl, false, items)).rejects.toThrow(/has 400\.00 left to bill for SPIKE-ITEM-1; this bill asks 600\.00/);
+      expect(writes(fetchImpl)).toHaveLength(0);
+    });
+
+    it('a line that is not on the order never carries an order reference the caller sent', async () => {
+      const fetchImpl = billFetch([LINE]);
+      const items = [{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 100 },
+        { item_code: 'FREIGHT', qty: 1, rate: 10, po_item_child_name: 'foreign-line', po_detail: 'foreign-line', purchase_order: 'PUR-ORD-OTHER' }];
+      const { adapter, command } = await adapterFor(billClient(), fetchImpl, false, items);
+      await adapter.commit(command);
+      const post = writes(fetchImpl).find(([, init]) => (init as RequestInit).method === 'POST')!;
+      const sent = JSON.parse((post[1] as RequestInit).body as string).items as Array<Record<string, unknown>>;
+      expect(sent[0]).toMatchObject({ po_detail: 'po-line-1' });
+      expect(sent[1]).toMatchObject({ item_code: 'FREIGHT' });
+      expect(sent[1]).not.toHaveProperty('po_detail');
+      expect(sent[1]).not.toHaveProperty('purchase_order');
+    });
+
+    // Which refusal a bad line gets: no rate (null/missing) -> the unpriced-lines one; no usable quantity (null/missing/non-numeric)
+    // -> the items-total one (both already existed for the entered-tax path); everything else (qty <= 0, rate < 0, blank) -> the bill-line one.
+    const refusalOf = (line: { qty?: unknown; rate?: unknown }): RegExp => {
+      if (line.rate == null) return /unpriced lines/;
+      if (line.qty == null || !Number.isFinite(Number(line.qty))) return /missing its quantity/;
+      return /quantity and rate must be numbers/;
+    };
+
+    it('refuses a linked line whose qty or rate is not a number, before any ERP write', async () => {
+      for (const bad of [{ item_code: 'SPIKE-ITEM-1', qty: 1 }, { item_code: 'SPIKE-ITEM-1', qty: 'x', rate: 100 }]) {
+        const fetchImpl = billFetch([LINE]);
+        await expect(adapterFor(billClient(), fetchImpl, false, [bad])).rejects.toThrow(refusalOf(bad));
+        expect(writes(fetchImpl)).toHaveLength(0);
+      }
+    });
+
+    it('refuses a linked line whose qty is not above zero or whose rate is below zero, null or empty, before any ERP write', async () => {
+      const bads = [{ qty: -1, rate: 100 }, { qty: 0, rate: 100 }, { qty: null, rate: 100 }, { qty: '', rate: 100 },
+        { qty: 1, rate: -5 }, { qty: 1, rate: null }, { qty: 1, rate: '' }];
+      for (const bad of bads) {
+        const fetchImpl = billFetch([LINE]);
+        await expect(adapterFor(billClient(), fetchImpl, false, [{ item_code: 'SPIKE-ITEM-1', ...bad }])).rejects.toThrow(refusalOf(bad));
+        expect(writes(fetchImpl)).toHaveLength(0);
+      }
+    });
+
+    // A line that is not on the order is sent to ERPNext too: it passes the same number check as an order line (PMO's own
+    // case lines hold quantity >= 0 and rate >= 0, procurement_items_quantity_nonneg / _rate_nonneg, so a negative line is not a PMO bill).
+    it('refuses a line that is not on the order whose qty is not above zero or whose rate is below zero, null or empty, before any ERP write', async () => {
+      const bads = [{ qty: -1, rate: 50 }, { qty: 0, rate: 50 }, { qty: null, rate: 50 }, { qty: '', rate: 50 }, { qty: '  ', rate: 50 },
+        { qty: 1, rate: -5 }, { qty: 1, rate: null }, { qty: 1, rate: '' }, { qty: 1, rate: ' ' }, { qty: 1 }, { qty: 'x', rate: 50 }];
+      for (const bad of bads) {
+        const fetchImpl = billFetch([LINE]);
+        const items = [{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 100 }, { item_code: 'FREIGHT', ...bad }];
+        await expect(adapterFor(billClient(), fetchImpl, false, items)).rejects.toThrow(refusalOf(bad));
+        expect(writes(fetchImpl)).toHaveLength(0);
+      }
+    });
+
+    it('a line that is not on the order with a good quantity and a zero or positive rate is sent', async () => {
+      const fetchImpl = billFetch([LINE]);
+      const { adapter, command } = await adapterFor(billClient(), fetchImpl, false,
+        [{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 100 }, { item_code: 'FREIGHT', qty: 1, rate: 0 }, { item_code: 'FREIGHT', qty: '2', rate: '50' }]);
+      await adapter.commit(command);
+      expect(writes(fetchImpl).length).toBeGreaterThan(0);
+    });
+
+    // A purchase with no ERP order sends its bill's lines to ERPNext too: the same number check runs, with no order read.
+    it('refuses every bill line of a purchase with no ERP order whose qty is not above zero or whose rate is below zero, null or empty, before any ERP write', async () => {
+      const bads = [{ qty: -1, rate: 50 }, { qty: 0, rate: 50 }, { qty: null, rate: 50 }, { qty: '', rate: 50 }, { qty: '  ', rate: 50 },
+        { qty: 1, rate: -5 }, { qty: 1, rate: null }, { qty: 1, rate: '' }, { qty: 1, rate: ' ' }, { qty: 1 }, { qty: 'x', rate: 50 }];
+      for (const bad of bads) {
+        for (const items of [[{ item_code: 'FREIGHT', ...bad }], [{ item_code: 'FREIGHT', qty: 1, rate: 10 }, { item_code: 'SPIKE-ITEM-1', ...bad }]]) {
+          const fetchImpl = billFetch([LINE]);
+          await expect(adapterFor(billClient({ noOrder: true }), fetchImpl, false, items)).rejects.toThrow(refusalOf(bad));
+          expect(writes(fetchImpl)).toHaveLength(0);
+        }
+      }
+    });
+
+    it('refuses a bad line of the case itself (no caller lines) on a purchase with no ERP order, before any ERP write', async () => {
+      const fetchImpl = billFetch([LINE]);
+      await expect(adapterFor(billClient({ noOrder: true, qty: 0 }), fetchImpl)).rejects.toThrow(/quantity and rate must be numbers/);
+      expect(writes(fetchImpl)).toHaveLength(0);
+    });
+
+    it('a valid bill on a purchase with no ERP order goes out unchanged and reads no order', async () => {
+      const fetchImpl = billFetch([LINE]);
+      const { adapter, command } = await adapterFor(billClient({ noOrder: true }), fetchImpl, false,
+        [{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 100 }, { item_code: 'FREIGHT', qty: 1, rate: 0 }]);
+      await adapter.commit(command);
+      const post = writes(fetchImpl).find(([, init]) => (init as RequestInit).method === 'POST')!;
+      const sent = JSON.parse((post[1] as RequestInit).body as string).items as Array<Record<string, unknown>>;
+      expect(sent).toEqual([{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 100 }, { item_code: 'FREIGHT', qty: 1, rate: 0 }]);
+      const urls = (fetchImpl as unknown as { mock: { calls: string[][] } }).mock.calls.map(([u]) => decodeURIComponent(u));
+      expect(urls.filter((u) => u.includes('Purchase Order'))).toEqual([]);
+    });
+
+    // The order line is found by the rate alone when only one order line has it; quantity decides only among lines sharing the rate.
+    it('a part quantity at a rate only one order line has is billed against that line', async () => {
+      const items = await sentBillItems(billClient({ qty: 1, rate: 150 }), billFetch(TWO({}, { rate: 150, amount: 300 })));
+      expect(items[0]).toMatchObject({ po_detail: 'po-line-2' });
+      const first = await sentBillItems(billClient({ qty: 1, rate: 100 }), billFetch(TWO({}, { rate: 150, amount: 300 })));
+      expect(first[0]).toMatchObject({ po_detail: 'po-line-1' });
+    });
+
+    it('a part quantity at a rate two order lines share is billed against the one with its quantity', async () => {
+      const items = await sentBillItems(billClient({ qty: 5, rate: 100 }), billFetch([...TWO({}, { qty: 5, amount: 500 }), { ...LINE, name: 'po-line-3', rate: 150, amount: 300 }]));
+      expect(items[0]).toMatchObject({ po_detail: 'po-line-2' });
+    });
+
+    it('a part quantity at a rate two order lines share, with both quantities the same, is refused before any ERP write', async () => {
+      const fetchImpl = billFetch([...TWO({}, {}), { ...LINE, name: 'po-line-3', rate: 150, amount: 300 }]);
+      await expect(adapterFor(billClient({ qty: 1, rate: 100 }), fetchImpl)).rejects.toThrow(/on more than one line/);
+      expect(writes(fetchImpl)).toHaveLength(0);
+    });
+
+    it('allows a bill that exactly uses what is left', async () => {
+      const items = await sentBillItems(billClient({ qty: 1, rate: 100 }), billFetch([{ ...LINE, amount: 400, billed_amt: 300 }]));
+      expect(items[0]).toMatchObject({ po_detail: 'po-line-1' });
+    });
+
+    it('a replay is not refused by its own bill already counted on the order', async () => {
+      const fetchImpl = billFetch([{ ...LINE, amount: 400, billed_amt: 400 }]);
+      const { command } = await adapterFor(billClient(), fetchImpl, true);
+      expect(((command.record as { items?: Array<{ po_item_child_name?: string }> }).items ?? [])[0].po_item_child_name).toBe('po-line-1');
+    });
+
+    it('a bill submit reads no order and links nothing', async () => {
+      const fetchImpl = billFetch([LINE]);
+      const command = { domain: 'procurement' as const, operation: 'transition' as const,
+        record: { id: 'pmo-pi-1', procurementId: 'proc-1', erp_doc_kind: 'purchase-invoice', verb: 'submit' } };
+      await resolveErpDispatchAdapter({ serviceClient: billClient(), orgId: 'org-1', command, fetchImpl, apiKey: 'k', apiSecret: 's',
+        doctypeBodies: (await import('./doctypeBodies.ts')).DOCTYPE_BODIES });
+      const urls = (fetchImpl as unknown as { mock: { calls: string[][] } }).mock.calls.map(([u]) => decodeURIComponent(u));
+      expect(urls.filter((u) => u.includes('Purchase Order'))).toEqual([]);
+    });
+
+    it('ERPNext 16: refuses a bill when its order is dated after today, before any ERP write', async () => {
+      const fetchImpl = billFetch([LINE], { transaction_date: '2999-01-01' });
+      await expect(adapterFor(billClient({ version: 16 }), fetchImpl)).rejects.toThrow(/dated 2999-01-01.*cannot be billed before that date/);
+      expect(writes(fetchImpl)).toHaveLength(0);
+    });
+
+    it('ERPNext 15: an order dated after today does not stop the bill (v15 has no such rule)', async () => {
+      const items = await sentBillItems(billClient({ version: 15 }), billFetch([LINE], { transaction_date: '2999-01-01' }));
+      expect(items[0]).toMatchObject({ po_detail: 'po-line-1' });
+    });
+  });
+
   it('a command with no procurementId takes zero ref-resolution DB calls (byte-for-byte for every existing caller)', async () => {
     const fromSpy = vi.fn((table: string) => ({
       select: () => ({

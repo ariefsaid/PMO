@@ -2,6 +2,7 @@ import type { WorkflowId } from '../connect/workflows.ts';
 import { bringInSuite } from './bringIn.suite.ts';
 import { budgetResolveSuite, budgetSuite } from './budget.suite.ts';
 import { censusSuite } from './census.suite.ts';
+import { companyDefaultsSuite } from './companyDefaults.suite.ts';
 import { cutoverPurchaseSuite } from './cutoverPurchase.suite.ts';
 import { cutoverSuite } from './cutover.suite.ts';
 import type { Suite } from './harness.ts';
@@ -51,6 +52,7 @@ export const SUITES: Readonly<Partial<Record<WorkflowId, Suite>>> = {
   'invoice.pair-existing': invoicePairSuite,
   'journal.post': journalPostSuite,
   'journal.reverse': journalReverseSuite,
+  'company-defaults.set': companyDefaultsSuite,
 };
 
 /**

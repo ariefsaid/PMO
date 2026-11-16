@@ -231,6 +231,7 @@
     "hidden_one": "{{count}} figure hidden: {{reason}}",
     "hidden_other": "{{count}} figures hidden: {{reason}}",
     "hiddenCount_one": "{{count}} figure hidden",
+    "notShown": "Not shown yet: {{figures}}",
     "hiddenCount_other": "{{count}} figures hidden",
     "why": "Why"
   }

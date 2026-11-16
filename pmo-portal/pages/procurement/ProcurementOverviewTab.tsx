@@ -38,6 +38,8 @@ export interface ProcurementOverviewTabProps {
   /** Linked project display name. */
   projectName: string | null | undefined;
   projectLegalName?: string | null;
+  /** The project's own status; a pipeline project names its stage at the Budget signal heading. */
+  projectStatus?: string | null;
   /** This request's total_value (the Budget signal "This request" figure). */
   totalValue: number;
   /** The case's current status — drives the Budget signal's per-stage math + visibility. */
@@ -53,6 +55,7 @@ export const ProcurementOverviewTab: React.FC<ProcurementOverviewTabProps> = ({
   projectId,
   projectName,
   projectLegalName,
+  projectStatus,
   totalValue,
   status,
   currency,
@@ -70,6 +73,7 @@ export const ProcurementOverviewTab: React.FC<ProcurementOverviewTabProps> = ({
         totalValue={totalValue}
         projectName={projectName ?? null}
         projectLegalName={projectLegalName}
+        projectStatus={projectStatus}
         status={status}
         currency={currency}
       />

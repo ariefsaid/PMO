@@ -19,6 +19,8 @@ function client(tables: Record<string, unknown> = {}): DispatchServiceClient {
       };
       const builder = {
         eq: () => builder,
+        order: () => builder,
+        limit: () => builder,
         select: () => builder,
         maybeSingle: async () => result,
         then: (resolve: (r: unknown) => unknown) => Promise.resolve(result).then(resolve),
@@ -107,6 +109,9 @@ describe('item catalog money preflight', () => {
         procurement_items: [
           { name: 'ITEM-TEST', description: 'Inspection of test unit', quantity: 2, rate: 10 },
         ],
+        // the case has no ERP order (none pushed, none linked), so its bill reads no order
+        purchase_orders: [],
+        procurement_erp_links: [],
       }),
       orgId: 'org-test',
       command,

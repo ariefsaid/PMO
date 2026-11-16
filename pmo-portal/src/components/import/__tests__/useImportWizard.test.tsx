@@ -88,6 +88,152 @@ describe('useImportWizard', () => {
     expect(create).toHaveBeenCalledWith({ name: 'Acme', type: 'Client' });
   });
 
+  describe('#1278 round D: the preview does not promise a row the import will skip', () => {
+    const sheet = { headers: ['Company name', 'Type'], rows: [['Acme', 'Client'], ['Globex', 'Vendor'], ['Initech', 'Client']] };
+    const existing = (load: () => Promise<Iterable<string>>): ImportDescriptor<Co>['existingKeys'] => ({
+      load, keyOf: (c) => c.name, alreadyThere: 'there', unavailable: 'unavailable', nothingNew: 'nothing new',
+    });
+    const open = async (descriptor: ImportDescriptor<Co>) => {
+      (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue(sheet);
+      const hook = renderHook(() => useImportWizard(descriptor));
+      await act(async () => { await hook.result.current.selectFile(file()); });
+      await act(async () => { hook.result.current.goPreview(); });
+      return hook;
+    };
+
+    it('a key already on the record is flagged, left out of counts.valid, and never sent to create', async () => {
+      const create = vi.fn().mockResolvedValue({ id: '1' });
+      const { result } = await open({ ...makeDescriptor(create), existingKeys: existing(async () => ['Globex']) });
+      await waitFor(() => expect(result.current.counts).toEqual({ valid: 2, invalid: 0, total: 3 }));
+      expect(result.current.alreadyCount).toBe(1);
+      expect(result.current.validation.map((v) => v.already === true)).toEqual([false, true, false]);
+      expect(result.current.existingStatus).toBe('ready');
+      await act(async () => { await result.current.commit(); });
+      expect(create.mock.calls.map((c) => c[0].name)).toEqual(['Acme', 'Initech']);
+    });
+
+    it('every row already there: nothing valid, nothing sent', async () => {
+      const create = vi.fn();
+      const { result } = await open({ ...makeDescriptor(create), existingKeys: existing(async () => ['Acme', 'Globex', 'Initech']) });
+      await waitFor(() => expect(result.current.counts).toEqual({ valid: 0, invalid: 0, total: 3 }));
+      expect(result.current.alreadyCount).toBe(3);
+      await act(async () => { await result.current.commit(); });
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it('the read fails: the preview still works, the status says so, and every valid row is still imported (the backstop decides)', async () => {
+      const create = vi.fn().mockResolvedValue({ id: '1' });
+      const { result } = await open({ ...makeDescriptor(create), existingKeys: existing(async () => { throw new Error('boom'); }) });
+      await waitFor(() => expect(result.current.existingStatus).toBe('failed'));
+      expect(result.current.counts).toEqual({ valid: 3, invalid: 0, total: 3 });
+      expect(result.current.alreadyCount).toBe(0);
+      await act(async () => { await result.current.commit(); });
+      expect(create).toHaveBeenCalledTimes(3);
+    });
+
+    describe('the existing-keys read and an in-flight parse never drop or stale each other', () => {
+      const sheet2 = { headers: ['Company name', 'Type'], rows: [['Hooli', 'Client']] };
+      const deferred = <T,>() => { let resolve!: (v: T) => void; const promise = new Promise<T>((r) => { resolve = r; }); return { promise, resolve }; };
+      const seeded = async (loadFn: () => Promise<Iterable<string>>) => {
+        (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue(sheet);
+        const hook = renderHook(() => useImportWizard({ ...makeDescriptor(vi.fn()), existingKeys: existing(loadFn) }));
+        await act(async () => { await hook.result.current.selectFile(file()); });
+        return hook;
+      };
+
+      it('keys first: the read starts, a new parse starts and the read resolves during it: both apply', async () => {
+        const load = deferred<string[]>();
+        const parse = deferred<typeof sheet2>();
+        const { result } = await seeded(() => load.promise);
+        act(() => result.current.goPreview());
+        (parseWorkbook as ReturnType<typeof vi.fn>).mockReturnValue(parse.promise);
+        let selecting!: Promise<void>;
+        act(() => { selecting = result.current.selectFile(file('y.xlsx')); });
+        await act(async () => { load.resolve(['Acme']); await load.promise; });
+        await act(async () => { parse.resolve(sheet2); await selecting; });
+        expect(result.current.parsed).toEqual(sheet2);
+        expect(result.current.existingStatus).toBe('ready');
+      });
+
+      it('parse first: a parse is in flight, the preview opens and the read resolves: the parse is not dropped', async () => {
+        const parse = deferred<typeof sheet2>();
+        const { result } = await seeded(async () => ['Acme']);
+        (parseWorkbook as ReturnType<typeof vi.fn>).mockReturnValue(parse.promise);
+        let selecting!: Promise<void>;
+        act(() => { selecting = result.current.selectFile(file('y.xlsx')); });
+        await act(async () => { result.current.goPreview(); });
+        await waitFor(() => expect(result.current.existingStatus).toBe('ready'));
+        await act(async () => { parse.resolve(sheet2); await selecting; });
+        expect(result.current.parsed).toEqual(sheet2);
+        expect(result.current.parsing).toBe(false);
+      });
+
+      it('a read that resolves after the wizard was reset is not applied to the next sheet', async () => {
+        const load = deferred<string[]>();
+        const { result } = await seeded(() => load.promise);
+        act(() => result.current.goPreview());
+        act(() => result.current.reset());
+        await act(async () => { load.resolve(['Acme']); await load.promise; });
+        expect(result.current.alreadyCount).toBe(0);
+        expect(result.current.existingStatus).toBe('loading');
+      });
+    });
+
+    it('a line added between preview and import: the insert-time skip is still reported in the result', async () => {
+      const create = vi.fn().mockResolvedValueOnce({ id: '1' }).mockResolvedValueOnce(IMPORT_SKIPPED).mockResolvedValueOnce({ id: '3' });
+      const { result } = await open({ ...makeDescriptor(create), existingKeys: existing(async () => []) });
+      await waitFor(() => expect(result.current.existingStatus).toBe('ready'));
+      await act(async () => { await result.current.commit(); });
+      expect(result.current.result).toMatchObject({ created: 2, skipped: 1, skippedIndexes: [1] });
+    });
+
+    it('a descriptor with no existingKeys is unchanged', async () => {
+      const { result } = await open(makeDescriptor(vi.fn()));
+      expect(result.current.existingStatus).toBe('none');
+      expect(result.current.counts).toEqual({ valid: 3, invalid: 0, total: 3 });
+      expect(result.current.alreadyCount).toBe(0);
+    });
+  });
+
+  it('AC-1278 descriptor.validateSheet runs in the wizard: a row it rejects is never sent to create', async () => {
+    (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue({
+      headers: ['Company name', 'Type'],
+      rows: [['Acme', 'Client'], ['Acme', 'Vendor']],
+    });
+    const create = vi.fn().mockResolvedValue({ id: '1' });
+    const descriptor: ImportDescriptor<Co> = {
+      ...makeDescriptor(create),
+      validateSheet: (rows) => rows.map((_, i) => (i === 1 ? { name: 'repeated' } : {})),
+    };
+    const { result } = renderHook(() => useImportWizard(descriptor));
+    await act(async () => { await result.current.selectFile(file()); });
+    act(() => result.current.goPreview());
+    expect(result.current.validation[1].errors.name).toBe('repeated');
+    await act(async () => { await result.current.commit(); });
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it('AC-1278 pasted rows go through the same mapping and validation as an upload, with zero writes until commit', async () => {
+    const create = vi.fn().mockResolvedValue({ id: '1' });
+    const { result } = renderHook(() => useImportWizard(makeDescriptor(create)));
+    act(() => result.current.selectPaste('Company name\tType\nAcme\tClient\nBad\tNope\n'));
+    expect(result.current.step).toBe('mapping');
+    expect(result.current.mapping).toEqual({ name: 0, type: 1 });
+    act(() => result.current.goPreview());
+    expect(result.current.counts).toMatchObject({ valid: 1, invalid: 1, total: 2 });
+    expect(create).not.toHaveBeenCalled();
+    await act(async () => { await result.current.commit(); });
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledWith({ name: 'Acme', type: 'Client' });
+  });
+
+  it('AC-1278 pasting only a header row is refused with no step change', () => {
+    const { result } = renderHook(() => useImportWizard(makeDescriptor(vi.fn())));
+    act(() => result.current.selectPaste('Company name\tType'));
+    expect(result.current.step).toBe('upload');
+    expect(result.current.parseError).toMatch(/no data rows/);
+  });
+
   it('AC-IMP-005a: commit creates one record per VALID row via descriptor.create, skips invalid rows, and reports created/failed counts', async () => {
     (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue({
       headers: ['Company name', 'Type'],
@@ -153,9 +299,10 @@ describe('useImportWizard', () => {
 
     await waitFor(() => expect(result.current.step).toBe('result'));
     expect(result.current.result?.failed.map((row) => row.reason)).toEqual([
-      'That already exists.: Another record already uses one of these values. Change it and try again.',
-      'Update failed',
-      'Update failed',
+      // the reason only: the wizard puts its own "Not created" headline in front, in the reader's language
+      'That already exists. Another record already uses one of these values. Change it and try again.',
+      '',
+      '',
     ]);
   });
 

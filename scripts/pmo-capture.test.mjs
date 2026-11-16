@@ -102,7 +102,7 @@ test('AC-ROP-012 assignment output is actionable and never claims an ERP write',
   const preview = await runCaptureAssignments(api, rows, { dryRun: true, file: 'a.json' });
   assert.equal(preview.erp_write, false);
   assert.equal(preview.revision, 'rev-9');
-  assert.deepEqual(preview.counts, { rows: 3, create: 1, skip: 0, refused: 2 });
+  assert.deepEqual(preview.counts, { rows: 3, create: 1, attach: 0, skip: 0, refused: 2 });
   const [one, two, three] = preview.rows;
   assert.equal(one.reference, 'INV-1'); assert.equal(one.supplier, 'Supplier One');
   assert.equal(one.would_create, true); assert.equal(one.purchase_id, null);
@@ -135,4 +135,83 @@ test('AC-ROP-012 the next command quotes the file path and a partial apply says 
   assert.match(result.rows[0].next, /^to undo: node scripts\/pmo\.mjs purchases undo-record-only /);
   assert.match(result.rows[1].next, /assign 'my files\/it'\\''s\.json'/);
   assert.match(result.next, /preview again .*then apply with the new revision; rows already applied are skipped/);
+});
+
+// #2277: an order family row names the order, the project and every invoice that bills it.
+const family = (n, invoices, extra = {}) => ({ request_id: U(n), source_id: U(200 + n), decision: 'order_family', project_id: U(900), invoice_ids: invoices, ...extra });
+
+test('AC-018 a family row is checked locally before anything is sent', async () => {
+  const { assignmentProblems, runCaptureAssignments } = await import('./lib/pmo-capture.mjs');
+  assert.deepEqual(assignmentProblems([family(1, [U(301), U(302)])]), []);
+  assert.deepEqual(assignmentProblems([family(1, [U(301)], { accept_set_aside: true })]), []);
+  let called = 0;
+  const api = { capture: async () => { called += 1; return {}; } };
+  const bad = {
+    'no invoice_ids': [{ ...family(1, []), invoice_ids: undefined }],
+    'empty invoice_ids': [family(1, [])],
+    '51 invoices': [family(1, Array.from({ length: 51 }, (_, i) => U(400 + i)))],
+    'repeated invoice': [family(1, [U(301), U(301)])],
+    'invoice not a uuid': [family(1, ['nope'])],
+    'capital override': [family(1, [U(301)], { allow_capital_as_overhead: true })],
+    'no project': [{ ...family(1, [U(301)]), project_id: undefined }],
+    'invoice is another row source': [family(1, [U(301)]), { ...row(2), source_id: U(301) }],
+    'invoice_ids on a project row': [row(1, { invoice_ids: [U(301)] })],
+  };
+  for (const [name, rows] of Object.entries(bad)) {
+    for (const r of rows) for (const k of Object.keys(r)) if (r[k] === undefined) delete r[k];
+    assert.ok(assignmentProblems(rows).length > 0, name);
+    await assert.rejects(runCaptureAssignments(api, rows, { dryRun: true }), error => Array.isArray(error.problems) && error.problems.length > 0, name);
+  }
+  assert.equal(called, 0);
+});
+
+test('AC-018 a family preview prints the outcome, invoice amounts, commitment before and after, and the apply command', async () => {
+  const { runCaptureAssignments } = await import('./lib/pmo-capture.mjs');
+  const rows = [family(1, [U(301)])];
+  const server = { complete: true, revision: 'rev-7', results: [
+    { request_id: U(1), source_id: U(201), source: 'PO-1', supplier: 'Supplier One', decision: 'order_family', outcome: 'create', would_create: true, procurement_id: null, project_id: U(900),
+      invoices: [{ source_id: U(301), source: 'PI-1', tagged: false, mapped_amount: '600.00', excluded: [], prior_placement: [{ project_id: U(901), amount: '600.00' }], state: 'invoiced' }],
+      commitment_before: '0', commitment_after: '400.00', ledger_currency: 'USD', assignment_origin: 'pmo_assignment', erp_write: false },
+  ] };
+  const preview = await runCaptureAssignments({ capture: async () => server }, rows, { dryRun: true, file: 'f.json' });
+  const [one] = preview.rows;
+  assert.equal(one.outcome, 'create');
+  assert.equal(one.choice, 'order_family');
+  assert.equal(one.summary, `PO-1 → ${U(900)}: create, PI-1 600.00 (pmo_assignment), commitment 0 → 400.00, erp_write: false`);
+  assert.deepEqual(one.commitment, { before: '0', after: '400.00', currency: 'USD' });
+  assert.deepEqual(one.invoices, [{ source_id: U(301), reference: 'PI-1', tagged_in_erp: false, amount: '600.00', excluded: [], loses_cost: [{ project_id: U(901), amount: '600.00' }], state: 'invoiced' }]);
+  assert.equal(one.next, "node scripts/pmo.mjs purchases assign 'f.json' --apply --revision rev-7");
+  assert.equal(one.erp_write, false);
+  assert.equal(preview.counts.create, 1);
+});
+
+test('AC-018 an applied attach says how to undo that attachment alone; a tagged invoice shows its ERP tag', async () => {
+  const { runCaptureAssignments } = await import('./lib/pmo-capture.mjs');
+  const rows = [family(1, [U(301), U(302)]), family(2, [U(303)])];
+  const server = { complete: true, revision: 'rev-8', results: [
+    { request_id: U(1), source_id: U(201), source: 'PO-1', decision: 'order_family', outcome: 'attach', procurement_id: U(500), project_id: U(900),
+      invoices: [{ source_id: U(301), source: 'PI-1', tagged: false, mapped_amount: '200.00', state: 'invoiced' }, { source_id: U(302), source: 'PI-2', tagged: true, state: 'invoiced' }],
+      commitment_before: '1000.00', commitment_after: '700.00', assignment_origin: 'pmo_assignment', erp_write: false },
+    { request_id: U(2), source_id: U(202), source: 'PO-2', decision: 'order_family', outcome: 'create', procurement_id: U(501), project_id: U(900),
+      invoices: [{ source_id: U(303), source: 'PI-3', tagged: false, mapped_amount: '50.00', state: 'paid' }], commitment_before: '0.00', commitment_after: '0.00', erp_write: false },
+  ] };
+  const result = await runCaptureAssignments({ capture: async () => server }, rows, { dryRun: false, revision: 'rev-8', file: 'f.json' });
+  const [attach, create] = result.rows;
+  assert.equal(attach.outcome, 'attach');
+  assert.equal(attach.summary, `PO-1 → ${U(900)}: attach to ${U(500)}, PI-1 200.00 (pmo_assignment), PI-2 (tagged in the ERP), commitment 1000.00 → 700.00, erp_write: false`);
+  assert.equal(attach.next, `to undo: node scripts/pmo.mjs purchases undo-record-only ${U(500)} --attach ${U(1)} --reason "<why>"`);
+  assert.equal(create.next, `to undo: node scripts/pmo.mjs purchases undo-record-only ${U(501)} --reason "<why>"`);
+  assert.deepEqual(result.counts, { rows: 2, create: 1, attach: 1, skip: 0, refused: 0 });
+  assert.equal(result.next, 'done');
+});
+
+test('AC-018 a refused family row names the missing invoices', async () => {
+  const { runCaptureAssignments } = await import('./lib/pmo-capture.mjs');
+  const server = { complete: true, revision: 'rev-9', results: [
+    { request_id: U(1), source_id: U(201), source: 'PO-1', decision: 'order_family', outcome: 'refused', reason: 'family_incomplete', missing_invoice_ids: [U(302)], extra_invoice_ids: [], erp_write: false } ] };
+  const result = await runCaptureAssignments({ capture: async () => server }, [family(1, [U(301)])], { dryRun: true, file: 'f.json' });
+  assert.equal(result.rows[0].outcome, 'refused');
+  assert.deepEqual(result.rows[0].missing_invoice_ids, [U(302)]);
+  assert.deepEqual(result.rows[0].extra_invoice_ids, []);
+  assert.match(result.rows[0].next, /preview again/);
 });

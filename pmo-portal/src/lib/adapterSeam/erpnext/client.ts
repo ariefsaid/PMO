@@ -30,7 +30,7 @@ export class ErpError extends AdapterError {
 }
 
 function safeErpErrorType(type: string | undefined): string | undefined {
-  return type && ['TypeError', 'ValidationError', 'MandatoryError', 'PermissionError', 'DoesNotExistError', 'LinkValidationError', 'SyntheticFailure'].includes(type) ? type : undefined;
+  return type && ['TypeError', 'ValidationError', 'MandatoryError', 'PermissionError', 'DoesNotExistError', 'LinkValidationError', 'TimestampMismatchError', 'SyntheticFailure'].includes(type) ? type : undefined;
 }
 
 /** A modest per-org token bucket (FR-ENA-014 — "Frappe rate-limiting is off by default"; this is a

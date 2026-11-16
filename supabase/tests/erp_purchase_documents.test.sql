@@ -163,7 +163,11 @@ select ok(
                        -- AMENDED BY 0873: the capture revision hashes source rows into a fingerprint; it feeds no actuals.
                        'capture_revision',
                        -- AMENDED BY 0882: invoice assignment reads source documents to validate and claim a placement; it returns no amount to any actuals reader.
-                       'capture_assignment_claim','capture_assignment_validate','capture_assignment_row','capture_assignment_batch'))
+                       'capture_assignment_claim','capture_assignment_validate','capture_assignment_row','capture_assignment_batch',
+                       -- AMENDED BY 0903: an order-family placement reads the order and its invoices to check and link the family; the amounts
+                       -- it reports come from capture_assigned_gl and the commitment readers, never from the documents' faces as actuals.
+                       -- The stage helper reads the linked invoices' ERP status to set a captured purchase's stage; no amount.
+                       'capture_assignment_family','capture_family_stage'))
   and not exists (select 1 from pg_views where schemaname = 'public' and definition ilike '%erp_purchase_documents%'
                     and viewname not in ('erp_purchase_documents_linked','erp_purchase_orphans','erp_purchase_orphans_all')),
   'AC-EPR-006 (re-baselined by AC-PFE-005) ERP purchases never feed actuals; only named link/commitment readers and refresh triggers touch the table');

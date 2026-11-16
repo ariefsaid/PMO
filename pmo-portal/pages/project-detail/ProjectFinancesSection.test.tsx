@@ -639,7 +639,9 @@ describe('ProjectFinancesSection reading states', () => {
     expect(invoicedLabel.tagName).toBe('DT');
     const invoicedValue = screen.getByText('1,234,567,891').closest('dd');
     expect(invoicedValue).not.toBeNull();
-    expect(invoicedValue).toHaveClass('break-words');
+    // rule 15: the figure never breaks; the label gives way
+    expect(invoicedValue).not.toHaveClass('break-words');
+    expect(invoicedValue).toHaveClass('whitespace-nowrap');
     expect(invoicedValue?.tagName).toBe('DD');
     // Invoiced, Settled, Outstanding, Billed-work revenue and Margin remain semantic fields; C4 keeps an unknown margin explained.
     expect(within(bucket).getAllByRole('term').map((term) => term.textContent)).toEqual([

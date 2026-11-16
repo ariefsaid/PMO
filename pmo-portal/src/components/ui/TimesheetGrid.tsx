@@ -160,7 +160,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
               {r.project}
             </div>
             {r.code && (
-              <div className="break-words font-mono text-control text-muted-foreground">
+              <div className="break-words record-id">
                 {r.code}
               </div>
             )}
@@ -195,7 +195,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
             className="break-words text-control font-medium"
           />
           {r.code && (
-            <div className="break-words font-mono text-control text-muted-foreground">
+            <div className="break-words record-id">
               {r.code}
             </div>
           )}
@@ -397,7 +397,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                   />
                 )}
                 {r.code && (
-                  <div className="break-words font-mono text-control text-muted-foreground">
+                  <div className="break-words record-id">
                     {r.code}
                   </div>
                 )}

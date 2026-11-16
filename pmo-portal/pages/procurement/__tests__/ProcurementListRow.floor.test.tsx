@@ -17,6 +17,10 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
   }),
 }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
+// S05: the budget panel also reads the project's canonical Budget used; stubbed like its other reads.
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: () => ({ data: undefined, isPending: false, isError: false }),
+}));
 vi.mock('@/src/hooks/useBudget', () => ({ useProjectBudget: () => ({ data: 100000, isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectCommittedSpend: () => ({ data: 1000, isPending: false, isError: false }),

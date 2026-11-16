@@ -15,6 +15,7 @@
  * FR-AP-002/004/006/007/008..023; NFR-AP-A11Y-001/002/003/005.
  */
 import React, { useEffect, useRef, useCallback, useId, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '@/src/components/ui/icons';
 import { useFocusTrap } from '@/src/hooks/useFocusTrap';
 import { useAssistantPanel } from '@/src/hooks/useAssistantPanel';
@@ -23,13 +24,14 @@ import type { AgentThreadListItem } from '@/src/lib/db/agentThreads';
 import type { DownvoteReason } from '@/src/lib/db/agentEvents';
 import { repositories } from '@/src/lib/repositories';
 import type { AgentRunStatus } from '@/src/lib/agent/runtime/port';
-import { Transcript } from './Transcript';
-import { Composer } from './Composer';
+import { Chat } from './Chat';
+import { PromptBar } from './PromptBar';
+import { LoadingState } from './LoadingState';
 import { EmptyState } from './EmptyState';
 import { ThreadList } from './ThreadList';
 import { StuckRunBanner } from './StuckRunBanner';
 import { ActivityTrail } from './ActivityTrail';
-import { ThinkingBubble } from './ThinkingBubble';
+import { Thinking } from './Thinking';
 import { friendlyActivity } from '@/src/lib/agent/activityLabel';
 import {
   clampPanelWidth,
@@ -71,43 +73,68 @@ interface ErrorCardProps {
   onRetry: () => void;
 }
 
-const ErrorCard: React.FC<ErrorCardProps> = ({ onRetry }) => (
+const ErrorCard: React.FC<ErrorCardProps> = ({ onRetry }) => {
+  const { t } = useTranslation('assistantPanel');
+  return (
   <div
     role="alert"
     aria-live="assertive"
-    className="mx-4 my-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm"
+    className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm"
   >
-    <p className="font-medium text-destructive">Something went wrong</p>
-    <p className="mt-0.5 text-xs text-muted-foreground">
-      The assistant ran into a problem. Try again.
+    <p className="font-medium text-destructive-text">{t('errorTitle', "Something went wrong")}</p>
+    <p className="mt-0.5 text-sm text-muted-foreground">
+      {t('errorBody', "Couldn't get an answer. Retry sends your question again.")}
     </p>
     <button
       type="button"
       onClick={onRetry}
-      aria-label="Retry"
-      className="mt-2 rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
+      aria-label={t('retry', "Retry")}
+      className="mt-2 rounded-md border border-border px-3 py-1 text-sm font-medium text-foreground hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      Retry
+      {t('retry', "Retry")}
     </button>
   </div>
-);
+  );
+};
+
+/** Localised text for an attachment error. Lib messages (English, by type) are mapped by type; a message
+ * already localised at the source (PromptBar's transcode failure) passes through untouched. */
+function attachmentErrorText(
+  error: { type: string; message: string },
+  t: (key: string, options: Record<string, unknown>) => string,
+): string {
+  const m = error.message;
+  if (error.type === 'oversize') {
+    const max = m.match(/^File exceeds (\d+) MB limit$/)?.[1] ?? '';
+    return t('attachError.oversize', { max, defaultValue: m });
+  }
+  // A 'type' error is either the lib's English message (keyed here) or PromptBar's already-localised
+  // transcode failure, which passes through untouched.
+  if (error.type === 'type') return m === 'File type not allowed' ? t('attachError.type', { defaultValue: m }) : m;
+  const key = ['network', 'timeout', 'cancel'].includes(error.type) ? error.type : 'server';
+  return t(`attachError.${key}`, { defaultValue: m });
+}
 
 // ── Out-of-credits card (FR-AUC-016, NFR-AUC-A11Y-001/002) ─────────────────────
-const OutOfCreditsCard: React.FC = () => (
+const OutOfCreditsCard: React.FC = () => {
+  const { t } = useTranslation('assistantPanel');
+  return (
   <div
     role="status"
     aria-live="polite"
     className="mx-4 my-2 rounded-md border border-border bg-secondary/40 px-3 py-2 text-sm"
   >
     <p className="font-medium text-foreground">
-      You&apos;ve used up your assistant credits for now — contact your admin to request more.
+      {t('outOfCredits', "You've used up your assistant credits for now — contact your admin to request more.")}
     </p>
   </div>
-);
+  );
+};
 
 // ── Main panel component ──────────────────────────────────────────────────────
 
 export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement | null> }> = ({ openerRef }) => {
+  const { t } = useTranslation('assistantPanel');
   const {
     pendingPrefill,
     clearPrefill,
@@ -276,7 +303,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
   const doneSteps = activityTrail.filter((s) => s.done);
   const doneCount = doneSteps.length;
   const lastDoneStep = doneSteps[doneSteps.length - 1];
-  const lastActivity = lastDoneStep ? friendlyActivity(lastDoneStep.label) : undefined;
+  const lastActivity = lastDoneStep ? friendlyActivity(lastDoneStep.label, t) : undefined;
 
   // ── Staleness re-render tick (FR-AGP-022) ────────────────────────────────
   // isStuck is a point-in-time derivation (now - lastProgressAt). The hook's own 5s server-
@@ -284,6 +311,14 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
   // this same cadence by updating `lastProgressAt` state — so the banner surfaces without a
   // second, purely-local tick here (this component previously owned that timer as a bare
   // force-rerender; it moved into the hook so the SAME tick can also poll the server).
+
+  // Stable identities: Chat's memoised rows would re-render every frame on a fresh arrow (#2047).
+  const handleApprove = useCallback(() => void approve(), [approve]);
+  const handleDeny = useCallback(() => void deny(), [deny]);
+  const handleAnswer = useCallback(
+    (qid: string, optionId?: string, freeText?: string) => void answerQuestion(qid, optionId, freeText),
+    [answerQuestion],
+  );
 
   const handleRate = useCallback(
     (eventId: string, rating: 'up' | 'down', reason?: DownvoteReason) => {
@@ -376,7 +411,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
   // ── Callbacks ─────────────────────────────────────────────────────────────
   const handleSend = useCallback(() => {
     // Block send while running, awaiting an approval decision (A3), or out of credits
-    // (FR-AUC-016) — the Composer's disabled prop already hard-blocks the UI, this guard
+    // (FR-AUC-016) — the PromptBar's disabled prop already hard-blocks the UI, this guard
     // is defense-in-depth against a programmatic/Enter-key send bypassing the disabled DOM.
     if (attachments.isUploading || !composerValue.trim() || phase === 'running' || phase === 'needs-approval' || phase === 'out-of-credits') return;
     const text = composerValue;
@@ -426,7 +461,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
   // ── Desktop non-modal vs mobile modal role/attributes ────────────────────
   const desktopProps = {
     role: 'complementary' as const,
-    'aria-label': 'Agent assistant',
+    'aria-label': t('panelLabel', 'Agent assistant'),
   };
 
   const mobileProps = {
@@ -465,6 +500,27 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
   const panelStyle: React.CSSProperties | undefined = isDesktop ? { width } : undefined;
 
   // The panel + its mobile scrim wrapper must apply the onKeyDown for focus trap
+  // Rows that belong directly under the newest message (#2047): the live step trail + working cue
+  // while a run is going, the error card when it failed.
+  const trailing =
+    (phase === 'running' && !hasPendingQuestion) || phase === 'error' ? (
+      <>
+        {phase === 'running' && !hasPendingQuestion && (
+          <>
+            {/* The trail is the per-step checklist (done ✓ + the current ⟳ row). */}
+            {activityTrail.length > 0 && <ActivityTrail items={activityTrail} />}
+            {/* The working cue fills the QUIET gaps — before the first step and between tool
+                rounds — and is shown only when NO step is actively spinning (so it never
+                duplicates the trail's current row). */}
+            {!activityTrail.some((s) => !s.done) && (
+              <Thinking label={activityTrail.length === 0 ? currentStep : null} />
+            )}
+          </>
+        )}
+        {phase === 'error' && <ErrorCard onRetry={handleRetry} />}
+      </>
+    ) : null;
+
   const panelContent = (
     <>
       {/* Mobile scrim — only rendered on mobile when open */}
@@ -479,6 +535,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
       <section
         ref={panelRef}
         {...roleProps}
+        data-testid="assistant-panel"
         // inert when closed (D-A2-6). React 19 maps boolean true → bare `inert`.
         inert={open ? undefined : true}
         onKeyDown={!isDesktop ? onTrapKeyDown : undefined}
@@ -502,7 +559,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
         {isDesktop && (
           <div
             role="slider"
-            aria-label="Resize assistant panel"
+            aria-label={t('resize', 'Resize assistant panel')}
             aria-valuemin={PANEL_WIDTH_MIN}
             aria-valuemax={PANEL_WIDTH_MAX}
             aria-valuenow={width}
@@ -511,7 +568,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
             onPointerDown={handleResizePointerDown}
             onPointerMove={handleResizePointerMove}
             onPointerUp={handleResizePointerUp}
-            className="absolute left-0 top-0 z-10 h-full w-1.5 -translate-x-1/2 cursor-ew-resize touch-none rounded-full bg-transparent hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
+            className="absolute left-0 top-0 z-10 h-full w-1.5 -translate-x-1/2 cursor-ew-resize touch-none rounded-full bg-transparent hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         )}
 
@@ -524,7 +581,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
             id={titleId}
             className="text-[18px] font-semibold text-foreground"
           >
-            Assistant
+            {t('panelTitle', "Assistant")}
           </h2>
           <div className="flex items-center gap-1">
             {/* Dock/overlay toggle (Task D4, FR-AXP-025/026) — desktop-only.
@@ -535,20 +592,21 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
               <button
                 type="button"
                 onClick={handleToggleMode}
-                aria-label={mode === 'overlay' ? 'Dock assistant panel' : 'Switch to overlay'}
+                aria-label={mode === 'overlay' ? t('dockLabel', 'Dock assistant panel') : t('overlayLabel', 'Switch to overlay')}
                 aria-pressed={mode === 'docked'}
-                className="touch-target grid h-8 place-items-center rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                className="touch-target grid h-8 place-items-center rounded-md px-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                {mode === 'overlay' ? 'Dock' : 'Overlay'}
+                {mode === 'overlay' ? t('dock', 'Dock') : t('overlay', 'Overlay')}
               </button>
             )}
             {/* ADR-0043 (FR-AGP-020): History toggle — expands the ThreadList region. */}
             <button
               type="button"
               onClick={toggleHistory}
-              aria-label="History"
+              aria-label={t('history', 'History')}
+              data-testid="assistant-history"
               aria-expanded={historyOpen}
-              className="touch-target grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring [&_svg]:size-[17px]"
+              className="touch-target grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-[17px]"
             >
               <Icon name="clock" />
             </button>
@@ -556,17 +614,18 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
             <button
               type="button"
               onClick={handleNewConversation}
-              aria-label="New conversation"
-              className="touch-target grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring [&_svg]:size-[17px]"
+              aria-label={t('newConversation', 'New conversation')}
+              title={t('newConversation', 'New conversation')}
+              className="touch-target grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-[17px]"
             >
-              <Icon name="refresh" />
+              <Icon name="plus" />
             </button>
             {/* Close */}
             <button
               type="button"
               onClick={closePanel}
-              aria-label="Close assistant"
-              className="touch-target grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring [&_svg]:size-[17px]"
+              aria-label={t('close', 'Close assistant')}
+              className="touch-target grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-[17px]"
             >
               <Icon name="x" />
             </button>
@@ -577,13 +636,13 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
         {historyOpen && (
           <>
             {threadsLoading && (
-              <p className="border-b border-border px-4 py-2 text-xs text-muted-foreground">
-                Loading conversations…
-              </p>
+              <div className="border-b border-border px-4 py-2">
+                <LoadingState label={t('loadingConversations', 'Loading conversations…')} />
+              </div>
             )}
             {threadsError && (
-              <p role="alert" className="border-b border-border px-4 py-2 text-xs text-destructive">
-                Couldn&apos;t load your conversations.
+              <p role="alert" className="border-b border-border px-4 py-2 text-sm text-destructive-text">
+                {t('loadConversationsError', "Couldn't load your conversations.")}
               </p>
             )}
             {!threadsLoading && !threadsError && (
@@ -592,10 +651,10 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
           </>
         )}
 
-        {/* ── Transcript region ────────────────────────────────────────── */}
-        {/* The Transcript always renders its role="log" aria-live="polite" container so
+        {/* ── Chat region ────────────────────────────────────────── */}
+        {/* The Chat always renders its role="log" aria-live="polite" container so
             the live region is always present in the DOM (AC-AP-021; NFR-AP-A11Y-003).
-            EmptyState is rendered inside Transcript when transcript is empty. */}
+            EmptyState is rendered inside Chat when transcript is empty. */}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {/* ADR-0043 (FR-AGP-022): stuck-run banner, keyed on the hook's heartbeat-
               staleness derivation — independent of SSE liveness. */}
@@ -609,42 +668,18 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
               onCancel={handleStop}
             />
           )}
-          <Transcript
+          <Chat
             transcript={transcript}
             emptySlot={isEmpty ? <EmptyState onPick={handleChipPick} /> : null}
             chipStateMap={chipStateMap}
             answeredMap={answeredMap}
             phase={phase}
-            onApprove={() => void approve()}
-            onDeny={() => void deny()}
-            onAnswer={(qid, optionId, freeText) => void answerQuestion(qid, optionId, freeText)}
+            onApprove={handleApprove}
+            onDeny={handleDeny}
+            onAnswer={handleAnswer}
             onRate={handleRate}
+            trailing={trailing}
           />
-
-          {/* Streaming indicator / activity trail — shows while run is active or awaiting
-              approval re-POST. Once the first step has landed, the persistent ActivityTrail
-              REPLACES the static "Working…" line: it carries the live spinner on the current
-              row plus the accumulated checklist of done steps, so a slow run is transparent.
-              Before any step (or while waiting on a clarifying question) the neutral
-              StreamingIndicator covers the pre-first-step "Working…" case.
-              Correctness-remediation (finding 3): suppressed while hasPendingQuestion —
-              the model is not "Working…" once it has asked a clarifying question and is
-              waiting on the human; the distinct "A question awaits your answer" status
-              below already covers that paused state without the misleading busy-copy. */}
-          {phase === 'running' && !hasPendingQuestion && (
-            <>
-              {/* The trail is the per-step checklist (done ✓ + the current ⟳ row). */}
-              {activityTrail.length > 0 && <ActivityTrail items={activityTrail} />}
-              {/* A PROMINENT thinking bubble fills the QUIET gaps — before the first step
-                  and between tool rounds while the model is generating — where the old tiny
-                  "Working…" line read as a frozen panel. Shown only when NO step is actively
-                  spinning (so it never duplicates the trail's current row); carries the live
-                  elapsed counter so the run is unmistakably alive, not stuck. */}
-              {!activityTrail.some((s) => !s.done) && (
-                <ThinkingBubble label={activityTrail.length === 0 ? currentStep : null} />
-              )}
-            </>
-          )}
 
           {/* NFR-AW-A11Y-003: approval-awaiting status announcement, distinct from the
               streaming "Working…" indicator. SR users learn WHY input is blocked. */}
@@ -653,9 +688,9 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
               role="status"
               aria-live="polite"
               aria-atomic="true"
-              className="px-4 py-1 text-xs text-muted-foreground"
+              className="px-4 py-1 text-sm text-muted-foreground"
             >
-              A write action awaits your decision
+              {t('approvalAwaiting', 'A write action awaits your decision')}
             </div>
           )}
 
@@ -667,14 +702,11 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
               role="status"
               aria-live="polite"
               aria-atomic="true"
-              className="px-4 py-1 text-xs text-muted-foreground"
+              className="px-4 py-1 text-sm text-muted-foreground"
             >
-              A question awaits your answer
+              {t('questionAwaiting', 'A question awaits your answer')}
             </div>
           )}
-
-          {/* Error card */}
-          {phase === 'error' && <ErrorCard onRetry={handleRetry} />}
 
           {/* Out-of-credits card (FR-AUC-016) — distinct from the generic ErrorCard */}
           {phase === 'out-of-credits' && <OutOfCreditsCard />}
@@ -684,18 +716,18 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
           <div
             role={attachments.error ? 'alert' : 'status'}
             aria-live={attachments.error ? 'assertive' : 'polite'}
-            className="border-t border-border px-3 py-2 text-xs text-muted-foreground"
+            className="border-t border-border px-3 py-2 text-sm text-muted-foreground"
           >
             {attachments.error
-              ? attachments.error.message
+              ? attachmentErrorText(attachments.error, t)
               : Object.keys(attachments.progress).length > 0
-                ? 'Uploading attachment…'
-                : `${pendingAttachmentIds.length} attachment${pendingAttachmentIds.length === 1 ? '' : 's'} ready`}
+                ? t('uploadingAttachment', 'Uploading attachment…')
+                : t('attachmentsReady', { count: pendingAttachmentIds.length, defaultValue_one: '{{count}} attachment ready', defaultValue_other: '{{count}} attachments ready' })}
           </div>
         )}
 
-        {/* ── Composer ─────────────────────────────────────────────────── */}
-        <Composer
+        {/* ── Prompt bar ─────────────────────────────────────────────────── */}
+        <PromptBar
           value={composerValue}
           onChange={setComposerValue}
           onSend={handleSend}

@@ -54,8 +54,7 @@ describe('#2088 DeliveryBlock — phase lateness follows the organization day', 
       </MemoryRouter>,
     );
 
-    expect(screen.getByText(/1 day overdue/)).toBeInTheDocument();
-    // The unflagged branch ("Target 1 Jun") must be gone.
-    expect(screen.queryByText(/Target 1 Jun/)).not.toBeInTheDocument();
+    // A phase past its target reads "late" (overdue is for tasks and invoices, screen rules).
+    expect(screen.getByText(/^1 days? late/)).toBeInTheDocument();
   });
 });

@@ -73,6 +73,7 @@ vi.mock('../../components/ProjectKanbanBoard', () => ({
   default: () => <div data-testid="project-kanban-board" />,
 }));
 
+import userEvent from '@testing-library/user-event';
 import Projects from '../Projects';
 
 const seed: ProjectWithRefs[] = [
@@ -119,24 +120,30 @@ describe('AC-PRJUX-001 — Projects phone-width view toggle (round-3)', () => {
     projectsState.isError = false;
   });
 
-  it('AC-PRJUX-001: Table / Cards / Calendar / Board are ALL present and reachable below md', () => {
+  it('AC-PRJUX-001: Table / Cards / Calendar / Board are ALL present and reachable below md', async () => {
     renderPage();
+    // The view switch is one tap away on a phone: in the list's Options.
+    await userEvent.setup().click(screen.getByRole('button', { name: /^Options$/i }));
     const toggle = screen.getByRole('tablist', { name: /projects view/i });
     for (const name of ['Table', 'Cards', 'Calendar', 'Board']) {
       expect(within(toggle).getByRole('tab', { name: new RegExp(`^${name}$`) })).toBeInTheDocument();
     }
   });
 
-  it('AC-PRJUX-001: none of the four options carries `hidden` (nothing is CSS-hidden on phones)', () => {
+  it('AC-PRJUX-001: none of the four options carries `hidden` (nothing is CSS-hidden on phones)', async () => {
     renderPage();
+    // The view switch is one tap away on a phone: in the list's Options.
+    await userEvent.setup().click(screen.getByRole('button', { name: /^Options$/i }));
     const toggle = screen.getByRole('tablist', { name: /projects view/i });
     for (const name of ['Table', 'Cards', 'Calendar', 'Board']) {
       expect(within(toggle).getByRole('tab', { name: new RegExp(`^${name}$`) }).className).not.toContain('hidden');
     }
   });
 
-  it('AC-MOB-VT-003: all four view values exist (Table preserved as a real selectable view)', () => {
+  it('AC-MOB-VT-003: all four view values exist (Table preserved as a real selectable view)', async () => {
     renderPage();
+    // The view switch is one tap away on a phone: in the list's Options.
+    await userEvent.setup().click(screen.getByRole('button', { name: /^Options$/i }));
     const toggle = screen.getByRole('tablist', { name: /projects view/i });
     expect(within(toggle).getByRole('tab', { name: /^Table$/i })).toHaveAttribute('aria-selected', 'true');
   });

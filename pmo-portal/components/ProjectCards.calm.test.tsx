@@ -149,7 +149,7 @@ describe('AC-RD-SUB-PL-B: Projects board card shows values only, on one line', (
     expect(card).not.toHaveTextContent('PMO Project Number');
     expect(card).not.toHaveTextContent('Client Project Code');
     const line = within(card).getByText('PMO-26-7711 · CLI-81');
-    expect(line).toHaveClass('font-mono');
+    expect(line).toHaveClass('record-id');
     // the accessible name keeps the labelled identities for assistive technology
     expect(card).toHaveAttribute('aria-label', expect.stringContaining('PMO Project Number: PMO-26-7711'));
   });

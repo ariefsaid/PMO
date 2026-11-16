@@ -10,7 +10,7 @@
 -- security-definer lock-order RPCs (0105/0106) are the only mutation path (closing the child→parent
 -- deadlock seam). The catalog backstop below excludes it; the exception is asserted explicitly.
 begin;
-select plan(50);
+select plan(51);
 
 -- profiles: the exact table the promote e2e failed on (admin-invite-user inserts here).
 select ok(has_table_privilege('service_role', 'public.profiles', 'INSERT'),
@@ -132,6 +132,11 @@ select ok(not has_table_privilege('service_role','public.erp_capture_invoice_ass
   and not has_table_privilege('service_role','public.erp_capture_invoice_assignments','DELETE')
   and not has_table_privilege('service_role','public.erp_capture_invoice_assignments','TRUNCATE'),
   'AC-ROP-017 capture invoice assignments deny direct service access');
+-- 0903: the order-family placement helper runs only inside assign_capture_invoices (as owner); no API role, service_role included, executes it.
+select ok(not has_function_privilege('service_role','public.capture_assignment_family(uuid,uuid,uuid,jsonb,text,boolean,jsonb)','execute')
+  and not has_function_privilege('service_role','public.capture_assignment_validate(uuid,uuid,jsonb,uuid,jsonb,text)','execute')
+  and not has_function_privilege('service_role','public.capture_family_stage(uuid,uuid)','execute'),
+  'FR-019 the order-family helper, the stage helper and the validator deny service execution');
 
 -- 0399's exemption is a named pin, not a silent omission: runs are RPC-minted (see above).
 select ok(

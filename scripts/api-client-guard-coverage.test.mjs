@@ -79,6 +79,7 @@ const KNOWN_UNLISTED = new Map([
   ['rpc:decide_connect_review', CONNECT],
   ['rpc:unlink_connect_match', CONNECT],
   ['rpc:retry_connect_send', CONNECT],
+  ['rpc:request_company_defaults', CONNECT],
 ]);
 
 // ── the CLI source ───────────────────────────────────────────────────────────────────────────────
