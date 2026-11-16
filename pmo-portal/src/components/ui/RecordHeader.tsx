@@ -17,6 +17,8 @@ export interface RecordHeaderProps {
   iconColor?: string;
   /** The record's title (an h1; 24px on a page). */
   name: React.ReactNode;
+  /** 2 when the page already carries its own h1 above (a record whose number is the page title). */
+  headingLevel?: 1 | 2;
   /** Status pill, mandatory on every record. Use `<StatusPill record=... state=... />` so the colour comes from the shared map. */
   status: React.ReactNode;
   /** Keep a long record name full width on mobile, with status below its identity line. */
@@ -78,6 +80,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
   icon,
   iconColor,
   name,
+  headingLevel = 1,
   status,
   statusBelowMetaOnMobile = false,
   titleInAppBarOnPhone = false,
@@ -103,6 +106,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
   const label = menuLabel ?? t('uxs14.moreActions', 'More actions');
   const hasMenu = Boolean(menuItems && menuItems.length > 0);
   const isDrawer = variant === 'drawer';
+  const Heading = headingLevel === 2 ? 'h2' : 'h1';
   const [nameOpen, setNameOpen] = React.useState(false);
   const zone = actions || primaryAction || hasMenu ? (
     <span data-testid="record-header-actions" className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
@@ -138,7 +142,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
               : 'flex flex-nowrap items-baseline',
             clampNameOnMobile && 'max-sm:flex-col max-sm:items-start max-sm:gap-1',
           )}>
-            <h1
+            <Heading
               title={clampNameOnMobile && typeof name === 'string' ? name : undefined}
               onClick={clampNameOnMobile ? () => setNameOpen((open) => !open) : undefined}
               className={cn(
@@ -150,7 +154,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
               titleInAppBarOnPhone && 'max-md:sr-only max-md:![text-wrap-mode:nowrap]',
               clampNameOnMobile && cn('max-sm:max-w-full max-sm:whitespace-normal max-sm:break-words', !nameOpen && 'max-sm:line-clamp-2'),
               !isDrawer && 'sm:truncate',
-            )}>{name}</h1>
+            )}>{name}</Heading>
             {status != null && status !== false && <span className={cn(
               'shrink-0 self-baseline',
               statusBelowMetaOnMobile && 'col-span-2 row-start-3 justify-self-start sm:col-span-1 sm:row-start-auto',
