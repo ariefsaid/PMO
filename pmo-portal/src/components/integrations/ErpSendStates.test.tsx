@@ -38,6 +38,12 @@ describe('ECA3-T11 ErpSendStates', () => {
     expect(screen.queryByText(/done|complete|sent/i)).toBeNull();   // a waiting row is never reported as finished
   });
 
+  it('AC-ECX-030 an account the ERP holds but PMO cannot use as a direct-cost account is refused in words that do not send the person to the ERP', async () => {
+    answer(0, [proposal({ id: 'r3', kind: 'account', reason: 'rejected', snapshot: { name: 'Site materials' }, reason_text: 'The ERP account with this name cannot be used for direct costs. Ask again with a different account name.' })]);
+    renderIt();
+    expect(await screen.findByText('The ERP account with this name cannot be used for direct costs. Ask again with a different account name.')).toBeTruthy();
+  });
+
   it('a send the ERP could not confirm is a decision with its plain reason, not a success', async () => {
     answer(0, [proposal({ id: 'r2', kind: 'project', reason: 'held', snapshot: { name: 'Jembatan' }, reason_text: 'We could not confirm whether the ERP created this record' })]);
     renderIt();

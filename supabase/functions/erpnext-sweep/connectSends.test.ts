@@ -566,14 +566,46 @@ const isAccountPost = (c: FetchCall) => c.method === 'POST' && decodeURIComponen
 const isAccountLookup = (c: FetchCall) => c.method === 'GET' && decodeURIComponent(c.url.pathname) === '/api/resource/Account';
 
 describe('#1599 ECX-4 drainConnectSends: direct-cost accounts', () => {
-  it('AC-ECX-030 creates one leaf account under the chosen group, through the outbox under seed:account:<category>, and records the ERP name for the map', async () => {
+  it('AC-ECX-030 creates one leaf account under the chosen group, through the outbox under a key naming the category, the requested name and the group, and records the ERP name for the map', async () => {
     const { result, calls, tables, outbox } = await tick({ claimed: [P.account], tables: chart() });
     const created = tables.Account.filter((a) => a.created === true);
     assertEquals(created.map((a) => [a.name, a.parent_account, a.company, a.root_type, a.is_group]), [['Site materials - TC', 'Direct Expenses - TC', 'Test Co', 'Expense', 0]]);
     assertEquals(erpPosts(calls).map((c) => body(c)), [{ account_name: 'Site materials', parent_account: 'Direct Expenses - TC', company: 'Test Co' }]);
-    assertEquals(outbox.map((r) => [r.domain, r.pmo_record_id, r.idempotency_key, r.state]), [['accounts', 'Materials', 'seed:account:Materials', 'confirmed']]);
+    assertEquals(outbox.map((r) => [r.domain, r.pmo_record_id, r.idempotency_key, r.state]), [['accounts', 'Materials', 'seed:account:Materials:["site materials","direct expenses - tc"]', 'confirmed']]);
     assertEquals(results(calls).map((r) => [r.p_id, r.p_external_id, r.p_rejection ?? null]), [['prop-acct', 'Site materials - TC', null]]);
     assertEquals(result, { sent: 1, rejected: 0, held: 0, pending: 0 });
+  });
+
+  it('AC-ECX-030 the same request twice is one ERP create: the repeat replays the stored answer and links the same account', async () => {
+    const first = await tick({ claimed: [P.account], tables: chart() });
+    const again = await tick({ claimed: [P.account], tables: first.tables, outbox: first.outbox });
+    assertEquals(again.tables.Account.filter((a) => a.created === true).length, 1);
+    assertEquals(erpPosts(again.calls).length, 0);
+    assertEquals(again.outbox.length, 1);
+    assertEquals(results(again.calls).map((r) => [r.p_external_id, r.p_rejection ?? null]), [['Site materials - TC', null]]);
+    // the same words in another letter case and with stray spaces are the same request
+    const spaced = { ...P.account, snapshot: { accountName: '  SITE   Materials ', parentAccount: 'direct expenses - tc ' } };
+    const third = await tick({ claimed: [spaced], tables: again.tables, outbox: again.outbox });
+    assertEquals(third.tables.Account.filter((a) => a.created === true).length, 1);
+    assertEquals(third.outbox.length, 1);
+  });
+
+  it('AC-ECX-030 after the link is removed, a request with a new name creates and links the NEW account; the old outbox row is untouched', async () => {
+    const first = await tick({ claimed: [P.account], tables: chart() });
+    const old = { ...first.outbox[0] };
+    const renamed = { ...P.account, id: 'prop-acct-2', snapshot: { accountName: 'Site fixtures', parentAccount: 'Direct Expenses - TC' } };
+    const next = await tick({ claimed: [renamed], tables: first.tables, outbox: first.outbox });
+    assertEquals(next.tables.Account.filter((a) => a.created === true).map((a) => a.name), ['Site materials - TC', 'Site fixtures - TC']);
+    assertEquals(erpPosts(next.calls).length, 1);
+    assertEquals(results(next.calls).map((r) => [r.p_id, r.p_external_id, r.p_rejection ?? null]), [['prop-acct-2', 'Site fixtures - TC', null]]);
+    assertEquals(next.outbox.length, 2);
+    assertEquals(next.outbox[0], old);
+    assertEquals(next.outbox[1].state, 'confirmed');
+    // another group is a new request too: a new outbox row (the adapter's own lookup adopts an account of that name that already exists)
+    const regrouped = { ...P.account, id: 'prop-acct-3', snapshot: { accountName: 'Site tools', parentAccount: 'Indirect Expenses - TC' } };
+    const third = await tick({ claimed: [regrouped], tables: next.tables, outbox: next.outbox });
+    assertEquals(erpPosts(third.calls).map((c) => body(c).parent_account), ['Indirect Expenses - TC']);
+    assertEquals(third.outbox.length, 3);
   });
 
   it('AC-ECX-030 the requester must still be an Admin or Finance member of the org when the send goes out', async () => {
@@ -662,20 +694,20 @@ describe('#1599 ECX-4 drainConnectSends: direct-cost accounts', () => {
     const trouble = { claimed: [P.account], tables: chart(), resultError: { 'prop-acct': '57014' } };
     assertEquals(operatorTasks((await tick(trouble)).calls), []);
     assertEquals(operatorTasks((await tick({ ...trouble, failureEnds: true })).calls).map((t) => [t.error_code, t.context_id]), [['ERP_ACCOUNT_SEND_STUCK', 'prop-acct']]);
-    const held = { id: 'ob-0', domain: 'accounts', pmo_record_id: 'Materials', idempotency_key: 'seed:account:Materials', state: 'held', external_record_id: null, canonical: null, claim_generation: 1, payload_digest: null };
+    const held = { id: 'ob-0', domain: 'accounts', pmo_record_id: 'Materials', idempotency_key: 'seed:account:Materials:["site materials","direct expenses - tc"]', state: 'held', external_record_id: null, canonical: null, claim_generation: 1, payload_digest: null };
     const h = await tick({ claimed: [P.account], tables: chart(), outbox: [held] });
     assertEquals(rpcCall(h.calls, 'record_connect_send_held').map(body), [{ p_org_id: ORG, p_id: 'prop-acct' }]);
     assertEquals(operatorTasks(h.calls).map((t) => [t.error_code, t.context_id]), [['ERP_ACCOUNT_SEND_UNCONFIRMED', 'prop-acct']]);
   });
 
   it('AC-ECX-030 a replayed account answer is read back from the ERP: a turned-off or posting account, or one under another name, is refused and never linked; a matching usable account is linked', async () => {
-    const replayed = { id: 'ob-0', domain: 'accounts', pmo_record_id: 'Materials', idempotency_key: 'seed:account:Materials', state: 'confirmed', external_record_id: 'Site materials - TC', canonical: null, claim_generation: 1, payload_digest: null };
+    const replayed = { id: 'ob-0', domain: 'accounts', pmo_record_id: 'Materials', idempotency_key: 'seed:account:Materials:["site materials","direct expenses - tc"]', state: 'confirmed', external_record_id: 'Site materials - TC', canonical: null, claim_generation: 1, payload_digest: null };
     const withAccount = (extra: Record<string, unknown>) => {
       const tables = chart();
       tables.Account.push({ name: 'Site materials - TC', account_name: 'Site materials', parent_account: 'Direct Expenses - TC', company: 'Test Co', root_type: 'Expense', is_group: 0, disabled: 0, ...extra });
       return tables;
     };
-    const REFUSED = 'The ERP account that answers this request is not the one you asked for or cannot hold direct costs. Ask again with the name you want.';
+    const REFUSED = 'The ERP account with this name cannot be used for direct costs. Ask again with a different account name.';
     const run = (extra: Record<string, unknown>) => tick({ claimed: [P.account], tables: withAccount(extra), outbox: [{ ...replayed }] });
     for (const [label, extra] of [['turned off', { disabled: 1 }], ['a group', { is_group: 1 }], ['another company', { company: 'Other Co' }], ['another name', { account_name: 'Cement' }]] as const) {
       const { calls, result } = await run(extra);

@@ -361,7 +361,8 @@
       "groupPlaceholder": "Choose a group",
       "name": "Account name for {{category}}",
       "failed": "PMO could not ask for this account. Try again.",
-      "linkedElsewhere": "{{name}} was already in the ERP under {{group}}, so PMO linked it there."
+      "linkedElsewhere": "{{name}} was already in the ERP under {{group}}, so PMO linked it there.",
+      "unusable": "The ERP account with this name cannot be used for direct costs. Ask again with a different account name."
     },
     "connect": {
       "title": "Match records",

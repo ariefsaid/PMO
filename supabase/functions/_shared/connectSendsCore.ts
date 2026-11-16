@@ -33,7 +33,7 @@ export const CONNECT_SEND_REJECTION_TEXT = {
   accountIncomplete: 'Give the account a name and choose the expense group it goes under, then ask again.',
   unsendable: (kind: string) => { const noun = NOUN[kind] ?? 'record'; return `This ERP cannot be sent ${/^[aeiou]/.test(noun) ? 'an' : 'a'} ${noun} from PMO yet.`; },
   /** #1599: clients never work in the ERP, so an account send PMO cannot finish is the Operator's task, and Finance is told so. */
-  accountMismatch: 'The ERP account that answers this request is not the one you asked for or cannot hold direct costs. Ask again with the name you want.',
+  accountMismatch: 'The ERP account with this name cannot be used for direct costs. Ask again with a different account name.',
   accountAdminTold: 'PMO could not create the account; your administrator has been told.',
   ambiguous: (kind: string) => `Two ERP records match this ${NOUN[kind] ?? 'record'}. Link the right one by hand.`,
   linked: 'This record is already linked to another ERP record.',

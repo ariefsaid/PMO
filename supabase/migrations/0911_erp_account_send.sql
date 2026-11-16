@@ -1,7 +1,7 @@
 -- #1599 ECX-4 (OQ-ECX-1, AC-ECX-030/031): an Admin or Finance member creates a direct-cost account for a budget category from PMO.
 -- PMO creates LEAF accounts only, under an expense group of the bound ERP company that the person picks from the mirrored chart; it
 -- never creates a group, a tax or anything of the fiscal structure. The request queues one `account` send for the shipped send drain
--- (0494): the sweep creates the account through the money outbox under `seed:account:<category>`, reads it back, and the result writer
+-- (0494): the sweep creates the account through the money outbox under a key naming the category, the requested name and the group, reads it back, and the result writer
 -- links it in `budget_category_account_map` through `apply_connect_link` (0880). An account send that ends undecided or after its last
 -- try tells Finance that the administrator has been told, never to look in the ERP. Reversal: rollback/0911_erp_account_send_down.sql.
 
