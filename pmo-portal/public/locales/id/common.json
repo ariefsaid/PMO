@@ -2,6 +2,7 @@
   "terms": {
     "clientWorkOrder": "Work Order / SPK",
     "dashboard": "Dasbor",
+    "supplier": "Supplier",
     "timesheet": "Timesheet"
   },
   "ui": {
@@ -143,11 +144,11 @@
     "saveVendorTax": "Simpan akun",
     "saveWithholding": "Simpan akun",
     "savedChoiceUnavailable": "Nilai tersimpan tidak ada di bagan akun saat ini; nilai tetap tersimpan sampai diganti.",
-    "vendorTaxHeading": "Akun pajak tagihan pemasok",
-    "vendorTaxIntro": "Akun untuk PPN masukan (Aset) dan pajak yang dipotong dari tagihan pemasok (Kewajiban).",
+    "vendorTaxHeading": "Akun pajak tagihan supplier",
+    "vendorTaxIntro": "Akun untuk PPN masukan (Aset) dan pajak yang dipotong dari tagihan supplier (Kewajiban).",
     "vendorTaxLoadError": "Tidak dapat memuat akun pajak",
     "vendorTaxRemoteChanged": "Akun tersimpan berubah. Perubahan Anda tetap ada; muat ulang nilai tersimpan untuk membuangnya.",
-    "vendorTaxSaved": "Akun pajak pemasok disimpan",
+    "vendorTaxSaved": "Akun pajak supplier disimpan",
     "withholdingHeading": "Potongan pajak pada penerimaan",
     "withholdingIntro": "Akun Aset untuk pajak penghasilan yang dipotong klien. Atur sebelum mencatat penerimaan dengan pemotongan.",
     "withholdingLoadError": "Tidak dapat memuat akun pajak dibayar di muka",
@@ -332,12 +333,12 @@
     "unavailable": "Tidak tersedia",
     "view": "Lihat bukti potong",
     "record": "Catat bukti potong",
-    "setVendor": "Tentukan pemasok",
-    "vendorRequired": "Atur pemasok pada kasus pengadaan sebelum mencatat bukti potong.",
-    "vendorSet": "Pemasok ditetapkan",
-    "vendorAlreadySet": "Pemasok sudah ditetapkan. Muat ulang untuk melihatnya.",
-    "selectVendor": "Pilih pemasok…",
-    "saveVendor": "Simpan pemasok",
+    "setVendor": "Tentukan supplier",
+    "vendorRequired": "Atur supplier pada kasus pengadaan sebelum mencatat bukti potong.",
+    "vendorSet": "Supplier ditetapkan",
+    "vendorAlreadySet": "Supplier sudah ditetapkan. Muat ulang untuk melihatnya.",
+    "selectVendor": "Pilih supplier…",
+    "saveVendor": "Simpan supplier",
     "cancelSetVendor": "Batalkan",
     "history": "Riwayat bukti potong",
     "state": {
@@ -354,14 +355,14 @@
     "withheld": "Dipotong",
     "type": "Jenis PPh",
     "identity": {
-      "vendorReference": "Referensi faktur pemasok",
-      "systemNumber": "No. faktur pemasok (akuntansi)",
+      "vendorReference": "Referensi faktur supplier",
+      "systemNumber": "No. faktur supplier (akuntansi)",
       "case": "Kasus",
       "project": "Proyek",
       "pmoNumber": "Nomor proyek PMO",
       "billDate": "Tanggal tagihan",
-      "referenceMissing": "Referensi faktur pemasok belum dicatat",
-      "systemNumberMissing": "No. faktur pemasok (akuntansi) tidak tersedia",
+      "referenceMissing": "Referensi faktur supplier belum dicatat",
+      "systemNumberMissing": "No. faktur supplier (akuntansi) tidak tersedia",
       "contextPending": "Detail sedang dimuat",
       "contextUnavailable": "Detail tidak tersedia",
       "caseMissing": "Kasus belum dicatat",
@@ -371,7 +372,7 @@
     },
     "confirmUnknown": "Konfirmasi sebagai {{type}} berdasarkan bukti potong terbit",
     "recordTitle": "Catat bukti potong",
-    "vendor": "Pemasok",
+    "vendor": "Supplier",
     "slipNumber": "Nomor slip terbit",
     "slipDate": "Tanggal slip",
     "taxPeriod": "Masa pajak",
@@ -422,10 +423,10 @@
     "amountExceedsBase": "Jumlah potongan pada bukti potong tidak boleh melebihi dasar pengenaan pajak.",
     "invalidTaxPeriod": "Pilih masa pajak yang tidak melebihi bulan berjalan.",
     "invalidFactsCopy": "Periksa data yang dimasukkan lalu coba lagi.",
-    "vendorUnavailable": "Detail pemasok belum tercatat",
+    "vendorUnavailable": "Detail supplier belum tercatat",
     "noBillHistory": "Belum ada bukti potong yang dicatat untuk tagihan ini.",
     "selectedBills": "Tagihan dipilih ({{count}})",
-    "candidateEmpty": "Tidak ada tagihan yang memenuhi syarat untuk pemasok, mata uang, dan jenis PPh ini.",
+    "candidateEmpty": "Tidak ada tagihan yang memenuhi syarat untuk supplier, mata uang, dan jenis PPh ini.",
     "candidateError": "Tagihan yang memenuhi syarat tidak dapat dimuat. Isian Anda tetap tersimpan. Coba muat lagi.",
     "retry": "Coba lagi",
     "openBillCase": "Buka tagihan {{bill}} di kasus {{case}}",
@@ -1004,7 +1005,7 @@
     "type": {
       "client": "Klien",
       "internal": "Internal",
-      "vendor": "Pemasok"
+      "vendor": "Supplier"
     },
     "pager": {
       "label": "Halaman",
@@ -1105,7 +1106,7 @@
       "updated": "Perusahaan diperbarui"
     },
     "vendorTax": {
-      "hint": "Mengisi otomatis tagihan baru dari pemasok ini. Jumlahnya tetap dapat diubah di setiap tagihan.",
+      "hint": "Mengisi otomatis tagihan baru dari supplier ini. Jumlahnya tetap dapat diubah di setiap tagihan.",
       "none": "Tidak ada",
       "notSet": "Belum diatur",
       "onlyRoles": "Hanya Admin atau Finance yang dapat mengubahnya.",
@@ -1115,10 +1116,10 @@
       "pphRateHelper": "Wajib jika pemotongan pajak dipilih. Masukkan tarif lebih dari 0 dan kurang dari 100%.",
       "pphRateError": "Masukkan tarif di atas 0 dan di bawah 100 dengan paling banyak 3 angka desimal.",
       "save": "Simpan default",
-      "saved": "Default pajak pemasok disimpan",
+      "saved": "Default pajak supplier disimpan",
       "summaryPph": "{{type}} sebesar {{rate}}%",
       "summaryVat": "PPN {{rate}}%",
-      "title": "Default pajak pemasok",
+      "title": "Default pajak supplier",
       "vatRate": "Tarif PPN (%)",
       "vatRateError": "Masukkan tarif 0 sampai 100 dengan paling banyak 3 angka desimal, atau kosongkan.",
       "withholding": "Pemotongan pajak"
@@ -1892,8 +1893,8 @@
       "paid": "Pembayaran",
       "po": "Pesanan pembelian",
       "pr": "Permintaan Pembelian",
-      "vi": "Faktur pemasok",
-      "vq": "Penawaran Pemasok"
+      "vi": "Faktur supplier",
+      "vq": "Penawaran Supplier"
     },
     "error": {
       "sub": "Terjadi kesalahan saat mengambil kasus pengadaan Anda.",
@@ -1938,14 +1939,14 @@
       "confirmReceipt": "Konfirmasi penerimaan",
       "generatePurchaseOrder": "Buat pesanan pembelian",
       "markAsPaid": "Tandai Lunas",
-      "markVendorInvoiced": "Catat faktur pemasok",
+      "markVendorInvoiced": "Catat faktur supplier",
       "reject": "Tolak",
       "selectQuote": "Bandingkan dan pilih penawaran",
       "submitRequest": "Kirim untuk persetujuan"
     },
     "recordKinds": {
       "goodsReceipt": "Penerimaan barang",
-      "vendorInvoice": "Faktur pemasok"
+      "vendorInvoice": "Faktur supplier"
     },
     "statusOption": {
       "draft": "Draf",
@@ -1966,7 +1967,7 @@
       "scheduled": "Dijadwalkan"
     },
     "vendorInvoice": {
-      "enterDetails": "Masukkan detail faktur untuk menandai tahap pemasok ditagih:",
+      "enterDetails": "Masukkan detail faktur untuk menandai tahap supplier ditagih:",
       "invoiceNumber": "No. faktur",
       "optional": "opsional",
       "invoicePlaceholder": "cth. INV-2291",
@@ -1994,11 +1995,11 @@
     "paymentLinksToInvoice": "Terkait ke faktur",
     "noInvoiceSelected": "— tidak ada —",
     "recordGoodsReceipt": "Catat penerimaan barang",
-    "recordVendorInvoice": "Catat faktur pemasok",
+    "recordVendorInvoice": "Catat faktur supplier",
     "addRecord": "Tambah {{record}}",
-    "paymentBillRequired": "Pilih faktur pemasok yang ditutup oleh pembayaran ini.",
+    "paymentBillRequired": "Pilih faktur supplier yang ditutup oleh pembayaran ini.",
     "paymentApproverCannotPay": "Pemisahan tugas: penyetuju tidak dapat membayar pengadaan yang disetujuinya sendiri.",
-    "withholdingNeedsAmount": "Masukkan jumlah tagihan untuk menghitung pemotongan pajak pemasok.",
+    "withholdingNeedsAmount": "Masukkan jumlah tagihan untuk menghitung pemotongan pajak supplier.",
     "confirm": {
       "approveBody": "Setujui <money/>?",
       "cancelTitle": "Batalkan pengadaan ini?",
@@ -2011,10 +2012,10 @@
       "moneyOnProjectRequestedBy": "<amount>{{amount}}</amount> pada <project/>, diminta oleh <person>{{name}}</person>",
       "moneyRequestedBy": "<amount>{{amount}}</amount>, diminta oleh <person>{{name}}</person>",
       "saveGR": "Simpan GR",
-      "saveVI": "Simpan faktur pemasok",
+      "saveVI": "Simpan faktur supplier",
       "terminal": "Ini tindakan akhir untuk pengadaan ini dan tidak dapat dibatalkan.",
-      "viBody": "Ini mencatat faktur pemasok untuk kasus pengadaan {{request}}.",
-      "viTitle": "Catat invoice pemasok ini?"
+      "viBody": "Ini mencatat faktur supplier untuk kasus pengadaan {{request}}.",
+      "viTitle": "Catat invoice supplier ini?"
     },
     "detail": {
       "approvedBy": "Disetujui oleh",
@@ -2030,7 +2031,7 @@
     },
     "tabsLabel": "Bagian pengadaan",
     "quotes": {
-      "emptyTitle": "Belum ada penawaran tercatat. Tambahkan penawaran pemasok untuk membandingkannya."
+      "emptyTitle": "Belum ada penawaran tercatat. Tambahkan penawaran supplier untuk membandingkannya."
     },
     "toast": {
       "grRecorded": "Penerimaan barang dicatat",
@@ -2043,7 +2044,7 @@
       "quoteSelected": "Penawaran dipilih",
       "quoteSelectedDetail": "Status pengadaan berubah menjadi Penawaran Dipilih",
       "requestUpdated": "Pengadaan diperbarui",
-      "viRecorded": "Invoice pemasok dicatat"
+      "viRecorded": "Invoice supplier dicatat"
     },
     "route": {
       "note": "Persetujuan pengadaan ini diarahkan ke {{names}}: {{why}}",
@@ -2078,12 +2079,12 @@
       "withheld": "Pajak dipotong (PPh)"
     },
     "vendorTax": {
-      "erpRequiredHint": "Masukkan jumlah PPN dari faktur pemasok (0 jika tidak ada) dan, jika ada pajak dipotong, jenis dan jumlahnya.",
+      "erpRequiredHint": "Masukkan jumlah PPN dari faktur supplier (0 jika tidak ada) dan, jika ada pajak dipotong, jenis dan jumlahnya.",
       "itemsNet": "Total item, sebelum pajak: {{amount}}",
       "none": "Tidak ada",
       "pph23": "PPh 23",
       "pph4_2": "PPh 4(2)",
-      "suggestedFrom": "Default pemasok {{rate}}% dari {{base}}",
+      "suggestedFrom": "Default supplier {{rate}}% dari {{base}}",
       "vatAmount": "Jumlah PPN",
       "withheldAmount": "Jumlah PPh",
       "withheldError": "Masukkan pajak dipotong sebagai jumlah yang tidak melebihi jumlah faktur (isi jumlah faktur terlebih dahulu).",
@@ -3233,7 +3234,7 @@
       "meetings": "Rapat",
       "myTasks": "Tugas Saya",
       "myTasksHint": "Tugas Anda di seluruh proyek",
-      "vendors": "Pemasok",
+      "vendors": "Supplier",
       "procurement": "Pengadaan",
       "projects": "Proyek",
       "revenueByProject": "Pendapatan per Proyek",
@@ -4171,7 +4172,7 @@
       "pr_number": "Nomor PR",
       "po_number": "Nomor PO",
       "requested_by_id": "Diminta oleh",
-      "vendor_id": "Pemasok",
+      "vendor_id": "Supplier",
       "budget_category": "Kategori anggaran",
       "total_value": "Nilai total",
       "procurement_id": "Pengadaan",
@@ -4239,7 +4240,7 @@
       "company": "Perusahaan",
       "contact": "Kontak",
       "sales_invoice": "Faktur penjualan",
-      "procurement_invoice": "Faktur pemasok",
+      "procurement_invoice": "Faktur supplier",
       "vendor_withholding_slip": "Bukti potong",
       "vendor_withholding_slip_bill": "Tautan tagihan bukti potong",
       "project_stage_entry": "Entri tahap"
@@ -4283,7 +4284,7 @@
       "progress_claim_create": "Klaim progres dibuat",
       "progress_claim_withdraw": "Klaim progres ditarik",
       "progress_claim_evidence_attach": "Bukti klaim progres dilampirkan",
-      "procurement_invoice_create": "Invoice pemasok dibuat",
+      "procurement_invoice_create": "Invoice supplier dibuat",
       "procurement_approval_route": "Rute persetujuan dicatat",
       "incoming_payment_create": "Pembayaran masuk dicatat",
       "incoming_payment_cancel": "Pembayaran masuk dibatalkan",
@@ -4297,7 +4298,7 @@
       "credits_grant": "Kredit diberikan",
       "company_tax_defaults_change": "Pajak bawaan perusahaan diubah",
       "org_withholding_account_change": "Akun pemotongan pajak diubah",
-      "org_vendor_tax_accounts_change": "Akun pajak pemasok diubah",
+      "org_vendor_tax_accounts_change": "Akun pajak supplier diubah",
       "org_tax_default_change": "Pajak bawaan diubah",
       "org_down_payment_item_change": "Item uang muka diubah",
       "meeting_grant_create": "Akses rapat diberikan",
@@ -4583,11 +4584,11 @@
       "draft": "Draf",
       "requested": "Diminta",
       "approved": "Disetujui",
-      "vendorQuoted": "Penawaran pemasok",
+      "vendorQuoted": "Penawaran supplier",
       "quoteSelected": "Penawaran Dipilih",
       "ordered": "Pesanan pembelian",
       "received": "Penerimaan Barang",
-      "vendorInvoiced": "Faktur pemasok",
+      "vendorInvoiced": "Faktur supplier",
       "paid": "Dibayar",
       "rejected": "Ditolak",
       "cancelled": "Dibatalkan"
@@ -4595,11 +4596,11 @@
     "nextStep": {
       "draft": "Kirim untuk persetujuan",
       "requested": "Menunggu persetujuan",
-      "approved": "Minta penawaran pemasok",
+      "approved": "Minta penawaran supplier",
       "vendorQuoted": "Pilih penawaran",
       "quoteSelected": "Siapkan pesanan pembelian",
       "ordered": "Catat penerimaan",
-      "received": "Catat invoice pemasok",
+      "received": "Catat invoice supplier",
       "vendorInvoiced": "Catat pembayaran"
     },
     "nextStepPrefix": "Langkah berikutnya:",

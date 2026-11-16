@@ -2,6 +2,7 @@
   "terms": {
     "clientWorkOrder": "Work order",
     "dashboard": "Dashboard",
+    "supplier": "Supplier",
     "timesheet": "Timesheet"
   },
   "ui": {
