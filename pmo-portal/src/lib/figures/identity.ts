@@ -3,6 +3,7 @@ export type FigureIdentityId =
   | 'budget-used'
   | 'spent'
   | 'budget-left-after-open-orders'
+  | 'budget-left-after-purchase'
   | 'contract-invoiced'
   | 'billed-work-cumulative'
   | 'billed-work-period'
