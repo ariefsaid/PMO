@@ -1,6 +1,6 @@
 # Jobs-to-Be-Done map — the Lens-D oracle (role × job)
 
-**Status:** v0.1 seed (2026-06-14). The **oracle** that **Lens D — Product / Intent** grades every
+**Status:** v0.2 (2026-11-16: §6 jobs by function added; §2 screen rows are the June seed and predate Stock, billing claims, expenses and site cash). First written 2026-06-14. The **oracle** that **Lens D — Product / Intent** grades every
 screen against. Living foundation artifact: each new feature adds/updates its role's job stories during
 intake (the grill captures the job story *before* spec). Owner-refinable — the seed below is grounded in
 the app's real roles (`src/auth/policy.ts`) and real primary screens (`App.tsx` routes); sharpen the
@@ -119,6 +119,109 @@ one model — divergence is the exact defect class the coherence wave + the anch
 | Calendar view on the project **list**, not clickable; not in task detail. | *…spot the off-track one so I can open it* — view with no job/scent, wrong place. | Q2 (+Q1) |
 | S-curve above the fold, actionable tabs buried. | *…know what's next and act* — analytic with no adjacent lever. | Q3 (+Q4) |
 | **Dishonest doorway — looks rich, does little.** A screen *implies* capability (polished pipeline, tabs, tiles) the module can't deliver: no bid comparison, no document upload, dual IDs absent, history not shown, capture buried off-page. | *…operate the case on one page* (P1) — the affordance the page advertises must actually work. | Q4 (+Q1) |
+
+---
+
+## 6. Jobs by function, end to end (the walk list)
+
+§2 lists jobs per **screen**. This section lists them per **person**: what each function must be able to
+finish, start to end, across screens. It exists because a feature can pass every test of its own and the
+person still cannot finish the job (three such gaps were found by the owner on 16 Nov 2026: no invoice
+from a claim without an ERP, Cancel leaving an Engineer on a page they have no menu for, no way to ask
+for site stock).
+
+**How it is used.** Each job is **walked in the running app as that login**, phone and desktop, English
+and Bahasa, opening every drawer, dialog and menu on the way. A job is *done*, *blocked* (cannot finish)
+or has *friction* (finishes, but with a detour, a dead end or a cut-off screen). A blocked job or a
+friction becomes a ticket with its job story; a finished job becomes a journey test named by its id, so
+it stays finished. The reference organisation for the walk is a contractor with **no ERP**, rupiah,
+Bahasa first; the same list is walked for an ERP-connected organisation before a release that changes
+the ERP paths.
+
+Functions map to app roles: site engineer and storekeeper → Engineer · project manager → Project
+Manager · purchasing, payables and receivables → Finance · director and finance director → Executive ·
+administrator → Admin.
+
+### Site engineer (Engineer)
+- **ENG-1** Fill in this week's hours on my phone and submit them. *Done when* my approver has the week.
+- **ENG-2** Fix and resubmit a week that was sent back. *Done when* it is with the approver again and I saw why it came back.
+- **ENG-3** Request a purchase for my project from the project. *Done when* the request is with its approver and I can find it again from the project.
+- **ENG-4** Change my mind while requesting. *Done when* Cancel leaves me on the project I started from.
+- **ENG-5** See where my request stands. *Done when* I can tell who has it and what happens next, without a menu I do not have.
+- **ENG-6** See what is low at my site and ask for it. *Done when* purchasing has a request naming the item and quantity.
+- **ENG-7** Take materials out of the site store for the work. *Done when* stock on hand has dropped and the project carries the use.
+- **ENG-8** Claim an expense with a photo of the receipt. *Done when* the claim is with its approver.
+- **ENG-9** Report an incident from site. *Done when* it is recorded with its severity and the project manager can see it.
+- **ENG-10** Log equipment use for the day. *Done when* the hours sit on the equipment and the project.
+- **ENG-11** Find what is assigned to me and update it. *Done when* my task shows the new progress.
+- **ENG-12** Find a project document or the minutes of a meeting and my actions from it.
+
+### Storekeeper (Engineer)
+- **STO-1** Receive a delivery into the store. *Done when* stock on hand has gone up and the purchase shows the receipt.
+- **STO-2** Issue materials to a project. *Done when* stock is down and the project carries the cost of use.
+- **STO-3** Move stock between stores. *Done when* both stores show the move.
+- **STO-4** Count the store and record the difference. *Done when* the count is posted or waits for the person who must approve it.
+- **STO-5** See what is at or below its reorder level and ask for it.
+- **STO-6** Answer "what happened to this item?" from its ledger.
+
+### Project manager
+- **PM-1** Start the day: see which of my projects need me and why, and open the one that does.
+- **PM-2** Clear what waits for my decision (hours, purchase requests, expense claims, site cash plans) with enough facts on the screen to decide.
+- **PM-3** Send something back with a reason. *Done when* the requester sees the reason.
+- **PM-4** Raise a purchase request and follow it to delivery.
+- **PM-5** Know whether the budget can carry a purchase before I approve it.
+- **PM-6** Record progress for the period. *Done when* the project's percent complete and what can be billed have moved.
+- **PM-7** Prepare a billing claim from accepted work and attach its evidence. *Done when* Finance can raise its invoice.
+- **PM-8** Propose a budget change and see it approved or refused.
+- **PM-9** Plan and adjust phases and tasks; see what is late.
+- **PM-10** Run a meeting record: minutes, actions, who owes what.
+- **PM-11** Hand a won deal over into a project with its contract value and customer order.
+- **PM-12** Answer the customer: what is invoiced, paid and still open on this project.
+
+### Purchasing (Finance)
+- **PUR-1** Pick up an approved request and ask suppliers for quotes.
+- **PUR-2** Compare quotes and choose one with a reason.
+- **PUR-3** Place the order. *Done when* the project shows the money as committed.
+- **PUR-4** Record what arrived, including a part delivery.
+- **PUR-5** Record the supplier's invoice against the order and pass it to payables.
+- **PUR-6** See every open order that is late or incomplete.
+- **PUR-7** Add or correct a supplier, with its tax details.
+- **PUR-8** Act on a restock request from a site.
+
+### Payables (Finance)
+- **AP-1** See what must be paid this week and what is overdue.
+- **AP-2** Record a payment to a supplier, with tax withheld where it applies. *Done when* the invoice shows paid and the project's spending has moved once.
+- **AP-3** Issue or record the withholding slip for a supplier.
+- **AP-4** Reimburse an approved expense claim.
+- **AP-5** Top up a site's cash after its plan is approved, and see what each site holds.
+- **AP-6** Answer a supplier: where is my invoice?
+
+### Receivables (Finance)
+- **AR-1** Raise an invoice straight from a claim (progress, down payment, time and materials).
+- **AR-2** Approve an invoice someone else prepared; be stopped from approving my own.
+- **AR-3** Record the tax invoice number against an invoice.
+- **AR-4** Record a customer's payment and apply it to one or several invoices, including a part payment.
+- **AR-5** See who owes what and how old it is; open the invoice behind any figure.
+- **AR-6** Take a down payment and recover it across later claims; see what is still held.
+- **AR-7** Cancel a wrong invoice and bill it again correctly.
+
+### Director and finance director (Executive)
+- **DIR-1** Start the day: is the business healthy, which projects are at risk, what waits for me.
+- **DIR-2** Decide the purchases and claims that need my level, with the budget position in front of me.
+- **DIR-3** Open any figure on the home screen and reach the records behind it.
+- **DIR-4** See one project's money position: contract, invoiced, received, spent, committed, left.
+- **DIR-5** See cash coming in and going out over the next weeks.
+- **DIR-6** Read the month's management figures and export them.
+- **DIR-7** Review the sales pipeline and what is stalling.
+
+### Administrator (Admin)
+- **ADM-1** Add a person, give them a role, and remove access when they leave.
+- **ADM-2** Say who approves what, per project and above it.
+- **ADM-3** Set up a new project with its customer, contract value, tax and budget (typed or imported).
+- **ADM-4** Set up stores, items and units so the site can use Stock.
+- **ADM-5** Keep company details, numbering, currencies and exchange rates right.
+- **ADM-6** See what the organisation's plan includes and switch modules on or off.
+- **ADM-7** Find out who changed a record and when.
 
 ---
 

@@ -127,7 +127,7 @@ function roundTo(d: Dec, target: number): bigint[] {
 /** What the user reads when a claim line needs decimals and the ERP's decimals cannot be read (English, then Indonesian: the adapter has no user locale). */
 const PRECISION_UNKNOWN_REFUSAL =
   "A claim line has decimals, but PMO cannot read how many decimals the ERP keeps, so nothing was sent. The ERP connection's user needs read access to the ERP's System Settings. Give it that access, then raise the invoice again. / "
-  + 'Ada baris klaim dengan desimal, tetapi PMO tidak dapat membaca jumlah desimal yang disimpan ERP, jadi tidak ada yang dikirim. Pengguna koneksi ERP perlu akses baca ke System Settings ERP. Berikan akses itu, lalu buat faktur lagi.';
+  + 'Ada baris klaim dengan desimal, tetapi PMO tidak dapat membaca jumlah desimal yang disimpan ERP, jadi tidak ada yang dikirim. Pengguna koneksi ERP perlu akses baca ke System Settings ERP. Berikan akses itu, lalu buat invoice lagi.';
 
 function booksSignedAmount(quantity: string | number, rate: string | number, amount: string | number, p: ErpPrecision | null): boolean {
   const q = parse(quantity); const r = parse(rate); const a = parse(amount);

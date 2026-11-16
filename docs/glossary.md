@@ -220,6 +220,9 @@ reporting manager.
 **Supplier** — the party a purchase is bought from. Kept in English in Bahasa (like Timesheet and
 Dasbor), not translated as "Pemasok" (owner, 16 Nov).
 
+**Invoice** — a request for payment, sales or supplier ("invoice supplier"). Kept in English in Bahasa.
+"Faktur" names only the tax invoice (Faktur Pajak, e-Faktur); "invoiced" reads "ditagih" (owner, 16 Nov).
+
 **Task dependency** — a directed relation stating that one task depends on another task (see
 **Task**).
 

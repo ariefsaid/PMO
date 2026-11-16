@@ -511,10 +511,10 @@ describe('BillingTab', () => {
       new AppError('this progress claim was withdrawn, so no invoice can be raised for it', '55000'),
     );
     const { user } = await renderTabLocalized('id');
-    await user.click(within(screen.getByTestId('claim-actions-k2')).getByRole('button', { name: 'Terbitkan faktur' }));
-    await user.click(screen.getByRole('button', { name: 'Buat faktur ERP' }));
-    const toast = await findToastAnnouncement('alert', 'Tagihan ini telah ditarik. Fakturnya tidak dapat diterbitkan.');
-    expect(toast).toHaveTextContent('Tagihan ini telah ditarik. Fakturnya tidak dapat diterbitkan.');
+    await user.click(within(screen.getByTestId('claim-actions-k2')).getByRole('button', { name: 'Terbitkan invoice' }));
+    await user.click(screen.getByRole('button', { name: 'Buat invoice ERP' }));
+    const toast = await findToastAnnouncement('alert', 'Tagihan ini telah ditarik. Invoice-nya tidak dapat diterbitkan.');
+    expect(toast).toHaveTextContent('Tagihan ini telah ditarik. Invoice-nya tidak dapat diterbitkan.');
     expect(toast).not.toHaveTextContent('Update failed');
   });
 

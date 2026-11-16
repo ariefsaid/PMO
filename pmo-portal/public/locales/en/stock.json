@@ -1,6 +1,8 @@
 {
   "nav": "Stock",
   "setup": {
+    "backToStock": "Back to Stock",
+    "odooDirectories": "Odoo directories",
     "title": "Stock setup",
     "tabsLabel": "Stock master data",
     "tabs": {

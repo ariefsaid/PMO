@@ -102,7 +102,7 @@
           "quantities": "Diterima s.d. saat ini",
           "quantityLine": "{{item}}: diterima s.d. saat ini ({{unit}})",
           "save": "Simpan BAST",
-          "subtitle": "Penerimaan pekerjaan oleh klien, sebagai kuantitas kumulatif s.d. saat ini. Pihak lain yang mengonfirmasinya; ini tidak membuat faktur.",
+          "subtitle": "Penerimaan pekerjaan oleh klien, sebagai kuantitas kumulatif s.d. saat ini. Pihak lain yang mengonfirmasinya; ini tidak membuat invoice.",
           "titleEdit": "Ubah BAST: {{wo}}",
           "titleNew": "Siapkan BAST: {{wo}}"
         },
