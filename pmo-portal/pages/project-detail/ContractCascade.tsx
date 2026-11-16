@@ -76,7 +76,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
   const contractValue = hasReadingLayer
     ? contract
     : (billing.data?.contractNet ?? 0);
-  const contractInvoiceBasis = project.tax_treatment === 'inclusive'
+  const contractBasis = project.tax_treatment === 'inclusive'
     ? t('projectDetail.cascade.signedContractInclusive', 'Signed contract · including tax')
     : project.tax_treatment === 'exclusive'
       ? t('projectDetail.cascade.signedContractExclusive', 'Signed contract · excluding tax')
@@ -244,7 +244,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
           {isCascadeError && <ListState variant="error" title={t('projectDetail.cascade.error', "Couldn't load the contract")} onRetry={() => { void boq.refetch(); void billing.refetch(); void orders.refetch(); }} />}
           {showSummary && <React.Fragment key="contract-summary-content">
           <ol className="grid min-w-0 grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-[repeat(auto-fill,minmax(19rem,1fr))]" aria-label={t('projectDetail.cascade.title', 'Contract')}>
-            <MoneyStep label={t('projectDetail.cascade.contract', 'Contract value')} value={tableMoney(contractValue)} detail={hasReadingLayer ? t('projectDetail.cascade.source.contract', 'Source: priced contract lines (quantity × rate), excluding tax.') : t('projectDetail.cascade.source.contractFallback', 'Source: the project billing summary, excluding tax.')} />
+            <MoneyStep label={t('projectDetail.cascade.contract', 'Contract value')} value={tableMoney(contractValue)} caption={contractBasis} detail={hasReadingLayer ? t('projectDetail.cascade.source.contract', 'Source: priced contract lines (quantity × rate), excluding tax.') : t('projectDetail.cascade.source.contractFallback', 'Source: the project billing summary, excluding tax.')} />
             {hasReadingLayer && hasCustomerOrders && <>
               <MoneyStep label={t('projectDetail.cascade.ordered', 'Ordered')} value={tableMoney(ordered)} percentage={percent(ordered)} detail={t('projectDetail.cascade.source.ordered', 'Source: contract allocation quantities × contract rates.')} />
               <MoneyStep label={t('projectDetail.cascade.delivered', 'Delivered')} value={tableMoney(delivered)} percentage={percent(delivered)} detail={t('projectDetail.cascade.source.delivered', 'Source: quantities accepted on confirmed BASTs × contract rates.')} />
@@ -253,7 +253,6 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
               label={t('projectDetail.cascade.invoiced', 'Invoiced')}
               value={contractInvoiceFigure.amount === null ? '—' : tableMoney(Number(contractInvoiceFigure.amount))}
               percentage={contractInvoiceFigure.percentage}
-              caption={contractInvoiceBasis}
               detail={t('projectDetail.cascade.source.invoiced', 'Invoices under the signed contract, in the contract currency and tax basis. Shown as unknown when an invoice currency or tax basis differs from the contract. The percentage is of the signed contract value.')}
             />}
             {canViewMoney && settlement.balancesKnown && !invoices.isPending && !invoices.isError && <>
