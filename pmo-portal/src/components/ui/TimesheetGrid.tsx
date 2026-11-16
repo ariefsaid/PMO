@@ -569,7 +569,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
  *   content is always rendered expanded on mount, wraps into two lines, and keeps
  *   its full value in the title — content is never hidden.
  */
-const NoteCell: React.FC<{
+export const NoteCell: React.FC<{
   rowId: string;
   project: string;
   value: string;

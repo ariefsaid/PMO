@@ -3387,8 +3387,7 @@
     "invalidHours": "Hanya 0–24 jam",
     "nextWeek": "Minggu berikutnya",
     "picker": {
-      "none": "Tidak ada proyek untuk ditambahkan",
-      "select": "Pilih proyek…"
+      "none": "Tidak ada proyek untuk ditambahkan"
     },
     "previousWeek": "Minggu sebelumnya",
     "returned": {

@@ -34,6 +34,9 @@ import { dayKey, weekStart, datesInWeek, entriesToGridRows, gridDaysForWeek } fr
 import { useTimesheetWeekEditor } from './timesheets/useTimesheetWeekEditor';
 import { TimesheetWeekToolbar } from './timesheets/TimesheetWeekToolbar';
 import { TimesheetWeekActions } from './timesheets/TimesheetWeekActions';
+import { TimesheetDayView } from './timesheets/TimesheetDayView';
+import { formatDay } from '@/src/lib/format';
+import { cn } from '@/src/components/ui/cn';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 
 // RF-061: recognizable code + short title in the picker; the added row shows the full name.
@@ -112,6 +115,11 @@ const TimesheetsPage: React.FC = () => {
 
   const gridRows = useMemo(() => entriesToGridRows(currentWeekEntries, weekDates, t('timesheets.unknownProject', 'Unknown Project')), [currentWeekEntries, weekDates, t]);
   const gridDays = useMemo(() => gridDaysForWeek(weekDates), [weekDates]);
+  // Read-only week totals for the phone day view (the desktop grid sums its own rows).
+  const readTotals = useMemo(() => {
+    const perDay = weekDates.map((_, i) => gridRows.reduce((sum, r) => sum + (r.hours[i] ?? 0), 0));
+    return { perDay, perRow: gridRows.map((r) => r.hours.reduce((a, b) => a + b, 0)), weekly: perDay.reduce((a, b) => a + b, 0) };
+  }, [gridRows, weekDates]);
 
   // ── timesheet-entry: editable-state machine (FR-TSE-001/002/003) ───────────
   // Editable iff the sheet is absent, or the signed-in user owns it AND it is Draft.
@@ -154,7 +162,7 @@ const TimesheetsPage: React.FC = () => {
   const copyDisabled = projectsPending || copyDisabledReason !== null || copyBusy;
 
   const actionProps = {
-    total: editTotals.weekly, dirty, editValid, canSubmit, hasHours: editBufferHasHours,
+    dirty, editValid, canSubmit, hasHours: editBufferHasHours,
     hasEntries: currentWeekEntries.length > 0, saving: saveWeek.isPending, submitting: submit.isPending,
     deleting: deleteRow.isPending, isReconciling, onSave: commitSave, onSubmit: requestSubmit,
   };
@@ -254,9 +262,73 @@ const TimesheetsPage: React.FC = () => {
     );
   };
 
+  // The add-project picker and Copy last week: in the card head on desktop, after the day's rows on a phone.
+  const showCopy = canEnterTimesheet && (projectsPending || copyPlan.addedCount > 0);
+  const entryActions = (editable || showCopy) && (
+      <div data-testid="timesheets-entry-actions" className={cn('flex min-w-0 flex-wrap items-center gap-2', isDesktop ? 'mt-2' : 'border-t border-border px-3.5 py-3')}>
+        {editable && (
+          <div
+            data-testid="timesheets-add-project-control"
+            className="w-full min-w-0 text-control text-muted-foreground sm:w-auto"
+          >
+            {/* One control (#2440): the closed picker reads "Add project" and never holds a value, so
+                its text is the action's visible name. Options still show in full when it opens. */}
+            <div className="min-w-0 sm:w-52">
+              {projectsPending ? (
+                <span role="status">{t('timesheets:picker.loading', 'Loading projects…')}</span>
+              ) : projectsError ? (
+                <span role="alert">
+                  {t('timesheets:picker.error', 'Could not load projects.')}
+                  <Button variant="outline" onClick={() => refetchProjects()}>
+                    {t('timesheets:picker.retry', 'Retry projects')}
+                  </Button>
+                </span>
+              ) : (
+                <SelectField
+                  id="ts-add-project"
+                  hideLabel
+                  label={t('timesheets.addAProject', 'Add a project')}
+                  value=""
+                  onChange={(value) => {
+                    if (value) addProject(value);
+                  }}
+                  disabled={pickerOptions.length === 0}
+                  options={pickerOptions.map((p) => ({ value: p.id, label: projectCodedPickerLabel(p, PICKER_NAME_MAX) }))}
+                  placeholder={
+                    pickerOptions.length === 0
+                      ? t('timesheets.picker.none', 'No projects to add')
+                      : t('timesheets.addProject', 'Add project')
+                  }
+                  className="touch-target w-full min-w-0 text-control"
+                />
+              )}
+            </div>
+          </div>
+        )}
+        {showCopy && (
+          <div data-testid="timesheets-copy-last-week" className="inline-flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={copyLastWeek}
+              disabled={copyDisabled}
+              title={copyDisabledReason ?? undefined}
+            >
+              <Icon name="clipboard-check" aria-hidden />
+              {t('timesheets:copyLastWeek.button', 'Copy last week')}
+            </Button>
+            {copyDisabledReason && (
+              <span data-testid="timesheets-copy-reason" className="text-control text-muted-foreground">
+                {copyDisabledReason}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+  );
+
   return (
     // Room under the last row for the fixed phone action strip, outside the card so the card ends with its rows.
-    <div className={editable ? 'pb-[calc(8rem+env(safe-area-inset-bottom))] md:pb-0' : undefined}>
+    <div className={editable ? 'pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-0' : undefined}>
       {head}
 
       {/* Returned-for-changes is an expected, recoverable state (role=status). */}
@@ -274,7 +346,8 @@ const TimesheetsPage: React.FC = () => {
         />
       )}
 
-      <Card clip>
+      {/* Phone: unclipped so the day view's head can stay pinned while scrolling. */}
+      <Card clip={isDesktop}>
         <div className="border-b border-border px-3.5 py-2.5">
           <div data-testid="timesheets-entry-header" className="flex min-w-0 flex-wrap items-center gap-2">
             <StatusPill record="timesheet" state={status ?? TimesheetStatus.Draft} />
@@ -285,6 +358,18 @@ const TimesheetsPage: React.FC = () => {
                 Retry here: re-driving is the approver's act (`can('push_timesheet', …)`), and this
                 badge is supplementary — a null state renders nothing and never gates the page. */}
             <PushStateBadge state={ownPushState ?? null} canRetry={false} />
+            {!editable && (status === TimesheetStatus.Submitted || status === TimesheetStatus.Approved) && (
+              // #2440: after submit the face says who has the week (same words as the submit dialog).
+              <div data-testid="timesheets-sheet-status" className="text-control text-muted-foreground md:ml-auto">
+                {status === TimesheetStatus.Submitted
+                  ? currentTimesheet?.submitted_at
+                    ? t('timesheets:sheetStatus.waitingSince', 'Waiting for your line manager since {{date}}', { date: formatDay(currentTimesheet.submitted_at) })
+                    : t('timesheets:sheetStatus.waiting', 'Waiting for your line manager')
+                  : currentTimesheet?.approved_at
+                    ? t('timesheets:sheetStatus.approvedOn', 'Approved {{date}}', { date: formatDay(currentTimesheet.approved_at) })
+                    : null}
+              </div>
+            )}
             {editable && (
               <div
                 data-testid="timesheets-save-status"
@@ -301,78 +386,20 @@ const TimesheetsPage: React.FC = () => {
               </div>
             )}
           </div>
-          <div data-testid="timesheets-entry-actions" className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
-            {editable && (
-              <div
-                data-testid="timesheets-add-project-control"
-                className="flex w-full min-w-0 flex-nowrap items-center gap-1.5 text-control font-medium text-muted-foreground sm:inline-flex sm:w-auto"
-              >
-                <Icon name="plus" aria-hidden />
-                <span>{t('timesheets.addProject', 'Add project')}</span>
-                {/* max-w cap + min-w-0: the closed picker only shows the short placeholder,
-                    so capping its width is safe; options still show in full. Use the shared
-                    DS SelectField so dark mode keeps the tokened field shell. */}
-                <div className="min-w-0 flex-1 sm:max-w-[160px]">
-                  {projectsPending ? (
-                    <span role="status">{t('timesheets:picker.loading', 'Loading projects…')}</span>
-                  ) : projectsError ? (
-                    <span role="alert">
-                      {t('timesheets:picker.error', 'Could not load projects.')}
-                      <Button variant="outline" onClick={() => refetchProjects()}>
-                        {t('timesheets:picker.retry', 'Retry projects')}
-                      </Button>
-                    </span>
-                  ) : (
-                    <SelectField
-                      id="ts-add-project"
-                      hideLabel
-                      label={t('timesheets.addAProject', 'Add a project')}
-                      value=""
-                      onChange={(value) => {
-                        if (value) addProject(value);
-                      }}
-                      disabled={pickerOptions.length === 0}
-                      options={pickerOptions.map((p) => ({ value: p.id, label: projectCodedPickerLabel(p, PICKER_NAME_MAX) }))}
-                      placeholder={
-                        pickerOptions.length === 0
-                          ? t('timesheets.picker.none', 'No projects to add')
-                          : t('timesheets.picker.select', 'Select a project…')
-                      }
-                      className="touch-target w-full min-w-0 text-control sm:max-w-[160px]"
-                    />
-                  )}
-                </div>
-              </div>
-            )}
-            {canEnterTimesheet && (projectsPending || copyPlan.addedCount > 0) && (
-              <div data-testid="timesheets-copy-last-week" className="inline-flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  onClick={copyLastWeek}
-                  disabled={copyDisabled}
-                  title={copyDisabledReason ?? undefined}
-                >
-                  <Icon name="clipboard-check" aria-hidden />
-                  {t('timesheets:copyLastWeek.button', 'Copy last week')}
-                </Button>
-                {copyDisabledReason && (
-                  <span data-testid="timesheets-copy-reason" className="text-control text-muted-foreground">
-                    {copyDisabledReason}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
+        {isDesktop && entryActions}
         </div>
 
         {editable ? (
           editGridRows.length === 0 ? (
-            <div data-testid="timesheets-empty" className="px-3.5 py-8 text-center">
-              <p className="text-sm font-medium text-foreground">
-                {t('timesheets.emptyEdit.title', 'No hours logged this week')}
-              </p>
-            </div>
-          ) : (
+            <>
+              <div data-testid="timesheets-empty" className="px-3.5 py-8 text-center">
+                <p className="text-sm font-medium text-foreground">
+                  {t('timesheets.emptyEdit.title', 'No hours logged this week')}
+                </p>
+              </div>
+              {!isDesktop && entryActions}
+            </>
+          ) : isDesktop ? (
             <TimesheetGrid
               days={gridDays}
               rows={editGridRows}
@@ -383,19 +410,50 @@ const TimesheetsPage: React.FC = () => {
               onCellChange={setCell}
               onNoteChange={setNote}
               onDeleteRow={requestDelete}
-              hideMobileWeekTotal={!isDesktop}
             />
+          ) : (
+            <TimesheetDayView
+              days={gridDays}
+              dates={weekDates}
+              rows={editGridRows}
+              dayTotals={editTotals.perDay}
+              rowTotals={editTotals.perRow}
+              weekTotal={editTotals.weekly}
+              editable
+              notes={editNotes}
+              rawHours={editRawHours}
+              invalidCells={invalidCells}
+              onCellChange={setCell}
+              onNoteChange={setNote}
+              onDeleteRow={requestDelete}
+            >
+              {entryActions}
+            </TimesheetDayView>
           )
         ) : gridRows.length === 0 ? (
-          <div data-testid="timesheets-empty">
-            <ListState
-              variant="empty"
-              icon="clock"
-              title={t('timesheets.empty.title', 'No hours logged this week')}
-            />
-          </div>
-        ) : (
+          <>
+            <div data-testid="timesheets-empty">
+              <ListState
+                variant="empty"
+                icon="clock"
+                title={t('timesheets.empty.title', 'No hours logged this week')}
+              />
+            </div>
+            {!isDesktop && entryActions}
+          </>
+        ) : isDesktop ? (
           <TimesheetGrid days={gridDays} rows={gridRows} />
+        ) : (
+          <TimesheetDayView
+            days={gridDays}
+            dates={weekDates}
+            rows={gridRows}
+            dayTotals={readTotals.perDay}
+            rowTotals={readTotals.perRow}
+            weekTotal={readTotals.weekly}
+          >
+            {entryActions}
+          </TimesheetDayView>
         )}
       </Card>
 

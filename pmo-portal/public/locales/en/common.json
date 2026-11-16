@@ -3387,8 +3387,7 @@
     "invalidHours": "0–24 only",
     "nextWeek": "Next week",
     "picker": {
-      "none": "No projects to add",
-      "select": "Select a project…"
+      "none": "No projects to add"
     },
     "previousWeek": "Previous week",
     "returned": {

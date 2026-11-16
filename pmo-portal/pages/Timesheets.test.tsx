@@ -511,9 +511,10 @@ describe('timesheet-entry: project picker (Task 15)', () => {
     tsState.isPending = false; tsState.isError = false;
     renderPage();
     const picker = screen.getByLabelText(/add a project/i) as HTMLSelectElement;
+    // The placeholder ("Add project") carries no value; only real projects are offered.
     const optionLabels = Array.from(picker.options)
-      .map((o) => o.textContent)
-      .filter((t) => t && !/select a project/i.test(t));
+      .filter((o) => o.value !== '')
+      .map((o) => o.textContent);
     expect(optionLabels).toEqual(['P003 · Acme Internal Platform']);
   });
 

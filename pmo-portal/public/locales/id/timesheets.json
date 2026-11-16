@@ -53,5 +53,14 @@
   },
   "footer": {
     "fixHoursToSubmit": "Perbaiki jam yang ditandai merah untuk mengajukan"
+  },
+  "sheetStatus": {
+    "waitingSince": "Menunggu persetujuan atasan Anda sejak {{date}}",
+    "waiting": "Menunggu persetujuan atasan Anda",
+    "approvedOn": "Disetujui {{date}}"
+  },
+  "dayView": {
+    "daysOfWeek": "Hari dalam minggu ini",
+    "dayStripLabel": "{{day}} {{date}}, {{hours}} jam"
   }
 }

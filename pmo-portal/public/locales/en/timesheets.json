@@ -53,5 +53,14 @@
   },
   "footer": {
     "fixHoursToSubmit": "Fix the hours marked in red to submit"
+  },
+  "sheetStatus": {
+    "waitingSince": "Waiting for your line manager since {{date}}",
+    "waiting": "Waiting for your line manager",
+    "approvedOn": "Approved {{date}}"
+  },
+  "dayView": {
+    "daysOfWeek": "Days of the week",
+    "dayStripLabel": "{{day}} {{date}}, {{hours}} hours"
   }
 }

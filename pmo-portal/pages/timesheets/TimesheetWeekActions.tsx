@@ -3,7 +3,6 @@ import { Button, FormFooter, Icon, MobileActionStrip } from '@/src/components/ui
 
 type Props = {
   mode: 'desktop' | 'mobile';
-  total: number;
   dirty: boolean;
   editValid: boolean;
   canSubmit: boolean;
@@ -17,14 +16,14 @@ type Props = {
   onSubmit: () => void;
 };
 
-export function TimesheetWeekActions({ mode, total, dirty, editValid, canSubmit, hasHours, hasEntries, saving, submitting, deleting, isReconciling, onSave, onSubmit }: Props) {
+export function TimesheetWeekActions({ mode, dirty, editValid, canSubmit, hasHours, hasEntries, saving, submitting, deleting, isReconciling, onSave, onSubmit }: Props) {
   const { t } = useTranslation(['common', 'timesheets']);
+  const fixHint = t('timesheets:footer.fixHoursToSubmit', 'Fix the hours marked in red to submit');
   if (mode === 'mobile') return (
     <MobileActionStrip
-      total={total}
       canSave={dirty && editValid && !saving && !deleting && !isReconciling}
       canSubmit={canSubmit && !submitting && !deleting && !isReconciling}
-      showSubmitHint={!hasHours && !hasEntries}
+      hint={!editValid ? fixHint : !hasHours && !hasEntries ? t('timesheets.enterHoursToSubmit', 'Enter hours to submit') : undefined}
       saving={saving}
       submitting={submitting}
       onSave={onSave}
@@ -38,7 +37,7 @@ export function TimesheetWeekActions({ mode, total, dirty, editValid, canSubmit,
       testId="timesheets-footer"
       className="px-3.5"
       hint={!editValid
-        ? t('timesheets:footer.fixHoursToSubmit', 'Fix the hours marked in red to submit')
+        ? fixHint
         : !canSubmit ? t('timesheets.enterHoursToSubmit', 'Enter hours to submit') : undefined}
     >
       <Button variant="outline" onClick={onSave} disabled={!dirty || !editValid || saving || deleting || isReconciling} loading={saving}>

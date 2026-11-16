@@ -220,7 +220,7 @@ describe('AC-IXD-TS-002: Save and Submit are co-located in the grid footer (no s
 describe('AC-UXS-023 / UX-063: mobile timesheet completion stays with the week', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('keeps the total and both actions available for a two-project mobile week', () => {
+  it('keeps the total and both actions available for a two-project mobile week', async () => {
     vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
       matches: false,
       addEventListener: vi.fn(),
@@ -243,12 +243,25 @@ describe('AC-UXS-023 / UX-063: mobile timesheet completion stays with the week',
 
     const strip = screen.getByTestId('timesheets-mobile-action-strip');
     expect(strip).toHaveAttribute('data-mobile-action-bar');
-    expect(within(strip).getByText('10 hours this week')).toBeInTheDocument();
+    // #2440: the week total sits in the day view's pinned head, in view while typing.
+    expect(screen.getByTestId('tsgrid-grand-total')).toHaveTextContent('10 hours this week');
     expect(within(strip).getByRole('button', { name: 'Save draft' })).toBeDisabled();
     expect(within(strip).getByRole('button', { name: 'Submit week' })).toBeEnabled();
     expect(screen.queryByTestId('timesheets-footer')).not.toBeInTheDocument();
+    // Any day of the week is one tap away: choosing Sunday shows both projects' Sunday fields.
+    await userEvent.click(screen.getByRole('button', { name: /^Sun \d+, 0 hours$/ }));
     expect(screen.getByLabelText('Alpha Project, Sun hours')).toBeInTheDocument();
     expect(screen.getByLabelText('Beta Project, Sun hours')).toBeInTheDocument();
+  });
+});
+
+describe('#2440: after submit, the week says who has it', () => {
+  it('shows who the submitted week waits on and since when', () => {
+    tsState.data = [{ ...draftSheet([])[0], status: 'Submitted', submitted_at: '2026-11-10T03:00:00Z' }] as unknown as TimesheetWithEntries[];
+    tsState.isPending = false;
+    tsState.isError = false;
+    renderPage();
+    expect(screen.getByTestId('timesheets-sheet-status')).toHaveTextContent(/^Waiting for your line manager since 10 Nov/);
   });
 });
 

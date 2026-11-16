@@ -1,27 +1,26 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { formatNumberExact } from '@/src/lib/format';
 import { Button } from './Button';
 import { Icon } from './icons';
 import { MobileActionBar } from './MobileActionBar';
 
 export interface MobileActionStripProps {
-  total: number;
   canSave: boolean;
   canSubmit: boolean;
-  showSubmitHint?: boolean;
+  /** Why Submit is held, shown above the buttons (e.g. "Enter hours to submit"). */
+  hint?: string;
   saving?: boolean;
   submitting?: boolean;
   onSave: () => void;
   onSubmit: () => void;
 }
 
-/** Phone-only timesheet completion controls, kept clear of the device safe area. */
+/** Phone-only timesheet completion controls, kept clear of the device safe area. The week total
+ *  lives in the day view's pinned head (#2440), so it stays in view while the keyboard is up. */
 export const MobileActionStrip: React.FC<MobileActionStripProps> = ({
-  total,
   canSave,
   canSubmit,
-  showSubmitHint = false,
+  hint,
   saving = false,
   submitting = false,
   onSave,
@@ -42,16 +41,7 @@ export const MobileActionStrip: React.FC<MobileActionStripProps> = ({
       }}
     >
       <div className="mx-auto flex max-w-5xl flex-col gap-2">
-        <p className="text-center text-control font-semibold tabular text-foreground">
-          {t('timesheets.hoursThisWeek', '{{hours}} hours this week', {
-            hours: formatNumberExact(total),
-          })}
-        </p>
-        {showSubmitHint && (
-          <p className="text-center text-control text-muted-foreground">
-            {t('timesheets.enterHoursToSubmit', 'Enter hours to submit')}
-          </p>
-        )}
+        {hint && <p className="text-center text-control text-muted-foreground">{hint}</p>}
         <div className="grid grid-cols-2 gap-2">
           <Button
             variant="outline"

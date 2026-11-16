@@ -72,11 +72,19 @@ async function expectSaveToast(page: Page): Promise<void> {
   await page.waitForTimeout(300);
 }
 
+/** The phone shows one day at a time (#2440): choose the day in the week strip first. */
+async function pickDay(page: Page, dayLabel: string): Promise<void> {
+  const day = page.getByRole('group', { name: 'Days of the week' }).getByRole('button', { name: new RegExp(`^${dayLabel} `) });
+  await day.click();
+  await expect(day).toHaveAttribute('aria-pressed', 'true');
+}
+
 /**
  * Fill an hour cell in the editable grid. Re-locates the input on every call to
  * avoid stale-reference issues across React re-renders triggered by query refetches.
  */
 async function fillHourCell(page: Page, projectName: string, dayLabel: string, value: string): Promise<void> {
+  await pickDay(page, dayLabel);
   const input = page.getByRole('textbox', { name: new RegExp(`${projectName}, ${dayLabel} hours`, 'i') });
   await expect(input).toBeVisible({ timeout: 10_000 });
   await expect(input).toBeEnabled();
@@ -119,9 +127,9 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   await expect(page.getByText('Innovate Corp HQ Fit-Out', { exact: true })).toBeVisible({ timeout: 5_000 });
   await fillHourCell(page, 'Innovate Corp HQ Fit-Out', 'Wed', '4');
 
-  // Live total should reflect 18h before saving across both projects. While the week is editable on a
-  // phone, the one weekly total sits beside Save/Submit in the thumb bar (#design-1115).
-  const liveWeekTotal = page.getByTestId('timesheets-mobile-action-strip');
+  // Live total should reflect 18h before saving across both projects. On a phone the one weekly total
+  // sits in the day view's pinned head, in view while typing (#2440).
+  const liveWeekTotal = page.getByTestId('tsgrid-grand-total');
   await expect(liveWeekTotal).toContainText('18 hours this week');
 
   // ── Step 5: Save — Draft is created on first Save (FR-TSE-011) ──────────────
@@ -188,6 +196,7 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   await expect(liveWeekTotal).toContainText('12 hours this week');
 
   // An invalid draft carries its field error and stays gated from submission.
+  await pickDay(page, 'Sun');
   const lastInput = page.getByRole('textbox', { name: /Innovate Corp HQ Fit-Out, Sun hours/i });
   await lastInput.fill('25');
   await expect(lastInput).toHaveAttribute('aria-invalid', 'true');
@@ -231,6 +240,8 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   await expect(page.getByRole('button', { name: 'Submit week' })).not.toBeVisible({ timeout: 5_000 });
   await expect(page.getByTestId('tsgrid-grand-total')).toContainText('12');
   const mobileGrid = page.getByTestId('tsgrid-mobile');
+  await pickDay(page, 'Mon');
   await expect(mobileGrid.locator('[aria-label="Acme Internal Platform, Mon hours"]')).toHaveText('8');
+  await pickDay(page, 'Wed');
   await expect(mobileGrid.locator('[aria-label="Innovate Corp HQ Fit-Out, Wed hours"]')).toHaveText('4');
 });
