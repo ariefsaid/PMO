@@ -257,6 +257,7 @@
     "loadMoreFailed": "Couldn't load more documents"
   },
   "detail": {
+    "title": "Document",
     "notFound": {
       "title": "Document not found",
       "sub": "It may belong to another organisation or no longer exist."

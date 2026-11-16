@@ -257,6 +257,7 @@
     "loadMoreFailed": "Gagal memuat dokumen berikutnya"
   },
   "detail": {
+    "title": "Dokumen",
     "notFound": {
       "title": "Dokumen tidak ditemukan",
       "sub": "Dokumen mungkin milik organisasi lain atau sudah tidak ada."
