@@ -23,6 +23,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatDay, formatDayRange, formatNumberExact } from '@/src/lib/format';
 import { localToday } from '@/src/lib/efaktur';
 import type { ComboboxOption } from '@/src/components/ui/Combobox';
+import { DateField } from '@/src/components/ui/DateField';
 
 interface TimeAndMaterialsProps {
   projectId: string;
@@ -464,8 +465,8 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
             <h3 id="tm-assemble-heading" className="text-group font-semibold text-foreground">{t('assembly.title', 'Assemble a claim')}</h3>
             <p className="mt-1 max-w-prose text-sm text-muted-foreground">{t('assembly.description', 'Preview approved hours for a period. Hours without an applicable rate stay outside the claim.')}</p>
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
-              <TextField type="date" label={t('assembly.from', 'From')} value={periodFrom} onChange={setPeriodFrom} />
-              <TextField type="date" label={t('assembly.to', 'To')} value={periodTo} onChange={setPeriodTo} />
+              <DateField label={t('assembly.from', 'From')} value={periodFrom} onChange={setPeriodFrom} />
+              <DateField label={t('assembly.to', 'To')} value={periodTo} onChange={setPeriodTo} />
               {canPrepareClaims && <Button variant="primary" className="touch-target min-h-11" disabled={!previewRangeValid || preview.isPending || pricedRows.length === 0 || preview.data?.truncated === true || assemble.isPending} loading={assemble.isPending} onClick={() => void handleAssemble()}>{t('assembly.assemble', 'Assemble claim')}</Button>}
             </div>
             {!previewRangeValid && <p className="mt-2 text-sm text-destructive-text" role="alert">{t('assembly.invalidRange', 'Choose an end date on or after the start date.')}</p>}
@@ -637,7 +638,7 @@ const RateLineModal: React.FC<RateLineModalProps> = ({ projectId, currency, line
         options={[{ value: 'hour', label: t('unit.hour', 'hour') }, { value: 'day', label: t('unit.day', 'day') }]} />
       <TextField label={t('rateCard.rate', 'Rate per {{unit}}', { unit: form.values.unit === 'hour' ? t('unit.hour', 'hour') : t('unit.day', 'day') })}
         inputMode="decimal" value={form.values.rate} onChange={(value) => form.setValue('rate', value)} onBlur={() => form.handleBlur('rate')} error={form.errors.rate} required />
-      <TextField type="date" label={t('rateCard.effectiveFrom', 'Effective from')} required {...form.fieldProps('effectiveFrom')} />
+      <DateField label={t('rateCard.effectiveFrom', 'Effective from')} required {...form.fieldProps('effectiveFrom')} />
     </FormGrid>
   <p className="mt-3 text-sm text-muted-foreground">{t('rateCard.modalDescription', 'The currency comes from this project. Saving a changed rate creates a new version for future claims.')}</p>
   </EntityFormModal>;
@@ -686,7 +687,7 @@ const AssignPersonModal: React.FC<AssignPersonModalProps> = ({ rates, profiles, 
       <SelectField label={t('rateCard.line', 'Rate line')} value={lineKey} onChange={setLineKey} options={lineOptions} placeholder={t('rateCard.chooseLine', 'Choose a rate line')} required />
       <Combobox label={t('rateCard.person', 'Person')} value={personId || null} selectedOption={personOption} onChange={(value) => setPersonId(value)}
         loadOptions={async () => personOptions} noun={t('rateCard.personNoun', 'person')} placeholder={t('rateCard.choosePerson', 'Choose an active person')} disabled={profilesPending} />
-      <TextField type="date" label={t('rateCard.effectiveFrom', 'Effective from')} value={from} onChange={setFrom} required />
+      <DateField label={t('rateCard.effectiveFrom', 'Effective from')} value={from} onChange={setFrom} required />
       <FieldError>{error}</FieldError>
     </FormGrid>
   </EntityFormModal>;

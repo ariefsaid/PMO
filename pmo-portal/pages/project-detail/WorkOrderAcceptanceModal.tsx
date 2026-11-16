@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { statusLabel } from '@/src/lib/status/statusMap';
 import {
-  EntityFormModal, FormGrid, FormSection, NumberField, SelectField, TextArea, TextField, type SubmitError,
+  EntityFormModal, FormGrid, FormSection, NumberField, SelectField, TextArea, type SubmitError,
 } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatMoneyInputValue, formatNumberExact, parseMoneyInputAtScale } from '@/src/lib/format';
@@ -12,6 +12,7 @@ import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import type {
   PrepareWorkOrderAcceptanceInput, WorkOrderAcceptanceWithLines, WorkOrderLineRow,
 } from '@/src/lib/db/workOrderAcceptances';
+import { DateField } from '@/src/components/ui/DateField';
 
 /**
  * Prepare (or re-record a Draft of) a BAST — the client's acceptance of work on one work order (ADR-0091, OD-CQ-2).
@@ -147,7 +148,7 @@ const WorkOrderAcceptanceModal: React.FC<WorkOrderAcceptanceModalProps> = ({
     >
       <FormSection legend={t('projectTabs:contractQuantities.workOrders.acceptances.form.details', 'Acceptance')}>
         <FormGrid>
-          <TextField id="bast-date" type="date" label={t('projectTabs:contractQuantities.workOrders.acceptances.form.date', 'BAST date')} required
+          <DateField id="bast-date" label={t('projectTabs:contractQuantities.workOrders.acceptances.form.date', 'BAST date')} required
             value={date} onChange={setDate} error={errors.date} />
           <SelectField id="bast-document" label={t('projectTabs:contractQuantities.workOrders.acceptances.form.document', 'Signed BAST document')}
             value={documentId} onChange={setDocumentId} options={docOptions}

@@ -22,6 +22,7 @@ import { parseStockError } from '@/src/lib/stockErrors';
 import { isPositiveDecimal, isWholeQuantity, normalizeDecimal } from '@/src/lib/stockFormat';
 import type { StockDocumentInput, StockDocumentKind, StockLineInput } from '@/src/lib/db/stockDocuments';
 import StockCount from './StockCount';
+import { DateField } from '@/src/components/ui/DateField';
 
 const KINDS = ['receive', 'transfer', 'issue', 'return'] as const;
 type MovementKind = (typeof KINDS)[number];
@@ -307,7 +308,7 @@ const StockMovementForm: React.FC = () => {
 
           <FormSection legend={t('form.sections.details')}>
             <div className="max-w-[260px]">
-              <TextField label={t('form.occurredOn')} type="date" value={occurredOn} onChange={setOccurredOn} helper={t('form.occurredOnHelp')} max={today ?? undefined} />
+              <DateField label={t('form.occurredOn')} value={occurredOn} onChange={setOccurredOn} helper={t('form.occurredOnHelp')} max={today ?? undefined} />
             </div>
             <div className="mt-3">
               <TextArea label={t('form.note')} value={note} onChange={setNote} rows={2} />

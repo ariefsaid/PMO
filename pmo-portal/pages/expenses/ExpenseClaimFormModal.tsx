@@ -17,6 +17,7 @@ import { AdvanceLoadNotice } from './AdvanceLoadNotice';
 import { ProjectLoadNotice } from './ProjectLoadNotice';
 import type { ProjectLoad } from './useProjectChoices';
 import type { OwnAdvanceOptions } from './useOwnAdvanceOptions';
+import { DateField } from '@/src/components/ui/DateField';
 
 /** S-12 (RF-060): before a NEW draft exists, say plainly when it will not reach accounting. PMO-only capture
  *  stays available; this is display only — it never blocks, switches posting on, or re-queues older claims. */
@@ -309,7 +310,7 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
                 </span>
               )}
             </div>
-            <TextField id={expenseDateField.id} type="date" label={t('expenses.lines.date', 'Date')} required={hasFirstLine}
+            <DateField id={expenseDateField.id} label={t('expenses.lines.date', 'Date')} required={hasFirstLine}
               value={expenseDateField.value} onChange={expenseDateField.onChange} onBlur={expenseDateField.onBlur}
               error={expenseDateField.error} disabled={recoveryPending} />
             <SelectField id={expenseTypeField.id} label={t('expenses.lines.type', 'Type')} value={expenseTypeField.value} required={hasFirstLine}

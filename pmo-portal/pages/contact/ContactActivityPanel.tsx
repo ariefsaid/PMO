@@ -25,6 +25,7 @@ import type { CrmActivityKind, CrmActivityInput, CrmActivityRow } from '@/src/li
 import { EditActivityModal } from '@/pages/activity/EditActivityModal';
 import { ActivityShowMore } from '@/pages/activity/ActivityShowMore';
 import { hrefForActivity } from './activityLinks';
+import { DateField } from '@/src/components/ui/DateField';
 
 /**
  * The contact record page's activity panel (CROSS-69): the touchpoint log + timeline, moved off
@@ -273,10 +274,9 @@ export const ContactActivityPanel: React.FC<ContactActivityPanelProps> = ({
               onChange={(v) => setKind(v as CrmActivityKind)}
               options={kindOptions(t)}
             />
-            <TextField
+            <DateField
               label={t('contactDetail.activity.date', 'Date')}
               aria-label={t('contactDetail.activity.date', 'Date')}
-              type="date"
               value={activityDate}
               onChange={setActivityDate}
               required

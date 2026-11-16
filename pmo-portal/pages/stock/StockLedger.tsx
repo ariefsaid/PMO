@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { DataTable, ListPage, ListState, SelectField, StatusPill, TextField, type Column } from '@/src/components/ui';
+import { DataTable, ListPage, ListState, SelectField, StatusPill, type Column } from '@/src/components/ui';
 import { StockFilters, StockTabs } from '@/src/components/stock/StockTabs';
 import { useStockItems, useStockLedger, useStockWarehouses } from '@/src/hooks/useStock';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
@@ -10,6 +10,7 @@ import { formatQuantity, formatStockValue } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { formatDay } from '@/src/lib/format';
 import type { StockLedgerRow } from '@/src/lib/db/stockReports';
+import { DateField } from '@/src/components/ui/DateField';
 
 /** Desktop code columns reserve their full width and the table scrolls inside its own viewport. The
  * phone card may wrap a long code to keep it within the card. */
@@ -195,8 +196,8 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
             options={(items.data ?? []).map((i) => ({ value: i.id, label: `${i.code} - ${i.name}` }))} placeholder={t('ledger.filters.allItems')} />
           <SelectField label={t('ledger.filters.warehouse')} hideLabel value={warehouseId} onChange={(v) => set('warehouse', v)}
             options={(warehouses.data ?? []).map((w) => ({ value: w.id, label: `${w.code} - ${w.name}` }))} placeholder={t('ledger.filters.allWarehouses')} />
-          <TextField label={t('ledger.filters.from')} type="date" value={from} onChange={(v) => set('from', v)} />
-          <TextField label={t('ledger.filters.to')} type="date" value={to} onChange={(v) => set('to', v)} />
+          <DateField label={t('ledger.filters.from')} value={from} onChange={(v) => set('from', v)} />
+          <DateField label={t('ledger.filters.to')} value={to} onChange={(v) => set('to', v)} />
           {documentId && <StatusPill variant="neutral">{t('ledger.filters.oneDocument')}</StatusPill>}
       </StockFilters>
       {body}

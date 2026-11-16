@@ -166,7 +166,7 @@ export const formControlShell =
   'placeholder:text-muted-foreground disabled:bg-secondary disabled:text-muted-foreground ' +
   'disabled:cursor-not-allowed';
 export const formControlInvalid = 'border-destructive hover:enabled:border-destructive';
-const compactControlShell =
+export const compactControlShell =
   'h-[var(--control-height-sm)] rounded-md border border-border hover:enabled:border-input bg-card px-3 text-control text-foreground ' +
   '[@media(pointer:coarse)]:h-11 ' +
   'placeholder:text-muted-foreground disabled:bg-secondary disabled:text-muted-foreground ' +
