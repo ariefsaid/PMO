@@ -387,7 +387,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
       );
       await userEvent.click(screen.getByRole('button', { name: /^Tagih/ }));
       await userEvent.click(screen.getByRole('button', { name: 'modal-created-numbered' }));
-      expect(screen.getByText('Draf dibuat. Pengguna Finance atau Admin lain harus mengajukan faktur ini.')).toBeInTheDocument();
+      expect(screen.getByText('Draf dibuat. Pengguna Finance atau Admin lain harus mengajukan invoice ini.')).toBeInTheDocument();
     } finally {
       await financeTestI18n.changeLanguage('en');
     }

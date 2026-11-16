@@ -30,9 +30,9 @@ type Handoff = [namespace: string, key: string, english: string, indonesian: str
 
 /** A5 — stock screens (C1/C5/C13 rows, documents order, the Stock on hand moves). */
 const A5: Handoff[] = [
-  ['stock', 'onHand.count', '{{shown}} balances', '{{shown}} saldo'],
-  ['stock', 'onHand.countOne', '1 balance', '1 saldo'],
-  ['stock', 'onHand.countOfTotal', 'Showing {{shown}} of {{total}} balances', 'Menampilkan {{shown}} dari {{total}} saldo'],
+  ['stock', 'onHand.count', '{{shown}} balances', '{{shown}} sisa stok'],
+  ['stock', 'onHand.countOne', '1 balance', '1 sisa stok'],
+  ['stock', 'onHand.countOfTotal', 'Showing {{shown}} of {{total}} balances', 'Menampilkan {{shown}} dari {{total}} sisa stok'],
   ['stock', 'detail.overAllowanceFailed', 'Could not check whether this issue is over its work-item allowance.', 'Tidak dapat memeriksa apakah pengeluaran ini melebihi batas item pekerjaannya.'],
   ['stock', 'detail.costsFailed', "Couldn't load the line costs", 'Gagal memuat biaya per baris'],
   ['stock', 'documents.loadMoreFailed', "Couldn't load more documents", 'Gagal memuat dokumen berikutnya'],

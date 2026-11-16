@@ -190,8 +190,8 @@ describe('ReceiptRecord', () => {
     },
     {
       language: 'id',
-      coverageUnknown: 'Sistem akuntansi belum melaporkan faktur mana yang dilunasi pembayaran ini.',
-      onAccount: 'Pembayaran ini tidak dialokasikan ke faktur mana pun. Uangnya ditahan sebagai titipan.',
+      coverageUnknown: 'Sistem akuntansi belum melaporkan invoice mana yang dilunasi pembayaran ini.',
+      onAccount: 'Pembayaran ini tidak dialokasikan ke invoice mana pun. Uangnya ditahan sebagai titipan.',
     },
   ])('uses payment wording for the two allocation messages in $language', async ({ language, coverageUnknown, onAccount }) => {
     const i18n = createInstance();

@@ -58,3 +58,10 @@ describe('LegalPageLayout — C6 one main landmark', () => {
     expect(results.violations).toEqual([]);
   });
 });
+
+describe('LegalPageLayout — one brand header (#2436)', () => {
+  it('shows the same PMO Portal brand header the sign-in screens carry', () => {
+    renderLayout();
+    expect(screen.getByText('PMO Portal')).toBeVisible();
+  });
+});
