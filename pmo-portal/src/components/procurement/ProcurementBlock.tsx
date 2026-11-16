@@ -630,8 +630,9 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         kind: 'text',
         rowHeader: true,
         // #1791: with Category shown the list must fit the scroller at 1440; the title clamps to two lines and the code · supplier line to one, each with its full text in `title`.
-        size: 152,
-        minSize: 152,
+        // #2434: 216 leaves the supplier room beside the uncut number; Next step, Raised by and In stage give the width back.
+        size: 216,
+        minSize: 216,
         sortKey: 'title',
         cell: (row) => (
           <div className="min-w-0 space-y-1">
@@ -671,8 +672,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         header: t('projectDetail.procurement.table.nextStep', 'Next step'),
         kind: 'text',
         // #1791 ruling: the label wraps to two lines, then truncates with the full text in `title`.
-        size: 186,
-        minSize: 186,
+        size: 146,
+        minSize: 146,
         cell: (row) => {
           const next = nextStepText(row.status, canDecideRow(row), t);
           return <Tooltip content={next}><span title={next} className={`block min-w-0 w-full max-w-full line-clamp-2 break-words ${row.status === 'Requested' && canDecideRow(row) ? 'font-medium text-primary-text' : 'text-muted-foreground'}`}>{next}</span></Tooltip>;
@@ -685,8 +686,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         kind: 'number',
         colClassName: projectId ? 'hidden' : undefined,
         align: 'num',
-        size: 104,
-        minSize: 104,
+        size: 96,
+        minSize: 96,
         sortKey: 'age',
         cell: (row) => {
           const days = derivationFor(row).age;
@@ -703,8 +704,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         header: t('procurement.raisedBy', 'Raised by'),
         kind: 'text',
         colClassName: projectId ? 'hidden' : undefined,
-        size: 140,
-        minSize: 140,
+        size: 124,
+        minSize: 124,
         sortKey: 'owner',
         cell: (row) => {
           const owner = row.requested_by?.full_name ?? t('projectDetail.procurement.unassigned', 'Unassigned');
@@ -896,15 +897,16 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                 </span>
                 {canSeeMoney && rowAmount(row, true)}
               </div>
-              <div className="flex min-w-0 items-center justify-between gap-3">
-                {next ? (
+              {next && (
+                <div className="flex min-w-0">
                   <Button variant="outline" size="sm" onClick={() => navigate(`/procurement/${row.id}`)}>{next}</Button>
-                ) : <span />}
-                <span className="min-w-0 truncate text-sm text-muted-foreground">
-                  <span className="sr-only">{t('procurement.raisedBy', 'Raised by')}</span>
-                  {owner}
-                </span>
-              </div>
+                </div>
+              )}
+              {/* #2434: the owner takes its own line under the action, so a long Bahasa label never cuts the name. */}
+              <span className="block min-w-0 break-words text-sm text-muted-foreground">
+                <span className="sr-only">{t('procurement.raisedBy', 'Raised by')}</span>
+                {owner}
+              </span>
             </div>
           );
         }}
