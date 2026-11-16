@@ -35,14 +35,15 @@ export interface EntryDiff {
 
 /**
  * Parses one hour-cell. Blank (or whitespace) ⇒ 0. Returns { value, valid }; valid mirrors the DB
- * CHECK (numeric AND 0 ≤ h ≤ 24). Non-numeric (e.g. "8h"), negative, or > 24 ⇒ valid: false.
+ * CHECK (numeric AND 0 ≤ h ≤ 24); one comma reads as the decimal point. Non-numeric (e.g. "8h"), negative, or > 24 ⇒ valid: false.
  * (AC-TSE-009/010/011, FR-TSE-014.)
  */
 export function parseHourCell(raw: string): { value: number; valid: boolean } {
   const trimmed = raw.trim();
   if (trimmed === '') return { value: 0, valid: true };
+  // #2440: one comma is a decimal separator (an Indonesian keypad types "3,5"); "1,2,3" stays NaN.
   // Number('') is 0 and Number('8h') is NaN; reject anything non-finite.
-  const value = Number(trimmed);
+  const value = Number(trimmed.replace(',', '.'));
   if (!Number.isFinite(value)) return { value: NaN, valid: false };
   const valid = value >= 0 && value <= 24;
   return { value, valid };

@@ -563,10 +563,10 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
  * - Collapsed (default, empty note): a quiet, real labelled `<button>` "+ Note"
  *   (`Add note to <project>`, `.touch-target`, keyboard-operable). Clicking it
  *   reveals the textarea and moves focus to it.
- * - Expanded (note has content OR the user clicked "+ Note"): the two-line textarea, demoted
+ * - Expanded (note has content OR the user clicked "+ Note"): a one-row textarea that grows with its text, demoted
  *   to a single bottom hairline (`border-0 border-b border-border bg-transparent
  *   rounded-none`) so it reads quieter than the bordered hour cells. Existing note
- *   content is always rendered expanded on mount, wraps into two lines, and keeps
+ *   content is always rendered expanded on mount, wraps as it grows (#2440: no empty second row), and keeps
  *   its full value in the title — content is never hidden.
  */
 export const NoteCell: React.FC<{
@@ -625,7 +625,7 @@ export const NoteCell: React.FC<{
   return (
     <TextArea
       ref={noteRef}
-      rows={2}
+      rows={1}
       label=""
       hideLabel
       wrapperClassName="min-w-0 flex-1"
@@ -639,7 +639,7 @@ export const NoteCell: React.FC<{
       onChange={(next) => onNoteChange?.(rowId, next)}
       // Demoted to a single bottom hairline (Single-Border Rule) so the note reads
       // quieter than the bordered hour cells; touch-target keeps a ≥44px hit-area.
-      className="touch-target mt-1 min-h-12 w-full resize-none overflow-hidden rounded-none border-0 border-b border-border bg-transparent px-0 py-1 text-base leading-6 text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring md:text-control"
+      className="touch-target mt-1 w-full resize-none overflow-hidden rounded-none border-0 border-b border-border bg-transparent px-0 py-1 text-base leading-6 text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring md:text-control"
     />
   );
 };

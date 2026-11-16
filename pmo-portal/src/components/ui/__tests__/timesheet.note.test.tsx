@@ -8,7 +8,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
-import { TimesheetGrid, type TimesheetGridRow, type TimesheetDay } from '../TimesheetGrid';
+import { NoteCell, TimesheetGrid, type TimesheetGridRow, type TimesheetDay } from '../TimesheetGrid';
 
 const days: TimesheetDay[] = [
   { label: 'Mon', dateNum: '2', weekend: false },
@@ -73,7 +73,8 @@ describe('TimesheetGrid — note demotion (AC-W6-IXD-NOTE)', () => {
 
     const field = screen.getByRole('textbox', { name: 'Eastfield Logistics Park note' });
     expect(field.tagName).toBe('TEXTAREA');
-    expect(field).toHaveAttribute('rows', '2');
+    // #2440: one row to start; the field grows with its text, so a one-line note has no empty row under it.
+    expect(field).toHaveAttribute('rows', '1');
     expect(field).toHaveAttribute('title', note);
     expect(field).toHaveValue(note);
   });
@@ -113,5 +114,25 @@ describe('#2092 TimesheetGrid note: no browser autofill', () => {
     render(<TimesheetGrid days={days} rows={rows} editable notes={{}} onNoteChange={vi.fn()} />);
     await userEvent.click(screen.getByRole('button', { name: /Add note to Eastfield Logistics Park/i }));
     expect(screen.getByLabelText('Eastfield Logistics Park note')).toHaveAttribute('autocomplete', 'off');
+  });
+});
+
+describe('#2440 the note field sizes to its text', () => {
+  it('a one-line note takes one line; typing a long note grows the field', async () => {
+    // jsdom has no layout: report one 32px line per 40 characters, as a browser would after wrapping.
+    const spy = vi.spyOn(HTMLTextAreaElement.prototype, 'scrollHeight', 'get').mockImplementation(function (this: HTMLTextAreaElement) {
+      return 32 + Math.floor(this.value.length / 40) * 24;
+    });
+    function Harness() {
+      const [note, setNote] = React.useState('Site survey');
+      return <NoteCell rowId="r1" project="Eastfield" value={note} onNoteChange={(_, next) => setNote(next)} />;
+    }
+    render(<Harness />);
+    const field = screen.getByLabelText('Eastfield note') as HTMLTextAreaElement;
+    expect(field).toHaveAttribute('rows', '1');
+    expect(field.style.height).toBe('32px');
+    await userEvent.type(field, ' at the rooftop with the client and the electrical subcontractor');
+    expect(field.style.height).toBe('56px');
+    spy.mockRestore();
   });
 });

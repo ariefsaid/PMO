@@ -7,6 +7,7 @@ import type { TimesheetWithEntries } from '@/src/lib/db/timesheets';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import Timesheets from '../Timesheets';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 /**
  * AC-IXD-TS-002 + AC-IXD-TS-004 (timesheet Save+Submit, OD-UX-1; plan tasks 13/14/16).
@@ -252,6 +253,35 @@ describe('AC-UXS-023 / UX-063: mobile timesheet completion stays with the week',
     await userEvent.click(screen.getByRole('button', { name: /^Sun \d+, 0 hours$/ }));
     expect(screen.getByLabelText('Alpha Project, Sun hours')).toBeInTheDocument();
     expect(screen.getByLabelText('Beta Project, Sun hours')).toBeInTheDocument();
+  });
+
+  it('#2440: on an Indonesian phone, typing 3,5 hours keeps the week submittable and the day reads 3,5', async () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'UTC' });
+    try {
+      tsState.data = draftSheet([
+        { id: 'e1', timesheet_id: 'ts-draft', project_id: 'pr1', entry_date: currentWeekStartStr(), hours: 6,
+          notes: null, project: { name: 'Alpha Project', code: 'A001' } },
+      ]);
+      tsState.isPending = false;
+      tsState.isError = false;
+      renderPage();
+      const monday = within(screen.getByRole('group')).getAllByRole('button')[0];
+      await userEvent.click(monday);
+      const cell = screen.getAllByRole('textbox').find((el) => /^Alpha Project, .+ hours$/.test(el.getAttribute('aria-label') ?? ''))!;
+      await userEvent.clear(cell);
+      await userEvent.type(cell, '3,5');
+      expect(cell).not.toHaveAttribute('aria-invalid');
+      expect(screen.getByTestId('tsgrid-daily-total-0')).toHaveTextContent('3,5');
+      const strip = screen.getByTestId('timesheets-mobile-action-strip');
+      expect(within(strip).getByRole('button', { name: /submit week|ajukan minggu ini/i })).toBeEnabled();
+    } finally {
+      resetActiveLocale();
+    }
   });
 });
 

@@ -9,7 +9,7 @@ import type { useTimesheetMutations } from '@/src/hooks/useTimesheetApproval';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { type EditRow, computeTotals, diffEntries, gridIsValid, parseHourCell, saveToastForChangeCount } from '@/src/lib/timesheet-edit';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatDayRange } from '@/src/lib/format';
+import { formatDayRange, formatNumberExact } from '@/src/lib/format';
 import { timesheetActions } from '@/src/lib/db/timesheetTransition';
 import { dayKey, planCopyLastWeekRows } from './timesheetWeekModel';
 import { TimesheetStatus } from '../../types';
@@ -67,7 +67,8 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
           project_id: r.id,
           project: r.project,
           code: r.code,
-          hours: r.hours.map((h) => (h === 0 ? '' : String(h))),
+          // Locale-formatted like the grid's own fallback (Bahasa shows 3,5); parseHourCell reads both.
+          hours: r.hours.map((h) => (h === 0 ? '' : formatNumberExact(h))),
           note,
         };
       }),
