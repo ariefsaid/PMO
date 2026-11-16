@@ -16,6 +16,8 @@ export interface ReasonDialogProps {
   title?: string;
   /** Override the default "Reason for returning" / "Reason for rejecting" field label. */
   label?: string;
+  /** Override the default helper under the reason (who sees it). */
+  helper?: string;
   /** The evidence the decision rests on (who, what, how much), shown above the reason box. */
   context?: React.ReactNode;
   confirmLabel?: string;
@@ -40,6 +42,7 @@ export const ReasonDialog: React.FC<ReasonDialogProps> = ({
   subject = '',
   title,
   label,
+  helper,
   context,
   confirmLabel,
   loading = false,
@@ -100,7 +103,7 @@ export const ReasonDialog: React.FC<ReasonDialogProps> = ({
           <TextArea
             id={fieldId}
             label={label ?? words.label}
-            helper={words.help}
+            helper={helper ?? words.help}
             required
             fullWidth
             rows={3}
