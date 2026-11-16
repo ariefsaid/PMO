@@ -59,7 +59,8 @@
       "invoiced": "Nilai invoice supplier",
       "paid": "Nilai dibayar",
       "unpaid": "Nilai belum dibayar"
-    }
+    },
+    "unavailable": "Jumlah tidak tersedia"
   },
   "column": {
     "procurement": "Pengadaan",

@@ -91,6 +91,13 @@ test(
     // GOAL ORACLE: the control reflects the new status (the row persisted the change).
     // The stored value stays 'In Progress'; ux/1110 prints it through status.json as "In progress".
     await expect(statusButton).toHaveText('In progress', { timeout: 15_000 });
+    // The "Status updated" notice lands bottom-right, over this row's status control on a short
+    // window, and stays while the pointer rests on it. Dismiss it as a person would before using
+    // the control again.
+    const statusNotice = page.getByRole('listitem').filter({ hasText: 'Status updated' });
+    await expect(statusNotice).toBeVisible({ timeout: 15_000 });
+    await statusNotice.getByRole('button', { name: 'Dismiss notification' }).click();
+    await expect(statusNotice).toBeHidden({ timeout: 10_000 });
     await statusButton.click();
     await expect(statusCtl).toHaveValue('In Progress', { timeout: 15_000 });
 

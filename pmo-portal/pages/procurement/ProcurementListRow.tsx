@@ -22,7 +22,7 @@ import { nextStepText } from '@/src/components/procurement/nextStepText';
 import { deriveProcurementRow } from '@/src/lib/procurement/rowDerivations';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { formatCurrency, formatNumberExact } from '@/src/lib/format';
-import { DecisionSupportPanel } from './DecisionSupportPanel';
+import { DecisionSupportPanel } from '@/src/components/procurement/DecisionSupportPanel';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import { FIGURE_LINE_CLASS } from '@/src/components/ui/FigureContent';
 

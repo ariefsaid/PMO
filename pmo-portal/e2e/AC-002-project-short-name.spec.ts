@@ -44,7 +44,7 @@ test('AC-002 #1325: create, find, edit, reload and clear a project alias without
     await page.getByRole('button', { name: /new project/i }).first().click();
     await page.getByLabel(/project name/i).fill(contractualName);
     await page.getByLabel(/short name/i).fill(initialAlias);
-    await pickComboboxOption(page, page, /client company/i, 'first');
+    await pickComboboxOption(page, page, /client company/i, /^Meridian Steelworks/);
     await page.getByRole('button', { name: /^Create project$/i }).click();
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/u, { timeout: 20_000 });
 

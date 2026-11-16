@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, Drawer, GateNotice, Icon, StatusPill, type RowMenuItem } from '@/src/components/ui';
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import { formatDay } from '@/src/lib/format';
+import { documentCategoryLabel } from '@/src/lib/documentCategories';
 import { statusLabel } from '@/src/lib/status/statusMap';
 
 
@@ -221,7 +222,7 @@ const DocumentPreviewFields: React.FC<DocumentPreviewProps & { statusHeadingLeve
               <span className="record-id text-foreground">{doc.code}</span>
             </DocField>}
             <DocField label={t('projectDetail.documents.field.category', 'Category')}>
-              {doc.category || t('projectDetail.documents.category.uncategorized', 'Uncategorized')}
+              {(doc.category && documentCategoryLabel(t, doc.category)) || t('projectDetail.documents.category.uncategorized', 'Uncategorized')}
             </DocField>
             {doc.doc_date && <DocField label={t('projectDetail.documents.field.docDate', 'Document date')}>
               <span className="tabular-nums">{formatDay(doc.doc_date)}</span>

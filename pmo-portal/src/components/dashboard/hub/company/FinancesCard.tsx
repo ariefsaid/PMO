@@ -5,7 +5,6 @@ import { cn } from '@/src/components/ui/cn';
 import { ListState } from '@/src/components/ui/ListState';
 import { formatTileMoney } from '@/src/lib/format';
 import { moneyTileValue } from '@/src/components/dashboard/dashMoney';
-import { BarList } from '@/src/components/dashboard/charts';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { SplitBar, type SplitBarPart } from '@/src/components/finance/SplitBar';
 import type { OwedSplit } from '@/src/components/dashboard/restructure/useCompanyFigures';
@@ -75,6 +74,31 @@ const OwedFigure: React.FC<{
 };
 
 
+/**
+ * A short ranking: each project's full name and amount on one line, its bar under it at the shared scale. Names are
+ * never cut, so the list reads the same at any width (a chart axis had to wrap and clip them).
+ */
+const RankedBars: React.FC<{ rows: Array<{ id: string; name: string; value: number; label: string }>; ariaLabel: string }> = ({ rows, ariaLabel }) => {
+  const max = Math.max(1, ...rows.map((row) => row.value));
+  return (
+    <ol aria-label={ariaLabel} className="grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,22rem),1fr))] gap-x-[var(--space-panel-gap)] gap-y-3 p-0">
+      {rows.map((row) => (
+        <li key={row.id} data-record-row className="grid gap-1.5">
+          <div aria-hidden className="flex items-baseline justify-between gap-4 text-control">
+            <span className="min-w-0 break-words">{row.name}</span>
+            <span className="shrink-0 font-semibold tabular">{row.label}</span>
+          </div>
+          {/* The bar is the row's accessible figure: its name says the project and the amount once. */}
+          <svg role="img" aria-label={`${row.name}: ${row.label}`} className="block h-2 w-full">
+            <rect width="100%" height="8" rx="4" className="fill-muted" />
+            <rect width={`${Math.max(1, (row.value / max) * 100)}%`} height="8" rx="4" style={{ fill: chartTheme.series.primary }} />
+          </svg>
+        </li>
+      ))}
+    </ol>
+  );
+};
+
 /** Left to bill by project: the projects with the most signed work still to invoice, each named in full. */
 export const LeftToBillSection: React.FC<{
   currency: string;
@@ -95,7 +119,7 @@ export const LeftToBillSection: React.FC<{
       <div className="mb-2 flex items-baseline justify-between gap-3"><h3 className="text-control font-semibold">{leftTitle}</h3><CardLink to="/finance/reports">{t('home.openReports', 'Open reports')}</CardLink></div>
       {pending ? <ListState variant="loading" shape="bars" rows={limit} />
         : error ? <ListState variant="error" title={t('home.leftToBillError', "Couldn't load what is left to bill")} onRetry={retry} quiet />
-          : <BarList rows={topProjects.map((row) => ({ id: row.id, name: row.name, value: row.amount, label: money(row.amount, currency), tone: 'neutral' }))} ariaLabel={leftTitle} />}
+          : <RankedBars rows={topProjects.map((row) => ({ id: row.id, name: row.name, value: row.amount, label: money(row.amount, currency) }))} ariaLabel={leftTitle} />}
     </section>
   );
 };

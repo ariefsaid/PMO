@@ -23,9 +23,6 @@ import {
   useClientCompanyOptions,
   useInvoiceProjectOptions,
 } from './useFkOptions';
-import { I18nextProvider } from 'react-i18next';
-import { act } from '@testing-library/react';
-import { financeTestI18n } from '@/test/financeI18nTestInstance';
 
 function wrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -49,8 +46,8 @@ describe('useVendorOptions — vendor FK picker', () => {
     await waitFor(() => expect(result.current.data).toBeDefined());
     expect(repo.company.list).toHaveBeenCalledWith({ type: 'Vendor' });
     expect(result.current.data).toEqual([
-      { value: 'v1', label: 'Apex Supply', sub: 'Supplier' },
-      { value: 'v2', label: 'Bolt Co', sub: 'Supplier' },
+      { value: 'v1', label: 'Apex Supply' },
+      { value: 'v2', label: 'Bolt Co' },
     ]);
   });
 
@@ -61,42 +58,19 @@ describe('useVendorOptions — vendor FK picker', () => {
     expect(result.current.data).toBeUndefined();
   });
 
-  // HKA-009: the vendor sub is translated at READ time in the queryFn while the cache key omits
-  // the language and the query stays fresh for five minutes — so switching the UI language left
-  // cached supplier subtitles in the previous language until a refetch. The cached data must be
-  // language-neutral (the short-name sub, no label) and the translated "Vendor" sub must be
-  // applied through `select`, exactly as useClientCompanyOptions does.
-  it('retranslates the Vendor sub on a language switch without refetching (references HKA-009)', async () => {
+  // Every option of the supplier picker is a supplier, so no type tag rides on the row; only a short-name
+  // company carries a sub (its legal name, AC-NICK-001).
+  it('adds no type tag to supplier options and keeps the legal name of a short-name company as its sub', async () => {
     repo.company.list.mockResolvedValue([
       { id: 'v1', name: 'Apex Supply', type: 'Vendor', archived_at: null, short_name: null },
       { id: 'v2', name: 'Bolt Co', type: 'Vendor', archived_at: null, short_name: 'Bolt' },
     ]);
-    await financeTestI18n.changeLanguage('id');
-    const { result } = renderHook(() => useVendorOptions(), {
-      wrapper: ({ children }: { children: React.ReactNode }) => (
-        <I18nextProvider i18n={financeTestI18n}>
-          <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-            {children}
-          </QueryClientProvider>
-        </I18nextProvider>
-      ),
-    });
+    const { result } = renderHook(() => useVendorOptions(), { wrapper: wrapper() });
     await waitFor(() => expect(result.current.data).toBeDefined());
-    // The short-name case keeps its legal-name sub (AC-NICK-001); the type sub is translation
-    // and follows the language.
     expect(result.current.data).toEqual([
-      { value: 'v1', label: 'Apex Supply', sub: financeTestI18n.t('companies.type.vendor') },
+      { value: 'v1', label: 'Apex Supply' },
       { value: 'v2', label: 'Bolt', sub: 'Bolt Co' },
     ]);
-    expect(repo.company.list).toHaveBeenCalledTimes(1);
-    await act(async () => {
-      await financeTestI18n.changeLanguage('en');
-    });
-    // The cached 'Supplier' sub must re-translate to the new language WITHOUT a refetch.
-    await waitFor(() => expect(result.current.data?.[0].sub).toBe('Supplier'));
-    // The re-translation came from `select` against the CACHED rows — no second fetch.
-    expect(repo.company.list).toHaveBeenCalledTimes(1);
-    await financeTestI18n.changeLanguage('en');
   });
 });
 
@@ -132,13 +106,13 @@ describe('useProjectOptions — project FK picker (archived-filtered)', () => {
 });
 
 describe('useClientCompanyOptions — client FK picker', () => {
-  it('maps client companies into ComboboxOptions with a Client sub', async () => {
+  it('maps client companies into ComboboxOptions with no type tag', async () => {
     repo.company.listClients.mockResolvedValue([
       { id: 'c1', name: 'Innovate Corp', type: 'Client', archived_at: null },
     ]);
     const { result } = renderHook(() => useClientCompanyOptions(), { wrapper: wrapper() });
     await waitFor(() => expect(result.current.data).toBeDefined());
-    expect(result.current.data).toEqual([{ value: 'c1', label: 'Innovate Corp', sub: 'Client' }]);
+    expect(result.current.data).toEqual([{ value: 'c1', label: 'Innovate Corp' }]);
   });
 });
 
@@ -195,22 +169,5 @@ describe('useInvoiceProjectOptions — the sales-invoice project picker (#784)',
         currency: 'EUR', taxBaseNumerator: 11, taxBaseDenominator: 12,
       },
     ]);
-  });
-});
-
-describe('useClientCompanyOptions — translated "Client" sub (#784 M-6)', () => {
-  it('NFR-NAR-006 the Client sub follows the UI language', async () => {
-    repo.company.listClients.mockResolvedValue([{ id: 'c1', name: 'Acme Energy', type: 'Client', short_name: null }]);
-    await financeTestI18n.changeLanguage('id');
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const { result } = renderHook(() => useClientCompanyOptions(), {
-      wrapper: ({ children }: { children: React.ReactNode }) => (
-        <I18nextProvider i18n={financeTestI18n}><QueryClientProvider client={qc}>{children}</QueryClientProvider></I18nextProvider>
-      ),
-    });
-    await waitFor(() => expect(result.current.data).toBeDefined());
-    expect(result.current.data?.[0].sub).toBe(financeTestI18n.t('companies.type.client'));
-    expect(result.current.data?.[0].sub).not.toBe('Client');
-    await financeTestI18n.changeLanguage('en');
   });
 });

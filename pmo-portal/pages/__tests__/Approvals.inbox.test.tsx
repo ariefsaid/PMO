@@ -106,7 +106,7 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@tanstack/react-query')>();
   return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
 });
-vi.mock('@/pages/procurement/DecisionSupportPanel', () => ({
+vi.mock('@/src/components/procurement/DecisionSupportPanel', () => ({
   DecisionSupportPanel: ({ projectName, projectStatus, captionInTooltip }: { projectName?: string | null; projectStatus?: string | null; captionInTooltip?: boolean }) => (
     <div data-testid="decision-support" data-project-status={projectStatus ?? ''} data-caption-in-tooltip={captionInTooltip ? 'yes' : 'no'}>Budget · {projectName}</div>
   ),

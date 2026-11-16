@@ -577,6 +577,20 @@ export function formatDayYear(input: DayInput): string {
   return `${day} ${month} ${year}`;
 }
 
+/**
+ * "10 Nov 2026" for a `YYYY-MM-DD` day that is typed into and read back out of a form field. Built at UTC
+ * midnight and formatted in UTC, so the process or viewer zone (and a zone change while the page is open)
+ * can never move it to the day before or after. Anything that is not a real calendar day → `—`.
+ */
+export function formatIsoDay(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return '—';
+  const date = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  if (date.getUTCFullYear() !== +m[1] || date.getUTCMonth() !== +m[2] - 1 || date.getUTCDate() !== +m[3]) return '—';
+  const { day, month, year } = dayPart({ date, timeZone: 'UTC' }, 'day');
+  return `${day} ${month} ${year}`;
+}
+
 /** "10 Nov" within the current year, "10 Nov 2026" otherwise. `now` is for tests. */
 export function formatDay(input: DayInput, now: Date = new Date()): string {
   const frame = dayFrame(input);
@@ -1134,4 +1148,9 @@ export function formatCurrencyDecimal4(value: string, currency: string, locale: 
 
 export function formatDecimalString(value: string, locale: string, maxFractionDigits: number): string {
   return numberFormatterFor(`dec${maxFractionDigits}`, locale, undefined, { maximumFractionDigits: maxFractionDigits }).format(value as unknown as number);
+}
+
+/** "Sun" / "Min" — short weekday name of a date (calendar column headers). */
+export function formatWeekdayShort(d: Date): string {
+  return dateFormatterFor('weekdayShort', getDateLocale(), { weekday: 'short' }).format(d);
 }

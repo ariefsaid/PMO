@@ -21,5 +21,32 @@
   "saving": "Saving…",
   "statusChangeFailed": "Status change failed",
   "winTitle": "Record the won project",
-  "winConfirm": "Confirm won"
+  "winConfirm": "Confirm won",
+  "confirm": {
+    "lostTitle": "Mark project as lost",
+    "lostBody": "This moves the project to a terminal lost stage. You can still review it, but it leaves the active pipeline.",
+    "lostConfirm": "Mark lost",
+    "moveTitle": "Move project to {{status}}?",
+    "moveBody": "This moves the project forward to the {{status}} stage.",
+    "moveConfirm": "Move to {{status}}"
+  },
+  "win": {
+    "contractRef": "Customer contract ref",
+    "contractRefPlaceholder": "e.g. CPO-2026-001",
+    "contractDate": "Contract date"
+  },
+  "statusControl": {
+    "updated": "Project updated",
+    "movedTo": "Moved to {{status}}",
+    "failed": "Status change failed",
+    "change": "Change status",
+    "saving": "Saving…",
+    "moveTo": "Move to",
+    "winTitle": "Win — enter contract details",
+    "confirm": "Confirm"
+  },
+  "column": {
+    "empty": "No items"
+  },
+  "stageNav": "Pipeline stage navigation"
 }

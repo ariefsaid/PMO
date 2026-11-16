@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { efakturRefusal, localToday, normalizeEfakturValues, validateEfakturValues } from '@/src/lib/efaktur';
 import { EntityFormModal, TextField, type SubmitError } from '@/src/components/ui';
+import { DateField } from '@/src/components/ui/DateField';
 
 export interface EfakturSaveValues {
   efakturNumber: string | null;
@@ -106,9 +107,8 @@ export const EfakturModal: React.FC<EfakturModalProps> = ({
           autoComplete="off"
           error={numberError}
         />
-        <TextField
+        <DateField
           label={t('efaktur.date', 'e-Faktur date')}
-          type="date"
           value={dateDraft}
           onChange={setDateDraft}
           max={today}

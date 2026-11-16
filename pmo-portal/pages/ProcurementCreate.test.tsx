@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
   orgFxContext: { data: { currency: 'USD' } as { currency: string } | undefined, isPlaceholderData: false, isError: false, isPending: false, refetch: vi.fn() },
   realRole: 'Admin' as string,
   projectQuery: { data: [{ value: 'p1', label: 'Project One' }], isPending: false, isError: false, refetch: vi.fn() },
-  vendorQuery: { data: [{ value: 'v1', label: 'Supplier One', sub: 'Vendor' }], isPending: false, isError: false, refetch: vi.fn() },
+  vendorQuery: { data: [{ value: 'v1', label: 'Supplier One' }], isPending: false, isError: false, refetch: vi.fn() },
 }));
 vi.mock('react-router', async (importOriginal) => ({ ...await importOriginal<typeof import('react-router')>(), useNavigate: () => mocks.navigate }));
 vi.mock('@/src/auth/usePermission', async () => {
@@ -69,7 +69,7 @@ describe('AC-PROC1 one-page request creation', () => {
     mocks.projectQuery.isPending = false; mocks.projectQuery.isError = false;
     mocks.projectQuery.data = [{ value: 'p1', label: 'Project One' }];
     mocks.vendorQuery.isPending = false; mocks.vendorQuery.isError = false;
-    mocks.vendorQuery.data = [{ value: 'v1', label: 'Supplier One', sub: 'Vendor' }];
+    mocks.vendorQuery.data = [{ value: 'v1', label: 'Supplier One' }];
     mocks.createRequest.mockResolvedValue({ id: 'new-id' });
     mocks.createAtomic.mockResolvedValue({ id: 'new-id' });
     mocks.createItem.mockResolvedValue({});
@@ -86,7 +86,7 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(mocks.vendorQuery.refetch).toHaveBeenCalled();
     mocks.projectQuery.isPending = false;
     mocks.vendorQuery.isError = false;
-    mocks.vendorQuery.data = [{ value: 'v2', label: 'New Supplier', sub: 'Vendor' }];
+    mocks.vendorQuery.data = [{ value: 'v2', label: 'New Supplier' }];
     view.rerender(<MemoryRouter initialEntries={['/procurement/new?have=need']}><Routes><Route path="/procurement/new" element={<ProcurementCreate />} /></Routes></MemoryRouter>);
     fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
     expect(await screen.findByRole('option', { name: /New Supplier/ })).toBeVisible();
@@ -357,12 +357,11 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(mocks.createRequest).not.toHaveBeenCalled();
   });
 
-  it('uses supplier wording for the supplier option in the shared picker', async () => {
+  it('lists suppliers by name only: no type word is repeated on every option of the supplier picker', async () => {
     renderCreate();
     fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
     const supplierOption = await screen.findByRole('option', { name: /Supplier One/ });
-    expect(supplierOption).toHaveTextContent('Supplier');
-    expect(supplierOption).not.toHaveTextContent('Vendor');
+    expect(supplierOption).toHaveTextContent(/^Supplier One$/);
   });
 
   it('AC-PROC1-004 skips the question for ?have=invoice and omits line items', () => {
@@ -545,7 +544,7 @@ describe('AC-PROC1 one-page request creation', () => {
 
   it('allows a stale supplier to be corrected after a definitive reference rejection', async () => {
     mocks.createAtomic.mockRejectedValueOnce(new ProcurementError('Reference unavailable', '23503'));
-    mocks.vendorQuery.data = [{ value: 'v1', label: 'Supplier One', sub: 'Vendor' }, { value: 'v2', label: 'Supplier Two', sub: 'Vendor' }];
+    mocks.vendorQuery.data = [{ value: 'v1', label: 'Supplier One' }, { value: 'v2', label: 'Supplier Two' }];
     renderCreate();
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Supplies' } });
     fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));

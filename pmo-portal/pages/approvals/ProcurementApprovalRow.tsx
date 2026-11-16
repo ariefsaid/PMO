@@ -33,7 +33,7 @@ import {
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { formatDay, formatNumberExact, formatTableMoney } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { DecisionSupportPanel } from '@/pages/procurement/DecisionSupportPanel';
+import { DecisionSupportPanel } from '@/src/components/procurement/DecisionSupportPanel';
 import { useAuth } from '@/src/auth/useAuth';
 
 type PendingAction = 'Approved' | 'Rejected';

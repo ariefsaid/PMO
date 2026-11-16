@@ -40,7 +40,8 @@ interface ListStateBaseProps {
   shape?: SkeletonShape;
   /** Column count for the `table` silhouette. */
   columns?: number;
-  /** Error only: one quiet line under a panel's heading (warning icon, message, Retry text button), no tinted box. */
+  /** Error: one quiet line under a panel's heading (warning icon, message, Retry text button), no tinted box.
+   *  Empty: one line inside a panel section (what is absent, its fix; no icon), on the section's left edge, no tall well. */
   quiet?: boolean;
   /** Loading only: the body's least height, so the silhouette matches a filled panel of that height. */
   minHeight?: number;
@@ -375,6 +376,20 @@ export const ListState: React.FC<ListStateProps> = ({
   }
 
   // empty
+  if (quiet) {
+    return (
+      <div className={cn('flex min-w-0 flex-col items-start gap-1 py-2 text-left', className)}>
+        {title && <div className="text-control text-foreground">{title}</div>}
+        {sub && <div className="max-w-[60ch] text-control text-muted-foreground">{sub}</div>}
+        {action && (
+          <Button variant={actionVariant} size="sm" onClick={action.onClick} className="mt-1">
+            {action.label}
+          </Button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(

@@ -4,9 +4,10 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { EntityFormModal, TextField, SelectField, FormSection, FormGrid, useEntityForm, Button, Icon, type SubmitError } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { CATEGORY_OPTIONS } from '@/src/lib/documentCategories';
+import { categoryOptions } from '@/src/lib/documentCategories';
 import type { ProjectDocumentRow, ProjectDocumentInput } from '@/src/lib/db/documents';
 import type { MicrosoftReferenceInput } from '@/src/lib/m365/reference';
+import { DateField } from '@/src/components/ui/DateField';
 
 
 interface FormValues {
@@ -186,7 +187,7 @@ export const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
               onChange={categoryField.onChange}
               onBlur={categoryField.onBlur}
               error={categoryField.error}
-              options={CATEGORY_OPTIONS}
+              options={categoryOptions(t)}
             />
             <TextField
               id={revisionField.id}
@@ -196,10 +197,9 @@ export const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
               onBlur={revisionField.onBlur}
               placeholder={t('projectDetail.documents.form.revisionPlaceholder', 'e.g. A')}
             />
-            <TextField
+            <DateField
               id={dateField.id}
               label={t('projectDetail.documents.form.docDate', 'Document date')}
-              type="date"
               value={dateField.value}
               onChange={dateField.onChange}
               onBlur={dateField.onBlur}

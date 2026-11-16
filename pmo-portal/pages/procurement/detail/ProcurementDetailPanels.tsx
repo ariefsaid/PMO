@@ -13,11 +13,12 @@ import { useProjectCommittedSpend, useProjectReservedSpend } from '@/src/hooks/u
 import { usePermission } from '@/src/auth/usePermission';
 import { procurementMoney, type ProcurementMoneyKind } from '@/src/lib/procurement/procurementMoney';
 import { stageDates, stageForStatus, type StageKey } from '@/src/lib/procurement/stage';
-import { computeBudgetSignal } from '../computeBudgetSignal';
+import { computeBudgetSignal } from '@/src/lib/procurement/computeBudgetSignal';
 import { ProcurementFilesSubsection } from '../ProcurementFilesSubsection';
 import { useProcurementFilesBatch } from '@/src/hooks/useProcurementFilesBatch';
 import { procurementFileParentKey } from '@/src/lib/db/procurementFiles';
 import { recordStatusLabel } from '@/src/lib/procurement/recordStatusLabel';
+import { statusLabel } from '@/src/lib/status/statusMap';
 
 const STAGES: { key: StageKey; label: string; ordinal: number }[] = [
   { key: 'request', label: 'Request', ordinal: 0 },
@@ -53,9 +54,11 @@ function totalAmount(values: readonly (number | string | null | undefined)[]): n
 export interface ProcurementStageTrackerProps {
   procurement: ProcurementDetail;
   linkedDocuments: readonly ErpPurchaseRow[];
+  /** Invoices and payments are Finance's: an engineer sees the pay stage's count, never its amount. */
+  isEngineer?: boolean;
 }
 
-export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = ({ procurement, linkedDocuments }) => {
+export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = ({ procurement, linkedDocuments, isEngineer = false }) => {
   const { t } = useTranslation('procurementRecord');
   const dates = stageDates(procurement, linkedDocuments.map((doc) => ({ doctype: doc.doctype, docDate: doc.docDate })));
   const current = STAGES.findIndex((stage) => stage.label === stageForStatus(procurement.status));
@@ -113,11 +116,7 @@ export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = (
                           : invoices.length > 0
                             ? invoices.length === 1 ? t('stage.invoice', 'invoice') : t('stage.invoices', 'invoices')
                             : count === 1 ? t('stage.payment', 'payment') : t('stage.payments', 'payments');
-                    const amount = amountByStage[stage.key];
-                    const countLabel = `${count} ${document}`;
-                    return amount == null
-                      ? countLabel
-                      : t('stage.countAndAmount', { defaultValue: '{{count}} {{document}} · {{amount}}', count, document, amount: formatCurrency(amount, procurement.currency) });
+                    return `${count} ${document}`;
                   })()
                 : index < current && stage.key === 'request'
                   ? t('money.noPurchaseRequest', 'No purchase request: started at the order')
@@ -127,6 +126,8 @@ export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = (
                     ? t('stage.notRecorded', 'Not recorded')
                     : '';
             const meta = [date ? showDate(date, t('timeline.dateMissing', 'Date not recorded')) : null, state].filter(Boolean).join(' · ');
+            // The stage's amount reads on its own line, so it never wraps behind a dot.
+            const stageAmount = count > 0 && !partial && !(isEngineer && stage.key === 'pay') ? amountByStage[stage.key] : null;
             return (
               <li key={stage.key} aria-current={isCurrent ? 'step' : undefined} className="min-w-0">
                 <div>
@@ -137,6 +138,7 @@ export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = (
                   </span>
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">{meta}</p>
+                {stageAmount != null && <p className="text-sm text-foreground tabular-nums">{formatCurrency(stageAmount, procurement.currency)}</p>}
               </li>
             );
           })}
@@ -150,6 +152,8 @@ export interface ProcurementMoneySummaryProps {
   linkedDocuments: readonly ErpPurchaseRow[];
   isEngineer: boolean;
   budgetSignal?: React.ReactNode;
+  /** The request total is left out when it equals this amount (the budget impact on the same band already shows it). */
+  omitRequestedEqualTo?: number;
 }
 
 interface ProcurementBudgetSignalProps {
@@ -200,7 +204,8 @@ export const ProcurementBudgetSignal: React.FC<ProcurementBudgetSignalProps> = (
     ? t('money.budgetLeft', 'Left in budget {{left}}', { left: formatCurrency(signal.afterRequest, currency) })
     : t('procurement:decisionSupport.leftWithoutSpending', { defaultValue: 'Without spending: {{amount}} left after orders, reserved and this purchase.', amount: formatCurrency(signal.afterRequest, currency) });
   const otherCurrencyNotice = (reserved.otherCurrencies ?? []).length ? t('money.otherCurrenciesExcluded', ' · Other currencies excluded from comparison') : '';
-  return <span className="text-control font-normal text-muted-foreground">{label}{otherCurrencyNotice}</span>;
+  // Over budget is an exception: red, like every over-budget figure.
+  return <span className={`text-control font-normal ${signal.afterRequest < 0 ? 'text-destructive-text' : 'text-muted-foreground'}`}>{label}{otherCurrencyNotice}</span>;
 };
 
 // Amount names, never status words: the header's badge already says Requested / Paid (#2437, the status reads once).
@@ -213,7 +218,7 @@ const moneySources: Record<ProcurementMoneyKind, string> = {
   requested: 'purchase request', ordered: 'purchase order', invoiced: 'supplier invoice', paid: 'payment', unpaid: 'invoice balance',
 };
 
-export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = ({ procurement, linkedDocuments, isEngineer, budgetSignal }) => {
+export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = ({ procurement, linkedDocuments, isEngineer, budgetSignal, omitRequestedEqualTo }) => {
   const { t } = useTranslation('procurementRecord');
   const figureScope = useFigureScope();
   const money = procurementMoney({
@@ -248,6 +253,7 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
     // "no request" is not a hidden figure — this check must precede the unknown check below, or the
     // missing-PR unknown is reported as a missing figure that was never expected.
     if (kind === 'requested' && requestedStartedLater) return [];
+    if (kind === 'requested' && omitRequestedEqualTo != null && figure.amount === omitRequestedEqualTo) return [];
     if (figure.unknown) return [{ kind, hidden: true }];
     if (absent) return [];
     // Nothing owed is not a figure either: "Unpaid 0" on a request says nothing.
@@ -259,6 +265,9 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
     reason: t('money.sourceMissing', '{{figure}} amount not recorded', { figure: t(`money.source.${entry.kind}`, moneySources[entry.kind]) }),
   })));
   const visible = shown.filter((entry) => !entry.hidden);
+  // One figure leads at the metric size: what is still owed, else the furthest document's amount (invoiced, ordered,
+  // requested); the rest stay at the group size so a row of five never reads as five equal headlines.
+  const leadKind = (['unpaid', 'invoiced', 'ordered', 'requested'] as const).find((kind) => visible.some((entry) => entry.kind === kind));
   // The record's one hidden-figures line lives here, so any figure hidden on the record keeps this block.
   const anyHidden = shown.some((entry) => entry.hidden) || (figureScope?.hidden.length ?? 0) > 0;
   // No figure, no hidden figure and no budget line: no empty block.
@@ -266,21 +275,21 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
 
   // Header band content (after the stage track): label, budget line, figures, then the hidden-figures line it reports.
   return (
-    <section data-testid="procurement-money-summary" aria-labelledby="procurement-money-heading" className="border-t border-border pt-4">
+    <section data-testid="procurement-money-summary" aria-labelledby="procurement-money-heading" className="border-t border-border pt-3">
       <h2 id="procurement-money-heading" className="text-control font-semibold text-foreground">{t('money.title', { defaultValue: 'Money · {{currency}}, before tax', currency: procurement.currency })}</h2>
-      {budgetSignal != null && budgetSignal !== false && <p className="mt-1 text-control font-normal text-muted-foreground">{budgetSignal}</p>}
+      {budgetSignal != null && budgetSignal !== false && <p className="mt-3 text-control font-normal text-muted-foreground">{budgetSignal}</p>}
       {visible.length > 0 && (
           <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-5">
             {visible.map(({ kind }) => {
               const figure = money[kind];
-              const lead = kind === 'unpaid';
+              const lead = kind === leadKind;
               return (
                 <div key={kind}>
                   <p className="mb-1 text-control font-medium text-foreground">{t(`money.${kind}`, moneyLabels[kind])}</p>
-                  <p className={`${lead ? 'text-section font-semibold' : 'text-group font-medium'} whitespace-nowrap text-foreground tabular-nums`}>
+                  <p className={`${lead ? 'text-metric font-semibold' : 'text-group font-medium'} whitespace-nowrap text-foreground tabular-nums`}>
                     {formatCurrency(figure.amount ?? 0, procurement.currency)}
                   </p>
-                  {lead && nextDueDate && <p className={`mt-0.5 text-control ${overdueDays > 0 ? 'font-medium text-destructive' : 'text-muted-foreground'}`}>
+                  {kind === 'unpaid' && nextDueDate && <p className={`mt-0.5 text-control ${overdueDays > 0 ? 'font-medium text-destructive' : 'text-muted-foreground'}`}>
                     {overdueDays > 0
                       ? t('money.overdue', { defaultValue: 'Overdue {{days}} days · due {{date}}', days: overdueDays, date: showDate(nextDueDate) })
                       : t('money.due', { defaultValue: 'Due {{date}}', date: showDate(nextDueDate) })}
@@ -356,7 +365,8 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
           : event.to_status === 'Cancelled' ? t('timeline.cancelled', 'Cancelled')
             : event.to_status === 'Requested' ? t('timeline.submitted', 'Submitted for approval')
               : event.to_status === 'Paid' ? t('timeline.paid', 'Paid')
-                : String(event.to_status);
+                // Any other step reads by the shared status name, so a Bahasa reader never meets the stored English value.
+                : statusLabel('procurement', String(event.to_status), t);
       const icon: TimelineIcon = event.to_status === 'Approved' ? 'check'
         : event.to_status === 'Requested' ? 'up'
           : event.to_status === 'Paid' ? 'dollar'
@@ -443,7 +453,7 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
                   <div className="ml-[128px] mt-2 border-l border-border pl-3 text-sm text-muted-foreground max-[640px]:ml-8">
                     {entry.erp && <dl className="mb-2 grid grid-cols-2 gap-x-4 gap-y-1"><dt>{t('details.supplier', 'Supplier')}</dt><dd>{entry.erp.supplier ?? '—'}</dd><dt>{t('timeline.status', 'Status')}</dt><dd>{entry.erp.erpStatus ?? '—'}</dd><dt>{t('timeline.dueDate', 'Due date')}</dt><dd>{showDate(entry.erp.dueDate, t('timeline.dateMissing', 'Date not recorded'))}{entry.overdueDays ? ` · ${t('timeline.overdue', { defaultValue: 'Overdue {{days}} days', days: entry.overdueDays })}` : ''}</dd></dl>}
                     {entry.ledger && <>
-                      {entry.ledger.groupRef && <p>Group ref · {entry.ledger.groupRef}</p>}
+                      {entry.ledger.groupRef && <p>{t('timeline.groupRef', 'Group ref')} · {entry.ledger.groupRef}</p>}
                       {(() => {
                         const phase = phaseByType[entry.ledger.type];
                         const files = filesBatch.data?.[procurementFileParentKey(phase, entry.ledger.recordId)];

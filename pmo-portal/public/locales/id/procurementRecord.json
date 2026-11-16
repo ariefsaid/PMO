@@ -61,7 +61,7 @@
     "note": "Catatan persetujuan (opsional)"
   },
   "sod": {
-    "approverHint": "Anda dapat menyetujui atau menolak pengadaan ini. Pemohon tidak dapat menyetujui pengadaannya sendiri. Pemisahan tugas memerlukan peninjau lain.",
+    "approverHint": "Anda dapat menyetujui atau mengembalikan pengadaan ini. Pemohon tidak dapat menyetujui pengadaannya sendiri.",
     "approverCannotPay": "Pembayaran harus dirilis oleh pengguna keuangan lain. Penyetuju tidak dapat juga membayar pengadaan ini.",
     "payerHint": "Merilis pembayaran: penyetuju tidak dapat juga membayar (pemisahan tugas).",
     "preAnnounce": "Mengirim ini ke peninjau lain. Anda tidak dapat menyetujui kasus pengadaan Anda sendiri."
@@ -116,8 +116,7 @@
     "invoice": "invoice",
     "invoices": "invoice",
     "payment": "pembayaran",
-    "payments": "pembayaran",
-    "countAndAmount": "{{count}} {{document}} · {{amount}}"
+    "payments": "pembayaran"
   },
   "money": {
     "title": "Nilai · {{currency}}, sebelum pajak",
@@ -152,7 +151,8 @@
       "unpaid": "saldo invoice"
     },
     "budgetLeft": "Sisa anggaran {{left}}",
-    "budgetLeftUnknown": "Sisa anggaran belum diketahui"
+    "budgetLeftUnknown": "Sisa anggaran belum diketahui",
+    "otherCurrenciesExcluded": " · Mata uang lain tidak dibandingkan"
   },
   "timeline": {
     "filterLabel": "Filter linimasa",
@@ -188,7 +188,8 @@
       "GR": "Penerimaan",
       "Invoice": "Invoice supplier",
       "Payment": "Pembayaran"
-    }
+    },
+    "groupRef": "Ref. grup"
   },
   "files": {
     "heading": "Lampiran",

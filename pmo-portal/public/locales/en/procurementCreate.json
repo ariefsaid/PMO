@@ -76,5 +76,11 @@
   "currencyError": "Couldn't load your organisation's currency.",
   "currencyLoading": "Loading organisation currency…",
   "backToProject": "project",
-  "backToStock": "Stock"
+  "backToStock": "Stock",
+  "headerEdit": {
+    "title": "Edit procurement details",
+    "titlePlaceholder": "Procurement title",
+    "save": "Save procurement"
+  },
+  "noCategory": "No category"
 }

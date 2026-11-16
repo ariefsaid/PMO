@@ -22,7 +22,7 @@ import { useProjectOptions } from '@/src/hooks/useFkOptions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { severityVariant } from '@/src/lib/status/statusVariants';
 import { statusLabel } from '@/src/lib/status/statusMap';
-import { NEXT_STATUS, TRANSITION_COPY, type AdvanceStatus } from '@/src/lib/incidents/transitions';
+import { NEXT_STATUS, transitionCopy as getTransitionCopy, severityLabel, type AdvanceStatus } from '@/src/lib/incidents/transitions';
 import type { IncidentInput } from '@/src/lib/db/incidents';
 import { formatDay } from '@/src/lib/format';
 import { IncidentFormModal } from '@/components/IncidentFormModal';
@@ -41,6 +41,7 @@ const IncidentDetail: React.FC = () => {
   const { incidentId } = useParams<{ incidentId: string }>();
   const navigate = useNavigate();
   const { t: tStatus } = useTranslation('status');
+  const { t } = useTranslation('incidents');
   const may = usePermission();
   const { toast } = useToast();
 
@@ -64,7 +65,7 @@ const IncidentDetail: React.FC = () => {
   if (query.isPending) {
     return (
       <>
-        <BackBar label="Incidents" phoneOnly onBack={goBack} />
+        <BackBar label={t('title', 'Incidents')} phoneOnly onBack={goBack} />
         <div data-testid="incident-loading">
           <ListState variant="loading" shape="detail" rows={5} />
         </div>
@@ -76,11 +77,11 @@ const IncidentDetail: React.FC = () => {
   if (query.isError) {
     return (
       <>
-        <BackBar label="Incidents" phoneOnly onBack={goBack} />
+        <BackBar label={t('title', 'Incidents')} phoneOnly onBack={goBack} />
         <ListState
           variant="error"
-          title="Couldn't load incident"
-          sub="Something went wrong fetching the incident report."
+          title={t('detail.errorTitle', "Couldn't load incident")}
+          sub={t('detail.errorSub', 'Something went wrong fetching the incident report.')}
           onRetry={() => query.refetch()}
         />
       </>
@@ -92,13 +93,13 @@ const IncidentDetail: React.FC = () => {
   if (!incident) {
     return (
       <>
-        <BackBar label="Incidents" phoneOnly onBack={goBack} />
+        <BackBar label={t('title', 'Incidents')} phoneOnly onBack={goBack} />
         <div data-testid="incident-not-found">
           <ListState
             variant="empty"
             icon="alert"
-            title="Incident not found"
-            sub="This incident either doesn't exist or isn't visible to you. Return to the register to find it."
+            title={t('detail.notFoundTitle', 'Incident not found')}
+            sub={t('detail.notFoundSub', "This incident either doesn't exist or isn't visible to you. Return to the register to find it.")}
           />
         </div>
       </>
@@ -106,12 +107,12 @@ const IncidentDetail: React.FC = () => {
   }
 
   const next = NEXT_STATUS[incident.status];
-  const transitionCopy = transitionTo ? TRANSITION_COPY[transitionTo] : null;
+  const transitionCopy = transitionTo ? getTransitionCopy(t, transitionTo) : null;
 
   // Resolve the linked project's name from the cached FK options (falls back to a generic
   // label until the list loads — the link still targets the correct /projects/:id).
   const linkedProjectName = incident.project_id
-    ? projectOptions?.find((o) => o.value === incident.project_id)?.label ?? 'View project'
+    ? projectOptions?.find((o) => o.value === incident.project_id)?.label ?? t('detail.viewProject', 'View project')
     : null;
 
   const onMutationError = (err: unknown) => {
@@ -124,7 +125,7 @@ const IncidentDetail: React.FC = () => {
     try {
       await transition.mutateAsync({ id: incident.id, status: transitionTo });
       toast(
-        transitionTo === 'Closed' ? 'Incident closed' : 'Investigation started',
+        transitionTo === 'Closed' ? t('toast.closed', 'Incident closed') : t('toast.started', 'Investigation started'),
         incident.type,
         'success',
       );
@@ -139,7 +140,7 @@ const IncidentDetail: React.FC = () => {
       {/* Mobile escape route — the top-bar breadcrumb owns desktop wayfinding, the rail
           collapses ≤920px so the BackBar is the only in-content escape there. */}
       <div data-testid="mobile-back-bar" className="hidden max-[920px]:block">
-        <BackBar label="Incidents" onBack={goBack} />
+        <BackBar label={t('title', 'Incidents')} onBack={goBack} />
       </div>
 
       {/* The ONE RecordHeader anatomy — icon + type + severity/status pills (CW-2 registry) +
@@ -150,15 +151,15 @@ const IncidentDetail: React.FC = () => {
         icon={<Icon name="alert" />}
         status={
           <span className="flex items-center gap-2" data-testid="incident-pills" data-status={incident.status}>
-            <StatusPill variant={severityVariant(incident.severity)}>{incident.severity}</StatusPill>
+            <StatusPill variant={severityVariant(incident.severity)}>{severityLabel(t, incident.severity)}</StatusPill>
             <StatusPill record="incident" state={incident.status} />
           </span>
         }
-        meta={<span className="tabular">Reported {formatDay(incident.incident_date)}</span>}
+        meta={<span className="tabular">{t('reported', 'Reported {{date}}', { date: formatDay(incident.incident_date) })}</span>}
         actions={
           canEdit ? (
             <Button variant="outline" size="sm" data-testid="incident-edit" onClick={() => setEditOpen(true)}>
-              Edit
+              {t('action.edit', 'Edit')}
             </Button>
           ) : undefined
         }
@@ -172,14 +173,14 @@ const IncidentDetail: React.FC = () => {
           <div className="flex flex-col gap-2 py-3">
             {/* Consistent zone chrome: a "Next action" label leads the verb, matching the
                 procurement "Ready to advance" + pipeline "Next actions" record-action zones. */}
-            <div className="text-control font-semibold text-muted-foreground">Next action</div>
+            <div className="text-control font-semibold text-muted-foreground">{t('action.next', 'Next action')}</div>
             <Button
               variant="primary"
               size="sm"
               data-testid="incident-advance"
               onClick={() => setTransitionTo(next)}
             >
-              {TRANSITION_COPY[next].menu}
+              {getTransitionCopy(t, next).menu}
             </Button>
           </div>
         </RecordActionZone>
@@ -188,16 +189,16 @@ const IncidentDetail: React.FC = () => {
       {/* Body — the incident's fields (read-only; edit-in-modal). Shared Card primitives,
           DESIGN.md tokens (no raw hex). */}
       <Card variant="bare" className="mb-4">
-        <CardHead>Incident detail</CardHead>
+        <CardHead>{t('detail.section', 'Incident detail')}</CardHead>
         <CardPad>
           <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
-            <Field label="Type" value={incident.type} />
-            <Field label="Date" value={formatDay(incident.incident_date)} />
-            <Field label="Severity" value={incident.severity} />
-            <Field label="Status" value={statusLabel('incident', incident.status, tStatus)} />
-            <Field label="Location" value={incident.location || '—'} />
+            <Field label={t('detail.type', 'Type')} value={incident.type} />
+            <Field label={t('col.date', 'Date')} value={formatDay(incident.incident_date)} />
+            <Field label={t('col.severity', 'Severity')} value={severityLabel(t, incident.severity)} />
+            <Field label={t('col.status', 'Status')} value={statusLabel('incident', incident.status, tStatus)} />
+            <Field label={t('col.location', 'Location')} value={incident.location || '—'} />
             <Field
-              label="Project"
+              label={t('form.project', 'Project')}
               value={
                 incident.project_id ? (
                   <ProjectNameLink projectId={incident.project_id} name={linkedProjectName} />
@@ -211,12 +212,12 @@ const IncidentDetail: React.FC = () => {
       </Card>
 
       <Card variant="bare">
-        <CardHead>Description</CardHead>
+        <CardHead>{t('detail.description', 'Description')}</CardHead>
         <CardPad>
           {incident.description ? (
             <p className="whitespace-pre-wrap text-control leading-relaxed">{incident.description}</p>
           ) : (
-            <p className="text-control text-muted-foreground">No description was recorded.</p>
+            <p className="text-control text-muted-foreground">{t('detail.noDescription', 'No description was recorded.')}</p>
           )}
         </CardPad>
       </Card>
@@ -231,7 +232,7 @@ const IncidentDetail: React.FC = () => {
           onCreate={async () => {}}
           onUpdate={async (id, input: IncidentInput) => {
             await update.mutateAsync({ id, input });
-            toast('Incident updated', input.type, 'success');
+            toast(t('toast.updated', 'Incident updated'), input.type, 'success');
             setEditOpen(false);
           }}
           onError={onMutationError}
@@ -242,9 +243,9 @@ const IncidentDetail: React.FC = () => {
       <ConfirmDialog
         open={transitionTo !== null}
         tone="default"
-        title={transitionCopy ? transitionCopy.title(incident.type) : 'Advance incident?'}
+        title={transitionCopy ? transitionCopy.title(incident.type) : t('transition.advance', 'Advance incident?')}
         description={transitionCopy?.body ?? ''}
-        confirmLabel={transitionCopy?.confirm ?? 'Confirm'}
+        confirmLabel={transitionCopy?.confirm ?? t('transition.confirm', 'Confirm')}
         loading={transition.isPending}
         onConfirm={onTransitionConfirm}
         onCancel={() => setTransitionTo(null)}

@@ -8,6 +8,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatMonthYear, formatNumberMax2 } from '@/src/lib/format';
 import { basisLabel, unitLabel } from './equipmentLabels';
 import { fromIso, monthStart, toIso } from './equipmentWeek';
+import { DateField } from '@/src/components/ui/DateField';
 
 type Basis = CostingDraft['basis'];
 const BASES: Basis[] = ['none', 'hire_rate', 'actual_cost'];
@@ -117,8 +118,8 @@ export const EquipmentCostingForm: React.FC<{
             {t('equipment:costing.countStandby', 'Count standby toward the share')}
           </label>
         </>}
-        <TextField label={t('equipment:costing.effectiveFrom', 'Effective from')} helper={t('equipment:costing.effectiveFromHelp', 'Earlier months keep their current setting.')} required type="date" value={v.effectiveFrom} onChange={(x) => set('effectiveFrom', x)} />
-        <TextField label={t('equipment:costing.effectiveTo', 'Effective to (optional)')} type="date" value={v.effectiveTo} onChange={(x) => set('effectiveTo', x)} />
+        <DateField label={t('equipment:costing.effectiveFrom', 'Effective from')} helper={t('equipment:costing.effectiveFromHelp', 'Earlier months keep their current setting.')} required value={v.effectiveFrom} onChange={(x) => set('effectiveFrom', x)} />
+        <DateField label={t('equipment:costing.effectiveTo', 'Effective to (optional)')} value={v.effectiveTo} onChange={(x) => set('effectiveTo', x)} />
       </FormGrid>
       <div className="mt-4 space-y-2">
         <Button type="button" variant="outline" disabled={!ready || preview.isPending} onClick={() => void runPreview()}>{t('equipment:costing.preview', 'Preview')}</Button>

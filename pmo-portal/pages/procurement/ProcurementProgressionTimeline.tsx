@@ -13,13 +13,15 @@
  * Default cap: shows the latest 6 events. A "Show N earlier" button (keyboard-operable,
  * `aria-expanded`) reveals the rest when more than 6 exist.
  *
- * Semantic `<ol aria-label="Progression history">`; each event's label, actor, and
+ * Semantic `<ol aria-label={t('progression.ariaLabel', 'Progression history')}>`; each event's label, actor, and
  * UTC-safe timestamp render as TEXT. Token-pure (DESIGN.md §6) — rail `bg-border`,
  * event dot `bg-success`, current dot `bg-background border-primary` + a primary-ring
  * halo; no raw hex/px.
  */
 import React, { useState } from 'react';
 import { Link } from 'react-router';
+import { useTranslation } from 'react-i18next';
+import { statusLabel } from '@/src/lib/status/statusMap';
 import type { ProgressionEvent } from '@/src/lib/db/procurementHistory';
 import { formatDay } from '@/src/lib/format';
 
@@ -52,12 +54,22 @@ export const ProcurementProgressionTimeline: React.FC<ProcurementProgressionTime
   events,
   className,
 }) => {
+  const { t } = useTranslation('procurement');
+  const { t: tStatus } = useTranslation('status');
   const [expanded, setExpanded] = useState(false);
+  // A transition event carries the stored status (data); a record event carries a document kind.
+  const eventLabel = (ev: ProgressionEvent) => {
+    if (ev.kind === 'transition') return statusLabel('procurement', ev.label, tStatus);
+    if (ev.label === 'Quote') return t('progression.quote', 'Quote');
+    if (ev.label === 'Invoice') return t('progression.invoice', 'Invoice');
+    if (ev.label === 'Payment') return t('progression.payment', 'Payment');
+    return ev.label;
+  };
 
   if (events.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        No history yet — events appear here as the procurement progresses.
+        {t('progression.empty', 'No history yet — events appear here as the procurement progresses.')}
       </p>
     );
   }
@@ -103,7 +115,7 @@ export const ProcurementProgressionTimeline: React.FC<ProcurementProgressionTime
               <div className="min-w-0 flex-1">
                 {/* Label row: status name + optional doc-ref link */}
                 <p className="mt-px text-sm font-semibold text-foreground">
-                  {ev.label}
+                  {eventLabel(ev)}
                   {ev.docRef && ev.docHref && (
                     <>
                       {' · '}
@@ -120,7 +132,7 @@ export const ProcurementProgressionTimeline: React.FC<ProcurementProgressionTime
                 <div className="mt-px flex flex-wrap gap-x-2 gap-y-0.5 text-sm text-muted-foreground">
                   {ev.actorName && (
                     <span>
-                      by <span className="font-medium">{ev.actorName}</span>
+                      {t('progression.by', 'by')} <span className="font-medium">{ev.actorName}</span>
                     </span>
                   )}
                   <time dateTime={ev.at}>{formatEventTime(ev.at)}</time>
@@ -139,7 +151,7 @@ export const ProcurementProgressionTimeline: React.FC<ProcurementProgressionTime
           onClick={() => setExpanded((prev) => !prev)}
           className="mt-3 text-sm text-primary-text hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
         >
-          {expanded ? 'Show fewer' : `Show ${hiddenCount} earlier`}
+          {expanded ? t('progression.showFewer', 'Show fewer') : t('progression.showEarlier', 'Show {{count}} earlier', { count: hiddenCount })}
         </button>
       )}
     </div>

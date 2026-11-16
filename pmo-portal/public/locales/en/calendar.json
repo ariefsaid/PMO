@@ -33,5 +33,16 @@
   "phasesUnavailable": "Phases could not be loaded, so this calendar is missing them. Tasks are still shown.",
   "retry": "Retry",
   "scope": "Shows tasks and phases that have a date. Meetings are not shown.",
-  "overdue": "Overdue"
+  "overdue": "Overdue",
+  "lib": {
+    "allDay": "All day",
+    "more": "+{{count}} more",
+    "loading": "Loading events",
+    "event": "event",
+    "events_one": "{{count}} event",
+    "events_other": "{{count}} events",
+    "selectView": "Select view",
+    "dropNotAllowed": "Can't place here",
+    "continues": "continues"
+  }
 }

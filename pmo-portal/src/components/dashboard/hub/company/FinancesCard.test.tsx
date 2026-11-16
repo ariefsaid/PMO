@@ -31,9 +31,12 @@ describe('LeftToBillSection', () => {
   it('names as many projects as it is given room for, with reports one tap away for the rest', () => {
     render(<MemoryRouter><LeftToBillSection currency="USD" rows={rows} pending={false} error={false} retry={() => {}} limit={5} /></MemoryRouter>);
     const section = screen.getByTestId('left-to-bill-projects');
-    const chart = within(section).getByRole('img');
-    for (const name of ['Project 1:', 'Project 5:']) expect(chart.getAttribute('aria-label')).toContain(name);
-    expect(chart.getAttribute('aria-label')).not.toContain('Project 6');
+    // Each project's bar is a figure named with the project and its amount; the sixth is left to the report.
+    const bars = within(section).getAllByRole('img').map((bar) => bar.getAttribute('aria-label'));
+    expect(bars).toHaveLength(5);
+    expect(bars[0]).toMatch(/^Project 1: /);
+    expect(bars[4]).toMatch(/^Project 5: /);
+    expect(bars.join(' ')).not.toContain('Project 6');
     expect(within(section).getByRole('link', { name: /open reports/i })).toHaveAttribute('href', '/finance/reports');
   });
 });

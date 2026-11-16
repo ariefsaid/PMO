@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 
 export interface KanbanStageItem {
@@ -37,9 +38,10 @@ export const KanbanStageIndicator: React.FC<KanbanStageIndicatorProps> = ({
   onStageClick,
   className,
 }) => {
+  const { t } = useTranslation('boardDrag');
   return (
     <nav
-      aria-label="Pipeline stage navigation"
+      aria-label={t('stageNav', 'Pipeline stage navigation')}
       className={cn(
         // scroll-fade-x: right-edge mask-image fade for parity with Tabs/Stepper/TimesheetGrid
         // (signals "scroll for more" when the strip overflows at narrow widths).

@@ -19,6 +19,7 @@ import { parseMoneyInputAtScale } from '@/src/lib/format';
 import { validateWorkOrderAmount } from './workOrderAmountValidation';
 import { useTaxTreatmentOptions } from '@/src/hooks/useTaxTreatmentOptions';
 import type { WorkOrderRow, WorkOrderInput, WorkOrderPatch } from '@/src/lib/db/workOrders';
+import { DateField } from '@/src/components/ui/DateField';
 
 /**
  * Create / edit a work order's BODY (#566).
@@ -250,26 +251,23 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
               'The client’s own reference. Our WO number is issued by the system.',
             )}
           />
-          <TextField
+          <DateField
             id={orderDateField.id}
             label={t('projectDetail.workOrderForm.orderDate', 'Order date')}
-            type="date"
             value={orderDateField.value}
             onChange={orderDateField.onChange}
             onBlur={orderDateField.onBlur}
           />
-          <TextField
+          <DateField
             id={startField.id}
             label={t('projectDetail.workOrderForm.startDate', 'Start date')}
-            type="date"
             value={startField.value}
             onChange={startField.onChange}
             onBlur={startField.onBlur}
           />
-          <TextField
+          <DateField
             id={endField.id}
             label={t('projectDetail.workOrderForm.endDate', 'End date')}
-            type="date"
             value={endField.value}
             onChange={endField.onChange}
             onBlur={endField.onBlur}

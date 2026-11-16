@@ -64,7 +64,7 @@ export function ExportAllButton<Row>({
         className={className}
       >
         <Icon name="export" />
-        Export
+        {t('projects.export', 'Export')}
       </Button>
       {error && <p role="alert" className="text-control text-destructive-text">{error}</p>}
     </div>

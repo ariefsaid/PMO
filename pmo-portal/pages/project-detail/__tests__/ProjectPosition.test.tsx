@@ -689,16 +689,14 @@ describe('contract billing block', () => {
 
     renderWithQueryClient(<MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>);
     expect(screen.getByRole('heading', { name: 'Money position' })).toBeInTheDocument();
-    // L5: one answer leads, biggest — the invoiced share of the contract — and the cascade follows as a compact strip.
-    expect(screen.getByText('25% invoiced')).toBeInTheDocument();
-    expect(screen.getByText('20% paid')).toBeInTheDocument();
-    expect(screen.getAllByRole('progressbar')).toHaveLength(2);
-    expect(screen.queryByRole('progressbar', { name: /Contract is|Delivered is/ })).not.toBeInTheDocument();
-    expect(screen.getByTestId('contract-value-amount').textContent).toBe(formatCurrency(1_000, 'USD'));
-    expect(screen.getByText('$500')).toBeInTheDocument();
-    expect(screen.getByText('$400')).toBeInTheDocument();
-    expect(screen.getByText('$250')).toBeInTheDocument();
-    expect(screen.getByText('$200')).toBeInTheDocument();
+    // One row of figures, contract first: each figure sits with its own label, a stage carries its share of the contract.
+    const figure = (label: string) => screen.getByText(label, { selector: 'dt *' }).closest('div') as HTMLElement;
+    expect(screen.queryAllByRole('progressbar')).toHaveLength(0);
+    expect(screen.getByTestId('contract-value-amount')).toHaveTextContent(formatCurrency(1_000, 'USD'));
+    expect(figure('In work orders')).toHaveTextContent(/\$500.*50% of contract/);
+    expect(figure('Delivered')).toHaveTextContent(/\$400.*40% of contract/);
+    expect(figure('Invoiced')).toHaveTextContent(/\$250.*25% of contract/);
+    expect(figure('Paid')).toHaveTextContent(/\$200.*20% of contract.*Received \$150/);
   });
 
   it('explains settled invoice value that has no matched receipt and links to matching', () => {
@@ -765,7 +763,7 @@ describe('contract billing block', () => {
     expect(screen.queryByText('Outstanding', { exact: true })).not.toBeInTheDocument();
     const hidden = screen.getByTestId('figures-hidden');
     // The panel names its own figures it cannot compute yet, beside the ones it shows.
-    expect(hidden).toHaveTextContent('Not shown yet: Contract, Ordered, Delivered, Gross margin, Cash received · Why');
+    expect(hidden).toHaveTextContent('Not shown yet: Contract, In work orders, Delivered, Gross margin, Cash received · Why');
     await userEvent.click(within(hidden).getByText('Why'));
     expect(screen.getByText('Receipt-backed cash is not available yet.')).toBeInTheDocument();
     expect(screen.getByText('Contract value is not recorded.')).toBeInTheDocument();

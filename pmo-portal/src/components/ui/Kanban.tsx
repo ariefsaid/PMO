@@ -36,7 +36,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
   count,
   totals,
   children,
-  emptyMessage = 'No items',
+  emptyMessage: emptyMessageProp,
   selected = false,
   presentation = 'cards',
   dropState,
@@ -100,7 +100,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
             {[0, 1, 2].map((i) => <div key={i} className="skel h-[116px] rounded-lg" />)}
           </div>
         ) : empty ? (
-          <div className="py-6 text-center text-control text-muted-foreground">{emptyMessage}</div>
+          <div className="py-6 text-center text-control text-muted-foreground">{emptyMessageProp ?? t('column.empty', 'No items')}</div>
         ) : (
           children
         )}

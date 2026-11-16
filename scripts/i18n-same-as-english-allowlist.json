@@ -73,6 +73,9 @@
     { "value": "1 invoice", "reason": "the kept English term: an invoice is \"invoice\" in Bahasa, \"faktur\" names only the tax invoice (owner ruling 2026-11-16)" },
     { "value": "{{count}} invoice", "reason": "the kept English term: an invoice is \"invoice\" in Bahasa, \"faktur\" names only the tax invoice (owner ruling 2026-11-16)" },
     { "value": "Invoice {{number}}", "reason": "the kept English term: an invoice is \"invoice\" in Bahasa, \"faktur\" names only the tax invoice (owner ruling 2026-11-16)" },
-    { "value": "{{count}} invoice · {{clients}} {{clientLabel}}", "reason": "the kept English term: an invoice is \"invoice\" in Bahasa, \"faktur\" names only the tax invoice (owner ruling 2026-11-16)" }
+    { "value": "{{count}} invoice · {{clients}} {{clientLabel}}", "reason": "the kept English term: an invoice is \"invoice\" in Bahasa, \"faktur\" names only the tax invoice (owner ruling 2026-11-16)" },
+    { "value": "supplier", "reason": "owner ruling 2026-11-16: Bahasa keeps Supplier, lower-case inside a sentence" },
+    { "value": "Transmittal", "reason": "a document-register type Indonesian engineering teams use as written" },
+    { "value": "Submittal", "reason": "a document-register type Indonesian engineering teams use as written" }
   ]
 }

@@ -11,6 +11,7 @@ import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useOrgBusinessTimezone } from '@/src/hooks/useResolvedLocale';
 import { VendorInvoiceIdentity } from '@/src/components/procurement/VendorInvoiceIdentity';
 import { vendorInvoiceIdentityAccessibleLabel } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
+import { DateField } from '@/src/components/ui/DateField';
 
 export interface VendorWithholdingSlipModalProps {
   invoice: ProcurementInvoiceRow;
@@ -119,7 +120,7 @@ export function VendorWithholdingSlipModal({ invoice, vendorId, vendorName, open
     <p className="mb-3 text-sm text-foreground">{t('bupot.vendor', 'Supplier')}: {vendorName || t('bupot.vendorUnavailable', 'Supplier details not recorded')} · {invoice.currency}</p>
     <div className="grid gap-3 sm:grid-cols-2">
       <TextField label={t('bupot.slipNumber', 'Issued slip number')} value={number} onChange={setNumber} required maxLength={100} />
-      <TextField label={t('bupot.slipDate', 'Slip date')} type="date" max={today} value={slipDate} onChange={setSlipDate} required />
+      <DateField label={t('bupot.slipDate', 'Slip date')} max={today} value={slipDate} onChange={setSlipDate} required />
       <TextField label={t('bupot.taxPeriodMonth', 'Tax period (month)')} type="month" max={today.slice(0, 7)} value={period.slice(0, 7)} onChange={(value) => setPeriod(`${value}-01`)} required />
       <SelectField label={t('bupot.type', 'PPh type')} value={pphType} onChange={(value) => {
         const next = value as PphType; setPphType(next);

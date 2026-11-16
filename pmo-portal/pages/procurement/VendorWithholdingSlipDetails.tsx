@@ -10,6 +10,7 @@ import { vendorInvoiceIdentityAccessibleLabel } from '@/src/components/procureme
 import { bupotRefusal, type CorrectSlipInput, type VoidSlipInput } from '@/src/lib/vendorWithholdingSlip';
 import { formatCurrencyCents, formatDay } from '@/src/lib/format';
 import { FIGURE_LINE_CLASS } from '@/src/components/ui/FigureContent';
+import { DateField } from '@/src/components/ui/DateField';
 
 interface Header { id: string; slip_number: string; slip_date: string; tax_period: string; pph_type: string; currency: string; tax_base: string; withheld_amount: string; status: string; validation_state: string; revision: number; void_reason?: string | null; linked_withheld_at_record?: string | null; linked_withheld_current?: string | null; difference?: string | null; }
 interface Bill { invoice_id: string; procurement_id: string; project_id?: string | null; reference_number?: string | null; vi_number?: string | null; invoice_date?: string | null; withheld_at_record: string; withheld_current?: string | null; difference?: string | null; currency: string; released_at?: string | null; coverage_state?: string; }
@@ -106,7 +107,7 @@ export function VendorWithholdingSlipDetails({ slipId, canWrite, onClose, onOpen
     </CardPad>
     <EntityFormModal open={showCorrection} title={t('bupot.correct', 'Correct metadata')} submitLabel={t('bupot.save', 'Save changes')} onSubmit={correct} onClose={() => setShowCorrection(false)} loading={mutations.correct.isPending} dirty submitDisabled={correctionDatesTouched && (!isCorrectionDateValid || !isCorrectionPeriodValid)} submitError={correctionError}>
       <TextField label={t('bupot.slipNumber', 'Issued slip number')} value={number} onChange={setNumber} required />
-      <TextField label={t('bupot.slipDate', 'Slip date')} type="date" max={today} value={date} onChange={setDate} onBlur={() => setCorrectionDatesTouched(true)} error={correctionDatesTouched && !isCorrectionDateValid ? t('bupot.invalidSlipDate', 'Choose a slip date no later than today.') : undefined} required />
+      <DateField label={t('bupot.slipDate', 'Slip date')} max={today} value={date} onChange={setDate} onBlur={() => setCorrectionDatesTouched(true)} error={correctionDatesTouched && !isCorrectionDateValid ? t('bupot.invalidSlipDate', 'Choose a slip date no later than today.') : undefined} required />
       <TextField label={t('bupot.taxPeriodMonth', 'Tax period (month)')} type="month" max={today.slice(0, 7)} value={period.slice(0, 7)} onChange={(value) => setPeriod(`${value}-01`)} onBlur={() => setCorrectionDatesTouched(true)} error={correctionDatesTouched && !isCorrectionPeriodValid ? t('bupot.invalidTaxPeriod', 'Choose a tax month no later than the current month.') : undefined} required />
       <TextField label={t('bupot.correctionReason', 'Correction reason')} value={reason} onChange={setReason} required />
     </EntityFormModal>

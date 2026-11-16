@@ -143,7 +143,7 @@ export function HydratedPrimitive({
       const rows = data as Record<string, unknown>[];
       const known = rows.filter((row) => row[valueCol] != null && row[valueCol] !== '' && Number.isFinite(Number(row[valueCol])));
       const unknown = rows.length - known.length;
-      if (rows.length === 0) return <span aria-label={t('dashboard.valueUnknown', 'Value unknown')}>—</span>;
+      if (rows.length === 0) return <span aria-label={t('dashboard:valueUnknown', 'Value unknown')}>—</span>;
       const chartData = known.map((row) => ({
         status: String(row[labelCol] ?? ''),
         count: Number(row[valueCol]),
@@ -163,7 +163,7 @@ export function HydratedPrimitive({
           noun={(props.noun as string | undefined) ?? 'records'}
           height={props.height as number | undefined}
         />}
-        {unknown > 0 && <p>{t('dashboard.unknownValues', { defaultValue: '{{count}} values unknown', count: unknown })}</p>}
+        {unknown > 0 && <p>{t('dashboard:unknownValues', { defaultValue: '{{count}} values unknown', count: unknown })}</p>}
         </>
       );
     }
@@ -171,7 +171,7 @@ export function HydratedPrimitive({
       const { valueCol } = categoryMetricCols(panel);
       const first = (data as Record<string, unknown>[])[0];
       const raw = first?.[valueCol];
-      if (raw == null || raw === '' || !Number.isFinite(Number(raw))) return <span aria-label={t('dashboard.valueUnknown', 'Value unknown')}>—</span>;
+      if (raw == null || raw === '' || !Number.isFinite(Number(raw))) return <span aria-label={t('dashboard:valueUnknown', 'Value unknown')}>—</span>;
       const value = Number(raw);
       return (
         <ProgressBar

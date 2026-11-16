@@ -11,6 +11,7 @@ import {
 } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { MilestoneWithProgress, MilestoneInput, MilestonePatch } from '@/src/lib/db/milestones';
+import { DateField } from '@/src/components/ui/DateField';
 
 // ── Form shape ─────────────────────────────────────────────────────────────────
 
@@ -178,10 +179,9 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
             placeholder={t('projectDetail.milestoneForm.namePlaceholder', 'e.g. Engineering design')}
             fullWidth
           />
-          <TextField
+          <DateField
             id={dateField.id}
             label={t('projectDetail.milestoneForm.targetDate', 'Target date')}
-            type="date"
             value={dateField.value}
             onChange={dateField.onChange}
             onBlur={dateField.onBlur}

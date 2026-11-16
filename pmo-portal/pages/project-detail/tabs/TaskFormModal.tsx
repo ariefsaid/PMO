@@ -31,6 +31,7 @@ import type { TaskWithRefs, TaskStatus, TaskPriority, TaskInput, TaskPatch } fro
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import { collectDescendants } from '@/src/lib/tasks/taskTree';
 import { STATUS_OPTIONS } from './taskViewModel';
+import { DateField } from '@/src/components/ui/DateField';
 
 // OD-INT-9 — the four task_priority enum values, for the Priority select. The first option is the
 // explicit unset (value="" → null): the column is nullable, so "no priority" must stay expressible
@@ -318,18 +319,16 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             onBlur={priorityField.onBlur}
             options={priorityOptions(t)}
           />
-          <TextField
+          <DateField
             id={startField.id}
             label={t('projectDetail.tasks.form.startDate', 'Start date')}
-            type="date"
             value={startField.value}
             onChange={startField.onChange}
             onBlur={startField.onBlur}
           />
-          <TextField
+          <DateField
             id={endField.id}
             label={t('projectDetail.tasks.form.dueDate', 'Due date')}
-            type="date"
             value={endField.value}
             onChange={endField.onChange}
             onBlur={endField.onBlur}

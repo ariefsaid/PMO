@@ -194,7 +194,7 @@ const UserViewRenderer: React.FC = () => {
         {/* TODO I4: add CTA to open builder */}
         <ListState
           variant="empty"
-          title="This view has no panels yet."
+          title={t('viewBuilder:noPanels', 'This view has no panels yet.')}
         />
       </div>
     );

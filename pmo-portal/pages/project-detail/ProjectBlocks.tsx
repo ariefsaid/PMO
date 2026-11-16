@@ -4,6 +4,7 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, FigureHiddenLine, Icon, ListState, ProgressBar, RecordSection, TaxBasisLabel, Tooltip, useFigureReport, type HiddenFigure } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
+import { FigureContent } from '@/src/components/ui/FigureContent';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
@@ -12,7 +13,7 @@ import { useTasks } from '@/src/hooks/useTasks';
 import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
 import { useSalesInvoices } from '@/src/hooks/useRevenue';
 import { useMilestones } from '@/src/hooks/useMilestones';
-import { completionPct, formatDayYear, daysOverdue, formatTableMoney } from '@/src/lib/format';
+import { completionPct, formatDayYear, daysOverdue, formatTableMoney, formatTileMoney } from '@/src/lib/format';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import { budgetLeftAfterOrders, deriveMargin } from '@/src/lib/projectFinances';
@@ -60,6 +61,19 @@ const FixLink: React.FC<{ to: string; children: React.ReactNode }> = ({ to, chil
 
 /* ── Money: how much of the contract have we billed and collected? ─────────────────────────── */
 
+/**
+ * Money figure columns by count, from the strip's own width: all in one row once each figure has ~10rem,
+ * otherwise rows of equal length (5 → 3+2, 6 → 3+3), never one figure alone on a row. Static classes for the JIT.
+ */
+const FIGURE_COLS: Record<number, string> = {
+  1: '@lg:grid-cols-1',
+  2: '@lg:grid-cols-2',
+  3: '@lg:grid-cols-3',
+  4: '@[42rem]:grid-cols-4',
+  5: '@[30rem]:grid-cols-3 @[52rem]:grid-cols-5',
+  6: '@[30rem]:grid-cols-3 @[62rem]:grid-cols-6',
+};
+
 const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean; /** One line at the panel foot (the empty billing milestones). */ footer?: React.ReactNode }> = ({ project, fillRow = false, footer }) => {
   const { t } = useTranslation('project');
   const whole = moneyIn(project.currency);
@@ -70,6 +84,8 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean; /*
   const boq = useBoqItems(project.id);
   const billing = useProjectBilling(project.id);
   const invoices = useSalesInvoices(project.id, { enabled: canViewMoney });
+  // Spent closes the row (contracted, billed, paid, spent): the same read the Budget panel below uses, so the two agree.
+  const pos = useBudgetPosition(project, true, { refetchOnMount: false });
   const unit = (
     <>
       {project.currency}
@@ -123,12 +139,12 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean; /*
     { key: 'contract', label: t('projectDetail.money.contract', 'Contract'), value: contractValue, source: hasBoq
       ? t('projectDetail.money.contractSourceBoq', 'Sum of contract quantities multiplied by unit rates from the project BoQ.')
       : t('projectDetail.money.contractSourceRecord', 'Approved contract value from the project record.') },
-    { key: 'ordered', label: t('projectDetail.money.ordered', 'Ordered'), value: ordered, source: t('projectDetail.money.orderedSource', 'Sum of issued work-order allocations multiplied by BoQ unit rates.') },
+    { key: 'ordered', label: t('projectDetail.money.ordered', 'In work orders'), value: ordered, source: t('projectDetail.money.orderedSource', 'Sum of issued work-order allocations multiplied by BoQ unit rates.') },
     { key: 'delivered', label: t('projectDetail.money.delivered', 'Delivered'), value: delivered, source: t('projectDetail.money.deliveredSource', 'Sum of accepted quantities multiplied by BoQ unit rates.') },
     { key: 'invoiced', label: t('projectDetail.money.invoiced', 'Invoiced'), value: invoiced, source: t('projectDetail.money.invoicedSource', 'Sum of non-draft, non-cancelled invoices in the project currency.') },
     { key: 'paid', label: t('projectDetail.money.paid', 'Paid'), value: paid, source: t('projectDetail.money.paidSource', 'Invoice amount less accounting outstanding balance; this is settlement, not receipt cash.') },
   ].filter((step): step is { key: string; label: string; value: number; source: string } => step.value !== null);
-  const stepLabels = { ordered: t('projectDetail.money.ordered', 'Ordered'), delivered: t('projectDetail.money.delivered', 'Delivered'), invoiced: t('projectDetail.money.invoiced', 'Invoiced'), paid: t('projectDetail.money.paid', 'Paid') };
+  const stepLabels = { ordered: t('projectDetail.money.ordered', 'In work orders'), delivered: t('projectDetail.money.delivered', 'Delivered'), invoiced: t('projectDetail.money.invoiced', 'Invoiced'), paid: t('projectDetail.money.paid', 'Paid') };
   const marginHiddenReason = margin?.reason === 'different-currencies'
     ? t('projectDetail.money.marginOutCurrency', 'Gross margin is left out because spending and billed work use different currencies.')
     : margin?.reason === 'work-unavailable'
@@ -168,42 +184,50 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean; /*
     }] : []),
   ];
   const share = (value: number | null) => value !== null && contractValue !== null && contractValue > 0 ? pctOf(value, contractValue) : null;
-  const invoicedShare = share(invoiced);
-  const paidShare = share(paid);
+  const tile = (value: number) => formatTileMoney(value, project.currency) ?? whole(value);
+  // Cash received is a figure of its own (receipts), so it joins the strip after Paid.
+  const spentKnown = pos.canSeeActual && !pos.isPending && !pos.isError && pos.spent !== null;
+  const figures = [
+    ...steps,
+    // Received qualifies Paid (settled in accounting vs cash matched), so it is Paid's caption; its own figure only when Paid is unknown.
+    ...(cashReceived === null || paid !== null ? [] : [{
+      key: 'received', label: t('projectDetail.money.cashReceivedFigure', 'Received'), value: cashReceived,
+      source: t('projectDetail.money.cashReceivedSource', 'Customer receipts matched to this project’s invoices.'),
+    }]),
+    ...(spentKnown ? [{
+      key: 'spent', label: t('projectDetail.budget.spent', 'Spent'), value: pos.spent as number,
+      source: t('projectDetail.cost.summaryTooltip', 'Spent as a share of budget, before tax.'),
+    }] : []),
+  ];
 
   return (
     <Block id="pd-money" title={title} unit={unit} fillRow={fillRow}>
-      {/* L5: the block's one answer leads, biggest — how much of the contract is billed, then collected. */}
-      {invoicedShare !== null && (
-        <p className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          {explain(t('projectDetail.money.leadTooltip', 'Invoiced amount as a share of the contract. Source: non-draft, non-cancelled invoices in the project currency.'),
-            t('projectDetail.money.leadInvoiced', '{{percent}}% invoiced', { percent: invoicedShare }),
-            'text-group font-semibold leading-tight tabular-nums text-foreground')}
-          {paidShare !== null && <span className="text-sm tabular-nums text-muted-foreground">{t('projectDetail.money.leadPaid', '{{percent}}% paid', { percent: paidShare })}</span>}
-          {cashReceived !== null && <span data-testid="money-lead-cash" className="text-sm tabular-nums text-foreground">{t('projectDetail.money.cashLead', 'Received {{amount}}', { amount: whole(cashReceived) })}</span>}
-        </p>
-      )}
-      <dl className="grid min-w-0 gap-y-2" aria-label={t('projectDetail.money.cascadeLabel', 'Contract to payment')}>
-        {steps.map((step) => {
-          const percent = share(step.value);
+      {/* The client's money as one row of figures, contract first: label over figure, its share of the contract
+          under it, so each amount sits with its name (no label-to-amount gap across the panel). Tiles carry
+          2–3 significant digits; the exact amount is the hover title and the screen-reader text. */}
+      <div className="@container min-w-0">
+      <dl className={cn('grid min-w-0 grid-cols-2 gap-x-4 gap-y-5 @lg:gap-x-6 @max-[30rem]:[&>:last-child:nth-child(odd)]:col-span-2', FIGURE_COLS[figures.length] ?? FIGURE_COLS[6])} aria-label={t('projectDetail.money.cascadeLabel', 'Contract to payment')}>
+        {figures.map((step) => {
+          // A share under a zero says nothing; known zeros keep their figure but lose the caption.
+          const pct = step.key === 'contract' || step.key === 'received' || step.key === 'spent' || step.value === 0 ? null : share(step.value);
+          const budgetCaption = step.key === 'spent' && pos.hasBudget && pos.budgetComparisonKnown && pos.budget !== null
+            ? t('projectDetail.money.ofBudget', 'of {{amount}} budget', { amount: tile(Number(pos.budget)) }) : null;
           return (
-            <div key={step.key} className="grid min-w-0 grid-cols-[5.5rem_minmax(0,1fr)_auto] items-center gap-x-3">
-              <dt className="text-sm text-muted-foreground">{step.label}</dt>
-              <dd className="min-w-0">
-                {percent !== null && (step.key === 'invoiced' || step.key === 'paid') && <ProgressBar value={percent} tone={step.key === 'invoiced' ? 'primary' : 'success'} widthless className="w-full" aria-label={t('projectDetail.money.stageAria', '{{label}} is {{percent}}% of contract', { label: step.label, percent })} />}
+            // relative: the exact amount's screen-reader copy (sr-only, absolutely placed) stays inside its tile.
+            <div key={step.key} data-testid={step.key === 'received' ? 'money-lead-cash' : undefined} className="relative min-w-0">
+              <dt className="text-control font-medium text-foreground">{explain(step.source, step.label, 'text-foreground')}</dt>
+              <dd className={cn('mt-1 whitespace-nowrap text-metric font-semibold leading-tight tabular-nums', step.value === 0 && step.key !== 'contract' ? 'text-muted-foreground' : 'text-foreground')} data-testid={step.key === 'contract' ? 'contract-value-amount' : undefined}>
+                <FigureContent value={tile(step.value)} exactValue={whole(step.value)} />
               </dd>
-              <dd className="text-right text-sm">
-                {step.key === 'contract'
-                  ? <span data-testid="contract-value-amount">{explain(step.source, whole(step.value))}</span>
-                  : explain(step.source, whole(step.value))}
-              </dd>
-              {step.key === 'contract' && contractValue !== null && (
-                <dd className="col-span-2 col-start-2 text-right"><FxEquivalent amount={contractValue} currency={project.currency} date={project.contract_date} compact /></dd>
-              )}
+              {pct !== null && <dd className="mt-1 text-control tabular-nums text-muted-foreground">{t('projectDetail.money.shareOfContract', '{{percent}}% of contract', { percent: pct })}</dd>}
+              {step.key === 'paid' && cashReceived !== null && <dd data-testid="money-lead-cash" className="mt-1 text-control tabular-nums text-muted-foreground">{t('projectDetail.money.receivedCaption', 'Received {{amount}}', { amount: tile(cashReceived) })}</dd>}
+              {budgetCaption && <dd className="mt-1 text-control tabular-nums text-muted-foreground">{budgetCaption}</dd>}
+              {step.key === 'contract' && <dd className="mt-1"><FxEquivalent amount={step.value} currency={project.currency} date={project.contract_date} compact /></dd>}
             </div>
           );
         })}
       </dl>
+      </div>
       {marginAmount !== null && (
         <dl className="mt-4 flex min-w-0 flex-wrap gap-x-8 gap-y-3 border-t border-border/70 pt-3">
           {marginAmount !== null && (
@@ -223,8 +247,9 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean; /*
       )}
       {/* The figures this panel cannot compute yet are named here, beside the ones it shows. */}
       {hidden.length > 0 && <FigureHiddenLine compact figures={hidden.map((figure) => ({ ...figure, label: figure.label.replace(/\s*\(.*\)$/u, '') }))} className="mt-4 text-control text-muted-foreground" />}
-      {/* Details and the empty-milestones line share one row: the panel ends level with Needs attention. */}
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 border-t border-border/70 pt-3" data-testid="money-position-details">
+      {/* Details and the empty-milestones line share one row on the panel foot (margin-top:auto beside a taller Needs attention). */}
+      <div aria-hidden="true" className="h-4 shrink-0" />
+      <div className={cn('flex flex-wrap items-center justify-between gap-x-4 border-t border-border/70 pt-3', fillRow && 'mt-auto')} data-testid="money-position-details">
         <button type="button" aria-expanded={financeDetailsOpen} onClick={() => setFinanceDetailsOpen((open) => !open)}
           className="touch-target inline-flex items-center gap-2 cursor-pointer text-sm font-semibold text-muted-foreground hover:text-foreground">
           <Icon name="chev" className={`size-3.5 transition-transform duration-100 motion-reduce:transition-none ${financeDetailsOpen ? 'rotate-90' : ''}`} />
@@ -292,7 +317,7 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
   if (!pos.hasBudget) {
     return (
       <Block id="pd-cost" title={title} action={action}>
-        <p className="text-sm text-muted-foreground">{t('projectDetail.cost.noBudget', 'No active budget yet, so spending can’t be compared.')}</p>
+        <p data-empty="" className="text-sm text-muted-foreground">{t('projectDetail.cost.noBudget', 'No active budget yet, so spending can’t be compared.')}</p>
       </Block>
     );
   }
@@ -466,7 +491,7 @@ const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children
     return (
       <Block id="pd-delivery" title={title} action={manage}>
         {/* No phases, no dated points: the progress curve has nothing to draw, so it is not mounted. */}
-        <p className="text-sm text-muted-foreground">{t('projectDetail.delivery.empty', 'No phases yet. Add phases to track delivery progress.')}</p>
+        <p data-empty="" className="text-sm text-muted-foreground">{t('projectDetail.delivery.empty', 'No phases yet. Add phases to track delivery progress.')}</p>
       </Block>
     );
   }

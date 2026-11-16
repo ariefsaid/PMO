@@ -22,7 +22,7 @@ interface PanelState {
 
 const linkClass = 'inline-flex items-center gap-1 text-control font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 /** A finding clause: the fact and its way into the list that owns it, in the line itself. */
-const findingLinkClass = 'touch-target touch-target-overlay inline-flex items-center tabular underline decoration-border underline-offset-4 hover:decoration-current focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
+const findingLinkClass = 'touch-target inline-flex items-center tabular underline decoration-border underline-offset-4 hover:decoration-current focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 const CardLink: React.FC<{ to: string; children: React.ReactNode }> = ({ to, children }) => (
   <Link to={to} className={linkClass}><span>{children}</span><Icon name="chev" className="size-4" /></Link>
 );
@@ -51,9 +51,10 @@ export function EngineerTimesheetCard({
   const open = status === 'Submitted' || status === 'Approved';
   const action = open ? null : hours > 0 ? t('home.eng.submitWeek', 'Submit week') : t('home.eng.logTime', 'Log time');
   return (
-    <Card data-testid="engineer-timesheet">
+    <Card data-testid="engineer-timesheet" className="flex flex-col">
       <CardHead level={2} actions={status ? <StatusPill record="timesheet" state={status} /> : undefined}>{t('home.eng.thisWeek', 'This week’s timesheet')}</CardHead>
-      <CardPad className="grid gap-4">
+      {/* Beside a taller tasks card the action stays at the card's foot, so both cards end on one line. */}
+      <CardPad className="flex flex-1 flex-col gap-4">
         {loading ? <ListState variant="loading" rows={3} />
           : error ? <ListState variant="error" title={t('hub.engineer.timesheetsError', "Couldn't load your timesheets")} onRetry={onRetry} quiet />
             : (
@@ -61,7 +62,7 @@ export function EngineerTimesheetCard({
                 <div className="text-[23px] font-bold leading-none tabular">{formatNumberExact(hours)}&nbsp;{t('hub.engineer.hourUnit', 'h')}</div>
                 {status === 'Rejected' && <p className="text-control text-destructive-text">{t('home.eng.returnedLine', 'Sent back for correction.')}</p>}
                 {chart
-                  ? <MonthColumns labelAll height={150} ariaLabel={t('home.eng.weekStrip', 'Hours by day this week')} points={days.map((day) => ({ key: day.date, tick: day.label, a: day.hours, labelA: day.hours > 0 ? formatNumberExact(day.hours) : undefined }))} />
+                  ? <MonthColumns labelAll fill height={150} ariaLabel={t('home.eng.weekStrip', 'Hours by day this week')} points={days.map((day) => ({ key: day.date, tick: day.label, a: day.hours, labelA: day.hours > 0 ? formatNumberExact(day.hours) : undefined }))} />
                   : (
                   <ol aria-label={t('home.eng.weekStrip', 'Hours by day this week')} className="grid grid-cols-7 gap-1 text-center text-control">
                     {days.map((day) => (
@@ -75,9 +76,11 @@ export function EngineerTimesheetCard({
               </>
             )}
         {/* The way into the timesheet stays whatever state the data is in. */}
-        {action
-          ? <Link to="/timesheets" className={buttonClasses('primary', 'default', 'w-full sm:w-fit pointer-coarse:min-h-11')}>{action}</Link>
-          : <CardLink to="/timesheets">{t('home.eng.openTimesheet', 'Open timesheet')}</CardLink>}
+        <div className="mt-auto">
+          {action
+            ? <Link to="/timesheets" className={buttonClasses('primary', 'default', 'w-full sm:w-fit pointer-coarse:min-h-11')}>{action}</Link>
+            : <CardLink to="/timesheets">{t('home.eng.openTimesheet', 'Open timesheet')}</CardLink>}
+        </div>
       </CardPad>
     </Card>
   );
@@ -109,10 +112,12 @@ export function EngineerTasksCard({
   const oldestFirst = [...overdue].sort((a, b) => String(a.end_date).localeCompare(String(b.end_date)));
   const dueToday = today ? dueThisWeek.filter((task) => task.end_date === today).length : 0;
   // Without the organisation's day nothing can be called late or due, so the rows are listed undated instead.
-  const rows = (today ? [...oldestFirst, ...dueThisWeek] : undated).slice(0, 5);
+  const urgent = today ? [...oldestFirst, ...dueThisWeek] : undated;
+  // Nothing late or due this week: the card lists what comes next instead of standing empty.
+  const upcoming = today && urgent.length === 0 ? undated : [];
+  const rows = (urgent.length > 0 ? urgent : upcoming).slice(0, 5);
   // Both of the person's own counts, stated where the list starts: overdue in the shared late tone, due today
-  // plain; each clause links to the list it counts. The compact links use the shared pseudo hit area so the
-  // phone target grows without increasing the heading's line height.
+  // plain; each clause links to the list it counts, with a full 44px target on a phone.
   const overdueFinding = overdue.length > 0
     ? <Link to="/my-tasks" data-testid="engineer-tasks-overdue" className={`${findingLinkClass} text-destructive-text`}>{t('home.eng.tasksOverdueFinding', { count: overdue.length, defaultValue_one: '{{count}} overdue', defaultValue_other: '{{count}} overdue' })}</Link>
     : null;
@@ -131,8 +136,16 @@ export function EngineerTasksCard({
         )}
         {loading ? <ListState variant="loading" rows={3} />
           : error ? <ListState variant="error" title={t('hub.engineer.tasksError', "Couldn't load your tasks")} onRetry={onRetry} quiet />
-            : rows.length === 0 ? <p className="pb-2 text-control text-muted-foreground">{t('hub.engineer.noTasksDue', 'No overdue tasks or tasks due this week.')}</p>
-              : (
+            : (
+              <>
+                {urgent.length === 0 && (
+                  <p className="flex items-center gap-2 pb-2 text-control text-muted-foreground">
+                    <Icon name="circle-check" className="size-4 shrink-0 text-success" />
+                    {t('hub.engineer.noTasksDue', 'No overdue tasks or tasks due this week.')}
+                  </p>
+                )}
+                {upcoming.length > 0 && <h3 className="pt-2 text-control font-medium">{t('home.eng.nextUp', 'Next up')}</h3>}
+                {rows.length > 0 && (
                 <ul className="min-w-0 divide-y divide-border">
                   {rows.map((task) => {
                     const late = today && task.end_date && task.end_date < today ? overdueAgeDays(task.end_date, today) : null;
@@ -151,7 +164,9 @@ export function EngineerTasksCard({
                     );
                   })}
                 </ul>
-              )}
+                )}
+              </>
+            )}
       </div>
     </Card>
   );

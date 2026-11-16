@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { EntityFormModal, TextField, SelectField, type SubmitError } from '@/src/components/ui';
+import { EntityFormModal, SelectField, type SubmitError } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { formatDayYear } from '@/src/lib/format';
 import { STAGE_KEY_DATE_LABEL } from '@/components/salesPipeline';
 import type { ProjectStatus } from '@/src/lib/db/projectTransitions';
+import { DateField } from '@/src/components/ui/DateField';
 
 interface StageDateDialogProps {
   title: string;
@@ -59,7 +60,7 @@ export default function StageDateDialog({ title, subtitle, initialDate, min, max
         <SelectField label={t('projectDetail.stageHistory.stage', 'Stage')} value={stage} onChange={setStage}
           options={stageOptions.map((s) => ({ value: s, label: t(STAGE_KEY_DATE_LABEL[s][0], STAGE_KEY_DATE_LABEL[s][1]) }))} />
       )}
-      <TextField type="date" label={t('projectDetail.stageHistory.date', 'Stage date')} value={value}
+      <DateField label={t('projectDetail.stageHistory.date', 'Stage date')} value={value}
         onChange={(v) => { setValue(v); setSaveError(null); }} min={min ?? undefined} max={hi}
         error={rangeError} />
       {subtitle && <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>}

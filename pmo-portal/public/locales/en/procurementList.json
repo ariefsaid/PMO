@@ -59,7 +59,8 @@
       "invoiced": "Supplier invoice amount",
       "paid": "Paid amount",
       "unpaid": "Unpaid amount"
-    }
+    },
+    "unavailable": "Amount unavailable"
   },
   "column": {
     "procurement": "Procurement",

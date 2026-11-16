@@ -14,14 +14,17 @@ export const ProjectAttention: React.FC<{
   pendingSources?: readonly string[];
   error?: { what: string; retry: () => unknown };
   className?: string;
-  /** Let the visible rows share a desktop grid row with the money position. */
+  /** Share a desktop grid row's height with the money position; rows keep their natural height, the spare space stays below them. */
   fillRow?: boolean;
-}> = ({ items, excludeKeys, isPending, pendingSources, error, className, fillRow = false }) => {
+  /** A full-width band: the rows sit two abreast on a wide screen, so a short list never leaves a tall empty card. */
+  band?: boolean;
+}> = ({ items, excludeKeys, isPending, pendingSources, error, className, fillRow = false, band = false }) => {
   const { t } = useTranslation('project');
   const title = t('projectDetail.attention.title', 'Needs attention');
   const hasPending = Boolean(isPending) && (pendingSources?.length ?? 0) > 0;
-  const panel = (children: React.ReactNode, actions?: React.ReactNode) => (
-    <RecordSection data-testid="needs-attention" headingId="pd-attention" title={title} actions={actions} className={cn(className, fillRow && 'flex h-full flex-col')} bodyClassName={fillRow ? 'flex flex-1 flex-col' : undefined}>
+  const panel = (children: React.ReactNode, actions?: React.ReactNode, waiting = false) => (
+    // Screen rules, Hierarchy: the block that waits on the person sits on the waiting tone's surface, the heaviest block at a glance.
+    <RecordSection data-testid="needs-attention" headingId="pd-attention" title={title} actions={actions} className={cn(className, waiting && 'bg-waiting-surface', fillRow && 'flex h-full flex-col')} bodyClassName={fillRow ? 'flex flex-1 flex-col' : undefined}>
       {children}
     </RecordSection>
   );
@@ -48,11 +51,12 @@ export const ProjectAttention: React.FC<{
   // The count waits until every source it counts has loaded.
   return panel(
     <>
-      <ul data-testid="needs-attention-rows" className={cn('divide-y divide-border/70', fillRow && 'flex flex-1 flex-col')}>
+      <ul data-testid="needs-attention-rows" className={cn('grid min-w-0', band && 'xl:grid-cols-2 xl:gap-x-[var(--space-section)]')}>
         {visibleItems.map((item) => (
-          <li key={item.key} className={fillRow ? 'flex flex-1' : undefined}>
+          // One rule line between rows; in the two-up band the second row's line goes too, so both columns start flush.
+          <li key={item.key} className={cn('min-w-0 border-t border-border/70 first:border-t-0', band && 'xl:[&:nth-child(2)]:border-t-0')}>
             <Tooltip content={item.explanation ?? t('projectDetail.attention.rowTooltip', 'Status is based on project records and their current workflow state.')} block>
-              <Link to={item.to} className={cn('touch-target flex w-full items-center gap-x-4 py-2.5 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', fillRow && 'flex-1')}>
+              <Link to={item.to} className="touch-target flex w-full items-center gap-x-4 py-2.5 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <span className="min-w-0 flex-1">
                   <span className="text-sm font-medium text-foreground">{item.what}</span>
                   {item.size && <>{' '}<span className={cn('mt-0.5 block text-sm tabular-nums', item.tone === 'danger' ? 'text-destructive-text' : 'text-warning-foreground')}>{item.size.replace(/ · /gu, ' · ')}</span></>}
@@ -69,7 +73,8 @@ export const ProjectAttention: React.FC<{
     <Tooltip content={t('projectDetail.attention.countTooltip', 'Count of current project items that need follow-up.')}>
       {hasPending
         ? <span aria-busy="true" data-testid="project-attention-count-loading" className="inline-block h-4 w-5 animate-pulse rounded bg-muted align-middle" />
-        : <span tabIndex={0} data-testid="project-attention-count" className="font-normal text-muted-foreground">{visibleItems.length}</span>}
+        : <span tabIndex={0} data-testid="project-attention-count" className="inline-grid min-w-6 place-items-center rounded-full bg-card px-2 text-control font-semibold leading-6 tabular-nums text-warning-foreground">{visibleItems.length}</span>}
     </Tooltip>,
+    true,
   );
 };

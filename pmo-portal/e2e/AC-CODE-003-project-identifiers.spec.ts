@@ -16,7 +16,7 @@ test('AC-CODE-003: PMO Project Number and Client Project Code are separately vis
 
   await page.getByLabel(/project name/i).fill(projectName);
   await page.getByLabel(/origination stage/i).selectOption('Internal Project');
-  await pickComboboxOption(page, page, /client company/i, 'first');
+  await pickComboboxOption(page, page, /client company/i, /^Meridian Steelworks/);
 
   const pmoNumberField = page.getByLabel('PMO Project Number');
   await expect(pmoNumberField).toHaveValue(/^PRJ-\d{2}-\d{4,}$/, { timeout: 15_000 });
