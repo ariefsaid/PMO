@@ -336,7 +336,7 @@ describe('BillingTab', () => {
     expect(within(drawer).getByText('rev A')).toBeInTheDocument();
     const evidenceStatus = within(drawer).getByText('Issued');
     expect(evidenceStatus).toBeInTheDocument();
-    expect(evidenceStatus).toHaveClass('whitespace-nowrap');
+    expect(evidenceStatus.parentElement).toHaveClass('whitespace-nowrap');
     // The stored row is machinery: a UUID and a status code are not words a person reads.
     expect(within(drawer).queryByText('doc-1')).toBeNull();
   });

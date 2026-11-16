@@ -68,7 +68,7 @@ function buildTaskColumns(
         if (!task.assignee) return <span className="text-muted-foreground">{t('projectDetail.tasks.unassigned', 'Unassigned')}</span>;
         return <span className="inline-flex min-w-0 items-center gap-2" title={task.assignee.full_name}>
           <Avatar name={task.assignee.full_name} decorative fallback="" />
-          <span className="truncate text-muted-foreground">{task.assignee.full_name}</span>
+          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-muted-foreground">{task.assignee.full_name}</span>
         </span>;
       },
       colClassName: 'hidden sm:table-cell',

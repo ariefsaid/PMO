@@ -316,6 +316,28 @@ describe('AppShell', () => {
     expect(grid!.style.gridTemplateAreas).toBe('"rail header" "rail main"');
   });
 
+  it('AC-AXP-019 dock/overlay reflow + persists: a viewport too narrow to dock reserves no column (the panel is the full-screen sheet there)', () => {
+    localStorage.setItem('pmo.agentPanel.mode', 'docked');
+    const matchMedia = vi.spyOn(window, 'matchMedia').mockImplementation(
+      (query: string) =>
+        ({ matches: false, media: query, addEventListener: () => {}, removeEventListener: () => {} }) as unknown as MediaQueryList
+    );
+
+    const { container } = wrap(
+      <AppShell
+        rail={<div>nav</div>}
+        header={<div>bar</div>}
+        assistantOpen
+        assistant={<aside role="complementary" aria-label="Agent assistant" />}
+      >
+        <div>x</div>
+      </AppShell>
+    );
+
+    expect(container.querySelector<HTMLElement>('.grid')!.style.gridTemplateColumns).toBe('var(--rail-w) minmax(0, 1fr)');
+    matchMedia.mockRestore();
+  });
+
   it('AC-AXP-019 dock/overlay reflow + persists: shell reacts when panel prefs change', () => {
     localStorage.setItem('pmo.agentPanel.mode', 'overlay');
     localStorage.setItem('pmo.agentPanel.width', '400');

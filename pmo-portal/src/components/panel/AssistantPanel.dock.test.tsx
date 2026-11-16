@@ -2,7 +2,7 @@
  * AssistantPanel dock/overlay toggle — Task D3 (RED) / D4 (GREEN).
  *
  * AC-AXP-019 — The dock/overlay toggle reflows content when docked and persists.
- * FR-AXP-025 (dock-vs-overlay toggle, default overlay, persisted) / FR-AXP-026
+ * FR-AXP-025 (dock-vs-overlay toggle, default docked so the page reflows, persisted) / FR-AXP-026
  * (labelled button, no focus-trap/Escape regression).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -75,46 +75,18 @@ describe('AssistantPanel dock/overlay toggle', () => {
     localStorage.removeItem(MODE_KEY);
   });
 
-  it('AC-AXP-019 dock/overlay reflow + persists: default mode is overlay', () => {
+  it('AC-AXP-019 dock/overlay reflow + persists: default mode is docked, the page reflows beside it', () => {
     renderPanel();
 
     const toggle = screen.getByRole('button', { name: /dock|overlay/i });
     expect(toggle).toBeInTheDocument();
 
     const panel = document.querySelector('[aria-label="Agent assistant"]') as HTMLElement;
-    expect(panel).toHaveAttribute('data-panel-mode', 'overlay');
-    expect(panel.className).toMatch(/fixed/);
-    expect(panel.className).toMatch(/right-0/);
-  });
-
-  it('AC-AXP-019 dock/overlay reflow + persists: clicking the toggle switches to docked, drops overlay classes, and persists', async () => {
-    const user = userEvent.setup();
-    renderPanel();
-
-    const toggle = screen.getByRole('button', { name: /dock|overlay/i });
-    await user.click(toggle);
-
-    const panel = document.querySelector('[aria-label="Agent assistant"]') as HTMLElement;
-    await waitFor(() => {
-      expect(panel).toHaveAttribute('data-panel-mode', 'docked');
-    });
-    expect(panel.className).not.toMatch(/fixed/);
-
-    expect(localStorage.getItem(MODE_KEY)).toBe('docked');
-  });
-
-  it('AC-AXP-019 dock/overlay reflow + persists: restores docked mode from localStorage on mount', () => {
-    localStorage.setItem(MODE_KEY, 'docked');
-
-    renderPanel();
-
-    const panel = document.querySelector('[aria-label="Agent assistant"]') as HTMLElement;
     expect(panel).toHaveAttribute('data-panel-mode', 'docked');
     expect(panel.className).not.toMatch(/fixed/);
   });
 
-  it('toggling back to overlay restores the fixed overlay classes and persists', async () => {
-    localStorage.setItem(MODE_KEY, 'docked');
+  it('AC-AXP-019 dock/overlay reflow + persists: clicking the toggle switches to overlay, adds overlay classes, and persists', async () => {
     const user = userEvent.setup();
     renderPanel();
 
@@ -126,7 +98,35 @@ describe('AssistantPanel dock/overlay toggle', () => {
       expect(panel).toHaveAttribute('data-panel-mode', 'overlay');
     });
     expect(panel.className).toMatch(/fixed/);
+    expect(panel.className).toMatch(/right-0/);
+
     expect(localStorage.getItem(MODE_KEY)).toBe('overlay');
+  });
+
+  it('AC-AXP-019 dock/overlay reflow + persists: restores overlay mode from localStorage on mount', () => {
+    localStorage.setItem(MODE_KEY, 'overlay');
+
+    renderPanel();
+
+    const panel = document.querySelector('[aria-label="Agent assistant"]') as HTMLElement;
+    expect(panel).toHaveAttribute('data-panel-mode', 'overlay');
+    expect(panel.className).toMatch(/fixed/);
+  });
+
+  it('toggling back to docked drops the fixed overlay classes and persists', async () => {
+    localStorage.setItem(MODE_KEY, 'overlay');
+    const user = userEvent.setup();
+    renderPanel();
+
+    const toggle = screen.getByRole('button', { name: /dock|overlay/i });
+    await user.click(toggle);
+
+    const panel = document.querySelector('[aria-label="Agent assistant"]') as HTMLElement;
+    await waitFor(() => {
+      expect(panel).toHaveAttribute('data-panel-mode', 'docked');
+    });
+    expect(panel.className).not.toMatch(/fixed/);
+    expect(localStorage.getItem(MODE_KEY)).toBe('docked');
   });
 
   it('does not regress Escape-closes-panel behavior with the dock toggle present', async () => {

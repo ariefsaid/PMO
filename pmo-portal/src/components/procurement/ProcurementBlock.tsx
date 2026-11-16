@@ -662,7 +662,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         sortKey: 'stage',
         cell: (row) => (
           <Tooltip content={stageDateTooltip(row)}>
-            <span tabIndex={0} className="inline-flex rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+            <span tabIndex={0} className="inline-flex min-w-0 max-w-full rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
               <ProcurementStatusPill status={row.status} />
             </span>
           </Tooltip>
@@ -715,7 +715,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
             <Tooltip content={t('projectDetail.procurement.ownerTooltip', 'Requested by {{name}}. Source: procurement case.', { name: owner })}>
               <span tabIndex={0} className="inline-flex max-w-full items-center gap-2 rounded-sm text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                 <Avatar name={owner} decorative />
-                <span className="truncate">{owner}</span>
+                <span title={owner} className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{owner}</span>
               </span>
             </Tooltip>
           );
