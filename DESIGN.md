@@ -17,12 +17,12 @@ colors:
   popover: "hsl(0 0% 100%)"
   popover-foreground: "hsl(218.1818 12.3596% 17.451%)"
   secondary: "hsl(220 11.1111% 94.7059%)"
-  secondary-foreground: "hsl(216 12% 22%)"
+  secondary-foreground: "hsl(216 10% 40%)"
   muted: "hsl(210 14.2857% 97.2549%)"
   muted-foreground: "hsl(216 10% 40%)"
   accent: "hsl(210 14.2857% 97.2549%)"
   accent-foreground: "hsl(218.1818 12.3596% 17.451%)"
-  count-foreground: "hsl(216 12% 22%)"
+  count-foreground: "hsl(216 10% 40%)"
   primary: "hsl(230.8966 67.4419% 57.8431%)"
   primary-foreground: "hsl(0 0% 100%)"
   primary-text: "hsl(230.8966 67.4419% 57.8431%)"
@@ -136,12 +136,12 @@ Colors use bare HSL triplets so Tailwind slash-alpha utilities continue to work.
 | `--surface-table-head` | `var(--background)` | `var(--background)` | table header follows the canvas |
 | `--card-foreground` / `--popover-foreground` | `218.1818 12.3596% 17.451%` | `211.2 20.6612% 76.2745%` | text on work surfaces |
 | `--secondary` | `220 11.1111% 94.7059%` | `210 13.7255% 20%` | quiet surface |
-| `--secondary-foreground` | `216 12% 22%` | `211.0345 17.7914% 68.0392%` | alias of muted text |
+| `--secondary-foreground` | `216 10% 40%` | `211.0345 17.7914% 68.0392%` | alias of muted text |
 | `--muted` | `210 14.2857% 97.2549%` | `206.6667 11.6883% 15.098%` | subdued surface |
 | `--muted-foreground` | `216 10% 40%` | `211.0345 17.7914% 68.0392%` | only secondary text grey; AA on white and card surfaces |
 | `--accent` | `210 14.2857% 97.2549%` | `207.2727 12.0879% 17.8431%` | hover wash |
 | `--accent-foreground` | `218.1818 12.3596% 17.451%` | `211.2 20.6612% 76.2745%` | text on accent |
-| `--count-foreground` | `216 12% 22%` | `211.0345 17.7914% 68.0392%` | alias of muted text |
+| `--count-foreground` | `216 10% 40%` | `211.0345 17.7914% 68.0392%` | alias of muted text |
 
 ### Action, focus, and navigation
 | Token | Light | Dark | Role |
@@ -352,7 +352,7 @@ gesture on touch) + a right-edge mask fade. **ONE `ProjectCard` + ONE `KanbanBoa
 
 ### Lifecycle Stepper (signature) — ONE stepper only
 The canonical stepper is the even-flex **BAR** stepper: equal-flex steps each with a 6px rounded `jbar`
-(track `secondary`); `done` → `success`, `current` → `primary`, `paid` → `success`. Used for budget,
+(track `secondary`); `done` → `success`, `current` → `input` (neutral mid grey, not the text grey), `paid` → `success`. Used for budget,
 project-stage, and procurement lifecycles. The `current` step using `primary` is intentional — the bar
 stepper is a **journey indicator**, not a status/category pill, so the Freed-Blue rule does not govern it.
 The numbered-circle `node` variant is retired; the `inline` pip (9px dots in table rows) remains.
