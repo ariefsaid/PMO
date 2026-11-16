@@ -350,7 +350,8 @@ const TimesheetsPage: React.FC = () => {
       <Card clip={isDesktop}>
         <div className="border-b border-border px-3.5 py-2.5">
           <div data-testid="timesheets-entry-header" className="flex min-w-0 flex-wrap items-center gap-2">
-            <StatusPill record="timesheet" state={status ?? TimesheetStatus.Draft} />
+            {/* The pill's box sits on the card inset; its text is the pill's own padding (layout exception). */}
+            <span data-layout-ignore className="contents"><StatusPill record="timesheet" state={status ?? TimesheetStatus.Draft} /></span>
             {/* ⚑ I-16/I-17 (rendered Discover pass, 2026-07-22) — the OWNER'S view of their own ERP
                 push. `timesheet_erp_mirror_select` RLS deliberately grants the sheet's owner this read,
                 and nothing consumed it: the person whose week it is — the one who has to re-do it if
@@ -392,7 +393,7 @@ const TimesheetsPage: React.FC = () => {
         {editable ? (
           editGridRows.length === 0 ? (
             <>
-              <div data-testid="timesheets-empty" className="px-3.5 py-8 text-center">
+              <div data-testid="timesheets-empty" className="px-3.5 py-8 md:text-center">
                 <p className="text-sm font-medium text-foreground">
                   {t('timesheets.emptyEdit.title', 'No hours logged this week')}
                 </p>

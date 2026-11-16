@@ -14,8 +14,8 @@
   "/approvals@1440@exec@acme.test": 140,
   "/companies@390@exec@acme.test": 11,
   "/companies@1440@exec@acme.test": 13,
-  "/timesheets@390@exec@acme.test": 33,
-  "/timesheets@1440@exec@acme.test": 32,
+  "/timesheets@390@exec@acme.test": 24,
+  "/timesheets@1440@exec@acme.test": 24,
   "/@390@pm@acme.test": 58,
   "/@1440@pm@acme.test": 60,
   "/@390@finance@acme.test": 160,
@@ -406,7 +406,9 @@
     "/oauth/consent@390@exec@acme.test": 0,
     "/projects/41000000-0000-0000-0000-000000000002/tasks?view=board&scope=all@390@pm@acme.test": 0,
     "/projects/41000000-0000-0000-0000-000000000002/tasks?view=board&scope=all@1440@pm@acme.test": 0,
-    "/projects@1440@pm@acme.test": 0
+    "/projects@1440@pm@acme.test": 0,
+    "/timesheets@1440@exec@acme.test": 0,
+    "/timesheets@390@exec@acme.test": 0
   },
   "/procurement/00000000-0000-0000-0000-000000000002@390@exec@acme.test": 32,
   "/procurement/00000000-0000-0000-0000-000000000002@390@pm@acme.test": 32,
