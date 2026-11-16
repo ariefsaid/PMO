@@ -1,147 +1,138 @@
 {
   "/@1440@admin@acme.test": [
-    "columnsLevel|main>div.mx-auto.pt-5>div>div.grid.items-stretch[home-grid]|main>div.mx-auto.pt-5>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[project-health]",
+    "columnsLevel|main>div.mx-auto.pt-5>div>div.grid.items-start[home-grid]|main>div.mx-auto.pt-5>div>div.grid.items-start[home-grid]>div.panel-card.flex[project-health]",
     "gaps-heading|main>div.grid.flex-1>div.grid.content-start>section.grid.gap-3[Win rate]>div.flex.flex-wrap|main>div.grid.flex-1>div.grid.content-start>section.grid.gap-3[Win rate]>div.space-y-3[win-rate-breakdown]",
-    "gaps-heading|main>div.grid.items-stretch[home-grid]>div.min-w-0.flex>div.panel-card.flex-1[chart-purchasing]>div.flex.items-start|main>div.grid.items-stretch[home-grid]>div.min-w-0.flex>div.panel-card.flex-1[chart-purchasing]>div.pb-4",
-    "gaps-heading|main>div.grid.items-stretch[home-grid]>div.min-w-0.flex>div.panel-card.min-w-0[waits-on-you]>div.flex.items-start|main>div.grid.items-stretch[home-grid]>div.min-w-0.flex>div.panel-card.min-w-0[waits-on-you]>ul.divide-y.divide-border",
-    "gaps-heading|main>div.panel-card.flex[finances]>div.flex.flex-col>section[left-to-bill-projects]>div.mb-2.flex|main>div.panel-card.flex[finances]>div.flex.flex-col>section[left-to-bill-projects]>div",
-    "gaps-heading|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.flex.items-start|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.grid.border-y",
-    "gaps-heading|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[project-health]>div.flex.items-start|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[project-health]>div.flex-1.pb-2",
-    "gaps-heading|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[sales-overview]>div.flex.items-start|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[sales-overview]>div.grid.flex-1",
-    "gaps-scale|main>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.flex.flex-col>section[chart-invoiced-collected]|main>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.flex.flex-col>section[left-to-bill-projects]",
-    "leftEdges|main>div>div.grid.items-stretch[home-grid]>div.min-w-0.flex>div.panel-card.flex-1[chart-purchasing]|main>div>div.flex.h-11[Purchasing by stage. Req]>div.flex.min-w-6>span|+31"
+    "gaps-heading|main>div.grid.gap-y-5>div.flex.min-w-0>section[left-to-bill-projects]>div.mb-2.flex|main>div.grid.gap-y-5>div.flex.min-w-0>section[left-to-bill-projects]>div",
+    "gaps-heading|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[finances]>div.flex.items-start|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[finances]>div.grid.border-border",
+    "gaps-heading|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[waits-on-you]>div.flex.items-start|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[waits-on-you]>div.flex.flex-1",
+    "gaps-heading|main>div>div.grid.items-start[home-grid]>div.panel-card.flex[project-health]>div.flex.items-start|main>div>div.grid.items-start[home-grid]>div.panel-card.flex[project-health]>div.flex-1.pb-2",
+    "gaps-heading|main>div>div.grid.items-start[home-grid]>div.panel-card.min-w-0[billing]>div.flex.items-start|main>div>div.grid.items-start[home-grid]>div.panel-card.min-w-0[billing]>div.grid.gap-y-5",
+    "gaps-scale|main>div.panel-card.flex[sales-overview]>div.grid.flex-1>div.grid.content-start>section.grid.gap-3[Win rate]|main>div.panel-card.flex[sales-overview]>div.grid.flex-1>div.grid.content-start>section.border-t.border-border[chart-loss-reasons]"
   ],
   "/@1440@engineer@acme.test": [
     "columnsLevel|main>div.mx-auto.pt-5>div>div.grid|main>div.mx-auto.pt-5>div>div.grid>div.panel-card[engineer-timesheet]",
     "gaps-heading|main>div.mx-auto.pt-5>div>div.panel-card[engineer-recent]>div.flex.items-start|main>div.mx-auto.pt-5>div>div.panel-card[engineer-recent]>div.pb-2",
     "gaps-heading|main>div.panel-card[engineer-tasks]>div.flex.items-start>div.min-w-0.flex-1>h2.flex.min-w-0|main>div.panel-card[engineer-tasks]>div.flex.items-start>div.min-w-0.flex-1>p.mt-1.text-control",
     "gaps-heading|main>div>div.grid>div.panel-card[engineer-tasks]>div.flex.items-start|main>div>div.grid>div.panel-card[engineer-tasks]>div.pb-2",
-    "taste-ragged-row|y160"
+    "gaps-heading|main>div>div>div.panel-card[chart-hours-by-project]>div.flex.items-start|main>div>div>div.panel-card[chart-hours-by-project]>div.pb-4",
+    "leftEdges|main>div.mx-auto.pt-5>div>div>div.panel-card[chart-hours-by-project]|main>div>div.flex.h-11[Hours by project this we]>div.flex.min-w-6>span|+139",
+    "taste-ragged-row|y120"
   ],
   "/@1440@exec@acme.test": [
-    "columnsLevel|main>div.mx-auto.pt-5>div>div.grid.items-stretch[home-grid]|main>div.mx-auto.pt-5>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[project-health]",
     "gaps-heading|main>div.grid.flex-1>div.grid.content-start>section.grid.gap-3[Win rate]>div.flex.flex-wrap|main>div.grid.flex-1>div.grid.content-start>section.grid.gap-3[Win rate]>div.space-y-3[win-rate-breakdown]",
-    "gaps-heading|main>div.grid.items-stretch[home-grid]>div.min-w-0.flex>div.panel-card.flex-1[chart-purchasing]>div.flex.items-start|main>div.grid.items-stretch[home-grid]>div.min-w-0.flex>div.panel-card.flex-1[chart-purchasing]>div.pb-4",
-    "gaps-heading|main>div.grid.items-stretch[home-grid]>div.min-w-0.flex>div.panel-card.min-w-0[waits-on-you]>div.flex.items-start|main>div.grid.items-stretch[home-grid]>div.min-w-0.flex>div.panel-card.min-w-0[waits-on-you]>ul.divide-y.divide-border",
-    "gaps-heading|main>div.panel-card.flex[finances]>div.flex.flex-col>section[left-to-bill-projects]>div.mb-2.flex|main>div.panel-card.flex[finances]>div.flex.flex-col>section[left-to-bill-projects]>div",
-    "gaps-heading|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.flex.items-start|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.grid.border-y",
-    "gaps-heading|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[project-health]>div.flex.items-start|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[project-health]>div.flex-1.pb-2",
-    "gaps-heading|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[sales-overview]>div.flex.items-start|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[sales-overview]>div.grid.flex-1",
-    "gaps-scale|main>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.flex.flex-col>section[chart-invoiced-collected]|main>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.flex.flex-col>section[left-to-bill-projects]",
-    "gaps-scale|main>div.panel-card.flex[sales-overview]>div.grid.flex-1>div.grid.content-start>section.grid.gap-3[Win rate]|main>div.panel-card.flex[sales-overview]>div.grid.flex-1>div.grid.content-start>section.border-t.border-border[chart-loss-reasons]",
-    "leftEdges|main>div>div.grid.items-stretch[home-grid]>div.min-w-0.flex>div.panel-card.flex-1[chart-purchasing]|main>div>div.flex.h-11[Purchasing by stage. Req]>div.flex.min-w-6>span|+31"
+    "gaps-heading|main>div.grid.gap-y-5>div.flex.min-w-0>section[left-to-bill-projects]>div.mb-2.flex|main>div.grid.gap-y-5>div.flex.min-w-0>section[left-to-bill-projects]>div",
+    "gaps-heading|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[finances]>div.flex.items-start|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[finances]>div.grid.border-border",
+    "gaps-heading|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[waits-on-you]>div.flex.items-start|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[waits-on-you]>div.flex.flex-1",
+    "gaps-heading|main>div>div.grid.items-start[home-grid]>div.panel-card.flex[project-health]>div.flex.items-start|main>div>div.grid.items-start[home-grid]>div.panel-card.flex[project-health]>div.flex-1.pb-2",
+    "gaps-heading|main>div>div.grid.items-start[home-grid]>div.panel-card.min-w-0[billing]>div.flex.items-start|main>div>div.grid.items-start[home-grid]>div.panel-card.min-w-0[billing]>div.grid.gap-y-5",
+    "gaps-scale|main>div.panel-card.flex[sales-overview]>div.grid.flex-1>div.grid.content-start>section.grid.gap-3[Win rate]|main>div.panel-card.flex[sales-overview]>div.grid.flex-1>div.grid.content-start>section.border-t.border-border[chart-loss-reasons]"
   ],
   "/@1440@exec@acme.test#reads-failing": [
-    "columnsLevel|main>div.mx-auto.pt-5>div>div.grid.items-stretch[home-grid]|main>div.mx-auto.pt-5>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[project-health]",
-    "gaps-gap|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.grid.border-y|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.flex.flex-col",
-    "gaps-heading|main>div.grid.flex-1>div.grid.content-start>section.border-t.border-border[chart-loss-reasons]>h3.mb-2.text-control|main>div.grid.flex-1>div.grid.content-start>section.border-t.border-border[chart-loss-reasons]>div.flex.items-center[alert]",
-    "gaps-heading|main>div.grid.flex-1>div.grid.content-start>section.grid.gap-3[Win rate]>div.flex.flex-wrap|main>div.grid.flex-1>div.grid.content-start>section.grid.gap-3[Win rate]>div.flex.items-center[alert]",
-    "gaps-heading|main>div.panel-card.flex[finances]>div.flex.flex-col>section[chart-invoiced-collected]>div.mb-2.flex|main>div.panel-card.flex[finances]>div.flex.flex-col>section[chart-invoiced-collected]>div.flex.items-center[alert]",
-    "gaps-heading|main>div.panel-card.flex[finances]>div.flex.flex-col>section[left-to-bill-projects]>div.mb-2.flex|main>div.panel-card.flex[finances]>div.flex.flex-col>section[left-to-bill-projects]>div.flex.items-center[alert]",
-    "gaps-heading|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.flex.items-start|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.grid.border-y",
-    "gaps-heading|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[sales-overview]>div.flex.items-start|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[sales-overview]>div.grid.flex-1",
-    "leftEdges|main>div.mx-auto.pt-5>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]|main>section.grid.min-w-0[owed-to-us]>div.flex.items-center[alert]>div.flex-1>div.text-control.font-semibold|+49",
-    "taste-panel-void|Project health",
-    "taste-panel-void|Purchasing by stage"
+    "columnsLevel|main>div.mx-auto.pt-5>div>div.grid.items-start[home-grid]|main>div.mx-auto.pt-5>div>div.grid.items-start[home-grid]>div.panel-card.flex[project-health]",
+    "gaps-heading|main>div.grid.flex-1>div.grid.content-start>section.grid.gap-3[Win rate]>div.flex.flex-wrap|main>div.grid.flex-1>div.grid.content-start>section.grid.gap-3[Win rate]>div.flex.items-start[alert]",
+    "gaps-heading|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[finances]>div.flex.items-start|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[finances]>div.grid.border-border",
+    "gaps-heading|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[waits-on-you]>div.flex.items-start|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[waits-on-you]>div.flex.flex-1",
+    "gaps-heading|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card[chart-purchasing]>div.flex.items-start|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card[chart-purchasing]>div.pb-4",
+    "gaps-heading|main>div>div.grid.items-start[home-grid]>div.panel-card.flex[project-health]>div.flex.items-start|main>div>div.grid.items-start[home-grid]>div.panel-card.flex[project-health]>div.flex-1.pb-2",
+    "gaps-heading|main>div>div.grid.items-start[home-grid]>div.panel-card.flex[sales-overview]>div.flex.items-start|main>div>div.grid.items-start[home-grid]>div.panel-card.flex[sales-overview]>div.grid.flex-1"
   ],
   "/@1440@finance@acme.test": [
-    "columnsLevel|main>div.mx-auto.pt-5>div>div.grid.items-stretch[home-grid]|main>div.mx-auto.pt-5>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[project-health]",
-    "gaps-heading|main>div.grid.items-stretch[home-grid]>div.min-w-0>div.panel-card>div.flex.items-start|main>div.grid.items-stretch[home-grid]>div.min-w-0>div.panel-card>div.overflow-x-auto",
-    "gaps-heading|main>div.panel-card.flex[finances]>div.flex.flex-col>section[left-to-bill-projects]>div.mb-2.flex|main>div.panel-card.flex[finances]>div.flex.flex-col>section[left-to-bill-projects]>div",
-    "gaps-heading|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.flex.items-start|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.grid.border-y",
-    "gaps-heading|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[project-health]>div.flex.items-start|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[project-health]>div.flex-1.pb-2",
-    "gaps-heading|main>div>div.grid.items-stretch[home-grid]>div.panel-card.min-w-0[waits-on-you]>div.flex.items-start|main>div>div.grid.items-stretch[home-grid]>div.panel-card.min-w-0[waits-on-you]>ul.divide-y.divide-border",
-    "gaps-scale|main>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.flex.flex-col>section[chart-invoiced-collected]|main>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.flex.flex-col>section[left-to-bill-projects]"
+    "columnsLevel|main>div.mx-auto.pt-5>div>div.grid.items-start[home-grid]|main>div.mx-auto.pt-5>div>div.grid.items-start[home-grid]>div.flex.min-w-0",
+    "gaps-heading|main>div.grid.gap-y-5>div.flex.min-w-0>section.flex.flex-col[chart-receivables-age]>div.mb-2.flex|main>div.grid.gap-y-5>div.flex.min-w-0>section.flex.flex-col[chart-receivables-age]>div",
+    "gaps-heading|main>div.grid.gap-y-5>div.flex.min-w-0>section[left-to-bill-projects]>div.mb-2.flex|main>div.grid.gap-y-5>div.flex.min-w-0>section[left-to-bill-projects]>div",
+    "gaps-heading|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[finances]>div.flex.items-start|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[finances]>div.grid.border-border",
+    "gaps-heading|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[waits-on-you]>div.flex.items-start|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[waits-on-you]>div.flex.flex-1",
+    "gaps-heading|main>div.grid.items-start[home-grid]>div.min-w-0>div#client-overdue.panel-card>div.flex.items-start|main>div.grid.items-start[home-grid]>div.min-w-0>div#client-overdue.panel-card>div.overflow-x-auto",
+    "gaps-heading|main>div.grid.items-start[home-grid]>div.min-w-0>div.panel-card>div.flex.items-start|main>div.grid.items-start[home-grid]>div.min-w-0>div.panel-card>div.overflow-x-auto",
+    "gaps-heading|main>div>div.grid.items-start[home-grid]>div.panel-card.flex[project-health]>div.flex.items-start|main>div>div.grid.items-start[home-grid]>div.panel-card.flex[project-health]>div.flex-1.pb-2",
+    "gaps-heading|main>div>div.grid.items-start[home-grid]>div.panel-card.min-w-0[billing]>div.flex.items-start|main>div>div.grid.items-start[home-grid]>div.panel-card.min-w-0[billing]>div.grid.gap-y-5",
+    "gaps-scale|main>div.panel-card.min-w-0[billing]>div.grid.gap-y-5>div.flex.min-w-0>section[left-to-bill-projects]|main>div.panel-card.min-w-0[billing]>div.grid.gap-y-5>div.flex.min-w-0>section.flex.flex-col[chart-receivables-age]",
+    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.grid.items-start[home-grid]>div.panel-card.flex[project-health] content|+621"
   ],
   "/@1440@pm@acme.test": [
-    "columnsLevel|main>div.mx-auto.pt-5>div>div.grid.items-start|main>div.mx-auto.pt-5>div>div.grid.items-start>div.min-w-0",
-    "columnsLevel|main>div.mx-auto.pt-5>div>div.grid.items-start|main>div.mx-auto.pt-5>div>div.grid.items-start>div.panel-card[chart-delivery-budget]",
-    "gaps-heading|main>div.grid.items-start>div.min-w-0>div.panel-card.bg-waiting-surface[waits-on-you]>div.flex.items-start|main>div.grid.items-start>div.min-w-0>div.panel-card.bg-waiting-surface[waits-on-you]>ul.divide-y.divide-border",
-    "gaps-heading|main>div.grid.items-start>div.min-w-0>div.panel-card[pm-projects]>div.flex.items-start|main>div.grid.items-start>div.min-w-0>div.panel-card[pm-projects]>div.pb-2",
-    "gaps-heading|main>div>div.grid.items-start>div.panel-card[chart-delivery-budget]>div.flex.items-start|main>div>div.grid.items-start>div.panel-card[chart-delivery-budget]>div.pb-4",
-    "taste-panel-void|Waits on you",
-    "taste-ragged-row|y840"
+    "gaps-heading|main>div.grid.items-stretch>div.min-w-0>div.panel-card.flex[waits-on-you]>div.flex.items-start|main>div.grid.items-stretch>div.min-w-0>div.panel-card.flex[waits-on-you]>div.flex.flex-1",
+    "gaps-heading|main>div.grid.items-stretch>div.min-w-0>div.panel-card[pm-projects]>div.flex.items-start|main>div.grid.items-stretch>div.min-w-0>div.panel-card[pm-projects]>div.pb-2",
+    "gaps-heading|main>div.mx-auto.pt-5>div>div.panel-card>div.flex.items-start|main>div.mx-auto.pt-5>div>div.panel-card>div.min-w-0"
   ],
   "/@390@admin@acme.test": [
+    "gaps-gap|main>section.grid.min-w-0[Company figures]>div.relative.flex>div.relative.z-10>div.min-w-0.whitespace-nowrap|main>section.grid.min-w-0[Company figures]>div.relative.flex>div.relative.z-10>div.mt-auto.break-words",
     "gaps-heading|main>div.grid.flex-1>div.grid.content-start>section.grid.gap-3[Win rate]>div.flex.flex-wrap|main>div.grid.flex-1>div.grid.content-start>section.grid.gap-3[Win rate]>div.space-y-3[win-rate-breakdown]",
-    "gaps-heading|main>div.grid.items-stretch[home-grid]>div.min-w-0.flex>div.panel-card.flex-1[chart-purchasing]>div.flex.items-start|main>div.grid.items-stretch[home-grid]>div.min-w-0.flex>div.panel-card.flex-1[chart-purchasing]>div.pb-4",
-    "gaps-heading|main>div.grid.items-stretch[home-grid]>div.min-w-0.flex>div.panel-card.min-w-0[waits-on-you]>div.flex.items-start|main>div.grid.items-stretch[home-grid]>div.min-w-0.flex>div.panel-card.min-w-0[waits-on-you]>ul.divide-y.divide-border",
-    "gaps-heading|main>div.panel-card.flex[finances]>div.flex.flex-col>section[left-to-bill-projects]>div.mb-2.flex|main>div.panel-card.flex[finances]>div.flex.flex-col>section[left-to-bill-projects]>div",
-    "gaps-heading|main>div.panel-card.flex[finances]>div.grid.border-y>section.grid.min-w-0[owed-to-suppliers]>h3.text-control.font-medium|main>div.panel-card.flex[finances]>div.grid.border-y>section.grid.min-w-0[owed-to-suppliers]>div.text-metric.font-semibold",
-    "gaps-heading|main>div.panel-card.flex[finances]>div.grid.border-y>section.grid.min-w-0[owed-to-us]>h3.text-control.font-medium|main>div.panel-card.flex[finances]>div.grid.border-y>section.grid.min-w-0[owed-to-us]>div.text-metric.font-semibold",
-    "gaps-heading|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.flex.items-start|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.grid.border-y",
-    "gaps-heading|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[project-health]>div.flex.items-start|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[project-health]>div.flex-1.pb-2",
-    "gaps-heading|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[sales-overview]>div.flex.items-start|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[sales-overview]>div.grid.flex-1",
-    "gaps-scale|main>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.flex.flex-col>section[chart-invoiced-collected]|main>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.flex.flex-col>section[left-to-bill-projects]",
-    "gaps-scale|main>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.grid.border-y>section.grid.min-w-0[owed-to-us]|main>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.grid.border-y>section.grid.min-w-0[owed-to-suppliers]",
-    "gaps-scale|main>div.panel-card.flex[sales-overview]>div.grid.flex-1>div.grid.content-start>section.grid.gap-3[Win rate]|main>div.panel-card.flex[sales-overview]>div.grid.flex-1>div.grid.content-start>section.border-t.border-border[chart-loss-reasons]",
-    "leftEdges|main>div>div.grid.items-stretch[home-grid]>div.min-w-0.flex>div.panel-card.flex-1[chart-purchasing]|main>div>div.flex.h-11[Purchasing by stage. Req]>div.flex.min-w-6>span|+31"
+    "gaps-heading|main>div.grid.gap-y-5>div.flex.min-w-0>section[left-to-bill-projects]>div.mb-2.flex|main>div.grid.gap-y-5>div.flex.min-w-0>section[left-to-bill-projects]>div",
+    "gaps-heading|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[finances]>div.flex.items-start|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[finances]>div.grid.border-border",
+    "gaps-heading|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[waits-on-you]>div.flex.items-start|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[waits-on-you]>div.flex.flex-1",
+    "gaps-heading|main>div.panel-card.flex[finances]>div.grid.border-border>section.grid.min-w-0[owed-to-suppliers]>h3.text-control.font-medium|main>div.panel-card.flex[finances]>div.grid.border-border>section.grid.min-w-0[owed-to-suppliers]>div.text-metric.font-semibold",
+    "gaps-heading|main>div.panel-card.flex[finances]>div.grid.border-border>section.grid.min-w-0[owed-to-us]>h3.text-control.font-medium|main>div.panel-card.flex[finances]>div.grid.border-border>section.grid.min-w-0[owed-to-us]>div.text-metric.font-semibold",
+    "gaps-heading|main>div>div.grid.items-start[home-grid]>div.panel-card.flex[project-health]>div.flex.items-start|main>div>div.grid.items-start[home-grid]>div.panel-card.flex[project-health]>div.flex-1.pb-2",
+    "gaps-heading|main>div>div.grid.items-start[home-grid]>div.panel-card.min-w-0[billing]>div.flex.items-start|main>div>div.grid.items-start[home-grid]>div.panel-card.min-w-0[billing]>div.grid.gap-y-5",
+    "gaps-scale|main>div.flex.min-w-0>div.panel-card.flex[finances]>div.grid.border-border>section.grid.min-w-0[owed-to-us]|main>div.flex.min-w-0>div.panel-card.flex[finances]>div.grid.border-border>section.grid.min-w-0[owed-to-suppliers]",
+    "gaps-scale|main>div.panel-card.flex[sales-overview]>div.grid.flex-1>div.grid.content-start>section.grid.gap-3[Win rate]|main>div.panel-card.flex[sales-overview]>div.grid.flex-1>div.grid.content-start>section.border-t.border-border[chart-loss-reasons]"
   ],
   "/@390@engineer@acme.test": [
     "gaps-heading|main>div.mx-auto.pt-5>div>div.panel-card[engineer-recent]>div.flex.items-start|main>div.mx-auto.pt-5>div>div.panel-card[engineer-recent]>div.pb-2",
     "gaps-heading|main>div.panel-card[engineer-tasks]>div.flex.items-start>div.min-w-0.flex-1>h2.flex.min-w-0|main>div.panel-card[engineer-tasks]>div.flex.items-start>div.min-w-0.flex-1>p.mt-1.text-control",
-    "gaps-heading|main>div>div.grid>div.panel-card[engineer-tasks]>div.flex.items-start|main>div>div.grid>div.panel-card[engineer-tasks]>div.pb-2"
+    "gaps-heading|main>div>div.grid>div.panel-card[engineer-tasks]>div.flex.items-start|main>div>div.grid>div.panel-card[engineer-tasks]>div.pb-2",
+    "gaps-heading|main>div>div>div.panel-card[chart-hours-by-project]>div.flex.items-start|main>div>div>div.panel-card[chart-hours-by-project]>div.pb-4"
   ],
   "/@390@exec@acme.test": [
+    "gaps-gap|main>section.grid.min-w-0[Company figures]>div.relative.flex>div.relative.z-10>div.min-w-0.whitespace-nowrap|main>section.grid.min-w-0[Company figures]>div.relative.flex>div.relative.z-10>div.mt-auto.break-words",
     "gaps-heading|main>div.grid.flex-1>div.grid.content-start>section.grid.gap-3[Win rate]>div.flex.flex-wrap|main>div.grid.flex-1>div.grid.content-start>section.grid.gap-3[Win rate]>div.space-y-3[win-rate-breakdown]",
-    "gaps-heading|main>div.grid.items-stretch[home-grid]>div.min-w-0.flex>div.panel-card.flex-1[chart-purchasing]>div.flex.items-start|main>div.grid.items-stretch[home-grid]>div.min-w-0.flex>div.panel-card.flex-1[chart-purchasing]>div.pb-4",
-    "gaps-heading|main>div.grid.items-stretch[home-grid]>div.min-w-0.flex>div.panel-card.min-w-0[waits-on-you]>div.flex.items-start|main>div.grid.items-stretch[home-grid]>div.min-w-0.flex>div.panel-card.min-w-0[waits-on-you]>ul.divide-y.divide-border",
-    "gaps-heading|main>div.panel-card.flex[finances]>div.flex.flex-col>section[left-to-bill-projects]>div.mb-2.flex|main>div.panel-card.flex[finances]>div.flex.flex-col>section[left-to-bill-projects]>div",
-    "gaps-heading|main>div.panel-card.flex[finances]>div.grid.border-y>section.grid.min-w-0[owed-to-suppliers]>h3.text-control.font-medium|main>div.panel-card.flex[finances]>div.grid.border-y>section.grid.min-w-0[owed-to-suppliers]>div.text-metric.font-semibold",
-    "gaps-heading|main>div.panel-card.flex[finances]>div.grid.border-y>section.grid.min-w-0[owed-to-us]>h3.text-control.font-medium|main>div.panel-card.flex[finances]>div.grid.border-y>section.grid.min-w-0[owed-to-us]>div.text-metric.font-semibold",
-    "gaps-heading|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.flex.items-start|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.grid.border-y",
-    "gaps-heading|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[project-health]>div.flex.items-start|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[project-health]>div.flex-1.pb-2",
-    "gaps-heading|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[sales-overview]>div.flex.items-start|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[sales-overview]>div.grid.flex-1",
-    "gaps-scale|main>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.flex.flex-col>section[chart-invoiced-collected]|main>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.flex.flex-col>section[left-to-bill-projects]",
-    "gaps-scale|main>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.grid.border-y>section.grid.min-w-0[owed-to-us]|main>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.grid.border-y>section.grid.min-w-0[owed-to-suppliers]",
-    "gaps-scale|main>div.panel-card.flex[sales-overview]>div.grid.flex-1>div.grid.content-start>section.grid.gap-3[Win rate]|main>div.panel-card.flex[sales-overview]>div.grid.flex-1>div.grid.content-start>section.border-t.border-border[chart-loss-reasons]",
-    "leftEdges|main>div>div.grid.items-stretch[home-grid]>div.min-w-0.flex>div.panel-card.flex-1[chart-purchasing]|main>div>div.flex.h-11[Purchasing by stage. Req]>div.flex.min-w-6>span|+31"
+    "gaps-heading|main>div.grid.gap-y-5>div.flex.min-w-0>section[left-to-bill-projects]>div.mb-2.flex|main>div.grid.gap-y-5>div.flex.min-w-0>section[left-to-bill-projects]>div",
+    "gaps-heading|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[finances]>div.flex.items-start|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[finances]>div.grid.border-border",
+    "gaps-heading|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[waits-on-you]>div.flex.items-start|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[waits-on-you]>div.flex.flex-1",
+    "gaps-heading|main>div.panel-card.flex[finances]>div.grid.border-border>section.grid.min-w-0[owed-to-suppliers]>h3.text-control.font-medium|main>div.panel-card.flex[finances]>div.grid.border-border>section.grid.min-w-0[owed-to-suppliers]>div.text-metric.font-semibold",
+    "gaps-heading|main>div.panel-card.flex[finances]>div.grid.border-border>section.grid.min-w-0[owed-to-us]>h3.text-control.font-medium|main>div.panel-card.flex[finances]>div.grid.border-border>section.grid.min-w-0[owed-to-us]>div.text-metric.font-semibold",
+    "gaps-heading|main>div>div.grid.items-start[home-grid]>div.panel-card.flex[project-health]>div.flex.items-start|main>div>div.grid.items-start[home-grid]>div.panel-card.flex[project-health]>div.flex-1.pb-2",
+    "gaps-heading|main>div>div.grid.items-start[home-grid]>div.panel-card.min-w-0[billing]>div.flex.items-start|main>div>div.grid.items-start[home-grid]>div.panel-card.min-w-0[billing]>div.grid.gap-y-5",
+    "gaps-scale|main>div.flex.min-w-0>div.panel-card.flex[finances]>div.grid.border-border>section.grid.min-w-0[owed-to-us]|main>div.flex.min-w-0>div.panel-card.flex[finances]>div.grid.border-border>section.grid.min-w-0[owed-to-suppliers]",
+    "gaps-scale|main>div.panel-card.flex[sales-overview]>div.grid.flex-1>div.grid.content-start>section.grid.gap-3[Win rate]|main>div.panel-card.flex[sales-overview]>div.grid.flex-1>div.grid.content-start>section.border-t.border-border[chart-loss-reasons]"
   ],
   "/@390@exec@acme.test#reads-failing": [
-    "gaps-heading|main>div.grid.flex-1>div.grid.content-start>section.border-t.border-border[chart-loss-reasons]>h3.mb-2.text-control|main>div.grid.flex-1>div.grid.content-start>section.border-t.border-border[chart-loss-reasons]>div.flex.items-center[alert]",
-    "gaps-heading|main>div.grid.flex-1>div.grid.content-start>section.grid.gap-3[Win rate]>div.flex.flex-wrap|main>div.grid.flex-1>div.grid.content-start>section.grid.gap-3[Win rate]>div.flex.items-center[alert]",
-    "gaps-heading|main>div.panel-card.flex[finances]>div.flex.flex-col>section[chart-invoiced-collected]>div.mb-2.flex|main>div.panel-card.flex[finances]>div.flex.flex-col>section[chart-invoiced-collected]>div.flex.items-center[alert]",
-    "gaps-heading|main>div.panel-card.flex[finances]>div.flex.flex-col>section[left-to-bill-projects]>div.mb-2.flex|main>div.panel-card.flex[finances]>div.flex.flex-col>section[left-to-bill-projects]>div.flex.items-center[alert]",
-    "gaps-heading|main>div.panel-card.flex[finances]>div.grid.border-y>section.grid.min-w-0[owed-to-suppliers]>h3.text-control.font-medium|main>div.panel-card.flex[finances]>div.grid.border-y>section.grid.min-w-0[owed-to-suppliers]>div.flex.items-center[alert]",
-    "gaps-heading|main>div.panel-card.flex[finances]>div.grid.border-y>section.grid.min-w-0[owed-to-us]>h3.text-control.font-medium|main>div.panel-card.flex[finances]>div.grid.border-y>section.grid.min-w-0[owed-to-us]>div.flex.items-center[alert]",
-    "gaps-heading|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.flex.items-start|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.grid.border-y",
-    "gaps-heading|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[sales-overview]>div.flex.items-start|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[sales-overview]>div.grid.flex-1",
-    "gaps-scale|main>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.flex.flex-col>section[chart-invoiced-collected]|main>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.flex.flex-col>section[left-to-bill-projects]"
+    "gaps-gap|main>div.mx-auto.pt-5>div>section.grid.min-w-0[Company figures]>div.flex.min-w-0[figure-error-contract-on]|main>div.mx-auto.pt-5>div>section.grid.min-w-0[Company figures]>div.flex.min-w-0[figure-error-collected]",
+    "gaps-heading|main>div.grid.flex-1>div.grid.content-start>section.border-t.border-border[chart-loss-reasons]>h3.mb-2.text-control|main>div.grid.flex-1>div.grid.content-start>section.border-t.border-border[chart-loss-reasons]>div.flex.items-start[alert]",
+    "gaps-heading|main>div.grid.flex-1>div.grid.content-start>section.grid.gap-3[Win rate]>div.flex.flex-wrap|main>div.grid.flex-1>div.grid.content-start>section.grid.gap-3[Win rate]>div.flex.items-start[alert]",
+    "gaps-heading|main>div.grid.gap-y-5>div.flex.min-w-0>section[left-to-bill-projects]>div.mb-2.flex|main>div.grid.gap-y-5>div.flex.min-w-0>section[left-to-bill-projects]>div.flex.items-start[alert]",
+    "gaps-heading|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[finances]>div.flex.items-start|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[finances]>div.grid.border-border",
+    "gaps-heading|main>div.panel-card.flex[finances]>div.grid.border-border>section.grid.min-w-0[owed-to-suppliers]>h3.text-control.font-medium|main>div.panel-card.flex[finances]>div.grid.border-border>section.grid.min-w-0[owed-to-suppliers]>div.flex.items-start[alert]",
+    "gaps-heading|main>div.panel-card.flex[finances]>div.grid.border-border>section.grid.min-w-0[owed-to-us]>h3.text-control.font-medium|main>div.panel-card.flex[finances]>div.grid.border-border>section.grid.min-w-0[owed-to-us]>div.flex.items-start[alert]",
+    "gaps-heading|main>div.panel-card.min-w-0[billing]>div.grid.gap-y-5>section.min-w-0.flex[chart-invoiced-collected]>div.mb-2.flex|main>div.panel-card.min-w-0[billing]>div.grid.gap-y-5>section.min-w-0.flex[chart-invoiced-collected]>div.flex.items-start[alert]",
+    "gaps-heading|main>div>div.grid.items-start[home-grid]>div.panel-card.flex[sales-overview]>div.flex.items-start|main>div>div.grid.items-start[home-grid]>div.panel-card.flex[sales-overview]>div.grid.flex-1",
+    "gaps-heading|main>div>div.grid.items-start[home-grid]>div.panel-card.min-w-0[billing]>div.flex.items-start|main>div>div.grid.items-start[home-grid]>div.panel-card.min-w-0[billing]>div.grid.gap-y-5"
   ],
   "/@390@finance@acme.test": [
-    "gaps-heading|main>div.grid.items-stretch[home-grid]>div.min-w-0>div.panel-card>div.flex.items-start|main>div.grid.items-stretch[home-grid]>div.min-w-0>div.panel-card>div.overflow-x-auto",
-    "gaps-heading|main>div.panel-card.flex[finances]>div.flex.flex-col>section[left-to-bill-projects]>div.mb-2.flex|main>div.panel-card.flex[finances]>div.flex.flex-col>section[left-to-bill-projects]>div",
-    "gaps-heading|main>div.panel-card.flex[finances]>div.grid.border-y>section.grid.min-w-0[owed-to-suppliers]>h3.text-control.font-medium|main>div.panel-card.flex[finances]>div.grid.border-y>section.grid.min-w-0[owed-to-suppliers]>div.text-metric.font-semibold",
-    "gaps-heading|main>div.panel-card.flex[finances]>div.grid.border-y>section.grid.min-w-0[owed-to-us]>h3.text-control.font-medium|main>div.panel-card.flex[finances]>div.grid.border-y>section.grid.min-w-0[owed-to-us]>div.text-metric.font-semibold",
-    "gaps-heading|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.flex.items-start|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.grid.border-y",
-    "gaps-heading|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[project-health]>div.flex.items-start|main>div>div.grid.items-stretch[home-grid]>div.panel-card.flex[project-health]>div.flex-1.pb-2",
-    "gaps-heading|main>div>div.grid.items-stretch[home-grid]>div.panel-card.min-w-0[waits-on-you]>div.flex.items-start|main>div>div.grid.items-stretch[home-grid]>div.panel-card.min-w-0[waits-on-you]>ul.divide-y.divide-border",
-    "gaps-scale|main>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.flex.flex-col>section[chart-invoiced-collected]|main>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.flex.flex-col>section[left-to-bill-projects]",
-    "gaps-scale|main>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.grid.border-y>section.grid.min-w-0[owed-to-us]|main>div.grid.items-stretch[home-grid]>div.panel-card.flex[finances]>div.grid.border-y>section.grid.min-w-0[owed-to-suppliers]"
+    "gaps-gap|main>section.grid.min-w-0[Company figures]>div.relative.flex>div.relative.z-10>div.min-w-0.whitespace-nowrap|main>section.grid.min-w-0[Company figures]>div.relative.flex>div.relative.z-10>div.mt-auto.break-words",
+    "gaps-heading|main>div.grid.gap-y-5>div.flex.min-w-0>section.flex.flex-col[chart-receivables-age]>div.mb-2.flex|main>div.grid.gap-y-5>div.flex.min-w-0>section.flex.flex-col[chart-receivables-age]>div",
+    "gaps-heading|main>div.grid.gap-y-5>div.flex.min-w-0>section[left-to-bill-projects]>div.mb-2.flex|main>div.grid.gap-y-5>div.flex.min-w-0>section[left-to-bill-projects]>div",
+    "gaps-heading|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[finances]>div.flex.items-start|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[finances]>div.grid.border-border",
+    "gaps-heading|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[waits-on-you]>div.flex.items-start|main>div.grid.items-start[home-grid]>div.flex.min-w-0>div.panel-card.flex[waits-on-you]>div.flex.flex-1",
+    "gaps-heading|main>div.grid.items-start[home-grid]>div.min-w-0>div#client-overdue.panel-card>div.flex.items-start|main>div.grid.items-start[home-grid]>div.min-w-0>div#client-overdue.panel-card>div.overflow-x-auto",
+    "gaps-heading|main>div.grid.items-start[home-grid]>div.min-w-0>div.panel-card>div.flex.items-start|main>div.grid.items-start[home-grid]>div.min-w-0>div.panel-card>div.overflow-x-auto",
+    "gaps-heading|main>div.panel-card.flex[finances]>div.grid.border-border>section.grid.min-w-0[owed-to-suppliers]>h3.text-control.font-medium|main>div.panel-card.flex[finances]>div.grid.border-border>section.grid.min-w-0[owed-to-suppliers]>div.text-metric.font-semibold",
+    "gaps-heading|main>div.panel-card.flex[finances]>div.grid.border-border>section.grid.min-w-0[owed-to-us]>h3.text-control.font-medium|main>div.panel-card.flex[finances]>div.grid.border-border>section.grid.min-w-0[owed-to-us]>div.text-metric.font-semibold",
+    "gaps-heading|main>div>div.grid.items-start[home-grid]>div.panel-card.flex[project-health]>div.flex.items-start|main>div>div.grid.items-start[home-grid]>div.panel-card.flex[project-health]>div.flex-1.pb-2",
+    "gaps-heading|main>div>div.grid.items-start[home-grid]>div.panel-card.min-w-0[billing]>div.flex.items-start|main>div>div.grid.items-start[home-grid]>div.panel-card.min-w-0[billing]>div.grid.gap-y-5",
+    "gaps-scale|main>div.flex.min-w-0>div.panel-card.flex[finances]>div.grid.border-border>section.grid.min-w-0[owed-to-us]|main>div.flex.min-w-0>div.panel-card.flex[finances]>div.grid.border-border>section.grid.min-w-0[owed-to-suppliers]",
+    "gaps-scale|main>div.panel-card.min-w-0[billing]>div.grid.gap-y-5>div.flex.min-w-0>section[left-to-bill-projects]|main>div.panel-card.min-w-0[billing]>div.grid.gap-y-5>div.flex.min-w-0>section.flex.flex-col[chart-receivables-age]"
   ],
   "/@390@pm@acme.test": [
-    "gaps-heading|main>div.grid.items-start>div.min-w-0>div.panel-card.bg-waiting-surface[waits-on-you]>div.flex.items-start|main>div.grid.items-start>div.min-w-0>div.panel-card.bg-waiting-surface[waits-on-you]>ul.divide-y.divide-border",
-    "gaps-heading|main>div.grid.items-start>div.min-w-0>div.panel-card[pm-projects]>div.flex.items-start|main>div.grid.items-start>div.min-w-0>div.panel-card[pm-projects]>div.pb-2",
-    "gaps-heading|main>div>div.grid.items-start>div.panel-card[chart-delivery-budget]>div.flex.items-start|main>div>div.grid.items-start>div.panel-card[chart-delivery-budget]>div.pb-4"
+    "gaps-heading|main>div.grid.items-stretch>div.min-w-0>div.panel-card.flex[waits-on-you]>div.flex.items-start|main>div.grid.items-stretch>div.min-w-0>div.panel-card.flex[waits-on-you]>div.flex.flex-1",
+    "gaps-heading|main>div.grid.items-stretch>div.min-w-0>div.panel-card[pm-projects]>div.flex.items-start|main>div.grid.items-stretch>div.min-w-0>div.panel-card[pm-projects]>div.pb-2",
+    "gaps-heading|main>div.mx-auto.pt-5>div>div.panel-card>div.flex.items-start|main>div.mx-auto.pt-5>div>div.panel-card>div.min-w-0"
   ],
   "/administration/accounting@1440@admin@acme.test": [
     "gaps-gap|main>div.min-w-0>div.min-w-0[administration-panel-acc]>div.space-y-6>section#org-tax-default.scroll-mt-4[Default tax treatment]|main>div.min-w-0>div.min-w-0[administration-panel-acc]>div.space-y-6>section#spend-approvers.scroll-mt-4[Spend approvers]",
     "gaps-gap|main>div.min-w-0>div.min-w-0[administration-panel-acc]>div.space-y-6>section|main>div.min-w-0>div.min-w-0[administration-panel-acc]>div.space-y-6>section#budget-account-map.scroll-mt-4[Budget category to ERP a]",
+    "gaps-gap|main>div.min-w-0[administration-panel-acc]>div.space-y-6>section#budget-account-map.scroll-mt-4[Budget category to ERP a]>div.mt-4.border-y[Suggested posting accoun]|main>div.min-w-0[administration-panel-acc]>div.space-y-6>section#budget-account-map.scroll-mt-4[Budget category to ERP a]>div",
     "gaps-heading|main>div.min-w-0[administration-panel-acc]>div.space-y-6>section#budget-account-map.scroll-mt-4[Budget category to ERP a]>h2.text-group.font-semibold|main>div.min-w-0[administration-panel-acc]>div.space-y-6>section#budget-account-map.scroll-mt-4[Budget category to ERP a]>div.mt-4.border-y[Suggested posting accoun]",
-    "gaps-heading|main>div.space-y-6>section#budget-account-map.scroll-mt-4[Budget category to ERP a]>div.mt-4.border-y[Suggested posting accoun]>div.flex.flex-wrap|main>div.space-y-6>section#budget-account-map.scroll-mt-4[Budget category to ERP a]>div.mt-4.border-y[Suggested posting accoun]>div.mt-2",
     "gaps-heading|main>section#spend-approvers.scroll-mt-4[Spend approvers]>div.mt-3.space-y-4>div>div.mb-2.flex|main>section#spend-approvers.scroll-mt-4[Spend approvers]>div.mt-3.space-y-4>div>p.text-control.text-muted-foreground",
-    "leftEdges|page column|main>div.min-w-0[administration-panel-acc]>div.space-y-6>section#expense-account-map.scroll-mt-4[Expense account map]>div.flex.items-start[alert] content|+42",
-    "leftEdges|page column|main>div.min-w-0[administration-panel-acc]>div.space-y-6>section#expense-account-map.scroll-mt-4[Expense account map]>ul.flex.flex-col|+12"
+    "leftEdges|page column|main>div.min-w-0[administration-panel-acc]>div.space-y-6>section#expense-account-map.scroll-mt-4[Expense account map]>div.flex.items-start[alert] content|+42"
   ],
   "/administration/accounting@390@admin@acme.test": [
     "gaps-gap|main>div.min-w-0>div.min-w-0[administration-panel-acc]>div.space-y-6>section#org-tax-default.scroll-mt-4[Default tax treatment]|main>div.min-w-0>div.min-w-0[administration-panel-acc]>div.space-y-6>section#spend-approvers.scroll-mt-4[Spend approvers]",
     "gaps-gap|main>div.min-w-0>div.min-w-0[administration-panel-acc]>div.space-y-6>section|main>div.min-w-0>div.min-w-0[administration-panel-acc]>div.space-y-6>section#budget-account-map.scroll-mt-4[Budget category to ERP a]",
     "gaps-heading|main>div.min-w-0[administration-panel-acc]>div.space-y-6>section#budget-account-map.scroll-mt-4[Budget category to ERP a]>h2.text-group.font-semibold|main>div.min-w-0[administration-panel-acc]>div.space-y-6>section#budget-account-map.scroll-mt-4[Budget category to ERP a]>div.mt-4.border-y[Suggested posting accoun]",
     "gaps-heading|main>div.mt-3.space-y-4>div>div.mb-2.flex>h3.text-control.font-semibold|main>div.mt-3.space-y-4>div>div.mb-2.flex>button.inline-flex.items-center",
-    "gaps-heading|main>div.space-y-6>section#budget-account-map.scroll-mt-4[Budget category to ERP a]>div.mt-4.border-y[Suggested posting accoun]>div.flex.flex-wrap|main>div.space-y-6>section#budget-account-map.scroll-mt-4[Budget category to ERP a]>div.mt-4.border-y[Suggested posting accoun]>div.mt-2",
     "gaps-heading|main>section#spend-approvers.scroll-mt-4[Spend approvers]>div.mt-3.space-y-4>div>div.mb-2.flex|main>section#spend-approvers.scroll-mt-4[Spend approvers]>div.mt-3.space-y-4>div>p.text-control.text-muted-foreground",
     "leftEdges|page column|main>div.min-w-0[administration-panel-acc]>div.space-y-6>section#expense-account-map.scroll-mt-4[Expense account map]>div.flex.items-start[alert] content|+42",
-    "leftEdges|page column|main>div.min-w-0[administration-panel-acc]>div.space-y-6>section#expense-account-map.scroll-mt-4[Expense account map]>ul.flex.flex-col|+12",
     "leftEdges|page column|main>section#budget-account-map.scroll-mt-4[Budget category to ERP a]>div>div.rounded-b-lg.border>ul.divide-y[dt-card-branch]|+17"
   ],
   "/administration/cost-attribution@1440@admin@acme.test": [
@@ -210,22 +201,25 @@
   "/administration/users@390@exec@acme.test": [],
   "/administration/users@390@exec@acme.test#reads-failing": [],
   "/approvals@1440@exec@acme.test": [
-    "gaps-gap|main>div.grid.gap-8>div#approvals-preview.min-w-0[approvals-preview-region]>div.flex.h-full>div.border-b.border-border|main>div.grid.gap-8>div#approvals-preview.min-w-0[approvals-preview-region]>div.flex.h-full>div.min-h-0.flex-1",
+    "gaps-gap|main>div>div.@container>div.@container.grid[stat-tiles]>div.py-1[stat-tile]|main>div>div.@container>div.@container.grid[stat-tiles]>div.py-1[stat-tile]",
     "gaps-heading|main>div.flex.h-full>div.min-h-0.flex-1>section>h3.mb-2.text-control|main>div.flex.h-full>div.min-h-0.flex-1>section>ul[Line items]",
-    "gaps-heading|main>div.min-h-0.flex-1>div.mb-4>div>div.mb-3.flex|main>div.min-h-0.flex-1>div.mb-4>div>div.mb-4",
+    "gaps-heading|main>div.min-h-0.flex-1>div.panel-card.mb-4>div>div.mb-3.flex|main>div.min-h-0.flex-1>div.panel-card.mb-4>div>div.mb-4",
     "gaps-heading|main>div.min-w-0[approvals-queue-region]>div.space-y-5>section>div.mb-2.flex|main>div.min-w-0[approvals-queue-region]>div.space-y-5>section>div",
-    "layout-core|container-block-inset|details.rounded-lg.border.border-border/70.px-3.py-2"
+    "taste-panel-void|Budget impact",
+    "taste-ragged-row|y280"
   ],
   "/approvals@1440@exec@acme.test#reads-failing": [
-    "gaps-heading|main>div.min-w-0[approvals-queue-region]>div.space-y-5>section>div.mb-2.flex|main>div.min-w-0[approvals-queue-region]>div.space-y-5>section>div.flex.items-center[alert]",
-    "gaps-heading|main>div.mx-auto.pt-5>div>section.mb-4[ERP pushes needing atten]>h2.mb-2.text-control|main>div.mx-auto.pt-5>div>section.mb-4[ERP pushes needing atten]>div.flex.items-center[alert]",
-    "gaps-heading|main>div.mx-auto.pt-5>div>section.mb-4[Employee links awaiting ]>h2.mb-2.text-control|main>div.mx-auto.pt-5>div>section.mb-4[Employee links awaiting ]>div.flex.items-center[alert]",
-    "gaps-scale|main>div.grid.gap-8>div.min-w-0[approvals-queue-region]>div.space-y-5>section|main>div.grid.gap-8>div.min-w-0[approvals-queue-region]>div.space-y-5>section"
+    "gaps-heading|main>div.min-w-0[approvals-queue-region]>div.space-y-5>section>div.mb-2.flex|main>div.min-w-0[approvals-queue-region]>div.space-y-5>section>div.flex.items-start[alert]",
+    "gaps-heading|main>div.mx-auto.pt-5>div>section.mb-4[ERP pushes needing atten]>h2.mb-2.text-control|main>div.mx-auto.pt-5>div>section.mb-4[ERP pushes needing atten]>div.flex.items-start[alert]",
+    "gaps-heading|main>div.mx-auto.pt-5>div>section.mb-4[Employee links awaiting ]>h2.mb-2.text-control|main>div.mx-auto.pt-5>div>section.mb-4[Employee links awaiting ]>div.flex.items-start[alert]"
   ],
   "/approvals@1440@finance@acme.test": [
+    "gaps-gap|main>div>div.@container>div.@container.grid[stat-tiles]>div.py-1[stat-tile]|main>div>div.@container>div.@container.grid[stat-tiles]>div.py-1[stat-tile]",
     "gaps-heading|main>div.flex.h-full>div.min-h-0.flex-1>section>h3.mb-2.text-control|main>div.flex.h-full>div.min-h-0.flex-1>section>ul[Line items]",
-    "gaps-heading|main>div.min-h-0.flex-1>div.mb-4>div>div.mb-3.flex|main>div.min-h-0.flex-1>div.mb-4>div>div.mb-4",
-    "gaps-heading|main>div.min-w-0[approvals-queue-region]>div.space-y-5>section>div.mb-2.flex|main>div.min-w-0[approvals-queue-region]>div.space-y-5>section>div"
+    "gaps-heading|main>div.min-h-0.flex-1>div.panel-card.mb-4>div>div.mb-3.flex|main>div.min-h-0.flex-1>div.panel-card.mb-4>div>div.mb-4",
+    "gaps-heading|main>div.min-w-0[approvals-queue-region]>div.space-y-5>section>div.mb-2.flex|main>div.min-w-0[approvals-queue-region]>div.space-y-5>section>div",
+    "taste-panel-void|Budget impact",
+    "taste-ragged-row|y280"
   ],
   "/approvals@1440@pm@acme.test": [
     "gaps-heading|main>div.grid.gap-8>div#approvals-preview.min-w-0[approvals-preview-region]>div.flex.h-full>div.border-b.border-border|main>div.grid.gap-8>div#approvals-preview.min-w-0[approvals-preview-region]>div.flex.h-full>div.min-h-0.flex-1",
@@ -233,23 +227,23 @@
     "gaps-scale|main>div.grid.gap-8>div.min-w-0[approvals-queue-region]>div.space-y-5>section|main>div.grid.gap-8>div.min-w-0[approvals-queue-region]>div.space-y-5>section"
   ],
   "/approvals@390@exec@acme.test": [
-    "gaps-gap|main>div.grid.gap-8>div#approvals-preview.min-w-0[approvals-preview-region]>div.flex.h-full>div.border-b.border-border|main>div.grid.gap-8>div#approvals-preview.min-w-0[approvals-preview-region]>div.flex.h-full>div.min-h-0.flex-1",
     "gaps-gap|main>div>div.@container>div.@container.grid[stat-tiles]>div.py-1[stat-tile]|main>div>div.@container>div.@container.grid[stat-tiles]>div.py-1[stat-tile]",
     "gaps-heading|main>div.flex.h-full>div.min-h-0.flex-1>section>h3.mb-2.text-control|main>div.flex.h-full>div.min-h-0.flex-1>section>ul[Line items]",
-    "gaps-heading|main>div.min-h-0.flex-1>div.mb-4>div>div.mb-3.flex|main>div.min-h-0.flex-1>div.mb-4>div>div.mb-4",
-    "gaps-heading|main>div.min-w-0[approvals-queue-region]>div.space-y-5>section>div.mb-2.flex|main>div.min-w-0[approvals-queue-region]>div.space-y-5>section>div"
+    "gaps-heading|main>div.min-h-0.flex-1>div.panel-card.mb-4>div>div.mb-3.flex|main>div.min-h-0.flex-1>div.panel-card.mb-4>div>div.mb-4",
+    "gaps-heading|main>div.min-w-0[approvals-queue-region]>div.space-y-5>section>div.mb-2.flex|main>div.min-w-0[approvals-queue-region]>div.space-y-5>section>div",
+    "gaps-heading|main>div.panel-card.mb-4>div>div.mb-3.flex>h2.text-control.font-semibold|main>div.panel-card.mb-4>div>div.mb-3.flex>span.inline-flex.h-auto"
   ],
   "/approvals@390@exec@acme.test#reads-failing": [
-    "gaps-heading|main>div.min-w-0[approvals-queue-region]>div.space-y-5>section>div.mb-2.flex|main>div.min-w-0[approvals-queue-region]>div.space-y-5>section>div.flex.items-center[alert]",
-    "gaps-heading|main>div.mx-auto.pt-5>div>section.mb-4[ERP pushes needing atten]>h2.mb-2.text-control|main>div.mx-auto.pt-5>div>section.mb-4[ERP pushes needing atten]>div.flex.items-center[alert]",
-    "gaps-heading|main>div.mx-auto.pt-5>div>section.mb-4[Employee links awaiting ]>h2.mb-2.text-control|main>div.mx-auto.pt-5>div>section.mb-4[Employee links awaiting ]>div.flex.items-center[alert]",
-    "gaps-scale|main>div.grid.gap-8>div.min-w-0[approvals-queue-region]>div.space-y-5>section|main>div.grid.gap-8>div.min-w-0[approvals-queue-region]>div.space-y-5>section"
+    "gaps-heading|main>div.min-w-0[approvals-queue-region]>div.space-y-5>section>div.mb-2.flex|main>div.min-w-0[approvals-queue-region]>div.space-y-5>section>div.flex.items-start[alert]",
+    "gaps-heading|main>div.mx-auto.pt-5>div>section.mb-4[ERP pushes needing atten]>h2.mb-2.text-control|main>div.mx-auto.pt-5>div>section.mb-4[ERP pushes needing atten]>div.flex.items-start[alert]",
+    "gaps-heading|main>div.mx-auto.pt-5>div>section.mb-4[Employee links awaiting ]>h2.mb-2.text-control|main>div.mx-auto.pt-5>div>section.mb-4[Employee links awaiting ]>div.flex.items-start[alert]"
   ],
   "/approvals@390@finance@acme.test": [
     "gaps-gap|main>div>div.@container>div.@container.grid[stat-tiles]>div.py-1[stat-tile]|main>div>div.@container>div.@container.grid[stat-tiles]>div.py-1[stat-tile]",
     "gaps-heading|main>div.flex.h-full>div.min-h-0.flex-1>section>h3.mb-2.text-control|main>div.flex.h-full>div.min-h-0.flex-1>section>ul[Line items]",
-    "gaps-heading|main>div.min-h-0.flex-1>div.mb-4>div>div.mb-3.flex|main>div.min-h-0.flex-1>div.mb-4>div>div.mb-4",
-    "gaps-heading|main>div.min-w-0[approvals-queue-region]>div.space-y-5>section>div.mb-2.flex|main>div.min-w-0[approvals-queue-region]>div.space-y-5>section>div"
+    "gaps-heading|main>div.min-h-0.flex-1>div.panel-card.mb-4>div>div.mb-3.flex|main>div.min-h-0.flex-1>div.panel-card.mb-4>div>div.mb-4",
+    "gaps-heading|main>div.min-w-0[approvals-queue-region]>div.space-y-5>section>div.mb-2.flex|main>div.min-w-0[approvals-queue-region]>div.space-y-5>section>div",
+    "gaps-heading|main>div.panel-card.mb-4>div>div.mb-3.flex>h2.text-control.font-semibold|main>div.panel-card.mb-4>div>div.mb-3.flex>span.inline-flex.h-auto"
   ],
   "/approvals@390@pm@acme.test": [
     "gaps-heading|main>div.min-w-0[approvals-queue-region]>div.space-y-5>section>div.mb-2.flex|main>div.min-w-0[approvals-queue-region]>div.space-y-5>section>div",
@@ -276,8 +270,7 @@
     "taste-panel-void|Sun"
   ],
   "/calendar@1440@exec@acme.test#reads-failing": [
-    "gaps-scale|main>div.mx-auto.pt-5>div>div.mb-3.flex|main>div.mx-auto.pt-5>div>div.flex.items-center[alert]",
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.flex.items-center[alert] content|+49"
+    "gaps-scale|main>div.mx-auto.pt-5>div>div.mb-3.flex|main>div.mx-auto.pt-5>div>div.flex.items-start[alert]"
   ],
   "/calendar@1440@pm@acme.test": [
     "gaps-gap|main>div.relative.flex>div.flex.flex-col[November 2026]>div.grid.min-h-0>div.relative.grid[row]|main>div.relative.flex>div.flex.flex-col[November 2026]>div.grid.min-h-0>div.relative.grid[row]",
@@ -297,8 +290,7 @@
     "leftEdges|main>div>div.flex.min-h-0[work-calendar]>div.flex.min-h-0>div.relative.flex|main>div.relative.grid[row]>div.relative.flex[Sunday, November 8th, 20]>div.flex.shrink-0>span.flex.size-5|+6"
   ],
   "/calendar@390@exec@acme.test#reads-failing": [
-    "gaps-scale|main>div.mx-auto.pt-5>div>div.mb-3.flex|main>div.mx-auto.pt-5>div>div.flex.items-center[alert]",
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.flex.items-center[alert] content|+49"
+    "gaps-scale|main>div.mx-auto.pt-5>div>div.mb-3.flex|main>div.mx-auto.pt-5>div>div.flex.items-start[alert]"
   ],
   "/calendar@390@pm@acme.test": [
     "leftEdges|main>div>div.flex.min-h-0[work-calendar]>div.flex.min-h-0>div.relative.flex|main>div.relative.grid[row]>div.relative.flex[Sunday, December 6th, 20]>div.flex.shrink-0>span.flex.size-5|+6",
@@ -309,9 +301,7 @@
   "/companies@1440@exec@acme.test#reads-failing": [],
   "/companies@1440@finance@acme.test": [],
   "/companies@390@exec@acme.test": [],
-  "/companies@390@exec@acme.test#reads-failing": [
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.flex.items-center[alert] content|+49"
-  ],
+  "/companies@390@exec@acme.test#reads-failing": [],
   "/companies@390@finance@acme.test": [],
   "/companies/c0000000-0000-0000-0000-000000000002@1440@exec@acme.test": [
     "gaps-gap|main>div.mx-auto.pt-5>div>div.mb-4|main>div.mx-auto.pt-5>div>div.mb-4",
@@ -343,13 +333,9 @@
   ],
   "/companies/c0000000-0000-0000-0000-000000000002@390@exec@acme.test#reads-failing": [],
   "/contacts@1440@exec@acme.test": [],
-  "/contacts@1440@exec@acme.test#reads-failing": [
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.flex.items-center[alert] content|+49"
-  ],
+  "/contacts@1440@exec@acme.test#reads-failing": [],
   "/contacts@390@exec@acme.test": [],
-  "/contacts@390@exec@acme.test#reads-failing": [
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.flex.items-center[alert] content|+49"
-  ],
+  "/contacts@390@exec@acme.test#reads-failing": [],
   "/contacts/ce000000-0000-0000-0000-000000000001@1440@exec@acme.test": [
     "gaps-gap|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header]|main>div.mx-auto.pt-5>div>div",
     "gaps-heading|main>div.mx-auto.pt-5>div>div>div.flex.items-start|main>div.mx-auto.pt-5>div>div>div",
@@ -365,22 +351,36 @@
   ],
   "/contacts/ce000000-0000-0000-0000-000000000001@390@exec@acme.test#reads-failing": [],
   "/equipment@1440@engineer@acme.test": [],
-  "/equipment@1440@exec@acme.test": [],
-  "/equipment@1440@exec@acme.test#reads-failing": [],
-  "/equipment@1440@pm@acme.test": [],
+  "/equipment@1440@exec@acme.test": [
+    "layout-core|control-edge-inset|button#equipment-usage-tab-log"
+  ],
+  "/equipment@1440@exec@acme.test#reads-failing": [
+    "layout-core|control-edge-inset|button#equipment-usage-tab-log"
+  ],
+  "/equipment@1440@pm@acme.test": [
+    "layout-core|control-edge-inset|button#equipment-usage-tab-log"
+  ],
   "/equipment@390@engineer@acme.test": [],
-  "/equipment@390@exec@acme.test": [],
-  "/equipment@390@exec@acme.test#reads-failing": [],
-  "/equipment@390@pm@acme.test": [],
+  "/equipment@390@exec@acme.test": [
+    "layout-core|control-edge-inset|button#equipment-usage-tab-log"
+  ],
+  "/equipment@390@exec@acme.test#reads-failing": [
+    "layout-core|control-edge-inset|button#equipment-usage-tab-log"
+  ],
+  "/equipment@390@pm@acme.test": [
+    "layout-core|control-edge-inset|button#equipment-usage-tab-log"
+  ],
   "/equipment/assets@1440@pm@acme.test": [
     "taste-panel-void|Code"
   ],
   "/equipment/assets@390@pm@acme.test": [],
   "/erp-purchases@1440@finance@acme.test": [
-    "gaps-gap|main>div>div.space-y-4>div.contents>div.mb-4.flex[Procurement lists]|main>div.mx-auto.pt-5>div>div.space-y-4>div#procurement-list-tabs-tabpanel-orphans[tabpanel]"
+    "gaps-gap|main>div>div.space-y-4>div.contents>div.mb-4.flex[Procurement lists]|main>div.mx-auto.pt-5>div>div.space-y-4>div#procurement-list-tabs-tabpanel-orphans[tabpanel]",
+    "layout-core|control-edge-inset|button#procurement-list-tabs-tab-needs-you"
   ],
   "/erp-purchases@390@finance@acme.test": [
-    "gaps-gap|main>div>div.space-y-4>div.contents>div.mb-4.flex[Procurement lists]|main>div.mx-auto.pt-5>div>div.space-y-4>div#procurement-list-tabs-tabpanel-orphans[tabpanel]"
+    "gaps-gap|main>div>div.space-y-4>div.contents>div.mb-4.flex[Procurement lists]|main>div.mx-auto.pt-5>div>div.space-y-4>div#procurement-list-tabs-tabpanel-orphans[tabpanel]",
+    "layout-core|control-edge-inset|button#procurement-list-tabs-tab-needs-you"
   ],
   "/expenses@1440@engineer@acme.test": [
     "taste-panel-void|No expenses here yet"
@@ -388,9 +388,7 @@
   "/expenses@1440@exec@acme.test": [
     "taste-panel-void|No expenses here yet"
   ],
-  "/expenses@1440@exec@acme.test#reads-failing": [
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.flex.flex-wrap[list-page-toolbar] content|+17"
-  ],
+  "/expenses@1440@exec@acme.test#reads-failing": [],
   "/expenses@1440@finance@acme.test": [
     "taste-panel-void|No expenses here yet"
   ],
@@ -399,9 +397,7 @@
   ],
   "/expenses@390@engineer@acme.test": [],
   "/expenses@390@exec@acme.test": [],
-  "/expenses@390@exec@acme.test#reads-failing": [
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.flex.flex-wrap[list-page-toolbar] content|+17"
-  ],
+  "/expenses@390@exec@acme.test#reads-failing": [],
   "/expenses@390@finance@acme.test": [],
   "/expenses@390@pm@acme.test": [],
   "/expenses/2b00c401-3303-4aa5-b033-4dc3f33e52f8@1440@engineer@acme.test": [],
@@ -432,6 +428,9 @@
     "taste-ragged-row|y160"
   ],
   "/finance@1440@exec@acme.test#reads-failing": [
+    "columnsLevel|main>div.mx-auto.pt-5>div.min-w-0.pb-20>div>div.grid.min-w-0[finance-hub-first-row]|main>div.min-w-0.pb-20>div>div.grid.min-w-0[finance-hub-first-row]>div.min-w-0",
+    "gaps-heading|main>div.grid.min-w-0[finance-hub-first-row]>div.min-w-0>div.panel-card[region]>div.flex.items-start|main>div.grid.min-w-0[finance-hub-first-row]>div.min-w-0>div.panel-card[region]>div",
+    "gaps-heading|main>div.min-w-0.pb-20>div>div.panel-card[region]>div.flex.items-start|main>div.min-w-0.pb-20>div>div.panel-card[region]>div",
     "leftEdges|page column|main>div.mx-auto.pt-5>div.min-w-0.pb-20>div>div.flex.items-center[alert] content|+13"
   ],
   "/finance@1440@finance@acme.test": [
@@ -455,7 +454,10 @@
     "leftEdges|main>div>div.grid.min-w-0[finance-hub-first-row]>div.min-w-0>div.panel-card[region]|main>div.divide-y.divide-border>a.grid.min-w-0[Open Cascade Foods Proce]>span.min-w-0.break-words>span.font-mono.text-muted-foreground|+69",
     "leftEdges|main>div>div.grid.min-w-0[finance-hub-first-row]>div.min-w-0>div.panel-card[region]|main>div.divide-y.divide-border>a.grid.min-w-0[Open Meridian Steelworks]>span.min-w-0.break-words>span.font-mono.text-muted-foreground|+69"
   ],
-  "/finance@390@exec@acme.test#reads-failing": [],
+  "/finance@390@exec@acme.test#reads-failing": [
+    "gaps-heading|main>div.grid.min-w-0[finance-hub-first-row]>div.min-w-0>div.panel-card[region]>div.flex.items-start|main>div.grid.min-w-0[finance-hub-first-row]>div.min-w-0>div.panel-card[region]>div",
+    "gaps-heading|main>div.min-w-0.pb-20>div>div.panel-card[region]>div.flex.items-start|main>div.min-w-0.pb-20>div>div.panel-card[region]>div"
+  ],
   "/finance@390@finance@acme.test": [
     "gaps-gap|main>div>div.divide-y.divide-border>a.grid.min-w-0[Open Meridian Steelworks]>span.text-control.font-normal|main>div>div.divide-y.divide-border>a.grid.min-w-0[Open Meridian Steelworks]>span.min-w-0.text-right",
     "gaps-heading|main>div.grid.min-w-0[finance-hub-first-row]>div.min-w-0>div.panel-card[finance-revenue-trend]>div.flex.items-start|main>div.grid.min-w-0[finance-hub-first-row]>div.min-w-0>div.panel-card[finance-revenue-trend]>div.pb-4",
@@ -467,92 +469,71 @@
     "leftEdges|main>div>div.grid.min-w-0[finance-hub-first-row]>div.min-w-0>div.panel-card[region]|main>div.divide-y.divide-border>a.grid.min-w-0[Open Meridian Steelworks]>span.min-w-0.break-words>span.font-mono.text-muted-foreground|+69"
   ],
   "/finance/payables@1440@exec@acme.test": [
-    "gaps-scale|main>div.mx-auto.pt-5>div>section.grid.min-w-0[Payables figures]|main>div.mx-auto.pt-5>div>section.mb-5.min-w-0[Invoice age, by days]"
+    "gaps-scale|main>div.mx-auto.pt-5>div>section.grid.min-w-0[Payables figures]|main>div.mx-auto.pt-5>div>div.panel-card.mb-5"
   ],
-  "/finance/payables@1440@exec@acme.test#reads-failing": [
-    "gaps-scale|main>div.mx-auto.pt-5>div>section.grid.min-w-0[Payables figures]|main>div.mx-auto.pt-5>div>div.flex.items-center[alert]",
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.flex.items-center[alert] content|+49"
-  ],
+  "/finance/payables@1440@exec@acme.test#reads-failing": [],
   "/finance/payables@1440@finance@acme.test": [
-    "gaps-scale|main>div.mx-auto.pt-5>div>section.grid.min-w-0[Payables figures]|main>div.mx-auto.pt-5>div>section.mb-5.min-w-0[Invoice age, by days]"
+    "gaps-scale|main>div.mx-auto.pt-5>div>section.grid.min-w-0[Payables figures]|main>div.mx-auto.pt-5>div>div.panel-card.mb-5"
   ],
   "/finance/payables@390@exec@acme.test": [
-    "gaps-scale|main>div.mx-auto.pt-5>div>section.grid.min-w-0[Payables figures]|main>div.mx-auto.pt-5>div>section.mb-5.min-w-0[Invoice age, by days]"
+    "gaps-scale|main>div.mx-auto.pt-5>div>section.grid.min-w-0[Payables figures]|main>div.mx-auto.pt-5>div>div.panel-card.mb-5"
   ],
-  "/finance/payables@390@exec@acme.test#reads-failing": [
-    "gaps-scale|main>div.mx-auto.pt-5>div>section.grid.min-w-0[Payables figures]|main>div.mx-auto.pt-5>div>div.flex.items-center[alert]",
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.flex.items-center[alert] content|+49"
-  ],
+  "/finance/payables@390@exec@acme.test#reads-failing": [],
   "/finance/payables@390@finance@acme.test": [
-    "gaps-scale|main>div.mx-auto.pt-5>div>section.grid.min-w-0[Payables figures]|main>div.mx-auto.pt-5>div>section.mb-5.min-w-0[Invoice age, by days]"
+    "gaps-scale|main>div.mx-auto.pt-5>div>section.grid.min-w-0[Payables figures]|main>div.mx-auto.pt-5>div>div.panel-card.mb-5"
   ],
   "/finance/receivables?view=payments@1440@exec@acme.test": [
-    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.mb-5.min-w-0[Client balances by age]"
+    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.min-w-0.mb-5[Client balances by age]"
   ],
-  "/finance/receivables?view=payments@1440@exec@acme.test#reads-failing": [
-    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>div.flex.items-center[alert]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>div.flex.items-center[alert]",
-    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>div.flex.items-center[alert]"
-  ],
+  "/finance/receivables?view=payments@1440@exec@acme.test#reads-failing": [],
   "/finance/receivables?view=payments@1440@finance@acme.test": [
-    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.mb-5.min-w-0[Client balances by age]"
+    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.min-w-0.mb-5[Client balances by age]"
   ],
   "/finance/receivables?view=payments@390@exec@acme.test": [
     "gaps-gap|main>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]>div.relative.flex|main>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]>div.relative.flex",
-    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.mb-5.min-w-0[Client balances by age]"
+    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.min-w-0.mb-5[Client balances by age]"
   ],
   "/finance/receivables?view=payments@390@exec@acme.test#reads-failing": [
-    "gaps-gap|main>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]>div.relative.flex|main>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]>div.relative.flex",
-    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>div.flex.items-center[alert]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>div.flex.items-center[alert]",
-    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>div.flex.items-center[alert]",
-    "leftEdges|page column|main>section.order-3.min-w-0[Receivables list]>div>div>div.flex.flex-wrap[list-page-toolbar] content|+17"
+    "gaps-gap|main>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]>div.relative.flex|main>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]>div.relative.flex"
   ],
   "/finance/receivables?view=payments@390@finance@acme.test": [
     "gaps-gap|main>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]>div.relative.flex|main>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]>div.relative.flex",
-    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.mb-5.min-w-0[Client balances by age]"
+    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.min-w-0.mb-5[Client balances by age]"
   ],
   "/finance/receivables@1440@exec@acme.test": [
-    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.mb-5.min-w-0[Client balances by age]"
+    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.min-w-0.mb-5[Client balances by age]"
   ],
-  "/finance/receivables@1440@exec@acme.test#reads-failing": [
-    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>div.flex.items-center[alert]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>div.flex.items-center[alert]",
-    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>div.flex.items-center[alert]"
-  ],
+  "/finance/receivables@1440@exec@acme.test#reads-failing": [],
   "/finance/receivables@1440@finance@acme.test": [
-    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.mb-5.min-w-0[Client balances by age]"
+    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.min-w-0.mb-5[Client balances by age]"
   ],
   "/finance/receivables@390@exec@acme.test": [
     "gaps-gap|main>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]>div.relative.flex|main>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]>div.relative.flex",
-    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.mb-5.min-w-0[Client balances by age]"
+    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.min-w-0.mb-5[Client balances by age]"
   ],
   "/finance/receivables@390@exec@acme.test#reads-failing": [
-    "gaps-gap|main>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]>div.relative.flex|main>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]>div.relative.flex",
-    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>div.flex.items-center[alert]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>div.flex.items-center[alert]",
-    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>div.flex.items-center[alert]"
+    "gaps-gap|main>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]>div.relative.flex|main>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]>div.relative.flex"
   ],
   "/finance/receivables@390@finance@acme.test": [
     "gaps-gap|main>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]>div.relative.flex|main>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]>div.relative.flex",
-    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.mb-5.min-w-0[Client balances by age]"
+    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.min-w-0.mb-5[Client balances by age]"
   ],
   "/finance/reports@1440@exec@acme.test": [
     "columnsLevel|main>div>div.min-w-0[management-pack-table-ca]>div.flex.flex-col>div.order-last.mt-6|main>div.min-w-0[management-pack-table-ca]>div.flex.flex-col>div.order-last.mt-6>section.min-w-0[pack-trend]"
   ],
-  "/finance/reports@1440@exec@acme.test#reads-failing": [
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.min-w-0[management-pack-table-ca]>div.flex.items-center[alert] content|+49"
-  ],
+  "/finance/reports@1440@exec@acme.test#reads-failing": [],
   "/finance/reports@1440@finance@acme.test": [
     "columnsLevel|main>div>div.min-w-0[management-pack-table-ca]>div.flex.flex-col>div.order-last.mt-6|main>div.min-w-0[management-pack-table-ca]>div.flex.flex-col>div.order-last.mt-6>section.min-w-0[pack-trend]"
   ],
   "/finance/reports@390@exec@acme.test": [
     "gaps-gap|main>div.flex.flex-col>div.order-last.mt-6>section.min-w-0[pack-trend]>h2.mb-2.text-control|main>div.flex.flex-col>div.order-last.mt-6>section.min-w-0[pack-trend]>div.mt-1.flex",
-    "gaps-gap|main>div.mx-auto.pt-5>div>section.grid.min-w-0[Report figures]>div.relative.flex|main>div.mx-auto.pt-5>div>section.grid.min-w-0[Report figures]>div.relative.flex",
+    "gaps-gap|main>div.mx-auto.pt-5>div>section.grid.min-w-0[Report figures]>div.relative.flex[pack-figure-earnedNotInv]|main>div.mx-auto.pt-5>div>section.grid.min-w-0[Report figures]>div.relative.flex[pack-figure-billedWorkIn]",
     "leftEdges|page column|main>div.order-last.mt-6>section.min-w-0[pack-trend]>div.mt-2[Trend series]>p.flex.flex-wrap|+22"
   ],
-  "/finance/reports@390@exec@acme.test#reads-failing": [
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.min-w-0[management-pack-table-ca]>div.flex.items-center[alert] content|+49"
-  ],
+  "/finance/reports@390@exec@acme.test#reads-failing": [],
   "/finance/reports@390@finance@acme.test": [
     "gaps-gap|main>div.flex.flex-col>div.order-last.mt-6>section.min-w-0[pack-trend]>h2.mb-2.text-control|main>div.flex.flex-col>div.order-last.mt-6>section.min-w-0[pack-trend]>div.mt-1.flex",
-    "gaps-gap|main>div.mx-auto.pt-5>div>section.grid.min-w-0[Report figures]>div.relative.flex|main>div.mx-auto.pt-5>div>section.grid.min-w-0[Report figures]>div.relative.flex",
+    "gaps-gap|main>div.mx-auto.pt-5>div>section.grid.min-w-0[Report figures]>div.relative.flex[pack-figure-earnedNotInv]|main>div.mx-auto.pt-5>div>section.grid.min-w-0[Report figures]>div.relative.flex[pack-figure-billedWorkIn]",
     "leftEdges|page column|main>div.order-last.mt-6>section.min-w-0[pack-trend]>div.mt-2[Trend series]>p.flex.flex-wrap|+22"
   ],
   "/finance/statements@1440@exec@acme.test": [
@@ -572,11 +553,11 @@
     "gaps-heading|main>div.min-w-0>section.min-w-0>div.panel-card.min-w-0>div.flex.items-start|main>div.min-w-0>section.min-w-0>div.panel-card.min-w-0>div.flex.min-w-0"
   ],
   "/imprest@1440@exec@acme.test": [
-    "taste-panel-void|Project"
+    "taste-panel-void|No site cash yet"
   ],
   "/imprest@1440@exec@acme.test#reads-failing": [],
   "/imprest@1440@finance@acme.test": [
-    "taste-panel-void|Project"
+    "taste-panel-void|No site cash yet"
   ],
   "/imprest@390@exec@acme.test": [],
   "/imprest@390@exec@acme.test#reads-failing": [],
@@ -588,28 +569,22 @@
   "/incidents@390@exec@acme.test": [],
   "/incidents@390@exec@acme.test#reads-failing": [],
   "/incoming-payments@1440@exec@acme.test": [
-    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.mb-5.min-w-0[Client balances by age]"
+    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.min-w-0.mb-5[Client balances by age]"
   ],
-  "/incoming-payments@1440@exec@acme.test#reads-failing": [
-    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>div.flex.items-center[alert]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>div.flex.items-center[alert]",
-    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>div.flex.items-center[alert]"
-  ],
+  "/incoming-payments@1440@exec@acme.test#reads-failing": [],
   "/incoming-payments@1440@finance@acme.test": [
-    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.mb-5.min-w-0[Client balances by age]"
+    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.min-w-0.mb-5[Client balances by age]"
   ],
   "/incoming-payments@390@exec@acme.test": [
     "gaps-gap|main>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]>div.relative.flex|main>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]>div.relative.flex",
-    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.mb-5.min-w-0[Client balances by age]"
+    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.min-w-0.mb-5[Client balances by age]"
   ],
   "/incoming-payments@390@exec@acme.test#reads-failing": [
-    "gaps-gap|main>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]>div.relative.flex|main>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]>div.relative.flex",
-    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>div.flex.items-center[alert]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>div.flex.items-center[alert]",
-    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>div.flex.items-center[alert]",
-    "leftEdges|page column|main>section.order-3.min-w-0[Receivables list]>div>div>div.flex.flex-wrap[list-page-toolbar] content|+17"
+    "gaps-gap|main>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]>div.relative.flex|main>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]>div.relative.flex"
   ],
   "/incoming-payments@390@finance@acme.test": [
     "gaps-gap|main>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]>div.relative.flex|main>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]>div.relative.flex",
-    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.mb-5.min-w-0[Client balances by age]"
+    "gaps-scale|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.grid.min-w-0[Receivables figures]|main>div.mx-auto.pt-5>div.flex.min-w-0>div.order-4.min-w-0>section.min-w-0.mb-5[Client balances by age]"
   ],
   "/integrations@1440@admin@acme.test": [
     "leftEdges|main>div.mx-auto.pt-5>div>div.mt-4.max-w-xl>div.panel-card.p-4[m365-connection-card]|main>div.mt-4.max-w-xl>div.panel-card.p-4[m365-connection-card]>div.flex.items-center>h2.text-group.text-foreground|+22"
@@ -655,15 +630,11 @@
   "/master-data/product@390@admin@acme.test": [],
   "/meetings@1440@engineer@acme.test": [],
   "/meetings@1440@exec@acme.test": [],
-  "/meetings@1440@exec@acme.test#reads-failing": [
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.flex.items-center[alert] content|+49"
-  ],
+  "/meetings@1440@exec@acme.test#reads-failing": [],
   "/meetings@1440@pm@acme.test": [],
   "/meetings@390@engineer@acme.test": [],
   "/meetings@390@exec@acme.test": [],
-  "/meetings@390@exec@acme.test#reads-failing": [
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.flex.items-center[alert] content|+49"
-  ],
+  "/meetings@390@exec@acme.test#reads-failing": [],
   "/meetings@390@pm@acme.test": [],
   "/meetings/ee000000-0000-0000-0000-000000000001@1440@pm@acme.test": [
     "gaps-gap|main>div.mx-auto.pt-5>div>div.mb-4|main>div.mx-auto.pt-5>div>div.mb-4",
@@ -715,16 +686,39 @@
   "/oauth/consent@390@exec@acme.test#reads-failing": [
     "leftEdges|main>div.w-full.max-w-sm>div.panel-card|main>div>div.space-y-3>div.flex.items-start[alert]>span.text-destructive-text|+37"
   ],
-  "/procurement@1440@engineer@acme.test": [],
-  "/procurement@1440@exec@acme.test": [],
-  "/procurement@1440@exec@acme.test#reads-failing": [],
-  "/procurement@1440@finance@acme.test": [],
-  "/procurement@1440@pm@acme.test": [],
-  "/procurement@390@engineer@acme.test": [],
-  "/procurement@390@exec@acme.test": [],
-  "/procurement@390@exec@acme.test#reads-failing": [],
-  "/procurement@390@finance@acme.test": [],
-  "/procurement@390@pm@acme.test": [],
+  "/procurement@1440@engineer@acme.test": [
+    "layout-core|control-edge-inset|button#procurement-list-tabs-tab-needs-you"
+  ],
+  "/procurement@1440@exec@acme.test": [
+    "layout-core|control-block-fit|button.w-full.min-w-0.line-clamp-2.break-words.text-left.font-medium.text-foreground.underline-offset-4.hover:underline.focus-visible:outline.focus-visible:outline-2.focus-visible:outline-ring",
+    "layout-core|control-edge-inset|button#procurement-list-tabs-tab-needs-you"
+  ],
+  "/procurement@1440@exec@acme.test#reads-failing": [
+    "layout-core|control-edge-inset|button#procurement-list-tabs-tab-needs-you"
+  ],
+  "/procurement@1440@finance@acme.test": [
+    "layout-core|control-block-fit|button.w-full.min-w-0.line-clamp-2.break-words.text-left.font-medium.text-foreground.underline-offset-4.hover:underline.focus-visible:outline.focus-visible:outline-2.focus-visible:outline-ring",
+    "layout-core|control-edge-inset|button#procurement-list-tabs-tab-needs-you"
+  ],
+  "/procurement@1440@pm@acme.test": [
+    "layout-core|control-block-fit|button.w-full.min-w-0.line-clamp-2.break-words.text-left.font-medium.text-foreground.underline-offset-4.hover:underline.focus-visible:outline.focus-visible:outline-2.focus-visible:outline-ring",
+    "layout-core|control-edge-inset|button#procurement-list-tabs-tab-needs-you"
+  ],
+  "/procurement@390@engineer@acme.test": [
+    "layout-core|control-edge-inset|button#procurement-list-tabs-tab-needs-you"
+  ],
+  "/procurement@390@exec@acme.test": [
+    "layout-core|control-edge-inset|button#procurement-list-tabs-tab-needs-you"
+  ],
+  "/procurement@390@exec@acme.test#reads-failing": [
+    "layout-core|control-edge-inset|button#procurement-list-tabs-tab-needs-you"
+  ],
+  "/procurement@390@finance@acme.test": [
+    "layout-core|control-edge-inset|button#procurement-list-tabs-tab-needs-you"
+  ],
+  "/procurement@390@pm@acme.test": [
+    "layout-core|control-edge-inset|button#procurement-list-tabs-tab-needs-you"
+  ],
   "/procurement/00000000-0000-0000-0000-000000000002@1440@exec@acme.test": [],
   "/procurement/00000000-0000-0000-0000-000000000002@1440@exec@acme.test#reads-failing": [],
   "/procurement/00000000-0000-0000-0000-000000000002@1440@pm@acme.test": [],
@@ -738,22 +732,26 @@
   "/procurement/60000000-0000-0000-0000-000000000008@1440@finance@acme.test": [
     "gaps-heading|main>div.panel-card[procurement-money-summar]>div.flex.items-start>div.min-w-0.flex-1>h2.flex.min-w-0|main>div.panel-card[procurement-money-summar]>div.flex.items-start>div.min-w-0.flex-1>p.mt-1.text-control",
     "gaps-scale|main>div.mx-auto.pt-5>div>div.space-y-3>div.panel-card[procurement-stage-tracke]|main>div.mx-auto.pt-5>div>div.space-y-3>div.panel-card[procurement-money-summar]",
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header] content|+17"
+    "layout-core|control-edge-inset|button#procurement-detail-tab-timeline"
   ],
   "/procurement/60000000-0000-0000-0000-000000000008@390@finance@acme.test": [
     "gaps-heading|main>div.panel-card[procurement-money-summar]>div.flex.items-start>div.min-w-0.flex-1>h2.flex.min-w-0|main>div.panel-card[procurement-money-summar]>div.flex.items-start>div.min-w-0.flex-1>p.mt-1.text-control",
-    "gaps-scale|main>div.mx-auto.pt-5>div>div.space-y-3>div.panel-card[procurement-stage-tracke]|main>div.mx-auto.pt-5>div>div.space-y-3>div.panel-card[procurement-money-summar]"
+    "gaps-scale|main>div.mx-auto.pt-5>div>div.space-y-3>div.panel-card[procurement-stage-tracke]|main>div.mx-auto.pt-5>div>div.space-y-3>div.panel-card[procurement-money-summar]",
+    "layout-core|control-edge-inset|button#procurement-detail-tab-files",
+    "layout-core|control-edge-inset|button#procurement-detail-tab-items",
+    "layout-core|control-edge-inset|button#procurement-detail-tab-quotes",
+    "layout-core|control-edge-inset|button#procurement-detail-tab-timeline"
   ],
   "/procurement/61000000-0000-0000-0000-000000000002@1440@exec@acme.test": [
     "gaps-heading|main>div.panel-card[procurement-money-summar]>div.flex.items-start>div.min-w-0.flex-1>h2.flex.min-w-0|main>div.panel-card[procurement-money-summar]>div.flex.items-start>div.min-w-0.flex-1>p.mt-1.text-control",
     "gaps-scale|main>div.mx-auto.pt-5>div>div.space-y-3>div.panel-card[procurement-stage-tracke]|main>div.mx-auto.pt-5>div>div.space-y-3>div.panel-card[procurement-money-summar]",
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header] content|+17"
+    "layout-core|control-edge-inset|button#procurement-detail-tab-timeline"
   ],
   "/procurement/61000000-0000-0000-0000-000000000002@1440@exec@acme.test#reads-failing": [],
   "/procurement/61000000-0000-0000-0000-000000000002@1440@pm@acme.test": [
     "gaps-heading|main>div.panel-card[procurement-money-summar]>div.flex.items-start>div.min-w-0.flex-1>h2.flex.min-w-0|main>div.panel-card[procurement-money-summar]>div.flex.items-start>div.min-w-0.flex-1>p.mt-1.text-control",
     "gaps-scale|main>div.mx-auto.pt-5>div>div.space-y-3>div.panel-card[procurement-stage-tracke]|main>div.mx-auto.pt-5>div>div.space-y-3>div.panel-card[procurement-money-summar]",
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header] content|+17"
+    "layout-core|control-edge-inset|button#procurement-detail-tab-timeline"
   ],
   "/procurement/61000000-0000-0000-0000-000000000002@390@exec@acme.test": [
     "gaps-heading|main>div.panel-card[procurement-money-summar]>div.flex.items-start>div.min-w-0.flex-1>h2.flex.min-w-0|main>div.panel-card[procurement-money-summar]>div.flex.items-start>div.min-w-0.flex-1>p.mt-1.text-control",
@@ -762,19 +760,26 @@
   "/procurement/61000000-0000-0000-0000-000000000002@390@exec@acme.test#reads-failing": [],
   "/procurement/61000000-0000-0000-0000-000000000002@390@pm@acme.test": [
     "gaps-heading|main>div.panel-card[procurement-money-summar]>div.flex.items-start>div.min-w-0.flex-1>h2.flex.min-w-0|main>div.panel-card[procurement-money-summar]>div.flex.items-start>div.min-w-0.flex-1>p.mt-1.text-control",
-    "gaps-scale|main>div.mx-auto.pt-5>div>div.space-y-3>div.panel-card[procurement-stage-tracke]|main>div.mx-auto.pt-5>div>div.space-y-3>div.panel-card[procurement-money-summar]"
+    "gaps-scale|main>div.mx-auto.pt-5>div>div.space-y-3>div.panel-card[procurement-stage-tracke]|main>div.mx-auto.pt-5>div>div.space-y-3>div.panel-card[procurement-money-summar]",
+    "layout-core|control-edge-inset|button#procurement-detail-tab-details",
+    "layout-core|control-edge-inset|button#procurement-detail-tab-files",
+    "layout-core|control-edge-inset|button#procurement-detail-tab-items",
+    "layout-core|control-edge-inset|button#procurement-detail-tab-quotes",
+    "layout-core|control-edge-inset|button#procurement-detail-tab-timeline"
   ],
   "/procurement/61000000-0000-0000-0000-000000000008@1440@exec@acme.test": [
-    "gaps-heading|main>div>div.mb-4>div>div.mb-3.flex|main>div>div.mb-4>div>div.mb-4",
+    "gaps-gap|main>div>div.@container>div.@container.grid[stat-tiles]>div.py-1[stat-tile]|main>div>div.@container>div.@container.grid[stat-tiles]>div.py-1[stat-tile]",
+    "gaps-heading|main>div>div.panel-card.mb-4>div>div.mb-3.flex|main>div>div.panel-card.mb-4>div>div.mb-4",
     "gaps-heading|main>div>div.space-y-3>div.panel-card[procurement-money-summar]>div.flex.items-start|main>div>div.space-y-3>div.panel-card[procurement-money-summar]>div",
     "gaps-scale|main>div.mx-auto.pt-5>div>div.space-y-3>div.panel-card[procurement-stage-tracke]|main>div.mx-auto.pt-5>div>div.space-y-3>div.panel-card[procurement-money-summar]",
     "leftEdges|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header]|main>div.min-w-0.flex-1>div.mt-1.text-control>span>span|+532",
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header] content|-7"
+    "taste-panel-void|Budget impact"
   ],
   "/procurement/61000000-0000-0000-0000-000000000008@1440@exec@acme.test#reads-failing": [],
   "/procurement/61000000-0000-0000-0000-000000000008@390@exec@acme.test": [
     "gaps-gap|main>div>div.@container>div.@container.grid[stat-tiles]>div.py-1[stat-tile]|main>div>div.@container>div.@container.grid[stat-tiles]>div.py-1[stat-tile]",
-    "gaps-heading|main>div>div.mb-4>div>div.mb-3.flex|main>div>div.mb-4>div>div.mb-4",
+    "gaps-heading|main>div.panel-card.mb-4>div>div.mb-3.flex>h2.text-control.font-semibold|main>div.panel-card.mb-4>div>div.mb-3.flex>a.break-words.font-medium[Open Cascade Foods 6.0 M]",
+    "gaps-heading|main>div>div.panel-card.mb-4>div>div.mb-3.flex|main>div>div.panel-card.mb-4>div>div.mb-4",
     "gaps-heading|main>div>div.space-y-3>div.panel-card[procurement-money-summar]>div.flex.items-start|main>div>div.space-y-3>div.panel-card[procurement-money-summar]>div",
     "gaps-scale|main>div.mx-auto.pt-5>div>div.space-y-3>div.panel-card[procurement-stage-tracke]|main>div.mx-auto.pt-5>div>div.space-y-3>div.panel-card[procurement-money-summar]"
   ],
@@ -805,155 +810,91 @@
   "/projects@1440@exec@acme.test#reads-failing": [],
   "/projects@1440@finance@acme.test": [],
   "/projects@1440@pm@acme.test": [],
-  "/projects@390@admin@acme.test": [
-    "leftEdges|page column|main>div>div[projects-table-container]>div.rounded-b-lg.border>ul.divide-y[dt-card-branch]|+26"
-  ],
-  "/projects@390@engineer@acme.test": [
-    "leftEdges|page column|main>div>div[projects-table-container]>div.rounded-b-lg.border>ul.divide-y[dt-card-branch]|+29"
-  ],
-  "/projects@390@exec@acme.test": [
-    "leftEdges|page column|main>div>div[projects-table-container]>div.rounded-b-lg.border>ul.divide-y[dt-card-branch]|+26"
-  ],
+  "/projects@390@admin@acme.test": [],
+  "/projects@390@engineer@acme.test": [],
+  "/projects@390@exec@acme.test": [],
   "/projects@390@exec@acme.test#reads-failing": [],
-  "/projects@390@finance@acme.test": [
-    "leftEdges|page column|main>div>div[projects-table-container]>div.rounded-b-lg.border>ul.divide-y[dt-card-branch]|+26"
-  ],
-  "/projects@390@pm@acme.test": [
-    "leftEdges|page column|main>div>div[projects-table-container]>div.rounded-b-lg.border>ul.divide-y[dt-card-branch]|+26"
-  ],
+  "/projects@390@finance@acme.test": [],
+  "/projects@390@pm@acme.test": [],
   "/projects/41000000-0000-0000-0000-000000000002@1440@admin@acme.test": [
-    "gaps-gap|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]|main>div.mx-auto.pt-5>div>div.hidden[project-section-tabs]",
-    "gaps-heading|main>div.grid.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.items-start|main>div.grid.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.flex-1",
-    "gaps-heading|main>div.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.items-start|main>div.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.pt-2.flex",
-    "gaps-heading|main>div.min-w-0>section.min-w-0>div.panel-card>div.flex.items-start|main>div.min-w-0>section.min-w-0>div.panel-card>div.pt-2",
-    "gaps-heading|main>div.panel-card.flex>div.flex.items-start>div.min-w-0.flex-1>h2#pd-money.flex.min-w-0|main>div.panel-card.flex>div.flex.items-start>div.min-w-0.flex-1>p.mt-1.text-control",
-    "gaps-heading|main>div>section.min-w-0>div.panel-card>div.flex.items-start|main>div>section.min-w-0>div.panel-card>div.pt-2",
-    "gaps-scale|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header]|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]",
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header] content|+17"
+    "gaps-heading|main>div.flex.min-w-0>div.grid.min-w-0>section.panel-card.overflow-hidden[needs-attention]>div.flex.flex-wrap|main>div.flex.min-w-0>div.grid.min-w-0>section.panel-card.overflow-hidden[needs-attention]>div.flex.flex-1",
+    "gaps-heading|main>section.panel-card.overflow-hidden>div.flex.flex-wrap>div.min-w-0>h2#pd-money.text-group.font-semibold|main>section.panel-card.overflow-hidden>div.flex.flex-wrap>div.min-w-0>p.mt-1.text-control",
+    "layout-core|control-edge-inset|button#project-detail-tab-overview"
   ],
   "/projects/41000000-0000-0000-0000-000000000002@1440@engineer@acme.test": [
-    "gaps-gap|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]|main>div.mx-auto.pt-5>div>div.hidden[project-section-tabs]",
     "gaps-heading|main>div.flex.min-w-0>div.grid.min-w-0>div.panel-card.min-w-0[region]>div.flex.items-start|main>div.flex.min-w-0>div.grid.min-w-0>div.panel-card.min-w-0[region]>div.p-0",
-    "gaps-heading|main>div>section.min-w-0>div.panel-card>div.flex.items-start|main>div>section.min-w-0>div.panel-card>div.pt-2",
-    "gaps-scale|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header]|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]",
-    "leftEdges|main>div#project-detail-tabpanel-overview.pt-4[tabpanel]>div.flex.min-w-0>div.grid.min-w-0>div.panel-card.min-w-0[region]|main>div.panel-card.min-w-0[region]>div.flex.items-start>div.min-w-0.flex-1>h2#pd-my-tasks.flex.min-w-0|+24",
-    "leftEdges|page column|main>div.grid.min-w-0>div>section.min-w-0>div.panel-card content|+25"
+    "layout-core|control-edge-inset|button#project-detail-tab-overview",
+    "leftEdges|main>div#project-detail-tabpanel-overview.pt-4[tabpanel]>div.flex.min-w-0>div.grid.min-w-0>div.panel-card.min-w-0[region]|main>div.panel-card.min-w-0[region]>div.flex.items-start>div.min-w-0.flex-1>h2#pd-my-tasks.flex.min-w-0|+24"
   ],
   "/projects/41000000-0000-0000-0000-000000000002@1440@exec@acme.test": [
-    "gaps-gap|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]|main>div.mx-auto.pt-5>div>div.hidden[project-section-tabs]",
-    "gaps-heading|main>div.grid.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.items-start|main>div.grid.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.flex-1",
-    "gaps-heading|main>div.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.items-start|main>div.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.pt-2.flex",
-    "gaps-heading|main>div.min-w-0>section.min-w-0>div.panel-card>div.flex.items-start|main>div.min-w-0>section.min-w-0>div.panel-card>div.pt-2",
-    "gaps-heading|main>div.panel-card.flex>div.flex.items-start>div.min-w-0.flex-1>h2#pd-money.flex.min-w-0|main>div.panel-card.flex>div.flex.items-start>div.min-w-0.flex-1>p.mt-1.text-control",
-    "gaps-heading|main>div>section.min-w-0>div.panel-card>div.flex.items-start|main>div>section.min-w-0>div.panel-card>div.pt-2",
-    "gaps-scale|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header]|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]",
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header] content|+17"
+    "gaps-heading|main>div.flex.min-w-0>div.grid.min-w-0>section.panel-card.overflow-hidden[needs-attention]>div.flex.flex-wrap|main>div.flex.min-w-0>div.grid.min-w-0>section.panel-card.overflow-hidden[needs-attention]>div.flex.flex-1",
+    "gaps-heading|main>section.panel-card.overflow-hidden>div.flex.flex-wrap>div.min-w-0>h2#pd-money.text-group.font-semibold|main>section.panel-card.overflow-hidden>div.flex.flex-wrap>div.min-w-0>p.mt-1.text-control",
+    "layout-core|control-edge-inset|button#project-detail-tab-overview"
   ],
   "/projects/41000000-0000-0000-0000-000000000002@1440@exec@acme.test#reads-failing": [],
   "/projects/41000000-0000-0000-0000-000000000002@1440@finance@acme.test": [
-    "gaps-gap|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]|main>div.mx-auto.pt-5>div>div.hidden[project-section-tabs]",
-    "gaps-heading|main>div.grid.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.items-start|main>div.grid.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.flex-1",
-    "gaps-heading|main>div.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.items-start|main>div.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.pt-2.flex",
-    "gaps-heading|main>div.min-w-0>section.min-w-0>div.panel-card>div.flex.items-start|main>div.min-w-0>section.min-w-0>div.panel-card>div.pt-2",
-    "gaps-heading|main>div.panel-card.flex>div.flex.items-start>div.min-w-0.flex-1>h2#pd-money.flex.min-w-0|main>div.panel-card.flex>div.flex.items-start>div.min-w-0.flex-1>p.mt-1.text-control",
-    "gaps-heading|main>div>section.min-w-0>div.panel-card>div.flex.items-start|main>div>section.min-w-0>div.panel-card>div.pt-2",
-    "gaps-scale|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header]|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]",
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header] content|+17"
+    "gaps-heading|main>div.flex.min-w-0>div.grid.min-w-0>section.panel-card.overflow-hidden[needs-attention]>div.flex.flex-wrap|main>div.flex.min-w-0>div.grid.min-w-0>section.panel-card.overflow-hidden[needs-attention]>div.flex.flex-1",
+    "gaps-heading|main>section.panel-card.overflow-hidden>div.flex.flex-wrap>div.min-w-0>h2#pd-money.text-group.font-semibold|main>section.panel-card.overflow-hidden>div.flex.flex-wrap>div.min-w-0>p.mt-1.text-control",
+    "layout-core|control-edge-inset|button#project-detail-tab-overview"
   ],
   "/projects/41000000-0000-0000-0000-000000000002@1440@pm@acme.test": [
-    "gaps-gap|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]|main>div.mx-auto.pt-5>div>div.hidden[project-section-tabs]",
-    "gaps-heading|main>div.grid.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.items-start|main>div.grid.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.flex-1",
-    "gaps-heading|main>div.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.items-start|main>div.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.pt-2.flex",
-    "gaps-heading|main>div.min-w-0>section.min-w-0>div.panel-card>div.flex.items-start|main>div.min-w-0>section.min-w-0>div.panel-card>div.pt-2",
-    "gaps-heading|main>div.panel-card.flex>div.flex.items-start>div.min-w-0.flex-1>h2#pd-money.flex.min-w-0|main>div.panel-card.flex>div.flex.items-start>div.min-w-0.flex-1>p.mt-1.text-control",
-    "gaps-heading|main>div>section.min-w-0>div.panel-card>div.flex.items-start|main>div>section.min-w-0>div.panel-card>div.pt-2",
-    "gaps-scale|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header]|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]",
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header] content|+17"
+    "gaps-heading|main>div.flex.min-w-0>div.grid.min-w-0>section.panel-card.overflow-hidden[needs-attention]>div.flex.flex-wrap|main>div.flex.min-w-0>div.grid.min-w-0>section.panel-card.overflow-hidden[needs-attention]>div.flex.flex-1",
+    "gaps-heading|main>section.panel-card.overflow-hidden>div.flex.flex-wrap>div.min-w-0>h2#pd-money.text-group.font-semibold|main>section.panel-card.overflow-hidden>div.flex.flex-wrap>div.min-w-0>p.mt-1.text-control",
+    "layout-core|control-edge-inset|button#project-detail-tab-overview"
   ],
   "/projects/41000000-0000-0000-0000-000000000002@390@admin@acme.test": [
-    "gaps-gap|main>div.mx-auto.pt-5>div>div#project-detail-tabpanel-overview.pt-4[tabpanel]|main>div.mx-auto.pt-5>div>div.mt-12",
-    "gaps-heading|main>div.grid.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.items-start|main>div.grid.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.flex-1",
-    "gaps-heading|main>div.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.items-start|main>div.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.pt-2.flex",
-    "gaps-heading|main>div.min-w-0>section.min-w-0>div.panel-card>div.flex.items-start|main>div.min-w-0>section.min-w-0>div.panel-card>div.pt-2",
-    "gaps-heading|main>div.panel-card.flex>div.flex.items-start>div.min-w-0.flex-1>h2#pd-money.flex.min-w-0|main>div.panel-card.flex>div.flex.items-start>div.min-w-0.flex-1>p.mt-1.text-control",
-    "gaps-heading|main>div>section.min-w-0>div.panel-card>div.flex.items-start|main>div>section.min-w-0>div.panel-card>div.pt-2"
+    "gaps-heading|main>div.flex.min-w-0>div.grid.min-w-0>section.panel-card.overflow-hidden[needs-attention]>div.flex.flex-wrap|main>div.flex.min-w-0>div.grid.min-w-0>section.panel-card.overflow-hidden[needs-attention]>div.flex.flex-1",
+    "gaps-heading|main>section.panel-card.overflow-hidden>div.flex.flex-wrap>div.min-w-0>h2#pd-money.text-group.font-semibold|main>section.panel-card.overflow-hidden>div.flex.flex-wrap>div.min-w-0>p.mt-1.text-control"
   ],
   "/projects/41000000-0000-0000-0000-000000000002@390@engineer@acme.test": [
-    "gaps-gap|main>div.mx-auto.pt-5>div>div#project-detail-tabpanel-overview.pt-4[tabpanel]|main>div.mx-auto.pt-5>div>div.mt-12",
     "gaps-heading|main>div.flex.min-w-0>div.grid.min-w-0>div.panel-card.min-w-0[region]>div.flex.items-start|main>div.flex.min-w-0>div.grid.min-w-0>div.panel-card.min-w-0[region]>div.p-0",
-    "gaps-heading|main>div>section.min-w-0>div.panel-card>div.flex.items-start|main>div>section.min-w-0>div.panel-card>div.pt-2",
+    "gaps-heading|main>div.grid.min-w-0>div>section.panel-card.overflow-hidden>div.flex.flex-wrap|main>div.grid.min-w-0>div>section.panel-card.overflow-hidden>div",
     "leftEdges|main>div#project-detail-tabpanel-overview.pt-4[tabpanel]>div.flex.min-w-0>div.grid.min-w-0>div.panel-card.min-w-0[region]|main>div.panel-card.min-w-0[region]>div.flex.items-start>div.min-w-0.flex-1>h2#pd-my-tasks.flex.min-w-0|+16"
   ],
   "/projects/41000000-0000-0000-0000-000000000002@390@exec@acme.test": [
-    "gaps-gap|main>div.mx-auto.pt-5>div>div#project-detail-tabpanel-overview.pt-4[tabpanel]|main>div.mx-auto.pt-5>div>div.mt-12",
-    "gaps-heading|main>div.grid.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.items-start|main>div.grid.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.flex-1",
-    "gaps-heading|main>div.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.items-start|main>div.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.pt-2.flex",
-    "gaps-heading|main>div.min-w-0>section.min-w-0>div.panel-card>div.flex.items-start|main>div.min-w-0>section.min-w-0>div.panel-card>div.pt-2",
-    "gaps-heading|main>div.panel-card.flex>div.flex.items-start>div.min-w-0.flex-1>h2#pd-money.flex.min-w-0|main>div.panel-card.flex>div.flex.items-start>div.min-w-0.flex-1>p.mt-1.text-control",
-    "gaps-heading|main>div>section.min-w-0>div.panel-card>div.flex.items-start|main>div>section.min-w-0>div.panel-card>div.pt-2"
+    "gaps-heading|main>div.flex.min-w-0>div.grid.min-w-0>section.panel-card.overflow-hidden[needs-attention]>div.flex.flex-wrap|main>div.flex.min-w-0>div.grid.min-w-0>section.panel-card.overflow-hidden[needs-attention]>div.flex.flex-1",
+    "gaps-heading|main>section.panel-card.overflow-hidden>div.flex.flex-wrap>div.min-w-0>h2#pd-money.text-group.font-semibold|main>section.panel-card.overflow-hidden>div.flex.flex-wrap>div.min-w-0>p.mt-1.text-control"
   ],
   "/projects/41000000-0000-0000-0000-000000000002@390@exec@acme.test#reads-failing": [],
   "/projects/41000000-0000-0000-0000-000000000002@390@finance@acme.test": [
-    "gaps-gap|main>div.mx-auto.pt-5>div>div#project-detail-tabpanel-overview.pt-4[tabpanel]|main>div.mx-auto.pt-5>div>div.mt-12",
-    "gaps-heading|main>div.grid.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.items-start|main>div.grid.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.flex-1",
-    "gaps-heading|main>div.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.items-start|main>div.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.pt-2.flex",
-    "gaps-heading|main>div.min-w-0>section.min-w-0>div.panel-card>div.flex.items-start|main>div.min-w-0>section.min-w-0>div.panel-card>div.pt-2",
-    "gaps-heading|main>div.panel-card.flex>div.flex.items-start>div.min-w-0.flex-1>h2#pd-money.flex.min-w-0|main>div.panel-card.flex>div.flex.items-start>div.min-w-0.flex-1>p.mt-1.text-control",
-    "gaps-heading|main>div>section.min-w-0>div.panel-card>div.flex.items-start|main>div>section.min-w-0>div.panel-card>div.pt-2"
+    "gaps-heading|main>div.flex.min-w-0>div.grid.min-w-0>section.panel-card.overflow-hidden[needs-attention]>div.flex.flex-wrap|main>div.flex.min-w-0>div.grid.min-w-0>section.panel-card.overflow-hidden[needs-attention]>div.flex.flex-1",
+    "gaps-heading|main>div.flex.min-w-0>div>section.panel-card.overflow-hidden>div.flex.flex-wrap|main>div.flex.min-w-0>div>section.panel-card.overflow-hidden>div",
+    "gaps-heading|main>section.panel-card.overflow-hidden>div.flex.flex-wrap>div.min-w-0>h2#pd-money.text-group.font-semibold|main>section.panel-card.overflow-hidden>div.flex.flex-wrap>div.min-w-0>p.mt-1.text-control"
   ],
   "/projects/41000000-0000-0000-0000-000000000002@390@pm@acme.test": [
-    "gaps-gap|main>div.mx-auto.pt-5>div>div#project-detail-tabpanel-overview.pt-4[tabpanel]|main>div.mx-auto.pt-5>div>div.mt-12",
-    "gaps-heading|main>div.grid.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.items-start|main>div.grid.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.flex-1",
-    "gaps-heading|main>div.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.items-start|main>div.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.pt-2.flex",
-    "gaps-heading|main>div.min-w-0>section.min-w-0>div.panel-card>div.flex.items-start|main>div.min-w-0>section.min-w-0>div.panel-card>div.pt-2",
-    "gaps-heading|main>div.panel-card.flex>div.flex.items-start>div.min-w-0.flex-1>h2#pd-money.flex.min-w-0|main>div.panel-card.flex>div.flex.items-start>div.min-w-0.flex-1>p.mt-1.text-control",
-    "gaps-heading|main>div>section.min-w-0>div.panel-card>div.flex.items-start|main>div>section.min-w-0>div.panel-card>div.pt-2"
+    "gaps-heading|main>div.flex.min-w-0>div.grid.min-w-0>section.panel-card.overflow-hidden[needs-attention]>div.flex.flex-wrap|main>div.flex.min-w-0>div.grid.min-w-0>section.panel-card.overflow-hidden[needs-attention]>div.flex.flex-1",
+    "gaps-heading|main>section.panel-card.overflow-hidden>div.flex.flex-wrap>div.min-w-0>h2#pd-money.text-group.font-semibold|main>section.panel-card.overflow-hidden>div.flex.flex-wrap>div.min-w-0>p.mt-1.text-control"
   ],
   "/projects/41000000-0000-0000-0000-000000000002/activity@1440@pm@acme.test": [
-    "gaps-gap|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]|main>div.mx-auto.pt-5>div>div.hidden[project-section-tabs]",
-    "gaps-heading|main>div.grid.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.items-start|main>div.grid.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.flex-1",
-    "gaps-heading|main>div.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.items-start|main>div.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.pt-2.flex",
-    "gaps-heading|main>div.min-w-0>section.min-w-0>div.panel-card>div.flex.items-start|main>div.min-w-0>section.min-w-0>div.panel-card>div.pt-2",
-    "gaps-heading|main>div.panel-card.flex>div.flex.items-start>div.min-w-0.flex-1>h2#pd-money.flex.min-w-0|main>div.panel-card.flex>div.flex.items-start>div.min-w-0.flex-1>p.mt-1.text-control",
-    "gaps-heading|main>div>section.min-w-0>div.panel-card>div.flex.items-start|main>div>section.min-w-0>div.panel-card>div.pt-2",
-    "gaps-scale|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header]|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]",
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header] content|+17"
+    "gaps-heading|main>div.flex.min-w-0>div.grid.min-w-0>section.panel-card.overflow-hidden[needs-attention]>div.flex.flex-wrap|main>div.flex.min-w-0>div.grid.min-w-0>section.panel-card.overflow-hidden[needs-attention]>div.flex.flex-1",
+    "gaps-heading|main>section.panel-card.overflow-hidden>div.flex.flex-wrap>div.min-w-0>h2#pd-money.text-group.font-semibold|main>section.panel-card.overflow-hidden>div.flex.flex-wrap>div.min-w-0>p.mt-1.text-control",
+    "layout-core|control-edge-inset|button#project-detail-tab-overview"
   ],
   "/projects/41000000-0000-0000-0000-000000000002/activity@390@pm@acme.test": [
-    "gaps-gap|main>div.mx-auto.pt-5>div>div#project-detail-tabpanel-overview.pt-4[tabpanel]|main>div.mx-auto.pt-5>div>div.mt-12",
-    "gaps-heading|main>div.grid.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.items-start|main>div.grid.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.flex-1",
-    "gaps-heading|main>div.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.flex.items-start|main>div.min-w-0>section.min-w-0.h-full>div.panel-card.flex>div.pt-2.flex",
-    "gaps-heading|main>div.min-w-0>section.min-w-0>div.panel-card>div.flex.items-start|main>div.min-w-0>section.min-w-0>div.panel-card>div.pt-2",
-    "gaps-heading|main>div.panel-card.flex>div.flex.items-start>div.min-w-0.flex-1>h2#pd-money.flex.min-w-0|main>div.panel-card.flex>div.flex.items-start>div.min-w-0.flex-1>p.mt-1.text-control",
-    "gaps-heading|main>div>section.min-w-0>div.panel-card>div.flex.items-start|main>div>section.min-w-0>div.panel-card>div.pt-2"
+    "gaps-heading|main>div.flex.min-w-0>div.grid.min-w-0>section.panel-card.overflow-hidden[needs-attention]>div.flex.flex-wrap|main>div.flex.min-w-0>div.grid.min-w-0>section.panel-card.overflow-hidden[needs-attention]>div.flex.flex-1",
+    "gaps-heading|main>section.panel-card.overflow-hidden>div.flex.flex-wrap>div.min-w-0>h2#pd-money.text-group.font-semibold|main>section.panel-card.overflow-hidden>div.flex.flex-wrap>div.min-w-0>p.mt-1.text-control"
   ],
   "/projects/41000000-0000-0000-0000-000000000002/budget@1440@exec@acme.test": [
-    "gaps-gap|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]|main>div.mx-auto.pt-5>div>div.hidden[project-section-tabs]",
     "gaps-heading|main>div#project-detail-tabpanel-budget.pt-4[tabpanel]>div.flex.min-w-0[budget-option-a]>div.panel-card.min-w-0>div.flex.items-start|main>div#project-detail-tabpanel-budget.pt-4[tabpanel]>div.flex.min-w-0[budget-option-a]>div.panel-card.min-w-0>div.pt-2",
     "gaps-heading|main>div#project-detail-tabpanel-budget.pt-4[tabpanel]>div.flex.min-w-0[budget-option-a]>div.panel-card.min-w-0[Budget versions]>div.flex.items-start|main>div#project-detail-tabpanel-budget.pt-4[tabpanel]>div.flex.min-w-0[budget-option-a]>div.panel-card.min-w-0[Budget versions]>div",
     "gaps-heading|main>div>div#project-detail-tabpanel-budget.pt-4[tabpanel]>div.flex.min-w-0[budget-option-a]>div.mb-4.flex[page-header]|main>div>div#project-detail-tabpanel-budget.pt-4[tabpanel]>div.flex.min-w-0[budget-option-a]>section.grid.min-w-0[Budget figures]",
-    "gaps-scale|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header]|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]",
-    "leftEdges|main>div>div#project-detail-tabpanel-budget.pt-4[tabpanel]>div.flex.min-w-0[budget-option-a]>div.panel-card.min-w-0|main>div.min-w-0.space-y-2>div.flex.h-9[stacked-bar]>div.flex.min-w-0>span.truncate|+8",
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header] content|+17"
+    "layout-core|control-edge-inset|button#project-detail-tab-overview",
+    "leftEdges|main>div>div#project-detail-tabpanel-budget.pt-4[tabpanel]>div.flex.min-w-0[budget-option-a]>div.panel-card.min-w-0|main>div.min-w-0.space-y-2>div.flex.h-9[stacked-bar]>div.flex.min-w-0>span.truncate|+8"
   ],
   "/projects/41000000-0000-0000-0000-000000000002/budget@1440@exec@acme.test#reads-failing": [],
   "/projects/41000000-0000-0000-0000-000000000002/budget@1440@finance@acme.test": [
-    "gaps-gap|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]|main>div.mx-auto.pt-5>div>div.hidden[project-section-tabs]",
     "gaps-heading|main>div#project-detail-tabpanel-budget.pt-4[tabpanel]>div.flex.min-w-0[budget-option-a]>div.panel-card.min-w-0>div.flex.items-start|main>div#project-detail-tabpanel-budget.pt-4[tabpanel]>div.flex.min-w-0[budget-option-a]>div.panel-card.min-w-0>div.pt-2",
     "gaps-heading|main>div#project-detail-tabpanel-budget.pt-4[tabpanel]>div.flex.min-w-0[budget-option-a]>div.panel-card.min-w-0[Budget versions]>div.flex.items-start|main>div#project-detail-tabpanel-budget.pt-4[tabpanel]>div.flex.min-w-0[budget-option-a]>div.panel-card.min-w-0[Budget versions]>div",
     "gaps-heading|main>div>div#project-detail-tabpanel-budget.pt-4[tabpanel]>div.flex.min-w-0[budget-option-a]>div.mb-4.flex[page-header]|main>div>div#project-detail-tabpanel-budget.pt-4[tabpanel]>div.flex.min-w-0[budget-option-a]>section.grid.min-w-0[Budget figures]",
-    "gaps-scale|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header]|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]",
-    "leftEdges|main>div>div#project-detail-tabpanel-budget.pt-4[tabpanel]>div.flex.min-w-0[budget-option-a]>div.panel-card.min-w-0|main>div.min-w-0.space-y-2>div.flex.h-9[stacked-bar]>div.flex.min-w-0>span.truncate|+8",
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header] content|+17"
+    "layout-core|control-edge-inset|button#project-detail-tab-overview",
+    "leftEdges|main>div>div#project-detail-tabpanel-budget.pt-4[tabpanel]>div.flex.min-w-0[budget-option-a]>div.panel-card.min-w-0|main>div.min-w-0.space-y-2>div.flex.h-9[stacked-bar]>div.flex.min-w-0>span.truncate|+8"
   ],
   "/projects/41000000-0000-0000-0000-000000000002/budget@1440@pm@acme.test": [
-    "gaps-gap|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]|main>div.mx-auto.pt-5>div>div.hidden[project-section-tabs]",
     "gaps-heading|main>div#project-detail-tabpanel-budget.pt-4[tabpanel]>div.flex.min-w-0[budget-option-a]>div.panel-card.min-w-0>div.flex.items-start|main>div#project-detail-tabpanel-budget.pt-4[tabpanel]>div.flex.min-w-0[budget-option-a]>div.panel-card.min-w-0>div.pt-2",
     "gaps-heading|main>div#project-detail-tabpanel-budget.pt-4[tabpanel]>div.flex.min-w-0[budget-option-a]>div.panel-card.min-w-0[Budget versions]>div.flex.items-start|main>div#project-detail-tabpanel-budget.pt-4[tabpanel]>div.flex.min-w-0[budget-option-a]>div.panel-card.min-w-0[Budget versions]>div",
     "gaps-heading|main>div>div#project-detail-tabpanel-budget.pt-4[tabpanel]>div.flex.min-w-0[budget-option-a]>div.mb-4.flex[page-header]|main>div>div#project-detail-tabpanel-budget.pt-4[tabpanel]>div.flex.min-w-0[budget-option-a]>section.grid.min-w-0[Budget figures]",
-    "gaps-scale|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header]|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]",
-    "leftEdges|main>div>div#project-detail-tabpanel-budget.pt-4[tabpanel]>div.flex.min-w-0[budget-option-a]>div.panel-card.min-w-0|main>div.min-w-0.space-y-2>div.flex.h-9[stacked-bar]>div.flex.min-w-0>span.truncate|+8",
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header] content|+17"
+    "layout-core|control-edge-inset|button#project-detail-tab-overview",
+    "leftEdges|main>div>div#project-detail-tabpanel-budget.pt-4[tabpanel]>div.flex.min-w-0[budget-option-a]>div.panel-card.min-w-0|main>div.min-w-0.space-y-2>div.flex.h-9[stacked-bar]>div.flex.min-w-0>span.truncate|+8"
   ],
   "/projects/41000000-0000-0000-0000-000000000002/budget@390@exec@acme.test": [
     "gaps-heading|main>div#project-detail-tabpanel-budget.pt-4[tabpanel]>div.flex.min-w-0[budget-option-a]>div.panel-card.min-w-0>div.flex.items-start|main>div#project-detail-tabpanel-budget.pt-4[tabpanel]>div.flex.min-w-0[budget-option-a]>div.panel-card.min-w-0>div.pt-2",
@@ -980,7 +921,6 @@
     "gaps-gap|main>div.border-t.border-border>div.pt-0>section>div.mb-3.flex|main>div.border-t.border-border>div.pt-0>section>div.flex.flex-col",
     "gaps-gap|main>div.mt-4>div.border-t.border-border>div.pt-0>section.mt-6.border-t|main>div.mt-4>div.border-t.border-border>div.pt-0>section.mt-6.border-t",
     "gaps-gap|main>div.mt-4>div.border-t.border-border>div.pt-0>section|main>div.mt-4>div.border-t.border-border>div.pt-0>section.mt-6.border-t",
-    "gaps-gap|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]|main>div.mx-auto.pt-5>div>div.hidden[project-section-tabs]",
     "gaps-gap|main>div>div.panel-card.min-w-0>div.pt-0>p.mb-4.text-sm|main>div>div.panel-card.min-w-0>div.pt-0>div.flex.flex-col",
     "gaps-heading|main>div.border-t.border-border>div.pt-0>section.mt-6.border-t>h3#tm-assemble-heading.text-group.font-semibold|main>div.border-t.border-border>div.pt-0>section.mt-6.border-t>p.mt-1.max-w-prose",
     "gaps-heading|main>div.flex.min-w-0>div>section.panel-card.min-w-0>div.flex.flex-wrap|main>div.flex.min-w-0>div>section.panel-card.min-w-0>div.flex.flex-wrap",
@@ -989,7 +929,7 @@
     "gaps-heading|main>section.panel-card.min-w-0>div.flex.items-start>div.min-w-0.flex-1>h2#pd-cascade.flex.min-w-0|main>section.panel-card.min-w-0>div.flex.items-start>div.min-w-0.flex-1>p.mt-1.text-control",
     "gaps-heading|main>section.panel-card.min-w-0>div.pt-0>section.mt-4.border-t>div.flex.min-w-0|main>section.panel-card.min-w-0>div.pt-0>section.mt-4.border-t>ol.mt-3.space-y-2[Billing steps]",
     "gaps-heading|main>section>div.mb-3.flex>div>h3#tm-rate-card-heading.text-group.font-semibold|main>section>div.mb-3.flex>div>p.mt-1.max-w-prose",
-    "gaps-scale|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header]|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]",
+    "layout-core|control-edge-inset|button#project-detail-tab-overview",
     "leftEdges|main>div>div#project-detail-tabpanel-contract.pt-4[tabpanel]>div.flex.min-w-0>section.panel-card.min-w-0|main>div.flex.min-w-0>section.panel-card.min-w-0>div.pt-0>ol.grid.min-w-0[Contract]|-24",
     "leftEdges|main>div>div#project-detail-tabpanel-contract.pt-4[tabpanel]>div.flex.min-w-0>section.panel-card.min-w-0|main>div.mt-4.flex>span.relative.inline-flex>span.inline-flex.cursor-help>span.text-muted-foreground|-24",
     "leftEdges|main>div>div#project-detail-tabpanel-contract.pt-4[tabpanel]>div.flex.min-w-0>section.panel-card.min-w-0|main>div.pt-0>div.mt-4>div.flex.flex-wrap>a.touch-target.inline-flex|-24",
@@ -1001,18 +941,15 @@
     "leftEdges|main>div>div#project-detail-tabpanel-contract.pt-4[tabpanel]>div.flex.min-w-0>section.panel-card.min-w-0|main>section.panel-card.min-w-0>div.flex.items-start>div.min-w-0.flex-1>h2#pd-cascade.flex.min-w-0|-24",
     "leftEdges|main>div>div#project-detail-tabpanel-contract.pt-4[tabpanel]>div.flex.min-w-0>section.panel-card.min-w-0|main>section.panel-card.min-w-0>div.flex.items-start>div.min-w-0.flex-1>p.mt-1.text-control|-24",
     "leftEdges|main>div>div#project-detail-tabpanel-contract.pt-4[tabpanel]>div.flex.min-w-0>section.panel-card.min-w-0|main>section.panel-card.min-w-0>div.pt-0>section.mt-4.border-t>ol.mt-3.space-y-2[Billing steps]|-24",
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header] content|+17",
     "taste-panel-void|Claims & down payment"
   ],
   "/projects/41000000-0000-0000-0000-000000000002/contract@1440@pm@acme.test": [
-    "gaps-gap|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]|main>div.mx-auto.pt-5>div>div.hidden[project-section-tabs]",
     "gaps-gap|main>div>div.panel-card.min-w-0>div.pt-0>p.mb-4.text-sm|main>div>div.panel-card.min-w-0>div.pt-0>div.flex.flex-col",
     "gaps-heading|main>div.flex.min-w-0>div>section.panel-card.min-w-0>div.flex.flex-wrap|main>div.flex.min-w-0>div>section.panel-card.min-w-0>div.flex.flex-wrap",
     "gaps-heading|main>div.flex.min-w-0>div>section.panel-card.min-w-0[orderless-invoices]>div.flex.items-start|main>div.flex.min-w-0>div>section.panel-card.min-w-0[orderless-invoices]>div.pt-0",
     "gaps-heading|main>section.panel-card.min-w-0>div.flex.items-start>div.min-w-0.flex-1>h2#pd-cascade.flex.min-w-0|main>section.panel-card.min-w-0>div.flex.items-start>div.min-w-0.flex-1>p.mt-1.text-control",
     "gaps-heading|main>section.panel-card.min-w-0>div.pt-0>section.mt-4.border-t>div.flex.min-w-0|main>section.panel-card.min-w-0>div.pt-0>section.mt-4.border-t>ol.mt-3.space-y-2[Billing steps]",
-    "gaps-scale|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header]|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]",
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header] content|+17",
+    "layout-core|control-edge-inset|button#project-detail-tab-overview",
     "taste-panel-void|Claims & down payment"
   ],
   "/projects/41000000-0000-0000-0000-000000000002/contract@390@finance@acme.test": [
@@ -1049,61 +986,46 @@
     "leftEdges|main>div.flex.min-w-0>div.flex.min-w-0>div>section.panel-card.min-w-0[orderless-invoices]|main>section.panel-card.min-w-0[orderless-invoices]>div.pt-0>div>ul.divide-y[dt-card-branch]|+16"
   ],
   "/projects/41000000-0000-0000-0000-000000000002/documents@1440@pm@acme.test": [
-    "gaps-gap|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]|main>div.mx-auto.pt-5>div>div.hidden[project-section-tabs]",
-    "gaps-scale|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header]|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]"
+    "layout-core|control-edge-inset|button#project-detail-tab-overview"
   ],
   "/projects/41000000-0000-0000-0000-000000000002/documents@390@pm@acme.test": [],
   "/projects/41000000-0000-0000-0000-000000000002/materials@1440@pm@acme.test": [
-    "gaps-gap|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]|main>div.mx-auto.pt-5>div>div.hidden[project-section-tabs]",
     "gaps-gap|main>section.flex.min-w-0[Materials]>section.flex.min-w-0>div.flex.min-w-0>div.flex.flex-wrap|main>section.flex.min-w-0[Materials]>section.flex.min-w-0>div.flex.min-w-0>div.flex.flex-col",
     "gaps-heading|main>div#project-detail-tabpanel-materials.pt-4[tabpanel]>section.flex.min-w-0[Materials]>section.flex.min-w-0>h3#materials-movements.text-base.font-semibold|main>div#project-detail-tabpanel-materials.pt-4[tabpanel]>section.flex.min-w-0[Materials]>section.flex.min-w-0>div.flex.flex-col",
     "gaps-heading|main>div>div#project-detail-tabpanel-materials.pt-4[tabpanel]>section.flex.min-w-0[Materials]>div.flex.flex-wrap|main>div>div#project-detail-tabpanel-materials.pt-4[tabpanel]>section.flex.min-w-0[Materials]>section.flex.min-w-0",
     "gaps-heading|main>section.flex.min-w-0[Materials]>div.flex.flex-wrap>div>h2.text-group.font-semibold|main>section.flex.min-w-0[Materials]>div.flex.flex-wrap>div>p.text-sm.text-muted-foreground",
-    "gaps-scale|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header]|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]",
-    "gaps-scale|main>div>div#project-detail-tabpanel-materials.pt-4[tabpanel]>section.flex.min-w-0[Materials]>section.flex.min-w-0|main>div>div#project-detail-tabpanel-materials.pt-4[tabpanel]>section.flex.min-w-0[Materials]>section.flex.min-w-0"
+    "gaps-scale|main>div>div#project-detail-tabpanel-materials.pt-4[tabpanel]>section.flex.min-w-0[Materials]>section.flex.min-w-0|main>div>div#project-detail-tabpanel-materials.pt-4[tabpanel]>section.flex.min-w-0[Materials]>section.flex.min-w-0",
+    "layout-core|control-edge-inset|button#project-detail-tab-overview"
   ],
   "/projects/41000000-0000-0000-0000-000000000002/materials@390@pm@acme.test": [
-    "gaps-gap|main>div#project-detail-tabpanel-materials.pt-4[tabpanel]>section.flex.min-w-0[Materials]>section.flex.min-w-0>h3#materials-movements.text-base.font-semibold|main>div#project-detail-tabpanel-materials.pt-4[tabpanel]>section.flex.min-w-0[Materials]>section.flex.min-w-0>div.flex.flex-col",
-    "gaps-gap|main>div>div#project-detail-tabpanel-materials.pt-4[tabpanel]>section.flex.min-w-0[Materials]>section.flex.min-w-0|main>div>div#project-detail-tabpanel-materials.pt-4[tabpanel]>section.flex.min-w-0[Materials]>section.flex.min-w-0",
     "gaps-gap|main>section.flex.min-w-0[Materials]>section.flex.min-w-0>div.flex.min-w-0>div.flex.flex-wrap|main>section.flex.min-w-0[Materials]>section.flex.min-w-0>div.flex.min-w-0>div.flex.flex-col",
     "gaps-heading|main>div#project-detail-tabpanel-materials.pt-4[tabpanel]>section.flex.min-w-0[Materials]>div.flex.flex-wrap>div|main>div#project-detail-tabpanel-materials.pt-4[tabpanel]>section.flex.min-w-0[Materials]>div.flex.flex-wrap>a",
-    "gaps-heading|main>section.flex.min-w-0[Materials]>div.flex.flex-wrap>div>h2.text-group.font-semibold|main>section.flex.min-w-0[Materials]>div.flex.flex-wrap>div>p.text-sm.text-muted-foreground"
+    "gaps-heading|main>div#project-detail-tabpanel-materials.pt-4[tabpanel]>section.flex.min-w-0[Materials]>section.flex.min-w-0>h3#materials-movements.text-base.font-semibold|main>div#project-detail-tabpanel-materials.pt-4[tabpanel]>section.flex.min-w-0[Materials]>section.flex.min-w-0>div.flex.flex-col",
+    "gaps-heading|main>section.flex.min-w-0[Materials]>div.flex.flex-wrap>div>h2.text-group.font-semibold|main>section.flex.min-w-0[Materials]>div.flex.flex-wrap>div>p.text-sm.text-muted-foreground",
+    "gaps-scale|main>div>div#project-detail-tabpanel-materials.pt-4[tabpanel]>section.flex.min-w-0[Materials]>section.flex.min-w-0|main>div>div#project-detail-tabpanel-materials.pt-4[tabpanel]>section.flex.min-w-0[Materials]>section.flex.min-w-0"
   ],
   "/projects/41000000-0000-0000-0000-000000000002/procurement@1440@pm@acme.test": [
-    "gaps-gap|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]|main>div.mx-auto.pt-5>div>div.hidden[project-section-tabs]",
-    "gaps-scale|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header]|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]"
+    "layout-core|control-edge-inset|button#project-detail-tab-overview"
   ],
   "/projects/41000000-0000-0000-0000-000000000002/procurement@390@pm@acme.test": [],
   "/projects/41000000-0000-0000-0000-000000000002/tasks?view=board&scope=all@1440@pm@acme.test": [
-    "gaps-gap|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]|main>div.mx-auto.pt-5>div>div.hidden[project-section-tabs]",
-    "gaps-scale|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header]|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]",
-    "leftEdges|page column|main>div.min-w-0.overflow-hidden>div.flex.flex-col>div.flex.flex-wrap>h2.text-page.font-bold|+12",
-    "leftEdges|page column|main>div.min-w-0.space-y-2>div.flex.h-9[stacked-bar]>div.flex.min-w-0>span.truncate|+20",
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header]|-12",
-    "leftEdges|page column|main>section.mb-2.flex[Project facts]>span.inline-flex.min-w-0>span.inline-grid.shrink-0>span|-12"
+    "layout-core|control-edge-inset|button#project-detail-tab-overview",
+    "leftEdges|page column|main>div.min-w-0.space-y-2>div.flex.h-9[stacked-bar]>div.flex.min-w-0>span.truncate|+8",
+    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header]|-24"
   ],
   "/projects/41000000-0000-0000-0000-000000000002/tasks?view=board&scope=all@390@pm@acme.test": [
-    "columnsLevel|main>div.min-w-0.overflow-hidden>div>div.kanban-scroll>div.kanban.gap-3|main>div>div.kanban-scroll>div.kanban.gap-3>div.flex.min-w-0[task-col-Blocked]",
-    "columnsLevel|main>div.min-w-0.overflow-hidden>div>div.kanban-scroll>div.kanban.gap-3|main>div>div.kanban-scroll>div.kanban.gap-3>div.flex.min-w-0[task-col-In Progress]",
-    "columnsLevel|main>div.min-w-0.overflow-hidden>div>div.kanban-scroll>div.kanban.gap-3|main>div>div.kanban-scroll>div.kanban.gap-3>div.flex.min-w-0[task-col-To Do]",
-    "gaps-gap|main>div#project-detail-tabpanel-tasks.pt-4[tabpanel]>div>div.min-w-0.overflow-hidden>div.pb-3|main>div#project-detail-tabpanel-tasks.pt-4[tabpanel]>div>div.min-w-0.overflow-hidden>div",
-    "leftEdges|page column|main>div.flex.flex-wrap>div.min-w-0.flex-1>div.min-w-0.gap-2>h1.min-w-0.text-page|-24",
     "leftEdges|page column|main>div.kcol-head-sticky.border-b>div.mt-2.flex>span.relative.inline-flex>button.inline-flex.rounded-sm[Explain status count]|-8",
     "leftEdges|page column|main>div.mb-4[mobile-project-area-sele]>div.flex.flex-col>div.relative>select.h-auto.w-full|-24",
     "leftEdges|page column|main>div.min-w-0.overflow-hidden>div.flex.flex-col>div.flex.flex-wrap>h2.text-page.font-bold|-8",
-    "leftEdges|page column|main>section.mb-2.flex[Project facts]>span.inline-flex.min-w-0>span.inline-grid.shrink-0>span|-24"
+    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header]|-24"
   ],
   "/projects/41000000-0000-0000-0000-000000000002/tasks@1440@engineer@acme.test": [
-    "gaps-gap|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]|main>div.mx-auto.pt-5>div>div.hidden[project-section-tabs]",
-    "gaps-scale|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header]|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]",
-    "leftEdges|main>div>div#project-detail-tabpanel-tasks.pt-4[tabpanel]>div>div.panel-card.min-w-0|main>div.min-w-0.space-y-2>div.flex.h-9[stacked-bar]>div.flex.min-w-0>span.truncate|+8",
-    "leftEdges|page column|main>div>div#project-detail-tabpanel-tasks.pt-4[tabpanel]>div>div.panel-card.min-w-0 content|+25"
+    "layout-core|control-edge-inset|button#project-detail-tab-overview",
+    "leftEdges|main>div>div#project-detail-tabpanel-tasks.pt-4[tabpanel]>div>div.panel-card.min-w-0|main>div.min-w-0.space-y-2>div.flex.h-9[stacked-bar]>div.flex.min-w-0>span.truncate|+8"
   ],
   "/projects/41000000-0000-0000-0000-000000000002/tasks@1440@pm@acme.test": [
-    "gaps-gap|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]|main>div.mx-auto.pt-5>div>div.hidden[project-section-tabs]",
-    "gaps-scale|main>div.mx-auto.pt-5>div>div.rounded-lg.border[record-header]|main>div.mx-auto.pt-5>div>section.mb-2.flex[Project facts]",
-    "leftEdges|main>div>div#project-detail-tabpanel-tasks.pt-4[tabpanel]>div>div.panel-card.min-w-0|main>div.min-w-0.space-y-2>div.flex.h-9[stacked-bar]>div.flex.min-w-0>span.truncate|+8",
-    "leftEdges|page column|main>div>div#project-detail-tabpanel-tasks.pt-4[tabpanel]>div>div.panel-card.min-w-0 content|+25"
+    "layout-core|control-edge-inset|button#project-detail-tab-overview",
+    "leftEdges|main>div>div#project-detail-tabpanel-tasks.pt-4[tabpanel]>div>div.panel-card.min-w-0|main>div.min-w-0.space-y-2>div.flex.h-9[stacked-bar]>div.flex.min-w-0>span.truncate|+8"
   ],
   "/projects/41000000-0000-0000-0000-000000000002/tasks@390@engineer@acme.test": [
     "leftEdges|main>div>div#project-detail-tabpanel-tasks.pt-4[tabpanel]>div>div.panel-card.min-w-0|main>div.min-w-0.space-y-2>div.flex.h-9[stacked-bar]>div.flex.min-w-0>span.truncate|+8",
@@ -1152,40 +1074,30 @@
     "leftEdges|main>div.w-full.max-w-sm>div.panel-card|main>div.w-full.max-w-sm>div.panel-card>div.space-y-4>a.touch-target.flex|+114"
   ],
   "/sales-invoices/b5000000-0000-0000-0000-000000000001@1440@exec@acme.test": [
-    "gaps-heading|main>div.mx-auto.pt-5>main.mx-auto.w-full>section.mb-5.space-y-2[Client delivery]|main>div.mx-auto.pt-5>main.mx-auto.w-full>section.mb-5.border-b",
-    "gaps-heading|main>main.mx-auto.w-full>section.mb-5.border-b>div.mt-5.border-t>h3.mb-1.text-sm|main>main.mx-auto.w-full>section.mb-5.border-b>div.mt-5.border-t>p.text-sm.text-muted-foreground",
-    "gaps-heading|main>main.mx-auto.w-full>section.mb-5.space-y-2[Client delivery]>div>h2.text-base.font-semibold|main>main.mx-auto.w-full>section.mb-5.space-y-2[Client delivery]>div>p.mt-1.text-sm",
-    "leftEdges|page column|main>div.mx-auto.pt-5>main.mx-auto.w-full>div.rounded-lg.border[record-header] content|+17"
+    "gaps-heading|main>main.mx-auto.w-full[invoice-record]>section.mb-5.border-b>div.mt-5.border-t>h3.mb-1.text-sm|main>main.mx-auto.w-full[invoice-record]>section.mb-5.border-b>div.mt-5.border-t>p.text-sm.text-muted-foreground",
+    "leftEdges|page column|main>div.mx-auto.pt-5>main.mx-auto.w-full[invoice-record]>div.rounded-lg.border[record-header] content|+17"
   ],
   "/sales-invoices/b5000000-0000-0000-0000-000000000001@1440@exec@acme.test#reads-failing": [],
   "/sales-invoices/b5000000-0000-0000-0000-000000000001@1440@finance@acme.test": [
-    "gaps-heading|main>div.mx-auto.pt-5>main.mx-auto.w-full>section.mb-5.space-y-2[Client delivery]>div|main>div.mx-auto.pt-5>main.mx-auto.w-full>section.mb-5.space-y-2[Client delivery]>div.flex.flex-wrap",
-    "gaps-heading|main>main.mx-auto.w-full>section.mb-5.border-b>div.mt-5.border-t>h3.mb-1.text-sm|main>main.mx-auto.w-full>section.mb-5.border-b>div.mt-5.border-t>p.text-sm.text-muted-foreground",
-    "gaps-heading|main>main.mx-auto.w-full>section.mb-5.space-y-2[Client delivery]>div>h2.text-base.font-semibold|main>main.mx-auto.w-full>section.mb-5.space-y-2[Client delivery]>div>p.mt-1.text-sm",
-    "gaps-scale|main>div.mx-auto.pt-5>main.mx-auto.w-full>section.mb-5.space-y-2[Client delivery]|main>div.mx-auto.pt-5>main.mx-auto.w-full>section.mb-5.border-b",
-    "leftEdges|page column|main>div.mx-auto.pt-5>main.mx-auto.w-full>div.rounded-lg.border[record-header] content|+17"
+    "gaps-heading|main>main.mx-auto.w-full[invoice-record]>section.mb-5.border-b>div.mt-5.border-t>h3.mb-1.text-sm|main>main.mx-auto.w-full[invoice-record]>section.mb-5.border-b>div.mt-5.border-t>p.text-sm.text-muted-foreground",
+    "gaps-scale|main>div.mx-auto.pt-5>main.mx-auto.w-full[invoice-record]>section.mb-5.space-y-2[Client delivery]|main>div.mx-auto.pt-5>main.mx-auto.w-full[invoice-record]>section.mb-5.border-b",
+    "leftEdges|page column|main>div.mx-auto.pt-5>main.mx-auto.w-full[invoice-record]>div.rounded-lg.border[record-header] content|+17"
   ],
   "/sales-invoices/b5000000-0000-0000-0000-000000000001@390@exec@acme.test": [
-    "gaps-gap|main>main.mx-auto.w-full>div.rounded-lg.border[record-header]>div.mt-4.grid>div|main>main.mx-auto.w-full>div.rounded-lg.border[record-header]>div.mt-4.grid>div",
-    "gaps-heading|main>div.mx-auto.pt-5>main.mx-auto.w-full>section.mb-5.space-y-2[Client delivery]|main>div.mx-auto.pt-5>main.mx-auto.w-full>section.mb-5.border-b",
-    "gaps-heading|main>main.mx-auto.w-full>section.mb-5.border-b>div.mt-5.border-t>h3.mb-1.text-sm|main>main.mx-auto.w-full>section.mb-5.border-b>div.mt-5.border-t>p.text-sm.text-muted-foreground",
-    "gaps-heading|main>main.mx-auto.w-full>section.mb-5.space-y-2[Client delivery]>div>h2.text-base.font-semibold|main>main.mx-auto.w-full>section.mb-5.space-y-2[Client delivery]>div>p.mt-1.text-sm"
+    "gaps-gap|main>main.mx-auto.w-full[invoice-record]>div.rounded-lg.border[record-header]>div.mt-4.grid>div|main>main.mx-auto.w-full[invoice-record]>div.rounded-lg.border[record-header]>div.mt-4.grid>div",
+    "gaps-heading|main>main.mx-auto.w-full[invoice-record]>section.mb-5.border-b>div.mt-5.border-t>h3.mb-1.text-sm|main>main.mx-auto.w-full[invoice-record]>section.mb-5.border-b>div.mt-5.border-t>p.text-sm.text-muted-foreground"
   ],
   "/sales-invoices/b5000000-0000-0000-0000-000000000001@390@exec@acme.test#reads-failing": [],
   "/sales-invoices/b5000000-0000-0000-0000-000000000001@390@finance@acme.test": [
-    "gaps-gap|main>main.mx-auto.w-full>div.rounded-lg.border[record-header]>div.mt-4.grid>div|main>main.mx-auto.w-full>div.rounded-lg.border[record-header]>div.mt-4.grid>div",
-    "gaps-heading|main>div.mx-auto.pt-5>main.mx-auto.w-full>section.mb-5.space-y-2[Client delivery]>div|main>div.mx-auto.pt-5>main.mx-auto.w-full>section.mb-5.space-y-2[Client delivery]>div.flex.flex-wrap",
-    "gaps-heading|main>main.mx-auto.w-full>section.mb-5.border-b>div.mt-5.border-t>h3.mb-1.text-sm|main>main.mx-auto.w-full>section.mb-5.border-b>div.mt-5.border-t>p.text-sm.text-muted-foreground",
-    "gaps-heading|main>main.mx-auto.w-full>section.mb-5.space-y-2[Client delivery]>div>h2.text-base.font-semibold|main>main.mx-auto.w-full>section.mb-5.space-y-2[Client delivery]>div>p.mt-1.text-sm",
-    "gaps-scale|main>div.mx-auto.pt-5>main.mx-auto.w-full>section.mb-5.space-y-2[Client delivery]|main>div.mx-auto.pt-5>main.mx-auto.w-full>section.mb-5.border-b"
+    "gaps-gap|main>main.mx-auto.w-full[invoice-record]>div.rounded-lg.border[record-header]>div.mt-4.grid>div|main>main.mx-auto.w-full[invoice-record]>div.rounded-lg.border[record-header]>div.mt-4.grid>div",
+    "gaps-heading|main>main.mx-auto.w-full[invoice-record]>section.mb-5.border-b>div.mt-5.border-t>h3.mb-1.text-sm|main>main.mx-auto.w-full[invoice-record]>section.mb-5.border-b>div.mt-5.border-t>p.text-sm.text-muted-foreground",
+    "gaps-scale|main>div.mx-auto.pt-5>main.mx-auto.w-full[invoice-record]>section.mb-5.space-y-2[Client delivery]|main>div.mx-auto.pt-5>main.mx-auto.w-full[invoice-record]>section.mb-5.border-b"
   ],
   "/sales@1440@exec@acme.test": [
     "leftEdges|main>div>div.mb-2.grid>div.min-w-0>section.panel-card[Pipeline summary]|main>div.min-w-0>section.panel-card[Pipeline summary]>div.mb-2>dl.grid.min-w-0|-8",
     "leftEdges|page column|main>div.relative>div.relative.cursor-pointer[project-card]>div.grid.min-w-0>span.row-span-2.grid|+7"
   ],
-  "/sales@1440@exec@acme.test#reads-failing": [
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.flex.items-center[alert] content|+49"
-  ],
+  "/sales@1440@exec@acme.test#reads-failing": [],
   "/sales@1440@pm@acme.test": [
     "leftEdges|main>div>div.mb-2.grid>div.min-w-0>section.panel-card[Pipeline summary]|main>div.min-w-0>section.panel-card[Pipeline summary]>div.mb-2>dl.grid.min-w-0|-8",
     "leftEdges|page column|main>div.relative>div.relative.cursor-pointer[project-card]>div.grid.min-w-0>span.row-span-2.grid|+7"
@@ -1199,9 +1111,7 @@
     "leftEdges|main>div>ul.grid.min-w-0[sales-phone-stage-list]>li.min-w-0>div.flex.h-full[project-card]|main>li.min-w-0>div.flex.h-full[project-card]>div.grid.min-w-0>span.row-span-2.grid|+9",
     "leftEdges|page column|main>div.mx-auto.pt-5>div>ul.grid.min-w-0[sales-phone-stage-list]|+26"
   ],
-  "/sales@390@exec@acme.test#reads-failing": [
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.flex.items-center[alert] content|+49"
-  ],
+  "/sales@390@exec@acme.test#reads-failing": [],
   "/sales@390@pm@acme.test": [
     "leftEdges|main>div>ul.grid.min-w-0[sales-phone-stage-list]>li.min-w-0>div.flex.h-full[project-card]|main>div.min-w-0.space-y-1>div.flex.min-w-0>div.flex.min-w-0>span.break-words.font-bold|-10",
     "leftEdges|main>div>ul.grid.min-w-0[sales-phone-stage-list]>li.min-w-0>div.flex.h-full[project-card]|main>div.min-w-0.space-y-1>div.flex.min-w-0>div.flex.min-w-0>span.break-words.font-bold|-8",
@@ -1252,41 +1162,43 @@
   "/stock/reorder@390@pm@acme.test": [
     "gaps-heading|main>div.mx-auto.pt-5>div>h2.mb-2.text-base|main>div.mx-auto.pt-5>div>div.rounded-b-lg.border"
   ],
-  "/stock/setup@1440@pm@acme.test": [],
+  "/stock/setup@1440@pm@acme.test": [
+    "layout-core|control-edge-inset|button#stock-setup-tab-units"
+  ],
   "/stock/setup@390@pm@acme.test": [
+    "layout-core|control-edge-inset|button#stock-setup-tab-units",
     "leftEdges|page column|main>div>div#stock-setup-tabpanel-units.mt-3[tabpanel]>div.rounded-b-lg.border>ul.divide-y[dt-card-branch]|+55"
   ],
   "/timesheets@1440@engineer@acme.test": [
-    "leftEdges|main>div.mx-auto.pt-5>div>div.panel-card.overflow-hidden|main>div.border-b.border-border>div.mt-2.flex[timesheets-entry-actions]>div.inline-flex.min-w-0[timesheets-add-project-c]>span|+12",
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.panel-card.overflow-hidden content|+23"
+    "leftEdges|main>div.mx-auto.pt-5>div>div.panel-card.overflow-hidden|main>div.border-b.border-border>div.mt-2.flex[timesheets-entry-actions]>div.flex.w-full[timesheets-add-project-c]>span|+12"
   ],
   "/timesheets@1440@exec@acme.test": [
-    "leftEdges|main>div.mx-auto.pt-5>div>div.panel-card.overflow-hidden|main>div.border-b.border-border>div.mt-2.flex[timesheets-entry-actions]>div.inline-flex.min-w-0[timesheets-add-project-c]>span|+12",
+    "leftEdges|main>div.mx-auto.pt-5>div>div.panel-card.overflow-hidden|main>div.border-b.border-border>div.mt-2.flex[timesheets-entry-actions]>div.flex.w-full[timesheets-add-project-c]>span|+12",
     "leftEdges|page column|main>div.mx-auto.pt-5>div>div.sticky.z-20[timesheets-footer]>div.mr-auto.text-control|+14"
   ],
-  "/timesheets@1440@exec@acme.test#reads-failing": [
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.flex.items-center[alert] content|+49"
-  ],
+  "/timesheets@1440@exec@acme.test#reads-failing": [],
   "/timesheets@1440@finance@acme.test": [],
   "/timesheets@1440@pm@acme.test": [
-    "leftEdges|main>div.mx-auto.pt-5>div>div.panel-card.overflow-hidden|main>div.border-b.border-border>div.mt-2.flex[timesheets-entry-actions]>div.inline-flex.min-w-0[timesheets-add-project-c]>span|+12"
+    "leftEdges|main>div.mx-auto.pt-5>div>div.panel-card.overflow-hidden|main>div.border-b.border-border>div.mt-2.flex[timesheets-entry-actions]>div.flex.w-full[timesheets-add-project-c]>span|+12"
   ],
   "/timesheets@390@engineer@acme.test": [
-    "leftEdges|main>div.mx-auto.pt-5>div>div.panel-card.overflow-hidden|main>div.border-b.border-border>div.mt-2.flex[timesheets-entry-actions]>div.inline-flex.min-w-0[timesheets-add-project-c]>span|+12"
+    "leftEdges|main>div.mx-auto.pt-5>div>div.panel-card.overflow-hidden|main>div.border-b.border-border>div.mt-2.flex[timesheets-entry-actions]>div.flex.w-full[timesheets-add-project-c]>span|+12",
+    "leftEdges|main>div.mx-auto.pt-5>div>div.panel-card.overflow-hidden|main>div.divide-y.divide-border[tsgrid-mobile]>div.py-3>div.mt-2.flex[tsgrid-row-total-4100000]>span.text-control|+242",
+    "leftEdges|main>div.mx-auto.pt-5>div>div.panel-card.overflow-hidden|main>div.py-3>div.mb-2.flex>div.min-w-0.flex-1>div.break-words.font-mono|-8",
+    "leftEdges|main>div.mx-auto.pt-5>div>div.panel-card.overflow-hidden|main>div.py-3>div.mb-2.flex>div.min-w-0.flex-1>div.break-words.text-control|-8",
+    "leftEdges|main>div.mx-auto.pt-5>div>div.panel-card.overflow-hidden|main>div.py-3>div.mt-2>div.flex.flex-col>textarea.w-full.touch-target[Cascade Foods 6.0 MW Gro]|-8",
+    "leftEdges|main>div.mx-auto.pt-5>div>div.panel-card.overflow-hidden|main>div.py-3>div.mt-2>div.flex.flex-col>textarea.w-full.touch-target[Meridian Steelworks 4.2 ]|-8"
   ],
   "/timesheets@390@exec@acme.test": [
-    "leftEdges|main>div.mx-auto.pt-5>div>div.panel-card.overflow-hidden|main>div.border-b.border-border>div.mt-2.flex[timesheets-entry-actions]>div.inline-flex.min-w-0[timesheets-add-project-c]>span|+12"
+    "leftEdges|main>div.mx-auto.pt-5>div>div.panel-card.overflow-hidden|main>div.border-b.border-border>div.mt-2.flex[timesheets-entry-actions]>div.flex.w-full[timesheets-add-project-c]>span|+12"
   ],
-  "/timesheets@390@exec@acme.test#reads-failing": [
-    "leftEdges|page column|main>div.mx-auto.pt-5>div>div.flex.items-center[alert] content|+49"
-  ],
+  "/timesheets@390@exec@acme.test#reads-failing": [],
   "/timesheets@390@finance@acme.test": [
     "leftEdges|main>div.mx-auto.pt-5>section.flex.flex-col[You don't have access to]|main>div.mx-auto.pt-5>section.flex.flex-col[You don't have access to]>h1.text-group.font-semibold|+15"
   ],
   "/timesheets@390@pm@acme.test": [
-    "leftEdges|main>div.mx-auto.pt-5>div>div.panel-card.overflow-hidden|main>div.border-b.border-border>div.mt-2.flex[timesheets-entry-actions]>div.inline-flex.min-w-0[timesheets-add-project-c]>span|+12",
+    "leftEdges|main>div.mx-auto.pt-5>div>div.panel-card.overflow-hidden|main>div.border-b.border-border>div.mt-2.flex[timesheets-entry-actions]>div.flex.w-full[timesheets-add-project-c]>span|+12",
     "leftEdges|main>div.mx-auto.pt-5>div>div.panel-card.overflow-hidden|main>div.divide-y.divide-border[tsgrid-mobile]>div.py-3>div.mt-2.flex[tsgrid-row-total-4100000]>span.text-control|+242",
-    "leftEdges|main>div.mx-auto.pt-5>div>div.panel-card.overflow-hidden|main>div.panel-card.overflow-hidden>div.divide-y.divide-border[tsgrid-mobile]>div.flex.items-center>span.text-control.font-semibold|-8",
     "leftEdges|main>div.mx-auto.pt-5>div>div.panel-card.overflow-hidden|main>div.py-3>div.mb-2.flex>div.min-w-0.flex-1>div.break-words.font-mono|-8",
     "leftEdges|main>div.mx-auto.pt-5>div>div.panel-card.overflow-hidden|main>div.py-3>div.mb-2.flex>div.min-w-0.flex-1>div.break-words.text-control|-8",
     "leftEdges|main>div.mx-auto.pt-5>div>div.panel-card.overflow-hidden|main>div.py-3>div.mt-2>div.flex.flex-col>textarea.w-full.touch-target[Cascade Foods 6.0 MW Gro]|-8",
