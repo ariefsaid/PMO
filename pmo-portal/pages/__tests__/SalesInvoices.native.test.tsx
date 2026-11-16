@@ -878,7 +878,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(dialog).toContainElement(saveError);
     expect(saveError).toHaveAttribute('role', 'alert');
     await waitFor(() => expect(saveError).toHaveFocus());
-    expect(receivedDate).toHaveValue('2026-10-08');
+    expect(receivedDate).toHaveValue('8 Oct 2026');
     expect(h.toast).not.toHaveBeenCalled();
   });
 

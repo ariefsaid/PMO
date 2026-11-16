@@ -307,7 +307,7 @@ describe('AC-CQ-014 WorkOrderAcceptanceModal (BAST preparation)', () => {
     expect(screen.getByLabelText(/SURVEY/)).toBeInTheDocument();
     expect(screen.getByLabelText(/MOBILISE.*% accepted/)).toBeInTheDocument();
     expect(screen.queryByLabelText(/UNUSED/)).toBeNull();
-    expect(screen.getByLabelText(/BAST date/)).toHaveValue('2026-10-21');
+    expect(screen.getByLabelText(/BAST date/)).toHaveValue('21 Oct 2026');
   });
 
   it('AC-CQ-014 a stage BAST sends cumulative quantities, leaves blank lines out and a lump sum as a fraction', async () => {

@@ -253,7 +253,7 @@ describe('DraggableSalesBoard', () => {
     expect(await within(form).findByRole('alert')).toHaveTextContent('Illegal transition');
     expect(screen.queryByText('Status change failed')).toBeNull();
     expect(screen.getByLabelText('Customer contract ref')).toHaveValue('CPO-1');
-    expect(screen.getByLabelText('Contract date')).toHaveValue('2026-11-01');
+    expect(screen.getByLabelText('Contract date')).toHaveValue('1 Nov 2026');
     // the card stays held in Won until the user cancels or retries
     expect(inColumn('stage-Won', 'negotiation')!.closest('[data-drag-state]')).toHaveAttribute('data-drag-state', 'held');
 

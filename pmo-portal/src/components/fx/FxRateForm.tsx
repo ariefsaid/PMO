@@ -13,6 +13,7 @@ import { formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format'
 import { isValid } from 'date-fns/isValid';
 import { parseISO } from 'date-fns/parseISO';
 import type { FxRateInput, FxRateRow } from '@/src/lib/repositories/types';
+import { DateField } from '@/src/components/ui/DateField';
 
 export interface FxRateFormProps {
   row?: FxRateRow;
@@ -102,10 +103,9 @@ const FxRateForm: React.FC<FxRateFormProps> = ({
       submitError={submitError}
     >
       <FormGrid>
-        <TextField
+        <DateField
           {...dateField}
           label={t('fx.date', 'Publication date')}
-          type="date"
           max={today}
           required
           disabled={Boolean(row) || loading}

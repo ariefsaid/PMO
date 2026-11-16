@@ -941,6 +941,13 @@
     },
     "select": "Pilih…"
   },
+  "dateField": {
+    "open": "Buka kalender",
+    "calendar": "Kalender",
+    "invalid": "Masukkan tanggal seperti 16 Nov 2026",
+    "beforeMin": "Pilih tanggal {{date}} atau setelahnya",
+    "afterMax": "Pilih tanggal {{date}} atau sebelumnya"
+  },
   "companies": {
     "accessDenied": {
       "sub": "Direktori perusahaan adalah master data bersama untuk manajer dan keuangan. Pekerjaan Anda ada di dashboard, proyek, dan tugas Anda.",

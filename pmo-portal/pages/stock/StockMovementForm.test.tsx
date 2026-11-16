@@ -27,6 +27,7 @@ vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-11-01' }) }));
 
 import StockMovementForm from './StockMovementForm';
+import { latestPickableDay } from '@/test/dateField';
 
 const unit = { id: 'u1', code: 'bag', name: 'Bag', whole_only: true, archived_at: null };
 const metre = { id: 'u2', code: 'm', name: 'Metre', whole_only: false, archived_at: null };
@@ -89,7 +90,7 @@ describe('StockMovementForm', () => {
     renderForm('issue', 'Admin');
     expect(await screen.findByRole('heading', { level: 1, name: 'Issue to project' })).toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Stock sections' })).not.toBeInTheDocument();
-    expect(await screen.findByLabelText('Date')).toHaveAttribute('max', '2026-11-01');
+    expect(await latestPickableDay(userEvent.setup(), await screen.findByLabelText('Date'))).toBe('2026-11-01');
   });
 
   it('AC-STK-030 a shortfall error is announced beside the quantity', async () => {

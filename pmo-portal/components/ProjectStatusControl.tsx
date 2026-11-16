@@ -12,6 +12,7 @@ import type { LostReasonValue } from './project-status/LostReasonFields';
 import { WinDetailsFields } from './project-status/WinDetailsFields';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { winDetailsComplete, winEligibilityMessage } from './project-status/projectTransitionCopy';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 
 interface ProjectStatusControlProps {
   project: {
@@ -62,6 +63,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
   const [pendingTarget, setPendingTarget] = useState<ProjectStatus | null>(null);
   const [contractRef, setContractRef] = useState('');
   const [contractDate, setContractDate] = useState('');
+  const today = useOrgToday();
   // Confirm-before-write (owner rule, PR1-PR3): a chosen non-win target is
   // staged here and only commits when the ConfirmDialog's Confirm is pressed.
   const [confirmTarget, setConfirmTarget] = useState<ProjectStatus | null>(null);
@@ -162,7 +164,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
 
   const handleWinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canWin || !winDetailsComplete(contractRef, contractDate)) return;
+    if (!canWin || !winDetailsComplete(contractRef, contractDate, today)) return;
     setOpen(false);
     setPendingTarget(null);
     mutation.mutate({

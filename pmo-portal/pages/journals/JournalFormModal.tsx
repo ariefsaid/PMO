@@ -13,6 +13,7 @@ import { JOURNAL_KINDS, type JournalDetail, type JournalKind } from '@/src/lib/d
 import { journalBalance, toLinePayload, type JournalLineDraft } from '@/src/lib/journals/journalBalance';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { journalErrorOverrides, journalKindLabel } from './journalWords';
+import { DateField } from '@/src/components/ui/DateField';
 
 const blankLine = (): JournalLineDraft => ({ account: '', debit: '', credit: '', label: '', projectId: '' });
 const isBlank = (l: JournalLineDraft) => !l.account.trim() && !l.debit.trim() && !l.credit.trim() && !l.label.trim() && !l.projectId;
@@ -120,7 +121,7 @@ export const JournalFormModal: React.FC<JournalFormModalProps> = ({ draft, curre
       </Button>}>
       <FormGrid>
         <SelectField label={t('journals:form.kind', 'Kind')} required options={kindOptions} {...form.fieldProps('kind')} />
-        <TextField label={t('journals:form.date', 'Date')} type="date" required {...form.fieldProps('date')} />
+        <DateField label={t('journals:form.date', 'Date')} required {...form.fieldProps('date')} />
         <TextArea label={t('journals:form.memo', 'Memo')} required fullWidth maxLength={500} {...form.fieldProps('memo')} />
       </FormGrid>
       <div className="mt-4 space-y-4">

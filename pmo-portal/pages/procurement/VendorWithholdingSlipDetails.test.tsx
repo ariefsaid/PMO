@@ -1,6 +1,8 @@
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { latestPickableDay } from '@/test/dateField';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 import { financeTestI18n, financeTestI18nReady } from '@/test/financeI18nTestInstance';
@@ -197,7 +199,7 @@ describe('AC-BUPOT-018 withholding-slip details', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Correct metadata' }));
     await screen.findByLabelText(/Issued slip number/);
     const dialog = screen.getByRole('dialog', { name: 'Correct metadata' });
-    fireEvent.change(dialog.querySelector('input[type="date"]')!, { target: { value: '2099-01-02' } });
+    fireEvent.change(within(dialog).getByLabelText(/slip date/i), { target: { value: '2099-01-02' } });
     const futureMonth = dialog.querySelector('input[type="month"]')!;
     fireEvent.change(futureMonth, { target: { value: '2099-01' } });
     fireEvent.blur(futureMonth);
@@ -215,9 +217,11 @@ describe('AC-BUPOT-018 withholding-slip details', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Correct metadata' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Correct metadata' });
-    const dateInput = dialog.querySelector('input[type="date"]')!;
+    const dateInput = within(dialog).getByLabelText(/slip date/i);
     const monthInput = dialog.querySelector('input[type="month"]')!;
-    expect(dateInput).toHaveAttribute('max', '2026-06-30');
+    // Start from a date near the bound, so the calendar opens on the month that holds it.
+    fireEvent.change(dateInput, { target: { value: '2026-06-15' } });
+    expect(await latestPickableDay(userEvent.setup(), dateInput)).toBe('2026-06-30');
     expect(monthInput).toHaveAttribute('max', '2026-06');
   });
 

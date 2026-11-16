@@ -1,3 +1,4 @@
+import { DateField } from '@/src/components/ui/DateField';
 import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
 import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
 /**
@@ -591,16 +592,13 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
             {/* N1 (AC-W3-N1): Paid excluded — Mark as Paid is the sole PR→Paid authority. */}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-sm font-semibold text-muted-foreground">
-          {t('procurementDetail.vendorInvoice.invoiceDate', 'Invoice date')}
-          <input
-            type="date"
-            value={invoiceDate}
-            onChange={(e) => setInvoiceDate(e.target.value)}
-            data-testid={VI_FIELD_TEST_IDS.date}
-            className="h-8 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          />
-        </label>
+        <DateField
+          compact
+          label={t('procurementDetail.vendorInvoice.invoiceDate', 'Invoice date')}
+          value={invoiceDate}
+          onChange={setInvoiceDate}
+          data-testid={VI_FIELD_TEST_IDS.date}
+        />
         {/* #505: the tax treatment — REQUIRED, and deliberately unselected at rest. The recorded
             `amount` above is ambiguous without it and no later inference recovers the answer.
             Hidden entirely on a flipped org, where the ERP owns the answer (`taxIsPmoAuthored`). */}

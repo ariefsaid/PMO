@@ -25,6 +25,6 @@ export function winEligibilityMessage(t: TFunction, decision: string | null | un
   return t('project:winEligibility.reviewer', 'Ask your supervisor or a more senior reviewer to confirm the value before winning this project.');
 }
 
-/** Both win inputs are required before the transition may be sent. */
-export const winDetailsComplete = (contractRef: string, contractDate: string) =>
-  contractRef.trim() !== '' && contractDate !== '';
+/** Both win inputs are required before the transition may be sent, and the contract date cannot be after the organisation's today. */
+export const winDetailsComplete = (contractRef: string, contractDate: string, today?: string) =>
+  contractRef.trim() !== '' && contractDate !== '' && (today === undefined || contractDate <= today);

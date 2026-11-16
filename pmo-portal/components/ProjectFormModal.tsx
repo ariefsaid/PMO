@@ -45,6 +45,7 @@ import {
   type ProjectHeaderInput,
   type ProjectStatus,
 } from '@/src/lib/db/projects';
+import { DateField } from '@/src/components/ui/DateField';
 
 // ---------------------------------------------------------------------------
 // ProjectFormModal — the New-deal create form AND the edit-header form
@@ -685,17 +686,15 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
 
       <FormSection legend={t('projectForm.section.schedule', 'Schedule')}>
         <FormGrid>
-          <TextField
+          <DateField
             id={startField.id}
             label={t('projectForm.expectedStart', 'Expected start')}
-            type="date"
             value={startField.value}
             onChange={startField.onChange}
           />
-          <TextField
+          <DateField
             id={endField.id}
             label={t('projectForm.expectedEnd', 'Expected end')}
-            type="date"
             value={endField.value}
             onChange={endField.onChange}
             error={endField.error}

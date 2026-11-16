@@ -7,6 +7,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { categoryOptions } from '@/src/lib/documentCategories';
 import type { ProjectDocumentRow, ProjectDocumentInput } from '@/src/lib/db/documents';
 import type { MicrosoftReferenceInput } from '@/src/lib/m365/reference';
+import { DateField } from '@/src/components/ui/DateField';
 
 
 interface FormValues {
@@ -196,10 +197,9 @@ export const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
               onBlur={revisionField.onBlur}
               placeholder={t('projectDetail.documents.form.revisionPlaceholder', 'e.g. A')}
             />
-            <TextField
+            <DateField
               id={dateField.id}
               label={t('projectDetail.documents.form.docDate', 'Document date')}
-              type="date"
               value={dateField.value}
               onChange={dateField.onChange}
               onBlur={dateField.onBlur}

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { statusLabel } from '@/src/lib/status/statusMap';
 import {
-  Button, EntityFormModal, FormGrid, FormSection, NumberField, SelectField, TextArea, TextField, type SubmitError,
+  Button, EntityFormModal, FormGrid, FormSection, NumberField, SelectField, TextArea, type SubmitError,
 } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatMoneyInputValue, formatNumberExact, parseMoneyInputAtScale } from '@/src/lib/format';
@@ -10,6 +10,7 @@ import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import type {
   PrepareSubcontractAcceptanceInput, SubcontractAcceptanceWithLines, SubcontractPoPositionRow,
 } from '@/src/lib/db/subcontracts';
+import { DateField } from '@/src/components/ui/DateField';
 
 /**
  * Prepare (or re-record a Draft of) a subcontractor acceptance, then confirm or withdraw it (#1513 S7.3).
@@ -122,7 +123,7 @@ const SubcontractAcceptanceModal: React.FC<SubcontractAcceptanceModalProps> = ({
       <p className="mb-3 text-sm text-muted-foreground">{t('subcontract.acceptance.form.subtitle', 'Someone else confirms it with the signed document; it does not create a bill.')}</p>
       <FormSection legend={t('subcontract.acceptance.form.details', 'Acceptance')}>
         <FormGrid>
-          <TextField id="sc-acc-date" type="date" label={t('subcontract.acceptance.form.date', 'Period date')} required
+          <DateField id="sc-acc-date" label={t('subcontract.acceptance.form.date', 'Period date')} required
             value={date} onChange={setDate} error={errors.date} />
           <SelectField id="sc-acc-document" label={t('subcontract.acceptance.form.document', 'Signed acceptance document')}
             value={documentId} onChange={setDocumentId} options={docOptions}

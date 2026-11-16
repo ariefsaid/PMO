@@ -194,7 +194,7 @@ describe('SubcontractLinesSection', () => {
       fireEvent.click(screen.getByRole('button', { name: /record acceptance/i }));
 
       // The UTC day is still Jun 1; the org day is Jun 2.
-      expect(await screen.findByLabelText(/^Period date/)).toHaveValue('2026-06-02');
+      expect(await screen.findByLabelText(/^Period date/)).toHaveValue('2 Jun 2026');
     } finally {
       vi.useRealTimers();
       resetActiveLocale();
