@@ -264,7 +264,8 @@ describe('Project Manager home (one question: what needs me, which of my project
   it('leads with what waits on me, then my projects, then my contract value, with working destinations and one help control', () => {
     renderDashboard();
     expect(screen.getByRole('heading', { level: 1, name: 'My dashboard' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Refresh' })).toHaveClass('min-h-[var(--control-height)]');
+    // Refresh matches the other homes' compact button; what matters is its touch target, not its height token.
+    expect(screen.getByRole('button', { name: 'Refresh' })).toHaveClass('touch-target');
     expect(screen.getAllByRole('button', { name: /^About / })).toHaveLength(1);
 
     const approvals = within(waitsRegion()).getByRole('link', { name: /approvals waiting for you/ });
@@ -351,9 +352,9 @@ describe('Project Manager home (one question: what needs me, which of my project
     renderDashboard();
     const tile = screen.getByTestId('kpi-my-contract-value');
     expect(tile).toHaveTextContent('$100K');
-    const otherCurrency = within(tile).getByText('IDR 2B');
+    // Owner ruling 2026-11-16: the other currency is its own labelled amount, never a bare line read as a conversion.
+    const otherCurrency = within(tile).getByText('+ IDR 2B IDR contracts');
     expect(otherCurrency).toHaveClass('block');
-    expect(otherCurrency).not.toHaveTextContent('+');
     expect(tile).toHaveTextContent(/\$100,000;\s*IDR\s*2,000,000,000/);
     expect(tile.textContent).not.toMatch(/2,100|2\.1B/);
   });

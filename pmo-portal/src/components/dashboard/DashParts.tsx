@@ -106,7 +106,7 @@ const WaitItem: React.FC<{ row: WaitRow; band?: boolean }> = ({ row, band = fals
     >
       <span className="min-w-0">
         <span className={cn('block text-metric font-semibold leading-tight tabular', COUNT_TONE[row.tone])}>{row.count}</span>
-        <span className="block break-words text-control font-medium first-letter:uppercase">{row.label}</span>
+        <span className="block break-words text-control font-medium">{row.label}</span>
         {(row.detail || row.amount) && <span className="block break-words text-control text-muted-foreground tabular">{[row.detail, row.amount].filter(Boolean).map((part, index) => <React.Fragment key={index}>{index > 0 && ' · '}{part}</React.Fragment>)}</span>}
       </span>
       <span className="mt-2.5"><Chevron /></span>

@@ -373,7 +373,10 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       (marginStatus.pending && marginShownBefore) || marginStatus.error || margin?.amounts
         ? moneyTile(margin, { label: t('dashboard:hub.company.knownMarginOnBilledWork', 'Known margin on billed work'), caption: t('home.marginCaption', 'Billed revenue less spending') }) : null,
     ].filter((tile) => tile !== null);
-    const band = tilesRow('grid-cols-2 max-[899px]:[&>*:last-child:nth-child(odd)]:col-span-2 min-[900px]:grid-flow-col min-[900px]:auto-cols-fr', bandTiles);
+    // Five figures do not fit one line below 1280px (values ran past their cells at 1024): there they sit three over two.
+    const band = tilesRow(cn('grid-cols-2 max-[899px]:[&>*:last-child:nth-child(odd)]:col-span-2', bandTiles.length >= 5
+      ? 'min-[900px]:max-[1279px]:grid-cols-6 min-[900px]:max-[1279px]:[&>*]:col-span-2 min-[900px]:max-[1279px]:[&>*:nth-child(n+4)]:col-span-3 min-[1280px]:grid-flow-col min-[1280px]:auto-cols-fr'
+      : 'min-[900px]:grid-flow-col min-[900px]:auto-cols-fr'), bandTiles);
 
     // Each card takes its natural height; for Executive/Admin, Purchasing by stage (the right column's last card)
     // absorbs the few pixels that let the column end level with Project health.

@@ -171,8 +171,9 @@ describe('company figures — ported money oracles', () => {
     };
     renderPage();
     const contract = tile('Contract on hand · excl. tax');
-    expect(contract).toHaveTextContent('USD 3.4M');
-    expect(contract).not.toHaveTextContent(/\$3\.4M/);
+    // Owner ruling 2026-11-16: the USD contracts are their own labelled amount, the currency code in the words.
+    expect(contract).toHaveTextContent('+ $3.4M USD contracts');
+    expect(contract).not.toHaveTextContent(/(^|[^+] )\$3\.4M(?! USD contracts)/);
   });
 });
 
