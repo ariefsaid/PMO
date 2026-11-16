@@ -47,7 +47,6 @@ import type { ProjectWithRefs, TaxTreatment } from '@/src/lib/db/projects';
 import type { Role } from '@/src/auth/AuthContext';
 import { UnknownFigure } from './UnknownFigure';
 import { OtherCurrencyCommitments } from './OtherCurrencyCommitments';
-import { HeaderFact } from './HeaderFact';
 import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { projectIconColor } from '../../components/projects';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
@@ -392,10 +391,23 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         })
       : t('projectDetail.header.po', 'PO {{ref}}', { ref: project.customer_contract_ref })
     : null;
-  // One band (#design-1115): the customer and the key facts sit on the identity line, inside the header.
-  const meta = compact ? (customerName || facts ? (
-    <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
-      {customerName && <HeaderFact label={t('projects:filterBuilder.customer', 'Customer')} title={customerName ?? undefined}>{customerName}</HeaderFact>}
+  // Identity line (customer · project number, body colour), then the facts line (muted) from `facts`.
+  // The position under the title says "customer", so the label is spoken only (sr-only).
+  const identityLine = (customerName || project.code) ? (
+    <span data-testid="project-identity-line" className="flex min-w-0 flex-wrap items-baseline gap-x-2 text-control text-foreground">
+      {customerName && (
+        <span title={customerName} className="min-w-0 break-words">
+          <span className="sr-only">{t('projects:filterBuilder.customer', 'Customer')} </span>{customerName}
+        </span>
+      )}
+      {customerName && project.code && <span aria-hidden="true" className="text-muted-foreground">·</span>}
+      {project.code && <span className="record-id min-w-0 break-words">{project.code}</span>}
+    </span>
+  ) : null;
+  // One band (#design-1115): identity line and facts line sit under the title, inside the header.
+  const meta = compact ? (identityLine || facts ? (
+    <div className="flex min-w-0 flex-col gap-1">
+      {identityLine}
       {facts}
     </div>
   ) : undefined) : (
@@ -645,12 +657,12 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         </button>
   ) : null;
   // Phone: the status row holds status, late pill and menu only; Project details sits at the end of the customer line (no row of its own), and the lock's words live inside it.
-  const phoneMeta = statusOnPhoneRow && detailsPanel && (customerName || facts)
+  const phoneMeta = statusOnPhoneRow && detailsPanel && (identityLine || facts)
     ? (
-      <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
+      <div className="flex min-w-0 flex-col gap-1">
         <span className="flex w-full items-center justify-between gap-2">
-          <HeaderFact label={t('projects:filterBuilder.customer', 'Customer')} title={customerName ?? undefined}>{customerName}</HeaderFact>
-          <span className="-my-3 -mr-1.5 shrink-0">{detailsPanel}</span>
+          {identityLine}
+          <span className="-my-3 -mr-1.5 ml-auto shrink-0">{detailsPanel}</span>
         </span>
         {facts}
       </div>
