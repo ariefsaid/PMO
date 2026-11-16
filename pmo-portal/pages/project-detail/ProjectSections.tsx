@@ -105,7 +105,8 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
   }
   return (
     lens === 'delivery' ? (
-      <div className="flex min-w-0 flex-col gap-[var(--space-section)]">
+      // Nothing assigned and no phases yet: the two one-line panels share a row instead of stacking as near-empty cards.
+      <div className={`grid min-w-0 gap-[var(--space-section)] ${showDeliveryAttention ? '' : 'xl:[&:has(>:nth-child(1)_[data-empty]):has(>:nth-child(2)_[data-empty])]:grid-cols-2 [&>:nth-child(n+3)]:col-[1/-1]'}`}>
         <div className={`grid min-w-0 gap-[var(--space-section)] ${showDeliveryAttention ? 'xl:grid-cols-2' : 'xl:grid-cols-1'}`}>
           <MyOpenTasks projectId={project.id} />
           {showDeliveryAttention && <ProjectAttention {...attentionProps} className="min-w-0" />}
@@ -124,28 +125,25 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
         {activity}
       </div>
     ) : (
-      <div className="flex min-w-0 flex-col gap-[var(--space-section)]">
-        {/* One question: is this project OK, and what needs me now? Needs attention leads (the work), Money position beside it;
-            then Budget and the Phase timeline span the canvas on one shared row grid. Each panel names its own figures that
-            cannot be computed yet, so nothing sits bare between the tabs and the panels.
-            Grid at xl (1440): canvas ≈ 1440 − 224 sidebar − 2×24 gutters = 1168; 2fr + 3fr with one section gap (32px, the RecordStack token, as on the claim record) = 454 + 682. */}
-        {/* Needs attention leads. A list long enough to match Money position's height (3+ rows) sits beside it, a third of
-            the row; a shorter one (or none) is a full-width band whose rows sit two abreast, so no card is stretched around
-            empty space. Grid at xl (1440): canvas 1168 = 1fr + 2fr + one 32px section gap = 379 + 757. */}
+      // One question: is this project OK, and what needs me now? Needs attention leads; the money figures answer
+      // contracted, billed, paid and spent; then Budget and the Phase timeline. A panel whose data does not exist yet
+      // (no active budget, no phases) is one line: two of those share a row rather than stacking as near-empty cards.
+      <div className="grid min-w-0 gap-[var(--space-section)] xl:[&:has(>:nth-child(2)_[data-empty]):has(>:nth-child(3)_[data-empty])]:grid-cols-2 [&>:not(:nth-child(2)):not(:nth-child(3))]:col-[1/-1] [&>[data-near-viewport=seen]:empty]:hidden">
+        {/* A list long enough to match Money position's height (3+ rows) sits beside it, a third of the row; a shorter
+            one (or none) is a full-width band whose rows sit two abreast, so no card is stretched around empty space.
+            Grid at xl (1440): canvas 1168 = 1fr + 2fr + one 32px section gap = 379 + 757. */}
         <div className={`grid min-w-0 gap-[var(--space-section)] ${canSeeMoney && besideMoney ? 'xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]' : ''}`}>
           <ProjectAttention items={attention.items} isPending={attention.isPending} pendingSources={attention.pendingSources} error={attention.error} fillRow={canSeeMoney && besideMoney} band={!(canSeeMoney && besideMoney)} className="min-w-0" />
           {canSeeMoney && <div className="min-w-0"><MoneyBlock project={project} fillRow={besideMoney} footer={<BillingMilestonesBlock projectId={project.id} empty="line" />} /></div>}
         </div>
         <CostBlock project={project} onOpenBudget={openBudget} showUnit={!canSeeMoney} />
+        <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock></div>
         {/* An empty milestones slot (its line lives in Money position) takes no gap. */}
-        <div className="flex min-w-0 flex-col gap-[var(--space-section)] [&>[data-near-viewport=seen]:empty]:hidden">
-          <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock></div>
-          <WhenNearViewport>
-            <BillingMilestonesBlock projectId={project.id} empty={canSeeMoney ? 'none' : 'panel'} />
-          </WhenNearViewport>
-          {/* Activity closes the overview: present, but never competing with the work above (Lessons). */}
-          {activity}
-        </div>
+        <WhenNearViewport>
+          <BillingMilestonesBlock projectId={project.id} empty={canSeeMoney ? 'none' : 'panel'} />
+        </WhenNearViewport>
+        {/* Activity closes the overview: present, but never competing with the work above (Lessons). */}
+        {activity}
       </div>
     )
   );

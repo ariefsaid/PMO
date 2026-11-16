@@ -200,7 +200,7 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean; /*
           return (
             <div key={step.key} data-testid={step.key === 'received' ? 'money-lead-cash' : undefined} className="min-w-0">
               <dt className="text-control font-medium text-foreground">{explain(step.source, step.label, 'text-foreground')}</dt>
-              <dd className="mt-1 whitespace-nowrap text-metric font-semibold leading-tight tabular-nums text-foreground" data-testid={step.key === 'contract' ? 'contract-value-amount' : undefined}>
+              <dd className={cn('mt-1 whitespace-nowrap text-metric font-semibold leading-tight tabular-nums', step.value === 0 && step.key !== 'contract' ? 'text-muted-foreground' : 'text-foreground')} data-testid={step.key === 'contract' ? 'contract-value-amount' : undefined}>
                 <FigureContent value={tile(step.value)} exactValue={whole(step.value)} />
               </dd>
               {pct !== null && <dd className="mt-1 text-control tabular-nums text-muted-foreground">{t('projectDetail.money.shareOfContract', '{{percent}}% of contract', { percent: pct })}</dd>}
@@ -299,7 +299,7 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
   if (!pos.hasBudget) {
     return (
       <Block id="pd-cost" title={title} action={action}>
-        <p className="text-sm text-muted-foreground">{t('projectDetail.cost.noBudget', 'No active budget yet, so spending can’t be compared.')}</p>
+        <p data-empty="" className="text-sm text-muted-foreground">{t('projectDetail.cost.noBudget', 'No active budget yet, so spending can’t be compared.')}</p>
       </Block>
     );
   }
@@ -473,7 +473,7 @@ const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children
     return (
       <Block id="pd-delivery" title={title} action={manage}>
         {/* No phases, no dated points: the progress curve has nothing to draw, so it is not mounted. */}
-        <p className="text-sm text-muted-foreground">{t('projectDetail.delivery.empty', 'No phases yet. Add phases to track delivery progress.')}</p>
+        <p data-empty="" className="text-sm text-muted-foreground">{t('projectDetail.delivery.empty', 'No phases yet. Add phases to track delivery progress.')}</p>
       </Block>
     );
   }

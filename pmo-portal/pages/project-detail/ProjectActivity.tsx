@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { skipToken, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { cn } from '@/src/components/ui/cn';
 import { Card, CardHead, CardPad, Drawer, ListState, RecordSection, StatusPill, Tooltip, ViewToggle } from '@/src/components/ui';
 import { CommentsSection } from '@/src/components/comments/CommentsSection';
 import { RecordHistory } from '@/src/components/history/RecordHistory';
@@ -126,16 +127,17 @@ export const MyOpenTasks: React.FC<{ projectId: string }> = ({ projectId }) => {
         </Link>
       </>}>
       {mine.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t('projectDetail.myTasks.empty', 'Nothing assigned to you here.')}</p>
+        <p data-empty="" className="text-sm text-muted-foreground">{t('projectDetail.myTasks.empty', 'Nothing assigned to you here.')}</p>
       ) : (
         <ul className="divide-y divide-border/70">
-          {mine.slice(0, 6).map((task) => (
+          {/* Exception colour once (screen rules): the most overdue task (first, by due date) is red; later rows say it in plain text. */}
+          {mine.slice(0, 6).map((task, index) => (
             <li key={task.id}>
               <Tooltip content={t('projectDetail.myTasks.dueTooltip', 'Task status and due date come from this task record; overdue days are calculated from today.')} block>
                 <Link to={`/projects/${projectId}/tasks?open=${encodeURIComponent(task.id)}`} className="touch-target flex w-full flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm hover:bg-accent/60">
                   <span className="min-w-0 basis-full font-medium text-foreground sm:basis-0 sm:flex-1">{task.name}</span>
                   <StatusPill record="task" state={task.status} />
-                  {task.end_date && <span className={task.end_date < today ? 'shrink-0 whitespace-nowrap text-sm font-medium text-destructive-text sm:min-w-28 sm:text-right' : 'shrink-0 whitespace-nowrap text-sm text-muted-foreground sm:min-w-28 sm:text-right'}>
+                  {task.end_date && <span className={cn('shrink-0 whitespace-nowrap text-sm sm:min-w-28 sm:text-right', task.end_date >= today ? 'text-muted-foreground' : index === 0 ? 'font-medium text-destructive-text' : 'text-foreground')}>
                     {task.end_date < today
                       ? t('projectDetail.myTasks.overdue', 'Overdue · {{days}} days', { days: Math.round((Date.parse(today) - Date.parse(task.end_date)) / 86_400_000) })
                       : formatDay(task.end_date)}
