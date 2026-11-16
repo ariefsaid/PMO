@@ -253,11 +253,11 @@ export interface Part { key: string; label: string; value: number }
 
 /** One-hue steps in order, darkest first: parts of a whole read as ordered, no rainbow. */
 const STEPS = [
-  { fill: 'hsl(var(--primary))', ink: 'hsl(var(--primary-foreground))' },
-  { fill: 'hsl(var(--primary) / 0.62)', ink: INK },
-  { fill: 'hsl(var(--primary) / 0.4)', ink: INK },
-  { fill: 'hsl(var(--primary) / 0.25)', ink: INK },
-  { fill: 'hsl(var(--primary) / 0.14)', ink: INK },
+  { fill: 'hsl(var(--primary))' },
+  { fill: 'hsl(var(--primary) / 0.62)' },
+  { fill: 'hsl(var(--primary) / 0.4)' },
+  { fill: 'hsl(var(--primary) / 0.25)' },
+  { fill: 'hsl(var(--primary) / 0.14)' },
 ];
 
 /**
@@ -268,38 +268,23 @@ const STEPS = [
 export const StackedBar: React.FC<{ parts: Part[]; ariaLabel: string }> = ({ parts, ariaLabel }) => {
   const shown = parts.filter((part) => part.value > 0);
   const total = shown.reduce((sum, part) => sum + part.value, 0);
-  const ref = React.useRef<HTMLDivElement>(null);
-  const [width, setWidth] = React.useState(0);
-  React.useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
-    const measure = () => setWidth(node.getBoundingClientRect().width);
-    measure();
-    if (typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
-  // A name fits when its segment is wider than the text (14px bold ≈ 8.4px a character) plus padding.
-  const fits = (part: Part) => total > 0 && (part.value / total) * width >= part.label.length * 8.4 + 16;
   const step = (index: number) => STEPS[Math.min(index, STEPS.length - 1)];
-  const outside = shown.map((part, index) => ({ part, index })).filter(({ part }) => !fits(part));
+  // The bar is the picture; every name and value is in the key under it, on the card's left edge and at full
+  // contrast (a name inside a pale segment failed contrast in dark mode and sat off the card's text edge).
   return (
     <div>
-      <div ref={ref} role="img" aria-label={`${ariaLabel}. ${shown.map((part) => `${part.label} ${part.value}`).join(', ')}`} className="flex h-11 gap-0.5 overflow-hidden rounded-md">
+      <svg role="img" aria-label={`${ariaLabel}. ${shown.map((part) => `${part.label} ${part.value}`).join(', ')}`} className="block h-11 w-full overflow-hidden rounded-md">
+        {shown.map((part, index) => {
+          const x = (shown.slice(0, index).reduce((sum, prior) => sum + prior.value, 0) / total) * 100;
+          // A 2px card-coloured seam between parts; each part keeps its title for a pointer hover.
+          return <rect key={part.key} x={`${x}%`} width={`${(part.value / total) * 100}%`} height="100%" style={{ fill: step(index).fill, stroke: 'hsl(var(--card))', strokeWidth: 2 }}><title>{`${part.label} ${part.value}`}</title></rect>;
+        })}
+      </svg>
+      <ul className="mt-2 flex list-none flex-wrap gap-x-4 gap-y-1 p-0 text-control text-muted-foreground">
         {shown.map((part, index) => (
-          <div key={part.key} title={`${part.label} ${part.value}`} style={{ flex: `${part.value} 1 0`, background: step(index).fill, color: step(index).ink }} className="flex min-w-6 items-center justify-center gap-1.5 overflow-hidden whitespace-nowrap px-1 text-control font-semibold tabular">
-            {fits(part) && <span>{part.label}</span>}<span>{part.value}</span>
-          </div>
+          <li key={part.key} className="inline-flex items-center gap-1.5"><span aria-hidden className="size-2.5 rounded-[3px]" style={{ background: step(index).fill }} />{part.label} <span className="tabular text-foreground">{part.value}</span></li>
         ))}
-      </div>
-      {outside.length > 0 && (
-        <ul className="mt-2 flex list-none flex-wrap gap-x-4 gap-y-1 p-0 text-control text-muted-foreground">
-          {outside.map(({ part, index }) => (
-            <li key={part.key} className="inline-flex items-center gap-1.5"><span aria-hidden className="size-2.5 rounded-[3px]" style={{ background: step(index).fill }} />{part.label} <span className="tabular text-foreground">{part.value}</span></li>
-          ))}
-        </ul>
-      )}
+      </ul>
     </div>
   );
 };

@@ -56,7 +56,6 @@ import { healthOrder, overBudget, overdueTaskCount } from './homeHealth';
 
 type TileOpts = { label?: string; caption?: string; reason?: string; link?: { to: string; label: string }; hide?: boolean };
 const MARGIN_HINT_KEY = 'pmo.home.marginTile';
-const CONTRACT_FIGURES = new Set(['contract-on-hand', 'left-to-bill']);
 /** The order of "waits on you" rows per role (a row is drawn only when its count is above zero). */
 const WAIT_ORDER: Record<'Executive' | 'Admin' | 'Finance', string[]> = {
   Executive: ['approvals'],
@@ -178,13 +177,10 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     collected: t('dashboard:hub.company.help.collected', 'Sum of recorded incoming payments received within the selected period.'),
     'left-to-bill': t('dashboard:hub.company.help.leftToBill', 'Signed contract value less invoices issued, in each contract currency.'),
   };
-  // A second currency is its own labelled amount ("+ US$1.85M USD contracts"), never read as a conversion.
-  const otherContracts = (amount: string, currency: string) => t('home.otherContracts', '+ {{amount}} contracts', { amount, currency });
-  const otherAmount = (amount: string, currency: string) => t('home.otherCurrency', '+ {{amount}}', { amount, currency });
   // One money tile from a figure: unknown (no amounts) draws nothing and is reported to the page's one hidden-figures line.
   const moneyTile = (figure: DashboardFigure | undefined, opts: TileOpts = {}) => {
     if (!figure) return null;
-    const money = opts.hide ? null : moneyTileValue(figure.amounts, orgCurrency, CONTRACT_FIGURES.has(figure.id) ? otherContracts : otherAmount);
+    const money = opts.hide ? null : moneyTileValue(figure.amounts, orgCurrency);
     const label = opts.label ?? figure.label;
     const caption = opts.caption ?? (typeof figure.subline === 'string' ? figure.subline : undefined);
     // A1/A4: a tile waits on (and fails with) the one read it is made of; a failed read says so, never blank, never 0.
@@ -244,7 +240,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   // 0187:101 stamps new budgets in org currency; this proxy breaks if budgets gain their own currency.
   const marginMismatch = pipelineProjects?.some((project) => project.currency !== orgCurrency) ?? false;
   const safeMargin = pipelineProjects && !marginMismatch ? data?.pipeline_projected_margin : null;
-  const weighted = pipelineProjects && !pipelineMixed ? moneyTileValue(todayFigure('pipeline')?.amounts, orgCurrency, otherAmount) : null;
+  const weighted = pipelineProjects && !pipelineMixed ? moneyTileValue(todayFigure('pipeline')?.amounts, orgCurrency) : null;
   const salesCard = (
     <Card>
       <CardHead level={2} actions={cardLink('/sales', t('dashboard:hub.company.openSales', 'Open sales'))}>{t('home.sales', 'Sales')}</CardHead>

@@ -913,9 +913,7 @@
     "nothingOwedByClients": "Nothing owed by clients",
     "hoursInTotal": "{{hours}} h in total",
     "pipelineMixedCurrency": "Pipeline weighted amounts are hidden for mixed currencies.",
-    "marginCurrencyMismatch": "Forecast margin is hidden when a contract currency differs from the budget currency.",
-    "otherContracts": "+ {{amount}} contracts",
-    "otherCurrency": "+ {{amount}}"
+    "marginCurrencyMismatch": "Forecast margin is hidden when a contract currency differs from the budget currency."
   },
   "doneNotYetBilled": {
     "title": "Done, not yet billed",

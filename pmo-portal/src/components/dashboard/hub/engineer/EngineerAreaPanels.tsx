@@ -22,7 +22,7 @@ interface PanelState {
 
 const linkClass = 'inline-flex items-center gap-1 text-control font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 /** A finding clause: the fact and its way into the list that owns it, in the line itself. */
-const findingLinkClass = 'touch-target touch-target-overlay inline-flex items-center tabular underline decoration-border underline-offset-4 hover:decoration-current focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
+const findingLinkClass = 'touch-target inline-flex items-center tabular underline decoration-border underline-offset-4 hover:decoration-current focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 const CardLink: React.FC<{ to: string; children: React.ReactNode }> = ({ to, children }) => (
   <Link to={to} className={linkClass}><span>{children}</span><Icon name="chev" className="size-4" /></Link>
 );
@@ -117,8 +117,7 @@ export function EngineerTasksCard({
   const upcoming = today && urgent.length === 0 ? undated : [];
   const rows = (urgent.length > 0 ? urgent : upcoming).slice(0, 5);
   // Both of the person's own counts, stated where the list starts: overdue in the shared late tone, due today
-  // plain; each clause links to the list it counts. The compact links use the shared pseudo hit area so the
-  // phone target grows without increasing the heading's line height.
+  // plain; each clause links to the list it counts, with a full 44px target on a phone.
   const overdueFinding = overdue.length > 0
     ? <Link to="/my-tasks" data-testid="engineer-tasks-overdue" className={`${findingLinkClass} text-destructive-text`}>{t('home.eng.tasksOverdueFinding', { count: overdue.length, defaultValue_one: '{{count}} overdue', defaultValue_other: '{{count}} overdue' })}</Link>
     : null;

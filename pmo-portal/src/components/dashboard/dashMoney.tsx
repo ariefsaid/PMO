@@ -1,17 +1,14 @@
 import React from 'react';
 import { formatMoneyLines, formatTileMoney } from '@/src/lib/format';
 
-/** How a second-currency line reads: "+ USD 1.85M contracts". It is a separate amount, never a conversion. */
-export type OtherCurrencyLine = (amount: string, currency: string) => string;
-
 /**
  * A money tile's value from per-currency totals: the organisation currency first, then each other currency as its
- * own labelled "+ …" line. A zero in another currency is left out (it says nothing); a home zero stays.
+ * own "+ USD 1.85M" line: an addition named by its code, never read as a conversion (owner ruling 2026-11-16).
+ * The tile's label says what it is. A zero in another currency is left out; a home zero stays.
  */
 export function moneyTileValue(
   totals: ReadonlyArray<{ currency: string; amount: number }> | null | undefined,
   home: string,
-  otherLine: OtherCurrencyLine = (amount) => `+ ${amount}`,
 ): { value: React.ReactNode; exact?: string } | null {
   if (!totals) return null;
   const shown = totals.filter((row) => row.currency === home || row.amount !== 0);
@@ -23,7 +20,7 @@ export function moneyTileValue(
   const lead = kept.some((row) => row.currency === home) ? home : kept[0].currency;
   const extra = [...new Set(kept.map((row) => row.currency))].filter((currency) => currency !== lead).map((currency) => {
     const amount = kept.filter((row) => row.currency === currency).reduce((sum, row) => sum + row.amount, 0);
-    return otherLine(formatTileMoney(amount, currency, { code: true }) ?? '', currency);
+    return `+ ${formatTileMoney(amount, currency, { code: true }) ?? ''}`;
   });
   return {
     value: <>

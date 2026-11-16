@@ -32,10 +32,10 @@ describe('Engineer task header findings', () => {
     const dueToday = screen.getByTestId('engineer-tasks-due-today');
     expect(overdue).toHaveTextContent('1 overdue');
     expect(overdue).toHaveAttribute('href', '/my-tasks');
-    expect(overdue).toHaveClass('touch-target', 'touch-target-overlay');
+    expect(overdue).toHaveClass('touch-target');
     expect(dueToday).toHaveTextContent('1 due today');
     expect(dueToday).toHaveAttribute('href', '/my-tasks');
-    expect(dueToday).toHaveClass('touch-target', 'touch-target-overlay');
+    expect(dueToday).toHaveClass('touch-target');
   });
 });
 

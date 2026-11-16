@@ -9,8 +9,8 @@ const lines = (value: ReturnType<typeof moneyTileValue>) => {
 
 describe('moneyTileValue — a second currency is its own labelled amount (owner ruling 2026-11-16)', () => {
   it('leads with the organisation currency and labels the other currency as an addition, never a bare line', () => {
-    const value = moneyTileValue([{ currency: 'USD', amount: 1_850_000 }, { currency: 'IDR', amount: 32_000_000_000 }], 'IDR', (amount) => `+ ${amount} contracts`);
-    expect(lines(value)).toEqual(['IDR 32B', '+ USD 1.85M contracts']);
+    const value = moneyTileValue([{ currency: 'USD', amount: 1_850_000 }, { currency: 'IDR', amount: 32_000_000_000 }], 'IDR');
+    expect(lines(value)).toEqual(['IDR 32B', '+ USD 1.85M']);
   });
 
   it('never shows a zero in a second currency; a home zero stays', () => {

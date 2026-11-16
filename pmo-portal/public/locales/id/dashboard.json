@@ -913,9 +913,7 @@
     "nothingOwedByClients": "Tidak ada tagihan klien yang terutang",
     "hoursInTotal": "total {{hours}} jam",
     "pipelineMixedCurrency": "Jumlah pipeline berbobot disembunyikan untuk mata uang campuran.",
-    "marginCurrencyMismatch": "Margin perkiraan disembunyikan saat mata uang kontrak berbeda dari mata uang anggaran.",
-    "otherContracts": "+ {{amount}} kontrak",
-    "otherCurrency": "+ {{amount}}"
+    "marginCurrencyMismatch": "Margin perkiraan disembunyikan saat mata uang kontrak berbeda dari mata uang anggaran."
   },
   "doneNotYetBilled": {
     "title": "Selesai, belum ditagih",

@@ -33,8 +33,7 @@ const OwedFigure: React.FC<{
 }> = ({ testId, title, split, pending, error, retry, currency, countLine, errorTitle }) => {
   const { t } = useTranslation('dashboard');
   const totals = split ? owedTotals(split) : [];
-  const figure = moneyTileValue(totals.length > 0 ? totals : split && split.unknownBalances === 0 ? [{ currency, amount: 0 }] : null, currency,
-    (amount, other) => t('home.otherCurrency', '+ {{amount}}', { amount, currency: other }));
+  const figure = moneyTileValue(totals.length > 0 ? totals : split && split.unknownBalances === 0 ? [{ currency, amount: 0 }] : null, currency);
   const barCurrency = totals.find((row) => row.currency === currency) ? currency : totals[0]?.currency ?? currency;
   const shares = split ? owedShares(split, barCurrency) : null;
   // The shared split bar paint the known total split in two: not yet due, and overdue in the exception
