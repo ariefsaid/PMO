@@ -65,3 +65,14 @@ export async function sweepCadenceAt(entryMs: number, allPublished: () => Promis
   if (minute % SWEEP_BACKFILL_EVERY_MINUTES !== 0) return 'money-only';
   return (await allPublished()) ? 'money-only' : 'full';
 }
+
+/** The cron starts the sweep once a minute. */
+export const SWEEP_TICK_INTERVAL_MS = 60_000;
+/**
+ * Which tick of the once-a-minute schedule an invocation is, from the time it began: the nearest whole minute, so a
+ * tick that starts a few seconds late or early still gets the turn after the previous tick's. The cycle uses it to
+ * decide which organisation with no failed hourly run goes first.
+ */
+export function sweepTurn(startedAtMs: number): number {
+  return Math.max(0, Math.round(startedAtMs / SWEEP_TICK_INTERVAL_MS));
+}
