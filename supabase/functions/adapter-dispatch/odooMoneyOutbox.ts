@@ -1,3 +1,4 @@
+import { resolveOdooJournalMoneyOutboxDeps } from './odooJournal.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { DispatchMoneyOutboxDeps } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
@@ -177,6 +178,7 @@ export async function resolveOdooMoneyOutboxDeps(ctx: AdapterSelectContext): Pro
   if (ctx.command.domain === 'companies') return resolveOdooCompaniesMoneyOutboxDeps(ctx);   // partners (#1504 S8)
   if (ctx.command.domain === 'equipment') return resolveOdooEquipmentMoneyOutboxDeps(ctx);   // register + maintenance (#1511 F4)
   if (ctx.command.domain === 'inventory') return resolveOdooStockMoneyOutboxDeps(ctx);   // connected stock documents (#1508)
+  if (ctx.command.domain === 'accounting') return resolveOdooJournalMoneyOutboxDeps(ctx);   // manual journals (#895)
   const operation = ctx.command.operation as string;
   if (operation === 'delete') throw new AppError('odoo adapter does not support delete', 'commit-rejected');
   const record = ctx.command.record as Record<string, unknown>;

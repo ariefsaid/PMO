@@ -155,8 +155,15 @@ export function createFigureAgreementRepositoryModule<T extends { repositories: 
     procurement: override('procurement', {
       list: async () => [],
       listByProject: async () => procurementOverride ?? [],
+      // The Requested purchase record (budget.procurement.record): a bare detail with no documents.
+      get: async (id: string) => ({
+        ...fixture.budget.newRequest, id, code: 'PR-S01', title: 'Synthetic purchase', created_at: '2026-11-01T00:00:00Z', vendor: null, vendor_id: null,
+        requested_by_id: fixture.users.projectManager.id, requested_by: { full_name: fixture.users.projectManager.full_name },
+        project: { name: primary.name, code: 'S01', status: 'Ongoing Project' }, approved_by: null,
+        items: [], quotations: [], receipts: [], invoices: [], purchase_requests: [], rfqs: [], purchase_orders: [], payments: [], statusEvents: [],
+      }),
       getProjectCommittedSpend: async () => committedSpend,
-      getProjectReservedSpend: async () => ({ amount: '50.00', projectCurrency: 'USD', budgetCurrency: 'USD', otherCurrencies: [] }),
+      getProjectReservedSpend: async () => ({ amount: 50, projectCurrency: 'USD', budgetCurrency: 'USD', otherCurrencies: [] }),
     }),
     revenue: override('revenue', {
       getProjectFinances: async () => currentFinances(),
@@ -182,7 +189,7 @@ export function createFigureAgreementRepositoryModule<T extends { repositories: 
     reports: override('reports', {
       managementPack: async () => ({
         from: '2026-11-01', to: '2026-11-01', timezone: 'UTC', org_currency: 'USD', undated_invoice_count: 0,
-        projects: [{ id: primary.id, name: primary.name, pmo_project_number: 'S01-001', code: primary.code, status: primary.status, currency: 'USD', contract_net: 1000, start_date: '2026-01-01', end_date: '2026-12-31', project_manager_id: fixture.users.projectManager.id, client_name: 'Synthetic Client' }],
+        projects: [{ id: primary.id, name: primary.name, pmo_project_number: 'S01-001', code: primary.code, status: primary.status, on_hand: true, currency: 'USD', contract_net: 1000, start_date: '2026-01-01', end_date: '2026-12-31', project_manager_id: fixture.users.projectManager.id, client_name: 'Synthetic Client' }],
         invoiced: [
           { project_id: primary.id, currency: 'USD', month: '2026-11-01', net: 60, invoice_count: 1 },
           { project_id: primary.id, currency: 'USD', month: '2026-11-01', net: 50, invoice_count: 1 },

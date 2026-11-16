@@ -20,14 +20,14 @@ describe('UIP-001: navigation module icon semantics', () => {
     const icons = Object.fromEntries(MODULES.map(({ path, icon }) => [path, icon]));
     expect(icons).toMatchObject({
       '/': 'dashboard',
-      '/sales': 'pipeline',
+      '/sales': 'funnel',
       '/procurement': 'procurement',
       '/projects': 'projects',
       '/timesheets': 'clock',
       '/companies': 'companies',
       '/contacts': 'contacts',
       '/approvals': 'approvals',
-      '/my-tasks': 'tasks',
+      '/my-tasks': 'clipboard-check',
     });
   });
 });

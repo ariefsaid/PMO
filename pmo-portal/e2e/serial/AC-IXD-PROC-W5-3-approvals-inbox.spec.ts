@@ -190,6 +190,8 @@ async function sweepOwnAuthors(client: SupabaseClient): Promise<void> {
       await client.from('timesheet_erp_mirror').delete().eq('timesheet_id', sheet.id);
       await client.from('timesheets').delete().eq('id', sheet.id); // entries cascade
     }
+    // Approving a week notifies its author; that row FK-blocks the profile delete, so it goes first.
+    await client.from('notifications').delete().eq('owner_id', row.id);
     await client.from('profiles').delete().eq('id', row.id);
     await client.auth.admin.deleteUser(row.id).catch(() => undefined);
   }
@@ -309,6 +311,8 @@ async function removeOwnedProcurement(client: SupabaseClient, owned: OwnedProcur
   ] as const) {
     await client.from(table).delete().eq('procurement_id', owned.procurementId);
   }
+  // The approval notifies the requester; the row names the procurement in its metadata.
+  await client.from('notifications').delete().eq('metadata->entity->>id', owned.procurementId);
   await client.from('procurements').delete().eq('id', owned.procurementId);
   await client.from('projects').delete().eq('id', owned.projectId);
 }

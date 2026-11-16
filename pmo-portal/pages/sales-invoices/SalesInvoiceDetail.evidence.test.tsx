@@ -67,7 +67,6 @@ function renderDetail(target = invoice()) {
             isPending={false}
             isError={false}
             data={[target]}
-            mode="erp"
             organizationToday="2026-10-16"
             onBack={vi.fn()}
             refetch={vi.fn()}

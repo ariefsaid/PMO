@@ -59,6 +59,8 @@ export interface TimesheetGridProps {
   onNoteChange?: (rowId: string, note: string) => void;
   /** Fired when a row's delete control is activated (page stages a ConfirmDialog). */
   onDeleteRow?: (rowId: string) => void;
+  /** Omit the phone stack's week-total footer when the page already shows the week total beside its actions. */
+  hideMobileWeekTotal?: boolean;
 }
 
 /**
@@ -86,6 +88,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
   onCellChange,
   onNoteChange,
   onDeleteRow,
+  hideMobileWeekTotal = false,
 }) => {
   const { t } = useTranslation();
   const isDesktop = useIsDesktop();
@@ -124,6 +127,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
         invalidCells={invalidCells}
         editTotals={editTotals}
         grandTotal={grandTotal}
+        hideWeekTotal={hideMobileWeekTotal}
         onCellChange={onCellChange}
         onNoteChange={onNoteChange}
         onDeleteRow={onDeleteRow}
@@ -156,7 +160,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
               {r.project}
             </div>
             {r.code && (
-              <div className="break-words font-mono text-control text-muted-foreground">
+              <div className="break-words record-id">
                 {r.code}
               </div>
             )}
@@ -191,7 +195,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
             className="break-words text-control font-medium"
           />
           {r.code && (
-            <div className="break-words font-mono text-control text-muted-foreground">
+            <div className="break-words record-id">
               {r.code}
             </div>
           )}
@@ -344,6 +348,7 @@ interface MobileTimesheetStackProps {
   invalidCells?: Set<string>;
   editTotals: ReturnType<typeof computeTotals> | null;
   grandTotal: number;
+  hideWeekTotal?: boolean;
   onCellChange?: (rowId: string, dayIndex: number, raw: string) => void;
   onNoteChange?: (rowId: string, note: string) => void;
   onDeleteRow?: (rowId: string) => void;
@@ -359,6 +364,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
   invalidCells,
   editTotals,
   grandTotal,
+  hideWeekTotal = false,
   onCellChange,
   onNoteChange,
   onDeleteRow,
@@ -391,7 +397,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                   />
                 )}
                 {r.code && (
-                  <div className="break-words font-mono text-control text-muted-foreground">
+                  <div className="break-words record-id">
                     {r.code}
                   </div>
                 )}
@@ -537,7 +543,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
       })}
 
       {/* Grand total footer */}
-      <div className="flex items-center justify-between border-t border-border bg-secondary/40 px-3.5 py-3">
+      {!hideWeekTotal && <div className="flex items-center justify-between border-t border-border bg-secondary/40 px-3.5 py-3">
         <span className="text-control font-semibold text-muted-foreground">
           {t('timesheets.weekTotal', 'Week total')}
         </span>
@@ -547,7 +553,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
         >
           {formatNumberExact(grandTotal)}
         </span>
-      </div>
+      </div>}
     </div>
   );
 };
@@ -582,6 +588,14 @@ const NoteCell: React.FC<{
   React.useEffect(() => {
     if (hasContent) setExpanded(true);
   }, [hasContent]);
+
+  // The note grows with its text so a long note is read whole, never cut mid-word.
+  React.useLayoutEffect(() => {
+    const el = noteRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value, expanded]);
 
   // After the textarea mounts from a user "+ Note" click, move focus to it.
   React.useLayoutEffect(() => {
@@ -625,7 +639,7 @@ const NoteCell: React.FC<{
       onChange={(next) => onNoteChange?.(rowId, next)}
       // Demoted to a single bottom hairline (Single-Border Rule) so the note reads
       // quieter than the bordered hour cells; touch-target keeps a ≥44px hit-area.
-      className="touch-target mt-1 min-h-12 w-full resize-none rounded-none border-0 border-b border-border bg-transparent px-0 py-1 text-base leading-6 text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring md:text-control"
+      className="touch-target mt-1 min-h-12 w-full resize-none overflow-hidden rounded-none border-0 border-b border-border bg-transparent px-0 py-1 text-base leading-6 text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring md:text-control"
     />
   );
 };

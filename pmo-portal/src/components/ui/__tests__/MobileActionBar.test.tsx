@@ -42,8 +42,8 @@ describe('MobileActionBar #953', () => {
   it('#953 keeps a shorter bar published when the tallest bar is hidden', () => {
     render(
       <>
-        <MobileActionBar data-testid="short-bar">Short</MobileActionBar>
-        <MobileActionBar data-testid="tall-bar">Tall</MobileActionBar>
+        <MobileActionBar data-testid="short-bar" style={{ position: 'fixed' }}>Short</MobileActionBar>
+        <MobileActionBar data-testid="tall-bar" style={{ position: 'fixed' }}>Tall</MobileActionBar>
       </>,
     );
     const shortBar = screen.getByTestId('short-bar');
@@ -65,8 +65,8 @@ describe('MobileActionBar #953', () => {
   it('#953 republishes the remaining maximum when the tallest bar unmounts', () => {
     const view = render(
       <>
-        <MobileActionBar data-testid="remaining-bar">Remaining</MobileActionBar>
-        <MobileActionBar data-testid="removed-bar">Removed</MobileActionBar>
+        <MobileActionBar data-testid="remaining-bar" style={{ position: 'fixed' }}>Remaining</MobileActionBar>
+        <MobileActionBar data-testid="removed-bar" style={{ position: 'fixed' }}>Removed</MobileActionBar>
       </>,
     );
     const remainingBar = screen.getByTestId('remaining-bar');
@@ -80,15 +80,15 @@ describe('MobileActionBar #953', () => {
     });
     expect(document.documentElement.style.getPropertyValue('--mobile-action-bar-height')).toBe('88px');
 
-    view.rerender(<MobileActionBar data-testid="remaining-bar">Remaining</MobileActionBar>);
+    view.rerender(<MobileActionBar data-testid="remaining-bar" style={{ position: 'fixed' }}>Remaining</MobileActionBar>);
     expect(document.documentElement.style.getPropertyValue('--mobile-action-bar-height')).toBe('64px');
   });
 
   it('#953 publishes the tallest active bar, offsets persistent toasts, tracks resizing, and clears on unmount', async () => {
     const view = render(
       <ToastProvider>
-        <MobileActionBar data-testid="first-bar">First action</MobileActionBar>
-        <MobileActionBar data-testid="second-bar">Second action</MobileActionBar>
+        <MobileActionBar data-testid="first-bar" style={{ position: 'fixed' }}>First action</MobileActionBar>
+        <MobileActionBar data-testid="second-bar" style={{ position: 'fixed' }}>Second action</MobileActionBar>
         <ToastTrigger />
       </ToastProvider>,
     );
@@ -117,5 +117,15 @@ describe('MobileActionBar #953', () => {
 
     view.unmount();
     expect(document.documentElement.style.getPropertyValue('--mobile-action-bar-height')).toBe('');
+  });
+
+  it('AC-SHELL-002 a bar that flows with the page (not docked) publishes no inset', () => {
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ height: 64 } as DOMRect);
+    const view = render(<MobileActionBar data-testid="flow-bar">Flows</MobileActionBar>);
+    expect(document.documentElement.style.getPropertyValue('--mobile-action-bar-height')).toBe('');
+    view.unmount();
+    render(<MobileActionBar data-testid="docked-bar" style={{ position: 'fixed' }}>Docked</MobileActionBar>);
+    expect(document.documentElement.style.getPropertyValue('--mobile-action-bar-height')).toBe('64px');
+    rect.mockRestore();
   });
 });

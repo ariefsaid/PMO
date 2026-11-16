@@ -22,6 +22,8 @@ export const WORKFLOWS = {
   'account.match': { version: 1, summary: 'propose the ERP account for each PMO budget category' },
   'employee.match': { version: 1, summary: 'pair PMO people with ERP employees' },
   'employee.send': { version: 1, summary: 'create ERP employees for PMO people' },
+  // ERP setup done from PMO (#1599 ECX): clients never work in the ERP.
+  'company-defaults.set': { version: 1, summary: 'set the ERP company default accounts and cost centre chosen in PMO' },
   // Process domains
   'purchase.push': { version: 1, summary: 'send a purchase order and its receipt to the ERP' },
   'bill.push': { version: 1, summary: 'send a vendor bill to the ERP' },
@@ -45,6 +47,9 @@ export const WORKFLOWS = {
   // The asset register and its maintenance (#1511): PMO is the only interface, the ERP holds the records.
   'equipment.push': { version: 1, summary: 'create or update a register asset or maintenance record in the ERP once, by key' },
   'equipment.read': { version: 1, summary: 'read the ERP asset register and maintenance records into PMO' },
+  // The accountant's desk (#895): manual journals PMO drafts and approves, the ledger holds.
+  'journal.post': { version: 1, summary: 'post one balanced manual journal once, by key, and read it back' },
+  'journal.reverse': { version: 1, summary: 'reverse one posted journal once, by key, dated' },
 } as const satisfies Record<string, { version: number; summary: string }>;
 
 export type WorkflowId = keyof typeof WORKFLOWS;

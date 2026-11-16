@@ -1,6 +1,8 @@
 {
   "actions": {
-    "clearFilters": "Clear filters"
+    "cancelClaim": "Cancel claim",
+    "clearFilters": "Clear filters",
+    "submitNeedsLine": "Add a line first"
   },
   "list": {
     "filteredEmptyTitle": "No expenses match these filters"
@@ -18,7 +20,11 @@
     "categoryHelper": "Decides who approves",
     "lineGroup": "Expense line {{number}}",
     "total": "Total",
-    "saveDraft": "Save draft"
+    "saveDraft": "Save draft",
+    "submit": "Submit claim",
+    "submitting": "Submitting…",
+    "submitFailed": "Saved as a draft, not submitted",
+    "removeLine": "Remove line {{number}}"
   },
   "postings": {
     "recordedBeforeConnection": "Recorded before the ERP connection"
@@ -38,5 +44,26 @@
   },
   "approvals": {
     "openClaim": "Open claim"
+  },
+  "detail": {
+    "statusLine": {
+      "draft_one": "Not sent yet · {{count}} line",
+      "draft_other": "Not sent yet · {{count}} lines",
+      "draftAdvance": "Not sent yet",
+      "with": "With {{names}} since {{date}} · lines locked",
+      "waiting": "Waiting for approval since {{date}} · lines locked",
+      "approved": "Approved {{date}} · waiting for payment",
+      "paid": "Paid {{date}}",
+      "joiner": " or "
+    }
+  },
+  "lines": {
+    "menuAria": "Line actions: {{description}}"
+  },
+  "receipts": {
+    "downloadShort": "Download",
+    "menuAria": "Receipt actions: {{name}}",
+    "previewShort": "Preview",
+    "removeShort": "Remove"
   }
 }

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 
 export type StepState = 'done' | 'current' | 'upcoming' | 'skipped' | 'paid';
@@ -6,7 +7,7 @@ export type StepState = 'done' | 'current' | 'upcoming' | 'skipped' | 'paid';
 export interface LifecycleStep {
   label: string;
   state: StepState;
-  /** Optional mono doc reference (e.g. a PO number) shown under a bar step. */
+  /** Optional doc reference (e.g. a PO number) shown under a bar step as a record-id. */
   ref?: string;
 }
 
@@ -55,7 +56,7 @@ const BAR_FILL_CLASS: Record<StepState, string> = {
  * Lifecycle / stage stepper (DESIGN.md §5 signature pattern) — the ONE stepper.
  *
  * `bar` is the canonical even-flex BAR stepper: equal-flex steps, each a 6px rounded
- * `jbar` over a `secondary` track + a label (+ optional mono doc ref). It drives the
+ * `jbar` over a `secondary` track + a label (+ optional record-id doc ref). It drives the
  * project stage journey, the budget-version lifecycle, AND the procurement
  * PR→VQ→PO→GR→VI→Paid lifecycle. `inline` is its compact in-row pip form (table cells).
  *
@@ -71,6 +72,14 @@ export const LifecycleStepper: React.FC<LifecycleStepperProps> = ({
   className,
   'aria-label': ariaLabel = 'Lifecycle',
 }) => {
+  const { t } = useTranslation('common');
+  const stateLabel: Record<StepState, string> = {
+    done: t('ui.stepState.done', 'done'),
+    current: t('ui.stepState.current', 'current'),
+    upcoming: t('ui.stepState.upcoming', 'upcoming'),
+    skipped: t('ui.stepState.skipped', 'skipped'),
+    paid: t('ui.stepState.paid', 'paid'),
+  };
   if (variant === 'inline') {
     return (
       <span className={cn('inline-flex items-center', className)} role="list" aria-label={ariaLabel}>
@@ -89,7 +98,7 @@ export const LifecycleStepper: React.FC<LifecycleStepperProps> = ({
             )}
             <span
               role="listitem"
-              aria-label={`${s.label}: ${s.state}`}
+              aria-label={`${s.label}: ${stateLabel[s.state]}`}
               className={cn('size-[9px] shrink-0 rounded-full', PIP_CLASS[s.state])}
             />
           </React.Fragment>
@@ -132,7 +141,7 @@ export const LifecycleStepper: React.FC<LifecycleStepperProps> = ({
             <div
               key={i}
               role="listitem"
-              aria-label={`${s.label}: ${s.state}`}
+              aria-label={`${s.label}: ${stateLabel[s.state]}`}
               aria-current={s.state === 'current' ? 'step' : undefined}
               className={cn(
                 'jstep flex min-w-[88px] flex-1 flex-col gap-1.5',
@@ -154,7 +163,7 @@ export const LifecycleStepper: React.FC<LifecycleStepperProps> = ({
                 {s.label}
               </span>
               {s.ref && (
-                <span className="font-mono text-control text-muted-foreground">{s.ref}</span>
+                <span className="record-id">{s.ref}</span>
               )}
             </div>
           ))}

@@ -306,3 +306,76 @@ describe('fakeOdoo', () => {
     });
   });
 });
+
+/**
+ * #895 manual journals: the fake mirrors the dev-bed facts recorded in
+ * `supabase/functions/_shared/odooAccountantsDeskFacts.bed.test.ts` (branch spike/accountants-desk-odoo-facts):
+ * V-ACD1 (entry create, unbalanced refusal, the same ref twice), V-ACD2 (account.move.reversal + refund_moves, a second reversal
+ * accepted) and V-ACD4 (a post dated inside fiscalyear_lock_date is re-dated to the day after the lock, silently).
+ */
+describe('fakeOdoo manual journal entries (V-ACD1, V-ACD2, V-ACD4)', () => {
+  const journal = (fake: ReturnType<typeof createFakeOdoo>) => {
+    fake.seed('res.company', [{ id: 1, name: 'Co' }]);
+    fake.seed('account.journal', [{ id: 9, name: 'Miscellaneous', code: 'MISC', type: 'general' }]);
+  };
+  const entry = (date: string, ref: string, credit = 100) => ({
+    move_type: 'entry', journal_id: 9, date, ref,
+    line_ids: [[0, 0, { account_id: 601, debit: 100, credit: 0, name: 'fee' }], [0, 0, { account_id: 101, debit: 0, credit, name: 'bank' }]],
+  });
+  const bed = (today = '2026-11-15') => {
+    const fake = createFakeOdoo({ key: 'k', today });
+    journal(fake);
+    return { fake, call: bindCall({ baseUrl: 'https://odoo.example.test', apiKey: 'k', database: 'db1', fetchImpl: fake.fetch }) };
+  };
+
+  it('V-ACD1 refuses an unbalanced entry with a 422 and keeps nothing', async () => {
+    const { fake, call } = bed();
+    const err = await call('account.move', 'create', { vals_list: [entry('2026-11-10', 'x', 90)] }).catch((e) => e);
+    expect(err).toBeInstanceOf(OdooError);
+    expect((err as OdooError).status).toBe(422);
+    expect(fake.rows('account.move')).toEqual([]);
+    expect(fake.rows('account.move.line')).toEqual([]);
+  });
+
+  it('V-ACD1 accepts the same ref twice and posts both (so ref is never an anchor)', async () => {
+    const { fake, call } = bed();
+    const [a] = await call<number[]>('account.move', 'create', { vals_list: [entry('2026-11-10', 'same')] });
+    const [b] = await call<number[]>('account.move', 'create', { vals_list: [entry('2026-11-10', 'same')] });
+    await call('account.move', 'action_post', { ids: [a, b] });
+    expect(fake.rows('account.move').filter((m) => m.ref === 'same' && m.state === 'posted').map((m) => m.id)).toEqual([a, b]);
+    expect(await call('account.move.line', 'search_read', { domain: [['move_id', '=', a]], fields: ['account_id', 'debit', 'credit'] }))
+      .toEqual([{ id: expect.any(Number), account_id: 601, debit: 100, credit: 0 }, { id: expect.any(Number), account_id: 101, debit: 0, credit: 100 }]);
+  });
+
+  it('V-ACD4 a post dated inside fiscalyear_lock_date is re-dated to the day after the lock', async () => {
+    const { fake, call } = bed();
+    fake.seed('res.company', [{ id: 1, name: 'Co', fiscalyear_lock_date: '2026-01-31' }]);
+    const [id] = await call<number[]>('account.move', 'create', { vals_list: [entry('2026-01-20', 'locked')] });
+    await call('account.move', 'action_post', { ids: [id] });
+    expect(await call('account.move', 'read', { ids: [id], fields: ['date', 'state'] })).toEqual([{ id, date: '2026-02-01', state: 'posted' }]);
+  });
+
+  it('V-ACD2 account.move.reversal + refund_moves returns res_id, links both ways, swaps sides and accepts a second reversal', async () => {
+    const { fake, call } = bed();
+    const [orig] = await call<number[]>('account.move', 'create', { vals_list: [entry('2026-11-10', 'orig')] });
+    await call('account.move', 'action_post', { ids: [orig] });
+    const reverse = async (date: string) => {
+      const ctx = { active_model: 'account.move', active_ids: [orig] };
+      const [w] = await call<number[]>('account.move.reversal', 'create', { vals_list: [{ journal_id: 9, date, reason: 'wrong account' }], context: ctx });
+      return call<{ res_model: string; res_id: number }>('account.move.reversal', 'refund_moves', { ids: [w], context: ctx });
+    };
+    const first = await reverse('2026-11-12');
+    expect(first).toMatchObject({ res_model: 'account.move', res_id: expect.any(Number) });
+    const [rev] = await call<Array<Record<string, unknown>>>('account.move', 'read', { ids: [first.res_id], fields: ['state', 'date', 'reversed_entry_id', 'move_type', 'ref'] });
+    expect(rev).toMatchObject({ state: 'posted', date: '2026-11-12', reversed_entry_id: orig, move_type: 'entry' });
+    expect(String(rev.ref)).toContain('wrong account');
+    expect(await call('account.move.line', 'search_read', { domain: [['move_id', '=', first.res_id]], fields: ['account_id', 'debit', 'credit'] }))
+      .toEqual([{ id: expect.any(Number), account_id: 601, debit: 0, credit: 100 }, { id: expect.any(Number), account_id: 101, debit: 100, credit: 0 }]);
+    const second = await reverse('2026-12-31');   // V-ACD2: Odoo does not refuse a second reversal of the same move
+    expect(second.res_id).not.toBe(first.res_id);
+    expect((await call<Array<{ reversal_move_ids: number[] }>>('account.move', 'read', { ids: [orig], fields: ['reversal_move_ids'] }))[0].reversal_move_ids).toEqual([first.res_id, second.res_id]);
+    // dated after today, the reversal waits as a draft until its day (auto-post at date)
+    expect((await call<Array<{ state: string }>>('account.move', 'read', { ids: [second.res_id], fields: ['state'] }))[0].state).toBe('draft');
+    expect(fake.rows('account.move').find((m) => m.id === orig)?.state).toBe('posted');
+  });
+});

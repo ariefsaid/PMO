@@ -17,6 +17,7 @@ import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import { ProjectEquipmentPanel } from './ProjectEquipmentPanel';
+import { FIGURE_LINE_CLASS } from '@/src/components/ui/FigureContent';
 
 export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }) {
   const { t } = useTranslation('project');
@@ -101,7 +102,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
   const field = (label: string, value: string | null, basis?: React.ReactNode, labelTitle?: string) => value === null ? null : (
     <div className="min-w-0">
       <dt className="text-sm text-muted-foreground" title={labelTitle}>{label}</dt>
-      <dd className="break-words text-sm font-semibold tabular-nums">{value}</dd>
+      <dd className={`${FIGURE_LINE_CLASS} text-sm font-semibold`}>{value}</dd>
       {basis && <dd>{basis}</dd>}
     </div>
   );
@@ -234,9 +235,9 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
         </h3>
         {/* PD-C: Recorded spending is the ONE home for coverage — shown only when partial — and
             its freshness is one inline "Updated" beside the amount. */}
-        {(recordedSpending !== null || (actualPosition.basis === 'erp' && actualPosition.asOf)) && <p className="break-words font-semibold tabular-nums">
+        {(recordedSpending !== null || (actualPosition.basis === 'erp' && actualPosition.asOf)) && <p className={`flex flex-wrap items-baseline gap-x-2 font-semibold ${FIGURE_LINE_CLASS}`}>
           {money(displayedSpending, actualPosition.currency, actualPosition.currency)}
-          {actualPosition.basis === 'erp' && actualPosition.asOf && <span className="ml-2 text-sm font-normal text-muted-foreground">
+          {actualPosition.basis === 'erp' && actualPosition.asOf && <span className="whitespace-normal text-sm font-normal text-muted-foreground">
             {t('uxs01.updated', 'Updated {{date}}', { date: formatDay(actualPosition.asOf) })}
           </span>}
         </p>}

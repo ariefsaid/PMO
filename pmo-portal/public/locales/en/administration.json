@@ -91,6 +91,9 @@
       "employ": "Vendors and clients managed in Odoo",
       "journal": "Payment journal",
       "journalHint": "The bank or cash journal supplier payments are made from, unless Finance picks another.",
+      "deskJournal": "Desk journal",
+      "deskJournalHint": "The general journal manual journals are posted to.",
+      "deskJournalNone": "No general journal has been read from Odoo yet.",
       "journalNone": "No bank or cash journal has been read from Odoo yet.",
       "journalProposed": "Proposed: {{name}}",
       "journalAccept": "Accept {{name}}",
@@ -275,6 +278,59 @@
     "description": "A Feedback button in the header and, at most every 30 days, a short survey. Never while filling in a form."
   },
   "integrations": {
+    "companyAccounts": {
+      "accountsAction": "Set company accounts",
+      "accountsDialog": "Company accounts",
+      "accountsSubmit": "Save company accounts",
+      "accountsChoose": "Choose…",
+      "accountsFailed": "Could not set the company accounts. Try again.",
+      "accountsUnavailable": "Could not read the account lists.",
+      "accountsPending": "A change to the company accounts is still being saved. Reload in a few minutes to see it.",
+      "noBankAccount": "The company has no bank account yet, so there is none to choose. Create the bank account first; it is then listed here.",
+      "accountSlots": {
+        "payable": "Vendor payable account",
+        "expense": "Default expense account",
+        "cash": "Cash account",
+        "bank": "Bank account",
+        "costCentre": "Cost centre"
+      },
+      "accountsRefused": "Could not set the company accounts.",
+      "accountsRetry": "Try again",
+      "slotInSentence": {
+        "payable": "vendor payable account",
+        "expense": "default expense account",
+        "cash": "cash account",
+        "bank": "bank account",
+        "costCentre": "cost centre"
+      },
+      "refusal": {
+        "notInChart": "{{name}} is not in the ERP chart PMO has read, so it cannot be the {{slot}}. Refresh the list and choose again.",
+        "otherCompany": "{{name}} belongs to another company, so it cannot be the {{slot}}.",
+        "group": "{{name}} is a group, so it cannot be the {{slot}}. Choose an account or cost centre under it.",
+        "disabled": "{{name}} is disabled, so it cannot be the {{slot}}.",
+        "notPayable": "{{name}} is not a payable account, so it cannot be the {{slot}}.",
+        "notCash": "{{name}} is not a cash account, so it cannot be the {{slot}}.",
+        "notBank": "{{name}} is not a bank account, so it cannot be the {{slot}}.",
+        "notExpense": "{{name}} is not an expense account, so it cannot be the {{slot}}.",
+        "connectFirst": "Connect the ERP and choose its company first.",
+        "chooseOne": "Choose at least one company default.",
+        "unknownDefault": "Unknown company default: {{name}}.",
+        "chooseValue": "Choose a value for every company default you change.",
+        "notAvailable": "Setting company defaults from PMO is not available for this ERP yet",
+        "connectionChangedReload": "The ERP connection changed; reload and try again",
+        "erpRefused": "The ERP refused this change.",
+        "readBackFailed": "The ERP company could not be read back, so nothing was recorded. Try again.",
+        "notKept": "The ERP did not keep every chosen default, so nothing was recorded. Try again.",
+        "newerSaved": "A newer change to the company accounts was saved for this connection, so this one was not recorded.",
+        "connectionChanged": "The ERP connection changed while this was being set, so nothing was recorded.",
+        "notRecorded": "The change was not recorded. Try again.",
+        "companyChanged": "The company accounts were changed in the ERP after PMO read them, so nothing was saved. Reload and try again.",
+        "changeNotRecorded": "The change could not be recorded",
+        "unreachableNothingRecorded": "The ERP could not be reached, so nothing was recorded. Try again.",
+        "unreachableTryAgain": "The ERP could not be reached; try again.",
+        "requestNotCompleted": "The request could not be completed"
+      }
+    },
     "personalM365": {
       "action": {
         "retryStatus": "Retry"

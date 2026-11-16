@@ -85,8 +85,8 @@ const facts: ManagementPackFacts = {
   org_currency: 'IDR',
   undated_invoice_count: 0,
   projects: [
-    { id: 'p1', name: 'Alpha', pmo_project_number: null, code: null, status: 'Ongoing Project', currency: 'IDR', contract_net: 500_000, start_date: '2026-01-01', end_date: '2026-12-31', project_manager_id: null, client_name: null },
-    { id: 'p2', name: 'Beta', pmo_project_number: null, code: null, status: 'Ongoing Project', currency: 'IDR', contract_net: 250_000, start_date: '2026-01-01', end_date: '2026-12-31', project_manager_id: null, client_name: null },
+    { id: 'p1', name: 'Alpha', pmo_project_number: null, code: null, status: 'Ongoing Project', on_hand: true, currency: 'IDR', contract_net: 500_000, start_date: '2026-01-01', end_date: '2026-12-31', project_manager_id: null, client_name: null },
+    { id: 'p2', name: 'Beta', pmo_project_number: null, code: null, status: 'Ongoing Project', on_hand: true, currency: 'IDR', contract_net: 250_000, start_date: '2026-01-01', end_date: '2026-12-31', project_manager_id: null, client_name: null },
   ],
   invoiced: [
     { project_id: 'p1', currency: 'IDR', month: '2026-10-01', net: 100_000, invoice_count: 1 },

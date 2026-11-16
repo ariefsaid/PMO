@@ -43,7 +43,7 @@ export const LinkedErpDocuments: React.FC<{ procurementId: string }> = ({ procur
     {
       key: 'document', header: t('erpPurchases.column.document', 'Document'), kind: 'primary',
       primaryTitle: (d) => d.name,
-      cell: (d) => <span className="font-mono">{d.name}</span>,
+      cell: (d) => <span className="record-id font-semibold text-foreground">{d.name}</span>,
       secondaryCell: (d) => (
         <span className="inline-flex flex-wrap items-center gap-1.5">
           {erpDoctypeLabel(t, d.doctype)}

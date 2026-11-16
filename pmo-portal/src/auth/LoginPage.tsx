@@ -330,7 +330,7 @@ const LoginPage: React.FC = () => {
                 <p className="text-center text-control font-semibold text-muted-foreground">
                   {t('login.demo.label', 'Demo login')}
                 </p>
-                <p className="text-center font-mono text-control text-muted-foreground">
+                <p className="text-center text-control text-muted-foreground">
                   {t('login.demo.password', 'password: {{password}}', { password: DEMO_PASSWORD })}
                 </p>
                 <div className="flex flex-wrap justify-center gap-x-3 gap-y-1">

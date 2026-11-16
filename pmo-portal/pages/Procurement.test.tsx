@@ -286,7 +286,7 @@ describe('Procurement index — IA-3 (real data)', () => {
 
   it('AC-S19-002: the canonical full status label and next-step copy are localized in Bahasa', () => {
     renderPageInLocale('id', '/procurement?tab=all&view=grouped');
-    expect(screen.getByText('Penawaran pemasok')).toBeInTheDocument();
+    expect(screen.getByText('Penawaran supplier')).toBeInTheDocument();
     expect(screen.getByText(/Langkah berikutnya:\s*Pilih penawaran/)).toBeInTheDocument();
   });
 

@@ -416,6 +416,63 @@ describe('purchase capture caller authorization', () => {
     });
   });
 
+  it("AC-019 an unassigned invoice billing one order names that order, and the report names a decision's family", async () => {
+    const token = await auth.mintJwt({ sub: 'user-1' });
+    const project = '11111111-1111-4111-8111-111111111111';
+    const binding = { id: 'binding-1', org_id: 'org-1', external_tier: 'erpnext', config: { company: 'Example' }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 };
+    const base = { erp_docstatus: 1, erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [], procurement_id: null, purchase_origin: null, doc_date: null, currency: 'USD', net_total: '100.00', is_return: false, recorded_by_pmo: false };
+    const sources = [
+      { ...base, id: 'order-1', kind: 'order', erp_doctype: 'Purchase Order', erp_name: 'PO-1', erp_status: 'To Bill', purchase_orders: [] },
+      { ...base, id: 'order-2', kind: 'order', erp_doctype: 'Purchase Order', erp_name: 'PO-2', erp_status: 'To Bill', purchase_orders: [] },
+      { ...base, id: 'invoice-1', kind: 'supplier_invoice', erp_doctype: 'Purchase Invoice', erp_name: 'PI-1', erp_status: 'Unpaid', purchase_orders: ['PO-1'] },
+      { ...base, id: 'invoice-2', kind: 'supplier_invoice', erp_doctype: 'Purchase Invoice', erp_name: 'PI-2', erp_status: 'Unpaid', purchase_orders: ['PO-1', 'PO-2'] },
+      { ...base, id: 'invoice-3', kind: 'supplier_invoice', erp_doctype: 'Purchase Invoice', erp_name: 'PI-3', erp_status: 'Unpaid', purchase_orders: [] },
+    ];
+    const family = { decision_id: 'd1', source_id: 'invoice-9', source: 'INV-9', decision: 'project', project_id: project, procurement_id: 'purchase-9', assignment_origin: 'pmo_assignment', placed: '40.00', excluded: [],
+      family_request_id: '55555555-5555-4555-8555-555555555555', family_order_id: 'order-9' };
+    await withFetchMock([
+      jwksRoute(auth),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('external_org_bindings', () => jsonResponse([binding])),
+      supabaseRpc('read_vault_secret', () => jsonResponse('synthetic-key:synthetic-secret')),
+      supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources, revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [], revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD', ledger_started_at: '2026-11-13T00:00:00Z' })),
+      supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: [family, { ...family, decision_id: 'd2', source_id: 'invoice-8', source: 'INV-8', family_request_id: null, family_order_id: null }] })),
+      erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: '2', float_precision: '3', number_format: '#,###.##' } })),
+    ], async () => {
+      const body = await (await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'report', scope: { projectId: null } }, token))).json();
+      const byId = new Map(body.unassigned_documents.map((doc: { id: string }) => [doc.id, doc]));
+      assertEquals((byId.get('invoice-1') as { order_source_id: string | null }).order_source_id, 'order-1');
+      assertEquals((byId.get('invoice-2') as { order_source_id: string | null }).order_source_id, null);
+      assertEquals((byId.get('invoice-3') as { order_source_id: string | null }).order_source_id, null);
+      assertEquals('order_source_id' in (byId.get('order-1') as object), false);
+      assertEquals(body.assignments.map((row: { familyRequestId: string | null; familyOrderId: string | null }) => `${row.familyRequestId}:${row.familyOrderId}`),
+        ['55555555-5555-4555-8555-555555555555:order-9', 'null:null']);
+      assertEquals(body.erp_write, false);
+    });
+  });
+
+  it('AC-019 an assign call passes family rows through unchanged and writes nothing to the ERP', async () => {
+    const token = await auth.mintJwt({ sub: 'user-1' });
+    const rows = [{ request_id: '22222222-2222-4222-8222-222222222222', source_id: '33333333-3333-4333-8333-333333333333', decision: 'order_family', project_id: '44444444-4444-4444-8444-444444444444',
+      invoice_ids: ['66666666-6666-4666-8666-666666666666', '77777777-7777-4777-8777-777777777777'] }];
+    await withFetchMock([
+      jwksRoute(auth),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('external_org_bindings', () => jsonResponse([{ id: 'binding-1', external_tier: 'erpnext', config: { company: 'Example' }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 }])),
+      supabaseRpc('read_vault_secret', () => jsonResponse('synthetic-key:synthetic-secret')),
+      supabaseRpc('assign_capture_invoices', call => { assertEquals(call.bodyJson, { p_rows: rows, p_expected_revision: 'rev', p_dry_run: true }); return jsonResponse({ complete: true, results: [{ outcome: 'create', erp_write: false }], erp_write: false }); }),
+    ], async ({ calls }) => {
+      const response = await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'assign', rows, expectedRevision: 'rev', dryRun: true }, token));
+      assertEquals(response.status, 200);
+      assertEquals((await response.json()).erp_write, false);
+      assertEquals(calls.some(call => call.url.pathname.startsWith('/api/')), false);
+    });
+  });
+
   it('AC-ROP-011 tagged assignment reported', async () => {
     const token = await auth.mintJwt({ sub: 'user-1' });
     const project = '11111111-1111-4111-8111-111111111111';
@@ -457,7 +514,7 @@ describe('purchase capture caller authorization', () => {
     const project = '11111111-1111-4111-8111-111111111111';
     const binding = { id: 'binding-1', org_id: 'org-1', external_tier: 'erpnext', config: { company: 'Example' }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: versionMajor };
     const base = { erp_docstatus: 1, erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [project], procurement_id: null, purchase_origin: null, doc_date: null, currency: 'USD', net_total: netTotal, is_return: false, recorded_by_pmo: false };
-    let result: { status: number; body: Record<string, any>; batchCalls: number } = { status: 0, body: {}, batchCalls: 0 };
+    let result: { status: number; body: Record<string, any>; batchCalls: number; settingsCalls: number } = { status: 0, body: {}, batchCalls: 0, settingsCalls: 0 };
     await withFetchMock([
       jwksRoute(auth),
       supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
@@ -477,7 +534,7 @@ describe('purchase capture caller authorization', () => {
       erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', settings),
     ], async ({ calls }) => {
       const response = await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action, scope: { projectId: project }, ...(action === 'apply' ? { expectedRevision: 'gen', requestId: '22222222-2222-4222-8222-222222222222' } : {}) }, token));
-      result = { status: response.status, body: await response.json(), batchCalls: calls.filter(call => call.url.pathname.endsWith('/capture_history_batch')).length };
+      result = { status: response.status, body: await response.json(), batchCalls: calls.filter(call => call.url.pathname.endsWith('/capture_history_batch')).length, settingsCalls: calls.filter(call => call.url.href.includes('/System%20Settings/System%20Settings')).length };
     });
     return result;
   };
@@ -526,6 +583,58 @@ describe('purchase capture caller authorization', () => {
     assertEquals(applied.body.complete, false);
     assertEquals(applied.body.missing.includes('source_settings_unreadable'), true);
     assertEquals(applied.batchCalls, 0);
+  });
+
+  // #2349: the unreadable entry carries its cause class and, for a refusal, what the integration user needs. No ERP detail.
+  const unreadableCause = async (settings: () => Response, versionMajor: number | null, cause: string, guidance: string) => {
+    for (const action of ['preview', 'apply', 'report'] as const) {
+      const logged: unknown[] = [];
+      const original = { error: console.error, warn: console.warn, log: console.log };
+      console.error = (...args: unknown[]) => { logged.push(args); };
+      console.warn = console.error; console.log = console.error;
+      let scenario: Awaited<ReturnType<typeof settingsScenario>>;
+      try { scenario = await settingsScenario(action, settings, '100.00', versionMajor); }
+      finally { Object.assign(console, original); }
+      const { body, batchCalls, settingsCalls } = scenario;
+      assertEquals(settingsCalls, 1, `${action}: the System Settings read makes exactly one attempt`);
+      assertEquals(/secret detail|8\.8\.8\.8|System%20Settings/.test(JSON.stringify(logged)), false, `${action} logged ERP detail`);
+      assertEquals(body.complete, false, action);
+      assertEquals(body.missing.includes('source_settings_unreadable'), true, action);
+      assertEquals(body.source_settings, { cause, guidance }, action);
+      assertEquals(batchCalls, 0, action);
+      assertEquals((body.proposals ?? []).some((item: { outcome: string }) => item.outcome === 'propose'), false, action);
+      assertEquals(/secret detail|PermissionError|8\.8\.8\.8|synthetic/.test(JSON.stringify(body)), false, action);
+    }
+  };
+  const permissionReply = (status: number) => () => jsonResponse({ exc_type: 'PermissionError', _server_messages: JSON.stringify([JSON.stringify({ message: 'secret detail' })]) }, { status });
+
+  it('#2349 refused System Settings names the cause refused and the read access the integration user needs', async () => {
+    for (const status of [401, 403]) await unreadableCause(permissionReply(status), 15, 'refused', 'grant_integration_user_read_system_settings');
+  });
+
+  it('#2349 a System Settings address the ERP does not know names the cause not_found', async () => {
+    await unreadableCause(() => jsonResponse({ exc_type: 'DoesNotExistError', exception: 'secret detail' }, { status: 404 }), 15, 'not_found', 'check_erp_site_address_and_product');
+  });
+
+  it('#2349 an unreachable or timed-out ERP names the cause unreachable', async () => {
+    await unreadableCause(() => { throw new TypeError('connection refused secret detail'); }, 15, 'unreachable', 'check_erp_reachable_then_retry');
+    await unreadableCause(() => { throw new DOMException('secret detail deadline', 'TimeoutError'); }, 15, 'unreachable', 'check_erp_reachable_then_retry');
+    await unreadableCause(() => jsonResponse({ exc_type: 'secret detail' }, { status: 503 }), 15, 'unreachable', 'check_erp_reachable_then_retry');
+  });
+
+  it('#2349 a malformed System Settings reply names the cause malformed_reply', async () => {
+    await unreadableCause(() => new Response('<html>secret detail</html>', { status: 200, headers: { 'content-type': 'text/html' } }), 15, 'malformed_reply', 'check_erp_system_settings_reply_then_retry');
+    await unreadableCause(() => jsonResponse({ exc_type: 'ValidationError', exception: 'secret detail' }, { status: 417 }), 15, 'malformed_reply', 'check_erp_system_settings_reply_then_retry');
+  });
+
+  it('#2349 an unknown binding version names the cause version_unknown', async () => {
+    await unreadableCause(() => jsonResponse({ data: { currency_precision: '2', number_format: '#,###.##' } }), null, 'version_unknown', 'rerun_integration_version_check');
+  });
+
+  it('#2349 a readable System Settings carries no source_settings entry', async () => {
+    const { body } = await settingsScenario('preview', () => jsonResponse({ data: { currency_precision: '2', number_format: '#,###.##' } }), '100.00', 15);
+    assertEquals(body.complete, true);
+    assertEquals('source_settings' in body, false);
   });
 
   it('#2195 version 16 with "use number format from currency" on names source_precision_per_currency and offers nothing as ready', async () => {
@@ -770,6 +879,193 @@ describe('purchase capture caller authorization', () => {
       assertEquals(apply.request_id, '22222222-2222-4222-8222-222222222222');
       assertEquals(apply.revision, 'reviewed');
       assertEquals(calls.some(call => call.url.pathname.endsWith('/capture_history_batch')), false);
+    });
+  });
+
+  describe('AC-ROP-008 retry of a request that already finished (#2258)', () => {
+    const requestId = '22222222-2222-4222-8222-222222222222';
+    const project = '11111111-1111-4111-8111-111111111111';
+    const binding = { id: 'binding-1', org_id: 'org-1', external_tier: 'erpnext', config: { company: 'Example' }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 };
+    const results = [{ outcome: 'created', project_id: project, source_ids: ['order-1'], erp_write: false }];
+    const base = () => [
+      jwksRoute(auth),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('external_org_bindings', () => jsonResponse([binding])),
+      supabaseRpc('read_vault_secret', () => jsonResponse('synthetic-key:synthetic-secret')),
+      supabaseRpc('service_feature_enabled', call => { assertEquals((call.bodyJson as { p_key: string }).p_key, 'procurement'); return jsonResponse(true); }),
+    ];
+    const down = () => [
+      supabaseRpc('purchase_capture_source_page', () => jsonResponse({ message: 'down' }, { status: 500 })),
+      supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ message: 'down' }, { status: 500 })),
+      supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ message: 'down' }, { status: 500 })),
+    ];
+    const retry = async (token: string) => handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'apply', scope: { projectId: project }, expectedRevision: 'reviewed', requestId }, token));
+
+    it('returns the stored result of a completed request while the fresh read fails', async () => {
+      const token = await auth.mintJwt({ sub: 'user-1' });
+      await withFetchMock([
+        ...base(),
+        supabaseRpc('purchase_capture_source_page', () => jsonResponse({ message: 'down' }, { status: 500 })),
+        supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ message: 'down' }, { status: 500 })),
+        supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ message: 'down' }, { status: 500 })),
+        supabaseRpc('capture_history_batch_result', call => {
+          assertEquals(call.bodyJson, { p_actor_id: 'user-1', p_project_id: project, p_request_id: requestId, p_revision: 'reviewed' });
+          return jsonResponse({ found: true, complete: true, results });
+        }),
+      ], async ({ calls }) => {
+        const body = await (await retry(token)).json();
+        assertEquals(body.complete, true);
+        assertEquals(body.results, results);
+        assertEquals(body.request_id, requestId);
+        assertEquals(body.revision, 'reviewed');
+        assertEquals(body.erp_write, false);
+        assertEquals(calls.some(call => call.url.pathname.endsWith('/capture_history_batch')), false);
+      });
+    });
+
+    it('refuses a partly finished request while the fresh read fails', async () => {
+      const token = await auth.mintJwt({ sub: 'user-1' });
+      await withFetchMock([
+        ...base(),
+        supabaseRpc('purchase_capture_source_page', () => jsonResponse({ message: 'down' }, { status: 500 })),
+        supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ message: 'down' }, { status: 500 })),
+        supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ message: 'down' }, { status: 500 })),
+        supabaseRpc('capture_history_batch_result', () => jsonResponse({ found: true, complete: false, results })),
+      ], async ({ calls }) => {
+        const body = await (await retry(token)).json();
+        assertEquals(body.complete, false);
+        assertEquals(body.results, undefined);
+        assertEquals(body.missing.includes('source_read_failed'), true);
+        assertEquals(calls.some(call => call.url.pathname.endsWith('/capture_history_batch')), false);
+      });
+    });
+
+    it('returns the stored result of a completed request when the read is over the per-run bound', async () => {
+      const token = await auth.mintJwt({ sub: 'user-1' });
+      await withFetchMock([
+        ...base(),
+        supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: [], revision: 'gen', next_cursor: null })),
+        supabaseRpc('purchase_capture_ledger_page', call => {
+          const cursor = (call.bodyJson as { p_cursor: string | null }).p_cursor;
+          const page = cursor === null ? 0 : Number(cursor);
+          return jsonResponse({ lines: Array.from({ length: 500 }, (_, i) => ({ id: `line-${page * 500 + i}` })), revision: 'gen', next_cursor: String(page + 1) });
+        }),
+        supabaseRpc('capture_history_batch_result', () => jsonResponse({ found: true, complete: true, results })),
+      ], async ({ calls }) => {
+        const body = await (await retry(token)).json();
+        assertEquals(body.complete, true);
+        assertEquals(body.results, results);
+        assertEquals(body.missing, undefined);
+        assertEquals(calls.some(call => call.url.pathname.endsWith('/capture_history_batch')), false);
+      });
+    });
+
+    it('keeps the bound refusal when the request has not finished', async () => {
+      const token = await auth.mintJwt({ sub: 'user-1' });
+      await withFetchMock([
+        ...base(),
+        supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: [], revision: 'gen', next_cursor: null })),
+        supabaseRpc('purchase_capture_ledger_page', call => {
+          const cursor = (call.bodyJson as { p_cursor: string | null }).p_cursor;
+          const page = cursor === null ? 0 : Number(cursor);
+          return jsonResponse({ lines: Array.from({ length: 500 }, (_, i) => ({ id: `line-${page * 500 + i}` })), revision: 'gen', next_cursor: String(page + 1) });
+        }),
+        supabaseRpc('capture_history_batch_result', () => jsonResponse({ found: false })),
+      ], async () => {
+        const body = await (await retry(token)).json();
+        assertEquals(body.complete, false);
+        assertEquals(body.missing, ['ledger_limit_exceeded']);
+      });
+    });
+
+    it('answers a retry with the same sources and next_index the first apply listed, never as nothing to do', async () => {
+      const token = await auth.mintJwt({ sub: 'user-1' });
+      const order = (n: number) => ({ id: `order-${n}`, kind: 'order', erp_doctype: 'Purchase Order', erp_name: `PO-${n}`, erp_docstatus: 1, erp_status: 'To Bill', erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [project], purchase_orders: [], procurement_id: null, purchase_origin: null, recorded_by_pmo: false, doc_date: null, currency: 'USD', net_total: '100.00', is_return: false });
+      const groupResults = [1, 2].map(n => ({ outcome: 'create', procurement_id: `purchase-${n}`, project_id: project, source_ids: [`order-${n}`], erp_write: false }));
+      let first: Record<string, unknown> = {};
+      await withFetchMock([...base(),
+        supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: [order(1), order(2)], revision: 'reviewed', next_cursor: null })),
+        supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [], revision: 'reviewed', next_cursor: null })),
+        supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD', ledger_started_at: '2026-11-13T00:00:00Z' })),
+        supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: [] })),
+        erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: '2' } })),
+        supabaseRpc('capture_history_batch', () => jsonResponse({ complete: true, resume: false, next_index: 2, results: groupResults, erp_write: false }))], async () => {
+        first = await (await retry(token)).json();
+      });
+      const firstProposals = first.proposals as Array<{ id: string }>;
+      assertEquals(firstProposals.length, 2);
+      await withFetchMock([...base(), ...down(), supabaseRpc('capture_history_batch_result', () => jsonResponse({ found: true, complete: true, results: groupResults }))], async () => {
+        const again = await (await retry(token)).json();
+        assertEquals(again.complete, true);
+        assertEquals(again.results, first.results);
+        assertEquals(again.next_index, first.next_index);
+        assertEquals(again.already_completed, true);
+        assertEquals((again.proposals as Array<{ id: string }>).map(item => item.id).sort(), firstProposals.map(item => item.id).sort());
+        assertEquals((again.proposals as Array<{ purchaseId?: string }>).map(item => item.purchaseId).sort(), ['purchase-1', 'purchase-2']);
+      });
+    });
+
+    it('reports a stored result with a refused group as not complete', async () => {
+      const token = await auth.mintJwt({ sub: 'user-1' });
+      const refusedResults = [...results, { outcome: 'refused', project_id: project, source_ids: ['order-2'], erp_write: false }];
+      await withFetchMock([...base(), ...down(), supabaseRpc('capture_history_batch_result', () => jsonResponse({ found: true, complete: true, results: refusedResults }))], async () => {
+        const body = await (await retry(token)).json();
+        assertEquals(body.complete, false);
+        assertEquals(body.refused, 1);
+        assertEquals(body.results, refusedResults);
+      });
+    });
+
+    it('keeps the refusal when the stored-result read itself fails', async () => {
+      const token = await auth.mintJwt({ sub: 'user-1' });
+      await withFetchMock([...base(), ...down(), supabaseRpc('capture_history_batch_result', () => jsonResponse({ message: 'down' }, { status: 500 }))], async () => {
+        const body = await (await retry(token)).json();
+        assertEquals(body.complete, false);
+        assertEquals(body.results, undefined);
+        assertEquals(body.missing.includes('source_read_failed'), true);
+      });
+    });
+
+    it('keeps the refusal when the procurement feature is off, as the normal retry does', async () => {
+      const token = await auth.mintJwt({ sub: 'user-1' });
+      await withFetchMock([...base().filter(route => route.label !== 'supabase-rpc-service_feature_enabled'), supabaseRpc('service_feature_enabled', () => jsonResponse(false)), ...down(),
+        supabaseRpc('capture_history_batch_result', () => jsonResponse({ found: true, complete: true, results }))], async ({ calls }) => {
+        const body = await (await retry(token)).json();
+        assertEquals(body.complete, false);
+        assertEquals(body.results, undefined);
+        assertEquals(calls.some(call => call.url.pathname.endsWith('/capture_history_batch_result')), false);
+      });
+    });
+
+    it('asks for the stored result as the signed-in Admin, so a second Admin of the same org gets what the database returns for them', async () => {
+      const token = await auth.mintJwt({ sub: 'user-2' });
+      await withFetchMock([...base(), ...down(), supabaseRpc('capture_history_batch_result', call => {
+        assertEquals((call.bodyJson as { p_actor_id: string }).p_actor_id, 'user-2');
+        return jsonResponse({ found: false });
+      })], async () => {
+        const body = await (await retry(token)).json();
+        assertEquals(body.complete, false);
+        assertEquals(body.results, undefined);
+      });
+    });
+
+    it('does not report complete when the ERP precision changed since the request', async () => {
+      const token = await auth.mintJwt({ sub: 'user-1' });
+      const mixed = [{ id: 'order-1', kind: 'order', erp_doctype: 'Purchase Order', erp_name: 'PO-1', erp_docstatus: 1, erp_status: 'To Bill', erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [project], purchase_orders: [], procurement_id: null, purchase_origin: null, recorded_by_pmo: false, doc_date: null, currency: 'USD', net_total: '100.00', is_return: false },
+        { id: 'invoice-1', kind: 'supplier_invoice', erp_doctype: 'Purchase Invoice', erp_name: 'PI-1', erp_docstatus: 1, erp_status: 'Unpaid', erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [project], purchase_orders: [], procurement_id: null, purchase_origin: null, recorded_by_pmo: false, doc_date: null, currency: 'USD', net_total: '100.00', is_return: false }];
+      let precisionReads = 0;
+      await withFetchMock([...base(),
+        supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: mixed, revision: 'gen', next_cursor: null })),
+        supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [], revision: 'gen', next_cursor: null })),
+        supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD', ledger_started_at: '2026-11-13T00:00:00Z' })),
+        erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: precisionReads++ === 0 ? '2' : '1' } })),
+        supabaseRpc('capture_history_batch_result', () => jsonResponse({ found: true, complete: true, results }))], async () => {
+        const body = await (await retry(token)).json();
+        assertEquals(body.complete, false);
+        assertEquals(body.missing.includes('precision_changed'), true);
+        assertEquals(body.results, undefined);
+      });
     });
   });
 

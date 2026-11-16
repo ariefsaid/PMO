@@ -65,6 +65,9 @@ export interface ProjectFinances {
      *  from before 0473; null when the charge exists but cannot be stated (an unmapped category). */
     equipment_charge_total?: ExactMoney | null;
     excludes_restricted_rows: boolean;
+    /** Paid spending with no budget category (PMO paid-purchase basis): its amount, null when it cannot be stated
+     *  in the project currency; absent when there is none. `total` is unknown while it exists. */
+    uncategorized?: { amount: ExactMoney | null } | null;
     categories: Array<{
       category: string;
       mapped: boolean;

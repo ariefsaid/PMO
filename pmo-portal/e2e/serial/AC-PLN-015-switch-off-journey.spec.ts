@@ -236,7 +236,7 @@ test.describe('AC-PLN-015 — the switch turns a module off for one org and leav
         await signIn(page, ORG_A_ADMIN);
 
         await page.getByRole('button', { name: /^assistant$/i }).click();
-        const panel = page.getByRole('complementary', { name: /agent assistant/i });
+        const panel = page.getByTestId('assistant-panel');
         await expect(panel).toBeVisible({ timeout: 20_000 });
 
         await panel.getByRole('textbox', { name: /ask a question/i }).fill('What stock do we have right now?');

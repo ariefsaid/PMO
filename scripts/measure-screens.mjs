@@ -8,6 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { blockDataReads, measureSettledLayout, pageLanguage, settlePage } from './ux-proof-measure.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const APP = path.join(ROOT, 'pmo-portal');
@@ -539,12 +540,24 @@ function unknownResult(error) {
   return { status: 'unknown', findings: null, error: String(error?.message ?? error) };
 }
 
+function readLayoutBaseline() {
+  const file = path.join(ROOT, 'docs', 'ux', 'layout-baseline.json');
+  return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
+}
+
+const READS_FAILING = process.env.UX_PROOF_BLOCK_READS === '1';
+
 async function measureUxProof(page, cell, route, login, budget, tools) {
   try {
     const metrics = await page.evaluate(tools.measureText, tools.chartSelector);
     const key = `${route}@${cell.width}@${login}`;
     const targetBaseline = budget.targets?.[key];
-    const findings = tools.violations(metrics, budget[key], `${route} @${cell.width}`, budget.charts?.[key], targetBaseline);
+    // The same measuring function and settle step as the gate (scripts/ux-proof-measure.mjs), reusing
+    // taste's panel-void/ragged-row/canvas checks and stageshow layout-core, with the gate's fingerprint baseline.
+    metrics.layout = await measureSettledLayout(page, { app: tools.tasteApp, probe: tools.probe, judgeApp: tools.judgeApp, auditLayout: tools.auditLayout }, cell.width);
+    const language = await pageLanguage(page);
+    const layoutKey = `${key}${READS_FAILING ? '#reads-failing' : ''}${language === 'en' ? '' : `~${language}`}`;
+    const findings = tools.violations(metrics, budget[key], `${route} @${cell.width}`, budget.charts?.[key], targetBaseline, readLayoutBaseline()[layoutKey], READS_FAILING ? 'reads-failing' : 'default');
     // A missing shrink-only baseline is a gap in the budget file, not something wrong with the screen:
     // it travels as a note so the finding count stays the screen's own violations (the slow path's 0/0).
     const notes = targetBaseline === undefined
@@ -969,14 +982,13 @@ async function runDetectorAndChecks(browser, cell, route, role, statePath, budge
     });
     cellPage = await context.newPage();
     cellPage.on('pageerror', (error) => pageErrors.push(error.message));
+    if (READS_FAILING) await blockDataReads(cellPage);
     await cellPage.goto(url, { waitUntil: 'domcontentloaded', timeout: 18000 });
     await cellPage.locator('body').waitFor({ state: 'visible', timeout: 5000 });
-    await cellPage.waitForLoadState('networkidle', { timeout: 2500 }).catch(() => {});
-    await cellPage.evaluate(() => document.fonts.ready);
+    await settlePage(cellPage, { readsFailing: READS_FAILING }); // the gate's own settle step; a page that never settles is incomplete, not measured
 
     const landedOn = new URL(cellPage.url()).pathname + new URL(cellPage.url()).search;
     const loginLanding = role !== 'anonymous' && /^\/(?:login|signin|sign-in)(?:[/?#]|$)/i.test(landedOn);
-    const screenshot = await cellPage.screenshot({ path: capturePath, type: 'png' });
     const requestPath = new URL(url).pathname;
     const expectedRoute = requestPath === '/' ? '/' : requestPath;
     const actualRoute = new URL(cellPage.url()).pathname;
@@ -986,6 +998,7 @@ async function runDetectorAndChecks(browser, cell, route, role, statePath, budge
     if (loginLanding || routeMismatch) {
       const reason = loginLanding ? `signed-in state landed on ${landedOn}` : `route landed on ${actualRoute}, expected ${expectedRoute}`;
       const unknown = unknownResult(new Error(reason));
+      await cellPage.screenshot({ path: capturePath, type: 'png' });
       toolResults = { uxProof: unknown, taste: unknown, stageshow: unknown, impeccable: unknown };
     } else {
       const login = statePath ? path.basename(statePath, '.json') : 'anonymous';
@@ -993,6 +1006,8 @@ async function runDetectorAndChecks(browser, cell, route, role, statePath, budge
       // before it starts (they used to share one Promise.all, which the walk would have raced).
       const uxProof = await measureUxProof(cellPage, cell, actualRoute, login, budget, tools);
       const stageshow = await measureStageshow(cellPage, tools);
+      // every measurement above runs before the first screenshot (a full-page capture can mount lazy sections)
+      const screenshot = await cellPage.screenshot({ path: capturePath, type: 'png' });
       const taste = await measureTaste(cellPage, cell.width, screenshot, tools);
       const impeccable = runImpeccable(detector, debugPort, cellPage.url());
       toolResults = { uxProof, taste, stageshow, impeccable };

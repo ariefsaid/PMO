@@ -146,7 +146,8 @@ export async function assertMinutesHandle(page: Page, width: number) {
 
 export async function assertProjectsDisclosures(page: Page, width: number) {
     // #1983: the filter builder replaced the "Filters" disclosure; its chips wrap inline, so it
-    // must never push the page wider than the viewport. "More actions" stays a disclosure.
+    // must never push the page wider than the viewport. The phone "Options" (views, export, import)
+    // stays a disclosure, and its panel must fit the viewport too.
     const builder = page.getByTestId('project-filter-builder').first();
     await expect(builder).toBeVisible();
     await waitForFonts(page);
@@ -156,10 +157,10 @@ export async function assertProjectsDisclosures(page: Page, width: number) {
     expect(builderBox!.x + builderBox!.width).toBeLessThanOrEqual(width);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
 
-    const more = page.getByRole('button', { name: /^More actions/ });
+    const more = page.getByRole('button', { name: /^Options/ });
     await more.click();
     await expect(more).toHaveAttribute('aria-expanded', 'true');
-    const moreRegion = page.getByRole('region', { name: 'More actions' });
+    const moreRegion = page.getByRole('region', { name: 'Options' });
     await expect(moreRegion).toBeVisible();
     const moreBox = await moreRegion.boundingBox();
     expect(moreBox).not.toBeNull();
@@ -488,7 +489,7 @@ export async function assertProjectsTableLayout(page: Page) {
       expect((await sharedManager.textContent())?.replace(/^Project manager: /, '').trim().length).toBeGreaterThan(0);
     }
 
-    for (const header of ['Project', 'Status', 'Actual']) {
+    for (const header of ['Project', 'Status', 'Spent']) {
       await expect(table.getByRole('columnheader', { name: header, exact: true }),
         `core Projects column "${header}" should be visible at 1440px`).toBeVisible();
     }
@@ -498,7 +499,7 @@ export async function assertProjectsTableLayout(page: Page) {
     await expect(table.getByRole('columnheader', { name: /^Contract/ }),
       'core Projects column "Contract" should be visible at 1440px').toBeVisible();
     await expect(page.getByRole('button', { name: /optional columns/i })).toHaveCount(0);
-    for (const header of ['Progress', 'Budget used']) {
+    for (const header of ['Progress', '% of budget used']) {
       await expect(table.getByRole('columnheader', { name: header, exact: true }),
         `Projects column "${header}" should be visible when its data exists`).toBeVisible();
     }
@@ -620,6 +621,8 @@ export async function assertProjectsTableLayout(page: Page) {
   const mobileToolbar = page.getByTestId('projects-mobile-toolbar');
   const atRiskTab = mobileToolbar.getByRole('tab', { name: 'At risk', exact: true });
   const boardTab = mobileToolbar.getByRole('tab', { name: 'Board', exact: true });
+  // The phone keeps the view switch one tap away, in Options.
+  await mobileToolbar.getByRole('button', { name: /^Options/ }).click();
   await atRiskTab.scrollIntoViewIfNeeded();
   await boardTab.scrollIntoViewIfNeeded();
   for (const [tab, scrollTestId] of [[atRiskTab, 'status-filter-scroll'], [boardTab, 'projects-mobile-view-scroll']] as const) {

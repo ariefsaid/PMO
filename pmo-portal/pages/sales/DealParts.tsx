@@ -7,6 +7,7 @@ import { formatCurrency, formatDecisionDateNumeric } from '@/src/lib/format';
 import { formatPercent, dealJourneySteps, weightedValue } from '../../components/salesPipeline';
 import StageHistory from '../project-detail/StageHistory';
 import { useStageJourneyStepLabel, type DealActions } from './useDealActions';
+import { FIGURE_LINE_CLASS } from '@/src/components/ui/FigureContent';
 
 type Fig = { key: string; label: string; value: React.ReactNode; sub?: React.ReactNode };
 
@@ -81,7 +82,7 @@ export const DealFigures: React.FC<{ d: DealActions; className?: string }> = ({ 
         {figs.map((f) => (
           <div key={f.key} className="min-w-0 border-b border-border pb-2">
             <dt className="text-control text-muted-foreground">{f.label}</dt>
-            <dd className="mt-1 break-words text-base font-semibold tabular-nums text-foreground">{f.value}</dd>
+            <dd className={`${FIGURE_LINE_CLASS} mt-1 text-base font-semibold text-foreground`}>{f.value}</dd>
             {f.sub && <dd className="mt-1 text-control text-muted-foreground">{f.sub}</dd>}
           </div>
         ))}

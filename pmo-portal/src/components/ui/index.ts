@@ -58,6 +58,7 @@ export { GateNotice, type GateNoticeProps } from './GateNotice';
 export { AccessDenied, type AccessDeniedProps } from './AccessDenied';
 export { PageHeader, type PageHeaderProps } from './PageHeader';
 export { RecordHeader, type RecordHeaderProps, type PageStat } from './RecordHeader';
+export { RecordSection, RecordStack, type RecordSectionProps } from './RecordSection';
 export { ReasonDialog, type ReasonDialogProps, type ReasonKind } from './ReasonDialog';
 export { FigureScope, FigureHiddenLine, FigureHelpList } from './FigureScope';
 export { HelpPopover, type HelpPopoverProps } from './HelpPopover';
@@ -129,3 +130,4 @@ export {
 } from './useEntityForm';
 export { FilterBar, type FilterBarProps, type FilterBarFilter } from './FilterBar';
 export { useUrlFilters } from './useUrlFilters';
+export { parsePageParam, useClampPage } from './usePageParam';

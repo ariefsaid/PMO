@@ -6,8 +6,12 @@ import { AppError } from '../../appError.ts';
 import type {
   ConnectHarness,
   BudgetPushResult, BudgetPushScenario, ErpHarness, ErpPartyInput, InboundInvoiceDoc, PartyMatchResult, PmoPartyCandidate,
-  ProjectLinkResult, PushBeforeConnectionResult, TransferHarness,
+  JournalHarness, ProjectLinkResult, PushBeforeConnectionResult, TransferHarness,
 } from '../contractSuite/harness.ts';
+import { AdapterError } from '../contract.ts';
+import type { LedgerJournal } from '../ledgerJournal.ts';
+import { manualJournalFromDoc } from './bodies/manualJournal.ts';
+import { DOCTYPE_REGISTRY, reissueOnInconclusiveAbsence } from './doctypeRegistry.ts';
 import type { ImprestTransfer } from '../imprestTransfer.ts';
 import { createErpAdapter } from './adapter.ts';
 import { assertNotPreCutover } from '../cutoverGate.ts';
@@ -25,6 +29,7 @@ import { onboardParties } from './onboarding.ts';
 import { adoptParty } from './partyAdopt.ts';
 import { invertProjectMap } from './projectMap.ts';
 import { createPushAndReadHarness } from './contract.pushAndRead.harness.ts';
+import { createCompanyDefaultsHarness } from './contract.companyDefaults.harness.ts';
 
 const ORG = 'org';
 const ACCOUNTING = new Set(['Account', 'Tax Category', 'Item Tax Template', 'Sales Taxes and Charges Template', 'Purchase Taxes and Charges Template', 'Fiscal Year']);
@@ -144,10 +149,59 @@ function createTransferHarness(): TransferHarness {
   };
 }
 
+/**
+ * #895 journal.post: the SHIPPED ERPNext adapter (generic Journal Entry create + submit through DOCTYPE_BODIES['manual-journal'])
+ * and the shipped anchor probe over the fake Journal Entry ERP. A retry after a lost answer is a recovery that follows the
+ * registry's reissue policy (an immutable `user_remark` anchor: a conclusive miss may reissue once).
+ */
+function createJournalHarness(): JournalHarness {
+  const erp = fakeJournalErp();
+  let writes = 0;
+  const counted = (async (url: string | URL | Request, init?: RequestInit) => {
+    if (init?.method === 'POST' || init?.method === 'PUT') writes += 1;
+    return erp.fetchImpl(url, init);
+  }) as typeof fetch;
+  const client = { fetchImpl: counted, apiKey: 'key', apiSecret: 'secret', baseUrl: 'https://erp.test', maxRetries: 0 };
+  const adapter = createErpAdapter({ client, doctypeBodies: DOCTYPE_BODIES, ctx: { refs: {}, config: { company: 'Test Co' } } });
+  const entry = DOCTYPE_REGISTRY['manual-journal'];
+  const inDoubt = new Set<string>();
+  let armed = false;
+  const keyOf = (remark: unknown) => String(remark ?? '').split(' ')[0];
+  const answer = (r: { externalRecordId: string; canonical: Record<string, unknown> }) => ({
+    externalId: r.externalRecordId, status: r.canonical.status as 'posted' | 'scheduled', postedDate: (r.canonical.posted_date as string | null) ?? null,
+  });
+  return {
+    today: '2026-11-15',
+    async post(j: LedgerJournal) {
+      const id = j.key.slice(j.key.indexOf(':') + 1);
+      const adopted = await probeErpByAnchorKey({ client, doctype: entry.doctype, anchorField: entry.anchorField!, fromDoc: manualJournalFromDoc, pmoRecordId: id }, j.key);
+      if (adopted) { inDoubt.delete(j.key); return answer(adopted); }
+      if (inDoubt.has(j.key) && !reissueOnInconclusiveAbsence(entry)) throw new AppError('journal held', 'command-held');
+      if (armed) { armed = false; erp.arm('lost-response'); }
+      try {
+        return answer(await adapter.commit({ domain: 'accounting', operation: 'create', idempotencyKey: j.key, record: { id, erp_doc_kind: 'manual-journal', journal: j } }));
+      } catch (e) {
+        if (e instanceof AdapterError && e.code === 'external-unreachable') inDoubt.add(j.key);
+        throw e;
+      }
+    },
+    documents: () => erp.docs.map((d) => ({ externalId: String(d.name), key: keyOf(d.user_remark) })),
+    lines(externalId) {
+      const doc = erp.docs.find((d) => d.name === externalId);
+      const rows = (doc?.accounts ?? []) as Array<{ account: string; debit_in_account_currency?: number; credit_in_account_currency?: number }>;
+      return rows.map((row) => ({ account: row.account, debit: (row.debit_in_account_currency ?? 0).toFixed(2), credit: (row.credit_in_account_currency ?? 0).toFixed(2) }));
+    },
+    writes: () => writes,
+    failNextWrite: () => { armed = true; },
+  };
+}
+
 export function createErpnextHarness(): ErpHarness {
   return {
     tier: 'erpnext',
     transfer: createTransferHarness,
+    journal: createJournalHarness,
+    companyDefaults: createCompanyDefaultsHarness,
     connect: createConnectHarness,
     ...createPushAndReadHarness(),
 

@@ -209,7 +209,7 @@ const DocumentPreviewFields: React.FC<DocumentPreviewProps & { statusHeadingLeve
           <>
             {/* C4: empty fields are left out, never shown as "—". */}
             {doc.code && <DocField label={t('projectDetail.documents.field.code', 'Code')}>
-              <span className="font-mono text-sm">{doc.code}</span>
+              <span className="record-id text-foreground">{doc.code}</span>
             </DocField>}
             <DocField label={t('projectDetail.documents.field.category', 'Category')}>
               {doc.category || t('projectDetail.documents.category.uncategorized', 'Uncategorized')}

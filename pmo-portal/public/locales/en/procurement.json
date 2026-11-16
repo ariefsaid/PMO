@@ -128,6 +128,9 @@
     }
   },
   "detail": {
+    "sodReceipt": "To advance from Purchase Order to Goods Receipt, the requester or a Project-Manager must confirm receipt of the goods.",
+    "sodRequesterYou": "This procurement was raised by you. A different user holding the Project-Manager, Finance, or Executive role must review it — the requester cannot self-approve their own procurement.",
+    "sodRequester": "This procurement was raised by {{name}}. A different user holding the Project-Manager, Finance, or Executive role must review it — the requester cannot self-approve their own procurement.",
     "paidNeedsValue": "Add a line item or a document with an amount before marking this paid."
   },
   "projectDetail": {
@@ -349,22 +352,32 @@
     "returnedDetail": "{{title}} has been returned"
   },
   "decisionSupport": {
-    "reserved": "Reserved",
-    "reservedSub": "approved, not yet ordered",
     "projectBudget": "Project budget",
+    "reservedSub": "Approved, not yet ordered",
+    "reserved": "Reserved",
     "thisProcurement": "Procurement total",
     "notCompared": "In a different currency: not compared with the budget",
-    "afterThisProcurement": "After this procurement",
-    "overBudgetLead": "This procurement exceeds available budget by",
-    "barLabel": "Budget used after this procurement: {{pct}}% of {{budget}}",
-    "barCaption": "Budget in use with this purchase: {{pct}}%",
-    "uncommitted": "Not yet committed",
-    "actualsNotCounted": "Actual spend not counted",
-    "headroom": "{{pct}}% headroom left",
+    "budgetUsed": "Budget used",
+    "budgetUsedBasis": "Recorded spending, before tax",
+    "budgetUsedUnknown": "Budget used is unknown or unavailable.",
     "amountUnavailable": "Budget comparison unavailable for these amounts.",
     "currencyUnavailable": "Budget comparison unavailable for these currencies.",
     "heading": "Budget impact",
-    "openProject": "Open project"
+    "openProject": "Open project",
+    "openOrders": "Open orders",
+    "openOrdersSub": "Ordered, not yet in spending",
+    "leftAfterPurchase": "Left after this purchase",
+    "leftAfterPurchaseSub": "After spending, orders and reserved",
+    "leftAfterPurchaseTooltip": "Budget minus recorded spending, open orders, reserved requests and this purchase, each counted once, before tax.",
+    "spentOrCommittedBarLabel": "Spent or committed, with this one: {{pct}}% of {{budget}}",
+    "spentOrCommittedBarCaption": "Spent or committed, with this one: {{pct}}%",
+    "overBudgetTitle": "Over budget",
+    "overBudgetAfter": "{{amount}} over the budget after this purchase. Approval is still permitted; this is advisory only.",
+    "leftOtherCurrency": "Open orders in another currency: {{amounts}}",
+    "leftWithoutSpending": "Without spending: {{amount}} left after orders, reserved and this purchase.",
+    "leftNotKnown": "Not known",
+    "leftOrdersUnknown": "Open orders not known yet",
+    "leftSpendingUnknown": "Spending not known yet"
   },
   "headerEdit": {
     "heading": "Edit procurement details",
@@ -743,5 +756,24 @@
     "waitingDays_one": "waiting {{count}} day",
     "waitingDays_other": "waiting {{count}} days",
     "waitingToday": "waiting since today"
+  },
+  "capture": {
+    "refLabel": {
+      "external": "External ref",
+      "deliveryNote": "Delivery note"
+    },
+    "refPlaceholder": {
+      "external": "e.g. SUPPLIER-PO-001",
+      "deliveryNote": "e.g. DN-44120"
+    },
+    "dateLabel": {
+      "receipt": "Receipt date"
+    },
+    "save": {
+      "purchaseRequest": "Save Purchase Request",
+      "rfq": "Save RFQ",
+      "purchaseOrder": "Save Purchase Order",
+      "goodsReceipt": "Save GR"
+    }
   }
 }

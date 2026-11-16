@@ -40,7 +40,6 @@ const BUDGET_ONLY = 'adapter-dispatch budget-domain read on the caller token (bu
 // Caller token, but only for a command the CLI never sends to adapter-dispatch.
 const APP_ONLY = 'adapter-dispatch read on the caller token for a command the CLI never sends (sales-invoice submit author claim, timesheet push approval check)';
 const KNOWN_UNLISTED = new Map([
-  ['rpc:import_purchase_history', 'pending: `pmo purchases import-history` (#1855) reaches it from migration 0890; the guard-list migration lands later and removes this entry (it fails once the name is listed)'],
   ['rpc:activate_budget_version', 'deliberate: `pmo budgets activate` is disabled until the owner rules (ACTIVATION_ENABLED)'],
   ['table:external_refs', SERVICE_ONLY],
   ['table:external_command_outbox', SERVICE_ONLY],
@@ -49,6 +48,8 @@ const KNOWN_UNLISTED = new Map([
   ['rpc:grant_sales_invoice_submit_clearance', SERVICE_ONLY],
   ['rpc:release_sales_invoice_submit_clearance', SERVICE_ONLY],
   ['rpc:claim_sales_invoice_author', APP_ONLY],
+  // #895: manual journals are posted from the app only; no CLI command sends one, so a command-line token stays refused here.
+  ['rpc:approved_journal_for_push', APP_ONLY],
   ['rpc:get_process_gates', SERVICE_ONLY],
   ['table:sales_invoices', SERVICE_ONLY],
   ['table:procurements', SERVICE_ONLY],
@@ -78,6 +79,7 @@ const KNOWN_UNLISTED = new Map([
   ['rpc:decide_connect_review', CONNECT],
   ['rpc:unlink_connect_match', CONNECT],
   ['rpc:retry_connect_send', CONNECT],
+  ['rpc:request_company_defaults', CONNECT],
 ]);
 
 // ── the CLI source ───────────────────────────────────────────────────────────────────────────────

@@ -53,7 +53,7 @@ const SalesInvoicePanelDrawer: React.FC<{
       // N5: the title names the client; the amount lives in the figures below, so the title never wraps on money.
       title={panelInvoice ? panelInvoice.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded') : ''}
       subtitle={panelInvoice ? <span className="flex flex-wrap items-center gap-2">
-        {invoiceNumber(panelInvoice) && <span className="font-mono text-control">{invoiceNumber(panelInvoice)}</span>}
+        {invoiceNumber(panelInvoice) && <span className="record-id">{invoiceNumber(panelInvoice)}</span>}
         {projectLabelOf(panelInvoice) && <span className="text-control">{projectLabelOf(panelInvoice)}</span>}
       </span> : undefined}
       icon={<Icon name="doc" />}

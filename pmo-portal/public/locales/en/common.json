@@ -1,11 +1,45 @@
 {
+  "terms": {
+    "clientWorkOrder": "Work order",
+    "dashboard": "Dashboard",
+    "supplier": "Supplier",
+    "timesheet": "Timesheet"
+  },
   "ui": {
+    "errorBoundary": {
+      "title": "Something went wrong",
+      "body": "The page hit an unexpected error. You can try again, or head back home.",
+      "retry": "Try again",
+      "reload": "Reload",
+      "home": "Dashboard"
+    },
+    "accessDenied": {
+      "title": "You don't have access to this page",
+      "sub": "This area is limited to roles that need it. If you think this is a mistake, contact your administrator."
+    },
+    "loadingPage": {
+      "label": "Loading page"
+    },
+    "stepState": {
+      "done": "done",
+      "current": "current",
+      "upcoming": "upcoming",
+      "skipped": "skipped",
+      "paid": "paid"
+    },
     "listPage": {
       "showingOf": "Showing {{count}} of {{total}}"
     },
     "listState": {
       "loading": "Loading…",
-      "retry": "Retry"
+      "retry": "Retry",
+      "tryAgainSentence": "Try again.",
+      "andTryAgain": " and try again."
+    },
+    "filterBar": {
+      "all": "All",
+      "filters": "Filters",
+      "clear": "Clear all"
     },
     "recordReference": "Reference"
   },
@@ -1284,7 +1318,6 @@
       "periodTrailing": "Trailing 12 mo",
       "period": "Time frame",
       "errorTitle": "Couldn't load win rate",
-      "errorSub": "Something went wrong. Try again.",
       "emptyTitle": "No closed projects in this window",
       "emptySub": "Try a wider time frame to see your win rate.",
       "declined": "{{n}} declined to bid, not counted in the win rate"
@@ -1492,8 +1525,7 @@
       "notFoundSub": "It doesn't exist, or it isn't yours and you don't approve spend.",
       "notFoundTitle": "Not found",
       "outstanding": "Outstanding",
-      "reference": "Payment reference",
-      "summary": "Summary"
+      "reference": "Payment reference"
     },
     "filters": {
       "allCategories": "All categories",
@@ -1572,7 +1604,6 @@
       "removeAria": "Remove line {{description}}",
       "removeTitle": "Remove this line?",
       "save": "Save line",
-      "sectionLegend": "Expense",
       "title": "Lines",
       "total": "Total",
       "type": "Type"
@@ -1582,7 +1613,6 @@
       "attach": "Attach receipt",
       "attachAria": "Choose a receipt file",
       "attached": "Receipt attached",
-      "download": "Download {{name}}",
       "empty": "No receipts attached.",
       "preview": "Preview receipt",
       "error": "Couldn't load receipts.",
@@ -1613,7 +1643,6 @@
       "returned": "Return recorded",
       "submitted": "Submitted for approval"
     },
-    "truncated": "Showing the latest {{count}}. Narrow the filters to see older records.",
     "type": {
       "accommodation": "Accommodation",
       "localTransport": "Local transport",
@@ -1955,7 +1984,6 @@
       "taxAmount": "Tax amount",
       "confirmMarkInvoiced": "Confirm & mark invoiced"
     },
-    "externalRefOptional": "External ref (optional)",
     "amountOptional": "Amount (optional)",
     "savePayment": "Save Payment",
     "paymentRecorded": "Payment recorded",
@@ -2091,7 +2119,6 @@
           "claimed": "Claimed",
           "item": "Item",
           "quantity": "Contract",
-          "rate": "Rate",
           "remaining": "Left to claim"
         },
         "confirmDelete": {
@@ -2427,7 +2454,6 @@
       "vatCancelledHint": "All project invoices are cancelled and no invoice command is in flight. You can change PPN for the next invoice; cancelled invoices keep their original tax.",
       "vatEmptyHint": "Editable until an invoice is raised. New invoices follow this setting.",
       "vatStaleSave": "PPN was not changed. The project's invoice state changed; refresh and try again when all invoices are cancelled and commands have settled.",
-      "readOnly": "Read-only",
       "sodLockedNote": "Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded."
     },
     "milestoneForm": {
@@ -2922,9 +2948,7 @@
       "edit": "Edit",
       "new": "New project"
     },
-    "atRiskPill": "At risk",
     "columns": {
-      "actual": "Actual",
       "budgetUsed": "Budget used",
       "contract": "Contract",
       "pm": "PM",
@@ -3232,6 +3256,7 @@
       "loadMoreError": "Couldn't load more. Try again.",
       "loadingMore": "Loading…",
       "loading": "Loading notifications…",
+      "bellLabel": "Notifications, {{count}} unread",
       "noneUnread": "No unread notifications",
       "read": "Read",
       "unread": "Unread"
@@ -3293,6 +3318,7 @@
   "task": {
     "status": {
       "blocked": "Blocked",
+      "done": "Done",
       "inProgress": "In Progress",
       "toDo": "To Do"
     }
@@ -3619,9 +3645,6 @@
     "returning": "Returning you to the application…",
     "signedInAs": "Signed in as {{email}}",
     "title": "Allow {{client}} to access your PMO account?"
-  },
-  "uxs04": {
-    "noActiveBudget": "No active budget"
   },
   "uxs05": {
     "customerReference": "Customer reference",
@@ -4380,7 +4403,7 @@
       "formNotConnected": "Expense posting is off. This saves in PMO only.",
       "formInactive": "Expense posting is off. This saves in PMO only.",
       "formUnknown": "Couldn't check expense posting. This saves in PMO only.",
-      "cardInactive": "Not posted to accounting: expense posting isn't active for this organization.",
+      "cardInactive": "Kept in PMO only: expense posting to accounting is off.",
       "cardUnknown": "Couldn't check whether this claim will reach accounting."
     }
   },

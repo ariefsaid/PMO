@@ -86,7 +86,8 @@ export function QueueButton({
     const rowButton = (
       <button type="button" onClick={onSelect} aria-pressed={selected} data-queue-key={item.key} data-record-row className={`w-full ${rowClass}`}>
         <RowFace
-          what={<span title={row.title}>{row.title}</span>}
+          // dev showed the record number on the row; it leads line one, regular and muted, so truncation takes the title first
+          what={<span title={row.title}><span className="font-normal text-muted-foreground">{row.code ?? row.id.slice(0, 8)}</span> {row.title}</span>}
           amount={formatTableMoney(row.total_value, row.currency) ?? '—'}
           who={row.requested_by?.full_name ?? t('approvals.unknownRequester', 'Unknown requester')}
           waitingSince={row.created_at}

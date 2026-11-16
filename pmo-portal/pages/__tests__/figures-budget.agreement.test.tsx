@@ -39,6 +39,7 @@ const cardRoute = budgetAgreementRoutes.find((route) => route.id === 'budget.pro
 const pmHomeRoute = budgetAgreementRoutes.find((route) => route.id === 'budget.home.pm')!;
 const projectOverviewRoute = budgetAgreementRoutes.find((route) => route.id === 'budget.project.overview')!;
 const projectBudgetRoute = budgetAgreementRoutes.find((route) => route.id === 'budget.project.budget')!;
+const procurementRecordRoute = budgetAgreementRoutes.find((route) => route.id === 'budget.procurement.record')!;
 
 const renderBudgetAgreementRoute = async () => {
   // ProjectDetail's budget tab is a lazy chunk; match the project's own harness so a
@@ -63,7 +64,7 @@ describe('S01 budget figure agreement on real screens', () => {
     await waitFor(() => expect(screen.getByRole('row', { name: /S01 Primary Project/u })).toHaveTextContent('$500'));
     const primaryRow = screen.getByRole('row', { name: /S01 Primary Project/u });
     expect(primaryRow).toBeInTheDocument();
-    const header = screen.getByRole('columnheader', { name: /Budget used/u });
+    const header = screen.getByRole('columnheader', { name: /budget used/iu });
     expect(header).toBeInTheDocument();
     expect(header.querySelector('[title]')).toHaveAttribute('title', 'Spent as a share of budget, before tax');
     expect(primaryRow).toHaveTextContent('50%');
@@ -117,10 +118,32 @@ describe('S01 budget figure agreement on real screens', () => {
     await waitFor(() => expect(overview.container.querySelector('[data-testid="project-budget-figures"]')).toHaveTextContent('50%'));
     expect(overview.container.textContent).not.toContain('Spent (% of budget before tax)');
     expect(overview.container.textContent).toContain('Committed');
-    expect(overview.container.textContent).toContain('Left after orders');
+    expect(overview.container.textContent).toContain('Left after open orders');
     expect(overview.container.textContent).toContain('50%');
     expect(overview.container.textContent).toContain('$500');
     expect(overview.container.textContent).toContain('Project spending is known; some category amounts are not mapped.');
+  });
+
+  it('AC-RB-015: the Requested purchase record shows Left after this purchase $25, which is the project Overview\'s Left after open orders ($100) less Reserved (50) and this purchase (25)', async () => {
+    const record = renderFigureAgreementRoute(procurementRecordRoute);
+    const label = await screen.findByText(/^Left after this purchase$/u, undefined, { timeout: 8000 });
+    const tile = label.closest('[data-testid="stat-tile"]') as HTMLElement;
+    expect(tile).toHaveTextContent('$25');
+    record.unmount();
+
+    const overview = renderFigureAgreementRoute(projectOverviewRoute);
+    await waitFor(() => expect(overview.container.textContent).toContain('Left after open orders $100'));
+  });
+
+  it('AC-RB-015: on the ERP basis the ledger actual is the spending and the open orders come from the committed position: still $25', async () => {
+    setFigureAgreementBudgetPositionOverride({
+      projectId: 'project-figure-primary', ledgerBasis: 'erp', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '1000.00',
+      spent: '500.00', openCommitment: null, consumption: '500.00', complete: true, usedRatio: '0.5', usedPercent: '50',
+      consumptionVariance: '-500.00', riskEligible: true, atRisk: false,
+    });
+    renderFigureAgreementRoute(procurementRecordRoute);
+    const label = await screen.findByText(/^Left after this purchase$/u, undefined, { timeout: 8000 });
+    expect(label.closest('[data-testid="stat-tile"]')).toHaveTextContent('$25');
   });
 
   it('keeps the project budget total known when category allocation is unknown', async () => {
@@ -180,7 +203,8 @@ describe('S01 budget figure agreement on real screens', () => {
         consumptionVariance: variance, riskEligible: false, atRisk: false,
       });
       const view = route === projectBudgetRoute ? await renderBudgetAgreementRoute() : renderFigureAgreementRoute(route);
-      await waitFor(() => expect(view.container.textContent).toContain('Budget used'));
+      // Every surface names the same figure "budget used" (the list header says it as a share: "% of budget used").
+      await waitFor(() => expect(view.container.textContent).toMatch(/budget used/iu));
       await waitFor(() => { if (route === projectBudgetRoute) expect(view.container.querySelector('[aria-label="Budget figures"]')).toBeInTheDocument(); });
       const surface = route === projectOverviewRoute
         ? view.container.querySelector('[data-testid="project-budget-figures"]')
@@ -233,7 +257,7 @@ describe('S01 budget figure agreement on real screens', () => {
     });
     expect(card).toHaveTextContent('Spent $500 of $1,000');
     expect(card).not.toHaveTextContent('50% used');
-    expect(card).toHaveTextContent('Committed $400 · Left after orders $100');
+    expect(card).toHaveTextContent('Committed $400 · Left after open orders $100');
   });
 
   it('names unknown open orders without inventing a remainder', async () => {
@@ -258,7 +282,7 @@ describe('S01 budget figure agreement on real screens', () => {
     const overview = renderFigureAgreementRoute(projectOverviewRoute);
     const card = () => overview.container.querySelector('section[aria-labelledby="pd-cost"]');
     await waitFor(() => expect(card()).toHaveTextContent('Committed $400'));
-    expect(card()).toHaveTextContent('Left after orders $100');
+    expect(card()).toHaveTextContent('Left after open orders $100');
     overview.unmount();
     const budget = await renderBudgetAgreementRoute();
     const tiles = await screen.findByRole('region', { name: 'Budget figures' });
@@ -283,7 +307,7 @@ describe('S01 budget figure agreement on real screens', () => {
     const card = () => overview.container.querySelector('section[aria-labelledby="pd-cost"]');
     await waitFor(() => expect(card()).toHaveTextContent(committed));
     if (left === null) expect(card()).toHaveTextContent('Left after open orders is unknown');
-    else expect(card()).toHaveTextContent(`Left after orders ${left}`);
+    else expect(card()).toHaveTextContent(`Left after open orders ${left}`);
     overview.unmount();
     const budget = await renderBudgetAgreementRoute();
     const tiles = await screen.findByRole('region', { name: 'Budget figures' });
@@ -293,9 +317,10 @@ describe('S01 budget figure agreement on real screens', () => {
   });
 
   it.each([
-    ['budget', null, '500.00', 'Budget is unavailable for comparison'],
-    ['spending', '1000.00', null, 'Spending is unavailable'],
-  ])('names unavailable %s on Overview and Budget without a remainder', async (_case, budgetAmount, spent, reason) => {
+    ['budget', null, '500.00', 'Budget is unavailable for comparison', null],
+    // #design-1115: spending that is not linked is named once, by the setup note, never also as "unavailable".
+    ['spending', '1000.00', null, "Spending isn't linked yet.", 'Spending is unavailable'],
+  ])('names unavailable %s on Overview and Budget without a remainder', async (_case, budgetAmount, spent, reason, saidOnceInstead) => {
     setFigureAgreementBudgetPositionOverride({
       projectId: 'project-figure-primary', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: budgetAmount,
       spent, openCommitment: '400.00', consumption: null, complete: false,
@@ -304,6 +329,7 @@ describe('S01 budget figure agreement on real screens', () => {
     const overview = renderFigureAgreementRoute(projectOverviewRoute);
     const card = () => overview.container.querySelector('section[aria-labelledby="pd-cost"]');
     await waitFor(() => expect(card()).toHaveTextContent(reason));
+    if (saidOnceInstead) expect(card()).not.toHaveTextContent(saidOnceInstead);
     expect(card()).not.toHaveTextContent(/Within budget|over budget/i);
     expect(card()).not.toHaveTextContent(/Left after (?:open )?orders \$[\d,]+/u);
     overview.unmount();
@@ -324,7 +350,8 @@ describe('S01 budget figure agreement on real screens', () => {
     const overview = renderFigureAgreementRoute(projectOverviewRoute);
     const card = () => overview.container.querySelector('section[aria-labelledby="pd-cost"]');
     await waitFor(() => expect(card()).toHaveTextContent('Budget is unavailable for comparison'));
-    expect(card()).toHaveTextContent('Spending is unavailable');
+    expect(card()).toHaveTextContent("Spending isn't linked yet.");
+    expect(card()).not.toHaveTextContent('Spending is unavailable');
     expect(card()).toHaveTextContent('Open orders are unknown');
     expect(card()).not.toHaveTextContent(/Within budget|over budget/i);
     expect(card()).not.toHaveTextContent(/Left after (?:open )?orders \$[\d,]+/u);

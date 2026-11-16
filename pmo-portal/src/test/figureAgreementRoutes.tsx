@@ -85,7 +85,7 @@ export const figureAgreementRouteManifest = [
   {
     id: 'budget.procurement.record', screen: 'ProcurementDetails', component: ProcurementDetails, matchPath: '/procurement/:procurementId',
     location: '/procurement/purchase-request-s01', role: 'Finance',
-    figures: ['budget-used'], auditRefs: ['B', 'A2 F1-R3', 'A2 F17'],
+    figures: ['budget-used', 'budget-left-after-purchase'], auditRefs: ['B', 'A2 F1-R3', 'A2 F17'],
   },
   {
     id: 'billing.home.executive.overview', screen: 'ExecutiveDashboard → CompanyDashboard', component: ExecutiveDashboard, matchPath: '/',

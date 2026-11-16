@@ -38,4 +38,4 @@ vendor does not exist is refused, never created. ADR-0093 (status = furthest doc
 - **AC-CLIPH-012** Given approval before payment on and a paid row, then preview and apply refuse it with `approval_before_payment_on` and the message "approval before payment is on: record an approved amount or turn it off for the import".
 - **AC-CLIPH-009** Given a malformed file (missing note, bad UUID, no document, duplicate key, unknown field), then the command exits 2 and sends nothing. Server-side malformed values (bad id, date, number, lines) are refused per row with `invalid_value`, `invalid_date` or `invalid_shape`.
 
-Out of scope: approvals history, multi-currency conversion, editing an imported purchase (use the app), the CLI guard-list entry (a later guard-list migration).
+Out of scope: approvals history, multi-currency conversion, editing an imported purchase (use the app), the CLI guard-list entry (shipped in migration 0899).

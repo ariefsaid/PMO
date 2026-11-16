@@ -28,6 +28,8 @@ export interface ListMasterInput {
   externalIds?: string[];
   /** Only locations of these warehouses. */
   warehouseIds?: string[];
+  /** Only journals of this Odoo type (`general` for desk entries, #895). */
+  journalType?: string;
 }
 
 export interface OdooConnectionRead {

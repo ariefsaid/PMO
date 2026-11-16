@@ -3740,3 +3740,27 @@ own basis (#2208, defaulting from the organisation's default per OD-TAX-1), budg
 consumption stays before tax, and every budget-used figure and its help text says "before tax". Pending owner
 confirmation. What breaks under this interim: an organisation that budgets including recoverable tax sees budget used
 understated by the tax rate.
+
+### DD-2317-TYPECHECK — the app typecheck is four `tsc -b` projects (#2317)
+`npm run typecheck` builds, as separate processes, `tsconfig.app.json` (what `index.tsx` reaches, composite), then
+`tsconfig.server.json` (the remaining non-test code: adapter seams the edge functions run, build helpers, unimported
+modules; composite), then `tsconfig.test.json` (unit tests) and `tsconfig.tooling.json` (e2e, evals, build/lint
+configs). Later projects read earlier ones through declarations written to `<repo>/.tsbuild` (gitignored, outside
+`pmo-portal/` so guard scripts never walk it). Each extends `tsconfig.json` unchanged, so every file is still checked
+with the same options. The app/server file lists are derived from imports, never hand-edited: after a TS6307 (the app
+now imports a server file, or a new file outside `pmo-portal/`), run `node test/tsconfigProjects.mjs --write`.
+`test/tsconfigProjects.test.ts` keeps the lists exact and the partition complete. What breaks without the split: the
+single program needed 4.4–4.6 GB of heap.
+
+### OD-APPROVAL-LEFT — the approval panel's last figure is "Left after this purchase", over the whole budget (owner, 2026-11-16)
+Amends OD-W5-4 and ADR-0034 §5. The panel's figure was budget − open orders − Reserved − this request: it left out recorded spending, so a project that had already spent most of its budget looked roomy. It is now **Left after this purchase = Active budget − recorded spending − open orders − Reserved − this purchase**, in exact cents, each amount counted once, in the one pure helper `computeBudgetSignal`.
+- **Spending** is the project header's own reading (`useProjectBudgetPositions`, the same one Budget used divides): paid pre-tax on PMO, the ledger actual on ERP. No sum of its own in the page.
+- **Open orders** are the order total less the part `spent` already holds. PMO: the same row of that reading (`openCommitment`, OD-1530-COMMIT). ERP: the per-order position `project_committed_spend` (ADR-0093 §2), because the reading carries none. A paid or ledger-held part is therefore in spending and never again in open orders.
+- **Reserved stays subtracted** (FR-RB-010; subtracting it is what stopped two approvers spending the same headroom, ADR-0034). A request already inside Reserved, or already an order, is not subtracted again.
+- **Unknown is never drawn as a number.** When spending or open orders are not known (failed read, no ledger reading, another currency, purchasing kept outside PMO) the Left tile says so, with no bar and no advisory. When **only spending** is unknown and open orders and Reserved are known in the project currency, the panel also states the figure without it, under its own label ("Without spending: {amount} left after orders, reserved and this purchase."; the tile itself reads "Not known"), visible without a click on the record page, the Purchases preview and the inbox row. That amount is never shown under the Left label, in the tile, or on the bar. If open orders are also unknown, only the reason is shown.
+- The bar shows the same quantity: "Spent or committed, with this one: N%", the exact complement of the Left figure. The two over-budget advisories became one, shown when the figure is negative, naming the negative amount.
+- The old purchasing-only tile ("Not yet committed to purchases") is gone: two "left" figures on different bases is the confusion this removes. The record header line for an ordered purchase uses the same helper ("Left in budget X") and no longer counts the order twice.
+- Holding the panel until the reading and the purchasing ownership have loaded is accepted (the decision figure needs both, so it never flashes "not known").
+- A payment now refreshes the budget positions as well as committed and reserved spend, so spending cannot lag behind open orders.
+- **Approval routing is untouched.** Who approves is decided in SQL from its own sums; it never reads this figure, which stays advisory (OD-W5-4). No migration, no routing code.
+- **Known ceiling (ERP, same as the project Budget tab):** a ledger cost not linked to its order is counted as both actual and open order: conservative. A held cost posted to an account not mapped to the project is in neither. Both come from ADR-0093's mapping; this slice adds no new double count or omission.

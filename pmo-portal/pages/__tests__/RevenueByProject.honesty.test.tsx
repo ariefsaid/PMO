@@ -65,7 +65,7 @@ import ManagementPack from '../ManagementPack';
 import { BahasaProvider } from '../../test/bahasa';
 
 const project = (id: string, name: string, currency: string, contract_net: number) => ({
-  id, name, pmo_project_number: null, code: null, status: 'Ongoing Project', currency, contract_net,
+  id, name, pmo_project_number: null, code: null, status: 'Ongoing Project', on_hand: true, currency, contract_net,
   start_date: null, end_date: null, project_manager_id: null, client_name: null,
 });
 
@@ -324,6 +324,8 @@ describe('live Reports money honesty (adapted from RevenueByProject)', () => {
       projectStatus: 'Ongoing Project',
       currency: 'IDR',
       contractNet: null,
+      holdsContract: false,
+      contractValueMissing: false,
       latestProgress: null,
       months: [],
     };

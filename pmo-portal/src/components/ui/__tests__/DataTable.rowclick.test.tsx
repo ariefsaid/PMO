@@ -81,4 +81,22 @@ describe('AC-ROWCLICK-DATATABLE: whole-row activation', () => {
     expect(onActivate).not.toHaveBeenCalled();
     void onEdit;
   });
+  it("AC-ROWCLICK-DATATABLE-5: a rowLabel answering '' marks a row that does not open: no button, no pointer, no activation", async () => {
+    const onActivate = vi.fn();
+    render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(r) => r.id}
+        onActivate={onActivate}
+        rowLabel={(r) => (r.id === 'PRJ-2' ? '' : `Open ${r.name}`)}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Open Alpha' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Beta/ })).not.toBeInTheDocument();
+    expect(screen.getByText('Alpha').closest('tr')).toHaveClass('cursor-pointer');
+    expect(screen.getByText('Beta').closest('tr')).not.toHaveClass('cursor-pointer');
+    await userEvent.click(screen.getByText('980'));
+    expect(onActivate).not.toHaveBeenCalled();
+  });
 });

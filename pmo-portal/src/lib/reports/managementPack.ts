@@ -24,8 +24,18 @@ export interface PackMonth {
   invoiceCountToDate: number;
   /** recognisedToDate − invoicedToDate; negative = billed ahead (DD-MMP-3). */
   unbilled: Cents;
-  /** contractNet − recognisedToDate; null for rows without a contract. Never clamped. */
-  backlog: Cents | null;
+  /**
+   * Remaining work: contractNet − recognisedToDate (DD-MMP-3), so it follows the recognition basis.
+   * null for rows without a contract or awaiting reconciliation. Never clamped. Not Left to bill.
+   */
+  remainingWork: Cents | null;
+  /**
+   * Left to bill: contractNet − invoicedToDate, whatever the recognition basis. The one
+   * derivation every surface reads. null for rows that hold no contract (`holdsContract` false), for a
+   * held contract with no contract value (`contractValueMissing`, counted beside the total, not in it) or,
+   * on a held contract, while it awaits reconciliation (unknown).
+   */
+  leftToBill: Cents | null;
   basis: RecognitionBasis;
 }
 
@@ -47,6 +57,16 @@ export interface PackRow {
   projectStatus: string | null;
   currency: string;
   contractNet: Cents | null;
+  /**
+   * A contract we hold: on-hand status and not archived, the Contract on hand set. Only these rows
+   * carry Left to bill; a closed or archived project in the pack because it was billed in the window does not.
+   */
+  holdsContract: boolean;
+  /**
+   * A held contract with no contract value (none sent, or not above 0). Its Left to bill is not in any total;
+   * the totals count it (`leftToBillNoValue`) so the reader is told, never a silent omission.
+   */
+  contractValueMissing: boolean;
   /** Latest entry dated on or before the as-at month; null = billing basis throughout. */
   latestProgress: PackProgress | null;
   months: PackMonth[];
@@ -62,7 +82,12 @@ export interface PackTotalsMonth {
   invoicedToDate: Cents;
   invoiceCountToDate: number;
   unbilled: Cents;
-  backlog: Cents | null;
+  /** Sum of contract rows' remaining work; unknown when any contract row's is. */
+  remainingWork: Cents | null;
+  /** `leftToBillAt` over all rows in this currency: 0 with no contract, unknown when any contract row's is. */
+  leftToBill: Cents | null;
+  /** Held contracts in this currency with no contract value, left out of `leftToBill` (`leftToBillSummaryAt`). */
+  leftToBillNoValue: number;
 }
 
 export interface PackCurrencyTotals {
@@ -78,15 +103,39 @@ export interface ManagementPack {
   rows: PackRow[];
   totals: PackCurrencyTotals[];
   undatedInvoiceCount: number;
+  /** Billed work before the range on projects without a row (closed or archived), per currency. */
+  billedHistory?: Array<{ currency: string; net: Cents; invoiceCount: number }>;
+  /** Dated work invoices with no amount yet, per currency and month (`YYYY-MM-01`). */
+  unpricedInvoices?: Array<{ currency: string; month: string; invoiceCount: number }>;
+  unpricedInvoiceCount?: number;
 }
 
 export interface BilledWorkTotal {
   currency: string;
-  /** Currency units, matching the dashboard figure selectors. */
-  amount: number;
+  /** Currency units, matching the dashboard figure selectors; null = an invoice in the span has no amount yet. */
+  amount: number | null;
 }
 
 const monthKey = (month: string): string => month.slice(0, 7);
+
+/** True when a dated invoice in `currency` with no amount yet falls in the month span (`YYYY-MM`, inclusive; null = from the start). */
+export function unpricedIn(pack: ManagementPack, currency: string, fromMonth: string | null, toMonth: string): boolean {
+  return (pack.unpricedInvoices ?? []).some((u) => u.currency === currency && u.invoiceCount > 0
+    && (fromMonth === null || monthKey(u.month) >= fromMonth) && monthKey(u.month) <= toMonth);
+}
+
+const historyCents = (pack: ManagementPack, currency: string): Cents =>
+  (pack.billedHistory ?? []).filter((h) => h.currency === currency).reduce((sum, h) => sum + h.net, 0);
+
+/** Every currency a billed-work total may report: a totals series, earlier billing on unlisted projects, or an unpriced
+ * invoice. Totals-series currencies come first in their order, then any other currency in code order. */
+function billedCurrencies(pack: ManagementPack, unpricedFrom: string | null, unpricedTo: string, withHistory: boolean): string[] {
+  const listed = pack.totals.map((row) => row.currency);
+  const extra = new Set<string>();
+  if (withHistory) for (const h of pack.billedHistory ?? []) if (h.invoiceCount > 0) extra.add(h.currency);
+  for (const u of pack.unpricedInvoices ?? []) if (unpricedIn(pack, u.currency, unpricedFrom, unpricedTo)) extra.add(u.currency);
+  return [...listed, ...[...extra].filter((currency) => !listed.includes(currency)).sort((a, b) => a.localeCompare(b))];
+}
 
 /** Billed work dated inside the selected month range, in each currency. */
 export function selectBilledWorkInPeriod(
@@ -97,12 +146,16 @@ export function selectBilledWorkInPeriod(
   if (!pack || !from || !to) return undefined;
   const fromMonth = monthKey(from);
   const toMonth = monthKey(to);
-  return pack.totals.map((row) => ({
-    currency: row.currency,
-    amount: row.months
-      .filter((month) => monthKey(month.month) >= fromMonth && monthKey(month.month) <= toMonth)
-      .reduce((sum, month) => sum + month.invoiced, 0) / 100,
-  }));
+  return billedCurrencies(pack, fromMonth, toMonth, false).map((currency) => {
+    if (unpricedIn(pack, currency, fromMonth, toMonth)) return { currency, amount: null };
+    const row = pack.totals.find((series) => series.currency === currency);
+    return {
+      currency,
+      amount: (row?.months ?? [])
+        .filter((month) => monthKey(month.month) >= fromMonth && monthKey(month.month) <= toMonth)
+        .reduce((sum, month) => sum + month.invoiced, 0) / 100,
+    };
+  });
 }
 
 /** Billed work for each month in one currency; a missing period or currency is unknown. */
@@ -121,55 +174,89 @@ export function selectBilledWorkByMonth(
     .map((month) => ({ month: monthKey(month.month), amount: month.invoiced / 100 }));
 }
 
-/** All-history billed work through the as-at month, deliberately based on the cumulative reader. */
+/**
+ * The month entry of `currency`'s totals series; `null` when the currency has no series (billed only on unlisted
+ * projects, or only unpriced) and the month is inside the pack; `undefined` when the month is not in the pack.
+ */
+function totalsMonthAt(pack: ManagementPack, currency: string, month: string): PackTotalsMonth | null | undefined {
+  const series = pack.totals.find((row) => row.currency === currency);
+  if (series) return series.months.find((entry) => monthKey(entry.month) === month);
+  return (pack.months ?? []).some((m) => monthKey(m) === month) ? null : undefined;
+}
+
+/** All-history billed work through the as-at month, deliberately based on the cumulative reader. Earlier billing
+ * on projects without a row counts too, and an unpriced invoice through the as-at month makes the currency unavailable. */
 export function selectBilledWorkCumulative(
   pack: ManagementPack | undefined,
   asAt: string | null,
 ): BilledWorkTotal[] | undefined {
   if (!pack || !asAt) return undefined;
   const targetMonth = monthKey(asAt);
-  return pack.totals.flatMap((row) => {
-    const month = row.months.find((entry) => monthKey(entry.month) === targetMonth);
-    return month ? [{ currency: row.currency, amount: month.invoicedToDate / 100 }] : [];
+  return billedCurrencies(pack, null, targetMonth, true).flatMap((currency): BilledWorkTotal[] => {
+    const month = totalsMonthAt(pack, currency, targetMonth);
+    if (month === undefined) return [];
+    if (unpricedIn(pack, currency, null, targetMonth)) return [{ currency, amount: null }];
+    return [{ currency, amount: ((month?.invoicedToDate ?? 0) + historyCents(pack, currency)) / 100 }];
   });
 }
 
-/** All-history billed work before the selected period's first month. */
+/** All-history billed work before the selected period's first month, on every project; an unpriced invoice → unavailable. */
 export function selectBilledWorkOpening(
   pack: ManagementPack | undefined,
   from: string | null,
 ): BilledWorkTotal[] | undefined {
   if (!pack || !from) return undefined;
   const startMonth = monthKey(from);
-  return pack.totals.flatMap((row) => {
-    const month = row.months.find((entry) => monthKey(entry.month) === startMonth);
-    return month ? [{ currency: row.currency, amount: (month.invoicedToDate - month.invoiced) / 100 }] : [];
+  const beforeStart = monthKey(addMonths(`${startMonth}-01`, -1));
+  return billedCurrencies(pack, null, beforeStart, true).flatMap((currency): BilledWorkTotal[] => {
+    const month = totalsMonthAt(pack, currency, startMonth);
+    if (month === undefined) return [];
+    if (unpricedIn(pack, currency, null, beforeStart)) return [{ currency, amount: null }];
+    return [{ currency, amount: ((month ? month.invoicedToDate - month.invoiced : 0) + historyCents(pack, currency)) / 100 }];
   });
 }
 
-/** Contract value less invoiced value for signed contract rows, in the row currency. */
-export function leftToBillAt(rows: readonly PackRow[], currency: string, month: string): number | null {
-  const contracts = rows.filter((row) => row.kind === 'contract' && row.currency === currency);
-  if (contracts.length === 0) return 0;
-  let total = 0;
+export interface LeftToBillSummary {
+  /** Left to bill in cents over the held contracts that have a value; null = unknown. */
+  cents: Cents | null;
+  /** Held contracts with no contract value: not in `cents`, said beside it. */
+  noValueCount: number;
+}
+
+/**
+ * Left to bill (contract value less invoiced value) summed over the held contract rows in one currency
+ * at one month, in cents, with the count of held contracts that have no value and so are not in it.
+ * No contract rows = 0; any unknown valued contract row (or missing month) = unknown. It sums each row's
+ * own `leftToBill`, so a subset of rows (a filtered table) and the pack totals agree.
+ */
+export function leftToBillSummaryAt(rows: readonly PackRow[], currency: string, month: string): LeftToBillSummary {
+  const contracts = rows.filter((row) => row.holdsContract && row.currency === currency);
+  let cents: Cents | null = 0;
+  let noValueCount = 0;
   for (const row of contracts) {
+    if (row.contractValueMissing) { noValueCount += 1; continue; }
     const snapshot = row.months.find((entry) => entry.month === month);
-    if (row.contractNet === null || !snapshot || snapshot.backlog === null) return null;
-    total += row.contractNet - snapshot.invoicedToDate;
+    if (!snapshot || snapshot.leftToBill === null) cents = null;
+    else if (cents !== null) cents += snapshot.leftToBill;
   }
-  return total;
+  return { cents, noValueCount };
+}
+
+/** The amount half of `leftToBillSummaryAt`. */
+export function leftToBillAt(rows: readonly PackRow[], currency: string, month: string): Cents | null {
+  return leftToBillSummaryAt(rows, currency, month).cents;
 }
 
 /** Latest-period Left to bill totals in currency units for dashboard formatters, retaining unknowns as null. */
-export function selectLeftToBillTotals(pack: ManagementPack | undefined, emptyCurrency?: string): Array<{ currency: string; amount: number | null }> | undefined {
+export function selectLeftToBillTotals(pack: ManagementPack | undefined, emptyCurrency?: string): Array<{ currency: string; amount: number | null; noValueCount: number }> | undefined {
   if (!pack) return undefined;
   const month = pack.months[pack.months.length - 1];
   if (!month) return [];
-  const currencies = [...new Set(pack.rows.filter((row) => row.kind === 'contract').map((row) => row.currency))];
+  const currencies = [...new Set(pack.rows.filter((row) => row.holdsContract).map((row) => row.currency))];
   if (currencies.length === 0 && emptyCurrency) currencies.push(emptyCurrency);
   return currencies.map((currency) => {
-    const cents = leftToBillAt(pack.rows, currency, month);
-    return { currency, amount: cents === null ? null : cents / 100 };
+    const { cents, noValueCount } = leftToBillSummaryAt(pack.rows, currency, month);
+    return { currency, amount: cents === null ? null : cents / 100, noValueCount };
   });
 }
 
@@ -223,11 +310,23 @@ interface RowInput {
   months: string[];
   from: string;
   to: string;
-  backlogReconciled: boolean;
+  /** false while an invoice in another currency awaits reconciliation (RF-036): contract balances are unknown. */
+  reconciled: boolean;
+}
+
+/**
+ * Held = the server's on_hand flag (on-hand status and not archived). Only the server knows archived, so a
+ * project sent without the flag is not counted rather than guessed from its status.
+ */
+function holdsContract(project: PackFactsProject): boolean {
+  return project.on_hand === true;
 }
 
 function buildRow(r: RowInput): PackRow {
   const contractNet = r.kind === 'contract' && r.project ? toCents(r.project.contract_net) : null;
+  const held = r.kind === 'contract' && r.project !== null && holdsContract(r.project);
+  // A value the server did not send reads as 0 through toCents; either way there is nothing to bill against.
+  const valueMissing = held && !(r.project?.contract_net != null && r.project.contract_net > 0);
   const recognisedToDateAt = (month: string, invoicedToDate: Cents): { value: Cents; basis: RecognitionBasis } => {
     if (contractNet !== null && r.earned) return { value: r.earned.get(month) ?? 0, basis: 'earned' };
     const entry = contractNet !== null ? latestAtOrBefore(r.progress, month) : null;
@@ -245,6 +344,7 @@ function buildRow(r: RowInput): PackRow {
     invoicedToDate += invoiced;
     invoiceCountToDate += invoiceCount;
     const { value: recognisedToDate, basis } = recognisedToDateAt(month, invoicedToDate);
+    const knownContract = r.reconciled ? contractNet : null;
     const out: PackMonth = {
       month,
       planned: contractNet !== null && r.project
@@ -257,7 +357,8 @@ function buildRow(r: RowInput): PackRow {
       invoicedToDate,
       invoiceCountToDate,
       unbilled: recognisedToDate - invoicedToDate,
-      backlog: contractNet === null || !r.backlogReconciled ? null : contractNet - recognisedToDate,
+      remainingWork: knownContract === null ? null : knownContract - recognisedToDate,
+      leftToBill: knownContract === null || !held || valueMissing ? null : knownContract - invoicedToDate,
       basis,
     };
     previous = recognisedToDate;
@@ -276,6 +377,8 @@ function buildRow(r: RowInput): PackRow {
     projectStatus: r.project?.status ?? null,
     currency: r.currency,
     contractNet,
+    holdsContract: held,
+    contractValueMissing: valueMissing,
     latestProgress: latest
       ? { month: latest.month, pctComplete: latest.pct_complete, enteredByName: latest.entered_by_name, enteredAt: latest.entered_at }
       : null,
@@ -286,12 +389,12 @@ function buildRow(r: RowInput): PackRow {
 function totalsByCurrency(rows: PackRow[], months: string[], invoiceCurrencies: Set<string>): PackCurrencyTotals[] {
   const includedRows = rows.filter((row) => row.contractNet !== null || row.months.some((m) =>
     m.planned !== null && m.planned !== 0 || m.recognised !== 0 || m.invoiced !== 0 || m.invoiceCount > 0 ||
-    m.recognisedToDate !== 0 || m.invoicedToDate !== 0 || m.invoiceCountToDate > 0 || m.unbilled !== 0 || m.backlog !== null && m.backlog !== 0,
+    m.recognisedToDate !== 0 || m.invoicedToDate !== 0 || m.invoiceCountToDate > 0 || m.unbilled !== 0 || m.remainingWork !== null && m.remainingWork !== 0,
   ));
   const byCurrency = new Map<string, PackTotalsMonth[]>();
   for (const row of includedRows) {
     const series = byCurrency.get(row.currency) ?? months.map((month) => ({
-      month, planned: 0 as Cents | null, recognised: 0, invoiced: 0, invoiceCount: 0, recognisedToDate: 0, invoicedToDate: 0, invoiceCountToDate: 0, unbilled: 0, backlog: 0 as Cents | null,
+      month, planned: 0 as Cents | null, recognised: 0, invoiced: 0, invoiceCount: 0, recognisedToDate: 0, invoicedToDate: 0, invoiceCountToDate: 0, unbilled: 0, remainingWork: 0 as Cents | null, leftToBill: 0 as Cents | null, leftToBillNoValue: 0,
     }));
     row.months.forEach((m, i) => {
       const t = series[i];
@@ -304,14 +407,21 @@ function totalsByCurrency(rows: PackRow[], months: string[], invoiceCurrencies: 
       t.invoicedToDate += m.invoicedToDate;
       t.invoiceCountToDate += m.invoiceCountToDate;
       t.unbilled += m.unbilled;
-      if (row.kind === 'contract' && m.backlog === null) t.backlog = null;
-      else if (t.backlog !== null) t.backlog += m.backlog ?? 0;
+      if (row.kind === 'contract' && m.remainingWork === null) t.remainingWork = null;
+      else if (t.remainingWork !== null) t.remainingWork += m.remainingWork ?? 0;
     });
     byCurrency.set(row.currency, series);
   }
+  for (const [currency, series] of byCurrency) {
+    for (const t of series) {
+      const summary = leftToBillSummaryAt(rows, currency, t.month);
+      t.leftToBill = summary.cents;
+      t.leftToBillNoValue = summary.noValueCount;
+    }
+  }
   for (const currency of invoiceCurrencies) {
     if (!byCurrency.has(currency)) byCurrency.set(currency, months.map((month) => ({
-      month, planned: 0, recognised: 0, invoiced: 0, invoiceCount: 0, recognisedToDate: 0, invoicedToDate: 0, invoiceCountToDate: 0, unbilled: 0, backlog: 0,
+      month, planned: 0, recognised: 0, invoiced: 0, invoiceCount: 0, recognisedToDate: 0, invoicedToDate: 0, invoiceCountToDate: 0, unbilled: 0, remainingWork: 0, leftToBill: 0, leftToBillNoValue: 0,
     })));
   }
   return [...byCurrency.entries()]
@@ -366,6 +476,7 @@ export function buildManagementPack(facts: ManagementPackFacts): ManagementPack 
     earnedByProject.set(e.project_id, byMonth);
   }
 
+  const unpricedInvoices = (facts.unpriced ?? []).map((u) => ({ currency: u.currency, month: u.month, invoiceCount: u.invoice_count }));
   const common = { months, from: facts.from, to: facts.to };
   const rows: PackRow[] = [];
   const covered = new Set<string>();
@@ -377,7 +488,7 @@ export function buildManagementPack(facts: ManagementPackFacts): ManagementPack 
       ...common, kind: 'contract', project, currency: project.currency,
       invoicedByMonth: invoiced.get(k) ?? new Map(), invoiceCountByMonth: invoiceCounts.get(k) ?? new Map(),
       invoicedBefore: before.get(k) ?? 0, invoiceCountBefore: invoiceCountBefore.get(k) ?? 0,
-      progress: progressByProject.get(project.id) ?? [], earned: earnedByProject.get(project.id) ?? null, backlogReconciled: !foreignInvoiceProjects.has(project.id),
+      progress: progressByProject.get(project.id) ?? [], earned: earnedByProject.get(project.id) ?? null, reconciled: !foreignInvoiceProjects.has(project.id),
     }));
   }
 
@@ -395,12 +506,15 @@ export function buildManagementPack(facts: ManagementPackFacts): ManagementPack 
       currency: k.slice(sep + 1),
       invoicedByMonth: invoiced.get(k) ?? new Map(), invoiceCountByMonth: invoiceCounts.get(k) ?? new Map(),
       invoicedBefore: before.get(k) ?? 0, invoiceCountBefore: invoiceCountBefore.get(k) ?? 0,
-      progress: [], earned: null, backlogReconciled: false,
+      progress: [], earned: null, reconciled: false,
     }));
   }
 
   return {
     from: facts.from, to: facts.to, timezone: facts.timezone, months, rows,
     totals: totalsByCurrency(rows, months, invoiceCurrencies), undatedInvoiceCount: facts.undated_invoice_count,
+    billedHistory: (facts.invoiced_history ?? []).map((h) => ({ currency: h.currency, net: toCents(h.net), invoiceCount: h.invoice_count })),
+    unpricedInvoices,
+    unpricedInvoiceCount: unpricedInvoices.reduce((sum, u) => sum + u.invoiceCount, 0),
   };
 }

@@ -2,11 +2,13 @@ import type { WorkflowId } from '../connect/workflows.ts';
 import { bringInSuite } from './bringIn.suite.ts';
 import { budgetResolveSuite, budgetSuite } from './budget.suite.ts';
 import { censusSuite } from './census.suite.ts';
+import { companyDefaultsSuite } from './companyDefaults.suite.ts';
 import { cutoverPurchaseSuite } from './cutoverPurchase.suite.ts';
 import { cutoverSuite } from './cutover.suite.ts';
 import type { Suite } from './harness.ts';
 import { imprestTransferSuite } from './imprestTransfer.suite.ts';
 import { invoicePairSuite } from './invoicePair.suite.ts';
+import { journalPostSuite, journalReverseSuite } from './journal.suite.ts';
 import { matchSuite } from './match.suite.ts';
 import { partySuite } from './party.suite.ts';
 import { actualsReadSuite } from './actuals.suite.ts';
@@ -48,6 +50,9 @@ export const SUITES: Readonly<Partial<Record<WorkflowId, Suite>>> = {
   'timesheet.push': timesheetPushSuite,
   'imprest.transfer': imprestTransferSuite,
   'invoice.pair-existing': invoicePairSuite,
+  'journal.post': journalPostSuite,
+  'journal.reverse': journalReverseSuite,
+  'company-defaults.set': companyDefaultsSuite,
 };
 
 /**

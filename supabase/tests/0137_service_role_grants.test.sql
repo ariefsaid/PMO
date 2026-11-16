@@ -10,7 +10,7 @@
 -- security-definer lock-order RPCs (0105/0106) are the only mutation path (closing the child→parent
 -- deadlock seam). The catalog backstop below excludes it; the exception is asserted explicitly.
 begin;
-select plan(49);
+select plan(51);
 
 -- profiles: the exact table the promote e2e failed on (admin-invite-user inserts here).
 select ok(has_table_privilege('service_role', 'public.profiles', 'INSERT'),
@@ -105,7 +105,10 @@ select is(
         'erp_capture_batches',
         'erp_capture_feed_witnesses',
         'erp_capture_invoice_assignments',
-        'stock_erp_mirror'
+        'stock_erp_mirror',
+        'odoo_stock_cost_lines',
+        'odoo_stock_cost_census_seen',
+        'odoo_stock_cost_checks'
       )
       and not has_table_privilege('service_role', c.oid, 'INSERT')),
   0,
@@ -129,6 +132,11 @@ select ok(not has_table_privilege('service_role','public.erp_capture_invoice_ass
   and not has_table_privilege('service_role','public.erp_capture_invoice_assignments','DELETE')
   and not has_table_privilege('service_role','public.erp_capture_invoice_assignments','TRUNCATE'),
   'AC-ROP-017 capture invoice assignments deny direct service access');
+-- 0903: the order-family placement helper runs only inside assign_capture_invoices (as owner); no API role, service_role included, executes it.
+select ok(not has_function_privilege('service_role','public.capture_assignment_family(uuid,uuid,uuid,jsonb,text,boolean,jsonb)','execute')
+  and not has_function_privilege('service_role','public.capture_assignment_validate(uuid,uuid,jsonb,uuid,jsonb,text)','execute')
+  and not has_function_privilege('service_role','public.capture_family_stage(uuid,uuid)','execute'),
+  'FR-019 the order-family helper, the stage helper and the validator deny service execution');
 
 -- 0399's exemption is a named pin, not a silent omission: runs are RPC-minted (see above).
 select ok(
@@ -196,6 +204,17 @@ select ok(
     and not has_table_privilege('authenticated','public.stock_erp_mirror','DELETE')
     and not has_table_privilege('anon','public.stock_erp_mirror','SELECT'),
   'AC-OSP-005 the stock mirror is written only through write_stock_erp_mirror; users read it, anon sees nothing');
+select ok(
+  has_table_privilege('service_role','public.odoo_stock_cost_lines','SELECT')
+    and has_table_privilege('service_role','public.odoo_stock_cost_checks','SELECT')
+    and not has_table_privilege('service_role','public.odoo_stock_cost_census_seen','SELECT')
+    and not exists (select 1 from information_schema.role_table_grants g
+                     where g.table_schema = 'public' and g.table_name in ('odoo_stock_cost_lines','odoo_stock_cost_census_seen','odoo_stock_cost_checks')
+                       and g.grantee in ('service_role','authenticated','anon') and g.privilege_type in ('INSERT','UPDATE','DELETE','TRUNCATE'))
+    and not has_column_privilege('authenticated','public.odoo_stock_cost_lines','debit','SELECT')
+    and has_column_privilege('authenticated','public.odoo_stock_cost_lines','tie_state','SELECT')
+    and not has_table_privilege('anon','public.odoo_stock_cost_lines','SELECT'),
+  'AC-IMC-006 issued-material cost is written only through its definer RPCs; members read ties, never amounts; anon sees nothing');
 
 select is(has_table_privilege('service_role', 'public.procurement_import_runs', 'INSERT'), false,
   'AC-SVCROLE-008b service_role may NOT directly INSERT procurement_import_runs (RPC-minted only)');

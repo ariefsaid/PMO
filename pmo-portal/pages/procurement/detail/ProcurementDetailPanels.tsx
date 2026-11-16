@@ -7,6 +7,8 @@ import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { LedgerRow } from '@/src/lib/db/procurementLedger';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
 import { useProjectBudget } from '@/src/hooks/useBudget';
+import { useProjectBudgetPositions } from '@/src/hooks/useProjectBudgetPositions';
+import { wholeBudgetInputs } from '@/src/lib/budget/wholeBudgetInputs';
 import { useProjectCommittedSpend, useProjectReservedSpend } from '@/src/hooks/useProcurements';
 import { usePermission } from '@/src/auth/usePermission';
 import { procurementMoney, type ProcurementMoneyKind } from '@/src/lib/procurement/procurementMoney';
@@ -15,6 +17,7 @@ import { computeBudgetSignal } from '../computeBudgetSignal';
 import { ProcurementFilesSubsection } from '../ProcurementFilesSubsection';
 import { useProcurementFilesBatch } from '@/src/hooks/useProcurementFilesBatch';
 import { procurementFileParentKey } from '@/src/lib/db/procurementFiles';
+import { recordStatusLabel } from '@/src/lib/procurement/recordStatusLabel';
 
 const STAGES: { key: StageKey; label: string; ordinal: number }[] = [
   { key: 'request', label: 'Request', ordinal: 0 },
@@ -87,7 +90,7 @@ export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = (
   const partialReceive = procurement.receipts.some((receipt) => receipt.status === 'Partial');
 
   return (
-    <Card aria-label="Procurement stages" data-testid="procurement-stage-tracker">
+    <Card aria-label={t('stage.trackerLabel', 'Procurement stages')} data-testid="procurement-stage-tracker">
       <CardPad>
         <ol className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
           {STAGES.map((stage, index) => {
@@ -129,7 +132,7 @@ export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = (
                 <div>
                   <span className={`mb-1 block text-sm font-semibold ${isCurrent ? 'text-foreground' : done ? 'text-success-text' : 'text-muted-foreground'}`}>{stageLabel}</span>
                   {/* O14: the current stage reads in neutral ink; blue stays reserved for the one main action. */}
-                  <span aria-hidden="true" className={`block h-1.5 rounded-full ${partial ? 'bg-secondary' : done ? 'bg-success' : isCurrent ? 'bg-muted-foreground' : 'bg-secondary'}`}>
+                  <span aria-hidden="true" className={`block h-1.5 rounded-full ${partial ? 'bg-secondary' : done ? 'bg-success' : isCurrent ? 'bg-input' : 'bg-secondary'}`}>
                     {partial && <span className="block h-full w-1/2 rounded-full bg-success" />}
                   </span>
                 </div>
@@ -158,15 +161,16 @@ interface ProcurementBudgetSignalProps {
 }
 
 export const ProcurementBudgetSignal: React.FC<ProcurementBudgetSignalProps> = ({ projectId, totalValue, status, currency }) => {
-  const { t } = useTranslation('procurementRecord');
+  const { t } = useTranslation(['procurementRecord', 'procurement']);
   const may = usePermission();
   const scopedProjectId = may('view', 'procurement') ? projectId : null;
   const budget = useProjectBudget(scopedProjectId ?? '');
-  const committed = useProjectCommittedSpend(scopedProjectId);
+  const committed = useProjectCommittedSpend(scopedProjectId, true);
   const reserved = useProjectReservedSpend(scopedProjectId);
+  const positions = useProjectBudgetPositions(scopedProjectId ? [scopedProjectId] : []);
 
   if (!scopedProjectId) return null;
-  if (budget.isPending || committed.isPending || reserved.isPending) {
+  if (budget.isPending || committed.isPending || reserved.isPending || positions.isPending || committed.ownershipPending) {
     return <span className="text-sm font-normal text-muted-foreground">{t('money.budgetLoading', 'Budget signal loading')}</span>;
   }
   if (budget.isError || committed.isError || reserved.isError) {
@@ -179,20 +183,24 @@ export const ProcurementBudgetSignal: React.FC<ProcurementBudgetSignalProps> = (
     return <span className="text-sm font-normal text-muted-foreground">{t('money.currencyUnavailable', 'Budget comparison unavailable for these currencies')}</span>;
   }
 
+  // Spending and open orders come from the same readings as the approval panel (wholeBudgetInputs). The purchase is
+  // already an order here, so it is counted in them and not subtracted again.
+  const inputs = wholeBudgetInputs(positions.isError ? undefined : positions.data?.[scopedProjectId], committed, reserved.projectCurrency);
+  if (inputs === null) {
+    return <span className="text-control font-normal text-muted-foreground">{t('money.budgetLeftUnknown', 'Budget left not known yet')}</span>;
+  }
+  // Only spending unknown: the amount without it, under the approval panel's own wording and never as "Left in budget".
+  const spendingKnown = inputs.spent !== null;
   let signal;
   try {
-    signal = computeBudgetSignal({ budget: budget.data, committed: committed.data ?? 0, reserved: reserved.data ?? 0, totalValue, status, projectCurrency: reserved.projectCurrency, budgetCurrency: reserved.budgetCurrency, requestCurrency: currency });
+    signal = computeBudgetSignal({ budget: budget.data, spent: inputs.spent ?? 0, openOrders: inputs.openOrders, reserved: reserved.data ?? 0, totalValue, status, projectCurrency: reserved.projectCurrency, budgetCurrency: reserved.budgetCurrency, requestCurrency: currency });
   } catch {
     return <span className="text-sm font-normal text-muted-foreground">{t('money.amountUnavailable', 'Budget comparison unavailable for these amounts')}</span>;
   }
-  const { available, afterRequest } = signal;
-  // "Available" read as a cash balance; it is the budget less commitments, before actual spend, and says so.
-  const label = t('money.budgetSignal', 'Budget not yet committed {{available}} · {{after}} after this procurement', {
-    available: formatCurrency(available, currency),
-    after: formatCurrency(afterRequest, currency),
-  });
-  const otherPositions = [...(reserved.otherCurrencies ?? []), ...(committed.otherCurrencies ?? [])];
-  const otherCurrencyNotice = otherPositions.length ? t('money.otherCurrenciesExcluded', ' · Other currencies excluded from comparison') : '';
+  const label = spendingKnown
+    ? t('money.budgetLeft', 'Left in budget {{left}}', { left: formatCurrency(signal.afterRequest, currency) })
+    : t('procurement:decisionSupport.leftWithoutSpending', { defaultValue: 'Without spending: {{amount}} left after orders, reserved and this purchase.', amount: formatCurrency(signal.afterRequest, currency) });
+  const otherCurrencyNotice = (reserved.otherCurrencies ?? []).length ? t('money.otherCurrenciesExcluded', ' · Other currencies excluded from comparison') : '';
   return <span className="text-control font-normal text-muted-foreground">{label}{otherCurrencyNotice}</span>;
 };
 
@@ -235,11 +243,14 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
   const shown = kinds.flatMap<{ kind: ProcurementMoneyKind; hidden: boolean }>((kind) => {
     const figure = money[kind];
     const absent = figure.amount == null && !figure.unknown;
+    // #2345 row 6: a purchase that started later (at the order stage) expects no request amount, so
+    // "no request" is not a hidden figure — this check must precede the unknown check below, or the
+    // missing-PR unknown is reported as a missing figure that was never expected.
+    if (kind === 'requested' && requestedStartedLater) return [];
     if (figure.unknown) return [{ kind, hidden: true }];
     if (absent) return [];
     // Nothing owed is not a figure either: "Unpaid 0" on a request says nothing.
     if (kind === 'unpaid' && (figure.amount ?? 0) <= 0) return [];
-    if (kind === 'requested' && requestedStartedLater) return [];
     return [{ kind, hidden: false }];
   });
   useFigureReport(shown.filter((entry) => entry.hidden).map<HiddenFigure>((entry) => ({
@@ -357,7 +368,7 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
     const recordEntries: TimelineEntry[] = ledgerRows
       .map((row) => ({
         id: row.id, date: row.date, label: t(`timeline.record.${row.type}`, typeLabel[row.type]), number: row.systemNumber,
-        facts: [row.status, row.externalRef, row.groupRef, row.fileCount ? `${row.fileCount} ${t('timeline.files', 'files')}` : null].filter((fact): fact is string => Boolean(fact)),
+        facts: [recordStatusLabel(t, row.status), row.externalRef, row.groupRef, row.fileCount ? `${row.fileCount} ${t('timeline.files', 'files')}` : null].filter((fact): fact is string => Boolean(fact)),
         amount: isEngineer && (row.type === 'Invoice' || row.type === 'Payment') ? null : row.amount,
         currency: row.currency, source: 'procurement', ledger: row,
         icon: row.type === 'PO' ? 'cart' : row.type === 'GR' ? 'inbox' : row.type === 'Invoice' ? 'invoices' : row.type === 'Payment' ? 'payments' : 'doc',
@@ -394,7 +405,7 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
         {t('timeline.title', 'Timeline')}
       </CardHead>
       <CardPad>
-        <div role="group" aria-label="Timeline filter" className="mb-3 flex flex-wrap gap-2">
+        <div role="group" aria-label={t('timeline.filterLabel', 'Timeline filter')} className="mb-3 flex flex-wrap gap-2">
           {(['all', 'financial', 'has-file'] as const).map((value) => (
             <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className={`rounded-md px-2.5 py-1 text-sm ${filter === value ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
               {value === 'all' ? t('timeline.all', 'All') : value === 'financial' ? t('timeline.financial', 'Financial') : t('timeline.hasFile', 'Has file')}
@@ -412,7 +423,7 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
                     </span>
                     <span className="whitespace-nowrap text-sm text-muted-foreground max-[640px]:col-start-2 max-[640px]:row-start-1">{showDate(entry.date, t('timeline.dateMissing', 'Date not recorded'))}</span>
                     <span className="min-w-0 max-[640px]:col-start-2">
-                      <span className="block text-sm font-medium">{entry.label}{entry.number ? <span className="ml-1 font-mono text-sm">{entry.number}</span> : null}</span>
+                      <span className="block text-sm font-medium">{entry.label}{entry.number ? <span className="ml-1 record-id text-foreground">{entry.number}</span> : null}</span>
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
                         {entry.actor && <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
                           <Avatar name={entry.actor} size="xs" decorative fallback="" />

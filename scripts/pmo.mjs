@@ -13,7 +13,9 @@
  *   pmo update <table> --filter col=op.value [...] <json | @file | ->
  *   pmo rpc <name> [<json | @file | ->]
  *   pmo load <file.json | -> [--dry-run]   (active Admin only — #796)
+ *   pmo correct project|contract-line|budget-line … --set <field>=<value> [--dry-run]   (active Admin only — #1858)
  *   pmo stages <project> | stage-date <project> <stage> <YYYY-MM-DD> (active Admin — #1835)
+ *   pmo bid win|lose|decline <project> ... [--apply]   (active Admin — #1789)
  *   pmo purchases orphans [--include-set-aside] | link <file> [--dry-run] | link-file <json>   (Admin, Executive, PM, Finance — #1319)
  *   pmo purchases set-aside <file> [--undo] [--dry-run]   (Admin, Finance — #1319 AC-13)
  *   pmo purchases receive <procurement-id> [--line <item>=<qty> ...] [--status Partial|Complete] [--date <YYYY-MM-DD>] [--intent <uuid>] [--dry-run]   (#1866)
@@ -32,6 +34,7 @@
  *   pmo tm rates list [--project <id>] [--assignees] [--json]   (#1514)
  *   pmo tm claim preview --project <id> --from <date> --to <date> [--json]   (#1514; read-only)
  *   pmo tm claim list --project <id> [--json]   (#1514)
+ *   pmo tm rates set <file.json|-> | assign set <file.json|-> | claim assemble|deselect|withdraw | claim sources | signoff prepare ... [--apply]   (#1856; writes are previews unless --apply; Admin, Finance)
  *
  * Output is JSON on stdout; errors are JSON on stderr. Exit 0 = ok, 1 = the server refused or
  * failed, 2 = the CLI refused (usage, allow-list, DD-API-3 guard) before sending anything.
@@ -51,15 +54,18 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { applyLoad, countActions, resolveLoad, validateLoadFile } from './lib/pmo-load.mjs';
+import { CorrectionError, correct, parseSets, validateSets } from './lib/pmo-correct.mjs';
 import { applyMapSet, MAP_COLUMNS, MAP_TABLE, MapSetError, planMapSet } from './lib/pmo-accounts.mjs';
 import { ACTIVATION_ENABLED, activateBudget, ActivationRefused, linkBudgetSource, validateSource } from './lib/pmo-budgets.mjs';
 import { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS, AttributionFileError, explainError, formatPreview, previewRules, readRules, setRules, validateEnd } from './lib/pmo-attribution.mjs';
 import { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS, EquipmentFileError, EquipmentUsageError, explainError as explainEquipmentError, formatAllocations, previewSettings, readSettings, setSettings, validateUsageList } from './lib/pmo-equipment.mjs';
 import { RECEIPT_STATUSES, isReceiptDate, parseLineFlags, receiptCommand, receiptHint, receiptLineTierRefusal } from './lib/pmo-receipts.mjs';
-import { captureHistory, runCaptureAssignments, MAX_ASSIGN_ROWS } from './lib/pmo-capture.mjs';
+import { captureHistory, runCaptureAssignments, sourceSettingsNote, MAX_ASSIGN_ROWS } from './lib/pmo-capture.mjs';
 import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runAttachJournals, readJournalPages, runLink, runSetAside, setAsideRowsFromCsv, validateJournalRows, validateLinkRows, validateSetAsideRows, validateRecordOnlyGroups, runRecordOnly, runUndoRecordOnly, validateHistoryRows, runImportHistory } from './lib/pmo-purchases.mjs';
+import { TmOutcomeUnknown, assembleClaim, claimSources, deselectSources, explainWriteError, prepareSignoff, setAssignees, setRates, withdrawClaim, writerRefusal } from './lib/pmo-tm-write.mjs';
 import { TM_READ_RPCS, TmQueryError, explainError as explainTmError, formatClaims, formatPreview as formatTmPreview, formatRateCard, listClaims, previewClaim, readRateCard } from './lib/pmo-tm.mjs';
 import { OPERATOR_ORG_RPCS, classifyOrgReadiness, orgAdd } from './lib/pmo-org.mjs';
+import { BID_OUTCOMES, LOST_REASONS, planBidOutcome } from './lib/pmo-bids.mjs';
 import { DOCUMENT_BUCKET, DOCUMENT_WRITE_TABLES, checkFile, planEntry, storagePath, uploadRefusal } from './lib/pmo-documents.mjs';
 
 // ── the public surface (DD-API-1 / DD-API-3) ─────────────────────────────────────────────────────
@@ -138,7 +144,7 @@ export { TM_READ_RPCS };
 export { OPERATOR_ORG_RPCS, classifyOrgReadiness };
 
 /** The verbs. There is deliberately no delete (DD-API-3). */
-export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'stages', 'stage-date', 'purchases', 'erp', 'connect', 'documents', 'm365', 'budgets', 'accounts', 'attribution', 'equipment', 'tm', 'org']);
+export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'correct', 'stages', 'stage-date', 'bid', 'purchases', 'erp', 'connect', 'documents', 'm365', 'budgets', 'accounts', 'attribution', 'equipment', 'tm', 'org']);
 
 const DELETE_VERBS = new Set(['delete', 'del', 'rm', 'remove', 'destroy']);
 
@@ -278,7 +284,7 @@ function assertTable(table, mode) {
   }
   if (LOAD_TABLES.includes(table)) {
     if (mode === 'read' && (table === 'budget_versions' || table === 'budget_line_items')) return;
-    throw usage(`Table '${table}' is not available to get/create/update; only \`pmo load\` writes it (draft budgets and contract lines). Change them in the app.`);
+    throw usage(`Table '${table}' is not available to get/create/update; only \`pmo load\` creates it and \`pmo correct\` fixes a loaded value (draft budgets and contract lines). Anything else: use the app.`);
   }
   if (!ALLOWED_TABLES.includes(table)) {
     throw usage(
@@ -697,12 +703,16 @@ function defaultOpenBrowser(url) {
   child.unref();
 }
 
+const BID_USAGE = `  pmo bid win <project> --ref <client order no> --date <YYYY-MM-DD> --value <contract value> [--apply]
+  pmo bid lose|decline <project> --reason <${LOST_REASONS.join('|')}> [--note <text>] [--apply]
+                                                   (active Admin: record a bid's outcome; a preview unless --apply)`;
+
 // ── argument parsing ─────────────────────────────────────────────────────────────────────────────
 
 const VALUE_FLAGS = new Set([
   'url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project', 'asset', 'from', 'source', 'to', 'version', 'line', 'status', 'date', 'intent', 'reason', 'revision', 'request',
   'invoice-document', 'amount', 'name', 'admin-email', 'admin-name', 'currency', 'locale', 'number-locale', 'timezone', 'plan', 'state', 'feature',
-  'tier', 'proposal', 'pmo', 'external', 'category', 'title', 'code', 'file',
+  'tier', 'proposal', 'pmo', 'external', 'category', 'title', 'code', 'file', 'attach', 'ref', 'value', 'note', 'set', 'client', 'line-key', 'work-order', 'document',
 ]);
 const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run', 'csv', 'undo', 'include-set-aside', 'json', 'history', 'assignees', 'all', 'apply', 'confirm']);
 
@@ -731,6 +741,7 @@ export function parseArgs(argv) {
     if (name === 'filter') flags.filter.push(value);
     else if (name === 'line') flags.line.push(value);
     else if (name === 'feature') flags.feature.push(value);
+    else if (name === 'set') (flags.set ??= []).push(value);
     else {
       if (name === 'invoice-document' && flags[name] !== undefined) throw usage('--invoice-document may be supplied only once');
       flags[name] = value;
@@ -809,8 +820,15 @@ const USAGE = `usage:
   pmo update <table> --filter col=op.value [...] <json | @file | ->
   pmo rpc <name> [<json | @file | ->]
   pmo load <file.json | -> [--dry-run]   (active Admin: companies, projects, draft budgets, contract lines)
+  pmo correct project (--code <code> | --name <name> --client <legal name>) --set <field>=<value> ... [--dry-run]
+                                                    (active Admin: fix a loaded project header field; the preview shows before → after)
+  pmo correct contract-line <project selector> --line-key <key> --set rate|quantity|unit|description|basis=<value> ... [--dry-run]
+                                                    (active Admin: a contract line, i.e. a bill-of-quantities item)
+  pmo correct budget-line <project selector> --line '<load row json | @file>' --set budgeted_amount|description=<value> ... [--dry-run]
+                                                    (active Admin: a budget line item of a Draft per-year budget, found by its load row)
   pmo stages <project>   (active Admin: read stage history)
   pmo stage-date <project> "<Stage name>" <YYYY-MM-DD>   (active Admin: correct a stage date)
+${BID_USAGE}
   pmo purchases orphans [--project <id>] [--limit n] [--include-set-aside]
   pmo purchases set-aside <file.json | file.csv | -> [--csv] [--undo] [--dry-run]   (Admin, Finance: rows of
                                                    erp_doctype, erp_name, note; hides overhead documents from orphans)
@@ -823,7 +841,7 @@ const USAGE = `usage:
   pmo purchases pay-captured <purchase-uuid> --invoice-document <uuid> --amount <decimal> --date <YYYY-MM-DD> --intent <uuid> [--confirm]
   pmo purchases capture-report (--all | --project <uuid>)
   pmo purchases import-history <history.json|-> [--dry-run]   (Admin; PMO-native history, no ERP)
-  pmo purchases record-only <history.json|-> [--dry-run] | undo-record-only <purchase> --reason <text> [--dry-run]
+  pmo purchases record-only <history.json|-> [--dry-run] | undo-record-only <purchase> [--attach <request>] --reason <text> [--dry-run]
   pmo purchases journals --project <id>   (the project's accounting-system journal cost lines)
   pmo purchases attach-journals <file.json | -> [--dry-run]   (Admin, Executive, Project Manager, Finance; rows of
                                                    voucher_no, account, project_id, procurement_id; link only)
@@ -858,6 +876,13 @@ const USAGE = `usage:
   pmo tm claim preview --project <id> --from <date> --to <date> [--json]   (read-only: the approved hours a claim
                                                     would freeze, priced per line, plus the unrated hours and why)
   pmo tm claim list --project <id> [--json]   (a project's T&M claims with their frozen lines)
+  pmo tm rates set <file.json|-> [--apply]   (active Admin, Finance; one transaction: every row or none — #1856)
+  pmo tm assign set <file.json|-> [--apply]   (active Admin, Finance; row by row)
+  pmo tm claim assemble --project <id> --from <date> --to <date> [--work-order <id>] [--apply]   (active Admin, Finance)
+  pmo tm claim sources <claim-id>   (each source, and whether the prepared sign-off is current)
+  pmo tm claim deselect <claim-id> <source-id>... --project <id> [--apply]   (active Admin, Finance; Draft claims)
+  pmo tm claim withdraw <claim-id> --project <id> [--apply]   (active Admin, Finance)
+  pmo tm signoff prepare <claim-id> --project <id> --document <document-id> [--note <text>] [--apply]   (active Admin, Finance)
   pmo org add --name <name> --admin-email <email> --admin-name <name> --currency <cur> --locale <loc> [--number-locale <numloc>] --timezone <tz> --plan <plan> [--feature <key>=on|off ...] [--state live|demo|test] [--confirm]
 
 common options: --url <supabase url> (PMO_SUPABASE_URL, default ${DEFAULT_SUPABASE_URL})
@@ -915,13 +940,48 @@ async function readNames(ctx, table, column, ids) {
   return names;
 }
 
+/**
+ * `pmo bid win|lose|decline` (#1789): the outcome of an existing bid, through transition_project with the user's
+ * own token (the active-Admin tier of the database guard). A preview unless --apply; both read the project and run
+ * the same checks (scripts/lib/pmo-bids.mjs), and the database re-checks role, stage and the contract-value rule.
+ */
+async function bidOutcome(ctx, positionals, flags) {
+  const [outcome, projectId, ...rest] = positionals;
+  if (!Object.hasOwn(BID_OUTCOMES, outcome ?? '') || !UUID.test(projectId ?? '') || rest.length) {
+    throw usage(`Use:\n${BID_USAGE}`);
+  }
+  await requireActiveAdmin(ctx, 'bid');
+  const q = new URLSearchParams({ select: 'id,name,status,contract_value,contract_value_set_at', id: `eq.${projectId}` });
+  const [project] = await authed(ctx, 'GET', `/rest/v1/projects?${q}`);
+  if (!project) throw usage(`No project ${projectId} is visible to you.`);
+  // A contract date is refused only after the last calendar day anywhere has passed it (UTC+14).
+  const today = new Date(ctx.now() + 14 * 3600 * 1000).toISOString().slice(0, 10);
+  const input = { ref: flags.ref, date: flags.date, value: flags.value, reason: flags.reason, note: flags.note };
+  const plan = planBidOutcome(outcome, input, project, { today });
+  if (plan.problems.length) {
+    throw new CliError(`The ${outcome} was not recorded; nothing was sent.`, { exit: 2, code: 'bid_outcome_refused', details: plan.problems });
+  }
+  const summary = { project_id: project.id, name: project.name, from: plan.from, to: plan.to, contract_value: plan.contract_value };
+  if (outcome === 'win') Object.assign(summary, { customer_contract_ref: plan.rpc.p_customer_contract_ref, contract_date: plan.rpc.p_contract_date });
+  else Object.assign(summary, { lost_reason: plan.rpc.p_lost_reason, lost_note: plan.rpc.p_lost_note ?? null });
+  if (!flags.apply) return { applied: false, ...summary, next: 'Run the same command with --apply to record it.' };
+  await authed(ctx, 'POST', '/rest/v1/rpc/transition_project', { body: plan.rpc });
+  return {
+    applied: true,
+    ...summary,
+    ...(outcome === 'win' ? { erp_project: 'not linked by the CLI; if ERPNext is connected, link it from the project page' } : {}),
+  };
+}
+
 /** The LoadApi `pmo load` writes through — the user's own token, nothing else (scripts/lib/pmo-load.mjs). */
 function loadApi(ctx) {
   const representation = { prefer: 'return=representation' };
   return {
     get: (table, q) => authed(ctx, 'GET', `/rest/v1/${table}?${q}`),
     post: (table, body) => authed(ctx, 'POST', `/rest/v1/${table}`, { body, headers: representation }),
-    patch: (table, q, body) => authed(ctx, 'PATCH', `/rest/v1/${table}?${q}`, { body, headers: representation }),
+    // `headers` lets a caller ask for more in the same PATCH (pmo correct's gated tables, #1858); the default keeps
+    // every load write and the project correction on the plain header they have always sent.
+    patch: (table, q, body, headers = representation) => authed(ctx, 'PATCH', `/rest/v1/${table}?${q}`, { body, headers }),
     rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }),
     // Match Companies → New: the authenticated caller's JWT invokes the same synchronous ERP
     // dispatch command, which creates the ERP party and returns its canonical PMO row.
@@ -1026,6 +1086,33 @@ async function dispatch(ctx, command, positionals, flags) {
         throw err;
       }
     }
+    case 'correct': {
+      const [kind, ...extra] = positionals;
+      if (!['project', 'contract-line', 'budget-line'].includes(kind) || extra.length > 0) {
+        throw usage('correct needs project, contract-line or budget-line: pmo correct <kind> (--code <code> | --name <name> --client <legal name>) [--line-key <key> | --line <row json | @file>] --set <field>=<value> ... [--dry-run]');
+      }
+      let sets;
+      try {
+        sets = parseSets(flags.set ?? []);
+      } catch (e) {
+        throw usage(e.message);
+      }
+      const misplaced = [['--line-key', kind !== 'contract-line' && flags['line-key'] !== undefined], ['--line', kind !== 'budget-line' && flags.line.length > 0]]
+        .filter(([, used]) => used).map(([name]) => name);
+      if (misplaced.length > 0) throw usage(`pmo correct ${kind} does not take ${misplaced.join(' or ')}`);
+      if (flags.code !== undefined && (flags.name !== undefined || flags.client !== undefined)) throw usage('name the project by --code, or by --name with --client, not both');
+      if (flags.line.length > 1) throw usage('--line may be given once');
+      const line = flags.line.length ? await readPayload(ctx, flags.line[0]) : undefined;
+      const { problems } = validateSets(kind, sets);
+      if (problems.length > 0) throw new CliError(`${problems.length} problem(s); nothing was sent.`, { exit: 2, code: 'invalid_correction', details: problems });
+      await requireActiveAdmin(ctx, 'correct');
+      try {
+        return await correct(kind, { code: flags.code, name: flags.name, client: flags.client, key: flags['line-key'], line }, sets, loadApi(ctx), { dryRun: Boolean(flags['dry-run']) });
+      } catch (e) {
+        if (!(e instanceof CorrectionError)) throw e;
+        throw new CliError(e.message, { exit: e.exit, code: e.code, details: e.details });
+      }
+    }
     case 'stages': {
       const [projectId] = positionals;
       if (!projectId || !UUID.test(projectId)) throw usage('stages needs a project UUID: pmo stages <project>');
@@ -1047,6 +1134,8 @@ async function dispatch(ctx, command, positionals, flags) {
       });
       return { project_id: projectId, entry_id: entry.id, stage, entered_on: enteredOn };
     }
+    case 'bid':
+      return bidOutcome(ctx, positionals, flags);
     case 'purchases':
       return purchases(ctx, positionals, flags);
     case 'erp':
@@ -1512,6 +1601,8 @@ async function purchases(ctx, positionals, flags) {
     if (flags.project !== undefined && !UUID.test(String(flags.project))) throw usage('--project must be a project UUID');
     try {
       const report = await authed(ctx, 'POST', '/functions/v1/purchase-capture', { body: { action: 'report', scope: { projectId: flags.project ?? null } } });
+      const note = sourceSettingsNote(report);
+      if (note) ctx.stderr.write(`${note}\n`);
       return report.complete === false ? new Reported(report, 2) : report;
     } catch (error) {
       if (error instanceof CliError && error.status >= 400 && error.status < 500) error.exit = 2;
@@ -1529,6 +1620,8 @@ async function purchases(ctx, positionals, flags) {
     const api = { capture: (body) => authed(ctx, 'POST', '/functions/v1/purchase-capture', { body }) };
     try {
       const report = await captureHistory(api, { projectId: flags.project ?? null, dryRun: Boolean(flags['dry-run']), revision: flags.revision, requestId: flags.request });
+      const note = sourceSettingsNote(report);
+      if (note) ctx.stderr.write(`${note}\n`);
       return report.complete === false ? new Reported(report, 2) : report;
     } catch (error) {
       if (error instanceof CliError) {
@@ -1639,8 +1732,9 @@ async function purchases(ctx, positionals, flags) {
   }
   if (sub === 'undo-record-only') {
     if (!UUID.test(String(arg ?? '')) || typeof flags.reason !== 'string' || !flags.reason.trim()) throw usage('purchases undo-record-only needs a purchase UUID and --reason');
+    if (flags.attach !== undefined && !UUID.test(String(flags.attach))) throw usage('purchases undo-record-only --attach needs the request_id (a UUID) of the order-family row that attached the invoices');
     const api = { rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }) };
-    return runUndoRecordOnly(api, arg, flags.reason, { dryRun: Boolean(flags['dry-run']) });
+    return runUndoRecordOnly(api, arg, flags.reason, { dryRun: Boolean(flags['dry-run']), attachRequestId: flags.attach ?? null });
   }
   if (sub === 'receive') return receive(ctx, arg, flags);
   if (sub === 'link-file') {
@@ -1827,17 +1921,45 @@ async function equipment(ctx, positionals, flags) {
   throw usage(`Unknown equipment command '${[area, action].filter(Boolean).join(' ')}'. Use usage list or costing preview, set or list.`);
 }
 
+/** The `pmo tm` commands that write (each a preview unless --apply), for an active Admin or Finance member only. */
+const TM_WRITE_COMMANDS = new Set(['rates set', 'assign set', 'claim assemble', 'claim deselect', 'claim withdraw', 'signoff prepare']);
+
+async function tmFile(ctx, arg) {
+  if (!arg) throw usage('Give a JSON file of rows (or - for stdin).');
+  const text = await readText(ctx, arg);
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    throw usage(`${arg} is not valid JSON (${e.message})`);
+  }
+}
+
+async function tmWrite(ctx, api, command, args, flags) {
+  const opts = { apply: Boolean(flags.apply) };
+  const [claim, ...rest] = args;
+  switch (command) {
+    case 'rates set': return setRates(api, await tmFile(ctx, args[0]), opts);
+    case 'assign set': return setAssignees(api, await tmFile(ctx, args[0]), opts);
+    case 'claim deselect': return deselectSources(api, { claim, project: flags.project, sources: rest }, opts);
+    case 'claim withdraw': return withdrawClaim(api, { claim, project: flags.project }, opts);
+    case 'signoff prepare': return prepareSignoff(api, { claim, project: flags.project, document: flags.document, note: flags.note }, opts);
+    case 'claim assemble': return assembleClaim(api, { project: flags.project, from: flags.from, to: flags.to, workOrder: flags['work-order'] }, opts);
+    default: throw usage(`Unknown tm command '${command}'.`);
+  }
+}
+
 /**
  * `pmo tm` (#1514): the contract rate card and time-and-materials claims. Every amount, role and sign-off rule is the
- * database's; `claim preview` is read-only (the T&M read tier carries no writer), so nothing is frozen by asking.
+ * database's; reads never write; every `tm` write previews unless `--apply` (#1856).
  */
 async function timeAndMaterials(ctx, positionals, flags) {
   const [area, action] = positionals;
   const api = {
-    rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }),
+    rpc: (name, body, query) => authed(ctx, 'POST', `/rest/v1/rpc/${name}${query ? `?${query}` : ''}`, { body }),
     get: (table, query) => authed(ctx, 'GET', `/rest/v1/${table}?${query}`),
+    names: (ids) => readNames(ctx, 'profiles', 'full_name', ids),
   };
-  const explain = (error) => {
+  const explain = (error, describe = explainTmError) => {
     if (error instanceof TmQueryError) {
       return new CliError(`Nothing was sent: ${error.problems.length} problem(s).`, {
         exit: 2,
@@ -1845,9 +1967,22 @@ async function timeAndMaterials(ctx, positionals, flags) {
         details: error.problems,
       });
     }
+    if (error instanceof TmOutcomeUnknown) return new CliError(error.message, { code: 'outcome_unknown', details: { check: error.check } });
     if ((error instanceof CliError && error.exit === 2) || error?.code === undefined) return error;
-    return new CliError(explainTmError(error), { code: error.code, status: error.status, hint: error.hint });
+    return new CliError(describe(error), { code: error.code, status: error.status, hint: error.hint });
   };
+  const command = [area, action].filter(Boolean).join(' ');
+  if (TM_WRITE_COMMANDS.has(command)) {
+    try {
+      const { profile } = await readMe(ctx);
+      const refusal = writerRefusal(profile, command);
+      if (refusal) throw new CliError(refusal, { exit: 2, code: 'tm_role_refused' });
+      const outcome = await tmWrite(ctx, api, command, positionals.slice(2), flags);
+      return new Reported(outcome.result, outcome.exit);
+    } catch (error) {
+      throw explain(error, explainWriteError);
+    }
+  }
 
   try {
     if (area === 'rates' && action === 'list') {
@@ -1862,6 +1997,7 @@ async function timeAndMaterials(ctx, positionals, flags) {
       const names = await readNames(ctx, 'profiles', 'full_name', preview.unrated.map((row) => row.user_id));
       return new Printed(formatTmPreview(preview, names));
     }
+    if (area === 'claim' && action === 'sources') return await claimSources(api, { claim: positionals[2] });
     if (area === 'claim' && action === 'list') {
       const claims = await listClaims(api, { project: flags.project });
       return flags.json ? { claims } : new Printed(formatClaims(claims));
@@ -1869,8 +2005,15 @@ async function timeAndMaterials(ctx, positionals, flags) {
   } catch (error) {
     throw explain(error);
   }
-  throw usage(`Unknown tm command '${[area, action].filter(Boolean).join(' ')}'. Use rates list, claim preview or claim list.`);
+  throw usage(`Unknown tm command '${[area, action].filter(Boolean).join(' ')}'. Use rates list|set, assign set, claim preview|list|assemble|sources|deselect|withdraw or signoff prepare.`);
 }
+
+// Refusals the operator can act on, in plain words (the code stays in `error.code`).
+const FUNCTION_ERROR_MESSAGES = {
+  // #2264: the database holds one organization per name.
+  ORG_NAME_TAKEN:
+    'Another organization already has this name. Names match ignoring letter case and spacing; choose a different --name.',
+};
 
 function functionError(r) {
   const d = r.data && typeof r.data === 'object' ? r.data : {};
@@ -1880,7 +2023,7 @@ function functionError(r) {
   if (d.error !== undefined) details.error = d.error;
   if (d.step !== undefined) details.step = d.step;
   if (d.org_id !== undefined) details.org_id = d.org_id;
-  return new CliError(`Function error: ${code}${step}`, {
+  return new CliError(FUNCTION_ERROR_MESSAGES[code] ?? `Function error: ${code}${step}`, {
     status: r.status,
     code,
     details: Object.keys(details).length > 0 ? details : undefined,

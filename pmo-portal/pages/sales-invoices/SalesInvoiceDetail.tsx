@@ -19,11 +19,11 @@ interface Props {
   isPending: boolean;
   isError: boolean;
   data: SalesInvoiceRow[] | undefined;
-  mode: ReturnType<typeof import('@/src/hooks/useRevenueMode').useRevenueMode>;
   organizationToday: string | null;
   onBack: () => void;
   refetch: () => unknown;
-  recordPrimaryAction: { label: string; onClick: () => void } | null;
+  /** `pending`: the revenue mode has not answered, so the action's slot is held (a button-sized placeholder). */
+  recordPrimaryAction: { label: string; onClick: () => void; pending?: never } | { pending: true; label?: never; onClick?: never } | null;
   invoiceDisplayLabel: (invoice: SalesInvoiceRow) => string;
   projectName?: string | null;
   receiptAwaitingOdoo?: boolean;
@@ -32,7 +32,7 @@ interface Props {
   pdfDownload: ReturnType<typeof useInvoicePdfDownload>;
   dialogs: React.ReactNode;
 }
-export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode, organizationToday, onBack, refetch, recordPrimaryAction, invoiceDisplayLabel, projectName = null, receiptAwaitingOdoo = false, odoo = false, may, pdfDownload, dialogs }: Props) {
+export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, organizationToday, onBack, refetch, recordPrimaryAction, invoiceDisplayLabel, projectName = null, receiptAwaitingOdoo = false, odoo = false, may, pdfDownload, dialogs }: Props) {
   const { t } = useTranslation();
   const viewTargetNumber = viewTarget ? invoiceNumber(viewTarget) : null;
   const dueDate = viewTarget ? deriveArDueDate(viewTarget.invoice_date, viewTarget.erp_payment_terms_days, viewTarget.erp_due_date, viewTarget.received_date) : null;
@@ -43,14 +43,14 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
     ? t('financeCopy.invoiceRecordTitle', 'Invoice {{number}}', { number: '' }).trim()
     : null;
     return (
-      <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
+      <main data-testid="invoice-record" className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
         <Button variant="ghost" onClick={onBack} className="mb-4 -ml-3">
           <Icon name="back" className="size-4" />
           {t('financeCopy.backToInvoices', 'Back to Receivables')}
         </Button>
-        {mode === undefined || (isPending && !viewTarget) ? (
+        {isPending && !viewTarget ? (
           <ListState variant="loading" rows={3} />
-        ) : isError || !data ? (
+        ) : !viewTarget && (isError || !data) ? (
           <ListState
             variant="error"
             title={t('financeCopy.salesInvoicesLoadFailed', "Couldn't load sales invoices")}
@@ -81,7 +81,11 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
                   </span>
                 )}
               </>}
-              primaryAction={recordPrimaryAction ? <Button variant="primary" size="sm" onClick={recordPrimaryAction.onClick}>{recordPrimaryAction.label}</Button> : undefined}
+              primaryAction={recordPrimaryAction
+                ? recordPrimaryAction.pending
+                  ? <span data-testid="record-action-pending" aria-busy="true" aria-hidden="true" className="skel inline-block h-8 w-[9.5rem] rounded-md max-sm:h-11" />
+                  : <Button variant="primary" size="sm" onClick={recordPrimaryAction.onClick}>{recordPrimaryAction.label}</Button>
+                : undefined}
               stats={[
                 { label: t('financeCopy.project', 'Project'), value: <ProjectNameLink projectId={viewTarget.project_id} name={projectName} className="text-control" /> },
                 { label: t('uxs17.invoiceDate', 'Invoice date'), value: viewTarget.invoice_date ? formatDayYear(viewTarget.invoice_date) : t('uxs17.dateNotRecorded', 'Not recorded') },
@@ -103,20 +107,27 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
               aria-label={t('finance:invoiceTimeline.label', 'Invoice status timeline')}
               className="mb-5 [&_[data-testid=stepper-scroll-container]>[role=list]]:gap-0 [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep]:min-w-0 [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep>span:first-child]:rounded-none [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep:first-child>span:first-child]:rounded-l-full [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep:last-child>span:first-child]:rounded-r-full [&_[data-testid=stepper-fade]]:hidden"
             />}
+            {/* #2345 row 2 + follow-up: the "Ready to send" prompt shows only while the invoice can
+                still be sent — the status rules (invoiceTimelineSteps) complete "Delivered to client"
+                at Paid, so a Paid invoice never claims it. The approved-PDF download stays available
+                on a Paid invoice without a recorded receipt (the record page's only download path);
+                with a receipt the section reports the recorded date instead. */}
             {viewTarget.erp_docstatus === 1 && (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid' || viewTarget.status === 'Paid') && (
               <section aria-label={t('uxs17.deliverySection', 'Client delivery')} className="mb-5 space-y-2 border-b border-border pb-4">
-                <div>
-                  <h2 className="text-base font-semibold">
-                    {viewTarget.received_date
-                      ? t('uxs17.receivedByClient', 'Received by client')
-                      : t('uxs17.readyToSend', 'Ready to send')}
-                  </h2>
-                  <p className="mt-1 max-w-[65ch] text-sm text-muted-foreground">
-                    {viewTarget.received_date
-                      ? t('uxs17.receivedDateSummary', 'Client receipt was recorded for {{date}}.', { date: formatDayYear(viewTarget.received_date) })
-                      : t('uxs17.manualHandoffHelp', 'Download the PDF and send it to your client yourself.')}
-                  </p>
-                </div>
+                {(viewTarget.received_date || viewTarget.status !== 'Paid') && (
+                  <div>
+                    <h2 className="text-base font-semibold">
+                      {viewTarget.received_date
+                        ? t('uxs17.receivedByClient', 'Received by client')
+                        : t('uxs17.readyToSend', 'Ready to send')}
+                    </h2>
+                    <p className="mt-1 max-w-[65ch] text-sm text-muted-foreground">
+                      {viewTarget.received_date
+                        ? t('uxs17.receivedDateSummary', 'Client receipt was recorded for {{date}}.', { date: formatDayYear(viewTarget.received_date) })
+                        : t('uxs17.manualHandoffHelp', 'Download the PDF and send it to your client yourself.')}
+                    </p>
+                  </div>
+                )}
                 {!viewTarget.received_date && (
                   <div className="flex flex-wrap gap-2">
                     {may('download_pdf', 'salesInvoice', { record: { status: viewTarget.status, erp_docstatus: viewTarget.erp_docstatus } }) && (

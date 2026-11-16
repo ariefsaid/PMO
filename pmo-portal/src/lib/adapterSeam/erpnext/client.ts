@@ -30,7 +30,7 @@ export class ErpError extends AdapterError {
 }
 
 function safeErpErrorType(type: string | undefined): string | undefined {
-  return type && ['TypeError', 'ValidationError', 'MandatoryError', 'PermissionError', 'DoesNotExistError', 'LinkValidationError', 'SyntheticFailure'].includes(type) ? type : undefined;
+  return type && ['TypeError', 'ValidationError', 'MandatoryError', 'PermissionError', 'DoesNotExistError', 'LinkValidationError', 'TimestampMismatchError', 'SyntheticFailure'].includes(type) ? type : undefined;
 }
 
 /** A modest per-org token bucket (FR-ENA-014 — "Frappe rate-limiting is off by default"; this is a
@@ -74,6 +74,10 @@ export interface ErpClientDeps {
   rangeWriteDeadlineAtMs?: number;
   /** Injectable clock (ms) for the commit-deadline check. Defaults to `Date.now`; tests drive it. */
   now?: () => number;
+  /** #2149: false once the caller has no time left to start a write (the sweep's invocation budget). An adapter that
+   *  records a durable "write started" stage before its create asks this first, so a write that will be refused unsent
+   *  never leaves that stage behind. Absent ⇒ always true (every foreground path). */
+  writeMayStart?: () => boolean;
 }
 
 /**
@@ -693,6 +697,12 @@ export function submitFetchedDoc(deps: ErpClientDeps, doc: Record<string, unknow
  *  cancel-only, never delete, on a once-submitted doc). */
 export async function cancelDoc(deps: ErpClientDeps, doctype: string, name: string): Promise<unknown> {
   return unwrapFrappeDoc(await erpnextRequest(deps, { method: 'PUT', path: doctypePath(doctype, name), body: { docstatus: 2 } }));
+}
+
+/** `DELETE /api/resource/<DocType>/<name>` — ERPNext deletes only a draft (a submitted document is cancelled, never
+ *  deleted). Used to replace a draft the create itself left behind (#895 `lookUpByKeyFirst`). */
+export async function deleteDoc(deps: ErpClientDeps, doctype: string, name: string): Promise<void> {
+  await erpnextRequest(deps, { method: 'DELETE', path: doctypePath(doctype, name) });
 }
 
 /** `PUT /api/resource/<DocType>/<name>` with a plain field patch, no `docstatus` (task 3.3) — a

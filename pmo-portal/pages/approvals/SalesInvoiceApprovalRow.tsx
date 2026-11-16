@@ -7,6 +7,7 @@ import { formatCurrency, formatCurrencyCents, formatDay, formatNumberExact } fro
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import { invoiceGross, invoiceNet, nativeInvoiceSummary } from '@/src/lib/revenue/nativeInvoice';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
+import { FIGURE_LINE_CLASS } from '@/src/components/ui/FigureContent';
 
 const EYEBROW = 'text-control font-semibold text-muted-foreground';
 
@@ -62,13 +63,13 @@ export const SalesInvoiceApprovalPreview: React.FC<{
                 <span className="min-w-[12rem] flex-1 break-words">
                   <span className="block">{line.description ?? line.item_code ?? '—'}</span>
                   {line.description && line.item_code && (
-                    <span className="block font-mono text-control text-muted-foreground">{line.item_code}</span>
+                    <span className="block record-id">{line.item_code}</span>
                   )}
                 </span>
                 <span className="ml-auto shrink-0 tabular text-muted-foreground">
                   {/* #2089: the quantity renders in the viewer's locale, grouped. */}
                   {formatNumberExact(line.qty)} × {money(line.rate)} ={' '}
-                  <span className="font-medium text-foreground">{money(line.amount)}</span>
+                  <span className={`${FIGURE_LINE_CLASS} font-medium text-foreground`}>{money(line.amount)}</span>
                 </span>
               </li>
             ))}
@@ -85,7 +86,7 @@ export const SalesInvoiceApprovalPreview: React.FC<{
       <dl className="space-y-1 text-control">
         <div className="flex items-baseline justify-between gap-3">
           <dt className="text-muted-foreground">{t('approvals.salesInvoices.net', 'Net (before tax)')}</dt>
-          <dd className="tabular">
+          <dd className={`${FIGURE_LINE_CLASS} text-right`}>
             {money(net)}
             {showFx && <FxEquivalent amount={net} currency={inv.currency} date={inv.invoice_date} />}
           </dd>
@@ -94,12 +95,18 @@ export const SalesInvoiceApprovalPreview: React.FC<{
           <dt className="text-muted-foreground">{t('approvals.salesInvoices.tax', 'Tax')}</dt>
           <dd className="flex flex-wrap items-baseline justify-end gap-x-1.5 tabular">
             <TaxBasisLabel treatment={inv.tax_treatment} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} showDetails={false} />
-            <span>{money(inv.tax_amount)}</span>
+            <span className={FIGURE_LINE_CLASS}>{money(inv.tax_amount)}</span>
           </dd>
         </div>
         <div className="flex items-baseline justify-between gap-3 border-t border-border pt-1 font-semibold">
-          <dt>{t('approvals.salesInvoices.gross', 'Total due')}</dt>
-          <dd className="tabular">
+          {/* #2345 row 2: on a PAID invoice nothing is due any more — the gross reads as the invoice
+              total (the catalogue's existing word for it, en "Invoice total" / id "Total faktur",
+              finance:receivables.invoiceTotal); before approval/unpaid it stays "Total due". The
+              figure itself never changes. */}
+          <dt>{inv.status === 'Paid'
+            ? t('finance:receivables.invoiceTotal', 'Invoice total')
+            : t('approvals.salesInvoices.gross', 'Total due')}</dt>
+          <dd className={`${FIGURE_LINE_CLASS} text-right`}>
             {money(invoiceGross(inv))}
             {showFx && <FxEquivalent amount={invoiceGross(inv)} currency={inv.currency} date={inv.invoice_date} />}
           </dd>
