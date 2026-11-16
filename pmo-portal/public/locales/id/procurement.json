@@ -735,6 +735,26 @@
     "waitingDays_one": "Menunggu {{count}} hari",
     "waitingDays_other": "Menunggu {{count}} hari"
   },
+  "voidBill": {
+    "action": "Batalkan tagihan",
+    "title": "Batalkan tagihan ini?",
+    "reason": "Mengapa tagihan ini dibatalkan?",
+    "helper": "Disimpan bersama tagihan dan riwayatnya.",
+    "confirm": "Batalkan tagihan",
+    "context": "{{number}} tetap ada di buku besar sebagai dibatalkan dan tidak lagi dihitung terhadap PO, sehingga tagihan yang benar dapat dicatat.",
+    "voided": "Dibatalkan",
+    "byOn": "{{name}} · {{date}}",
+    "error": {
+      "ownBill": "Anda yang mencatat tagihan ini, jadi pengguna Admin atau Finance lain yang harus membatalkannya.",
+      "authorUnknown": "Tidak ada yang tercatat sebagai pencatat tagihan ini, jadi tagihan ini tidak dapat dibatalkan di sini.",
+      "erpBound": "Organisasi Anda mencatat tagihan di ERP. Batalkan tagihan di sana.",
+      "erpRecord": "Tagihan ini berasal dari catatan ERP. Batalkan di ERP.",
+      "hasPayment": "Tagihan ini sudah memiliki pembayaran. Batalkan pembayarannya terlebih dahulu.",
+      "paymentsExceed": "Pembayaran pada pembelian ini akan melebihi sisa tagihannya. Batalkan salah satu pembayaran terlebih dahulu.",
+      "already": "Tagihan ini sudah dibatalkan.",
+      "generic": "Tagihan tidak dapat dibatalkan. Coba lagi."
+    }
+  },
   "capture": {
     "refLabel": {
       "external": "Referensi eksternal",

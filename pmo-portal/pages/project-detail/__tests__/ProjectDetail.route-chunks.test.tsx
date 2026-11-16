@@ -1,3 +1,4 @@
+vi.mock('@/src/hooks/useFxIdrRate', () => ({ useFxIdrRate: () => ({ status: 'off' }) }));
 vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({ useProjectBudgetPositions: () => ({ data: {} }) }));
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';

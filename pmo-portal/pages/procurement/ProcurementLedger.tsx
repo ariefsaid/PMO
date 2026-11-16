@@ -26,6 +26,7 @@ import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   DataTable,
+  ReasonDialog,
   StatusPill,
   TaxBasisLabel,
 } from '@/src/components/ui';
@@ -41,6 +42,7 @@ import type { RecordKind, StagedRecord } from './RecordCaptureForm';
 import type { TFunction } from 'i18next';
 import type { ProcurementGates } from '@/src/lib/db/orgs';
 import { useProcurementRecordMutations } from '@/src/hooks/useProcurementRecords';
+import { useSubcontractMutations } from '@/src/hooks/useSubcontract';
 import { usePermission } from '@/src/auth/usePermission';
 import type { LedgerRow } from '@/src/lib/db/procurementLedger';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
@@ -52,6 +54,7 @@ import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 import { useVendorWithholdingCoverage } from '@/src/hooks/useVendorWithholdingSlips';
 import { VendorWithholdingSlipCell } from './VendorWithholdingSlipCell';
 import { VendorInvoiceIdentity } from '@/src/components/procurement/VendorInvoiceIdentity';
+import { voidBillErrorText } from './subcontractBillError';
 import type { VendorInvoiceContext } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
 import { recordStatusLabel } from '@/src/lib/procurement/recordStatusLabel';
 
@@ -201,7 +204,8 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
   {
     key: 'status',
     header: <LedgerHeader translationKey="procurementLedger.status" fallback="Status" />,
-    cell: (row) => (row.odoo ? <OdooRowStatus row={row} /> : <RecordStatusPill row={row} />),
+    cell: (row) => (row.voided ? <VoidedBillStatus voided={row.voided} />
+      : row.odoo ? <OdooRowStatus row={row} /> : <RecordStatusPill row={row} />),
   },
 ];
 
@@ -240,6 +244,62 @@ function ledgerEmptyCopy(status: string, canApprove: boolean, t: TFunction): { t
 // Props
 // ---------------------------------------------------------------------------
 
+/** #1671: a voided vendor bill keeps its row; the status says so, with why, who and when beneath. */
+const VoidedBillStatus: React.FC<{ voided: NonNullable<LedgerRow['voided']> }> = ({ voided }) => {
+  const { t } = useTranslation(['common', 'procurement']);
+  return (
+    <div className="inline-flex flex-col items-start gap-1" data-testid="ledger-voided-bill">
+      <StatusPill variant="lost">{t('procurement:voidBill.voided', 'Voided')}</StatusPill>
+      <span className="text-sm text-muted-foreground">{voided.reason}</span>
+      <span className="text-sm text-muted-foreground">
+        {voided.byName
+          ? t('procurement:voidBill.byOn', '{{name}} · {{date}}', { name: voided.byName, date: formatDay(voided.at) })
+          : formatDay(voided.at)}
+      </span>
+    </div>
+  );
+};
+
+/**
+ * #1671: the void confirm for one bill. Mounted only while open, so the ledger takes on no mutation of its own;
+ * void_subcontract_bill owns role, author separation and the cap, and the hook refreshes the purchase and its PO.
+ */
+const VoidBillDialog: React.FC<{ row: LedgerRow; poId: string; procurementId: string; onClose: () => void }> = ({
+  row, poId, procurementId, onClose,
+}) => {
+  const { t } = useTranslation(['common', 'procurement']);
+  const { voidBill } = useSubcontractMutations(poId, procurementId);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <ReasonDialog
+      open
+      kind="reject"
+      title={t('procurement:voidBill.title', 'Void this bill?')}
+      label={t('procurement:voidBill.reason', 'Why is this bill being voided?')}
+      helper={t('procurement:voidBill.helper', 'Kept with the bill and its history.')}
+      confirmLabel={t('procurement:voidBill.confirm', 'Void bill')}
+      context={(
+        <p className="text-sm text-muted-foreground">
+          {t('procurement:voidBill.context', '{{number}} stays on the ledger as voided and stops counting against the PO, so the corrected bill can be captured.', { number: row.systemNumber ?? '' })}
+        </p>
+      )}
+      maxLength={1000}
+      loading={voidBill.isPending}
+      error={error ?? undefined}
+      onCancel={onClose}
+      onConfirm={async (reason) => {
+        setError(null);
+        try {
+          await voidBill.mutateAsync({ invoiceId: row.recordId, reason });
+          onClose();
+        } catch (err) {
+          setError(voidBillErrorText(err, t));
+        }
+      }}
+    />
+  );
+};
+
 export interface ProcurementLedgerProps {
   /** The already-loaded procurement detail (for status + stage-gating). */
   detail: ProcurementDetail;
@@ -257,6 +317,8 @@ export interface ProcurementLedgerProps {
   onSetEfaktur?: (invoiceId: string, values: EfakturSaveValues) => Promise<void>;
   /** Whether the setter is currently pending. */
   efakturSaving?: boolean;
+  /** #1671: the viewer may void a mistyped PMO-native subcontract bill (Admin/Finance, no ERP). UX only. */
+  canVoidBill?: boolean;
   /** Invoice rows for the payment predecessor-FK dropdown ([PD-5]). */
   invoices?: ProcurementInvoiceRow[];
   canWriteWithholdingSlip?: boolean;
@@ -298,6 +360,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   canRecordEfaktur = false,
   onSetEfaktur,
   efakturSaving = false,
+  canVoidBill = false,
   invoices = [],
   canWriteWithholdingSlip = false,
   onRecordWithholdingSlip,
@@ -318,6 +381,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
 }) => {
   const [filter, setFilter] = useState<LedgerFilter>('all');
   const [efakturTarget, setEfakturTarget] = useState<LedgerRow | null>(null);
+  const [voidTarget, setVoidTarget] = useState<LedgerRow | null>(null);
   const focusedInvoiceTarget = useRef<HTMLElement | null>(null);
   const { t } = useTranslation(['common', 'procurement']);
   const may = usePermission();
@@ -511,6 +575,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
           if (row.type !== 'Invoice') return undefined;
           const items: RowMenuItem[] = [];
           if (canRecordEfaktur && onSetEfaktur && !row.efakturLocked) items.push({ label: t('efaktur.record', 'Record e-Faktur'), onClick: () => setEfakturTarget(row) });
+          if (canVoidBill && row.voidable) items.push({ label: t('procurement:voidBill.action', 'Void bill'), onClick: () => setVoidTarget(row) });
           const coverage = withholdingCoverage[row.recordId];
           const invoice = invoices.find((item) => item.id === row.recordId);
           if (coverage?.active_slip_id) items.push({ label: t('bupot.view', 'View bukti potong'), onClick: () => onViewWithholdingSlip?.(coverage.active_slip_id!) });
@@ -543,6 +608,15 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
             await onSetEfaktur(efakturTarget.recordId, values);
             setEfakturTarget(null);
           }}
+        />
+      )}
+
+      {canVoidBill && voidTarget && (
+        <VoidBillDialog
+          row={voidTarget}
+          poId={voidTarget.poId ?? ''}
+          procurementId={procurementId}
+          onClose={() => setVoidTarget(null)}
         />
       )}
 

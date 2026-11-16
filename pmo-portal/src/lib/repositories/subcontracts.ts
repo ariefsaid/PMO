@@ -29,6 +29,7 @@ export const subcontractRepository: SubcontractRepository = {
   listSubcontractCapExceptions: (procurementId: string) => dal.listSubcontractCapExceptions(procurementId),
   attributeSubcontractBillLines: (invoiceId: string, lines: dal.AttributeSubcontractBillLineInput[]) =>
     dal.attributeSubcontractBillLines(invoiceId, lines),
+  voidSubcontractBill: (invoiceId: string, reason: string) => dal.voidSubcontractBill(invoiceId, reason),
   captureSubcontractVendorInvoice: (input: dal.CaptureSubcontractVendorInvoiceInput) =>
     dal.captureSubcontractVendorInvoice(input),
 };

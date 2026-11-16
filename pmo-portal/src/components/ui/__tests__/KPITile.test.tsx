@@ -204,4 +204,19 @@ describe('KPITile', () => {
     // @ts-expect-error cyan is no longer a member of KPITone
     render(<KPITile icon="folder" tone="cyan" label="x" value="1" />);
   });
+
+  it('2249: a label can be kept on one line (a money-card label never wraps)', () => {
+    render(<KPITile icon="down" tone="green" label="Left after open orders" value="IDR 1" nowrapLabel />);
+    expect(screen.getByText('Left after open orders').className).toContain('whitespace-nowrap');
+    expect(screen.getByText('Left after open orders').className).not.toContain('break-words');
+  });
+
+  it('2249: an equivalent reads the owner format as ONE unbreakable unit, rate phrase included', () => {
+    render(<KPITile icon="dollar" tone="blue" label="Budget" value="$1" caption="≈ IDR 1,623,456 (using IDR 18,500 rate)" captionWrap />);
+    const unit = screen.getByText('≈ IDR 1,623,456 (using IDR 18,500 rate)');
+    expect(unit.className).toContain('whitespace-nowrap');
+    // The sentence is in the page once (not a hidden copy plus drawn pieces), and never split into pieces.
+    expect(screen.getAllByText(/IDR 1,623,456/)).toHaveLength(1);
+    expect(screen.queryByText('(using IDR 18,500 rate)')).toBeNull();
+  });
 });

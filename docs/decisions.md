@@ -3741,6 +3741,11 @@ consumption stays before tax, and every budget-used figure and its help text say
 confirmation. What breaks under this interim: an organisation that budgets including recoverable tax sees budget used
 understated by the tax rate.
 
+### DD-FX-2 — rupiah equivalents read "≈ IDR … (using IDR … rate)"; the Budget tab shows a mixed-currency position in rupiah (owner, 2026-11-15, #2249; extends DD-FX-1)
+Every approximate rupiah equivalent reads `≈ IDR 1,623,456 (using IDR 18,500 rate)` (Indonesian `≈ IDR 1.623.456 (kurs IDR 18.500)`); a total summed at each row's own date reads `(using IDR rate of each date)`. The publication date sits in the element's title and screen-reader text ("JISDOR rate of 2026-10-09"). A foreign-currency equivalent of a rupiah amount is never shown. A dated document uses the latest rate on or before its date; when none exists it uses the latest rate available as of the organisation day. With no rate ever uploaded the figure reads `—`: a person who may upload exchange rates sees "Upload an exchange rate" (to Administration → Exchange rates), everyone else "No exchange rate uploaded".
+On a project's Budget tab, when the budget, spending and open orders are in different currencies, each exact figure stays in its own currency with its `≈ IDR` line beneath; **Budget used** (`≈ 42%`) and **Left after open orders** (`≈ IDR …`) are computed in rupiah at the latest rate on or before the organisation's today, each captioned "using IDR … rate". The tab has no hidden-figures row: a figure that cannot be shown reads `—` on its own card with one short caption, and the longer reason sits behind the card's help icon.
+Display only: no stored amount, export, tax basis, margin, approval limit, approval routing or money transition reads an approximate figure, and `can()` never takes one.
+
 ### DD-2317-TYPECHECK — the app typecheck is four `tsc -b` projects (#2317)
 `npm run typecheck` builds, as separate processes, `tsconfig.app.json` (what `index.tsx` reaches, composite), then
 `tsconfig.server.json` (the remaining non-test code: adapter seams the edge functions run, build helpers, unimported

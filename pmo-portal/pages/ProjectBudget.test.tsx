@@ -88,6 +88,8 @@ const mockUpdateLineItem = vi.fn().mockResolvedValue(undefined);
 const mockSwitchBudgetDraftMode = vi.fn().mockResolvedValue(undefined);
 const mockSaveBudgetDistribution = vi.fn().mockResolvedValue(undefined);
 
+const fxIdr = vi.hoisted(() => ({ state: { status: 'off' } as { status: string; match?: { rate: number; rate_date: string } } }));
+vi.mock('@/src/hooks/useFxIdrRate', () => ({ useFxIdrRate: () => fxIdr.state }));
 vi.mock('@/src/hooks/useBudget', () => ({
   refreshBudgetQueries: (...args: unknown[]) => mockRefreshBudgetQueries(...args),
   useProjectBudget: () => budgetState,
@@ -557,10 +559,31 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
     // Unknown spending drops its blank column and names what is hidden once.
     expect(within(table).queryByRole('columnheader', { name: 'Spent' })).not.toBeInTheDocument();
-    // One line on the page names what is hidden and why, instead of dashes in every row.
-    const hidden = screen.getByTestId('figures-hidden');
-    expect(hidden).toHaveTextContent(/3 figures hidden: Budget used is unknown or unavailable\.; spending is not linked/);
-    expect(screen.getAllByTestId('figures-hidden')).toHaveLength(1);
+    // No notice row: each figure that cannot be shown reads — on its own card with one short caption.
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
+    const cards = screen.getByRole('region', { name: 'Budget figures' });
+    // The cause is said once (Spent, where it is fixed); Budget used and Left say the same short thing.
+    expect(within(cards).getAllByText('Spending is not linked')).toHaveLength(1);
+    expect(within(cards).getAllByText('Shown once spending is linked')).toHaveLength(2);
+    expect(within(cards).getAllByText('—').length).toBeGreaterThanOrEqual(3);
+  });
+
+  it.each([
+    ['en', 'Spending is not linked'],
+    ['id', 'Pengeluaran belum terhubung'],
+  ] as const)('an unknown figure carries one short caption on its own card in %s', (locale, caption) => {
+    budgetState.data = activeVersion.total;
+    versionsState.data = [activeVersion];
+    positionState.unknown = 3;
+    render(
+      <BahasaProvider locale={locale}>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter><ToastProvider><ProjectBudget projectId="p-1" project={project} /></ToastProvider></MemoryRouter>
+        </QueryClientProvider>
+      </BahasaProvider>,
+    );
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
+    expect(screen.getAllByText(caption).length).toBeGreaterThanOrEqual(1);
   });
 
   it('places the accounting-system notice after the budget table for Admin and Finance, and hides it from PMs', async () => {

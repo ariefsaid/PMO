@@ -41,6 +41,11 @@ export interface KPITileProps {
    * A tile with no `value` (null/undefined) is unknown too.
    */
   unavailableReason?: string;
+  /**
+   * Keep an unknown figure on its own card: it reads `—` with the caption, and is never reported to the page's
+   * hidden-figures line. Longer detail belongs in `help`.
+   */
+  keepWhenUnknown?: boolean;
   /** Where the unknown figure is fixed ("Set up"); shown as the link in the hidden-figures line. */
   hiddenLink?: { to: string; label: string };
   /** Negative values turn destructive (DESIGN.md). */
@@ -52,8 +57,12 @@ export interface KPITileProps {
   help?: string;
   /** Names this figure in that help list; defaults to `label`. */
   helpLabel?: string;
-  /** The tile's ONE caption (at most 6 words, truncated to one line). */
+  /** The tile's ONE caption (short; may wrap to two lines and is never cut — a caption that explains a figure must be readable in full). */
   caption?: string;
+  /** Keep the label on one line (a money card's label never wraps). */
+  nowrapLabel?: boolean;
+  /** Screen-reader text read beside the caption (e.g. the rate's source date); not shown. */
+  captionNote?: string;
   /** Show the caption in full, wrapped, instead of one truncated line (a caption that states a fact). */
   captionWrap?: boolean;
   /** @deprecated Use `caption`. */
@@ -79,14 +88,26 @@ export interface KPITileProps {
 }
 
 /** Inside a KPIRow the tiles become cells of one joined strip: no own frame, no decorative icon tile. */
-/** The tile's one caption: a single truncated line. */
-const Caption: React.FC<{ children: string; wrap?: boolean }> = ({ children, wrap }) =>
-  wrap ? (
-    // A phone has no hover: a caption that carries a fact is shown whole, never cut to a title.
-    <div className="mt-auto break-words text-control text-muted-foreground">{children}</div>
-  ) : (
-    <div className="mt-auto truncate text-control text-muted-foreground" title={children}>{children}</div>
+/** The tile's one caption: a single truncated line, or (wrap) shown whole. */
+const UNBREAKABLE = /(≈ IDR [\d.,]+ \([^)]*\)|≈ IDR [\d.,]+|\([^)]*\))/;
+const Caption: React.FC<{ children: string; wrap?: boolean; note?: string; action?: { to: string; label: string } }> = ({ children, wrap, note, action }) => {
+  const tail = (
+    <>
+      {note && <span className="sr-only">{` (${note})`}</span>}
+      {action && <>{' · '}<Link to={action.to} className="pointer-events-auto font-medium text-primary-text underline-offset-4 hover:underline">{action.label}</Link></>}
+    </>
   );
+  return wrap ? (
+    // A phone has no hover: a caption that carries a fact is shown whole, never cut to a title.
+    // An equivalent (amount and rate phrase together) is one unbreakable unit: a line may break before or after it, never inside it.
+    <div className="mt-auto break-words text-control text-muted-foreground">
+      {children.split(UNBREAKABLE).map((part, i) => UNBREAKABLE.test(part) ? <span key={i} className="whitespace-nowrap">{part}</span> : part)}
+      {tail}
+    </div>
+  ) : (
+    <div className="mt-auto truncate text-control text-muted-foreground" title={children}>{children}{tail}</div>
+  );
+};
 
 /** Inside a row: 'tile' (its own 16px inset) or 'panel' (the panels' inset, figures on shared rows). */
 const KPIRowContext = React.createContext<false | 'tile' | 'panel'>(false);
@@ -132,9 +153,12 @@ export function KPITile({
   unavailableReason,
   negative = false,
   hiddenLink,
+  keepWhenUnknown = false,
   help,
   helpLabel,
   caption: captionProp,
+  nowrapLabel = false,
+  captionNote,
   captionWrap,
   vs,
   delta,
@@ -149,7 +173,11 @@ export function KPITile({
   const row = React.useContext(KPIRowContext);
   const inRow = row !== false;
   const caption = captionProp ?? vs ?? delta?.text;
-  const unknown = !loading && !error && (unavailableReason != null || value == null);
+  const unknownRaw = !loading && !error && (unavailableReason != null || value == null);
+  const kept = unknownRaw && keepWhenUnknown;
+  const unknown = unknownRaw && !kept;
+  const shownValue = kept ? '—' : value;
+  const shownReason = kept ? undefined : unavailableReason;
   const hiddenEntry: HiddenFigure[] = unknown
     ? [{ label, reason: unavailableReason ?? '', ...(hiddenLink ? { link: hiddenLink } : {}) }]
     : [];
@@ -178,7 +206,7 @@ export function KPITile({
       >
         <Icon name={icon} />
       </span>}
-      <span className="break-words text-control font-medium text-foreground">{label}</span>
+      <span className={cn('text-control font-medium text-foreground', nowrapLabel ? 'whitespace-nowrap' : 'break-words')}>{label}</span>
       {/* Legacy: outside a FigureScope the help stays a per-tile "?" until the page adopts the scope. */}
       {help && !inScope && (
         <Tooltip content={help} title={helpLabel}>
@@ -216,10 +244,10 @@ export function KPITile({
                 negative ? 'text-destructive' : 'text-foreground'
               )}
             >
-              <FigureContent value={value} exactValue={exactValue} unavailableReason={unavailableReason} />
+              <FigureContent value={shownValue} exactValue={exactValue} unavailableReason={shownReason} />
             </div>
           )}
-          {caption && <Caption wrap={captionWrap}>{caption}</Caption>}
+          {caption && <Caption wrap={captionWrap} note={captionNote} action={kept ? hiddenLink : undefined}>{caption}</Caption>}
         </div>
       </div>
     );
@@ -239,11 +267,11 @@ export function KPITile({
             negative ? 'text-destructive' : 'text-foreground'
           )}
         >
-          <FigureContent value={value} exactValue={exactValue} unavailableReason={unavailableReason} />
+          <FigureContent value={shownValue} exactValue={exactValue} unavailableReason={shownReason} />
         </div>
       )}
 
-      {caption && <Caption wrap={captionWrap}>{caption}</Caption>}
+      {caption && <Caption wrap={captionWrap} note={captionNote} action={kept ? hiddenLink : undefined}>{caption}</Caption>}
     </div>
   );
 }

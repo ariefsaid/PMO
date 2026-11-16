@@ -1,6 +1,7 @@
 // @e2e-isolation: self-isolated — owns a synthetic org and its FX history/documents.
 import { test, expect, type Locator } from '@playwright/test';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '../src/lib/supabase/database.types';
 import { loadEnv } from 'vite';
 import { requireServiceRoleKey } from './helpers';
 import { createFxFixture, removeFxFixture } from './fx-rates.fixtures';
@@ -131,18 +132,51 @@ test('AC-FX-015 Finance uploads isolated JISDOR rates, sees equivalents, and can
     throw new Error(`AC-FX-015 repeated rate count failed: ${repeated.error.message}`);
   expect(repeated.count).toBe(2);
 
+  // The Budget tab shows the rupiah equivalent only because this organisation's default currency is IDR.
+  const budget = await (admin as unknown as SupabaseClient<Database>)
+    .from('budget_versions')
+    .insert({ org_id: owned.orgId, project_id: owned.projectId, name: 'FX Budget', version: 1, status: 'Draft', currency: 'USD' })
+    .select('id')
+    .single();
+  if (budget.error) throw new Error(`AC-FX-015 budget fixture: ${budget.error.message}`);
+  const budgetId = (budget.data as { id: string } | null)?.id;
+  if (!budgetId) throw new Error('AC-FX-015 budget fixture: no id returned');
+  try {
+    const line = await (admin as unknown as SupabaseClient<Database>)
+      .from('budget_line_items')
+      .insert({ org_id: owned.orgId, budget_version_id: budgetId, category: 'Labor', description: 'FX labor', budgeted_amount: 1000 });
+    if (line.error) throw new Error(`AC-FX-015 budget line fixture: ${line.error.message}`);
+    const active = await (admin as unknown as SupabaseClient<Database>).from('budget_versions').update({ status: 'Active' }).eq('id', budgetId);
+    if (active.error) throw new Error(`AC-FX-015 budget activate fixture: ${active.error.message}`);
+    await page.goto(`/projects/${owned.projectId}/budget`);
+    const budgetEquivalent = page.getByText('≈ IDR 16,300,000 (using IDR 16,300 rate)', { exact: true }).first();
+    await expect(budgetEquivalent).toBeVisible();
+    // The card's caption is one element: what a person reads is exactly what a screen reader reads.
+    await expect(budgetEquivalent).toHaveText('≈ IDR 16,300,000 (using IDR 16,300 rate)');
+    // Beside the visible line sits a screen-reader note naming the rate's source date; it is not shown.
+    await expect(budgetEquivalent.locator('..')).toHaveText(/^≈ IDR 16,300,000 \(using IDR 16,300 rate\) \(JISDOR rate of .+\)$/);
+  } finally {
+    await admin.from('budget_line_items').delete().eq('budget_version_id', budgetId);
+    await admin.from('budget_versions').delete().eq('id', budgetId);
+  }
+
   await page.goto(`/projects/${owned.projectId}/overview`);
   await expect(page.getByRole('heading', { name: /FX Project/ })).toBeVisible();
   const moneyPosition = page.getByRole('region', { name: 'Money position' });
   await expect(moneyPosition.getByTestId('contract-value-amount')).toContainText('100');
-  await expect(page.getByTitle('≈ Rp 1,623,456 (JISDOR 2026-10-09)', { exact: true })).toBeVisible();
+  await expect(page.getByText('≈ IDR 1,623,456 (using IDR 16,234.56 rate)', { exact: true }).first()).toBeVisible();
 
   await page.goto(`/sales-invoices/${owned.invoiceId}`);
   await expect(page.getByText(/FX Client/).first()).toBeVisible();
   await expect(page.getByText(/\$100\b/).first()).toBeVisible();
   await expect(page.getByText(/\$25\b/).first()).toBeVisible();
   await expect(
-    page.getByText('≈ Rp 1,630,000 (JISDOR 2026-10-12)', { exact: true }).first(),
+    page.getByText('≈ IDR 1,630,000 (using IDR 16,300 rate)', { exact: true }).first(),
   ).toBeVisible();
-  await expect(page.getByText('≈ Rp 407,500 (JISDOR 2026-10-12)', { exact: true })).toBeVisible();
+  // The visible line is exactly what a person reads; the screen-reader text adds the rate's source date.
+  const outstanding = page.getByText('≈ IDR 407,500 (using IDR 16,300 rate)', { exact: true });
+  await expect(outstanding).toBeVisible();
+  await expect(outstanding.locator('..')).toHaveText(
+    /^≈ IDR 407,500 \(using IDR 16,300 rate\) \(JISDOR rate of .+2026\)$/,
+  );
 });
