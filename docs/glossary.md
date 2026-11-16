@@ -215,6 +215,9 @@ reporting manager.
 
 **Spend approver** — a user designated to approve spending for a project.
 
+**Supplier** — the party a purchase is bought from. Kept in English in Bahasa (like Timesheet and
+Dasbor), not translated as "Pemasok" (owner, 16 Nov).
+
 **Task dependency** — a directed relation stating that one task depends on another task (see
 **Task**).
 
@@ -333,6 +336,10 @@ _Avoid_: "live connection" unqualified — always name the leg.
 **Claim evidence** — a document revision and its status attached to support a progress claim.
 
 **Sales invoice** — a customer-facing invoice associated with a project and optionally a work order, carrying amount, currency, status and tax details.
+
+**Left to bill** — signed contract value (net of tax) less invoiced to date, per held contract (on-hand status, not archived: the Contract on hand set, whatever the selected period) and currency at a month; it does not depend on the revenue recognition basis. The management pack derives it once and every report tile, row, total, export and the home dashboard read that one figure (#2203). A held contract with no contract value is not in it; the total stays a number and the count of such contracts is said beside it ("N contracts with no value, not in the total").
+
+**Remaining work** — signed contract value less recognised revenue to date in the management pack; it follows the recognition basis (progress, earned value or invoiced) and is distinct from Left to bill. Formerly named "backlog" in the pack (DD-MMP-3).
 
 **Incoming payment** — a customer payment record, optionally linked to a sales invoice, carrying amount, currency, status and receipt/withholding details.
 
