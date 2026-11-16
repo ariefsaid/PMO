@@ -201,7 +201,7 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?
     <CanWrite entity="project" action="edit">
       <Button variant="outline" size="sm" onClick={handleLinkClick} disabled={isListsPending || linkProject.isPending}>
         <Icon name="plus" className="size-3.55" aria-hidden="true" />
-        Link to {tierLabel('clickup')}
+        {t('administration:projectIntegrations.link', 'Link to {{tier}}', { tier: tierLabel('clickup') })}
       </Button>
     </CanWrite>
   );
@@ -222,14 +222,14 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?
             <Icon name="plug" />
             <h3 className="text-[15px] text-foreground font-semibold">{tierLabel('clickup')}</h3>
             <StatusPill variant="neutral" className="bg-destructive/10 text-destructive-text">
-              Failed to load lists
+              {t('administration:projectIntegrations.listsFailed', 'Failed to load lists')}
             </StatusPill>
           </div>
           <div className="mt-3 flex items-center gap-2">
-            <p className="text-sm text-destructive">Couldn't reach ClickUp. Check the connection, then retry.</p>
+            <p className="text-sm text-destructive">{t('administration:projectIntegrations.unreachable', "Couldn't reach ClickUp. Check the connection, then retry.")}</p>
             <Button variant="outline" size="sm" onClick={() => refetchLists()}>
               <Icon name="refresh" className="size-3.55" aria-hidden="true" />
-              Retry
+              {t('ui.listState.retry', 'Retry')}
             </Button>
           </div>
         </Card>
@@ -244,14 +244,14 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?
             <Icon name="plug" />
             <h3 className="text-[15px] text-foreground font-semibold">{tierLabel('clickup')}</h3>
             <StatusPill variant="neutral" className="bg-destructive/10 text-destructive-text">
-              Failed to load
+              {t('administration:projectIntegrations.bindingsFailed', 'Failed to load')}
             </StatusPill>
           </div>
           <div className="mt-3 flex items-center gap-2">
-            <p className="text-sm text-destructive">{bindingsError?.message ?? 'Failed to load project bindings'}</p>
+            <p className="text-sm text-destructive">{bindingsError?.message ?? t('administration:projectIntegrations.bindingsFailedDetail', 'Failed to load project bindings')}</p>
             <Button variant="outline" size="sm" onClick={() => refetchBindings()}>
               <Icon name="refresh" className="size-3.55" aria-hidden="true" />
-              Retry
+              {t('ui.listState.retry', 'Retry')}
             </Button>
           </div>
         </Card>
@@ -306,9 +306,9 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?
       <ConfirmDialog
         open={isUnlinkConfirmOpen}
         tone="destructive"
-        title={`Unlink from ${tierLabel('clickup')}?`}
-        description="Synced tasks are retained; syncing stops. You can relink later with the same or different settings."
-        confirmLabel={`Unlink from ${tierLabel('clickup')}`}
+        title={t('administration:projectIntegrations.unlinkTitle', 'Unlink from {{tier}}?', { tier: tierLabel('clickup') })}
+        description={t('administration:projectIntegrations.unlinkBody', 'Synced tasks are retained; syncing stops. You can relink later with the same or different settings.')}
+        confirmLabel={t('administration:projectIntegrations.unlink', 'Unlink from {{tier}}', { tier: tierLabel('clickup') })}
         loading={unlinkProject.isPending}
         onConfirm={handleUnlinkConfirm}
         onCancel={() => setIsUnlinkConfirmOpen(false)}

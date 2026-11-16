@@ -1157,5 +1157,41 @@
     "confirmDescriptionYear": "Replace ERP budget {{name}} for {{year}} with PMO’s active version? The ERP copy will be amended.",
     "confirmLabel": "Replace ERP budget"
   },
-  "pmoSpentCoverage": "Paid PMO purchase payments and internal equipment charges, pre-tax"
+  "pmoSpentCoverage": "Paid PMO purchase payments and internal equipment charges, pre-tax",
+  "documentCategory": {
+    "drawing": "Drawing",
+    "specification": "Specification",
+    "report": "Report",
+    "transmittal": "Transmittal",
+    "submittal": "Submittal",
+    "certificate": "Certificate",
+    "other": "Other",
+    "reference": "Reference"
+  },
+  "documentRevision": {
+    "title": "New revision",
+    "subtitle": "Create the next revision of this document. The file can be uploaded once the revision is created.",
+    "submit": "Create revision",
+    "section": "Revision details",
+    "fieldTitle": "Title",
+    "titlePlaceholder": "Document title",
+    "fieldCode": "Code",
+    "codePlaceholder": "e.g. DWG-001",
+    "fieldCategory": "Category",
+    "fieldRevision": "Revision",
+    "revisionPlaceholder": "e.g. B",
+    "fieldDate": "Document date"
+  },
+  "fileCell": {
+    "progress": "Upload progress for {{title}}",
+    "cancelUpload": "Cancel upload for {{title}}",
+    "removeFailed": "Remove failed upload for {{title}}",
+    "remove": "Remove",
+    "uploadFor": "Upload file for {{title}}",
+    "upload": "Upload",
+    "replaceFor": "Replace file for {{title}}",
+    "replace": "Replace",
+    "downloadFor": "Download file for {{title}}",
+    "download": "Download file"
+  }
 }

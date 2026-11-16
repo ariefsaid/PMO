@@ -13,8 +13,9 @@ import {
 } from '@/src/lib/calendar/monthMatrix';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { MilestoneDate } from '@/src/lib/db/milestones';
-import { formatWeekdayMonthDay } from '@/src/lib/format';
+import { formatWeekdayMonthDay, formatWeekdayShort } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
+import { getDateFnsLocale } from '@/src/lib/locale/activeLocale';
 
 type CalEventKind = 'start' | 'end' | 'milestone';
 
@@ -53,7 +54,11 @@ export type ProjectCalendarViewProps = ProjectCalendarViewPropsBase & (
   | { isError?: false; onRetry?: () => void }
 );
 
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+/** Short weekday names in the UI language, starting on the language's first weekday (Sunday en, Monday id). */
+function weekdayHeaders(weekStartsOn: 0 | 1): string[] {
+  // 2026-11-01 is a Sunday.
+  return Array.from({ length: 7 }, (_, i) => formatWeekdayShort(new Date(2026, 10, 1 + ((i + weekStartsOn) % 7))));
+}
 
 /** Chip token classes — one consistent, high-legibility event treatment in both themes. */
 function chipClass(_kind: CalEventKind): string {
@@ -76,7 +81,7 @@ function deriveEvents(
         iso: p.start_date,
         projectId: p.id,
         label: projectDisplayName(p),
-        ariaLabel: `${projectDisplayName(p)} — start`,
+        ariaLabel: t('projects:calendar.startAria', '{{project}} — start', { project: projectDisplayName(p) }),
         contractualTitle: p.name,
       });
     }
@@ -86,7 +91,7 @@ function deriveEvents(
         iso: p.end_date,
         projectId: p.id,
         label: projectDisplayName(p),
-        ariaLabel: `${projectDisplayName(p)} — end`,
+        ariaLabel: t('projects:calendar.endAria', '{{project}} — end', { project: projectDisplayName(p) }),
         contractualTitle: p.name,
       });
     }
@@ -244,7 +249,8 @@ const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({
   if (isError) return <ListState variant="error" title={t('projectDetail.milestones.errorTitle', "Couldn't load phases")} onRetry={onRetry} />;
 
   if (isDesktop) {
-    const weeks = buildMonthMatrix(cursor.year, cursor.month);
+    const weekStartsOn = getDateFnsLocale().options?.weekStartsOn === 1 ? 1 : 0;
+    const weeks = buildMonthMatrix(cursor.year, cursor.month, weekStartsOn);
     return (
       <div>
         {nav}
@@ -253,7 +259,7 @@ const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({
           className="overflow-hidden rounded-lg border border-border bg-card"
         >
           <div className="grid grid-cols-7 border-b border-border">
-            {WEEKDAYS.map((d) => (
+            {weekdayHeaders(weekStartsOn).map((d) => (
               <div
                 key={d}
                 className="px-2 py-1.5 text-sm font-semibold text-muted-foreground"

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { EntityFormModal, TextField, SelectField, FormSection, FormGrid, useEntityForm, Button, Icon, type SubmitError } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { CATEGORY_OPTIONS } from '@/src/lib/documentCategories';
+import { categoryOptions } from '@/src/lib/documentCategories';
 import type { ProjectDocumentRow, ProjectDocumentInput } from '@/src/lib/db/documents';
 import type { MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 
@@ -186,7 +186,7 @@ export const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
               onChange={categoryField.onChange}
               onBlur={categoryField.onBlur}
               error={categoryField.error}
-              options={CATEGORY_OPTIONS}
+              options={categoryOptions(t)}
             />
             <TextField
               id={revisionField.id}

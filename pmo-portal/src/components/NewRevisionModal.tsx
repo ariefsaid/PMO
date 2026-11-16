@@ -8,7 +8,7 @@ import {
   FormGrid,
 } from '@/src/components/ui';
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
-import { CATEGORY_OPTIONS } from '@/src/lib/documentCategories';
+import { categoryOptions } from '@/src/lib/documentCategories';
 import type { MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 import { DocumentDriftBadge } from '@/src/components/m365/DocumentDriftBadge';
 
@@ -85,13 +85,13 @@ export const NewRevisionModal: React.FC<NewRevisionModalProps> = ({
   return (
     <EntityFormModal
       open
-      title="New revision"
+      title={t('project:documentRevision.title', 'New revision')}
       subtitle={
         microsoft
           ? t('m365Documents.revisionLinkedSubtitle', 'Create the next revision of this document. It links to the latest Microsoft file, so there is nothing to upload.')
-          : 'Create the next revision of this document. The file can be uploaded once the revision is created.'
+          : t('project:documentRevision.subtitle', 'Create the next revision of this document. The file can be uploaded once the revision is created.')
       }
-      submitLabel="Create revision"
+      submitLabel={t('project:documentRevision.submit', 'Create revision')}
       onSubmit={handleSubmit}
       onClose={onClose}
       loading={loading}
@@ -122,43 +122,43 @@ export const NewRevisionModal: React.FC<NewRevisionModalProps> = ({
           )}
         </div>
       )}
-      <FormSection legend="Revision details">
+      <FormSection legend={t('project:documentRevision.section', 'Revision details')}>
         <FormGrid>
           <TextField
             id="rev-title"
-            label="Title"
+            label={t('project:documentRevision.fieldTitle', 'Title')}
             required
             value={title}
             onChange={setTitle}
-            placeholder="Document title"
+            placeholder={t('project:documentRevision.titlePlaceholder', 'Document title')}
             fullWidth
           />
           <TextField
             id="rev-code"
-            label="Code"
+            label={t('project:documentRevision.fieldCode', 'Code')}
             code
             value={code}
             onChange={setCode}
-            placeholder="e.g. DWG-001"
+            placeholder={t('project:documentRevision.codePlaceholder', 'e.g. DWG-001')}
           />
           <SelectField
             id="rev-category"
-            label="Category"
+            label={t('project:documentRevision.fieldCategory', 'Category')}
             required
             value={category}
             onChange={setCategory}
-            options={CATEGORY_OPTIONS}
+            options={categoryOptions(t)}
           />
           <TextField
             id="rev-revision"
-            label="Revision"
+            label={t('project:documentRevision.fieldRevision', 'Revision')}
             value={revision}
             onChange={setRevision}
-            placeholder="e.g. B"
+            placeholder={t('project:documentRevision.revisionPlaceholder', 'e.g. B')}
           />
           <TextField
             id="rev-date"
-            label="Document date"
+            label={t('project:documentRevision.fieldDate', 'Document date')}
             type="date"
             value={docDate}
             onChange={setDocDate}

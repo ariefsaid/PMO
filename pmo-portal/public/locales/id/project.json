@@ -1157,5 +1157,41 @@
     "confirmDescriptionYear": "Ganti anggaran ERP {{name}} untuk {{year}} dengan versi aktif PMO? Salinan di ERP akan diubah.",
     "confirmLabel": "Ganti anggaran ERP"
   },
-  "pmoSpentCoverage": "Pembayaran pembelian PMO dan biaya sewa peralatan internal, sebelum pajak"
+  "pmoSpentCoverage": "Pembayaran pembelian PMO dan biaya sewa peralatan internal, sebelum pajak",
+  "documentCategory": {
+    "drawing": "Gambar",
+    "specification": "Spesifikasi",
+    "report": "Laporan",
+    "transmittal": "Transmittal",
+    "submittal": "Submittal",
+    "certificate": "Sertifikat",
+    "other": "Lainnya",
+    "reference": "Referensi"
+  },
+  "documentRevision": {
+    "title": "Revisi baru",
+    "subtitle": "Buat revisi berikutnya dari dokumen ini. Berkas bisa diunggah setelah revisi dibuat.",
+    "submit": "Buat revisi",
+    "section": "Detail revisi",
+    "fieldTitle": "Judul",
+    "titlePlaceholder": "Judul dokumen",
+    "fieldCode": "Kode",
+    "codePlaceholder": "mis. DWG-001",
+    "fieldCategory": "Kategori",
+    "fieldRevision": "Revisi",
+    "revisionPlaceholder": "mis. B",
+    "fieldDate": "Tanggal dokumen"
+  },
+  "fileCell": {
+    "progress": "Progres unggah untuk {{title}}",
+    "cancelUpload": "Batalkan unggah untuk {{title}}",
+    "removeFailed": "Hapus unggahan gagal untuk {{title}}",
+    "remove": "Hapus",
+    "uploadFor": "Unggah berkas untuk {{title}}",
+    "upload": "Unggah",
+    "replaceFor": "Ganti berkas untuk {{title}}",
+    "replace": "Ganti",
+    "downloadFor": "Unduh berkas untuk {{title}}",
+    "download": "Unduh berkas"
+  }
 }

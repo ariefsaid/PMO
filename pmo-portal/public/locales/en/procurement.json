@@ -377,7 +377,11 @@
     "leftWithoutSpending": "Without spending: {{amount}} left after orders, reserved and this purchase.",
     "leftNotKnown": "Not known",
     "leftOrdersUnknown": "Open orders not known yet",
-    "leftSpendingUnknown": "Spending not known yet"
+    "leftSpendingUnknown": "Spending not known yet",
+    "comparison": "Budget comparison",
+    "loading": "Loading budget impact",
+    "currencyUnknown": "currency unavailable",
+    "otherReservedCurrencies": "Approved, not yet ordered. Other currencies: {{amounts}}"
   },
   "headerEdit": {
     "heading": "Edit procurement details",
@@ -773,5 +777,59 @@
       "purchaseOrder": "Save Purchase Order",
       "goodsReceipt": "Save GR"
     }
+  },
+  "progression": {
+    "quote": "Quote",
+    "invoice": "Invoice",
+    "payment": "Payment",
+    "empty": "No history yet — events appear here as the procurement progresses.",
+    "ariaLabel": "Progression history",
+    "by": "by",
+    "showFewer": "Show fewer",
+    "showEarlier": "Show {{count}} earlier"
+  },
+  "overview": {
+    "detail": "Detail",
+    "progression": "Progression"
+  },
+  "ledgerFile": {
+    "attached": "File attached",
+    "attachToRecord": "Attach a file to this record",
+    "attach": "Attach file",
+    "uploading": "Uploading…",
+    "attachShort": "Attach",
+    "viewAll": "{{count}} files for {{record}} — click to view all",
+    "count": "{{count}} files",
+    "drawerTitle": "Files — {{record}}"
+  },
+  "decisionZone": {
+    "sodGate": "Separation-of-duties gate.",
+    "addNote": "Add a note",
+    "optional": "optional",
+    "notes": "Notes",
+    "notePlaceholder": "Add a note for the approval or rejection…",
+    "addLineItem": "Add at least one line item before submitting.",
+    "sodPreAnnounce": "Submitting hands this to another approver — you can't approve your own procurement case."
+  },
+  "vendorQuotes": {
+    "add": "Add quotation",
+    "title": "Bid comparison",
+    "colSupplier": "Supplier / Quote #",
+    "supplierQuote": "Supplier quote",
+    "colValueStatus": "Value status",
+    "colAmount": "Amount",
+    "colValidUntil": "Valid until",
+    "colAttachments": "Attachments",
+    "selectQuote": "Select quote {{name}}",
+    "select": "Select",
+    "tableName": "Supplier bid comparison",
+    "supplier": "Supplier",
+    "selectSupplier": "Select a supplier…",
+    "quotedTotal": "Quoted total",
+    "uploadSoon": "File upload coming soon",
+    "attachSoon": "Attach file (coming soon)",
+    "confirmTitle": "Select this quote?",
+    "confirmBody": "The selected quote sets the procurement value and supplier. If it is above the approved amount, the procurement goes back for approval.",
+    "confirmLabel": "Select quote"
   }
 }

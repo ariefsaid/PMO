@@ -1135,3 +1135,8 @@ export function formatCurrencyDecimal4(value: string, currency: string, locale: 
 export function formatDecimalString(value: string, locale: string, maxFractionDigits: number): string {
   return numberFormatterFor(`dec${maxFractionDigits}`, locale, undefined, { maximumFractionDigits: maxFractionDigits }).format(value as unknown as number);
 }
+
+/** "Sun" / "Min" — short weekday name of a date (calendar column headers). */
+export function formatWeekdayShort(d: Date): string {
+  return dateFormatterFor('weekdayShort', getDateLocale(), { weekday: 'short' }).format(d);
+}

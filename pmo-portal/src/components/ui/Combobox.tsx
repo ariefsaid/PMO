@@ -121,12 +121,12 @@ export const Combobox: React.FC<ComboboxProps> = ({
   serverSearch,
   statusOverride,
   onRetry,
-  placeholder = 'Select…',
+  placeholder: placeholderProp,
   required,
   error,
   helper,
   searchPlaceholder,
-  noun = 'option',
+  noun: nounProp = 'option',
   nounPlural,
   emptyMessage,
   clearable,
@@ -138,6 +138,20 @@ export const Combobox: React.FC<ComboboxProps> = ({
   compact,
 }) => {
   const { t } = useTranslation();
+  // Callers pass the English noun; the picker's own copy reads it in the reader's language.
+  const NOUNS: Record<string, string> = {
+    option: t('combobox.noun.option', 'option'),
+    project: t('combobox.noun.project', 'project'),
+    supplier: t('combobox.noun.supplier', 'supplier'),
+    vendor: t('combobox.noun.vendor', 'vendor'),
+    customer: t('combobox.noun.customer', 'customer'),
+    person: t('combobox.noun.person', 'person'),
+    task: t('combobox.noun.task', 'task'),
+    invoice: t('combobox.noun.invoice', 'invoice'),
+    'ERP item': t('combobox.noun.erpItem', 'ERP item'),
+  };
+  const noun = NOUNS[nounProp] ?? nounProp;
+  const placeholder = placeholderProp ?? t('combobox.select', 'Select…');
   const baseId = useId();
   const labelId = `${baseId}-lbl`;
   const errId = `${baseId}-err`;

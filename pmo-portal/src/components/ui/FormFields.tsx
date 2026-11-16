@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon } from './icons';
 import { Button } from './Button';
@@ -614,7 +615,7 @@ export interface FormActionsProps {
  */
 export const FormActions: React.FC<FormActionsProps> = ({
   submitLabel,
-  cancelLabel = 'Cancel',
+  cancelLabel: cancelLabelProp,
   hideCancel,
   onCancel,
   onSubmit,
@@ -624,7 +625,10 @@ export const FormActions: React.FC<FormActionsProps> = ({
   hideSubmit,
   extraActions,
   className,
-}) => (
+}) => {
+  const { t } = useTranslation();
+  const cancelLabel = cancelLabelProp ?? t('entityForm.cancel', 'Cancel');
+  return (
   <div
     className={cn(
       'flex items-center justify-end gap-2',
@@ -651,4 +655,5 @@ export const FormActions: React.FC<FormActionsProps> = ({
       </Button>
     )}
   </div>
-);
+  );
+};

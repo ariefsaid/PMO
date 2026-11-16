@@ -204,7 +204,9 @@
     "statusPartlyPaidLate_other": "Dibayar sebagian · terlambat {{n}} hari",
     "filters": "Filter",
     "moreActions": "Tindakan lainnya",
-    "exportList": "Ekspor"
+    "exportList": "Ekspor",
+    "receiptUnknown_one": "{{count}} jumlah penerimaan tidak diketahui",
+    "receiptUnknown_other": "{{count}} jumlah penerimaan tidak diketahui"
   },
   "invoices": {
     "clearProject": "Hapus filter proyek"
@@ -1128,5 +1130,8 @@
     "rateOfDate": "Kurs JISDOR tanggal {{date}}",
     "noRate": "Belum ada kurs yang diunggah",
     "uploadRate": "Unggah kurs"
+  },
+  "snapshotProvenance": {
+    "empty": "Belum ada snapshot"
   }
 }

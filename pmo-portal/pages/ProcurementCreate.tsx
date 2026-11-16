@@ -17,7 +17,7 @@ import { itemsNetTotal } from '@/src/lib/itemsNet';
 import { BudgetCategoryHelp } from './procurement/BudgetCategoryHelp';
 import { LineItemsSection } from './procurement/LineItemsSection';
 import { readOrigin, readRestockLine, resolveFormOrigin } from '@/src/lib/stockRequestPurchase';
-import { BUDGET_CATEGORY_OPTIONS } from './procurement/budgetCategoryOptions';
+import { budgetCategoryOptions } from './procurement/budgetCategoryOptions';
 import type { BudgetCategory } from '@/src/lib/budget/categoryAccountMap';
 
 type ProcurementHave = 'need' | 'order' | 'invoice' | 'payment';
@@ -98,6 +98,7 @@ function ProcurementIntake({
 
 export default function ProcurementCreate() {
   const { t } = useTranslation('procurementCreate');
+  const { t: tCommon } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
   const may = usePermission();
@@ -422,7 +423,7 @@ export default function ProcurementCreate() {
                   label={t('budgetCategory', 'Budget category')}
                   value={budgetCategory}
                   onChange={setBudgetCategory}
-                  options={BUDGET_CATEGORY_OPTIONS}
+                  options={budgetCategoryOptions(tCommon)}
                   helper={<BudgetCategoryHelp />}
                 />
               )}

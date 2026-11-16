@@ -16,7 +16,7 @@ import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
 import type { ProcurementHeaderPatch } from '@/src/lib/db/procurementCrud';
 import type { BudgetCategory } from '@/src/lib/budget/categoryAccountMap';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { BUDGET_CATEGORY_OPTIONS, BUDGET_CATEGORY_HELPER } from './budgetCategoryOptions';
+import { budgetCategoryOptions, BUDGET_CATEGORY_HELPER } from './budgetCategoryOptions';
 
 // ---------------------------------------------------------------------------
 // ProcurementHeaderEdit — the Draft-header edit panel (crud-components §3 inline
@@ -72,6 +72,7 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
   busy,
 }) => {
   const { t } = useTranslation();
+  const { t: tc } = useTranslation('procurementCreate');
   const [saveError, setSaveError] = React.useState<{ headline: string; detail: string } | null>(null);
   const form = useEntityForm<FormValues>({
     initialValues: { title, projectId, vendorId, budgetCategory: budgetCategory ?? '' },
@@ -120,7 +121,7 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
 
   return (
     <Card className="mb-4" data-testid="header-edit-card">
-      <CardHead>Edit procurement details</CardHead>
+      <CardHead>{tc('headerEdit.title', 'Edit procurement details')}</CardHead>
       <form onSubmit={handleSubmit}>
         <CardPad className="flex flex-col gap-4">
           {saveError && (
@@ -132,19 +133,19 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
           <FormGrid>
             <TextField
               id={titleField.id}
-              label="Title"
+              label={tc('titleField', 'Title')}
               required
               value={titleField.value}
               onChange={titleField.onChange}
               onBlur={titleField.onBlur}
               error={titleField.error}
               fullWidth
-              placeholder="Procurement title"
+              placeholder={tc('headerEdit.titlePlaceholder', 'Procurement title')}
             />
             <Combobox
-              label="Project"
+              label={tc('project', 'Project')}
               noun="project"
-              placeholder={projectName ?? 'Select a project…'}
+              placeholder={projectName ?? tc('selectProject', 'Select a project…')}
               value={form.values.projectId}
               selectedOption={
                 form.values.projectId
@@ -156,9 +157,9 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
               loadOptions={loadProjects}
             />
             <Combobox
-              label="Supplier"
+              label={tc('supplier', 'Supplier')}
               noun="supplier"
-              placeholder={vendorName ?? 'Optional: select a supplier…'}
+              placeholder={vendorName ?? tc('selectSupplier', 'Optional: select a supplier…')}
               value={form.values.vendorId}
               selectedOption={
                 form.values.vendorId && vendorName
@@ -170,15 +171,15 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
             />
             <SelectField
               id="pr-header-edit-budget-category"
-              label="Budget category"
+              label={tc('budgetCategory', 'Budget category')}
               value={form.values.budgetCategory}
               onChange={(v) => form.setValue('budgetCategory', v)}
-              options={BUDGET_CATEGORY_OPTIONS}
-              helper={BUDGET_CATEGORY_HELPER}
+              options={budgetCategoryOptions(t)}
+              helper={tc('budgetCategoryHelpFull', BUDGET_CATEGORY_HELPER)}
             />
           </FormGrid>
           <FormActions
-            submitLabel="Save procurement"
+            submitLabel={tc('headerEdit.save', 'Save procurement')}
             onCancel={onClose}
             disabled={!form.canSubmit}
             loading={busy || form.isSubmitting}

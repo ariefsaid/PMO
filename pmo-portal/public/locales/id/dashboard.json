@@ -910,6 +910,18 @@
     "findingUnavailable": "Ringkasan tidak tersedia",
     "winsAndLosses": "Menang dan kalah",
     "nothingOwedByClients": "Tidak ada tagihan klien yang terutang",
-    "hoursInTotal": "total {{hours}} jam"
-  }
+    "hoursInTotal": "total {{hours}} jam",
+    "pipelineMixedCurrency": "Jumlah pipeline berbobot disembunyikan untuk mata uang campuran.",
+    "marginCurrencyMismatch": "Margin perkiraan disembunyikan saat mata uang kontrak berbeda dari mata uang anggaran."
+  },
+  "doneNotYetBilled": {
+    "title": "Selesai, belum ditagih",
+    "error": "Jumlah yang sudah diperoleh tidak dapat dimuat",
+    "empty": "Belum ada jumlah yang diperoleh",
+    "openReports": "Buka laporan"
+  },
+  "valueUnknown": "Nilai tidak diketahui",
+  "unknownValues_one": "{{count}} nilai tidak diketahui",
+  "unknownValues_other": "{{count}} nilai tidak diketahui",
+  "financeLedger": "Buku keuangan"
 }

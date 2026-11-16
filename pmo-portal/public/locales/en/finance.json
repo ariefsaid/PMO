@@ -204,7 +204,9 @@
     "statusPartlyPaidLate_other": "Partly paid · {{n}} days overdue",
     "filters": "Filters",
     "moreActions": "More actions",
-    "exportList": "Export"
+    "exportList": "Export",
+    "receiptUnknown_one": "{{count}} receipt amount unknown",
+    "receiptUnknown_other": "{{count}} receipt amounts unknown"
   },
   "invoices": {
     "clearProject": "Clear project filter"
@@ -1128,5 +1130,8 @@
     "rateOfDate": "JISDOR rate of {{date}}",
     "noRate": "No exchange rate uploaded",
     "uploadRate": "Upload an exchange rate"
+  },
+  "snapshotProvenance": {
+    "empty": "No snapshot available yet"
   }
 }

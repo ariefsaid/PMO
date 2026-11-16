@@ -152,7 +152,8 @@
       "unpaid": "saldo invoice"
     },
     "budgetLeft": "Sisa anggaran {{left}}",
-    "budgetLeftUnknown": "Sisa anggaran belum diketahui"
+    "budgetLeftUnknown": "Sisa anggaran belum diketahui",
+    "otherCurrenciesExcluded": " · Mata uang lain tidak dibandingkan"
   },
   "timeline": {
     "filterLabel": "Filter linimasa",
@@ -188,7 +189,8 @@
       "GR": "Penerimaan",
       "Invoice": "Invoice supplier",
       "Payment": "Pembayaran"
-    }
+    },
+    "groupRef": "Ref. grup"
   },
   "files": {
     "heading": "Lampiran",

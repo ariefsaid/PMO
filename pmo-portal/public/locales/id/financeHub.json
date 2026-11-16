@@ -134,7 +134,9 @@
         "unknownCount_other": "{{count}} saldo tidak diketahui",
         "unknownNote_one": "{{count}} invoice tanpa jumlah dan tidak masuk total",
         "unknownNote_other": "{{count}} invoice tanpa jumlah dan tidak masuk total",
-        "oldestBasis": "sejak tanggal invoice"
+        "oldestBasis": "sejak tanggal invoice",
+        "unknownSupplierInvoices_one": "{{count}} invoice, supplier belum dicatat",
+        "unknownSupplierInvoices_other": "{{count}} invoice, supplier belum dicatat"
       },
       "attention": {
         "finance": "Perlu perhatian",

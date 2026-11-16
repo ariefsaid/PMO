@@ -41,7 +41,8 @@
       "filters": "Filter",
       "clear": "Hapus semua"
     },
-    "recordReference": "Referensi"
+    "recordReference": "Referensi",
+    "lifecycle": "Siklus"
   },
   "uxs07": {
     "personalConnections": "Integrasi saya",
@@ -300,7 +301,11 @@
     "actorNotRecorded": "Tidak tercatat",
     "actorResolving": "Memuat nama…",
     "actorDirectoryError": "Tidak bisa membaca orang yang mengubah kurs ini",
-    "actorDirectoryErrorSub": "Setiap kurs tetap menampilkan hari perubahannya; nama orang muncul setelah pembacaan ini berhasil."
+    "actorDirectoryErrorSub": "Setiap kurs tetap menampilkan hari perubahannya; nama orang muncul setelah pembacaan ini berhasil.",
+    "actionsUnavailableError": "Aksi tidak tersedia karena mata uang organisasi tidak dapat dibaca.",
+    "actionsUnavailableLoading": "Tunggu mata uang organisasi dimuat sebelum memakai aksi ini.",
+    "description": "USD → IDR · JISDOR · hanya sebagai padanan tampilan",
+    "continue": "Lanjutkan"
   },
   "toast": {
     "dismiss": "Tutup notifikasi"
@@ -455,7 +460,9 @@
       "notReady": "Hubungkan ERPNext sebelum memetakan akun biaya.",
       "error": {
         "title": "Tidak dapat memuat peta akun biaya",
-        "noCauseRemedy": "Akun tidak tersimpan. Isian Anda tetap ada; coba lagi."
+        "noCauseRemedy": "Akun tidak tersimpan. Isian Anda tetap ada; coba lagi.",
+        "saveHeadline": "Akun biaya tidak dapat disimpan",
+        "accountRemedy": "Periksa nama dan jenis akun di ERPNext, lalu coba lagi. Isian Anda tetap tersimpan."
       },
       "openIntegrations": "Buka integrasi",
       "change": "Ubah {{key}}",
@@ -522,8 +529,8 @@
         "savedDetail": "Kontrak, $t(common:terms.clientWorkOrder), dan invoice baru memakai dasar ini. Catatan lama tidak berubah."
       },
       "value": {
-        "exclusive": "Exclusive: pajak ditambahkan di atas nilai",
-        "inclusive": "Inclusive: nilai sudah termasuk pajak"
+        "exclusive": "Eksklusif: pajak ditambahkan di atas nilai",
+        "inclusive": "Inklusif: nilai sudah termasuk pajak"
       },
       "loadError": {
         "title": "Gagal memuat perlakuan pajak default"
@@ -920,7 +927,19 @@
       "withQuery": "Tidak ada {{noun}} yang cocok dengan \"{{query}}\". Coba pencarian lain.",
       "bare": "Belum ada pilihan untuk dipilih. Periksa prasyarat kolom ini atau minta administrator menambahkan pilihan."
     },
-    "clear": "Hapus {{noun}}"
+    "clear": "Hapus {{noun}}",
+    "noun": {
+      "option": "pilihan",
+      "project": "proyek",
+      "supplier": "supplier",
+      "vendor": "supplier",
+      "customer": "pelanggan",
+      "person": "orang",
+      "task": "tugas",
+      "invoice": "invoice",
+      "erpItem": "item ERP"
+    },
+    "select": "Pilih…"
   },
   "companies": {
     "accessDenied": {
@@ -3330,8 +3349,8 @@
     },
     "treatment": {
       "choose": "— pilih —",
-      "exclusive": "Exclusive: pajak ditambahkan di atas jumlahnya",
-      "inclusive": "Inclusive: jumlahnya sudah termasuk pajak"
+      "exclusive": "Eksklusif: pajak ditambahkan di atas jumlahnya",
+      "inclusive": "Inklusif: jumlahnya sudah termasuk pajak"
     },
     "details": {
       "unknownRate": "tarif belum dicatat",

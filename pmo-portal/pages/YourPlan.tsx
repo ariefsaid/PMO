@@ -9,7 +9,7 @@ import { useOwnPlan } from '@/src/hooks/usePlans';
 import {
   CORE_FEATURES,
   FEATURE_GROUPS,
-  FEATURE_LABELS,
+  featureLabel,
   type OrgFeatureKey,
 } from '@/src/lib/features';
 import type { PlanRow } from '@/src/lib/db/orgFeatures';
@@ -64,7 +64,7 @@ const PlanFeature: React.FC<{ feature: OrgFeatureKey; on: boolean }> = ({ featur
   const { t } = useTranslation('plans');
   return (
     <span className={on ? 'text-control' : 'inline-flex items-center gap-1.5 text-control text-muted-foreground'}>
-      {FEATURE_LABELS[feature]}
+      {featureLabel(t, feature)}
       {on ? <span className="sr-only">: {t('yourPlan.on', 'On')}</span> : <StatusPill variant="neutral"><PlanOnOff on={false} /></StatusPill>}
     </span>
   );
@@ -189,7 +189,7 @@ export const YourPlan: React.FC = () => {
             </li>
             <li className="grid gap-x-4 gap-y-1 px-4 py-3 sm:grid-cols-[8rem_1fr]">
               <span className="text-control font-semibold text-muted-foreground">{t('yourPlan.coreHeading', 'Always on for every plan')}</span>
-              <span className="text-control">{CORE_FEATURES.map((key) => FEATURE_LABELS[key]).join(' · ')}</span>
+              <span className="text-control">{CORE_FEATURES.map((key) => featureLabel(t, key)).join(' · ')}</span>
             </li>
           </ul>
         </div>
