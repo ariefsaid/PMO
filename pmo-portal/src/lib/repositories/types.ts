@@ -65,6 +65,7 @@ import type {
   ExpenseReceiptRepository,
 } from './contracts/expenses';
 import type { ImprestRepository } from './contracts/imprest';
+import type { JournalRepository } from './contracts/journals';
 import type { EquipmentRepository } from './contracts/equipment';
 import type { TimeAndMaterialsRepository } from './contracts/timeAndMaterials';
 import type {
@@ -139,6 +140,7 @@ export interface Repositories {
   procurementFiles: ProcurementFileRepository;
   expenseClaim: ExpenseClaimRepository;
   imprest: ImprestRepository;
+  journal: JournalRepository;
   equipment: EquipmentRepository;
   timeAndMaterials: TimeAndMaterialsRepository;
   expenseReceipts: ExpenseReceiptRepository;
@@ -193,6 +195,7 @@ export type { CommentRepository } from './contracts/comments';
 export type { MilestoneRepository, ProgressBillingRepository, WorkOrderAcceptanceRepository, WorkOrderRepository } from './contracts/workOrders';
 export type { ExpenseClaimRepository, ExpensePostingRepository, ExpenseReceiptRepository } from './contracts/expenses';
 export type { ImprestRepository } from './contracts/imprest';
+export type { JournalRepository } from './contracts/journals';
 export type { EquipmentRepository } from './contracts/equipment';
 export type { TimeAndMaterialsRepository } from './contracts/timeAndMaterials';
 export type { ErpPurchaseRepository } from './contracts/erpPurchases';

@@ -93,6 +93,8 @@ export const ALL_ITEMS: NavItem[] = [
   { to: '/finance/payables', text: 'Payables', icon: 'payments', group: 'Finance', feature: 'procurement', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/finance/reports', text: 'Reports', icon: 'chart-column', group: 'Finance', feature: 'management_pack', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/finance/statements', text: 'Statements', icon: 'statements', group: 'Finance', feature: 'financial_statements', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
+  // #895 manual journals: the Finance desk, role-gated (policy journal.view = Admin·Executive·Finance), no entitlement.
+  { to: '/journals', text: 'Journals', icon: 'table', group: 'Finance', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/timesheets', text: 'Timesheets', icon: 'clock', group: 'My work', feature: 'timesheets', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
   // #775: every member files their own claims; RLS scopes reads to own ∪ approval rank.
   { to: '/expenses', text: 'Expenses', icon: 'expenses', group: 'My work', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
@@ -339,6 +341,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
     '/finance/payables': t('financeHub:hub.payables', 'Payables'),
     '/finance/reports': t('financeHub:hub.reports', 'Reports'),
     '/finance/statements': t('financeHub:hub.statements', 'Statements'),
+    '/journals': t('journals:nav.journals', 'Journals'),
     '/approvals': t('shell.nav.approvals', 'Approvals'),
     '/companies': t('shell.nav.companies', 'Companies'),
     // No rail item any more (FIN-S9), but the breadcrumb and command palette share this key.

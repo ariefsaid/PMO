@@ -601,6 +601,8 @@ export interface FormActionsProps {
   submitDescribedBy?: string;
   /** Omit the primary submit (a dialog whose job is done and only offers Cancel/Done). */
   hideSubmit?: boolean;
+  /** Rendered between Cancel and the submit: a second action of the same form ("Save draft"). */
+  extraActions?: React.ReactNode;
   className?: string;
 }
 
@@ -620,6 +622,7 @@ export const FormActions: React.FC<FormActionsProps> = ({
   loading,
   submitDescribedBy,
   hideSubmit,
+  extraActions,
   className,
 }) => (
   <div
@@ -634,6 +637,7 @@ export const FormActions: React.FC<FormActionsProps> = ({
         {cancelLabel}
       </Button>
     )}
+    {extraActions}
     {!hideSubmit && (
       <Button
         type={onSubmit ? 'button' : 'submit'}

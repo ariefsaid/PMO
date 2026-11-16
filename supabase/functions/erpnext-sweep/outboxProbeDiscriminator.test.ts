@@ -203,3 +203,32 @@ Deno.test('AC-EXP-116 an expense-payment recovery probes with the frozen paid_fr
   assert(composite.includes('["paid_from","=","Cash - EX"]') && composite.includes('["paid_to","=","Employee Advances - EX"]'),
     `the composite probe did not conjoin the frozen accounts: ${composite}`);
 });
+
+function journalProbeFor(doc: Record<string, unknown>) {
+  const fetchImpl = ((url: string) => {
+    const path = decodeURIComponent(String(url));
+    if (path.includes('filters=')) return Promise.resolve(new Response(JSON.stringify({ data: [{ name: doc.name }] }), { status: 200 }));
+    return Promise.resolve(new Response(JSON.stringify({ data: doc }), { status: 200 }));
+  }) as unknown as typeof fetch;
+  return buildOutboxProbe({
+    kind: 'manual-journal',
+    anchorField: 'user_remark',
+    anchorMutable: false,
+    payload: { erp_doc_kind: 'manual-journal' },
+    probeDeps: {
+      client: { fetchImpl, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.test' },
+      doctype: 'Journal Entry',
+      anchorField: 'user_remark',
+      fromDoc: (d: unknown) => ({ id: 'x', ...(d as Record<string, unknown>) }) as PmoRecord,
+      pmoRecordId: 'pmo-1',
+    },
+  });
+}
+
+Deno.test('AC-MJE-004 the manual-journal recovery adopts a submitted Journal Entry carrying the key and leaves a draft one to the create', async () => {
+  const key = 'journal:0b7a8c2e-1111-4222-8333-444455556666';
+  const draft = await journalProbeFor({ name: 'ACC-JV-1', docstatus: 0, user_remark: key })('accounting', key);
+  assert(draft === null, `a draft was adopted: ${JSON.stringify(draft)}`);
+  const posted = await journalProbeFor({ name: 'ACC-JV-2', docstatus: 1, user_remark: key })('accounting', key);
+  assert(posted?.externalRecordId === 'ACC-JV-2', `the submitted entry was not adopted: ${JSON.stringify(posted)}`);
+});
