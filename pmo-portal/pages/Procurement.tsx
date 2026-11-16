@@ -471,7 +471,7 @@ const ProcurementPage: React.FC = () => {
           onChange={setTab}
           ariaLabel={t('tabs.label', 'Procurement lists')}
           idBase="procurement-list-tabs"
-          className="mb-0 min-w-0 gap-5 max-sm:flex-wrap max-sm:gap-x-0.5 max-sm:[mask-image:none]"
+          className="mb-0 min-w-0 gap-5"
         />
 
         {/* #2497: one filter bar, in one place, for all three views (and the same frame as the Projects list). */}

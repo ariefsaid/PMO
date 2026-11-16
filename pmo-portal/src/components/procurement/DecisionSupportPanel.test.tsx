@@ -293,12 +293,11 @@ describe('AC-IXD-PROC-W5-2d — figures rendered (whole budget basis)', () => {
     expect(screen.queryByText('Project budget')).not.toBeInTheDocument();
   });
 
-  it('rule 15: a budget too wide for half a phone row takes the whole row, label above, number unbroken', () => {
+  it('rule 15: a budget in the billions keeps its number unbroken, label above', () => {
     budgetState.data = 1_240_000_000;
     orders(0);
     renderPanel({ projectId: 'proj-1', totalValue: 22_500, projectName: 'HQ Fit-Out' }, 'id');
     const budgetTile = screen.getByText('Anggaran proyek').closest('[data-testid="stat-tile"]') as HTMLElement;
-    expect(budgetTile.className).toContain('col-span-2');
     expect(within(budgetTile).getByText(/1,240,000,000/).closest('.whitespace-nowrap')).not.toBeNull();
   });
 

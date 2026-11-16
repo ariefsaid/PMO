@@ -309,7 +309,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   const budgetPart: Part = { key: 'budget', label: t('decisionSupport.projectBudget', 'Project budget'), value: formatCurrency(budgetAmount, budgetCurrency) };
   const leftTile: StatTile | null = requestInOtherCurrency ? null : spendingKnown ? {
     // The whole-budget decision figure. The inbox row is tight: its caption moves into the label's tooltip.
-    label: <span className={bare ? undefined : 'flex min-h-[2lh] items-end'} title={leftTooltip}>{leftLabel}{captionInTooltip ? <span className="sr-only">. {leftTooltip}</span> : null}</span>,
+    label: <span title={leftTooltip}>{leftLabel}{captionInTooltip ? <span className="sr-only">. {leftTooltip}</span> : null}</span>,
     value: formatCurrency(afterRequest, currency),
     sub: t('decisionSupport.leftAfterPurchaseSub', 'After spending, orders and reserved'),
     tone: afterRequest < 0 ? ('neg' as const) : undefined,
@@ -325,9 +325,8 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
     // Only spending unknown: the tile says one short word, the sentence under the tiles carries the fallback.
     ...(inputs !== null ? { unavailableShort: t('decisionSupport.leftNotKnown', 'Not known') } : {}),
   };
-  // A long label wraps to two lines; every label reserves two and sits on the bottom so the figures line up across a row.
-  const tileLabel = (text: string) => <span className="flex min-h-[2lh] items-end">{text}</span>;
-  const asTile = (part: Part): StatTile => ({ label: tileLabel(part.label), value: part.value, ...(part.sub ? { sub: part.sub } : {}), ...(part.exactValue ? { exactValue: part.exactValue } : {}) });
+  // The strip aligns labels and figures across each row itself (alignRows), so a label is plain text.
+  const asTile = (part: Part): StatTile => ({ label: part.label, value: part.value, ...(part.sub ? { sub: part.sub } : {}), ...(part.exactValue ? { exactValue: part.exactValue } : {}) });
   const tiles: StatTile[] = [
     asTile(procurementPart),
     asTile(reservedPart),
@@ -409,7 +408,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             {/* The strip's column queries resolve against the nearest ANCESTOR container, so give it one. */}
             {/* Six tiles go 3 across (3 rows of 2 on a phone): six abreast crowd to 3-4px gaps in Bahasa at 1440.
                 Fewer take as many columns as they have, so no column is left empty. */}
-            <div className="@container"><StatTiles tiles={tiles} columns={tiles.length >= 6 ? 3 : tiles.length} variant="bare" wideFigures /></div>
+            <div className="@container"><StatTiles tiles={tiles} columns={tiles.length >= 6 ? 3 : tiles.length} variant="bare" wideFigures alignRows /></div>
           </>
         )}
 
