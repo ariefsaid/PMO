@@ -128,11 +128,13 @@ describe('procurement budget signal currency', () => {
     render(<ProcurementBudgetSignal projectId="p-1" totalValue={50} status="Ordered" currency="USD" />);
     expect(screen.getByText('Left in budget $550')).toBeInTheDocument();
   });
-  it('spending not known → no number, says so', () => {
+  it('spending not known → the amount without spending, in the panel\'s own wording, never under "Left in budget"', () => {
     positionsState.spent = null;
     render(<ProcurementBudgetSignal projectId="p-1" totalValue={50} status="Ordered" currency="USD" />);
-    expect(screen.getByText('Budget left not known yet')).toBeInTheDocument();
-    expect(screen.queryByText(/\$/)).toBeNull();
+    // budget 1000 − open orders 100 − reserved 200 = 700, the order already inside open orders
+    expect(screen.getByText('Without spending: $700 left after orders, reserved and this purchase.')).toBeInTheDocument();
+    expect(screen.queryByText(/left in budget/i)).toBeNull();
+    expect(screen.queryByText(/not known/i)).toBeNull();
   });
   it('does not compare a foreign request with project headroom', () => {
     positionsState.spent = '0.00';

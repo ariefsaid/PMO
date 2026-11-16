@@ -161,7 +161,7 @@ interface ProcurementBudgetSignalProps {
 }
 
 export const ProcurementBudgetSignal: React.FC<ProcurementBudgetSignalProps> = ({ projectId, totalValue, status, currency }) => {
-  const { t } = useTranslation('procurementRecord');
+  const { t } = useTranslation(['procurementRecord', 'procurement']);
   const may = usePermission();
   const scopedProjectId = may('view', 'procurement') ? projectId : null;
   const budget = useProjectBudget(scopedProjectId ?? '');
@@ -186,16 +186,20 @@ export const ProcurementBudgetSignal: React.FC<ProcurementBudgetSignalProps> = (
   // Spending and open orders come from the same readings as the approval panel (wholeBudgetInputs). The purchase is
   // already an order here, so it is counted in them and not subtracted again.
   const inputs = wholeBudgetInputs(positions.isError ? undefined : positions.data?.[scopedProjectId], committed, reserved.projectCurrency);
-  if (inputs === null || inputs.spent === null) {
+  if (inputs === null) {
     return <span className="text-control font-normal text-muted-foreground">{t('money.budgetLeftUnknown', 'Budget left not known yet')}</span>;
   }
+  // Only spending unknown: the amount without it, under the approval panel's own wording and never as "Left in budget".
+  const spendingKnown = inputs.spent !== null;
   let signal;
   try {
-    signal = computeBudgetSignal({ budget: budget.data, spent: inputs.spent, openOrders: inputs.openOrders, reserved: reserved.data ?? 0, totalValue, status, projectCurrency: reserved.projectCurrency, budgetCurrency: reserved.budgetCurrency, requestCurrency: currency });
+    signal = computeBudgetSignal({ budget: budget.data, spent: inputs.spent ?? 0, openOrders: inputs.openOrders, reserved: reserved.data ?? 0, totalValue, status, projectCurrency: reserved.projectCurrency, budgetCurrency: reserved.budgetCurrency, requestCurrency: currency });
   } catch {
     return <span className="text-sm font-normal text-muted-foreground">{t('money.amountUnavailable', 'Budget comparison unavailable for these amounts')}</span>;
   }
-  const label = t('money.budgetLeft', 'Left in budget {{left}}', { left: formatCurrency(signal.afterRequest, currency) });
+  const label = spendingKnown
+    ? t('money.budgetLeft', 'Left in budget {{left}}', { left: formatCurrency(signal.afterRequest, currency) })
+    : t('procurement:decisionSupport.leftWithoutSpending', { defaultValue: 'Without spending: {{amount}} left after orders, reserved and this purchase.', amount: formatCurrency(signal.afterRequest, currency) });
   const otherPositions = [...(reserved.otherCurrencies ?? []), ...(committed.otherCurrencies ?? [])];
   const otherCurrencyNotice = otherPositions.length ? t('money.otherCurrenciesExcluded', ' · Other currencies excluded from comparison') : '';
   return <span className="text-control font-normal text-muted-foreground">{label}{otherCurrencyNotice}</span>;

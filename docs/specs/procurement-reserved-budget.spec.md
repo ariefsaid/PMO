@@ -253,7 +253,8 @@ no position), *Then* only the reason is shown, with no amount. *(Owns FR-RB-017.
 **AC-RB-018 — The record header line counts an order once (unit).**
 *Given* an Ordered purchase of 50 already inside open orders 100, budget 1,000, Reserved 200, spending 0,
 *When* the record header line renders, *Then* it reads "Left in budget $700" (not $650). *(Owns FR-RB-013
-[Ordered..Paid branch].)*
+[Ordered..Paid branch].)* *Given* spending not known, *Then* the line reads "Without spending: $700 left after
+orders, reserved and this purchase." (the panel's wording), never "Left in budget".
 
 ---
 
