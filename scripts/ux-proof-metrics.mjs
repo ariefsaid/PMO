@@ -646,7 +646,6 @@ export function measureRules(N) {
   const popups = [...document.querySelectorAll(POPUP)].filter((el) => isVisible(el) && !(main && main.contains(el) && !el.matches('[role="dialog"]')));
   const roots = [...(main ? [main] : []), ...popups].filter((el, i, all) => !all.some((o, j) => j !== i && o !== el && o.contains(el)));
   if (!roots.length) return { skipped: true, findings: [], tabBars: [] };
-  const inScope = (el) => roots.some((r) => r.contains(el));
   const all = [...new Set(roots.flatMap((r) => [r, ...r.querySelectorAll('*')]))];
 
   const inFlow = (el) => { const p = getComputedStyle(el).position; return p !== 'fixed' && p !== 'absolute'; };
