@@ -780,6 +780,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       {claimDrawerFor && <WorkOrderClaimDrawer
         claim={claimDrawerFor}
         canBill={canBill}
+        canRaise={!(nativeRaise && claimDrawerFor.kind === 'time_materials')}
         currency={currency}
         projectId={projectId}
         documents={documents.data ?? []}

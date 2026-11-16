@@ -586,6 +586,72 @@ describe('WorkOrdersTab — a claim is billed in PMO when no ERP owns revenue (#
     expect(screen.queryByRole('menuitem', { name: 'Raise invoice' })).toBeNull();
   });
 
+  const openPanel = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(screen.getByRole('button', { name: /^Open Progress claim/ }));
+    return screen.findByRole('dialog', { name: 'Progress' });
+  };
+  const RAISED = { id: 'claim-1', status: 'Unpaid', si_number: 'INV-1', amount: 8000 };
+
+  it('puts Raise invoice first in the row menu, and in the side panel, when the claim has evidence and is open', async () => {
+    const user = userEvent.setup();
+    renderTab();
+    await rowActions(user);
+    expect((await screen.findAllByRole('menuitem'))[0]).toHaveAccessibleName('Raise invoice');
+    await user.keyboard('{Escape}');
+    const panel = await openPanel(user);
+    await user.click(within(panel).getByRole('button', { name: 'Raise invoice' }));
+    expect(screen.getByRole('dialog', { name: "Create this claim's invoice?" })).toBeInTheDocument();
+  });
+
+  it.each([
+    ['has no evidence', { evidence: [] }, 'Attach evidence'],
+    ['is withdrawn', { withdrawn_at: '2026-06-02T00:00:00Z' }, null],
+    ['already has an invoice', { invoice: RAISED }, null],
+  ])('offers no Raise in the row menu or the side panel when the claim %s', async (_n, over, instead) => {
+    h.claims = [claim('claim-1', over)];
+    const user = userEvent.setup();
+    renderTab();
+    const menu = within(screen.getByRole('table', { name: 'Claims & down payment' })).queryByRole('button', { name: 'Row actions' });
+    if (menu) { await user.click(menu); expect(screen.queryByRole('menuitem', { name: 'Raise invoice' })).toBeNull(); await user.keyboard('{Escape}'); }
+    const panel = await openPanel(user);
+    expect(within(panel).queryByRole('button', { name: 'Raise invoice' })).toBeNull();
+    if (instead) expect(within(panel).getByRole('button', { name: instead })).toBeInTheDocument();
+  });
+
+  it('offers no Raise in the side panel for a time-and-materials claim, or to a Project Manager', async () => {
+    h.claims = [claim('tm-1', { kind: 'time_materials', dp_recovery_amount: 0 })];
+    const user = userEvent.setup();
+    renderTab();
+    await user.click(screen.getByRole('button', { name: /^Open Progress claim/ }));
+    expect(within(await screen.findByRole('dialog', { name: 'Progress' })).queryByRole('button', { name: 'Raise invoice' })).toBeNull();
+    cleanup();
+    h.claims = [claim('claim-1')];
+    renderTab('Project Manager');
+    expect(within(await openPanel(user)).queryByRole('button', { name: 'Raise invoice' })).toBeNull();
+  });
+
+  it('offers the ERP raise from the side panel when an ERP owns revenue', async () => {
+    h.mode = 'erp'; h.erpConnected = true;
+    const user = userEvent.setup();
+    renderTab();
+    await user.click(within(await openPanel(user)).getByRole('button', { name: 'Raise invoice' }));
+    expect(screen.getByRole('dialog', { name: "Raise this claim's invoice?" })).toBeInTheDocument();
+  });
+
+  it('says evidence is needed first only while an open claim lacks it', () => {
+    const note = /Claims need evidence attached before an invoice draft can be raised/;
+    renderTab();
+    expect(screen.queryByText(note)).toBeNull();
+    cleanup();
+    h.claims = [claim('claim-1'), claim('claim-2', { evidence: [] })];
+    renderTab();
+    expect(screen.getByText(note)).toBeInTheDocument();
+    cleanup();
+    h.claims = [claim('claim-2', { evidence: [], withdrawn_at: '2026-06-02T00:00:00Z' }), claim('claim-3', { evidence: [], invoice: RAISED })];
+    renderTab();
+    expect(screen.queryByText(note)).toBeNull();
+  });
+
   it('offers nothing to a Project Manager, with no client, or before the revenue route is decided', () => {
     renderTab('Project Manager');
     expect(screen.queryByRole('button', { name: 'New claim' })).toBeNull();
