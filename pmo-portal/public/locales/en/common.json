@@ -2,6 +2,7 @@
   "terms": {
     "clientWorkOrder": "Work order",
     "dashboard": "Dashboard",
+    "supplier": "Supplier",
     "timesheet": "Timesheet"
   },
   "ui": {
@@ -2453,7 +2454,6 @@
       "vatCancelledHint": "All project invoices are cancelled and no invoice command is in flight. You can change PPN for the next invoice; cancelled invoices keep their original tax.",
       "vatEmptyHint": "Editable until an invoice is raised. New invoices follow this setting.",
       "vatStaleSave": "PPN was not changed. The project's invoice state changed; refresh and try again when all invoices are cancelled and commands have settled.",
-      "readOnly": "Read-only",
       "sodLockedNote": "Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded."
     },
     "milestoneForm": {
@@ -2948,9 +2948,7 @@
       "edit": "Edit",
       "new": "New project"
     },
-    "atRiskPill": "At risk",
     "columns": {
-      "actual": "Actual",
       "budgetUsed": "Budget used",
       "contract": "Contract",
       "pm": "PM",
@@ -3647,9 +3645,6 @@
     "returning": "Returning you to the application…",
     "signedInAs": "Signed in as {{email}}",
     "title": "Allow {{client}} to access your PMO account?"
-  },
-  "uxs04": {
-    "noActiveBudget": "No active budget"
   },
   "uxs05": {
     "customerReference": "Customer reference",
