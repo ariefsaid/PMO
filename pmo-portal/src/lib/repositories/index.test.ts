@@ -228,12 +228,13 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // silent no-op trap 0193 §5 exists to prevent.
       // 'workOrderAcceptance' from contract quantities (migration 0337, ADR-0091): allocations + BAST RPCs.
       // 'imprest' from site cash (#1515 S4+S5).
+      // 'journal' from manual journals (#895): the draft, second-approver and reversal RPCs.
       // 'equipment' from equipment usage and allocation (#1519 S5, plan S5.2): assets, usage, costing and allocations.
       // 'stock' from inventory master data (#1512 S1, migration 0412); S2a+ add documents and reports to it.
       // 'subcontracts' from subcontract acceptance, caps and variations (#1513 S6).
       // 'projectStage' from stage history (#1638).
       // 'timeAndMaterials' from time-and-materials claims (#1514 T7): rate card, assembly, sign-off and the reads.
-      ['agentAttachment', 'agentRun', 'budget', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'dashboard', 'document', 'equipment', 'erpJournalLines', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'integrations', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'notification', 'odoo', 'odooLedger', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'projectMoney', 'projectOverview', 'projectStage', 'recordHistory', 'reports', 'revenue', 'stock', 'subcontracts', 'task', 'timeAndMaterials', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder', 'workOrderAcceptance'].sort(),
+      ['agentAttachment', 'agentRun', 'budget', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'dashboard', 'document', 'equipment', 'erpJournalLines', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'journal', 'integrations', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'notification', 'odoo', 'odooLedger', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'projectMoney', 'projectOverview', 'projectStage', 'recordHistory', 'reports', 'revenue', 'stock', 'subcontracts', 'task', 'timeAndMaterials', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder', 'workOrderAcceptance'].sort(),
     );
   });
 
