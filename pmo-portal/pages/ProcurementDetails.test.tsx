@@ -1752,7 +1752,8 @@ describe('UI-POLISH: procurement detail surface refinements', () => {
   it('UIP-009: a Requested procurement shows its Purchase Request status in the record header', () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    expect(within(screen.getByTestId('record-header')).getByText('Requested', { exact: true })).toBeInTheDocument();
+    expect(within(screen.getByTestId('procurement-status-badge')).getByText('Requested', { exact: true })).toBeInTheDocument();
+    expect(screen.getByTestId('record-header')).toContainElement(screen.getByTestId('procurement-status-badge'));
   });
 
   it('AC-CONFIRM-001: Reject opens the existing destructive confirm without changing status', async () => {

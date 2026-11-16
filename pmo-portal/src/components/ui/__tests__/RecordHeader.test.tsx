@@ -188,4 +188,17 @@ describe('RecordHeader', () => {
     expect(screen.getByRole('heading', { name: 'PR-014' }).className).toContain('text-page');
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
+  it('a record\'s stage band reads inside the header, after its facts and before its notes; a header without one shows none', () => {
+    const { unmount } = render(
+      <RecordHeader icon={null} name="PO-7" status="Ordered" stats={[{ label: 'Due', value: '1 Dec' }]} band={<p>Request · Order · Receive · Pay</p>}>
+        <p>Waiting on Finance</p>
+      </RecordHeader>,
+    );
+    const header = screen.getByTestId('record-header');
+    expect(within(header).getByText('Request · Order · Receive · Pay')).toBeInTheDocument();
+    expect(header).toHaveTextContent(/Due.*1 Dec.*Request · Order · Receive · Pay.*Waiting on Finance/);
+    unmount();
+    render(<RecordHeader icon={null} name="Project X" status="Active" />);
+    expect(screen.queryByTestId('record-header-band')).not.toBeInTheDocument();
+  });
 });

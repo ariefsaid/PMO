@@ -26,6 +26,7 @@ import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   DataTable,
+  RecordSection,
   StatusPill,
   TaxBasisLabel,
 } from '@/src/components/ui';
@@ -142,6 +143,9 @@ const OdooRowStatus: React.FC<{ row: LedgerRow }> = ({ row }) => {
 const STATIC_COLUMNS: Column<LedgerRow>[] = [
   {
     key: 'date',
+    size: 96,
+    // First column: its text starts on the panel inset (the other columns keep 16px between them).
+    colClassName: 'md:pl-[var(--panel-inset)]',
     header: <LedgerHeader translationKey="procurementLedger.date" fallback="Date" />,
     cell: (row) => (
       <span className="text-sm text-muted-foreground">
@@ -151,6 +155,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
   },
   {
     key: 'type',
+    size: 100,
     header: <LedgerHeader translationKey="procurementLedger.typeHeader" fallback="Type" />,
     cell: (row) => (
       <StatusPill variant="neutral">
@@ -160,6 +165,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
   },
   {
     key: 'systemNumber',
+    size: 136,
     header: <LedgerHeader translationKey="procurementLedger.systemNumber" fallback="System #" />,
     cell: (row) =>
       row.systemNumber ? (
@@ -170,6 +176,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
   },
   {
     key: 'externalRef',
+    size: 132,
     header: <LedgerHeader translationKey="procurementLedger.externalRef" fallback="External ref" />,
     cell: (row) =>
       row.externalRef ? (
@@ -180,6 +187,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
   },
   {
     key: 'groupRef',
+    size: 100,
     header: <GroupRefHeader />,
     cell: (row) =>
       row.groupRef ? (
@@ -193,6 +201,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
     // Only a vendor invoice carries an e-Faktur — every other record type renders nothing here (no dash,
     // and no empty label on its mobile card).
     key: 'efaktur',
+    size: 92,
     header: <EfakturHeader />,
     cell: (row) => row.type === 'Invoice'
       ? <EfakturCell number={row.efakturNumber ?? null} date={row.efakturDate ?? null} />
@@ -200,6 +209,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
   },
   {
     key: 'status',
+    size: 196,
     header: <LedgerHeader translationKey="procurementLedger.status" fallback="Status" />,
     cell: (row) => (row.odoo ? <OdooRowStatus row={row} /> : <RecordStatusPill row={row} />),
   },
@@ -353,6 +363,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   const fileColumn = useMemo<Column<LedgerRow>>(
     () => ({
       key: 'file',
+      size: 96,
       header: <LedgerHeader translationKey="procurementLedger.file" fallback="File" />,
       cell: (row) => (
         <LedgerFileCell
@@ -373,10 +384,10 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   );
 
   const amountColumn = useMemo<Column<LedgerRow>>(() => ({
-    key: 'amount', header: <LedgerHeader translationKey="procurementLedger.amount" fallback="Amount" />, align: 'num',
+    key: 'amount', size: 168, header: <LedgerHeader translationKey="procurementLedger.amount" fallback="Amount" />, align: 'num',
     cell: (row) => {
       if (row.amount == null) return <span className="text-sm text-muted-foreground">—</span>;
-      const total = <span className="inline-flex items-baseline justify-end gap-1.5"><span className="tabular-nums">{formatCurrency(row.amount, row.currency)}</span><TaxBasisLabel treatment={row.taxTreatment} taxBaseUnknown={row.taxBaseUnknown} taxRate={row.taxRate} taxBaseNumerator={row.taxBaseNumerator} taxBaseDenominator={row.taxBaseDenominator} /></span>;
+      const total = <span className="inline-flex items-baseline justify-end gap-1.5"><span className="whitespace-nowrap tabular-nums">{formatCurrency(row.amount, row.currency)}</span><TaxBasisLabel treatment={row.taxTreatment} taxBaseUnknown={row.taxBaseUnknown} taxRate={row.taxRate} taxBaseNumerator={row.taxBaseNumerator} taxBaseDenominator={row.taxBaseDenominator} /></span>;
       const figures = row.type === 'Invoice' ? withholdingFigures(row.amount, row.taxAmount, row.withheldAmount, row.taxTreatment) : null;
       const invoice = row.type === 'Invoice' ? invoices.find((item) => item.id === row.recordId) : undefined;
       const slipCell = row.type === 'Invoice' ? <VendorWithholdingSlipCell row={withholdingCoverage[row.recordId]} isLoading={coverageQuery.isLoading} isError={coverageQuery.isError} canWrite={canWriteWithholdingSlip} onRetry={() => void coverageQuery.refetch()} onRecord={() => invoice && onRecordWithholdingSlip?.(invoice)} vendorMissing={vendorMissing} onSetVendor={onSetVendor} onView={onViewWithholdingSlip} onHistory={() => onWithholdingHistory?.(row.recordId)} /> : null;
@@ -465,11 +476,14 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   const pendingPush = mutations.pendingPush ?? IDLE_PENDING_PUSH;
 
   return (
-    <div data-testid="procurement-ledger">
-      {/* Toolbar: card-head + filter chips */}
-      <div className="mb-0 flex flex-wrap items-center justify-between gap-3 rounded-t-lg border border-b-0 border-border bg-card px-4 py-3">
-        <span className="text-sm font-semibold">{t('procurementLedger.title', 'Case ledger')}</span>
-        {/* Filter chips — DESIGN.md §6: seg-style 28px, rounded-full, aria-pressed */}
+    // One panel: the heading with its filter on the right, the table flush, the capture row and notes at its foot,
+    // all on the panel inset (the record's one left edge).
+    <RecordSection
+      data-testid="procurement-ledger"
+      title={t('procurementLedger.title', 'Case ledger')}
+      flush
+      actions={
+        /* Filter chips — DESIGN.md §6: seg-style 28px, rounded-full, aria-pressed */
         <div
           role="group"
           aria-label={t('procurementLedger.filter.label', 'Filter records')}
@@ -499,10 +513,13 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
             );
           })}
         </div>
-      </div>
-
-      {/* DataTable — reuses the shared primitive with md→card mobile reflow */}
+      }
+    >
+      {/* DataTable — reuses the shared primitive with md→card mobile reflow. 16px between columns so the
+          headers stay on one line at 1440; the first column carries the panel inset (its colClassName). */}
+      <div className="[--table-cell-inset:var(--space-content-inset)]">
       <DataTable<LedgerRow>
+        embedded
         rows={filteredRows}
         columns={columns}
         rowKey={(row) => row.id}
@@ -522,8 +539,8 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
         state={tableState}
         emptyTitle={emptyTitle}
         emptySub={emptySub}
-        className="rounded-t-none"
       tableId="procurement-procurementledger-table" />
+      </div>
 
       {efakturTarget && onSetEfaktur && (
         <EfakturModal
@@ -546,8 +563,8 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
         />
       )}
 
-      {/* Capture affordance + note: below the frame, on the page gutter (the capture box's own text then sits on the panel inset). */}
-      <div className="py-4">
+      {/* Capture affordance + notes: the panel's foot, on the panel inset. */}
+      <div className="border-t border-border px-[var(--panel-inset)] pb-[var(--panel-inset)] pt-4 [&>:first-child]:mt-0">
         {detail.pre_cutover && (
           // FR-ECA-030: ordered before the ERP connection, so receipts, bills and payments stay in PMO. Information, not an alert.
           <p data-testid="ledger-pre-cutover" className="mb-2.5 text-sm text-muted-foreground">
@@ -589,7 +606,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
           {t('procurementLedger.ledgerNote', 'Every record appears once, chronological. Empty record types show nothing.')}
         </p>
       </div>
-    </div>
+    </RecordSection>
   );
 };
 
