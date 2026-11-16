@@ -104,7 +104,8 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     renderCascade();
 
     const contract = screen.getByRole('region', { name: 'Contract' });
-    expect(within(contract).getByText('IDR')).toBeInTheDocument();
+    // The currency is named on each figure ("IDR 500K"), not on a separate line under the heading.
+    expect(within(contract).getAllByText(/^IDR /).length).toBeGreaterThan(0);
     expect(within(contract).queryByText(/excl\. PPN/)).not.toBeInTheDocument();
   });
 

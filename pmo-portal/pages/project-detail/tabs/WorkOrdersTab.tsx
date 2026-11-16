@@ -552,10 +552,32 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         </div>
       )}
 
+      {/* The claims come first: billing the work done is what waits on Finance here (screen rules: what waits on you leads). */}
+      <WorkOrdersClaimsCard
+        visible={canViewBilling}
+        currency={currency}
+        boqRows={boqRows}
+        summary={summary}
+        canAssess={canAssess}
+        canRecordPercent={canRecordPercent}
+        canBill={canBill}
+        claimsRead={claimsQuery}
+        claimRows={claimRows}
+        openClaimDrawer={openClaimDrawer}
+        onOpenAssessment={() => setAssessOpen(true)}
+        onOpenPercent={() => setPercentOpen(true)}
+        onOpenNewClaim={() => setNewClaimOpen(true)}
+        onAttachEvidence={setEvidenceFor}
+        canRaiseClaim={(claim) => !(nativeRaise && claim.kind === 'time_materials')}
+        revenueMode={revenueMode}
+        onRaiseClaim={(claim) => setRaiseFor({ claim, idempotencyKey: crypto.randomUUID() })}
+        onWithdrawClaim={setWithdrawClaimFor}
+      />
+
       <section aria-labelledby="pd-customer-orders" className="panel-card min-w-0">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-[var(--panel-inset)] py-4">
           <div className="flex flex-wrap items-baseline gap-x-2">
-            <h2 id="pd-customer-orders" className="text-sm font-semibold text-foreground">
+            <h2 id="pd-customer-orders" className="text-group font-semibold text-foreground">
               {t('projectDetail.contract.orders', 'Customer orders')}
             </h2>
             {/* C6: currency named once for the orders below; every figure in them is a bare number. */}
@@ -580,7 +602,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           </div>
         </div>
 
-        <div className="flex flex-wrap items-end gap-2 px-[var(--panel-inset)] pt-4">
+        {/* Filters appear once there is an order to filter. */}
+        {rows.length > 0 && <div className="flex flex-wrap items-end gap-2 px-[var(--panel-inset)] pt-4">
           <SelectField
             label={t('projectDetail.workOrders.filter.orders', 'Order')}
             value={orderFilter}
@@ -603,7 +626,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             wrapperClassName="min-w-[160px] gap-1"
             aria-label={t('projectDetail.workOrders.filter.status', 'Status')}
           />
-        </div>
+        </div>}
         {autoInvoiceNote && <p role="status" className="px-[var(--panel-inset)] pt-4 text-sm text-muted-foreground">{autoInvoiceNote}</p>}
         {/* L6/C4: the "Still to invoice" total only adds information across several orders (one order's own line
             already says it); "Not yet submitted" is said only here. An incomplete total is left out — each order
@@ -717,28 +740,10 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         )}
       </section>
 
-      <WorkOrdersClaimsCard
-        visible={canViewBilling}
-        boqRows={boqRows}
-        summary={summary}
-        canAssess={canAssess}
-        canRecordPercent={canRecordPercent}
-        canBill={canBill}
-        claimsRead={claimsQuery}
-        claimRows={claimRows}
-        openClaimDrawer={openClaimDrawer}
-        onOpenAssessment={() => setAssessOpen(true)}
-        onOpenPercent={() => setPercentOpen(true)}
-        onOpenNewClaim={() => setNewClaimOpen(true)}
-        onAttachEvidence={setEvidenceFor}
-        canRaiseClaim={(claim) => !(nativeRaise && claim.kind === 'time_materials')}
-        revenueMode={revenueMode}
-        onRaiseClaim={(claim) => setRaiseFor({ claim, idempotencyKey: crypto.randomUUID() })}
-        onWithdrawClaim={setWithdrawClaimFor}
-      />
 
       {canViewBilling && (orderlessInvoices.length > 0 || ((!customerOrders.length && !draftOrders.length) && !invoiceReadReady)) && <WorkOrdersOrderlessInvoices
         orderlessInvoices={orderlessInvoices}
+        currency={currency}
         invoicesRead={invoicesQuery}
         openInvoiceDrawer={openInvoiceDrawer}
       />}
