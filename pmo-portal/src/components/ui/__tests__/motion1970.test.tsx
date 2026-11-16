@@ -79,10 +79,12 @@ describe('#1970 motion', () => {
     expect(css).not.toContain('transition: transform 120ms cubic-bezier');
   });
 
-  it('#2128 the thinking dots animate only when reduced motion is not requested', () => {
-    const rule = /@media \(prefers-reduced-motion: no-preference\)\s*\{\s*\.thinking-dot\s*\{[^}]*animation:\s*thinking-dot/;
-    expect(css).toMatch(rule);
-    expect(css).not.toMatch(/^\.thinking-dot\s*\{/m);
+  it('#2128 the assistant working cue animates only when reduced motion is not requested', () => {
+    // The thinking dots were replaced by the pixel-grid cue; the goal holds: reduced motion freezes every loop.
+    const reduce = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce) {\n  .loading-cell'));
+    expect(reduce).toMatch(/\.loading-cell\s*\{\s*animation:\s*none/);
+    expect(reduce).toMatch(/\.loading-label\s*\{\s*animation:\s*none/);
+    expect(reduce).toMatch(/\.stream-caret\s*\{\s*animation:\s*none/);
   });
 
   it('#2128 Crossfade holds the old child for the --motion-icon-swap token, not a literal', () => {
