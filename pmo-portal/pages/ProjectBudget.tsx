@@ -73,6 +73,7 @@ import { useBudgetVersionActions } from './project-budget/BudgetVersionActions';
 import { fetchBudgetComparison, fetchBudgetPushStatus, type BudgetPushStatusRow } from '@/src/lib/repositories/budgetProjection';
 import { repositories } from '@/src/lib/repositories';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
+import { statusLabel } from '@/src/lib/status/statusMap';
 
 // ---------------------------------------------------------------------------
 // Main page component (NFR-BV-UI-001)
@@ -1092,7 +1093,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
             <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <span>{t('projectDetail.budget.version', 'Version')}</span>
               <select aria-label={t('projectDetail.budget.version', 'Version')} value={selectedVersion?.id ?? ''} disabled={view === 'forecast'} onChange={(event) => { setSelectedVersionId(event.target.value); setDraftEditorOpen(false); }} className="touch-target h-[var(--control-height-sm)] max-w-52 rounded-md border border-input bg-background px-2 text-sm text-foreground disabled:opacity-70">
-                {versions.map((version) => <option key={version.id} value={version.id}>v{version.version} · {version.status}</option>)}
+                {versions.map((version) => <option key={version.id} value={version.id}>v{version.version} · {statusLabel('budgetVersion', version.status, tCommon)}</option>)}
               </select>
             </label>
             <div className="h-4 w-px bg-border" aria-hidden="true" />

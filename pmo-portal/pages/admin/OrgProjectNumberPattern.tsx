@@ -178,7 +178,7 @@ const OrgProjectNumberPattern: React.FC = () => {
                 : t('admin.projectNumberPattern.save', 'Save pattern')}
             </Button>
             <Button type="button" variant="ghost" onClick={() => guardLeave(() => setDraft(savedPattern))}>
-              {t('common.cancel', 'Cancel')}
+              {t('entityForm.cancel', 'Cancel')}
             </Button>
           </div>
         ) : (

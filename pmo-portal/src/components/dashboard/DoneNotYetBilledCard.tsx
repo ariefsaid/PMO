@@ -15,12 +15,12 @@ export const DoneNotYetBilledCard: React.FC = () => {
 
   return (
     <Card data-testid="dashboard-done-not-yet-billed">
-      <CardHead>{t('dashboard.finance.doneNotYetBilled', 'Done, not yet billed')}</CardHead>
+      <CardHead>{t('dashboard:doneNotYetBilled.title', 'Done, not yet billed')}</CardHead>
       <CardPad>
         {figures.isPending ? <ListState variant="loading" rows={1} /> : figures.isError || !figures.data ? (
-          <ListState variant="error" title={t('dashboard.finance.doneNotYetBilledError', "Couldn't load earned amounts")} onRetry={() => void figures.refetch()} />
+          <ListState variant="error" title={t('dashboard:doneNotYetBilled.error', "Couldn't load earned amounts")} onRetry={() => void figures.refetch()} />
         ) : figures.data.pack.unbilled.length === 0 ? (
-          <p className="text-control text-muted-foreground">{t('dashboard.finance.doneNotYetBilledEmpty', 'No earned amounts to show')}</p>
+          <p className="text-control text-muted-foreground">{t('dashboard:doneNotYetBilled.empty', 'No earned amounts to show')}</p>
         ) : (
           <ul className="flex flex-col divide-y divide-border" data-testid="done-not-yet-billed-totals">
             {figures.data.pack.unbilled.map(({ currency, cents }) => (
@@ -32,7 +32,7 @@ export const DoneNotYetBilledCard: React.FC = () => {
           </ul>
         )}
         <Link to="/finance/reports" className="mt-2 inline-flex min-h-11 items-center font-medium text-primary-text hover:underline">
-          {t('dashboard.finance.openReports', 'Open reports')}
+          {t('dashboard:doneNotYetBilled.openReports', 'Open reports')}
         </Link>
       </CardPad>
     </Card>

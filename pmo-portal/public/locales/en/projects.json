@@ -39,7 +39,8 @@
   },
   "table": {
     "selectRow": "Select {{row}}",
-    "selectAllRows": "Select all rows"
+    "selectAllRows": "Select all rows",
+    "emptyDefault": "Nothing here yet"
   },
   "budgetUsedHelp": "Spent as a share of budget, before tax",
   "budgetConsumption": "{{used}} of {{budget}} Active budget before tax",
@@ -147,5 +148,9 @@
     "next": "Next",
     "nextAria": "Next page",
     "page": "Page {{page}}"
+  },
+  "calendar": {
+    "startAria": "{{project}} — start",
+    "endAria": "{{project}} — end"
   }
 }

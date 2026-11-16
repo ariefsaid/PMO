@@ -64,7 +64,7 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
 });
 
 // Mock DecisionSupportPanel — just renders a labelled div so tests don't hit budget hooks
-vi.mock('@/pages/procurement/DecisionSupportPanel', () => ({
+vi.mock('@/src/components/procurement/DecisionSupportPanel', () => ({
   DecisionSupportPanel: ({ projectName }: { projectName: string | null | undefined }) => (
     <div data-testid="decision-support">Budget impact · {projectName}</div>
   ),

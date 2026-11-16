@@ -201,12 +201,12 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
           canAdd && !adding && (
             <Button size="sm" variant="outline" onClick={() => setAdding(true)} data-testid="add-quotation">
               <Icon name="plus" width="1em" height="1em" />
-              Add quotation
+              {t('procurement:vendorQuotes.add', 'Add quotation')}
             </Button>
           )
         }
       >
-        Bid comparison
+        {t('procurement:vendorQuotes.title', 'Bid comparison')}
         <span className="ml-2 text-sm font-normal text-muted-foreground">
           {t('procurement:quotes.compareHint', 'Compare and select a supplier quote')}
         </span>
@@ -224,22 +224,22 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
       {quotations.length > 0 && (() => {
         const columns: Column<QuotationRow>[] = [
           {
-            key: 'vendor', header: 'Supplier / Quote #', kind: 'primary', size: 320, minSize: 240,
-            primaryTitle: (q) => vendorMap[q.vendor_id] ?? q.vq_number ?? 'Supplier quote',
-            cell: (q) => vendorMap[q.vendor_id] ?? q.vq_number ?? 'Supplier quote',
+            key: 'vendor', header: t('procurement:vendorQuotes.colSupplier', 'Supplier / Quote #'), kind: 'primary', size: 320, minSize: 240,
+            primaryTitle: (q) => vendorMap[q.vendor_id] ?? q.vq_number ?? t('procurement:vendorQuotes.supplierQuote', 'Supplier quote'),
+            cell: (q) => vendorMap[q.vendor_id] ?? q.vq_number ?? t('procurement:vendorQuotes.supplierQuote', 'Supplier quote'),
             secondaryCell: (q) => <span>{q.reference && <span className="mr-1">{q.reference}</span>}{q.vq_number}</span>,
           },
-          { key: 'valueStatus', header: 'Value status', kind: 'status', size: 160, cell: (q) => <div className="flex flex-wrap gap-1">{isRowSelected(q, selectedId) && <StatusPill variant="won">{t('procurement:quoteComparison.selected', 'Selected')}</StatusPill>}{lowest !== null && Number(q.total_amount) === lowest && <StatusPill variant="won">{t('procurement:quoteComparison.lowestPrice', 'Lowest price')}</StatusPill>}</div> },
-          { key: 'amount', header: 'Amount', kind: 'money', align: 'num', size: 184, minSize: 152, cell: (q) => <span className="font-semibold">{formatCurrency(Number(q.total_amount), q.currency)}</span> },
-          { key: 'validUntil', header: 'Valid until', kind: 'date', size: 160, cell: (q) => <span className="text-muted-foreground">{formatDay(q.valid_until)}</span> },
-          { key: 'attachments', header: 'Attachments', kind: 'text', size: 240, minSize: 180, cell: (q) => <ProcurementFilesSubsection phase="quotation" parentId={q.id} procurementId={procurementId} canWrite={canManageFiles} uploadedById={currentUserId} files={q.files} /> }, 
+          { key: 'valueStatus', header: t('procurement:vendorQuotes.colValueStatus', 'Value status'), kind: 'status', size: 160, cell: (q) => <div className="flex flex-wrap gap-1">{isRowSelected(q, selectedId) && <StatusPill variant="won">{t('procurement:quoteComparison.selected', 'Selected')}</StatusPill>}{lowest !== null && Number(q.total_amount) === lowest && <StatusPill variant="won">{t('procurement:quoteComparison.lowestPrice', 'Lowest price')}</StatusPill>}</div> },
+          { key: 'amount', header: t('procurement:vendorQuotes.colAmount', 'Amount'), kind: 'money', align: 'num', size: 184, minSize: 152, cell: (q) => <span className="font-semibold">{formatCurrency(Number(q.total_amount), q.currency)}</span> },
+          { key: 'validUntil', header: t('procurement:vendorQuotes.colValidUntil', 'Valid until'), kind: 'date', size: 160, cell: (q) => <span className="text-muted-foreground">{formatDay(q.valid_until)}</span> },
+          { key: 'attachments', header: t('procurement:vendorQuotes.colAttachments', 'Attachments'), kind: 'text', size: 240, minSize: 180, cell: (q) => <ProcurementFilesSubsection phase="quotation" parentId={q.id} procurementId={procurementId} canWrite={canManageFiles} uploadedById={currentUserId} files={q.files} /> }, 
           { key: 'select', header: '', kind: 'select', size: 40, minSize: 40, maxSize: 40, cell: (q) => {
             const selectable = canSelect && !isRowSelected(q, selectedId);
-            return selectable ? <Button size="sm" variant="outline" onClick={() => setSelectTarget(q)} aria-label={`Select quote ${vendorMap[q.vendor_id] ?? q.vq_number ?? ''}`.trim()}>Select</Button> : null;
+            return selectable ? <Button size="sm" variant="outline" onClick={() => setSelectTarget(q)} aria-label={t('procurement:vendorQuotes.selectQuote', 'Select quote {{name}}', { name: vendorMap[q.vendor_id] ?? q.vq_number ?? '' }).trim()}>{t('procurement:vendorQuotes.select', 'Select')}</Button> : null;
           } },
         ];
         return <>
-          <DataTable rows={sorted} columns={columns} rowKey={(q) => q.id} tableId="procurement-vendor-quotes" accessibleName="Supplier bid comparison" selectedKey={selectedId ?? undefined} />
+          <DataTable rows={sorted} columns={columns} rowKey={(q) => q.id} tableId="procurement-vendor-quotes" accessibleName={t('procurement:vendorQuotes.tableName', 'Supplier bid comparison')} selectedKey={selectedId ?? undefined} />
         </>;
       })()}
 
@@ -252,10 +252,10 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
           >
             <div className="min-w-[200px] flex-1">
               <Combobox
-                label="Supplier"
+                label={t('procurement:vendorQuotes.supplier', 'Supplier')}
                 noun="vendor"
                 required
-                placeholder="Select a supplier…"
+                placeholder={t('procurement:vendorQuotes.selectSupplier', 'Select a supplier…')}
                 value={vendorId}
                 onChange={(v) => setVendorId(v)}
                 loadOptions={loadVendors}
@@ -263,7 +263,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
             </div>
             <div className="w-[150px]">
               <NumberField
-                label="Quoted total"
+                label={t('procurement:vendorQuotes.quotedTotal', 'Quoted total')}
                 required
                 prefix={currencySymbol(currency)}
                 value={total}
@@ -277,7 +277,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
               />
             </div>
             <span
-              title="File upload coming soon"
+              title={t('procurement:vendorQuotes.uploadSoon', 'File upload coming soon')}
               // coming_soon_clicked (2026-07-13 wiring plan — demand signal): the
               // control itself stays genuinely disabled (D13 honest-affordance —
               // never a fake-working CTA); the wrapping span's own click still
@@ -286,11 +286,11 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
               className="inline-flex h-8 cursor-not-allowed items-center gap-1.5 rounded-md border border-dashed border-input bg-secondary/50 px-2.5 text-sm text-muted-foreground"
             >
               <Icon name="doc" width="1em" height="1em" />
-              Attach file (coming soon)
+              {t('procurement:vendorQuotes.attachSoon', 'Attach file (coming soon)')}
             </span>
             <span className="flex-1" />
             <Button size="sm" variant="ghost" onClick={resetAdd}>
-              Cancel
+              {t('entityForm.cancel', 'Cancel')}
             </Button>
             <Button
               size="sm"
@@ -299,7 +299,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
               loading={addBusy}
               onClick={() => void submitAdd()}
             >
-              Add quotation
+              {t('procurement:vendorQuotes.add', 'Add quotation')}
             </Button>
           </div>
         </CardPad>
@@ -309,9 +309,9 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
       <ConfirmDialog
         open={!!selectTarget}
         tone="default"
-        title="Select this quote?"
-        description="The selected quote sets the procurement value and supplier. If it is above the approved amount, the procurement goes back for approval."
-        confirmLabel="Select quote"
+        title={t('procurement:vendorQuotes.confirmTitle', 'Select this quote?')}
+        description={t('procurement:vendorQuotes.confirmBody', 'The selected quote sets the procurement value and supplier. If it is above the approved amount, the procurement goes back for approval.')}
+        confirmLabel={t('procurement:vendorQuotes.confirmLabel', 'Select quote')}
         loading={selectBusy}
         onConfirm={() => void confirmSelect()}
         onCancel={() => setSelectTarget(null)}

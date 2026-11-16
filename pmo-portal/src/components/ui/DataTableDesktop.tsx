@@ -708,14 +708,14 @@ export function DataTableDesktop<Row>({
                     <button
                       type="button"
                       onClick={() => onSort?.(col.sortKey!)}
-                      className="inline-flex flex-wrap items-center gap-1 break-words hover:text-foreground [&_svg]:size-3"
+                      className="inline-flex max-w-full items-center gap-1 hover:text-foreground [&_svg]:size-3 [&_svg]:shrink-0"
                     >
-                      <span id={`datatable-header-label-${tableInstanceId}-${col.key}`} className="break-words">{col.header}</span>
-                      {col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}
-                      {currentSort ? <Icon name={currentSort === 'asc' ? 'up' : 'down'} /> : <span data-testid="sort-cue" aria-hidden="true" className="opacity-40 [&_svg]:size-3"><Icon name="sort" /></span>}
+                      <span id={`datatable-header-label-${tableInstanceId}-${col.key}`} title={typeof col.header === 'string' ? col.header : undefined} className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{col.header}</span>
+                      {col.caveat && <span aria-hidden="true" className="ml-0.5 shrink-0 text-warning-foreground">*</span>}
+                      {currentSort ? <Icon name={currentSort === 'asc' ? 'up' : 'down'} /> : <span data-testid="sort-cue" aria-hidden="true" className="shrink-0 opacity-40 [&_svg]:size-3"><Icon name="sort" /></span>}
                     </button>
                   ) : (
-                    <><span id={`datatable-header-label-${tableInstanceId}-${col.key}`} className="break-words">{col.header}</span>{col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}</>
+                    <><span id={`datatable-header-label-${tableInstanceId}-${col.key}`} title={typeof col.header === 'string' ? col.header : undefined} className="inline-block max-w-full overflow-hidden text-ellipsis whitespace-nowrap align-bottom">{col.header}</span>{col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}</>
                   )}
                   {(() => {
                     const min = columnMinSize(col) ?? 20;

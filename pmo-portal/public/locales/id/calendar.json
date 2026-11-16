@@ -33,5 +33,16 @@
   "phasesUnavailable": "Fase tidak dapat dimuat, sehingga kalender ini tidak menampilkannya. Tugas tetap ditampilkan.",
   "retry": "Coba lagi",
   "scope": "Menampilkan tugas dan fase yang memiliki tanggal. Rapat tidak ditampilkan.",
-  "overdue": "Terlambat"
+  "overdue": "Terlambat",
+  "lib": {
+    "allDay": "Sepanjang hari",
+    "more": "+{{count}} lagi",
+    "loading": "Memuat kegiatan",
+    "event": "kegiatan",
+    "events_one": "{{count}} kegiatan",
+    "events_other": "{{count}} kegiatan",
+    "selectView": "Pilih tampilan",
+    "dropNotAllowed": "Tidak bisa ditaruh di sini",
+    "continues": "berlanjut"
+  }
 }

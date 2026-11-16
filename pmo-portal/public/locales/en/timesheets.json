@@ -21,7 +21,8 @@
     "awaiting": "{{total}} awaiting you",
     "empty": "Nothing awaiting you",
     "emptySub": "Submitted timesheets from your reports will appear here for review.",
-    "showHours": "Show hours for {{name}}"
+    "showHours": "Show hours for {{name}}",
+    "returnSubject": "{{name}}'s timesheet"
   },
   "discardWeek": {
     "title": "Discard unsaved changes?",

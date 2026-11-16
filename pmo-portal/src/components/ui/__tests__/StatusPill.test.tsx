@@ -50,4 +50,9 @@ describe('StatusPill reads the shared status map', () => {
     expect(pill.className).toContain('bg-status-danger-surface');
     expect(pill.style.color).toBe('hsl(var(--status-lost-text))');
   });
+
+  it('a long status name keeps its full text on hover and for assistive tech instead of wrapping', () => {
+    render(<StatusPill record="procurement" state="Vendor Quoted" />);
+    expect(screen.getByTitle('Supplier quote')).toBeInTheDocument();
+  });
 });

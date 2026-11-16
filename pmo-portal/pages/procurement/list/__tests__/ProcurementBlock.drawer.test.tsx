@@ -41,6 +41,8 @@ vi.mock('@/src/hooks/useErpPurchases', () => ({
   useErpOrphans: () => ({ data: [], isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState, useProjectProcurements: () => procState }));
+// The drawer's budget block reads project budget data; its own tests cover it.
+vi.mock('@/src/components/procurement/DecisionSupportPanel', () => ({ DecisionSupportPanel: () => <div data-testid="decision-support-panel">Budget impact</div> }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => ({ data: { id: 'proj-1', currency: 'USD' } }) }));
 vi.mock('@/src/hooks/useProcurementDetail', () => ({
   useProcurementDetail: (id?: string) => {

@@ -245,7 +245,7 @@ export function DataTable<Row>({
   sort,
   onSort,
   state,
-  emptyTitle = 'Nothing here yet',
+  emptyTitle: emptyTitleProp,
   emptySub,
   emptyAction,
   emptyActionVariant,
@@ -430,7 +430,7 @@ export function DataTable<Row>({
       {state === 'empty' && (
         <ListState
           variant="empty"
-          title={filteredEmpty?.message ?? emptyTitle}
+          title={filteredEmpty?.message ?? emptyTitleProp ?? t('table.emptyDefault', 'Nothing here yet')}
           sub={filteredEmpty ? undefined : emptySub}
           icon={filteredEmpty ? 'search' : undefined}
           action={filteredEmpty

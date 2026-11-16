@@ -249,3 +249,7 @@ export const FEATURE_LABELS: Record<EntitleableKey, string> = {
 export function isCoreFeature(key: string): key is CoreFeature {
   return (CORE_FEATURES as readonly string[]).includes(key);
 }
+/** A feature's label in the reader's language. The key is dynamic by design: the catalogue (`plans:features.*`) carries one entry per `FEATURE_LABELS` key. */
+export function featureLabel(t: (key: string, fallback: string) => string, key: EntitleableKey): string {
+  return t(`plans:features.${key}`, FEATURE_LABELS[key]);
+}

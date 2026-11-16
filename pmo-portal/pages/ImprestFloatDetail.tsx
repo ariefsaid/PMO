@@ -287,7 +287,7 @@ const ImprestFloatDetail: React.FC = () => {
       <RecordSection title={t('imprest:rep.title', 'Top-ups')} flush={!noReps && !reps.isError}>
         <div className={noReps || reps.isError || postings.isError || postings.data?.truncated ? 'px-[var(--panel-inset)] pb-[var(--panel-inset)]' : undefined}>
           {postings.isError
-            ? <ListState variant="error" title={t('imprest:posting.error', "Couldn't load the ERP posting status")} retryLabel={t('common.retry', 'Retry')} onRetry={() => void postings.refetch()} />
+            ? <ListState variant="error" title={t('imprest:posting.error', "Couldn't load the ERP posting status")} retryLabel={t('ui.listState.retry', 'Retry')} onRetry={() => void postings.refetch()} />
             : null}
           {postings.data?.truncated && <p role="status" className="mb-2 text-sm text-muted-foreground">
             {t('imprest:posting.truncated', 'Showing posting status for the first {{count}} movements only.', { count: LIST_LIMIT })}
