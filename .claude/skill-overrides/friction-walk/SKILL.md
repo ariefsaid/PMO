@@ -103,5 +103,10 @@ the hunting and reading that wear a person down. Measure the proxy.
 A walker also invents frictions a person would shrug off, and misses whether a trade term sounds right
 to someone in that trade. Mark the first kind "my opinion"; leave the second to the owner.
 
+**Language.** People here mix languages at work: a common English office word inside a Bahasa screen
+(invoice, supplier, timesheet, export, draft) is how they talk, and formal Bahasa in its place reads
+as awkward. Report language only when the person would not know the word, when a whole sentence is in
+the other language, or when one thing has two names (HESITATE). Kept-English terms: `docs/glossary.md`.
+
 Sources for every type, the severity scale and the two questions:
 `docs/research/2026-11-16-human-friction-taxonomy.md`.
