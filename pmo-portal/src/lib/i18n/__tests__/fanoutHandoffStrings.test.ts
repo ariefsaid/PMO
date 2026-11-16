@@ -74,7 +74,6 @@ const A9: Handoff[] = [
   ['common', 'financeCopy.ownerYou', 'You', 'Anda'],
   ['common', 'financeCopy.ownerTeammate', 'A teammate', 'Rekan tim'],
   ['common', 'financeCopy.sharedWithOrg', 'shared with the organisation', 'dibagikan ke organisasi'],
-  ['common', 'notFound.region', 'Page not found', 'Halaman tidak ditemukan'],
   ['common', 'notFound.title', 'Page not found', 'Halaman tidak ditemukan'],
   ['common', 'notFound.body', "The page you're looking for doesn't exist or has been moved.", 'Halaman yang Anda cari tidak ada atau sudah dipindahkan.'],
   ['common', 'notFound.back', 'Back to Dashboard', 'Kembali ke Dasbor'],
