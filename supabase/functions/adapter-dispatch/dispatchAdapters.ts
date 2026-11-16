@@ -152,4 +152,7 @@ export const ADAPTER_REGISTRY: Record<string, AdapterFactory> = {
   [REFERENCE_DOMAIN]: () => createReferenceAdapter('commit-success'),
   [CLICKUP_TASKS_DOMAIN]: resolveClickUpAdapter,
   ...Object.fromEntries(ERPNEXT_DISPATCH_DOMAINS.map((domain) => [domain, resolveErpAdapter])),
+  // #895: manual journals on ERPNext post as a Journal Entry through the generic doctype path ('manual-journal').
+  // Not one of ERPNEXT_DISPATCH_DOMAINS: `accounting` has no domain-ownership row; journalGuard.ts is its gate.
+  accounting: resolveErpAdapter,
 };

@@ -86,6 +86,16 @@ begin
     end;
   end loop;
 end $$;
+-- The seed org carries no journal, so the copy leaves the three journal tables empty and their by-id read and update
+-- probes would skip. Give A one draft journal (one line, one author) so every probe on them runs.
+insert into public.journal_entries (id, org_id, kind, entry_date, memo, status, maker_id)
+select 'a6120000-0000-4000-8000-0000000000e1', 'a6120000-0000-4000-8000-00000000000a', 'fee', current_date, 'isolation-proof journal', 'draft', p.id
+  from public.profiles p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
+insert into public.journal_entry_lines (id, org_id, journal_id, line_no, account, debit, credit, label)
+values ('a6120000-0000-4000-8000-0000000000e2', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000e1', 1, 'iso-account', 10, 0, '');
+insert into public.journal_entry_authors (journal_id, profile_id, org_id)
+select 'a6120000-0000-4000-8000-0000000000e1', p.id, 'a6120000-0000-4000-8000-00000000000a'
+  from public.profiles p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
 select 'ISO-COPY-SKIPPED ' || tbl || ': ' || why from _iso_skipped order by tbl;
 \endif
 

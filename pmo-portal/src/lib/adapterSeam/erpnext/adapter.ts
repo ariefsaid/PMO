@@ -15,7 +15,7 @@
 import type { Adapter, AdapterCommand, CommandResult, PmoDomain, PmoRecord, SupersededDocumentMarker } from '../contract.ts';
 import { AdapterError } from '../contract.ts';
 import { AppError } from '../../appError.ts';
-import { cancelDoc, callMethod, createDoc, getDoc, submitDoc, submitFetchedDoc, updateDoc, withCommitDeadline, withRangeWriteDeadline, ErpError, type ErpClientDeps } from './client.ts';
+import { cancelDoc, callMethod, createDoc, deleteDoc, escapeLikePattern, getDoc, listDocsByFilters, submitDoc, submitFetchedDoc, updateDoc, withCommitDeadline, withRangeWriteDeadline, ErpError, type ErpClientDeps } from './client.ts';
 import { DOCTYPE_REGISTRY, type ErpCtx, type ErpDocKind } from './doctypeRegistry.ts';
 import { findDefaultPurchaseTaxTemplate, resolvePurchaseTaxRows } from './erpPurchaseTaxRows.ts';
 import { routeEdit } from './transitionPolicy.ts';
@@ -139,6 +139,10 @@ function requireBodyFns(deps: ErpAdapterDeps, kind: ErpDocKind): DoctypeBodyFns 
  *  (non-money kinds) skips the stamp entirely — those kinds have no recovery-probe anchor. */
 function stampAnchor(body: unknown, idempotencyKey: string | undefined, anchorField: string | null): unknown {
   if (!idempotencyKey || !anchorField || typeof body !== 'object' || body === null) return body;
+  // #895: a body may lead its anchor with the key and add a note after it (a manual-journal reversal names its original);
+  // the probe matches `like %key%`, so that remark still finds it. Any other value is overwritten with the key.
+  const own = (body as Record<string, unknown>)[anchorField];
+  if (typeof own === 'string' && own.startsWith(`${idempotencyKey} `)) return body;
   return { ...(body as Record<string, unknown>), [anchorField]: idempotencyKey };
 }
 
@@ -922,6 +926,29 @@ async function commitLegacyBudgetRemove(
   return { externalRecordId: target, canonical: canonical(readback) };
 }
 
+/**
+ * #895 `lookUpByKeyFirst`: the documents this create already made under its key — those whose anchor IS the key, or
+ * starts with the key and a space (a reversal names its original after the key). Any other document that merely
+ * mentions the key is not this command's. Returns the submitted one's name (the create inserts nothing); deletes each
+ * draft one (a submit ERP refused, so its body may be the refused one) and returns null so the create inserts afresh.
+ * A key with no anchor field or no key is a plain create.
+ */
+async function settleOwnDocsByKey(command: AdapterCommand, deps: ErpAdapterDeps, doctype: string, anchorField: string | null): Promise<string | null> {
+  const key = command.idempotencyKey;
+  if (!key || !anchorField) return null;
+  const rows = await listDocsByFilters(deps.client, doctype,
+    [[anchorField, 'like', `%${escapeLikePattern(key)}%`], ['docstatus', '<', 2]], ['name', 'docstatus', anchorField], 20);
+  const own = rows.filter((r) => typeof r.name === 'string' && r.name !== ''
+    && typeof r[anchorField] === 'string' && (r[anchorField] === key || (r[anchorField] as string).startsWith(`${key} `)));
+  const submitted = own.filter((r) => Number(r.docstatus) === 1);
+  if (submitted.length > 1) {
+    throw new AppError(`ERPNext holds ${submitted.length} submitted ${doctype} documents for one PMO record (${submitted.map((r) => r.name).join(', ')})`, 'command-held');
+  }
+  if (submitted.length === 1) return String(submitted[0].name);
+  for (const draft of own) await deleteDoc(deps.client, doctype, String(draft.name));
+  return null;
+}
+
 async function commitCreate(command: AdapterCommand, deps: ErpAdapterDeps): Promise<CommandResult> {
   const kind = requireKind(command.record);
   const entry = DOCTYPE_REGISTRY[kind];
@@ -959,6 +986,13 @@ async function commitCreate(command: AdapterCommand, deps: ErpAdapterDeps): Prom
   const bodyFns = requireBodyFns(deps, kind);
   const record = recordWithResolvedItemsFallback(command.record, deps.ctx);
   const body = stampAnchor(bodyFns.toBody(record, deps.ctx), command.idempotencyKey, entry.anchorField);
+  if (entry.lookUpByKeyFirst) {
+    const posted = await settleOwnDocsByKey(command, deps, entry.doctype, entry.anchorField);
+    if (posted) {
+      const doc = await getDoc(deps.client, entry.doctype, posted);
+      return { externalRecordId: posted, canonical: { ...bodyFns.fromDoc(doc), id: command.record.id } };
+    }
+  }
   const created = (await createDoc(deps.client, entry.doctype, body)) as { name: string };
 
   // OD-SAR-DRAFT-SUBMIT: a `submitOnCreate:false` kind (revenue Sales Invoice) is created as an ERP

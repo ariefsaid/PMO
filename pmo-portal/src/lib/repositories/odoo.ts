@@ -59,7 +59,7 @@ function revenueCommands(rows: Array<Record<string, unknown>>, now: Date): Reven
   }).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
-const CONFIG_KEYS = ['database', 'odoo_company_name', 'key_expires_on', 'account_defaults', 'unit_map', 'default_warehouse_id', 'default_payment_journal_id'];
+const CONFIG_KEYS = ['database', 'odoo_company_name', 'key_expires_on', 'account_defaults', 'unit_map', 'default_warehouse_id', 'default_payment_journal_id', 'desk_journal_id'];
 
 export const odooRepository: OdooRepository = {
   listMasterRecords: (input: ListMasterInput) => wrap(async () => {
@@ -68,6 +68,7 @@ export const odooRepository: OdooRepository = {
     if (input.search) q = q.or(`name.ilike.${likeAny(input.search)},code.ilike.${likeAny(input.search)}`);
     if (input.externalIds) q = q.in('external_id', input.externalIds);
     if (input.warehouseIds) q = q.in('attrs->>warehouse_id', input.warehouseIds);
+    if (input.journalType) q = q.eq('attrs->>type', input.journalType);
     if (input.purpose) q = q.eq(input.purpose === 'purchase' ? 'attrs->>purchasable' : 'attrs->>sellable', 'true');
     if (!input.includeInactive) q = q.eq('active', true).is('tombstoned_at', null);
     const from = (input.page - 1) * input.pageSize;

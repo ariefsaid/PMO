@@ -52,3 +52,13 @@ it('maps a held customer document number to the Odoo model that holds it', () =>
   expect(odooRevenueDocumentRef('incoming-payment', 42)).toBe('account.payment:42');
   expect(() => odooRevenueDocumentRef('sales-invoice', 'abc')).toThrow();
 });
+
+it('#895 a manual-journal key and a journal-reversal key are valid anchors (one PMO journal, one Odoo move)', () => {
+  const id = '123e4567-e89b-12d3-a456-426614174000';
+  expect(externalIdentifier(`journal:${id}`)).toEqual({ module: 'pmo', name: `journal_${id.replace(/-/g, '_')}` });
+  expect(externalIdentifier(`journal-rev:${id}`)).toEqual({ module: 'pmo', name: `journal_rev_${id.replace(/-/g, '_')}` });
+  expect(anchorValue(`journal:${id}`)).toBe(`pmo:journal:${id}`);
+  for (const bad of [`journal:${id}:x`, `journal:${id}:1`, 'journal:bad', `journal-rev:${id}:1`, `journal:${id.slice(0, 35)}`]) {
+    expect(() => externalIdentifier(bad), bad).toThrow();
+  }
+});

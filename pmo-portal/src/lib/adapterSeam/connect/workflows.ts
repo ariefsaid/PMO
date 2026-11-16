@@ -47,6 +47,9 @@ export const WORKFLOWS = {
   // The asset register and its maintenance (#1511): PMO is the only interface, the ERP holds the records.
   'equipment.push': { version: 1, summary: 'create or update a register asset or maintenance record in the ERP once, by key' },
   'equipment.read': { version: 1, summary: 'read the ERP asset register and maintenance records into PMO' },
+  // The accountant's desk (#895): manual journals PMO drafts and approves, the ledger holds.
+  'journal.post': { version: 1, summary: 'post one balanced manual journal once, by key, and read it back' },
+  'journal.reverse': { version: 1, summary: 'reverse one posted journal once, by key, dated' },
 } as const satisfies Record<string, { version: number; summary: string }>;
 
 export type WorkflowId = keyof typeof WORKFLOWS;

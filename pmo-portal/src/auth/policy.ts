@@ -52,7 +52,8 @@ export type Action =
   | 'decide'
   | 'revise'
   | 'link'
-  | 'void';
+  | 'void'
+  | 'approve';
 
 export type Entity =
   | 'project'
@@ -107,6 +108,7 @@ export type Entity =
   | 'projectProgress'
   | 'fxRate'
   | 'financialStatements'
+  | 'journal'
   | 'projectProfitLoss'
   | 'odooLedgerHealth'
   | 'odooLedgerLines'
@@ -409,6 +411,26 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   },
   finance: { view: allow(MONEY_AUTHORITY), act: allow(REVENUE_WRITE) },
   financialStatements: { view: allow(MONEY_AUTHORITY) },
+  /**
+   * #895 manual journals (owner ruling 2). The desk is Finance-or-above; `approve` (and Return) is for a
+   * Finance-or-above member who did not write the journal: not its maker, not any editor
+   * (`record.author_ids`) and, for a reversal, nobody who wrote the original (`record.original_author_ids`).
+   * Exception: the member of an org that has only ever had one member (one profile, any status) may approve their own
+   * journal (`record.sole_active_member` carries the server's `may_approve_journal` answer). Deny without a record or a user id. UX only; the RPC is the authority.
+   */
+  journal: {
+    view: allow(MONEY_AUTHORITY),
+    create: allow(MONEY_AUTHORITY),
+    edit: allow(MONEY_AUTHORITY),
+    approve: (role, ctx) => {
+      const record = ctx.record;
+      const me = ctx.currentUserId;
+      if (!has(MONEY_AUTHORITY, role) || !record || record.viewOnly === true || !me) return false;
+      if (record.sole_active_member === true) return true;
+      const wrote = (ids: unknown): boolean => Array.isArray(ids) && ids.includes(me);
+      return record.maker_id !== me && !wrote(record.author_ids) && !wrote(record.original_author_ids);
+    },
+  },
   projectProfitLoss: { view: allow(ALL) },
   // Odoo ledger (#1507 S7, FR-ODA-061/062). UX only; the RPCs and RLS decide. Health, reconciliation and the switch controls are
   // for Admin and Finance; source lines are for Admin, Finance and Executive (a Project Manager or Engineer reads totals only).

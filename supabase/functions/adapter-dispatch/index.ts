@@ -88,6 +88,8 @@ import { odooCompanyAnchorKey } from './odooCompanies.ts';
 import { equipmentKey } from './odooEquipment.ts';
 import { INVENTORY_DOMAIN, STOCK_DOC_KIND, stockCommandShapeError, stockKey } from './odooStock.ts';
 import { EQUIPMENT_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/odoo/assets/kinds.ts';
+import { applyCanonicalJournalTruth, enforceJournalApproved, isJournalPush, JOURNAL_DOMAIN, type ApprovedJournal } from './journalGuard.ts';
+import { recordJournalHold } from './readModelWriters.ts';
 import { checkOdooDraftTarget, isOdooInvoiceDraftWrite, writeOdooInvoiceDraft } from './odooInvoiceDraft.ts';
 import { ODOO_TIER } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
 import { odooOwnsCompaniesTier, odooOwnsRevenueTier } from '../../../pmo-portal/src/lib/adapterSeam/odoo/ownership.ts';
@@ -281,7 +283,25 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   // Compute isErpDomain early so it's available for both the auth guard and idempotency check. #1511: the equipment register is
   // an externally-owned domain too — it is served by the Odoo tier only, and every gate below that does not concern it is
   // self-gating on the domain (the cutover gate, the revenue/procurement target guards, the project gates).
-  const isErpDomain = isErpDispatchDomain(command.domain) || command.domain === EQUIPMENT_DOMAIN || command.domain === INVENTORY_DOMAIN;
+  const isErpDomain = isErpDispatchDomain(command.domain) || command.domain === EQUIPMENT_DOMAIN || command.domain === INVENTORY_DOMAIN
+    || command.domain === JOURNAL_DOMAIN;
+
+  // ── #895 — a manual journal posts ONLY once a second person approved it in PMO (owner rulings 1–2, enforced by
+  // `approve_journal`). The gate re-reads the approved journal under the caller's JWT (Finance-or-above, own org,
+  // approved) and the command is rebuilt from that read: id, key, lines, amounts, date and ledger refs. The ledger tier
+  // is the one the read names, so no domain-ownership row is needed for `accounting`. Any other shape is refused here.
+  let approvedJournal: ApprovedJournal | undefined;
+  if (command.domain === JOURNAL_DOMAIN) {
+    if (command.operation !== 'create' || !isJournalPush(command as never)) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: 'only an approved manual journal can be posted' }), { status: 422, headers });
+    }
+    const gate = await enforceJournalApproved(callerClient as never, String(command.record.id));
+    if (!gate.ok || !gate.journal) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: gate.message }), { status: gate.status, headers });
+    }
+    approvedJournal = gate.journal;
+    applyCanonicalJournalTruth(command as never, approvedJournal);
+  }
 
   // ── #1508 — a connected stock post names only the document and the integer revision the keeper viewed. Anything else (another
   // kind or operation, a non-uuid id, no revision) answers 422 before any guard read or write; the rest of the record is dropped,
@@ -324,7 +344,8 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   // `budget-occupant` (ECA-6) is a request, not an ERP document kind: it has its own Admin/Finance gate below.
   // The tier that owns the domain for this org (ERPNext, or Odoo where procurement is employed) picks the adapter and the outbox.
   let employedTier: string | undefined;
-  if (isErpDomain && !isBudgetOccupantCommand(command)) {
+  if (approvedJournal) employedTier = approvedJournal.tier;
+  if (isErpDomain && !isBudgetOccupantCommand(command) && !approvedJournal) {
     // The guard reads only the authorization inputs (domain + the named ERP document kind).
     const auth = await checkCommandAuthorization(callerClient as never, orgId, userId, {
       domain: command.domain,
@@ -430,7 +451,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   // #1508: one PMO stock document is one Odoo picking, so the key follows the document (the client's per-click key is replaced).
   const odooStockKeyDerivedByServer = command.domain === INVENTORY_DOMAIN;
   if (odooStockKeyDerivedByServer) command.idempotencyKey = stockKey(command.record as Record<string, unknown>);
-  if (isErpDomain && !budgetKeyDerivedByServer && !odooInvoiceKeyDerivedByServer && !odooCompanyKeyDerivedByServer && !odooEquipmentKeyDerivedByServer && !odooStockKeyDerivedByServer && (command.operation as string) !== 'read' && !isOpaqueIdempotencyKey(command.idempotencyKey)) {
+  if (isErpDomain && !approvedJournal && !budgetKeyDerivedByServer && !odooInvoiceKeyDerivedByServer && !odooCompanyKeyDerivedByServer && !odooEquipmentKeyDerivedByServer && !odooStockKeyDerivedByServer && (command.operation as string) !== 'read' && !isOpaqueIdempotencyKey(command.idempotencyKey)) {
     return new Response(
       JSON.stringify({
         error: 'commit-rejected',
@@ -860,6 +881,27 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     }
   };
 
+  /** #895 — a journal the ledger did not confirm shows Needs a check (held) or Refused, never stays Approved silently.
+   *  Best-effort, like the timesheet recorder: a failure to record never masks the error the caller gets. A transient
+   *  failure (unreachable) leaves the journal sending, so it can be sent again. */
+  const recordJournalPushFailure = async (failure: AppError): Promise<void> => {
+    if (!approvedJournal) return;
+    const status = failure.code === 'command-held' || failure.code === 'config-rejected' ? 'held'
+      : failure.code === 'commit-rejected' ? 'refused' : null;
+    if (!status) return;
+    try {
+      await recordJournalHold(serviceClient as never, approvedJournal.id, status, failure.message);
+    } catch (recordErr) {
+      console.error('[adapter-dispatch] failed to record journal push failure:', recordErr);
+    }
+  };
+  if (approvedJournal) {
+    try { await recordJournalHold(serviceClient as never, approvedJournal.id, 'sending', null); } catch (err) {
+      const message = err instanceof Error ? err.message : 'the journal could not be marked as sending';
+      return new Response(JSON.stringify({ error: 'commit-rejected', message }), { status: 409, headers });
+    }
+  }
+
   // ── Named server-side fault seams (Slice 0 task 0.7, FR-ENA-003, plan §2 decision 5; host
   // allowlist added fix-round finding 5): read the gate ONCE per request and thread it through.
   // `maybeFault` re-checks ALL THREE conditions per named seam, so this is a pure no-op in every
@@ -911,7 +953,10 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
       capturedReplayBeforeClaim,
       capturedReplayAfterClaim,
       releaseSubmitClearance,
-      recordTimesheetPushFailure,
+      recordTimesheetPushFailure: async (failure: AppError) => {
+        await recordTimesheetPushFailure(failure);
+        await recordJournalPushFailure(failure);
+      },
     });
 
   try {
