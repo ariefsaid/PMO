@@ -633,6 +633,10 @@ jobs:
       - name: Assignment rollback harness
         run: scripts/with-db-lock.sh scripts/test-2195-b1-rollback.sh
 
+      # Resets to the migration before 0903 to record the replaced function bodies and the request guard, then back to head.
+      - name: 2277 order-family rollback proof
+        run: scripts/with-db-lock.sh scripts/test-2195-order-family-rollback.sh
+
       # #2259: the undo kind-order migration's down restores the 0882 body verbatim (runs against head, rolled back).
       - name: Undo kind-order rollback harness
         run: scripts/test-2259-undo-rollback.sh
