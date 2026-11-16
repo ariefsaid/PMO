@@ -668,6 +668,26 @@ describe('#1599 ECX-4 drainConnectSends: direct-cost accounts', () => {
     assertEquals(operatorTasks(h.calls).map((t) => [t.error_code, t.context_id]), [['ERP_ACCOUNT_SEND_UNCONFIRMED', 'prop-acct']]);
   });
 
+  it('AC-ECX-030 a replayed account answer is read back from the ERP: a turned-off or posting account, or one under another name, is refused and never linked; a matching usable account is linked', async () => {
+    const replayed = { id: 'ob-0', domain: 'accounts', pmo_record_id: 'Materials', idempotency_key: 'seed:account:Materials', state: 'confirmed', external_record_id: 'Site materials - TC', canonical: null, claim_generation: 1, payload_digest: null };
+    const withAccount = (extra: Record<string, unknown>) => {
+      const tables = chart();
+      tables.Account.push({ name: 'Site materials - TC', account_name: 'Site materials', parent_account: 'Direct Expenses - TC', company: 'Test Co', root_type: 'Expense', is_group: 0, disabled: 0, ...extra });
+      return tables;
+    };
+    const REFUSED = 'The ERP account that answers this request is not the one you asked for or cannot hold direct costs. Ask again with the name you want.';
+    const run = (extra: Record<string, unknown>) => tick({ claimed: [P.account], tables: withAccount(extra), outbox: [{ ...replayed }] });
+    for (const [label, extra] of [['turned off', { disabled: 1 }], ['a group', { is_group: 1 }], ['another company', { company: 'Other Co' }], ['another name', { account_name: 'Cement' }]] as const) {
+      const { calls, result } = await run(extra);
+      assertEquals(results(calls).map((r) => [r.p_external_id ?? null, r.p_rejection]), [[null, REFUSED]], label);
+      assertEquals([result.sent, result.rejected], [0, 1], label);
+      assertEquals(erpPosts(calls).length, 0, label);
+    }
+    const ok = await run({});
+    assertEquals(results(ok.calls).map((r) => [r.p_external_id, r.p_rejection ?? null]), [['Site materials - TC', null]]);
+    assertEquals(ok.result.sent, 1);
+  });
+
   it('AC-ECX-030 an account of that name already under another group is linked there and says so; under the chosen group it says nothing', async () => {
     const elsewhere = (name: string) => {
       const tables = chart();

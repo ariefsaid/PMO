@@ -165,6 +165,14 @@ export async function erpnextAccountGroup(client: ErpClientDeps, erpName: string
   return typeof doc?.parent_account === 'string' && doc.parent_account ? doc.parent_account : null;
 }
 
+/** Read an account back from the ERP after an answer (#1599): true only when it is an enabled leaf of the bound company that carries the
+ *  requested name. A replayed answer is checked the same way as a fresh one. */
+export async function erpnextAccountReadBack(client: ErpClientDeps, company: string, erpName: string, requestedName: string): Promise<boolean> {
+  const doc = (await getDoc(client, 'Account', erpName)) as Record<string, unknown> | null;
+  if (!doc || doc.company !== company || Number(doc.is_group) !== 0 || doc.root_type !== 'Expense' || Number(doc.disabled) === 1) return false;
+  return String(doc.account_name ?? '').trim().toLowerCase() === requestedName.trim().toLowerCase();
+}
+
 /** The money outbox's recovery probe for a send (ADR-0058 §3): the lookup half of `sendMaster`, so a lost answer is adopted, never re-POSTed. */
 export async function erpnextSendProbe(client: ErpClientDeps, company: string, kind: MasterKind, record: PmoMaster): Promise<{ externalRecordId: string } | null> {
   const id = kind === 'account' ? await probeAccount(client, company, record) : await findSent(client, company, kind, record);

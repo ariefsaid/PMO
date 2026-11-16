@@ -33,6 +33,7 @@ export const CONNECT_SEND_REJECTION_TEXT = {
   accountIncomplete: 'Give the account a name and choose the expense group it goes under, then ask again.',
   unsendable: (kind: string) => { const noun = NOUN[kind] ?? 'record'; return `This ERP cannot be sent ${/^[aeiou]/.test(noun) ? 'an' : 'a'} ${noun} from PMO yet.`; },
   /** #1599: clients never work in the ERP, so an account send PMO cannot finish is the Operator's task, and Finance is told so. */
+  accountMismatch: 'The ERP account that answers this request is not the one you asked for or cannot hold direct costs. Ask again with the name you want.',
   accountAdminTold: 'PMO could not create the account; your administrator has been told.',
   ambiguous: (kind: string) => `Two ERP records match this ${NOUN[kind] ?? 'record'}. Link the right one by hand.`,
   linked: 'This record is already linked to another ERP record.',
@@ -112,6 +113,8 @@ export interface SendTier {
     probe(kind: SendKind, master: PmoMaster): Promise<{ externalRecordId: string } | null>;
     /** #1599: the group an ERP account sits under, as the ERP reads it now (null when unknown). */
     accountGroup?(externalId: string): Promise<string | null>;
+    /** #1599: true when the ERP account is usable (enabled, a leaf, the bound company) and carries the requested name; an answer replayed from the outbox is only linked when it is. */
+    accountReadBack?(externalId: string, requestedName: string): Promise<boolean>;
   } | { refusal: string }>;
   /** True when a probe miss proves the create never landed, so the send may be issued again. */
   reissueOnInconclusiveAbsence(kind: SendKind): boolean;
@@ -230,6 +233,7 @@ export async function drainSends(sc: SupabaseClient, org: { orgId: string; bindi
       });
       try {
         const done = await sendMasterOnce({ money }, sender, kind, master);
+        if (kind === 'account' && conn.accountReadBack && !(await conn.accountReadBack(done.externalRecordId, master.name))) { await reject(c, CONNECT_SEND_REJECTION_TEXT.accountMismatch); continue; }
         if (t.afterSent) {
           try { await t.afterSent(kind, master, done.externalRecordId); }
           catch { await countFailure(c); continue; }   // the ERP record is confirmed, so a later try adopts it; the mirror must not retry for ever

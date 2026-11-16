@@ -3,7 +3,7 @@
  * `_shared/connectSendsCore.ts`; this wraps it with ERPNext's connection, probe and reissue rule.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { createErpnextConnectAdapter, erpnextAccountGroup, erpnextSendProbe } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/connectAdapter.ts';
+import { createErpnextConnectAdapter, erpnextAccountGroup, erpnextAccountReadBack, erpnextSendProbe } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/connectAdapter.ts';
 import { withProbeBudget } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { erpClientForOrg } from '../_shared/erpClientForOrg.ts';
 import { sweepErpFetchWrap, type SweepBudgetHolder } from './sweepShared.ts';
@@ -25,6 +25,7 @@ export function drainConnectSends(sc: SupabaseClient, org: { orgId: string; bind
         connect: createErpnextConnectAdapter(conn.client, company),
         probe: (kind, master) => erpnextSendProbe(withProbeBudget(conn.client), company, kind, master),
         accountGroup: (externalId) => erpnextAccountGroup(withProbeBudget(conn.client), externalId),
+        accountReadBack: (externalId, requestedName) => erpnextAccountReadBack(withProbeBudget(conn.client), company, externalId, requestedName),
       };
     },
     // ERPNext refuses a second Project with the same name and a second Item with the same code, so a probe miss proves the create never
