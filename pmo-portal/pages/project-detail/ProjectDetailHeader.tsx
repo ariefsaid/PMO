@@ -801,7 +801,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         primaryAction={headerPrimary}
         menuItems={menuItems}
         menuLabel={t('projectDetail.header.projectActions', 'Project actions')}
-        className="mb-3! max-md:mb-2! max-md:!border-0 max-md:!bg-transparent max-md:!p-0 max-md:[&_[data-testid=record-header-actions]]:w-full max-md:[&_[data-testid=record-header-actions]]:justify-between max-md:[&_[data-testid=record-header-actions]]:gap-1 max-md:[&_[data-testid=record-header-actions]]:flex-nowrap"
+        className="mb-3! max-md:mb-2! max-md:[&_[data-testid=record-header-actions]]:w-full max-md:[&_[data-testid=record-header-actions]]:justify-between max-md:[&_[data-testid=record-header-actions]]:gap-1 max-md:[&_[data-testid=record-header-actions]]:flex-nowrap"
       />
 
       {showCompactContractLock && (
