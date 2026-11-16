@@ -316,8 +316,21 @@ describe('MinutesEditor — floor: formatting toolbar (floor-tests/new-meeting.m
     // selection (a DOM-only triple click leaves the caret collapsed and the format becomes a
     // stored mark for the NEXT keystroke instead of the selected text).
     await user.click(box());
+    // Select All only works once the editor owns focus; on a loaded shard the click can land
+    // before ProseMirror has taken focus and the shortcut is then swallowed (empty selection).
+    await waitFor(() => expect(box()).toHaveFocus(), { timeout: 5000 });
     await user.keyboard('{Control>}a{/Control}');
-    const bold = await screen.findByRole('button', { name: /^bold/i });
+    // Precondition first: ProseMirror (the editor's own state, not jsdom's DOM selection, which
+    // never reports the range) holds a non-empty selection. The floating toolbar only mounts after
+    // that selection settles (its own timers), so wait on the selection, then on the button.
+    // Bound 5 s: under a 12-process CPU load the default 1 s query failed 5/30 runs at ~1.4-1.65 s
+    // elapsed; 5 s is >3x the worst observed delay and still fails fast on a real defect.
+    const pmSelection = () =>
+      (document.querySelector('.ProseMirror') as unknown as {
+        editor?: { state: { selection: { empty: boolean } } };
+      })?.editor?.state.selection;
+    await waitFor(() => expect(pmSelection()?.empty).toBe(false), { timeout: 5000 });
+    const bold = await screen.findByRole('button', { name: /^bold/i }, { timeout: 5000 });
     await user.click(bold);
     // Type after choosing: the choice is written into the document whether the selection was a real
     // range (the line becomes bold) or the click left a stored mark (the next run is bold). What the
