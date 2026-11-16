@@ -802,6 +802,15 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(row).toHaveTextContent(/610,000/);
   });
 
+  it('#2442 a Paid PMO invoice reads "Invoice total", never "Total due", and still shows what was paid', () => {
+    h.invoices.data = [nativeInvoice({ status: 'Paid', pmo_number: 'INV-2610070002', erp_outstanding_amount: 0 })];
+    renderPage();
+    const row = rowFor('INV-2610070002');
+    expect(row).not.toHaveTextContent('Total due');
+    expect(row).toHaveTextContent(/Invoice total .*1,110,000/);
+    expect(row).toHaveTextContent(/Paid .*/);
+  });
+
   it('AC-NAR-001 (M-2) a PMO Draft with no number yet reads "Draft · <customer>"', () => {
     h.invoices.data = [nativeInvoice()];
     renderPage();
