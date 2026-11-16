@@ -138,7 +138,10 @@ export default function ProcurementCreate() {
   const [lines, setLines] = useState<DraftLine[]>(() => restock && restock.rate !== null
     ? [{ id: crypto.randomUUID(), name: restock.name, quantity: restock.quantity, rate: restock.rate, amount: itemsNetTotal([{ quantity: restock.quantity, rate: restock.rate }]), description: null }]
     : []);
+  // Pending content in the entry row (blocks Save) vs the person having edited it (dirty). A pre-filled
+  // row has the first and not the second.
   const [addRowHasInput, setAddRowHasInput] = useState(restock !== null && !restockPriced);
+  const [addRowEdited, setAddRowEdited] = useState(false);
   const [blockedAddRowMessage, setBlockedAddRowMessage] = useState<string | null>(null);
   const addRowDescriptionRef = useRef<HTMLInputElement>(null);
   const [errors, setErrors] = useState<{ title?: string; save?: { headline: string; detail: string }; conflict?: boolean }>({});
@@ -157,11 +160,12 @@ export default function ProcurementCreate() {
   const leaveLabel = saveNeedsAttention ? t('unsaved.leave', 'Leave') : undefined;
   const stayLabel = saveNeedsAttention ? t('unsaved.stay', 'Stay') : undefined;
   const dirty = saving || attempt !== null || (
-    title !== initialTitle || supplierId !== null || budgetCategory !== '' || lines.length > initialLineCount || addRowHasInput || selectedProject !== projectId
+    title !== initialTitle || supplierId !== null || budgetCategory !== '' || lines.length > initialLineCount || addRowEdited || selectedProject !== projectId
   );
   const holdLeave = useCallback((leave: () => void) => setPendingLeave(() => leave), []);
   const updateAddRowDirty = useCallback((hasInput: boolean) => {
     setAddRowHasInput(hasInput);
+    setAddRowEdited(hasInput);
     if (!hasInput) setBlockedAddRowMessage(null);
   }, []);
   const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: holdLeave });
@@ -181,6 +185,7 @@ export default function ProcurementCreate() {
     setBudgetCategory('');
     setLines([]);
     setAddRowHasInput(false);
+    setAddRowEdited(false);
     setBlockedAddRowMessage(null);
     setErrors({});
   }, [projectId]);
