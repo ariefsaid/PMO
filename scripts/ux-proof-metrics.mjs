@@ -706,6 +706,8 @@ export function measureRules(N) {
   const seen = new Set();
   const push = (rule, el, numbers, rectSource, extra = {}) => seen.has(`${rule}|${desc(el)}|${JSON.stringify(numbers)}`) ? 0 : seen.add(`${rule}|${desc(el)}|${JSON.stringify(numbers)}`) && findings.push({ rule, el: desc(el), numbers, rect: box(rectSource.getBoundingClientRect ? rectSource.getBoundingClientRect() : rectSource), ...extra });
 
+  const stackedRects = (els) => { const rects = els.map((e) => e.getBoundingClientRect()); return rects.every((r, i) => rects.every((o, j) => i === j || r.bottom <= o.top + 1 || o.bottom <= r.top + 1)); };
+
   // R1 card inset ------------------------------------------------------------------------------
   const isHeading = (el) => /^H[1-6]$/.test(el.tagName) || el.getAttribute('role') === 'heading';
   const headingOf = (card) => {
@@ -745,6 +747,8 @@ export function measureRules(N) {
         if (r.left <= edgeLeft + N.tolerance && r.right >= edgeRight - N.tolerance) continue; // full-bleed on both sides
         ext.left = r.left;
       }
+      const listEl = /^(UL|OL)$/.test(block.tagName) ? block : block.querySelector(':scope > ul, :scope > ol');
+      if (listEl && getComputedStyle(listEl).listStyleType !== 'none') ext.left = Math.min(ext.left, listEl.getBoundingClientRect().left); // a bullet hangs at the list's own edge
       const freeLeft = ext.left - hExt.left; const freeRight = innerRight - ext.right;
       if (Math.abs(freeLeft) <= N.tolerance) continue;
       if (Math.abs(freeLeft - freeRight) <= 4 && freeLeft > 8) continue; // centred: R4's concern, not an edge
@@ -779,7 +783,9 @@ export function measureRules(N) {
     const hostKids = visibleKids(host);
     const last = hostKids.length >= 2 ? hostKids[hostKids.length - 1] : null;
     const lastText = last ? (last.textContent || '').trim() : '';
-    const label = last && lastText && lastText.length <= 40 && !last.matches('button, a, svg, input, select, textarea') && !last.querySelector('button, a, input, select, textarea') && last.getBoundingClientRect().left + last.getBoundingClientRect().width / 2 > rr.left + rr.width / 2 ? last : null;
+    const others = last ? hostKids.slice(0, -1).reduce((sum, k) => sum + k.getBoundingClientRect().width, 0) : 0;
+    // a secondary label: short, not interactive, in the row's right half, and no wider than what comes before it (a timeline's text after its date is content)
+    const label = last && lastText && lastText.length <= 40 && !last.matches('button, a, svg, input, select, textarea') && !last.querySelector('button, a, input, select, textarea') && last.getBoundingClientRect().left + last.getBoundingClientRect().width / 2 > rr.left + rr.width / 2 && last.getBoundingClientRect().width <= others + 24 ? last : null;
     const tag = trailing && label ? (trailing.getBoundingClientRect().right >= label.getBoundingClientRect().right ? trailing : label) : trailing || label;
     if (!tag) continue;
     const key = row.closest('[role="listbox"], [role="menu"], ul, ol, [role="list"]') ?? row.parentElement;
@@ -791,15 +797,16 @@ export function measureRules(N) {
     for (const tag of tags) {
       const s = getComputedStyle(tag); const r = tag.getBoundingClientRect();
       const lh = s.lineHeight === 'normal' ? 1.2 * parseFloat(s.fontSize) : parseFloat(s.lineHeight);
-      const content = r.height - parseFloat(s.paddingTop) - parseFloat(s.paddingBottom) - parseFloat(s.borderTopWidth) - parseFloat(s.borderBottomWidth);
-      const lines = Math.max(...textRuns(tag).map((t) => t.lines), 1);
+      const runs = textRuns(tag); // the tag's text block, not its box: a flex row can stretch the box past one line
+      const content = runs.length ? Math.max(...runs.map((t) => t.bottom)) - Math.min(...runs.map((t) => t.top)) : r.height;
+      const lines = Math.max(...runs.map((t) => t.lines), 1);
       if (lines > 1 || content > N.tagLines * lh + 0.5) wrapped.push({ tag, lines, content, lh });
     }
     if (wrapped.length) { // one finding per list: the first tag that wraps, and how many do
       const w = wrapped[0];
       push('R2', w.tag, { check: 'one line', wrapped: wrapped.length, of: tags.length, lines: Math.max(...wrapped.map((x) => x.lines)), contentHeight: Math.round(w.content * 10) / 10, lineHeight: Math.round(w.lh * 10) / 10 }, w.tag, { list: desc(list) });
     }
-    if (tags.length < 2) continue;
+    if (tags.length < 2 || !stackedRects(tags.map((t) => t.closest(ROW) ?? t))) continue; // a grid of items is not a column of rows
     const rights = tags.map((t) => t.getBoundingClientRect().right);
     const counts = new Map(); rights.forEach((x) => { const k = Math.round(x); counts.set(k, (counts.get(k) ?? 0) + 1); });
     const mode = [...counts.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0][0];
@@ -849,7 +856,6 @@ export function measureRules(N) {
     if (r.height > N.trackMaxHeight || r.height < 2 || r.width < 40 || s.overflow === 'visible' || !(parseFloat(s.borderTopLeftRadius) > 0)) return false;
     return visibleKids(el).length === 1 && /%$/.test(visibleKids(el)[0].style.width || '');
   }).filter((el, _i, list) => !list.some((o) => o !== el && o.contains(el)));
-  const stackedRects = (els) => { const rects = els.map((e) => e.getBoundingClientRect()); return rects.every((r, i) => rects.every((o, j) => i === j || r.bottom <= o.top + 1 || o.bottom <= r.top + 1)); };
   const rowSig = (k) => `${k.tagName}|${k.getAttribute('class') || ''}|${k.getAttribute('role') || ''}`;
   // Stacked tracks form one group when they are direct siblings, or the first track of each row of one repeated row group.
   const claimed = new Set();
