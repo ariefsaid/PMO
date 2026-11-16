@@ -6,7 +6,6 @@ import { FigureContent, FIGURE_LINE_CLASS } from './FigureContent';
 import { Icon, type IconName } from './icons';
 import { ListState } from './ListState';
 import { Tooltip } from './Tooltip';
-import { Button } from './Button';
 import { useFigureReport, type HiddenFigure } from './useFigureScope';
 import type { KPITone } from './KPITile.types';
 
