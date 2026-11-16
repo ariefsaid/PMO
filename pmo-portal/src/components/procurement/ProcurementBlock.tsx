@@ -585,8 +585,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       key: 'settlement',
       header: t('procurement.settlement', 'Paid / invoiced'),
       kind: 'text',
-      size: 126,
-      minSize: 126,
+      size: 152,
+      minSize: 152,
       cell: (row) => {
         const money = derivationFor(row).money;
         // Nothing invoiced yet is an empty cell, so a list with no invoices drops the whole column.
@@ -674,8 +674,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         header: t('projectDetail.procurement.table.nextStep', 'Next step'),
         kind: 'text',
         // #1791 ruling: the label wraps to two lines, then truncates with the full text in `title`.
-        size: 146,
-        minSize: 146,
+        size: 172,
+        minSize: 172,
         cell: (row) => {
           const next = nextStepText(row.status, canDecideRow(row), t);
           return <Tooltip content={next}><span title={next} className={`block min-w-0 w-full max-w-full line-clamp-2 break-words ${row.status === 'Requested' && canDecideRow(row) ? 'font-medium text-primary-text' : 'text-muted-foreground'}`}>{next}</span></Tooltip>;
@@ -688,8 +688,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         kind: 'number',
         colClassName: projectId ? 'hidden' : undefined,
         align: 'num',
-        size: 96,
-        minSize: 96,
+        size: 108,
+        minSize: 108,
         sortKey: 'age',
         cell: (row) => {
           const days = derivationFor(row).age;
@@ -706,8 +706,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         header: t('procurement.raisedBy', 'Raised by'),
         kind: 'text',
         colClassName: projectId ? 'hidden' : undefined,
-        size: 124,
-        minSize: 124,
+        size: 156,
+        minSize: 156,
         sortKey: 'owner',
         cell: (row) => {
           const owner = row.requested_by?.full_name ?? t('projectDetail.procurement.unassigned', 'Unassigned');
@@ -715,7 +715,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
             <Tooltip content={t('projectDetail.procurement.ownerTooltip', 'Requested by {{name}}. Source: procurement case.', { name: owner })}>
               <span tabIndex={0} className="inline-flex max-w-full items-center gap-2 rounded-sm text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                 <Avatar name={owner} decorative />
-                <span className="truncate">{owner}</span>
+                <span title={owner} className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{owner}</span>
               </span>
             </Tooltip>
           );

@@ -54,7 +54,7 @@ export function createDocumentRegisterCells(deps: DocumentRegisterCellDeps) {
       >
         <span tabIndex={0} className="inline-flex min-w-0 max-w-full items-center gap-2 text-sm text-foreground" aria-label={label}>
           <Avatar name={label} decorative />
-          <span className="truncate">{label}</span>
+          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{label}</span>
         </span>
       </Tooltip>
     );
