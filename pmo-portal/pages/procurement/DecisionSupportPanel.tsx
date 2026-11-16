@@ -200,7 +200,9 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
     .map((position) => position.currency ? formatCurrency(position.amount, position.currency) : t('decisionSupport.currencyUnknown', 'currency unavailable'))
     .join(', ');
   const reserved = reservedQ.data ?? 0; // TOTAL reserved (incl. this case if applicable)
-  const inputs = wholeBudgetInputs(positions.isError ? undefined : positions.data?.[scopedProjectId], committed, projectCurrency);
+  // ONE reading feeds Left and Budget used, so a failed refetch never shows a Budget used number beside "Not known".
+  const reading = positions.isError ? undefined : positions.data?.[scopedProjectId];
+  const inputs = wholeBudgetInputs(reading, committed, projectCurrency);
   // null = open orders not known; spent null = only spending not known.
   const spendingKnown = inputs !== null && inputs.spent !== null;
   let signal;
@@ -226,7 +228,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   const usedAfterPct = (usedAfter / budgetAmount) * 100;
   const impactTone = usedAfterPct >= AT_RISK_THRESHOLD * 100 ? 'bg-destructive' : usedAfterPct >= 70 ? 'bg-warning' : 'bg-success';
 
-  const budgetUsedPct = projectBudgetUsedPercent(positions.data?.[scopedProjectId], projectCurrency);
+  const budgetUsedPct = projectBudgetUsedPercent(reading, projectCurrency);
   const budgetUsedReadFailed = positions.isError && !(projectStatus && PIPELINE_STATUSES.includes(projectStatus));
 
   // A long label wraps to two lines; every label reserves two and sits on the bottom so the figures line up across a row.
@@ -310,8 +312,9 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
           </div>
         )}
         {/* The strip's column queries resolve against the nearest ANCESTOR container, so give it one. */}
-        {/* Six tiles go 2 rows of 3: six abreast crowd to 3-4px gaps in Bahasa at 1440. */}
-        <div className="@container"><StatTiles tiles={tiles} columns={tiles.length >= 6 ? 3 : 5} variant="bare" /></div>
+        {/* Six tiles go 3 across (3 rows of 2 on a phone): six abreast crowd to 3-4px gaps in Bahasa at 1440.
+            Fewer take as many columns as they have, so no column is left empty. */}
+        <div className="@container"><StatTiles tiles={tiles} columns={tiles.length >= 6 ? 3 : tiles.length} variant="bare" /></div>
 
         {withoutSpending !== null && (
           <p className="mt-3 text-control text-muted-foreground tabular">

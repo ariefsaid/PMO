@@ -1142,6 +1142,44 @@ describe('S05 — the project\'s Budget used sits beside it', () => {
   });
 });
 
+describe('quality 1+2 — one reading, one strip', () => {
+  it('a refetch error after an earlier success: Budget used shows no number beside "Not known" (one reading feeds both)', () => {
+    budgetState.data = 1000;
+    committedState.data = 400;
+    reservedState.data = 50;
+    positionState.reading = reading(); // earlier success: react-query keeps the stale data
+    positionState.isError = true;
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested' });
+    expect(within(tileOf(/^left after this purchase/i)).getByText('Not known')).toBeInTheDocument();
+    expect(screen.queryByText('50%')).not.toBeInTheDocument();
+  });
+
+  const stripClass = () => screen.getByTestId('stat-tiles').className;
+  it('six tiles go 3 across (2 across on a phone, three rows); fewer tiles take as many columns as they have', () => {
+    renderPanel(primary());
+    expect(within(screen.getByTestId('stat-tiles')).getAllByTestId('stat-tile')).toHaveLength(6);
+    expect(stripClass()).toContain('@xl:grid-cols-3');
+    expect(stripClass()).not.toContain('grid-cols-5');
+  });
+
+  it('five tiles: five columns; four tiles: four columns (no empty column)', () => {
+    positionState.reading = reading({ spent: null }); // Budget used has no figure; Left is unknown but still a tile
+    const ask = { projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested' as const };
+    budgetState.data = 1000;
+    committedState.data = 400;
+    reservedState.data = 50;
+    const view = renderPanel(ask);
+    expect(within(screen.getByTestId('stat-tiles')).getAllByTestId('stat-tile')).toHaveLength(5);
+    expect(stripClass()).toContain('@5xl:grid-cols-5');
+    view.unmount();
+    committedState.commitmentSource = 'not-tracked'; // no Open orders tile either
+    renderPanel(ask);
+    expect(within(screen.getByTestId('stat-tiles')).getAllByTestId('stat-tile')).toHaveLength(4);
+    expect(stripClass()).toContain('@3xl:grid-cols-4');
+    expect(stripClass()).not.toContain('grid-cols-5');
+  });
+});
+
 describe('S05 — the tender stage is visible where the decision is made', () => {
   const heading = () => screen.getByRole('heading', { name: /budget impact|dampak anggaran/i }).parentElement as HTMLElement;
 

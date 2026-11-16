@@ -9,8 +9,8 @@
 import { describe, it, expect } from 'vitest';
 import { computeBudgetSignal } from './computeBudgetSignal';
 
-describe('computeBudgetSignal — Available = Budget − Committed − Reserved (AC-RB-004)', () => {
-  it('AC-RB-004: budget 1000 / committed 300 / reserved 200 → available $500', () => {
+describe('computeBudgetSignal — Left = Budget − spent − open orders − Reserved (AC-RB-004)', () => {
+  it('AC-RB-004: budget 1000 / open orders 300 / reserved 200 → left $500', () => {
     const s = computeBudgetSignal({ projectCurrency: 'USD', budgetCurrency: 'USD', requestCurrency: 'USD',
       budget: 1000,
       spent: 0,
@@ -22,7 +22,7 @@ describe('computeBudgetSignal — Available = Budget − Committed − Reserved 
     expect(s.left).toBe(500);
   });
 
-  it('AC-RB-004: available is negative when committed + reserved exceed budget', () => {
+  it('AC-RB-004: left is negative when open orders + reserved exceed budget', () => {
     const s = computeBudgetSignal({ projectCurrency: 'USD', budgetCurrency: 'USD', requestCurrency: 'USD',
       budget: 1000,
       spent: 0,
@@ -63,8 +63,8 @@ describe('computeBudgetSignal — otherReserved excludes this case (AC-RB-005)',
 
 describe('computeBudgetSignal — the double-count boundary (AC-RB-006 / AC-RB-007)', () => {
   // Same discriminating numbers as the panel's rendered AC-RB-006/007 tests:
-  // budget 700, committed 100, reserved 100 → available 500; thisRequest 120.
-  it('AC-RB-006: Requested (caseInReserved=false) → afterRequest = available − totalValue = $380', () => {
+  // budget 700, open orders 100, reserved 100 → left 500; thisRequest 120.
+  it('AC-RB-006: Requested (not yet in Reserved) → afterRequest = left − totalValue = $380', () => {
     const s = computeBudgetSignal({ projectCurrency: 'USD', budgetCurrency: 'USD', requestCurrency: 'USD',
       budget: 700,
       spent: 0,
@@ -77,7 +77,7 @@ describe('computeBudgetSignal — the double-count boundary (AC-RB-006 / AC-RB-0
     expect(s.afterRequest).toBe(380);
   });
 
-  it('AC-RB-007: Approved (caseInReserved=true) → afterRequest = available = $500 (NOT $380, no double-subtract)', () => {
+  it('AC-RB-007: Approved (already in Reserved) → afterRequest = left = $500 (NOT $380, no double-subtract)', () => {
     const s = computeBudgetSignal({ projectCurrency: 'USD', budgetCurrency: 'USD', requestCurrency: 'USD',
       budget: 700,
       spent: 0,
@@ -118,12 +118,11 @@ it('rejects derived positions at the cent representation boundary', () => {
 describe('APPROVAL-LEFT AC-RB-015..018 — whole budget, each amount once', () => {
   const base = { projectCurrency: 'USD', budgetCurrency: 'USD', requestCurrency: 'USD' };
 
-  it('AC-RB-015: budget 1000 / spent 500 / open orders 400 / reserved 50 / new request 25 → 50 left, 25 after, 97.5% in use', () => {
+  it('AC-RB-015: budget 1000 / spent 500 / open orders 400 / reserved 50 / new request 25 → 50 left, 25 after', () => {
     const s = computeBudgetSignal({ ...base, budget: 1000, spent: 500, openOrders: 400, reserved: 50, totalValue: 25, status: 'Requested' });
     expect(s.left).toBe(50);
     expect(s.afterRequest).toBe(25);
     expect(s.otherReserved).toBe(50);
-    expect(((1000 - s.afterRequest) / 1000) * 100).toBe(97.5);
   });
 
   it('AC-RB-016: a request already inside Reserved is not subtracted again (Approved 25, reserved 75 → 25 after)', () => {

@@ -200,8 +200,7 @@ export const ProcurementBudgetSignal: React.FC<ProcurementBudgetSignalProps> = (
   const label = spendingKnown
     ? t('money.budgetLeft', 'Left in budget {{left}}', { left: formatCurrency(signal.afterRequest, currency) })
     : t('procurement:decisionSupport.leftWithoutSpending', { defaultValue: 'Without spending: {{amount}} left after orders, reserved and this purchase.', amount: formatCurrency(signal.afterRequest, currency) });
-  const otherPositions = [...(reserved.otherCurrencies ?? []), ...(committed.otherCurrencies ?? [])];
-  const otherCurrencyNotice = otherPositions.length ? t('money.otherCurrenciesExcluded', ' · Other currencies excluded from comparison') : '';
+  const otherCurrencyNotice = (reserved.otherCurrencies ?? []).length ? t('money.otherCurrenciesExcluded', ' · Other currencies excluded from comparison') : '';
   return <span className="text-control font-normal text-muted-foreground">{label}{otherCurrencyNotice}</span>;
 };
 
