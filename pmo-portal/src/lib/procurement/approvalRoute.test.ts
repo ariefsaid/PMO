@@ -54,19 +54,19 @@ describe('AC-APR-030 approvalRouteNote', () => {
       "Approval for this procurement is routed to Ana Approver: it is within the project's Materials budget.",
     );
   });
-  it('AC-APR-033: a request seen below approval rank says who decides it, with no figure', () => {
+  it('AC-APR-053: a request seen below approval rank says who decides it, with no figure', () => {
     const note = approvalRouteNote(route({ route: 'org', reason: 'spending_not_visible' }), 'Materials', t);
     expect(note).toBe(
       "Approval for this procurement is routed to Ana Approver: whether it fits the project's Materials budget is checked when it is decided.",
     );
     expect(note).not.toContain('within');
   });
-  it('AC-APR-032: spending that is not known says so', () => {
+  it('AC-APR-052: spending that is not known says so', () => {
     expect(approvalRouteNote(route({ route: 'org', reason: 'spending_unknown' }), 'Materials', t)).toContain(
       "what is already spent on the project's Materials budget is not known yet.",
     );
   });
-  it('AC-APR-031: over the project budget counting what is spent', () => {
+  it('AC-APR-051: over the project budget counting what is spent', () => {
     expect(approvalRouteNote(route({ route: 'org', reason: 'exceeds_project' }), 'Materials', t)).toContain(
       "it would take the project's budget over its limit, counting what is already spent.",
     );
@@ -108,7 +108,7 @@ describe('AC-APR-030 approvalRouteNote', () => {
   });
 });
 
-describe('AC-APR-031..033 reason wording in both languages', () => {
+describe('AC-APR-051..053 reason wording in both languages', () => {
   type Catalogue = { procurementDetail: { route: { why: Record<string, string> } }; routeWhy: Record<string, string> };
   const read = (lang: string, file: string) => JSON.parse(readFileSync(`public/locales/${lang}/${file}.json`, 'utf8')) as Catalogue;
   const why = (lang: string) => read(lang, 'common').procurementDetail.route.why;

@@ -1,7 +1,8 @@
 -- spend_approval_route_spending.test.sql — the line a request is judged against counts recorded spending + open
 -- orders + reserved + approved claims not yet in the ledger, each once; then the project's whole budget is
 -- tested the same way. Migration: 0923_spend_route_recorded_spending.sql.
--- AC-APR-030 line test · AC-APR-031 project test · AC-APR-032 spending unknown · AC-APR-033 below approval rank.
+-- AC-APR-050 line test · AC-APR-051 project test · AC-APR-052 spending unknown · AC-APR-053 below approval rank ·
+-- AC-APR-054 the list reads return the route spend_approval_route returns.
 begin;
 select plan(43);
 
@@ -123,119 +124,119 @@ select pg_temp.act_as('a0923000-0000-0000-0000-0000000000a1');
 
 -- ── Case 2. No accounting system, nothing recorded: the line is what it was (reserved 100).
 select is(pg_temp.r('a0923000-0000-0000-0000-00000000000a', 'a0923000-0000-0000-0000-0000000000d1', 'Labor', 200, 'a0923000-0000-0000-0000-0000000000a3'),
-  'project/within_budget/100.00', 'AC-APR-030: with nothing recorded the line used is the reserved 100 and 200 fits a 400 line');
+  'project/within_budget/100.00', 'AC-APR-050: with nothing recorded the line used is the reserved 100 and 200 fits a 400 line');
 select is(pg_temp.r('a0923000-0000-0000-0000-00000000000a', 'a0923000-0000-0000-0000-0000000000d1', 'Labor', 300.01, 'a0923000-0000-0000-0000-0000000000a3'),
-  'org/exceeds_line/100.00', 'AC-APR-030: one cent over the line goes to the senior set');
+  'org/exceeds_line/100.00', 'AC-APR-050: one cent over the line goes to the senior set');
 
 -- ── Case 3. Each cost once.
 select is(pg_temp.r('a0923000-0000-0000-0000-00000000000a', 'a0923000-0000-0000-0000-0000000000d2', 'Labor', 50, 'a0923000-0000-0000-0000-0000000000a3'),
-  'project/within_budget/300.00', 'AC-APR-030: a half-paid 300 order is 100 recorded + 200 open = 300 on the line, not 400');
+  'project/within_budget/300.00', 'AC-APR-050: a half-paid 300 order is 100 recorded + 200 open = 300 on the line, not 400');
 
 -- ── Case 1 on PMO: recorded spending takes the line over at the boundary.
 select is(pg_temp.r('a0923000-0000-0000-0000-00000000000a', 'a0923000-0000-0000-0000-0000000000d4', 'Labor', 200, 'a0923000-0000-0000-0000-0000000000a3'),
-  'project/within_budget/200.00', 'AC-APR-030: recorded 200 + request 200 = the 400 line: within, the project approver decides');
+  'project/within_budget/200.00', 'AC-APR-050: recorded 200 + request 200 = the 400 line: within, the project approver decides');
 reset role;
 update payments set amount = 200.01 where id = 'a0923000-0000-0000-0000-000000000c04';
 set local role authenticated;
 select pg_temp.act_as('a0923000-0000-0000-0000-0000000000a1');
 select is(pg_temp.r('a0923000-0000-0000-0000-00000000000a', 'a0923000-0000-0000-0000-0000000000d4', 'Labor', 200, 'a0923000-0000-0000-0000-0000000000a3'),
-  'org/exceeds_line/200.01', 'AC-APR-030: one cent of recorded spending more and the senior set decides');
+  'org/exceeds_line/200.01', 'AC-APR-050: one cent of recorded spending more and the senior set decides');
 select throws_ok($$ select transition_procurement('a0923000-0000-0000-0000-000000000f01', 'Approved') $$,
   '42501', 'approval routing: exceeds_line requires a named approver',
-  'AC-APR-030: the project approver cannot approve what recorded spending took over the line');
+  'AC-APR-050: the project approver cannot approve what recorded spending took over the line');
 select pg_temp.act_as('a0923000-0000-0000-0000-0000000000a2');
 select lives_ok($$ select transition_procurement('a0923000-0000-0000-0000-000000000f01', 'Approved') $$,
-  'AC-APR-030: a senior member approves it');
+  'AC-APR-050: a senior member approves it');
 
 -- ── Case 1 on ERP: the ledger actual is the recorded spending.
 select pg_temp.act_as('a0923000-0000-0000-0000-0000000000b1');
 select is(pg_temp.r('a0923000-0000-0000-0000-00000000000b', 'a0923000-0000-0000-0000-0000000000e1', 'Labor', 200, 'a0923000-0000-0000-0000-0000000000b3'),
-  'project/within_budget/200.00', 'AC-APR-030: ledger 200 + request 200 = the 400 line: within');
+  'project/within_budget/200.00', 'AC-APR-050: ledger 200 + request 200 = the 400 line: within');
 reset role;
 update erp_actuals_snapshot set net = 200.01 where id = 'a0923000-0000-0000-0000-0000000005e1';
 set local role authenticated;
 select pg_temp.act_as('a0923000-0000-0000-0000-0000000000b1');
 select is(pg_temp.r('a0923000-0000-0000-0000-00000000000b', 'a0923000-0000-0000-0000-0000000000e1', 'Labor', 200, 'a0923000-0000-0000-0000-0000000000b3'),
-  'org/exceeds_line/200.01', 'AC-APR-030: ledger 200.01 takes the line over: the senior set decides');
+  'org/exceeds_line/200.01', 'AC-APR-050: ledger 200.01 takes the line over: the senior set decides');
 select is(pg_temp.r('a0923000-0000-0000-0000-00000000000b', 'a0923000-0000-0000-0000-0000000000e2', 'Labor', 50, 'a0923000-0000-0000-0000-0000000000b3'),
-  'project/within_budget/300.00', 'AC-APR-030: an ERP order billed 100 of 300 is the ledger 100 + open 200 = 300 on the line');
+  'project/within_budget/300.00', 'AC-APR-050: an ERP order billed 100 of 300 is the ledger 100 + open 200 = 300 on the line');
 select is(pg_temp.r('a0923000-0000-0000-0000-00000000000b', 'a0923000-0000-0000-0000-0000000000e3', 'Labor', 50, 'a0923000-0000-0000-0000-0000000000b3'),
-  'project/within_budget/130.00', 'AC-APR-030: a claim already posted to the ledger is not counted again; the unposted 30 is');
+  'project/within_budget/130.00', 'AC-APR-050: a claim already posted to the ledger is not counted again; the unposted 30 is');
 
 -- ── Case 4. Spending not known: the senior set decides.
 select is(pg_temp.r('a0923000-0000-0000-0000-00000000000b', 'a0923000-0000-0000-0000-0000000000e1', 'Materials', 10, 'a0923000-0000-0000-0000-0000000000b3'),
-  'org/spending_unknown/null', 'AC-APR-032: a category with no account mapping has no recorded spending to read');
+  'org/spending_unknown/null', 'AC-APR-052: a category with no account mapping has no recorded spending to read');
 select is(pg_temp.r('a0923000-0000-0000-0000-00000000000b', 'a0923000-0000-0000-0000-0000000000e4', 'Labor', 10, 'a0923000-0000-0000-0000-0000000000b3'),
-  'org/spending_unknown/null', 'AC-APR-032: a project with no ledger reading has no recorded spending to read');
+  'org/spending_unknown/null', 'AC-APR-052: a project with no ledger reading has no recorded spending to read');
 select pg_temp.act_as('a0923000-0000-0000-0000-0000000000c2');
 select is((select reason from spend_approval_route('a0923000-0000-0000-0000-00000000000c', 'a0923000-0000-0000-0000-0000000000f1', 'Labor', 10, 'USD', null)),
-  'currency_mismatch', 'AC-APR-032: a ledger in another currency than the budget cannot be compared with it');
+  'currency_mismatch', 'AC-APR-052: a ledger in another currency than the budget cannot be compared with it');
 select is((select route from spend_approval_route('a0923000-0000-0000-0000-00000000000c', 'a0923000-0000-0000-0000-0000000000f1', 'Labor', 10, 'USD', null)),
-  'org', 'AC-APR-032: so it goes to the senior set');
+  'org', 'AC-APR-052: so it goes to the senior set');
 
 -- ── Case 7. The project test.
 select pg_temp.act_as('a0923000-0000-0000-0000-0000000000a1');
 select is(pg_temp.r('a0923000-0000-0000-0000-00000000000a', 'a0923000-0000-0000-0000-0000000000d3', 'Labor', 200, 'a0923000-0000-0000-0000-0000000000a3'),
-  'project/within_budget/0.00', 'AC-APR-031: 800 recorded (uncategorized) + request 200 = the 1000 project budget exactly: not over');
+  'project/within_budget/0.00', 'AC-APR-051: 800 recorded (uncategorized) + request 200 = the 1000 project budget exactly: not over');
 reset role;
 update payments set amount = 800.01 where id = 'a0923000-0000-0000-0000-000000000c03';
 set local role authenticated;
 select pg_temp.act_as('a0923000-0000-0000-0000-0000000000a1');
 select is(pg_temp.r('a0923000-0000-0000-0000-00000000000a', 'a0923000-0000-0000-0000-0000000000d3', 'Labor', 200, 'a0923000-0000-0000-0000-0000000000a3'),
-  'org/exceeds_project/0.00', 'AC-APR-031: the line fits (nothing recorded on Labor) but the project is over through uncategorized spending: senior set');
+  'org/exceeds_project/0.00', 'AC-APR-051: the line fits (nothing recorded on Labor) but the project is over through uncategorized spending: senior set');
 
 -- ── Case 5. Below approval rank: no figures, both possible sets.
 select pg_temp.act_as('a0923000-0000-0000-0000-0000000000a3');
 select is(pg_temp.r('a0923000-0000-0000-0000-00000000000a', 'a0923000-0000-0000-0000-0000000000d1', 'Labor', 200, 'a0923000-0000-0000-0000-0000000000a3'),
-  'org/spending_not_visible/null', 'AC-APR-033: an Engineer is shown who could decide, with no line figure');
+  'org/spending_not_visible/null', 'AC-APR-053: an Engineer is shown who could decide, with no line figure');
 select is((select approver_ids from spend_approval_route('a0923000-0000-0000-0000-00000000000a', 'a0923000-0000-0000-0000-0000000000d1', 'Labor', 200, 'USD', 'a0923000-0000-0000-0000-0000000000a3')),
   array['a0923000-0000-0000-0000-0000000000a1', 'a0923000-0000-0000-0000-0000000000a2']::uuid[],
-  'AC-APR-033: the project approver and the senior set together');
+  'AC-APR-053: the project approver and the senior set together');
 select is((select line_budget from spend_approval_route('a0923000-0000-0000-0000-00000000000a', 'a0923000-0000-0000-0000-0000000000d1', 'Labor', 200, 'USD', 'a0923000-0000-0000-0000-0000000000a3')),
-  null::numeric, 'AC-APR-033: and no line budget');
+  null::numeric, 'AC-APR-053: and no line budget');
 select is((select reason from spend_approval_route('a0923000-0000-0000-0000-00000000000a', 'a0923000-0000-0000-0000-0000000000d1', 'Labor', 200, 'EUR', 'a0923000-0000-0000-0000-0000000000a3')),
-  'currency_mismatch', 'AC-APR-033: a request in another currency is still named as such');
+  'currency_mismatch', 'AC-APR-053: a request in another currency is still named as such');
 select lives_ok($$ select transition_procurement('a0923000-0000-0000-0000-000000000f02', 'Requested') $$,
-  'AC-APR-033: an Engineer submits without being refused for reading spending');
+  'AC-APR-053: an Engineer submits without being refused for reading spending');
 reset role;
 select is(pg_temp.who('a0923000-0000-0000-0000-000000000f02'), array['a1', 'a2'],
-  'AC-APR-033: the submit notifies the project approver and the senior set');
+  'AC-APR-053: the submit notifies the project approver and the senior set');
 
 -- ── Case 6. The rank that may read spending is the rank that may approve.
 select is((select bool_and(public.holds_spend_approval_authority(r) = (r::text in ('Admin', 'Finance', 'Executive', 'Project Manager')))
              from unnest(enum_range(null::public.user_role)) r), true,
-  'AC-APR-033: approval rank is exactly the roles that may read project spending');
+  'AC-APR-053: approval rank is exactly the roles that may read project spending');
 
 -- A Finance member reads the same figures an Engineer is denied.
 set local role authenticated;
 select pg_temp.act_as('a0923000-0000-0000-0000-0000000000a2');
 select is(pg_temp.r('a0923000-0000-0000-0000-00000000000a', 'a0923000-0000-0000-0000-0000000000d1', 'Labor', 200, 'a0923000-0000-0000-0000-0000000000a3'),
-  'project/within_budget/100.00', 'AC-APR-033: Finance reads the line figures');
+  'project/within_budget/100.00', 'AC-APR-053: Finance reads the line figures');
 
 -- ── Shape: invoker, same signature, no new definer.
 reset role;
 select is((select prosecdef from pg_proc where oid = 'public.spend_approval_route(uuid,uuid,public.budget_category,numeric,text,uuid,uuid,timestamptz)'::regprocedure), false,
-  'AC-APR-030: the route still runs as the caller');
+  'AC-APR-050: the route still runs as the caller');
 select is((select count(*)::int from pg_proc where proname = 'org_ledger_currency'), 0,
-  'AC-APR-030: no new function carries the ledger currency; it is read from the budget position');
+  'AC-APR-050: no new function carries the ledger currency; it is read from the budget position');
 
 -- Reserved + open orders reach the project test: A reserved only, 1000 budget, 100 reserved.
 set local role authenticated;
 select pg_temp.act_as('a0923000-0000-0000-0000-0000000000a1');
 select is(pg_temp.r('a0923000-0000-0000-0000-00000000000a', 'a0923000-0000-0000-0000-0000000000d1', 'Materials', 600, 'a0923000-0000-0000-0000-0000000000a3'),
-  'project/within_budget/0.00', 'AC-APR-031: reserved 100 + request 600 inside the project 1000 and the Materials 600 line');
+  'project/within_budget/0.00', 'AC-APR-051: reserved 100 + request 600 inside the project 1000 and the Materials 600 line');
 select is(pg_temp.r('a0923000-0000-0000-0000-00000000000a', 'a0923000-0000-0000-0000-0000000000d2', 'Materials', 600, 'a0923000-0000-0000-0000-0000000000a3'),
-  'project/within_budget/0.00', 'AC-APR-031: recorded 100 + open 200 + request 600 = 900 of 1000: within');
+  'project/within_budget/0.00', 'AC-APR-051: recorded 100 + open 200 + request 600 = 900 of 1000: within');
 select is(pg_temp.r('a0923000-0000-0000-0000-00000000000a', 'a0923000-0000-0000-0000-0000000000d2', 'Materials', 600.01, 'a0923000-0000-0000-0000-0000000000a3'),
-  'org/exceeds_line/0.00', 'AC-APR-031: one cent over the Materials line is the line test first');
+  'org/exceeds_line/0.00', 'AC-APR-051: one cent over the Materials line is the line test first');
 reset role;
 update procurements set total_value = 401 where id = 'a0923000-0000-0000-0000-000000000a02';
 set local role authenticated;
 select pg_temp.act_as('a0923000-0000-0000-0000-0000000000a1');
 select is(pg_temp.r('a0923000-0000-0000-0000-00000000000a', 'a0923000-0000-0000-0000-0000000000d2', 'Materials', 600, 'a0923000-0000-0000-0000-0000000000a3'),
-  'org/exceeds_project/0.00', 'AC-APR-031: recorded 100 + open 301 + request 600 is 1 over the project 1000: open orders reach the project test');
+  'org/exceeds_project/0.00', 'AC-APR-051: recorded 100 + open 301 + request 600 is 1 over the project 1000: open orders reach the project test');
 select is(pg_temp.r('a0923000-0000-0000-0000-00000000000a', 'a0923000-0000-0000-0000-0000000000d2', 'Materials', 599, 'a0923000-0000-0000-0000-0000000000a3'),
-  'project/within_budget/0.00', 'AC-APR-031: and 599 of it fits');
+  'project/within_budget/0.00', 'AC-APR-051: and 599 of it fits');
 
 
 -- ── The list RPCs and the public route agree row for row, for every kind of caller.
@@ -294,12 +295,12 @@ begin
 end $f$;
 set local role authenticated;
 select is(pg_temp.eq_all()->>'bad', '0',
-  'AC-APR-034: for every Requested purchase and Submitted claim and every caller, the list RPCs return the route spend_approval_route returns');
+  'AC-APR-054: for every Requested purchase and Submitted claim and every caller, the list RPCs return the route spend_approval_route returns');
 select cmp_ok((pg_temp.eq_all()->>'compared')::int, '>=', 40,
-  'AC-APR-034: and the comparison covers every row each caller can see');
+  'AC-APR-054: and the comparison covers every row each caller can see');
 select is(pg_temp.eq_all()->'reasons',
   '["currency_mismatch", "exceeds_line", "exceeds_project", "no_category", "no_project", "spending_not_visible", "spending_unknown", "within_budget"]'::jsonb,
-  'AC-APR-034: across within, over-line, over-project, unknown, currency, role-free and below-rank rows');
+  'AC-APR-054: across within, over-line, over-project, unknown, currency, role-free and below-rank rows');
 
 -- ── The helper: figures are required, and rank is the caller's own.
 select pg_temp.act_as('a0923000-0000-0000-0000-0000000000a3');
@@ -307,16 +308,16 @@ select is((select reason from spend_approval_route_from_figures('a0923000-0000-0
              'a0923000-0000-0000-0000-0000000000a3', null, null,
              '{"basis":"pmo","ledger_currency":"USD","budget_currency":"USD","proj_budget":999999,"proj_spent":0,"proj_open":0,"proj_reserved":0,"proj_foreign":false,
                "other_used":0,"foreign":false,"recorded":{"Labor":{"mapped":true,"amount":0}}}'::jsonb)),
-  'spending_not_visible', 'AC-APR-033: an Engineer calling the logic with figures that say "within budget" still gets spending_not_visible');
+  'spending_not_visible', 'AC-APR-053: an Engineer calling the logic with figures that say "within budget" still gets spending_not_visible');
 select is((select line_used from spend_approval_route_from_figures('a0923000-0000-0000-0000-00000000000a', 'a0923000-0000-0000-0000-0000000000d1', 'Labor', 10, 'USD',
              'a0923000-0000-0000-0000-0000000000a3', null, null,
              '{"basis":"pmo","ledger_currency":"USD","budget_currency":"USD","proj_budget":999999,"proj_spent":0,"proj_open":0,"proj_reserved":0,"proj_foreign":false,
                "other_used":0,"foreign":false,"recorded":{"Labor":{"mapped":true,"amount":0}}}'::jsonb)),
-  null::numeric, 'AC-APR-033: and no line figure comes back');
+  null::numeric, 'AC-APR-053: and no line figure comes back');
 select pg_temp.act_as('a0923000-0000-0000-0000-0000000000a1');
 select throws_ok($$ select * from spend_approval_route_from_figures('a0923000-0000-0000-0000-00000000000a', 'a0923000-0000-0000-0000-0000000000d1', 'Labor', 10, 'USD',
              'a0923000-0000-0000-0000-0000000000a3', null, null, null) $$,
-  '22004', 'spend_approval_route_from_figures requires figures', 'AC-APR-034: the logic refuses to run without figures');
+  '22004', 'spend_approval_route_from_figures requires figures', 'AC-APR-054: the logic refuses to run without figures');
 
 -- ── Structure: the figure readers and the logic are reached only from the route and the two list RPCs.
 reset role;
@@ -324,22 +325,22 @@ select is((select array_agg(proname::text order by proname) from pg_proc
             where pronamespace = 'public'::regnamespace and prosrc like '%spend_approval_route_from_figures%'
               and proname <> 'spend_approval_route_from_figures'),
   array['get_expense_claim_approval_routes', 'get_procurement_approval_routes', 'spend_approval_route'],
-  'AC-APR-034: only the route and the two list RPCs call the figures-taking logic');
+  'AC-APR-054: only the route and the two list RPCs call the figures-taking logic');
 select is((select array_agg(proname::text order by proname) from pg_proc
             where pronamespace = 'public'::regnamespace
               and (prosrc like '%spend_approval_project_figures%' or prosrc like '%spend_approval_line_figures%')
               and proname not in ('spend_approval_project_figures', 'spend_approval_line_figures')),
   array['get_expense_claim_approval_routes', 'get_procurement_approval_routes', 'spend_approval_route'],
-  'AC-APR-034: only the route and the two list RPCs read the figures');
+  'AC-APR-054: only the route and the two list RPCs read the figures');
 select is((select count(*)::int from pg_proc where pronamespace = 'public'::regnamespace and prosecdef
              and proname in ('spend_approval_route', 'spend_approval_route_from_figures', 'spend_approval_project_figures',
                              'spend_approval_line_figures', 'get_procurement_approval_routes', 'get_expense_claim_approval_routes')), 0,
-  'AC-APR-034: none of them is a definer');
+  'AC-APR-054: none of them is a definer');
 select is((select bool_and(has_function_privilege('anon', oid, 'execute')) from pg_proc
             where pronamespace = 'public'::regnamespace and proname in ('spend_approval_route_from_figures', 'spend_approval_project_figures', 'spend_approval_line_figures')),
-  false, 'AC-APR-034: anonymous callers cannot execute the figure functions');
+  false, 'AC-APR-054: anonymous callers cannot execute the figure functions');
 select ok((select obj_description('public.spend_approval_route_from_figures(uuid,uuid,public.budget_category,numeric,text,uuid,uuid,timestamptz,jsonb)'::regprocedure, 'pg_proc')) like 'DISPLAY ONLY%spend_approval_route%',
-  'AC-APR-034: the logic is documented as display only and names the route every decision uses');
+  'AC-APR-054: the logic is documented as display only and names the route every decision uses');
 
 select * from finish();
 rollback;
