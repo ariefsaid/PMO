@@ -4,6 +4,7 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, FigureHiddenLine, Icon, ListState, ProgressBar, RecordSection, TaxBasisLabel, Tooltip, useFigureReport, type HiddenFigure } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
+import { FigureContent } from '@/src/components/ui/FigureContent';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
@@ -12,7 +13,7 @@ import { useTasks } from '@/src/hooks/useTasks';
 import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
 import { useSalesInvoices } from '@/src/hooks/useRevenue';
 import { useMilestones } from '@/src/hooks/useMilestones';
-import { completionPct, formatDayYear, daysOverdue, formatTableMoney } from '@/src/lib/format';
+import { completionPct, formatDayYear, daysOverdue, formatTableMoney, formatTileMoney } from '@/src/lib/format';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import { budgetLeftAfterOrders, deriveMargin } from '@/src/lib/projectFinances';
@@ -70,6 +71,8 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean; /*
   const boq = useBoqItems(project.id);
   const billing = useProjectBilling(project.id);
   const invoices = useSalesInvoices(project.id, { enabled: canViewMoney });
+  // Spent closes the row (contracted, billed, paid, spent): the same read the Budget panel below uses, so the two agree.
+  const pos = useBudgetPosition(project, true, { refetchOnMount: false });
   const unit = (
     <>
       {project.currency}
@@ -168,36 +171,44 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean; /*
     }] : []),
   ];
   const share = (value: number | null) => value !== null && contractValue !== null && contractValue > 0 ? pctOf(value, contractValue) : null;
-  const invoicedShare = share(invoiced);
-  const paidShare = share(paid);
+  const tile = (value: number) => formatTileMoney(value, project.currency) ?? whole(value);
+  // Cash received is a figure of its own (receipts), so it joins the strip after Paid.
+  const spentKnown = pos.canSeeActual && !pos.isPending && !pos.isError && pos.spent !== null;
+  const figures = [
+    ...steps,
+    ...(cashReceived === null ? [] : [{
+      key: 'received', label: t('projectDetail.money.cashReceivedFigure', 'Received'), value: cashReceived,
+      source: t('projectDetail.money.cashReceivedSource', 'Customer receipts matched to this project’s invoices.'),
+    }]),
+    ...(spentKnown ? [{
+      key: 'spent', label: t('projectDetail.budget.spent', 'Spent'), value: pos.spent as number,
+      source: t('projectDetail.cost.summaryTooltip', 'Spent as a share of budget, before tax.'),
+    }] : []),
+  ];
 
   return (
     <Block id="pd-money" title={title} unit={unit} fillRow={fillRow}>
-      {/* L5: the block's one answer leads, biggest — how much of the contract is billed, then collected. */}
-      {invoicedShare !== null && (
-        <p className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          {explain(t('projectDetail.money.leadTooltip', 'Invoiced amount as a share of the contract. Source: non-draft, non-cancelled invoices in the project currency.'),
-            t('projectDetail.money.leadInvoiced', '{{percent}}% invoiced', { percent: invoicedShare }),
-            'text-group font-semibold leading-tight tabular-nums text-foreground')}
-          {paidShare !== null && <span className="text-sm tabular-nums text-muted-foreground">{t('projectDetail.money.leadPaid', '{{percent}}% paid', { percent: paidShare })}</span>}
-          {cashReceived !== null && <span data-testid="money-lead-cash" className="text-sm tabular-nums text-foreground">{t('projectDetail.money.cashLead', 'Received {{amount}}', { amount: whole(cashReceived) })}</span>}
-        </p>
-      )}
-      <dl className="grid min-w-0 gap-y-2" aria-label={t('projectDetail.money.cascadeLabel', 'Contract to payment')}>
-        {steps.map((step) => (
-          // The shares are stated once in the line above; each row is a plain label and amount, so every amount ends on one edge.
-          <div key={step.key} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3">
-            <dt className="text-sm text-muted-foreground">{step.label}</dt>
-            <dd className="text-right text-sm tabular-nums">
-              {step.key === 'contract'
-                ? <span data-testid="contract-value-amount">{explain(step.source, whole(step.value))}</span>
-                : explain(step.source, whole(step.value))}
-            </dd>
-            {step.key === 'contract' && contractValue !== null && (
-              <dd className="col-span-2 text-right"><FxEquivalent amount={contractValue} currency={project.currency} date={project.contract_date} compact /></dd>
-            )}
-          </div>
-        ))}
+      {/* The client's money as one row of figures, contract first: label over figure, its share of the contract
+          under it, so each amount sits with its name (no label-to-amount gap across the panel). Tiles carry
+          2–3 significant digits; the exact amount is the hover title and the screen-reader text. */}
+      <dl className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-x-4 gap-y-5 md:gap-x-6" aria-label={t('projectDetail.money.cascadeLabel', 'Contract to payment')}>
+        {figures.map((step) => {
+          // A share under a zero says nothing; known zeros keep their figure but lose the caption.
+          const pct = step.key === 'contract' || step.key === 'received' || step.key === 'spent' || step.value === 0 ? null : share(step.value);
+          const budgetCaption = step.key === 'spent' && pos.hasBudget && pos.budgetComparisonKnown && pos.budget !== null
+            ? t('projectDetail.money.ofBudget', 'of {{amount}} budget', { amount: tile(Number(pos.budget)) }) : null;
+          return (
+            <div key={step.key} data-testid={step.key === 'received' ? 'money-lead-cash' : undefined} className="min-w-0">
+              <dt className="text-control font-medium text-foreground">{explain(step.source, step.label, 'text-foreground')}</dt>
+              <dd className="mt-1 whitespace-nowrap text-metric font-semibold leading-tight tabular-nums text-foreground" data-testid={step.key === 'contract' ? 'contract-value-amount' : undefined}>
+                <FigureContent value={tile(step.value)} exactValue={whole(step.value)} />
+              </dd>
+              {pct !== null && <dd className="mt-1 text-control tabular-nums text-muted-foreground">{t('projectDetail.money.shareOfContract', '{{percent}}% of contract', { percent: pct })}</dd>}
+              {budgetCaption && <dd className="mt-1 text-control tabular-nums text-muted-foreground">{budgetCaption}</dd>}
+              {step.key === 'contract' && <dd className="mt-1"><FxEquivalent amount={step.value} currency={project.currency} date={project.contract_date} compact /></dd>}
+            </div>
+          );
+        })}
       </dl>
       {marginAmount !== null && (
         <dl className="mt-4 flex min-w-0 flex-wrap gap-x-8 gap-y-3 border-t border-border/70 pt-3">
@@ -218,8 +229,9 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean; /*
       )}
       {/* The figures this panel cannot compute yet are named here, beside the ones it shows. */}
       {hidden.length > 0 && <FigureHiddenLine compact figures={hidden.map((figure) => ({ ...figure, label: figure.label.replace(/\s*\(.*\)$/u, '') }))} className="mt-4 text-control text-muted-foreground" />}
-      {/* Details and the empty-milestones line share one row: the panel ends level with Needs attention. */}
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 border-t border-border/70 pt-3" data-testid="money-position-details">
+      {/* Details and the empty-milestones line share one row on the panel foot (margin-top:auto beside a taller Needs attention). */}
+      <div aria-hidden="true" className="h-4 shrink-0" />
+      <div className={cn('flex flex-wrap items-center justify-between gap-x-4 border-t border-border/70 pt-3', fillRow && 'mt-auto')} data-testid="money-position-details">
         <button type="button" aria-expanded={financeDetailsOpen} onClick={() => setFinanceDetailsOpen((open) => !open)}
           className="touch-target inline-flex items-center gap-2 cursor-pointer text-sm font-semibold text-muted-foreground hover:text-foreground">
           <Icon name="chev" className={`size-3.5 transition-transform duration-100 motion-reduce:transition-none ${financeDetailsOpen ? 'rotate-90' : ''}`} />
