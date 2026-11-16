@@ -114,10 +114,6 @@ export default function ProcurementCreate() {
   const supplierQuery = useVendorOptions();
   const { data: projects = [] } = projectQuery;
   const { data: suppliers = [] } = supplierQuery;
-  const supplierOptions = useMemo(
-    () => suppliers.map((option) => option.sub === 'Vendor' ? { ...option, sub: t('supplier', 'Supplier') } : option),
-    [suppliers, t],
-  );
   // Recording an existing order, supplier invoice or payment is for roles that may capture those documents;
   // everyone else raises a plain request.
   const canCaptureDocuments = may('create', 'procDoc');
@@ -409,9 +405,9 @@ export default function ProcurementCreate() {
                 emptyMessage={(query) => query ? undefined : t('references.noSuppliers', 'No suppliers available. A supplier is optional; ask an administrator to add one if needed.')}
                 placeholder={t('selectSupplier', 'Optional: select a supplier…')}
                 value={supplierId}
-                selectedOption={supplierOptions.find((option) => option.value === supplierId) ?? null}
+                selectedOption={suppliers.find((option) => option.value === supplierId) ?? null}
                 onChange={setSupplierId}
-                loadOptions={async () => supplierOptions}
+                loadOptions={async () => suppliers}
                 disabled={saving || Boolean(attempt) || supplierQuery.isPending || supplierQuery.isError || supplierQuery.data === undefined}
               />
               {(projectQuery.isPending || projectQuery.isError || projectQuery.data === undefined) && <div role="status">{projectQuery.isPending ? t('references.loadingProjects', 'Loading projects…') : <>{t('references.projectsError', "Couldn't load projects.")} <Button type="button" variant="outline" onClick={() => void projectQuery.refetch()}>{t('references.retryProjects', 'Retry projects')}</Button></>}</div>}

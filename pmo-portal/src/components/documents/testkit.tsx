@@ -1,6 +1,6 @@
 // Test helpers for the document viewer suites (not imported by production code).
 import { type ReactNode } from 'react';
-import { render } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { DocumentViewerProvider } from './DocumentViewerProvider';
 import type { DocumentViewTarget, PreviewResult } from './types';
@@ -20,4 +20,13 @@ export const target = (over: Partial<DocumentViewTarget> & { result?: PreviewRes
 
 export function renderViewer(ui: ReactNode, path = '/') {
   return render(<MemoryRouter initialEntries={[path]}><DocumentViewerProvider>{ui}</DocumentViewerProvider></MemoryRouter>);
+}
+
+/** The preview iframe by its title. The viewer's heading carries the same text as a tooltip, so a bare title query is ambiguous. */
+export async function findFrame(name: string): Promise<HTMLIFrameElement> {
+  return waitFor(() => {
+    const frame = screen.getAllByTitle(name).find((el): el is HTMLIFrameElement => el.tagName === 'IFRAME');
+    if (!frame) throw new Error(`no preview frame titled ${name}`);
+    return frame;
+  });
 }

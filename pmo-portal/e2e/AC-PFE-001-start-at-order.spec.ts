@@ -19,7 +19,8 @@ test('AC-PFE-001: record an order as the first document of a draft purchase', as
     await page.goto('/procurement/new');
     await page.getByRole('button', { name: 'A new need' }).click();
     await page.getByLabel('Title').fill(title);
-    await pickComboboxOption(page, page, /^project/i);
+    // A named seed project, never the first option: the list is shared, and a parallel journey's own project can sort first and be removed before Save.
+    await pickComboboxOption(page, page, /^project/i, /Innovate Corp HQ Fit-Out/);
     await page.getByRole('button', { name: 'Save' }).click();
 
     // A saved draft: nothing recorded yet, no approval requested.

@@ -114,7 +114,8 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
             wait until the block nears the viewport (WhenNearViewport renders children immediately
             where IntersectionObserver is absent, so unit tests and old browsers are unchanged).
             A short list takes a third beside the wide timeline, not a full-width card. */}
-        <div className="grid min-w-0 items-start gap-[var(--space-section)] xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        {/* A role that cannot see the milestones leaves the slot empty: it takes no gap, and the timeline spans the row like its neighbours. */}
+        <div className="grid min-w-0 items-start gap-[var(--space-section)] xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] xl:has-[>[data-near-viewport=seen]:empty]:grid-cols-1 [&>[data-near-viewport=seen]:empty]:hidden">
           <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock></div>
           <WhenNearViewport>
             <BillingMilestonesBlock projectId={project.id} />

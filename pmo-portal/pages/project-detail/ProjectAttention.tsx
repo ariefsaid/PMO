@@ -14,7 +14,7 @@ export const ProjectAttention: React.FC<{
   pendingSources?: readonly string[];
   error?: { what: string; retry: () => unknown };
   className?: string;
-  /** Let the visible rows share a desktop grid row with the money position. */
+  /** Share a desktop grid row's height with the money position; rows keep their natural height, the spare space stays below them. */
   fillRow?: boolean;
 }> = ({ items, excludeKeys, isPending, pendingSources, error, className, fillRow = false }) => {
   const { t } = useTranslation('project');
@@ -48,11 +48,11 @@ export const ProjectAttention: React.FC<{
   // The count waits until every source it counts has loaded.
   return panel(
     <>
-      <ul data-testid="needs-attention-rows" className={cn('divide-y divide-border/70', fillRow && 'flex flex-1 flex-col')}>
+      <ul data-testid="needs-attention-rows" className="divide-y divide-border/70">
         {visibleItems.map((item) => (
-          <li key={item.key} className={fillRow ? 'flex flex-1' : undefined}>
+          <li key={item.key}>
             <Tooltip content={item.explanation ?? t('projectDetail.attention.rowTooltip', 'Status is based on project records and their current workflow state.')} block>
-              <Link to={item.to} className={cn('touch-target flex w-full items-center gap-x-4 py-2.5 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', fillRow && 'flex-1')}>
+              <Link to={item.to} className="touch-target flex w-full items-center gap-x-4 py-2.5 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <span className="min-w-0 flex-1">
                   <span className="text-sm font-medium text-foreground">{item.what}</span>
                   {item.size && <>{' '}<span className={cn('mt-0.5 block text-sm tabular-nums', item.tone === 'danger' ? 'text-destructive-text' : 'text-warning-foreground')}>{item.size.replace(/ · /gu, ' · ')}</span></>}

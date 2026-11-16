@@ -487,7 +487,6 @@
       "paid": "Paid",
       "paidSource": "Invoice amount less accounting outstanding balance; this is settlement, not receipt cash.",
       "marginSource": "Billed-work revenue less complete recorded spending in the same currency.",
-      "stageAria": "{{label}} is {{percent}}% of contract",
       "noBoq": "Ordered and delivered values are not tracked until the project has a BoQ.",
       "invoiceError": "Couldn't load invoice settlement.",
       "cashUnavailable": "Receipt-backed cash is not available yet.",

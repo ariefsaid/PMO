@@ -37,8 +37,12 @@ test('AC-STK-035: an Engineer requests a purchase for a low item from Stock and 
   await price.press('Enter');
   await page.getByRole('button', { name: 'Save draft' }).click();
   await expect(page).toHaveURL(/\/procurement\/[0-9a-f-]{36}/, { timeout: 20_000 });
-  await expect(page.getByText(item.name).first()).toBeVisible();
-  await expect(page.getByText('15').first()).toBeVisible();
+  // The record opens on Timeline: check the record itself, on its Line items tab.
+  await expect(page.getByRole('heading', { level: 1 })).toContainText(item.code);
+  await page.getByRole('tab', { name: /^line items/i }).click();
+  const lines = page.getByTestId('procurement-tabpanel-items');
+  await expect(lines.getByText(item.name).first()).toBeVisible();
+  await expect(lines.getByText('15').first()).toBeVisible();
 });
 
 test('AC-STK-035: cancelling the request returns to Stock', async ({ page }) => {
