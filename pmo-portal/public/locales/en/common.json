@@ -1941,7 +1941,6 @@
       "generatePurchaseOrder": "Generate Purchase Order",
       "markAsPaid": "Mark as Paid",
       "markVendorInvoiced": "Mark Supplier Invoiced",
-      "reject": "Reject",
       "selectQuote": "Compare and select a quote",
       "submitRequest": "Submit for approval"
     },
@@ -2177,7 +2176,7 @@
         "save": "Create claim",
         "scope": "Bills",
         "scopeContract": "Lines with no work order",
-        "subtitle": "A claim becomes one ERP invoice. Attach the evidence before raising it.",
+        "subtitle": "A claim becomes one invoice. Attach the evidence before raising it.",
         "title": "New billing claim"
       },
       "claims": {

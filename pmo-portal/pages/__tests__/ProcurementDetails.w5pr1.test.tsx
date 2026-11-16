@@ -401,17 +401,17 @@ describe('AC-IXD-PROC-W5-1 (c): SoD-blocked state — no decision actions, the r
 
     const header = await openMoreActions();
     expect(header.queryByRole('button', { name: /^approve$/i })).toBeNull();
-    expect(screen.queryByRole('menuitem', { name: /^reject$/i })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: /^return$/i })).toBeNull();
     expect(screen.getByRole('menuitem', { name: 'Full history' })).toBeInTheDocument();
   });
 
-  it('AC-IXD-PROC-W5-1c: a non-SoD-blocked Finance viewer sees Approve+Reject in the header (no gate)', async () => {
+  it('AC-IXD-PROC-W5-1c: a non-SoD-blocked Finance viewer sees Approve+Return in the header (no gate)', async () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
 
     expect(headerActions().getByRole('button', { name: /^approve$/i })).toBeInTheDocument();
     await openMoreActions();
-    expect(screen.getByRole('menuitem', { name: /^reject$/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /^return$/i })).toBeInTheDocument();
     // No SoD gate notice for an unblocked viewer
     expect(screen.queryByTestId('sod-blocked-hint')).toBeNull();
     expect(screen.queryByText(/separation-of-duties gate/i)).toBeNull();
@@ -482,17 +482,17 @@ describe('AC-IXD-PROC-W5-1 (d): destructive verbs render after the primary CTA i
     ).toBe(true);
   });
 
-  it('AC-IXD-PROC-W5-1d: "Reject" appears after "Approve" in DOM order', async () => {
+  it('AC-IXD-PROC-W5-1d: "Return" appears after "Approve" in DOM order', async () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
 
     const approveBtn = headerActions().getByRole('button', { name: /^approve$/i });
     await openMoreActions();
-    const rejectItem = screen.getByRole('menuitem', { name: /^reject$/i });
+    const rejectItem = screen.getByRole('menuitem', { name: /^return$/i });
 
     expect(
       appearsBeforeInDOM(approveBtn, rejectItem),
-      '"Approve" (primary) must appear before "Reject" in DOM order',
+      '"Approve" (primary) must appear before "Return" in DOM order',
     ).toBe(true);
   });
 });
@@ -535,11 +535,11 @@ describe('AC-IXD-PROC-W5-1 non-regression: terminal + adminBreakGlass states una
     expect(approveBtn.className).toContain('bg-primary');
   });
 
-  it('non-regression: Reject is never a loud destructive fill (a quiet menu item)', async () => {
+  it('non-regression: Return is never a loud destructive fill (a quiet menu item)', async () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
     await openMoreActions();
-    const rejectItem = screen.getByRole('menuitem', { name: /^reject$/i });
+    const rejectItem = screen.getByRole('menuitem', { name: /^return$/i });
     expect(rejectItem.className).not.toContain('bg-destructive');
     expect(rejectItem.className).not.toContain('bg-primary');
   });

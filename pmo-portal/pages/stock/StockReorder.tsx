@@ -11,6 +11,7 @@ import { useBelowReorder, useReorderSuggestion, useSetReorderLevel, useStockItem
 import { formatQuantity } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
+import { useRequestPurchase } from '@/src/components/stock/useRequestPurchase';
 import { useUrlFilters } from '@/src/components/ui/useUrlFilters';
 import type { BelowReorderRow } from '@/src/lib/db/stockReorder';
 
@@ -30,6 +31,7 @@ const StockReorder: React.FC = () => {
   const loc = getNumberLocale();
   const canEdit = may('edit', 'reorderLevel', { record: { viewOnly: realRole !== effectiveRole } });
 
+  const { canRequest, request: requestPurchase } = useRequestPurchase();
   const { values: filters, setFilters } = useUrlFilters(['item', 'warehouse']);
   const itemId = filters.item;
   const warehouseId = filters.warehouse;
@@ -109,22 +111,23 @@ const StockReorder: React.FC = () => {
       { key: 'level', header: t('reorder.worklist.columns.level'), align: 'num', cell: (r) => <span className="tabular-nums">{q(r.reorderLevel)} <span className="text-muted-foreground">{r.unitCode}</span></span>, exportValue: (r) => r.reorderLevel },
       { key: 'qty', header: t('reorder.worklist.columns.orderQuantity'), align: 'num', cell: (r) => <span className="tabular-nums">{r.reorderQuantity ? <>{q(r.reorderQuantity)} <span className="text-muted-foreground">{r.unitCode}</span></> : ''}</span>, exportValue: (r) => r.reorderQuantity ?? '' },
     ];
-    if (canEdit) {
+    if (canEdit || canRequest) {
       cols.push({
         key: 'actions', header: t('reorder.worklist.columns.actions'), align: 'num',
         cell: (r) => (
           <div className="flex justify-end gap-1">
-            <Button variant="ghost" size="sm" aria-label={t('reorder.worklist.rowEdit', { item: r.itemCode })}
+            {canRequest && <Button variant="outline" size="sm" aria-label={t('requestPurchase.rowLabel', { item: r.itemCode })} onClick={() => requestPurchase(r)}>{t('requestPurchase.action')}</Button>}
+            {canEdit && <><Button variant="ghost" size="sm" aria-label={t('reorder.worklist.rowEdit', { item: r.itemCode })}
               onClick={() => pick(r.itemId, r.warehouseId, () => startEdit(r.reorderLevel, r.reorderQuantity))}>{t('reorder.worklist.edit')}</Button>
             <Button variant="ghost" size="sm" aria-label={t('reorder.worklist.rowClear', { item: r.itemCode })}
-              onClick={() => setClearTarget({ warehouseId: r.warehouseId, itemId: r.itemId, label: `${r.itemCode} - ${r.itemName}`, warehouseCode: r.warehouseCode })}>{t('reorder.worklist.clear')}</Button>
+              onClick={() => setClearTarget({ warehouseId: r.warehouseId, itemId: r.itemId, label: `${r.itemCode} - ${r.itemName}`, warehouseCode: r.warehouseCode })}>{t('reorder.worklist.clear')}</Button></>}
           </div>
         ),
       });
     }
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- q follows loc
-  }, [t, loc, canEdit]);
+  }, [t, loc, canEdit, canRequest, requestPurchase]);
 
   const whOption = (w: { id: string; code: string; name: string }) => ({ value: w.id, label: `${w.code} - ${w.name}` });
 

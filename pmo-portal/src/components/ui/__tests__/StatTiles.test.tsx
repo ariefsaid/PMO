@@ -231,4 +231,18 @@ describe('StatTiles', () => {
       expect(label.nextElementSibling?.className).toContain('whitespace-nowrap');
     });
   });
+
+  describe('wideFigures (money in the billions)', () => {
+    const tile = (n: number) => ({ label: `Tile ${n}`, value: 'Rp 12.685.600.000' });
+    it('waits for a 52rem strip before going three across, so a figure never outgrows its tile', () => {
+      render(<StatTiles tiles={[1, 2, 3, 4, 5, 6].map(tile)} columns={3} wideFigures />);
+      const strip = screen.getByTestId('stat-tiles');
+      expect(strip.className).toContain('@[52rem]:grid-cols-3');
+      expect(strip.className).not.toContain('@xl:grid-cols-3');
+    });
+    it('keeps the normal threshold when the strip does not carry wide figures', () => {
+      render(<StatTiles tiles={[1, 2, 3].map(tile)} columns={3} />);
+      expect(screen.getByTestId('stat-tiles').className).toContain('@xl:grid-cols-3');
+    });
+  });
 });

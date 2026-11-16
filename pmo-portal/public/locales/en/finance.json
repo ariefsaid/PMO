@@ -776,6 +776,8 @@
     "wholeProjectEditorHint": "Whole-project budget: enter each category total once — no fiscal year per line.",
     "invoiceNumber": "Invoice number",
     "odooDraftNumber": "Draft — Odoo assigns the number on approval",
+    "nativeLineDownPayment": "Down payment",
+    "nativeLineDownPaymentRecovery": "Down payment recovery",
     "erpLineItemsStoredExternally": "Line items are kept in the accounting system for this invoice.",
     "withholdingArticle": "Withholding article",
     "withholdingArticleNone": "Not stated",

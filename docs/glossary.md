@@ -220,6 +220,9 @@ reporting manager.
 **Supplier** — the party a purchase is bought from. Kept in English in Bahasa (like Timesheet and
 Dasbor), not translated as "Pemasok" (owner, 16 Nov).
 
+**Invoice** — a request for payment, sales or supplier ("invoice supplier"). Kept in English in Bahasa.
+"Faktur" names only the tax invoice (Faktur Pajak, e-Faktur); "invoiced" reads "ditagih" (owner, 16 Nov).
+
 **Task dependency** — a directed relation stating that one task depends on another task (see
 **Task**).
 
@@ -336,6 +339,8 @@ _Avoid_: "live connection" unqualified — always name the leg.
 **Progress claim line** — the quantity, rate and amount claimed for a bill-of-quantities item on a progress claim.
 
 **Claim evidence** — a document revision and its status attached to support a progress claim.
+
+**PMO down payment item** — the one fixed item (`DOWN-PAYMENT`) a down-payment claim names while no ERP owns revenue and the organisation has set no down-payment item; the ERP raise refuses a claim that names it. Its lines read "Down payment" and "Down payment recovery" on the invoice.
 
 **Sales invoice** — a customer-facing invoice associated with a project and optionally a work order, carrying amount, currency, status and tax details.
 

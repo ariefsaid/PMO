@@ -64,8 +64,9 @@ test(
     const addBtn = page.getByRole('button', { name: /add document/i }).first();
     await expect(addBtn).toBeVisible({ timeout: 10_000 });
 
-    // ── Step 2: AC-DOC-003 — create the document ──
+    // ── Step 2: AC-DOC-003 — create the document (Add document → Upload a document) ──
     await addBtn.click();
+    await page.getByRole('menuitem', { name: 'Upload a document' }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible({ timeout: 8_000 });
     await dialog.getByLabel(/title/i).fill(docTitle);

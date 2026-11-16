@@ -186,7 +186,7 @@ describe('AC-APR-031 approval routing on the request page', () => {
       "Approval for this procurement is routed to Pia Approver: it is within the project's Materials budget.",
     );
     expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Reject' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Return' })).not.toBeInTheDocument();
   });
 
   it('AC-APR-031: the named approver is offered Approve and sees no note', () => {

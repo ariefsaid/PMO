@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { fetchAllPages } from '@/src/lib/pagedRead';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
+import { revenueRefusalCode } from '@/src/lib/db/revenueNative';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { AllocationFacts, ContractLineFacts, EarningBasis, ProjectBillingFacts } from '@/src/lib/progressBilling';
 
@@ -139,6 +140,17 @@ export async function createProgressClaim(input: ProgressClaimInput): Promise<st
   });
   if (error) fail(error);
   return data as string;
+}
+
+/**
+ * No ERP owns revenue: the claim's invoice is a PMO Draft with the claim's id, approved by someone outside the claim's author set.
+ * Refusal details (`claim-already-invoiced`, `no-client`, `claim-total-mismatch`, `erp-owns-revenue`) become the error code.
+ */
+export async function createNativeProgressClaimInvoice(claimId: string): Promise<string> {
+  const { data, error } = await supabase.rpc('create_native_progress_claim_invoice', { p_claim: claimId });
+  if (error) throw new AppError(error.message, revenueRefusalCode(error));
+  if (typeof data !== 'string' || data === '') throw new AppError('the server recorded the invoice but returned no id', 'claim-invoice-malformed');
+  return data;
 }
 
 export async function withdrawProgressClaim(id: string): Promise<void> {

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes, useParams } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation, useParams } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import i18next from 'i18next';
@@ -39,6 +39,8 @@ const NewMovementPage: React.FC = () => {
   return <p>{`new movement: ${kind ?? ''}`}</p>;
 };
 
+const LocationProbe: React.FC = () => { const l = useLocation(); return <p data-testid="loc">{l.pathname + l.search}</p>; };
+
 /** The page inside the stock route table, so a control that navigates can be observed. */
 const renderRouted = (role: Role = 'Admin') => {
   realRole = role;
@@ -50,6 +52,7 @@ const renderRouted = (role: Role = 'Admin') => {
         <MemoryRouter initialEntries={['/stock']}>
           <Routes>
             <Route path="/stock" element={<StockOnHand />} />
+            <Route path="/procurement/new" element={<LocationProbe />} />
             <Route path="/stock/documents" element={<p>documents page</p>} />
             <Route path="/stock/ledger" element={<p>ledger page</p>} />
             <Route path="/stock/new/:kind" element={<NewMovementPage />} />
@@ -241,6 +244,26 @@ describe('StockOnHand (AC-STK-032 states, AC-STK-020 cost by data)', () => {
     await userEvent.click(screen.getByLabelText('Below reorder level'));
     expect(await screen.findByText('NEW')).toBeInTheDocument();
     expect(screen.queryByText('CEM')).not.toBeInTheDocument();
+  });
+
+  it('AC-STK-RESTOCK-3 the below-level view offers "Request purchase" per row, and the plain list does not', async () => {
+    reorder.worklist.mockResolvedValue([{ itemId: 'i1', itemCode: 'CEM', itemName: 'Cement 50kg', unitCode: 'bag', warehouseId: 'w1', warehouseCode: 'SITE-A', qtyOnHand: '70', reorderLevel: '100', reorderQuantity: null }]);
+    master.listWarehouses.mockResolvedValue([{ id: 'w1', code: 'SITE-A', name: 'Site A', kind: 'site', project_id: 'p1', archived_at: null }]);
+    renderPage('Engineer');
+    await screen.findByText('CEM');
+    expect(screen.queryByRole('button', { name: /^Request purchase/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('checkbox', { name: /below reorder level/i }));
+    expect(await screen.findByRole('button', { name: 'Request purchase for CEM' })).toBeInTheDocument();
+  });
+
+  it('AC-STK-RESTOCK-1 Request purchase carries the store\'s average unit value, and nothing when unknown', async () => {
+    reorder.worklist.mockResolvedValue([{ itemId: 'i1', itemCode: 'CEM', itemName: 'Cement 50kg', unitCode: 'bag', warehouseId: 'w1', warehouseCode: 'SITE-A', qtyOnHand: '70', reorderLevel: '100', reorderQuantity: null }]);
+    reports.onHand.mockResolvedValue([{ ...row, valueOnHand: '3500.00', avgCost: '50.0000' }]);
+    renderRouted('Admin');
+    await screen.findByText('CEM');
+    await userEvent.click(screen.getByRole('checkbox', { name: /below reorder level/i }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Request purchase for CEM' }));
+    expect(new URL((await screen.findByTestId('loc')).textContent!, 'http://x').searchParams.get('lineRate')).toBe('50.0000');
   });
 
   it('the worklist is not fetched while the filter is off', async () => {

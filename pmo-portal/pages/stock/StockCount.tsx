@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { StockLinesLoading } from '@/src/components/stock/LinesLoading';
+import { writeOffLinesReserve } from '@/src/components/stock/linesLoadingHeights';
 import { Button, ConfirmDialog, FormGrid, FormSection, ListState, MobileActionBar, SelectField, TextArea, TextField, UnsavedChangesDialog, useToast, Icon } from '@/src/components/ui';
 import { StockTabs } from '@/src/components/stock/StockTabs';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
@@ -176,9 +178,14 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
     return s !== undefined && COUNTED.test(c) ? subtractDecimal(c, s) : undefined;
   };
 
-  const loadError = warehouses.isError || keepers.isError || items.isError || units.isError;
-  const pending = warehouses.isPending || keepers.isPending || items.isPending || units.isPending;
-  const retry = () => { for (const q of [warehouses, keepers, items, units]) if (q.isError) void q.refetch(); };
+  // AC-NBR-032: the header needs warehouses + keepers; the line editor needs items + units. Submit waits for all four.
+  const headerError = warehouses.isError || keepers.isError;
+  const headerPending = warehouses.isPending || keepers.isPending;
+  const linesError = items.isError || units.isError;
+  const linesPending = items.isPending || units.isPending;
+  const retryHeader = () => { for (const q of [warehouses, keepers]) if (q.isError) void q.refetch(); };
+  const retryLines = () => { for (const q of [items, units]) if (q.isError) void q.refetch(); };
+  const linesSettled = !linesPending && !linesError;
   const canAuthor = may('create', 'stockDocument', { record: { isKeeper: keptIds.has(warehouseId), viewOnly } });
   const variances = lines.map(varianceOf);
   // FR-STK-062: a count whose every line is known and zero may be posted by its author; anything else goes to another person.
@@ -270,12 +277,13 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
       <StockTabs />
       {draft && draft.created_by !== me && <p className="mb-3 text-sm text-muted-foreground">{t('count.otherAuthorDraft', 'This draft was created by {{name}}. Only its author can save changes.', { name: draft.author?.full_name || t('count.anotherPersonName', 'another person') })}</p>}
 
-      {pending && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}
-      {!pending && loadError && <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={retry} />}
-      {!pending && !loadError && usable.length === 0 && <ListState variant="empty" icon="folder" title={t('form.noWarehouse.title')} sub={t('form.noWarehouse.sub')} />}
-      {!pending && !loadError && usable.length > 0 && (
-        <form onSubmit={(e) => { e.preventDefault(); void submit(selfPostable); }} noValidate className="space-y-4">
+      {headerPending && <div data-testid="stock-header-region" className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}
+      {!headerPending && headerError && <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={retryHeader} />}
+      {!headerPending && !headerError && usable.length === 0 && <ListState variant="empty" icon="folder" title={t('form.noWarehouse.title')} sub={t('form.noWarehouse.sub')} />}
+      {!headerPending && !headerError && usable.length > 0 && (
+        <form data-testid="stock-count-form" onSubmit={(e) => { e.preventDefault(); if (linesSettled) void submit(selfPostable); }} noValidate className="space-y-4">
           {viewOnly && <p className="text-sm text-muted-foreground">{t('form.viewOnly')}</p>}
+          <div data-testid="stock-count-header">
           <FormSection legend={t('form.sections.where')}>
             <FormGrid>
               <SelectField label={t('form.warehouse')} required value={warehouseId} onChange={setWarehouseId}
@@ -285,8 +293,13 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
               )}
             </FormGrid>
           </FormSection>
+          </div>
 
           <FormSection legend={t(kind === 'count' ? 'count.sections.sheet' : 'form.sections.lines')}>
+            <div data-testid="stock-lines-region">
+            {linesPending && <StockLinesLoading reserve={writeOffLinesReserve({ kind, hasWarehouse: !!warehouseId, draftLines: draft ? lines.length : undefined, inDirectionLines: lines.filter((l) => l.direction === 'in').length })} />}
+            {!linesPending && linesError && <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={retryLines} />}
+            {linesSettled && (<>
             {warehouseId && onHand.isError && (
               <div className="mb-3"><ListState variant="error" title={t('count.onHandFailed')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={() => void onHand.refetch()} /></div>
             )}
@@ -323,6 +336,8 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
                 {t('form.addLine')}
               </Button>
             </div>
+            </>)}
+            </div>
           </FormSection>
 
           <FormSection legend={t('form.sections.details')}>
@@ -336,10 +351,10 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
               <div className="flex flex-wrap items-center justify-end gap-2">
                 {!selfPostable && <p className="mr-auto text-sm text-muted-foreground">{t('count.anotherPerson')}</p>}
                 <Button type="button" variant="ghost" onClick={() => guardLeave(() => navigate('/stock/documents'))}>{t('actions.cancel')}</Button>
-                <Button type={selfPostable ? 'button' : 'submit'} variant={selfPostable ? 'outline' : 'primary'} loading={busy && !selfPostable} onClick={selfPostable ? () => void submit(false) : undefined}>
+                <Button type={selfPostable ? 'button' : 'submit'} variant={selfPostable ? 'outline' : 'primary'} disabled={!linesSettled} loading={busy && !selfPostable} onClick={selfPostable ? () => void submit(false) : undefined}>
                   {t('count.saveDraft')}
                 </Button>
-                {selfPostable && <Button type="submit" variant="primary" loading={busy}>{t('count.post')}</Button>}
+                {selfPostable && <Button type="submit" variant="primary" disabled={!linesSettled} loading={busy}>{t('count.post')}</Button>}
               </div>
             </MobileActionBar>
           ) : (

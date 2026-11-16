@@ -37,6 +37,11 @@ export interface StatTilesProps {
    * Responsive behavior (mobile 2-col, sm:grid-cols-n, odd-count clip) is identical.
    */
   variant?: 'framed' | 'bare';
+  /**
+   * The strip carries money in the billions ("Rp 126.856.000.000" is 248px at the metric size): three across then
+   * waits for a 52rem strip (3 x 262px + gaps) instead of 28rem, so a figure never outgrows its tile.
+   */
+  wideFigures?: boolean;
 }
 
 /**
@@ -58,6 +63,10 @@ const CONTAINER_COLS_CLASS: Record<number, string> = {
   5: '@2xl:grid-cols-3 @5xl:grid-cols-5',
   6: '@2xl:grid-cols-3 @5xl:grid-cols-6',
 };
+
+/** The 3-col layout for wide figures: see `wideFigures`. Static class so Tailwind's JIT sees it. */
+const WIDE_FIGURES_3_COLS = '@[52rem]:grid-cols-3';
+const WIDE_FIGURES_3_SPAN_RESET = '@[52rem]:col-span-1';
 
 /** When the N-col layout activates, the odd-count last tile stops spanning the row. */
 const CONTAINER_SPAN_RESET: Record<number, string> = {
@@ -103,6 +112,7 @@ export const StatTiles: React.FC<StatTilesProps> = ({
   columns = 4,
   className,
   variant = 'framed',
+  wideFigures = false,
 }) => {
   const isUnknown = (tile: StatTile) => tile.unavailableReason != null || tile.value == null;
   const unknownTiles = allTiles.filter(isUnknown);
@@ -114,8 +124,9 @@ export const StatTiles: React.FC<StatTilesProps> = ({
   // Inside a scope an unknown tile is not drawn at all (the page's one line reports it).
   const tiles = inScope ? allTiles.filter((tile) => !isUnknown(tile)) : allTiles;
   if (tiles.length === 0) return null;
-  const smColsClass = CONTAINER_COLS_CLASS[columns] ?? '';
-  const spanReset = CONTAINER_SPAN_RESET[columns] ?? '';
+  const wide3 = wideFigures && columns === 3;
+  const smColsClass = wide3 ? WIDE_FIGURES_3_COLS : CONTAINER_COLS_CLASS[columns] ?? '';
+  const spanReset = wide3 ? WIDE_FIGURES_3_SPAN_RESET : CONTAINER_SPAN_RESET[columns] ?? '';
   const isOdd = tiles.length % 2 !== 0;
   // Phone 2-col flow: a wide tile takes its row; a tile left alone in the row before it, or at the end,
   // takes its row too, so no row is half empty.

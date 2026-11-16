@@ -21,6 +21,7 @@ export const PaginationFooter: React.FC<{ pagination: PaginationState; total: nu
   const wide = useIsDesktop();
   const { page, pageSize, onPageChange } = pagination;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  if (total === 0) return null; // nothing to count: the empty message stands alone
   const from = shown === 0 ? 0 : (page - 1) * pageSize + 1;
   const to = (page - 1) * pageSize + shown;
   // A dead end (Previous on page 1, Next on the last) wears the disabled ink, not the live one (#843).

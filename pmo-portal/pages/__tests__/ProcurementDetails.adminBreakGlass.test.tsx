@@ -215,7 +215,7 @@ describe('AC-IXD-PROC-A8: Admin break-glass header edit', () => {
 // B3 — Admin break-glass transitions, SoD preserved (characterization)
 // ─────────────────────────────────────────────────────────────────────────────
 describe('AC-IXD-PROC-B3: Admin break-glass transitions with SoD preserved', () => {
-  it('AC-IXD-PROC-B3: Admin who is NOT the requester sees Approve + Reject on a Requested PR', async () => {
+  it('AC-IXD-PROC-B3: Admin who is NOT the requester sees Approve + Return on a Requested PR', async () => {
     auth.realRole = 'Admin';
     auth.currentUserId = 'u-admin';
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-requester' };
@@ -223,7 +223,7 @@ describe('AC-IXD-PROC-B3: Admin break-glass transitions with SoD preserved', () 
     // Approve is the one primary action; Reject sits in the header's "More procurement actions" menu.
     expect(headerActions().getByRole('button', { name: /^Approve$/ })).toBeInTheDocument();
     await openMoreActions();
-    expect(screen.getByRole('menuitem', { name: /^Reject$/ })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /^Return$/ })).toBeInTheDocument();
   });
 
   it('AC-IXD-PROC-B3: Admin who IS the requester does NOT see Approve/Reject on a Requested PR (SoD-a)', async () => {
@@ -235,7 +235,7 @@ describe('AC-IXD-PROC-B3: Admin break-glass transitions with SoD preserved', () 
     // Open the menu first so the absence of Reject is not vacuous (it lives in "More procurement actions").
     await openMoreActions();
     expect(screen.getByRole('menuitem', { name: 'Full history' })).toBeInTheDocument();
-    expect(screen.queryByRole('menuitem', { name: /^Reject$/ })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: /^Return$/ })).toBeNull();
   });
 
   it('AC-IXD-PROC-B3: Admin (not the approver) sees Mark as Paid on a Vendor Invoiced PR', () => {

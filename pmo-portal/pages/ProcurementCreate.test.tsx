@@ -439,6 +439,38 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(mocks.createItem).not.toHaveBeenCalled();
   });
 
+  it('AC-STK-RESTOCK-1 opens pre-filled from a Stock link: title, project, one line at the shortfall', async () => {
+    renderCreate('/procurement/new?have=need&project=p1&from=%2Fstock%2Freorder&title=CEM%20-%20Cement&lineName=Cement%20(bag)&lineQty=30&lineRate=12.5');
+    expect(screen.getByLabelText(/title/i)).toHaveValue('CEM - Cement');
+    expect(screen.getByText('Project One')).toBeVisible();
+    expect(screen.getByText('Cement (bag)')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(mocks.createAtomic).toHaveBeenCalledOnce());
+    expect(mocks.createAtomic.mock.calls[0][0].header.projectId).toBe('p1');
+    expect(mocks.createAtomic.mock.calls[0][0].lines).toEqual([expect.objectContaining({ name: 'Cement (bag)', quantity: 30, rate: 12.5 })]);
+  });
+
+  it('AC-STK-RESTOCK-1 with no known unit value the price stays empty (never 0) and the line waits in the entry row', () => {
+    renderCreate('/procurement/new?have=need&from=%2Fstock%2Freorder&title=CEM&lineName=Cement%20(bag)&lineQty=30');
+    expect(screen.getByDisplayValue('Cement (bag)')).toBeVisible();
+    expect(screen.getByDisplayValue('30')).toBeVisible();
+    expect(screen.getByLabelText('New item unit price')).toHaveValue('');
+  });
+
+  it('AC-STK-RESTOCK-2 Cancel and Back return to the page the request started from, not the list', () => {
+    renderCreate('/procurement/new?have=need&from=%2Fstock%2Freorder');
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(mocks.navigate).toHaveBeenLastCalledWith('/stock/reorder');
+    fireEvent.click(screen.getByRole('button', { name: /^back/i }));
+    expect(mocks.navigate).toHaveBeenLastCalledWith('/stock/reorder');
+  });
+
+  it('AC-STK-RESTOCK-2 ignores an external origin and falls back to the list', () => {
+    renderCreate('/procurement/new?have=need&from=https%3A%2F%2Fevil.test');
+    fireEvent.click(screen.getByRole('button', { name: /^back/i }));
+    expect(mocks.navigate).toHaveBeenLastCalledWith('/procurement');
+  });
+
   it('AC-PROC1-004 required title error is inline and blocks creation', () => {
     renderCreate();
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));

@@ -161,7 +161,7 @@ export function DocumentViewer({ state, onClose, onRetry, onRenderError }: Docum
       open
       width="lg"
       title={target.name}
-      subtitle={t('viewer.sourceLabel', 'Source: {{place}}', { place: target.sourceLabel })}
+      subtitle={[target.detail, t('viewer.sourceLabel', 'Source: {{place}}', { place: target.sourceLabel })].filter(Boolean).join(' · ')}
       onClose={onClose}
       footer={<div className="flex w-full flex-wrap items-center justify-end gap-2"><Actions target={target} hideDownload={hideDownload} t={t} /></div>}
     >

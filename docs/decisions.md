@@ -3731,6 +3731,17 @@ with a transaction-local marker that names the claim. Defaults taken from the pl
 rule is unchanged (a sole-operator org cannot approve its own invoice); volume claims stay out of scope; one line per rate
 line, no item code; no re-invoice after a cancel.
 
+### DD-NCI-1 — A no-ERP org invoices a progress or down-payment claim through its own RPC (#2465, 2026-11-16)
+`create_native_progress_claim_invoice(claim)` (migration 0924) is `create_native_tm_invoice` (DD-TMN-1) for the other two claim
+kinds, with the same id-is-claim-id guard and approval rule. Its lines are the claim's own lines plus one negative line for the
+down payment recovered, so the invoice total is the claim's net (the ERP raise builds the same figures, `canonicalProgressLines`).
+Nothing in SQL ever refused creating, evidencing or withdrawing a claim without an ERP; only the Billing tab did, so the
+change there is the gate. No reader changes: every money reader goes through `sales_invoice_work_billed` and counts the row once.
+A down-payment claim needs an item, which is picked from the ERP's item list: with no ERP and no item set, the claim names one
+fixed PMO item (`native_down_payment_item()`); an ERP-owned organisation with no item is refused as before, and the ERP raise
+refuses a claim that names the PMO item, in plain words, rather than send it. A claim whose net is zero is not invoiced (nothing
+to approve or pay). A claim with a cancelled native invoice cannot be withdrawn or re-raised, as with an ERP invoice today.
+
 ### DD-1413-RESUBMIT — any approver-role member may resubmit a returned budget draft (#1413)
 Resubmit is open to every approver-role member, including the one who returned it. Nothing breaks: activation separation of duties still runs in full on the resubmitted draft.
 

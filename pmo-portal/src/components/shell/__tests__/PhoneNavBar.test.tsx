@@ -173,6 +173,16 @@ describe('#2061 phone bottom navigation', () => {
   });
 });
 
+describe('AC-SHELL-002 the bar publishes its real height', () => {
+  it('watches the border box, so a safe-area (padding-only) change republishes --phone-nav-height', () => {
+    const observe = vi.fn();
+    vi.stubGlobal('ResizeObserver', class { observe = observe; disconnect = vi.fn(); });
+    renderBar();
+    expect(observe).toHaveBeenCalledWith(screen.getByTestId('phone-nav'), { box: 'border-box' });
+    vi.unstubAllGlobals();
+  });
+});
+
 describe('#2353 phone bar in Bahasa', () => {
   it('names Approvals and My Tasks with the same words as the page and the drawer', async () => {
     i18next.addResourceBundle('id', 'home', idHome, true, true);

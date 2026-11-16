@@ -110,6 +110,7 @@
       "unorderedValueFormula": "Unordered contract quantity multiplied by its contract rate.",
       "viewQuantityHistory": "View quantity history",
       "notOrderedTitle": "Not yet ordered",
+      "contractLinesTitle": "Contract lines",
       "openUnorderedLine": "Open {{item}} quantity history",
       "quantityHistory": "Quantity history",
       "noQuantityHistory": "No customer order quantities yet.",
@@ -209,6 +210,7 @@
           "dpHeld": "Computed as invoiced down payment less recovered down payment."
         },
         "openLabel": "Open {{kind}} claim from {{date}}",
+        "emptySubNative": "A claim bills a down payment or accepted quantities as one invoice.",
         "evidence": "Evidence",
         "noEvidence": "No evidence attached yet.",
         "evidenceFirst": "Claims need evidence attached before an invoice draft can be raised.",
@@ -222,7 +224,7 @@
           "invoice": "Invoice"
         },
         "billingTitle": "Billing claims",
-        "billingEmptySub": "A claim bills a down payment or quantities done, as one ERP invoice.",
+        "billingEmptySub": "A claim bills a down payment or quantities done, as one invoice.",
         "toast": {
           "raised": "Invoice raised in the ERP",
           "raisedNative": "Invoice drafted in PMO",
@@ -239,7 +241,10 @@
         "errors": {
           "claimWithdrawn": "This claim was withdrawn. Its invoice can't be raised.",
           "alreadyInvoiced": "This claim already has an invoice.",
+          "erpRaiseInFlight": "An invoice for this claim is still being raised in the ERP. Wait for it to finish.",
           "noClient": "This project has no client to invoice. Set the client on the project first.",
+          "claimKind": "This claim is invoiced from its sign-off, not from here.",
+          "invoiceTotalInvalid": "This claim's net is zero, so there is nothing to invoice. Withdraw it.",
           "totalMismatch": "This claim's lines do not add up to its total. Withdraw it and assemble it again."
         },
         "withdrawn": "Withdrawn",
@@ -328,7 +333,7 @@
         "quantity": "{{item}}: {{description}} ({{unit}})",
         "kind": "Claim type",
         "save": "Create claim",
-        "subtitle": "A claim becomes one ERP invoice. Attach the evidence before raising it.",
+        "subtitle": "A claim becomes one invoice. Attach the evidence before raising it.",
         "recoverRest": "Recover the rest of the down payment with this claim",
         "scope": "Bills",
         "scopeContract": "Lines with no work order",
@@ -865,7 +870,8 @@
         "preview": "Preview",
         "download": "Download",
         "copyLink": "Copy link",
-        "openSharePoint": "Open in SharePoint"
+        "openSharePoint": "Open in SharePoint",
+        "view": "View file"
       },
       "bulk": {
         "statusUpdated": "Status updated for {{count}} documents",
@@ -903,7 +909,12 @@
       },
       "field": {
         "microsoft": "Microsoft 365 item"
-      }
+      },
+      "add": {
+        "upload": "Upload a document",
+        "folderPending": "Creating folder…"
+      },
+      "filters": "Filters"
     },
     "procurement": {
       "erpCard": {

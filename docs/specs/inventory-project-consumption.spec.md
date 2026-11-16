@@ -275,7 +275,12 @@ That is #1508.
 - **FR-STK-053** A suggestion shall change nothing. A level changes only when an authorised user accepts or edits it; the
   change is audited (before / after, actor).
 - **FR-STK-054** The system shall list items whose on-hand is at or below their set level, per warehouse, as a worklist.
-  It shall not create a purchase request or any spend.
+  The worklist itself shall not create a purchase request or any spend.
+- **FR-STK-055** Where a member may raise a purchase request, each worklist row shall offer "Request purchase", which opens
+  the new-purchase form pre-filled with the item, unit, the shortfall to the reorder level (else the set order quantity)
+  and the warehouse's project when it has one. The unit price shall be the item's current average unit value in that
+  store when known, else empty (never 0). The form shall create nothing until the person submits it, and leaving it
+  unsaved shall return to the Stock page it was opened from.
 
 ### G. Authorization, SoD, visibility
 
@@ -366,6 +371,7 @@ title; Playwright `e2e/AC-STK-###-<slug>.spec.ts`).
 | AC-STK-032 | Given each screen state (loading, empty, error, populated, archived), then the right state renders and an RPC failure shows an error, never a zero. | 044, 045 | Unit (RTL) |
 | AC-STK-033 | Given `can()` for each built-in role and the real vs impersonated role, then affordances match FR-STK-061/062/064, deny by default. | 064 | Unit (Vitest) |
 | AC-STK-034 | Given a member below Project Manager (Engineer), when they create or edit a unit, item or warehouse, then it is refused; only Admin changes keepers; an item's unit cannot change after a line references it. | 007, 008 | pgTAP |
+| AC-STK-035 | Given an Engineer on Stock with an item at or below its level, when they tap "Request purchase", then the form opens pre-filled (item, quantity, project, known average price or an empty price); when they submit, the request is with its approver naming the item and quantity; when they Cancel or go Back instead, they are on the Stock page they came from, labelled "Back to Stock". | 054, 055 | Unit (RTL) + curated E2E |
 
 Money / SoD mutation checks (per CLAUDE.md): AC-STK-013, 014, 018 are re-run with the rule broken to prove red.
 

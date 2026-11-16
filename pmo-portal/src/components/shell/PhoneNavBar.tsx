@@ -46,7 +46,8 @@ function usePublishNavHeight(ref: React.RefObject<HTMLElement | null>, active: b
     };
     publish();
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(publish);
-    observer?.observe(bar);
+    // border-box: the safe-area is padding, which the default content-box never reports.
+    observer?.observe(bar, { box: 'border-box' });
     if (!observer) window.addEventListener('resize', publish);
     return () => {
       observer?.disconnect();

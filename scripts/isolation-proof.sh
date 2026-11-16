@@ -15,7 +15,7 @@ B_ORG=a6120000-0000-4000-8000-00000000000b
 # for new or uncovered tables; never raise a bound.
 # 0887 (#895): journal_entries, journal_entry_lines and journal_entry_authors add 3 read-mode skips (read mode never attempts the update; write mode runs it).
 # void_subcontract_bill (#1671): read mode skips it (needs disposable tenant A, +1 skip); write mode runs it (+1 check, 0 skips).
-SKIPS_READ=399 SKIPS_WRITE=273 MIN_CHECKS_READ=491 MIN_CHECKS_WRITE=617
+SKIPS_READ=400 SKIPS_WRITE=273 MIN_CHECKS_READ=491 MIN_CHECKS_WRITE=618
 
 # judge <read|write> <probe exit code> <probe output file>: print the counts, return 0 only for a clean run.
 judge(){

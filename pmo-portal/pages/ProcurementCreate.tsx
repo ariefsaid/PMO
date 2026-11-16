@@ -16,6 +16,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { itemsNetTotal } from '@/src/lib/itemsNet';
 import { BudgetCategoryHelp } from './procurement/BudgetCategoryHelp';
 import { LineItemsSection } from './procurement/LineItemsSection';
+import { readOrigin, readRestockLine, resolveFormOrigin } from '@/src/lib/stockRequestPurchase';
 import { BUDGET_CATEGORY_OPTIONS } from './procurement/budgetCategoryOptions';
 import type { BudgetCategory } from '@/src/lib/budget/categoryAccountMap';
 
@@ -123,12 +124,24 @@ export default function ProcurementCreate() {
   const [haveChoice, setHave] = useState<ProcurementHave | null>(() => parseHave(params.get('have')));
   // B3: a role that can only raise a need has one choice, so it starts straight on that form.
   const have: ProcurementHave | null = canCaptureDocuments ? haveChoice : 'need';
-  const [title, setTitle] = useState('');
+  // The page the request was started from (explicit `from`); a pre-filled line when started from Stock.
+  const [origin] = useState(() => resolveFormOrigin(location.search));
+  const [restock] = useState(() => readRestockLine(location.search));
+  const [initialTitle] = useState(() => (restock ? params.get('title') ?? '' : ''));
+  // A known average unit value pre-fills the line; unknown leaves the price empty, as a typed line starts.
+  const restockPriced = restock !== null && restock.rate !== null;
+  const initialLineCount = restockPriced ? 1 : 0;
+  const [title, setTitle] = useState(initialTitle);
   const [selectedProject, setSelectedProject] = useState<string | null>(projectId);
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [budgetCategory, setBudgetCategory] = useState('');
-  const [lines, setLines] = useState<DraftLine[]>([]);
-  const [addRowHasInput, setAddRowHasInput] = useState(false);
+  const [lines, setLines] = useState<DraftLine[]>(() => restock && restock.rate !== null
+    ? [{ id: crypto.randomUUID(), name: restock.name, quantity: restock.quantity, rate: restock.rate, amount: itemsNetTotal([{ quantity: restock.quantity, rate: restock.rate }]), description: null }]
+    : []);
+  // Pending content in the entry row (blocks Save) vs the person having edited it (dirty). A pre-filled
+  // row has the first and not the second.
+  const [addRowHasInput, setAddRowHasInput] = useState(restock !== null && !restockPriced);
+  const [addRowEdited, setAddRowEdited] = useState(false);
   const [blockedAddRowMessage, setBlockedAddRowMessage] = useState<string | null>(null);
   const addRowDescriptionRef = useRef<HTMLInputElement>(null);
   const [errors, setErrors] = useState<{ title?: string; save?: { headline: string; detail: string }; conflict?: boolean }>({});
@@ -147,16 +160,21 @@ export default function ProcurementCreate() {
   const leaveLabel = saveNeedsAttention ? t('unsaved.leave', 'Leave') : undefined;
   const stayLabel = saveNeedsAttention ? t('unsaved.stay', 'Stay') : undefined;
   const dirty = saving || attempt !== null || (
-    title !== '' || supplierId !== null || budgetCategory !== '' || lines.length > 0 || addRowHasInput || selectedProject !== projectId
+    title !== initialTitle || supplierId !== null || budgetCategory !== '' || lines.length > initialLineCount || addRowEdited || selectedProject !== projectId
   );
   const holdLeave = useCallback((leave: () => void) => setPendingLeave(() => leave), []);
   const updateAddRowDirty = useCallback((hasInput: boolean) => {
     setAddRowHasInput(hasInput);
+    setAddRowEdited(hasInput);
     if (!hasInput) setBlockedAddRowMessage(null);
   }, []);
   const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: holdLeave });
+  // Leaving unsaved returns to where the form was started: the project's procurement tab when the
+  // link carried `?project=`, the Procurement list otherwise (an Engineer has no list in the menu).
+  const originPath = origin.path;
+  const backLabel = origin.kind === 'stock' ? t('backToStock', 'Stock') : origin.kind === 'project' ? t('backToProject', 'project') : t('backToProcurement', 'Procurement');
   const backToProcurement = () => {
-    guardLeave(() => navigate('/procurement'));
+    guardLeave(() => navigate(originPath));
   };
   // Discard means discard: the whole draft goes, not just the chosen type (C7). The project
   // preselected by the link is the form's starting value, not typed input, so it stays.
@@ -167,6 +185,7 @@ export default function ProcurementCreate() {
     setBudgetCategory('');
     setLines([]);
     setAddRowHasInput(false);
+    setAddRowEdited(false);
     setBlockedAddRowMessage(null);
     setErrors({});
   }, [projectId]);
@@ -300,7 +319,7 @@ export default function ProcurementCreate() {
   if (!have) {
     return (
       <div className="mx-auto w-full max-w-7xl p-4 pb-6 md:p-6">
-        <BackBar label={t('backToProcurement', 'Procurement')} onBack={backToProcurement} />
+        <BackBar label={backLabel} onBack={backToProcurement} />
         <ProcurementIntake
           choices={choices}
           onChoose={choose}
@@ -343,11 +362,11 @@ export default function ProcurementCreate() {
     setHave(null);
   };
   // Footer Cancel mirrors Change type for capture roles and the list exit for need-only roles.
-  const cancelCreate = canCaptureDocuments ? changeType : backToProcurement;
+  const cancelCreate = canCaptureDocuments && !readOrigin(location.search) ? changeType : backToProcurement;
 
   return (
     <div className="mx-auto w-full max-w-[880px] p-4 pb-6 md:p-6">
-      <BackBar label={t('backToProcurement', 'Procurement')} onBack={backToProcurement} />
+      <BackBar label={backLabel} onBack={backToProcurement} />
       <form id="procurement-create-form" className="mx-auto w-full max-w-[880px]" onSubmit={submit} noValidate>
         <header className="mb-6 flex items-center justify-between gap-4 border-b border-border pb-4">
           <h1 className="text-page font-bold tracking-[-0.02em]">{t('heading', 'New procurement')}</h1>
@@ -423,6 +442,7 @@ export default function ProcurementCreate() {
               editable
               createFormLayout
               busy={saving || Boolean(attempt)}
+              initialDraft={restock && !restockPriced ? { name: restock.name, quantity: String(restock.quantity) } : undefined}
               onAdd={addLine}
               onUpdate={updateLine}
               onDelete={removeLine}
