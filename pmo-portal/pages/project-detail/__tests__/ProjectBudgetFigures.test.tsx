@@ -9,6 +9,8 @@ vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
   useProjectBudgetPositions: () => ({ data: h.position ? { p1: h.position } : {} }),
 }));
 
+vi.mock('@/src/hooks/useFxIdrRate', () => ({ useFxIdrRate: () => ({ status: 'off' }) }));
+
 import { ProjectBudgetFigures } from '../ProjectBudgetFigures';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 

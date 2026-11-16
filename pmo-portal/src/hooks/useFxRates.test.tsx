@@ -104,7 +104,7 @@ describe('useFxRates query and mutation keys', () => {
     await waitFor(() => expect(harness.onDate).toHaveBeenCalledTimes(1));
     expect(harness.onDate).toHaveBeenCalledWith('USD', 'IDR', '2026-10-12');
     await waitFor(() =>
-      expect(container.textContent?.match(/JISDOR 2026-10-12/g)).toHaveLength(20),
+      expect(container.textContent?.match(/using IDR 16,300 rate/g)).toHaveLength(20),
     );
   });
 
