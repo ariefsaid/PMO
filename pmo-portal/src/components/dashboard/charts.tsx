@@ -14,9 +14,11 @@ import { wrapProjectName } from './hub/company/projectName';
  * one accent, red only for an exception. Nothing is drawn for a value that is unknown (the row or series is left
  * out). Each chart's accessible name carries its values.
  */
-export type ChartTone = 'neutral' | 'accent' | 'bad';
+export type ChartTone = 'neutral' | 'accent' | 'bad' | 'second';
 const toneFill: Record<ChartTone, string> = {
   neutral: chartTheme.series.neutral,
+  // The second series of a pair (collected beside invoiced): its own chart channel, never a grey that reads as disabled.
+  second: chartTheme.categorical[1],
   accent: chartTheme.series.primary,
   bad: chartTheme.series.destructive,
 };
@@ -215,7 +217,7 @@ export const MonthColumns: React.FC<{
   const legendItems = two && seriesNames?.[0] && seriesNames[1]
     ? [
       { label: seriesNames[0], tone: 'accent' as const },
-      { label: seriesNames[1], tone: 'neutral' as const },
+      { label: seriesNames[1], tone: 'second' as const },
     ]
     : null;
   return (
@@ -235,7 +237,7 @@ export const MonthColumns: React.FC<{
                 <LabelList dataKey="labelA" content={valueAxis ? peakLabel(data, 'a') : columnLabel(data, 'a', !labelAll, two ? 'end' : 'middle', two, pairedLabelsOnBars && two)} />
               </Bar>
               {two && (
-                <Bar dataKey="b" fill={toneFill.neutral} radius={[4, 4, 0, 0]} isAnimationActive={!reduced} minPointSize={2}>
+                <Bar dataKey="b" fill={toneFill.second} radius={[4, 4, 0, 0]} isAnimationActive={!reduced} minPointSize={2}>
                   <LabelList dataKey="labelB" content={valueAxis ? peakLabel(data, 'b') : columnLabel(data, 'b', !labelAll || points.length > 6, 'start', true, pairedLabelsOnBars)} />
                 </Bar>
               )}
