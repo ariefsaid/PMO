@@ -28,6 +28,8 @@ const WorkOrdersClaimsCard: React.FC<{
   canAssess: boolean;
   canRecordPercent: boolean;
   canBill: boolean;
+  /** A claim whose invoice is raised elsewhere (a time-and-materials claim in a PMO-billed org) offers no Raise here. */
+  canRaiseClaim?: (claim: ProgressClaimWithInvoice) => boolean;
   claimsRead: { isPending: boolean; isError: boolean; refetch: () => void };
   claimRows: ProgressClaimWithInvoice[];
   openClaimDrawer: (claim: ProgressClaimWithInvoice) => void;
@@ -44,6 +46,7 @@ const WorkOrdersClaimsCard: React.FC<{
   canAssess,
   canRecordPercent,
   canBill,
+  canRaiseClaim = () => true,
   claimsRead,
   claimRows,
   openClaimDrawer,
@@ -154,7 +157,7 @@ const WorkOrdersClaimsCard: React.FC<{
             const open = !claim.withdrawn_at && !claim.invoice;
             return [
               ...(open && canBill ? [{ label: t('projectDetail.billing.claims.attachEvidence', 'Attach evidence'), onClick: () => onAttachEvidence(claim.id) }] : []),
-              ...(open && canBill && (claim.evidence?.length ?? 0) > 0 ? [{ label: t('projectDetail.billing.claims.raise', 'Raise invoice'), onClick: () => onRaiseClaim(claim) }] : []),
+              ...(open && canBill && canRaiseClaim(claim) && (claim.evidence?.length ?? 0) > 0 ? [{ label: t('projectDetail.billing.claims.raise', 'Raise invoice'), onClick: () => onRaiseClaim(claim) }] : []),
               ...(open && canBill ? [{ label: t('projectDetail.billing.claims.withdraw', 'Withdraw'), danger: true, onClick: () => onWithdrawClaim(claim) }] : []),
             ];
           }}

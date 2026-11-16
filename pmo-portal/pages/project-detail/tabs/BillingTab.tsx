@@ -174,7 +174,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   // A claim's scope comes from the allocations: until they are loaded no scope is offered (never a guessed one).
   const claimScopeReady = !allocations.isPending && !allocations.isError;
   // No ERP owns revenue: a claim is made, evidenced, withdrawn and invoiced in PMO by whoever may raise a customer invoice.
-  const nativeBilling = revenueMode === 'native' && may('create', 'salesInvoice');
+  const nativeBilling = revenueMode === 'native' && revenueRouteReady && may('create', 'salesInvoice');
   const canBill = may('create', 'progressClaim') && (erp.connected || nativeBilling) && clientId !== null && claimScopeReady;
   // #1817: a confirmed T&M claim is invoiced in PMO the same way (it needs no contract-line scope).
   const canBillNative = nativeBilling && clientId !== null;

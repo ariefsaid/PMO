@@ -89,10 +89,14 @@ test.afterEach(async () => {
   }
 });
 
-/** The project's "Billed" figure on its Billing tab (bare number, as the tab prints it). */
+/** The project's "Billed to date" figure in the Contract tab's claims card (a bare number, as the card prints it). */
 async function billedWork(page: Page): Promise<string> {
-  await page.goto(`/projects/${projectId}/billing`);
-  const figure = page.getByTestId('billing-billed');
+  await page.goto(`/projects/${projectId}/contract`);
+  const details = page.getByText(localizedExact('Billing summary details', 'Rincian ringkasan penagihan'));
+  await expect(details).toBeVisible({ timeout: 15_000 });
+  await details.click();
+  const figure = page.getByTestId('work-orders-billing-detail').locator('div')
+    .filter({ has: page.getByText(localizedExact('Billed to date', 'Ditagih s.d. saat ini')) }).locator('dd').first();
   await expect(figure).toBeVisible({ timeout: 15_000 });
   return (await figure.innerText()).replace(/\D/g, '');
 }
@@ -101,9 +105,7 @@ test('AC-NAR-045 a no-ERP org bills a progress claim: claim, evidence, PMO invoi
   // Finance makes the claim from the contract lines: 4 km of 10 → 200,000 excl. PPN.
   await signIn(page, 'finance@acme.test');
   expect(await billedWork(page)).toBe('0');
-  const summary = page.getByRole('heading', { name: /Billing summary|Ringkasan penagihan/ }).locator('xpath=ancestor::*[self::div or self::section][2]');
-  await summary.getByRole('button', { name: localized('Raise invoice', 'Terbitkan invoice|Ajukan faktur') }).click();
-  await page.getByRole('button', { name: localized('Quantity or progress claim', 'Klaim kuantitas atau progres|Klaim kuantitas') }).click();
+  await page.getByRole('button', { name: localized('New claim', 'Tagihan baru') }).click();
   const claimForm = page.getByRole('dialog');
   await claimForm.getByLabel(/SURVEY/).fill('4');
   await claimForm.getByRole('button', { name: localized('Create claim', 'Buat tagihan') }).click();
@@ -111,12 +113,14 @@ test('AC-NAR-045 a no-ERP org bills a progress claim: claim, evidence, PMO invoi
   // The next step is the evidence.
   const evidenceForm = page.getByRole('dialog');
   await evidenceForm.getByLabel(localized('Evidence document', 'Dokumen bukti')).selectOption(documentId);
-  await evidenceForm.getByRole('button', { name: localized('Attach', 'Lampirkan') }).click();
+  await evidenceForm.getByRole('button', { name: localizedExact('Attach', 'Lampirkan') }).click();
   await expect(evidenceForm).toBeHidden({ timeout: 15_000 });
 
-  // Finance raises the claim's invoice in PMO.
-  await page.getByRole('button', { name: localized('Raise invoice', 'Terbitkan invoice'), exact: false }).filter({ hasNot: page.getByText('Billing summary') }).last().click();
-  const confirm = page.getByRole('alertdialog');
+  // Finance creates the claim's invoice in PMO: a Draft, no ERP anywhere.
+  const claims = page.getByRole('list', { name: localized('Claims & down payment', 'Klaim & uang muka|Tagihan & uang muka') });
+  await claims.getByRole('button', { name: localized('Row actions', 'Tindakan baris') }).click();
+  await page.getByRole('menuitem', { name: localized('Raise invoice', 'Terbitkan invoice') }).click();
+  const confirm = page.getByRole('dialog', { name: localized("Create this claim's invoice\\?", 'Buat invoice tagihan ini\\?') });
   await expect(confirm).toContainText(/(?:A draft invoice is created in PMO|Draf invoice dibuat di PMO)/);
   await confirm.getByRole('button', { name: localized('Create invoice', 'Buat invoice') }).click();
   await expect(confirm).toBeHidden({ timeout: 15_000 });

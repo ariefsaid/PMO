@@ -265,7 +265,9 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   const [raiseFor, setRaiseFor] = useState<{ claim: ProgressClaimWithInvoice; idempotencyKey: string } | null>(null);
   const [withdrawClaimFor, setWithdrawClaimFor] = useState<ProgressClaimWithInvoice | null>(null);
   const claimScopeReady = !lines.isPending && !lines.isError;
-  const canBill = may('create', 'progressClaim') && erp.connected && Boolean(clientId) && claimScopeReady && Boolean(summary);
+  // No ERP owns revenue: a claim is made, evidenced, withdrawn and invoiced in PMO by whoever may raise a customer invoice.
+  const nativeBilling = revenueMode === 'native' && revenueRouteReady && may('create', 'salesInvoice');
+  const canBill = may('create', 'progressClaim') && (erp.connected || nativeBilling) && Boolean(clientId) && claimScopeReady && Boolean(summary);
   /** The card's Raise invoice and the plan's Invoice this share ONE gate and ONE opener (#1640 D5). */
   const orderInvoiceAction = (row: WorkOrderRow): (() => void) | null => {
     // Fail closed: if either read that tells claim-path from direct-path failed, we can't know which applies.
@@ -452,18 +454,29 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     }
   };
 
+  // A time-and-materials claim is invoiced from its own section, so the native raise covers the other claim kinds.
+  const nativeRaise = revenueMode === 'native';
   const runRaiseClaimInvoice = async () => {
     if (!raiseFor || !clientId) return;
     try {
-      await billingMutations.raiseInvoice.mutateAsync({
-        claimId: raiseFor.claim.id,
-        customerId: clientId,
-        intent: { id: raiseFor.claim.id, idempotencyKey: raiseFor.idempotencyKey },
-      });
-      toast(t('projectDetail.billing.claims.toast.raised', 'Invoice raised in the ERP'), undefined, 'success');
+      if (nativeRaise) {
+        await billingMutations.raiseNativeInvoice.mutateAsync(raiseFor.claim.id);
+        toast(t('projectDetail.billing.claims.toast.raisedNative', 'Invoice drafted in PMO'), undefined, 'success');
+      } else {
+        await billingMutations.raiseInvoice.mutateAsync({
+          claimId: raiseFor.claim.id,
+          customerId: clientId,
+          intent: { id: raiseFor.claim.id, idempotencyKey: raiseFor.idempotencyKey },
+        });
+        toast(t('projectDetail.billing.claims.toast.raised', 'Invoice raised in the ERP'), undefined, 'success');
+      }
     } catch (err) {
       failClaim(err, {
         '55000': t('projectDetail.billing.claims.errors.claimWithdrawn', "This claim was withdrawn. Its invoice can't be raised."),
+        'claim-already-invoiced': t('projectDetail.billing.claims.errors.alreadyInvoiced', 'This claim already has an invoice.'),
+        'no-client': t('projectDetail.billing.claims.errors.noClient', 'This project has no client to invoice. Set the client on the project first.'),
+        'claim-total-mismatch': t('projectDetail.billing.claims.errors.totalMismatch', "This claim's lines do not add up to its total. Withdraw it and assemble it again."),
+        'invoice-total-invalid': t('projectDetail.billing.claims.errors.invoiceTotalInvalid', "This claim's net is zero, so there is nothing to invoice. Withdraw it."),
       });
     } finally {
       setRaiseFor(null);
@@ -717,6 +730,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         onOpenPercent={() => setPercentOpen(true)}
         onOpenNewClaim={() => setNewClaimOpen(true)}
         onAttachEvidence={setEvidenceFor}
+        canRaiseClaim={(claim) => !(nativeRaise && claim.kind === 'time_materials')}
         onRaiseClaim={(claim) => setRaiseFor({ claim, idempotencyKey: crypto.randomUUID() })}
         onWithdrawClaim={setWithdrawClaimFor}
       />
@@ -811,6 +825,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         newClaimOpen={newClaimOpen}
         evidenceFor={evidenceFor}
         raiseFor={raiseFor}
+        nativeRaise={nativeRaise}
         withdrawClaimFor={withdrawClaimFor}
         pending={pending}
         overCommit={overCommit}
