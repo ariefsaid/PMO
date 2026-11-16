@@ -97,7 +97,7 @@ describe('ProjectFormModal in Bahasa (#693 F-2)', () => {
     expect(await screen.findByLabelText(/Perlakuan pajak/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Jumlah pajak/)).toBeInTheDocument();
     expect(screen.getByRole('option', { name: '— pilih —' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: /^Exclusive: pajak ditambahkan di atas jumlahnya$/ })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /^Eksklusif: pajak ditambahkan di atas jumlahnya$/ })).toBeInTheDocument();
     expect(screen.getByTestId('project-tax-required-hint')).toHaveTextContent(/Nyatakan perlakuan pajak/);
   });
 
