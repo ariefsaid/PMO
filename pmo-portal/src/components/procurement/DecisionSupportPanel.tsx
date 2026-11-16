@@ -392,7 +392,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
           leftTile ? (
             // Two columns: the figure with the decision under it, the parts beside them. Stacked (phone, drawer) the
             // parts follow the figure and the decision comes last, next to the action bar.
-            <div className="grid gap-x-10 gap-y-6 @3xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] @3xl:grid-rows-[auto_1fr]">
+            <div className="grid gap-x-10 gap-y-6 @3xl:grid-cols-[minmax(0,1fr)_minmax(0,30rem)] @3xl:grid-rows-[auto_1fr]">
               <div className="min-w-0">
                 <StatTiles tiles={[leftTile]} columns={1} variant="bare" />
                 {bar}

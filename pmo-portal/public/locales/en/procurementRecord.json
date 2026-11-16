@@ -116,8 +116,7 @@
     "invoice": "invoice",
     "invoices": "invoices",
     "payment": "payment",
-    "payments": "payments",
-    "countAndAmount": "{{count}} {{document}} · {{amount}}"
+    "payments": "payments"
   },
   "money": {
     "title": "Money · {{currency}}, before tax",

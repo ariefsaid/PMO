@@ -116,8 +116,7 @@
     "invoice": "invoice",
     "invoices": "invoice",
     "payment": "pembayaran",
-    "payments": "pembayaran",
-    "countAndAmount": "{{count}} {{document}} · {{amount}}"
+    "payments": "pembayaran"
   },
   "money": {
     "title": "Nilai · {{currency}}, sebelum pajak",

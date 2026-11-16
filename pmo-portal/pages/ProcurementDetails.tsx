@@ -619,7 +619,7 @@ const ProcurementDetails: React.FC = () => {
   // The approver's decision: the limit and separation-of-duties facts read as one line, then the optional note.
   const decidesHere = mainAction?.to === 'Approved';
   const decisionLine = [approverLimitLine, decisionContextNote].filter(Boolean);
-  const approvalNote = mainAction?.to === 'Approved' && <label key="approval-note" className="block text-control font-medium text-foreground">{t('procurementRecord:approval.note', 'Approval note (optional)')}
+  const approvalNote = mainAction?.to === 'Approved' && <label key="approval-note" className="block max-w-xl text-control font-medium text-foreground">{t('procurementRecord:approval.note', 'Approval note (optional)')}
     <textarea data-testid="procurement-notes-input" value={notesInput} onChange={(event) => setNotesInput(event.target.value)} rows={2} className="mt-1 block w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
   </label>;
   const headerNotes = [
