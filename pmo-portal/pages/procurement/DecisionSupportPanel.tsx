@@ -292,7 +292,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         <div className="mb-4">
           <div
             role="progressbar"
-            aria-label={t('decisionSupport.barLabel', { defaultValue: 'Budget used after this procurement: {{pct}}% of {{budget}}', pct: Math.round(usedAfterPct), budget: formatCurrency(budgetAmount, budgetCurrency) })}
+            aria-label={t('decisionSupport.committedBarLabel', { defaultValue: 'Committed to purchases, with this one: {{pct}}% of {{budget}}', pct: Math.round(usedAfterPct), budget: formatCurrency(budgetAmount, budgetCurrency) })}
             aria-valuenow={Math.max(0, Math.min(100, Math.round(usedAfterPct)))}
             aria-valuemin={0}
             aria-valuemax={100}
@@ -302,7 +302,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             <span className={impactTone} style={{ width: `${thisPct}%` }} />
           </div>
           <p className="mt-1 text-control text-muted-foreground tabular">
-            {t('decisionSupport.barCaption', { defaultValue: 'Budget in use with this purchase: {{pct}}%', pct: formatNumberExact(Math.round(usedAfterPct)) })}
+            {t('decisionSupport.committedBarCaption', { defaultValue: 'Committed to purchases, with this one: {{pct}}%', pct: formatNumberExact(Math.round(usedAfterPct)) })}
           </p>
         </div>
         {/* The strip's column queries resolve against the nearest ANCESTOR container, so give it one. */}
