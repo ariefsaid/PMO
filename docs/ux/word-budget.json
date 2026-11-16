@@ -224,8 +224,8 @@
   "/calendar@1440@pm@acme.test": 11,
   "/timesheets@390@engineer@acme.test": 48,
   "/timesheets@1440@engineer@acme.test": 21,
-  "/expenses@390@engineer@acme.test": 6,
-  "/expenses@1440@engineer@acme.test": 8,
+  "/expenses@390@engineer@acme.test": 10,
+  "/expenses@1440@engineer@acme.test": 12,
   "/expenses/new@390@engineer@acme.test": 49,
   "/expenses/new@1440@engineer@acme.test": 49,
   "/expenses/b1336ef9-e2df-42cb-9baf-c5d23a125c3f@390@engineer@acme.test": 38,
@@ -252,7 +252,8 @@
     "/projects/41000000-0000-0000-0000-000000000002": "The old @1440 exec budget of 4 words came from a blank render, not a real baseline; the screen renders 116 words once loaded. Every budget here is measured chrome-only (record rows excluded).",
     "/finance": "Chart minimum 3 (exec): 4 was measured on test-leftover IDR rows; base and branch both draw 3 on the clean seed (2026-11-12).",
     "/finance/reports": "Chart minimum 1 (exec): 2 was measured on test-leftover IDR rows (second-currency group); head draws 1 on the clean seed, dev draws 0 (chart sweep, 2026-11-12).",
-    "_rebaseline-2026-11-12": "54 word keys re-baselined to the head count: each measured equal (within one word) on the morning build 8d98d2772 and head b2ed4f10e on the same clean DB, so the rise came from data, not code (words proof, 2026-11-12). Home keys unchanged here (ruled content). /@390@pm set 55 -> 58: unchanged since the morning build, so data."
+    "_rebaseline-2026-11-12": "54 word keys re-baselined to the head count: each measured equal (within one word) on the morning build 8d98d2772 and head b2ed4f10e on the same clean DB, so the rise came from data, not code (words proof, 2026-11-12). Home keys unchanged here (ruled content). /@390@pm set 55 -> 58: unchanged since the morning build, so data.",
+    "/expenses": "Engineer budget 8 -> 12 @1440 and 6 -> 10 @390 (2026-11-16, compose-03 r3): Showing x of y is the list rule (server paging, #2364); the pager line sits once at the table foot. Measured by measure-screens on ui/compose-03-claims; other roles' /expenses keys re-measure on their next run."
   },
   "charts": {
     "/@390@exec@acme.test": 2,

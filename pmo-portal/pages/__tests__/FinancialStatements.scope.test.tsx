@@ -201,6 +201,13 @@ describe('Financial statements company scope (AC-007)', () => {
     expect(projectGetSpy).toHaveBeenCalledTimes(3);
   });
 
+  it('#1791: the statements header shows the number of statement lines as "Showing x of y"', async () => {
+    renderPage();
+
+    expect(await screen.findByText('Current native row')).toBeInTheDocument();
+    expect(screen.getByTestId('list-page-count')).toHaveTextContent(/^Showing \d+ of \d+$/);
+  });
+
   it('AC-007: uses the safe read context, mapped PMO names, and the supplied current/prior month pair', async () => {
     renderPage();
 

@@ -255,7 +255,8 @@ const TimesheetsPage: React.FC = () => {
   };
 
   return (
-    <div>
+    // Room under the last row for the fixed phone action strip, outside the card so the card ends with its rows.
+    <div className={editable ? 'pb-[calc(8rem+env(safe-area-inset-bottom))] md:pb-0' : undefined}>
       {head}
 
       {/* Returned-for-changes is an expected, recoverable state (role=status). */}
@@ -273,10 +274,7 @@ const TimesheetsPage: React.FC = () => {
         />
       )}
 
-      <Card
-        clip
-        className={editable ? 'pb-[calc(8rem+env(safe-area-inset-bottom))] md:pb-0' : undefined}
-      >
+      <Card clip>
         <div className="border-b border-border px-3.5 py-2.5">
           <div data-testid="timesheets-entry-header" className="flex min-w-0 flex-wrap items-center gap-2">
             <StatusPill record="timesheet" state={status ?? TimesheetStatus.Draft} />
@@ -307,14 +305,14 @@ const TimesheetsPage: React.FC = () => {
             {editable && (
               <div
                 data-testid="timesheets-add-project-control"
-                className="inline-flex min-w-0 max-w-full flex-nowrap items-center gap-1.5 text-control font-medium text-muted-foreground"
+                className="flex w-full min-w-0 flex-nowrap items-center gap-1.5 text-control font-medium text-muted-foreground sm:inline-flex sm:w-auto"
               >
                 <Icon name="plus" aria-hidden />
                 <span>{t('timesheets.addProject', 'Add project')}</span>
                 {/* max-w cap + min-w-0: the closed picker only shows the short placeholder,
                     so capping its width is safe; options still show in full. Use the shared
                     DS SelectField so dark mode keeps the tokened field shell. */}
-                <div className="min-w-0 max-w-[160px] flex-1">
+                <div className="min-w-0 flex-1 sm:max-w-[160px]">
                   {projectsPending ? (
                     <span role="status">{t('timesheets:picker.loading', 'Loading projects…')}</span>
                   ) : projectsError ? (
@@ -340,7 +338,7 @@ const TimesheetsPage: React.FC = () => {
                           ? t('timesheets.picker.none', 'No projects to add')
                           : t('timesheets.picker.select', 'Select a project…')
                       }
-                      className="touch-target min-w-0 max-w-[160px] text-control"
+                      className="touch-target w-full min-w-0 text-control sm:max-w-[160px]"
                     />
                   )}
                 </div>
@@ -385,6 +383,7 @@ const TimesheetsPage: React.FC = () => {
               onCellChange={setCell}
               onNoteChange={setNote}
               onDeleteRow={requestDelete}
+              hideMobileWeekTotal={!isDesktop}
             />
           )
         ) : gridRows.length === 0 ? (

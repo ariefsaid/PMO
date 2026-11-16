@@ -766,6 +766,8 @@ describe('#2325 the spend-versus-budget comparison without an accounting system'
         { category: null, budgetTotal: 0, recorded: 300, recordedAsOf: null, mapped: true, hasLedger: true, remaining: -300, percentUsed: null },
       ];
       unmappedPosition();
+      // The uncategorized paid spending comes from the project finances (once); the comparison's own null-category row is not added to it.
+      Object.assign(state.position, { uncategorized: { amount: 300 } });
       renderPage();
       const labor = await screen.findByRole('row', { name: /Labor/u });
       await waitFor(() => expect(labor).toHaveTextContent('$700'));
