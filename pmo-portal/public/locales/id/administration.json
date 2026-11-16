@@ -107,7 +107,7 @@
       "done": "Selesai",
       "todo": "Belum",
       "procurement": "Pembelian dicatat di Odoo",
-      "procurementHint": "Setelah ini, pesanan pembelian, penerimaan barang, dan tagihan supplier yang disetujui juga dibuat di Odoo."
+      "procurementHint": "Setelah ini, pesanan pembelian, penerimaan barang, dan faktur supplier yang disetujui juga dibuat di Odoo."
     },
     "picker": {
       "placeholder": "Pilih barang",
@@ -246,7 +246,7 @@
       "companiesConfirm": "Biarkan Odoo mengelola",
       "procurementAction": "Kirim pembelian ke Odoo",
       "procurementTitle": "Kirim pembelian ke Odoo?",
-      "procurementBody": "Mulai sekarang, pesanan pembelian, penerimaan barang, dan tagihan supplier yang disetujui juga dibuat di Odoo.",
+      "procurementBody": "Mulai sekarang, pesanan pembelian, penerimaan barang, dan faktur supplier yang disetujui juga dibuat di Odoo.",
       "procurementConfirm": "Kirim pembelian",
       "waitSends": "Tunggu sampai semua data sampai di Odoo."
     },

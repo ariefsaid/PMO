@@ -146,8 +146,8 @@
     "saveVendorTax": "Simpan akun",
     "saveWithholding": "Simpan akun",
     "savedChoiceUnavailable": "Nilai tersimpan tidak ada di bagan akun saat ini; nilai tetap tersimpan sampai diganti.",
-    "vendorTaxHeading": "Akun pajak tagihan supplier",
-    "vendorTaxIntro": "Akun untuk PPN masukan (Aset) dan pajak yang dipotong dari tagihan supplier (Kewajiban).",
+    "vendorTaxHeading": "Akun pajak faktur supplier",
+    "vendorTaxIntro": "Akun untuk PPN masukan (Aset) dan pajak yang dipotong dari faktur supplier (Kewajiban).",
     "vendorTaxLoadError": "Tidak dapat memuat akun pajak",
     "vendorTaxRemoteChanged": "Akun tersimpan berubah. Perubahan Anda tetap ada; muat ulang nilai tersimpan untuk membuangnya.",
     "vendorTaxSaved": "Akun pajak supplier disimpan",
@@ -2016,7 +2016,7 @@
       "saveVI": "Simpan faktur supplier",
       "terminal": "Ini tindakan akhir untuk pengadaan ini dan tidak dapat dibatalkan.",
       "viBody": "Ini mencatat faktur supplier untuk kasus pengadaan {{request}}.",
-      "viTitle": "Catat invoice supplier ini?"
+      "viTitle": "Catat faktur supplier ini?"
     },
     "detail": {
       "approvedBy": "Disetujui oleh",
@@ -2045,7 +2045,7 @@
       "quoteSelected": "Penawaran dipilih",
       "quoteSelectedDetail": "Status pengadaan berubah menjadi Penawaran Dipilih",
       "requestUpdated": "Pengadaan diperbarui",
-      "viRecorded": "Invoice supplier dicatat"
+      "viRecorded": "Faktur supplier dicatat"
     },
     "route": {
       "note": "Persetujuan pengadaan ini diarahkan ke {{names}}: {{why}}",
@@ -4284,7 +4284,7 @@
       "progress_claim_create": "Klaim progres dibuat",
       "progress_claim_withdraw": "Klaim progres ditarik",
       "progress_claim_evidence_attach": "Bukti klaim progres dilampirkan",
-      "procurement_invoice_create": "Invoice supplier dibuat",
+      "procurement_invoice_create": "Faktur supplier dibuat",
       "procurement_approval_route": "Rute persetujuan dicatat",
       "incoming_payment_create": "Pembayaran masuk dicatat",
       "incoming_payment_cancel": "Pembayaran masuk dibatalkan",
@@ -4600,7 +4600,7 @@
       "vendorQuoted": "Pilih penawaran",
       "quoteSelected": "Siapkan pesanan pembelian",
       "ordered": "Catat penerimaan",
-      "received": "Catat invoice supplier",
+      "received": "Catat faktur supplier",
       "vendorInvoiced": "Catat pembayaran"
     },
     "nextStepPrefix": "Langkah berikutnya:",

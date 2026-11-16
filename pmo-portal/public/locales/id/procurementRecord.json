@@ -139,7 +139,7 @@
     "noBudget": "Tidak ada anggaran aktif untuk proyek ini",
     "budgetSignalPurchases": "Belum terikat pembelian {{available}} · {{after}} setelah pengadaan ini",
     "unknown": "{{figure}} tidak dapat dihitung karena jumlah sumber belum tersedia. Sumber: catatan pengadaan dan dokumen sistem akuntansi tertaut.",
-    "unpaidHelp": "Dihitung dari jumlah tagihan dikurangi jumlah pembayaran, atau saldo faktur sistem akuntansi tertaut. Sumber: tagihan supplier, pembayaran, dan dokumen sistem akuntansi tertaut.",
+    "unpaidHelp": "Dihitung dari jumlah tagihan dikurangi jumlah pembayaran, atau saldo faktur sistem akuntansi tertaut. Sumber: faktur supplier, pembayaran, dan dokumen sistem akuntansi tertaut.",
     "calculation": "Jumlah dari nilai {{figure}} yang tercatat. Sumber: catatan pengadaan dan dokumen sistem akuntansi tertaut.",
     "projectBudget": "Anggaran proyek terlacak",
     "projectBudgetTooltip": "Data anggaran proyek dan pengeluaran yang dicadangkan ditampilkan jika tersedia. Dampak penuh ditampilkan saat pengadaan masih di tahap Permintaan.",

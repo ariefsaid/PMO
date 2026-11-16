@@ -625,7 +625,7 @@ describe('AC-SEC-234: a role that reads no bills or payments is told so, never s
       interpolation: { escapeValue: false }, initImmediate: false, react: { useSuspense: false },
     });
     render(<I18nextProvider i18n={i18n}><MemoryRouter><QueryClientProvider client={new QueryClient()}><ProcurementLedger {...BASE_PROPS} canWrite={false} detail={makeDetail({ status: 'Paid' })} rows={NON_MONEY_ROWS} /></QueryClientProvider></MemoryRouter></I18nextProvider>);
-    expect(screen.getByText('Tagihan supplier dan pembayaran tidak ditampilkan untuk peran Anda.')).toBeInTheDocument();
+    expect(screen.getByText('Faktur supplier dan pembayaran tidak ditampilkan untuk peran Anda.')).toBeInTheDocument();
   });
 });
 
