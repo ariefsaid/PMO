@@ -43,7 +43,7 @@ db_url="${PMO_DB_URL:-postgresql://postgres:postgres@127.0.0.1:54322/postgres}"
 prev="$(ls supabase/migrations/*.sql | sed 's#.*/##' | awk -F_ '$1<"0903"{v=$1} END{print v}')"
 query="select '''' || p.oid::regprocedure::text || ''',''' || md5(pg_get_functiondef(p.oid)) || ''',''' || coalesce(p.proacl::text,'') || '''' from pg_proc p
  where p.pronamespace='public'::regnamespace and p.proname in ('assign_capture_invoices','capture_assignment_claim','capture_assignment_validate','undo_captured_purchase','purchase_capture_assignment_report') order by 1"
-supabase db reset --version "$prev" >/dev/null 2>&1
+supabase db reset --no-seed --version "$prev" >/dev/null 2>&1
 psql "$db_url" -Atc "$query" | sed 's/^/(/; s/$/)/' > "$hashes"
 [ "$(wc -l < "$hashes")" -eq 5 ] || { echo "expected 5 recorded functions"; exit 1; }
 guard="$(psql "$db_url" -Atc "select md5(pg_get_functiondef('public.api_client_request_guard()'::regprocedure))")"
