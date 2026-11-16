@@ -155,7 +155,7 @@ describe('SalesInvoices e-Faktur details', () => {
           instruction: 'Copy the number from the issued e-Faktur document.',
         }
       : {
-          issued: 'Nomor faktur penjualan terbit: SI-issued', draft: 'Draf faktur', project: 'Proyek: Project North',
+          issued: 'Nomor invoice penjualan terbit: SI-issued', draft: 'Draf invoice', project: 'Proyek: Project North',
           pending: 'Proyek: Detail proyek sedang dimuat', unavailable: 'Proyek: Detail proyek tidak tersedia',
           notRecorded: 'Proyek: Proyek belum dicatat', customer: 'Pelanggan: Acme customer', customerResolved: 'Pelanggan: Customer', customerMissing: 'Pelanggan: Pelanggan belum dicatat',
           instruction: 'Salin nomor dari dokumen e-Faktur yang diterbitkan.',

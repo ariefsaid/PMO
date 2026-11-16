@@ -102,7 +102,7 @@ export const SalesInvoiceApprovalPreview: React.FC<{
         </div>
         <div className="flex items-baseline justify-between gap-3 border-t border-border pt-1 font-semibold">
           {/* #2345 row 2: on a PAID invoice nothing is due any more — the gross reads as the invoice
-              total (the catalogue's existing word for it, en "Invoice total" / id "Total faktur",
+              total (the catalogue's existing word for it, en "Invoice total" / id "Total invoice",
               finance:receivables.invoiceTotal); before approval/unpaid it stays "Total due". The
               figure itself never changes. */}
           <dt>{inv.status === 'Paid'

@@ -16,12 +16,12 @@
   "spendingSetupDetails": "Detail penyiapan pengeluaran",
   "noSpendingReading": "Pengeluaran belum diperbarui.",
   "categoryNeedsSetup": "Penyiapan pengeluaran untuk kategori ini belum selesai.",
-  "invoiceBalanceUnavailable": "Saldo faktur masih menunggu konfirmasi.",
-  "invoiceScope": "Hanya faktur yang ditautkan ke proyek ini yang disertakan.",
+  "invoiceBalanceUnavailable": "Saldo invoice masih menunggu konfirmasi.",
+  "invoiceScope": "Hanya invoice yang ditautkan ke proyek ini yang disertakan.",
   "history": {
     "referenceNamesError": "Beberapa nama catatan tidak dapat dimuat."
   },
-  "noLinkedInvoices": "Belum ada faktur yang ditautkan ke proyek ini",
+  "noLinkedInvoices": "Belum ada invoice yang ditautkan ke proyek ini",
   "billedWork": "Pendapatan pekerjaan tertagih",
   "billedWorkQualifier": "Tanpa pajak; tidak termasuk uang muka",
   "projectFinances": {
@@ -48,10 +48,10 @@
         "contractFallback": "Sumber: ringkasan penagihan proyek, tidak termasuk pajak.",
         "ordered": "Sumber: kuantitas yang dialokasikan dalam kontrak × tarif kontrak.",
         "delivered": "Sumber: kuantitas yang diterima pada BAST terkonfirmasi × tarif kontrak.",
-        "invoiced": "Faktur berdasarkan kontrak yang ditandatangani, dalam mata uang dan dasar pajak kontrak. Ditampilkan sebagai tidak diketahui jika mata uang atau dasar pajak faktur berbeda dari kontrak. Persentase dihitung dari nilai kontrak yang ditandatangani.",
-        "paid": "Sumber: jumlah faktur dikurangi saldo terutang menurut akuntansi.",
+        "invoiced": "Invoice berdasarkan kontrak yang ditandatangani, dalam mata uang dan dasar pajak kontrak. Ditampilkan sebagai tidak diketahui jika mata uang atau dasar pajak invoice berbeda dari kontrak. Persentase dihitung dari nilai kontrak yang ditandatangani.",
+        "paid": "Sumber: jumlah invoice dikurangi saldo terutang menurut akuntansi.",
         "canInvoice": "Kuantitas diterima yang belum diklaim, dihitung dengan tarif kontrak, ditambah sisa nilai pesanan tanpa rincian kuantitas.",
-        "overdue": "Jumlah saldo terutang positif pada faktur yang telah melewati tanggal jatuh tempo.",
+        "overdue": "Jumlah saldo terutang positif pada invoice yang telah melewati tanggal jatuh tempo.",
         "notOrderedValue": "Sumber: kuantitas kontrak yang belum dialokasikan dikalikan tarif kontraknya.",
         "downPayment": "Sumber: total uang muka proyek yang ditagihkan dan dipulihkan.",
         "contractQuantity": "Sumber: kuantitas pada baris kontrak berharga.",
@@ -63,10 +63,10 @@
         "lineDeliveryProgress": "Kuantitas diterima ÷ kuantitas dipesan. Pengiriman akhir yang kurang akan ditandai.",
         "lineInvoiced": "Sumber: kuantitas yang sudah diklaim terhadap alokasi $t(common:terms.clientWorkOrder) ini.",
         "lineCanInvoice": "Kuantitas yang diterima dikurangi kuantitas yang sudah diklaim. Angka akan muncul setelah BAST dikonfirmasi.",
-        "invoiceUnpaid": "Sumber: saldo faktur ini yang masih terutang menurut akuntansi.",
+        "invoiceUnpaid": "Sumber: saldo invoice ini yang masih terutang menurut akuntansi.",
         "acceptedHistory": "Sumber: kuantitas yang dicatat pada BAST ini.",
-        "invoiceAmount": "Sumber: jumlah faktur yang disinkronkan dari akuntansi.",
-        "invoicePaid": "Dihitung dari jumlah faktur dikurangi saldo terutang menurut akuntansi."
+        "invoiceAmount": "Sumber: jumlah invoice yang disinkronkan dari akuntansi.",
+        "invoicePaid": "Dihitung dari jumlah invoice dikurangi saldo terutang menurut akuntansi."
       },
       "ordered": "Dipesan",
       "delivered": "Terkirim",
@@ -99,9 +99,9 @@
       "overdue": "Terlambat",
       "notOrdered": "Belum dipesan",
       "downPaymentSummary": "Uang muka {{billed}} · dipulihkan {{recovered}}",
-      "invoiceError": "Angka faktur tidak dapat dimuat.",
-      "invoiceLoading": "Angka faktur sedang dimuat.",
-      "partialPaymentNote": "Jumlah yang sudah dan belum dibayar akan muncul setelah sistem akuntansi melaporkan saldo faktur.",
+      "invoiceError": "Angka invoice tidak dapat dimuat.",
+      "invoiceLoading": "Angka invoice sedang dimuat.",
+      "partialPaymentNote": "Jumlah yang sudah dan belum dibayar akan muncul setelah sistem akuntansi melaporkan saldo invoice.",
       "colItem": "Item",
       "colContract": "Kontrak",
       "colOrdered": "Dipesan",
@@ -129,12 +129,12 @@
       "linesScroll": "Kuantitas kontrak untuk {{wo}}",
       "moneyOnly": "Pesanan tanpa rincian kuantitas",
       "noBast": "Belum ada BAST",
-      "invoiceStatusLabel": "Status faktur",
-      "invoices": "Faktur",
-      "invoicePillSource": "Sumber: status faktur yang disinkronkan dari akuntansi.",
-      "openInvoice": "Buka faktur {{invoice}}",
-      "invoiceDraft": "Draf faktur",
-      "invoiceNumber": "Faktur",
+      "invoiceStatusLabel": "Status invoice",
+      "invoices": "Invoice",
+      "invoicePillSource": "Sumber: status invoice yang disinkronkan dari akuntansi.",
+      "openInvoice": "Buka invoice {{invoice}}",
+      "invoiceDraft": "Draf invoice",
+      "invoiceNumber": "Invoice",
       "invoiceDate": "Tanggal",
       "invoiceAmount": "Jumlah",
       "invoiceStatus": "Status",
@@ -142,7 +142,7 @@
       "noLineSplit": "Riwayat alokasi pesanan tidak tersedia.",
       "noConfirmedBastHistory": "Belum ada riwayat kuantitas BAST terkonfirmasi.",
       "invoiceDueDate": "Tenggat",
-      "invoiceDateSource": "Sumber: tanggal faktur dari akuntansi."
+      "invoiceDateSource": "Sumber: tanggal invoice dari akuntansi."
     },
     "billing": {
       "sources": {
@@ -203,15 +203,15 @@
           "gross": "Sumber: nilai bruto klaim progres, disalin dari kuantitas yang diterima dan harga kontrak.",
           "recovery": "Sumber: jumlah uang muka yang dipulihkan pada klaim ini.",
           "net": "Dihitung dari nilai bruto dikurangi pemulihan uang muka.",
-          "invoice": "Sumber: status faktur yang ditautkan ke klaim ini.",
+          "invoice": "Sumber: status invoice yang ditautkan ke klaim ini.",
           "evidence": "Sumber: dokumen bukti yang ditautkan ke klaim.",
           "unbilled": "Dihitung dari pekerjaan yang diperoleh menurut penilaian terbaru atau kuantitas yang diterima, dikurangi pekerjaan yang telah ditagihkan.",
-          "dpHeld": "Dihitung dari uang muka yang difakturkan dikurangi uang muka yang dipulihkan."
+          "dpHeld": "Dihitung dari uang muka yang ditagih dikurangi uang muka yang dipulihkan."
         },
         "openLabel": "Buka klaim {{kind}} dari {{date}}",
         "evidence": "Bukti",
         "noEvidence": "Belum ada bukti yang dilampirkan.",
-        "evidenceFirst": "Klaim harus dilengkapi bukti sebelum draf faktur dapat dibuat.",
+        "evidenceFirst": "Klaim harus dilengkapi bukti sebelum draf invoice dapat dibuat.",
         "column": {
           "claimedLabel": "Ditagih",
           "recoveryLong": "Uang muka dipulihkan",
@@ -219,7 +219,7 @@
           "net": "Neto",
           "actions": "Aksi",
           "evidence": "Bukti",
-          "invoice": "Faktur"
+          "invoice": "Invoice"
         },
         "billingTitle": "Klaim penagihan",
         "billingEmptySub": "Klaim menagih uang muka atau kuantitas pekerjaan yang selesai sebagai satu invoice.",
@@ -274,7 +274,7 @@
       },
       "summary": {
         "details": "Rincian ringkasan penagihan",
-        "raiseInvoice": "Ajukan faktur",
+        "raiseInvoice": "Ajukan invoice",
         "unavailable": "Ringkasan penagihan tidak tersedia.",
         "assessed": "Dinilai s.d. saat ini",
         "assessedAsOf": "per {{month}}, {{pct}}% selesai",
@@ -296,13 +296,13 @@
         "unbilled": "Dihitung dari pekerjaan yang diperoleh atau dinilai dikurangi pekerjaan yang telah ditagihkan.",
         "dpHeld": "Dihitung dari uang muka yang ditagihkan dikurangi uang muka yang dipulihkan.",
         "remaining": "Dihitung dari nilai kontrak bersih dikurangi klaim yang telah ditagihkan.",
-        "notSubmitted": "Sumber: faktur klaim yang dibuat di bagian akuntansi tetapi belum diajukan."
+        "notSubmitted": "Sumber: invoice klaim yang dibuat di bagian akuntansi tetapi belum diajukan."
       },
       "assessment": {
         "note": "Catatan (opsional)",
         "quantityToDate": "{{item}}: selesai s.d. saat ini ({{unit}})",
         "save": "Simpan progres",
-        "subtitle": "Kuantitas yang selesai s.d. bulan ini. Ini penilaian operasional, tidak pernah membuat faktur.",
+        "subtitle": "Kuantitas yang selesai s.d. bulan ini. Ini penilaian operasional, tidak pernah membuat invoice.",
         "errors": {
           "quantity": "Setiap kuantitas selesai harus 0 atau lebih dengan paling banyak 3 angka desimal",
           "month": "Isi bulan dengan format YYYY-MM"
@@ -448,13 +448,13 @@
       "categoryOverSize": "Lebih {{amount}}",
       "budgetTooltip": "Pengeluaran terpetakan dibandingkan dengan anggaran aktif sebelum pajak; lihat detail per kategori di Anggaran.",
       "budgetAction": "Tinjau anggaran",
-      "arWhatOne": "Faktur pelanggan terlambat",
-      "arWhatMany": "{{count}} faktur pelanggan terlambat",
+      "arWhatOne": "Invoice pelanggan terlambat",
+      "arWhatMany": "{{count}} invoice pelanggan terlambat",
       "arSize": "{{amount}} belum dibayar · terlambat {{days}} hari",
       "arSizeNoBalance": "Jatuh tempo lewat {{days}} hari",
-      "arTooltip": "Status faktur, tanggal jatuh tempo, dan saldo belum dibayar yang diketahui berasal dari faktur proyek dan sinkronisasi akuntansi.",
-      "arActionOne": "Lihat faktur",
-      "arActionMany": "Lihat faktur",
+      "arTooltip": "Status invoice, tanggal jatuh tempo, dan saldo belum dibayar yang diketahui berasal dari invoice proyek dan sinkronisasi akuntansi.",
+      "arActionOne": "Lihat invoice",
+      "arActionMany": "Lihat invoice",
       "phaseWhat": "{{name}} terlambat",
       "phasesWhat": "{{count}} fase terlambat, terparah {{days}} hari",
       "phaseSize": "Terlambat {{days}} hari",
@@ -480,37 +480,37 @@
       "delivered": "Terkirim",
       "deliveredSource": "Jumlah kuantitas yang diterima dikalikan harga satuan daftar kuantitas.",
       "invoiced": "Ditagih",
-      "invoicedSource": "Jumlah faktur dalam mata uang proyek yang bukan draf atau dibatalkan.",
+      "invoicedSource": "Jumlah invoice dalam mata uang proyek yang bukan draf atau dibatalkan.",
       "paid": "Dibayar",
-      "paidSource": "Jumlah faktur dikurangi saldo terutang menurut akuntansi; ini adalah pelunasan faktur, bukan kas yang diterima.",
+      "paidSource": "Jumlah invoice dikurangi saldo terutang menurut akuntansi; ini adalah pelunasan invoice, bukan kas yang diterima.",
       "marginSource": "Pendapatan pekerjaan tertagih dikurangi pengeluaran tercatat yang lengkap dalam mata uang yang sama.",
       "stageAria": "{{label}} sebesar {{percent}}% dari kontrak",
       "noBoq": "Nilai pesanan dan pengiriman tidak dilacak sebelum proyek memiliki daftar kuantitas.",
-      "invoiceError": "Pelunasan faktur tidak dapat dimuat.",
+      "invoiceError": "Pelunasan invoice tidak dapat dimuat.",
       "cashUnavailable": "Kas berdasarkan penerimaan belum tersedia.",
       "matchPayments": "Cocokkan pembayaran",
       "grossMargin": "Margin kotor",
       "cashReceived": "Kas diterima",
-      "cashSource": "Kas penerimaan yang dialokasikan ke faktur proyek ini; terpisah dari pelunasan faktur.",
+      "cashSource": "Kas penerimaan yang dialokasikan ke invoice proyek ini; terpisah dari pelunasan invoice.",
       "paidNotReceived": "{{amount}} sudah lunas di akuntansi tetapi belum ada penerimaan yang dicocokkan.",
       "marginOutCurrency": "Margin kotor tidak ditampilkan karena pengeluaran dan pekerjaan yang ditagih memakai mata uang berbeda.",
       "marginOutWork": "Margin kotor tidak ditampilkan sampai pendapatan pekerjaan yang ditagih lengkap.",
       "marginOutRestricted": "Margin kotor disembunyikan karena ada pengeluaran terbatas.",
       "marginOutActuals": "Margin kotor tidak ditampilkan sampai pengeluaran tertaut untuk setiap kategori anggaran.",
-      "marginOutNoInvoices": "Margin kotor mulai dihitung sejak faktur pertama dalam mata uang proyek.",
-      "leadTooltip": "Jumlah yang sudah difakturkan sebagai porsi dari kontrak. Sumber: faktur yang bukan draf dan tidak dibatalkan dalam mata uang proyek.",
-      "leadInvoiced": "{{percent}}% difakturkan",
+      "marginOutNoInvoices": "Margin kotor mulai dihitung sejak invoice pertama dalam mata uang proyek.",
+      "leadTooltip": "Jumlah yang sudah ditagih sebagai porsi dari kontrak. Sumber: invoice yang bukan draf dan tidak dibatalkan dalam mata uang proyek.",
+      "leadInvoiced": "{{percent}}% ditagih",
       "leadPaid": "{{percent}}% dibayar",
       "cascadeLabel": "Kontrak hingga pembayaran",
-      "invoicesChecking": "Memeriksa faktur…",
-      "invoicedOut": "Nilai difakturkan tidak ditampilkan sampai setiap jumlah faktur diketahui.",
-      "paidOut": "Nilai dibayar tidak ditampilkan sampai setiap saldo faktur diketahui.",
-      "cashIncomplete": "Kas diterima tidak ditampilkan sampai setiap penerimaan dialokasikan ke faktur.",
+      "invoicesChecking": "Memeriksa invoice…",
+      "invoicedOut": "Nilai ditagih tidak ditampilkan sampai setiap jumlah invoice diketahui.",
+      "paidOut": "Nilai dibayar tidak ditampilkan sampai setiap saldo invoice diketahui.",
+      "cashIncomplete": "Kas diterima tidak ditampilkan sampai setiap penerimaan dialokasikan ke invoice.",
       "cashInvalid": "Kas diterima tidak ditampilkan karena data penerimaan tidak dapat diverifikasi.",
       "hiddenFigures": "Tidak ditampilkan: {{figures}}.",
       "cashLead": "Diterima {{amount}}",
       "contractLocked": "hanya baca",
-      "cashIncompleteShort": "Kas diterima (kwitansi belum dialokasikan ke faktur)",
+      "cashIncompleteShort": "Kas diterima (kwitansi belum dialokasikan ke invoice)",
       "cashInvalidShort": "Kas diterima (pembacaan kwitansi belum diverifikasi)",
       "cashUnmatchedShort": "Kas diterima (belum ada penerimaan yang dicocokkan)"
     },
@@ -600,7 +600,7 @@
         "invoiced": "Ditagih",
         "paid": "Lunas"
       },
-      "statusSource": "Sumber: faktur dan draf $t(common:terms.clientWorkOrder) ini (Kontrak & penagihan).",
+      "statusSource": "Sumber: invoice dan draf $t(common:terms.clientWorkOrder) ini (Kontrak & penagihan).",
       "invoiceThis": "Tagih ini",
       "invoiceThisLabel": "Tagih {{order}}"
     },
@@ -680,7 +680,7 @@
     },
     "action": {
       "chasePayment": "Tindak lanjuti pembayaran",
-      "raiseInvoice": "Terbitkan faktur"
+      "raiseInvoice": "Terbitkan invoice"
     },
     "budget": {
       "erpStatus": "Penerapan anggaran ERP",
@@ -1008,7 +1008,7 @@
     },
     "workOrders": {
       "acceptanceAge": "Hari sejak BAST, belum ditagih: {{days}}",
-      "acceptanceAgeSource": "Dihitung dari BAST terkonfirmasi paling awal yang belum diikuti faktur terkirim.",
+      "acceptanceAgeSource": "Dihitung dari BAST terkonfirmasi paling awal yang belum diikuti invoice terkirim.",
       "cannotInvoiceHere": "$t(common:terms.clientWorkOrder) ini belum bisa ditagih dari sini.",
       "export": {
         "number": "$t(common:terms.clientWorkOrder)",
@@ -1040,12 +1040,12 @@
       "emptyRegister": "Belum ada pesanan pelanggan. PO pelanggan dicatat di sini dan mengurangi pagu kontrak proyek saat diterbitkan.",
       "orderDate": "Tanggal order",
       "billing": {
-        "orderRemainingSource": "Sumber: saldo penagihan $t(common:terms.clientWorkOrder) setelah faktur dan draf tertunda.",
+        "orderRemainingSource": "Sumber: saldo penagihan $t(common:terms.clientWorkOrder) setelah invoice dan draf tertunda.",
         "pendingNote": "Draf dan klaim yang belum diajukan dihitung sebagai belum ditagihkan.",
-        "figuresIncomplete": "Angka faktur belum lengkap.",
-        "retryFigures": "Coba lagi memuat angka faktur",
-        "orderlessHeading": "Faktur tanpa pesanan pelanggan",
-        "orderlessFiguresIncomplete": "Jumlah yang sudah dan belum dibayar akan muncul setelah sistem akuntansi melaporkan saldo faktur."
+        "figuresIncomplete": "Angka invoice belum lengkap.",
+        "retryFigures": "Coba lagi memuat angka invoice",
+        "orderlessHeading": "Invoice tanpa pesanan pelanggan",
+        "orderlessFiguresIncomplete": "Jumlah yang sudah dan belum dibayar akan muncul setelah sistem akuntansi melaporkan saldo invoice."
       },
       "delivery": {
         "chooseOrder": "Pilih pesanan pelanggan yang menerima pengiriman ini."
@@ -1122,7 +1122,7 @@
     "contractUnavailable": "Nilai kontrak belum diisi.",
     "contractPosition": "Posisi penagihan kontrak",
     "purchaseOrdersUnavailable": "Total pesanan pembelian masih menunggu konfirmasi.",
-    "reviewInvoices": "Tinjau faktur"
+    "reviewInvoices": "Tinjau invoice"
   },
   "m365Documents": {
     "history": {

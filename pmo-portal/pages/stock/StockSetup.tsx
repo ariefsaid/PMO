@@ -7,6 +7,8 @@ import {
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { Link } from 'react-router';
+import { useOdooConnection } from '@/src/hooks/useOdoo';
 import { useProjectIdentity } from '@/src/hooks/useProjects';
 import {
   useStockUnits, useStockItems, useStockWarehouses, useStockKeepers, useStockKeeperCandidates, useStockMasterMutations, useStockOnHand,
@@ -64,6 +66,8 @@ const StockSetup: React.FC = () => {
   const projects = useProjectIdentity();
   const onHand = useStockOnHand({ includeZero: true }, tab === 'items');
   const m = useStockMasterMutations();
+  const odoo = useOdooConnection().data;
+  const odooConnected = odoo?.status === 'active' && odoo.activated;
 
   const canCreate = may('create', ENTITY[tab], ctx);
   const canEdit = may('edit', ENTITY[tab], ctx);
@@ -175,6 +179,16 @@ const StockSetup: React.FC = () => {
         </Button>
       )}
     >
+      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+        <Link to="/stock" className="touch-target inline-flex min-h-9 items-center gap-1 rounded-sm font-medium text-primary-text underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+          <Icon name="back" className="size-4" aria-hidden="true" />{t('setup.backToStock')}
+        </Link>
+        {odooConnected && (
+          <Link to="/master-data/product" className="touch-target inline-flex min-h-9 items-center rounded-sm font-medium text-primary-text underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+            {t('setup.odooDirectories')}
+          </Link>
+        )}
+      </div>
       <StockTabs />
       <div className="mb-4 flex flex-col items-stretch border-b border-border sm:flex-row sm:items-center">
         <Tabs<Tab>

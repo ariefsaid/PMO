@@ -74,7 +74,7 @@
   },
   "ledger": {
     "paymentInErp": "Catat pembayaran di ERPNext; akan tertaut di sini pada sinkronisasi berikutnya.",
-    "billsHiddenForRole": "Tagihan supplier dan pembayaran tidak ditampilkan untuk peran Anda.",
+    "billsHiddenForRole": "Invoice supplier dan pembayaran tidak ditampilkan untuk peran Anda.",
     "awaitingApproval": "Menunggu persetujuan. Dokumen dapat dicatat setelah disetujui.",
     "approveToStart": "Setujui untuk mulai mencatat dokumen.",
     "emptyTitle": "Belum ada dokumen",
@@ -88,13 +88,13 @@
       "rfq": "Permintaan penawaran",
       "order": "Pesanan",
       "receipt": "Penerimaan barang",
-      "invoice": "Faktur supplier",
+      "invoice": "Invoice supplier",
       "payment": "Pembayaran",
       "needsRequest": "perlu permintaan pembelian dulu",
       "needsApproval": "perlu persetujuan dulu",
       "needsReceipt": "perlu penerimaan barang dulu"
     },
-    "paymentNeedsBillOdoo": "Catat faktur supplier di sini terlebih dahulu; setelah itu Anda dapat membayarnya dari sini.",
+    "paymentNeedsBillOdoo": "Catat invoice supplier di sini terlebih dahulu; setelah itu Anda dapat membayarnya dari sini.",
     "preCutover": "Dicatat sebelum terhubung ke ERP, tidak dikirim",
     "notSent": "Tidak dikirim",
     "notSentReason": "Tidak dikirim: pembelian ini dimulai sebelum terhubung ke ERP"
@@ -106,7 +106,7 @@
     "onlyAdmin": "Hanya Admin yang dapat mengubah ini.",
     "request_before_order": "Wajib permintaan sebelum pesanan",
     "approval_before_order": "Wajib persetujuan sebelum pesanan",
-    "receipt_before_invoice": "Wajib penerimaan barang sebelum faktur",
+    "receipt_before_invoice": "Wajib penerimaan barang sebelum invoice",
     "approval_before_payment": "Wajib persetujuan sebelum pembayaran",
     "saving": "Menyimpan…",
     "saved": "Tersimpan"
@@ -123,7 +123,7 @@
       "quote": "Penawaran",
       "po": "Pesanan pembelian",
       "gr": "Penerimaan barang",
-      "invoice": "Faktur supplier",
+      "invoice": "Invoice supplier",
       "payment": "Pembayaran"
     }
   },
@@ -150,7 +150,7 @@
         "approveOrReturn": "Setujui atau kembalikan",
         "waitingOnApprover": "Menunggu pemberi persetujuan",
         "approved": "Minta penawaran atau pesan",
-        "delivered": "Catat faktur supplier",
+        "delivered": "Catat invoice supplier",
         "draft": "Ajukan untuk persetujuan",
         "gettingQuotes": "Pilih penawaran",
         "ordered": "Catat pengiriman",
@@ -163,7 +163,7 @@
         "quotation": "Penawaran",
         "purchaseOrder": "Pesanan pembelian",
         "receipt": "Penerimaan",
-        "supplierInvoice": "Faktur supplier",
+        "supplierInvoice": "Invoice supplier",
         "payment": "Pembayaran"
       },
       "detail": {
@@ -276,7 +276,7 @@
       "none": "—",
       "approve": "Setujui pengadaan",
       "receive": "Catat pengiriman",
-      "pay": "Bayar faktur",
+      "pay": "Bayar invoice",
       "column": "Alasan perlu tindakan Anda"
     },
     "rowMenu": {
@@ -285,16 +285,16 @@
       "linkFile": "Tautkan file",
       "export": "Ekspor"
     },
-    "moneyTooltip": "Jumlah tercatat terbesar: dibayar, difakturkan, dipesan, lalu diminta. Sumber: catatan pengadaan.",
+    "moneyTooltip": "Jumlah tercatat terbesar: dibayar, ditagih, dipesan, lalu diminta. Sumber: catatan pengadaan.",
     "moneyUnknown": "Belum dicatat",
-    "unpaidTooltip": "Jumlah faktur dikurangi pembayaran tercatat, atau saldo terutang di ERP.",
+    "unpaidTooltip": "Jumlah invoice dikurangi pembayaran tercatat, atau saldo terutang di ERP.",
     "unpaidLine": "Belum dibayar {{amount}}",
     "unpaidInFull": "Belum dibayar seluruhnya",
     "unpaidUnknown": "Saldo belum dibayar belum dicatat",
     "noStepDates": "Belum ada tanggal langkah yang dicatat.",
     "moreActions": "Tindakan pengadaan lainnya",
-    "settlementTooltip": "Jumlah pembayaran yang tercatat dibandingkan dengan faktur yang tercatat.",
-    "settlement": "Dibayar / difakturkan",
+    "settlementTooltip": "Jumlah pembayaran yang tercatat dibandingkan dengan invoice yang tercatat.",
+    "settlement": "Dibayar / ditagih",
     "nextStepLabel": "Langkah berikutnya",
     "lineItems": "Item permintaan",
     "lineItemsUnavailable": "Baris item tidak dapat dimuat.",
@@ -567,7 +567,7 @@
         },
         "po_has_submitted_bill": {
           "headline": "Tidak dapat merevisi pesanan tertagih",
-          "detail": "Pesanan pembelian ini memiliki tagihan supplier yang sudah diajukan di ERP dan tidak dapat direvisi."
+          "detail": "Pesanan pembelian ini memiliki invoice supplier yang sudah diajukan di ERP dan tidak dapat direvisi."
         },
         "revision_not_issued": {
           "headline": "Revisi belum diterbitkan",
@@ -669,9 +669,9 @@
     "kind": {
       "purchase-order": "Pesanan",
       "goods-receipt": "Penerimaan barang",
-      "purchase-invoice": "Faktur supplier",
+      "purchase-invoice": "Invoice supplier",
       "payment": "Pembayaran",
-      "sales-invoice": "Faktur pelanggan",
+      "sales-invoice": "Invoice pelanggan",
       "incoming-payment": "Kuitansi pelanggan"
     },
     "waiting": {
