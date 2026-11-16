@@ -124,7 +124,8 @@
     "purchase orders": "Checking purchase orders",
     "payments": "Checking payments",
     "notifications": "Checking notifications",
-    "milestones": "Checking milestones"
+    "milestones": "Checking milestones",
+    "generic": "{{label}}"
   },
   "entities": {
     "projects": "projects",
@@ -150,10 +151,12 @@
     "saving": "Saving…",
     "saved": "Saved",
     "openView": "Open view →",
-    "savedAnnounce": "View saved successfully"
+    "savedAnnounce": "View saved successfully",
+    "saveError": "Could not save the view — try again."
   },
   "widgetResults": "Results",
   "loadFailed": "The assistant could not load.",
   "widgetFallback": "This result couldn't be displayed.",
-  "widgetNoun": "items"
+  "widgetNoun": "items",
+  "elapsedSeconds": "{{count}}s"
 }

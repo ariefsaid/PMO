@@ -123,7 +123,8 @@
     "purchase orders": "Memeriksa pesanan pembelian",
     "payments": "Memeriksa pembayaran",
     "notifications": "Memeriksa notifikasi",
-    "milestones": "Memeriksa tonggak"
+    "milestones": "Memeriksa tonggak",
+    "generic": "Sedang bekerja"
   },
   "entities": {
     "projects": "proyek",
@@ -149,11 +150,13 @@
     "saving": "Menyimpan…",
     "saved": "Tersimpan",
     "openView": "Buka tampilan →",
-    "savedAnnounce": "Tampilan berhasil disimpan"
+    "savedAnnounce": "Tampilan berhasil disimpan",
+    "saveError": "Tampilan tidak dapat disimpan — coba lagi."
   },
   "widgetResults": "Hasil",
   "loadFailed": "Asisten tidak dapat dimuat.",
   "widgetFallback": "Hasil ini tidak dapat ditampilkan.",
   "widgetNoun": "butir",
-  "attachmentsReady_one": "{{count}} lampiran siap"
+  "attachmentsReady_one": "{{count}} lampiran siap",
+  "elapsedSeconds": "{{count}} dtk"
 }

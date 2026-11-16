@@ -163,7 +163,7 @@ export const ArtifactSlot: React.FC<ArtifactSlotProps> = ({ payload, runId }) =>
                 {isSaving ? t('artifact.saving', 'Saving…') : t('artifact.saveToViews', 'Save to My Views')}
               </button>
               {saveStatus === 'error' && saveError && (
-                <span className="text-xs text-destructive">{saveError}</span>
+                <span className="text-xs text-destructive">{t('artifact.saveError', 'Could not save the view — try again.')}</span>
               )}
             </div>
           </>

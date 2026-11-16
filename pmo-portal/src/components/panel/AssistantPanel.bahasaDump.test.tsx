@@ -7,7 +7,7 @@
  * Dasbor, Supplier, Work Order / SPK (none of which is in the word list below).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
@@ -22,6 +22,8 @@ import { ActivityTrail } from './ActivityTrail';
 import { ThreadList } from './ThreadList';
 import { TranscriptItem } from './TranscriptItem';
 import { Chat } from './Chat';
+import { ArtifactSlot } from './ArtifactSlot';
+import { Thinking } from './Thinking';
 import { BahasaProvider } from '@/test/bahasa';
 
 const listThreads = vi.fn();
@@ -33,14 +35,25 @@ vi.mock('@/src/lib/db/agentEvents', () => ({
 vi.mock('@/src/lib/db/agentRuns', () => ({
   getRunHeartbeat: vi.fn().mockResolvedValue({ last_progress_at: new Date().toISOString(), status: 'running' }),
 }));
+const composeState: { current: Record<string, unknown> } = {
+  current: { compiledPanels: null, validationError: { code: 'bad_spec', detail: null }, saveStatus: 'idle', saveError: null, savedViewId: null },
+};
 vi.mock('@/src/hooks/useComposeArtifact', () => ({
-  useComposeArtifact: () => ({
-    compiledPanels: null,
-    validationError: { code: 'bad_spec', detail: null },
-    saveStatus: 'idle',
-    saveError: null,
-    savedViewId: null,
-    save: vi.fn(),
+  useComposeArtifact: () => ({ ...composeState.current, save: vi.fn() }),
+}));
+vi.mock('@/src/hooks/usePanelQueries', () => ({ usePanelQueries: () => ({ states: {}, retry: vi.fn() }) }));
+const attachState: { current: { error: { type: string; message: string } | null; progress: Record<string, number> } } = {
+  current: { error: null, progress: {} },
+};
+vi.mock('@/src/hooks/useAgentAttachments', () => ({
+  useAgentAttachments: () => ({
+    ...attachState.current,
+    isUploading: Object.keys(attachState.current.progress).length > 0,
+    uploadAttachment: vi.fn().mockResolvedValue('a1'),
+    clearError: vi.fn(),
+    reportError: vi.fn(),
+    resetThread: vi.fn(),
+    threadId: null,
   }),
 }));
 
@@ -114,6 +127,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   localStorage.setItem('pmo.agentPanel.mode', 'docked');
   listThreads.mockResolvedValue([]);
+  attachState.current = { error: null, progress: {} };
 });
 
 describe('#2047 Bahasa dump — panel states', () => {
@@ -252,5 +266,63 @@ describe('#2047 Bahasa dump — components in every state', () => {
     const entries = Array.from({ length: 120 }, (_, i) => ({ key: `k${i}`, event: ev('user', { text: `Pesan ${i}` }) }));
     inBahasa(<Chat transcript={entries as never} phase="idle" />);
     expectBahasa('chat capped');
+  });
+});
+
+describe('#2047 r8 — Bahasa fragments left after r7', () => {
+  it('(a) compose-view save error reads in Bahasa, whatever the English headline says', () => {
+    composeState.current = {
+      compiledPanels: [], validationError: null, saveStatus: 'error',
+      saveError: 'Could not save your changes', savedViewId: null,
+    };
+    try {
+      inBahasa(<ArtifactSlot payload={{ kind: 'compose_view', title: 'Tampilan', spec: {} } as never} runId="r1" />);
+      expect(screen.queryByText('Could not save your changes')).toBeNull();
+      expectBahasa('compose save error');
+    } finally {
+      composeState.current = { compiledPanels: null, validationError: { code: 'bad_spec', detail: null }, saveStatus: 'idle', saveError: null, savedViewId: null };
+    }
+  });
+
+  it('(b) the elapsed counter uses the Bahasa unit', () => {
+    vi.useFakeTimers();
+    try {
+      inBahasa(<Thinking label={null} />);
+      act(() => { vi.advanceTimersByTime(4000); });
+      expect(document.body.textContent).toContain('4 dtk');
+      expect(document.body.textContent).not.toMatch(/\d+s\b/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('(c) attachment lines: uploading, ready (one, many) and every error type, none left English', async () => {
+    const user = userEvent.setup();
+    const types: Array<[string, string]> = [
+      ['oversize', 'File exceeds 10 MB limit'], ['type', 'File type not allowed'],
+      ['network', 'Upload failed — try again'], ['server', 'Upload failed — try again'],
+      ['timeout', 'Upload timed out — try again'], ['cancel', 'Upload cancelled'],
+      ['server', 'Something unexpected happened'],
+    ];
+    for (const [type, message] of types) {
+      attachState.current = { error: { type, message }, progress: {} };
+      const r = renderPanel(runtimeWith([]));
+      await screen.findByRole('alert');
+      expectBahasa(`attachment error ${type}: ${message}`);
+      r.unmount();
+    }
+    attachState.current = { error: null, progress: { a1: 40 } };
+    const u = renderPanel(runtimeWith([]));
+    expect(screen.getByText('Mengunggah lampiran…')).toBeInTheDocument();
+    expectBahasa('attachment uploading');
+    u.unmount();
+    void user;
+  });
+
+  it('(d) a step label outside the mapped set falls back to one Bahasa line', () => {
+    inBahasa(<ActivityTrail items={[{ id: '1', label: 'Reticulating splines…', done: false }] as never} />);
+    expect(document.body.textContent).not.toContain('Reticulating');
+    expectBahasa('unmapped step label');
+    expect(document.body.textContent).toContain('Sedang bekerja');
   });
 });

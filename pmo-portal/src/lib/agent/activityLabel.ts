@@ -45,5 +45,6 @@ export function friendlyActivity(rawLabel: string, t?: ActivityT): string {
     if (known) return tr(`activity.${e}`, known);
     return tr('activity.lookingUp', 'Looking up {{entity}}', { entity: tr(`entities.${e}`, e) });
   }
-  return rawLabel.replace(/…$/, '');
+  // Outside the mapped set: English keeps the (trimmed) backend label; other languages show one generic line.
+  return tr('activity.generic', '{{label}}', { label: rawLabel.replace(/…$/, '') });
 }

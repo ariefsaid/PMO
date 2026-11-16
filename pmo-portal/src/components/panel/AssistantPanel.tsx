@@ -104,14 +104,15 @@ function attachmentErrorText(
   t: (key: string, options: Record<string, unknown>) => string,
 ): string {
   const m = error.message;
-  const max = m.match(/^File exceeds (\d+) MB limit$/)?.[1];
-  if (max) return t('attachError.oversize', { max, defaultValue: m });
-  if (m === 'File type not allowed') return t('attachError.type', { defaultValue: m });
-  if (/^Upload (failed|timed out|cancelled)/.test(m)) {
-    const key = error.type === 'timeout' ? 'timeout' : error.type === 'cancel' ? 'cancel' : 'server';
-    return t(`attachError.${key}`, { defaultValue: m });
+  if (error.type === 'oversize') {
+    const max = m.match(/^File exceeds (\d+) MB limit$/)?.[1] ?? '';
+    return t('attachError.oversize', { max, defaultValue: m });
   }
-  return m;
+  // A 'type' error is either the lib's English message (keyed here) or PromptBar's already-localised
+  // transcode failure, which passes through untouched.
+  if (error.type === 'type') return m === 'File type not allowed' ? t('attachError.type', { defaultValue: m }) : m;
+  const key = ['network', 'timeout', 'cancel'].includes(error.type) ? error.type : 'server';
+  return t(`attachError.${key}`, { defaultValue: m });
 }
 
 // ── Out-of-credits card (FR-AUC-016, NFR-AUC-A11Y-001/002) ─────────────────────

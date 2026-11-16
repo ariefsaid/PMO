@@ -32,7 +32,7 @@ export const Thinking: React.FC<{ label?: string | null }> = ({ label }) => {
       {/* Only after a few seconds: no clutter on a fast reply, reassurance on a slow one. */}
       {elapsed >= 3 && (
         <span aria-hidden className="text-sm tabular-nums text-muted-foreground">
-          {elapsed}s
+          {t('elapsedSeconds', { count: elapsed, defaultValue: '{{count}}s' })}
         </span>
       )}
     </div>
