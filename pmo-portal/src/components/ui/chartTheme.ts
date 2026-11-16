@@ -21,7 +21,7 @@ export const chartTheme = {
     destructive: 'hsl(var(--destructive))',
     violet: 'hsl(var(--violet))',
     /** In-flight status (Freed-Blue rule): neutral grey, the label carries identity. */
-    neutral: 'hsl(var(--muted-foreground) / 0.55)',
+    neutral: 'hsl(var(--mark-neutral) / 0.55)',
   },
   /**
    * Eight ordered categorical channels for multi-series charts and legends.

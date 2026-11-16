@@ -405,7 +405,7 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
                     </span>
                     <span className="flex min-w-0 items-center max-md:min-w-32 max-md:flex-1">
                       {pct === null && maxBudget > 0 && <span aria-hidden="true" data-testid="category-budget-bar" className="h-1.5 w-full rounded-full bg-secondary">
-                        <span className="block h-full rounded-full bg-muted-foreground/60" style={{ width: `${Math.round((r.budget / maxBudget) * 100)}%` }} />
+                        <span className="block h-full rounded-full bg-mark-neutral/60" style={{ width: `${Math.round((r.budget / maxBudget) * 100)}%` }} />
                       </span>}
                       {pct !== null && <ProgressBar value={pct} showValue widthless className="w-full [&>span:last-child]:w-12" aria-label={r.budget === 0 && r.actual! > 0
                         ? t('projectDetail.cost.categoryNoBudget', '{{category}} has spending with no budget', { category: label(r.category) })

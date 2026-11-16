@@ -19,6 +19,7 @@
       "title": "Unsaved meeting changes"
     }
   },
+  "editDetails": "Edit details",
   "filters": {
     "clear": "Clear all",
     "showArchived": "Show archived"

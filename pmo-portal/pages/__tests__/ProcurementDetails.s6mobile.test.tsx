@@ -395,7 +395,7 @@ describe('B4: one filled main action per screen, wherever it is started', () => 
     detailState.data = { ...draftByAlice };
     renderPage();
     expect(screen.getAllByRole('button', { name: /submit for approval/i })).toHaveLength(1);
-    expect(within(screen.getByTestId('record-header-actions')).queryByRole('button', { name: /submit for approval/i })).toBeNull();
+    expect(screen.getByTestId('record-header')).not.toContainElement(screen.getByRole('button', { name: /submit for approval/i }));
   });
 
   it('B4: opening the record from the drawer main action starts that same action', () => {

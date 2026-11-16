@@ -186,7 +186,7 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
   const pickerContext = { kind: 'procurement', request_number: requestNumber, created_at: createdAt } as const;
 
   return (
-    <section aria-labelledby="proc-case-references-heading" className="panel-card mt-4 min-w-0 p-[var(--panel-inset)]">
+    <section aria-labelledby="proc-case-references-heading" className="panel-card min-w-0 p-[var(--panel-inset)]">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
         <h2 id="proc-case-references-heading" className="min-w-0 break-words text-[14px] font-semibold text-foreground">
           {listName}

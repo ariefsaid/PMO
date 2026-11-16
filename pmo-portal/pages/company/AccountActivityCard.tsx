@@ -89,6 +89,8 @@ export const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: (
   const [kind, setKind] = useState<CrmActivityKind>('Call');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
+  // Facts and history first: the form opens from the one "Log activity" action.
+  const [formOpen, setFormOpen] = useState(false);
   // When there's more than one contact the user must pick; with a single contact we
   // pre-populate and hide the selector.
   const [selectedContactId, setSelectedContactId] = useState<string>('');
@@ -124,6 +126,7 @@ export const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: (
       setBody('');
       setKind('Call');
       setSelectedContactId('');
+      setFormOpen(false);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
       toast(headline, detail, 'warning');
@@ -188,10 +191,27 @@ export const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: (
 
   return (
     <Card className="mb-4">
-      <CardHead>{t('companyDetail.activity.title', 'Activity')}</CardHead>
+      <CardHead
+        actions={
+          canLog && contactList.length > 0 ? (
+            <Button
+              variant="outline"
+              size="sm"
+              data-testid="company-log-activity"
+              aria-expanded={formOpen}
+              onClick={() => setFormOpen((open) => !open)}
+            >
+              <Icon name="plus" />
+              {t('companyDetail.activity.logAction', 'Log activity')}
+            </Button>
+          ) : undefined
+        }
+      >
+        {t('companyDetail.activity.title', 'Activity')}
+      </CardHead>
       <CardPad>
         {/* Log-activity form (gated by contactActivity create permission) */}
-        {canLog && contactList.length > 0 && (
+        {canLog && contactList.length > 0 && formOpen && (
           <form
             onSubmit={onSubmit}
             // One surface level: the form is a section of the Activity card, not a card inside
@@ -243,7 +263,7 @@ export const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: (
                 loading={logActivity.isPending}
                 disabled={(!subject.trim() && !body.trim()) || !effectiveContactId}
               >
-                {t('companyDetail.activity.logAction', 'Log activity')}
+                {t('crm:activitySave', 'Save activity')}
               </Button>
             </div>
           </form>

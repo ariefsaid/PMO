@@ -31,7 +31,7 @@ export interface KanbanColumnProps {
  *  fill the card content/variants. */
 export const KanbanColumn: React.FC<KanbanColumnProps> = ({
   title,
-  dotColor = 'hsl(var(--muted-foreground))',
+  dotColor = 'hsl(var(--mark-neutral))',
   prob,
   count,
   totals,

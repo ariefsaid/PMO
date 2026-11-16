@@ -24,7 +24,7 @@ export interface ListPageProps {
    */
   count?: number;
   /** Total count before filters. */
-  total?: number;
+  total?: number | string;
   /**
    * The single per-screen primary CTA ("New <Entity>" / "Raise request" / …),
    * gated by the consumer. Lives top-right in the header row.

@@ -4474,7 +4474,6 @@
     "previewGapSummary_other": "{{dates}} dates without rates across {{count}} gaps"
   },
   "uxs17": {
-    "deliverySection": "Client delivery",
     "receivedByClient": "Received by client",
     "readyToSend": "Ready to send",
     "receivedDateSummary": "Client receipt was recorded for {{date}}.",

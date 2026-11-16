@@ -140,6 +140,7 @@ Colors use bare HSL triplets so Tailwind slash-alpha utilities continue to work.
 | `--secondary-foreground` | `216 10% 40%` | `211.0345 17.7914% 68.0392%` | alias of muted text |
 | `--muted` | `210 14.2857% 97.2549%` | `206.6667 11.6883% 15.098%` | subdued surface |
 | `--muted-foreground` | `216 10% 40%` | `211.0345 17.7914% 68.0392%` | only secondary text grey; AA on white and card surfaces |
+| `--mark-neutral` | `216 12% 22%` | `211.0345 17.7914% 68.0392%` | neutral non-text marks (status dots, bars, switch); text never uses it |
 | `--accent` | `210 14.2857% 97.2549%` | `207.2727 12.0879% 17.8431%` | hover wash |
 | `--accent-foreground` | `218.1818 12.3596% 17.451%` | `211.2 20.6612% 76.2745%` | text on accent |
 | `--count-foreground` | `216 10% 40%` | `211.0345 17.7914% 68.0392%` | alias of muted text |

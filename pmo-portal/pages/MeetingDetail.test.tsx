@@ -345,6 +345,7 @@ describe('MeetingDetail — unsaved minutes navigation guard', () => {
   it('guards header edits during navigation and document unload with shared draft wording', async () => {
     renderRoutedWithBreadcrumb();
     await screen.findByTestId('stub-editor', {}, { timeout: 10_000 });
+    await userEvent.click(screen.getByTestId('meeting-header-edit'));
     await userEvent.type(screen.getByLabelText(/Title/), ' updated');
 
     const dirtyEvent = new Event('beforeunload', { cancelable: true });
@@ -869,8 +870,9 @@ describe('MeetingDetail — states', () => {
     expect(screen.getByRole('link', { name: 'Harbour' })).toHaveAttribute('title', 'Harbour Upgrade');
   });
 
-  it('AC-002 #1325: meeting header project selector shows the short name only on the selected project id', () => {
+  it('AC-002 #1325: meeting header project selector shows the short name only on the selected project id', async () => {
     renderPage('Engineer');
+    await userEvent.click(screen.getByTestId('meeting-header-edit'));
     const select = screen.getByLabelText(/Project/);
     expect(select).toHaveValue('p1');
     expect(within(select).getByRole('option', { name: 'North Terminal' })).toHaveValue('p1');
@@ -878,7 +880,12 @@ describe('MeetingDetail — states', () => {
 
   it('AC-MTG1-005: inline header edits show Save/Cancel only when dirty and Cancel restores values', async () => {
     renderPage('Engineer');
+    // Facts first: the title appears once and no form is open until the one Edit action.
+    expect(screen.getAllByText('Kickoff with Acme')).toHaveLength(1);
+    expect(screen.queryByLabelText(/Title/)).not.toBeInTheDocument();
     expect(screen.queryByTestId('meeting-header-save')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('meeting-header-edit'));
+    expect(screen.getByTestId('meeting-header-save')).toBeDisabled();
     const title = screen.getByLabelText(/Title/) as HTMLInputElement;
     await userEvent.clear(title);
     await userEvent.type(title, 'Changed title');
@@ -889,6 +896,7 @@ describe('MeetingDetail — states', () => {
 
   it('AC-MTG1-005: a meeting refetch does not overwrite a dirty header draft', async () => {
     const view = renderPage('Engineer');
+    await userEvent.click(screen.getByTestId('meeting-header-edit'));
     const title = screen.getByLabelText(/Title/) as HTMLInputElement;
     await userEvent.clear(title);
     await userEvent.type(title, 'Typed title in progress');
@@ -899,12 +907,14 @@ describe('MeetingDetail — states', () => {
 
   it('AC-MTG1-005: Cancel restores the original inline header values', async () => {
     renderPage('Engineer');
+    await userEvent.click(screen.getByTestId('meeting-header-edit'));
     const title = screen.getByLabelText(/Title/) as HTMLInputElement;
     await userEvent.clear(title);
     await userEvent.type(title, 'Changed title');
     await userEvent.click(screen.getByTestId('meeting-header-cancel'));
-    expect(screen.getByLabelText(/Title/)).toHaveValue('Kickoff with Acme');
     expect(screen.queryByTestId('meeting-header-save')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('meeting-header-edit'));
+    expect(screen.getByLabelText(/Title/)).toHaveValue('Kickoff with Acme');
   });
 
   it('C1: failed header and minutes saves stay inline beside their actions and keep the drafts', async () => {
@@ -913,6 +923,7 @@ describe('MeetingDetail — states', () => {
       .mockRejectedValueOnce(Object.assign(new Error('duplicate'), { code: '23505' }));
     renderPage('Engineer');
     await screen.findByTestId('stub-editor');
+    await userEvent.click(screen.getByTestId('meeting-header-edit'));
 
     const title = screen.getByLabelText(/Title/) as HTMLInputElement;
     await userEvent.clear(title);
@@ -940,6 +951,7 @@ describe('MeetingDetail — states', () => {
 
   it('AC-MTG-029: a non-Admin author gets inline header editing + Archive but not Delete', async () => {
     renderPage('Engineer');
+    await userEvent.click(screen.getByTestId('meeting-header-edit'));
     expect(screen.getByLabelText(/Title/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /more actions/i }));
     expect(await screen.findByTestId('meeting-archive')).toBeInTheDocument();
@@ -965,12 +977,14 @@ describe('AC-PLC-005/006 (#684): Edit "When" prefill and submit follow the PROFI
 
   it('prefills "When" with the same wall time the header displays, in the profile timezone', async () => {
     renderPage('Engineer');
+    await userEvent.click(screen.getByTestId('meeting-header-edit'));
     const when = screen.getByLabelText(/When/i) as HTMLInputElement;
     expect(when.value).toBe('2026-06-14T21:15');
   });
 
   it('editing another header value keeps the occurrence instant in the profile timezone', async () => {
     renderPage('Engineer');
+    await userEvent.click(screen.getByTestId('meeting-header-edit'));
     await userEvent.clear(screen.getByLabelText(/Location/));
     await userEvent.type(screen.getByLabelText(/Location/), 'Updated room');
     await userEvent.click(screen.getByRole('button', { name: /Save meeting/ }));
@@ -981,6 +995,7 @@ describe('AC-PLC-005/006 (#684): Edit "When" prefill and submit follow the PROFI
 
   it('editing to 10:00 saves 10:00 in the profile timezone', async () => {
     renderPage('Engineer');
+    await userEvent.click(screen.getByTestId('meeting-header-edit'));
     const when = screen.getByLabelText(/When/i) as HTMLInputElement;
     // fireEvent-style direct value set + change, mirroring datetime-local input semantics.
     when.focus();
@@ -995,6 +1010,7 @@ describe('AC-PLC-005/006 (#684): Edit "When" prefill and submit follow the PROFI
 
   it('clearing "When" blocks the save with a visible error, and never falls back to the old time', async () => {
     renderPage('Engineer');
+    await userEvent.click(screen.getByTestId('meeting-header-edit'));
     const when = screen.getByLabelText(/When/i) as HTMLInputElement;
     when.focus();
     await userEvent.clear(when);
