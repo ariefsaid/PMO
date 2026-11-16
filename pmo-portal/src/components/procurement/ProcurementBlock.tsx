@@ -639,11 +639,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
               {row.title}
             </button>
             {(row.code || row.vendor?.name) && (
-              // one-type r3/r4 on #1791's one line: the number never truncates, the supplier cuts with its full name on title, the separator carries its own spacing (a flex item trims white space).
-              <span className="flex min-w-0 items-baseline text-sm text-muted-foreground">
-                {row.code && <span className="record-id shrink-0">{row.code}</span>}
-                {row.code && row.vendor?.name && <span aria-hidden="true" className="px-1">·</span>}
-                {row.vendor?.name && <span className="min-w-0 truncate font-normal" title={row.vendor.name}>{row.vendor.name}</span>}
+              <span title={[row.code, row.vendor?.name].filter(Boolean).join(' · ')} className="min-w-0 line-clamp-1 break-words text-sm text-muted-foreground">
+                {row.code && <span className="record-id">{row.code}</span>}{row.code && row.vendor?.name && ' · '}{row.vendor?.name}
               </span>
             )}
           </div>

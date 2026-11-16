@@ -64,38 +64,35 @@ describe('ProcurementBlock craft rulings', () => {
     expect(screen.getByText('No procurement on this project yet.')).toBeInTheDocument();
   });
 
-  // O10 pinned the old ruling ("a long supplier name wraps instead of being cut"); the one-type
-  // judgement (r3) supersedes it: the supplier span truncates on one line with its full name on
-  // title (asserted below), while the identity LINE itself still carries no truncate.
-  it('O10 (superseded by one-type r3): the identity line carries no truncate itself — only the supplier span cuts, on title', () => {
+  // #1791: number and supplier share ONE clipped line; the full text is reachable on title.
+  it('O10 the record number comes first, the supplier follows, and the whole line is reachable on title', () => {
     procState.data = [{ ...row('a', 'Requested'), code: 'PROC-2026-001', vendor: { name: 'RackMount Systems International' } }];
     renderBlock();
 
-    const identity = screen.getByText('PROC-2026-001').parentElement as HTMLElement;
-    expect(identity).toHaveTextContent('PROC-2026-001·RackMount Systems International');
-    expect(identity.className).not.toMatch(/\btruncate\b|\bline-clamp\b/);
-  });
-
-  it('one-type r3: a long supplier name renders with the truncate class and its full name on title; the record number never truncates', () => {
-    procState.data = [{ ...row('a', 'Requested'), code: 'PROC-2026-001', vendor: { name: 'RackMount Systems International' } }];
-    renderBlock();
-
-    const supplier = screen.getByText('RackMount Systems International');
-    expect(supplier.className).toMatch(/\btruncate\b/);
-    expect(supplier.className).toMatch(/\bmin-w-0\b/);
-    expect(supplier).toHaveAttribute('title', 'RackMount Systems International');
     const code = screen.getByText('PROC-2026-001');
-    expect(code.className).toMatch(/\brecord-id\b/);
-    expect(code.className).toMatch(/\bshrink-0\b/); // the number keeps its width: it never truncates
-    expect(code.className).not.toMatch(/\btruncate\b/);
+    const line = code.parentElement as HTMLElement;
+    expect(line.textContent?.startsWith('PROC-2026-001')).toBe(true);
+    expect(line).toHaveTextContent('PROC-2026-001 · RackMount Systems International');
+    expect(line).toHaveAttribute('title', 'PROC-2026-001 · RackMount Systems International');
   });
 
-  it('one-type r4: the separator between number and supplier carries its own spacing (a flex item trims white space)', () => {
+  it('one-type r3 a long supplier is cut on one line with its full name reachable, and the number is never cut', () => {
+    procState.data = [{ ...row('a', 'Requested'), code: 'PROC-2026-001', vendor: { name: 'RackMount Systems International' } }];
+    renderBlock();
+
+    const code = screen.getByText('PROC-2026-001');
+    const line = code.parentElement as HTMLElement;
+    expect(line.className).toMatch(/\bline-clamp-1\b/); // the line clips, the number sits first so only the tail goes
+    expect(line.title).toContain('RackMount Systems International');
+    expect(code.className).not.toMatch(/\bline-clamp\b|\btruncate\b/);
+    expect(code.className).not.toMatch(/\bfont-mono\b/); // one type family
+  });
+
+  it('one-type r4 number and supplier are told apart by the separator " · "', () => {
     procState.data = [{ ...row('a', 'Requested'), code: 'PROC-2026-001', vendor: { name: 'VoltEdge Inverters' } }];
     renderBlock();
 
-    const sep = screen.getByText('·');
-    expect(sep.className).toMatch(/\bpx-1\b/);
-    expect(sep).toHaveAttribute('aria-hidden', 'true');
+    const line = screen.getByText('PROC-2026-001').parentElement as HTMLElement;
+    expect(line.textContent).toBe('PROC-2026-001 · VoltEdge Inverters');
   });
 });
