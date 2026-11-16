@@ -5,7 +5,9 @@ import { cn } from '@/src/components/ui/cn';
 import { RailDrawerContext } from './railDrawerContext';
 import { useFocusTrap } from '@/src/hooks/useFocusTrap';
 import { isTabSwitchNavState } from '@/src/lib/tabSwitchNav';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import {
+  PANEL_DOCK_MIN_WIDTH,
   PANEL_PREFS_CHANGED_EVENT,
   readPanelMode,
   readPanelWidth,
@@ -109,8 +111,9 @@ export const AppShell: React.FC<AppShellProps> = ({
     return () => window.removeEventListener(PANEL_PREFS_CHANGED_EVENT, onPrefsChanged);
   }, [assistant]);
 
+  const roomToDock = useIsDesktop(PANEL_DOCK_MIN_WIDTH);
   const assistantDocked = Boolean(
-    assistant && assistantOpen && assistantPrefs.mode === 'docked'
+    assistant && assistantOpen && roomToDock && assistantPrefs.mode === 'docked'
   );
 
   // Move focus to main on route change (a11y: focus-on-route-change) and reset
