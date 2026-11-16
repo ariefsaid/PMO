@@ -91,8 +91,8 @@ BEGIN
     EXECUTE format('DELETE FROM public.%I WHERE org_id = %L', t, '${own.orgId}');
   END LOOP;
 END $$;
+DELETE FROM auth.users WHERE id IN (SELECT id FROM public.profiles WHERE org_id = '${own.orgId}' AND id IN (${userIds.map((id) => `'${id}'`).join(',')}));
 DELETE FROM public.profiles WHERE org_id = '${own.orgId}';
-DELETE FROM auth.users WHERE id IN (${userIds.map((id) => `'${id}'`).join(',')});
 DELETE FROM public.organizations WHERE id = '${own.orgId}';
 COMMIT;`;
   execFileSync('docker', ['exec', '-i', 'supabase_db_pmo-portal', 'psql', '-U', 'postgres', '-d', 'postgres', '-X', '-q', '-v', 'ON_ERROR_STOP=1'], { input: sql, encoding: 'utf8' });
@@ -128,6 +128,9 @@ async function createFixtureOrg(admin: SupabaseClient<Database>, suffix: string,
   return { orgId, ids, emails };
 }
 
+/** Fixture organisations created by journeys; removed in afterEach (pass or fail), never during a journey. */
+const createdOrgs: Array<Awaited<ReturnType<typeof createFixtureOrg>>> = [];
+
 async function setUpAndRun(page: Page, testInfo: TestInfo, bound: boolean) {
   const serviceKey = requireServiceRoleKey();
   if (!serviceKey) throw new Error('AC-SCV-009 requires the local fixture service client');
@@ -141,11 +144,11 @@ async function setUpAndRun(page: Page, testInfo: TestInfo, bound: boolean) {
   const itemCode = `L1-${suffix}`;
   const voidReason = `Typed 100 instead of 40 ${suffix}`;
 
-  let own: Awaited<ReturnType<typeof createFixtureOrg>> | null = null;
-  try {
-    // A fresh organisation per journey, with its own actors: bound (an active ERP binding) or PMO-owned (none). It is removed at the end.
-    own = await createFixtureOrg(admin, suffix, bound);
-    const as = (actor: Actor) => formSignIn(page, own!.emails[actor]);
+  // A fresh organisation per journey, with its own actors: bound (an active ERP binding) or PMO-owned (none). It is removed in afterEach.
+  const own = await createFixtureOrg(admin, suffix, bound);
+  createdOrgs.push(own);
+  {
+    const as = (actor: Actor) => formSignIn(page, own.emails[actor]);
     const pm = { data: { id: own.ids.pm, org_id: own.orgId } };
     const orgId = own.orgId;
     const execId = own.ids.exec;
@@ -277,10 +280,6 @@ async function setUpAndRun(page: Page, testInfo: TestInfo, bound: boolean) {
     expect(voided.voided_at).not.toBeNull();
     expect(voided.void_reason).toBe(voidReason);
     expect(bills.data.filter((bill) => bill.voided_at == null)).toHaveLength(1);
-  } finally {
-    // Issued PO lines and bills are append-only to every app role, so the fresh organisation is removed whole, with its users,
-    // by the local database superuser. Runs on pass and on fail.
-    if (own) removeFixtureOrg(own);
   }
 }
 
@@ -302,6 +301,33 @@ test.beforeAll(async () => {
   before = await rowCounts(admin);
   console.log('AC-SCV-009 row counts BEFORE', JSON.stringify(before));
 });
+/** Rows of ONE fixture organisation (filtered by its id, so parallel specs never move the number) in every counted table, plus its auth users. */
+async function ownRowCounts(admin: SupabaseClient<Database>, own: { orgId: string; ids: Record<string, string> }) {
+  const counts: Record<string, number> = {};
+  counts['organizations'] = (await admin.from('organizations').select('id', { count: 'exact', head: true }).eq('id', own.orgId).throwOnError()).count ?? 0;
+  for (const table of COUNTED_TABLES.filter((t): t is Exclude<(typeof COUNTED_TABLES)[number], 'organizations'> => t !== 'organizations')) {
+    const { count } = await admin.from(table).select('id', { count: 'exact', head: true }).eq('org_id', own.orgId).throwOnError();
+    counts[table] = count ?? 0;
+  }
+  let users = 0;
+  for (const id of Object.values(own.ids)) if ((await admin.auth.admin.getUserById(id)).data.user) users += 1;
+  counts['auth.users'] = users;
+  return counts;
+}
+test.afterEach(async () => {
+  // Issued PO lines and bills are append-only to every app role, so each fresh organisation is removed whole (every statement filtered by its id) by the local database superuser.
+  const serviceKey = requireServiceRoleKey();
+  const admin = createClient<Database>(requireMatchingLocalSupabaseUrls(undefined, undefined), serviceKey!, { auth: { persistSession: false } });
+  for (const own of createdOrgs.splice(0)) {
+    const beforeTeardown = await ownRowCounts(admin, own);
+    console.log('AC-SCV-009 own-org rows BEFORE teardown', JSON.stringify(beforeTeardown));
+    expect(beforeTeardown.organizations).toBe(1);
+    removeFixtureOrg(own);
+    const afterTeardown = await ownRowCounts(admin, own);
+    console.log('AC-SCV-009 own-org rows AFTER  teardown', JSON.stringify(afterTeardown));
+    expect(afterTeardown).toEqual(Object.fromEntries(Object.keys(beforeTeardown).map((key) => [key, 0])));
+  }
+});
 test.afterAll(async () => {
   const serviceKey = requireServiceRoleKey();
   if (!serviceKey) return;
@@ -312,5 +338,5 @@ test.afterAll(async () => {
   const profiles = await admin.from('profiles').select('id', { count: 'exact', head: true }).like('email', 'scv009-%');
   expect(orgs.count).toBe(0);
   expect(profiles.count).toBe(0);
-  for (const key of ['organizations', 'profiles', 'auth.users']) expect(after[key], `${key} count`).toBe(before[key]);
+  // Global counts move when other specs run in parallel workers; the per-organisation counts in afterEach are the race-free proof.
 });
