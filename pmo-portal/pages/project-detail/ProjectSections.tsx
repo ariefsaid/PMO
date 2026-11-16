@@ -296,9 +296,10 @@ export const PrimaryProjectAction: React.FC<{ project: ProjectWithRefs; isPipeli
   if (receivables.data) {
     return <ProjectActionButton mobileBar={mobileBar} to={receivables.data.to}>{t('projectDetail.action.chasePayment', 'Chase payment')}</ProjectActionButton>;
   }
-  // Pending or failed reads hold the slot as a disabled button (no reflow when it lands); permission still returns null above.
-  if (receivables.isPending || receivables.isError) {
-    return <HeldActionButton mobileBar={mobileBar} unavailable={receivables.isError}>{chaseOnly ? t('projectDetail.action.chasePayment', 'Chase payment') : t('projectDetail.action.raiseInvoice', 'Raise invoice')}</HeldActionButton>;
+  // Pending reads show the slot's loading state (no label that could change); a failed read holds a disabled button. Permission still returns null above.
+  if (receivables.isPending) return <ActionSlotLoading mobileBar={mobileBar} />;
+  if (receivables.isError) {
+    return <HeldActionButton mobileBar={mobileBar} unavailable>{chaseOnly ? t('projectDetail.action.chasePayment', 'Chase payment') : t('projectDetail.action.raiseInvoice', 'Raise invoice')}</HeldActionButton>;
   }
   if (chaseOnly) return null;
   return <RaiseInvoiceAction project={project} mobileBar={mobileBar} />;
@@ -308,9 +309,10 @@ const RaiseInvoiceAction: React.FC<{ project: ProjectWithRefs; mobileBar: boolea
   const { t } = useTranslation('project');
   const finances = useProjectFinances(project.id);
   const billing = useProjectBilling(project.id);
-  if (finances.isPending || finances.isError || billing.isPending || billing.isError) {
-    return <HeldActionButton mobileBar={mobileBar} unavailable={finances.isError || billing.isError}>{t('projectDetail.action.raiseInvoice', 'Raise invoice')}</HeldActionButton>;
+  if (finances.isError || billing.isError) {
+    return <HeldActionButton mobileBar={mobileBar} unavailable>{t('projectDetail.action.raiseInvoice', 'Raise invoice')}</HeldActionButton>;
   }
+  if (finances.isPending || billing.isPending) return <ActionSlotLoading mobileBar={mobileBar} />;
   const lines = billing.data?.contractLines ?? [];
   const billableQuantity = lines.reduce((sum, line) => sum + line.allocations.reduce(
     (allocationSum, allocation) => allocationSum + (allocation.acceptedQuantity ?? 0) - allocation.claimedQuantity,
@@ -323,7 +325,20 @@ const RaiseInvoiceAction: React.FC<{ project: ProjectWithRefs; mobileBar: boolea
   return <ProjectActionButton mobileBar={mobileBar} to={`/projects/${project.id}/contract`}>{t('projectDetail.action.raiseInvoice', 'Raise invoice')}</ProjectActionButton>;
 };
 
-/** The action's slot while a read it depends on is loading or failed: same label and size, disabled. */
+/** The action's slot while the reads that decide it are loading: the button's space, no label. */
+const ActionSlotLoading: React.FC<{ mobileBar: boolean }> = ({ mobileBar }) => {
+  const block = <span aria-busy="true" data-testid="primary-action" className={`block animate-pulse rounded-md bg-muted ${mobileBar ? 'h-11 w-full' : 'h-8 w-32'}`} />;
+  return mobileBar
+    ? (
+      <>
+        <div aria-hidden="true" className="h-20 md:hidden" />
+        <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-background px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 md:hidden">{block}</MobileActionBar>
+      </>
+    )
+    : block;
+};
+
+/** The action's slot when a read it depends on failed: same label and size, disabled. */
 const HeldActionButton: React.FC<{ mobileBar: boolean; unavailable: boolean; children: React.ReactNode }> = ({ mobileBar, unavailable, children }) => {
   const { t } = useTranslation('project');
   const button = (

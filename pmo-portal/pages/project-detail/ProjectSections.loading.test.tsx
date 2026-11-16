@@ -37,19 +37,34 @@ beforeEach(() => {
 });
 
 describe('AC-NBR-006 primary action holds its slot', () => {
-  it('(P) finances pending: a disabled "Raise invoice" holds the slot, then becomes enabled', () => {
+  it('(P) finances pending: the slot shows its loading state with no label, then the right action once', () => {
     state.finances = { data: undefined, isPending: true, isError: false };
     const view = renderAction();
-    expect(screen.getByRole('button', { name: 'Raise invoice' })).toBeDisabled();
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.queryByText('Raise invoice')).toBeNull();
+    expect(screen.queryByText('Chase payment')).toBeNull();
+    expect(screen.getByTestId('primary-action')).toHaveAttribute('aria-busy', 'true');
     state.finances = { data: { remaining_to_invoice: '500' }, isPending: false, isError: false };
     view.rerender(<MemoryRouter><PrimaryProjectAction project={project} isPipeline={false} /></MemoryRouter>);
     expect(screen.getByRole('button', { name: 'Raise invoice' })).toBeEnabled();
   });
 
-  it('(P) receivables pending: the chase slot holds a disabled "Chase payment"', () => {
+  it('(P) receivables pending: loading state with no label (never a "Raise invoice" that turns into "Chase payment")', () => {
+    state.receivables = { data: null, isPending: true, isError: false, refetch: vi.fn() };
+    const view = renderAction();
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.queryByText('Raise invoice')).toBeNull();
+    expect(screen.getByTestId('primary-action')).toHaveAttribute('aria-busy', 'true');
+    state.receivables = { data: { to: '/x' }, isPending: false, isError: false, refetch: vi.fn() };
+    view.rerender(<MemoryRouter><PrimaryProjectAction project={project} isPipeline={false} /></MemoryRouter>);
+    expect(screen.getByRole('button', { name: 'Chase payment' })).toBeEnabled();
+  });
+
+  it('(P) chase slot while receivables pending: loading state, no label', () => {
     state.receivables = { data: null, isPending: true, isError: false, refetch: vi.fn() };
     renderAction({ chaseOnly: true });
-    expect(screen.getByRole('button', { name: 'Chase payment' })).toBeDisabled();
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.getByTestId('primary-action')).toHaveAttribute('aria-busy', 'true');
   });
 
   it('(F) billing failed: the slot stays as a disabled button with the unavailable explanation', async () => {
@@ -82,9 +97,19 @@ describe('AC-NBR-005 attention card keeps settled rows', () => {
 
   it('(P) rows from settled sources show beside one loading row; never "nothing needs you"', () => {
     view({ items: [item], isPending: true, pendingSources: ['receivables'] });
+    expect(screen.getByTestId('project-attention-count-loading')).toBeInTheDocument();
     expect(screen.getByText('Design is late')).toBeInTheDocument();
     expect(screen.queryByText('Nothing needs you on this project right now.')).toBeNull();
     expect(screen.getAllByTestId('project-attention-pending')).toHaveLength(1);
+  });
+
+  it('B2 the count shows only when every source has loaded: no partial count that grows', () => {
+    const two = { ...item, key: 'budget', what: 'Budget is over' };
+    const v = view({ items: [item], isPending: true, pendingSources: ['receivables'] });
+    expect(screen.queryByTestId('project-attention-count')).toBeNull();
+    v.rerender(<MemoryRouter><ProjectAttention items={[item, two]} /></MemoryRouter>);
+    expect(screen.getByTestId('project-attention-count')).toHaveTextContent('2');
+    expect(screen.queryByTestId('project-attention-count-loading')).toBeNull();
   });
 
   it('(F) a failed source keeps the other rows and names what could not be checked', () => {

@@ -67,7 +67,9 @@ export const ProjectAttention: React.FC<{
     <section data-testid="needs-attention" aria-labelledby="pd-attention" className={cn(className, fillRow && 'h-full')}>
       <Card className={fillRow ? 'flex h-full flex-col' : undefined}>
         <CardHead id="pd-attention" actions={<Tooltip content={t('projectDetail.attention.countTooltip', 'Count of current project items that need follow-up.')}>
-          <span tabIndex={0} className="font-normal text-muted-foreground">{visibleItems.length}</span>
+          {isPending && (pendingSources?.length ?? 0) > 0
+            ? <span aria-busy="true" data-testid="project-attention-count-loading" className="inline-block h-4 w-5 animate-pulse rounded bg-muted align-middle" />
+            : <span tabIndex={0} data-testid="project-attention-count" className="font-normal text-muted-foreground">{visibleItems.length}</span>}
         </Tooltip>}>
           {t('projectDetail.attention.title', 'Needs attention')}
         </CardHead>
