@@ -21,6 +21,8 @@ export interface RecordHeaderProps {
   status: React.ReactNode;
   /** Keep a long record name full width on mobile, with status below its identity line. */
   statusBelowMetaOnMobile?: boolean;
+  /** Phone: the name takes at most two lines with the status under it; a tap on a cut name shows it whole. */
+  clampNameOnMobile?: boolean;
   /** Quiet identity line under the title (reference number, client). Not a sentence. */
   meta?: React.ReactNode;
   metaId?: string;
@@ -46,6 +48,12 @@ export interface RecordHeaderProps {
    * actions on their own row so the name is never truncated by them.
    */
   variant?: 'page' | 'drawer';
+  /** Page variant: keep the action zone on the title row at every width (a phone's lone ⋯ never gets its own row). */
+  actionsOnTitleRow?: boolean;
+  /** Page variant: pad the panel on the panel inset (24px desktop / 16px phone) so it shares its left edge with `RecordSection` panels. */
+  panelInset?: boolean;
+  /** Notes that belong to the record (one muted line each), inside the header panel under the facts. */
+  children?: React.ReactNode;
   className?: string;
   'data-testid'?: string;
 }
@@ -66,6 +74,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
   name,
   status,
   statusBelowMetaOnMobile = false,
+  clampNameOnMobile = false,
   meta,
   metaId,
   stats,
@@ -75,6 +84,9 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
   actions,
   actionsAfterPrimary = false,
   variant = 'page',
+  actionsOnTitleRow = false,
+  panelInset = false,
+  children,
   className,
   'data-testid': dataTestId = 'record-header',
 }) => {
@@ -82,6 +94,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
   const label = menuLabel ?? t('uxs14.moreActions', 'More actions');
   const hasMenu = Boolean(menuItems && menuItems.length > 0);
   const isDrawer = variant === 'drawer';
+  const [nameOpen, setNameOpen] = React.useState(false);
   const zone = actions || primaryAction || hasMenu ? (
     <span data-testid="record-header-actions" className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
       {actionsAfterPrimary ? <>{primaryAction}{actions}</> : <>{actions}{primaryAction}</>}
@@ -93,7 +106,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
       data-testid={dataTestId}
       className={cn(
         // The drawer host already supplies a border-bottom seam + popover surface (no double border / nested radius).
-        !isDrawer && 'mb-[var(--space-section)] rounded-lg border border-border bg-card px-[var(--space-content-inset)] py-[var(--space-content-inset)]',
+        !isDrawer && 'mb-[var(--space-section)] rounded-lg border border-border bg-card', !isDrawer && (panelInset ? 'p-[var(--panel-inset)]' : 'p-[var(--space-content-inset)]'),
         isDrawer && '[&_h1]:text-control [&_h1]:font-semibold [&_h1]:leading-5',
         className,
       )}
@@ -114,12 +127,17 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
             statusBelowMetaOnMobile
               ? 'grid grid-cols-[minmax(0,1fr)_auto] items-baseline sm:flex sm:flex-nowrap'
               : 'flex flex-nowrap items-baseline',
+            clampNameOnMobile && 'max-sm:flex-col max-sm:items-start max-sm:gap-1',
           )}>
-            <h1 className={cn(
+            <h1
+              title={clampNameOnMobile && typeof name === 'string' ? name : undefined}
+              onClick={clampNameOnMobile ? () => setNameOpen((open) => !open) : undefined}
+              className={cn(
               'min-w-0 text-page font-semibold',
               statusBelowMetaOnMobile
                 ? 'col-span-2 row-start-1 break-words sm:col-span-1 sm:row-start-auto sm:flex-[0_1_auto]'
                 : 'flex-[0_1_auto] truncate',
+              clampNameOnMobile && cn('max-sm:max-w-full max-sm:whitespace-normal max-sm:break-words', !nameOpen && 'max-sm:line-clamp-2'),
               !isDrawer && 'sm:truncate',
             )}>{name}</h1>
             <span className={cn(
@@ -132,7 +150,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
             statusBelowMetaOnMobile && 'col-span-2 row-start-2 sm:row-start-auto',
           )}>{meta}</div>}
         </div>
-        {zone && <div className={cn('flex w-full shrink-0 items-center gap-2', !isDrawer && 'ml-auto sm:w-auto')}>{zone}</div>}
+        {zone && <div className={cn('flex shrink-0 items-center gap-2', actionsOnTitleRow ? 'ml-auto max-w-full' : cn('w-full', !isDrawer && 'ml-auto sm:w-auto'))}>{zone}</div>}
       </div>
       {stats && stats.length > 0 && (
         <div
@@ -148,6 +166,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
           ))}
         </div>
       )}
+      {children != null && children !== false && <div data-testid="record-header-notes" className="mt-3 flex flex-col gap-1 text-control text-muted-foreground">{children}</div>}
     </div>
   );
 };

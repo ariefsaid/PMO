@@ -22,8 +22,8 @@ describe('DS spacing normalization', () => {
     const header = container.firstElementChild;
 
     expect(header?.className).toContain('mb-[var(--space-section)]');
-    expect(header?.className).toContain('px-[var(--space-content-inset)]');
-    expect(header?.className).toContain('py-[var(--space-content-inset)]');
+    // The header is a panel with one uniform inset of the shared content-inset token (exact class, not a substring).
+    expect(header?.className.split(/\s+/)).toContain('p-[var(--space-content-inset)]');
   });
 
   it('SectionHeader keeps its title group on the shared group rhythm', () => {

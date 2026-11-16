@@ -271,19 +271,20 @@ export const ListState: React.FC<ListStateProps> = ({
         role="alert"
         aria-live="assertive"
         className={cn(
-          'flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/[0.07] px-4 py-3.5',
+          // Phone: the message keeps the full width and Retry goes under it, full width (never wrapped text beside a button).
+          'flex flex-wrap items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/[0.07] px-4 py-3.5',
           className
         )}
       >
-        <Icon name="alert" className="size-5 shrink-0 text-destructive" />
-        <div className="flex-1">
+        <Icon name="alert" className="size-5 shrink-0 text-destructive max-sm:self-start" />
+        <div className="min-w-0 flex-1">
           {/* O18: a page whose only content is this error keeps its level-one heading. */}
           {title && (titleAsPageHeading
             ? <h1 className="text-control font-semibold text-destructive-text">{title}</h1>
             : <div className="text-control font-semibold text-destructive-text">{title}</div>)}
           {safeSub && <div className="mt-px text-control text-muted-foreground">{safeSub}</div>}
         </div>
-        <Button variant="outline" size="sm" onClick={onRetry}>
+        <Button variant="outline" size="sm" onClick={onRetry} className="max-sm:w-full">
           <Icon name="refresh" />
           {resolvedRetryLabel}
         </Button>

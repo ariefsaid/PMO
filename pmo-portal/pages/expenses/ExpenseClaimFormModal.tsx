@@ -150,7 +150,7 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
   const floatOptions = useMemo(() => {
     const options = floatChoiceOptions(floatChoices ?? []);
     if (initial?.imprestFloatId && !options.some((o) => o.value === initial.imprestFloatId)) {
-      options.unshift({ value: initial.imprestFloatId, label: t('imprest:form.currentFloat', 'The float it is charged to') });
+      options.unshift({ value: initial.imprestFloatId, label: t('imprest:form.currentFloat', 'The site cash it is charged to') });
     }
     return options;
   }, [floatChoices, initial?.imprestFloatId, t]);
@@ -361,9 +361,9 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
               value={amountField.value} onChange={amountField.onChange} onBlur={amountField.onBlur} error={amountField.error} />
           )}
           {(kind === 'advance' || initial) && floatOptions.length > 0 && (
-            <SelectField id={floatField.id} label={t('imprest:form.chargeToFloat', 'Charge to site float')} value={floatField.value}
+            <SelectField id={floatField.id} label={t('imprest:form.chargeToFloat', 'Charge to site cash')} value={floatField.value}
               onChange={(v) => floatField.onChange(v)} onBlur={floatField.onBlur} disabled={recoveryPending}
-              options={[{ value: '', label: t('imprest:form.noFloat', 'Not charged to a float') }, ...floatOptions]}
+              options={[{ value: '', label: t('imprest:form.noFloat', 'Not charged to site cash') }, ...floatOptions]}
               helper={t('imprest:form.helper', 'Cash paid out of site cash held by the custodian.')} />
           )}
           {kind === 'claim' && <AdvanceLoadNotice advances={advanceLoad} />}
