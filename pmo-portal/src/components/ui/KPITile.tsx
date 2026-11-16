@@ -90,8 +90,8 @@ const Caption: React.FC<{ children: string; wrap?: boolean }> = ({ children, wra
 
 /** Inside a row: 'tile' (its own 16px inset) or 'panel' (the panels' inset, figures on shared rows). */
 const KPIRowContext = React.createContext<false | 'tile' | 'panel'>(false);
-/** A tile in a panel-inset row lays label, figure and caption on the row's shared lines from 900px up. */
-export const PANEL_TILE_LINES = 'min-[900px]:row-span-3 min-[900px]:grid min-[900px]:grid-rows-subgrid min-[900px]:gap-y-2.5';
+/** A tile in a panel-inset row lays label, figure and caption on the row's shared lines at every width. */
+export const PANEL_TILE_LINES = 'row-span-3 grid grid-rows-subgrid gap-y-2.5';
 
 export interface KPIRowProps {
   children: React.ReactNode;
@@ -169,7 +169,7 @@ export function KPITile({
 
   const head = (
     // In a panel-inset row a one-line label starts level with a wrapped neighbour's first line.
-    <div className={cn('flex items-center gap-2', row === 'panel' && 'min-[900px]:self-start')}>
+    <div className={cn('flex items-center gap-2', row === 'panel' && 'self-start')}>
       {!inRow && <span
         className={cn(
           'grid size-[30px] shrink-0 place-items-center rounded-lg [&_svg]:size-4',
