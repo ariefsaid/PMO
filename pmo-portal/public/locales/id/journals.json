@@ -30,7 +30,8 @@
   "errors": {
     "denied": "Anda tidak dapat melakukan perubahan ini",
     "invalid": "Periksa baris jurnal",
-    "refused": "Jurnal tidak diterima"
+    "refused": "Jurnal tidak diterima",
+    "tooManyDecimals": "Jumlah memiliki lebih banyak desimal daripada yang dimiliki mata uang. Hapus desimal yang berlebih."
   },
   "form": {
     "account": "Akun",
