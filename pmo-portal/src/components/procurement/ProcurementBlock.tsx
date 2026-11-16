@@ -499,7 +499,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
     items.push({ label: t('procurement.rowMenu.recordDocument', 'Record another document'), onClick: () => openFullRecord(row) });
     if (canDecideRow(row)) {
       if (!inDrawer) items.push({ label: t('projectDetail.procurement.rowMenu.approve', 'Approve'), onClick: () => decide([row], 'Approved') });
-      items.push({ label: t('projectDetail.procurement.rowMenu.return', 'Return'), onClick: () => decide([row], 'Rejected') });
+      // In the drawer Return is a visible header button beside Approve, not a menu entry.
+      if (!inDrawer) items.push({ label: t('projectDetail.procurement.rowMenu.return', 'Return'), onClick: () => decide([row], 'Rejected') });
     }
     if (canAttachDocument) {
       items.push({ label: t('procurement.rowMenu.linkFile', 'Link a file'), onClick: () => attachDocument(row) });
@@ -1068,6 +1069,11 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         nestedOpen={pendingDecision !== null}
         onClose={() => setSelected(null)}
         headerActions={selected ? <>
+          {drawerMain?.transition.to === 'Approved' && canDecideRow(selected) && (
+            <Button size="sm" variant="outline" onClick={() => decide([selected], 'Rejected')} disabled={transition.isPending}>
+              {t('projectDetail.procurement.rowMenu.return', 'Return')}
+            </Button>
+          )}
           {drawerMain && <Button size="sm" onClick={runDrawerMain} disabled={transition.isPending || (drawerMain.transition.to === 'Requested' && (drawerDetails?.items?.length ?? 0) === 0)}>
             {drawerMain.label}
           </Button>}
