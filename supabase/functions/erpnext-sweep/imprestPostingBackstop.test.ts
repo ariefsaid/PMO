@@ -61,7 +61,7 @@ Deno.test('AC-IMP-072 a gate refusal marks the intent failed and the queue still
     assertGate: async (r) => (r.id === '1' ? { ok: false, reason: 'imprest-posting-actor-not-authorized' } : { ok: true, truth }),
   });
   const r = await reconcileOrgImprestPostings(d.deps, { orgId: 'org-1' });
-  assertEquals(d.log, ['attempted:1,2', 'record:1:failed:imprest-posting-actor-not-authorized', 'drive:2']);
+  assertEquals(d.log, ['attempted:1', 'record:1:failed:imprest-posting-actor-not-authorized', 'attempted:2', 'drive:2']);
   assertEquals([r.refused, r.driven], [1, 1]);
 });
 
