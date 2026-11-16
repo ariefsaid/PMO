@@ -691,6 +691,8 @@
       "utilizationFormula": "Pengeluaran dibagi anggaran kategori sebelum pajak.",
       "budgetUsedUnavailable": "Anggaran terpakai tidak diketahui atau tidak tersedia.",
       "uncategorizedTotalKnown": "Pengeluaran proyek diketahui; beberapa jumlah kategori belum dipetakan.",
+      "uncategorizedSpend": "{{amount}} dibayar tanpa kategori anggaran, jadi tidak masuk kategori mana pun.",
+      "uncategorizedSpendUnknown": "Sebagian pengeluaran dibayar tanpa kategori anggaran, jadi tidak masuk kategori mana pun.",
       "leftFormula": "Anggaran dikurangi pengeluaran dan pesanan terbuka, sebelum pajak.",
       "leftAfterSpendingFormula": "Anggaran aktif dikurangi pengeluaran tercatat, sebelum pajak.",
       "leftUnavailable": "Sisa setelah pesanan terbuka tidak diketahui karena pengeluaran atau komitmen belum tersedia.",

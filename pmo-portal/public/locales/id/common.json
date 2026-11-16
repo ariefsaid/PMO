@@ -3649,9 +3649,6 @@
     "signedInAs": "Masuk sebagai {{email}}",
     "title": "Izinkan {{client}} mengakses akun PMO Anda?"
   },
-  "uxs04": {
-    "noActiveBudget": "Tidak ada anggaran aktif"
-  },
   "uxs05": {
     "customerReference": "Referensi pelanggan",
     "overdueOnly": "Hanya yang terlambat"
