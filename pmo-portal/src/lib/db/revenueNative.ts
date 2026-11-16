@@ -55,8 +55,8 @@ export const NATIVE_REVENUE_REFUSALS = [
   // State (P0001) and approval SoD.
   'invoice-not-receivable', 'invoice-has-receipts', 'receipt-already-cancelled', 'illegal-transition',
   'sod-self-approval', 'sod-author-missing', 'native-drafts-open',
-  // 0704 (#1817): a time-and-materials claim's invoice.
-  'claim-already-invoiced', 'no-client', 'claim-total-mismatch',
+  // 0704 (#1817): a time-and-materials claim's invoice; 0924: a progress or down-payment claim's.
+  'claim-already-invoiced', 'no-client', 'claim-total-mismatch', 'claim-kind',
   // #1415 (migration 0731): applying a receipt to invoices.
   'allocation-exceeds-unapplied', 'allocation-exceeds-balance', 'allocation-amount-invalid', 'allocation-duplicate-invoice',
   'allocation-client-mismatch', 'allocation-currency-mismatch', 'allocation-already-reversed', 'receipt-not-applicable',

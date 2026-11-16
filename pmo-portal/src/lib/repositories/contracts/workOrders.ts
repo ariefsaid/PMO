@@ -88,6 +88,8 @@ export interface ProgressBillingRepository {
   withdrawClaim(id: string): Promise<void>;
   /** Raise the claim's ERP invoice; the claim id IS the invoice's PMO record id (ADR-0077). */
   raiseInvoice(claim: { claimId: string; projectId: string; customerId: string }, intent?: CommandIntent): Promise<{ id: string; si_number: string }>;
+  /** No ERP owns revenue: the claim's invoice is a PMO Draft (the claim's id), approved by someone else, paid in PMO. */
+  raiseNativeInvoice(claimId: string): Promise<string>;
   /** Null when the project is invisible — never a zero summary. */
   summary(projectId: string): Promise<ProjectBillingFacts | null>;
 }

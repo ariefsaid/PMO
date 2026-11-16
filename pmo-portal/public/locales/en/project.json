@@ -240,6 +240,7 @@
           "claimWithdrawn": "This claim was withdrawn. Its invoice can't be raised.",
           "alreadyInvoiced": "This claim already has an invoice.",
           "noClient": "This project has no client to invoice. Set the client on the project first.",
+          "invoiceTotalInvalid": "This claim's net is zero, so there is nothing to invoice. Withdraw it.",
           "totalMismatch": "This claim's lines do not add up to its total. Withdraw it and assemble it again."
         },
         "withdrawn": "Withdrawn",

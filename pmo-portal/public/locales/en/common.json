@@ -3889,6 +3889,8 @@
     "editBudgetLineItemNamed": "Edit line item {{category}}",
     "invoiceDetails": "Invoice details",
     "lineItemsSection": "Line items",
+    "nativeLineDownPayment": "Down payment",
+    "nativeLineDownPaymentRecovery": "Down payment recovery",
     "paymentDetails": "Payment details",
     "invoiceCount_one": "{{count}} invoice",
     "invoiceCount_other": "{{count}} invoices",

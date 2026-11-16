@@ -130,7 +130,7 @@ beforeEach(() => {
   h.tmClaims = { data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
   h.tmMutation.mockReset().mockResolvedValue(undefined);
   h.revenueMode = null; h.tmInvoice.mockReset().mockResolvedValue('tm-1');
-  h.m = Object.fromEntries(['createBoq', 'updateBoq', 'deleteBoq', 'recordAssessment', 'createClaim', 'attachEvidence', 'withdrawClaim', 'raiseInvoice']
+  h.m = Object.fromEntries(['createBoq', 'updateBoq', 'deleteBoq', 'recordAssessment', 'createClaim', 'attachEvidence', 'withdrawClaim', 'raiseInvoice', 'raiseNativeInvoice']
     .map((name) => [name, { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false }]));
 });
 
@@ -511,10 +511,10 @@ describe('BillingTab', () => {
       new AppError('this progress claim was withdrawn, so no invoice can be raised for it', '55000'),
     );
     const { user } = await renderTabLocalized('id');
-    await user.click(within(screen.getByTestId('claim-actions-k2')).getByRole('button', { name: 'Terbitkan faktur' }));
-    await user.click(screen.getByRole('button', { name: 'Buat faktur ERP' }));
-    const toast = await findToastAnnouncement('alert', 'Tagihan ini telah ditarik. Fakturnya tidak dapat diterbitkan.');
-    expect(toast).toHaveTextContent('Tagihan ini telah ditarik. Fakturnya tidak dapat diterbitkan.');
+    await user.click(within(screen.getByTestId('claim-actions-k2')).getByRole('button', { name: 'Terbitkan invoice' }));
+    await user.click(screen.getByRole('button', { name: 'Buat invoice ERP' }));
+    const toast = await findToastAnnouncement('alert', 'Tagihan ini telah ditarik. Invoice-nya tidak dapat diterbitkan.');
+    expect(toast).toHaveTextContent('Tagihan ini telah ditarik. Invoice-nya tidak dapat diterbitkan.');
     expect(toast).not.toHaveTextContent('Update failed');
   });
 
@@ -605,12 +605,68 @@ describe('BillingTab', () => {
     expect(screen.queryByRole('button', { name: 'Record progress' })).toBeNull();
   });
 
-  it('AC-PB-008 Finance can start an invoice without ERP but cannot create a new claim', () => {
+  it('AC-PB-008 Finance can start an invoice without ERP, and the start offers the contract-line claim', async () => {
     h.connected = false;
-    renderTab();
+    const user = renderTab();
     expect(screen.queryByRole('button', { name: 'New claim' })).toBeNull();
     const summaryHeader = screen.getByRole('heading', { name: /Billing summary/ }).parentElement?.parentElement;
-    expect(within(summaryHeader!).getByRole('button', { name: 'Raise invoice' })).toBeInTheDocument();
+    await user.click(within(summaryHeader!).getByRole('button', { name: 'Raise invoice' }));
+    expect(await screen.findByRole('button', { name: /Quantity or progress claim/ })).toBeInTheDocument();
+  });
+
+  describe('AC-PBL-NAT-004 UI: an organisation with no ERP bills a progress claim in PMO (#2465)', () => {
+    beforeEach(() => { h.connected = false; });
+
+    it('offers evidence and withdraw on an open claim, and the raise once it has evidence', () => {
+      renderTab();
+      const noEvidence = within(screen.getByTestId('claim-actions-k1'));
+      expect(noEvidence.getByRole('button', { name: 'Attach evidence' })).toBeInTheDocument();
+      expect(noEvidence.getByRole('button', { name: 'Withdraw' })).toBeInTheDocument();
+      expect(noEvidence.queryByRole('button', { name: 'Raise invoice' })).toBeNull();
+      const evidenced = within(screen.getByTestId('claim-actions-k2'));
+      expect(evidenced.getByRole('button', { name: 'Raise invoice' })).toBeInTheDocument();
+    });
+
+    it('creates the invoice with the PMO mutation, never the ERP raise or the T&M one', async () => {
+      const user = renderTab();
+      await user.click(within(screen.getByTestId('claim-actions-k2')).getByRole('button', { name: 'Raise invoice' }));
+      const dialog = screen.getByRole('dialog', { name: "Create this claim's invoice?" });
+      expect(within(dialog).getByTestId('raise-figures')).toHaveTextContent('net');
+      await user.click(within(dialog).getByRole('button', { name: 'Create invoice' }));
+      expect(h.m.raiseNativeInvoice.mutateAsync).toHaveBeenCalledExactlyOnceWith('k2');
+      expect(h.m.raiseInvoice.mutateAsync).not.toHaveBeenCalled();
+      expect(h.tmInvoice).not.toHaveBeenCalled();
+      expect(await findToastAnnouncement('status', 'Invoice drafted in PMO')).toBeInTheDocument();
+    });
+
+    it('withdraws an open claim without an ERP', async () => {
+      const user = renderTab();
+      await user.click(within(screen.getByTestId('claim-actions-k1')).getByRole('button', { name: 'Withdraw' }));
+      await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Withdraw claim' }));
+      expect(h.m.withdrawClaim.mutateAsync).toHaveBeenCalledExactlyOnceWith('k1');
+    });
+
+    it('names a claim recovered in full in plain words', async () => {
+      const { AppError } = await import('@/src/lib/appError');
+      h.m.raiseNativeInvoice.mutateAsync.mockRejectedValue(new AppError('the invoice total must be above zero', 'invoice-total-invalid'));
+      const user = renderTab();
+      await user.click(within(screen.getByTestId('claim-actions-k2')).getByRole('button', { name: 'Raise invoice' }));
+      await user.click(within(screen.getByRole('dialog', { name: "Create this claim's invoice?" })).getByRole('button', { name: 'Create invoice' }));
+      expect(await findToastAnnouncement('alert', "This claim's net is zero, so there is nothing to invoice. Withdraw it.")).toBeInTheDocument();
+    });
+
+    it('offers nothing to a person who may not raise a customer invoice', () => {
+      h.role = 'Project Manager'; h.userId = 'pm-2';
+      renderTab();
+      expect(screen.queryByRole('button', { name: 'Attach evidence' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Raise invoice' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Withdraw' })).toBeNull();
+    });
+
+    it('offers nothing while the project has no client to invoice', () => {
+      renderTab(null);
+      expect(screen.queryByRole('button', { name: 'Attach evidence' })).toBeNull();
+    });
   });
 
   it('AC-PB-008 Finance gets no billing buttons when the project has no client', () => {

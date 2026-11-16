@@ -141,3 +141,16 @@ export function nativeInvoiceSummary(inv: { native_lines?: NativeInvoiceLine[] |
   const first = lines[0].description ?? lines[0].item_code ?? '';
   return lines.length > 1 ? `${first} +${lines.length - 1}` : first;
 }
+
+/**
+ * The name of a native invoice line. A claim's down-payment lines carry a `role` (migration 0924) so they read in the viewer's
+ * language; any other line shows its own description (or item code).
+ */
+export function nativeLineName(
+  line: { role?: string; description: string | null; item_code: string | null },
+  t: (key: string, fallback: string) => string,
+): string | null {
+  if (line.role === 'down_payment') return t('financeCopy.nativeLineDownPayment', 'Down payment');
+  if (line.role === 'down_payment_recovery') return t('financeCopy.nativeLineDownPaymentRecovery', 'Down payment recovery');
+  return line.description ?? line.item_code;
+}

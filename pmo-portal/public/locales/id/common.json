@@ -3889,6 +3889,8 @@
     "editBudgetLineItemNamed": "Edit item anggaran {{category}}",
     "invoiceDetails": "Detail faktur",
     "lineItemsSection": "Item faktur",
+    "nativeLineDownPayment": "Uang muka",
+    "nativeLineDownPaymentRecovery": "Pemulihan uang muka",
     "paymentDetails": "Detail pembayaran",
     "invoiceCount_one": "{{count}} faktur",
     "invoiceCount_other": "{{count}} faktur",
