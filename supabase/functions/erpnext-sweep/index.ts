@@ -109,7 +109,7 @@ import { createInFlightAnchorProbe, type InFlightAnchorProbe } from '../_shared/
 import {
   type ErpSweepCadence, fullSweepDue, HOURLY_INVOCATION_DEADLINE_MS, HOURLY_TRY_DEADLINE_MS, SWEEP_INVOCATION_DEADLINE_MS, SWEEP_BACKFILL_EVERY_MINUTES, SWEEP_FULL_INTERVAL_MS,
   SWEEP_RETRY_DELAY_SECONDS, statementPassDue, STATEMENT_PASS_INTERVAL_MS, STATEMENT_PASS_RETRY_DELAY_SECONDS, sweepCadenceAt,
-  sweepRetryDelaySeconds,
+  sweepRetryDelaySeconds, sweepTurn,
 } from './sweepCadence.ts';
 export {
   type ErpSweepCadence, fullSweepDue, SWEEP_BACKFILL_EVERY_MINUTES, SWEEP_FULL_INTERVAL_MS, SWEEP_RETRY_DELAY_SECONDS,
@@ -393,6 +393,9 @@ export interface ErpSweepCycleDeps {
   invocationDeadlineAtMs?: number;
   /** #2149: the earlier deadline the hourly and statement passes' ERP tries share (`HOURLY_TRY_DEADLINE_MS` after entry). */
   hourlyTryDeadlineAtMs?: number;
+  /** This tick's place in the once-a-minute schedule (`sweepTurn`): it picks which organisation with no failed hourly
+   *  run goes first, so they take turns. Without it they go in the order their hourly work waited. */
+  turn?: number;
 }
 
 
@@ -444,6 +447,17 @@ export async function runErpSweepCycle(
   const failing = (o: OrgBinding) => ((o.fullSweepFailures ?? 0) > 0 ? 1 : 0);
   const waitedSince = (o: OrgBinding) => (o.lastFullSweepAt ? Date.parse(o.lastFullSweepAt) || 0 : 0);
   const orgs = [...(await deps.listEmployingOrgs())].sort((a, b) => failing(a) - failing(b) || waitedSince(a) - waitedSince(b));
+  // The organisations with no failed hourly run take turns going first: this tick's turn picks one of them by a fixed
+  // order (org id), so over N consecutive ticks each of N such organisations leads once, however slowly another's
+  // ERPNext answers. The rest keep the waited-longest order; failing organisations still go last.
+  if (deps.turn !== undefined) {
+    const rotating = orgs.filter((o) => failing(o) === 0).map((o) => o.orgId).sort();
+    if (rotating.length > 1) {
+      const leadId = rotating[((deps.turn % rotating.length) + rotating.length) % rotating.length];
+      const at = orgs.findIndex((o) => o.orgId === leadId);
+      orgs.unshift(...orgs.splice(at, 1));
+    }
+  }
   const pastDeadline = () => deps.hourlyDeadlineAtMs !== undefined && (deps.nowMs ?? Date.now)() >= deps.hourlyDeadlineAtMs;
   // #2149: one budget for the whole invocation; each org's ERP fetch spends it (`orgErpFetch`).
   const budget: SweepBudget | undefined = deps.invocationDeadlineAtMs === undefined ? undefined
@@ -1580,6 +1594,7 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
     hourlyDeadlineAtMs: handlerEntryMs + HOURLY_INVOCATION_DEADLINE_MS,
     invocationDeadlineAtMs: handlerEntryMs + SWEEP_INVOCATION_DEADLINE_MS,
     hourlyTryDeadlineAtMs: handlerEntryMs + HOURLY_TRY_DEADLINE_MS,
+    turn: sweepTurn(handlerEntryMs),
     deferFullSweep: async (org, dueInSeconds) => {
       if (!org.statementLockHolder) throw new Error('no sweep lock held');
       const { data, error } = await serviceClient.rpc('defer_erp_full_sweep', { p_org_id: org.orgId, p_holder: org.statementLockHolder, p_due_in_seconds: dueInSeconds });
