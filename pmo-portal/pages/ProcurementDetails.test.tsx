@@ -660,7 +660,7 @@ describe('AC-805: role-gated transition actions (FR-PROC-006, UI gate)', () => {
     const evidence = screen.getByRole('heading', { name: /budget impact/i });
     const policy = screen.getByTestId('sod-ready-hint');
     expect(evidence.compareDocumentPosition(policy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(policy).toHaveTextContent(/requester cannot self-approve/i);
+    expect(policy).toHaveTextContent(/requester cannot approve their own/i);
   });
 
   it('AC-805: no Approve/Reject for Draft status (not a legal transition from Draft)', () => {
