@@ -140,8 +140,8 @@ export function EngineerTasksCard({
                       <li key={task.id} className="min-w-0">
                         <Link to={taskHref(task)} className="flex min-h-11 min-w-0 items-center justify-between gap-3 py-2 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-control font-normal">{task.name}</span>
-                            <span className="block truncate text-control text-muted-foreground">{task.project_name ?? t('hub.engineer.noProject', 'No project')}</span>
+                            <span className="block break-words text-control font-normal">{task.name}</span>
+                            <span className="block break-words text-control text-muted-foreground">{task.project_name ?? t('hub.engineer.noProject', 'No project')}</span>
                           </span>
                           {late !== null
                             ? <LateText tone="destructive" className="shrink-0 whitespace-nowrap">{t('hub.engineer.daysLate', { count: late, defaultValue_one: '{{count}} day overdue', defaultValue_other: '{{count}} days overdue' })}</LateText>
@@ -169,8 +169,8 @@ export function EngineerReturnedCard({ claims }: { claims: ExpenseClaimWithRefs[
           <li key={claim.id}>
             <Link to="/expenses?status=Rejected" className="flex min-h-11 items-center justify-between gap-3 py-2 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
               <span className="min-w-0">
-                <span className="block truncate text-control font-medium">{claim.title}</span>
-                <span className="block truncate text-control text-muted-foreground">{claim.project?.short_name ?? claim.project?.name ?? t('hub.engineer.noProject', 'No project')}</span>
+                <span className="block break-words text-control font-medium">{claim.title}</span>
+                <span className="block break-words text-control text-muted-foreground">{claim.project?.short_name ?? claim.project?.name ?? t('hub.engineer.noProject', 'No project')}</span>
               </span>
             </Link>
           </li>
@@ -213,7 +213,7 @@ export function EngineerRecentEntriesPanel({
                         >
                           <span className="min-w-0">
                             <span className="block text-control font-medium tabular">{formatDay(entry.entry_date)} · {formatNumberExact(entry.hours)}&nbsp;{t('hub.engineer.hourUnit', 'h')}</span>
-                            <span className="block truncate text-control text-muted-foreground">{project}{entry.notes ? ` · ${entry.notes}` : ''}</span>
+                            <span className="block break-words text-control text-muted-foreground">{project}{entry.notes ? ` · ${entry.notes}` : ''}</span>
                           </span>
                           {status && <span className="shrink-0"><StatusPill record="timesheet" state={status} /></span>}
                         </Link>
