@@ -97,7 +97,10 @@ describe('procurement record panels', () => {
       </FigureScope>,
     );
 
-    await userEvent.click(within(screen.getByTestId('figures-hidden')).getByRole('button', { name: 'Why' }));
+    // The count is on the face; only the reason sits behind Why.
+    const line = within(screen.getByTestId('procurement-money-summary')).getByTestId('figures-hidden');
+    expect(line).toHaveTextContent('1 figure hidden');
+    await userEvent.click(within(line).getByRole('button', { name: 'Why' }));
     expect(await screen.findByText('purchase request amount not recorded')).toBeInTheDocument();
   });
 
