@@ -336,10 +336,15 @@ const FinancialStatements: React.FC = () => {
     refreshing: t('financialStatements.refreshing', 'Refreshing statements…'),
   };
 
+  const lineCount = isValidRead && detailRead && detailRead.result.viewKind === 'account_breakdown'
+    ? detailRead.result.payload.current.rows.filter((row) => Object.keys(row).length > 0).length
+    : undefined;
+
   return (
     <ListPage
       title={t('financeHub:hub.statements', 'Statements')}
-     
+      count={lineCount}
+      total={lineCount}
       className="min-w-0"
     >
       {odooMode.error && <LedgerModeNotice className="mb-4" onRetry={odooMode.retry} />}
