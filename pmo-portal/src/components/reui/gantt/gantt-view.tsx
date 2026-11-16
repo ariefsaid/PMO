@@ -3938,17 +3938,17 @@ const GanttTimelineRow = memo(function GanttTimelineRow({
                 {/* envelope end caps: the classic PM rollup silhouette, muted */}
                 <span
                   aria-hidden
-                  className="bg-muted-foreground/50 absolute start-0 top-1/2 h-3 w-0.5 -translate-y-1/2 rounded-full"
+                  className="bg-mark-neutral/50 absolute start-0 top-1/2 h-3 w-0.5 -translate-y-1/2 rounded-full"
                 />
                 <span
                   aria-hidden
-                  className="bg-muted-foreground/50 absolute end-0 top-1/2 h-3 w-0.5 -translate-y-1/2 rounded-full"
+                  className="bg-mark-neutral/50 absolute end-0 top-1/2 h-3 w-0.5 -translate-y-1/2 rounded-full"
                 />
-                <div className="bg-muted-foreground/20 relative h-1.5 overflow-hidden rounded-full">
+                <div className="bg-mark-neutral/20 relative h-1.5 overflow-hidden rounded-full">
                   {bars.summary.progress !== null && (
                     <div
                       data-slot="gantt-summary-progress"
-                      className="bg-muted-foreground/50 absolute inset-y-0 start-0 rounded-full"
+                      className="bg-mark-neutral/50 absolute inset-y-0 start-0 rounded-full"
                       style={{ width: `${bars.summary.progress}%` }}
                     />
                   )}

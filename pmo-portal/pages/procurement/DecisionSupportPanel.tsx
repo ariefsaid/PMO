@@ -298,7 +298,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             aria-valuemax={100}
             className="flex h-2 overflow-hidden rounded-full bg-secondary"
           >
-            <span className="bg-muted-foreground/55" style={{ width: `${spokenPct}%` }} />
+            <span className="bg-mark-neutral/55" style={{ width: `${spokenPct}%` }} />
             <span className={impactTone} style={{ width: `${thisPct}%` }} />
           </div>
           <p className="mt-1 text-control text-muted-foreground tabular">

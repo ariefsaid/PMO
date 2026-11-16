@@ -36,7 +36,7 @@ const TONE_CLASS: Record<ProgressTone, string> = {
   warning: 'bg-warning',
   destructive: 'bg-destructive',
   primary: 'bg-primary',
-  neutral: 'bg-muted-foreground/55',
+  neutral: 'bg-mark-neutral/55',
 };
 
 /**
