@@ -75,9 +75,9 @@ export const CardHead = React.forwardRef<HTMLHeadingElement, CardHeadProps>(({
       // The heading sits 16px above its content: this row's own bottom padding is the whole gap, so the
       // next sibling (usually CardPad) drops its top inset instead of stacking 16 + inset (a 40px band).
       // flex-wrap: on a phone the actions take their own row instead of squeezing the title onto two lines.
-      className={cn('flex flex-wrap items-start gap-2 px-[var(--panel-inset)] py-4 [&+*]:pt-0', className)}
+      className={cn('flex items-start flex-wrap gap-2 px-[var(--panel-inset)] py-4 [&+*]:pt-0', className)}
     >
-      <div className="min-w-[10rem] flex-1">
+      <div className="min-w-0 flex-1 basis-40">
         <Heading
           ref={ref}
           className="flex min-w-0 items-center gap-2 text-group font-semibold text-foreground"

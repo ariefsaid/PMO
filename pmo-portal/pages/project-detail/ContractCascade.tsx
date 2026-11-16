@@ -277,7 +277,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
             </Tooltip>)}
             {overdue > 0 && <Tooltip content={t('projectDetail.cascade.source.overdue', 'Sum of positive outstanding balances on invoices past their due date.')}>
               <span className="inline-flex cursor-help items-center gap-2 text-warning-foreground tabular-nums">
-                <StatusPill variant="overdue">{t('projectDetail.cascade.overdue', 'Overdue')}</StatusPill>
+                <StatusPill variant="overdue" wrap={false}>{t('projectDetail.cascade.overdue', 'Overdue')}</StatusPill>
                 <strong className="font-semibold">{tableMoney(overdue)}</strong>
               </span>
             </Tooltip>}

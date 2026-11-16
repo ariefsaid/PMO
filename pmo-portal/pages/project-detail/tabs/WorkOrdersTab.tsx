@@ -575,7 +575,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       />
 
       <section aria-labelledby="pd-customer-orders" className="panel-card min-w-0">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-[var(--panel-inset)] py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-[var(--panel-inset)] py-4 [&+*]:pt-0">
           <div className="flex flex-wrap items-baseline gap-x-2">
             <h2 id="pd-customer-orders" className="text-group font-semibold text-foreground">
               {t('projectDetail.contract.orders', 'Customer orders')}

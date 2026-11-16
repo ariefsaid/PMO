@@ -158,7 +158,7 @@ const WorkOrdersClaimsCard: React.FC<{
             <MoneyFigure label={t('projectDetail.billing.summary.notSubmitted', 'Claims raised, not yet submitted')} value={money(summary.notSubmitted)} detail={t('projectDetail.billing.source.notSubmitted', 'Source: claim invoices created in accounting but not yet submitted.')} />
           </dl> : <p className="mt-3 text-sm text-muted-foreground">{t('projectDetail.billing.summary.unavailable', 'Billing summary is unavailable.')}</p>}
         </details>
-        {!claimsRead.isPending && !claimsRead.isError && claimRows.length === 0 ? <ListState variant="empty"
+        {!claimsRead.isPending && !claimsRead.isError && claimRows.length === 0 ? <ListState variant="empty" quiet
           title={t('projectDetail.billing.claims.empty', 'No billing claims yet')}
           sub={emptySub} /> : <DataTable<ProgressClaimWithInvoice>
           embedded
