@@ -1,5 +1,5 @@
 -- 0924_native_progress_claim_invoice.test.sql — an organisation where no ERP owns revenue raises a progress claim's invoice in PMO.
--- AC-NAR-040..049 (docs/specs/no-erp-revenue.spec.md), AC-PBL-NAT-001..004 (docs/specs/progress-billing.spec.md §6.1). Ids: 09240000-… (synthetic).
+-- AC-NAR-040..049 (docs/specs/no-erp-revenue.spec.md), AC-PBL-NAT-001..004 (docs/specs/progress-billing.spec.md §9). Ids: 09240000-… (synthetic).
 -- Org a1 has no ERP; a2 is foreign; a3 has ONE user (the sole operator); a4 is ERP-owned.
 -- Users: b1 fin1 (creates + evidences the claims), b5 fin3 (raises them), b2 fin2 and b3 admin (approve), b4 pm, b6 engineer,
 -- b7 executive, b8 foreign admin, b9 disabled admin, ba sole-operator Finance (a3), bb ERP-org Finance (a4).

@@ -222,7 +222,7 @@
           "invoice": "Faktur"
         },
         "billingTitle": "Klaim penagihan",
-        "billingEmptySub": "Klaim menagih uang muka atau kuantitas pekerjaan yang selesai sebagai satu faktur ERP.",
+        "billingEmptySub": "Klaim menagih uang muka atau kuantitas pekerjaan yang selesai sebagai satu invoice.",
         "toast": {
           "raised": "Invoice diterbitkan di ERP",
           "raisedNative": "Draf invoice dibuat di PMO",
@@ -240,6 +240,7 @@
           "claimWithdrawn": "Tagihan ini telah ditarik. Invoice-nya tidak dapat diterbitkan.",
           "alreadyInvoiced": "Tagihan ini sudah memiliki invoice.",
           "noClient": "Proyek ini belum punya klien untuk ditagih. Atur klien proyek terlebih dahulu.",
+          "claimKind": "Invoice tagihan ini dibuat dari persetujuannya, bukan dari sini.",
           "invoiceTotalInvalid": "Nilai neto tagihan ini nol, jadi tidak ada yang bisa diinvoice. Tarik tagihan ini.",
           "totalMismatch": "Rincian tagihan ini tidak sesuai dengan totalnya. Tarik tagihan lalu susun ulang."
         },
@@ -329,7 +330,7 @@
         "quantity": "{{item}}: {{description}} ({{unit}})",
         "kind": "Jenis tagihan",
         "save": "Buat tagihan",
-        "subtitle": "Satu tagihan menjadi satu faktur ERP. Lampirkan bukti sebelum menerbitkannya.",
+        "subtitle": "Satu tagihan menjadi satu invoice. Lampirkan bukti sebelum menerbitkannya.",
         "recoverRest": "Pulihkan sisa uang muka dengan tagihan ini",
         "scope": "Menagih",
         "scopeContract": "Baris tanpa $t(common:terms.clientWorkOrder)",

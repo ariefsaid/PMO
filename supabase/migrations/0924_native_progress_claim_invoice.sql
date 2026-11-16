@@ -1,5 +1,5 @@
 -- 0924_native_progress_claim_invoice.sql — an organisation where no ERP owns revenue raises a progress claim's invoice in PMO.
--- FR-NAR-040..046 (docs/specs/no-erp-revenue.spec.md), AC-NAR-040..049; AC-PBL-NAT-* (docs/specs/progress-billing.spec.md §6.1).
+-- FR-NAR-040..047 (docs/specs/no-erp-revenue.spec.md §10), AC-NAR-040..050; AC-PBL-NAT-001..004 (docs/specs/progress-billing.spec.md §9); #2465.
 --
 -- create_native_progress_claim_invoice(p_claim) is create_native_tm_invoice (0704) for a progress or down-payment claim: the
 -- invoice is a PMO Draft whose id IS the claim id (the primary key is the one-invoice-per-claim guard, and how

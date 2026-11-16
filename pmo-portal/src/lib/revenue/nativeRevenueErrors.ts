@@ -44,6 +44,7 @@ export function nativeRevenueHeadlines(t: T): Record<NativeRevenueRefusal, strin
     'claim-already-invoiced': t('project:projectDetail.billing.claims.errors.alreadyInvoiced', "This claim already has an invoice."),
     'no-client': t('project:projectDetail.billing.claims.errors.noClient', "This project has no client to invoice. Set the client on the project first."),
     'claim-total-mismatch': t('project:projectDetail.billing.claims.errors.totalMismatch', "This claim's lines do not add up to its total. Withdraw it and assemble it again."),
+    'claim-kind': t('project:projectDetail.billing.claims.errors.claimKind', "This claim is invoiced from its sign-off, not from here."),
   };
 }
 

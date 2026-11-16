@@ -2178,7 +2178,7 @@
         "save": "Create claim",
         "scope": "Bills",
         "scopeContract": "Lines with no work order",
-        "subtitle": "A claim becomes one ERP invoice. Attach the evidence before raising it.",
+        "subtitle": "A claim becomes one invoice. Attach the evidence before raising it.",
         "title": "New billing claim"
       },
       "claims": {
@@ -3889,8 +3889,6 @@
     "editBudgetLineItemNamed": "Edit line item {{category}}",
     "invoiceDetails": "Invoice details",
     "lineItemsSection": "Line items",
-    "nativeLineDownPayment": "Down payment",
-    "nativeLineDownPaymentRecovery": "Down payment recovery",
     "paymentDetails": "Payment details",
     "invoiceCount_one": "{{count}} invoice",
     "invoiceCount_other": "{{count}} invoices",

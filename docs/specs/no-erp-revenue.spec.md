@@ -28,11 +28,12 @@ repository (`revenue-not-enabled`); nothing can approve, number, settle or mark 
 
 **In:** raise (Draft) → approve by a different Admin/Finance user → record part or full receipts → Paid; cancel a
 Draft or an unsettled invoice; cancel a receipt; behaviour when the org later connects an ERP; the Approvals-page queue
-for PMO drafts; the revenue tables' write policies stated as the owner's rule (Admin and Finance only).
+for PMO drafts; the revenue tables' write policies stated as the owner's rule (Admin and Finance only); a progress or
+down-payment claim's invoice raised in PMO (§10, #2465).
 
 **Out (not needed by an AC — each a follow-up or an owner question, §9):** printable/PDF invoice · editing a raised
 invoice (cancel and re-raise) · "Invoice this work order" button in a no-ERP org (the RPC already accepts a work
-order; the #785 tab gate and dialog copy are ERP-only) · progress-billing claim invoices without an ERP · the
+order; the #785 tab gate and dialog copy are ERP-only) · the
 assistant's `draft_invoice` in a no-ERP org · showing the PMO number in the assistant's overdue list · credit notes,
 dunning, currency conversion · notifications to approvers.
 
@@ -193,6 +194,7 @@ dunning, currency conversion · notifications to approvers.
 | AC-NAR-005 | `supabase/tests/0275_native_revenue_approve.test.sql` (pgTAP) | `0275_native_revenue_receipts.test.sql` (receipt blocks cancel) |
 | AC-NAR-006 | `supabase/tests/0275_native_revenue_receipts.test.sql` (pgTAP) | `pages/__tests__/IncomingPayments.native.test.tsx` |
 | AC-NAR-007 | `supabase/tests/0275_revenue_write_roles.test.sql` (pgTAP) | role refusals in the create/approve/receipts files |
+| AC-NAR-040..050 | `supabase/tests/0924_native_progress_claim_invoice.test.sql` (pgTAP) | `0250_progress_billing_claims.test.sql` (ERP-owned refusal), `pages/project-detail/tabs/__tests__/BillingTab.test.tsx`, `src/lib/revenue/nativeInvoice.test.ts` |
 | NFR-NAR-001 | `supabase/tests/0275_native_revenue_acl.test.sql` + `0178_anon_executable_definers.test.sql` | migration §9 assertions |
 
 ## 8. Premises corrected while specifying
@@ -221,3 +223,67 @@ dunning, currency conversion · notifications to approvers.
    contract value. Alternative: an org-wide default rate.
 6. **"Invoice this work order" without an ERP.** Default: follow-up right after #784 (UI gate + dialog copy only; the
    server already accepts the work order).
+
+## 10. Amendment 2026-11-16 — a progress or down-payment claim's invoice without an ERP (#2465)
+
+**Job story.** When my org has no ERP, I want to bill a progress claim: make the claim from the contract lines, attach its
+evidence, raise its invoice in PMO, have a second person approve it, and record the payment, so a claim bills in PMO as
+a Draft invoice does. (Until now only the ERP could raise a claim's invoice, and the Billing tab hid New claim, Attach
+evidence, Raise invoice and Withdraw without an ERP. No SQL refusal ever stopped creating, evidencing or withdrawing a claim.)
+
+**Decisions.** The invoice is `create_native_tm_invoice` (0704) for a progress or down-payment claim: its id IS the claim id
+(one invoice per claim, the primary key backs it), its lines are the claim's own lines as claimed plus one negative line for
+the down payment recovered, so its total is the claim's net (gross − recovery) and tax is the project's on that net, the same
+figures the ERP raise builds. A down payment claim in an org that has no down-payment item and no ERP owning revenue names
+one fixed PMO item (`native_down_payment_item()`, no Administration step); the ERP raise refuses a claim that names it, in
+plain words. Migration 0924, one RPC, no table.
+
+- **FR-NAR-040** While no ERP owns revenue for the org, the system shall let an Admin or Finance member create, evidence and
+  withdraw a progress or down-payment claim, and the Billing tab shall offer New claim, Attach evidence, Raise invoice and
+  Withdraw to them; with an ERP connected nothing changes.
+- **FR-NAR-041** When an Admin or Finance member raises the invoice of a live claim that has evidence, in an org where no ERP
+  owns revenue, the system shall create a PMO Draft whose id is the claim's id, in the claim's (project's, work order's)
+  currency, billed as contract billing, with the project's VAT on the claim's net; it shall refuse when the claim is withdrawn,
+  has no evidence, the project has no client, the VAT rate is missing, the lines do not add up to the claim's net, the net is
+  zero, or the claim is a time-and-materials claim.
+- **FR-NAR-042** The system shall allow one invoice per claim whatever its status: a cancelled invoice still blocks a second.
+- **FR-NAR-043** The claim's creator and whoever raised the invoice shall be authors of the invoice, so neither can approve it;
+  an organisation with one user cannot approve its own invoice.
+- **FR-NAR-044** Where an org has no down-payment item and no ERP owns revenue, a down-payment claim shall name the one fixed
+  PMO item; an org whose ERP owns revenue and has no item shall be refused exactly as before.
+- **FR-NAR-045** When the ERP raise is asked for a claim that names that item, the system shall refuse in plain words
+  ("withdraw this claim and assemble it again after the ERP's down payment item is set") and send nothing to the ERP.
+- **FR-NAR-046** Every billing figure (billed work, down payment held, recovered, not submitted, the work order's billed
+  total, the project finances, the dashboards and the management pack) shall count a native claim invoice exactly once, and a
+  cancelled native invoice shall count nowhere, as a cancelled ERP invoice does.
+- **FR-NAR-047** The invoice's down-payment lines shall read "Down payment" and "Down payment recovery" in the viewer's language
+  (en, id); the fixed PMO item code is never a visible name.
+
+AC (Given/When/Then), each owned by `supabase/tests/0924_native_progress_claim_invoice.test.sql` unless noted:
+
+- **AC-NAR-040.** Given an org with no ERP and no down-payment item, When Finance bills a 200,000 down payment recovered at
+  20%, Then the claim exists and names the fixed PMO item.
+- **AC-NAR-041.** Given that claim with evidence, When Finance raises its invoice, Then a Draft of 200,000 with the claim's id
+  exists whose one line is "Down payment" with no item code.
+- **AC-NAR-042.** Given a Project Manager, an Engineer, an Executive, a disabled Admin, another org's Admin, an org whose ERP
+  owns revenue, or an org with sales invoices switched off, When any raises a claim's invoice, Then each is refused and
+  another org's claim is not found.
+- **AC-NAR-043.** Given a claim with no evidence, a withdrawn claim, a project with no client, a VAT project with no rate, a
+  claim whose lines do not add up, a claim in another currency than its project, a time-and-materials claim, a claim recovered
+  in full, or a claim that already has an invoice (even a cancelled one), When its invoice is raised, Then each is refused.
+- **AC-NAR-044.** Given a claim created by A and its invoice raised by B, When A or B approves it, Then the server refuses;
+  When C approves it, Then it is Unpaid.
+- **AC-NAR-045.** Given that approved invoice, When Finance records the payment, Then it is Paid and no billing figure moves
+  a second time. (Journey: `pmo-portal/e2e/AC-NAR-045-no-erp-claim-invoice.spec.ts`.)
+- **AC-NAR-046.** Given a VAT project (12% on 11/12) and a claim of 300,000 recovering 100,000, When its invoice is raised,
+  Then the invoice is 200,000 with tax 22,000, equal to the generic native invoice of 200,000.
+- **AC-NAR-047.** Given a claim on a work order, When its invoice is raised, Then the work order's billed total does not change.
+- **AC-NAR-048.** Given an org whose only user made the claim and raised the invoice, When that user approves it, Then it is
+  refused and the invoice stays Draft.
+- **AC-NAR-049.** Given an org whose ERP owns revenue and which has no down-payment item, When Finance bills a down payment,
+  Then it is refused as before; with the item set it names that item and its ERP raise passes the fence.
+- **AC-NAR-050.** Given a claim that names the fixed PMO item, When an ERP raise is attempted, Then it is refused in plain
+  words, as is a progress claim that recovers that down payment.
+- **NFR-NAR-007 (reversible).** `supabase/migrations/rollback/0924_native_progress_claim_invoice_down.sql` restores the two
+  redefined functions and refuses while a claim names the fixed item or a native invoice shares an id with such a claim
+  (`0924_native_progress_claim_invoice_rollback.test.sql`).

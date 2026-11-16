@@ -150,7 +150,7 @@ export function nativeLineName(
   line: { role?: string; description: string | null; item_code: string | null },
   t: (key: string, fallback: string) => string,
 ): string | null {
-  if (line.role === 'down_payment') return t('financeCopy.nativeLineDownPayment', 'Down payment');
-  if (line.role === 'down_payment_recovery') return t('financeCopy.nativeLineDownPaymentRecovery', 'Down payment recovery');
+  if (line.role === 'down_payment') return t('finance:financeCopy.nativeLineDownPayment', 'Down payment');
+  if (line.role === 'down_payment_recovery') return t('finance:financeCopy.nativeLineDownPaymentRecovery', 'Down payment recovery');
   return line.description ?? line.item_code;
 }

@@ -2178,7 +2178,7 @@
         "save": "Buat tagihan",
         "scope": "Menagih",
         "scopeContract": "Baris tanpa $t(common:terms.clientWorkOrder)",
-        "subtitle": "Satu tagihan menjadi satu faktur ERP. Lampirkan bukti sebelum menerbitkannya.",
+        "subtitle": "Satu tagihan menjadi satu invoice. Lampirkan bukti sebelum menerbitkannya.",
         "title": "Tagihan baru"
       },
       "claims": {
@@ -3889,8 +3889,6 @@
     "editBudgetLineItemNamed": "Edit item anggaran {{category}}",
     "invoiceDetails": "Detail faktur",
     "lineItemsSection": "Item faktur",
-    "nativeLineDownPayment": "Uang muka",
-    "nativeLineDownPaymentRecovery": "Pemulihan uang muka",
     "paymentDetails": "Detail pembayaran",
     "invoiceCount_one": "{{count}} faktur",
     "invoiceCount_other": "{{count}} faktur",

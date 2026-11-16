@@ -553,7 +553,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           rowKey={(row) => row.id}
           state={claims.isPending ? 'loading' : claims.isError ? 'error' : claimRows.length === 0 ? 'empty' : undefined}
           emptyTitle={t('projectDetail.billing.claims.empty', 'No billing claims yet')}
-          emptySub={t('projectDetail.billing.claims.billingEmptySub', 'A claim bills a down payment or quantities done, as one ERP invoice.')}
+          emptySub={t('projectDetail.billing.claims.billingEmptySub', 'A claim bills a down payment or quantities done, as one invoice.')}
           errorTitle={t('projectDetail.billing.claims.error', 'Couldn’t load the billing claims')}
           errorSub={t('projectDetail.billing.claims.errorSub', 'Retry, or reopen the project.')}
           onRetry={() => claims.refetch()}
