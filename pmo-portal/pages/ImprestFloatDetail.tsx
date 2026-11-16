@@ -202,9 +202,9 @@ const ImprestFloatDetail: React.FC = () => {
           actions={floatActions.length > 0 && (
             <>
               {/* One filled action: the state's job (top-up when receipts wait, else funding when it is short). */}
-              {floatActions.includes('requestReplenishment') && <Button variant="primary" onClick={() => setDialog({ kind: 'request', as: 'replenishment' })}>{t('imprest:actions.requestReplenishment', 'Request top-up')}</Button>}
-              {floatActions.includes('requestFunding') && <Button variant={floatActions.includes('requestReplenishment') ? 'outline' : 'primary'} onClick={() => setDialog({ kind: 'request', as: 'funding' })}>{t('imprest:actions.requestFunding', 'Request funding')}</Button>}
-              {floatActions.includes('recordCount') && <Button variant={floatActions.some((a) => a === 'requestReplenishment' || a === 'requestFunding') ? 'outline' : 'primary'} onClick={() => setDialog({ kind: 'count' })}>{t('imprest:actions.recordCount', 'Record count')}</Button>}
+              {floatActions.includes('requestReplenishment') && <Button variant="primary" size="sm" onClick={() => setDialog({ kind: 'request', as: 'replenishment' })}>{t('imprest:actions.requestReplenishment', 'Request top-up')}</Button>}
+              {floatActions.includes('requestFunding') && <Button variant={floatActions.includes('requestReplenishment') ? 'outline' : 'primary'} size="sm" onClick={() => setDialog({ kind: 'request', as: 'funding' })}>{t('imprest:actions.requestFunding', 'Request funding')}</Button>}
+              {floatActions.includes('recordCount') && <Button variant={floatActions.some((a) => a === 'requestReplenishment' || a === 'requestFunding') ? 'outline' : 'primary'} size="sm" onClick={() => setDialog({ kind: 'count' })}>{t('imprest:actions.recordCount', 'Record count')}</Button>}
             </>
           )}
         >

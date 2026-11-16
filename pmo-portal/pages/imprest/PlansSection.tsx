@@ -108,7 +108,7 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
           <SelectField hideLabel compact wrapperClassName="max-sm:basis-full" label={t('imprest:plan.month', 'Month')} value={month} onChange={setMonth}
             options={[{ value: currentMonth, label: t('imprest:plan.thisMonth', 'This month ({{month}})', { month: monthLabel(currentMonth) }) },
               { value: nextMonth(currentMonth), label: t('imprest:plan.nextMonth', 'Next month ({{month}})', { month: monthLabel(nextMonth(currentMonth)) }) }]} />
-          <Button variant={plans.isPending || plans.isError || !plans.data || plans.data.rows.length === 0 ? 'primary' : 'outline'} disabled={create.isPending}
+          <Button variant={plans.isPending || plans.isError || !plans.data || plans.data.rows.length === 0 ? 'primary' : 'outline'} size="sm" disabled={create.isPending}
             onClick={() => void run(() => create.mutateAsync({ floatId, month }), t('imprest:plan.toast.created', 'Draft plan created'))}>
             {t('imprest:plan.new', 'New plan')}
           </Button>
