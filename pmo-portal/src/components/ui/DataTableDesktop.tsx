@@ -227,7 +227,7 @@ function DataTableRowInner<Row>({
   selected,
   isSelected,
   accessibleRowLabel,
-  onActivate,
+  onActivate: tableOnActivate,
   canActivate,
   rowMenu,
   selection,
@@ -235,6 +235,8 @@ function DataTableRowInner<Row>({
   seamStore,
   compactRows,
 }: DataTableRowProps<Row>) {
+  // A `rowLabel` that answers '' marks a row that does not open: no pointer, no activation button.
+  const onActivate = accessibleRowLabel(row) === '' ? undefined : tableOnActivate;
   const stickyRowSurface = selected
     ? 'bg-surface-selected'
     : onActivate

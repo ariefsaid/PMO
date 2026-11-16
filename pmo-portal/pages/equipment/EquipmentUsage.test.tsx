@@ -107,6 +107,12 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     expect(h.usageArgs.at(-1)).toMatchObject({ from: '2026-09-07', to: '2026-09-13', assetId: 'a1' });
   });
 
+  it('AC-EQU-017 shows how many equipment rows the week has beside the title', () => {
+    h.entries = [entry({}), entry({ id: 'e9', project_id: 'pj2' })];
+    renderPage();
+    expect(screen.getByTestId('list-page-count')).toHaveTextContent('2');
+  });
+
   it('C8b F2 counts the machines the picker has loaded and can load the rest', async () => {
     h.assetsHasMore = true;
     renderPage();

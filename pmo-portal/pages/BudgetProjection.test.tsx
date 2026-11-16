@@ -81,7 +81,7 @@ const setTwoYearCurrentCalendar = (names: [string, string] = ['FY-A', 'FY-B']) =
   });
 };
 
-type ForecastRenderOptions = { canEdit?: boolean; budgetCurrency?: string; onExport?: (payload: BudgetProjectionExport) => void; orgId?: string; projectId?: string; budgetVersionId?: string; budgetMode?: string; approvedBudgetYears?: string[]; projectStartDate?: string; projectEndDate?: string | null };
+type ForecastRenderOptions = { ledgerBasis?: 'erp' | 'pmo' | null; canEdit?: boolean; budgetCurrency?: string; onExport?: (payload: BudgetProjectionExport) => void; orgId?: string; projectId?: string; budgetVersionId?: string; budgetMode?: string; approvedBudgetYears?: string[]; projectStartDate?: string; projectEndDate?: string | null };
 const forecastTree = (options: Required<ForecastRenderOptions>, queryClient: QueryClient) => (
   <FinanceI18nTestProvider>
     <MemoryRouter>
@@ -100,6 +100,7 @@ const forecastTree = (options: Required<ForecastRenderOptions>, queryClient: Que
             canEdit={options.canEdit}
             committedByCategory={{}}
             canReadCommitments
+            ledgerBasis={options.ledgerBasis}
             onAdjustInDraft={vi.fn()}
             onExport={options.onExport}
           />
@@ -110,6 +111,7 @@ const forecastTree = (options: Required<ForecastRenderOptions>, queryClient: Que
 );
 const renderForecast = (input: ForecastRenderOptions = {}) => {
   const options: Required<ForecastRenderOptions> = {
+    ledgerBasis: input.ledgerBasis ?? null,
     canEdit: input.canEdit ?? true,
     budgetCurrency: input.budgetCurrency ?? 'USD',
     onExport: input.onExport ?? vi.fn<(payload: BudgetProjectionExport) => void>(),
@@ -1350,5 +1352,104 @@ describe('BudgetProjection — Bahasa (AC-CAT-005, AC-L10N-B01)', () => {
     expect(within(await rowFor('Biaya khusus')).getByText('$100,000')).toBeInTheDocument();
     expect(screen.queryByText('Special expenses')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Edit cost to finish' })).not.toBeInTheDocument();
+  });
+});
+
+describe('BudgetProjection — no accounting system (#2325)', () => {
+  it('AC-BCNL-010 on the PMO basis the table shows Uncategorized, the source names paid purchases, and the scope opens on All years', async () => {
+    setTwoYearCurrentCalendar(['FY-2027', 'FY-2028']);
+    yearsMock.mockResolvedValue([{ fiscalYear: 'FY-2027', hasActiveBudget: true }, { fiscalYear: 'FY-2028', hasActiveBudget: true }]);
+    comparisonMock.mockResolvedValue([
+      { category: 'Labor', budgetTotal: 5000, recorded: 1000, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: 4000, percentUsed: 0.2 },
+      { category: null, budgetTotal: 0, recorded: 300, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: -300, percentUsed: null },
+    ]);
+    renderForecast({ ...TWO_YEAR_PROJECT, ledgerBasis: 'pmo' });
+    expect(await rowFor('Labor')).toHaveTextContent('$1,000');
+    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue(JSON.stringify({ kind: 'all' }));
+    const uncategorized = await rowFor('Uncategorized');
+    expect(uncategorized).toHaveTextContent('$300');
+    expect(screen.queryByText(/mapped ERP ledger/)).not.toBeInTheDocument();
+    // The source on the recorded figure says paid purchases, in the row's tooltip content.
+    await userEvent.hover(within(uncategorized).getByText('$300'));
+    expect(await screen.findByText(/paid purchases before tax/)).toBeInTheDocument();
+    // The uncategorised row has no per-category drawer.
+    await userEvent.click(uncategorized);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('AC-BCNL-010 a year scope on the PMO basis says spending is not split by year, never asks for an accounting system', async () => {
+    setTwoYearCurrentCalendar(['FY-2027', 'FY-2028']);
+    yearsMock.mockResolvedValue([{ fiscalYear: 'FY-2027', hasActiveBudget: true }, { fiscalYear: 'FY-2028', hasActiveBudget: true }]);
+    phasingMock.mockResolvedValue(phasing({ Labor: ['FY-2027'] }));
+    fetchMock.mockResolvedValue([{ ...ROW, actualsToDate: null, actualsAsOf: null, projectedFinalCost: null, projectedVariance: null, projectedUtilization: null }]);
+    renderForecast({ ...TWO_YEAR_PROJECT, ledgerBasis: 'pmo' });
+    await rowFor('Labor');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), JSON.stringify({ kind: 'year', year: 'FY-2027' }));
+    expect(await screen.findByTestId('forecast-incomplete')).toHaveTextContent('Labor: Spending is not split by year yet. See All years.');
+    expect(screen.queryByText(/accounting system/i)).not.toBeInTheDocument();
+  });
+
+  it('AC-BCNL-014 a no-ERP organisation never reads the ERP fiscal calendar: All years, no calendar error, no Retry, the year reason in en and id', async () => {
+    calendarMock.mockRejectedValue(new Error('no ERP binding'));
+    yearsMock.mockResolvedValue([{ fiscalYear: 'FY-2027', hasActiveBudget: true }]);
+    phasingMock.mockResolvedValue(phasing({ Labor: ['FY-2027'] }));
+    renderForecast({ ...TWO_YEAR_PROJECT, ledgerBasis: 'pmo' });
+    await rowFor('Labor');
+    const view = screen.getByTestId('budget-forecast-view');
+    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue(JSON.stringify({ kind: 'all' }));
+    expect(calendarMock).not.toHaveBeenCalled();
+    expect(within(view).queryByText(/fiscal calendar/i)).not.toBeInTheDocument();
+    expect(within(view).queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+    fetchMock.mockResolvedValue([{ ...ROW, actualsToDate: null, actualsAsOf: null, projectedFinalCost: null, projectedVariance: null, projectedUtilization: null }]);
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), JSON.stringify({ kind: 'year', year: 'FY-2027' }));
+    expect(await screen.findByTestId('forecast-incomplete')).toHaveTextContent('Labor: Spending is not split by year yet. See All years.');
+    expect(within(view).queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+  });
+
+  it('AC-BCNL-014 Bahasa: the year reason reads Pengeluaran belum dipisah per tahun', async () => {
+    await financeTestI18n.changeLanguage('id');
+    calendarMock.mockRejectedValue(new Error('no ERP binding'));
+    yearsMock.mockResolvedValue([{ fiscalYear: 'FY-2027', hasActiveBudget: true }]);
+    phasingMock.mockResolvedValue(phasing({ Labor: ['FY-2027'] }));
+    fetchMock.mockResolvedValue([{ ...ROW, actualsToDate: null, actualsAsOf: null, projectedFinalCost: null, projectedVariance: null, projectedUtilization: null }]);
+    renderForecast({ ...TWO_YEAR_PROJECT, ledgerBasis: 'pmo' });
+    const select = await screen.findByRole('combobox', { name: /tahun fiskal/i });
+    await waitFor(() => expect(within(screen.getByTestId('budget-forecast-view')).queryByText(/memuat/i)).not.toBeInTheDocument());
+    await userEvent.selectOptions(select, JSON.stringify({ kind: 'year', year: 'FY-2027' }));
+    expect(await screen.findByTestId('forecast-incomplete')).toHaveTextContent('Pengeluaran belum dipisah per tahun. Lihat Semua tahun.');
+    expect(calendarMock).not.toHaveBeenCalled();
+  });
+
+  it('AC-BCNL-015 the Uncategorized row is not offered as openable; a row with nothing paid yet says nothing about a date', async () => {
+    yearsMock.mockResolvedValue([{ fiscalYear: 'FY-2027', hasActiveBudget: true }]);
+    comparisonMock.mockResolvedValue([
+      { category: 'Labor', budgetTotal: 5000, recorded: 700, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: 4300, percentUsed: 0.14 },
+      { category: 'Travel', budgetTotal: 1000, recorded: 0, recordedAsOf: null, mapped: true, hasLedger: false, remaining: 1000, percentUsed: 0 },
+      { category: null, budgetTotal: 0, recorded: 300, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: -300, percentUsed: null },
+    ]);
+    renderForecast({ ...TWO_YEAR_PROJECT, ledgerBasis: 'pmo' });
+    const uncategorized = await rowFor('Uncategorized');
+    expect(within(uncategorized).queryByRole('button')).not.toBeInTheDocument();
+    expect(uncategorized).not.toHaveClass('cursor-pointer');
+    expect(await rowFor('Labor')).toHaveClass('cursor-pointer');
+    expect(within(await rowFor('Labor')).getByRole('button', { name: /Open Labor budget comparison/ })).toBeInTheDocument();
+    expect(within(await rowFor('Travel')).queryByText('Date unavailable')).not.toBeInTheDocument();
+  });
+
+  it('AC-BCNL-015 a connected organisation still says when a ledger reading has no date', async () => {
+    comparisonMock.mockResolvedValue([
+      { category: 'Labor', budgetTotal: 5000, recorded: 700, recordedAsOf: null, mapped: true, hasLedger: true, remaining: 4300, percentUsed: 0.14 },
+    ]);
+    renderForecast({ ledgerBasis: 'erp' });
+    await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Fiscal year' }), JSON.stringify({ kind: 'all' }));
+    expect(within(await rowFor('Labor')).getByText('Date unavailable')).toBeInTheDocument();
+  });
+
+  it('AC-BCNL-014 a connected organisation with a failing calendar keeps its error and Retry', async () => {
+    calendarMock.mockRejectedValue(new Error('calendar offline'));
+    renderForecast({ ...TWO_YEAR_PROJECT, ledgerBasis: 'erp' });
+    const view = screen.getByTestId('budget-forecast-view');
+    expect(await within(view).findByText('The current project fiscal calendar is unavailable.')).toBeInTheDocument();
+    expect(within(view).getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });
 });

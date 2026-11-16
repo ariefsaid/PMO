@@ -25,7 +25,6 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  CardPad,
   DataTable,
   StatusPill,
   TaxBasisLabel,
@@ -547,8 +546,8 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
         />
       )}
 
-      {/* Capture affordance + note */}
-      <CardPad>
+      {/* Capture affordance + note: below the frame, on the page gutter (the capture box's own text then sits on the panel inset). */}
+      <div className="py-4">
         {detail.pre_cutover && (
           // FR-ECA-030: ordered before the ERP connection, so receipts, bills and payments stay in PMO. Information, not an alert.
           <p data-testid="ledger-pre-cutover" className="mb-2.5 text-sm text-muted-foreground">
@@ -589,7 +588,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
         <p className="mt-3 text-sm text-muted-foreground">
           {t('procurementLedger.ledgerNote', 'Every record appears once, chronological. Empty record types show nothing.')}
         </p>
-      </CardPad>
+      </div>
     </div>
   );
 };

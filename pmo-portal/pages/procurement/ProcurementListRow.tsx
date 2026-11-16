@@ -115,6 +115,7 @@ const ExpandedPanel: React.FC<{
             totalValue={detail.data.total_value}
             projectName={detail.data.project ? projectDisplayName(detail.data.project) : undefined}
             projectLegalName={detail.data.project?.name}
+            projectStatus={detail.data.project?.status}
             status={detail.data.status}
             currency={detail.data.currency}
           />

@@ -24,7 +24,7 @@ function mount(viewTarget: SalesInvoiceRow) {
   render(
     <MemoryRouter>
       <SalesInvoiceDetail
-        viewTarget={viewTarget} isPending={false} isError={false} data={[viewTarget]} mode={'native' as never} organizationToday='2026-03-20'
+        viewTarget={viewTarget} isPending={false} isError={false} data={[viewTarget]} organizationToday='2026-03-20'
         onBack={vi.fn()} refetch={vi.fn()} recordPrimaryAction={null} invoiceDisplayLabel={() => 'PMO-1'}
         may={(() => false) as never} pdfDownload={{ download: vi.fn(), inFlightIds: new Set<string>() } as never} dialogs={null}
       />

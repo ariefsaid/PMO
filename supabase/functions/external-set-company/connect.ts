@@ -14,8 +14,9 @@ import { allRows, pmoMasterCounts, pmoMasters } from '../_shared/connectPmoMaste
 import { toRow } from '../_shared/connectRun.ts';
 import { stockMatchingCapabilities } from '../../../pmo-portal/src/lib/adapterSeam/capabilityMap.ts';
 import { erpSyncFeatureDecision } from './featureGate.ts';
+import { companyDefaultOptions, setCompanyDefaults } from './companyDefaults.ts';
 
-export const CONNECT_ACTIONS = new Set(['census', 'connect-status', 'list-proposals', 'search-connect-staged', 'accept-proposals', 'decide-review', 'unlink-match', 'retry-send', 'stock-propose', 'stock-list', 'account-groups', 'send-account']);
+export const CONNECT_ACTIONS = new Set(['census', 'connect-status', 'list-proposals', 'search-connect-staged', 'accept-proposals', 'decide-review', 'unlink-match', 'retry-send', 'stock-propose', 'stock-list', 'account-groups', 'send-account', 'company-defaults-options', 'set-company-defaults']);
 
 const KINDS = ['party', 'item', 'project', 'employee', 'account', 'stock_item', 'stock_warehouse'];
 const STOCK_KINDS: MasterKind[] = ['stock_item', 'stock_warehouse'];
@@ -27,7 +28,9 @@ const ACCEPT_CALLS_PER_REQUEST = 20;
 const ACCEPT_BUDGET_MS = 60_000;
 /** Tiers whose sweep pass advances a setup run. A census starts a run, so a tier without a pass would leave it open forever. */
 const CENSUS_TIERS = new Set(['erpnext', 'odoo']);
-const ERP_SYNC_GATED_ACTIONS = new Set(['census', 'accept-proposals', 'stock-propose', 'send-account']);
+const ERP_SYNC_GATED_ACTIONS = new Set(['census', 'accept-proposals', 'stock-propose', 'send-account', 'set-company-defaults']);
+/** #1599 ECX-3: accounting configuration, Admin or Finance (the database re-asserts it). */
+const COMPANY_DEFAULTS_ACTIONS = new Set(['company-defaults-options', 'set-company-defaults']);
 
 export interface ConnectCtx {
   serviceClient: SupabaseClient;
@@ -64,7 +67,7 @@ const applied = (c: Counts) => Object.values(c).reduce((a, f) => a + Object.valu
 function allowed(action: string, role: string, kind: unknown): boolean {
   if (role === 'Admin') return true;
   if (role !== 'Finance') return false;
-  if (action === 'connect-status') return true;
+  if (action === 'connect-status' || COMPANY_DEFAULTS_ACTIONS.has(action)) return true;
   if (action === 'decide-review') return kind === 'account';
   // #1599 ECX-4 (OQ-ECX-1): Finance creates direct-cost accounts; the database re-asserts the role
   if (action === 'account-groups' || action === 'send-account') return true;
@@ -292,6 +295,9 @@ export async function handleConnectAction(ctx: ConnectCtx): Promise<unknown> {
     if (decision === 'unavailable') throw new AppError('Could not resolve the plan switch', 'INTERNAL');
     if (decision === 'off') throw new AppError('ERP integration is not enabled for this organization', 'feature_off');
   }
+
+  if (action === 'company-defaults-options') return await companyDefaultOptions(ctx, tier);
+  if (action === 'set-company-defaults') return await setCompanyDefaults(ctx, tier, rpcFailure);
 
   if (action === 'census') {
     if (ctx.role !== 'Admin') throw new AppError('Not allowed for your role', 'FORBIDDEN');

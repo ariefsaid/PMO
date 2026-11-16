@@ -178,7 +178,19 @@ describe('Procurement list restructure', () => {
     expect(screen.getByRole('button', { name: 'Export list' })).toBeEnabled();
   });
 
-  it('Finance opens Needs you with the oldest unpaid supplier invoice first', () => {
+  it('#1791 opens on All with the Showing x of y count even when rows need you', () => {
+    roleState.role = 'Finance';
+    authState.userId = 'u-finance';
+    procState.data = [
+      row({ id: 'invoice-old', title: 'Older unpaid invoice', status: 'Vendor Invoiced', created_at: daysAgo(12), procurement_invoices: [{ amount: 400, erp_outstanding_amount: 400, invoice_date: daysAgo(12) }] }),
+      row({ id: 'approval-new', title: 'Newer approval', status: 'Requested', created_at: daysAgo(3) }),
+    ];
+    renderPage();
+    expect(screen.getByRole('tab', { name: /^All/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('list-page-count')).toHaveTextContent('Showing 2 of 2');
+  });
+
+  it('Finance reaches Needs you from its tab with the oldest unpaid supplier invoice first', async () => {
     roleState.role = 'Finance';
     authState.userId = 'u-finance';
     procState.data = [
@@ -192,7 +204,7 @@ describe('Procurement list restructure', () => {
       row({ id: 'approval-new', title: 'Newer approval', status: 'Requested', created_at: daysAgo(3) }),
     ];
 
-    renderPage();
+    renderPage('/procurement?tab=needs-you');
 
     const needsYou = screen.getByRole('tab', { name: /Needs you/i });
     expect(needsYou).toHaveAttribute('aria-selected', 'true');

@@ -87,6 +87,20 @@ describe('KPITile', () => {
     expect(screen.getByText('Last 30 days')).toHaveClass('text-control', 'text-muted-foreground');
   });
 
+  it('captionWrap: the caption is shown in full, wrapped, with no title-only text (a phone has no hover)', () => {
+    const note = '2 contracts with no value, not in the total';
+    render(<KPITile icon="dollar" tone="blue" label="Left to bill" value="$1M" caption={note} captionWrap />);
+    const el = screen.getByText(note);
+    expect(el).not.toHaveClass('truncate');
+    expect(el).toHaveClass('break-words');
+    expect(el).not.toHaveAttribute('title');
+  });
+
+  it('a plain caption stays one truncated line', () => {
+    render(<KPITile icon="dollar" tone="blue" label="x" value="1" caption="Last 30 days" />);
+    expect(screen.getByText('Last 30 days')).toHaveClass('truncate');
+  });
+
   it('negative value turns destructive', () => {
     render(<KPITile icon="dollar" tone="red" label="Margin" value="-$120K" negative />);
     expect(screen.getByText('-$120K').className).toContain('text-destructive');
