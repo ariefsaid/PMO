@@ -106,8 +106,9 @@ const FxEquivalent: React.FC<FxEquivalentProps> = ({ amount, currency, date, com
       );
     }
     return (
-      <span title={note ?? undefined} className="block min-w-0 break-words text-control font-normal tabular text-muted-foreground">
-        <span>{equivalent}</span>
+      <span title={note ?? undefined} className="block w-max text-control font-normal tabular text-muted-foreground">
+        {/* A money figure never wraps (layout rule 15): "≈ IDR" stays with its number on one line; the column or the row gives way. */}
+        <span className="whitespace-nowrap">{equivalent}</span>
         {note && <span className="sr-only">{` (${note})`}</span>}
       </span>
     );

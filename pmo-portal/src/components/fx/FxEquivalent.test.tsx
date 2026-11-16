@@ -136,6 +136,12 @@ describe('AC-FX-004 JISDOR equivalent display', () => {
     expectRateEnabled(false);
   });
 
+  it('AC-FX-004 the equivalent is one unbreakable line, so "≈ IDR" never separates from its number (#2249)', () => {
+    renderEquivalent();
+    const figure = screen.getByText('≈ IDR 1,623,456 (using IDR 16,234.56 rate)');
+    expect(figure).toHaveClass('whitespace-nowrap');
+  });
+
   it('falls back to the latest available rate when none exists on or before the document date', () => {
     h.rate = { data: null, isPending: false, isError: false, refetch: vi.fn() };
     h.rateFallback = { data: { rate: 18500, rate_date: '2026-10-12' }, isPending: false, isError: false, refetch: vi.fn() };

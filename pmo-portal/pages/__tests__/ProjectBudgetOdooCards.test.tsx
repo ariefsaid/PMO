@@ -19,6 +19,7 @@ const state = vi.hoisted(() => ({
   spendCurrency: 'USD',
   currencyDiffers: false,
   unknown: 0,
+  draftOnly: false,
   displaySpent: undefined as { amount: number; currency: string } | undefined,
   rows: [] as Array<{ category: string; budget: number; actual: number | null }>,
   spendRows: undefined as Array<{ category: string; actual: number | null }> | undefined,
@@ -44,7 +45,7 @@ vi.mock('@/src/hooks/useFxIdrRate', () => ({ useFxIdrRate: () => fxIdr.state }))
 vi.mock('@/src/hooks/useBudget', () => ({
   useBudgetDistribution: () => ({ data: null, isSuccess: true, isPending: false, isError: false, refetch: vi.fn() }),
   useProjectBudget: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
-  useBudgetVersions: () => ({ data: [ACTIVE], isPending: false, isError: false, refetch: vi.fn() }),
+  useBudgetVersions: () => ({ data: [state.draftOnly ? { ...ACTIVE, status: 'Draft' } : ACTIVE], isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetActivationMode: () => ({ data: 'allowed', isPending: false, isError: false }),
   useBudgetActivationPrecheck: () => ({ data: undefined, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetArchiveTargets: () => ({ data: [], refetch: vi.fn().mockResolvedValue({ data: [], error: null }) }),
@@ -55,6 +56,18 @@ vi.mock('@/src/hooks/useProjectPosition', () => ({
   useBudgetPosition: () => ({
     actualsPending: false, actualsError: false, refetchActuals: vi.fn(), hasBudget: true, canSeeActual: true,
     ...state.position, displaySpent: state.displaySpent, rows: state.rows, spendRows: state.spendRows ?? state.rows, spendCurrency: state.spendCurrency, currencyDiffers: state.currencyDiffers, unknown: state.unknown,
+  }),
+}));
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: () => ({
+    data: {
+      'p-1': {
+        projectId: 'p-1', ledgerBasis: state.position.ledgerBasis,
+        currency: state.displaySpent?.currency ?? state.spendCurrency, budgetCurrency: ACTIVE.currency, activeBudgetAmount: '6000.00',
+        spent: state.displaySpent ? String(state.displaySpent.amount) : state.position.spent === null ? null : String(state.position.spent),
+        openCommitment: '0.00', consumption: null, complete: true, usedRatio: null, usedPercent: null,
+      },
+    },
   }),
 }));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [], isPending: false }) }));
@@ -138,6 +151,7 @@ beforeEach(() => {
   state.spendCurrency = 'IDR';
   state.currencyDiffers = false;
   state.unknown = 0;
+  state.draftOnly = false;
   state.displaySpent = undefined;
   state.rows = ROWS;
   state.spendRows = undefined;
@@ -214,6 +228,23 @@ describe('AC-ODA-024 an all-USD project in a rupiah organisation (#2249)', () =>
     expect(within(figures).getByText(/≈ IDR 27,750,000 \(using IDR 18,500 rate\)/)).toBeInTheDocument(); // Spent
     expect(within(figures).getByText('≈ IDR 0 (using IDR 18,500 rate)')).toBeInTheDocument(); // Committed
     expect(within(figures).getByText(/≈ IDR 83,250,000 \(using IDR 18,500 rate\)/)).toBeInTheDocument(); // Left
+  });
+});
+
+describe('AC-ODA-024 a project with no active budget (#2249)', () => {
+  beforeEach(() => {
+    state.draftOnly = true;
+    state.spendCurrency = 'IDR';
+    state.position = { ...state.position, spent: null, budgetComparisonKnown: false, usedPercent: null, consumption: null };
+  });
+
+  it('says the budget is what is missing once: no repeated row, no "Shown once spending is linked"', async () => {
+    renderPage(projectIn('IDR'));
+    const figures = await screen.findByRole('region', { name: 'Budget figures' });
+    expect(screen.queryByText('Shown once spending is linked')).not.toBeInTheDocument();
+    expect(within(figures).getAllByText('No active budget')).toHaveLength(1); // the Budget card names the cause
+    const rowAboveCards = screen.queryAllByText('No active budget').find((el) => !figures.contains(el) && el.tagName === 'P');
+    expect(rowAboveCards).toBeUndefined();
   });
 });
 
