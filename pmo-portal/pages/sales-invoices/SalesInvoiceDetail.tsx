@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, LifecycleStepper, ListState, ProjectNameLink, RecordHeader, StatusPill } from '@/src/components/ui';
+import { Button, Icon, LifecycleStepper, ListState, ProjectNameLink, RecordHeader, RecordStack, StatusPill } from '@/src/components/ui';
+import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import { invoiceTimelineSteps } from './invoiceTimeline';
 import { usePermission } from '@/src/auth/usePermission';
 import { useInvoicePdfDownload } from '@/src/hooks/useInvoicePdfDownload';
@@ -13,6 +14,13 @@ import { invoiceNumber, isPartlyPaid } from '@/src/lib/revenue/nativeInvoice';
 import { SalesInvoiceApprovalPreview } from '@/pages/approvals/SalesInvoiceApprovalRow';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import { SalesInvoiceEvidenceSection } from './SalesInvoiceEvidence';
+import { cn } from '@/src/components/ui/cn';
+
+/** Who raised a PMO-native invoice (the assignable-profiles read is shared with the approvals preview). */
+function RaisedBy({ userId }: { userId: string | null | undefined }) {
+  const { data: profiles } = useAssignableProfiles();
+  return <span className="text-control font-normal">{profiles?.find((profile) => profile.id === userId)?.full_name ?? '—'}</span>;
+}
 
 interface Props {
   viewTarget: SalesInvoiceRow | null;
@@ -39,6 +47,10 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, organ
   // #1457: the one shared overdue rule gates the stat and supplies the day count.
   const overdueDays = viewTarget ? clientInvoiceOverdueDays(viewTarget, organizationToday) : null;
   const timeline = viewTarget ? invoiceTimelineSteps(viewTarget, t) : null;
+  // The delivery step (issued ERP invoice): a header note says where it stands, the download sits in the action slot.
+  const deliveryStep = viewTarget != null && viewTarget.erp_docstatus === 1 && (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid' || viewTarget.status === 'Paid');
+  const canDownloadPdf = deliveryStep && !viewTarget.received_date
+    && may('download_pdf', 'salesInvoice', { record: { status: viewTarget.status, erp_docstatus: viewTarget.erp_docstatus } });
   const invoiceTitleLabel = viewTargetNumber
     ? t('financeCopy.invoiceRecordTitle', 'Invoice {{number}}', { number: '' }).trim()
     : null;
@@ -59,7 +71,12 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, organ
           />
         ) : viewTarget ? (
           <>
+            <RecordStack>
+            {/* The record frame (as on the project record): one header panel holding identity, status, facts, the status
+                steps, the actions and the delivery note; then the evidence panel. Nothing sits bare on the page. */}
             <RecordHeader
+              panelInset
+              className={cn('mb-0!', viewTargetNumber && '[&_h1]:whitespace-normal [&_h1]:overflow-visible [&_h1]:text-clip')}
               icon={null}
               name={viewTargetNumber ? (
                 <>
@@ -67,7 +84,6 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, organ
                   <span style={{ whiteSpace: 'nowrap' }}>{viewTargetNumber}</span>
                 </>
               ) : invoiceDisplayLabel(viewTarget)}
-              className={viewTargetNumber ? '[&_h1]:whitespace-normal [&_h1]:overflow-visible [&_h1]:text-clip' : undefined}
               status={receiptAwaitingOdoo
                 ? <StatusPill variant="progress">{t('finance:receivables.statusReceiptAwaitingOdoo', 'Receipt sent, awaiting Odoo')}</StatusPill>
                 : isPartlyPaid(viewTarget)
@@ -86,6 +102,19 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, organ
                   ? <span data-testid="record-action-pending" aria-busy="true" aria-hidden="true" className="skel inline-block h-8 w-[9.5rem] rounded-md max-sm:h-11" />
                   : <Button variant="primary" size="sm" onClick={recordPrimaryAction.onClick}>{recordPrimaryAction.label}</Button>
                 : undefined}
+              actions={canDownloadPdf ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={pdfDownload.inFlightIds.has(viewTarget.id)}
+                  onClick={() => void pdfDownload.download(viewTarget)}
+                >
+                  <Icon name="download" />
+                  {pdfDownload.inFlightIds.has(viewTarget.id)
+                    ? t('uxs17.preparingPdf', 'Preparing PDF…')
+                    : t('uxs17.downloadApprovedPdf', 'Download approved PDF')}
+                </Button>
+              ) : undefined}
               stats={[
                 { label: t('financeCopy.project', 'Project'), value: <ProjectNameLink projectId={viewTarget.project_id} name={projectName} className="text-control" /> },
                 { label: t('uxs17.invoiceDate', 'Invoice date'), value: viewTarget.invoice_date ? formatDayYear(viewTarget.invoice_date) : t('uxs17.dateNotRecorded', 'Not recorded') },
@@ -99,64 +128,50 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, organ
                   </>,
                 }]),
                 ...(overdueDays !== null ? [{ label: t('uxs17.overdue', 'Overdue'), value: t('uxs17.daysOverdue', '{{count}} days overdue', { count: overdueDays }) }] : []),
+                // The invoice's remaining facts join the header (were boxed cards above the totals).
+                ...(viewTarget.pmo_native || viewTarget.reference_number ? [{ label: t('financeCopy.customerPO', 'Customer PO'), value: <span className="text-control font-normal">{viewTarget.reference_number ?? '—'}</span> }] : []),
+                ...(viewTarget.pmo_native ? [{ label: t('approvals.salesInvoices.raisedBy', 'Raised by'), value: <RaisedBy userId={viewTarget.author_user_id} /> }] : []),
+                ...(!viewTarget.pmo_native && viewTarget.status === 'Draft' && !viewTarget.si_number ? [{ label: t('finance:financeCopy.invoiceNumber', 'Invoice number'), value: <span className="text-control font-normal">{t('finance:financeCopy.odooDraftNumber', 'Draft — Odoo assigns the number on approval')}</span> }] : []),
               ]}
-            />
-            {timeline && <LifecycleStepper
-              variant="bar"
-              steps={timeline}
-              aria-label={t('finance:invoiceTimeline.label', 'Invoice status timeline')}
-              className="mb-5 [&_[data-testid=stepper-scroll-container]>[role=list]]:gap-0 [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep]:min-w-0 [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep>span:first-child]:rounded-none [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep:first-child>span:first-child]:rounded-l-full [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep:last-child>span:first-child]:rounded-r-full [&_[data-testid=stepper-fade]]:hidden"
-            />}
-            {/* #2345 row 2 + follow-up: the "Ready to send" prompt shows only while the invoice can
-                still be sent — the status rules (invoiceTimelineSteps) complete "Delivered to client"
-                at Paid, so a Paid invoice never claims it. The approved-PDF download stays available
-                on a Paid invoice without a recorded receipt (the record page's only download path);
-                with a receipt the section reports the recorded date instead. */}
-            {viewTarget.erp_docstatus === 1 && (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid' || viewTarget.status === 'Paid') && (
-              <section aria-label={t('uxs17.deliverySection', 'Client delivery')} className="mb-5 space-y-2 border-b border-border pb-4">
-                {(viewTarget.received_date || viewTarget.status !== 'Paid') && (
-                  <div>
-                    <h2 className="text-base font-semibold">
-                      {viewTarget.received_date
-                        ? t('uxs17.receivedByClient', 'Received by client')
-                        : t('uxs17.readyToSend', 'Ready to send')}
-                    </h2>
-                    <p className="mt-1 max-w-[65ch] text-sm text-muted-foreground">
-                      {viewTarget.received_date
-                        ? t('uxs17.receivedDateSummary', 'Client receipt was recorded for {{date}}.', { date: formatDayYear(viewTarget.received_date) })
-                        : t('uxs17.manualHandoffHelp', 'Download the PDF and send it to your client yourself.')}
-                    </p>
-                  </div>
-                )}
-                {!viewTarget.received_date && (
-                  <div className="flex flex-wrap gap-2">
-                    {may('download_pdf', 'salesInvoice', { record: { status: viewTarget.status, erp_docstatus: viewTarget.erp_docstatus } }) && (
-                      <Button
-                        variant="outline"
-                        disabled={pdfDownload.inFlightIds.has(viewTarget.id)}
-                        onClick={() => void pdfDownload.download(viewTarget)}
-                      >
-                        <Icon name="download" />
-                        {pdfDownload.inFlightIds.has(viewTarget.id)
-                          ? t('uxs17.preparingPdf', 'Preparing PDF…')
-                          : t('uxs17.downloadApprovedPdf', 'Download approved PDF')}
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </section>
-            )}
-            <SalesInvoiceEvidenceSection invoice={viewTarget} odoo={odoo} />
-            {/* hideLines: the Bill evidence section above is the record page's single lines render
-                (AC-991-001's accessible "Line items" list lives there); the approvals panel keeps
-                the preview as its own lines surface. */}
-            <SalesInvoiceApprovalPreview
-              inv={viewTarget}
-              showFx
-              hideLines
-              hideProject
-              hideInvoiceDate
-            />
+              band={timeline ? <LifecycleStepper
+                variant="bar"
+                steps={timeline}
+                aria-label={t('finance:invoiceTimeline.label', 'Invoice status timeline')}
+                className="[&_[data-testid=stepper-scroll-container]>[role=list]]:gap-0 [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep]:min-w-0 [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep>span:first-child]:rounded-none [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep:first-child>span:first-child]:rounded-l-full [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep:last-child>span:first-child]:rounded-r-full [&_[data-testid=stepper-fade]]:hidden"
+              /> : undefined}
+            >
+              {/* #2345 row 2 + follow-up: the "Ready to send" prompt shows only while the invoice can still be sent — the
+                  status rules (invoiceTimelineSteps) complete "Delivered to client" at Paid, so a Paid invoice never claims
+                  it. The approved-PDF download (header action slot) stays on a Paid invoice without a recorded receipt (the
+                  record page's only download path); with a receipt the note reports the recorded date instead. */}
+              {deliveryStep && (viewTarget.received_date || viewTarget.status !== 'Paid') ? (
+                <p data-testid="invoice-delivery-note">
+                  <span className="font-medium text-foreground">
+                    {viewTarget.received_date
+                      ? t('uxs17.receivedByClient', 'Received by client')
+                      : t('uxs17.readyToSend', 'Ready to send')}
+                  </span>
+                  <span aria-hidden="true"> · </span>
+                  <span>{viewTarget.received_date
+                    ? t('uxs17.receivedDateSummary', 'Client receipt was recorded for {{date}}.', { date: formatDayYear(viewTarget.received_date) })
+                    : t('uxs17.manualHandoffHelp', 'Download the PDF and send it to your client yourself.')}</span>
+                </p>
+              ) : null}
+            </RecordHeader>
+            {/* hideLines: the Bill evidence section is the record page's single lines render (AC-991-001's accessible
+                "Line items" list lives there); its totals close the same panel, under the lines they sum. The approvals
+                panel keeps the preview as its own lines surface. */}
+            <SalesInvoiceEvidenceSection invoice={viewTarget} odoo={odoo} totals={(
+              <SalesInvoiceApprovalPreview
+                inv={viewTarget}
+                showFx
+                hideLines
+                hideProject
+                hideInvoiceDate
+                hideFacts
+              />
+            )} />
+            </RecordStack>
           </>
         ) : (
           <ListState

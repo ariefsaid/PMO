@@ -294,23 +294,13 @@ const Contacts: React.FC = () => {
           </Button>
         )
       }
+      count={directory.data && !directory.isPlaceholderData ? total : undefined}
+      total={directory.data && !directory.isPlaceholderData && !unfiltered ? directoryTotal : undefined}
       filters={
         state !== 'loading' && (
-          <div className="flex min-w-0 flex-1 flex-wrap items-end gap-2">
-            <div className="flex w-full min-w-0 flex-col gap-2 md:w-auto md:flex-1">
-              <label htmlFor="contacts-search" className="text-control font-semibold text-foreground">
-                {t('contacts.search.ariaLabel', 'Search contacts')}
-              </label>
-              <SearchMini
-                id="contacts-search"
-                aria-label={t('contacts.search.ariaLabel', 'Search contacts')}
-                placeholder={t('contacts.search.placeholder', 'Search contacts…')}
-                value={search}
-                onChange={(event) => setFilter('q', event.currentTarget.value)}
-                containerClassName="w-full min-w-0 md:flex-1"
-              />
-            </div>
+          <>
             <Combobox
+              compact
               label={t('contacts.filters.companyLabel', 'Filter by company')}
               value={companyFilter && companyFilter !== 'All' ? companyFilter : null}
               selectedOption={companyFilterOptions.find(({ value }) => value === companyFilter) ?? null}
@@ -322,29 +312,31 @@ const Contacts: React.FC = () => {
               noun={t('contacts.filters.companyNoun', 'company')}
               nounPlural={t('contacts.filters.companyNounPlural', 'companies')}
               emptyMessage={() => null}
-              className="w-full min-w-0 md:w-56"
+              className="w-full min-w-0 sm:w-[420px] sm:shrink-0 sm:flex-row sm:items-center sm:gap-2 sm:[&>span:first-child]:shrink-0 sm:[&>span:first-child]:whitespace-nowrap sm:[&>div.relative]:min-w-0 sm:[&>div.relative]:flex-1 sm:[&_[role=combobox]]:min-h-[var(--control-height)] sm:[&_[role=combobox]]:min-w-0"
             />
             {hasActiveFilter && (
               <button
                 type="button"
                 onClick={clear}
-                className="min-h-11 rounded-md px-3 text-control text-primary-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-[var(--control-height-sm)]"
+                className="min-h-11 shrink-0 whitespace-nowrap rounded-md px-3 text-control text-primary-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-[var(--control-height-sm)]"
               >
                 {t('contacts.filters.clear', 'Clear all')}
               </button>
             )}
-            {directory.data && !directory.isPlaceholderData && (
-              <span aria-live="polite" className="text-control text-muted-foreground">
-                {t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', {
-                  count: total,
-                  total: directoryTotal,
-                })}
-              </span>
-            )}
-          </div>
+          </>
         )
       }
-      desktopToolbarClassName="md:grid-cols-[minmax(0,1fr)_0_auto]"
+      search={
+        state !== 'loading' && (
+          <SearchMini
+            aria-label={t('contacts.search.ariaLabel', 'Search contacts')}
+            placeholder={t('contacts.search.placeholder', 'Search contacts…')}
+            value={search}
+            onChange={(event) => setFilter('q', event.currentTarget.value)}
+            containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
+          />
+        )
+      }
       exportAction={
         state !== 'loading' && companiesReady && (
           <ExportAllButton

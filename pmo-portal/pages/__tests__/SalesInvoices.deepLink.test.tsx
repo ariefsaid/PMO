@@ -522,7 +522,7 @@ describe('SalesInvoices — deep link (#787)', () => {
       received_date: '2026-10-10',
     };
     renderAt('/sales-invoices/inv-1');
-    expect(screen.getByRole('heading', { name: 'Received by client' })).toBeInTheDocument();
+    expect(screen.getByText('Received by client')).toBeInTheDocument();
     expect(screen.getByText('Client receipt was recorded for 10 Oct 2026.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Download approved PDF' })).not.toBeInTheDocument();
   });

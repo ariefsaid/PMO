@@ -9,6 +9,7 @@ vi.mock('@/src/hooks/useRevenue', () => ({
 }));
 vi.mock('@/pages/approvals/SalesInvoiceApprovalRow', () => ({ SalesInvoiceApprovalPreview: () => null }));
 vi.mock('@/src/components/fx/FxEquivalent', () => ({ default: () => null }));
+vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: [] }) }));
 
 import { SalesInvoiceDetail } from './SalesInvoiceDetail';
 

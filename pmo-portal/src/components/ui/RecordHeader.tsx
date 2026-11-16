@@ -56,6 +56,8 @@ export interface RecordHeaderProps {
   actionsOnTitleRow?: boolean;
   /** Page variant: pad the panel on the panel inset (24px desktop / 16px phone) so it shares its left edge with `RecordSection` panels. */
   panelInset?: boolean;
+  /** A block under the identity row (and the facts), after a rule: a record's stage track or status steps. */
+  band?: React.ReactNode;
   /** Notes that belong to the record (one muted line each), inside the header panel under the facts. */
   children?: React.ReactNode;
   className?: string;
@@ -92,6 +94,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
   variant = 'page',
   actionsOnTitleRow = false,
   panelInset = false,
+  band,
   children,
   className,
   'data-testid': dataTestId = 'record-header',
@@ -174,6 +177,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
           ))}
         </div>
       )}
+      {band != null && band !== false && <div data-testid="record-header-band" className="mt-4 border-t border-border pt-4">{band}</div>}
       {children != null && children !== false && <div data-testid="record-header-notes" className="mt-3 flex flex-col gap-1 text-control text-muted-foreground">{children}</div>}
     </div>
   );

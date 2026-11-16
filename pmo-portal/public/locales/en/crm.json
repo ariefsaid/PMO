@@ -8,6 +8,7 @@
   "ownershipChecking": "Checking ownership…",
   "ownershipError": "Ownership could not be loaded. Try again.",
   "retry": "Retry",
+  "activitySave": "Save activity",
   "chooseParty": "Choose a client or supplier to continue.",
   "ownershipChanged": "Ownership changed while you were editing. Close and reopen the form to continue.",
   "activityShowMore": "Show more",
