@@ -105,6 +105,8 @@ Service/O&M). Defined in `docs/roadmap-spines.md`.
 
 **Vendor invoice** (UI: **Supplier invoice**) — a supplier billing record under a procurement case, optionally linked to a purchase order, carrying an amount, date, status and tax details.
 
+**Void (vendor bill)** — in an organisation with no ERP, an Admin or Finance user marks a mistyped PMO-native subcontract bill as voided, with a reason. Soft: the bill and its lines stay, it stops counting against the PO and the purchase's payments, and it can never be paid or un-voided. The person who captured the bill cannot void it unless they are the organisation's only active member. Distinct from an ERP cancel, which comes from the ERP (#1671).
+
 **Procurement payment** — a dated payment record under a procurement case, optionally linked to a vendor invoice, with an amount and status.
 
 **Procurement item** — a named quantity and rate on a procurement case, with a calculated or recorded amount.
@@ -336,6 +338,8 @@ _Avoid_: "live connection" unqualified — always name the leg.
 **Claim evidence** — a document revision and its status attached to support a progress claim.
 
 **Sales invoice** — a customer-facing invoice associated with a project and optionally a work order, carrying amount, currency, status and tax details.
+
+**Left after this purchase** — the approval panel's decision figure: Active budget − recorded spending − open orders − Reserved − this purchase, before tax, each amount counted once. A request already in Reserved, or already an order, is not subtracted again. Spending is the project header's reading (the one Budget used divides); open orders are the order total less what spending already holds. When spending or open orders are not known the figure is not shown as a number; with only spending unknown the panel states the amount without it under its own label (OD-APPROVAL-LEFT). It is advisory: approver routing never reads it. Not the same as **Left after open orders** (project Budget tab: budget less committed orders, before this purchase and Reserved).
 
 **Left to bill** — signed contract value (net of tax) less invoiced to date, per held contract (on-hand status, not archived: the Contract on hand set, whatever the selected period) and currency at a month; it does not depend on the revenue recognition basis. The management pack derives it once and every report tile, row, total, export and the home dashboard read that one figure (#2203). A held contract with no contract value is not in it; the total stays a number and the count of such contracts is said beside it ("N contracts with no value, not in the total").
 

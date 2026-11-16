@@ -193,6 +193,13 @@ export function useSubcontractMutations(poId: string, procurementId?: string) {
     onSuccess: invalidate,
   });
 
+  // #1671: void a mistyped subcontract bill; the server owns role, SoD and the cap. Refreshes the PO's payable.
+  const voidBill = useMutation({
+    mutationFn: ({ invoiceId, reason }: { invoiceId: string; reason: string }) =>
+      repositories.subcontracts.voidSubcontractBill(invoiceId, reason),
+    onSuccess: invalidate,
+  });
+
   return {
     setPoLines,
     issuePoLines,
@@ -203,6 +210,7 @@ export function useSubcontractMutations(poId: string, procurementId?: string) {
     decideVariation,
     issueRevision,
     linkVariation,
+    voidBill,
     attributeBillLines,
   };
 }
