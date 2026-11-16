@@ -467,6 +467,7 @@
       "readyToPay": "Payables",
       "budgetReview": "Budget review",
       "procurement": "Procurement",
+      "supplier": "Supplier",
       "supplierInvoiced": "Supplier invoiced",
       "supplierQuoted": "Supplier quoted",
       "amount": "Amount",
