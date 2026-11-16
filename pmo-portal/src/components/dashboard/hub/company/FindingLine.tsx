@@ -1,10 +1,19 @@
 import React from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { Icon, type IconName } from '@/src/components/ui/icons';
+import { cn } from '@/src/components/ui/cn';
 import { useFigureReport } from '@/src/components/ui/useFigureScope';
 import type { OverdueInvoiceNeeds } from '@/src/components/dashboard/restructure/useNeedsYou';
 
-const clauseClass = 'text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
+// Each fact is a chip: its icon and colour say the state (clear, exception, waiting), the words say the count.
+const chipClass = 'inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full border border-border bg-card px-2.5 text-control text-foreground hover:bg-accent/40 pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
+type ClauseTone = 'clear' | 'bad' | 'waiting';
+const TONE_ICON: Record<ClauseTone, { icon: IconName; cls: string }> = {
+  clear: { icon: 'circle-check', cls: 'text-success' },
+  bad: { icon: 'alert', cls: 'text-destructive' },
+  waiting: { icon: 'clock', cls: 'text-warning-icon' },
+};
 
 /**
  * The line under the title: one operations clause, one finance clause, then what waits on the person. Each clause
@@ -20,14 +29,14 @@ export const FindingLine: React.FC<{
   onRetry?: () => void;
 }> = ({ offTrack, overdue, approvals, failed = false, onRetry }) => {
   const { t } = useTranslation('dashboard');
-  const clauses: Array<{ key: string; to: string; text: string }> = [];
+  const clauses: Array<{ key: string; to: string; text: string; tone: ClauseTone }> = [];
   if (offTrack) {
     const text = offTrack.count === 0
       ? (offTrack.unchecked ? t('home.findingNoneCheckedOffTrack', 'No checked project is off track') : t('home.findingNoneOffTrack', 'No project is off track'))
       : offTrack.total !== undefined && !offTrack.atLeast
         ? t('home.findingOffTrackOf', { count: offTrack.count, total: offTrack.total, defaultValue_one: '{{count}} of {{total}} active projects off track', defaultValue_other: '{{count}} of {{total}} active projects off track' })
         : t('home.findingOffTrackAtLeast', { count: offTrack.count, defaultValue_one: 'At least {{count}} project off track', defaultValue_other: 'At least {{count}} projects off track' });
-    clauses.push({ key: 'ops', to: '/projects', text });
+    clauses.push({ key: 'ops', to: '/projects', text, tone: offTrack.count === 0 ? 'clear' : 'bad' });
   }
   if (overdue) {
     const text = overdue.count === 0
@@ -35,9 +44,9 @@ export const FindingLine: React.FC<{
       : overdue.oldestDays !== null
         ? t('home.findingOverdueOldest', { count: overdue.count, days: overdue.oldestDays, defaultValue_one: '{{count}} client invoice overdue, {{days}} days', defaultValue_other: '{{count}} client invoices overdue, oldest {{days}} days' })
         : t('home.findingOverdue', { count: overdue.count, defaultValue_one: '{{count}} client invoice overdue', defaultValue_other: '{{count}} client invoices overdue' });
-    clauses.push({ key: 'finance', to: '/finance/receivables?overdue=true', text });
+    clauses.push({ key: 'finance', to: '/finance/receivables?overdue=true', text, tone: overdue.count === 0 ? 'clear' : 'bad' });
   }
-  if (approvals) clauses.push({ key: 'approvals', to: '/approvals', text: t('home.findingApprovals', { count: approvals, defaultValue_one: '{{count}} approval waits on you', defaultValue_other: '{{count}} approvals wait on you' }) });
+  if (approvals) clauses.push({ key: 'approvals', to: '/approvals', text: t('home.findingApprovals', { count: approvals, defaultValue_one: '{{count}} approval waits on you', defaultValue_other: '{{count}} approvals wait on you' }), tone: 'waiting' });
   if (clauses.length === 0) {
     if (!failed) return null;
     return (
@@ -48,14 +57,16 @@ export const FindingLine: React.FC<{
     );
   }
   return (
-    <p data-testid="home-finding" className="text-control">
-      {clauses.map((clause, index) => (
-        <React.Fragment key={clause.key}>
-          {index > 0 && <span aria-hidden className="mx-2 text-muted-foreground">·</span>}
-          <Link to={clause.to} className={clauseClass}>{clause.text}</Link>
-        </React.Fragment>
+    <ul data-testid="home-finding" className="flex list-none flex-wrap items-center gap-2 p-0">
+      {clauses.map((clause) => (
+        <li key={clause.key}>
+          <Link to={clause.to} className={chipClass}>
+            <Icon name={TONE_ICON[clause.tone].icon} className={cn('size-4 shrink-0', TONE_ICON[clause.tone].cls)} />
+            {clause.text}
+          </Link>
+        </li>
       ))}
-    </p>
+    </ul>
   );
 };
 

@@ -358,7 +358,7 @@
       "attentionApprovals_one": "{{count}} menunggu persetujuan",
       "attentionApprovals_other": "{{count}} menunggu persetujuan",
       "title": "$t(common:terms.dashboard)",
-      "refresh": "Muat ulang",
+      "refresh": "Segarkan",
       "approvals": "Persetujuan yang menunggu Anda",
       "approvalsError": "Tidak dapat memuat persetujuan dan item perhatian",
       "keyFigures": "Angka perusahaan",
@@ -757,7 +757,8 @@
       "dueTodayFinding_one": "{{count}} jatuh tempo hari ini",
       "dueTodayFinding_other": "{{count}} jatuh tempo hari ini",
       "tasksOverdueFinding_one": "{{count}} terlambat",
-      "tasksOverdueFinding_other": "{{count}} terlambat"
+      "tasksOverdueFinding_other": "{{count}} terlambat",
+      "nextUp": "Berikutnya"
     },
     "help": {
       "basis": "Posisi hari ini dalam mata uang tiap catatan. Ditagih, diterima, dan menang mengikuti periode yang dipilih.",
@@ -912,7 +913,9 @@
     "nothingOwedByClients": "Tidak ada tagihan klien yang terutang",
     "hoursInTotal": "total {{hours}} jam",
     "pipelineMixedCurrency": "Jumlah pipeline berbobot disembunyikan untuk mata uang campuran.",
-    "marginCurrencyMismatch": "Margin perkiraan disembunyikan saat mata uang kontrak berbeda dari mata uang anggaran."
+    "marginCurrencyMismatch": "Margin perkiraan disembunyikan saat mata uang kontrak berbeda dari mata uang anggaran.",
+    "otherContracts": "+ {{amount}} kontrak {{currency}}",
+    "otherCurrency": "+ {{amount}} dalam {{currency}}"
   },
   "doneNotYetBilled": {
     "title": "Selesai, belum ditagih",

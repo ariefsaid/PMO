@@ -176,7 +176,7 @@ export const EngineerDashboard: React.FC = () => {
       <FigureScope>
         <div className="space-y-[var(--space-panel-gap)]" data-home-layout="overview">
           <div>{header}<FigureHiddenLine compact /></div>
-          <div className="grid gap-[var(--space-panel-gap)] min-[900px]:grid-cols-2 min-[900px]:items-start">
+          <div className="grid gap-[var(--space-panel-gap)] min-[900px]:grid-cols-2">
             <EngineerTasksCard overdue={overdueTasks} dueThisWeek={dueTasks} undated={undatedTasks} today={organizationDay.day} dayError={dayError} loading={taskLoading} error={taskError} onRetry={refresh} />
             <EngineerTimesheetCard loading={timeLoading} error={timeError} onRetry={refresh} status={currentStatus} days={hoursByDay} hours={hoursThisWeek} chart />
           </div>

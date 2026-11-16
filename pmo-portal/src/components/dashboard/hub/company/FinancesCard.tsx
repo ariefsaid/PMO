@@ -5,7 +5,6 @@ import { cn } from '@/src/components/ui/cn';
 import { ListState } from '@/src/components/ui/ListState';
 import { formatTileMoney } from '@/src/lib/format';
 import { moneyTileValue } from '@/src/components/dashboard/dashMoney';
-import { BarList } from '@/src/components/dashboard/charts';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { SplitBar, type SplitBarPart } from '@/src/components/finance/SplitBar';
 import type { OwedSplit } from '@/src/components/dashboard/restructure/useCompanyFigures';
@@ -34,7 +33,8 @@ const OwedFigure: React.FC<{
 }> = ({ testId, title, split, pending, error, retry, currency, countLine, errorTitle }) => {
   const { t } = useTranslation('dashboard');
   const totals = split ? owedTotals(split) : [];
-  const figure = moneyTileValue(totals.length > 0 ? totals : split && split.unknownBalances === 0 ? [{ currency, amount: 0 }] : null, currency);
+  const figure = moneyTileValue(totals.length > 0 ? totals : split && split.unknownBalances === 0 ? [{ currency, amount: 0 }] : null, currency,
+    (amount, other) => t('home.otherCurrency', '+ {{amount}} in {{currency}}', { amount, currency: other }));
   const barCurrency = totals.find((row) => row.currency === currency) ? currency : totals[0]?.currency ?? currency;
   const shares = split ? owedShares(split, barCurrency) : null;
   // The shared split bar paint the known total split in two: not yet due, and overdue in the exception
@@ -75,6 +75,29 @@ const OwedFigure: React.FC<{
 };
 
 
+/**
+ * A short ranking: each project's full name and amount on one line, its bar under it at the shared scale. Names are
+ * never cut, so the list reads the same at any width (a chart axis had to wrap and clip them).
+ */
+const RankedBars: React.FC<{ rows: Array<{ id: string; name: string; value: number; label: string }>; ariaLabel: string }> = ({ rows, ariaLabel }) => {
+  const max = Math.max(1, ...rows.map((row) => row.value));
+  return (
+    <ol role="img" aria-label={`${ariaLabel}. ${rows.map((row) => `${row.name}: ${row.label}`).join('; ')}`} className="grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,22rem),1fr))] gap-x-[var(--space-panel-gap)] gap-y-3 p-0">
+      {rows.map((row) => (
+        <li key={row.id} className="grid gap-1.5">
+          <div className="flex items-baseline justify-between gap-4 text-control">
+            <span className="min-w-0 break-words">{row.name}</span>
+            <span className="shrink-0 font-semibold tabular">{row.label}</span>
+          </div>
+          <div className="h-2 rounded-full bg-muted">
+            <div className="h-full rounded-full" style={{ width: `${Math.max(1, (row.value / max) * 100)}%`, background: chartTheme.series.primary }} />
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+};
+
 /** Left to bill by project: the projects with the most signed work still to invoice, each named in full. */
 export const LeftToBillSection: React.FC<{
   currency: string;
@@ -95,7 +118,7 @@ export const LeftToBillSection: React.FC<{
       <div className="mb-2 flex items-baseline justify-between gap-3"><h3 className="text-control font-semibold">{leftTitle}</h3><CardLink to="/finance/reports">{t('home.openReports', 'Open reports')}</CardLink></div>
       {pending ? <ListState variant="loading" shape="bars" rows={limit} />
         : error ? <ListState variant="error" title={t('home.leftToBillError', "Couldn't load what is left to bill")} onRetry={retry} quiet />
-          : <BarList rows={topProjects.map((row) => ({ id: row.id, name: row.name, value: row.amount, label: money(row.amount, currency), tone: 'neutral' }))} ariaLabel={leftTitle} />}
+          : <RankedBars rows={topProjects.map((row) => ({ id: row.id, name: row.name, value: row.amount, label: money(row.amount, currency) }))} ariaLabel={leftTitle} />}
     </section>
   );
 };
