@@ -521,6 +521,46 @@ describe('erpnext/dispatchFactory — Slice 5 PO/GR cross-doctype ref resolution
       }
     });
 
+    // A line that is not on the order is sent to ERPNext too: it passes the same number check as an order line (PMO's own
+    // case lines hold quantity >= 0 and rate >= 0, procurement_items_quantity_nonneg / _rate_nonneg, so a negative line is not a PMO bill).
+    it('refuses a line that is not on the order whose qty is not above zero or whose rate is below zero, null or empty, before any ERP write', async () => {
+      const bads = [{ qty: -1, rate: 50 }, { qty: 0, rate: 50 }, { qty: null, rate: 50 }, { qty: '', rate: 50 }, { qty: '  ', rate: 50 },
+        { qty: 1, rate: -5 }, { qty: 1, rate: null }, { qty: 1, rate: '' }, { qty: 1, rate: ' ' }, { qty: 1 }, { qty: 'x', rate: 50 }];
+      for (const bad of bads) {
+        const fetchImpl = billFetch([LINE]);
+        const items = [{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 100 }, { item_code: 'FREIGHT', ...bad }];
+        await expect(adapterFor(billClient(), fetchImpl, false, items)).rejects.toThrow(/quantity and rate must be numbers/);
+        expect(writes(fetchImpl)).toHaveLength(0);
+      }
+    });
+
+    it('a line that is not on the order with a good quantity and a zero or positive rate is sent', async () => {
+      const fetchImpl = billFetch([LINE]);
+      const { adapter, command } = await adapterFor(billClient(), fetchImpl, false,
+        [{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 100 }, { item_code: 'FREIGHT', qty: 1, rate: 0 }, { item_code: 'FREIGHT', qty: '2', rate: '50' }]);
+      await adapter.commit(command);
+      expect(writes(fetchImpl).length).toBeGreaterThan(0);
+    });
+
+    // The order line is found by the rate alone when only one order line has it; quantity decides only among lines sharing the rate.
+    it('a part quantity at a rate only one order line has is billed against that line', async () => {
+      const items = await sentBillItems(billClient({ qty: 1, rate: 150 }), billFetch(TWO({}, { rate: 150, amount: 300 })));
+      expect(items[0]).toMatchObject({ po_detail: 'po-line-2' });
+      const first = await sentBillItems(billClient({ qty: 1, rate: 100 }), billFetch(TWO({}, { rate: 150, amount: 300 })));
+      expect(first[0]).toMatchObject({ po_detail: 'po-line-1' });
+    });
+
+    it('a part quantity at a rate two order lines share is billed against the one with its quantity', async () => {
+      const items = await sentBillItems(billClient({ qty: 5, rate: 100 }), billFetch([...TWO({}, { qty: 5, amount: 500 }), { ...LINE, name: 'po-line-3', rate: 150, amount: 300 }]));
+      expect(items[0]).toMatchObject({ po_detail: 'po-line-2' });
+    });
+
+    it('a part quantity at a rate two order lines share, with both quantities the same, is refused before any ERP write', async () => {
+      const fetchImpl = billFetch([...TWO({}, {}), { ...LINE, name: 'po-line-3', rate: 150, amount: 300 }]);
+      await expect(adapterFor(billClient({ qty: 1, rate: 100 }), fetchImpl)).rejects.toThrow(/on more than one line/);
+      expect(writes(fetchImpl)).toHaveLength(0);
+    });
+
     it('allows a bill that exactly uses what is left', async () => {
       const items = await sentBillItems(billClient({ qty: 1, rate: 100 }), billFetch([{ ...LINE, amount: 400, billed_amt: 300 }]));
       expect(items[0]).toMatchObject({ po_detail: 'po-line-1' });

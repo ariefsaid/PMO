@@ -97,14 +97,14 @@ function routes(unexpected: FetchCall[], world: World): MockRoute[] {
   ];
 }
 
-async function dispatch(world: World, idempotencyKey: string) {
+async function dispatch(world: World, idempotencyKey: string, items: Array<Record<string, unknown>> = BILL.items) {
   const unexpected: FetchCall[] = [];
   const result = await withFetchMock(routes(unexpected, world), async ({ calls }) => {
     const jwt = await auth.mintJwt({ sub: USER_ID });
     const res = await servedHandler!(new Request('http://edge.test/adapter-dispatch', {
       method: 'POST',
       headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ domain: 'procurement', operation: 'create', idempotencyKey, record: BILL }),
+      body: JSON.stringify({ domain: 'procurement', operation: 'create', idempotencyKey, record: { ...BILL, items } }),
     }));
     return { status: res.status, body: await res.text(), calls };
   });
@@ -133,6 +133,20 @@ describe('a vendor bill names its ERP order line through the served adapter-disp
     assertEquals(r.erpWrites.length, 0, 'no ERPNext write, so no draft is left');
     assertEquals(r.outboxInserts.length, 0);
   });
+
+  // A line that is not on the order is sent to ERPNext as well: it passes the same number check as an order line.
+  for (const [n, bad] of [['quantity -1', { qty: -1, rate: 50000 }], ['quantity empty', { qty: '', rate: 50000 }], ['quantity 0', { qty: 0, rate: 50000 }],
+    ['rate null', { qty: 1, rate: null }], ['rate empty', { qty: 1, rate: '' }], ['rate -1', { qty: 1, rate: -1 }]] as const) {
+    it(`a freight line (not on the order) with ${n} is refused (422), with no outbox row and no ERPNext write`, async () => {
+      const r = await dispatch({}, 'eeeeeeee-eeee-4eee-8eee-000000000099',
+        [{ item_code: 'DEMO-ITEM', qty: 1, rate: 1000000 }, { item_code: 'FREIGHT', ...bad }]);
+      assertEquals(r.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
+      assertEquals(r.status, 422, r.body);
+      assert(r.body.includes('quantity and rate must be numbers'), r.body);
+      assertEquals(r.erpWrites.length, 0);
+      assertEquals(r.outboxInserts.length, 0);
+    });
+  }
 
   it('ERPNext 16: a bill dated before its order is refused (422) with the order date, before any outbox row or ERPNext write', async () => {
     const r = await dispatch({ version: 16, orderDate: '2999-01-01' }, 'cccccccc-cccc-4ccc-8ccc-000000000099');

@@ -126,7 +126,8 @@ const money = (c: number): string => (c / 100).toFixed(2);
 /** Link each bill line to the one order line carrying its item (`po_item_child_name`, which `piToBody` turns into
  *  `purchase_order` + `po_detail`; ERPNext reads the order billed only from `po_detail`). A line whose item is not on
  *  the order stays free-standing (freight etc.). Refuses, before any ERP write, what ERPNext would only refuse after
- *  PMO's insert (a stranded draft): a bill with no line on the order, an item on two order lines, a line above what
+ *  PMO's insert (a stranded draft): a line with a missing, blank, non-numeric or non-positive quantity or a missing, blank, non-numeric or negative rate
+ *  (any line, on the order or not), a bill with no line on the order, an item on two order lines that rate and quantity cannot tell apart, a line above what
  *  is left to bill (lines of one order line add up). `checkLeft` is off on a replay (the bill is already counted in `billed_amt`). */
 function linkBillLines<T extends { item_code?: unknown; qty?: unknown; rate?: unknown }>(
   items: T[], lines: PoLine[], poName: string, checkLeft: boolean,
@@ -134,26 +135,30 @@ function linkBillLines<T extends { item_code?: unknown; qty?: unknown; rate?: un
   let linked = 0;
   const askedByLine = new Map<string, number>(); // cents asked so far per order line, across the whole bill
   const out = items.map((item) => {
+    // Every bill line, on the order or not, is sent to ERPNext: quantity above zero, rate zero or more, both real numbers.
+    // (PMO's case lines hold quantity >= 0 and rate >= 0, so a negative line is not a PMO bill; no discount line exists.)
+    const blank = (v: unknown) => v === null || v === undefined || (typeof v === 'string' && v.trim() === '');
+    if (blank(item.qty) || blank(item.rate) || !Number.isFinite(Number(item.qty)) || !Number.isFinite(Number(item.rate)) || !(Number(item.qty) > 0) || !(Number(item.rate) >= 0)) {
+      throw new AppError(`A bill line for ${String(item.item_code)} on ERP order ${poName} is missing its quantity or rate; quantity and rate must be numbers.`, 'commit-rejected');
+    }
     const onOrder = lines.filter((l) => l.item_code === item.item_code);
     if (onOrder.length === 0) {
       // Only PMO-resolved order references reach ERPNext: drop any the caller sent on a line that is not on the order.
       const { po_item_child_name: _a, po_detail: _b, purchase_order: _c, ...free } = item as T & Record<string, unknown>;
       return free as T;
     }
-    // Item on several order lines: the one with this bill line's rate AND quantity; none or several such lines → refuse, never a guess.
+    // Item on several order lines: the one line with this bill line's rate; if several share it, the one with its quantity too;
+    // none or still several → refuse, never a guess.
     // ponytail: no position tie-break: PMO reads the case lines without an ORDER BY, so its line order is not provably the ERP order's.
-    const sameLine = onOrder.length > 1 ? onOrder.filter((l) => l.qty === Number(item.qty) && l.rate === Number(item.rate)) : onOrder;
+    const byRate = onOrder.length > 1 ? onOrder.filter((l) => l.rate === Number(item.rate)) : onOrder;
+    const sameLine = byRate.length > 1 ? byRate.filter((l) => l.qty === Number(item.qty)) : byRate;
     if (sameLine.length !== 1) {
       throw new AppError(`ERP order ${poName} has ${String(item.item_code)} on more than one line; PMO cannot tell which one this bill settles.`, 'commit-rejected');
     }
     linked += 1;
     const [line] = sameLine;
     if (checkLeft) {
-      const lineCents = cents(Number(item.qty) * Number(item.rate));
-      if (!Number.isFinite(lineCents) || !(Number(item.qty) > 0) || !(Number(item.rate) >= 0) || [item.qty, item.rate].some((v) => v === null || v === '')) {
-        throw new AppError(`A bill line for ${String(item.item_code)} on ERP order ${poName} is missing its quantity or rate; quantity and rate must be numbers.`, 'commit-rejected');
-      }
-      const asked = (askedByLine.get(line.name) ?? 0) + lineCents;
+      const asked = (askedByLine.get(line.name) ?? 0) + cents(Number(item.qty) * Number(item.rate));
       askedByLine.set(line.name, asked);
       const left = cents(line.amount) - cents(line.billed_amt);
       if (asked > left) {

@@ -135,13 +135,13 @@ Deno.test({
     assertEquals(await countFor('Purchase Invoice'), billsBefore, 'no draft bill is left in ERPNext');
     assertEquals(Number((await order(c.name)).per_billed), 75);
 
-    // (e) one item on two order lines at different rates: the bill takes the line with its rate; that line reads billed, the other not.
+    // (e) one item on two order lines at different rates: a PART bill (1 of 2) takes the line with its rate; that line reads partly billed, the other not.
     const e = await makeOrder(day(-1), [{ item_code: ITEM, qty: 2, rate: 100 }, { item_code: ITEM, qty: 2, rate: 150 }]);
-    const billE = await dispatchBill(e.name, version, 2, crypto.randomUUID(), 150);
+    const billE = await dispatchBill(e.name, version, 1, crypto.randomUUID(), 150);
     assertEquals(billE.status, 200, billE.body);
     const orderE = (await order(e.name)).items as Array<{ rate: number; billed_amt: number }>;
     console.log(`(e) two lines: ${orderE.map((l) => `rate ${l.rate} billed_amt ${l.billed_amt}`).join('; ')}`);
-    assertEquals(orderE.map((l) => [Number(l.rate), Number(l.billed_amt)]), [[100, 0], [150, 300]]);
+    assertEquals(orderE.map((l) => [Number(l.rate), Number(l.billed_amt)]), [[100, 0], [150, 150]]);
     // the same bill again at a rate neither line has is refused by PMO before any ERPNext write
     const billsBeforeE = await countFor('Purchase Invoice');
     const billE2 = await dispatchBill(e.name, version, 2, crypto.randomUUID(), 120);
