@@ -119,7 +119,7 @@
 -- ⚑ AMENDED BY 0731 (#1415): `record_native_on_account_receipt`, `apply_native_receipt` and `unapply_native_allocation` join (+3). Finance/Admin-gated
 -- SECURITY DEFINER writers under a member's JWT (membership, role, org re-asserted; anon/PUBLIC revoked), proven by 0731_payment_allocation_*.test.sql.
 -- ⚑ AMENDED BY 0765 (#1507 S6): `switch_odoo_ledger_basis` joins (+1). Active-Admin writer under a member's JWT; anon/PUBLIC revoked; proved by odoo_ledger_basis.test.sql.
--- Current retained set: 167 names after 0858 (+2), #1507 S6, #1505, #1813, #1514 D1, #1472 S6B, 0731 (+3), 0704 (#1817, +1), 0792 (#1413, +2) and 0854 (#1511 F3, +1), including #1462's archive inventory read; 0685 adds request_financial_statement_refresh (Refresh now).
+-- Current retained set: 169 names after 0911 (#1599, +1), 0907 (#564, +1), 0858 (+2), #1507 S6, #1505, #1813, #1514 D1, #1472 S6B, 0731 (+3), 0704 (#1817, +1), 0792 (#1413, +2) and 0854 (#1511 F3, +1), including #1462's archive inventory read; 0685 adds request_financial_statement_refresh (Refresh now).
 -- ⚑ AMENDED BY 0704 (#1817): `create_native_tm_invoice` joins (+1). SECURITY DEFINER writer under a member's JWT: re-asserts active membership,
 -- Admin / Finance, the org's own claim and that no ERP owns revenue; proved by supabase/tests/tm_native_invoice.test.sql.
 -- ⚑ AMENDED BY 0792 (#1413): `return_budget_version` and `resubmit_budget_version` join (+2, count 164). Member-JWT definers; re-assert org, active membership, the four budget roles and (return) the activation SoD; proved by supabase/tests/budget_return_to_pm.test.sql.
@@ -259,11 +259,15 @@ select plan(7);
 -- the caller's org, the employment of `equipment` under Odoo and each row's org before it writes; proven by
 -- supabase/tests/odoo_equipment_adoption.test.sql (AC-OFM-021). `list_equipment_asset_matches` is SECURITY INVOKER and
 -- `record_odoo_asset_created` is service-role only, so neither is listed.
--- ⚑ AMENDED BY 0911 (#1599 ECX-4): `request_account_send` joins the retained set (+1, count 168, re-derived by hand from the
+-- ⚑ AMENDED BY 0911 (#1599 ECX-4): `request_account_send` joins the retained set (+1, count 169, re-derived by hand from the
 -- list). SECURITY DEFINER writer called through external-set-company under the member's own JWT; it re-asserts active
 -- membership, the Admin/Finance role, the caller's org, an activated ERPNext binding with a company, the budget category and a
 -- mirrored expense group of that company before it queues one send (audited). Proven by supabase/tests/erp_account_send.test.sql
 -- (AC-ECX-031). `account_send_groups` writes nothing, so the sweep does not name it.
+-- ⚑ AMENDED BY 0907 (#564): `admin_move_credit_allocation` joins the retained set (+1). SECURITY DEFINER writer under a
+-- member's JWT that re-asserts active membership, the Admin role and that both users belong to the caller's org before
+-- it moves credit; proven by supabase/tests/0907_credit_allocations.test.sql and
+-- scripts/credit-allocation-race.test.mjs (AC-ALLOC-001..013).
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
 insert into client_callable_rpc_names (proname) values
   ('accept_connect_proposals'),
@@ -274,6 +278,7 @@ insert into client_callable_rpc_names (proname) values
   ('add_skipped_stage_entry'),
   ('assign_sales_invoice_project'),
   ('admin_set_user_status'),
+  ('admin_move_credit_allocation'),  -- ⚑ AMENDED BY 0907 (#564)
   ('approve_procurement_amount'),
   ('archive_budget_version_with_cancel_intent'),
   ('get_budget_archive_targets'),
@@ -455,8 +460,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  168,
-  'AC-ACL-002 all 168 retained client-callable RPC names still have a public function');
+  169,
+  'AC-ACL-002 all 169 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -465,8 +470,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  168,
-  'AC-ACL-003 all 168 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  169,
+  'AC-ACL-003 all 169 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

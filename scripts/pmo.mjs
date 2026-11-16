@@ -13,6 +13,7 @@
  *   pmo update <table> --filter col=op.value [...] <json | @file | ->
  *   pmo rpc <name> [<json | @file | ->]
  *   pmo load <file.json | -> [--dry-run]   (active Admin only — #796)
+ *   pmo correct project|contract-line|budget-line … --set <field>=<value> [--dry-run]   (active Admin only — #1858)
  *   pmo stages <project> | stage-date <project> <stage> <YYYY-MM-DD> (active Admin — #1835)
  *   pmo bid win|lose|decline <project> ... [--apply]   (active Admin — #1789)
  *   pmo purchases orphans [--include-set-aside] | link <file> [--dry-run] | link-file <json>   (Admin, Executive, PM, Finance — #1319)
@@ -52,6 +53,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { applyLoad, countActions, resolveLoad, validateLoadFile } from './lib/pmo-load.mjs';
+import { CorrectionError, correct, parseSets, validateSets } from './lib/pmo-correct.mjs';
 import { applyMapSet, MAP_COLUMNS, MAP_TABLE, MapSetError, planMapSet } from './lib/pmo-accounts.mjs';
 import { ACTIVATION_ENABLED, activateBudget, ActivationRefused, linkBudgetSource, validateSource } from './lib/pmo-budgets.mjs';
 import { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS, AttributionFileError, explainError, formatPreview, previewRules, readRules, setRules, validateEnd } from './lib/pmo-attribution.mjs';
@@ -140,7 +142,7 @@ export { TM_READ_RPCS };
 export { OPERATOR_ORG_RPCS, classifyOrgReadiness };
 
 /** The verbs. There is deliberately no delete (DD-API-3). */
-export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'stages', 'stage-date', 'bid', 'purchases', 'erp', 'connect', 'documents', 'm365', 'budgets', 'accounts', 'attribution', 'equipment', 'tm', 'org']);
+export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'correct', 'stages', 'stage-date', 'bid', 'purchases', 'erp', 'connect', 'documents', 'm365', 'budgets', 'accounts', 'attribution', 'equipment', 'tm', 'org']);
 
 const DELETE_VERBS = new Set(['delete', 'del', 'rm', 'remove', 'destroy']);
 
@@ -280,7 +282,7 @@ function assertTable(table, mode) {
   }
   if (LOAD_TABLES.includes(table)) {
     if (mode === 'read' && (table === 'budget_versions' || table === 'budget_line_items')) return;
-    throw usage(`Table '${table}' is not available to get/create/update; only \`pmo load\` writes it (draft budgets and contract lines). Change them in the app.`);
+    throw usage(`Table '${table}' is not available to get/create/update; only \`pmo load\` creates it and \`pmo correct\` fixes a loaded value (draft budgets and contract lines). Anything else: use the app.`);
   }
   if (!ALLOWED_TABLES.includes(table)) {
     throw usage(
@@ -708,7 +710,7 @@ const BID_USAGE = `  pmo bid win <project> --ref <client order no> --date <YYYY-
 const VALUE_FLAGS = new Set([
   'url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project', 'asset', 'from', 'source', 'to', 'version', 'line', 'status', 'date', 'intent', 'reason', 'revision', 'request',
   'invoice-document', 'amount', 'name', 'admin-email', 'admin-name', 'currency', 'locale', 'number-locale', 'timezone', 'plan', 'state', 'feature',
-  'tier', 'proposal', 'pmo', 'external', 'category', 'title', 'code', 'file', 'ref', 'value', 'note',
+  'tier', 'proposal', 'pmo', 'external', 'category', 'title', 'code', 'file', 'ref', 'value', 'note', 'set', 'client', 'line-key',
 ]);
 const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run', 'csv', 'undo', 'include-set-aside', 'json', 'history', 'assignees', 'all', 'apply', 'confirm']);
 
@@ -737,6 +739,7 @@ export function parseArgs(argv) {
     if (name === 'filter') flags.filter.push(value);
     else if (name === 'line') flags.line.push(value);
     else if (name === 'feature') flags.feature.push(value);
+    else if (name === 'set') (flags.set ??= []).push(value);
     else {
       if (name === 'invoice-document' && flags[name] !== undefined) throw usage('--invoice-document may be supplied only once');
       flags[name] = value;
@@ -815,6 +818,12 @@ const USAGE = `usage:
   pmo update <table> --filter col=op.value [...] <json | @file | ->
   pmo rpc <name> [<json | @file | ->]
   pmo load <file.json | -> [--dry-run]   (active Admin: companies, projects, draft budgets, contract lines)
+  pmo correct project (--code <code> | --name <name> --client <legal name>) --set <field>=<value> ... [--dry-run]
+                                                    (active Admin: fix a loaded project header field; the preview shows before → after)
+  pmo correct contract-line <project selector> --line-key <key> --set rate|quantity|unit|description|basis=<value> ... [--dry-run]
+                                                    (active Admin: a contract line, i.e. a bill-of-quantities item)
+  pmo correct budget-line <project selector> --line '<load row json | @file>' --set budgeted_amount|description=<value> ... [--dry-run]
+                                                    (active Admin: a budget line item of a Draft per-year budget, found by its load row)
   pmo stages <project>   (active Admin: read stage history)
   pmo stage-date <project> "<Stage name>" <YYYY-MM-DD>   (active Admin: correct a stage date)
 ${BID_USAGE}
@@ -961,7 +970,9 @@ function loadApi(ctx) {
   return {
     get: (table, q) => authed(ctx, 'GET', `/rest/v1/${table}?${q}`),
     post: (table, body) => authed(ctx, 'POST', `/rest/v1/${table}`, { body, headers: representation }),
-    patch: (table, q, body) => authed(ctx, 'PATCH', `/rest/v1/${table}?${q}`, { body, headers: representation }),
+    // `headers` lets a caller ask for more in the same PATCH (pmo correct's gated tables, #1858); the default keeps
+    // every load write and the project correction on the plain header they have always sent.
+    patch: (table, q, body, headers = representation) => authed(ctx, 'PATCH', `/rest/v1/${table}?${q}`, { body, headers }),
     rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }),
     // Match Companies → New: the authenticated caller's JWT invokes the same synchronous ERP
     // dispatch command, which creates the ERP party and returns its canonical PMO row.
@@ -1064,6 +1075,33 @@ async function dispatch(ctx, command, positionals, flags) {
         const err = e instanceof CliError ? e : new CliError(e?.message ?? String(e), { code: e?.code });
         err.details = { cause: err.details ?? null, ...(e?.loadReport ?? {}) };
         throw err;
+      }
+    }
+    case 'correct': {
+      const [kind, ...extra] = positionals;
+      if (!['project', 'contract-line', 'budget-line'].includes(kind) || extra.length > 0) {
+        throw usage('correct needs project, contract-line or budget-line: pmo correct <kind> (--code <code> | --name <name> --client <legal name>) [--line-key <key> | --line <row json | @file>] --set <field>=<value> ... [--dry-run]');
+      }
+      let sets;
+      try {
+        sets = parseSets(flags.set ?? []);
+      } catch (e) {
+        throw usage(e.message);
+      }
+      const misplaced = [['--line-key', kind !== 'contract-line' && flags['line-key'] !== undefined], ['--line', kind !== 'budget-line' && flags.line.length > 0]]
+        .filter(([, used]) => used).map(([name]) => name);
+      if (misplaced.length > 0) throw usage(`pmo correct ${kind} does not take ${misplaced.join(' or ')}`);
+      if (flags.code !== undefined && (flags.name !== undefined || flags.client !== undefined)) throw usage('name the project by --code, or by --name with --client, not both');
+      if (flags.line.length > 1) throw usage('--line may be given once');
+      const line = flags.line.length ? await readPayload(ctx, flags.line[0]) : undefined;
+      const { problems } = validateSets(kind, sets);
+      if (problems.length > 0) throw new CliError(`${problems.length} problem(s); nothing was sent.`, { exit: 2, code: 'invalid_correction', details: problems });
+      await requireActiveAdmin(ctx, 'correct');
+      try {
+        return await correct(kind, { code: flags.code, name: flags.name, client: flags.client, key: flags['line-key'], line }, sets, loadApi(ctx), { dryRun: Boolean(flags['dry-run']) });
+      } catch (e) {
+        if (!(e instanceof CorrectionError)) throw e;
+        throw new CliError(e.message, { exit: e.exit, code: e.code, details: e.details });
       }
     }
     case 'stages': {
