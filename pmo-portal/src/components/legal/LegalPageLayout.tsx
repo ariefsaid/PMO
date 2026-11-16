@@ -116,7 +116,7 @@ export const LegalPageLayout: React.FC<LegalPageLayoutProps> = ({
         )}
 
         {/* Body/prose container (14/1.6 for readability). Children = the <h2> sections. */}
-        <div className="space-y-7 text-control leading-[1.6] text-foreground">{children}</div>
+        <div className="space-y-6 text-control leading-[1.6] text-foreground">{children}</div>
       </main>
     </div>
   );
