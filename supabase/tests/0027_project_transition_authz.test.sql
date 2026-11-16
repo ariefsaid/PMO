@@ -26,9 +26,9 @@ insert into projects (id, org_id, code, name, status, project_manager_id) values
    'PA-001','PR Authz Project A','Leads','00270000-0000-0000-0000-0000000000a2');
 
 -- Org-B project (target for cross-org attempt).
-insert into projects (id, org_id, code, name, status, project_manager_id) values
+insert into projects (id, org_id, code, name, status) values
   ('00270000-0000-0000-0000-000000000020','00270000-0000-0000-0000-000000000002',
-   'PB-001','PR Authz Project B','Leads','00270000-0000-0000-0000-0000000000a2');
+   'PB-001','PR Authz Project B','Leads');
 
 -- ── Test (i): org-A PM on org-B project → 42501 (cross-org) ─────────────────
 set local role authenticated;

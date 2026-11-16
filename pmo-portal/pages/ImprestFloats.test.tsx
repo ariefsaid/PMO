@@ -17,11 +17,14 @@ const h = vi.hoisted(() => ({
   establish: { mutateAsync: vi.fn(), isPending: false },
 }));
 
-vi.mock('@/src/hooks/useImprest', () => ({
-  useImprestFloats: () => h.floats,
-  useImprestPosition: (id: string) => ({ data: h.positions[id], isPending: !(id in h.positions), isError: false }),
-  useEstablishFloat: () => h.establish,
-}));
+vi.mock('@/src/hooks/useImprest', async () => {
+  const { asPagedQuery } = await import('@/src/test/pagedQueryMock');
+  return {
+    useImprestFloatPages: () => asPagedQuery(h.floats),
+    useImprestPosition: (id: string) => ({ data: h.positions[id], isPending: !(id in h.positions), isError: false }),
+    useEstablishFloat: () => h.establish,
+  };
+});
 vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => h.projects }));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => h.users }));
 let realRole: Role = 'Finance';
@@ -97,10 +100,12 @@ describe('/imprest list (AC-IMP-082)', () => {
     expect(screen.queryByText(/^0$/)).toBeNull();
   });
 
-  it('AC-IMP-082 a truncated list says so', () => {
-    h.floats = { ...h.floats, data: { rows: [float('f1', 'Site Alpha', 'Finn Finance')], truncated: true } };
+  it('AC-IMP-082 a truncated list says so (#843: x of y and the next page)', () => {
+    h.floats = { ...h.floats, data: { rows: [float('f1', 'Site Alpha', 'Finn Finance')], truncated: true }, total: 201 } as typeof h.floats;
     renderPage();
-    expect(screen.getByText(/Showing the latest 200/)).toBeInTheDocument();
+    expect(screen.getByText('Showing 1–1 of 201')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Next page' })).toBeInTheDocument();
+    expect(screen.queryByText(/Showing the latest/)).not.toBeInTheDocument();
   });
 
   it('AC-IMP-082 a failed position read shows no zero cell for that row', () => {

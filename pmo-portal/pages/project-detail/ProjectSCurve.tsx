@@ -15,7 +15,7 @@ import { formatPercent } from '@/src/lib/format';
 // Chart ticks are the one place 12px is allowed.
 const sCurveTickStyle = { ...axisTickStyle, fontSize: 12 } as const;
 
-interface ProjectSCurveProps {
+export interface ProjectSCurveProps {
   projectId: string;
 }
 

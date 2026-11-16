@@ -132,6 +132,9 @@
     }
   },
   "detail": {
+    "sodReceipt": "To advance from Purchase Order to Goods Receipt, the requester or a Project-Manager must confirm receipt of the goods.",
+    "sodRequesterYou": "This procurement was raised by you. A different user holding the Project-Manager, Finance, or Executive role must review it — the requester cannot self-approve their own procurement.",
+    "sodRequester": "This procurement was raised by {{name}}. A different user holding the Project-Manager, Finance, or Executive role must review it — the requester cannot self-approve their own procurement.",
     "paidNeedsValue": "Add a line item or a document with an amount before marking this paid."
   },
   "projectDetail": {
@@ -354,6 +357,10 @@
     "returnedDetail": "{{title}} has been returned"
   },
   "decisionSupport": {
+    "otherCurrencyCommitments": "Not counting commitments in other currencies: {{amounts}}",
+    "projectBudget": "Project budget",
+    "reservedSub": "approved, not yet ordered",
+    "reserved": "Reserved",
     "thisProcurement": "Procurement total",
     "notCompared": "In a different currency: not compared with the budget",
     "afterThisProcurement": "After this procurement",
@@ -362,6 +369,9 @@
     "barCaption": "Budget in use with this purchase: {{pct}}%",
     "uncommitted": "Not yet committed",
     "actualsNotCounted": "Actual spend not counted",
+    "reserved": "Reserved",
+    "reservedSub": "Approved, not yet ordered",
+    "projectBudget": "Project budget",
     "headroom": "{{pct}}% headroom left",
     "amountUnavailable": "Budget comparison unavailable for these amounts.",
     "currencyUnavailable": "Budget comparison unavailable for these currencies.",
@@ -725,5 +735,24 @@
     "headingAll": "Purchases and timesheets",
     "waitingDays_one": "{{count}} day waiting",
     "waitingDays_other": "{{count}} days waiting"
+  },
+  "capture": {
+    "refLabel": {
+      "external": "External ref",
+      "deliveryNote": "Delivery note"
+    },
+    "refPlaceholder": {
+      "external": "e.g. SUPPLIER-PO-001",
+      "deliveryNote": "e.g. DN-44120"
+    },
+    "dateLabel": {
+      "receipt": "Receipt date"
+    },
+    "save": {
+      "purchaseRequest": "Save Purchase Request",
+      "rfq": "Save RFQ",
+      "purchaseOrder": "Save Purchase Order",
+      "goodsReceipt": "Save GR"
+    }
   }
 }

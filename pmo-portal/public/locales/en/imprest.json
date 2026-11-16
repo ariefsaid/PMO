@@ -141,8 +141,7 @@
     "positionUnavailable": "Unavailable",
     "positionLoading": "Loading…",
     "rowLabel": "Open {{project}}",
-    "title": "Site cash",
-    "truncated": "Showing the latest {{count}}. Archive floats you no longer use to see older ones."
+    "title": "Site cash"
   },
   "nav": {
     "siteCash": "Site cash"

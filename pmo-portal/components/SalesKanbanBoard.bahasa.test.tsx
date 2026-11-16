@@ -29,7 +29,7 @@ describe('SalesKanbanBoard in Bahasa (#693 F-2)', () => {
     render(<BahasaProvider><SalesKanbanBoard projects={projects} onOpen={vi.fn()} /></BahasaProvider>);
     const titleIn = (testId: string, name: string) => within(screen.getByTestId(testId)).getByText(name, { exact: true });
     expect(titleIn('stage-Leads', 'Prospek')).toBeInTheDocument();
-    expect(titleIn('stage-PQ Submitted', 'Pra-kualifikasi diajukan')).toBeInTheDocument();
+    expect(titleIn('stage-PQ Submitted', 'Prakualifikasi diajukan')).toBeInTheDocument();
     expect(titleIn('stage-Quotation Submitted', 'Penawaran diajukan')).toBeInTheDocument();
     expect(titleIn('stage-Tender Submitted', 'Tender diajukan')).toBeInTheDocument();
     expect(titleIn('stage-Negotiation', 'Negosiasi')).toBeInTheDocument();
@@ -37,7 +37,7 @@ describe('SalesKanbanBoard in Bahasa (#693 F-2)', () => {
     expect(titleIn('stage-Lost', 'Kalah')).toBeInTheDocument();
     // mobile indicator (rendered md:hidden, always in the DOM)
     expect(screen.getByRole('button', { name: 'Prospek' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Pra-kualifikasi diajukan' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Prakualifikasi diajukan' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Leads' })).toBeNull();
     // a single-stage column does not repeat its stage on the card, and no English enum leaks onto it
     const card = screen.getByTestId('project-card');

@@ -40,6 +40,7 @@ import {
   run,
   writeCredentials,
 } from './pmo.mjs';
+import { CORRECTABLE, CORRECT_ADMIN_PATCH_TABLES } from './lib/pmo-correct.mjs';
 
 // ── helpers ──────────────────────────────────────────────────────────────────────────────────────
 
@@ -1023,7 +1024,7 @@ test('AC-CLI-014: profiles cannot be created or updated from the CLI', async () 
 // ── AC-CLI-007: no delete ────────────────────────────────────────────────────────────────────────
 
 test('AC-CLI-007: the CLI offers no delete — no verb, no DELETE request, a clear refusal', async () => {
-  assert.deepEqual([...COMMANDS].sort(), ['accounts', 'attribution', 'budgets', 'connect', 'create', 'documents', 'equipment', 'erp', 'get', 'load', 'login', 'logout', 'm365', 'org', 'purchases', 'rpc', 'stage-date', 'stages', 'tm', 'update', 'whoami']);
+  assert.deepEqual([...COMMANDS].sort(), ['accounts', 'attribution', 'bid', 'budgets', 'connect', 'correct', 'create', 'documents', 'equipment', 'erp', 'get', 'load', 'login', 'logout', 'm365', 'org', 'purchases', 'rpc', 'stage-date', 'stages', 'tm', 'update', 'whoami']);
   const fake = await fakeSupabase();
   const configDir = tmpDir();
   try {
@@ -1181,6 +1182,20 @@ test('AC-CSD-014: the CLI load tier matches the guard admin tier', () => {
   assert.deepEqual(guardList('admin_write_tables'), [...LOAD_TABLES].sort());
   assert.deepEqual(guardList('admin_rpcs'), [...LOAD_RPCS].sort());
   assert.deepEqual(READ_ONLY_TABLES.external_domain_ownership, ['domain', 'external_tier']);
+});
+
+test('AC-CLICOR-015 (CLI half; the guard is pgTAP supabase/tests/0899_cli_guard_history_corrections.test.sql): pmo correct tables and columns match 0899', () => {
+  assert.deepEqual(guardList('correction_patch_tables'), [...CORRECT_ADMIN_PATCH_TABLES].sort());
+  const dir = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'supabase', 'migrations');
+  const sql = fs.readFileSync(path.join(dir, '0899_cli_guard_history_corrections.sql'), 'utf8');
+  for (const spec of Object.values(CORRECTABLE).filter((c) => CORRECT_ADMIN_PATCH_TABLES.includes(c.table))) {
+    const m = sql.match(new RegExp(`create trigger ${spec.table}_00_api_client_columns[^;]*?api_client_restrict_patch_columns\\(([^)]*)\\)`));
+    assert.ok(m, `${spec.table} has the 0899 column trigger`);
+    const allowed = [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]);
+    for (const [field, def] of Object.entries(spec.fields)) {
+      assert.ok(allowed.includes(def.column ?? field), `${spec.table}.${def.column ?? field} is allowed by 0899`);
+    }
+  }
 });
 
 test('usage: no command or --help prints usage JSON and exits 2 / 0', async () => {
@@ -1581,6 +1596,27 @@ test('AC-CSD-002: pmo load lists every problem in an invalid file and sends noth
   }
 });
 
+test('AC-CSD-014: pmo load refuses a won stage with no contract value and writes nothing, even beside loadable rows', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const mixed = { projects: [
+      { name: 'Early bid', client: 'A', stage: 'Leads' },
+      { name: 'Running job', client: 'A', stage: 'Ongoing Project', contract_value: 10, tax_treatment: 'exclusive', tax_amount: 0, customer_contract_ref: 'PO-1', contract_date: '2025-01-15' },
+      { name: 'Won, no value', client: 'A', stage: 'Won, Pending KoM', customer_contract_ref: 'PO-2', contract_date: '2025-01-15' },
+    ] };
+    const r = await runCli(['load', writeLoadFile(configDir, mixed), '--url', fake.url], { configDir });
+    assert.equal(r.code, 2);
+    assert.equal(r.errJson.error.code, 'invalid_load_file');
+    assert.deepEqual(r.errJson.error.details, ['projects[2] (Won, no value | A): "contract_value" is required to load a won project']);
+    assert.deepEqual(fake.requests, [], 'not even a read: the refusal is before any request, so no row of the file is half-loaded');
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
 test('AC-CQ-016: invalid contract-line bounds stop preflight before any request', async () => {
   const fake = await fakeSupabase();
   const configDir = tmpDir();
@@ -1607,8 +1643,8 @@ test('AC-CSD-003: pmo load --dry-run sends only reads and prints the planned act
     const r = await runCli(['load', writeLoadFile(configDir), '--dry-run', '--url', fake.url], { configDir });
     assert.equal(r.code, 0, r.err);
     assert.equal(r.json.dry_run, true);
-    assert.deepEqual(r.json.actions.map((a) => a.kind), ['company.create', 'project.create', 'project.contract_value', 'project.transition', 'project.transition']);
-    assert.equal(r.json.counts['project.transition'], 2);
+    assert.deepEqual(r.json.actions.map((a) => a.kind), ['company.create', 'project.create', 'project.contract_value', 'project.transition']);
+    assert.equal(r.json.counts['project.transition'], 1);
     assert.deepEqual(fake.requests.filter((q) => q.method !== 'GET').map((q) => `${q.method} ${q.path}`), []);
   } finally {
     await fake.close();
@@ -1689,6 +1725,7 @@ test('AC-CSD-005: ERP-owned missing company is synchronously created before its 
     assert.ok(command && project);
     assert.ok(fake.requests.indexOf(command) < fake.requests.indexOf(project));
     assert.equal(JSON.parse(project.body).client_id, 'company-1');
+    assert.equal(project.headers.prefer, 'return=representation', 'pmo load keeps the plain write header');
     assert.equal(fake.requests.some((q) => q.path === '/rest/v1/companies' && q.method === 'POST'), false);
   } finally {
     await fake.close();
@@ -2480,6 +2517,38 @@ test('AC-ROP-073 preview prints the informational list and the feed guidance wit
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
 });
 
+test('#2349 capture preview prints why the ERP settings could not be read and what to do', async () => {
+  const notes = {
+    refused: /^System Settings could not be read \(refused\): grant the integration user read access to System Settings, then preview again\.$/m,
+    not_found: /^System Settings could not be read \(not_found\): the ERP site answered but has no such document at that address; check the integration's site address and that it is the supported ERP product, then preview again\.$/m,
+    unreachable: /^System Settings could not be read \(unreachable\): the ERP did not answer; check it is reachable and healthy, then preview again\.$/m,
+    malformed_reply: /^System Settings could not be read \(malformed_reply\): the ERP's reply was not a System Settings record; check the integration's site address points at the ERP's API, then preview again\.$/m,
+    version_unknown: /^System Settings could not be read \(version_unknown\): the integration's ERP version is not recorded or not supported; run the integration's version check again, then preview again\.$/m,
+  };
+  const answers = [...Object.keys(notes), 'secret detail'].map((cause) => ({ complete: false, revision: 'r', proposals: [], missing: ['source_settings_unreadable'],
+    source_settings: { cause, guidance: 'g' }, erp_write: false }));
+  const fake = await fakeSupabase({ handler: ({ url, send }) => {
+    if (url.pathname !== '/functions/v1/purchase-capture') return false;
+    send(200, answers.shift());
+    return true;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    for (const [cause, note] of Object.entries(notes)) {
+      const preview = await runCli(['purchases', 'capture', '--all', '--dry-run', '--url', fake.url], { configDir });
+      assert.equal(preview.code, 2, preview.err);
+      assert.deepEqual(preview.json?.source_settings, { cause, guidance: 'g' });
+      assert.match(preview.err, note, cause);
+    }
+    // a cause the CLI does not know is never echoed: only the fixed sentences above reach the terminal
+    const unknown = await runCli(['purchases', 'capture', '--all', '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(unknown.code, 2);
+    assert.doesNotMatch(unknown.err, /secret detail/);
+    assert.match(unknown.err, /^System Settings could not be read: see source_settings in the reply, then preview again\.$/m);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
 test('AC-ROP-012 report returns incomplete status and retains named remainder', async () => {
   const fake = await fakeSupabase({ handler: ({ url, body, send }) => {
     if (url.pathname !== '/functions/v1/purchase-capture') return false;
@@ -2789,4 +2858,353 @@ test('AC-CLIPH-001 import-history exits 2 on a denial and sends nothing for an i
     assert.equal(invalid.code, 2);
     assert.match(invalid.err + invalid.out, /invalid_history_file|problem/);
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+// ── #1858: pmo correct — loader-created records, previewed, active Admin only ─────────────────────
+
+const CORRECT_PROJECT = { id: 'p-1', code: 'ORG-001', name: 'Plant upgrade', short_name: null, client_id: 'c-1', start_date: null, end_date: '2026-06-30', project_manager_id: null, service_line: null, sector: null, location: null, award_type: null, bidding_entity: null };
+
+/** profiles → `role`; projects → the one project; PATCH → echoes the project with the body applied. */
+const correctDb = (role, status = 'active') => ({ url, req, body, send }) => {
+  if (url.pathname === '/rest/v1/profiles') return send(200, [{ full_name: 'Owner', role, status }]), true;
+  if (url.pathname === '/rest/v1/projects' && req.method === 'GET') return send(200, [CORRECT_PROJECT]), true;
+  if (url.pathname === '/rest/v1/projects' && req.method === 'PATCH') return send(200, [{ ...CORRECT_PROJECT, ...JSON.parse(body) }]), true;
+  return false;
+};
+const writesOf = (fake) => fake.requests.filter((q) => q.method !== 'GET');
+
+test('AC-CLICOR-011: pmo correct refuses anyone but an active Admin before it reads the target', async () => {
+  for (const [role, status] of [['Project Manager', 'active'], ['Admin', 'disabled']]) {
+    const fake = await fakeSupabase({ handler: correctDb(role, status) });
+    const configDir = tmpDir();
+    try {
+      seedCredentials(configDir, fake.url);
+      const r = await runCli(['correct', 'project', '--code', 'ORG-001', '--set', 'end_date=2026-12-31', '--url', fake.url], { configDir });
+      assert.equal(r.code, 2, r.err);
+      assert.match(r.errJson.error.message, /active Admin/);
+      assert.equal(fake.requests.some((q) => q.path === '/rest/v1/projects'), false);
+      assert.deepEqual(writesOf(fake), []);
+    } finally {
+      await fake.close();
+      fs.rmSync(configDir, { recursive: true, force: true });
+    }
+  }
+});
+
+test('AC-CLICOR-001/002: pmo correct project --dry-run shows before → after and sends no write; the real run sends one PATCH by id', async () => {
+  const fake = await fakeSupabase({ handler: correctDb('Admin') });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const dry = await runCli(['correct', 'project', '--code', 'ORG-001', '--set', 'end_date=2026-12-31', '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(dry.code, 0, dry.err);
+    assert.equal(dry.json.dry_run, true);
+    assert.deepEqual(dry.json.fields, [{ field: 'end_date', before: '2026-06-30', after: '2026-12-31', status: 'changed' }]);
+    assert.deepEqual(writesOf(fake), []);
+
+    const real = await runCli(['correct', 'project', '--code', 'ORG-001', '--set', 'end_date=2026-12-31', '--url', fake.url], { configDir });
+    assert.equal(real.code, 0, real.err);
+    assert.equal(real.json.applied, true);
+    const patches = writesOf(fake);
+    assert.equal(patches.length, 1);
+    assert.equal(patches[0].method, 'PATCH');
+    assert.equal(patches[0].path, '/rest/v1/projects');
+    assert.equal(new URLSearchParams(patches[0].search).get('id'), 'eq.p-1');
+    assert.deepEqual(JSON.parse(patches[0].body), { end_date: '2026-12-31' });
+    assert.equal(patches[0].headers.prefer, 'return=representation', 'projects is not a gated table: the plain header, as before');
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-CLICOR-004/005: an out-of-scope or invalid --set exits 2 before any request', async () => {
+  const fake = await fakeSupabase({ handler: correctDb('Admin') });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    for (const set of ['contract_value=1', 'status=Won', 'code=X', 'currency=USD', 'archived_at=2026-01-01', 'end_date=31/12/2026']) {
+      const r = await runCli(['correct', 'project', '--code', 'ORG-001', '--set', set, '--url', fake.url], { configDir });
+      assert.equal(r.code, 2, `${set}: ${r.err}`);
+    }
+    for (const argv of [['correct'], ['correct', 'company', '--set', 'name=x'], ['correct', 'project', '--code', 'C'], ['correct', 'project', '--code', 'C', '--set', 'name']]) {
+      assert.equal((await runCli([...argv, '--url', fake.url], { configDir })).code, 2, argv.join(' '));
+    }
+    assert.deepEqual(fake.requests, []);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-CLICOR-008: pmo correct budget-line reads its --line row from a file and finds the line by its load identity', async () => {
+  const seen = [];
+  const handler = (ctx) => {
+    const { url, req, send } = ctx;
+    if (url.pathname === '/rest/v1/profiles') return send(200, [{ full_name: 'Owner', role: 'Admin', status: 'active' }]), true;
+    if (url.pathname === '/rest/v1/projects') return send(200, [CORRECT_PROJECT]), true;
+    if (url.pathname === '/rest/v1/budget_versions') return send(200, [{ id: 'v-1', status: 'Draft', version: 1, budget_mode: 'per_year' }]), true;
+    if (url.pathname === '/rest/v1/budget_line_items' && req.method === 'GET') {
+      seen.push(url.searchParams.get('import_key'));
+      return send(200, []), true;
+    }
+    return false;
+  };
+  const fake = await fakeSupabase({ handler });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = path.join(configDir, 'row.json');
+    fs.writeFileSync(file, JSON.stringify({ category: 'Labor', description: 'Site crew', fiscal_year: '2026', budgeted_amount: 1000 }));
+    const r = await runCli(['correct', 'budget-line', '--code', 'ORG-001', '--line', `@${file}`, '--set', 'budgeted_amount=1200', '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(r.code, 2, r.err);
+    assert.match(r.errJson.error.message, /No budget line matches/);
+    assert.match(seen[0], /^eq\.bimp2:/);
+    assert.deepEqual(writesOf(fake), []);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test("#1858: the gated correction PATCHes (boq_items, budget_line_items) carry the guard's one-row request in the same Prefer header", async () => {
+  const LINE_ROW = { id: 'l-1', project_id: 'p-1', import_key: 'L-10', description: 'Pipe laying', unit: 'm', quantity: 10, rate: 100, earning_basis: 'unit_rate' };
+  const BUDGET_ROW = { id: 'b-1', budget_version_id: 'v-1', category: 'Labor', description: 'Site crew', fiscal_year: '2026', budgeted_amount: 1000, import_key: 'bimp2:test', import_origin: 2 };
+  // Resolution reads answer the row that would match (the identity match itself is AC-CLICOR-008); a PATCH echoes its row with the body applied.
+  const handler = ({ url, req, body, send }) => {
+    if (url.pathname === '/rest/v1/profiles') return send(200, [{ full_name: 'Owner', role: 'Admin', status: 'active' }]), true;
+    if (url.pathname === '/rest/v1/projects' && req.method === 'GET') return send(200, [CORRECT_PROJECT]), true;
+    if (url.pathname === '/rest/v1/boq_items' && req.method === 'GET') return send(200, [LINE_ROW]), true;
+    if (url.pathname === '/rest/v1/budget_versions') return send(200, [{ id: 'v-1', status: 'Draft', version: 1, budget_mode: 'per_year' }]), true;
+    if (url.pathname === '/rest/v1/budget_line_items' && req.method === 'GET') return send(200, [BUDGET_ROW]), true;
+    if ((url.pathname === '/rest/v1/boq_items' || url.pathname === '/rest/v1/budget_line_items') && req.method === 'PATCH') {
+      return send(200, [{ ...(url.pathname === '/rest/v1/boq_items' ? LINE_ROW : BUDGET_ROW), ...JSON.parse(body) }]), true;
+    }
+    return false;
+  };
+  const fake = await fakeSupabase({ handler });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const line = await runCli(['correct', 'contract-line', '--code', 'ORG-001', '--line-key', 'L-10', '--set', 'rate=1500.50', '--url', fake.url], { configDir });
+    assert.equal(line.code, 0, line.err);
+    const row = { category: 'Labor', description: 'Site crew', fiscal_year: '2026', budgeted_amount: 1000 };
+    const budget = await runCli(['correct', 'budget-line', '--code', 'ORG-001', '--line', JSON.stringify(row), '--set', 'budgeted_amount=1200', '--url', fake.url], { configDir });
+    assert.equal(budget.code, 0, budget.err);
+    const patches = fake.requests.filter((q) => q.method === 'PATCH');
+    assert.deepEqual(patches.map((p) => p.path), ['/rest/v1/boq_items', '/rest/v1/budget_line_items']);
+    // One header, exactly the guard's lower-case tokens, comma-separated in this order — a second Prefer header or any
+    // other spelling is refused by migration 0899.
+    for (const p of patches) assert.equal(p.headers.prefer, 'return=representation,handling=strict,max-affected=1');
+    assert.deepEqual(JSON.parse(patches[0].body), { rate: 1500.5 });
+    assert.deepEqual(JSON.parse(patches[1].body), { budgeted_amount: 1200 });
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-CLICOR-012: a PATCH that returns no row ends pmo correct with exit 1 and no_rows', async () => {
+  const fake = await fakeSupabase({ handler: (ctx) => (ctx.req.method === 'PATCH' ? (ctx.send(200, []), true) : correctDb('Admin')(ctx)) });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const r = await runCli(['correct', 'project', '--code', 'ORG-001', '--set', 'end_date=2026-12-31', '--url', fake.url], { configDir });
+    assert.equal(r.code, 1, r.err);
+    assert.equal(r.errJson.error.code, 'no_rows');
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('#1858: pmo correct is in the command list and the help', async () => {
+  assert.ok(COMMANDS.includes('correct'));
+  const configDir = tmpDir();
+  try {
+    const help = await runCli(['--help'], { configDir });
+    assert.match(help.out, /pmo correct project/);
+    assert.match(help.out, /pmo correct contract-line/);
+    assert.match(help.out, /pmo correct budget-line/);
+  } finally {
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('#1858: pmo correct refuses flags that do not belong to the subcommand, with a plain message, before any request', async () => {
+  const fake = await fakeSupabase({ handler: correctDb('Admin') });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const cases = [
+      [['correct', 'project', '--code', 'C', '--line-key', 'L-1', '--set', 'name=x'], /--line-key/],
+      [['correct', 'project', '--code', 'C', '--line', '{}', '--set', 'name=x'], /--line\b/],
+      [['correct', 'contract-line', '--code', 'C', '--line', '{}', '--line-key', 'L-1', '--set', 'rate=1'], /--line\b/],
+      [['correct', 'budget-line', '--code', 'C', '--line', '{}', '--line-key', 'L-1', '--set', 'budgeted_amount=1'], /--line-key/],
+      [['correct', 'project', '--code', 'C', '--name', 'N', '--set', 'name=x'], /not both/],
+      [['correct', 'project', '--code', 'C', '--client', 'A', '--set', 'name=x'], /not both/],
+    ];
+    for (const [argv, message] of cases) {
+      const r = await runCli([...argv, '--url', fake.url], { configDir });
+      assert.equal(r.code, 2, argv.join(' '));
+      assert.match(r.errJson.error.message, message, argv.join(' '));
+    }
+    assert.deepEqual(fake.requests, []);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('#1858: the load-tier table refusal names pmo correct, and the help uses the glossary terms', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const r = await runCli(['update', 'boq_items', '{"rate":1}', '--filter', 'id=eq.x', '--url', fake.url], { configDir });
+    assert.equal(r.code, 2);
+    assert.match(r.errJson.error.message, /pmo load.*pmo correct|pmo correct.*pmo load/);
+    assert.deepEqual(fake.requests, []);
+    const help = await runCli(['--help'], { configDir });
+    assert.match(help.out, /bill-of-quantities item/);
+    assert.match(help.out, /budget line item/);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+// ── #1789: pmo bid win|lose|decline records the outcome of an existing bid through transition_project ──
+
+const BID_ID = '17890000-0000-4000-8000-000000000001';
+const BID_ROW = { id: BID_ID, name: 'Survey bid', status: 'Negotiation', contract_value: 125000, contract_value_set_at: '2026-10-01T00:00:00Z' };
+
+/** The project read, the signed-in profile, and transition_project (refused when rpcError is given). */
+const bidDb = ({ role = 'Admin', status = 'active', project = BID_ROW, rpcError } = {}) => ({ url, req, send }) => {
+  if (url.pathname === '/rest/v1/profiles') return send(200, [{ full_name: 'Owner', role, status }]), true;
+  if (url.pathname === '/rest/v1/projects' && req.method === 'GET') return send(200, project ? [project] : []), true;
+  if (url.pathname === '/rest/v1/rpc/transition_project') {
+    if (rpcError) return send(rpcError.status, rpcError.body), true;
+    return send(204), true;
+  }
+  return false;
+};
+
+async function withBidCli(db, fn) {
+  const fake = await fakeSupabase({ handler: db });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const cli = (args) => runCli(['bid', ...args, '--url', fake.url], { configDir });
+    const rpcs = () => fake.requests.filter((q) => q.path === '/rest/v1/rpc/transition_project');
+    await fn({ cli, rpcs, fake });
+    assert.deepEqual(fake.handlerErrors, []);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+}
+
+const WIN = ['win', BID_ID, '--ref', 'SO-77', '--date', '2026-09-12', '--value', '125000'];
+
+test('AC-1789-CLI-001: pmo bid win previews first and writes nothing', async () => {
+  await withBidCli(bidDb(), async ({ cli, rpcs, fake }) => {
+    const result = await cli(WIN);
+    assert.equal(result.code, 0, result.err);
+    assert.equal(result.json.applied, false);
+    assert.equal(result.json.from, 'Negotiation');
+    assert.equal(result.json.to, 'Won, Pending KoM');
+    assert.equal(result.json.contract_value, 125000);
+    assert.match(result.json.next, /--apply/);
+    assert.deepEqual(rpcs(), []);
+    const read = fake.requests.find((q) => q.path === '/rest/v1/projects');
+    assert.equal(new URLSearchParams(read.search).get('id'), `eq.${BID_ID}`);
+  });
+});
+
+test('AC-1789-CLI-002: pmo bid win --apply records the win through transition_project with the user token', async () => {
+  await withBidCli(bidDb(), async ({ cli, rpcs }) => {
+    const result = await cli([...WIN, '--apply']);
+    assert.equal(result.code, 0, result.err);
+    assert.equal(result.json.applied, true);
+    assert.equal(result.json.to, 'Won, Pending KoM');
+    const [rpc] = rpcs();
+    assert.equal(rpc.method, 'POST');
+    assert.equal(rpc.headers.authorization, 'Bearer access-1');
+    assert.deepEqual(JSON.parse(rpc.body), { p_id: BID_ID, p_to: 'Won, Pending KoM', p_customer_contract_ref: 'SO-77', p_contract_date: '2026-09-12' });
+  });
+});
+
+test('AC-1789-CLI-003: a win missing the order number, date or contract value is refused and sends nothing', async () => {
+  await withBidCli(bidDb(), async ({ cli, rpcs }) => {
+    const drop = (flag) => { const a = [...WIN]; a.splice(a.indexOf(flag), 2); return [...a, '--apply']; };
+    for (const [args, message] of [[drop('--ref'), /client order number/], [drop('--date'), /--date/], [drop('--value'), /--value/]]) {
+      const result = await cli(args);
+      assert.equal(result.code, 2, args.join(' '));
+      assert.match(JSON.stringify(result.errJson.error), message);
+    }
+    assert.deepEqual(rpcs(), []);
+  });
+  await withBidCli(bidDb({ project: { ...BID_ROW, contract_value: null } }), async ({ cli, rpcs }) => {
+    const result = await cli([...WIN, '--apply']);
+    assert.equal(result.code, 2);
+    assert.match(JSON.stringify(result.errJson.error), /no contract value/);
+    assert.deepEqual(rpcs(), []);
+  });
+});
+
+test('AC-1789-CLI-004: pmo bid lose and decline record the reason through transition_project', async () => {
+  await withBidCli(bidDb(), async ({ cli, rpcs }) => {
+    const lost = await cli(['lose', BID_ID, '--reason', 'competitor', '--note', 'Lower price', '--apply']);
+    assert.equal(lost.code, 0, lost.err);
+    assert.equal(lost.json.to, 'Loss Tender');
+    const declined = await cli(['decline', BID_ID, '--reason', 'capacity', '--apply']);
+    assert.equal(declined.code, 0, declined.err);
+    assert.equal(declined.json.to, 'Declined');
+    assert.deepEqual(rpcs().map((q) => JSON.parse(q.body)), [
+      { p_id: BID_ID, p_to: 'Loss Tender', p_lost_reason: 'competitor', p_lost_note: 'Lower price' },
+      { p_id: BID_ID, p_to: 'Declined', p_lost_reason: 'capacity' },
+    ]);
+    const noReason = await cli(['lose', BID_ID, '--apply']);
+    assert.equal(noReason.code, 2);
+    assert.match(JSON.stringify(noReason.errJson.error), /--reason/);
+    assert.equal(rpcs().length, 2);
+  });
+});
+
+test('AC-1789-CLI-005: a role other than an active Admin is refused before anything is read or written', async () => {
+  for (const [role, status] of [['Project Manager', 'active'], ['Finance', 'active'], ['Admin', 'disabled']]) {
+    await withBidCli(bidDb({ role, status }), async ({ cli, rpcs, fake }) => {
+      const result = await cli([...WIN, '--apply']);
+      assert.equal(result.code, 2);
+      assert.match(result.errJson.error.message, /active Admin/);
+      assert.deepEqual(rpcs(), []);
+      assert.equal(fake.requests.some((q) => q.path === '/rest/v1/projects'), false);
+    });
+  }
+});
+
+test('AC-1789-CLI-006: a refusal from transition_project stays a refusal', async () => {
+  const body = { code: '42501', message: "this deal's contract value was not set by anyone senior to you, so you cannot win it" };
+  await withBidCli(bidDb({ rpcError: { status: 403, body } }), async ({ cli, rpcs }) => {
+    const result = await cli([...WIN, '--apply']);
+    assert.notEqual(result.code, 0);
+    assert.equal(result.json, null);
+    assert.match(result.errJson.error.message, /cannot win it/);
+    assert.equal(rpcs().length, 1);
+  });
+});
+
+test('AC-1789-CLI-007: pmo bid needs a known outcome, a project UUID and a project the user can see', async () => {
+  await withBidCli(bidDb({ project: null }), async ({ cli, rpcs }) => {
+    for (const args of [['award', BID_ID], ['win', 'not-a-uuid'], ['win']]) {
+      const result = await cli(args);
+      assert.equal(result.code, 2, args.join(' '));
+      assert.match(result.errJson.error.message, /pmo bid/);
+    }
+    const missing = await cli([...WIN, '--apply']);
+    assert.equal(missing.code, 2);
+    assert.match(missing.errJson.error.message, /No project/);
+    assert.deepEqual(rpcs(), []);
+  });
 });

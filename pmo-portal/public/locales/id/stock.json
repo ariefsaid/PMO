@@ -275,7 +275,7 @@
     "openInLedger": "Buka di buku stok",
     "columns": {
       "item": "Barang",
-      "quantity": "Jumlah",
+      "quantity": "Kuantitas",
       "warehouse": "Gudang",
       "change": "Perubahan",
       "balance": "Saldo akhir",
@@ -380,7 +380,7 @@
     "sections": {
       "where": "Lokasi",
       "lines": "Baris",
-      "details": "Rincian"
+      "details": "Detail"
     },
     "warehouse": "Gudang",
     "fromWarehouse": "Dari gudang",
@@ -398,7 +398,7 @@
     "citePlaceholder": "Pilih baris pengeluaran",
     "pickProjectFirst": "Pilih proyek dulu",
     "issuedHelper": "Dikeluarkan: {{qty}} {{unit}}",
-    "quantity": "Jumlah",
+    "quantity": "Kuantitas",
     "unitCost": "Biaya satuan",
     "unitCostBlind": "Biaya satuan (tidak akan terlihat lagi oleh Anda)",
     "occurredOn": "Tanggal",

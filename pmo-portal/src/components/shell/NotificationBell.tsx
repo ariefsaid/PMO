@@ -249,7 +249,7 @@ export const NotificationBell: React.FC = () => {
     <div className="relative" ref={popoverRef}>
       <button
         type="button"
-        aria-label={`Notifications, ${unread} unread`}
+        aria-label={t('shell.notifications.bellLabel', 'Notifications, {{count}} unread', { count: unread })}
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={(e) => {
