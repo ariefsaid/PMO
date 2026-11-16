@@ -41,7 +41,7 @@ function rupiahFinances(body: Json) {
   return {
     ...body,
     budget: budget ? { ...budget, currency: 'IDR', amount: String(6 * BUDGET_LINE) } : budget,
-    actuals: { ...actuals, currency: 'IDR', categories, total, tagged_total: total },
+    actuals: { ...actuals, currency: 'IDR', categories, total, tagged_total: total, uncategorized: { amount: String(SPENT_LINE) } },
   };
 }
 
@@ -104,6 +104,27 @@ async function measureFigures(page: Page, width: number) {
   }, width);
 }
 
+/** #2426-b: the status label is never cut, and the currency/tax pill never breaks across lines. */
+async function measureLabels(page: Page) {
+  return page.evaluate(() => {
+    const host = document.body;
+    const leaves = [...host.querySelectorAll<HTMLElement>('*')].filter((el) => !el.querySelector('*'));
+    const statuses = leaves
+      .filter((el) => /^(Not budgeted|Tidak dianggarkan)$/u.test((el.textContent ?? '').trim()) && el.getClientRects().length > 0)
+      .map((el) => {
+        let clipped = el.scrollWidth > el.clientWidth + 1;
+        for (let p: HTMLElement | null = el.parentElement; p && p.tagName !== 'TR' && p.tagName !== 'LI'; p = p.parentElement) {
+          if (p.scrollWidth > p.clientWidth + 1 && getComputedStyle(p).overflowX !== 'visible') clipped = true;
+        }
+        return { text: el.textContent, clipped };
+      });
+    const units = [...host.querySelectorAll<HTMLElement>('span')]
+      .filter((el) => /^IDR · /u.test((el.textContent ?? '').trim()) )
+      .map((el) => ({ text: el.textContent, rects: el.getClientRects().length, lines: (() => { const r = document.createRange(); r.selectNodeContents(el); const tops = [...r.getClientRects()].filter((q) => q.width > 0).map((q) => [Math.round(q.top), Math.round(q.bottom)]); return tops.filter(([t], i) => !tops.some(([t2, b2], j) => j !== i && t >= t2 - 2 && t < b2 - 4 && j < i)).length; })() }));
+    return { statuses, units };
+  });
+}
+
 for (const width of [390, 1440] as const) {
   for (const locale of ['en', 'id'] as const) {
     test(`@layout #2426 budget: eleven-digit rupiah figures fit every money cell at ${width}px in ${locale}`, async ({ page }) => {
@@ -120,6 +141,12 @@ for (const width of [390, 1440] as const) {
       // Six categories × budget, spent, committed and left: every one of them is on the page.
       expect(figures.length, 'the four money cells of every category print their full figure').toBeGreaterThanOrEqual(24);
       expect(figures.filter((f) => f.clipped || f.outsideRow || f.outsideViewport), 'no figure is cut off or leaves its row').toEqual([]);
+      const labels = await measureLabels(page);
+      expect(labels.statuses.length, 'a Not budgeted row is on the page').toBeGreaterThan(0);
+      expect(labels.statuses.filter((l) => l.clipped), 'no status label is clipped').toEqual([]);
+      expect(labels.units.length, 'the currency and tax pill is on the page').toBeGreaterThan(0);
+      expect(labels.units.filter((u) => u.rects !== 1 || u.lines !== 1), 'the currency and tax pill stays on one line').toEqual([]);
+      console.log(`MEASURE ${width} ${locale}`, JSON.stringify(labels));
     });
   }
 }
