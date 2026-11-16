@@ -127,8 +127,15 @@ describe('DealBand at phone width (#2389)', () => {
     expect(screen.getByText(/Booking/i)).toBeInTheDocument();
   });
 
-  it('AC-2389-3: a stage where desktop offers no Mark won offers none in the phone menu either', async () => {
+  it('AC-2389-3: Mark won is offered at Quotation Submitted, as the stage-move list (#2379) allows', async () => {
     renderLens({ ...dealRow, status: 'Quotation Submitted' } as ProjectWithRefs);
+    await userEvent.click(screen.getByRole('button', { name: /More actions/i }));
+    expect(await screen.findByRole('menuitem', { name: /Mark won/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /Mark lost/i })).toBeInTheDocument();
+  });
+
+  it('AC-2389-3: a stage where desktop offers no Mark won (PQ Submitted) offers none in the phone menu either', async () => {
+    renderLens({ ...dealRow, status: 'PQ Submitted' } as ProjectWithRefs);
     await userEvent.click(screen.getByRole('button', { name: /More actions/i }));
     expect(await screen.findByRole('menuitem', { name: /Mark lost/i })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: /Mark won/i })).toBeNull();
