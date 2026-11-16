@@ -192,7 +192,8 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   }
   // PMO-side placements, from the database's own ledger reading (an invoice no ERP project carries, placed on a project by an Admin).
   type AssignmentRow = { decision_id: string; source_id: string; source: string | null; decision: string; project_id: string | null; procurement_id: string | null;
-    assignment_origin: string | null; tagged_in_erp?: boolean; erp_project_id?: string | null; erp_tag_unmapped?: boolean; placed: string; excluded: Array<{ account: string; amount: string; kind: string }> };
+    assignment_origin: string | null; tagged_in_erp?: boolean; erp_project_id?: string | null; erp_tag_unmapped?: boolean; placed: string; excluded: Array<{ account: string; amount: string; kind: string }>;
+    family_request_id?: string | null; family_order_id?: string | null };
   let assignmentRows: AssignmentRow[] | null = [];
   {
     const { data, error } = await caller.rpc('purchase_capture_assignment_report', { p_project_id: projectId });
@@ -207,7 +208,8 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
     const excluded = row.excluded.map(line => ({ account: line.account, kind: line.kind, amountMinor: minor(line.amount) }));
     if (placedMinor === null || excluded.some(line => line.amountMinor === null)) missing.push('ledger_amount_unknown');
     return { decisionId: row.decision_id, sourceId: row.source_id, source: row.source, decision: row.decision, projectId: row.project_id, procurementId: row.procurement_id,
-      assignmentOrigin: row.assignment_origin, taggedInErp: row.tagged_in_erp === true, erpProjectId: row.erp_project_id ?? null, erpTagUnmapped: row.erp_tag_unmapped === true, placedMinor, excluded };
+      assignmentOrigin: row.assignment_origin, taggedInErp: row.tagged_in_erp === true, erpProjectId: row.erp_project_id ?? null, erpTagUnmapped: row.erp_tag_unmapped === true, placedMinor, excluded,
+      familyRequestId: row.family_request_id ?? null, familyOrderId: row.family_order_id ?? null };
   });
   const projectIds = projectId ? [projectId as string] : [...new Set([...sources.flatMap(source => source.projectIds), ...ledger.items.flatMap(line => line.projectId ? [line.projectId] : []),
     ...assignments.flatMap(item => item.projectId ? [item.projectId] : [])])];
@@ -259,9 +261,13 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
     if (group) group.push(line); else otherByKind.set(line.kind ?? 'other', [line]);
   }
   const otherUnassigned = [...otherByKind.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([kind, lines]) => ({ kind, count: lines.length, total: netTotal(lines) }));
+  // An unassigned invoice that bills exactly one order names that order, so the order and its invoices can be placed as one family (#2277).
+  const orderByFamily = new Map(sources.filter(source => source.kind === 'order' && source.familyId).map(source => [source.familyId, source.id]));
+  const orderOf = (source: (typeof sources)[number]): string | null => source.familyId?.startsWith('order:') ? orderByFamily.get(source.familyId) ?? null : null;
   const unassignedDocuments = sources.filter(source => source.projectIds.length === 0 && !decided.has(source.id)).map(source => ({ id: source.id,
     kind: source.kind, state: source.state, source: source.reference ?? null,
-    reason: proposals.find(proposal => proposal.id === source.id)?.reason ?? 'project_unmapped' }));
+    reason: proposals.find(proposal => proposal.id === source.id)?.reason ?? 'project_unmapped',
+    ...(source.kind === 'supplier_invoice' ? { order_source_id: orderOf(source) } : {}) }));
   return json({ complete: complete && missing.length === 0 && unassigned.length === 0 && reports.every(report => report.complete), revision: docs.generation,
     ...(body.action === 'preview' ? { proposals } : {}), reports, ...(assignmentRows === null ? {} : { assignments }), unassigned, other_unassigned: otherUnassigned, unassigned_documents: unassignedDocuments, missing: [...new Set(missing)], ...feed, ...sourceSettings, erp_write: false });
 }

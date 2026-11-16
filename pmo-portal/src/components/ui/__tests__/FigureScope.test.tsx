@@ -118,10 +118,8 @@ describe('figure tiles: unknown value hides the tile and reports to ONE page lin
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
-  it('a tile carries one truncated caption', () => {
-    render(<KPITile icon="dollar" tone="blue" label="Cash" value="1" caption="vs last month" />);
-    const caption = screen.getByText('vs last month');
-    expect(caption.className).toContain('truncate');
-    expect(caption).toHaveAttribute('title', 'vs last month');
+  it('a tile shows its whole caption as text', () => {
+    render(<KPITile icon="dollar" tone="blue" label="Cash" value="1" caption="7 dengan kontrak ditandatangani" />);
+    expect(screen.getByText('7 dengan kontrak ditandatangani')).toBeInTheDocument();
   });
 });

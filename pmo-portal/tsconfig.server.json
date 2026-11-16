@@ -35,6 +35,7 @@
     "src/components/integrations/odoo/OdooItemPicker.tsx",
     "src/components/ui/useExitPresence.ts",
     "src/deno-global.d.ts",
+    "src/hooks/usePMOverdueTasks.ts",
     "src/lib/adapterSeam/applyEngine.ts",
     "src/lib/adapterSeam/capabilityMap.ts",
     "src/lib/adapterSeam/captureAdapter.ts",

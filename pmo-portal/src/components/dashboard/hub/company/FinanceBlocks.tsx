@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Card, CardHead } from '@/src/components/ui/Card';
 import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { ListState } from '@/src/components/ui/ListState';
+import { cn } from '@/src/components/ui/cn';
 import { ProgressBar } from '@/src/components/ui/ProgressBar';
 import { ExportButton } from '@/src/components/export/ExportButton';
 import { useActualsSnapshot, useApAgingSnapshot, useArAgingSnapshot } from '@/src/hooks/useErpSnapshots';
@@ -24,6 +25,9 @@ import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { calendarAgeDays, supplierInvoiceDate } from '@/src/lib/finance/financePosition';
 
 /** Supplier invoices ready to pay: supplier · procurement · unpaid · invoice age. Blank columns drop out by themselves. */
+/** On a phone a finance table's rows stack as cards (about 600px for a few rows): loading holds that height. */
+export const PHONE_TABLE_HOLD = 'max-[899px]:min-h-[36rem]';
+
 export function ReadyToPayCard({ rows, pending, error, retry, unpaidOf, today }: { rows: ProcurementWithRefs[]; pending: boolean; error: boolean; retry: () => void; unpaidOf: (row: ProcurementWithRefs) => number | null; today: string | null }) {
   const { t } = useTranslation('dashboard');
   // Invoice age is the Payables page's: days since the supplier's invoice date, on the organisation's day (unknown stays blank).
@@ -38,10 +42,14 @@ export function ReadyToPayCard({ rows, pending, error, retry, unpaidOf, today }:
   ];
   return (
     <Card>
-      <CardHead level={2} actions={<ExportButton rows={ready} columns={columns} entity={t('dashboard:hub.company.readyToPay', 'Ready to pay')} label={t('dashboard:hub.company.export', 'Export')} />}>{t('dashboard:hub.company.readyToPay', 'Ready to pay')}</CardHead>
-      <div className="overflow-x-auto [--table-cell-inset:var(--panel-inset)]">
-        <DataTable rows={ready} columns={columns} rowKey={(row) => row.id} onActivate={(row) => navigate(`/procurement/${row.id}`)} rowLabel={(row) => t('dashboard:hub.company.openProcurementNamed', 'Open {{name}}', { name: row.title })} state={pending ? 'loading' : error ? 'error' : ready.length === 0 ? 'empty' : undefined} onRetry={retry} emptyTitle={t('dashboard:hub.company.nothingReadyToPay', 'No supplier invoices are awaiting payment')} errorTitle={t('dashboard:hub.company.readyToPayError', "Couldn't load ready-to-pay records")} tableId="dashboard-company-ready-to-pay" embedded />
-      </div>
+      <CardHead level={2} actions={pending || error || ready.length === 0 ? undefined : <span className="-my-2 inline-flex">{/* The button sits in the head's line, so this head is as tall as its neighbours'. */}<ExportButton rows={ready} columns={columns} entity={t('dashboard:hub.company.readyToPay', 'Ready to pay')} label={t('dashboard:hub.company.export', 'Export')} /></span>}>{t('dashboard:hub.company.readyToPay', 'Ready to pay')}</CardHead>
+      {error && !pending
+        ? <div className="px-[var(--panel-inset)] pb-4"><ListState variant="error" title={t('dashboard:hub.company.readyToPayError', "Couldn't load ready-to-pay records")} onRetry={retry} quiet /></div>
+        : (
+          <div className={cn('overflow-x-auto [--table-cell-inset:var(--panel-inset)]', pending && PHONE_TABLE_HOLD)}>
+            <DataTable rows={ready} columns={columns} rowKey={(row) => row.id} onActivate={(row) => navigate(`/procurement/${row.id}`)} rowLabel={(row) => t('dashboard:hub.company.openProcurementNamed', 'Open {{name}}', { name: row.title })} state={pending ? 'loading' : ready.length === 0 ? 'empty' : undefined} emptyTitle={t('dashboard:hub.company.nothingReadyToPay', 'No supplier invoices are awaiting payment')} tableId="dashboard-company-ready-to-pay" embedded />
+          </div>
+        )}
     </Card>
   );
 }

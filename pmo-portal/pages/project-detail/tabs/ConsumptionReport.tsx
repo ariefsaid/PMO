@@ -21,10 +21,10 @@ const phoneMetric = (label: string, value: React.ReactNode, className?: string) 
 );
 
 const WorkItem: React.FC<{ code: string; description: string }> = ({ code, description }) => (
-  <div className="min-w-0"><span className="block font-mono text-sm font-semibold">{code}</span><span className="block text-sm text-muted-foreground">{description}</span></div>
+  <div className="min-w-0"><span className="block record-id font-semibold text-foreground">{code}</span><span className="block text-sm text-muted-foreground">{description}</span></div>
 );
 const Item: React.FC<{ code: string; name: string }> = ({ code, name }) => (
-  <div className="min-w-0"><span className="block font-mono text-sm">{code}</span><span className="block text-sm text-muted-foreground">{name}</span></div>
+  <div className="min-w-0"><span className="block record-id font-semibold text-foreground">{code}</span><span className="block text-sm text-muted-foreground">{name}</span></div>
 );
 const Section: React.FC<{ title: string; sub?: string; children: React.ReactNode }> = ({ title, sub, children }) => (
   <section className="flex min-w-0 flex-col gap-1.5">

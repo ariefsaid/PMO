@@ -640,7 +640,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
             </button>
             {(row.code || row.vendor?.name) && (
               <span title={[row.code, row.vendor?.name].filter(Boolean).join(' · ')} className="min-w-0 line-clamp-1 break-words text-sm text-muted-foreground">
-                {row.code && <span className="font-mono">{row.code}</span>}{row.code && row.vendor?.name && ' · '}{row.vendor?.name}
+                {row.code && <span className="record-id">{row.code}</span>}{row.code && row.vendor?.name && ' · '}{row.vendor?.name}
               </span>
             )}
           </div>

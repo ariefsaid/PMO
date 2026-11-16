@@ -416,6 +416,63 @@ describe('purchase capture caller authorization', () => {
     });
   });
 
+  it("AC-019 an unassigned invoice billing one order names that order, and the report names a decision's family", async () => {
+    const token = await auth.mintJwt({ sub: 'user-1' });
+    const project = '11111111-1111-4111-8111-111111111111';
+    const binding = { id: 'binding-1', org_id: 'org-1', external_tier: 'erpnext', config: { company: 'Example' }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 };
+    const base = { erp_docstatus: 1, erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [], procurement_id: null, purchase_origin: null, doc_date: null, currency: 'USD', net_total: '100.00', is_return: false, recorded_by_pmo: false };
+    const sources = [
+      { ...base, id: 'order-1', kind: 'order', erp_doctype: 'Purchase Order', erp_name: 'PO-1', erp_status: 'To Bill', purchase_orders: [] },
+      { ...base, id: 'order-2', kind: 'order', erp_doctype: 'Purchase Order', erp_name: 'PO-2', erp_status: 'To Bill', purchase_orders: [] },
+      { ...base, id: 'invoice-1', kind: 'supplier_invoice', erp_doctype: 'Purchase Invoice', erp_name: 'PI-1', erp_status: 'Unpaid', purchase_orders: ['PO-1'] },
+      { ...base, id: 'invoice-2', kind: 'supplier_invoice', erp_doctype: 'Purchase Invoice', erp_name: 'PI-2', erp_status: 'Unpaid', purchase_orders: ['PO-1', 'PO-2'] },
+      { ...base, id: 'invoice-3', kind: 'supplier_invoice', erp_doctype: 'Purchase Invoice', erp_name: 'PI-3', erp_status: 'Unpaid', purchase_orders: [] },
+    ];
+    const family = { decision_id: 'd1', source_id: 'invoice-9', source: 'INV-9', decision: 'project', project_id: project, procurement_id: 'purchase-9', assignment_origin: 'pmo_assignment', placed: '40.00', excluded: [],
+      family_request_id: '55555555-5555-4555-8555-555555555555', family_order_id: 'order-9' };
+    await withFetchMock([
+      jwksRoute(auth),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('external_org_bindings', () => jsonResponse([binding])),
+      supabaseRpc('read_vault_secret', () => jsonResponse('synthetic-key:synthetic-secret')),
+      supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources, revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [], revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD', ledger_started_at: '2026-11-13T00:00:00Z' })),
+      supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: [family, { ...family, decision_id: 'd2', source_id: 'invoice-8', source: 'INV-8', family_request_id: null, family_order_id: null }] })),
+      erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: '2', float_precision: '3', number_format: '#,###.##' } })),
+    ], async () => {
+      const body = await (await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'report', scope: { projectId: null } }, token))).json();
+      const byId = new Map(body.unassigned_documents.map((doc: { id: string }) => [doc.id, doc]));
+      assertEquals((byId.get('invoice-1') as { order_source_id: string | null }).order_source_id, 'order-1');
+      assertEquals((byId.get('invoice-2') as { order_source_id: string | null }).order_source_id, null);
+      assertEquals((byId.get('invoice-3') as { order_source_id: string | null }).order_source_id, null);
+      assertEquals('order_source_id' in (byId.get('order-1') as object), false);
+      assertEquals(body.assignments.map((row: { familyRequestId: string | null; familyOrderId: string | null }) => `${row.familyRequestId}:${row.familyOrderId}`),
+        ['55555555-5555-4555-8555-555555555555:order-9', 'null:null']);
+      assertEquals(body.erp_write, false);
+    });
+  });
+
+  it('AC-019 an assign call passes family rows through unchanged and writes nothing to the ERP', async () => {
+    const token = await auth.mintJwt({ sub: 'user-1' });
+    const rows = [{ request_id: '22222222-2222-4222-8222-222222222222', source_id: '33333333-3333-4333-8333-333333333333', decision: 'order_family', project_id: '44444444-4444-4444-8444-444444444444',
+      invoice_ids: ['66666666-6666-4666-8666-666666666666', '77777777-7777-4777-8777-777777777777'] }];
+    await withFetchMock([
+      jwksRoute(auth),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('external_org_bindings', () => jsonResponse([{ id: 'binding-1', external_tier: 'erpnext', config: { company: 'Example' }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 }])),
+      supabaseRpc('read_vault_secret', () => jsonResponse('synthetic-key:synthetic-secret')),
+      supabaseRpc('assign_capture_invoices', call => { assertEquals(call.bodyJson, { p_rows: rows, p_expected_revision: 'rev', p_dry_run: true }); return jsonResponse({ complete: true, results: [{ outcome: 'create', erp_write: false }], erp_write: false }); }),
+    ], async ({ calls }) => {
+      const response = await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'assign', rows, expectedRevision: 'rev', dryRun: true }, token));
+      assertEquals(response.status, 200);
+      assertEquals((await response.json()).erp_write, false);
+      assertEquals(calls.some(call => call.url.pathname.startsWith('/api/')), false);
+    });
+  });
+
   it('AC-ROP-011 tagged assignment reported', async () => {
     const token = await auth.mintJwt({ sub: 'user-1' });
     const project = '11111111-1111-4111-8111-111111111111';

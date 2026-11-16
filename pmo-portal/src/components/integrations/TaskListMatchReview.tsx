@@ -182,7 +182,7 @@ export function TaskListMatchReview({
                     {selectedList.folder_name
                       ? `${selectedList.space_name} / ${selectedList.folder_name}`
                       : selectedList.space_name}
-                    <span className="font-mono"> · {selectedList.id}</span>
+                    <span className="record-id text-foreground"> · {selectedList.id}</span>
                   </dd>
                 )}
               </div>

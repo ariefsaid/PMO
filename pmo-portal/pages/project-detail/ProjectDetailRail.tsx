@@ -78,15 +78,15 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActi
         {project.contract_date && <DetailRow label={t('projectDetail.rail.contractDate', 'Contract date')} value={formatDay(project.contract_date)} />}
         <DetailRow
           label={t('projectDetail.rail.pmoNumber', 'PMO Project Number')}
-          value={<span className="font-mono text-sm">{project.pmo_project_number}</span>}
+          value={<span className="record-id text-foreground">{project.pmo_project_number}</span>}
         />
         <DetailRow
           label={t('projectDetail.rail.clientCode', 'Client Project Code')}
-          value={project.code ? <span className="font-mono text-sm">{project.code}</span> : notSet}
+          value={project.code ? <span className="record-id text-foreground">{project.code}</span> : notSet}
         />
         <DetailRow
           label={t('projectDetail.rail.customerPoRef', 'Customer PO ref')}
-          value={project.customer_contract_ref ? <span className="font-mono text-sm">{project.customer_contract_ref}</span> : notSet}
+          value={project.customer_contract_ref ? <span className="record-id text-foreground">{project.customer_contract_ref}</span> : notSet}
         />
       </dl>
     </section>

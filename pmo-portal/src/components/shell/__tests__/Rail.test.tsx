@@ -259,3 +259,24 @@ describe('Rail — routes that live under a module without sharing its URL', () 
   });
 });
 
+
+describe('AC-IXD-MOBILE-W4-C3 C3-8/C3-11: the drawer close button sits on the brand row', () => {
+  it('renders a touch-target close (x) button in the brand row and calls onNavigate', async () => {
+    const onNavigate = vi.fn();
+    render(
+      <MemoryRouter>
+        <RailDrawerContext.Provider value><Rail onNavigate={onNavigate} /></RailDrawerContext.Provider>
+      </MemoryRouter>,
+    );
+    const close = screen.getByRole('button', { name: /close navigation/i });
+    expect(close.className).toMatch(/touch-target/);
+    expect(close.parentElement?.textContent).toContain('PMO Portal');
+    await userEvent.click(close);
+    expect(onNavigate).toHaveBeenCalled();
+  });
+
+  it('shows no close button in the persistent rail', () => {
+    render(<MemoryRouter><Rail onNavigate={vi.fn()} /></MemoryRouter>);
+    expect(screen.queryByRole('button', { name: /close navigation/i })).toBeNull();
+  });
+});

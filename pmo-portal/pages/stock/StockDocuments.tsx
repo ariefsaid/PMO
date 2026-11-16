@@ -54,7 +54,7 @@ const StockDocuments: React.FC = () => {
       key: 'number', header: t('documents.columns.number'), rowHeader: true,
       cell: (r) => (
         <div className="min-w-0">
-          <Link to={`/stock/documents/${r.id}`} className="block truncate font-mono text-sm font-semibold hover:underline">{r.number}</Link>
+          <Link to={`/stock/documents/${r.id}`} className="block truncate record-id font-semibold text-foreground hover:underline">{r.number}</Link>
           <span className="block truncate text-sm text-muted-foreground">{t(`kinds.${r.kind}`)}</span>
         </div>
       ),

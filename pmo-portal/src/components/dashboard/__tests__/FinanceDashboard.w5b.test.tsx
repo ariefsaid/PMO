@@ -189,7 +189,7 @@ describe('AC-IXD-DASH-W5-C2B — N16: Ready to pay table', () => {
     expect(screen.queryByText('Draft Request')).not.toBeInTheDocument();
   });
 
-  it('AC-IXD-DASH-W5-C2B-N16-3: shows PR code in mono style', () => {
+  it('AC-IXD-DASH-W5-C2B-N16-3: shows PR code', () => {
     renderPane();
     expect(screen.getByText('VI-001')).toBeInTheDocument();
   });

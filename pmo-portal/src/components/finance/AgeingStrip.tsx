@@ -6,6 +6,7 @@ import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import { cn } from '@/src/components/ui/cn';
 import type { AgeingBuckets, PayablesAgeingBuckets } from '@/src/lib/finance/financePosition';
 import { SplitBar, type SplitBarPart } from './SplitBar';
+import { FIGURE_LINE_CLASS } from '@/src/components/ui/FigureContent';
 
 type AgeingKind = 'receivables' | 'payables';
 type AgeingValues = Record<string, AgeingBuckets | PayablesAgeingBuckets>;
@@ -123,7 +124,7 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLab
                     <span className="min-w-0 break-words text-control text-muted-foreground">{labels[key]}</span>
                     {unknown > 0 && amount === 0
                       ? <span className="text-right text-control text-muted-foreground">{unknownLabel}</span>
-                      : <span className={cn('max-w-full break-all text-right tabular text-sm', amount === 0 ? 'font-normal text-muted-foreground' : 'font-semibold text-foreground')}>{formatCurrency(amount / 100, currency)}</span>}
+                      : <span className={cn(FIGURE_LINE_CLASS, 'text-right text-sm', amount === 0 ? 'font-normal text-muted-foreground' : 'font-semibold text-foreground')}>{formatCurrency(amount / 100, currency)}</span>}
                     {unknown > 0 && amount !== 0 && <span className="col-span-2 col-start-2 text-right text-control text-muted-foreground">{t('financeHub:hub.fix.ageing.plusUnknown', { defaultValue: '+ {{label}}', label: unknownLabel })}</span>}
                     {noDueDateCount > 0 && <span className="col-span-2 col-start-2 text-right text-control text-muted-foreground">{t('finance:area.ageingNoDueDateCount', { count: noDueDateCount, defaultValue_one: '{{count}} invoice', defaultValue_other: '{{count}} invoices' })}</span>}
                   </div>

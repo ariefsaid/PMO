@@ -22,7 +22,7 @@ const rows: TimesheetGridRow[] = [
 ];
 
 describe('TimesheetGrid', () => {
-  it('renders a project row per row with name + mono code', () => {
+  it('renders a project row per row with name + code', () => {
     render(<TimesheetGrid days={days} rows={rows} />);
     expect(screen.getByText('Eastfield Logistics Park')).toBeInTheDocument();
     expect(screen.getByText('PRJ-0142')).toBeInTheDocument();

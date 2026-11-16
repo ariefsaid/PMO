@@ -467,6 +467,7 @@
       "readyToPay": "Utang",
       "budgetReview": "Tinjauan anggaran",
       "procurement": "Pengadaan",
+      "supplier": "Supplier",
       "supplierInvoiced": "Ditagihkan supplier",
       "supplierQuoted": "Penawaran supplier",
       "amount": "Jumlah",
@@ -640,7 +641,6 @@
     "periodTrailing": "12 bulan terakhir",
     "period": "Periode",
     "errorTitle": "Gagal memuat tingkat kemenangan",
-    "errorSub": "Terjadi kesalahan. Coba lagi.",
     "emptyTitle": "Tidak ada proyek selesai dalam periode ini",
     "emptySub": "Pilih periode lebih panjang untuk melihat tingkat kemenangan.",
     "won": "Menang",
@@ -877,6 +877,7 @@
     "findingApprovals_other": "{{count}} persetujuan menunggu Anda",
     "budgetCheck": "Pemeriksaan anggaran",
     "figureError": "Gagal dimuat",
+    "errorSeeOwner": "Gagal dimuat · lihat {{panel}}",
     "signedContractCount_one": "{{count}} dengan kontrak ditandatangani",
     "signedContractCount_other": "{{count}} dengan kontrak ditandatangani",
     "onSignedContracts": "Dari kontrak ditandatangani",
@@ -894,8 +895,8 @@
     "supplierInvoiceCount_other": "{{count}} faktur supplier",
     "oldestDaysOld": "terlama {{days}} hari",
     "openPayables": "Buka utang",
-    "receivablesError": "Faktur klien gagal dimuat",
-    "payablesError": "Faktur supplier gagal dimuat",
+    "receivablesError": "Faktur gagal dimuat",
+    "payablesError": "Faktur gagal dimuat",
     "leftToBillByProject": "Sisa ditagih per proyek",
     "openReports": "Buka laporan",
     "leftToBillError": "Sisa tagihan gagal dimuat",
@@ -903,6 +904,12 @@
     "approvalTimesheetWeek": "$t(common:terms.timesheet), minggu {{week}}",
     "waitingSinceToday": "menunggu sejak hari ini",
     "retry": "Coba lagi",
-    "findingNoneCheckedOffTrack": "Tidak ada proyek terperiksa yang melenceng"
+    "findingNoneCheckedOffTrack": "Tidak ada proyek terperiksa yang melenceng",
+    "waitingItemsAll_one": "Total {{count}} item",
+    "waitingItemsAll_other": "Total {{count}} item",
+    "findingUnavailable": "Ringkasan tidak tersedia",
+    "winsAndLosses": "Menang dan kalah",
+    "nothingOwedByClients": "Tidak ada tagihan klien yang terutang",
+    "hoursInTotal": "total {{hours}} jam"
   }
 }

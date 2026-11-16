@@ -47,3 +47,17 @@ describe('the embedded invoice list status pill carries its own vertical inset',
     expect(pill.className).toContain('rounded-full');
   });
 });
+
+describe('one-type r6: the amount header keeps its tax-basis qualifier on one line', () => {
+  it('never wraps the label and its qualifier', () => {
+    const t = ((_: string, d?: string) => d ?? _) as never;
+    const { displayColumns } = salesInvoiceColumns({
+      t, all: [row], embedded: false, native: false, location: { pathname: '/', search: '', hash: '', state: null, key: 'k' }, orgCurrency: 'IDR', sharedTaxBasis: 'exclusive',
+      projectOptionsById: new Map(), projectsById: new Map(), profilesById: new Map(),
+      invoiceStatus: () => ({ label: 'Paid', variant: 'won' as never, partlySettled: false, odooOutcome: null }),
+    });
+    const header = displayColumns.find((column) => column.key === 'amount')!.header;
+    const { container } = render(<FinanceI18nTestProvider>{header as never}</FinanceI18nTestProvider>);
+    expect((container.firstElementChild as HTMLElement).className).toContain('whitespace-nowrap');
+  });
+});

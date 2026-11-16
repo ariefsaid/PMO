@@ -11,6 +11,7 @@ export {
   type ImportResult,
 } from './types';
 export { parseWorkbook } from './parseWorkbook';
+export { parsePastedRows } from './parsePaste';
 export { autoMap } from './autoMap';
 export { validateRows, rowToCells } from './validateRows';
 export { makeRefLookup, refValidate, refId, type RefLookup, type RefResolution } from './refLookup';
@@ -24,3 +25,4 @@ export {
   BUDGET_CATEGORIES,
   type BudgetImportInput,
 } from './budgetDescriptor';
+export { makeContractLineImportDescriptor, type ContractLineImportInput } from './contractLineDescriptor';

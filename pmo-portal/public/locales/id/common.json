@@ -32,7 +32,9 @@
     },
     "listState": {
       "loading": "Memuat…",
-      "retry": "Coba lagi"
+      "retry": "Coba lagi",
+      "tryAgainSentence": "Coba lagi.",
+      "andTryAgain": " dan coba lagi."
     },
     "filterBar": {
       "all": "Semua",
@@ -1317,7 +1319,6 @@
       "periodTrailing": "12 bulan terakhir",
       "period": "Periode",
       "errorTitle": "Gagal memuat tingkat kemenangan",
-      "errorSub": "Terjadi kesalahan. Coba lagi.",
       "emptyTitle": "Tidak ada proyek selesai dalam periode ini",
       "emptySub": "Pilih periode lebih panjang untuk melihat tingkat kemenangan.",
       "declined": "{{n}} tidak ikut tender, tidak dihitung dalam win rate"
@@ -2119,7 +2120,6 @@
           "claimed": "Ditagih",
           "item": "Item",
           "quantity": "Kontrak",
-          "rate": "Harga satuan",
           "remaining": "Sisa untuk ditagih"
         },
         "confirmDelete": {
