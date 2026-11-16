@@ -250,7 +250,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
     ...(inputs !== null ? [{
       label: tileLabel(t('decisionSupport.openOrders', 'Open orders')),
       value: formatCurrency(inputs.openOrders, budgetCurrency),
-      sub: t('decisionSupport.openOrdersSub', 'Ordered, not invoiced'),
+      sub: t('decisionSupport.openOrdersSub', 'Ordered, not yet in spending'),
     }] : []),
     // The project's canonical Budget used, mirroring the project header: no figure there (a project still in the
     // pipeline, or a reading that does not apply) means no tile here. Only a failed read shows a short unknown mark.

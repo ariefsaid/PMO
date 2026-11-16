@@ -825,12 +825,12 @@ describe('AC-RB-015 — the figures shown reconcile to Left', () => {
     const view = renderPanel(primary());
     const tile = tileOf(/^open orders$/i);
     expect(within(tile).getByText('$400')).toBeInTheDocument();
-    expect(within(tile).getByText('Ordered, not invoiced')).toBeInTheDocument();
+    expect(within(tile).getByText('Ordered, not yet in spending')).toBeInTheDocument();
     view.unmount();
     renderPanel(primary(), 'id');
     const tileId = tileOf(/^pesanan terbuka$/i);
     expect(within(tileId).getByText('$400')).toBeInTheDocument();
-    expect(within(tileId).getByText('Dipesan, belum ditagih')).toBeInTheDocument();
+    expect(within(tileId).getByText('Dipesan, belum masuk pengeluaran tercatat')).toBeInTheDocument();
   });
 
   it('open orders still show while spending is not known', () => {
