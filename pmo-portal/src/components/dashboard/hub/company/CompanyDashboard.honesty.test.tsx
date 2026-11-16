@@ -265,6 +265,12 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     expect(screen.queryByText(/All 0 projects/)).not.toBeInTheDocument();
   });
 
+  it('#2431: with no projects the link reads "All projects", never "All 0 projects"', () => {
+    renderExec();
+    expect(screen.queryByText(/All 0 projects/)).not.toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'All projects' }).length).toBeGreaterThan(0);
+  });
+
   it('Project health lists projects worst first, off-track before the rest', () => {
     h.dash = {
       ...base,

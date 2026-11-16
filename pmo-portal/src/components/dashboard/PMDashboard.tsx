@@ -180,7 +180,7 @@ export const PMDashboard: React.FC = () => {
       error={projectsError}
       onRetry={refresh}
       footer={budgetUseStatus}
-      allLink={{ to: projectsHref(userId), label: projectsPending || projectsError ? t('home.allProjectsBare', 'All projects') : t('home.allMine', 'All {{count}} projects', { count: projects.length }) }}
+      allLink={{ to: projectsHref(userId), label: projectsPending || projectsError || projects.length === 0 ? t('home.allProjectsBare', 'All projects') : t('home.allMine', 'All {{count}} projects', { count: projects.length }) }}
       emptyLabel={t('hub.pm.noProjects', 'No delivery projects assigned to you yet')}
       testId="pm-projects"
       skeletonRows={7}

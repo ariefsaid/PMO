@@ -320,7 +320,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       pending={projectsPending}
       error={projectsError}
       onRetry={() => { figures.dashboardRetry(); void projects.refetch(); }}
-      allLink={{ to: '/projects', label: projects.isPending || projects.isError ? t('home.allProjectsBare', 'All projects') : t('home.allProjects', 'All {{count}} projects', { count: projects.data?.length ?? 0 }) }}
+      allLink={{ to: '/projects', label: projects.isPending || projects.isError || (projects.data?.length ?? 0) === 0 ? t('home.allProjectsBare', 'All projects') : t('home.allProjects', 'All {{count}} projects', { count: projects.data?.length ?? 0 }) }}
       emptyLabel={unchecked > 0 ? t('home.noneCheckedOffTrack', 'No checked project is off track.') : t('home.noneOffTrack', 'No project is off track.')}
     />
   );

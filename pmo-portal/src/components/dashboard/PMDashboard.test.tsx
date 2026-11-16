@@ -243,6 +243,14 @@ describe('Project Manager home (one question: what needs me, which of my project
     expect(screen.getByTestId('kpi-my-contract-value-error')).toHaveTextContent(/Couldn't load.*Retry/);
   });
 
+  it('#2431: with no projects the link reads "All projects", never "All 0 projects"', () => {
+    state.projects.data = [];
+    renderDashboard();
+
+    expect(within(projectsRegion()).getByRole('link', { name: /^All projects/ })).toBeInTheDocument();
+    expect(within(projectsRegion()).queryByText(/All 0 projects/)).not.toBeInTheDocument();
+  });
+
   it('adds only my overdue and due-today task counts to Waits on you', () => {
     state.myTasks.data = [
       { id: 'late', status: 'In Progress', end_date: '2026-11-07' },
