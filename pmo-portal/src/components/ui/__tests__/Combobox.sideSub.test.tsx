@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { Combobox, type ComboboxOption } from '../Combobox';
@@ -32,9 +32,11 @@ describe('Combobox: name with a side code', () => {
   it('finds an option by its code', async () => {
     renderPicker();
     await userEvent.click(screen.getByRole('combobox'));
-    await userEvent.keyboard('0007');
+    // Type into the search box itself: the list opens before the box takes focus, so loose keystrokes
+    // can land nowhere.
+    await userEvent.type(await screen.findByRole('combobox', { name: /^search /i }), '0007');
     expect(await screen.findByRole('option', { name: /Depot/ })).toBeInTheDocument();
-    expect(screen.queryByRole('option', { name: /Substation/ })).toBeNull();
+    await waitFor(() => expect(screen.queryByRole('option', { name: /Substation/ })).toBeNull());
   });
 
   it('marks the selected option', async () => {
