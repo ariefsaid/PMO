@@ -4,7 +4,7 @@
 -- AC-APR-050 line test · AC-APR-051 project test · AC-APR-052 spending unknown · AC-APR-053 below approval rank ·
 -- AC-APR-054 the list reads return the route spend_approval_route returns.
 begin;
-select plan(43);
+select plan(53);
 
 insert into organizations (id, name, default_currency) values
   ('a0923000-0000-0000-0000-00000000000a', 'Spend Route PMO', 'USD'),
@@ -318,6 +318,86 @@ select pg_temp.act_as('a0923000-0000-0000-0000-0000000000a1');
 select throws_ok($$ select * from spend_approval_route_from_figures('a0923000-0000-0000-0000-00000000000a', 'a0923000-0000-0000-0000-0000000000d1', 'Labor', 10, 'USD',
              'a0923000-0000-0000-0000-0000000000a3', null, null, null) $$,
   '22004', 'spend_approval_route_from_figures requires figures', 'AC-APR-054: the logic refuses to run without figures');
+
+-- ── No senior set: the approver set never widens as a request gets riskier (org D has project approvers, no senior set).
+reset role;
+select set_config('request.jwt.claims', '', true);   -- fixtures are written as the table owner, with no acting user
+insert into organizations (id, name, default_currency) values ('a0923000-0000-0000-0000-00000000000d', 'Spend Route no senior set', 'USD');
+insert into auth.users (id, email) values
+  ('a0923000-0000-0000-0000-0000000000f2', 'srs-pm-d@example.test'),
+  ('a0923000-0000-0000-0000-0000000000f3', 'srs-eng-d@example.test'),
+  ('a0923000-0000-0000-0000-0000000000f4', 'srs-pm-d2@example.test');
+insert into profiles (id, org_id, full_name, email, role, status) values
+  ('a0923000-0000-0000-0000-0000000000f2', 'a0923000-0000-0000-0000-00000000000d', 'SRS PM D',  'srs-pm-d@example.test',  'Project Manager', 'active'),
+  ('a0923000-0000-0000-0000-0000000000f3', 'a0923000-0000-0000-0000-00000000000d', 'SRS Eng D', 'srs-eng-d@example.test', 'Engineer',        'active'),
+  ('a0923000-0000-0000-0000-0000000000f4', 'a0923000-0000-0000-0000-00000000000d', 'SRS PM D2', 'srs-pm-d2@example.test', 'Project Manager', 'disabled');
+insert into projects (id, org_id, name, status, currency) values
+  ('a0923000-0000-0000-0000-000000000501', 'a0923000-0000-0000-0000-00000000000d', 'D over line',        'Ongoing Project', 'USD'),
+  ('a0923000-0000-0000-0000-000000000502', 'a0923000-0000-0000-0000-00000000000d', 'D over project',     'Ongoing Project', 'USD'),
+  ('a0923000-0000-0000-0000-000000000503', 'a0923000-0000-0000-0000-00000000000d', 'D unknown spending', 'Ongoing Project', 'USD'),
+  ('a0923000-0000-0000-0000-000000000504', 'a0923000-0000-0000-0000-00000000000d', 'D no named approver','Ongoing Project', 'USD'),
+  ('a0923000-0000-0000-0000-000000000505', 'a0923000-0000-0000-0000-00000000000d', 'D named but disabled','Ongoing Project', 'USD');
+insert into budget_versions (id, org_id, project_id, version, name, status, currency)
+select ('a0923000-0000-0000-0000-000000000' || (p.n + 200)::text)::uuid, 'a0923000-0000-0000-0000-00000000000d', p.id, 1, 'v1', 'Draft', 'USD'
+  from (select id, right(id::text, 3)::int as n from projects where org_id = 'a0923000-0000-0000-0000-00000000000d') p;
+insert into budget_line_items (org_id, budget_version_id, category, budgeted_amount)
+select v.org_id, v.id, c.category, c.amount
+  from budget_versions v cross join (values ('Labor'::budget_category, 400::numeric), ('Materials', 600)) c(category, amount)
+ where v.org_id = 'a0923000-0000-0000-0000-00000000000d';
+update budget_versions set status = 'Active' where org_id = 'a0923000-0000-0000-0000-00000000000d';
+insert into spend_approvers (org_id, project_id, profile_id) values
+  ('a0923000-0000-0000-0000-00000000000d', 'a0923000-0000-0000-0000-000000000501', 'a0923000-0000-0000-0000-0000000000f2'),
+  ('a0923000-0000-0000-0000-00000000000d', 'a0923000-0000-0000-0000-000000000502', 'a0923000-0000-0000-0000-0000000000f2'),
+  ('a0923000-0000-0000-0000-00000000000d', 'a0923000-0000-0000-0000-000000000503', 'a0923000-0000-0000-0000-0000000000f2'),
+  ('a0923000-0000-0000-0000-00000000000d', 'a0923000-0000-0000-0000-000000000505', 'a0923000-0000-0000-0000-0000000000f4');
+insert into procurements (id, org_id, title, status, total_value, project_id, currency, budget_category, requested_by_id, approved_total_value) values
+  ('a0923000-0000-0000-0000-000000000d01', 'a0923000-0000-0000-0000-00000000000d', 'D paid 250 labor',   'Paid',    250, 'a0923000-0000-0000-0000-000000000501', 'USD', 'Labor', 'a0923000-0000-0000-0000-0000000000f3', 1000),
+  ('a0923000-0000-0000-0000-000000000d02', 'a0923000-0000-0000-0000-00000000000d', 'D paid 900 nocat',   'Paid',    900, 'a0923000-0000-0000-0000-000000000502', 'USD', null,    'a0923000-0000-0000-0000-0000000000f3', 1000),
+  ('a0923000-0000-0000-0000-000000000d03', 'a0923000-0000-0000-0000-00000000000d', 'D paid in EUR',      'Ordered', 100, 'a0923000-0000-0000-0000-000000000503', 'USD', 'Labor', 'a0923000-0000-0000-0000-0000000000f3', 1000),
+  ('a0923000-0000-0000-0000-000000000d04', 'a0923000-0000-0000-0000-00000000000d', 'D paid 250 labor 504','Paid',    250, 'a0923000-0000-0000-0000-000000000504', 'USD', 'Labor', 'a0923000-0000-0000-0000-0000000000f3', 1000),
+  ('a0923000-0000-0000-0000-000000000d05', 'a0923000-0000-0000-0000-00000000000d', 'D paid 250 labor 505','Paid',    250, 'a0923000-0000-0000-0000-000000000505', 'USD', 'Labor', 'a0923000-0000-0000-0000-0000000000f3', 1000);
+insert into payments (id, org_id, procurement_id, status, date, amount, currency) values
+  ('a0923000-0000-0000-0000-000000000d11', 'a0923000-0000-0000-0000-00000000000d', 'a0923000-0000-0000-0000-000000000d01', 'Paid', '2026-10-10', 250, 'USD'),
+  ('a0923000-0000-0000-0000-000000000d12', 'a0923000-0000-0000-0000-00000000000d', 'a0923000-0000-0000-0000-000000000d02', 'Paid', '2026-10-10', 900, 'USD'),
+  ('a0923000-0000-0000-0000-000000000d13', 'a0923000-0000-0000-0000-00000000000d', 'a0923000-0000-0000-0000-000000000d03', 'Paid', '2026-10-10',  50, 'EUR'),
+  ('a0923000-0000-0000-0000-000000000d14', 'a0923000-0000-0000-0000-00000000000d', 'a0923000-0000-0000-0000-000000000d04', 'Paid', '2026-10-10', 250, 'USD'),
+  ('a0923000-0000-0000-0000-000000000d15', 'a0923000-0000-0000-0000-00000000000d', 'a0923000-0000-0000-0000-000000000d05', 'Paid', '2026-10-10', 250, 'USD');
+set local role authenticated;
+select pg_temp.act_as('a0923000-0000-0000-0000-0000000000f2');
+create function pg_temp.rd(p_project uuid, p_amt numeric) returns text language sql stable as $$
+  select r.route || '/' || r.reason || '/' || coalesce(r.approver_ids::text, 'null')
+    from public.spend_approval_route('a0923000-0000-0000-0000-00000000000d', p_project, 'Labor', p_amt, 'USD', 'a0923000-0000-0000-0000-0000000000f3') r $$;
+select is(pg_temp.rd('a0923000-0000-0000-0000-000000000501', 200),
+  'project/exceeds_line/{a0923000-0000-0000-0000-0000000000f2}', 'AC-APR-055: over the line with no senior set goes to the project''s named approver, not to everyone');
+select is(pg_temp.rd('a0923000-0000-0000-0000-000000000502', 200),
+  'project/exceeds_project/{a0923000-0000-0000-0000-0000000000f2}', 'AC-APR-055: over the project with no senior set goes to the project''s named approver');
+select is(pg_temp.rd('a0923000-0000-0000-0000-000000000503', 10),
+  'project/spending_unknown/{a0923000-0000-0000-0000-0000000000f2}', 'AC-APR-055: unknown spending with no senior set goes to the project''s named approver');
+select is(pg_temp.rd('a0923000-0000-0000-0000-000000000504', 200),
+  'flat/exceeds_line/null', 'AC-APR-055: with no named approver either the flat matrix applies');
+select is(pg_temp.rd('a0923000-0000-0000-0000-000000000505', 200),
+  'admin/exceeds_line/{}', 'AC-APR-055: a named approver nobody can act as leaves it to an Admin, not to everyone');
+select pg_temp.act_as('a0923000-0000-0000-0000-0000000000f3');
+select is((select route || '/' || reason || '/' || approver_ids::text from spend_approval_route('a0923000-0000-0000-0000-00000000000d', 'a0923000-0000-0000-0000-000000000501', 'Labor', 200, 'USD', 'a0923000-0000-0000-0000-0000000000f3')),
+  'project/spending_not_visible/{a0923000-0000-0000-0000-0000000000f2}', 'AC-APR-055: below approval rank with no senior set names the project''s named approver');
+select is((select route from spend_approval_route('a0923000-0000-0000-0000-00000000000d', 'a0923000-0000-0000-0000-000000000504', 'Labor', 200, 'USD', 'a0923000-0000-0000-0000-0000000000f3')),
+  'flat', 'AC-APR-055: and with none named, flat');
+select is((select route || '/' || reason from spend_approval_route('a0923000-0000-0000-0000-00000000000d', null, 'Labor', 200, 'USD', 'a0923000-0000-0000-0000-0000000000f3')),
+  'flat/no_project', 'AC-APR-055: overhead spend, which has no project, stays flat when nothing is configured');
+-- the list read and the route agree here too
+select pg_temp.act_as('a0923000-0000-0000-0000-0000000000f2');
+reset role;
+insert into procurements (id, org_id, title, status, total_value, project_id, currency, budget_category, requested_by_id) values
+  ('a0923000-0000-0000-0000-000000000e51', 'a0923000-0000-0000-0000-00000000000d', 'eq D over line',    'Requested', 200, 'a0923000-0000-0000-0000-000000000501', 'USD', 'Labor', 'a0923000-0000-0000-0000-0000000000f3'),
+  ('a0923000-0000-0000-0000-000000000e52', 'a0923000-0000-0000-0000-00000000000d', 'eq D unknown',      'Requested',  10, 'a0923000-0000-0000-0000-000000000503', 'USD', 'Labor', 'a0923000-0000-0000-0000-0000000000f3'),
+  ('a0923000-0000-0000-0000-000000000e53', 'a0923000-0000-0000-0000-00000000000d', 'eq D no approver',  'Requested', 200, 'a0923000-0000-0000-0000-000000000504', 'USD', 'Labor', 'a0923000-0000-0000-0000-0000000000f3');
+set local role authenticated;
+select pg_temp.act_as('a0923000-0000-0000-0000-0000000000f2');
+select is((select string_agg(g.route || '/' || g.reason, ',' order by g.route || '/' || g.reason) from get_procurement_approval_routes(array(select id from procurements where title like 'eq D %')) g),
+  'flat/exceeds_line,project/exceeds_line,project/spending_unknown', 'AC-APR-055: the list read returns the same routes');
+select is((select count(*)::int from get_procurement_approval_routes(array(select id from procurements where title like 'eq D %')) g
+            where g.route = 'project' and g.approvers = '[{"id":"a0923000-0000-0000-0000-0000000000f2","full_name":"SRS PM D"}]'::jsonb), 2,
+  'AC-APR-055: and names the named approver');
 
 -- ── Structure: the figure readers and the logic are reached only from the route and the two list RPCs.
 reset role;

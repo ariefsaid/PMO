@@ -22,6 +22,8 @@
 -- currency), spending_not_visible, currency_mismatch (the figures), spending_unknown, exceeds_line,
 -- exceeds_project, budget_changed, within_budget.
 --   spending_unknown      what is spent is not known (no ledger reading, an unmapped category, an unusable amount)
+--   no senior set        a senior outcome (any reason) goes to the project's named approvers; flat applies only when the
+--                         project has none either, and nobody eligible among them leaves it to an Admin.
 --   spending_not_visible  the caller is below approval rank, or not an active member, so spending is not read for
 --                         them: no figures are returned and the route names everyone who could decide (the project
 --                         approvers and the senior set together), so a submit notifies the person who will decide.
@@ -268,9 +270,17 @@ begin
       from public.spend_approvers sa
       join public.profiles pf on pf.id = sa.profile_id
      where sa.org_id = p_org_id and sa.project_id is null;
-    -- Either outcome flat → flat; else the project's and the senior set's eligible ids together; nobody → an Admin.
-    if v_p_rows = 0 or v_rows = 0 then
+    -- No project approver → flat. A project approver but no senior set → the project's approvers alone (the
+    -- senior outcome falls to them, never wider); nobody eligible → an Admin. Both configured → both sets together.
+    if v_p_rows = 0 then
       return query select 'flat'::text, v_reason, null::uuid[], null::numeric, null::numeric;
+      return;
+    elsif v_rows = 0 then
+      if cardinality(v_p_ids) > 0 then
+        return query select 'project'::text, v_reason, v_p_ids, null::numeric, null::numeric;
+      else
+        return query select 'admin'::text, v_reason, '{}'::uuid[], null::numeric, null::numeric;
+      end if;
       return;
     end if;
     select coalesce(array_agg(distinct x order by x), '{}') into v_eligible from unnest(v_p_ids || v_eligible) x;
@@ -321,6 +331,26 @@ begin
     return;
   elsif v_rows > 0 then
     return query select 'admin'::text, v_reason, '{}'::uuid[], v_budget, v_used;
+    return;
+  end if;
+  -- No senior set: the senior outcome falls to the project's named approvers, never to everyone; flat only when the
+  -- project has none either. Nobody eligible among them → an Admin.
+  select count(*),
+         coalesce(array_agg(sa.profile_id order by sa.profile_id) filter (
+           where sa.profile_id is distinct from p_requester_id
+             and pf.status = 'active'
+             and pf.org_id = p_org_id
+             and public.holds_spend_approval_authority(pf.role)), '{}')
+    into v_p_rows, v_p_ids
+    from public.spend_approvers sa
+    join public.profiles pf on pf.id = sa.profile_id
+   where sa.org_id = p_org_id and sa.project_id = p_project_id;
+  if v_p_rows > 0 then
+    if cardinality(v_p_ids) > 0 then
+      return query select 'project'::text, v_reason, v_p_ids, v_budget, v_used;
+    else
+      return query select 'admin'::text, v_reason, '{}'::uuid[], v_budget, v_used;
+    end if;
     return;
   end if;
   return query select 'flat'::text, v_reason, null::uuid[], v_budget, v_used;

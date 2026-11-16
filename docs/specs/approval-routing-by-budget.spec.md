@@ -51,7 +51,9 @@ Applies to procurement requests now. Expense claims (#775) reuse the same rule (
   - Spending is read only for a caller of approval rank. Below it the reason is `spending_not_visible`: no figure,
     and the route names the project's approvers and the senior set together. When spending is not known (no ledger
     reading, an account-unmapped category, an unusable amount) the reason is `spending_unknown` and the senior set
-    decides.
+    decides. When the outcome is the senior set (any reason) and the organisation has no senior set, the project's
+    named approvers decide, never the flat matrix; flat applies only when the project has none either, and nobody
+    eligible among them leaves it to an Admin.
   - It **cannot** be within (routes to the senior set) when: the request has no budget category; the project has
     no Active budget version; the request's currency, or the currency of any spend already on the line, differs
     from the Active version's currency.
@@ -225,6 +227,9 @@ pgTAP files live in `supabase/tests/`; unit tests in `pmo-portal/`.
 - **AC-APR-053** *Given* a caller below approval rank, *then* `spending_not_visible`, no line figures, approvers = the
   project's and the senior set together, and a submit notifies both; figures supplied to the display function
   cannot change it.
+- **AC-APR-055** *Given* an organisation with a project approver and no senior set, *then* over-line, over-project and
+  unknown-spending requests on that project route to that approver (`project`), with the true reason; with no named
+  approver they stay `flat`; a named approver nobody can act as routes to an Admin.
 - **AC-APR-054** *Given* every Requested purchase and Submitted claim and every kind of caller, *then*
   `get_procurement_approval_routes` and `get_expense_claim_approval_routes` return the route `spend_approval_route`
   returns; only those three read the figures.

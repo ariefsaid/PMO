@@ -42,6 +42,7 @@ already shipped in `transition_procurement` (active-member gate, SoD-a, SoD-b, r
    spending is not known (no ledger reading, an unmapped category, an unusable amount, another currency) the
    request goes to the senior set (`spending_unknown`). A caller below approval rank is shown who could decide, with
    no figures (`spending_not_visible`). The decider's own evaluation, under the line lock, is the decision.
+   When the outcome is the senior set and the organisation has none configured, the project's named approvers decide; the flat matrix applies only when the project has no named approver either.
    The figures are read by `spend_approval_route`, and read once per list by the two list RPCs; one logic function
    takes them, is display-only, and is reached only from those three. All are SECURITY INVOKER.
 4. **Evaluated at approve time, under a per-line lock.** The decision reads the line at the moment of approval,

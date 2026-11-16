@@ -56,8 +56,8 @@ select is((select count(*)::int from notifications where owner_id = '02476000-00
             and title = 'Expense claim awaiting your approval' and metadata->'entity'->>'id' = '02476000-0000-0000-0000-000000000401'), 1,
   'AC-EXP-040: the named project approver is told');
 select is((select count(*)::int from notifications where owner_id = '02476000-0000-0000-0000-0000000000a3'
-            and metadata->'entity'->>'id' = '02476000-0000-0000-0000-000000000401'), 1,
-  'AC-EXP-040: a claim submitted below approval rank, with no senior set configured, tells every approval-rank member, so a Project Manager who is not named is told');
+            and metadata->'entity'->>'id' = '02476000-0000-0000-0000-000000000401'), 0,
+  'AC-EXP-040: a Project Manager who is not named is not');
 select is((select count(*)::int from notifications where title = 'Cash advance awaiting your approval'
             and metadata->'entity'->>'id' = '02476000-0000-0000-0000-000000000402'
             and owner_id in ('02476000-0000-0000-0000-0000000000a2','02476000-0000-0000-0000-0000000000a3','02476000-0000-0000-0000-0000000000a4')), 3,
