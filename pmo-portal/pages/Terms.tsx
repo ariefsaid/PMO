@@ -45,7 +45,7 @@ const Terms: React.FC = () => {
             t={t}
             defaults="For questions about your subscription, contact <1>{{email}}</1>."
             values={{ email: CONTACT_EMAIL }}
-            components={{ 1: <a href={`mailto:${CONTACT_EMAIL}`} className="text-primary-text hover:underline" /> }}
+            components={{ 1: <a href={`mailto:${CONTACT_EMAIL}`} className="text-primary-text underline" /> }}
           />
         </p>
       </LegalSection>
