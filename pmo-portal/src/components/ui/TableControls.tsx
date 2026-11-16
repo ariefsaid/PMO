@@ -93,15 +93,18 @@ export const SearchMini: React.FC<SearchMiniProps> = ({
     onKeyDown?.(e);
   };
 
+  // The input is the whole bordered box (the icon sits over its start), so the field's own left edge is the box's
+  // left edge: one edge for the search, not one for the box and a second for the input inside it.
   return (
     <div
       className={cn(
-        'touch-target relative flex h-[var(--control-height)] min-w-0 items-center gap-2 rounded-md border border-border hover:border-input bg-card px-3 text-control sm:min-w-[190px] [&_svg]:size-[15px] [&_svg]:text-muted-foreground',
+        'touch-target relative flex h-[var(--control-height)] min-w-0 items-center text-control sm:min-w-[190px] [&_svg]:size-[15px] [&_svg]:text-muted-foreground',
         containerClassName
       )}
+      // The touch target's expanded hit area is outside the input: a tap there still lands in the field.
       onClick={() => inputRef.current?.focus()}
     >
-      <Icon name="search" />
+      <Icon name="search" className="pointer-events-none absolute left-3" />
       <input
         ref={inputRef}
         type="search"
@@ -109,7 +112,7 @@ export const SearchMini: React.FC<SearchMiniProps> = ({
         value={value}
         onKeyDown={handleKeyDown}
         className={cn(
-          'w-full border-none bg-transparent text-control outline-none placeholder:text-muted-foreground',
+          'h-full w-full min-w-0 rounded-md border border-border bg-card pl-9 pr-3 text-control outline-none placeholder:text-muted-foreground hover:border-input',
           className
         )}
         {...rest}
