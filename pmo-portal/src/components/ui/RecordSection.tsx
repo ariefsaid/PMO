@@ -24,22 +24,34 @@ export interface RecordSectionProps {
   title: React.ReactNode;
   actions?: React.ReactNode;
   flush?: boolean;
+  /** One muted line under the heading (a unit or basis said once), outside the heading's accessible name. */
+  subline?: React.ReactNode;
+  /** Stable id for the heading, for callers whose anchors or tests address the region by it. */
+  headingId?: string;
+  /** Extra classes on the content wrapper (a panel that fills its grid row stretches its content). */
+  bodyClassName?: string;
   children?: React.ReactNode;
   className?: string;
   'data-testid'?: string;
 }
 
-export const RecordSection: React.FC<RecordSectionProps> = ({ title, actions, flush = false, children, className, 'data-testid': testId }) => {
-  const headingId = React.useId();
+export const RecordSection: React.FC<RecordSectionProps> = ({ title, actions, flush = false, subline, headingId: headingIdProp, bodyClassName, children, className, 'data-testid': testId }) => {
+  const autoId = React.useId();
+  const headingId = headingIdProp ?? autoId;
   const hasBody = children != null && children !== false;
   return (
   <section data-testid={testId} aria-labelledby={headingId} className={cn('panel-card overflow-hidden', className)}>
     <div className={cn('flex flex-wrap items-center gap-x-2 gap-y-3 px-[var(--panel-inset)] pt-[var(--panel-inset)]', hasBody ? 'pb-3' : 'pb-[var(--panel-inset)]')}>
-      <h2 id={headingId} className="min-w-0 flex-[1_1_auto] text-group font-semibold text-foreground">{title}</h2>
+      {subline != null && subline !== false
+        ? <div className="min-w-0 flex-[1_1_auto]">
+            <h2 id={headingId} className="text-group font-semibold text-foreground">{title}</h2>
+            <p className="mt-1 text-control font-normal text-muted-foreground">{subline}</p>
+          </div>
+        : <h2 id={headingId} className="min-w-0 flex-[1_1_auto] text-group font-semibold text-foreground">{title}</h2>}
       {actions != null && actions !== false && <div data-testid="record-section-actions" className="ml-auto flex flex-wrap items-center justify-end gap-2 max-sm:has-[[data-actions-wide]]:w-full sm:-my-1">{actions}</div>}
     </div>
     {hasBody && (
-      <div data-flush={flush ? 'true' : undefined} className={flush ? 'p-0 [--table-cell-inset:var(--panel-inset)] [&_li[data-record-row]:first-child]:pt-1' : 'px-[var(--panel-inset)] pb-[var(--panel-inset)]'}>{children}</div>
+      <div data-flush={flush ? 'true' : undefined} className={cn(flush ? 'p-0 [--table-cell-inset:var(--panel-inset)] [&_li[data-record-row]:first-child]:pt-1' : 'px-[var(--panel-inset)] pb-[var(--panel-inset)]', bodyClassName)}>{children}</div>
     )}
   </section>
   );
