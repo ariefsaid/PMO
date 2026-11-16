@@ -50,7 +50,7 @@ const PO_LINE = 'po-line-cable';
 const PI_HEADER = { name: ERP_PI, docstatus: 1, grand_total: 1050000, total_taxes_and_charges: 0,
   taxes_and_charges_deducted: 0, outstanding_amount: 1050000, taxes_and_charges: '' };
 
-interface World { billedAmt?: number; version?: number; orderDate?: string; orderRate?: number }
+interface World { billedAmt?: number; version?: number; orderDate?: string; orderRate?: number; noOrder?: boolean }
 
 /** What the real ERPNext does with a bill POST/submit against the order below (bed A3c, A4, v16 date rule). */
 function erpRefusal(call: FetchCall, w: Required<World>): Response | null {
@@ -66,9 +66,9 @@ function erpRefusal(call: FetchCall, w: Required<World>): Response | null {
 }
 
 function routes(unexpected: FetchCall[], world: World): MockRoute[] {
-  const w: Required<World> = { billedAmt: 0, version: 15, orderDate: '2026-01-01', orderRate: 1000000, ...world };
+  const w: Required<World> = { billedAmt: 0, version: 15, orderDate: '2026-01-01', orderRate: 1000000, noOrder: false, ...world };
   return [
-    ...supabaseBillRoutes({ po: PO, site: ERP_SITE_URL, version: w.version }),
+    ...supabaseBillRoutes({ po: w.noOrder ? null : PO, site: ERP_SITE_URL, version: w.version }),
     {
       label: 'ERP Item catalog', host: ERP_HOST, pathname: '/api/resource/Item',
       response: () => jsonResponse({ data: [
@@ -147,6 +147,30 @@ describe('a vendor bill names its ERP order line through the served adapter-disp
       assertEquals(r.outboxInserts.length, 0);
     });
   }
+
+  // A purchase with no ERP order sends its bill's lines to ERPNext too: the same number check runs, and no order is read.
+  const NO_ORDER_ITEMS = (bad: Record<string, unknown>) => [{ item_code: 'DEMO-ITEM', qty: 1, rate: 1000000 }, { item_code: 'FREIGHT', ...bad }];
+  for (const [n, bad] of [['quantity -1', { qty: -1, rate: 50000 }], ['quantity 0', { qty: 0, rate: 50000 }], ['rate null', { qty: 1, rate: null }], ['rate -1', { qty: 1, rate: -1 }]] as const) {
+    it(`a bill on a purchase with no ERP order and a freight line with ${n} is refused (422), with no outbox row and no ERPNext write`, async () => {
+      const r = await dispatch({ noOrder: true }, 'ffffffff-ffff-4fff-8fff-000000000099', NO_ORDER_ITEMS(bad));
+      assertEquals(r.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
+      assertEquals(r.status, 422, r.body);
+      assert(r.body.includes('quantity and rate must be numbers'), r.body);
+      assertEquals(r.erpWrites.length, 0);
+      assertEquals(r.outboxInserts.length, 0);
+    });
+  }
+
+  it('a valid bill on a purchase with no ERP order goes out unchanged and reads no order', async () => {
+    const r = await dispatch({ noOrder: true }, '99999999-9999-4999-8999-000000000099', NO_ORDER_ITEMS({ qty: 1, rate: 50000 }));
+    assertEquals(r.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
+    assertEquals(r.status, 200, r.body);
+    const posts = r.erpWrites.filter((c) => c.method === 'POST');
+    assertEquals(posts.length, 1, r.body);
+    const items = (posts[0].bodyJson as { items: Array<Record<string, unknown>> }).items;
+    assertEquals(items, [{ item_code: 'DEMO-ITEM', qty: 1, rate: 1000000 }, { item_code: 'FREIGHT', qty: 1, rate: 50000 }]);
+    assertEquals(r.calls.filter((c) => decodeURIComponent(c.url.href).includes('Purchase Order')), []);
+  });
 
   it('ERPNext 16: a bill dated before its order is refused (422) with the order date, before any outbox row or ERPNext write', async () => {
     const r = await dispatch({ version: 16, orderDate: '2999-01-01' }, 'cccccccc-cccc-4ccc-8ccc-000000000099');

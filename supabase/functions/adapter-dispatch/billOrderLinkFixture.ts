@@ -22,8 +22,8 @@ export function eqParam(call: FetchCall, key: string): string | null {
   return raw?.startsWith('eq.') ? decodeURIComponent(raw.slice(3)) : raw;
 }
 
-/** Every non-ERP read the handler makes for a bill on the purchase's linked order `po`. `site` is the ERP site URL the binding holds. */
-export function supabaseBillRoutes(opts: { po: string; site: string; version: number; supplier?: string; company?: string }): MockRoute[] {
+/** Every non-ERP read the handler makes for a bill on the purchase's linked order `po` (`null`: a purchase with no ERP order). `site` is the ERP site URL the binding holds. */
+export function supabaseBillRoutes(opts: { po: string | null; site: string; version: number; supplier?: string; company?: string }): MockRoute[] {
   const outbox = new Map<string, Record<string, unknown>>();
   return [
     supabaseSelect('profiles', (call) =>
@@ -50,7 +50,7 @@ export function supabaseBillRoutes(opts: { po: string; site: string; version: nu
     supabaseSelect('procurement_items', () => jsonResponse([])),
     // The purchase's one ERP order is a linked one (captured from the ERP), not one PMO pushed.
     supabaseSelect('purchase_orders', () => jsonResponse([])),
-    supabaseSelect('procurement_erp_links', () => jsonResponse([{ erp_purchase_documents: { erp_name: opts.po, erp_doctype: 'Purchase Order' } }])),
+    supabaseSelect('procurement_erp_links', () => jsonResponse(opts.po ? [{ erp_purchase_documents: { erp_name: opts.po, erp_doctype: 'Purchase Order' } }] : [])),
     {
       label: 'outbox read', method: 'GET', pathname: '/rest/v1/external_command_outbox',
       response: (call) => {

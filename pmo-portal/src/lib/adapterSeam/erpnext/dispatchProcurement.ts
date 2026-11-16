@@ -123,11 +123,22 @@ async function readPo(client: ErpClientDeps, poName: string): Promise<{ lines: P
 const cents = (n: number): number => Math.round(n * 100);
 const money = (c: number): string => (c / 100).toFixed(2);
 
+/** Every bill line, on an order or not, is sent to ERPNext: quantity above zero, rate zero or more, both real numbers.
+ *  (PMO's case lines hold quantity >= 0 and rate >= 0, so a negative line is not a PMO bill; no discount line exists.)
+ *  Runs for every rebuilt bill before any write, so a bill with no ERP order passes it too. */
+function assertBillLineNumbers(items: Array<{ item_code?: unknown; qty?: unknown; rate?: unknown }>): void {
+  const blank = (v: unknown) => v === null || v === undefined || (typeof v === 'string' && v.trim() === '');
+  for (const item of items) {
+    if (blank(item.qty) || blank(item.rate) || !Number.isFinite(Number(item.qty)) || !Number.isFinite(Number(item.rate)) || !(Number(item.qty) > 0) || !(Number(item.rate) >= 0)) {
+      throw new AppError(`A bill line for ${String(item.item_code)} is missing its quantity or rate; quantity and rate must be numbers.`, 'commit-rejected');
+    }
+  }
+}
+
 /** Link each bill line to the one order line carrying its item (`po_item_child_name`, which `piToBody` turns into
  *  `purchase_order` + `po_detail`; ERPNext reads the order billed only from `po_detail`). A line whose item is not on
  *  the order stays free-standing (freight etc.). Refuses, before any ERP write, what ERPNext would only refuse after
- *  PMO's insert (a stranded draft): a line with a missing, blank, non-numeric or non-positive quantity or a missing, blank, non-numeric or negative rate
- *  (any line, on the order or not), a bill with no line on the order, an item on two order lines that rate and quantity cannot tell apart, a line above what
+ *  PMO's insert (a stranded draft): a bill with no line on the order, an item on two order lines that rate and quantity cannot tell apart, a line above what
  *  is left to bill (lines of one order line add up). `checkLeft` is off on a replay (the bill is already counted in `billed_amt`). */
 function linkBillLines<T extends { item_code?: unknown; qty?: unknown; rate?: unknown }>(
   items: T[], lines: PoLine[], poName: string, checkLeft: boolean,
@@ -135,12 +146,6 @@ function linkBillLines<T extends { item_code?: unknown; qty?: unknown; rate?: un
   let linked = 0;
   const askedByLine = new Map<string, number>(); // cents asked so far per order line, across the whole bill
   const out = items.map((item) => {
-    // Every bill line, on the order or not, is sent to ERPNext: quantity above zero, rate zero or more, both real numbers.
-    // (PMO's case lines hold quantity >= 0 and rate >= 0, so a negative line is not a PMO bill; no discount line exists.)
-    const blank = (v: unknown) => v === null || v === undefined || (typeof v === 'string' && v.trim() === '');
-    if (blank(item.qty) || blank(item.rate) || !Number.isFinite(Number(item.qty)) || !Number.isFinite(Number(item.rate)) || !(Number(item.qty) > 0) || !(Number(item.rate) >= 0)) {
-      throw new AppError(`A bill line for ${String(item.item_code)} on ERP order ${poName} is missing its quantity or rate; quantity and rate must be numbers.`, 'commit-rejected');
-    }
     const onOrder = lines.filter((l) => l.item_code === item.item_code);
     if (onOrder.length === 0) {
       // Only PMO-resolved order references reach ERPNext: drop any the caller sent on a line that is not on the order.
@@ -234,6 +239,10 @@ export async function resolveProcurementOrderRefs(
 
   // A bill reads its order only when its body is rebuilt (create/update/amend): a submit or cancel needs no order read.
   const billRebuilt = kind === 'purchase-invoice' && buildsSalesInvoiceBody({ operation: deps.command.operation, record: { verb: (record as { verb?: unknown }).verb } });
+  if (billRebuilt) {
+    if (resolvedItems) assertBillLineNumbers(resolvedItems);
+    if (hasOwnItems) assertBillLineNumbers(record.items as Array<Record<string, unknown>>);
+  }
   if ((kind === 'goods-receipt' || billRebuilt) && (resolvedItems || hasOwnItems)) {
     const poPmoId = await resolveLatestPoPmoId(deps.serviceClient, procurementId);
     const mappedPo = poPmoId ? await resolveExternalRef(deps.serviceClient as unknown as ExternalRefsLookupClient, deps.orgId, 'procurement', poPmoId) : null;

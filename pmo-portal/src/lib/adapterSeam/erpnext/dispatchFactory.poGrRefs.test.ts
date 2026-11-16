@@ -374,7 +374,7 @@ describe('erpnext/dispatchFactory — Slice 5 PO/GR cross-doctype ref resolution
       }) as unknown as typeof fetch;
     }
 
-    function billClient(opts: { mapped?: boolean; qty?: number; rate?: number; version?: number } = {}) {
+    function billClient(opts: { mapped?: boolean; noOrder?: boolean; qty?: number; rate?: number; version?: number } = {}) {
       return multiTableClient({
         external_org_bindings: { ...ACTIVATED_ROW, version_major: opts.version ?? 15 },
         procurements: { org_id: 'org-1', vendor_id: 'company-1' },
@@ -383,7 +383,7 @@ describe('erpnext/dispatchFactory — Slice 5 PO/GR cross-doctype ref resolution
           : opts.mapped ? [{ external_record_id: 'PUR-ORD-2026-00001' }] : [],
         procurement_items: [{ name: 'SPIKE-ITEM-1', quantity: opts.qty ?? 2, rate: opts.rate ?? 100 }],
         purchase_orders: opts.mapped ? [{ id: 'po-pmo-1' }] : [],
-        procurement_erp_links: opts.mapped ? [] : [{ erp_purchase_documents: { erp_name: 'PUR-ORD-2026-00001', erp_doctype: 'Purchase Order' } }],
+        procurement_erp_links: opts.mapped || opts.noOrder ? [] : [{ erp_purchase_documents: { erp_name: 'PUR-ORD-2026-00001', erp_doctype: 'Purchase Order' } }],
       });
     }
 
@@ -540,6 +540,37 @@ describe('erpnext/dispatchFactory — Slice 5 PO/GR cross-doctype ref resolution
         [{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 100 }, { item_code: 'FREIGHT', qty: 1, rate: 0 }, { item_code: 'FREIGHT', qty: '2', rate: '50' }]);
       await adapter.commit(command);
       expect(writes(fetchImpl).length).toBeGreaterThan(0);
+    });
+
+    // A purchase with no ERP order sends its bill's lines to ERPNext too: the same number check runs, with no order read.
+    it('refuses every bill line of a purchase with no ERP order whose qty is not above zero or whose rate is below zero, null or empty, before any ERP write', async () => {
+      const bads = [{ qty: -1, rate: 50 }, { qty: 0, rate: 50 }, { qty: null, rate: 50 }, { qty: '', rate: 50 }, { qty: '  ', rate: 50 },
+        { qty: 1, rate: -5 }, { qty: 1, rate: null }, { qty: 1, rate: '' }, { qty: 1, rate: ' ' }, { qty: 1 }, { qty: 'x', rate: 50 }];
+      for (const bad of bads) {
+        for (const items of [[{ item_code: 'FREIGHT', ...bad }], [{ item_code: 'FREIGHT', qty: 1, rate: 10 }, { item_code: 'SPIKE-ITEM-1', ...bad }]]) {
+          const fetchImpl = billFetch([LINE]);
+          await expect(adapterFor(billClient({ noOrder: true }), fetchImpl, false, items)).rejects.toThrow(/quantity and rate must be numbers/);
+          expect(writes(fetchImpl)).toHaveLength(0);
+        }
+      }
+    });
+
+    it('refuses a bad line of the case itself (no caller lines) on a purchase with no ERP order, before any ERP write', async () => {
+      const fetchImpl = billFetch([LINE]);
+      await expect(adapterFor(billClient({ noOrder: true, qty: 0 }), fetchImpl)).rejects.toThrow(/quantity and rate must be numbers/);
+      expect(writes(fetchImpl)).toHaveLength(0);
+    });
+
+    it('a valid bill on a purchase with no ERP order goes out unchanged and reads no order', async () => {
+      const fetchImpl = billFetch([LINE]);
+      const { adapter, command } = await adapterFor(billClient({ noOrder: true }), fetchImpl, false,
+        [{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 100 }, { item_code: 'FREIGHT', qty: 1, rate: 0 }]);
+      await adapter.commit(command);
+      const post = writes(fetchImpl).find(([, init]) => (init as RequestInit).method === 'POST')!;
+      const sent = JSON.parse((post[1] as RequestInit).body as string).items as Array<Record<string, unknown>>;
+      expect(sent).toEqual([{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 100 }, { item_code: 'FREIGHT', qty: 1, rate: 0 }]);
+      const urls = (fetchImpl as unknown as { mock: { calls: string[][] } }).mock.calls.map(([u]) => decodeURIComponent(u));
+      expect(urls.filter((u) => u.includes('Purchase Order'))).toEqual([]);
     });
 
     // The order line is found by the rate alone when only one order line has it; quantity decides only among lines sharing the rate.
