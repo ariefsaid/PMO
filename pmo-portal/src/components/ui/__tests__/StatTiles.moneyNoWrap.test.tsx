@@ -5,7 +5,7 @@ import { StatTiles } from '../StatTiles';
 
 // Rule 15 (P0): a money figure never wraps. On a 390px phone a one-million budget read as one thousand
 // because "US$1.000.000" broke after "US$1.000.00". jsdom has no layout, so the test binds the two classes
-// that decide it: the figure is nowrap, and the strip is ONE column until its container fits two tiles.
+// that decide it: the figure is nowrap, and its tile takes the whole row of the phone's two columns.
 const LONGEST = ['Rp 999.999.999.999,00', 'US$1.000.000,00', 'US$ 1,000,000.00'];
 
 describe('Rule 15: a money figure never wraps (390 width)', () => {
@@ -19,8 +19,6 @@ describe('Rule 15: a money figure never wraps (390 width)', () => {
     const cell = value.closest('div') as HTMLElement;
     expect(cell.className).toContain('whitespace-nowrap');
     expect(cell.className).not.toContain('break-words');
-    const strip = screen.getByTestId('stat-tiles');
-    expect(strip.className).toMatch(/(^|\s)grid-cols-1(\s|$)/);
-    expect(strip.className).not.toMatch(/(^|\s)grid-cols-2(\s|$)/);
+    for (const tile of screen.getAllByTestId('stat-tile')) expect(tile.className).toMatch(/(^|\s)col-span-2(\s|$)/);
   });
 });

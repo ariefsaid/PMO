@@ -28,9 +28,6 @@ export function groupByUrgency<T>(items: readonly T[], at: (item: T) => string |
   })).filter((g) => g.items.length > 0);
 }
 
-/** Display-only: a week after which a queue row's waiting time takes the waiting tone. */
-export const WAITING_OLD_AFTER_DAYS = 7;
-
 /** A submitted week waits from its submission; a sheet with no stamp waits from the end of its week. */
 export function timesheetWaitingSince(sheet: { submitted_at?: string | null; week_start_date: string }): string {
   if (sheet.submitted_at) return sheet.submitted_at;

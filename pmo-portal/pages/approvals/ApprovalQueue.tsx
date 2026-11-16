@@ -2,7 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Badge, Checkbox, ListState } from '@/src/components/ui';
 import { formatNumberExact, formatTableMoney } from '@/src/lib/format';
-import { ageInDays, groupByArrival, timesheetWaitingSince, WAITING_OLD_AFTER_DAYS, type ArrivalGroup } from '@/src/lib/selectors/approvalUrgency';
+import { ageInDays, groupByArrival, timesheetWaitingSince, urgencyOf, type ArrivalGroup } from '@/src/lib/selectors/approvalUrgency';
 import { weekLabel, type BulkController } from '../timesheets/TimesheetBulkApprove';
 import type { ProcurementBulkController } from './useProcurementBulkApprove';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
@@ -22,11 +22,11 @@ function sumHours(sheet: TimesheetAwaitingApproval): number {
   return sheet.entries.reduce((sum, e) => sum + e.hours, 0);
 }
 
-/** Waiting time on line two: muted while fresh, the waiting tone once it is old. */
+/** Waiting time on line two: muted while fresh, the waiting tone once it is overdue (the same rule as the Overdue group). */
 export function WaitingFor({ iso }: { iso: string | null | undefined }) {
   const { t } = useTranslation();
   const days = ageInDays(iso);
-  const old = days >= WAITING_OLD_AFTER_DAYS;
+  const old = urgencyOf(iso) === 'overdue';
   return (
     <span data-old={old || undefined} className={old ? 'shrink-0 font-medium text-warning-foreground' : 'shrink-0'}>
       {days > 0
