@@ -328,7 +328,7 @@ const TimesheetsPage: React.FC = () => {
 
   return (
     // Room under the last row for the fixed phone action strip, outside the card so the card ends with its rows.
-    <div className={editable ? 'pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-0' : undefined}>
+    <div className={editable ? 'pb-[calc(8rem+env(safe-area-inset-bottom))] md:pb-0' : undefined}>
       {head}
 
       {/* Returned-for-changes is an expected, recoverable state (role=status). */}
