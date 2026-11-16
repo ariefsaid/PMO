@@ -78,8 +78,8 @@ select transition_procurement('02346000-0000-0000-0000-000000000404','Requested'
 reset role;
 
 -- Routed, within budget → the named project approver only.
-select is(pg_temp.who('02346000-0000-0000-0000-000000000401'), array['a1'],
-  'FR-APR-040: a within-budget request notifies only the named project approver');
+select is(pg_temp.who('02346000-0000-0000-0000-000000000401'), array['a1','a3'],
+  'FR-APR-040: a request submitted below approval rank notifies the named project approver and the senior set');
 select is((select count(*)::int from notifications where owner_id = '02346000-0000-0000-0000-0000000000a2'
             and metadata->'entity'->>'id' = '02346000-0000-0000-0000-000000000401'), 0,
   'FR-APR-040: an approver-rank PM who is not named gets no "awaits approval" notification');

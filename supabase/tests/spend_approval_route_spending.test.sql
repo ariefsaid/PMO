@@ -3,7 +3,7 @@
 -- tested the same way. Migration: 0923_spend_route_recorded_spending.sql.
 -- AC-APR-030 line test · AC-APR-031 project test · AC-APR-032 spending unknown · AC-APR-033 below approval rank.
 begin;
-select plan(32);
+select plan(43);
 
 insert into organizations (id, name, default_currency) values
   ('a0923000-0000-0000-0000-00000000000a', 'Spend Route PMO', 'USD'),
@@ -237,6 +237,109 @@ select is(pg_temp.r('a0923000-0000-0000-0000-00000000000a', 'a0923000-0000-0000-
 select is(pg_temp.r('a0923000-0000-0000-0000-00000000000a', 'a0923000-0000-0000-0000-0000000000d2', 'Materials', 599, 'a0923000-0000-0000-0000-0000000000a3'),
   'project/within_budget/0.00', 'AC-APR-031: and 599 of it fits');
 
+
+-- ── The list RPCs and the public route agree row for row, for every kind of caller.
 reset role;
+insert into procurements (id, org_id, title, status, total_value, project_id, currency, budget_category, requested_by_id) values
+  ('a0923000-0000-0000-0000-000000000e11', 'a0923000-0000-0000-0000-00000000000a', 'eq within',          'Requested', 200, 'a0923000-0000-0000-0000-0000000000d1', 'USD', 'Labor',     'a0923000-0000-0000-0000-0000000000a3'),
+  ('a0923000-0000-0000-0000-000000000e12', 'a0923000-0000-0000-0000-00000000000a', 'eq over line',        'Requested', 200, 'a0923000-0000-0000-0000-0000000000d4', 'USD', 'Labor',     'a0923000-0000-0000-0000-0000000000a3'),
+  ('a0923000-0000-0000-0000-000000000e13', 'a0923000-0000-0000-0000-00000000000a', 'eq over project',     'Requested', 200, 'a0923000-0000-0000-0000-0000000000d3', 'USD', 'Labor',     'a0923000-0000-0000-0000-0000000000a3'),
+  ('a0923000-0000-0000-0000-000000000e14', 'a0923000-0000-0000-0000-00000000000a', 'eq over project open','Requested', 600, 'a0923000-0000-0000-0000-0000000000d2', 'USD', 'Materials', 'a0923000-0000-0000-0000-0000000000a3'),
+  ('a0923000-0000-0000-0000-000000000e15', 'a0923000-0000-0000-0000-00000000000a', 'eq overhead',          'Requested',  50, null,                                   'USD', null,        'a0923000-0000-0000-0000-0000000000a3'),
+  ('a0923000-0000-0000-0000-000000000e16', 'a0923000-0000-0000-0000-00000000000a', 'eq no category',      'Requested',  50, 'a0923000-0000-0000-0000-0000000000d1', 'USD', null,        'a0923000-0000-0000-0000-0000000000a3'),
+  ('a0923000-0000-0000-0000-000000000e21', 'a0923000-0000-0000-0000-00000000000b', 'eq ledger over line', 'Requested', 200, 'a0923000-0000-0000-0000-0000000000e1', 'USD', 'Labor',     'a0923000-0000-0000-0000-0000000000b3'),
+  ('a0923000-0000-0000-0000-000000000e22', 'a0923000-0000-0000-0000-00000000000b', 'eq unmapped',         'Requested',  10, 'a0923000-0000-0000-0000-0000000000e1', 'USD', 'Materials', 'a0923000-0000-0000-0000-0000000000b3'),
+  ('a0923000-0000-0000-0000-000000000e23', 'a0923000-0000-0000-0000-00000000000b', 'eq no reading',       'Requested',  10, 'a0923000-0000-0000-0000-0000000000e4', 'USD', 'Labor',     'a0923000-0000-0000-0000-0000000000b3'),
+  ('a0923000-0000-0000-0000-000000000e24', 'a0923000-0000-0000-0000-00000000000b', 'eq half billed',      'Requested',  50, 'a0923000-0000-0000-0000-0000000000e2', 'USD', 'Labor',     'a0923000-0000-0000-0000-0000000000b3'),
+  ('a0923000-0000-0000-0000-000000000e25', 'a0923000-0000-0000-0000-00000000000b', 'eq claims in ledger', 'Requested',  50, 'a0923000-0000-0000-0000-0000000000e3', 'USD', 'Labor',     'a0923000-0000-0000-0000-0000000000b3'),
+  ('a0923000-0000-0000-0000-000000000e31', 'a0923000-0000-0000-0000-00000000000c', 'eq ledger currency',  'Requested',  10, 'a0923000-0000-0000-0000-0000000000f1', 'USD', 'Labor',     'a0923000-0000-0000-0000-0000000000c2');
+insert into expense_claims (id, org_id, kind, claimant_id, project_id, budget_category, title, amount, currency, status, claim_number, submitted_at) values
+  ('a0923000-0000-0000-0000-000000000e41', 'a0923000-0000-0000-0000-00000000000a', 'claim', 'a0923000-0000-0000-0000-0000000000a3', 'a0923000-0000-0000-0000-0000000000d4', 'Labor',     'eq claim over line', 100, 'USD', 'Submitted', 'EXP-SRS-0101', now()),
+  ('a0923000-0000-0000-0000-000000000e42', 'a0923000-0000-0000-0000-00000000000a', 'claim', 'a0923000-0000-0000-0000-0000000000a3', 'a0923000-0000-0000-0000-0000000000d1', 'Labor',     'eq claim within',     50, 'USD', 'Submitted', 'EXP-SRS-0102', now()),
+  ('a0923000-0000-0000-0000-000000000e43', 'a0923000-0000-0000-0000-00000000000b', 'claim', 'a0923000-0000-0000-0000-0000000000b3', 'a0923000-0000-0000-0000-0000000000e3', 'Labor',     'eq claim ledger',     50, 'USD', 'Submitted', 'EXP-SRS-0103', now()),
+  ('a0923000-0000-0000-0000-000000000e44', 'a0923000-0000-0000-0000-00000000000b', 'claim', 'a0923000-0000-0000-0000-0000000000b3', 'a0923000-0000-0000-0000-0000000000e1', 'Materials', 'eq claim unmapped',   10, 'USD', 'Submitted', 'EXP-SRS-0104', now());
+
+-- Rows where the list RPC and the public route differ, over every caller; and the rows compared.
+create function pg_temp.eq_all() returns jsonb language plpgsql as $f$
+declare u uuid; v_bad int := 0; v_n int := 0; v_reasons text[] := '{}'; r record; k int;
+begin
+  foreach u in array array['a0923000-0000-0000-0000-0000000000a1','a0923000-0000-0000-0000-0000000000a2','a0923000-0000-0000-0000-0000000000a3',
+                           'a0923000-0000-0000-0000-0000000000b1','a0923000-0000-0000-0000-0000000000b2','a0923000-0000-0000-0000-0000000000b3',
+                           'a0923000-0000-0000-0000-0000000000c2']::uuid[] loop
+    perform pg_temp.act_as(u);
+    for r in
+      select g.reason as g_reason,
+             (g.route, g.reason, g.line_budget, g.line_used) is distinct from (x.route, x.reason, x.line_budget, x.line_used)
+             or g.approvers is distinct from coalesce((select jsonb_agg(jsonb_build_object('id', pf.id, 'full_name', pf.full_name) order by pf.full_name)
+                                                          from public.profiles pf where pf.id = any (x.approver_ids)), '[]'::jsonb) as differs
+        from public.get_procurement_approval_routes(array(select id from public.procurements where title like 'eq %')) g
+        join public.procurements p on p.id = g.procurement_id
+        cross join lateral public.spend_approval_route(p.org_id, p.project_id, p.budget_category, g.request_amount, p.currency, p.requested_by_id,
+                                                       nullif(auth.uid(), p.requested_by_id), public.procurement_submitted_at(p.id)) x
+    loop
+      v_n := v_n + 1; v_reasons := v_reasons || r.g_reason; if r.differs then v_bad := v_bad + 1; end if;
+    end loop;
+    for r in
+      select g.reason as g_reason,
+             (g.route, g.reason, g.line_budget, g.line_used) is distinct from (x.route, x.reason, x.line_budget, x.line_used) as differs
+        from public.get_expense_claim_approval_routes(array(select id from public.expense_claims where title like 'eq %')) g
+        join public.expense_claims c on c.id = g.claim_id
+        cross join lateral public.spend_approval_route(c.org_id, c.project_id, c.budget_category, c.amount, c.currency, c.claimant_id,
+                                                       nullif(auth.uid(), c.claimant_id), c.submitted_at) x
+    loop
+      v_n := v_n + 1; v_reasons := v_reasons || r.g_reason; if r.differs then v_bad := v_bad + 1; end if;
+    end loop;
+  end loop;
+  return jsonb_build_object('bad', v_bad, 'compared', v_n, 'reasons', (select jsonb_agg(distinct x order by x) from unnest(v_reasons) x));
+end $f$;
+set local role authenticated;
+select is(pg_temp.eq_all()->>'bad', '0',
+  'AC-APR-034: for every Requested purchase and Submitted claim and every caller, the list RPCs return the route spend_approval_route returns');
+select cmp_ok((pg_temp.eq_all()->>'compared')::int, '>=', 40,
+  'AC-APR-034: and the comparison covers every row each caller can see');
+select is(pg_temp.eq_all()->'reasons',
+  '["currency_mismatch", "exceeds_line", "exceeds_project", "no_category", "no_project", "spending_not_visible", "spending_unknown", "within_budget"]'::jsonb,
+  'AC-APR-034: across within, over-line, over-project, unknown, currency, role-free and below-rank rows');
+
+-- ── The helper: figures are required, and rank is the caller's own.
+select pg_temp.act_as('a0923000-0000-0000-0000-0000000000a3');
+select is((select reason from spend_approval_route_from_figures('a0923000-0000-0000-0000-00000000000a', 'a0923000-0000-0000-0000-0000000000d1', 'Labor', 10, 'USD',
+             'a0923000-0000-0000-0000-0000000000a3', null, null,
+             '{"basis":"pmo","ledger_currency":"USD","budget_currency":"USD","proj_budget":999999,"proj_spent":0,"proj_open":0,"proj_reserved":0,"proj_foreign":false,
+               "other_used":0,"foreign":false,"recorded":{"Labor":{"mapped":true,"amount":0}}}'::jsonb)),
+  'spending_not_visible', 'AC-APR-033: an Engineer calling the logic with figures that say "within budget" still gets spending_not_visible');
+select is((select line_used from spend_approval_route_from_figures('a0923000-0000-0000-0000-00000000000a', 'a0923000-0000-0000-0000-0000000000d1', 'Labor', 10, 'USD',
+             'a0923000-0000-0000-0000-0000000000a3', null, null,
+             '{"basis":"pmo","ledger_currency":"USD","budget_currency":"USD","proj_budget":999999,"proj_spent":0,"proj_open":0,"proj_reserved":0,"proj_foreign":false,
+               "other_used":0,"foreign":false,"recorded":{"Labor":{"mapped":true,"amount":0}}}'::jsonb)),
+  null::numeric, 'AC-APR-033: and no line figure comes back');
+select pg_temp.act_as('a0923000-0000-0000-0000-0000000000a1');
+select throws_ok($$ select * from spend_approval_route_from_figures('a0923000-0000-0000-0000-00000000000a', 'a0923000-0000-0000-0000-0000000000d1', 'Labor', 10, 'USD',
+             'a0923000-0000-0000-0000-0000000000a3', null, null, null) $$,
+  '22004', 'spend_approval_route_from_figures requires figures', 'AC-APR-034: the logic refuses to run without figures');
+
+-- ── Structure: the figure readers and the logic are reached only from the route and the two list RPCs.
+reset role;
+select is((select array_agg(proname::text order by proname) from pg_proc
+            where pronamespace = 'public'::regnamespace and prosrc like '%spend_approval_route_from_figures%'
+              and proname <> 'spend_approval_route_from_figures'),
+  array['get_expense_claim_approval_routes', 'get_procurement_approval_routes', 'spend_approval_route'],
+  'AC-APR-034: only the route and the two list RPCs call the figures-taking logic');
+select is((select array_agg(proname::text order by proname) from pg_proc
+            where pronamespace = 'public'::regnamespace
+              and (prosrc like '%spend_approval_project_figures%' or prosrc like '%spend_approval_line_figures%')
+              and proname not in ('spend_approval_project_figures', 'spend_approval_line_figures')),
+  array['get_expense_claim_approval_routes', 'get_procurement_approval_routes', 'spend_approval_route'],
+  'AC-APR-034: only the route and the two list RPCs read the figures');
+select is((select count(*)::int from pg_proc where pronamespace = 'public'::regnamespace and prosecdef
+             and proname in ('spend_approval_route', 'spend_approval_route_from_figures', 'spend_approval_project_figures',
+                             'spend_approval_line_figures', 'get_procurement_approval_routes', 'get_expense_claim_approval_routes')), 0,
+  'AC-APR-034: none of them is a definer');
+select is((select bool_and(has_function_privilege('anon', oid, 'execute')) from pg_proc
+            where pronamespace = 'public'::regnamespace and proname in ('spend_approval_route_from_figures', 'spend_approval_project_figures', 'spend_approval_line_figures')),
+  false, 'AC-APR-034: anonymous callers cannot execute the figure functions');
+select ok((select obj_description('public.spend_approval_route_from_figures(uuid,uuid,public.budget_category,numeric,text,uuid,uuid,timestamptz,jsonb)'::regprocedure, 'pg_proc')) like 'DISPLAY ONLY%spend_approval_route%',
+  'AC-APR-034: the logic is documented as display only and names the route every decision uses');
+
 select * from finish();
 rollback;

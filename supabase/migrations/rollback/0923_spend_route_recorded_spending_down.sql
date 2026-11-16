@@ -1,4 +1,4 @@
--- 0923_spend_route_recorded_spending_down.sql — restore the 0247 spend_approval_route body (function text verbatim).
+-- 0923_spend_route_recorded_spending_down.sql — restore the 0247 spend_approval_route, the 0724 get_procurement_approval_routes and the 0426 get_expense_claim_approval_routes (function text verbatim), then drop the 0923 functions.
 
 create or replace function public.spend_approval_route(
   p_org_id       uuid,
@@ -129,3 +129,77 @@ begin
 end; $$;
 revoke all on function public.spend_approval_route(uuid, uuid, public.budget_category, numeric, text, uuid, uuid, timestamptz) from public, anon;
 grant execute on function public.spend_approval_route(uuid, uuid, public.budget_category, numeric, text, uuid, uuid, timestamptz) to authenticated;
+
+create or replace function public.get_procurement_approval_routes(p_ids uuid[])
+returns table (procurement_id uuid, route text, reason text, approvers jsonb,
+               request_amount numeric, line_budget numeric, line_used numeric)
+  language sql stable security invoker set search_path = public, pg_temp as $$
+  with req as materialized (
+    select p.id, p.org_id, p.project_id, p.budget_category, p.currency, p.requested_by_id, p.total_value
+      from public.procurements p
+     where p.id = any (p_ids) and p.status = 'Requested'
+  ), it as materialized (
+    select i.procurement_id, sum(i.amount) as total, bool_or(i.amount < 0) as has_negative
+      from public.procurement_items i
+     where i.procurement_id in (select id from req)
+     group by i.procurement_id
+  ), ev as materialized (
+    select e.procurement_id, max(e.created_at) as submitted_at
+      from public.procurement_status_events e
+     where e.to_status = 'Requested' and e.procurement_id in (select id from req)
+     group by e.procurement_id
+  )
+  select req.id, r.route, r.reason,
+         coalesce((select jsonb_agg(jsonb_build_object('id', pf.id, 'full_name', pf.full_name) order by pf.full_name)
+                     from public.profiles pf where pf.id = any (r.approver_ids)), '[]'::jsonb),
+         a.amount, r.line_budget, r.line_used
+    from req
+    left join it on it.procurement_id = req.id
+    left join ev on ev.procurement_id = req.id
+    -- Same CASE as procurement_request_amount (0243): a negative header or line is untrustworthy -> NULL.
+    cross join lateral (select case when req.total_value < 0 or coalesce(it.has_negative, false) then null
+                                    else greatest(req.total_value, coalesce(it.total, 0)) end as amount) a
+    -- Decider = the viewer, unless the viewer is the requester (who never decides: SoD-a).
+    cross join lateral public.spend_approval_route(req.org_id, req.project_id, req.budget_category,
+                                                   a.amount, req.currency, req.requested_by_id,
+                                                   nullif(auth.uid(), req.requested_by_id),
+                                                   ev.submitted_at) r
+$$;;
+
+create or replace function public.get_expense_claim_approval_routes(p_ids uuid[])
+returns table (claim_id uuid, route text, reason text, approvers jsonb,
+               request_amount numeric, line_budget numeric, line_used numeric, is_exception boolean)
+  language sql stable security invoker set search_path = public, pg_temp as $$
+  with base as (
+    select c.id, c.org_id, c.claimant_id, c.amount, r.route as p_route, r.reason, r.approver_ids, r.line_budget, r.line_used,
+           (c.imprest_float_id is not null and public.holds_spend_approval_authority(public.auth_role())
+            and c.amount > public.imprest_remaining(c.imprest_float_id, c.imprest_month, c.budget_category)) as exc,
+           (select pl.approved_by from public.imprest_plans pl
+             where pl.float_id = c.imprest_float_id and pl.month = c.imprest_month and pl.status = 'Approved') as plan_by
+      from public.expense_claims c
+      cross join lateral public.spend_approval_route(c.org_id, c.project_id, c.budget_category, c.amount, c.currency,
+                                                     c.claimant_id, nullif(auth.uid(), c.claimant_id), c.submitted_at) r
+     where c.id = any (p_ids) and c.status = 'Submitted'),
+  routed as (
+    select b.*, case when b.exc then s.ids else b.approver_ids end as ids
+      from base b
+      left join lateral (
+        select coalesce(array_agg(sa.profile_id order by sa.profile_id) filter (
+                 where sa.profile_id is distinct from b.claimant_id and sa.profile_id is distinct from b.plan_by
+                   and pf.status = 'active' and pf.org_id = b.org_id and public.holds_spend_approval_authority(pf.role)), '{}') as ids
+          from public.spend_approvers sa join public.profiles pf on pf.id = sa.profile_id
+         where sa.org_id = b.org_id and sa.project_id is null) s on b.exc)
+  select b.id,
+         case when not b.exc then b.p_route when cardinality(b.ids) > 0 then 'org' else 'admin' end,
+         b.reason,
+         coalesce((select jsonb_agg(jsonb_build_object('id', pf.id, 'full_name', pf.full_name) order by pf.full_name)
+                     from public.profiles pf where pf.id = any (b.ids)), '[]'::jsonb),
+         b.amount, b.line_budget, b.line_used, b.exc
+    from routed b
+$$;
+revoke all on function public.get_expense_claim_approval_routes(uuid[]) from public, anon;
+grant execute on function public.get_expense_claim_approval_routes(uuid[]) to authenticated;
+
+drop function public.spend_approval_route_from_figures(uuid, uuid, public.budget_category, numeric, text, uuid, uuid, timestamptz, jsonb);
+drop function public.spend_approval_line_figures(uuid[]);
+drop function public.spend_approval_project_figures(uuid[]);
