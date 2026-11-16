@@ -1,7 +1,9 @@
 /**
  * S05 — the expanded Purchases row mirrors the project header on Budget used: a project still in the pipeline
- * has no figure there, so the panel draws no tile and the page's hidden-figures line names nothing; a failed
+ * has no figure there, so the panel draws no tile and the page's hidden-figures line names nothing for it; a failed
  * read on a running project keeps a short unknown mark, never a sentence inside the tile.
+ * OD-APPROVAL-LEFT (AC-RB-017): the same missing reading makes "Left after this purchase" not known, which the page's
+ * one hidden-figures line reports (and the purchasing-only amount stays visible under its own label).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
@@ -17,7 +19,7 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({ useProcurementDetail: () =>
 vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({ useProjectBudgetPositions: () => positions }));
 vi.mock('@/src/hooks/useBudget', () => ({ useProjectBudget: () => ({ data: 1000, isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useProcurements', () => ({
-  useProjectCommittedSpend: () => ({ data: 0, otherCurrencies: [], isPending: false, isError: false }),
+  useProjectCommittedSpend: () => ({ data: 0, otherCurrencies: [], commitmentSource: 'pmo', ownershipPending: false, isPending: false, isError: false }),
   useProjectReservedSpend: () => ({ data: 0, projectCurrency: 'USD', budgetCurrency: 'USD', otherCurrencies: [], isPending: false, isError: false }),
 }));
 
@@ -51,21 +53,42 @@ async function open(projectStatus: string) {
 
 beforeEach(() => { positions.data = undefined; positions.isPending = false; positions.isError = false; });
 
+const knownReading = { projectId: 'p1', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '1000.00', spent: '0.00', openCommitment: '0.00', consumption: null, complete: true, usedRatio: '0', usedPercent: '0', consumptionVariance: null, riskEligible: true, atRisk: false };
+
 describe('S05: Budget used in the Purchases preview', () => {
-  it('a project still in the pipeline: no Budget used tile and no hidden-figures line', async () => {
+  it('a project still in the pipeline: no Budget used tile; the hidden-figures line reports only Left', async () => {
     const preview = await open('Tender Submitted');
     expect(await within(preview).findByText(/^project budget$/i)).toBeInTheDocument();
     expect(within(preview).queryByText(/^budget used$/i)).not.toBeInTheDocument();
-    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('Spending or open orders not known yet');
+    expect(screen.getByTestId('figures-hidden')).not.toHaveTextContent('Budget used');
     expect(screen.queryByText(/unknown or unavailable/i)).not.toBeInTheDocument();
   });
 
-  it('a running project whose read failed: a short mark in the tile, no sentence, no hidden-figures line', async () => {
+  it('a running project whose read failed: a short mark in the tile, no sentence; the hidden-figures line reports only Left', async () => {
     positions.isError = true;
     const preview = await open('Active');
     const tile = (await within(preview).findByText(/^budget used$/i)).closest('[data-testid="stat-tile"]') as HTMLElement;
     expect(tile.textContent).toContain('—');
     expect(tile.querySelector('[role="status"]')).toBeNull();
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('Spending or open orders not known yet');
+    expect(screen.getByTestId('figures-hidden')).not.toHaveTextContent('Budget used');
+  });
+});
+
+describe('AC-RB-015/017: Left after this purchase in the Purchases preview', () => {
+  it('known spending: $975 left (1,000 − 0 − 0 − 0 − 25) and nothing hidden', async () => {
+    positions.data = { p1: knownReading };
+    const preview = await open('Active');
+    const tile = (await within(preview).findByText(/^left after this purchase$/i)).closest('[data-testid="stat-tile"]') as HTMLElement;
+    expect(within(tile).getByText('$975')).toBeInTheDocument();
     expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
+  });
+
+  it('spending not known: the page line carries the reason, and the amount without spending is shown under its own label (not in the Left tile)', async () => {
+    const preview = await open('Active');
+    expect(await within(preview).findByText('Spending not known yet. Without it: $975 left after orders, reserved and this purchase.')).toBeInTheDocument();
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('Spending or open orders not known yet');
+    expect(within(preview).queryByText(/^left after this purchase$/i)).not.toBeInTheDocument();
   });
 });

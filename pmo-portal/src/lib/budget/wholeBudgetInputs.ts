@@ -19,7 +19,7 @@ export function wholeBudgetInputs(
   projectCurrency: string,
 ): WholeBudgetInputs | null {
   if (committed.commitmentSource === 'not-tracked' || committed.commitmentSource === 'unavailable') return null;
-  if (committed.otherCurrencies.length > 0) return null;
+  if ((committed.otherCurrencies ?? []).length > 0) return null;
   const usable = reading !== undefined && reading.currency === projectCurrency;
   // PMO: the same row as `spent`, so a payment cannot fall between two reads. ERP (and no reading): the per-order position.
   const openOrders = usable && reading.ledgerBasis === 'pmo'

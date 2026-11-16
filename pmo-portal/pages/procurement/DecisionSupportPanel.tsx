@@ -266,7 +266,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       // Never a number here when spending or open orders are not known (a plain-string label so a figure scope can name it).
       label: leftLabel,
       value: null,
-      unavailableReason: committed.otherCurrencies.length > 0
+      unavailableReason: (committed.otherCurrencies ?? []).length > 0
         ? t('decisionSupport.leftOtherCurrency', { defaultValue: 'Open orders in another currency: {{amounts}}', amounts: otherCurrencyCommitted })
         : t('decisionSupport.leftUnknown', 'Spending or open orders not known yet'),
     }]),

@@ -888,6 +888,16 @@ describe('AC-RB-017 — unknown figures are not drawn', () => {
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
   });
 
+  it('the inbox row (no figure scope, caption in tooltip): the reason and the without-spending line are both visible in the row', () => {
+    budgetState.data = 1000;
+    committedState.data = 400;
+    reservedState.data = 50;
+    positionState.reading = reading({ spent: null });
+    renderPanel({ ...asked(), captionInTooltip: true });
+    expect(within(tileOf(/^left after this purchase/i)).getByText('Spending or open orders not known yet')).toBeInTheDocument();
+    expect(screen.getByText('Spending not known yet. Without it: $525 left after orders, reserved and this purchase.')).toBeInTheDocument();
+  });
+
   it('spending only unknown: Bahasa line', () => {
     budgetState.data = 1000;
     committedState.data = 400;
