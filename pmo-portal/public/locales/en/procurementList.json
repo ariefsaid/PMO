@@ -1,5 +1,8 @@
 {
-  "description": {"engineer": "Procurements you raised", "projectManager": "Procurements for projects you manage"},
+  "description": {
+    "engineer": "Procurements you raised",
+    "projectManager": "Procurements for projects you manage"
+  },
   "title": {
     "default": "Procurement",
     "engineer": "Your procurements"
@@ -126,6 +129,7 @@
     "approved": "Approved",
     "ordered": "Ordered",
     "received": "Received",
+    "invoiced": "Invoiced",
     "paid": "Paid",
     "empty": "No procurements at {{stage}}",
     "open": "Open {{title}}"

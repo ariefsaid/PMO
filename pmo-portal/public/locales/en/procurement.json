@@ -319,7 +319,10 @@
     "inStageDays_other": "{{count}} days",
     "filters": "Filters",
     "inStageDaysLong_one": "{{count}} day in stage",
-    "inStageDaysLong_other": "{{count}} days in stage"
+    "inStageDaysLong_other": "{{count}} days in stage",
+    "projectColumn": "Project",
+    "inStageToday": "Today",
+    "paidShare": "{{percent}} paid"
   },
   "common": {
     "loading": "Loading…",

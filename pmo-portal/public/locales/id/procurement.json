@@ -305,7 +305,7 @@
     "ageInStage": "Lama di tahap",
     "ageShort": "Umur",
     "ageInStageDays": "{{count}} hari",
-    "raisedBy": "Dibuat oleh",
+    "raisedBy": "Pemohon",
     "stageCountTooltip": "Jumlah pengadaan yang saat ini berada di tahap {{stage}}. Sumber: kasus pengadaan perusahaan.",
     "table": {
       "accessibleName": "Pengadaan"
@@ -319,7 +319,10 @@
     "inStageDays_other": "{{count}} hari",
     "filters": "Filter",
     "inStageDaysLong_one": "{{count}} hari di tahap ini",
-    "inStageDaysLong_other": "{{count}} hari di tahap ini"
+    "inStageDaysLong_other": "{{count}} hari di tahap ini",
+    "projectColumn": "Proyek",
+    "inStageToday": "Hari ini",
+    "paidShare": "{{percent}} dibayar"
   },
   "common": {
     "loading": "Memuat…",

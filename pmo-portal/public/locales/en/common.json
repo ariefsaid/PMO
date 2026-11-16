@@ -902,7 +902,8 @@
     "title": "Approvals",
     "unknownOwner": "Unknown",
     "unknownRequester": "Unknown requester",
-    "weekOf": "Week of"
+    "weekOf": "Week of",
+    "waitingOnYou": "waiting on your decision"
   },
   "combobox": {
     "search": {

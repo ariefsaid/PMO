@@ -9,6 +9,7 @@ import {
   MobileToolbarDisclosure,
   Card,
   Tabs,
+  Toolbar,
   FigureScope,
   FigureHiddenLine,
   FilterBar,
@@ -36,6 +37,7 @@ import { trackProcurementDetailOpened, trackFilterApplied, trackEmptyStateSeen }
 import { ProcurementBlock } from '@/src/components/procurement';
 import { ProcurementKpiRow, type ProcurementTab } from './procurement/list/ProcurementKpiRow';
 import { formatDay, formatMoneyLines } from '@/src/lib/format';
+import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { externalRefsOf, type ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import ProcurementBoard from '../components/ProcurementBoard';
@@ -73,6 +75,12 @@ function matchesFilter(status: string, filter: StatusFilter): boolean {
 function matchesWorkingSetStatus(status: string, workingSet: { status: string; statusMode: 'exact' | 'group' }): boolean {
   if (workingSet.statusMode === 'exact') return status === workingSet.status;
   return matchesFilter(status, workingSet.status as StatusFilter);
+}
+
+const UNCATEGORIZED = 'none';
+function matchesCategory(row: ProcurementWithRefs, category: string): boolean {
+  if (!category) return true;
+  return category === UNCATEGORIZED ? !row.budget_category : row.budget_category === category;
 }
 
 function stageFromSearch(search: string): StageKey | null {
@@ -129,6 +137,7 @@ function distinctOptions<T extends string>(entries: Array<{ value: T | null; lab
 
 const ProcurementPage: React.FC = () => {
   const { t } = useTranslation('procurementList');
+  const { t: tProcurement } = useTranslation('procurement');
   const navigate = useNavigate();
   const location = useLocation();
   const statusLabel = useProcurementStatusName();
@@ -200,7 +209,7 @@ const ProcurementPage: React.FC = () => {
   const cycleSupplierLookup = useMemo(() => makeRefLookup(importRefs.suppliers, 'Supplier'), [importRefs.suppliers]);
 
   const { workingSet, setWorkingSet } = useListWorkingSet('procurement', { sessionView: readProcurementView() });
-  const urlFilters = useUrlFilters(['q', 'project', 'supplier', 'raisedBy', 'status', 'stage']);
+  const urlFilters = useUrlFilters(['q', 'project', 'supplier', 'raisedBy', 'category', 'status', 'stage']);
   const updateQuery = useCallback((updates: Record<string, string | null>) => {
     const params = new URLSearchParams(location.search);
     for (const [key, value] of Object.entries(updates)) {
@@ -247,6 +256,7 @@ const ProcurementPage: React.FC = () => {
   const projectId = urlFilters.values.project;
   const supplierId = urlFilters.values.supplier;
   const raisedById = urlFilters.values.raisedBy;
+  const categoryValue = urlFilters.values.category;
   const scopedIds = useMemo(() => new Set(all.map((row) => row.id)), [all]);
   const rowFilter = useCallback((row: ProcurementWithRefs) => {
     return scopedIds.has(row.id)
@@ -256,8 +266,9 @@ const ProcurementPage: React.FC = () => {
       && (!projectId || row.project_id === projectId)
       && (!supplierId || row.vendor_id === supplierId)
       && (!raisedById || row.requested_by_id === raisedById)
+      && matchesCategory(row, categoryValue)
       && matchesStage(row, selectedStage);
-  }, [needsById, projectId, raisedById, scopedIds, search, selectedStage, supplierId, tab, workingSet]);
+  }, [categoryValue, needsById, projectId, raisedById, scopedIds, search, selectedStage, supplierId, tab, workingSet]);
   const needsYouOrder = useCallback((a: ProcurementWithRefs, b: ProcurementWithRefs) =>
     (needsById.get(a.id)?.result.since.getTime() ?? 0) - (needsById.get(b.id)?.result.since.getTime() ?? 0),
   [needsById]);
@@ -283,11 +294,12 @@ const ProcurementPage: React.FC = () => {
       .filter((row) => !projectId || row.project_id === projectId)
       .filter((row) => !supplierId || row.vendor_id === supplierId)
       .filter((row) => !raisedById || row.requested_by_id === raisedById)
+      .filter((row) => matchesCategory(row, categoryValue))
       .filter((row) => matchesStage(row, selectedStage))
       .sort((a, b) => tab === 'needs-you'
         ? (needsById.get(a.id)?.result.since.getTime() ?? 0) - (needsById.get(b.id)?.result.since.getTime() ?? 0)
         : new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }, [needsById, projectId, raisedById, search, selectedStage, supplierId, tab, tabRows, workingSet]);
+  }, [categoryValue, needsById, projectId, raisedById, search, selectedStage, supplierId, tab, tabRows, workingSet]);
 
   const onOpen = useCallback((row: ProcurementWithRefs) => {
     trackProcurementDetailOpened('/procurement/:procurementId', 'card');
@@ -339,59 +351,30 @@ const ProcurementPage: React.FC = () => {
     trackFilterApplied('status', statusOptions.length, 'procurement');
   }, [statusOptions.length, urlFilters]);
 
-  // Each filter control is its own memoised element, so a page re-render that changes none of them (a
-  // reference query settling, a wizard opening, a search keystroke elsewhere) hands ProcurementBlock
-  // the SAME `toolbarExtra` element identity and its memo boundary can bail.
-  const projectFilterSelect = useMemo(() => (
-    <>
-      <label className="sr-only" htmlFor="procurement-project-filter">{t('filter.project', 'Project')}</label>
-      <select id="procurement-project-filter" aria-label={t('filter.project', 'Project')} value={projectId} onChange={(event) => urlFilters.setFilter('project', event.target.value)} className="h-11 max-w-48 rounded-md border border-input bg-background px-3 text-sm sm:h-9 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        <option value="">{t('filter.project', 'Project')}</option>
-        {projectFilters.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </select>
-    </>
-  ), [projectFilters, projectId, t, urlFilters]);
-  const supplierFilterSelect = useMemo(() => (
-    <>
-      <label className="sr-only" htmlFor="procurement-supplier-filter">{t('filter.supplier', 'Supplier')}</label>
-      <select id="procurement-supplier-filter" aria-label={t('filter.supplier', 'Supplier')} value={supplierId} onChange={(event) => urlFilters.setFilter('supplier', event.target.value)} className="h-11 max-w-48 rounded-md border border-input bg-background px-3 text-sm sm:h-9 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        <option value="">{t('filter.supplier', 'Supplier')}</option>
-        {supplierFilters.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </select>
-    </>
-  ), [supplierFilters, supplierId, t, urlFilters]);
-  const raisedByFilterSelect = useMemo(() => (
-    <>
-      <label className="sr-only" htmlFor="procurement-raised-by-filter">{t('filter.raisedBy', 'Raised by')}</label>
-      <select id="procurement-raised-by-filter" aria-label={t('filter.raisedBy', 'Raised by')} value={raisedById} onChange={(event) => urlFilters.setFilter('raisedBy', event.target.value)} className="h-11 max-w-48 rounded-md border border-input bg-background px-3 text-sm sm:h-9 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        <option value="">{t('filter.raisedBy', 'Raised by')}</option>
-        {raisedByFilters.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </select>
-    </>
-  ), [raisedByFilters, raisedById, t, urlFilters]);
-  const statusFilterSelect = useMemo(() => (
-    <>
-      <label className="sr-only" htmlFor="procurement-status-filter">{t('filter.status', 'Status')}</label>
-      <select id="procurement-status-filter" aria-label={t('filter.status', 'Status')} value={statusValue} onChange={(event) => changeStatusFilter(event.target.value)} className="h-11 max-w-48 rounded-md border border-input bg-background px-3 text-sm sm:h-9 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </select>
-    </>
-  ), [changeStatusFilter, statusOptions, statusValue, t]);
-
+  // A category filter only once some purchase carries a category: a picker whose every row says "Uncategorized" is noise.
+  const categoryFilters = useMemo(() => {
+    const named = distinctOptions(all.map((row) => ({ value: row.budget_category, label: row.budget_category ? budgetCategoryLabel(row.budget_category, tProcurement) : null })));
+    if (named.length === 0) return [];
+    return all.some((row) => !row.budget_category)
+      ? [{ value: UNCATEGORIZED, label: tProcurement('projectDetail.procurement.uncategorized', 'Uncategorized') }, ...named]
+      : named;
+  }, [all, tProcurement]);
   const procurementFilters = useMemo<FilterBarFilter[]>(() => [
+    { key: 'status', label: t('filter.status', 'Status'), kind: 'select', options: statusOptions.filter((option) => option.value !== 'All') },
     { key: 'project', label: t('filter.project', 'Project'), kind: 'select', options: projectFilters },
     { key: 'supplier', label: t('filter.supplier', 'Supplier'), kind: 'select', options: supplierFilters },
     { key: 'raisedBy', label: t('filter.raisedBy', 'Raised by'), kind: 'select', options: raisedByFilters },
-    { key: 'status', label: t('filter.status', 'Status'), kind: 'select', options: statusOptions.filter((option) => option.value !== 'All') },
-  ], [projectFilters, raisedByFilters, statusOptions, supplierFilters, t]);
+    ...(categoryFilters.length > 0 ? [{ key: 'category', label: tProcurement('projectDetail.procurement.table.category', 'Category'), kind: 'select' as const, options: categoryFilters }] : []),
+  ], [categoryFilters, projectFilters, raisedByFilters, statusOptions, supplierFilters, t, tProcurement]);
 
   const filterValues = useMemo(() => ({
     q: urlFilters.values.q,
     project: urlFilters.values.project,
     supplier: urlFilters.values.supplier,
     raisedBy: urlFilters.values.raisedBy,
+    category: urlFilters.values.category,
     status: statusValue,
-  }), [urlFilters.values.project, urlFilters.values.q, urlFilters.values.raisedBy, urlFilters.values.supplier, statusValue]);
+  }), [urlFilters.values.category, urlFilters.values.project, urlFilters.values.q, urlFilters.values.raisedBy, urlFilters.values.supplier, statusValue]);
 
   const handleFilterChange = useCallback((key: string, value: string) => {
     if (key === 'status') {
@@ -400,17 +383,6 @@ const ProcurementPage: React.FC = () => {
       urlFilters.setFilter(key, value);
     }
   }, [changeStatusFilter, urlFilters]);
-  // Inside the list's own toolbar the Raised-by filter only appears once one is active (it is the
-  // list's "clear this" affordance there, not a third selector on every visit).
-  const blockFilterControlsElement = useMemo(() => (
-    <div className="flex min-w-0 flex-wrap items-center gap-2">
-      {projectFilterSelect}
-      {supplierFilterSelect}
-      {raisedById ? raisedByFilterSelect : null}
-      {statusFilterSelect}
-    </div>
-  ), [projectFilterSelect, raisedById, raisedByFilterSelect, statusFilterSelect, supplierFilterSelect]);
-
   const orphanQuery = useErpOrphans(undefined, { enabled: canViewOrphans });
   const projectQueryForOrphans = useProjects({ enabled: canViewOrphans && tab === 'orphans' });
   const projectNames = useMemo(() => new Map((projectQueryForOrphans.data ?? []).map((project) => [project.id, project.name])), [projectQueryForOrphans.data]);
@@ -430,8 +402,15 @@ const ProcurementPage: React.FC = () => {
       {!isEngineer && <div><dt className="font-semibold">{t('help.invoiceAge.term', 'Invoice age')}</dt><dd>{t('help.invoiceAge.text', 'Days since the oldest unpaid supplier invoice was dated, or recorded when it has no date.')}</dd></div>}
     </dl>
   );
+  const ready = !isPending && !isError && data !== undefined;
+  const routeViewOptions: Array<{ value: ProcurementRouteView; label: string; icon: 'table' | 'cols' | 'grid' }> = useMemo(() => [
+    { value: 'table', label: t('view.table', 'Table'), icon: 'table' },
+    { value: 'grouped', label: t('view.grouped', 'Grouped'), icon: 'grid' },
+    { value: 'board', label: t('view.board', 'Board'), icon: 'cols' },
+  ], [t]);
   const primaryAction = (
-    <div className="flex shrink-0 items-center gap-2">
+    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+      {tab !== 'orphans' && ready && <ViewToggle<ProcurementRouteView> options={routeViewOptions} value={currentView} onChange={onViewChange} ariaLabel={t('view.label', 'Procurement view')} />}
       <MobileToolbarDisclosure
         label={t('more', 'More')}
         className="relative shrink-0"
@@ -447,17 +426,11 @@ const ProcurementPage: React.FC = () => {
     </div>
   );
 
-  const ready = !isPending && !isError && data !== undefined;
   useEffect(() => {
     if (ready && all.length === 0 && realRole) {
       trackEmptyStateSeen('procurement-empty', realRole, 'procurement');
     }
   }, [all.length, ready, realRole]);
-  const routeViewOptions: Array<{ value: ProcurementRouteView; label: string; icon: 'table' | 'cols' | 'grid' }> = useMemo(() => [
-    { value: 'table', label: t('view.table', 'Table'), icon: 'table' },
-    { value: 'grouped', label: t('view.grouped', 'Grouped'), icon: 'grid' },
-    { value: 'board', label: t('view.board', 'Board'), icon: 'cols' },
-  ], [t]);
   const currentNeedsReasons = useMemo(
     () => (tab === 'needs-you' ? needsYouReasons : new Map<string, { result: NeedsYouResult['reason']; text: string }>()),
     [needsYouReasons, tab],
@@ -476,8 +449,8 @@ const ProcurementPage: React.FC = () => {
     <FigureScope>
     <ListPage
       title={title}
-      count={ready ? (tab === 'orphans' ? orphanRows.length : filtered.length) : undefined}
-      total={ready ? (tab === 'orphans' ? orphanRows.length : tabRows.length) : undefined}
+      count={ready && tab === 'orphans' ? orphanRows.length : undefined}
+      total={ready && tab === 'orphans' ? orphanRows.length : undefined}
       help={help}
       primaryAction={primaryAction}
     >
@@ -499,42 +472,29 @@ const ProcurementPage: React.FC = () => {
           className="mb-0 min-w-0 gap-5 max-sm:flex-wrap max-sm:gap-x-0.5 max-sm:[mask-image:none]"
         />
 
-        {tab !== 'orphans' && ready && currentView === 'table' && (
-          <div className="flex justify-end">
-            <ViewToggle<ProcurementRouteView> options={routeViewOptions} value={currentView} onChange={onViewChange} ariaLabel={t('view.label', 'Procurement view')} />
-          </div>
+        {/* #2497: one filter bar, in one place, for all three views (and the same frame as the Projects list). */}
+        {tab !== 'orphans' && ready && (
+          <Toolbar standalone data-testid="list-page-toolbar" className="mb-0">
+            <FilterBar
+              searchKey="q"
+              searchLabel={t('search.label', 'Search procurements')}
+              searchSurface="procurement-list"
+              module="procurement"
+              filters={procurementFilters}
+              values={filterValues}
+              onChange={handleFilterChange}
+              onClear={clearFilters}
+              shown={filtered.length}
+              total={tabRows.length}
+              labels={{
+                all: t('tab.all', 'All'),
+                filters: t('filter.filters', 'Filters'),
+              }}
+            />
+          </Toolbar>
         )}
-
-        {tab !== 'orphans' && ready && currentView !== 'table' && (
-          <div className="space-y-3" data-testid="list-page-toolbar">
-            <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-              <div className="min-w-0 flex-1">
-                <FilterBar
-                  searchKey="q"
-                  searchLabel={t('search.label', 'Search procurements')}
-                  searchSurface="procurement-list"
-                  module="procurement"
-                  filters={procurementFilters}
-                  values={filterValues}
-                  onChange={handleFilterChange}
-                  onClear={clearFilters}
-                  shown={filtered.length}
-                  total={tabRows.length}
-                  labels={{
-                    all: t('tab.all', 'All'),
-                    filters: t('filter.filters', 'Filters'),
-                  }}
-                />
-              </div>
-              <ViewToggle<ProcurementRouteView>
-                options={routeViewOptions}
-                value={currentView}
-                onChange={onViewChange}
-                ariaLabel={t('view.label', 'Procurement view')}
-              />
-            </div>
-            {selectedStageLabel && <div className="flex items-center gap-2 text-sm text-muted-foreground">{t('stage.filterActive', { stage: selectedStageLabel, defaultValue: '{{stage}} stage' })}<Button variant="ghost" size="sm" onClick={() => updateQuery({ stage: null })}>{t('clear', 'Clear')}</Button></div>}
-          </div>
+        {tab !== 'orphans' && ready && selectedStageLabel && currentView !== 'table' && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">{t('stage.filterActive', { stage: selectedStageLabel, defaultValue: '{{stage}} stage' })}<Button variant="ghost" size="sm" onClick={() => updateQuery({ stage: null })}>{t('clear', 'Clear')}</Button></div>
         )}
 
         <div id={tabPanelId('procurement-list-tabs', tab)} role="tabpanel" aria-labelledby={tabId('procurement-list-tabs', tab)}>
@@ -586,7 +546,7 @@ const ProcurementPage: React.FC = () => {
           )}
 
           {ready && tab !== 'orphans' && tabRows.length > 0 && currentView === 'table' && (
-            <ProcurementBlock rowFilter={rowFilter} rowOrder={tab === 'needs-you' ? needsYouOrder : undefined} showCreate={false} toolbarExtra={blockFilterControlsElement} onClearFilters={clearFilters} />
+            <ProcurementBlock rowFilter={rowFilter} rowOrder={tab === 'needs-you' ? needsYouOrder : undefined} showCreate={false} filtersOutside onClearFilters={clearFilters} />
           )}
         </div>
 

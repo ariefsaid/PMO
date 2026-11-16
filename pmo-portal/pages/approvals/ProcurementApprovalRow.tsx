@@ -118,8 +118,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 space-y-1">
               <div className="flex flex-wrap items-center gap-2 text-control text-muted-foreground">
-                <span className="record-id">{row.code ?? row.id.slice(0, 8)}</span>
-                <span>·</span>
+                {(row.code ?? row.pr_number) && <><span className="record-id">{row.code ?? row.pr_number}</span><span>·</span></>}
                 <ProjectNameLink
                   projectId={row.project_id}
                   name={row.project ? projectDisplayName(row.project) : null}

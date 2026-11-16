@@ -101,6 +101,8 @@ export interface ComboboxProps {
   className?: string;
   /** Use the compact 30px control when this picker sits beside other compact controls. */
   compact?: boolean;
+  /** Keep the label as the accessible name only, for a picker whose caption sits beside it (a filter bar). */
+  hideLabel?: boolean;
 }
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
@@ -136,6 +138,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
   id,
   className,
   compact,
+  hideLabel,
 }) => {
   const { t } = useTranslation();
   const baseId = useId();
@@ -253,7 +256,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
 
   return (
     <div className={cn('flex flex-col', compact ? 'gap-1.5' : 'gap-2', className)}>
-      <span id={labelId} className={cn('font-semibold text-foreground', 'text-control')}>
+      <span id={labelId} className={cn('font-semibold text-foreground', 'text-control', hideLabel && 'sr-only')}>
         {label}
         {required && (
           <span aria-hidden className="ml-0.5 text-destructive">
@@ -351,7 +354,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
               aria-labelledby={labelId}
               data-instant={instant || undefined}
               style={{ '--menu-origin': 'var(--transform-origin)' } as React.CSSProperties}
-              className="menu-pop-anim motion-reduce:animate-none w-[var(--anchor-width)] max-w-[calc(100vw-16px)] overflow-hidden rounded-md border border-border bg-popover shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]"
+              className="menu-pop-anim motion-reduce:animate-none w-[var(--anchor-width)] min-w-[min(16rem,calc(100vw-16px))] max-w-[calc(100vw-16px)] overflow-hidden rounded-md border border-border bg-popover shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]"
             >
               <div className="flex items-center gap-2 border-b border-border px-3 py-2">
                 <Icon name="search" className="size-[15px] shrink-0 text-muted-foreground" />

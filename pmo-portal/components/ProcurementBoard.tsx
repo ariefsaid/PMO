@@ -7,6 +7,7 @@ import type { NeedsYouReason } from '@/pages/procurement/blocks/needsYou';
 import { useTranslation } from 'react-i18next';
 import { figureForListRow, totalsByCurrency, type ProcurementListRole } from '@/src/lib/procurement/listModel';
 import { MoneyTotalLines } from '@/pages/procurement/list/MoneyTotalLines';
+import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 
 interface ProcurementBoardProps {
   procurements: ProcurementWithRefs[];
@@ -20,7 +21,7 @@ interface ProcurementBoardProps {
   needsYouReasons?: ReadonlyMap<string, { result: NeedsYouReason; text: string }>;
 }
 
-type BoardStageKey = 'request' | 'approved' | 'ordered' | 'received' | 'paid';
+type BoardStageKey = 'request' | 'approved' | 'ordered' | 'received' | 'invoiced' | 'paid';
 
 const BOARD_STAGES: Array<{
   key: BoardStageKey;
@@ -32,7 +33,9 @@ const BOARD_STAGES: Array<{
   { key: 'approved', label: 'board.approved', fallback: 'Approved', statuses: ['Approved', 'Vendor Quoted', 'Quote Selected'] },
   { key: 'ordered', label: 'board.ordered', fallback: 'Ordered', statuses: ['Ordered'] },
   { key: 'received', label: 'board.received', fallback: 'Received', statuses: ['Received'] },
-  { key: 'paid', label: 'board.paid', fallback: 'Paid', statuses: ['Vendor Invoiced', 'Paid'] },
+  // #2497: a supplier invoice not yet paid is billed, not paid; it gets its own column.
+  { key: 'invoiced', label: 'board.invoiced', fallback: 'Invoiced', statuses: ['Vendor Invoiced'] },
+  { key: 'paid', label: 'board.paid', fallback: 'Paid', statuses: ['Paid'] },
 ];
 
 /** Initial-letter avatar tile for the requester (categorical, non-interactive). */
@@ -64,18 +67,15 @@ const PrCard: React.FC<{
   const tooltip = t(role === 'Engineer' ? 'money.engineer' : 'money.mostReal', role === 'Engineer'
     ? 'Request amount only. Supplier invoice and payment amounts are not shown.'
     : 'Most real amount: paid, then supplier invoice, then purchase order, then request.');
-  const statusLabel = pr.status === 'Vendor Invoiced'
-    ? t('status.invoiceToPay', 'Supplier invoice to pay')
-    : pr.status === 'Paid' ? t('status.paid', 'Paid') : undefined;
 
   return (
     <KanbanCard selected={selected} onActivate={onActivate} aria-label={t('board.open', { title: pr.title, defaultValue: `Open ${pr.title}` })}>
       <div className="line-clamp-2 text-sm font-semibold leading-snug" title={pr.title}>
         {pr.title}
       </div>
-      {pr.code && (
-        <div className="mt-0.5 truncate record-id">
-          {pr.code}
+      {(pr.code || pr.pr_number) && (
+        <div className="mt-0.5 block truncate record-id">
+          {pr.code || pr.pr_number}
         </div>
       )}
       <span
@@ -88,7 +88,6 @@ const PrCard: React.FC<{
         <span className="text-sm text-muted-foreground">{amountKind}</span>
       </span>
       {reason && <div className="mt-2 text-sm font-medium text-warning-foreground">{reason}</div>}
-      {statusLabel && <div className="mt-1 text-sm text-muted-foreground">{statusLabel}</div>}
       <div className="mt-2.5 flex items-center gap-2 border-t border-border/70 pt-2">
         <Initial name={pr.requested_by?.full_name} />
         {/* Keep the card as a single activation target; project navigation remains on the detail page. */}
@@ -104,7 +103,7 @@ const PrCard: React.FC<{
   );
 };
 
-/** Five workflow columns. Rejected and cancelled records remain available in Table and Grouped views. */
+/** Six workflow columns. Rejected and cancelled records remain available in Table and Grouped views. */
 const ProcurementBoard: React.FC<ProcurementBoardProps> = ({
   procurements,
   onOpen,
@@ -113,6 +112,7 @@ const ProcurementBoard: React.FC<ProcurementBoardProps> = ({
   needsYouReasons,
 }) => {
   const { t } = useTranslation('procurementList');
+  const home = useOrgCurrency();
   const byStage = new Map<BoardStageKey, ProcurementWithRefs[]>(BOARD_STAGES.map(({ key }) => [key, []]));
   for (const procurement of procurements) {
     const stage = BOARD_STAGES.find(({ statuses }) => statuses.includes(procurement.status));
@@ -120,7 +120,8 @@ const ProcurementBoard: React.FC<ProcurementBoardProps> = ({
   }
 
   return (
-    <Kanban aria-label={t('board.label', 'Procurement by stage')}>
+    // Six stages share the 1440 content width (no sideways scroll); narrower screens keep the board's own scroll.
+    <Kanban aria-label={t('board.label', 'Procurement by stage')} className="xl:[grid-auto-columns:minmax(176px,1fr)]!">
       {BOARD_STAGES.map(({ key, label, fallback }) => {
         const items = byStage.get(key) ?? [];
         const totals = totalsByCurrency(items, viewerRole);
@@ -134,7 +135,7 @@ const ProcurementBoard: React.FC<ProcurementBoardProps> = ({
               title={stageTitle}
               dotColor={key === 'paid' ? 'hsl(var(--success))' : 'hsl(var(--mark-neutral))'}
               count={items.length}
-              totals={<MoneyTotalLines totals={totals} tooltip={tooltip} testId={`prstage-${key}-totals`} className="items-end" />}
+              totals={<MoneyTotalLines totals={totals} tooltip={tooltip} testId={`prstage-${key}-totals`} className="items-end" zeroCurrency={home} />}
               emptyMessage={t('board.empty', { stage: stageTitle, defaultValue: `No procurements at ${stageTitle}` })}
             >
               {items.map((procurement) => (
