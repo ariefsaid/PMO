@@ -3652,9 +3652,6 @@
     "signedInAs": "Signed in as {{email}}",
     "title": "Allow {{client}} to access your PMO account?"
   },
-  "uxs04": {
-    "noActiveBudget": "No active budget"
-  },
   "uxs05": {
     "customerReference": "Customer reference",
     "overdueOnly": "Overdue only"
