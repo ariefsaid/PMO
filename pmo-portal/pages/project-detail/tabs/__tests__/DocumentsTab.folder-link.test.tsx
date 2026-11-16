@@ -17,7 +17,9 @@ const FOLDER = {
 
 const h = vi.hoisted(() => ({ docs: { data: [] as unknown[] }, create: vi.fn() }));
 
-vi.mock('@/src/components/m365/RecordFolderAction', () => ({ RecordFolderAction: () => null }));
+vi.mock('@/src/components/m365/useRecordFolderAction', () => ({
+  useRecordFolderAction: () => ({ allowed: false, hasNotice: false, canStart: false, pending: false, start: () => {}, label: '', outcome: null, remedies: null, reconnectError: null }),
+}));
 vi.mock('@/src/hooks/useDocuments', () => ({
   useDocuments: () => ({ data: h.docs.data, isPending: false, isError: false, refetch: vi.fn() }),
   useDocumentMutations: () => ({
@@ -43,6 +45,7 @@ vi.mock('@/src/components/m365/MicrosoftDocumentPicker', () => ({
   ),
 }));
 
+import { chooseAddOption } from './addDocumentMenu';
 import DocumentsTab from '../DocumentsTab';
 
 const renderTab = () =>
@@ -65,7 +68,7 @@ beforeEach(() => {
 describe('DocumentsTab — linking a SharePoint folder (#1320 AC-1)', () => {
   it('AC-1: the folder form asks for a title only (no Category, Revision, Code) and saves it as a Reference', async () => {
     renderTab();
-    await userEvent.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
+    await chooseAddOption(userEvent, 'Link from Microsoft 365');
     await userEvent.click(screen.getByRole('button', { name: 'Select synthetic folder' }));
     const form = await screen.findByRole('dialog');
     expect(within(form).getByLabelText(/Title/)).toHaveValue('Synthetic folder');

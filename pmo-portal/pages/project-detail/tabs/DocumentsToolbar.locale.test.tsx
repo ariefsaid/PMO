@@ -40,7 +40,6 @@ function renderToolbar() {
   return render(
     <I18nextProvider i18n={i18n}>
       <DocumentsToolbar
-        registerSize={3}
         search=""
         setSearch={noop}
         categories={['Technical']}
@@ -52,10 +51,7 @@ function renderToolbar() {
         setSourceFilter={noop}
         documentsView="register"
         setDocumentsView={noop}
-        canCreateMicrosoftReference={false}
-        canCreate={false}
-        onLinkMicrosoft={noop}
-        onAddDocument={noop}
+        addOptions={[]}
       />
     </I18nextProvider>,
   );

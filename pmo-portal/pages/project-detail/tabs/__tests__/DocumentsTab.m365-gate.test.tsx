@@ -14,7 +14,9 @@ const h = vi.hoisted(() => ({
 }));
 
 // The register mounts RecordFolderAction (own coverage: DocumentsTab.record-folder.test).
-vi.mock('@/src/components/m365/RecordFolderAction', () => ({ RecordFolderAction: () => null }));
+vi.mock('@/src/components/m365/useRecordFolderAction', () => ({
+  useRecordFolderAction: () => ({ allowed: false, hasNotice: false, canStart: false, pending: false, start: () => {}, label: '', outcome: null, remedies: null, reconnectError: null }),
+}));
 vi.mock('@/src/hooks/useDocuments', () => ({
   useDocuments: () => ({ data: [makeLinkedDoc()], isPending: false, isError: false, refetch: vi.fn() }),
   useDocumentMutations: () => ({
@@ -41,6 +43,7 @@ vi.mock('@/src/components/m365/MicrosoftDocumentPicker', () => ({
   },
 }));
 
+import { chooseAddOption } from './addDocumentMenu';
 import DocumentsTab from '../DocumentsTab';
 
 const renderTab = () =>
@@ -54,7 +57,7 @@ const renderTab = () =>
     </MemoryRouter></QueryClientProvider>,
   );
 
-const openEntry = () => userEvent.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
+const openEntry = () => chooseAddOption(userEvent, 'Link from Microsoft 365');
 
 beforeEach(() => {
   h.pickerProps.length = 0;

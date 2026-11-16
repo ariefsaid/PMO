@@ -18,6 +18,7 @@ export async function createDocument(
   args: { title: string; code: string; category?: string; revision?: string },
 ) {
   await page.getByRole('button', { name: /add document/i }).click();
+  await page.getByRole('menuitem', { name: 'Upload a document' }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
   await dialog.getByLabel(/title/i).fill(args.title);

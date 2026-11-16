@@ -20,7 +20,9 @@ vi.mock('@/src/hooks/useUploadDestination', async (orig) => ({
   useUploadDestination: () => destinationState.value,
 }));
 
-vi.mock('@/src/components/m365/RecordFolderAction', () => ({ RecordFolderAction: () => null }));
+vi.mock('@/src/components/m365/useRecordFolderAction', () => ({
+  useRecordFolderAction: () => ({ allowed: false, hasNotice: false, canStart: false, pending: false, start: () => {}, label: '', outcome: null, remedies: null, reconnectError: null }),
+}));
 vi.mock('@/src/hooks/useDocuments', () => ({
   useDocuments: () => h.docs,
   useDocumentMutations: () => ({

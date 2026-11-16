@@ -32,6 +32,8 @@ export interface DocumentViewTarget {
   name: string;
   /** 'SharePoint' | 'OneDrive' | 'Microsoft 365' | 'PMO' (display only). */
   sourceLabel: string;
+  /** Which version this is, as the register names it (e.g. "Rev B · Approved"); shown beside the source. */
+  detail?: string;
   /** Runs on open and on Retry only (NFR-004). Throws `PreviewFailure`. */
   load: (signal: AbortSignal) => Promise<PreviewResult>;
   /** Authorized download of the original, independent of preview (FR-010). Rejects with the reason on a denial. */
