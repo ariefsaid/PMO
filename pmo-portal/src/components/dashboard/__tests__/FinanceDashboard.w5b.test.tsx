@@ -14,8 +14,9 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { pickOption } from '@/test/pickOption';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -312,32 +313,33 @@ describe('AC-IXD-DASH-W5-C2B — N17: Budget review variance ranking', () => {
 
 describe('AC-IXD-DASH-W5-C2B — OD-C/I2: Vendor Invoiced visible status filter', () => {
   // The procurement list restructure (#1404) replaced the status segment toolbar with Needs you / All
-  // tabs and a Status select (shown in the Board / Grouped views; the default table has no status
-  // control, only the deep link and the Pay stage). The goal is unchanged: Finance reaches the Vendor
-  // Invoiced rows through a visible control (the option reads "Supplier invoiced"), and the dashboard
-  // deep link lands there.
-  const statusFilter = () => screen.getAllByRole('combobox', { name: 'Status' })[0] as HTMLSelectElement;
+  // tabs; #2497 put one filter bar, built on the app's picker, above every view. The goal is unchanged:
+  // Finance reaches the Vendor Invoiced rows through a visible control (the option reads "Supplier
+  // invoiced"), and the dashboard deep link lands there with the filter shown as chosen.
+  const statusFilter = () => screen.getByRole('combobox', { name: 'Status' });
 
-  it('AC-IXD-DASH-W5-C2B-VI-1: Procurement page offers a visible "Vendor Invoiced" status filter', () => {
+  it('AC-IXD-DASH-W5-C2B-VI-1: Procurement page offers a visible "Vendor Invoiced" status filter', async () => {
     renderProcurement('/procurement?tab=all&view=board');
     // Finance role — must have a visible "Supplier invoiced" (Vendor Invoiced) option in the Status filter
-    expect(within(statusFilter()).getByRole('option', { name: /supplier invoiced/i })).toBeInTheDocument();
+    await userEvent.click(statusFilter());
+    expect(await screen.findByRole('option', { name: /supplier invoiced/i })).toBeInTheDocument();
   });
 
   it('AC-IXD-DASH-W5-C2B-VI-2: choosing Vendor Invoiced filters to only VI rows', async () => {
     renderProcurement('/procurement?tab=all&view=board');
-    await userEvent.selectOptions(statusFilter(), 'Vendor Invoiced');
+    await pickOption('Status', /supplier invoiced/i);
     // After choosing the VI filter: VI row visible, others not
     expect(screen.getByText('Scaffolding Invoice')).toBeInTheDocument();
     expect(screen.queryByText('Paid Invoice')).not.toBeInTheDocument();
     expect(screen.queryByText('Draft Request')).not.toBeInTheDocument();
   });
 
-  it('AC-IXD-DASH-W5-C2B-VI-3: navigating to ?status=Vendor+Invoiced shows the VI filter selected', () => {
+  it('AC-IXD-DASH-W5-C2B-VI-3: navigating to ?status=Vendor+Invoiced shows the VI filter selected', async () => {
     renderProcurement('/procurement?status=Vendor+Invoiced&view=board');
-    // The Status filter reflects the deep link (value is the selected option)
-    expect(statusFilter().value).toBe('Vendor Invoiced');
-    expect(within(statusFilter()).getByRole('option', { name: /supplier invoiced/i, selected: true })).toBeInTheDocument();
+    // The Status filter reflects the deep link: the picker shows the choice, and its list marks it selected
+    expect(statusFilter()).toHaveTextContent(/supplier invoiced/i);
+    await userEvent.click(statusFilter());
+    expect(await screen.findByRole('option', { name: /supplier invoiced/i, selected: true })).toBeInTheDocument();
   });
 
   it('AC-IXD-DASH-W5-C2B-VI-4: navigating to ?status=Vendor+Invoiced shows only VI rows (orientation fix)', () => {
