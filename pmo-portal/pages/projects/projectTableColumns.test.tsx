@@ -33,7 +33,8 @@ describe('Projects list columns', () => {
     const other = { ...project, id: 'project-other', project_manager_id: 'user-other', pm: { id: 'user-other', full_name: 'Other Manager' } } as unknown as ProjectWithRefs;
     const { tableColumns } = columnsFor([project, other]);
     expect(tableColumns.some((column) => column.key === 'pm')).toBe(true);
-    expect(tableColumns.reduce((sum, column) => sum + (column.size ?? 0), 0)).toBeLessThanOrEqual(1120);
+    // The 1440 data track: 1440 − 224 sidebar − 2 × 24 gutters − 2 border − 40 row menu = 1126 px.
+    expect(tableColumns.reduce((sum, column) => sum + Math.max(column.size ?? 0, column.key === 'project' ? 240 : 0), 0)).toBeLessThanOrEqual(1126);
   });
 
   it('names the shared tax basis on the Contract header for screen readers and in the export', () => {

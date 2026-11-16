@@ -152,7 +152,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       header: t('projects.columns.project', 'Project'),
       kind: 'primary',
       size: 340,
-      minSize: 200, // with the PM column the name gets what is left (two lines), so the table never scrolls sideways at 1440
+      minSize: 240,
       maxSize: 640,
       exportValue: (p) => p.name,
       primaryTitle: (p) => p.name,
@@ -372,8 +372,12 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
   const keptColumns = pmIsViewer || sharedManager ? visibleColumns.filter((column) => column.key !== 'pm') : visibleColumns;
   // The project name takes the spare width: its preferred size is what the 1440 content track
   // (1120px beside the row menu, inside the table's border) leaves after the other columns, never below its minimum.
-  const otherWidth = keptColumns.filter((column) => column.key !== 'project').reduce((sum, column) => sum + (column.size ?? 0), 0);
-  const tableColumns = keptColumns.map((column) => column.key === 'project'
+  // With the PM column the track is 16 px short at the name's 240 px floor (the table's contract for a
+  // primary column): the PM column and Contract give 8 px each, so the list never scrolls sideways at 1440.
+  const squeezed: Record<string, number> = keptColumns.some((column) => column.key === 'pm') ? { pm: 112, contract: 154 } : {};
+  const sized = keptColumns.map((column) => squeezed[column.key] ? { ...column, size: squeezed[column.key] } : column);
+  const otherWidth = sized.filter((column) => column.key !== 'project').reduce((sum, column) => sum + (column.size ?? 0), 0);
+  const tableColumns = sized.map((column) => column.key === 'project'
     ? { ...column, size: Math.max(column.minSize ?? 240, Math.min(column.maxSize ?? 640, 1120 - otherWidth)) }
     : column);
 
