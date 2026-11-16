@@ -414,19 +414,23 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
     // box is the resting placement, not a mid-flight frame above its final offset.
     const toast = visibleToast(page, /client sign-off prepared/i);
     await expect(toast).toBeVisible({ timeout: 15_000 });
+    // Settled = no running animation/transition under the toast AND an unchanged box across two frames.
+    // No swallowing catch: a toast that never settles fails here with its own message.
     await page.waitForFunction(
       () => {
         const el = document.querySelector('[data-sonner-toast]');
         if (!el) return false;
-        const w = window as unknown as { __toastY?: number };
-        const now = el.getBoundingClientRect().y;
-        const settled = w.__toastY !== undefined && Math.abs(w.__toastY - now) < 0.5;
-        w.__toastY = now;
-        return settled;
+        const running = el.getAnimations({ subtree: true }).some((a) => a.playState !== 'finished');
+        const w = window as unknown as { __toastBox?: string };
+        const r = el.getBoundingClientRect();
+        const now = `${r.x},${r.y},${r.width},${r.height}`;
+        const same = w.__toastBox === now;
+        w.__toastBox = now;
+        return !running && same;
       },
       undefined,
       { timeout: 5_000 },
-    ).catch(() => { /* fall through to the single measurement below */ });
+    );
     const toastBox = await toast.boundingBox();
     const headerBox = await claimDrawer.locator('[data-drawer-header]').boundingBox();
     expect(toastBox, 'the success toast rendered').toBeTruthy();
