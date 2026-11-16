@@ -585,8 +585,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       key: 'settlement',
       header: t('procurement.settlement', 'Paid / invoiced'),
       kind: 'text',
-      size: 152,
-      minSize: 152,
+      size: 126,
+      minSize: 126,
       cell: (row) => {
         const money = derivationFor(row).money;
         // Nothing invoiced yet is an empty cell, so a list with no invoices drops the whole column.
@@ -662,7 +662,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         sortKey: 'stage',
         cell: (row) => (
           <Tooltip content={stageDateTooltip(row)}>
-            <span tabIndex={0} className="inline-flex rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+            <span tabIndex={0} className="inline-flex min-w-0 max-w-full rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
               <ProcurementStatusPill status={row.status} />
             </span>
           </Tooltip>
@@ -674,8 +674,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         header: t('projectDetail.procurement.table.nextStep', 'Next step'),
         kind: 'text',
         // #1791 ruling: the label wraps to two lines, then truncates with the full text in `title`.
-        size: 172,
-        minSize: 172,
+        size: 146,
+        minSize: 146,
         cell: (row) => {
           const next = nextStepText(row.status, canDecideRow(row), t);
           return <Tooltip content={next}><span title={next} className={`block min-w-0 w-full max-w-full line-clamp-2 break-words ${row.status === 'Requested' && canDecideRow(row) ? 'font-medium text-primary-text' : 'text-muted-foreground'}`}>{next}</span></Tooltip>;
@@ -688,8 +688,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         kind: 'number',
         colClassName: projectId ? 'hidden' : undefined,
         align: 'num',
-        size: 108,
-        minSize: 108,
+        size: 96,
+        minSize: 96,
         sortKey: 'age',
         cell: (row) => {
           const days = derivationFor(row).age;
@@ -706,8 +706,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         header: t('procurement.raisedBy', 'Raised by'),
         kind: 'text',
         colClassName: projectId ? 'hidden' : undefined,
-        size: 156,
-        minSize: 156,
+        size: 124,
+        minSize: 124,
         sortKey: 'owner',
         cell: (row) => {
           const owner = row.requested_by?.full_name ?? t('projectDetail.procurement.unassigned', 'Unassigned');
