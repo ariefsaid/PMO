@@ -43,10 +43,11 @@ test('AC-MJE-040 Finance drafts and submits a journal; the Executive approves it
   await drawer.getByRole('button', { name: 'Approve' }).click();
   await page.getByRole('dialog', { name: 'Approve this journal?' }).getByRole('button', { name: 'Approve' }).click();
 
-  // The approval is the second person's, whatever the ledger answers afterwards.
+  // The approval is the second person's, whatever the ledger answers afterwards. The lane has no connected ledger, so the
+  // journal rests at exactly 'approved'; 'posted' belongs to AC-MJE-003 (the ledger's answer), not to this journey.
   const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
   await expect.poll(async () => {
     const { data } = await admin.from('journal_entries').select('status, approver_id, maker_id').eq('memo', memo).maybeSingle();
-    return data ? { approver: data.approver_id, maker: data.maker_id, approved: data.status !== 'submitted' && data.status !== 'draft' } : null;
-  }, { timeout: 30_000 }).toEqual({ approver: EXEC_ID, maker: FINANCE_ID, approved: true });
+    return data ? { approver: data.approver_id, maker: data.maker_id, status: data.status } : null;
+  }, { timeout: 30_000 }).toEqual({ approver: EXEC_ID, maker: FINANCE_ID, status: 'approved' });
 });
