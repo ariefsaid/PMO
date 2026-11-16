@@ -155,6 +155,8 @@ export const WorkOrderInvoiceDrawer: React.FC<{
 export const WorkOrderClaimDrawer: React.FC<{
   claim: ProgressClaimWithInvoice;
   canBill: boolean;
+  /** False for a claim whose invoice is raised elsewhere (a time-and-materials claim in a PMO-billed org): no Raise here. */
+  canRaise?: boolean;
   currency: string;
   projectId: string;
   /** The project register, when the caller has it: the evidence rows label each document by title. */
@@ -162,7 +164,7 @@ export const WorkOrderClaimDrawer: React.FC<{
   onClose: () => void;
   onRaise: (claim: ProgressClaimWithInvoice) => void;
   onAttachEvidence: (claimId: string) => void;
-}> = ({ claim, canBill, currency, projectId, documents = [], onClose, onRaise, onAttachEvidence }) => {
+}> = ({ claim, canBill, canRaise = true, currency, projectId, documents = [], onClose, onRaise, onAttachEvidence }) => {
   const { t } = useTranslation('project');
   return <Drawer open title={claim.kind === 'down_payment'
     ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment')
@@ -172,7 +174,7 @@ export const WorkOrderClaimDrawer: React.FC<{
     onClose={onClose}
     headerActions={<div className="flex flex-wrap items-center gap-2">
       {!claim.withdrawn_at && !claim.invoice && canBill && ((claim.evidence?.length ?? 0) > 0
-        ? <Button variant="primary" size="sm" onClick={() => onRaise(claim)}>{t('projectDetail.billing.claims.raise', 'Raise invoice')}</Button>
+        ? canRaise && <Button variant="primary" size="sm" onClick={() => onRaise(claim)}>{t('projectDetail.billing.claims.raise', 'Raise invoice')}</Button>
         : <Button variant="outline" size="sm" onClick={() => onAttachEvidence(claim.id)}>{t('projectDetail.billing.claims.attachEvidence', 'Attach evidence')}</Button>)}
       <Link className="inline-flex min-h-10 items-center text-sm font-medium text-primary-text underline underline-offset-2" to={claim.invoice ? `/sales-invoices/${encodeURIComponent(claim.id)}` : `/projects/${encodeURIComponent(projectId)}/billing`} onClick={onClose}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>
     </div>}>

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter, useLocation } from 'react-router';
@@ -19,6 +19,8 @@ const h = vi.hoisted(() => ({
   documents: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   orderLines: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   claims: [] as unknown[],
+  erpConnected: true,
+  m: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
   mode: 'erp' as 'erp' | 'native' | undefined,
   routeReady: true,
   synced: true,
@@ -43,7 +45,7 @@ vi.mock('@/src/hooks/useProgressBilling', () => ({
   useBoqItems: () => h.boq,
   useProjectBilling: () => h.projectBilling,
   useProjectClaims: () => ({ data: h.claims, isPending: false, isError: false, refetch: vi.fn() }),
-  useProgressBillingMutations: () => ({}),
+  useProgressBillingMutations: () => h.m,
 }));
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useWorkOrderLines: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
@@ -54,7 +56,7 @@ vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => h.documents }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing, useWorkOrderAcceptanceAge: () => h.age }));
 vi.mock('@/src/hooks/useRevenue', () => ({ useSalesInvoices: () => h.invoices }));
-vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: true }) }));
+vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: h.erpConnected }) }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => h.mode }));
 vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({
   useRevenueRouteReady: (mode: unknown) => h.routeReady && mode !== undefined,
@@ -112,6 +114,9 @@ beforeEach(() => {
   h.documents = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.orderLines = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.claims = [];
+  h.erpConnected = true;
+  h.m = Object.fromEntries(['createClaim', 'attachEvidence', 'withdrawClaim', 'raiseInvoice', 'raiseNativeInvoice', 'recordAssessment']
+    .map((name) => [name, { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false }]));
   h.mode = 'erp';
   h.routeReady = true;
   h.synced = true;
@@ -511,6 +516,190 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     const section = screen.getByRole('region', { name: 'Invoices without a customer order' });
     expect(within(section).getByText("Couldn't load invoice figures.")).toBeInTheDocument();
     expect(within(section).getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+});
+
+describe('WorkOrdersTab — a claim is billed in PMO when no ERP owns revenue (#2465, AC-PBL-NAT-004)', () => {
+  const FACTS = { currency: 'USD', contractNet: 500_000, workBilled: 0, dpBilled: 0, dpRecovered: 0, notSubmitted: 0,
+    assessment: null, claimedByBoqItem: {}, assessedByBoqItem: {}, earnedValue: 0, contractLines: [] };
+  const claim = (id: string, over: Record<string, unknown> = {}) => ({ id, kind: 'progress', created_at: '2026-06-01T00:00:00Z', withdrawn_at: null,
+    gross_amount: 10_000, dp_recovery_amount: 2_000, invoice: null,
+    evidence: [{ id: `e-${id}`, document_id: 'doc-1', document_status: 'Issued', document_revision: 'A' }], lines: [], ...over });
+  beforeEach(() => {
+    h.projectBilling = { data: FACTS, isPending: false, isError: false, refetch: vi.fn() };
+    h.claims = [claim('claim-1')];
+    h.mode = 'native'; h.erpConnected = false;
+  });
+  const rowActions = async (user: ReturnType<typeof userEvent.setup>) => {
+    const claims = screen.getByRole('table', { name: 'Claims & down payment' });
+    await user.click(within(claims).getByRole('button', { name: 'Row actions' }));
+  };
+
+  it('offers New claim, Attach evidence, Raise invoice and Withdraw to Finance with no ERP', async () => {
+    const user = userEvent.setup();
+    renderTab();
+    expect(screen.getByRole('button', { name: 'New claim' })).toBeInTheDocument();
+    await rowActions(user);
+    for (const name of ['Attach evidence', 'Raise invoice', 'Withdraw']) expect(await screen.findByRole('menuitem', { name })).toBeInTheDocument();
+  });
+
+  it('creates the PMO invoice from the claim, naming a PMO Draft, and never calls the ERP raise', async () => {
+    const user = userEvent.setup();
+    renderTab();
+    await rowActions(user);
+    await user.click(await screen.findByRole('menuitem', { name: 'Raise invoice' }));
+    const dialog = screen.getByRole('dialog', { name: "Create this claim's invoice?" });
+    expect(within(dialog).getByText(/A draft invoice is created in PMO/)).toBeInTheDocument();
+    expect(within(dialog).getByTestId('raise-figures')).toHaveTextContent('net');
+    await user.click(within(dialog).getByRole('button', { name: 'Create invoice' }));
+    expect(h.m.raiseNativeInvoice.mutateAsync).toHaveBeenCalledExactlyOnceWith('claim-1');
+    expect(h.m.raiseInvoice.mutateAsync).not.toHaveBeenCalled();
+    expect(await findToastAnnouncement('status', 'Invoice drafted in PMO')).toBeInTheDocument();
+  });
+
+  it('names a claim recovered in full in plain words', async () => {
+    const { AppError } = await import('@/src/lib/appError');
+    h.m.raiseNativeInvoice.mutateAsync.mockRejectedValue(new AppError('the invoice total must be above zero', 'invoice-total-invalid'));
+    const user = userEvent.setup();
+    renderTab();
+    await rowActions(user);
+    await user.click(await screen.findByRole('menuitem', { name: 'Raise invoice' }));
+    await user.click(within(screen.getByRole('dialog', { name: "Create this claim's invoice?" })).getByRole('button', { name: 'Create invoice' }));
+    expect(await findToastAnnouncement('alert', "This claim's net is zero, so there is nothing to invoice. Withdraw it.")).toBeInTheDocument();
+  });
+
+  it.each([
+    ['claim-already-invoiced', 'This claim already has an invoice.'],
+    ['claim-erp-raise-in-flight', 'An invoice for this claim is still being raised in the ERP. Wait for it to finish.'],
+  ])('names a %s refusal in plain words', async (code, words) => {
+    const { AppError } = await import('@/src/lib/appError');
+    h.m.raiseNativeInvoice.mutateAsync.mockRejectedValue(new AppError('refused', code as never));
+    const user = userEvent.setup();
+    renderTab();
+    await rowActions(user);
+    await user.click(await screen.findByRole('menuitem', { name: 'Raise invoice' }));
+    await user.click(within(screen.getByRole('dialog', { name: "Create this claim's invoice?" })).getByRole('button', { name: 'Create invoice' }));
+    expect(await findToastAnnouncement('alert', words)).toBeInTheDocument();
+  });
+
+  it('keeps the ERP raise when the ownership read fails in an ERP-connected organisation (the route is not decided)', async () => {
+    h.mode = 'native'; h.routeReady = false; h.erpConnected = true;
+    const user = userEvent.setup();
+    renderTab();
+    await rowActions(user);
+    await user.click(await screen.findByRole('menuitem', { name: 'Raise invoice' }));
+    const dialog = screen.getByRole('dialog', { name: "Raise this claim's invoice?" });
+    await user.click(within(dialog).getByRole('button', { name: 'Create ERP invoice' }));
+    expect(h.m.raiseInvoice.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(h.m.raiseNativeInvoice.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('withdraws an open claim', async () => {
+    const user = userEvent.setup();
+    renderTab();
+    await rowActions(user);
+    await user.click(await screen.findByRole('menuitem', { name: 'Withdraw' }));
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Withdraw claim' }));
+    expect(h.m.withdrawClaim.mutateAsync).toHaveBeenCalledExactlyOnceWith('claim-1');
+  });
+
+  it('leaves a time-and-materials claim to its own section: no Raise here', async () => {
+    h.claims = [claim('tm-1', { kind: 'time_materials', dp_recovery_amount: 0 })];
+    const user = userEvent.setup();
+    renderTab();
+    await rowActions(user);
+    expect(await screen.findByRole('menuitem', { name: 'Attach evidence' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Raise invoice' })).toBeNull();
+  });
+
+  const openPanel = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(screen.getByRole('button', { name: /^Open Progress claim/ }));
+    return screen.findByRole('dialog', { name: 'Progress' });
+  };
+  const RAISED = { id: 'claim-1', status: 'Unpaid', si_number: 'INV-1', amount: 8000 };
+
+  it('puts Raise invoice first in the row menu, and in the side panel, when the claim has evidence and is open', async () => {
+    const user = userEvent.setup();
+    renderTab();
+    await rowActions(user);
+    expect((await screen.findAllByRole('menuitem'))[0]).toHaveAccessibleName('Raise invoice');
+    await user.keyboard('{Escape}');
+    const panel = await openPanel(user);
+    await user.click(within(panel).getByRole('button', { name: 'Raise invoice' }));
+    expect(screen.getByRole('dialog', { name: "Create this claim's invoice?" })).toBeInTheDocument();
+  });
+
+  it.each([
+    ['has no evidence', { evidence: [] }, 'Attach evidence'],
+    ['is withdrawn', { withdrawn_at: '2026-06-02T00:00:00Z' }, null],
+    ['already has an invoice', { invoice: RAISED }, null],
+  ])('offers no Raise in the row menu or the side panel when the claim %s', async (_n, over, instead) => {
+    h.claims = [claim('claim-1', over)];
+    const user = userEvent.setup();
+    renderTab();
+    const menu = within(screen.getByRole('table', { name: 'Claims & down payment' })).queryByRole('button', { name: 'Row actions' });
+    if (menu) { await user.click(menu); expect(screen.queryByRole('menuitem', { name: 'Raise invoice' })).toBeNull(); await user.keyboard('{Escape}'); }
+    const panel = await openPanel(user);
+    expect(within(panel).queryByRole('button', { name: 'Raise invoice' })).toBeNull();
+    if (instead) expect(within(panel).getByRole('button', { name: instead })).toBeInTheDocument();
+  });
+
+  it('offers no Raise in the side panel for a time-and-materials claim, or to a Project Manager', async () => {
+    h.claims = [claim('tm-1', { kind: 'time_materials', dp_recovery_amount: 0 })];
+    const user = userEvent.setup();
+    renderTab();
+    await user.click(screen.getByRole('button', { name: /^Open Progress claim/ }));
+    expect(within(await screen.findByRole('dialog', { name: 'Progress' })).queryByRole('button', { name: 'Raise invoice' })).toBeNull();
+    cleanup();
+    h.claims = [claim('claim-1')];
+    renderTab('Project Manager');
+    expect(within(await openPanel(user)).queryByRole('button', { name: 'Raise invoice' })).toBeNull();
+  });
+
+  it('offers the ERP raise from the side panel when an ERP owns revenue', async () => {
+    h.mode = 'erp'; h.erpConnected = true;
+    const user = userEvent.setup();
+    renderTab();
+    await user.click(within(await openPanel(user)).getByRole('button', { name: 'Raise invoice' }));
+    expect(screen.getByRole('dialog', { name: "Raise this claim's invoice?" })).toBeInTheDocument();
+  });
+
+  it('says evidence is needed first only while an open claim lacks it', () => {
+    const note = /Claims need evidence attached before an invoice draft can be raised/;
+    renderTab();
+    expect(screen.queryByText(note)).toBeNull();
+    cleanup();
+    h.claims = [claim('claim-1'), claim('claim-2', { evidence: [] })];
+    renderTab();
+    expect(screen.getByText(note)).toBeInTheDocument();
+    cleanup();
+    h.claims = [claim('claim-2', { evidence: [], withdrawn_at: '2026-06-02T00:00:00Z' }), claim('claim-3', { evidence: [], invoice: RAISED })];
+    renderTab();
+    expect(screen.queryByText(note)).toBeNull();
+  });
+
+  it('offers nothing to a Project Manager, with no client, or before the revenue route is decided', () => {
+    renderTab('Project Manager');
+    expect(screen.queryByRole('button', { name: 'New claim' })).toBeNull();
+    cleanup();
+    renderTab('Finance', null);
+    expect(screen.queryByRole('button', { name: 'New claim' })).toBeNull();
+    cleanup();
+    h.routeReady = false;
+    renderTab();
+    expect(screen.queryByRole('button', { name: 'New claim' })).toBeNull();
+  });
+
+  it('keeps the ERP raise, with its own words, when an ERP owns revenue', async () => {
+    h.mode = 'erp'; h.erpConnected = true;
+    const user = userEvent.setup();
+    renderTab();
+    await rowActions(user);
+    await user.click(await screen.findByRole('menuitem', { name: 'Raise invoice' }));
+    const dialog = screen.getByRole('dialog', { name: "Raise this claim's invoice?" });
+    await user.click(within(dialog).getByRole('button', { name: 'Create ERP invoice' }));
+    expect(h.m.raiseInvoice.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(h.m.raiseNativeInvoice.mutateAsync).not.toHaveBeenCalled();
   });
 });
 

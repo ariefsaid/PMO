@@ -2178,7 +2178,7 @@
         "save": "Buat tagihan",
         "scope": "Menagih",
         "scopeContract": "Baris tanpa $t(common:terms.clientWorkOrder)",
-        "subtitle": "Satu tagihan menjadi satu invoice ERP. Lampirkan bukti sebelum menerbitkannya.",
+        "subtitle": "Satu tagihan menjadi satu invoice. Lampirkan bukti sebelum menerbitkannya.",
         "title": "Tagihan baru"
       },
       "claims": {

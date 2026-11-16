@@ -66,5 +66,10 @@ export function useProgressBillingMutations(projectId: string) {
       repositories.progressBilling.raiseInvoice({ claimId, projectId, customerId }, intent),
     onSettled: invalidateClaim,
   });
-  return { createBoq, updateBoq, deleteBoq, recordAssessment, createClaim, attachEvidence, withdrawClaim, raiseInvoice };
+  // No ERP owns revenue: a PMO Draft invoice from the claim. The invoice lists and the receivables move with it.
+  const raiseNativeInvoice = useMutation({
+    mutationFn: (claimId: string) => repositories.progressBilling.raiseNativeInvoice(claimId),
+    onSettled: invalidateClaim,
+  });
+  return { createBoq, updateBoq, deleteBoq, recordAssessment, createClaim, attachEvidence, withdrawClaim, raiseInvoice, raiseNativeInvoice };
 }

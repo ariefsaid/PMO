@@ -4,7 +4,7 @@ vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ clearOwnershipCache: vi
 vi.mock('@/src/lib/db/progressBilling', () => ({
   listBoqItems: vi.fn(), createBoqItem: vi.fn(), updateBoqItem: vi.fn(), deleteBoqItem: vi.fn(),
   listProjectClaims: vi.fn(), createProgressClaim: vi.fn(), withdrawProgressClaim: vi.fn(), getProjectBilling: vi.fn(),
-  attachClaimEvidence: vi.fn(), recordProgressAssessment: vi.fn(),
+  attachClaimEvidence: vi.fn(), recordProgressAssessment: vi.fn(), createNativeProgressClaimInvoice: vi.fn(),
 }));
 import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
@@ -29,6 +29,14 @@ describe('progressBilling repository', () => {
     vi.mocked(routeDomainWrite).mockReturnValue('pmo');
     await expect(repositories.progressBilling.raiseInvoice({ claimId: 'claim-1', projectId: 'proj-1', customerId: 'cust-1' }))
       .rejects.toBeInstanceOf(AppError);
+    expect(dispatchDomainCommand).not.toHaveBeenCalled();
+  });
+
+  it('AC-PBL-NAT-004 the native raise calls the PMO claim-invoice RPC and never dispatches to an ERP', async () => {
+    vi.mocked(routeDomainWrite).mockReturnValue('pmo');
+    vi.mocked(dal.createNativeProgressClaimInvoice).mockResolvedValue('claim-1');
+    expect(await repositories.progressBilling.raiseNativeInvoice('claim-1')).toBe('claim-1');
+    expect(dal.createNativeProgressClaimInvoice).toHaveBeenCalledWith('claim-1');
     expect(dispatchDomainCommand).not.toHaveBeenCalled();
   });
 

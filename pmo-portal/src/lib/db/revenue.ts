@@ -72,7 +72,7 @@ export interface SalesInvoiceRow {
   /** #784 (DD-NAR-9): PMO's own invoice number, minted on approval; null for a Draft and for ERP invoices. */
   pmo_number?: string | null;
   /** #784 (DD-NAR-8): the lines of a PMO invoice as raised. */
-  native_lines?: Array<{ item_code: string | null; description: string | null; qty: number; rate: number; amount: number }> | null;
+  native_lines?: Array<{ item_code: string | null; description: string | null; qty: number; rate: number; amount: number; role?: 'down_payment' | 'down_payment_recovery' }> | null;
   /** #784 (FR-NAR-005): who approved a PMO invoice, and when. */
   approved_by_id?: string | null;
   approved_at?: string | null;

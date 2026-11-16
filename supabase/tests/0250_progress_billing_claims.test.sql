@@ -119,12 +119,17 @@ select throws_ok($$ select public.create_progress_claim('07660000-0000-0000-0000
   '23514', 'the recovery percentage must be above 0 and at most 100, with at most 3 decimals', 'AC-PB-004 a 0% recovery is refused'); -- 29
 reset role;
 update organizations set down_payment_item = null where id = '07660000-0000-0000-0000-000000000001';
+-- ⚑ 0924: with no ERP the claim names PMO's own item; the refusal below is the ERP-owned organisation's.
+set local session_replication_role = replica;
+insert into external_domain_ownership (org_id, external_tier, domain) values ('07660000-0000-0000-0000-000000000001', 'erpnext', 'revenue');
+set local session_replication_role = origin;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"07660000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select throws_ok($$ select public.create_progress_claim('07660000-0000-0000-0000-0000000000c3', 'down_payment', p_down_payment_amount => 1000, p_recovery_pct => 10) $$,
   'P0001', 'set the down payment item in Administration → Accounting before billing a down payment',
   'AC-PB-004 a down payment needs the org''s down payment item');                                              -- 30
 reset role;
+delete from external_domain_ownership where org_id = '07660000-0000-0000-0000-000000000001';
 update organizations set down_payment_item = 'DP-ITEM' where id = '07660000-0000-0000-0000-000000000001';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"07660000-0000-0000-0000-0000000000a4","role":"authenticated"}';

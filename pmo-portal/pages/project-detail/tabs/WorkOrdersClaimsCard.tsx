@@ -28,6 +28,8 @@ const WorkOrdersClaimsCard: React.FC<{
   canAssess: boolean;
   canRecordPercent: boolean;
   canBill: boolean;
+  /** A claim whose invoice is raised elsewhere (a time-and-materials claim in a PMO-billed org) offers no Raise here. */
+  canRaiseClaim?: (claim: ProgressClaimWithInvoice) => boolean;
   claimsRead: { isPending: boolean; isError: boolean; refetch: () => void };
   claimRows: ProgressClaimWithInvoice[];
   openClaimDrawer: (claim: ProgressClaimWithInvoice) => void;
@@ -44,6 +46,7 @@ const WorkOrdersClaimsCard: React.FC<{
   canAssess,
   canRecordPercent,
   canBill,
+  canRaiseClaim = () => true,
   claimsRead,
   claimRows,
   openClaimDrawer,
@@ -112,9 +115,9 @@ const WorkOrdersClaimsCard: React.FC<{
             <dd className="mt-1 w-fit cursor-help text-base font-semibold tabular-nums"><Tooltip content={t('projectDetail.billing.claims.source.dpHeld', 'Computed as invoiced down payment less recovered down payment.') }><span>{formatNumberWhole(summary.dpHeld)}</span></Tooltip></dd>
           </div>}
         </dl>
-        <p className="mb-4 text-sm text-muted-foreground">
+        {claimRows.some((claim) => !claim.withdrawn_at && !claim.invoice && (claim.evidence?.length ?? 0) === 0) && <p className="mb-4 text-sm text-muted-foreground">
           {t('projectDetail.billing.claims.evidenceFirst', 'Claims need evidence attached before an invoice draft can be raised.')}
-        </p>
+        </p>}
         <details className="mb-4 border-b border-border pb-4">
           <summary className="touch-target w-fit cursor-pointer rounded-sm text-sm font-medium text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
             {t('projectDetail.billing.summary.details', 'Billing summary details')}
@@ -153,8 +156,8 @@ const WorkOrdersClaimsCard: React.FC<{
           rowMenu={(claim) => {
             const open = !claim.withdrawn_at && !claim.invoice;
             return [
+              ...(open && canBill && canRaiseClaim(claim) && (claim.evidence?.length ?? 0) > 0 ? [{ label: t('projectDetail.billing.claims.raise', 'Raise invoice'), onClick: () => onRaiseClaim(claim) }] : []),
               ...(open && canBill ? [{ label: t('projectDetail.billing.claims.attachEvidence', 'Attach evidence'), onClick: () => onAttachEvidence(claim.id) }] : []),
-              ...(open && canBill && (claim.evidence?.length ?? 0) > 0 ? [{ label: t('projectDetail.billing.claims.raise', 'Raise invoice'), onClick: () => onRaiseClaim(claim) }] : []),
               ...(open && canBill ? [{ label: t('projectDetail.billing.claims.withdraw', 'Withdraw'), danger: true, onClick: () => onWithdrawClaim(claim) }] : []),
             ];
           }}

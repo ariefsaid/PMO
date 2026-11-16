@@ -4,6 +4,7 @@ import { Button, RecordSection } from '@/src/components/ui';
 import { useSalesInvoiceEvidence, useIncomingPayments } from '@/src/hooks/useRevenue';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { displayAllocations } from '@/src/lib/revenue/receiptAllocation';
+import { nativeLineName } from '@/src/lib/revenue/nativeInvoice';
 import { formatCurrency, formatDay } from '@/src/lib/format';
 import { useOdooRevenueCommands, useOdooRevenueCreditNotes } from '@/src/hooks/useOdooRevenue';
 import { useOdooUnreachable } from '@/src/hooks/useOdooPurchase';
@@ -94,7 +95,7 @@ export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow; o
                   {(lines ?? []).map((line, index) => (
                     <li key={`${line.item_code ?? 'line'}-${index}`} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2 text-sm">
                       <span className="min-w-0 flex-1 break-words">
-                        <span className="block">{line.description ?? line.item_code ?? t('uxs17.lineDescriptionUnavailable', 'Description not available')}</span>
+                        <span className="block">{nativeLineName(line, t) ?? t('uxs17.lineDescriptionUnavailable', 'Description not available')}</span>
                         {line.item_code && line.description && <span className="record-id">{line.item_code}</span>}
                       </span>
                       <span className="tabular text-right text-muted-foreground">

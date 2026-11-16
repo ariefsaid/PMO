@@ -776,6 +776,8 @@
     "wholeProjectEditorHint": "Anggaran seluruh proyek: masukkan total setiap kategori sekali — tanpa tahun fiskal per baris.",
     "invoiceNumber": "Nomor invoice",
     "odooDraftNumber": "Draf — Odoo memberi nomor setelah disetujui",
+    "nativeLineDownPayment": "Uang muka",
+    "nativeLineDownPaymentRecovery": "Pemulihan uang muka",
     "erpLineItemsStoredExternally": "Baris invoice disimpan di sistem akuntansi untuk invoice ini.",
     "withholdingArticle": "Pasal pemotongan",
     "withholdingArticleNone": "Tidak disebutkan",

@@ -12680,6 +12680,7 @@ export type Database = {
         }
         Returns: string
       }
+      create_native_progress_claim_invoice: { Args: { p_claim: string }; Returns: string }
       create_native_tm_invoice: { Args: { p_claim: string }; Returns: string }
       create_payment: {
         Args: {

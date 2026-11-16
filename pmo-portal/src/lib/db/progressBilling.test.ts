@@ -9,7 +9,7 @@ const h = vi.hoisted(() => {
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: h.from } }));
 import {
-  attachClaimEvidence, createBoqItem, createProgressClaim, getProjectBilling, listBoqItems, recordProgressAssessment, updateBoqItem,
+  attachClaimEvidence, createBoqItem, createNativeProgressClaimInvoice, createProgressClaim, getProjectBilling, listBoqItems, recordProgressAssessment, updateBoqItem,
 } from './progressBilling';
 
 const CONTRACT = {
@@ -149,5 +149,20 @@ describe('progress billing DAL', () => {
       ['created_at', { ascending: true }],
       ['id', { ascending: true }],
     ]);
+  });
+
+  it('AC-PBL-NAT-004 DAL: the native claim invoice sends the claim id and returns the invoice id', async () => {
+    h.rpc.mockResolvedValue({ data: 'claim-1', error: null });
+    await expect(createNativeProgressClaimInvoice('claim-1')).resolves.toBe('claim-1');
+    expect(h.rpc).toHaveBeenCalledWith('create_native_progress_claim_invoice', { p_claim: 'claim-1' });
+  });
+
+  it('AC-PBL-NAT-004 DAL: a refusal surfaces its machine-readable detail as the code, and a missing id is an error', async () => {
+    h.rpc.mockResolvedValue({ data: null, error: { message: 'this claim already has an invoice', code: 'P0001', details: 'claim-already-invoiced' } });
+    await expect(createNativeProgressClaimInvoice('claim-1')).rejects.toMatchObject({ name: 'AppError', code: 'claim-already-invoiced' });
+    h.rpc.mockResolvedValue({ data: null, error: { message: 'a time-and-materials claim is invoiced from its own sign-off', code: 'P0001', details: 'claim-kind' } });
+    await expect(createNativeProgressClaimInvoice('claim-1')).rejects.toMatchObject({ code: 'claim-kind' });
+    h.rpc.mockResolvedValue({ data: null, error: null });
+    await expect(createNativeProgressClaimInvoice('claim-1')).rejects.toMatchObject({ name: 'AppError' });
   });
 });
