@@ -72,7 +72,7 @@ test('the budget position compares compatible currency and identifies foreign de
   await expect(page.getByTestId('stat-tile').filter({ hasText: 'Left after this purchase' })).toHaveCount(0);
   await expect(page.getByTestId('figures-hidden')).toContainText('1 figure hidden');
   await page.getByTestId('figures-hidden').getByRole('button', { name: 'Why' }).click();
-  await expect(page.getByText('Spending not known yet')).toBeVisible();
+  await expect(page.getByText('Spending not known yet', { exact: true })).toBeVisible();
   await expect(page.getByText(/Spending not known yet\. Without it:.*750 left after orders, reserved and this purchase\./)).toBeVisible();
 });
 
