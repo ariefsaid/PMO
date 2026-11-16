@@ -234,6 +234,8 @@
     },
     "noProgressNote": "Tanpa penilaian progres, pendapatan yang diakui mengikuti nilai faktur.",
     "leftToBillUnknownNote": "Sisa tagihan tidak mencakup faktur mata uang asing yang belum direkonsiliasi; nilainya belum diketahui.",
+    "leftToBillNoValue_one": "{{count}} kontrak tanpa nilai, tidak termasuk total",
+    "leftToBillNoValue_other": "{{count}} kontrak tanpa nilai, tidak termasuk total",
     "reviewInvoices": "Tinjau faktur",
     "invoiceCountsUnavailable": "Jumlah faktur tidak tersedia",
     "invoiceCountsLoading": "Memuat jumlah faktur",
