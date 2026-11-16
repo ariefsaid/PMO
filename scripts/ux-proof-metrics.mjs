@@ -145,7 +145,7 @@ export function violations(metrics, baseline, label, chartBaseline, targetBaseli
 //   columnsLevel the last row of the page (nothing below it) · KPI tile rows (tiles stretch to the row height)
 //   rowCentre   a figure in a shared right-aligned numeric column · a menu · a closed disclosure
 //   everywhere  [data-layout-ignore] (counted and reported; may not cover a panel or >30% of main),
-//               sr-only, svg, dialogs, trees, aria-hidden
+//               sr-only, svg, dialogs, trees (aria-hidden text counts: it is painted)
 // ---------------------------------------------------------------------------------------------
 export const LAYOUT_NUMBERS = {
   headingMin: 12, headingMax: 16, // heading to the content it introduces
