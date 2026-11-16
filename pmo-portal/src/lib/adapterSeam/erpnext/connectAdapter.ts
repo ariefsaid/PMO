@@ -1,6 +1,7 @@
 import { AdapterError } from '../contract.ts';
 import type { CensusDomain, ConnectAdapter, MasterKind, NormalisedMaster, PmoMaster } from '../connect/types.ts';
 import { createDoc, erpnextRequest, ErpError, getDoc, listDocsByFilters, withCommitDeadline, withProbeBudget, type ErpClientDeps } from './client.ts';
+import { normalised } from '../connect/sendViaOutbox.ts';
 import { accountCategoryKey } from '../../budget/categoryAccountMap.ts';
 export const ERP_CONNECT_PAGE = 200;
 const SPECS: Partial<Record<MasterKind, Array<{ doctype: string; fields: string[]; company: boolean; map: (r: Record<string, unknown>) => NormalisedMaster }>>> = {
@@ -170,7 +171,7 @@ export async function erpnextAccountGroup(client: ErpClientDeps, erpName: string
 export async function erpnextAccountReadBack(client: ErpClientDeps, company: string, erpName: string, requestedName: string): Promise<boolean> {
   const doc = (await getDoc(client, 'Account', erpName)) as Record<string, unknown> | null;
   if (!doc || doc.company !== company || Number(doc.is_group) !== 0 || doc.root_type !== 'Expense' || Number(doc.disabled) === 1) return false;
-  return String(doc.account_name ?? '').trim().toLowerCase() === requestedName.trim().toLowerCase();
+  return normalised(String(doc.account_name ?? '')) === normalised(requestedName);
 }
 
 /** The money outbox's recovery probe for a send (ADR-0058 §3): the lookup half of `sendMaster`, so a lost answer is adopted, never re-POSTed. */

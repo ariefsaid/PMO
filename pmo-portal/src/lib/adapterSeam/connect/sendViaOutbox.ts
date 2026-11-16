@@ -14,7 +14,8 @@ export const sendKey = (kind: MasterKind, pmoId: string) => `seed:${kind}:${pmoI
 
 /** Longest request text kept readable in a key; anything longer is hashed (FNV-1a, 64 bit) so the key stays short. */
 const ACCOUNT_KEY_TEXT_MAX = 160;
-const normalised = (v: string | null | undefined) => (v ?? '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
+/** The one name normaliser: the send key and the ERP read-back both compare names through it. */
+export const normalised = (v: string | null | undefined) => (v ?? '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
 function fnv1a64(text: string): string {
   let h = 0xcbf29ce484222325n;
   for (const byte of new TextEncoder().encode(text)) h = ((h ^ BigInt(byte)) * 0x100000001b3n) & 0xffffffffffffffffn;

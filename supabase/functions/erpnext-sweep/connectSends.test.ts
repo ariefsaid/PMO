@@ -720,6 +720,17 @@ describe('#1599 ECX-4 drainConnectSends: direct-cost accounts', () => {
     assertEquals(ok.result.sent, 1);
   });
 
+  it('AC-ECX-030 a re-request whose name has an extra inner space links the stored account and is not told to use a different name', async () => {
+    const replayed = { id: 'ob-0', domain: 'accounts', pmo_record_id: 'Materials', idempotency_key: 'seed:account:Materials:["site materials","direct expenses - tc"]', state: 'confirmed', external_record_id: 'Site materials - TC', canonical: null, claim_generation: 1, payload_digest: null };
+    const tables = chart();
+    tables.Account.push({ name: 'Site materials - TC', account_name: 'Site materials', parent_account: 'Direct Expenses - TC', company: 'Test Co', root_type: 'Expense', is_group: 0, disabled: 0 });
+    const spaced = { ...P.account, snapshot: { accountName: 'Site   materials', parentAccount: 'Direct Expenses - TC' } };
+    const { calls, result } = await tick({ claimed: [spaced], tables, outbox: [{ ...replayed }] });
+    assertEquals(results(calls).map((r) => [r.p_external_id, r.p_rejection ?? null]), [['Site materials - TC', null]]);
+    assertEquals([result.sent, result.rejected], [1, 0]);
+    assertEquals(erpPosts(calls).length, 0);
+  });
+
   it('AC-ECX-030 an account of that name already under another group is linked there and says so; under the chosen group it says nothing', async () => {
     const elsewhere = (name: string) => {
       const tables = chart();
