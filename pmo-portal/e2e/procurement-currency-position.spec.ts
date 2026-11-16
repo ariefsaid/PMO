@@ -70,7 +70,9 @@ test('the budget position compares compatible currency and identifies foreign de
   // known: the Left figure is not drawn (the page's one hidden-figures line says so) and the amount without
   // spending (1000 budget − 200 reserved − 50 this request) sits under its own label, never as the Left figure.
   await expect(page.getByTestId('stat-tile').filter({ hasText: 'Left after this purchase' })).toHaveCount(0);
-  await expect(page.getByTestId('figures-hidden')).toContainText('not known yet');
+  await expect(page.getByTestId('figures-hidden')).toContainText('1 figure hidden');
+  await page.getByTestId('figures-hidden').getByRole('button', { name: 'Why' }).click();
+  await expect(page.getByText('Spending or open orders not known yet')).toBeVisible();
   await expect(page.getByText(/Spending not known yet\. Without it:.*750 left after orders, reserved and this purchase\./)).toBeVisible();
 });
 
