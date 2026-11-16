@@ -1009,6 +1009,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
               tableId="project-budget-option-a"
               accessibleName={t('projectDetail.budget.actualTable', 'Budget vs actual by category')}
               cardBelow={600}
+              cardValuesEnd
               totals={actualTotals}
               emptyTitle={t('projectDetail.budget.noCategories', 'No budget categories in this version')}
               emptySub={t('projectDetail.budget.noCategoriesSub', 'Add budget lines to show the category breakdown.')}

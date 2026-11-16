@@ -11,7 +11,7 @@ import type {
 } from './DataTable';
 import { PrimaryCell } from './DataTableShared';
 import type { GroupedRowEntry } from './DataTableShared';
-import { numericColumnClass } from './dataTableColumns';
+import { isNumericColumn, numericColumnClass } from './dataTableColumns';
 
 /**
  * Strips responsive-hide classes (e.g. "hidden xl:table-cell") from colClassName
@@ -50,6 +50,7 @@ interface DataTableMobileCardProps<Row> {
   selectionLabel: (row: Row, primaryColumn?: Column<Row>) => string;
   mobileCardTitle?: (row: Row) => React.ReactNode;
   mobileCardDetails?: (row: Row) => React.ReactNode;
+  cardValuesEnd?: boolean;
   fingerprint: string;
   /** Serialised output of the row callbacks (labels, menu content) — see useLiveRowProps. */
   contentKey: string;
@@ -68,6 +69,7 @@ function mobileCardPropsEqual<Row>(a: Readonly<DataTableMobileCardProps<Row>>, b
     && a.columns === b.columns
     && a.fingerprint === b.fingerprint
     && a.contentKey === b.contentKey
+    && a.cardValuesEnd === b.cardValuesEnd
     // PRESENCE, not identity (same rule as the desktop row memo, #2102 review I1): the card's
     // checkbox, ⋯ menu and activation button appear/disappear with these props, so a permission
     // flip beside a stable `columns` array must repaint the card instead of leaving it stale.
@@ -93,6 +95,7 @@ function DataTableMobileCardInner<Row>({
   selectionLabel,
   mobileCardTitle,
   mobileCardDetails,
+  cardValuesEnd,
 }: DataTableMobileCardProps<Row>) {
   // A `rowLabel` that answers '' marks a row that does not open: no pointer, no activation button.
   const onActivate = accessibleRowLabel(row) === '' ? undefined : tableOnActivate;
@@ -180,8 +183,9 @@ function DataTableMobileCardInner<Row>({
                     col.align === 'center' && 'text-center',
                     stripHiddenClasses(col.colClassName),
                     // A cell whose desktop column stacks right-aligned (money cells
-                    // render `flex-col items-end`) left-aligns its block on cards.
-                    '[&>div]:items-start',
+                    // render `flex-col items-end`) left-aligns its block on cards —
+                    // unless the table opts in to one right edge (`cardValuesEnd`).
+                    cardValuesEnd && isNumericColumn(col) ? 'text-right [&>div]:items-end' : '[&>div]:items-start',
                   )}
                 >
                   {content}
@@ -221,6 +225,7 @@ export interface DataTableMobileProps<Row> {
   totals?: Array<{ key: string; label: React.ReactNode; values?: Record<string, React.ReactNode> }>;
   mobileCardTitle?: (row: Row) => React.ReactNode;
   mobileCardDetails?: (row: Row) => React.ReactNode;
+  cardValuesEnd?: boolean;
 }
 
 export function DataTableMobile<Row>({
@@ -247,6 +252,7 @@ export function DataTableMobile<Row>({
   totals,
   mobileCardTitle,
   mobileCardDetails,
+  cardValuesEnd,
 }: DataTableMobileProps<Row>) {
   const { t, i18n } = useTranslation('projects');
   // Locale stamp for the list's own t()-built labels (select-all, activation aria-labels);
@@ -310,6 +316,7 @@ export function DataTableMobile<Row>({
               contentKey={rowContentKey(modelRow.original, { onActivate, rowMenu, accessibleRowLabel, selectionLabel, rowTarget }, columns[0])}
               mobileCardTitle={mobileCardTitle}
               mobileCardDetails={mobileCardDetails}
+              cardValuesEnd={cardValuesEnd}
               fingerprint={cardFingerprint}
             />
           );
@@ -321,7 +328,7 @@ export function DataTableMobile<Row>({
             const value = total.values && Object.prototype.hasOwnProperty.call(total.values, column.key)
               ? total.values[column.key]
               : index === 0 ? total.label : null;
-            return value == null ? null : <React.Fragment key={column.key}><dt className="text-muted-foreground">{column.header}</dt><dd className={cn('min-w-0', numericColumnClass(column))}>{value}</dd></React.Fragment>;
+            return value == null ? null : <React.Fragment key={column.key}><dt className="text-muted-foreground">{column.header}</dt><dd className={cn('min-w-0', numericColumnClass(column), cardValuesEnd && isNumericColumn(column) && 'text-right')}>{value}</dd></React.Fragment>;
           })}
         </dl>
       </li>)}

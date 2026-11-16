@@ -345,7 +345,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
           : pmoBasis
             ? t('projectDetail.budget.wholeRecordedUnknownSourcePmo', 'Source: paid purchases before tax and internal equipment charges.')
             : t('projectDetail.budget.wholeRecordedUnknownSource', 'Source: mapped ERP ledger. The reading date is unavailable.')}
-      ><span tabIndex={0} className="inline-flex flex-col items-end [li_&]:items-start"><span>{moneyText(row.recorded, currency)}</span>{(row.recorded === null || row.recordedAsOf || !pmoBasis) && <span className="text-sm font-normal text-muted-foreground">{row.recorded === null ? unavailableRecordedText(row, t, pmoBasis) : row.recordedAsOf ? t('projectDetail.budget.recordedAsOf', 'As of {{date}}', { date: formatDay(row.recordedAsOf) }) : t('projectDetail.budget.recordedDateUnknown', 'Date unavailable')}</span>}</span></Tooltip>,
+      ><span tabIndex={0} className="inline-flex flex-col items-end"><span>{moneyText(row.recorded, currency)}</span>{(row.recorded === null || row.recordedAsOf || !pmoBasis) && <span className="text-sm font-normal text-muted-foreground">{row.recorded === null ? unavailableRecordedText(row, t, pmoBasis) : row.recordedAsOf ? t('projectDetail.budget.recordedAsOf', 'As of {{date}}', { date: formatDay(row.recordedAsOf) }) : t('projectDetail.budget.recordedDateUnknown', 'Date unavailable')}</span>}</span></Tooltip>,
     },
     {
       key: 'remaining',
@@ -475,6 +475,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
               tableId="project-budget-whole-project-comparison"
               accessibleName={t('projectDetail.budget.comparisonTable', 'Approved budget compared with recorded spending')}
               cardBelow={600}
+              cardValuesEnd
               embedded
             />
             : scope?.kind === 'year' ? <>
@@ -489,6 +490,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
                 tableId="project-budget-forecast"
                 accessibleName={t('projectDetail.budget.forecastTable', 'Budget forecast by category')}
                 cardBelow={600}
+                cardValuesEnd
                 embedded
                 totals={totals}
               />
