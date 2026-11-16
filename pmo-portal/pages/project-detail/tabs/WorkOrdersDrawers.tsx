@@ -171,7 +171,7 @@ export const WorkOrderClaimDrawer: React.FC<{
     ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment')
     : t('projectDetail.billing.claims.kind.progress', 'Progress')}
     subtitle={formatDay(claim.created_at)}
-    status={<StatusPill variant={claim.withdrawn_at ? 'lost' : claim.invoice?.status === 'Paid' ? 'won' : 'neutral'}>{claim.withdrawn_at ? t('projectDetail.billing.claims.withdrawn', 'Withdrawn') : claim.invoice?.status ?? t('projectDetail.billing.claims.notRaised', 'Not raised')}</StatusPill>}
+    status={<StatusPill variant={claim.withdrawn_at ? 'lost' : claim.invoice?.status === 'Paid' ? 'won' : 'neutral'}>{claim.withdrawn_at ? t('projectDetail.billing.claims.withdrawn', 'Withdrawn') : claim.invoice ? statusLabel('salesInvoice', claim.invoice.status, t) : t('projectDetail.billing.claims.notRaised', 'Not raised')}</StatusPill>}
     onClose={onClose}
     headerActions={<div className="flex flex-wrap items-center gap-2">
       {!claim.withdrawn_at && !claim.invoice && canBill && ((claim.evidence?.length ?? 0) > 0
