@@ -98,7 +98,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
           <dd data-testid="project-card-active-budget" className="min-w-0 font-semibold tabular text-muted-foreground">{activeBudgetLabel}</dd>
         </div>
         <div className="contents">
-          <dt className="text-muted-foreground">{t('projects.columns.actual', 'Actual')}</dt>
+          <dt className="text-muted-foreground">{t('projects:columns.spent', 'Spent')}</dt>
           <dd data-testid="project-card-actual" className="min-w-0 font-semibold tabular">{actualFigure}</dd>
         </div>
         {deliverySummary && deliverySummary.deliveryPct != null && (

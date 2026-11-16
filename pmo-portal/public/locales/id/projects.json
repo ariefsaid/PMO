@@ -91,10 +91,15 @@
   },
   "columns": {
     "budgetUsed": "Anggaran terpakai",
-    "contractWithBasis": "Kontrak ({{basis}})"
+    "budgetUsedShare": "% anggaran terpakai",
+    "contractWithBasis": "Kontrak ({{basis}})",
+    "spent": "Terpakai"
   },
   "card": {
-    "actualInline": "{{amount}} aktual"
+    "progressShare": "{{percent}}% selesai",
+    "budgetShare": "{{percent}}% dari anggaran",
+    "contractInline": "{{amount}} kontrak",
+    "spentInline": "{{amount}} terpakai"
   },
   "contractBasisNote": "Nilai kontrak {{basis}}.",
   "sharedManagerNote": "Manajer proyek: {{name}}",
@@ -115,6 +120,26 @@
       "helper": "Opsional. Perusahaan yang akhirnya menerima pekerjaan; kosongkan bila sama dengan klien."
     }
   },
+  "health": {
+    "atRisk": "{{count}} dari {{total}} berisiko",
+    "overBudget": "{{count}} melebihi anggaran",
+    "late": "{{count}} terlambat",
+    "overBudgetFilter": "Melebihi anggaran",
+    "lateFilter": "Terlambat",
+    "statusOverBudget": "{{status}} · melebihi anggaran",
+    "statusAtRisk": "{{status}} · berisiko",
+    "pastEnd_one": "{{count}} hari lewat tenggat",
+    "pastEnd_other": "{{count}} hari lewat tenggat"
+  },
+  "absence": {
+    "note": "— : {{reasons}}",
+    "internal": "proyek internal",
+    "noSpending": "belum ada pengeluaran",
+    "noPhases": "belum ada fase",
+    "noBudget": "belum ada anggaran"
+  },
+  "listOptions": "Opsi",
+  "exportImport": "Ekspor dan impor",
   "pagination": {
     "label": "Halaman",
     "previous": "Sebelumnya",

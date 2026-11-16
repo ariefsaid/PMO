@@ -97,6 +97,8 @@ describe('AC-CODE-003 active Projects identities', () => {
     renderProjects('/projects?view=table');
     expect(screen.queryByText('More project references')).not.toBeInTheDocument();
     const ids = screen.getAllByTitle('PMO-26-7711 · CLIENT-81')[0];
+    // The identifier line does not wrap on a narrow row.
+    expect(ids).toHaveClass('whitespace-nowrap');
     expect(ids).toHaveTextContent('PMO-26-7711 · CLIENT-81');
   });
 

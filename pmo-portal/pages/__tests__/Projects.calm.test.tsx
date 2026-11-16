@@ -105,7 +105,7 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
     expect(screen.getAllByText('Endco')).toHaveLength(1);
   });
 
-  it('name cell carries no per-row references disclosure; identifiers sit on one muted line', () => {
+  it('name cell carries no per-row references disclosure; identifiers sit on one line', () => {
     renderPage();
     expect(screen.queryByText('More project references')).not.toBeInTheDocument();
     expect(screen.queryByText(/Client Project Code/)).not.toBeInTheDocument();
@@ -113,6 +113,8 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
     const first = screen.getByText('Synthetic project 0').closest('tr')!;
     const ids = within(first).getByText('PMO-1000 · CLI-0');
     expect(ids).toBeInTheDocument();
+    // The identifiers never break across lines (their clause is nowrap).
+    expect(ids.closest('.whitespace-nowrap')).not.toBeNull();
   });
 
   it('classification fields live inside the one filter builder (no second trigger)', async () => {

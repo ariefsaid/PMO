@@ -47,7 +47,7 @@ import { Rail } from '@/src/components/shell/Rail';
 const facts: ManagementPackFacts = {
   from: '2026-03-01', to: '2026-04-01', timezone: 'Asia/Jakarta', org_currency: 'IDR', undated_invoice_count: 0,
   projects: [{
-    id: 'p1', name: 'Alpha', pmo_project_number: null, code: null, status: 'Ongoing Project', currency: 'IDR',
+    id: 'p1', name: 'Alpha', pmo_project_number: null, code: null, status: 'Ongoing Project', on_hand: true, currency: 'IDR',
     contract_net: 1_000, start_date: null, end_date: null, project_manager_id: 'u-pm', client_name: null,
   }],
   invoiced: [{ project_id: 'p1', currency: 'IDR', month: '2026-04-01', net: 250, invoice_count: 1 }],
