@@ -312,7 +312,7 @@ const Contacts: React.FC = () => {
               noun={t('contacts.filters.companyNoun', 'company')}
               nounPlural={t('contacts.filters.companyNounPlural', 'companies')}
               emptyMessage={() => null}
-              className="w-full min-w-0 sm:w-[350px] sm:shrink-0 sm:flex-row sm:items-center sm:gap-2 sm:[&>span:first-child]:shrink-0 sm:[&>span:first-child]:whitespace-nowrap sm:[&>div.relative]:min-w-0 sm:[&>div.relative]:flex-1 sm:[&_[role=combobox]]:min-h-[var(--control-height)] sm:[&_[role=combobox]]:min-w-0"
+              className="w-full min-w-0 sm:w-[420px] sm:shrink-0 sm:flex-row sm:items-center sm:gap-2 sm:[&>span:first-child]:shrink-0 sm:[&>span:first-child]:whitespace-nowrap sm:[&>div.relative]:min-w-0 sm:[&>div.relative]:flex-1 sm:[&_[role=combobox]]:min-h-[var(--control-height)] sm:[&_[role=combobox]]:min-w-0"
             />
             {hasActiveFilter && (
               <button
