@@ -3745,3 +3745,14 @@ understated by the tax rate.
 Every approximate rupiah equivalent reads `≈ IDR 1,623,456 (using IDR 18,500 rate)` (Indonesian `≈ IDR 1.623.456 (kurs IDR 18.500)`); a total summed at each row's own date reads `(using IDR rate of each date)`. The publication date sits in the element's title and screen-reader text ("JISDOR rate of 2026-10-09"). A foreign-currency equivalent of a rupiah amount is never shown. A dated document uses the latest rate on or before its date; when none exists it uses the latest rate available as of the organisation day. With no rate ever uploaded the figure reads `—`: a person who may upload exchange rates sees "Upload an exchange rate" (to Administration → Exchange rates), everyone else "No exchange rate uploaded".
 On a project's Budget tab, when the budget, spending and open orders are in different currencies, each exact figure stays in its own currency with its `≈ IDR` line beneath; **Budget used** (`≈ 42%`) and **Left after open orders** (`≈ IDR …`) are computed in rupiah at the latest rate on or before the organisation's today, each captioned "using IDR … rate". The tab has no hidden-figures row: a figure that cannot be shown reads `—` on its own card with one short caption, and the longer reason sits behind the card's help icon.
 Display only: no stored amount, export, tax basis, margin, approval limit, approval routing or money transition reads an approximate figure, and `can()` never takes one.
+
+### DD-2317-TYPECHECK — the app typecheck is four `tsc -b` projects (#2317)
+`npm run typecheck` builds, as separate processes, `tsconfig.app.json` (what `index.tsx` reaches, composite), then
+`tsconfig.server.json` (the remaining non-test code: adapter seams the edge functions run, build helpers, unimported
+modules; composite), then `tsconfig.test.json` (unit tests) and `tsconfig.tooling.json` (e2e, evals, build/lint
+configs). Later projects read earlier ones through declarations written to `<repo>/.tsbuild` (gitignored, outside
+`pmo-portal/` so guard scripts never walk it). Each extends `tsconfig.json` unchanged, so every file is still checked
+with the same options. The app/server file lists are derived from imports, never hand-edited: after a TS6307 (the app
+now imports a server file, or a new file outside `pmo-portal/`), run `node test/tsconfigProjects.mjs --write`.
+`test/tsconfigProjects.test.ts` keeps the lists exact and the partition complete. What breaks without the split: the
+single program needed 4.4–4.6 GB of heap.
