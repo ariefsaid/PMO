@@ -125,13 +125,14 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
         {!plans.isPending && !plans.isError && plans.data && (plans.data.rows.length === 0
           ? <p className="text-sm text-muted-foreground">{t('imprest:plan.noPlans', 'No plans yet. The custodian drafts one per month.')}</p>
           : <>
-          {usage != null && <h3 className="pt-[var(--panel-inset)] text-sm font-semibold text-foreground">{t('imprest:plan.allPlans', 'All plans')}</h3>}
+          {usage != null && <h3 className="pb-2 pt-[var(--panel-inset)] text-sm font-semibold text-foreground">{t('imprest:plan.allPlans', 'All plans')}</h3>}
           <ul className="divide-y divide-border">
             {plans.data.rows.map((plan) => {
               const actions = availablePlanActions({ userId, realRole, custodianId, plan });
               const editable = userId === plan.author_id && (plan.status === 'Draft' || plan.status === 'Rejected');
+              // The first row sits under its heading at the panels' heading gap (12-16 px to its text), not a row's own 16 px padding on top.
               return (
-                <li key={plan.id} className={cn('py-4 text-sm', usage == null && 'first:pt-0')}>
+                <li key={plan.id} className="py-4 text-sm first:pt-0">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                     <span className="font-semibold">{monthLabel(plan.month)}</span>
                     {/* A draft has no number yet; its pill already says Draft. */}
