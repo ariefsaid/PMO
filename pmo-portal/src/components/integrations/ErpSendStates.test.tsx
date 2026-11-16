@@ -162,7 +162,9 @@ describe('#2429 ERP send refusals read in Bahasa', () => {
     await screen.findByText('Rec 0');
     const lines = screen.getAllByText(/\S/).map((n) => n.textContent ?? '');
     for (const text of KNOWN) expect(lines.filter((l) => l.includes(text)), text).toEqual([]);
-    expect(screen.queryByText(/ERP refused|could not|no longer|already linked/i)).toBeNull();
+    // the ERP's own reason is kept verbatim and marked [data-erp-reason]; everything else must hold no English
+    const english = screen.queryAllByText(/ERP refused|Value missing|could not|no longer|already linked/i).filter((n) => !n.closest('[data-erp-reason]'));
+    expect(english.map((n) => n.textContent)).toEqual([]);
     expect(screen.getAllByText('Kami tidak dapat mengirim data ini. Periksa di ERP, lalu coba lagi.')).toHaveLength(1);
   });
   it('under Bahasa a refusal with an ERP reason shows the translated sentence, then the ERP\'s own reason verbatim', async () => {
@@ -170,7 +172,8 @@ describe('#2429 ERP send refusals read in Bahasa', () => {
     await i18n.changeLanguage('id');
     answer(0, [proposal({ id: 'e2', reason: 'rejected', snapshot: { name: 'Semen' }, reason_text: 'The ERP refused this item: Account 5100 is not a group account' })]);
     renderIt();
-    expect(await screen.findByText(/^Alasan dari ERP: Account 5100 is not a group account$/)).toBeTruthy();
+    const reason = await screen.findByText(/^Alasan dari ERP: Account 5100 is not a group account$/);
+    expect(reason.closest('[data-erp-reason]')).not.toBeNull();
     expect(screen.queryByText(/The ERP refused this item/)).toBeNull();
     expect(screen.getAllByText(/\S/).some((n) => /menolak item ini/i.test(n.textContent ?? '') && /ERP/.test(n.textContent ?? ''))).toBe(true);
   });

@@ -121,7 +121,7 @@ export function ErpSendStates({ enabled, tier = 'erpnext' }: { enabled: boolean;
               <StatusPill variant='warn'>{t('administration:integrations.send.needsDecision', 'Needs a decision')}</StatusPill>
               <p className='mt-1 break-words text-muted-foreground'>{refusalText(p.reason_text ?? '')}</p>
               {!english && erpWords(p.reason_text ?? '') && (
-                <p className='mt-1 break-words text-muted-foreground'>{t('administration:integrations.send.refusal.erpReason', 'ERP: {{reason}}', { reason: erpWords(p.reason_text ?? ''), interpolation: { escapeValue: false } })}</p>
+                <p lang='en' data-erp-reason className='mt-1 break-words text-muted-foreground'>{t('administration:integrations.send.refusal.erpReason', 'ERP: {{reason}}', { reason: erpWords(p.reason_text ?? ''), interpolation: { escapeValue: false } })}</p>
               )}
               {p.reason === 'held' && (
                 <div className='mt-2'>
