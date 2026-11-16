@@ -259,6 +259,7 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
           onChange={setArea}
           ariaLabel={t('projectDetail.tabs.ariaLabel', 'Project sections')}
           idBase="project-detail"
+          insetFirstTab
           // Tabs scrolls the active item with inline:nearest; this margin keeps its label clear of the right fade.
           // The end padding lets the last tab scroll fully clear of the right fade, so no label is ever clipped (P5).
           // P5: tighter phone padding lets the next tab peek into the fade, so the row reads as scrollable.

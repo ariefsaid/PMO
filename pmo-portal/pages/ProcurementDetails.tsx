@@ -713,6 +713,7 @@ const ProcurementDetails: React.FC = () => {
         onChange={setTab}
         ariaLabel={t('procurementDetail.tabsLabel', 'Procurement sections')}
         idBase="procurement-detail"
+        insetFirstTab
       />
 
       <div
