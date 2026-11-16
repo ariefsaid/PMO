@@ -196,8 +196,9 @@ export const ProcurementBudgetSignal: React.FC<ProcurementBudgetSignalProps> = (
   return <span className="text-control font-normal text-muted-foreground">{label}{otherCurrencyNotice}</span>;
 };
 
+// Amount names, never status words: the header's badge already says Requested / Paid (#2437, the status reads once).
 const moneyLabels: Record<ProcurementMoneyKind, string> = {
-  requested: 'Requested', ordered: 'Ordered', invoiced: 'Invoiced', paid: 'Paid', unpaid: 'Unpaid',
+  requested: 'Request total', ordered: 'Order total', invoiced: 'Invoiced', paid: 'Payments', unpaid: 'Unpaid',
 };
 
 /** The document a missing figure comes from, so the hidden-figures line cannot be read as the procurement total. */
