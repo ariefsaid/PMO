@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { BackBar } from '@/src/components/shell';
-import { Button, Combobox, FormFooter, FormGrid, Icon, ListState, SelectField, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
+import { Button, Card, CardHead, CardPad, Combobox, FormFooter, FormGrid, Icon, ListState, SelectField, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
 import type { IconName } from '@/src/components/ui/icons';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { usePermission } from '@/src/auth/usePermission';
@@ -17,7 +17,7 @@ import { itemsNetTotal } from '@/src/lib/itemsNet';
 import { BudgetCategoryHelp } from './procurement/BudgetCategoryHelp';
 import { LineItemsSection } from './procurement/LineItemsSection';
 import { readOrigin, readRestockLine, resolveFormOrigin } from '@/src/lib/stockRequestPurchase';
-import { BUDGET_CATEGORY_OPTIONS } from './procurement/budgetCategoryOptions';
+import { useBudgetCategoryOptions } from './procurement/budgetCategoryOptions';
 import type { BudgetCategory } from '@/src/lib/budget/categoryAccountMap';
 
 type ProcurementHave = 'need' | 'order' | 'invoice' | 'payment';
@@ -65,7 +65,7 @@ function ProcurementIntake({
   const { t } = useTranslation('procurementCreate');
 
   return (
-    <section aria-labelledby="procurement-create-question" className="max-w-3xl">
+    <section aria-labelledby="procurement-create-question">
       <h1 id="procurement-create-question" className="text-page font-bold tracking-[-0.02em]">
         {t('question', 'What do you have?')}
       </h1>
@@ -98,6 +98,7 @@ function ProcurementIntake({
 
 export default function ProcurementCreate() {
   const { t } = useTranslation('procurementCreate');
+  const budgetCategoryOptions = useBudgetCategoryOptions();
   const location = useLocation();
   const navigate = useNavigate();
   const may = usePermission();
@@ -318,7 +319,7 @@ export default function ProcurementCreate() {
 
   if (!have) {
     return (
-      <div className="mx-auto w-full max-w-7xl p-4 pb-6 md:p-6">
+      <div className="mx-auto w-full max-w-[880px] p-4 pb-6 md:p-6">
         <BackBar label={backLabel} onBack={backToProcurement} />
         <ProcurementIntake
           choices={choices}
@@ -372,15 +373,16 @@ export default function ProcurementCreate() {
           <h1 className="text-page font-bold tracking-[-0.02em]">{t('heading', 'New procurement')}</h1>
           {canCaptureDocuments && <Button type="button" variant="outline" onClick={changeType}>{t('changeType', 'Change type')}</Button>}
         </header>
-        <div className="mb-4 rounded-lg border border-border bg-card px-5 py-4 md:mb-6">
+        {/* Both panels share the item table's cell inset, so every field, heading and cell starts on one edge. */}
+        <Card className="mb-4 md:mb-6">
+          <CardHead className="px-[var(--table-cell-inset)]!">{t('details', 'Procurement details')}</CardHead>
+          <CardPad className="px-[var(--table-cell-inset)]!">
           {errors.save && (
             <div role="alert" className="mb-4 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">
               <p className="font-semibold">{errors.save.headline}</p>
               {errors.save.detail && <p>{errors.save.detail}</p>}
             </div>
           )}
-          <section className="mb-6 border-b border-border pb-6" aria-label={t('details', 'Procurement details')}>
-            <h2 className="mb-4 font-semibold">{t('details', 'Procurement details')}</h2>
             <fieldset disabled={Boolean(attempt) || saving}>
               <FormGrid>
               <TextField
@@ -422,14 +424,14 @@ export default function ProcurementCreate() {
                   label={t('budgetCategory', 'Budget category')}
                   value={budgetCategory}
                   onChange={setBudgetCategory}
-                  options={BUDGET_CATEGORY_OPTIONS}
+                  options={budgetCategoryOptions}
                   helper={<BudgetCategoryHelp />}
                 />
               )}
               </FormGrid>
             </fieldset>
-          </section>
-        </div>
+          </CardPad>
+        </Card>
         {attempt && errors.save && <Button type="button" variant="outline" onClick={() => guardLeave(() => navigate(`/procurement/${attempt.input.id}`))}>{errors.conflict ? t('openSavedRequest', 'Open saved request') : t('checkSaveStatus', 'Check request status')}</Button>}
         {needForm && (
           <>

@@ -76,5 +76,6 @@
   "currencyError": "Couldn't load your organisation's currency.",
   "currencyLoading": "Loading organisation currency…",
   "backToProject": "project",
-  "backToStock": "Stock"
+  "backToStock": "Stock",
+  "noCategory": "No category"
 }

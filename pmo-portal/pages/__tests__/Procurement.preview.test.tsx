@@ -70,7 +70,7 @@ vi.mock('@/src/auth/usePermission', () => ({
 }));
 
 // Mock DecisionSupportPanel (needs project data — irrelevant to this test)
-vi.mock('@/pages/procurement/DecisionSupportPanel', () => ({
+vi.mock('@/src/components/procurement/DecisionSupportPanel', () => ({
   DecisionSupportPanel: () => <div data-testid="decision-support-panel">Budget impact</div>,
 }));
 

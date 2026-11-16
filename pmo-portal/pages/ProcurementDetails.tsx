@@ -22,6 +22,7 @@ import {
   useIsNarrow,
   ProjectNameLink,
   CompanyNameLink,
+  Icon,
   RecordMenu,
   MobileActionBar,
   type RecordMenuItem,
@@ -69,7 +70,7 @@ import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { RecordHistory } from '@/src/components/history/RecordHistory';
 import { RecordCaptureForm, type CreateRecordInput, type RecordKind } from './procurement/RecordCaptureForm';
 import { LinkErpDocumentsDialog } from './procurement/LinkErpDocumentsDialog';
-import { DecisionSupportPanel } from './procurement/DecisionSupportPanel';
+import { DecisionSupportPanel, PANEL_VISIBLE_STATUSES } from '@/src/components/procurement/DecisionSupportPanel';
 import { ProcurementBudgetSignal, ProcurementStageTracker, ProcurementMoneySummary, ProcurementTimeline } from './procurement/detail/ProcurementDetailPanels';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
 import { selectedQuotation } from '../components/procurement';
@@ -370,7 +371,10 @@ const ProcurementDetails: React.FC = () => {
   const approverLimitLine = p.status === 'Requested' && !isRequester && routeAllows && p.approvalRoute
     ? p.approvalRoute.reason === 'within_budget'
       ? t('procurementRecord:approval.withinLimit', 'Within your limit')
-      : t('procurementRecord:approval.goesTo', 'Goes to {{name}}', { name: p.approvalRoute.approvers.map((approver) => approver.fullName).join(' or ') })
+      // A route with no named approver says nothing rather than "Goes to" with an empty name.
+      : p.approvalRoute.approvers.length > 0
+        ? t('procurementRecord:approval.goesTo', 'Goes to {{name}}', { name: p.approvalRoute.approvers.map((approver) => approver.fullName).join(' or ') })
+        : null
     : null;
   const waitingNote = p.status === 'Requested' && isRequester
     ? isEngineer
@@ -477,7 +481,7 @@ const ProcurementDetails: React.FC = () => {
         : null
     : null;
   const decisionContextNote = p.status === 'Requested' && isRequester ? null : gateMsg ?? (p.status === 'Requested' && !isRequester && actionFor('Approved')
-    ? t('procurementRecord:sod.approverHint', 'You may approve or reject this procurement. The requester cannot self-approve. Separation of duties requires a different reviewer.')
+    ? t('procurementRecord:sod.approverHint', 'You may approve or return this procurement. The requester cannot approve their own.')
     : payerSodNote);
   // AC-IXD-PROC-005: a create affordance disappears once its stage has passed.
   // The GR form is offered only while goods are being received (Ordered |
@@ -611,18 +615,36 @@ const ProcurementDetails: React.FC = () => {
 
   // Header notes: each speaks about an action in the header (the error of the last step, who it waits on, the approver's
   // limit, separation of duties, what gates Submit, the payment ceiling, the optional approval note). One line each.
+  // The approver's decision: the limit and separation-of-duties facts read as one line, then the optional note.
+  const decidesHere = mainAction?.to === 'Approved';
+  const decisionLine = [approverLimitLine, decisionContextNote].filter(Boolean);
+  const approvalNote = mainAction?.to === 'Approved' && <label key="approval-note" className="block max-w-xl text-control font-medium text-foreground">{t('procurementRecord:approval.note', 'Approval note (optional)')}
+    <textarea data-testid="procurement-notes-input" value={notesInput} onChange={(event) => setNotesInput(event.target.value)} rows={2} className="mt-1 block w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
+  </label>;
   const headerNotes = [
     mutationError && <p key="error" role="alert" data-testid="procurement-mutation-error" className="rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">{mutationError}</p>,
-    approverLimitLine && <p key="limit" className="font-medium">{approverLimitLine}</p>,
-    decisionContextNote && <p key="sod" data-testid="sod-ready-hint">{decisionContextNote}</p>,
+    !decidesHere && approverLimitLine && <p key="limit" className="font-medium">{approverLimitLine}</p>,
+    !decidesHere && decisionContextNote && <p key="sod" data-testid="sod-ready-hint">{decisionContextNote}</p>,
     isDraft && p.items.length === 0 && mainAction?.to === 'Requested' && <p key="gate" data-testid="line-items-gate">{t('procurementRecord:gate.addLineItem', 'Add at least one line item before submitting.')}</p>,
     isDraft && isRequester && <p key="pre-announce" data-testid="sod-pre-announce">{t('procurementRecord:sod.preAnnounce', "Submitting hands this to another approver. You can't approve your own procurement case.")}</p>,
     routeNote && !(showVICapture || showCreateGR || showCreateVI) && <p key="route" data-testid="approval-route-note">{routeNote}</p>,
     ceilingNotice && <div key="ceiling">{ceilingNotice}</div>,
-    mainAction?.to === 'Approved' && <label key="approval-note" className="mt-1 block max-w-xl font-medium">{t('procurementRecord:approval.note', 'Approval note (optional)')}
-      <textarea data-testid="procurement-notes-input" value={notesInput} onChange={(event) => setNotesInput(event.target.value)} rows={2} className="mt-1 block w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
-    </label>,
   ].filter(Boolean);
+  // Request stage: the budget evidence for the approval. For the person who decides it is the block that waits on
+  // them (tinted, first in the band, with the decision facts and note); for anyone else it follows the stage strip.
+  const requestStage = stageForStatus(p.status) === 'Request';
+  // The same visibility the panel applies to itself, so the money block leaves the total out only where the panel shows it.
+  const showsBudgetImpact = Boolean(p.project_id) && PANEL_VISIBLE_STATUSES.includes(p.status) && may('view', 'procurement');
+  const budgetImpact = requestStage && p.project_id ? <DecisionSupportPanel
+    bare
+    projectId={p.project_id}
+    totalValue={Number(p.total_value)}
+    projectName={p.project ? projectDisplayName(p.project) : null}
+    projectLegalName={p.project?.name}
+    projectStatus={p.project?.status}
+    status={p.status}
+    currency={p.currency}
+  /> : null;
 
   return (
     <FigureScope>
@@ -672,25 +694,28 @@ const ProcurementDetails: React.FC = () => {
         menuLabel={t('procurementRecord:moreActions', 'More procurement actions')}
         band={
           <div className="flex flex-col gap-4">
+            {decidesHere && (
+              <div data-testid="procurement-decision" className="rounded-lg border border-warning/25 bg-waiting-surface p-[var(--panel-inset)]">
+                {budgetImpact}
+                <div className={`flex flex-col gap-3 ${showsBudgetImpact ? 'mt-4 border-t border-warning/25 pt-4' : ''}`}>
+                  {decisionLine.length > 0 && <p data-testid="sod-ready-hint" className="flex items-start gap-2 text-control text-foreground">
+                    <Icon name={p.approvalRoute?.reason === 'within_budget' ? 'check' : 'info'} className={`mt-0.5 size-4 shrink-0 ${p.approvalRoute?.reason === 'within_budget' ? 'text-success-text' : 'text-muted-foreground'}`} aria-hidden="true" />
+                    <span>{decisionLine.join(' · ')}</span>
+                  </p>}
+                  {approvalNote}
+                </div>
+              </div>
+            )}
             <ProcurementStageTracker procurement={p} linkedDocuments={linkedDocs} />
-            {/* Money carries the record's one "N figures hidden · Why" line, under the figures it reports on. */}
-            <ProcurementMoneySummary procurement={p} linkedDocuments={linkedDocs} isEngineer={isEngineer} budgetSignal={isEngineer || (stageForStatus(p.status) === 'Request' && p.project_id) ? undefined : <ProcurementBudgetSignal
+            {/* Money carries the record's one "N figures hidden · Why" line, under the figures it reports on. The
+                request total is not repeated here while the budget impact above already shows the same amount. */}
+            <ProcurementMoneySummary procurement={p} linkedDocuments={linkedDocs} isEngineer={isEngineer} omitRequestedEqualTo={showsBudgetImpact ? Number(p.total_value) : undefined} budgetSignal={isEngineer || (requestStage && p.project_id) ? undefined : <ProcurementBudgetSignal
               projectId={p.project_id}
               totalValue={Number(p.total_value)}
               status={p.status}
               currency={p.currency}
             />} />
-            {/* Request stage: the budget evidence for the approval, before the policy notes that follow it. */}
-            {stageForStatus(p.status) === 'Request' && p.project_id && <DecisionSupportPanel
-              bare
-              projectId={p.project_id}
-              totalValue={Number(p.total_value)}
-              projectName={p.project ? projectDisplayName(p.project) : null}
-              projectLegalName={p.project?.name}
-              projectStatus={p.project?.status}
-              status={p.status}
-              currency={p.currency}
-            />}
+            {!decidesHere && budgetImpact && <div className="border-t border-border pt-4 empty:hidden">{budgetImpact}</div>}
             {/* #1505 P8: what Odoo has not settled for this case, on every tab (renders nothing otherwise). */}
             <OdooCaseStatus procurementId={p.id} className="border-t border-border pt-4" />
           </div>

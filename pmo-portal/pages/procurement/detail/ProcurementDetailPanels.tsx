@@ -13,11 +13,12 @@ import { useProjectCommittedSpend, useProjectReservedSpend } from '@/src/hooks/u
 import { usePermission } from '@/src/auth/usePermission';
 import { procurementMoney, type ProcurementMoneyKind } from '@/src/lib/procurement/procurementMoney';
 import { stageDates, stageForStatus, type StageKey } from '@/src/lib/procurement/stage';
-import { computeBudgetSignal } from '../computeBudgetSignal';
+import { computeBudgetSignal } from '@/src/lib/procurement/computeBudgetSignal';
 import { ProcurementFilesSubsection } from '../ProcurementFilesSubsection';
 import { useProcurementFilesBatch } from '@/src/hooks/useProcurementFilesBatch';
 import { procurementFileParentKey } from '@/src/lib/db/procurementFiles';
 import { recordStatusLabel } from '@/src/lib/procurement/recordStatusLabel';
+import { statusLabel } from '@/src/lib/status/statusMap';
 
 const STAGES: { key: StageKey; label: string; ordinal: number }[] = [
   { key: 'request', label: 'Request', ordinal: 0 },
@@ -150,6 +151,8 @@ export interface ProcurementMoneySummaryProps {
   linkedDocuments: readonly ErpPurchaseRow[];
   isEngineer: boolean;
   budgetSignal?: React.ReactNode;
+  /** The request total is left out when it equals this amount (the budget impact on the same band already shows it). */
+  omitRequestedEqualTo?: number;
 }
 
 interface ProcurementBudgetSignalProps {
@@ -213,7 +216,7 @@ const moneySources: Record<ProcurementMoneyKind, string> = {
   requested: 'purchase request', ordered: 'purchase order', invoiced: 'supplier invoice', paid: 'payment', unpaid: 'invoice balance',
 };
 
-export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = ({ procurement, linkedDocuments, isEngineer, budgetSignal }) => {
+export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = ({ procurement, linkedDocuments, isEngineer, budgetSignal, omitRequestedEqualTo }) => {
   const { t } = useTranslation('procurementRecord');
   const figureScope = useFigureScope();
   const money = procurementMoney({
@@ -248,6 +251,7 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
     // "no request" is not a hidden figure — this check must precede the unknown check below, or the
     // missing-PR unknown is reported as a missing figure that was never expected.
     if (kind === 'requested' && requestedStartedLater) return [];
+    if (kind === 'requested' && omitRequestedEqualTo != null && figure.amount === omitRequestedEqualTo) return [];
     if (figure.unknown) return [{ kind, hidden: true }];
     if (absent) return [];
     // Nothing owed is not a figure either: "Unpaid 0" on a request says nothing.
@@ -356,7 +360,8 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
           : event.to_status === 'Cancelled' ? t('timeline.cancelled', 'Cancelled')
             : event.to_status === 'Requested' ? t('timeline.submitted', 'Submitted for approval')
               : event.to_status === 'Paid' ? t('timeline.paid', 'Paid')
-                : String(event.to_status);
+                // Any other step reads by the shared status name, so a Bahasa reader never meets the stored English value.
+                : statusLabel('procurement', String(event.to_status), t);
       const icon: TimelineIcon = event.to_status === 'Approved' ? 'check'
         : event.to_status === 'Requested' ? 'up'
           : event.to_status === 'Paid' ? 'dollar'

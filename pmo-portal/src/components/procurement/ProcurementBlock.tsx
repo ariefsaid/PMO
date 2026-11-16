@@ -37,6 +37,9 @@ import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { formatQuantity } from '@/src/lib/stockFormat';
+import { itemsNetTotal } from '@/src/lib/itemsNet';
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
+import { DecisionSupportPanel } from './DecisionSupportPanel';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { formatCurrency, formatDay, formatPercent, formatShortMoney } from '@/src/lib/format';
 import { mayDecideRoutedApproval } from '@/src/lib/procurement/approvalRoute';
@@ -1087,7 +1090,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
               event.preventDefault();
               openFullPage(selected);
             }}
-            className={buttonClasses('outline', 'sm')}
+            // The decision buttons lead; opening the page is the quiet way out (one filled action, one outline).
+            className={buttonClasses('ghost', 'sm')}
           >
             {t('projectDetail.procurement.detail.openFullRecord', 'Open full page')}
           </Link>
@@ -1137,13 +1141,30 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
               {canSeeMoney && project && drawerMoney?.mostReal && (
                 <ProcurementBudgetLeft project={project} row={selected} amount={drawerMoney.mostReal.amount} t={t} />
               )}
-              <div className="col-span-full space-y-1">
+              {/* The header buttons already name the viewer's own next step; the line stays for anyone who cannot act. */}
+              {!drawerMain && <div className="col-span-full space-y-1">
                 <div className="text-sm text-muted-foreground">{t('projectDetail.procurement.table.nextStep', 'Next step')}</div>
                 <div className={selected.status === 'Requested' && canApprove ? 'font-medium text-primary-text' : 'text-muted-foreground'}>
                   {nextStepText(selected.status, canDecideRow(selected), t)}
                 </div>
-              </div>
+              </div>}
             </section>
+
+            {/* The request's budget evidence, the same block the record page shows (tinted when it waits on the viewer). */}
+            {canSeeMoney && drawerDetailLoaded && drawerDetails && drawerDetails.project_id && stageForStatus(drawerDetails.status) === 'Request' && (
+              <div className={drawerMain?.transition.to === 'Approved' ? 'rounded-lg border border-warning/25 bg-waiting-surface p-[var(--space-content-inset)]' : 'empty:hidden'}>
+                <DecisionSupportPanel
+                  bare
+                  projectId={drawerDetails.project_id}
+                  totalValue={Number(drawerDetails.total_value)}
+                  projectName={drawerDetails.project ? projectDisplayName(drawerDetails.project) : null}
+                  projectLegalName={drawerDetails.project?.name}
+                  projectStatus={drawerDetails.project?.status}
+                  status={drawerDetails.status}
+                  currency={drawerDetails.currency}
+                />
+              </div>
+            )}
 
             <section aria-labelledby="procurement-drawer-timeline">
               <h2 id="procurement-drawer-timeline" className="mb-2 text-sm font-semibold">{t('projectDetail.procurement.detail.timeline', 'Step timeline')}</h2>
@@ -1206,9 +1227,16 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
               ) : (drawerDetails?.items?.length ?? 0) > 0 ? (
                 <ul className="divide-y divide-border">
                   {drawerDetails!.items.map((item) => (
-                    <li key={item.id} className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-2 text-sm">
-                      <span>{item.name}{item.description ? ` · ${item.description}` : ''}</span>
-                      <span className="tabular text-muted-foreground">{formatQuantity(String(item.quantity), getNumberLocale())}</span>
+                    <li key={item.id} className="flex items-baseline justify-between gap-x-4 py-2 text-sm">
+                      <span className="min-w-0">
+                        <span className="block text-foreground">{item.name}{item.description ? ` · ${item.description}` : ''}</span>
+                        <span className="block tabular text-muted-foreground">
+                          {canSeeMoney
+                            ? `${formatQuantity(String(item.quantity), getNumberLocale())} × ${formatCurrency(Number(item.rate), drawerDetails!.currency)}`
+                            : formatQuantity(String(item.quantity), getNumberLocale())}
+                        </span>
+                      </span>
+                      {canSeeMoney && (() => { const line = itemsNetTotal([{ quantity: item.quantity, rate: item.rate }]); return line === null ? null : <span className="shrink-0 whitespace-nowrap font-medium tabular text-foreground">{formatCurrency(line, drawerDetails!.currency)}</span>; })()}
                     </li>
                   ))}
                 </ul>

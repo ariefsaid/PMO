@@ -201,18 +201,20 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
       const it = row.item;
       return editable && editingId === it.id ? <div className="space-y-1"><CellInput disabled={!valuesEditable} numeric aria-label={`Edit quantity for ${it.name}`} value={editDraft.quantity} onChange={(e) => { setEditDraft((d) => ({ ...d, quantity: e.target.value })); setEditErrors((p) => ({ ...p, quantity: undefined })); }} /><FieldError>{editErrors.quantity}</FieldError></div> : Number(it.quantity);
     } },
-    { key: 'rate', header: t('lineItems.unitPrice', 'Unit price'), kind: 'money', align: 'num', size: createFormLayout ? 122 : 150, cell: (row) => {
+    // #2485: a rupiah price needs 13 characters (1.380.000.000) beside its prefix, so the create form gives the price
+    // column that room and pads the input only as far as the currency symbol is wide.
+    { key: 'rate', header: t('lineItems.unitPrice', 'Unit price'), kind: 'money', align: 'num', size: createFormLayout ? 176 : 150, cell: (row) => {
       if (row.kind === 'add') return <div className="space-y-1" data-add-cell>
         <div className="relative">
           {currencyKnown && <span aria-hidden="true" className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-control text-muted-foreground">{currencySymbol(currency)}</span>}
-          <CellInput createForm numeric aria-label={t('lineItems.newItemUnitPrice', 'New item unit price')} placeholder={isDesktop ? '0' : t('lineItems.unitPrice', 'Unit price')} ref={addRateMask.ref} value={draft.rate} onChange={addRateMask.onChange} onKeyDown={handleAddKeyDown} className={currencyKnown ? 'pl-12' : undefined} />
+          <CellInput createForm numeric aria-label={t('lineItems.newItemUnitPrice', 'New item unit price')} placeholder={isDesktop ? '0' : t('lineItems.unitPrice', 'Unit price')} ref={addRateMask.ref} value={draft.rate} onChange={addRateMask.onChange} onKeyDown={handleAddKeyDown} className={currencyKnown ? (currencySymbol(currency).length <= 2 ? 'pl-8' : 'pl-11') : undefined} />
         </div>
         <FieldError>{addErrors.rate}</FieldError>
       </div>;
       const it = row.item;
       return editable && editingId === it.id ? <div className="space-y-1"><CellInput disabled={!valuesEditable} numeric aria-label={`Edit unit price for ${it.name}`} ref={editRateMask.ref} value={editDraft.rate} onChange={editRateMask.onChange} /><FieldError>{editErrors.rate}</FieldError></div> : currencyKnown ? formatCurrency(Number(it.rate), currency) : unknownAmount;
     } },
-    { key: 'amount', header: t('lineItems.lineTotal', 'Line total'), kind: 'money', align: 'num', size: createFormLayout ? 132 : 150, cell: (row) => {
+    { key: 'amount', header: t('lineItems.lineTotal', 'Line total'), kind: 'money', align: 'num', size: createFormLayout ? 168 : 150, cell: (row) => {
       if (row.kind === 'add') return <span data-add-cell aria-label={t('lineItems.newLineTotal', 'New line total')} className="tabular inline-flex h-[var(--control-height)] items-center text-muted-foreground">{addLineAmountLabel}</span>;
       const it = row.item;
       const amount = editable && editingId === it.id
@@ -221,7 +223,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
       return <span className="font-medium">{amount === null ? '—' : !currencyKnown ? unknownAmount : formatCurrency(amount, currency)}</span>;
     } },
   ];
-  if (editable) columns.push({ key: 'actions', header: createFormLayout ? <span className="sr-only">{t('lineItems.rowActions', 'Row actions')}</span> : t('lineItems.rowActions', 'Row actions'), kind: 'actions', size: createFormLayout ? 120 : 150, cell: (row) => {
+  if (editable) columns.push({ key: 'actions', header: createFormLayout ? <span className="sr-only">{t('lineItems.rowActions', 'Row actions')}</span> : t('lineItems.rowActions', 'Row actions'), kind: 'actions', size: createFormLayout ? 104 : 150, cell: (row) => {
     if (row.kind === 'add') return <div className="flex flex-col gap-1" data-add-cell><div className="flex h-[var(--control-height)] items-center"><Button size="sm" variant="outline" aria-label={t('lineItems.addLineItem', 'Add line item')} disabled={!draft.name.trim()} loading={busy} onClick={() => void submitAdd()}><Icon name="plus" />{t('lineItems.add', 'Add')}</Button></div>{addMutationError && <p role="alert" className="text-sm text-destructive-text">{addMutationError.headline}. {addMutationError.detail}</p>}</div>;
     const it = row.item;
     return editingId === it.id ? <div className="flex flex-col gap-1"><div className="flex gap-1"><Button size="sm" variant="primary" loading={busy} onClick={() => void submitEdit(it.id)}>{t('lineItems.save', 'Save')}</Button><Button size="sm" variant="ghost" onClick={() => { setEditingId(null); setEditMutationError(null); }}>{t('lineItems.cancel', 'Cancel')}</Button></div>{editMutationError && <p role="alert" className="text-sm text-destructive-text">{editMutationError.headline}. {editMutationError.detail}</p>}</div> : <div className="flex gap-1"><Button size="sm" variant="ghost" aria-label={`Edit ${it.name}`} onClick={() => startEdit(it)}>{t('lineItems.edit', 'Edit')}</Button><Button size="sm" variant="ghost" iconOnly aria-label={`Remove ${it.name}`} onClick={() => { setDeleteMutationError(null); setDeleteTarget(it); }}><Icon name="x" /></Button></div>;
@@ -246,7 +248,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
     </>;
   } : undefined;
   return <Card className={'mb-4' + (createFormLayout ? ' [&_td:has([data-add-cell])]:align-top' : '')} data-testid="line-items-section">
-    <CardHead className={createFormLayout && isDesktop ? 'px-[var(--table-cell-inset)]' : undefined}>{t('lineItems.heading', 'Line items')}{!createFormLayout && <span className="ml-2 text-sm font-normal text-muted-foreground">{t('lineItems.formula', 'qty × unit price → line total')}</span>}</CardHead>
+    <CardHead className={createFormLayout && isDesktop ? 'px-[var(--table-cell-inset)]!' : undefined}>{t('lineItems.heading', 'Line items')}{!createFormLayout && <span className="ml-2 text-sm font-normal text-muted-foreground">{t('lineItems.formula', 'qty × unit price → line total')}</span>}</CardHead>
     <DataTable embedded rows={tableRows} columns={columns} rowKey={(row) => row.id} tableId="procurement-line-items" accessibleName={t('lineItems.heading', 'Line items')}
       state={items.length === 0 && !addRowInTable ? 'empty' : undefined} emptyTitle={editable ? t('lineItems.emptyEditable', 'No line items yet. Add one below.') : t('lineItems.empty', 'No line items yet.')}
       totals={isDesktop ? [{ key: 'estimated', label: t('lineItems.estimatedTotal', 'Estimated total'), values: columnsTotal }] : undefined}

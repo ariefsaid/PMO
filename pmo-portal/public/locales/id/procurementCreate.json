@@ -76,5 +76,6 @@
   "currencyError": "Mata uang organisasi tidak dapat dimuat.",
   "currencyLoading": "Memuat mata uang organisasi…",
   "backToProject": "proyek",
-  "backToStock": "Stok"
+  "backToStock": "Stok",
+  "noCategory": "Tanpa kategori"
 }

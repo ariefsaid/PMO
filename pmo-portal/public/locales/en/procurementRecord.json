@@ -61,7 +61,7 @@
     "note": "Approval note (optional)"
   },
   "sod": {
-    "approverHint": "You may approve or reject this procurement. The requester cannot self-approve. Separation of duties requires a different reviewer.",
+    "approverHint": "You may approve or return this procurement. The requester cannot approve their own.",
     "approverCannotPay": "Payment must be released by a different finance user. The approver can't also pay this procurement.",
     "payerHint": "Releasing payment: the approver can't also pay (separation of duties).",
     "preAnnounce": "Submitting hands this to another approver. You can't approve your own procurement case."
