@@ -164,7 +164,7 @@ returns table (procurement_id uuid, route text, reason text, approvers jsonb,
                                                    a.amount, req.currency, req.requested_by_id,
                                                    nullif(auth.uid(), req.requested_by_id),
                                                    ev.submitted_at) r
-$$;;
+$$;
 
 create or replace function public.get_expense_claim_approval_routes(p_ids uuid[])
 returns table (claim_id uuid, route text, reason text, approvers jsonb,
