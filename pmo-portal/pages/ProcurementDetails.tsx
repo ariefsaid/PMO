@@ -25,6 +25,7 @@ import {
   ProjectNameLink,
   CompanyNameLink,
   RecordMenu,
+  MobileActionBar,
   type RecordMenuItem,
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
@@ -879,8 +880,8 @@ const ProcurementDetails: React.FC = () => {
         mutations={mutations}
       />}
 
-      {mainAction && isNarrow && <>
-        <div className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-40 border-t border-border bg-card p-3 shadow-[0_-2px_10px_hsl(var(--foreground)/0.06)] sm:hidden">
+      {mainAction && isNarrow && (
+        <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-40 border-t border-border bg-card p-3 shadow-[0_-2px_10px_hsl(var(--foreground)/0.06)] sm:hidden">
           <div className="mx-auto flex max-w-3xl gap-2">
             {returnAction && mainAction.to === 'Approved' && (
               <Button variant="outline" className="min-h-11 flex-1" onClick={() => onActionClick(returnAction)}>{returnAction.label}</Button>
@@ -888,9 +889,8 @@ const ProcurementDetails: React.FC = () => {
             <Button variant="primary" className="min-h-11 flex-1" disabled={mainAction.to === 'Requested' && p.items.length === 0} onClick={clickMainAction}>{mainAction.label}</Button>
             <RecordMenu items={moreMenuItems} side="top" ariaLabel={t('procurementRecord:moreActions', 'More procurement actions')} triggerClassName="min-h-11" />
           </div>
-        </div>
-        <div aria-hidden="true" className="h-16 sm:hidden" />
-      </>}
+        </MobileActionBar>
+      )}
       {linkDialogOpen && <LinkErpDocumentsDialog
         docs={(erpOrphanQuery.data ?? []) as ErpPurchaseRow[]}
         projectId={p.project_id ?? undefined}
