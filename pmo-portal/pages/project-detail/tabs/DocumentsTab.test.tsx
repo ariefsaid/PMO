@@ -101,6 +101,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 import DocumentsTab from './DocumentsTab';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
+import { chooseAddOption, addOptionLabels, addDocumentControl } from './__tests__/addDocumentMenu';
 // The register mounts RecordFolderAction, which reads the query cache (#1020).
 const testQueryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 const RouteSearch = () => <output data-testid="route-search">{useLocation().search}</output>;
@@ -153,6 +154,15 @@ const linkedApprovedFile = {
   ms_content_tag_at_issue: 'etag-23',
   ms_drift_state: 'clean',
   ms_last_verified_at: '2026-06-03T00:00:00Z',
+};
+
+/** The register row of one revision of a document (the latest revision is listed first). */
+const revisionRow = (title: string, revision: string): HTMLElement => {
+  const row = screen.getAllByText(title)
+    .map((el) => el.closest('tr'))
+    .find((tr) => tr && within(tr).queryByText(new RegExp(`· Rev ${revision}$`)));
+  if (!row) throw new Error(`No row for ${title} Rev ${revision}`);
+  return row;
 };
 
 const withDocumentCount = (count: number) => [
@@ -247,14 +257,33 @@ describe('DocumentsTab — register rows (AC-DOC-001)', () => {
     expect(screen.getByText('Steel Spec')).toBeInTheDocument();
   });
 
-  it('B7: offers search only beyond ten documents and keeps the action banner honest when nothing is missing or expired', () => {
+  it('one search field finds a document by name, number, category, status or revision; the action banner stays honest', async () => {
     const view = renderTab();
-    expect(screen.queryByLabelText(/Search documents/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/documents need action/i)).not.toBeInTheDocument();
+    const search = screen.getByLabelText(/Search documents/i);
+    for (const [query, found, absent] of [
+      ['steel', 'Steel Spec', 'Site Plan'],
+      ['DOC-003', 'Survey Report', 'Steel Spec'],
+      ['transmittal', 'Cover Note', 'Site Plan'],
+      ['rejected', 'Cover Note', 'Steel Spec'],
+      ['Rev B', 'Steel Spec', 'Site Plan'],
+    ] as const) {
+      await userEvent.clear(search);
+      await userEvent.type(search, query);
+      expect(screen.getAllByText(found).length, query).toBeGreaterThan(0);
+      expect(screen.queryByText(absent), query).not.toBeInTheDocument();
+    }
     view.unmount();
+    // Owner ruling 15 Nov: the search box is always shown, in the toolbar, whatever the count.
+    for (const count of [0, 1, 11]) {
+      listState.data = withDocumentCount(count);
+      const counted = renderTab();
+      const toolbar = screen.getByTestId('documents-register-toolbar');
+      expect(within(toolbar).getByLabelText(/Search documents/i), `${count} documents`).toBeInTheDocument();
+      counted.unmount();
+    }
     listState.data = withDocumentCount(11);
     renderTab();
-    expect(screen.getByLabelText(/Search documents/i)).toBeInTheDocument();
     // SUB-E: the toolbar shows search but no "N documents" count restating the table.
     expect(screen.queryByTestId('documents-count')).toBeNull();
     expect(screen.queryByText(/^\d+ documents?$/)).toBeNull();
@@ -543,7 +572,7 @@ describe('DocumentsTab — RBAC affordance gating (AC-DOC-007)', () => {
 describe('DocumentsTab — create / edit metadata form (AC-DOC-003 / AC-DOC-004)', () => {
   it('AC-DOC-003: Add document opens the modal; a blank required title keeps submit disabled (F8 readiness)', async () => {
     renderTab('Admin');
-    await userEvent.click(screen.getByRole('button', { name: /Add document/i }));
+    await chooseAddOption(userEvent, 'Upload a document');
     const dialog = screen.getByRole('dialog');
     // F8 (AC-IXD-FORM-F8): the blank required title disables submit (category defaults
     // to a value), so the user cannot silently submit a blank document and no create fires.
@@ -555,7 +584,7 @@ describe('DocumentsTab — create / edit metadata form (AC-DOC-003 / AC-DOC-004)
 
   it('AC-DOC-003: a valid create submits the metadata fields to the mutation', async () => {
     renderTab('Admin');
-    await userEvent.click(screen.getByRole('button', { name: /Add document/i }));
+    await chooseAddOption(userEvent, 'Upload a document');
     const dialog = screen.getByRole('dialog');
     await userEvent.type(within(dialog).getByLabelText(/Title/i), 'Foundation Drawing');
     await userEvent.type(within(dialog).getByLabelText(/^Code/i), 'DOC-010');
@@ -572,7 +601,7 @@ describe('DocumentsTab — create / edit metadata form (AC-DOC-003 / AC-DOC-004)
   it('AC-DOC-003: a create rejected by RLS (42501) surfaces a classified warning toast', async () => {
     mutations.create.mutateAsync.mockRejectedValue(new AppError('not permitted', '42501'));
     renderTab('Admin');
-    await userEvent.click(screen.getByRole('button', { name: /Add document/i }));
+    await chooseAddOption(userEvent, 'Upload a document');
     const dialog = screen.getByRole('dialog');
     await userEvent.type(within(dialog).getByLabelText(/Title/i), 'Blocked Doc');
     await userEvent.selectOptions(within(dialog).getByLabelText(/Category/i), 'Drawing');
@@ -712,11 +741,11 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     expect(within(draftPreview).getByRole('button', { name: /Upload file for Site Plan/i })).toBeInTheDocument();
   });
 
-  it('keeps Microsoft 365 linking and document creation available from the register toolbar', () => {
+  it('keeps Microsoft 365 linking and document creation available from the register toolbar', async () => {
     renderTab('Admin', 'admin-1');
     const toolbar = screen.getByTestId('documents-register-toolbar');
-    expect(within(toolbar).getByRole('button', { name: /Link from Microsoft 365/i })).toBeEnabled();
     expect(within(toolbar).getByRole('button', { name: /Add document/i })).toBeEnabled();
+    expect(await addOptionLabels(userEvent)).toEqual(expect.arrayContaining(['Upload a document', 'Link from Microsoft 365']));
     // The toolbar is the register assembly's own header, not a floating bar over a bare table (move 2).
     expect(within(toolbar).getByRole('combobox', { name: 'Filter by category' })).toBeInTheDocument();
     expect(screen.getByTestId('documents-register-assembly')).toContainElement(toolbar);
@@ -765,7 +794,7 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
   it('shows every successor and its status in the table and drawer', async () => {
     listState.data = [...seed, { ...seed[5], id: 'd7', revision: 'C', status: 'Draft' }];
     renderTab('Admin', 'admin-1');
-    const row = screen.getAllByText('Structural calculation report')[0].closest('tr')!;
+    const row = revisionRow('Structural calculation report', 'A');
     expect(within(row).getByRole('button', { name: /View revision B of Structural calculation report/i })).toHaveTextContent('Issued');
     expect(within(row).getByRole('button', { name: /View revision C of Structural calculation report/i })).toHaveTextContent('Draft');
     await userEvent.click(within(row).getByRole('button', { name: 'View Structural calculation report' }));
@@ -802,7 +831,7 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     await menuOf('Cover Note');
     expect(screen.queryByRole('menuitem', { name: 'New revision' })).not.toBeInTheDocument();
     await userEvent.keyboard('{Escape}');
-    await menuOf('Structural calculation report');
+    await userEvent.click(within(revisionRow('Structural calculation report', 'A')).getByRole('button', { name: /Row actions/i }));
     expect(screen.queryByRole('menuitem', { name: 'New revision' })).not.toBeInTheDocument();
   });
 
@@ -983,7 +1012,7 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
 
     await userEvent.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    await userEvent.click(screen.getAllByRole('button', { name: /View Structural calculation report/i })[0]);
+    await userEvent.click(within(revisionRow('Structural calculation report', 'A')).getByRole('button', { name: 'View Structural calculation report' }));
     const drawer = screen.getByRole('dialog');
     await userEvent.click(within(drawer).getByRole('button', { name: /Download file for Structural calculation report/i }));
     expect(repositoryState.document.getSignedUrl).toHaveBeenCalledWith('org-1/p1/d5/structural-calc-rev-a.pdf', { download: true });
@@ -997,6 +1026,21 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     expect(await screen.findByRole('dialog', { name: 'Survey Report' })).toBeInTheDocument();
     expect(repositoryState.document.getSignedUrl).toHaveBeenCalledWith('org-1/p1/d3/survey-report-rev-a.pdf', undefined);
     expect(openSpy).not.toHaveBeenCalled();
+  });
+
+  it('the document panel opens its file in the viewer, which names the revision and status shown', async () => {
+    renderTab('Admin', 'admin-1');
+    await userEvent.click(screen.getByRole('button', { name: 'View Survey Report' }));
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'View file' }));
+    const viewer = await screen.findByRole('dialog', { name: 'Survey Report' });
+    expect(viewer).toHaveTextContent('Rev A · Approved');
+    expect(repositoryState.document.getSignedUrl).toHaveBeenCalledWith('org-1/p1/d3/survey-report-rev-a.pdf', undefined);
+  });
+
+  it('a document with nothing readable offers no View file action', async () => {
+    renderTab('Admin', 'admin-1');
+    await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
+    expect(within(screen.getByRole('dialog')).queryByRole('button', { name: 'View file' })).not.toBeInTheDocument();
   });
 
   it('AC-DOC-083: preview file actions are available after opening a document', async () => {
@@ -1015,8 +1059,9 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
 });
 
 describe('DocumentsTab — document preview (AC-W5-C6-D12)', () => {
-  const openPreview = async (title: string, index = 0) => {
-    await userEvent.click(screen.getAllByRole('button', { name: `View ${title}` })[index]);
+  const openPreview = async (title: string, revision?: string) => {
+    const scope = revision ? within(revisionRow(title, revision)) : screen;
+    await userEvent.click(scope.getAllByRole('button', { name: `View ${title}` })[0]);
     return screen.getByRole('dialog');
   };
 
@@ -1032,7 +1077,7 @@ describe('DocumentsTab — document preview (AC-W5-C6-D12)', () => {
 
   it('AC-DOC-082 / AC-DOC-080: drawer shows superseding lineage and file information for superseded rows', async () => {
     renderTab('Admin', 'admin-1');
-    const drawer = await openPreview('Structural calculation report', 0);
+    const drawer = await openPreview('Structural calculation report', 'A');
     expect(within(drawer).getByText(/Superseded by/i)).toBeInTheDocument();
     expect(within(drawer).getByRole('button', { name: /View revision B of Structural calculation report/i })).toBeInTheDocument();
     expect(within(drawer).getByRole('button', { name: /Download file for Structural calculation report/i })).toBeInTheDocument();
@@ -1081,7 +1126,7 @@ describe('DocumentsTab — document preview (AC-W5-C6-D12)', () => {
 
   it('AC-DOC-082: drawer lineage links navigate between parent and child revisions', async () => {
     renderTab('Admin', 'admin-1');
-    const drawer = await openPreview('Structural calculation report', 1);
+    const drawer = await openPreview('Structural calculation report', 'B');
     await userEvent.click(within(drawer).getByRole('button', { name: /View revision A of Structural calculation report/i }));
     const linkedDrawer = screen.getByRole('dialog');
     expect(document.getElementById(linkedDrawer.getAttribute('aria-labelledby')!)?.textContent).toContain('Structural calculation report');
@@ -1237,23 +1282,22 @@ describe('DocumentsTab — floor (register controls)', () => {
 });
 
 /**
- * Move 1 (judging: "three create/link controls in three places"): the register's create and link
- * controls belong to ONE toolbar row — the filters on the left, the view switch and the create
- * actions on the right — instead of a folder strip floating alone above the filters.
+ * Move 1 (judging: "three create/link controls in three places"): the register's ways to add a
+ * document (record and upload, link from the cloud drive, create the folder) sit inside ONE filled
+ * "Add document" control on the toolbar row with the filters and the view switch.
  */
 describe('DocumentsTab — one toolbar row (move 1)', () => {
-  it('move 1: the register toolbar holds the filters, the view switch and the create actions', () => {
+  it('move 1: one Add document control on the toolbar offers every way to add', async () => {
     renderTab('Project Manager', 'pm-1');
     const toolbar = screen.getByTestId('documents-register-toolbar');
-    const add = within(toolbar).getByRole('button', { name: 'Add document' });
-    const link = within(toolbar).getByRole('button', { name: 'Link from Microsoft 365' });
-
-    // One action group for both, so they wrap together instead of sitting in separate places.
-    expect(link.parentElement).toBe(add.parentElement);
-    expect(add.parentElement).toHaveClass('flex-wrap');
-    // The filters and the view switch stay on the same row as the actions.
+    // Exactly one create control is on the screen; the others are inside it.
+    expect(screen.getAllByRole('button', { name: 'Add document' })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Link from Microsoft 365' })).not.toBeInTheDocument();
+    expect(await addOptionLabels(userEvent)).toEqual(expect.arrayContaining(['Upload a document', 'Link from Microsoft 365']));
+    // The filters and the view switch stay on the same row as the control.
     expect(within(toolbar).getByRole('combobox', { name: 'Filter by category' })).toBeInTheDocument();
     expect(within(toolbar).getByRole('button', { name: 'Register' })).toBeInTheDocument();
+    expect(toolbar).toContainElement(addDocumentControl());
   });
 });
 
@@ -1277,5 +1321,115 @@ describe('DocumentsTab — one card assembly (move 2)', () => {
     const assembly = screen.getByTestId('documents-register-assembly');
     expect(within(assembly).getByTestId('documents-register-toolbar')).toBeInTheDocument();
     expect(within(assembly).getByTestId('liststate-loading')).toBeInTheDocument();
+  });
+});
+
+/**
+ * care-10c: the register's floor. The rows end in one footer line inside the same card that says how
+ * many of the project's documents are listed; a search narrows it ("Showing 1 of 11"). The empty
+ * register keeps the same card, with its explanation on one row and no count.
+ */
+describe('DocumentsTab — the register floor (care-10c)', () => {
+  it('care-10c: the card closes with "Showing n of total" inside the assembly', () => {
+    listState.data = withDocumentCount(11);
+    renderTab();
+    const assembly = screen.getByTestId('documents-register-assembly');
+    expect(within(assembly).getByRole('status')).toHaveTextContent('Showing 1–11 of 11');
+  });
+
+  it('care-10e F1: the document-number line is regular weight and muted (supporting text), not the title weight', () => {
+    renderTab();
+    const line = screen.getAllByText('DOC-001 · Rev A')[0];
+    expect(line).toHaveClass('font-normal', 'text-muted-foreground', 'text-sm');
+  });
+
+  it('care-10e F2: 120 documents page 50 a page with the shared pager; the page is kept in the address', async () => {
+    listState.data = withDocumentCount(120);
+    renderTab();
+    const assembly = screen.getByTestId('documents-register-assembly');
+    expect(within(assembly).getByRole('status')).toHaveTextContent('Showing 1–50 of 120');
+    expect(screen.queryByText('Additional Document 100')).not.toBeInTheDocument();
+    await userEvent.click(within(assembly).getByRole('button', { name: 'Next page' }));
+    expect(screen.getByTestId('route-search')).toHaveTextContent('page=2');
+    expect(within(assembly).getByRole('status')).toHaveTextContent('Showing 51–100 of 120');
+    await userEvent.click(within(assembly).getByRole('button', { name: 'Previous page' }));
+    expect(screen.getByTestId('route-search')).not.toHaveTextContent('page=');
+  });
+
+  it('care-10e F2: opening on ?page=3 shows the last page; searching returns to page 1 and counts the matches', async () => {
+    listState.data = withDocumentCount(120);
+    renderTab('Admin', 'admin-1', '/?page=3');
+    expect(within(screen.getByTestId('documents-register-assembly')).getByRole('status')).toHaveTextContent('Showing 101–120 of 120');
+    // A search that still matches more than one page: only the reset (not the out-of-range clamp) returns it to page 1.
+    await userEvent.type(screen.getByLabelText(/Search documents/i), 'Additional Document');
+    expect(screen.getByTestId('route-search')).not.toHaveTextContent('page=');
+    expect(within(screen.getByTestId('documents-register-assembly')).getByRole('status')).toHaveTextContent(/Showing 1–50 of 1\d\d/);
+  });
+
+  it('care-10g (a): opening on ?page=2 while the rows are still loading keeps ?page=2 and shows page 2 once they arrive', () => {
+    const tree = () => (
+      <QueryClientProvider client={testQueryClient}><ToastProvider>
+        <MemoryRouter initialEntries={['/?page=2']}>
+          <RouteSearch />
+          <DocumentViewerProvider><DocumentsTab projectId="p1" /></DocumentViewerProvider>
+        </MemoryRouter>
+      </ToastProvider></QueryClientProvider>
+    );
+    listState.data = undefined as never;
+    listState.isPending = true;
+    const view = render(tree());
+    expect(screen.getByTestId('route-search')).toHaveTextContent('page=2');
+    listState.data = withDocumentCount(120);
+    listState.isPending = false;
+    view.rerender(tree());
+    expect(screen.getByTestId('route-search')).toHaveTextContent('page=2');
+    expect(within(screen.getByTestId('documents-register-assembly')).getByRole('status')).toHaveTextContent('Showing 51–100 of 120');
+  });
+
+  it('care-10g (b): the drawer shows the code in the app font, not the code typeface', () => {
+    renderTab('Admin', 'admin-1', '/projects/p1?open=d1');
+    const code = within(screen.getByRole('dialog', { name: 'Site Plan' })).getByText('DOC-001');
+    expect(code).not.toHaveClass('font-mono');
+  });
+
+  it('care-10g (b): the Code field of the document form keeps no-spell-check and no auto-capitalise', async () => {
+    renderTab('Admin');
+    await chooseAddOption(userEvent, 'Upload a document');
+    const field = await screen.findByLabelText(/^Code/);
+    expect(field).toHaveAttribute('spellcheck', 'false');
+    expect(field).toHaveAttribute('autocapitalize', 'off');
+  });
+
+  it('care-10g: a search with no match shows the message and no "Showing 0–0 of 0" count', async () => {
+    renderTab('Admin');
+    await userEvent.type(screen.getByLabelText(/Search documents/i), 'zzzz-no-match');
+    const assembly = screen.getByTestId('documents-register-assembly');
+    expect(within(assembly).getByText('No documents match your search')).toBeInTheDocument();
+    expect(within(assembly).queryByText(/^Showing/)).not.toBeInTheDocument();
+  });
+
+  it('care-10c: searching narrows the count to what the person sees', async () => {
+    listState.data = withDocumentCount(11);
+    renderTab();
+    await userEvent.type(screen.getByLabelText(/Search documents/i), 'steel');
+    expect(within(screen.getByTestId('documents-register-assembly')).getByRole('status')).toHaveTextContent(/Showing 1–1 of 1\b/);
+  });
+
+  it('care-10c: the empty register explains itself in the card and shows no count', () => {
+    listState.data = [];
+    renderTab('Admin');
+    const assembly = screen.getByTestId('documents-register-assembly');
+    expect(within(assembly).getByText('No documents yet')).toBeInTheDocument();
+    expect(within(assembly).getByText(/start the project's document register/i)).toBeInTheDocument();
+    expect(within(assembly).queryByText(/^Showing/)).not.toBeInTheDocument();
+  });
+
+  it('care-10c: the one question comes first — documents that need action are read before the register', () => {
+    listState.data = [{ ...seed[0], status: 'Issued', expires_at: '2000-01-01' } as never, ...seed.slice(1)];
+    renderTab();
+    const banner = screen.queryByTestId('documents-action-banner');
+    const toolbar = screen.getByTestId('documents-register-toolbar');
+    if (banner) expect(banner.compareDocumentPosition(toolbar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(toolbar.compareDocumentPosition(screen.getByRole('table')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

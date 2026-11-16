@@ -867,7 +867,8 @@
         "preview": "Pratinjau",
         "download": "Unduh",
         "copyLink": "Salin tautan",
-        "openSharePoint": "Buka di SharePoint"
+        "openSharePoint": "Buka di SharePoint",
+        "view": "Lihat berkas"
       },
       "bulk": {
         "statusUpdated": "Status diperbarui untuk {{count}} dokumen",
@@ -905,7 +906,12 @@
       },
       "field": {
         "microsoft": "Item Microsoft 365"
-      }
+      },
+      "add": {
+        "upload": "Unggah dokumen",
+        "folderPending": "Membuat folder…"
+      },
+      "filters": "Filter"
     },
     "procurement": {
       "erpCard": {

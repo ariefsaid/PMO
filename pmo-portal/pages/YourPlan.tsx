@@ -89,24 +89,27 @@ export const YourPlan: React.FC = () => {
     );
   }
 
-  if (plan.isPending || featuresLoading) {
-    return <ListState variant="loading" rows={6} testId="your-plan-loading" />;
-  }
-
-  if (plan.isError || featuresError) {
-    return (
-      <ListState
-        variant="error"
-        title={t('yourPlan.loadFailed', 'Your plan could not be loaded')}
-        sub={t('yourPlan.loadFailedBody', 'Try again; if it keeps failing, ask your administrator.')}
-        onRetry={() => {
-          if (plan.isError) void plan.refetch();
-          refetch();
-          void qc.invalidateQueries({ queryKey: ['ownPlan'] });
-        }}
-      />
-    );
-  }
+  // AC-NBR-037: the plan card + limits read the plan; the features card reads the resolved features. Each region
+  // owns its pending/error state so one slow or failed read never blanks the other.
+  const planError = (
+    <ListState
+      variant="error"
+      title={t('yourPlan.loadFailed', 'Your plan could not be loaded')}
+      sub={t('yourPlan.loadFailedBody', 'Try again; if it keeps failing, ask your administrator.')}
+      onRetry={() => {
+        void plan.refetch();
+        void qc.invalidateQueries({ queryKey: ['ownPlan'] });
+      }}
+    />
+  );
+  const featuresErrorState = (
+    <ListState
+      variant="error"
+      title={t('yourPlan.loadFailed', 'Your plan could not be loaded')}
+      sub={t('yourPlan.loadFailedBody', 'Try again; if it keeps failing, ask your administrator.')}
+      onRetry={() => refetch()}
+    />
+  );
 
   const row: PlanRow = plan.data ?? {
     planId: 'enterprise',
@@ -122,9 +125,11 @@ export const YourPlan: React.FC = () => {
   }));
   const feedbackOn = states?.feedback_surveys?.displayEnabled ?? true;
 
-  return (
-    <div className="min-w-0 space-y-6">
-      <Card className="px-4 py-4">
+  const planRegion = plan.isPending ? (
+    <ListState variant="loading" rows={4} testId="your-plan-plan-loading" />
+  ) : plan.isError ? planError : (
+    <>
+      <Card data-testid="your-plan-plan-card" className="px-4 py-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <div>
             <div className="text-control font-semibold text-muted-foreground">
@@ -159,10 +164,14 @@ export const YourPlan: React.FC = () => {
           <p className="mt-3 text-control text-muted-foreground">{t('yourPlan.notTrackedYet', 'Usage not tracked yet')}</p>
         </Card>
       </section>
+    </>
+  );
 
-      <section aria-labelledby="your-plan-switches" className="min-w-0">
-        <SectionHeader title={t('yourPlan.switchesHeading', 'Features on this plan')} />
-        <div className="rounded-lg border border-border bg-card">
+  const featuresRegion = featuresLoading ? (
+    <ListState variant="loading" rows={6} testId="your-plan-loading" />
+  ) : featuresError ? featuresErrorState : (
+    <>
+        <div data-testid="your-plan-features-card" className="rounded-lg border border-border bg-card">
           <ul className="divide-y divide-border">
             {grouped.map((group) => (
               <li key={group.id} className="grid gap-x-4 gap-y-1 px-4 py-3 sm:grid-cols-[8rem_1fr]">
@@ -184,6 +193,15 @@ export const YourPlan: React.FC = () => {
             </li>
           </ul>
         </div>
+    </>
+  );
+
+  return (
+    <div className="min-w-0 space-y-6">
+      {planRegion}
+      <section aria-labelledby="your-plan-switches" className="min-w-0">
+        <SectionHeader title={t('yourPlan.switchesHeading', 'Features on this plan')} />
+        {featuresRegion}
       </section>
     </div>
   );

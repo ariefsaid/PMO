@@ -585,13 +585,17 @@ test('@layout m365 F2/F4: at phone width a long linked name does not overflow an
   await login(page, 'pm@acme.test');
   await openDocuments(page, 'Documents');
 
-  await expect(page.getByRole('button', { name: 'Create folder in SharePoint' })).toBeVisible();
-  const link = page.getByRole('button', { name: 'Link from Microsoft 365', exact: true });
-  await expect(link).toBeVisible();
-  const box = await link.boundingBox();
+  // The one Add document control stays in view; folder creation and linking are inside it.
+  const add = page.getByRole('button', { name: 'Add document', exact: true });
+  await expect(add).toBeVisible();
+  const box = await add.boundingBox();
   expect(box).not.toBeNull();
   expect(box!.x).toBeGreaterThanOrEqual(0);
   expect(box!.x + box!.width).toBeLessThanOrEqual(390);
+  await add.click();
+  await expect(page.getByRole('menuitem', { name: 'Create folder in SharePoint' })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Link from Microsoft 365' })).toBeVisible();
+  await page.keyboard.press('Escape');
 
   await expect(page.getByText(LONG_TITLE).first()).toBeVisible();
   await expectInsideViewport(page);
@@ -605,7 +609,8 @@ test('@layout m365 F10: in the open picker a long unbroken folder name stays ins
   await login(page, 'pm@acme.test');
   await openDocuments(page, 'Documents');
 
-  await page.getByRole('button', { name: 'Link from Microsoft 365', exact: true }).click();
+  await page.getByRole('button', { name: 'Add document', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Link from Microsoft 365' }).click();
   const picker = page.getByRole('dialog', { name: /Choose a Microsoft document/ });
   await picker.getByRole('button', { name: 'My OneDrive' }).click();
   await picker.getByRole('button', { name: `Link this folder ${LONG_TOKEN}` }).click();
