@@ -203,7 +203,7 @@
     "statusPartlyPaidLate_one": "Dibayar sebagian · terlambat {{n}} hari",
     "statusPartlyPaidLate_other": "Dibayar sebagian · terlambat {{n}} hari",
     "filters": "Filter",
-    "moreActions": "Aksi lainnya",
+    "moreActions": "Tindakan lainnya",
     "exportList": "Ekspor"
   },
   "invoices": {

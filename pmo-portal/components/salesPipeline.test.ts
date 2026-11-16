@@ -93,11 +93,11 @@ describe('salesPipeline presentation helpers (AC-SP-204)', () => {
   });
 
   it('batch-3: every OPEN stage dot uses one consistent neutral treatment; only terminal outcomes are colored', () => {
-    expect(SALES_COLUMNS[0].dotColor).toBe('hsl(var(--muted-foreground))'); // Leads
-    expect(SALES_COLUMNS[1].dotColor).toBe('hsl(var(--muted-foreground))'); // Pre-Qual
-    expect(SALES_COLUMNS[2].dotColor).toBe('hsl(var(--muted-foreground))'); // Quotation
-    expect(SALES_COLUMNS[3].dotColor).toBe('hsl(var(--muted-foreground))'); // Tender
-    expect(SALES_COLUMNS[4].dotColor).toBe('hsl(var(--muted-foreground))'); // Negotiation
+    expect(SALES_COLUMNS[0].dotColor).toBe('hsl(var(--mark-neutral))'); // Leads
+    expect(SALES_COLUMNS[1].dotColor).toBe('hsl(var(--mark-neutral))'); // Pre-Qual
+    expect(SALES_COLUMNS[2].dotColor).toBe('hsl(var(--mark-neutral))'); // Quotation
+    expect(SALES_COLUMNS[3].dotColor).toBe('hsl(var(--mark-neutral))'); // Tender
+    expect(SALES_COLUMNS[4].dotColor).toBe('hsl(var(--mark-neutral))'); // Negotiation
     expect(SALES_COLUMNS.find((c) => c.title === 'Won')!.dotColor).toBe('hsl(var(--success))');
     expect(SALES_COLUMNS.find((c) => c.title === 'Lost')!.dotColor).toBe('hsl(var(--destructive))');
     const openPrimary = SALES_COLUMNS.filter(

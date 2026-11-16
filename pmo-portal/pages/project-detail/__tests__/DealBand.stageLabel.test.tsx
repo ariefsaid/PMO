@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
-import { ToastProvider } from '@/src/components/ui';
+import { StatusPill, ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { BahasaProvider } from '@/test/bahasa';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -37,11 +37,19 @@ describe('DealBand current stage (#1339)', () => {
       <BahasaProvider>
         <MemoryRouter>
           <ImpersonationProvider realRole="Project Manager">
-            <ToastProvider><DealBand project={deal} /></ToastProvider>
+            <ToastProvider>
+              <span data-testid="header-stage"><StatusPill record="project" state="Tender Submitted" /></span>
+              <DealBand project={deal} />
+            </ToastProvider>
           </ImpersonationProvider>
         </MemoryRouter>
       </BahasaProvider>,
     );
-    expect(screen.getByRole('heading', { level: 2, name: 'Tender diajukan' })).toBeInTheDocument();
+    // On phones the header's status pill is the one place the stage is named (DealBand adds none):
+    // the viewer's-language words appear exactly once, as readable text, never as a second heading.
+    const named = screen.getAllByText('Tender diajukan');
+    expect(named).toHaveLength(1);
+    expect(named[0].closest('[data-testid="header-stage"]')).not.toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Tender diajukan' })).not.toBeInTheDocument();
   });
 });

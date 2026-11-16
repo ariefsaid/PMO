@@ -53,7 +53,7 @@ const NameTick: React.FC<{
 
 type BarLabelTone = 'contract' | 'budget' | 'spent';
 interface DirectBarLabelProps { x?: number | string; y?: number | string; width?: number | string; height?: number | string; value?: unknown }
-const CONTRACT_BAR_FILL = 'hsl(var(--muted-foreground) / 0.54)';
+const CONTRACT_BAR_FILL = 'hsl(var(--mark-neutral) / 0.54)';
 const CONTRACT_LABEL_FILL = 'hsl(var(--foreground))';
 
 // Every label sits right after its bar, in the open track, in the ink colour (the scale leaves room for it).

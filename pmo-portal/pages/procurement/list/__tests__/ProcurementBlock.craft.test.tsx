@@ -95,4 +95,26 @@ describe('ProcurementBlock craft rulings', () => {
     const line = screen.getByText('PROC-2026-001').parentElement as HTMLElement;
     expect(line.textContent).toBe('PROC-2026-001 · VoltEdge Inverters');
   });
+
+  // #2434: the first column leaves room for the supplier beside the uncut number (1440).
+  it('#2434 the procurement column is wide enough to show the supplier beside the number', () => {
+    procState.data = [{ ...row('a', 'Requested'), code: 'PROC-2026-001', vendor: { name: 'VoltEdge Inverters' } }];
+    renderBlock();
+    const header = document.querySelector('th[data-col-key="procurement"]') as HTMLElement;
+    expect(parseInt(header.style.minWidth, 10)).toBeGreaterThanOrEqual(216);
+  });
+
+  // #2434: on a phone card the owner's name takes its own line under the action, so it is never cut by the button.
+  it('#2434 a phone card puts the owner name on its own line, apart from the action button', () => {
+    window.matchMedia = ((query: string) => ({ matches: query.includes('max-width: 639px'), media: query, onchange: null, addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false })) as unknown as typeof window.matchMedia;
+    procState.data = [{ ...row('a', 'Approved'), requested_by: { full_name: 'Siti Rahmawati Kusumaningrum' } }];
+    renderBlock();
+    const action = screen.getByRole('button', { name: 'Get quotes or order' });
+    const owners = screen.getAllByText('Siti Rahmawati Kusumaningrum');
+    expect(owners.length).toBeGreaterThan(0);
+    for (const owner of owners) {
+      expect(action.parentElement).not.toContainElement(owner);
+      expect(owner.className).not.toMatch(/\btruncate\b/);
+    }
+  });
 });

@@ -1,6 +1,6 @@
 /**
  * HoursBar — single-hue hours bar row.
- * Track = bg-secondary, fill = bg-muted-foreground (Freed-Blue Status Rule, DESIGN.md §2).
+ * Track = bg-secondary, fill = bg-mark-neutral (Freed-Blue Status Rule, DESIGN.md §2).
  * A quantity/hours bar is a data indicator, NOT an interactive affordance — it must NOT
  * use bg-primary (action-blue). Neutral muted-foreground reads as "measured amount".
  * Carries role="progressbar" + aria-label for WCAG-AA (plan §6, T5).
@@ -61,7 +61,7 @@ export const HoursBar: React.FC<HoursBarProps> = ({
           className="mt-1 block h-[7px] w-full overflow-hidden rounded-full bg-secondary"
         >
           <span
-            className="block h-full rounded-full bg-muted-foreground"
+            className="block h-full rounded-full bg-mark-neutral"
             style={{ width: `${pct}%` }}
           />
         </span>
