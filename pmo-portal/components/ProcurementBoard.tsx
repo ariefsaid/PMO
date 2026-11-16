@@ -89,13 +89,13 @@ const PrCard: React.FC<{
         <span className="text-sm text-muted-foreground">{amountKind}</span>
       </span>
       {reason && <div className="mt-2 text-sm font-medium text-warning-foreground">{reason}</div>}
-      <div className="mt-2.5 flex items-center gap-2 border-t border-border/70 pt-2">
+      <div className="mt-2.5 flex items-start gap-2 border-t border-border/70 pt-2">
         <Initial name={pr.requested_by?.full_name} />
         {/* Keep the card as a single activation target; project navigation remains on the detail page. */}
         <span
           aria-label={pr.project?.name ? `Project: ${projectDisplayName(pr.project)}` : undefined}
           title={pr.project && projectDisplayName(pr.project) !== pr.project.name ? pr.project.name : undefined}
-          className="truncate text-sm text-muted-foreground"
+          className="line-clamp-2 min-w-0 break-words text-sm text-muted-foreground"
         >
           {pr.project ? projectDisplayName(pr.project) : '—'}
         </span>

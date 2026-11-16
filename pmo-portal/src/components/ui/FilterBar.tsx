@@ -43,7 +43,8 @@ export function FilterBar({ searchKey, searchLabel, searchPlaceholder, filters, 
   const all = labels?.all ?? t('ui.filterBar.all', 'All');
   const filterLabel = labels?.filters ?? t('ui.filterBar.filters', 'Filters');
   const active = Boolean(values[searchKey]) || filters.some(({ key }) => Boolean(values[key]));
-  const controls = <div className="flex flex-wrap items-center gap-2">
+  // The controls take the room and wrap among themselves, so the count stays at the row's end instead of dropping a line when "Clear all" appears.
+  const controls = <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
     <SearchMini
       aria-label={searchLabel}
       placeholder={searchPlaceholder ?? searchLabel}
@@ -66,30 +67,33 @@ export function FilterBar({ searchKey, searchLabel, searchPlaceholder, filters, 
     {narrow ? <><button type="button" onClick={() => setOpen(true)} className="min-h-11 rounded-md border border-input bg-background px-3 text-control text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{filterLabel}</button><Drawer open={open} onClose={() => setOpen(false)} title={filterLabel}>{controls}</Drawer></> : controls}
     {/* #2345 row 11: the default reads the catalogue (`ui.listPage.showingOf`) — a hard-coded
         template here bypassed the id translation every caller without `labels.count` rendered. */}
-    {total !== undefined && <span aria-live="polite" className="text-control text-muted-foreground">{labels?.count?.(shown, total) ?? t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', { count: shown, total })}</span>}
+    {total !== undefined && <span aria-live="polite" className="ml-auto shrink-0 text-control text-muted-foreground">{labels?.count?.(shown, total) ?? t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', { count: shown, total })}</span>}
   </div>;
 }
 
-/** One filter: its caption beside the app's own picker (searchable, never the browser's select). */
+/**
+ * One filter: the app's own picker (searchable, never the browser's select). Untouched, it shows its
+ * own name; once chosen it shows the choice and an x to clear it, so the bar carries no "Label: All" pairs.
+ */
 function FilterPick({ filter, all, value, onChange }: { filter: FilterBarFilter; all: string; value: string; onChange: (value: string) => void }) {
   const options = useMemo<ComboboxOption[]>(() => [{ value: '', label: all }, ...filter.options], [all, filter.options]);
   const loadOptions = useCallback(() => Promise.resolve(options), [options]);
-  const selected = options.find((option) => option.value === value) ?? options[0];
+  const selected = value ? options.find((option) => option.value === value) ?? null : null;
   return (
-    <div className="flex items-center gap-2 text-control text-foreground">
-      <span aria-hidden="true">{filter.label}</span>
-      <Combobox
-        label={filter.label}
-        hideLabel
-        compact
-        value={value}
-        selectedOption={selected}
-        loadOptions={loadOptions}
-        onChange={(next) => onChange(next)}
-        noun={filter.label.toLocaleLowerCase()}
-        nounPlural={filter.label.toLocaleLowerCase()}
-        className="w-auto max-w-60"
-      />
-    </div>
+    <Combobox
+      label={filter.label}
+      hideLabel
+      compact
+      placeholder={filter.label}
+      value={value || null}
+      selectedOption={selected}
+      loadOptions={loadOptions}
+      onChange={(next) => onChange(next)}
+      clearable
+      onClear={() => onChange('')}
+      noun={filter.label.toLocaleLowerCase()}
+      nounPlural={filter.label.toLocaleLowerCase()}
+      className="w-auto max-w-60"
+    />
   );
 }

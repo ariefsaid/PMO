@@ -649,7 +649,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         // The budget category belongs to the project's budget, so it rides under the project name.
         cell: (row: ProcurementWithRefs) => (
           <div className="min-w-0 space-y-0.5">
-            <span className={`block break-words ${row.project ? 'text-foreground' : 'text-muted-foreground'}`}>{row.project ? projectDisplayName(row.project) : '—'}</span>
+            {/* Only the purchase and its amount take the primary ink; the context columns read grey. */}
+            <span className="block break-words text-muted-foreground">{row.project ? projectDisplayName(row.project) : '—'}</span>
             {!hideCategory && row.budget_category && <span className="block break-words text-sm text-muted-foreground">{categoryLabel(row.budget_category)}</span>}
           </div>
         ),
@@ -675,7 +676,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         minSize: 156,
         sortKey: 'owner',
         // Names wrap at a space, never cut: a person reads the whole name.
-        cell: (row: ProcurementWithRefs) => <span className="break-words text-foreground">{row.requested_by?.full_name ?? t('projectDetail.procurement.unassigned', 'Unassigned')}</span>,
+        cell: (row: ProcurementWithRefs) => <span className="break-words text-muted-foreground">{row.requested_by?.full_name ?? t('projectDetail.procurement.unassigned', 'Unassigned')}</span>,
         exportValue: (row: ProcurementWithRefs) => row.requested_by?.full_name ?? '',
       }]),
       ...(canSeeMoney ? [valueColumn, exportOnly({
