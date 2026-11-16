@@ -260,7 +260,7 @@
           "title": "Buat invoice tagihan ini?"
         },
         "confirmRaise": {
-          "figures": "Ditagih {{gross}} · uang muka dipulihkan {{recovery}} · neto {{net}} (belum termasuk PPN)",
+          "netExclTax": "Neto (belum termasuk PPN)",
           "body": "Draf invoice penjualan ERP dibuat dari tagihan ini. Pengguna Admin atau Finance lain yang men-submit-nya.",
           "confirm": "Buat invoice ERP",
           "title": "Terbitkan invoice tagihan ini?"
@@ -369,7 +369,7 @@
       }
     },
     "drawer": {
-      "openFullPage": "Buka halaman penuh"
+      "openFullPage": "Buka halaman lengkap"
     },
     "pipeline": {
       "currentStage": "Tahap saat ini",
@@ -478,7 +478,7 @@
       "contractSourceBoq": "Jumlah kuantitas kontrak dikalikan harga satuan dari daftar kuantitas proyek.",
       "contractSourceRecord": "Nilai kontrak yang disetujui pada catatan proyek.",
       "contractUnavailable": "Nilai kontrak belum tercatat.",
-      "ordered": "Dipesan",
+      "ordered": "Dalam SPK",
       "orderedSource": "Jumlah alokasi $t(common:terms.clientWorkOrder) yang diterbitkan dikalikan harga satuan daftar kuantitas.",
       "delivered": "Terkirim",
       "deliveredSource": "Jumlah kuantitas yang diterima dikalikan harga satuan daftar kuantitas.",
@@ -500,9 +500,9 @@
       "marginOutRestricted": "Margin kotor disembunyikan karena ada pengeluaran terbatas.",
       "marginOutActuals": "Margin kotor tidak ditampilkan sampai pengeluaran tertaut untuk setiap kategori anggaran.",
       "marginOutNoInvoices": "Margin kotor mulai dihitung sejak invoice pertama dalam mata uang proyek.",
-      "leadTooltip": "Jumlah yang sudah ditagih sebagai porsi dari kontrak. Sumber: invoice yang bukan draf dan tidak dibatalkan dalam mata uang proyek.",
-      "leadInvoiced": "{{percent}}% ditagih",
-      "leadPaid": "{{percent}}% dibayar",
+      "receivedCaption": "Diterima {{amount}}",
+      "ofBudget": "dari anggaran {{amount}}",
+      "shareOfContract": "{{percent}}% dari kontrak",
       "cascadeLabel": "Kontrak hingga pembayaran",
       "invoicesChecking": "Memeriksa invoice…",
       "invoicedOut": "Nilai ditagih tidak ditampilkan sampai setiap jumlah invoice diketahui.",
@@ -510,7 +510,8 @@
       "cashIncomplete": "Kas diterima tidak ditampilkan sampai setiap penerimaan dialokasikan ke invoice.",
       "cashInvalid": "Kas diterima tidak ditampilkan karena data penerimaan tidak dapat diverifikasi.",
       "hiddenFigures": "Tidak ditampilkan: {{figures}}.",
-      "cashLead": "Diterima {{amount}}",
+      "cashReceivedFigure": "Diterima",
+      "cashReceivedSource": "Penerimaan dari pelanggan yang dicocokkan ke invoice proyek ini.",
       "contractLocked": "hanya baca",
       "cashIncompleteShort": "Kas diterima (kwitansi belum dialokasikan ke invoice)",
       "cashInvalidShort": "Kas diterima (pembacaan kwitansi belum diverifikasi)",
@@ -783,7 +784,7 @@
       "notes": "Catatan",
       "onTrack": "Sesuai rencana",
       "openForecastCategory": "Buka detail proyeksi {{category}}",
-      "openFullPage": "Buka halaman penuh",
+      "openFullPage": "Buka halaman lengkap",
       "overBudget": "Melebihi anggaran",
       "projectCommitmentsShort": "Komitmen · seluruh proyek",
       "reasonBudgetedOtherYear": "Dianggarkan pada tahun fiskal lain: {{years}}",
@@ -1156,5 +1157,41 @@
     "confirmDescriptionYear": "Ganti anggaran ERP {{name}} untuk {{year}} dengan versi aktif PMO? Salinan di ERP akan diubah.",
     "confirmLabel": "Ganti anggaran ERP"
   },
-  "pmoSpentCoverage": "Pembayaran pembelian PMO dan biaya sewa peralatan internal, sebelum pajak"
+  "pmoSpentCoverage": "Pembayaran pembelian PMO dan biaya sewa peralatan internal, sebelum pajak",
+  "documentCategory": {
+    "drawing": "Gambar",
+    "specification": "Spesifikasi",
+    "report": "Laporan",
+    "transmittal": "Transmittal",
+    "submittal": "Submittal",
+    "certificate": "Sertifikat",
+    "other": "Lainnya",
+    "reference": "Referensi"
+  },
+  "documentRevision": {
+    "title": "Revisi baru",
+    "subtitle": "Buat revisi berikutnya dari dokumen ini. Berkas bisa diunggah setelah revisi dibuat.",
+    "submit": "Buat revisi",
+    "section": "Detail revisi",
+    "fieldTitle": "Judul",
+    "titlePlaceholder": "Judul dokumen",
+    "fieldCode": "Kode",
+    "codePlaceholder": "mis. DWG-001",
+    "fieldCategory": "Kategori",
+    "fieldRevision": "Revisi",
+    "revisionPlaceholder": "mis. B",
+    "fieldDate": "Tanggal dokumen"
+  },
+  "fileCell": {
+    "progress": "Progres unggah untuk {{title}}",
+    "cancelUpload": "Batalkan unggah untuk {{title}}",
+    "removeFailed": "Hapus unggahan gagal untuk {{title}}",
+    "remove": "Hapus",
+    "uploadFor": "Unggah berkas untuk {{title}}",
+    "upload": "Unggah",
+    "replaceFor": "Ganti berkas untuk {{title}}",
+    "replace": "Ganti",
+    "downloadFor": "Unduh berkas untuk {{title}}",
+    "download": "Unduh berkas"
+  }
 }

@@ -19,6 +19,7 @@
  * DESIGN.md tokens only; no raw hex/px. WCAG-AA: buttons have aria-label.
  */
 import React, { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Drawer, Icon, useToast } from '@/src/components/ui';
 import { procurementFileTarget } from '@/src/components/documents/targets/procurement';
 import { useViewerOnDemand } from '@/src/components/documents/viewerContext';
@@ -129,6 +130,7 @@ const AttachButton: React.FC<AttachButtonProps> = ({
   procurementId,
   uploadedById,
 }) => {
+  const { t } = useTranslation('procurement');
   const { toast } = useToast();
   const failureText = useUploadFailureText();
   const phase = PHASE_BY_TYPE[type];
@@ -144,7 +146,7 @@ const AttachButton: React.FC<AttachButtonProps> = ({
     upload.mutate(
       { file },
       {
-        onSuccess: () => toast('File attached', file.name, 'success'),
+        onSuccess: () => toast(t('ledgerFile.attached', 'File attached'), file.name, 'success'),
         onError: (err: unknown) => {
           // The ledger cell shows no inline upload error, so a typed SharePoint failure is toasted with its recovery text.
           if (err instanceof UploadFailure) {
@@ -164,7 +166,7 @@ const AttachButton: React.FC<AttachButtonProps> = ({
         ref={inputRef}
         type="file"
         accept={FILE_INPUT_ACCEPT}
-        aria-label="Attach a file to this record"
+        aria-label={t('ledgerFile.attachToRecord', 'Attach a file to this record')}
         className="sr-only"
         onChange={onPick}
       />
@@ -172,15 +174,15 @@ const AttachButton: React.FC<AttachButtonProps> = ({
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={upload.isPending || uploadDisabled}
-        aria-label="Attach file"
-        title="Attach file"
+        aria-label={t('ledgerFile.attach', 'Attach file')}
+        title={t('ledgerFile.attach', 'Attach file')}
         className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-primary disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         <Icon name="upload" className="size-3.5 shrink-0" />
         {upload.isPending ? (
-          <span>Uploading…</span>
+          <span>{t('ledgerFile.uploading', 'Uploading…')}</span>
         ) : (
-          <span>Attach</span>
+          <span>{t('ledgerFile.attachShort', 'Attach')}</span>
         )}
       </button>
     </>
@@ -203,6 +205,7 @@ export const LedgerFileCell: React.FC<LedgerFileCellProps> = ({
   procurementId,
   uploadedById,
 }) => {
+  const { t } = useTranslation('procurement');
   const [filesOpen, setFilesOpen] = useState(false);
   // Multiple files → "N files" button opens a drawer listing every file of the record
   if (fileCount > 1) {
@@ -211,13 +214,13 @@ export const LedgerFileCell: React.FC<LedgerFileCellProps> = ({
         <button
           type="button"
           onClick={() => setFilesOpen(true)}
-          aria-label={`${fileCount} files for ${systemNumber ?? type} — click to view all`}
+          aria-label={t('ledgerFile.viewAll', '{{count}} files for {{record}} — click to view all', { count: fileCount, record: systemNumber ?? type })}
           className="inline-flex items-center gap-1 text-sm font-medium text-primary-text hover:underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           <Icon name="file" className="size-3.5 shrink-0" />
-          <span>{fileCount} files</span>
+          <span>{t('ledgerFile.count', '{{count}} files', { count: fileCount })}</span>
         </button>
-        <Drawer open={filesOpen} title={`Files — ${systemNumber ?? type}`} onClose={() => setFilesOpen(false)}>
+        <Drawer open={filesOpen} title={t('ledgerFile.drawerTitle', 'Files — {{record}}', { record: systemNumber ?? type })} onClose={() => setFilesOpen(false)}>
           <ProcurementFilesSubsection
             phase={PHASE_BY_TYPE[type]}
             parentId={recordId}

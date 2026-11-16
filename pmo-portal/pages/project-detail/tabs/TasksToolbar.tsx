@@ -10,12 +10,12 @@ import {
   Icon,
   SearchMini,
   SelectField,
-  TextField,
   ViewToggle,
 } from '@/src/components/ui';
 import type { TaskStatus } from '@/src/lib/db/tasks';
 import { STATUSES, STATUS_OPTIONS, type ViewMode, type TaskScope, type BulkAction } from './taskViewModel';
 import type { ProfileRow } from '@/src/lib/db/profiles';
+import { DateField } from '@/src/components/ui/DateField';
 
 
 /** The tasks toolbar: heading, more-options menu, filters, search, view toggle and the bulk bars. */
@@ -216,9 +216,8 @@ const TasksToolbar: React.FC<{
             options={[{ value: '', label: t('projectDetail.tasks.bulk.chooseAssignee', 'Choose an assignee') }, { value: '__unassigned__', label: t('projectDetail.tasks.unassigned', 'Unassigned') }, ...assignableProfiles.map((profile) => ({ value: profile.id, label: profile.full_name }))]}
           />}
           {bulkAction === 'due' && <>
-            <TextField
+            <DateField
               label={t('projectDetail.tasks.bulk.dueDateLabel', 'Due date for selected tasks')}
-              type="date"
               value={bulkDueDate}
               onChange={(value) => { setBulkDueDate(value); setBulkClearDueDate(false); }}
               disabled={bulkClearDueDate}

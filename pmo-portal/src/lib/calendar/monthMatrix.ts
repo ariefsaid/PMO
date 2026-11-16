@@ -67,14 +67,15 @@ export function todayCursor(): MonthCursor {
 }
 
 /**
- * Build a fixed 6×7 month matrix (Sunday-first). Leading/trailing days from the
- * adjacent months are included with `inMonth: false` so the grid never reflows.
+ * Build a fixed 6×7 month matrix (Sunday-first by default; `weekStartsOn: 1` = Monday-first, the
+ * Bahasa Indonesia calendar). Leading/trailing days from the adjacent months are included with
+ * `inMonth: false` so the grid never reflows.
  */
-export function buildMonthMatrix(year: number, month: number): DayCell[][] {
+export function buildMonthMatrix(year: number, month: number, weekStartsOn: 0 | 1 = 0): DayCell[][] {
   const todayIso = toIso(new Date());
   const first = new Date(year, month, 1);
-  // Back up to the Sunday of the first week.
-  const start = new Date(year, month, 1 - first.getDay());
+  // Back up to the first day of the first week.
+  const start = new Date(year, month, 1 - ((first.getDay() - weekStartsOn + 7) % 7));
   const weeks: DayCell[][] = [];
   for (let w = 0; w < 6; w++) {
     const row: DayCell[] = [];

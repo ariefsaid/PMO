@@ -31,6 +31,7 @@ import {
   type RuleFormErrorCode,
   type RuleFormValues,
 } from './costAttributionDraft';
+import { DateField } from '@/src/components/ui/DateField';
 
 interface Props {
   /** The rule being edited (saves a new version of it), or null for a new rule. */
@@ -154,8 +155,8 @@ const CostAttributionRuleForm: React.FC<Props> = ({ rule, projects, currency, on
 
       <FormSection legend={t('costAttribution:form.windowLegend', 'Posting dates it applies to')}>
         <FormGrid>
-          <TextField {...form.fieldProps('effectiveFrom')} type="date" label={t('costAttribution:form.from', 'Applies from')} required />
-          <TextField {...form.fieldProps('effectiveTo')} type="date" label={t('costAttribution:form.to', 'Applies until (optional)')} />
+          <DateField {...form.fieldProps('effectiveFrom')} label={t('costAttribution:form.from', 'Applies from')} required />
+          <DateField {...form.fieldProps('effectiveTo')} label={t('costAttribution:form.to', 'Applies until (optional)')} />
         </FormGrid>
       </FormSection>
 

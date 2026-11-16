@@ -41,7 +41,8 @@
       "filters": "Filters",
       "clear": "Clear all"
     },
-    "recordReference": "Reference"
+    "recordReference": "Reference",
+    "lifecycle": "Lifecycle"
   },
   "uxs07": {
     "personalConnections": "My integrations",
@@ -300,7 +301,11 @@
     "actorNotRecorded": "Not recorded",
     "actorResolving": "Loading the name…",
     "actorDirectoryError": "Couldn't read the people who changed these rates",
-    "actorDirectoryErrorSub": "Each rate still shows the day it changed; the person is not named until this read succeeds."
+    "actorDirectoryErrorSub": "Each rate still shows the day it changed; the person is not named until this read succeeds.",
+    "actionsUnavailableError": "Actions are unavailable because organization currency could not be read.",
+    "actionsUnavailableLoading": "Wait for the organization currency to load before using these actions.",
+    "description": "USD → IDR · JISDOR · display equivalents only",
+    "continue": "Continue"
   },
   "toast": {
     "dismiss": "Dismiss notification"
@@ -455,7 +460,9 @@
       "notReady": "Connect ERPNext before mapping expense accounts.",
       "error": {
         "title": "Couldn't load the expense account map",
-        "noCauseRemedy": "The account was not saved. Your entry is kept; try again."
+        "noCauseRemedy": "The account was not saved. Your entry is kept; try again.",
+        "saveHeadline": "Couldn’t save the expense account",
+        "accountRemedy": "Check the account name and type in ERPNext, then try again. Your entry is kept."
       },
       "openIntegrations": "Open integrations",
       "change": "Change {{key}}",
@@ -920,7 +927,26 @@
       "withQuery": "No {{noun}} matches \"{{query}}\". Try a different search.",
       "bare": "Nothing is available to select yet. Check this field’s prerequisites or ask an administrator to add an option."
     },
-    "clear": "Clear {{noun}}"
+    "clear": "Clear {{noun}}",
+    "noun": {
+      "option": "option",
+      "project": "project",
+      "supplier": "supplier",
+      "vendor": "vendor",
+      "customer": "customer",
+      "person": "person",
+      "task": "task",
+      "invoice": "invoice",
+      "erpItem": "ERP item"
+    },
+    "select": "Select…"
+  },
+  "dateField": {
+    "open": "Open calendar",
+    "calendar": "Calendar",
+    "invalid": "Enter a date like 16 Nov 2026",
+    "beforeMin": "Choose a date on or after {{date}}",
+    "afterMax": "Choose a date on or before {{date}}"
   },
   "companies": {
     "accessDenied": {
@@ -2194,7 +2220,6 @@
         "confirmRaise": {
           "body": "An ERP sales invoice draft is created from this claim. A different Admin or Finance user submits it.",
           "confirm": "Create ERP invoice",
-          "figures": "Claimed {{gross}} · down payment recovered {{recovery}} · net {{net}} (excl. PPN)",
           "title": "Raise this claim's invoice?"
         },
         "confirmWithdraw": {

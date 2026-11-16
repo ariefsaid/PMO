@@ -68,9 +68,10 @@ import IncomingPayments from '../IncomingPayments';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 import { financeTestI18n } from '@/test/financeI18nTestInstance';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
-import { currencySymbol, formatCurrency, instantToZonedDatetimeLocal } from '@/src/lib/format';
+import { currencySymbol, formatCurrency, formatIsoDay, instantToZonedDatetimeLocal } from '@/src/lib/format';
 import { AppError } from '@/src/lib/appError';
 import { applicableInvoices } from '../incoming-payments/applicableInvoices';
+import { earliestPickableDay, latestPickableDay } from '@/test/dateField';
 
 const TODAY = () => instantToZonedDatetimeLocal(new Date(), 'UTC').slice(0, 10);
 const openInvoice = {
@@ -473,10 +474,12 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     await pickInvoice(user);
     const date = screen.getByLabelText(/Payment date/);
     expect(date).toBeRequired();
-    expect(date).toHaveValue(TODAY());
-    expect(date).toHaveAttribute('max', TODAY());
-    fireEvent.change(date, { target: { value: '2999-01-01' } });
-    fireEvent.blur(date);
+    expect(date).toHaveValue(formatIsoDay(TODAY()));
+    expect(await latestPickableDay(user, date)).toBe(TODAY());
+    // A date typed in the way a person writes it is refused the same way as a picked one never could be.
+    await user.clear(date);
+    await user.type(date, '1/1/2999');
+    await user.tab();
     expect((await screen.findAllByText('The payment date cannot be in the future.')).length).toBeGreaterThan(0);
     await user.click(screen.getByRole('button', { name: 'Record payment' }));
     expect(h.createPaymentMutate).not.toHaveBeenCalled();
@@ -647,9 +650,10 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     renderPage();
     await pickInvoice(user);
     const date = screen.getByLabelText(/Payment date/);
-    expect(date).toHaveAttribute('min', '2026-10-01');
-    fireEvent.change(date, { target: { value: '2026-09-30' } });
-    fireEvent.blur(date);
+    expect(await earliestPickableDay(user, date)).toBe('2026-10-01');
+    await user.clear(date);
+    await user.type(date, '30 Sep 2026');
+    await user.tab();
     await user.click(screen.getByRole('button', { name: 'Record payment' }));
     expect((await screen.findAllByText('The payment date cannot be before the invoice date.')).length).toBeGreaterThan(0);
     expect(h.createPaymentMutate).not.toHaveBeenCalled();

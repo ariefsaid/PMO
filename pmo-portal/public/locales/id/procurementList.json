@@ -1,5 +1,8 @@
 {
-  "description": {"engineer": "Pengadaan yang Anda ajukan", "projectManager": "Pengadaan untuk proyek yang Anda kelola"},
+  "description": {
+    "engineer": "Pengadaan yang Anda ajukan",
+    "projectManager": "Pengadaan untuk proyek yang Anda kelola"
+  },
   "title": {
     "default": "Pengadaan",
     "engineer": "Pengadaan Anda"
@@ -56,7 +59,8 @@
       "invoiced": "Nilai invoice supplier",
       "paid": "Nilai dibayar",
       "unpaid": "Nilai belum dibayar"
-    }
+    },
+    "unavailable": "Jumlah tidak tersedia"
   },
   "column": {
     "procurement": "Pengadaan",

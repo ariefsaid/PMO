@@ -109,7 +109,7 @@ describe('Exchange rates — floor', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Edit rate' });
     const date = within(dialog).getByLabelText(/Publication date/, { selector: 'input' });
     expect(date).toBeDisabled();
-    expect(date).toHaveValue('2026-10-31');
+    expect(date).toHaveValue('31 Oct 2026');
 
     fireEvent.change(within(dialog).getByLabelText(/IDR per USD/, { selector: 'input, select, textarea' }), { target: { value: '16500' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save rate' }));

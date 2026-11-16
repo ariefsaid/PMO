@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   EntityFormModal,
   TextField,
@@ -12,14 +13,11 @@ import {
 } from '@/src/components/ui';
 import { useProjectOptions } from '@/src/hooks/useFkOptions';
 import type { IncidentRow, IncidentSeverity, IncidentInput } from '@/src/lib/db/incidents';
+import { DateField } from '@/src/components/ui/DateField';
+import { severityLabel } from '@/src/lib/incidents/transitions';
 
-/** Severity options for the file/edit form (the `incident_severity` enum). */
-const SEVERITY_OPTIONS = [
-  { value: 'Low', label: 'Low' },
-  { value: 'Medium', label: 'Medium' },
-  { value: 'High', label: 'High' },
-  { value: 'Critical', label: 'Critical' },
-];
+/** Severity values for the file/edit form (the `incident_severity` enum); labels come from `severityLabel`. */
+const SEVERITIES = ['Low', 'Medium', 'High', 'Critical'] as const;
 
 interface FormValues {
   incident_date: string;
@@ -30,12 +28,7 @@ interface FormValues {
   project_id: string | null;
 }
 
-const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
-  const errors: Partial<Record<keyof FormValues, string>> = {};
-  if (!v.incident_date.trim()) errors.incident_date = 'Incident date is required.';
-  if (!v.type.trim()) errors.type = 'Incident type is required.';
-  return errors;
-};
+type Errors = Partial<Record<keyof FormValues, string>>;
 
 /**
  * Today as a LOCAL-date `YYYY-MM-DD` string (the <input type="date"> value format,
@@ -72,7 +65,14 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
   onUpdate,
   onError,
 }) => {
+  const { t } = useTranslation('incidents');
   const isEdit = !!incident;
+  const validate = (v: FormValues): Errors => {
+    const errors: Errors = {};
+    if (!v.incident_date.trim()) errors.incident_date = t('form.dateRequired', 'Incident date is required.');
+    if (!v.type.trim()) errors.type = t('form.typeRequired', 'Incident type is required.');
+    return errors;
+  };
   const form = useEntityForm<FormValues>({
     initialValues: {
       // AC-W6-IXD-INCDATE (B-5): the dominant case is filing a same-day incident, so the
@@ -141,8 +141,8 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
   return (
     <EntityFormModal
       open
-      title={isEdit ? 'Edit incident' : 'File incident'}
-      submitLabel={isEdit ? 'Save incident' : 'File incident'}
+      title={isEdit ? t('edit', 'Edit incident') : t('file', 'File incident')}
+      submitLabel={isEdit ? t('save', 'Save incident') : t('file', 'File incident')}
       onSubmit={handleSubmit}
       onClose={onClose}
       loading={form.isSubmitting}
@@ -150,12 +150,11 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
       submitDisabled={!form.isComplete}
       errorSummary={errorSummary.length ? errorSummary : undefined}
     >
-      <FormSection legend="What happened">
+      <FormSection legend={t('form.section', 'What happened')}>
         <FormGrid>
-          <TextField
+          <DateField
             id={dateField.id}
-            label="Date"
-            type="date"
+            label={t('form.date', 'Date')}
             required
             value={dateField.value}
             onChange={dateField.onChange}
@@ -164,37 +163,37 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
           />
           <SelectField
             id={severityField.id}
-            label="Severity"
+            label={t('form.severity', 'Severity')}
             required
             value={severityField.value}
             onChange={(v) => severityField.onChange(v as IncidentSeverity)}
             onBlur={severityField.onBlur}
-            options={SEVERITY_OPTIONS}
+            options={SEVERITIES.map((s) => ({ value: s, label: severityLabel(t, s) }))}
           />
           <TextField
             id={typeField.id}
-            label="Type"
+            label={t('form.type', 'Type')}
             required
             value={typeField.value}
             onChange={typeField.onChange}
             onBlur={typeField.onBlur}
             error={typeField.error}
-            placeholder="e.g. Near Miss, Equipment Damage, Spill"
+            placeholder={t('form.typePlaceholder', 'e.g. Near Miss, Equipment Damage, Spill')}
             fullWidth
           />
           <TextField
             id={locationField.id}
-            label="Location"
+            label={t('form.location', 'Location')}
             value={locationField.value}
             onChange={locationField.onChange}
             onBlur={locationField.onBlur}
-            placeholder="e.g. Regional Site B"
+            placeholder={t('form.locationPlaceholder', 'e.g. Regional Site B')}
             fullWidth
           />
           <Combobox
-            label="Project"
-            noun="project"
-            placeholder="Optional — link a project…"
+            label={t('form.project', 'Project')}
+            noun={t('form.projectNoun', 'project')}
+            placeholder={t('form.projectPlaceholder', 'Optional — link a project…')}
             value={form.values.project_id}
             selectedOption={selectedProjectOption}
             onChange={(v) => form.setValue('project_id', v)}
@@ -202,11 +201,11 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
           />
           <TextArea
             id={descriptionField.id}
-            label="Description"
+            label={t('form.description', 'Description')}
             value={descriptionField.value}
             onChange={descriptionField.onChange}
             onBlur={descriptionField.onBlur}
-            placeholder="What happened, who was involved, and any immediate action taken."
+            placeholder={t('form.descriptionPlaceholder', 'What happened, who was involved, and any immediate action taken.')}
             fullWidth
           />
         </FormGrid>

@@ -12,6 +12,7 @@ import {
 } from '@/src/components/ui';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import { classifyMutationError, isMeetingReadDenied } from '@/src/lib/classifyMutationError';
+import { DateField } from '@/src/components/ui/DateField';
 
 interface ActionItemModalProps {
   /** The minute line's text — the PREFILL, fully editable (never silently published). */
@@ -119,10 +120,9 @@ const ActionItemModal: React.FC<ActionItemModalProps> = ({
             searchPlaceholder={t('projectDetail.tasks.form.searchPeople', 'Search people…')}
             noun={t('meetingDetail.action.personNoun', 'person')}
           />
-          <TextField
+          <DateField
             id={endDateField.id}
             label={t('meetingDetail.minutes.dueLabel', 'Due date')}
-            type="date"
             value={endDateField.value}
             onChange={endDateField.onChange}
             onBlur={endDateField.onBlur}

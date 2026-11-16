@@ -199,7 +199,8 @@ beforeEach(() => {
 // "Pending", "None yet", "no PO yet" or "awaiting delivery" — holds. The "fewer than 4 tiles" test pinned
 // the old sparse layout (the five-figure summary is deliberate), so it is dropped.
 const MISLEADING = ['Pending', 'None yet', 'no PO yet', 'awaiting delivery'];
-const moneyText = () => screen.getByTestId('procurement-money-summary').textContent ?? '';
+// The record's money lives in the header band: the money block and, on a request, the budget impact that carries its total.
+const moneyText = () => screen.getByTestId('record-header-band').textContent ?? '';
 
 describe('I3: Draft money summary has no misleading placeholder', () => {
   it('I3: a Draft case shows the requested value and no Pending/None-yet placeholders', () => {
@@ -217,7 +218,8 @@ describe('I3: Draft money summary has no misleading placeholder', () => {
     // Must contain the request value
     expect(text).toContain('85,000');
     // Must NOT contain a placeholder that reads as a state
-    expect(MISLEADING.some((phrase) => text.toLowerCase().includes(phrase.toLowerCase()))).toBe(false);
+    // Whole words: "spending" in the budget impact is not the placeholder "Pending".
+    expect(MISLEADING.some((phrase) => new RegExp(`\\b${phrase}\\b`, 'i').test(text))).toBe(false);
   });
 });
 

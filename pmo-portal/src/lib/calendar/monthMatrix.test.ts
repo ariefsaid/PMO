@@ -14,6 +14,15 @@ describe('monthMatrix', () => {
     expect(flat.some((d) => !d.inMonth)).toBe(true);
   });
 
+  it('weekStartsOn=1 lays the grid out Monday-first (the Bahasa calendar)', () => {
+    const weeks = buildMonthMatrix(2026, 5, 1); // June 2026: the 1st is a Monday
+    expect(weeks).toHaveLength(6);
+    expect(weeks[0][0].iso).toBe('2026-06-01');
+    const nov = buildMonthMatrix(2026, 10, 1); // November 2026: the 1st is a Sunday
+    expect(nov[0][0].iso).toBe('2026-10-26');
+    expect(nov[0][6].iso).toBe('2026-11-01');
+  });
+
   it('parseLocalDate does not TZ-shift a YYYY-MM-DD string', () => {
     expect(parseLocalDate('2026-06-03').getDate()).toBe(3);
   });

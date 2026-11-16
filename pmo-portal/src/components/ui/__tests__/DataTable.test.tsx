@@ -280,6 +280,13 @@ describe('DataTable', () => {
     expect(onSort).toHaveBeenCalledWith('name');
   });
 
+  it('a sortable header keeps its label and sort control in one button and gives the full label on hover', () => {
+    render(<DataTable columns={[{ key: 'name', header: 'Name of the supplier', sortKey: 'name', cell: (r: { name: string }) => r.name }]} rows={[{ name: 'A' }]} rowKey={(r: { name: string }) => r.name} onSort={() => {}} />);
+    const button = screen.getByRole('button', { name: /Name of the supplier/ });
+    expect(within(button).getByTitle('Name of the supplier')).toBeInTheDocument();
+    expect(within(button).getByTestId('sort-cue')).toBeInTheDocument();
+  });
+
   it('sortable header without a sort prop still shows a quiet cue and keeps the inactive aria-sort state', () => {
     // The visible cue replaces the previous undiscoverable-before-activation behavior; the goal is still sortable, announced headers.
     render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} onSort={vi.fn()} />);

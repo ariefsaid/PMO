@@ -33,6 +33,7 @@ removes reading or makes the same thing identical everywhere.
 ## One name, one look
 - Send back for correction = **Return**, always asks for a reason, reason is shown to the person who gets it back. **Reject** = final refusal, also with a reason. Same dialog layout for both: reason field, quiet Cancel, filled confirm.
 - Dates: `10 Nov 2026`; within the current year `10 Nov`; never numeric-only, never "Nov 26" for a month and year (write `Nov 2026`). Relative age only as a number with unit ("118 days overdue").
+- Date inputs: one `DateField` everywhere, never the browser's own date control (a phone keeps its system picker). It shows `10 Nov 2026`, takes typed `10 Nov 2026`, `10/11/2026`, `10-11-2026` or `2026-11-10`, and hands the form an ISO day.
 - Status colour means exception only: overdue / over budget / rejected = red; due soon / waiting on someone = amber; done = green; everything normal = neutral grey. Same state, same colour on every screen.
 - One name per state per record type, from one shared map; lists, records, filters and menus all read it.
 - Record pages: one header (title 20px+, status pill, key facts row, one filled primary action, the rest in a menu).

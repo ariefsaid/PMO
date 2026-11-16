@@ -116,6 +116,7 @@ import IncomingPayments from '../IncomingPayments';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 import { financeTestI18n } from '@/test/financeI18nTestInstance';
+import { latestPickableDay } from '@/test/dateField';
 
 const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
 const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
@@ -862,8 +863,7 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     renderPage();
     await openForm(user);
     const dateInput = screen.getByLabelText(/Payment date/i);
-    expect(dateInput).toHaveAttribute('type', 'date');
-    expect(dateInput).toHaveValue('2026-06-13');
-    expect(dateInput).toHaveAttribute('max', '2026-06-13');
+    expect(dateInput).toHaveValue('13 Jun 2026');
+    expect(await latestPickableDay(user, dateInput)).toBe('2026-06-13');
   });
 });

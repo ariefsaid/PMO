@@ -54,7 +54,7 @@ const STRUCTURAL_ALLOW = [
   { path: 'pmo-portal/pages/expenses/ExpenseClaimFormModal.tsx', rule: 'raw-control', count: 1, reason: 'Existing form control is outside A1 ownership and is retained as shipped.' },
   { path: 'pmo-portal/pages/expenses/ExpenseReceiptsCard.tsx', rule: 'raw-control', count: 1, reason: 'Existing form control is outside A1 ownership and is retained as shipped.' },
   { path: 'pmo-portal/pages/procurement/LedgerFileCell.tsx', rule: 'raw-control', count: 1, reason: 'Existing screen-owned native control is retained; A1 adds the guard without changing procurement file behavior.' },
-  { path: 'pmo-portal/pages/procurement/ProcurementDecisionZone.tsx', rule: 'raw-control', count: 7, reason: 'Existing approval form controls are outside A1 ownership; this guard preserves their behavior and caps the baseline.' },
+  { path: 'pmo-portal/pages/procurement/ProcurementDecisionZone.tsx', rule: 'raw-control', count: 6, reason: 'Existing approval form controls are outside A1 ownership; this guard preserves their behavior and caps the baseline.' },
   { path: 'pmo-portal/pages/procurement/ProcurementFilesSubsection.tsx', rule: 'raw-control', count: 1, reason: 'Existing form control is outside A1 ownership and is retained as shipped.' },
   { path: 'pmo-portal/pages/procurement/SubcontractBillLines.tsx', rule: 'raw-control', count: 1, reason: 'Existing form control is outside A1 ownership and is retained as shipped.' },
   { path: 'pmo-portal/pages/procurement/VendorBillTaxFields.tsx', rule: 'raw-control', count: 1, reason: 'Existing form control is outside A1 ownership and is retained as shipped.' },
@@ -70,7 +70,7 @@ const STRUCTURAL_ALLOW = [
   { path: 'pmo-portal/pages/project-detail/tabs/DocumentsBulkBar.tsx', rule: 'raw-control', count: 1, reason: 'Existing bulk status control is outside A1 ownership and is retained as shipped.' },
   { path: 'pmo-portal/pages/project-detail/tabs/DocumentsDialogs.tsx', rule: 'raw-control', count: 1, reason: 'Existing document dialog control is outside A1 ownership and is retained as shipped.' },
   { path: 'pmo-portal/pages/project-detail/tabs/DocumentsToolbar.tsx', rule: 'raw-control', count: 3, reason: 'Existing document toolbar filters are outside A1 ownership and are retained as shipped.' },
-  { path: 'pmo-portal/pages/sales/DealParts.tsx', rule: 'raw-control', count: 3, reason: 'Existing sales form controls are outside A1 ownership and are retained as shipped.' },
+  { path: 'pmo-portal/pages/sales/DealParts.tsx', rule: 'raw-control', count: 2, reason: 'Existing sales form controls are outside A1 ownership and are retained as shipped.' },
   { path: 'pmo-portal/pages/sales/SalesParts.tsx', rule: 'raw-control', count: 1, reason: 'Existing sales filter is outside A1 ownership and is retained as shipped.' },
   { path: 'pmo-portal/src/auth/authFormPrimitives.tsx', rule: 'raw-control', count: 1, reason: 'Auth form primitive is outside this task scope and its native field remains untouched.' },
   { path: 'pmo-portal/src/components/builder/AIComposerModal.tsx', rule: 'raw-control', count: 1, reason: 'Existing builder composer control is outside A1 ownership and is retained as shipped.' },
@@ -82,11 +82,12 @@ const STRUCTURAL_ALLOW = [
   { path: 'pmo-portal/src/components/panel/QuestionChips.tsx', rule: 'raw-control', count: 1, reason: 'Existing question entry control is outside A1 ownership and is retained as shipped.' },
   { path: 'pmo-portal/src/components/procurement/ProcurementBlock.tsx', rule: 'raw-control', count: 3, reason: 'Existing procurement filters and selection control are retained; their screen-level work is outside A1 ownership.' },
   { path: 'pmo-portal/src/components/ui/DataTableDesktop.tsx', rule: 'raw-control', count: 1, reason: 'The shared table owns its native selection control to preserve the browser checkbox semantics.' },
+  { path: 'pmo-portal/src/components/ui/DateField.tsx', rule: 'raw-control', count: 2, reason: 'DateField owns the typed input and the coarse-pointer native date input that implement the shared date field.' },
   { path: 'pmo-portal/src/components/ui/FormFields.tsx', rule: 'raw-control', count: 6, reason: 'FormFields owns the native input, select and textarea elements that implement the shared field primitives.' },
   { path: 'pmo-portal/src/components/ui/TableControls.tsx', rule: 'raw-control', count: 1, reason: 'SearchMini owns the native search input so browser search semantics stay inside the shared control.' },
   { path: 'pmo-portal/components/IncidentFormModal.tsx', rule: 'raw-control', count: 1, reason: 'Existing incident form control is outside A1 ownership and is retained as shipped.' },
   { path: 'pmo-portal/components/project-status/ProjectTransitionConfirm.tsx', rule: 'raw-control', count: 1, reason: 'Existing transition form control is outside A1 ownership and is retained as shipped.' },
-  { path: 'pmo-portal/components/project-status/WinDetailsFields.tsx', rule: 'raw-control', count: 2, reason: 'Existing win detail controls are outside A1 ownership and are retained as shipped.' },
+  { path: 'pmo-portal/components/project-status/WinDetailsFields.tsx', rule: 'raw-control', count: 1, reason: 'Existing win detail controls are outside A1 ownership and are retained as shipped.' },
 ];
 
 const RULES = {

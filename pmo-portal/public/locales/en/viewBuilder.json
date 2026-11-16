@@ -51,5 +51,6 @@
     "goToDashboard": "Go to Dashboard",
     "invalidTitle": "This view's definition is invalid.",
     "invalidSub": "The view cannot be rendered because its specification is invalid."
-  }
+  },
+  "noPanels": "This view has no panels yet."
 }

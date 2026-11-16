@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import type { CrmActivityInput } from '@/src/lib/db/crmActivities';
-import { firstInstantOfZonedCalendarDay, formatCalendarDayInTimeZone } from '@/src/lib/format';
+import { firstInstantOfZonedCalendarDay, formatCalendarDayInTimeZone, formatDayYear } from '@/src/lib/format';
 import { getActiveLocale, resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const { activities, meetings, logActivity } = vi.hoisted(() => ({
@@ -89,7 +89,7 @@ describe('ContactActivityPanel date logging', () => {
     vi.setSystemTime(now);
     renderPanel();
     expect((screen.getByLabelText(/^date$/i) as HTMLInputElement).value)
-      .toBe(formatCalendarDayInTimeZone(now, getActiveLocale().timezone));
+      .toBe(formatDayYear(formatCalendarDayInTimeZone(now, getActiveLocale().timezone)));
 
     await submitLog('Follow-up call');
 

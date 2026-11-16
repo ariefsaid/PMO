@@ -241,7 +241,7 @@ export function ErpSetupChecklist(
                 {t('uxs07.setupUnavailableHelp', 'Readiness is unknown.')}
               </p>
               <Button variant='ghost' size='sm' className='mt-1 px-2' onClick={() => void setup.refetch()}>
-                {t('ux.retry', 'Retry')}
+                {t('ui.listState.retry', 'Retry')}
               </Button>
             </div>
             <a className={actionLink} href='/administration/accounting#budget-account-map'>
@@ -419,7 +419,7 @@ export function ErpSetupChecklist(
                 size='sm'
                 onClick={() => setMatchReviewOpen(true)}
               >
-                {t('integrations.connect.matchRecords', 'Match records')}
+                {t('administration:integrations.connect.matchRecords', 'Match records')}
               </Button>
               <a className={actionLink} href='/companies'>
                 {t('integrations.erpSetup.reviewParties', 'Review companies')}

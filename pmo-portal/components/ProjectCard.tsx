@@ -86,9 +86,9 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
           <dt className="text-muted-foreground">{t('projects.columns.contract', 'Contract')}</dt>
           <dd data-testid="project-card-contract" className="min-w-0 font-semibold tabular">
             {contract == null ? null : (
-              <span className="inline-flex items-baseline gap-x-1 whitespace-nowrap">
-                {formatCurrency(contract, currency)}
-                <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-sm font-normal text-muted-foreground" />
+              <span className="flex min-w-0 flex-col">
+                <span className="whitespace-nowrap">{formatCurrency(contract, currency)}</span>
+                <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="block min-w-0 break-words text-sm font-normal text-muted-foreground" />
               </span>
             )}
           </dd>

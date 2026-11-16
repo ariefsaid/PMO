@@ -92,10 +92,10 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     const heading = screen.getByRole('heading', { name: 'Contract' });
     const section = heading.closest('section')!;
     expect(section).toHaveTextContent('IDR');
-    // Each tile figure names its currency; the compact form carries the exact amount as its title.
-    expect(within(section).getByText('IDR 500K')).toBeInTheDocument();
-    expect(within(section).getByText('IDR 12.3K')).toBeInTheDocument();
-    expect(within(section).getByText('IDR 10K')).toBeInTheDocument();
+    // Each figure names its currency and reads in full (owner ruling: whole units, no compact form).
+    expect(within(section).getByText('IDR 500,000')).toBeInTheDocument();
+    expect(within(section).getByText('IDR 12,346')).toBeInTheDocument();
+    expect(within(section).getByText('IDR 10,000')).toBeInTheDocument();
     expect(within(section).getByText('Invoiced')).toBeInTheDocument();
     expect(within(section).getByText('Paid')).toBeInTheDocument();
   });
@@ -104,7 +104,8 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     renderCascade();
 
     const contract = screen.getByRole('region', { name: 'Contract' });
-    expect(within(contract).getByText('IDR')).toBeInTheDocument();
+    // The currency is named on each figure ("IDR 500,000"), not on a separate line under the heading.
+    expect(within(contract).getAllByText(/^IDR /).length).toBeGreaterThan(0);
     expect(within(contract).queryByText(/excl\. PPN/)).not.toBeInTheDocument();
   });
 
@@ -125,7 +126,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     await user.type(screen.getByLabelText('Contract reference'), 'typed contract note');
     const contractPanel = screen.getByRole('heading', { name: 'Contract' }).closest('section');
     expect(contractPanel).not.toBeNull();
-    expect(within(contractPanel!).getByText('IDR 500K')).toBeVisible();
+    expect(within(contractPanel!).getByText('IDR 500,000')).toBeVisible();
 
     h.boq = { data: undefined, isPending: false, isError: true, refetch: refetchBoq };
     h.billing = { data: undefined, isPending: false, isError: false, refetch: refetchBilling };
@@ -146,10 +147,10 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
   it('labels contract value and omits its self-comparison bar', () => {
     renderCascade();
     const cascade = within(screen.getByRole('list', { name: 'Contract' }));
-    const figure = cascade.getByRole('listitem', { name: /Contract value IDR\s500K/ });
+    const figure = cascade.getByRole('listitem', { name: /Contract value IDR\s500,000/ });
 
     expect(within(figure).getByText('Contract value')).toBeVisible();
-    expect(within(figure).getByText('IDR 500K')).toBeVisible();
+    expect(within(figure).getByText('IDR 500,000')).toBeVisible();
     expect(within(figure).queryByRole('progressbar', { name: 'Contract' })).not.toBeInTheDocument();
   });
 

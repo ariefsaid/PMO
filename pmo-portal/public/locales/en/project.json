@@ -260,7 +260,7 @@
           "title": "Create this claim's invoice?"
         },
         "confirmRaise": {
-          "figures": "Claimed {{gross}} · down payment recovered {{recovery}} · net {{net}} (excl. PPN)",
+          "netExclTax": "Net (excl. PPN)",
           "body": "An ERP sales invoice draft is created from this claim. A different Admin or Finance user submits it.",
           "confirm": "Create ERP invoice",
           "title": "Raise this claim's invoice?"
@@ -478,7 +478,7 @@
       "contractSourceBoq": "Sum of contract quantities multiplied by unit rates from the project BoQ.",
       "contractSourceRecord": "Approved contract value from the project record.",
       "contractUnavailable": "Contract value is not recorded.",
-      "ordered": "Ordered",
+      "ordered": "In work orders",
       "orderedSource": "Sum of issued work-order allocations multiplied by BoQ unit rates.",
       "delivered": "Delivered",
       "deliveredSource": "Sum of accepted quantities multiplied by BoQ unit rates.",
@@ -500,9 +500,9 @@
       "marginOutRestricted": "Gross margin is hidden because some spending is restricted.",
       "marginOutActuals": "Gross margin is left out until spending is linked for every budget category.",
       "marginOutNoInvoices": "Gross margin starts with the first invoice in the project currency.",
-      "leadTooltip": "Invoiced amount as a share of the contract. Source: non-draft, non-cancelled invoices in the project currency.",
-      "leadInvoiced": "{{percent}}% invoiced",
-      "leadPaid": "{{percent}}% paid",
+      "receivedCaption": "Received {{amount}}",
+      "ofBudget": "of {{amount}} budget",
+      "shareOfContract": "{{percent}}% of contract",
       "cascadeLabel": "Contract to payment",
       "invoicesChecking": "Checking invoices…",
       "invoicedOut": "Invoiced is left out until every invoice amount is known.",
@@ -510,7 +510,8 @@
       "cashIncomplete": "Cash received is left out until every receipt is allocated to an invoice.",
       "cashInvalid": "Cash received is left out because the receipt reading couldn't be verified.",
       "hiddenFigures": "Not shown: {{figures}}.",
-      "cashLead": "Received {{amount}}",
+      "cashReceivedFigure": "Received",
+      "cashReceivedSource": "Customer receipts matched to this project’s invoices.",
       "contractLocked": "read-only",
       "cashIncompleteShort": "Cash received (receipts not allocated to invoices)",
       "cashInvalidShort": "Cash received (receipt reading not verified)",
@@ -1156,5 +1157,41 @@
     "confirmDescriptionYear": "Replace ERP budget {{name}} for {{year}} with PMO’s active version? The ERP copy will be amended.",
     "confirmLabel": "Replace ERP budget"
   },
-  "pmoSpentCoverage": "Paid PMO purchase payments and internal equipment charges, pre-tax"
+  "pmoSpentCoverage": "Paid PMO purchase payments and internal equipment charges, pre-tax",
+  "documentCategory": {
+    "drawing": "Drawing",
+    "specification": "Specification",
+    "report": "Report",
+    "transmittal": "Transmittal",
+    "submittal": "Submittal",
+    "certificate": "Certificate",
+    "other": "Other",
+    "reference": "Reference"
+  },
+  "documentRevision": {
+    "title": "New revision",
+    "subtitle": "Create the next revision of this document. The file can be uploaded once the revision is created.",
+    "submit": "Create revision",
+    "section": "Revision details",
+    "fieldTitle": "Title",
+    "titlePlaceholder": "Document title",
+    "fieldCode": "Code",
+    "codePlaceholder": "e.g. DWG-001",
+    "fieldCategory": "Category",
+    "fieldRevision": "Revision",
+    "revisionPlaceholder": "e.g. B",
+    "fieldDate": "Document date"
+  },
+  "fileCell": {
+    "progress": "Upload progress for {{title}}",
+    "cancelUpload": "Cancel upload for {{title}}",
+    "removeFailed": "Remove failed upload for {{title}}",
+    "remove": "Remove",
+    "uploadFor": "Upload file for {{title}}",
+    "upload": "Upload",
+    "replaceFor": "Replace file for {{title}}",
+    "replace": "Replace",
+    "downloadFor": "Download file for {{title}}",
+    "download": "Download file"
+  }
 }

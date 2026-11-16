@@ -61,8 +61,8 @@ export const MoneyFigure: React.FC<{ label: string; value: string; detail?: stri
 );
 
 export const QuantityFigure: React.FC<{ label: string; value: string; detail?: string }> = ({ label, value, detail }) => (
-  <div className="flex items-baseline justify-between gap-2">
-    <dt><Tooltip content={detail ?? 'Source: project billing records.'}><span className="cursor-help">{label}</span></Tooltip></dt>
-    <dd className="cursor-help tabular-nums text-foreground"><Tooltip content={detail ?? 'Source: project billing records.'}><span>{value}</span></Tooltip></dd>
+  <div className="min-w-0">
+    <dt className="text-sm text-muted-foreground"><Tooltip content={detail ?? 'Source: project billing records.'}><span className="cursor-help">{label}</span></Tooltip></dt>
+    <dd className="mt-1 w-fit cursor-help text-group font-semibold tabular-nums text-foreground"><Tooltip content={detail ?? 'Source: project billing records.'}><span>{value}</span></Tooltip></dd>
   </div>
 );

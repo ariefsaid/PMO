@@ -134,7 +134,9 @@
         "unknownCount_other": "{{count}} balances unknown",
         "unknownNote_one": "{{count}} invoice has no amount and is left out of the total",
         "unknownNote_other": "{{count}} invoices have no amount and are left out of the total",
-        "oldestBasis": "since invoice date"
+        "oldestBasis": "since invoice date",
+        "unknownSupplierInvoices_one": "{{count}} invoice, supplier not recorded",
+        "unknownSupplierInvoices_other": "{{count}} invoices, supplier not recorded"
       },
       "attention": {
         "finance": "Needs attention",

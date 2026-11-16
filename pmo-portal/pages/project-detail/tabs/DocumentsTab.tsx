@@ -42,6 +42,7 @@ import { buildDocumentRegisterColumns, buildDocumentMobileCardDetails } from './
 import { buildDocumentRowMenu } from './documentRowMenu';
 import DocumentsToolbar, { type DocumentAddOption } from './DocumentsToolbar';
 import DocumentsBulkBar from './DocumentsBulkBar';
+import { documentCategoryLabel } from '@/src/lib/documentCategories';
 import DocumentsDialogs, { transitionActionLabel } from './DocumentsDialogs';
 
 /** Rows per register page (the shared list pager's page size). */
@@ -159,7 +160,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     [orgProfiles],
   );
   const categoryName = useCallback((doc: ProjectDocumentRow) =>
-    doc.category?.trim() || (isMicrosoftFolder(doc)
+    (doc.category?.trim() ? documentCategoryLabel(t, doc.category.trim()) : '') || (isMicrosoftFolder(doc)
       ? t('projectDetail.documents.category.microsoftFolders', 'Microsoft folders')
       : t('projectDetail.documents.category.uncategorized', 'Uncategorized')), [t]);
   const categories = useMemo(

@@ -39,7 +39,8 @@
   },
   "table": {
     "selectRow": "Pilih {{row}}",
-    "selectAllRows": "Pilih semua baris"
+    "selectAllRows": "Pilih semua baris",
+    "emptyDefault": "Belum ada data"
   },
   "budgetUsedHelp": "Pengeluaran sebagai bagian dari anggaran, sebelum pajak",
   "budgetConsumption": "{{used}} dari anggaran Aktif {{budget}} sebelum pajak",
@@ -147,5 +148,9 @@
     "next": "Berikutnya",
     "nextAria": "Halaman berikutnya",
     "page": "Halaman {{page}}"
+  },
+  "calendar": {
+    "startAria": "{{project}} — mulai",
+    "endAria": "{{project}} — selesai"
   }
 }

@@ -3,12 +3,13 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import {
   Button,
+  buttonClasses,
   Drawer,
   StatusPill,
   Tooltip,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
-import { formatCurrency, formatDay, formatNumberExact } from '@/src/lib/format';
+import { formatCurrency, formatDay, formatNumberExact, formatTableMoney } from '@/src/lib/format';
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
 import type { WorkOrderAcceptanceWithLines } from '@/src/lib/db/workOrderAcceptances';
 import type { ProgressClaimWithInvoice } from '@/src/lib/db/progressBilling';
@@ -26,7 +27,7 @@ export const DeliverySelectorDrawer: React.FC<{
 }> = ({ open, candidates, onClose, onPick }) => {
   const { t } = useTranslation('project');
   if (!open) return null;
-  return <Drawer open title={t('projectDetail.workOrders.action.recordDelivery', 'Record delivery')} onClose={onClose}>
+  return <Drawer open width="lg" title={t('projectDetail.workOrders.action.recordDelivery', 'Record delivery')} onClose={onClose}>
     <div className="flex flex-col gap-2 p-4">
       <p className="text-sm text-muted-foreground">{t('projectDetail.workOrders.delivery.chooseOrder', 'Choose the customer order receiving this delivery.')}</p>
       {candidates.map((order) => <Button key={order.id} variant="outline" className="justify-start" onClick={() => onPick(order)}>{order.wo_number ?? order.title} · {order.title}</Button>)}
@@ -55,13 +56,13 @@ export const WorkOrderLineDrawer: React.FC<{
   const history = (acceptancesByWo.get(selected.order.id) ?? []).flatMap((acceptance) => acceptance.lines
     .filter((line) => line.boq_item_id === selected.allocation.boqItemId)
     .map((line) => ({ acceptance, quantity: Number(line.quantity) })));
-  return <Drawer open title={selected.item?.description ?? selected.allocation.boqItemId}
+  return <Drawer open width="lg" title={selected.item?.description ?? selected.allocation.boqItemId}
     subtitle={`${selected.item?.item_code ?? ''}${selected.item?.unit ? ` · ${selected.item.unit}` : ''}`}
     status={<StatusPill record="workOrder" state={selected.order.status} />}
     onClose={onClose}
     headerActions={<div className="flex flex-wrap items-center gap-2">
       {!lineReadsPending && !lineReadsFailed && may('create', 'workOrderLine', { record: { status: selected.order.status } }) && <Button variant="outline" size="sm" onClick={() => onAllocateLines(selected.order)}>{t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Allocate contract lines')}</Button>}
-      <Link className="inline-flex min-h-10 items-center text-sm font-medium text-primary-text underline underline-offset-2" to={`/projects/${encodeURIComponent(projectId)}/work-orders?wo=${encodeURIComponent(selected.order.id)}`} onClick={onClose}>
+      <Link className={buttonClasses('outline', 'sm')} to={`/projects/${encodeURIComponent(projectId)}/work-orders?wo=${encodeURIComponent(selected.order.id)}`} onClick={onClose}>
         {t('projectDetail.drawer.openFullPage', 'Open full page')}
       </Link>
     </div>}>
@@ -111,12 +112,12 @@ export const WorkOrderPoDrawer: React.FC<{
 }> = ({ row, canViewBilling, currency, projectId, onClose, onEdit }) => {
   const { t } = useTranslation('project');
   const may = usePermission();
-  return <Drawer open title={t('projectDetail.workOrders.action.viewPo', 'View customer PO')} subtitle={row.title}
+  return <Drawer open width="lg" title={t('projectDetail.workOrders.action.viewPo', 'View customer PO')} subtitle={row.title}
     status={<StatusPill record="workOrder" state={row.status} />}
     onClose={onClose}
     headerActions={<div className="flex flex-wrap items-center gap-2">
       {may('edit', 'workOrder', { record: { status: row.status } }) && <Button variant="outline" size="sm" onClick={() => onEdit(row)}>{t('projectDetail.workOrders.action.editOrder', 'Edit order')}</Button>}
-      <Link className="inline-flex min-h-10 items-center text-sm font-medium text-primary-text underline underline-offset-2" to={`/projects/${encodeURIComponent(projectId)}/work-orders?wo=${encodeURIComponent(row.id)}`} onClick={onClose}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>
+      <Link className={buttonClasses('outline', 'sm')} to={`/projects/${encodeURIComponent(projectId)}/work-orders?wo=${encodeURIComponent(row.id)}`} onClick={onClose}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>
     </div>}>
     <dl className="space-y-4 p-4 text-sm">
       <div><dt className="text-sm text-muted-foreground">{t('projectDetail.workOrders.clientPo', 'Customer PO')}</dt><dd className="mt-1 font-medium">{row.client_po_number ?? '—'}</dd></div>
@@ -137,10 +138,10 @@ export const WorkOrderInvoiceDrawer: React.FC<{
   const { t } = useTranslation('project');
   const figures = invoiceBalanceFigures(invoice);
   const invoiceCurrency = invoice.currency || currency;
-  return <Drawer open title={invoice.si_number ?? t('projectDetail.cascade.invoiceDraft', 'Invoice draft')}
+  return <Drawer open width="lg" title={invoice.si_number ?? t('projectDetail.cascade.invoiceDraft', 'Invoice draft')}
     status={<StatusPill variant={invoice.status === 'Paid' ? 'won' : invoice.status === 'Unpaid' || invoice.status === 'Submitted' ? 'warn' : invoice.status === 'Cancelled' ? 'lost' : 'neutral'}>{statusLabel('salesInvoice', invoice.status, t)}</StatusPill>}
     onClose={onClose}
-    headerActions={<Link className="inline-flex min-h-10 items-center text-sm font-medium text-primary-text underline underline-offset-2" to={`/sales-invoices/${encodeURIComponent(invoice.id)}`} onClick={onClose}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>}>
+    headerActions={<Link className={buttonClasses('outline', 'sm')} to={`/sales-invoices/${encodeURIComponent(invoice.id)}`} onClick={onClose}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>}>
     <dl className="grid grid-cols-2 gap-4 p-4 text-sm">
       {invoice.invoice_date && <QuantityFigure label={t('projectDetail.cascade.invoiceDate', 'Date')} value={formatDay(invoice.invoice_date)} />}
       {invoice.amount !== null && <QuantityFigure label={t('projectDetail.cascade.invoiceAmount', 'Amount')} value={formatCurrency(invoice.amount, invoiceCurrency)} detail={t('projectDetail.cascade.source.invoiceAmount', 'Source: invoice amount mirrored from accounting.') } />}
@@ -166,26 +167,28 @@ export const WorkOrderClaimDrawer: React.FC<{
   onAttachEvidence: (claimId: string) => void;
 }> = ({ claim, canBill, canRaise = true, currency, projectId, documents = [], onClose, onRaise, onAttachEvidence }) => {
   const { t } = useTranslation('project');
-  return <Drawer open title={claim.kind === 'down_payment'
+  return <Drawer open width="lg" title={claim.kind === 'down_payment'
     ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment')
     : t('projectDetail.billing.claims.kind.progress', 'Progress')}
     subtitle={formatDay(claim.created_at)}
-    status={<StatusPill variant={claim.withdrawn_at ? 'lost' : claim.invoice?.status === 'Paid' ? 'won' : 'neutral'}>{claim.withdrawn_at ? t('projectDetail.billing.claims.withdrawn', 'Withdrawn') : claim.invoice?.status ?? t('projectDetail.billing.claims.notRaised', 'Not raised')}</StatusPill>}
+    status={<StatusPill variant={claim.withdrawn_at ? 'lost' : claim.invoice?.status === 'Paid' ? 'won' : 'neutral'}>{claim.withdrawn_at ? t('projectDetail.billing.claims.withdrawn', 'Withdrawn') : claim.invoice ? statusLabel('salesInvoice', claim.invoice.status, t) : t('projectDetail.billing.claims.notRaised', 'Not raised')}</StatusPill>}
     onClose={onClose}
     headerActions={<div className="flex flex-wrap items-center gap-2">
       {!claim.withdrawn_at && !claim.invoice && canBill && ((claim.evidence?.length ?? 0) > 0
         ? canRaise && <Button variant="primary" size="sm" onClick={() => onRaise(claim)}>{t('projectDetail.billing.claims.raise', 'Raise invoice')}</Button>
         : <Button variant="outline" size="sm" onClick={() => onAttachEvidence(claim.id)}>{t('projectDetail.billing.claims.attachEvidence', 'Attach evidence')}</Button>)}
-      <Link className="inline-flex min-h-10 items-center text-sm font-medium text-primary-text underline underline-offset-2" to={claim.invoice ? `/sales-invoices/${encodeURIComponent(claim.id)}` : `/projects/${encodeURIComponent(projectId)}/billing`} onClick={onClose}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>
+      <Link className={buttonClasses('outline', 'sm')} to={claim.invoice ? `/sales-invoices/${encodeURIComponent(claim.id)}` : `/projects/${encodeURIComponent(projectId)}/billing`} onClick={onClose}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>
     </div>}>
-    <dl className="grid grid-cols-2 gap-4 p-4 text-sm">
-      <QuantityFigure label={t('projectDetail.billing.claims.column.gross', 'Gross')} value={formatCurrency(Number(claim.gross_amount), currency)} detail={t('projectDetail.billing.claims.source.gross', 'Source: the progress claim gross amount, copied from accepted quantities and contract rates.') } />
-      <QuantityFigure label={t('projectDetail.billing.claims.column.recovery', 'DP recovery')} value={formatCurrency(Number(claim.dp_recovery_amount), currency)} detail={t('projectDetail.billing.claims.source.recovery', 'Source: the down-payment amount recovered on this claim.') } />
-      <QuantityFigure label={t('projectDetail.billing.claims.column.net', 'Net')} value={formatCurrency(claimNet(Number(claim.gross_amount), Number(claim.dp_recovery_amount)), currency)} detail={t('projectDetail.billing.claims.source.net', 'Computed as gross less down-payment recovery.') } />
-      <QuantityFigure label={t('projectDetail.billing.claims.column.evidence', 'Evidence')} value={formatNumberExact(claim.evidence?.length ?? 0)} detail={t('projectDetail.billing.claims.source.evidence', 'Source: linked evidence documents on the claim.') } />
+    <dl className="grid grid-cols-1 gap-4 p-4 text-sm sm:grid-cols-3">
+      <QuantityFigure label={t('projectDetail.billing.claims.column.gross', 'Gross')} value={formatTableMoney(claim.gross_amount, currency) ?? ''} detail={t('projectDetail.billing.claims.source.gross', 'Source: the progress claim gross amount, copied from accepted quantities and contract rates.') } />
+      <QuantityFigure label={t('projectDetail.billing.claims.column.recovery', 'DP recovery')} value={formatTableMoney(claim.dp_recovery_amount, currency) ?? ''} detail={t('projectDetail.billing.claims.source.recovery', 'Source: the down-payment amount recovered on this claim.') } />
+      <QuantityFigure label={t('projectDetail.billing.claims.column.net', 'Net')} value={formatTableMoney(claimNet(Number(claim.gross_amount), Number(claim.dp_recovery_amount)), currency) ?? ''} detail={t('projectDetail.billing.claims.source.net', 'Computed as gross less down-payment recovery.') } />
     </dl>
-    <section className="border-t border-border px-4 py-3">
-      <h3 className="text-sm font-semibold">{t('projectDetail.billing.claims.evidence', 'Evidence')}</h3>
+    <section aria-labelledby={`claim-evidence-${claim.id}`} className="border-t border-border p-4">
+      <h3 id={`claim-evidence-${claim.id}`} className="flex items-baseline gap-2 text-group font-semibold">
+        {t('projectDetail.billing.claims.evidence', 'Evidence')}
+        <Tooltip content={t('projectDetail.billing.claims.source.evidence', 'Source: linked evidence documents on the claim.')}><span className="cursor-help text-sm font-normal tabular-nums text-muted-foreground">{formatNumberExact(claim.evidence?.length ?? 0)}</span></Tooltip>
+      </h3>
       {(claim.evidence ?? []).length === 0
         ? <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.billing.claims.noEvidence', 'No evidence attached yet.')}</p>
         : <ClaimEvidenceList evidence={claim.evidence ?? []} projectId={projectId} documents={documents} />}

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { DataTable, ListState, type Column } from '@/src/components/ui';
 import type { UsageSummaryRow, OperatorUsageSummaryRow } from '@/src/lib/db/usage';
 import { PLATFORM_CURRENCY, formatCurrencyFine, formatNumber, formatUtcMonthYearFull } from '@/src/lib/format';
@@ -38,6 +39,7 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
   isError,
   onRetry,
 }) => {
+  const { t } = useTranslation('administration');
   if (isPending) {
     return (
       <div className="rounded-lg border border-border bg-card">
@@ -50,8 +52,8 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
     return (
       <ListState
         variant="error"
-        title="Couldn't load usage"
-        sub="The request failed. Check your connection and try again."
+        title={t('usage.errorTitle', "Couldn't load usage")}
+        sub={t('usage.errorSub', 'The request failed. Check your connection and try again.')}
         onRetry={onRetry}
       />
     );
@@ -62,8 +64,8 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
       <ListState
         variant="empty"
         icon="admin"
-        title="No usage yet"
-        sub="Agent usage appears here once your workspace starts using the assistant."
+        title={t('usage.emptyTitle', 'No usage yet')}
+        sub={t('usage.emptySub', 'Agent usage appears here once your workspace starts using the assistant.')}
       />
     );
   }
@@ -80,19 +82,19 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
     // The RPC's month bucket is a UTC month-start DATE; a raw `2026-07-01` is an ISO string on
     // screen (ux/1110 rule 1), so it goes through the shared UTC-pinned month formatter — the same
     // UTC pin the sibling agent-cost dashboard uses for its month buckets.
-    { key: 'month', header: 'Month', cell: (r) => monthBucket(r.month) },
-    { key: 'action', header: 'Action', cell: (r) => r.action },
-    { key: 'runs', header: 'Runs', cell: (r) => formatNumber(r.run_count) },
+    { key: 'month', header: t('usage.month', 'Month'), cell: (r) => monthBucket(r.month) },
+    { key: 'action', header: t('usage.action', 'Action'), cell: (r) => r.action },
+    { key: 'runs', header: t('usage.runs', 'Runs'), cell: (r) => formatNumber(r.run_count) },
     {
       key: 'tokens',
-      header: 'Tokens',
+      header: t('usage.tokens', 'Tokens'),
       cell: (r) => `${formatNumber(r.prompt_tokens)} / ${formatNumber(r.completion_tokens)}`,
     },
     ...(hasProviderCost
       ? [
           {
             key: 'providerCost',
-            header: 'Provider cost',
+            header: t('usage.providerCost', 'Provider cost'),
             keepWhenBlank: true,
             // `in` tests key presence (the org row lacks this column entirely); it does NOT test null.
             // The RPC returns null when provider pricing is unconfigured, and formatting null
@@ -104,9 +106,9 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
           } as Column<UsageRow>,
         ]
       : []),
-    { key: 'cost', header: 'Cost (USD)', cell: (r) => formatCurrencyFine(r.cost, PLATFORM_CURRENCY) },
+    { key: 'cost', header: t('usage.cost', 'Cost (USD)'), cell: (r) => formatCurrencyFine(r.cost, PLATFORM_CURRENCY) },
     ...(hasMargin
-      ? [{ key: 'margin', header: 'Margin', cell: (r: UsageRow) => (r.margin_usd === null ? '—' : formatCurrencyFine(r.margin_usd, PLATFORM_CURRENCY)) } as Column<UsageRow>]
+      ? [{ key: 'margin', header: t('usage.margin', 'Margin'), cell: (r: UsageRow) => (r.margin_usd === null ? '—' : formatCurrencyFine(r.margin_usd, PLATFORM_CURRENCY)) } as Column<UsageRow>]
       : []),
   ];
 
@@ -115,7 +117,7 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
       <DataTable<UsageRow> rows={rows} columns={columns} rowKey={(r) => `${r.month}-${r.owner_id}-${r.action}`} tableId="administrationusage-table" />
       {!hasMargin && (
         <p className="mt-2 text-control text-muted-foreground">
-          Pricing not yet configured — margin will appear here once a per-credit USD rate is set.
+          {t('usage.pricingNote', 'Pricing not yet configured — margin will appear here once a per-credit USD rate is set.')}
         </p>
       )}
     </div>

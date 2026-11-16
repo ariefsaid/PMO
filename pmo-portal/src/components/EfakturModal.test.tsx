@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { EfakturModal } from './EfakturModal';
+import userEvent from '@testing-library/user-event';
+import { latestPickableDay } from '@/test/dateField';
 
 describe('EfakturModal', () => {
   it('AC-EFK-004 exposes labelled optional fields and saves normalized values, number and date together', async () => {
@@ -51,7 +53,7 @@ describe('EfakturModal', () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
-  it('AC-EFK-004 bounds the controls: number at 32 characters, date picker at the local today', () => {
+  it('AC-EFK-004 bounds the controls: number at 32 characters, date picker at the local today', async () => {
     render(
       <EfakturModal
         recordContext={<span>SI-2610070001</span>}
@@ -67,8 +69,8 @@ describe('EfakturModal', () => {
     expect(screen.getByLabelText('e-Faktur number')).toHaveAttribute('maxLength', '32');
     expect(screen.getByLabelText('e-Faktur number')).toHaveAttribute('placeholder', '010.000-26.12345678');
     expect(screen.getByLabelText('e-Faktur number')).toHaveValue('010-01');
-    expect(screen.getByLabelText('e-Faktur date')).toHaveAttribute('max', today);
-    expect(screen.getByLabelText('e-Faktur date')).toHaveValue('2026-10-01');
+    expect(screen.getByLabelText('e-Faktur date')).toHaveValue('1 Oct 2026');
+    expect(await latestPickableDay(userEvent.setup(), screen.getByLabelText('e-Faktur date'))).toBe(today);
   });
 
   it('DD-EFK-2 refuses a number without its date (and a date without its number) inline, naming why Save is off', () => {
