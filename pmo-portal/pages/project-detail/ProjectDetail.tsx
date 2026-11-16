@@ -46,8 +46,9 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs; showBudgetFigures
     ? formatDayRange(project.start_date, project.end_date)
     : t('projectDetail.facts.noDates', 'Dates not set');
   const updated = project.last_update ? formatRelativeTime(project.last_update) : null;
-  // The facts line (muted, one step under the identity line): facts joined by one middle dot on a
-  // desktop, wrapping with plain gaps on a phone. "Updated" is system information, so it sits at the right end.
+  // The facts line (muted, one step under the identity line): facts joined by one middle dot on a wide
+  // desktop, plain 16px gaps where the line can wrap (below xl), so no dot is left hanging at a line end.
+  // "Updated" is system information, so it sits at the right end.
   const facts = [
     manager && (
       <HeaderFact key="manager" label={t('projects:filterBuilder.manager', 'Project manager')} title={manager}>{manager}</HeaderFact>
@@ -69,10 +70,10 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs; showBudgetFigures
     ),
   ].filter(Boolean);
   return (
-    <section data-testid="project-facts-line" aria-label={t('projectDetail.facts.ariaLabel', 'Project facts')} className="flex w-full min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-control text-muted-foreground md:gap-x-2">
+    <section data-testid="project-facts-line" aria-label={t('projectDetail.facts.ariaLabel', 'Project facts')} className="flex w-full min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-control text-muted-foreground xl:gap-x-2">
       {facts.map((fact, i) => (
         <React.Fragment key={i}>
-          {i > 0 && <span aria-hidden="true" className="max-md:hidden">·</span>}
+          {i > 0 && <span aria-hidden="true" className="max-xl:hidden">·</span>}
           {fact}
         </React.Fragment>
       ))}
