@@ -41,13 +41,15 @@ already shipped in `transition_procurement` (active-member gate, SoD-a, SoD-b, r
    `project_budget_positions`, the reading the approval panel shows. Both reasons route to the senior set (§5). When
    spending is not known (no ledger reading, an unmapped category, an unusable amount, another currency) the
    request goes to the senior set (`spending_unknown`). A caller below approval rank is shown who could decide, with
-   no figures (`spending_not_visible`). The decider's own evaluation, under the line lock, is the decision.
+   no figures (`spending_not_visible`). The decider's own evaluation, under the project and line locks, is the decision.
    When the outcome is the senior set and the organisation has none configured, the project's named approvers decide; the flat matrix applies only when the project has no named approver either.
    The figures are read by `spend_approval_route`, and read once per list by the two list RPCs; one logic function
    takes them, is display-only, and is reached only from those three. All are SECURITY INVOKER.
-4. **Evaluated at approve time, under a per-line lock.** The decision reads the line at the moment of approval,
-   inside `pg_advisory_xact_lock` keyed on (project, category), so two concurrent approvals cannot both spend the
-   same headroom.
+4. **Evaluated at approve time, under a project lock and a per-line lock.** The decision reads the line at the moment
+   of approval, inside `pg_advisory_xact_lock` keyed on (project, category), so two concurrent approvals cannot both
+   spend the same headroom. The whole-project test reads every line of the project, so each approving function first
+   takes a project lock (keyed on the project), then the line lock, in that order everywhere; two approvals on
+   different lines of one project therefore run one after the other.
 5. **Fail toward the senior set, then to an Admin.** Anything that makes "within budget" unknowable (no category,
    no Active budget, mixed currency, a negative or unknown amount) routes to the senior set. A configured project set
    with nobody eligible escalates to the senior set; a configured senior set with nobody eligible leaves the decision

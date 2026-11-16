@@ -4,7 +4,7 @@
 -- AC-APR-050 line test · AC-APR-051 project test · AC-APR-052 spending unknown · AC-APR-053 below approval rank ·
 -- AC-APR-054 the list reads return the route spend_approval_route returns.
 begin;
-select plan(53);
+select plan(54);
 
 insert into organizations (id, name, default_currency) values
   ('a0923000-0000-0000-0000-00000000000a', 'Spend Route PMO', 'USD'),
@@ -202,10 +202,48 @@ reset role;
 select is(pg_temp.who('a0923000-0000-0000-0000-000000000f02'), array['a1', 'a2'],
   'AC-APR-053: the submit notifies the project approver and the senior set');
 
--- ── Case 6. The rank that may read spending is the rank that may approve.
-select is((select bool_and(public.holds_spend_approval_authority(r) = (r::text in ('Admin', 'Finance', 'Executive', 'Project Manager')))
-             from unnest(enum_range(null::public.user_role)) r), true,
-  'AC-APR-053: approval rank is exactly the roles that may read project spending');
+-- ── Case 6. The rank that may read spending is the rank that may approve: for every role, the two readers
+-- the route calls (project_budget_positions, project_finance_actuals) open exactly when holds_spend_approval_authority says so.
+insert into organizations (id, name, default_currency) values ('a0923000-0000-0000-0000-0000000009a0', 'Spend Route Rank', 'USD');
+insert into auth.users (id, email) values
+  ('a0923000-0000-0000-0000-0000000009a1', 'srs-rank-1@example.test'), ('a0923000-0000-0000-0000-0000000009a2', 'srs-rank-2@example.test'),
+  ('a0923000-0000-0000-0000-0000000009a3', 'srs-rank-3@example.test'), ('a0923000-0000-0000-0000-0000000009a4', 'srs-rank-4@example.test'),
+  ('a0923000-0000-0000-0000-0000000009a5', 'srs-rank-5@example.test');
+insert into profiles (id, org_id, full_name, email, role, status)
+select ('a0923000-0000-0000-0000-0000000009a' || r.n)::uuid, 'a0923000-0000-0000-0000-0000000009a0', 'SRS Rank ' || r.n,
+       'srs-rank-' || r.n || '@example.test', r.role, 'active'
+  from (select row_number() over () as n, e as role from unnest(enum_range(null::public.user_role)) e) r;
+insert into projects (id, org_id, name, status, currency) values
+  ('a0923000-0000-0000-0000-0000000009b0', 'a0923000-0000-0000-0000-0000000009a0', 'Rank gate', 'Ongoing Project', 'USD');
+insert into budget_versions (id, org_id, project_id, version, name, status, currency) values
+  ('a0923000-0000-0000-0000-0000000009c0', 'a0923000-0000-0000-0000-0000000009a0', 'a0923000-0000-0000-0000-0000000009b0', 1, 'v1', 'Draft', 'USD');
+insert into budget_line_items (org_id, budget_version_id, category, budgeted_amount)
+values ('a0923000-0000-0000-0000-0000000009a0', 'a0923000-0000-0000-0000-0000000009c0', 'Labor', 100);
+update budget_versions set status = 'Active' where id = 'a0923000-0000-0000-0000-0000000009c0';
+create function pg_temp.reads_positions(p_uid uuid) returns boolean language plpgsql as $$
+begin
+  perform pg_temp.act_as(p_uid);
+  return exists (select 1 from public.project_budget_positions(array['a0923000-0000-0000-0000-0000000009b0']::uuid[]));
+end $$;
+create function pg_temp.reads_actuals(p_uid uuid) returns boolean language plpgsql as $$
+begin
+  perform pg_temp.act_as(p_uid);
+  perform count(*) from public.project_finance_actuals('a0923000-0000-0000-0000-0000000009b0');
+  return true;
+exception when sqlstate '42501' then return false;
+end $$;
+set local role authenticated;
+select is((select array_agg(p.role::text order by p.role::text) filter (where pg_temp.reads_positions(p.id))
+             from profiles p where p.org_id = 'a0923000-0000-0000-0000-0000000009a0'),
+          (select array_agg(p.role::text order by p.role::text) filter (where public.holds_spend_approval_authority(p.role))
+             from profiles p where p.org_id = 'a0923000-0000-0000-0000-0000000009a0'),
+  'AC-APR-053: the roles that read the budget positions are exactly the roles that hold approval rank');
+select is((select array_agg(p.role::text order by p.role::text) filter (where pg_temp.reads_actuals(p.id))
+             from profiles p where p.org_id = 'a0923000-0000-0000-0000-0000000009a0'),
+          (select array_agg(p.role::text order by p.role::text) filter (where public.holds_spend_approval_authority(p.role))
+             from profiles p where p.org_id = 'a0923000-0000-0000-0000-0000000009a0'),
+  'AC-APR-053: the roles that read project spending are exactly the roles that hold approval rank (the rest get 42501)');
+reset role;
 
 -- A Finance member reads the same figures an Engineer is denied.
 set local role authenticated;
@@ -416,7 +454,7 @@ select is((select count(*)::int from pg_proc where pronamespace = 'public'::regn
              and proname in ('spend_approval_route', 'spend_approval_route_from_figures', 'spend_approval_project_figures',
                              'spend_approval_line_figures', 'get_procurement_approval_routes', 'get_expense_claim_approval_routes')), 0,
   'AC-APR-054: none of them is a definer');
-select is((select bool_and(has_function_privilege('anon', oid, 'execute')) from pg_proc
+select is((select bool_or(has_function_privilege('anon', oid, 'execute')) from pg_proc
             where pronamespace = 'public'::regnamespace and proname in ('spend_approval_route_from_figures', 'spend_approval_project_figures', 'spend_approval_line_figures')),
   false, 'AC-APR-054: anonymous callers cannot execute the figure functions');
 select ok((select obj_description('public.spend_approval_route_from_figures(uuid,uuid,public.budget_category,numeric,text,uuid,uuid,timestamptz,jsonb)'::regprocedure, 'pg_proc')) like 'DISPLAY ONLY%spend_approval_route%',

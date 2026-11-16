@@ -128,7 +128,7 @@ proposal numbers): the inputs that decide a route cannot be steered by the perso
   unchanged and in their current order.
 - **FR-APR-017** Where the caller is an Admin, the system shall allow the decision regardless of route (DD-APR-5).
 - **FR-APR-018** When two approvals on the same project + category line run concurrently, the system shall
-  serialize their classification (a transaction-scoped lock keyed on the line) so both cannot fit the same headroom.
+  serialize their classification (a transaction-scoped lock keyed on the line, taken after one keyed on the project, because the project test reads every line) so both cannot fit the same headroom.
 - **FR-APR-019** When a `Requested → Approved|Rejected` transition succeeds, the system shall write an
   `audit_events` row `procurement.approval_route` with `to`, `route`, `reason`, `request_amount`, `line_budget`,
   `line_used`, `budget_category`, `break_glass`.
@@ -230,6 +230,9 @@ pgTAP files live in `supabase/tests/`; unit tests in `pmo-portal/`.
 - **AC-APR-055** *Given* an organisation with a project approver and no senior set, *then* over-line, over-project and
   unknown-spending requests on that project route to that approver (`project`), with the true reason; with no named
   approver they stay `flat`; a named approver nobody can act as routes to an Admin.
+- **AC-APR-056** *Given* two approvals on different budget lines of one project, *then* the second waits for the first
+  (a project lock taken before the line lock by all four approving functions) and is judged against the first's
+  reserved figures, so both cannot pass the project test.
 - **AC-APR-054** *Given* every Requested purchase and Submitted claim and every kind of caller, *then*
   `get_procurement_approval_routes` and `get_expense_claim_approval_routes` return the route `spend_approval_route`
   returns; only those three read the figures.
