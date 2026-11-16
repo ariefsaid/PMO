@@ -834,7 +834,8 @@ export async function runRangeProbe(configInput, deps = {}) {
   const createSubmitRead = async (body) => submitAndRead(await createDraft(body));
 
   try {
-    const version = (await erp('/api/method/frappe.utils.change_log.get_versions'))?.message?.erpnext;
+    const versionEntry = (await erp('/api/method/frappe.utils.change_log.get_versions'))?.message?.erpnext;
+    const version = typeof versionEntry === 'string' ? versionEntry : versionEntry?.version;
     if (typeof version !== 'string' || Number(version.split('.')[0]) !== 16) fail('ERPNext major version is not 16');
 
     stage = 'create-project';

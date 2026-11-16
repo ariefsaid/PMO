@@ -7,7 +7,7 @@ import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 import { ErpPurchasesSection } from '../ErpPurchasesSection';
 import { ErpJournalLinesSection } from '../ErpJournalLinesSection';
 
-interface ProcurementTabProps {
+export interface ProcurementTabProps {
   projectId: string;
   onCountChange?: (count: number | null) => void;
 }
