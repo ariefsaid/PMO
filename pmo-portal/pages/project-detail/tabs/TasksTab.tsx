@@ -41,7 +41,7 @@ import type { ViewMode, TaskScope, BulkAction } from './taskViewModel';
  *  on every render even when nothing was pending. */
 const EMPTY_PENDING_PUSH: Record<string, PendingPushState> = {};
 
-interface TasksTabProps {
+export interface TasksTabProps {
   projectId: string;
   projectName?: string;
   onCountChange?: (count: number | null) => void;

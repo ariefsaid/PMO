@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import type { TFunction } from 'i18next';
 import { useExpensePostingReadiness } from '@/src/hooks/useExpensePostingReadiness';
-import { Card, CardHead, CardPad, ListState, StatusPill } from '@/src/components/ui';
+import { ListState, RecordSection, StatusPill } from '@/src/components/ui';
 import { statusVariantOf } from '@/src/lib/status/statusMap';
 import { repositories } from '@/src/lib/repositories';
 import type { ExpensePostingKind, ExpensePostingRow, ExpensePushState } from '@/src/lib/repositories/expensePostings';
@@ -58,7 +58,25 @@ function postingReason(t: TFunction, pushError: string): string {
  * claim has no postings (a standalone org, or an event before the org employed expenses), never blocks the page.
  * State is text plus a dot (Quiet-Status Rule), never colour alone.
  */
-export const ExpensePostingsCard: React.FC<{ claimId: string }> = ({ claimId }) => {
+/** The one muted line saying why nothing is posted (S-12). Lives in the record header; renders nothing when posting is active. */
+export const ExpensePostingNote: React.FC<{ claimId: string }> = ({ claimId }) => {
+  const { t } = useTranslation(['common', 'expenseClaims']);
+  const { data, isPending, isError } = useQuery<ExpensePostingRow[]>({
+    queryKey: ['expense-postings', claimId],
+    queryFn: () => repositories.expensePostings.listForClaim(claimId),
+  });
+  const readiness = useExpensePostingReadiness().state;
+  if (isPending || isError || (data && data.length > 0) || readiness === 'checking' || readiness === 'ready') return null;
+  return (
+    <p role="status">
+      {readiness === 'unavailable'
+        ? t('uxs12.expensePosting.cardUnknown', "Couldn't check whether this claim will reach accounting.")
+        : t('uxs12.expensePosting.cardInactive', "Kept in PMO only: expense posting to accounting is off.")}
+    </p>
+  );
+};
+
+export const ExpensePostingsCard: React.FC<{ claimId: string; noteInHeader?: boolean }> = ({ claimId, noteInHeader = false }) => {
   const { t } = useTranslation(['common', 'expenseClaims']);
   const { data, isPending, isError, refetch } = useQuery<ExpensePostingRow[]>({
     queryKey: ['expense-postings', claimId],
@@ -95,12 +113,12 @@ export const ExpensePostingsCard: React.FC<{ claimId: string }> = ({ claimId }) 
   if (!data || data.length === 0) {
     // S-12 (RF-060): silence is only right when posting is active or still being checked; otherwise say why
     // nothing is posted. Display only — nothing is queued or retried from here.
-    if (readiness === 'checking' || readiness === 'ready') return null;
+    if (noteInHeader || readiness === 'checking' || readiness === 'ready') return null;
     return (
       <p role="status" className="mb-4 text-control text-muted-foreground">
         {readiness === 'unavailable'
           ? t('uxs12.expensePosting.cardUnknown', "Couldn't check whether this claim will reach accounting.")
-          : t('uxs12.expensePosting.cardInactive', "Not posted to accounting: expense posting isn't active for this organization.")}
+          : t('uxs12.expensePosting.cardInactive', "Kept in PMO only: expense posting to accounting is off.")}
       </p>
     );
   }
@@ -110,9 +128,8 @@ export const ExpensePostingsCard: React.FC<{ claimId: string }> = ({ claimId }) 
     && !data.some((r) => r.posting === 'approval');
   return (
     // The same shell as the Receipts card beside it; the title is a real heading for screen-reader navigation.
-    <Card variant="bare" className="mb-4" aria-labelledby="expense-postings-heading" role="region">
-      <CardHead level={2} id="expense-postings-heading">{t('expenses.postings.title', 'Ledger postings')}</CardHead>
-      <CardPad>
+    <RecordSection title={t('expenses.postings.title', 'Ledger postings')}>
+      <div>
         {recordedBefore && (
           <p data-testid="expense-recorded-before-connection" className="mb-2 text-control text-muted-foreground">
             {t('expenseClaims:postings.recordedBeforeConnection', 'Recorded before the ERP connection')}
@@ -131,7 +148,7 @@ export const ExpensePostingsCard: React.FC<{ claimId: string }> = ({ claimId }) 
             </li>
           ))}
         </ul>
-      </CardPad>
-    </Card>
+      </div>
+    </RecordSection>
   );
 };

@@ -94,7 +94,7 @@ Deno.test('AC-EXP-121 a row that throws is recorded and the queue drains', async
   const r = await reconcileOrgExpensePostings(d.deps, { orgId: 'org-1' });
   assertEquals(r.errors, [{ intentId: '1', error: 'db down' }]);
   // Q3: the throw is recorded on the intent (failed — still retried) so the claim page and the Admin see it.
-  assertEquals(d.log, ['attempted:1,2', 'record:1:failed:db down:', 'drive:2']);
+  assertEquals(d.log, ['attempted:1', 'record:1:failed:db down:', 'attempted:2', 'drive:2']);
 });
 
 Deno.test('AC-EXP-121 a row whose failure cannot even be recorded still lets the queue drain', async () => {
@@ -107,15 +107,15 @@ Deno.test('AC-EXP-121 a row whose failure cannot even be recorded still lets the
   });
   const r = await reconcileOrgExpensePostings(d.deps, { orgId: 'org-1' });
   assertEquals(r.errors, [{ intentId: '1', error: 'db down' }]);
-  assertEquals(d.log, ['attempted:1,2', 'drive:2']);
+  assertEquals(d.log, ['attempted:1', 'attempted:2', 'drive:2']);
 });
 
-Deno.test('AC-EXP-121 every listed intent is stamped attempted before any is processed (round robin, NFR-EXP-013)', async () => {
+Deno.test('AC-EXP-121 every intent the pass reaches is stamped attempted right before it is processed (round robin, NFR-EXP-013; #2149: at its turn, never as a batch)', async () => {
   const d = deps([row('1'), row('2'), row('3')], {
     resolve: async () => ({ outcome: 'wait', reason: 'expense-approval-journal-not-posted' }),
   });
   await reconcileOrgExpensePostings(d.deps, { orgId: 'org-1' });
-  assertEquals(d.log, ['attempted:1,2,3']);
+  assertEquals(d.log, ['attempted:1', 'attempted:2', 'attempted:3']);
 });
 
 Deno.test('AC-EXP-121 an empty queue stamps nothing', async () => {

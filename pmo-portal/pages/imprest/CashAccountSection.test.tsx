@@ -69,14 +69,14 @@ describe('#1515 S6 cash account', () => {
   it.each(['PM', 'Engineer', 'Executive'])('a %s sees the unset state but no form (the can() gate)', (role) => {
     h.role = role;
     renderIt();
-    expect(screen.getByText(/not posted to the ERP/i)).toBeInTheDocument();
+    expect(screen.getByText(/stay in PMO/i)).toBeInTheDocument();
     expect(screen.queryByRole('textbox')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Set account' })).toBeNull();
   });
 
   it.each([
-    ['imprest-cash-account-locked', 'The cash account is already set or the float has moved cash', "This float's cash account can't be changed"],
-    ['imprest-cash-account-taken', 'That account is already used by another float of this organization', 'That account belongs to another float'],
+    ['imprest-cash-account-locked', 'The cash account is already set or the float has moved cash', "This site cash's cash account can't be changed"],
+    ['imprest-cash-account-taken', 'That account is already used by another float of this organization', 'That account belongs to another site cash'],
     ['imprest-cash-account-unfit', 'That account is not a cash account of the connected company', "That isn't a usable cash account"],
   ])('%s is refused with a plain message', async (code, message, headline) => {
     const user = userEvent.setup();
