@@ -514,6 +514,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
       <section
         ref={panelRef}
         {...roleProps}
+        data-testid="assistant-panel"
         // inert when closed (D-A2-6). React 19 maps boolean true → bare `inert`.
         inert={open ? undefined : true}
         onKeyDown={!isDesktop ? onTrapKeyDown : undefined}
@@ -582,6 +583,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
               type="button"
               onClick={toggleHistory}
               aria-label={t('history', 'History')}
+              data-testid="assistant-history"
               aria-expanded={historyOpen}
               className="touch-target grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-[17px]"
             >

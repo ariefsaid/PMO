@@ -190,7 +190,7 @@ test.describe('AC-AGP-023: converse, reload, transcript restored, second user ca
     await expect(page.getByRole('button', { name: 'Assistant' })).toBeVisible({ timeout: 10_000 });
     await page.getByRole('button', { name: 'Assistant' }).click();
 
-    const panel = page.getByRole('complementary', { name: /agent assistant/i });
+    const panel = page.getByTestId('assistant-panel');
     await expect(panel).toBeVisible({ timeout: 5_000 });
 
     const composer = panel.getByRole('textbox', { name: /ask a question/i });
@@ -206,11 +206,11 @@ test.describe('AC-AGP-023: converse, reload, transcript restored, second user ca
     await expect(page.getByRole('button', { name: 'Assistant' })).toBeVisible({ timeout: 10_000 });
     await page.getByRole('button', { name: 'Assistant' }).click();
 
-    const panelAfterReload = page.getByRole('complementary', { name: /agent assistant/i });
+    const panelAfterReload = page.getByTestId('assistant-panel');
     await expect(panelAfterReload).toBeVisible({ timeout: 5_000 });
 
     // Open History (ThreadList) and open Ann's seeded thread.
-    await panelAfterReload.getByRole('button', { name: 'History' }).click();
+    await panelAfterReload.getByTestId('assistant-history').click();
     const threadList = panelAfterReload.getByRole('list', { name: /recent conversations/i });
     await expect(threadList).toBeVisible({ timeout: 5_000 });
     await threadList.getByRole('button', { name: new RegExp(USER_MESSAGE.slice(0, 20)) }).click();
@@ -242,9 +242,9 @@ test.describe('AC-AGP-023: converse, reload, transcript restored, second user ca
     await expect(page.getByRole('button', { name: 'Assistant' })).toBeVisible({ timeout: 10_000 });
     await page.getByRole('button', { name: 'Assistant' }).click();
 
-    const bobPanel = page.getByRole('complementary', { name: /agent assistant/i });
+    const bobPanel = page.getByTestId('assistant-panel');
     await expect(bobPanel).toBeVisible({ timeout: 5_000 });
-    await bobPanel.getByRole('button', { name: 'History' }).click();
+    await bobPanel.getByTestId('assistant-history').click();
 
     // ThreadList.tsx always renders the <ul> (even when empty, with zero <li>s) alongside
     // an explicit "No conversations yet." message - an empty <ul> with no content is not
