@@ -150,6 +150,12 @@ and credit reservations are operational detail, not part of the definition.
 users) by an Operator, recorded with its grantor and an optional note. Credits are an
 append-only ledger: the balance is the sum of grants less usage, never an in-place edit.
 
+**Credit allocation** — the share of an organization's granted AI credit that an org-Admin
+sets aside for one user. Allocating divides credit the org already holds: it moves an amount
+between users, or between a user and the org's unallocated credit, and never changes the org's
+total. The allocations of an org never add up to more than its granted total. Removing a user
+returns their allocation to the org. Only an Operator grant raises the total. (#564.)
+
 **Organization feature entitlement** — one organization's enabled or disabled access to a
 named product feature. Entitlements are toggled per org by the Operator; a feature with no
 entitlement row resolves to its environment's default for that feature. A member's access

@@ -36,6 +36,11 @@ code=$(req "${hdr_service[@]}" "$BASE/rest/v1/profiles?select=org_id,status&id=e
 [ "$code" = 200 ] && jq -e --arg org "$B_ORG" 'type=="array" and length==1 and .[0].org_id==$org and .[0].status=="active"' "$BODY" >/dev/null 2>&1 || { echo 'isolation-probe: JWT_B profile must be active in B org' >&2; exit 4; }
 code=$(req "${hdr_service[@]}" "$BASE/rest/v1/platform_operators?select=user_id&user_id=eq.$uid&limit=1")
 [ "$code" = 200 ] && jq -e 'type=="array" and length==0' "$BODY" >/dev/null 2>&1 || { echo 'isolation-probe: JWT_B must be a verified non-operator' >&2; exit 4; }
+# Write mode only fires at an organisation that is marked as a test organisation: read it, never take the flag on trust.
+if [ "${PROBE_A_DISPOSABLE:-0}" = 1 ]; then
+  code=$(req "${hdr_service[@]}" "$BASE/rest/v1/organizations?select=lifecycle_state&id=eq.$A_ORG&limit=1")
+  [ "$code" = 200 ] && jq -e 'type=="array" and length==1 and .[0].lifecycle_state=="test"' "$BODY" >/dev/null 2>&1 || { echo 'isolation-probe: write mode needs tenant A to be a test organisation (lifecycle_state = test)' >&2; exit 4; }
+fi
 # Verify every supplied target before by-id RPCs can treat source-declared masking as denial.
 A_MEMBER_EMAIL=''
 while IFS=$'\t' read -r table pk id; do

@@ -6,8 +6,9 @@ import { budgetAccountIdentity } from './budgetAccountIdentity';
 
 const VID = '44444444-4444-4444-8444-444444444444';
 
-function fixture(oldStatus = 1, returnedName = 'OLD') {
+function fixture(oldStatus = 1, returnedName = 'OLD', busyOnce = false, sleep?: (ms: number) => Promise<void>) {
   let status = oldStatus;
+  let busy = busyOnce;
   const writes: string[] = [];
   const reads: string[] = [];
   const transport: typeof fetch = async (input, init) => {
@@ -26,6 +27,7 @@ function fixture(oldStatus = 1, returnedName = 'OLD') {
       return json(rows[String(table)]);
     }
     if (url.hostname !== 'erp.test') throw new Error(`Unexpected request ${url}`);
+    if (busy) { busy = false; return new Response('busy', { status: 503 }); }
     if (init?.method === 'PUT') { writes.push(decodeURIComponent(url.pathname.split('/').pop()!)); status = 2; }
     else reads.push(url.pathname);
     if (url.searchParams.has('filters')) return json({ data: [{ name: 'NEW', docstatus: 1 }] });
@@ -37,7 +39,7 @@ function fixture(oldStatus = 1, returnedName = 'OLD') {
     budget_intent: 'remove', budget_predecessor: 'OLD', outbox_identity: budgetAccountIdentity(VID, '2026', 'Salary'), line_items: [],
   } };
   const run = async () => {
-    const adapter = await resolveErpDispatchAdapter({ serviceClient: serviceClient as unknown as DispatchServiceClient, orgId: 'org', command, fetchImpl: transport, apiKey: 'fixture', apiSecret: 'fixture', doctypeBodies: DOCTYPE_BODIES });
+    const adapter = await resolveErpDispatchAdapter({ serviceClient: serviceClient as unknown as DispatchServiceClient, orgId: 'org', command, fetchImpl: transport, ...(sleep ? { sleep } : {}), apiKey: 'fixture', apiSecret: 'fixture', doctypeBodies: DOCTYPE_BODIES });
     return adapter.commit(command);
   };
   return { run, writes, reads };
@@ -61,5 +63,14 @@ describe('AC-BUD-122 exact archive predecessor through shipped factory and adapt
     const f = fixture(1, 'NEW');
     await expect(f.run()).rejects.toMatchObject({ code: 'commit-rejected' });
     expect(f.writes).toEqual([]);
+  });
+});
+
+describe('#2149 the caller\'s retry wait reaches the adapter\'s ERP client', () => {
+  it('a busy ERPNext answer is waited out with the wait the caller supplied (the sweep\'s budget-aware wait)', async () => {
+    const waits: number[] = [];
+    const f = fixture(1, 'OLD', true, async (ms) => { waits.push(ms); });
+    expect((await f.run()).externalRecordId).toBe('OLD');
+    expect(waits).toEqual([500]);
   });
 });

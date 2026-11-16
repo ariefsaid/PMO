@@ -612,10 +612,19 @@ jobs:
         run: node scripts/check-isolation-denominator.mjs --self-test
       - name: Isolation denominator guard
         run: node scripts/check-isolation-denominator.mjs
+      - name: Isolation proof self-test
+        run: scripts/isolation-proof.sh --self-test
 
       # pgTAP gate (0001..0060) — RLS, tenancy, SoD proofs.
       - name: pgTAP integration tests
         run: supabase test db
+
+      # Standing cross-org isolation proof (#612): two throwaway organisations on this stack (A disposable,
+      # B the attacker), the probe in read mode then write mode. Any leak, probe error, crashed probe or write
+      # probe skipped for lack of a disposable A, or a check or skip count off its expected number fails the job; the counts print in the log and the job summary.
+      # It removes both organisations on exit, so the steps after it see the database as pgTAP left it.
+      - name: Isolation proof (read and write, local stack)
+        run: scripts/with-db-lock.sh scripts/isolation-proof.sh
 
       - name: Capture rollback harness
         run: scripts/test-2195-capture-rollback.sh
@@ -669,6 +678,8 @@ jobs:
         run: scripts/with-db-lock.sh node scripts/test-stock-connect-rollback.mjs
       - name: Stock connect two-session race
         run: scripts/with-db-lock.sh node --test scripts/stock-connect-race.test.mjs
+      - name: AI credit allocation two-session race
+        run: scripts/with-db-lock.sh node --test scripts/credit-allocation-race.test.mjs
 
       # A push to `dev` is the full suite that backstops every PR's narrowed run; when it fails, say
       # which merge it ran on (a squash merge's subject ends in the PR number).
