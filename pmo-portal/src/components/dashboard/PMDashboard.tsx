@@ -117,7 +117,7 @@ export const PMDashboard: React.FC = () => {
     return [...byCurrency].map(([currency, amount]) => ({ currency, amount }));
   }, [projects]);
   const contract = moneyTileValue(projects.length === 0 ? null : contractTotals, orgCurrency,
-    (amount, currency) => t('home.otherContracts', '+ {{amount}} {{currency}} contracts', { amount, currency }));
+    (amount, currency) => t('home.otherContracts', '+ {{amount}} contracts', { amount, currency }));
   const approvedHours = sumAwaitingTimesheetHours(timesheetsQuery.data);
 
   const refresh = useCallback(() => {

@@ -313,7 +313,7 @@ describe('company home — executive (one question: is the company OK, what wait
     renderPage();
     const invoiced = tile('Invoiced');
     expect(flat(invoiced.textContent)).not.toMatch(/·/);
-    const second = within(invoiced).getByText('+ IDR 5.3M in IDR');
+    const second = within(invoiced).getByText('+ IDR 5.3M');
     expect(second).toHaveClass('block');
     expect(invoiced).toHaveTextContent('$7.7M');
   });
@@ -327,7 +327,7 @@ describe('company home — executive (one question: is the company OK, what wait
 
     const supplier = tile('Owed to suppliers');
     expect(within(supplier).getByText('$30K')).toBeInTheDocument();
-    const secondCurrency = within(supplier).getByText('+ IDR 12M in IDR');
+    const secondCurrency = within(supplier).getByText('+ IDR 12M');
     expect(secondCurrency).toHaveClass('block');
     expect(within(supplier).getByText('$30,000; IDR 12,000,000')).toHaveClass('sr-only');
   });

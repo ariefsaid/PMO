@@ -353,7 +353,7 @@ describe('Project Manager home (one question: what needs me, which of my project
     const tile = screen.getByTestId('kpi-my-contract-value');
     expect(tile).toHaveTextContent('$100K');
     // Owner ruling 2026-11-16: the other currency is its own labelled amount, never a bare line read as a conversion.
-    const otherCurrency = within(tile).getByText('+ IDR 2B IDR contracts');
+    const otherCurrency = within(tile).getByText('+ IDR 2B contracts');
     expect(otherCurrency).toHaveClass('block');
     expect(tile).toHaveTextContent(/\$100,000;\s*IDR\s*2,000,000,000/);
     expect(tile.textContent).not.toMatch(/2,100|2\.1B/);

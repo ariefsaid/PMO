@@ -1,7 +1,7 @@
 import React from 'react';
 import { formatMoneyLines, formatTileMoney } from '@/src/lib/format';
 
-/** How a second-currency line reads: "+ US$1.85M in USD". It is a separate amount, never a conversion. */
+/** How a second-currency line reads: "+ USD 1.85M contracts". It is a separate amount, never a conversion. */
 export type OtherCurrencyLine = (amount: string, currency: string) => string;
 
 /**
@@ -23,7 +23,7 @@ export function moneyTileValue(
   const lead = kept.some((row) => row.currency === home) ? home : kept[0].currency;
   const extra = [...new Set(kept.map((row) => row.currency))].filter((currency) => currency !== lead).map((currency) => {
     const amount = kept.filter((row) => row.currency === currency).reduce((sum, row) => sum + row.amount, 0);
-    return otherLine(formatTileMoney(amount, currency) ?? '', currency);
+    return otherLine(formatTileMoney(amount, currency, { code: true }) ?? '', currency);
   });
   return {
     value: <>

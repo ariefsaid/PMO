@@ -7,7 +7,7 @@ import { useFigureReport } from '@/src/components/ui/useFigureScope';
 import type { OverdueInvoiceNeeds } from '@/src/components/dashboard/restructure/useNeedsYou';
 
 // Each fact is a chip: its icon and colour say the state (clear, exception, waiting), the words say the count.
-const chipClass = 'inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full border border-border bg-card px-2.5 text-control text-foreground hover:bg-accent/40 touch-target touch-target-overlay focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
+const chipClass = 'inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full border border-border bg-card px-2.5 text-control text-foreground hover:bg-accent/40 touch-target focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 type ClauseTone = 'clear' | 'bad' | 'waiting';
 const TONE_ICON: Record<ClauseTone, { icon: IconName; cls: string }> = {
   clear: { icon: 'circle-check', cls: 'text-success' },

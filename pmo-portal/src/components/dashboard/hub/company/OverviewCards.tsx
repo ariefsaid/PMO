@@ -206,7 +206,7 @@ export const PurchasingCard: React.FC<{ counts: Array<{ status: ProcurementStage
                 <Link to={`/procurement?stage=${stage.toLowerCase()}`} aria-label={`${stageName(stage)}: ${countOf(stage)}`}
                   className="flex min-h-11 items-center justify-between gap-2 text-foreground min-[1200px]:flex-col min-[1200px]:items-start min-[1200px]:justify-start min-[1200px]:gap-0 hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                   <span className="min-w-0 text-control">{stageName(stage)}</span>
-                  <span className="text-metric font-semibold tabular">{countOf(stage)}</span>
+                  <span className="text-metric font-semibold tabular min-[1200px]:leading-none">{countOf(stage)}</span>
                 </Link>
               </li>
             ))}

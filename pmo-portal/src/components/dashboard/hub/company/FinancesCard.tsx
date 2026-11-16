@@ -34,7 +34,7 @@ const OwedFigure: React.FC<{
   const { t } = useTranslation('dashboard');
   const totals = split ? owedTotals(split) : [];
   const figure = moneyTileValue(totals.length > 0 ? totals : split && split.unknownBalances === 0 ? [{ currency, amount: 0 }] : null, currency,
-    (amount, other) => t('home.otherCurrency', '+ {{amount}} in {{currency}}', { amount, currency: other }));
+    (amount, other) => t('home.otherCurrency', '+ {{amount}}', { amount, currency: other }));
   const barCurrency = totals.find((row) => row.currency === currency) ? currency : totals[0]?.currency ?? currency;
   const shares = split ? owedShares(split, barCurrency) : null;
   // The shared split bar paint the known total split in two: not yet due, and overdue in the exception
@@ -82,16 +82,18 @@ const OwedFigure: React.FC<{
 const RankedBars: React.FC<{ rows: Array<{ id: string; name: string; value: number; label: string }>; ariaLabel: string }> = ({ rows, ariaLabel }) => {
   const max = Math.max(1, ...rows.map((row) => row.value));
   return (
-    <ol role="img" aria-label={`${ariaLabel}. ${rows.map((row) => `${row.name}: ${row.label}`).join('; ')}`} className="grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,22rem),1fr))] gap-x-[var(--space-panel-gap)] gap-y-3 p-0">
+    <ol aria-label={ariaLabel} className="grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,22rem),1fr))] gap-x-[var(--space-panel-gap)] gap-y-3 p-0">
       {rows.map((row) => (
-        <li key={row.id} className="grid gap-1.5">
-          <div className="flex items-baseline justify-between gap-4 text-control">
+        <li key={row.id} data-record-row className="grid gap-1.5">
+          <div aria-hidden className="flex items-baseline justify-between gap-4 text-control">
             <span className="min-w-0 break-words">{row.name}</span>
             <span className="shrink-0 font-semibold tabular">{row.label}</span>
           </div>
-          <div className="h-2 rounded-full bg-muted">
-            <div className="h-full rounded-full" style={{ width: `${Math.max(1, (row.value / max) * 100)}%`, background: chartTheme.series.primary }} />
-          </div>
+          {/* The bar is the row's accessible figure: its name says the project and the amount once. */}
+          <svg role="img" aria-label={`${row.name}: ${row.label}`} className="block h-2 w-full">
+            <rect width="100%" height="8" rx="4" className="fill-muted" />
+            <rect width={`${Math.max(1, (row.value / max) * 100)}%`} height="8" rx="4" style={{ fill: chartTheme.series.primary }} />
+          </svg>
         </li>
       ))}
     </ol>

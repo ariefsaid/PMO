@@ -914,8 +914,8 @@
     "hoursInTotal": "total {{hours}} jam",
     "pipelineMixedCurrency": "Jumlah pipeline berbobot disembunyikan untuk mata uang campuran.",
     "marginCurrencyMismatch": "Margin perkiraan disembunyikan saat mata uang kontrak berbeda dari mata uang anggaran.",
-    "otherContracts": "+ {{amount}} kontrak {{currency}}",
-    "otherCurrency": "+ {{amount}} dalam {{currency}}"
+    "otherContracts": "+ {{amount}} kontrak",
+    "otherCurrency": "+ {{amount}}"
   },
   "doneNotYetBilled": {
     "title": "Selesai, belum ditagih",

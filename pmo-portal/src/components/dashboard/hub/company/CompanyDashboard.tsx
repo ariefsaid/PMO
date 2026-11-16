@@ -179,8 +179,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     'left-to-bill': t('dashboard:hub.company.help.leftToBill', 'Signed contract value less invoices issued, in each contract currency.'),
   };
   // A second currency is its own labelled amount ("+ US$1.85M USD contracts"), never read as a conversion.
-  const otherContracts = (amount: string, currency: string) => t('home.otherContracts', '+ {{amount}} {{currency}} contracts', { amount, currency });
-  const otherAmount = (amount: string, currency: string) => t('home.otherCurrency', '+ {{amount}} in {{currency}}', { amount, currency });
+  const otherContracts = (amount: string, currency: string) => t('home.otherContracts', '+ {{amount}} contracts', { amount, currency });
+  const otherAmount = (amount: string, currency: string) => t('home.otherCurrency', '+ {{amount}}', { amount, currency });
   // One money tile from a figure: unknown (no amounts) draws nothing and is reported to the page's one hidden-figures line.
   const moneyTile = (figure: DashboardFigure | undefined, opts: TileOpts = {}) => {
     if (!figure) return null;
