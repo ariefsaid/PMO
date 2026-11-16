@@ -636,7 +636,7 @@ export const RULE_NUMBERS = {
 
 export function measureRules(N) {
   const main = document.querySelector('main');
-  const POPUP = '[role="dialog"], [role="listbox"], [role="menu"], [data-radix-popper-content-wrapper]';
+  const POPUP = '[role="dialog"], [role="listbox"], [role="menu"], [role="complementary"], [data-radix-popper-content-wrapper]';
   const isVisible = (el) => {
     const s = getComputedStyle(el);
     if (s.display === 'none' || s.visibility !== 'visible' || Number(s.opacity) === 0) return false;
