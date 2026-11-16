@@ -1941,7 +1941,6 @@
       "generatePurchaseOrder": "Generate Purchase Order",
       "markAsPaid": "Mark as Paid",
       "markVendorInvoiced": "Mark Supplier Invoiced",
-      "reject": "Reject",
       "selectQuote": "Compare and select a quote",
       "submitRequest": "Submit for approval"
     },
