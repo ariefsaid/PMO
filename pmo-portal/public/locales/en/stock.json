@@ -618,5 +618,10 @@
     "warehouse-unmapped": "Warehouse {{warehouse}} is not matched to an Odoo warehouse.",
     "location-ambiguous": "The Odoo stock location of warehouse {{warehouse}} is missing, archived or ambiguous.",
     "location-unavailable": "The Odoo stock location of warehouse {{warehouse}} is missing, archived or ambiguous."
+  },
+  "requestPurchase": {
+    "column": "Restock",
+    "action": "Request purchase",
+    "rowLabel": "Request purchase for {{item}}"
   }
 }

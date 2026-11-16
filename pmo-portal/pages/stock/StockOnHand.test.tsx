@@ -243,6 +243,16 @@ describe('StockOnHand (AC-STK-032 states, AC-STK-020 cost by data)', () => {
     expect(screen.queryByText('CEM')).not.toBeInTheDocument();
   });
 
+  it('AC-STK-RESTOCK-3 the below-level view offers "Request purchase" per row, and the plain list does not', async () => {
+    reorder.worklist.mockResolvedValue([{ itemId: 'i1', itemCode: 'CEM', itemName: 'Cement 50kg', unitCode: 'bag', warehouseId: 'w1', warehouseCode: 'SITE-A', qtyOnHand: '70', reorderLevel: '100', reorderQuantity: null }]);
+    master.listWarehouses.mockResolvedValue([{ id: 'w1', code: 'SITE-A', name: 'Site A', kind: 'site', project_id: 'p1', archived_at: null }]);
+    renderPage('Engineer');
+    await screen.findByText('CEM');
+    expect(screen.queryByRole('button', { name: /^Request purchase/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('checkbox', { name: /below reorder level/i }));
+    expect(await screen.findByRole('button', { name: 'Request purchase for CEM' })).toBeInTheDocument();
+  });
+
   it('the worklist is not fetched while the filter is off', async () => {
     renderPage();
     await screen.findByText('CEM');
