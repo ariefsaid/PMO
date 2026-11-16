@@ -121,10 +121,10 @@
   },
   "money": {
     "title": "Money · {{currency}}, before tax",
-    "requested": "Requested",
-    "ordered": "Ordered",
+    "requested": "Request total",
+    "ordered": "Order total",
     "invoiced": "Invoiced",
-    "paid": "Paid",
+    "paid": "Payments",
     "unpaid": "Unpaid",
     "noneRecorded": "None recorded",
     "noPurchaseRequest": "No purchase request: started at the order",

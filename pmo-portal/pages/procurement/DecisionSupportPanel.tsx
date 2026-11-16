@@ -72,7 +72,14 @@ export interface DecisionSupportPanelProps {
   status: ProcurementStatus;
   /** The procurement's own ISO-4217 currency. */
   currency: string;
+  /** Inside a record header's band: no frame of its own, a rule above it (the header panel is the frame). */
+  bare?: boolean;
 }
+
+/** The panel's frame: a card on its own, or a ruled block inside the record header's band. */
+const Frame: React.FC<{ bare: boolean; children: React.ReactNode }> = ({ bare, children }) => (bare
+  ? <section className="border-t border-border pt-4">{children}</section>
+  : <Card className="mb-4"><CardPad>{children}</CardPad></Card>);
 
 export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   projectId,
@@ -83,6 +90,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   captionInTooltip = false,
   status,
   currency,
+  bare = false,
 }) => {
   const { t } = useTranslation('procurement');
   // Committed and Reserved sum every request on the project. A role that reads only the requests it
@@ -135,29 +143,25 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   // ── Loading state ──────────────────────────────────────────────────────────
   if (isPending) {
     return (
-      <Card className="mb-4">
-        <CardPad>
+      <Frame bare={bare}>
           {heading}
           <div className="flex flex-col gap-2" aria-label="Loading budget impact">
             <div className="skel h-[18px] w-3/4" />
             <div className="skel h-[14px] w-1/2" />
           </div>
-        </CardPad>
-      </Card>
+        </Frame>
     );
   }
 
   // ── Error state ────────────────────────────────────────────────────────────
   if (isError) {
     return (
-      <Card className="mb-4">
-        <CardPad>
+      <Frame bare={bare}>
           {heading}
           <p className="text-control text-muted-foreground">
             Budget unavailable — budget impact can&apos;t be shown right now.
           </p>
-        </CardPad>
-      </Card>
+        </Frame>
     );
   }
 
@@ -166,14 +170,12 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   // ── No active budget ───────────────────────────────────────────────────────
   if (budgetAmount === 0) {
     return (
-      <Card className="mb-4">
-        <CardPad>
+      <Frame bare={bare}>
           {heading}
           <p className="text-control text-muted-foreground">
             No active budget set for this project — budget impact can&apos;t be shown.
           </p>
-        </CardPad>
-      </Card>
+        </Frame>
     );
   }
 
@@ -185,9 +187,9 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   if (!currency || !projectCurrency || !budgetCurrency ||
       (!requestInOtherCurrency && (currency !== projectCurrency || budgetCurrency !== projectCurrency))) {
     return (
-      <Card className="mb-4"><CardPad>{heading}
+      <Frame bare={bare}>{heading}
         <UnavailableComparison reason={t('decisionSupport.currencyUnavailable', 'Budget comparison unavailable for these currencies.')} />
-      </CardPad></Card>
+      </Frame>
     );
   }
 
@@ -215,9 +217,9 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       projectCurrency, budgetCurrency, requestCurrency: requestInOtherCurrency ? projectCurrency : currency,
     });
   } catch {
-    return <Card className="mb-4"><CardPad>{heading}
+    return <Frame bare={bare}>{heading}
       <UnavailableComparison reason={t('decisionSupport.amountUnavailable', 'Budget comparison unavailable for these amounts.')} />
-    </CardPad></Card>;
+    </Frame>;
   }
   const { afterRequest, otherReserved } = signal;
   // The budget-impact bar: what is already spoken for (spent + open orders + other reserved), then this purchase's share.
@@ -287,8 +289,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   const withoutSpending = inputs !== null && inputs.spent === null && !requestInOtherCurrency ? afterRequest : null;
 
   return (
-    <Card className="mb-4">
-      <CardPad>
+    <Frame bare={bare}>
         {heading}
 
         {/* The bar shows the same budget as spoken-for + this purchase (text beside it, so it never reads as
@@ -343,7 +344,6 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             {t('decisionSupport.openProject', 'Open project')}
           </Link>
         </div>
-      </CardPad>
-    </Card>
+      </Frame>
   );
 };
