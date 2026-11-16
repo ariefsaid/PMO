@@ -30,6 +30,7 @@ export function toIsoDay(year: number, month: number, day: number): string | nul
 export const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 export function parseDayInput(raw: string): string | null {
+  if (typeof raw !== 'string') return null; // a loose caller may hand over undefined
   const text = raw.trim();
   let m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(text);
   if (m) return toIsoDay(+m[1], +m[2], +m[3]);

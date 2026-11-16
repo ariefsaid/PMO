@@ -88,7 +88,7 @@ export const DateField: React.FC<DateFieldProps> = ({
   }, [value]);
 
   // A value that is not a real day (a stale draft) stays visible as it is, never as a dash.
-  const shown = parseDayInput(value) === value ? formatDayYear(value) : value;
+  const shown = parseDayInput(value) === value ? formatDayYear(value) : (value ?? '');
   const invalidMessage = unreadable
     ? t('dateField.invalid', { defaultValue: 'Enter a date like 16 Nov 2026' })
     : undefined;
