@@ -7,6 +7,7 @@ import { repositories } from '@/src/lib/repositories';
 import type { ConnectTier } from '@/src/lib/repositories/types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { Button, EntityFormModal, FormGrid, SelectField, TextField } from '@/src/components/ui';
+import { useAccountLinkNotes } from './useAccountLinkNotes';
 
 /**
  * #1599 ECX-4 (OQ-ECX-1): budget categories with no direct-cost account, created from PMO. The Admin or Finance user picks one
@@ -118,26 +119,11 @@ export function DirectCostAccounts({ categories, tier = 'erpnext' }: { categorie
   );
 }
 
-/** "<name> already exists under <group>; linked there." — the note the sweep keeps on an account it linked under another group. */
-const ELSEWHERE = /^(.+) already exists under (.+); linked there\.$/;
 
 /**
  * #1599 ECX-4 (ruling c): an account PMO linked under a different group than the one picked is said aloud where the link is made,
  * in the app's own words. A polite status region, so a screen reader announces it. Renders nothing when no account was linked elsewhere.
  */
-/** The notes on accounts PMO linked under a different group than the one picked (one shared query, so the checklist and the notes agree). */
-export function useAccountLinkNotes(tier: ConnectTier = 'erpnext', enabled = true) {
-  const applied = useQuery({
-    queryKey: ['integrations', 'account-link-notes', tier],
-    queryFn: () => repositories.integrations.listConnectProposals(tier, 'account', 'send', null, 'applied'),
-    enabled,
-    retry: false,
-  });
-  return (applied.data?.proposals ?? [])
-    .map((p) => ({ id: p.id, match: ELSEWHERE.exec(p.reason_text ?? '') }))
-    .filter((n): n is { id: string; match: RegExpExecArray } => n.match !== null);
-}
-
 export function AccountLinkNotes({ tier = 'erpnext', enabled = true }: { tier?: ConnectTier; enabled?: boolean }) {
   const { t } = useTranslation();
   const notes = useAccountLinkNotes(tier, enabled);
