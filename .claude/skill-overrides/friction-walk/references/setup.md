@@ -11,8 +11,11 @@ Write the commit you walked at the top of the report.
 
 - Local database: `scripts/with-db-lock.sh supabase start` (wedged under load:
   `scripts/supabase-start-lean.sh`). Reset only when the branch changes a migration or the seed.
-- The seed organisation has no ERP connected. An ERP appears only through
-  `pmo-portal/e2e/_connectScenario.ts`, which needs the ERP bed; a no-ERP walk needs nothing extra.
+- The seed organisation is not a no-ERP client: `supabase/seed.sql` gives it an active ERP binding for
+  budgets and dollar amounts, while billing and purchasing run in PMO. A walk for a client with no ERP
+  creates its own organisation (the client's currency and language, no binding) with its own users, a
+  project, a budget and stock, and says so in the report. A walk on the seed organisation states that
+  budget screens and "link from accounting" actions reflect a connected ERP.
 - Seeded logins and their roles: `supabase/seed.sql`; the shared password is `SEED_PASSWORD` in
   `pmo-portal/e2e/helpers.ts`.
 - Data a job needs and the seed lacks (a claim ready to invoice, stock on a site) is created through
