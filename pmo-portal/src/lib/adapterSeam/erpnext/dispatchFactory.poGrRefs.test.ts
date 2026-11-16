@@ -358,8 +358,8 @@ describe('erpnext/dispatchFactory — Slice 5 PO/GR cross-doctype ref resolution
   // A vendor bill names its ERP order line on every line the order carries, so ERPNext reads the order
   // (and its receipts) billed; PMO refuses what ERPNext would only refuse after leaving a draft.
   describe('vendor bill order lines', () => {
-    type OrderLine = { item_code: string; name: string; amount: number; billed_amt: number };
-    const LINE: OrderLine = { item_code: 'SPIKE-ITEM-1', name: 'po-line-1', amount: 400, billed_amt: 0 };
+    type OrderLine = { item_code: string; name: string; amount: number; billed_amt: number; qty?: number; rate?: number };
+    const LINE: OrderLine = { item_code: 'SPIKE-ITEM-1', name: 'po-line-1', amount: 400, billed_amt: 0, qty: 4, rate: 100 };
 
     function billFetch(lines: OrderLine[], order: Record<string, unknown> = {}) {
       return vi.fn(async (url: string, init?: RequestInit) => {
@@ -441,6 +441,41 @@ describe('erpnext/dispatchFactory — Slice 5 PO/GR cross-doctype ref resolution
       expect(writes(fetchImpl)).toHaveLength(0);
     });
 
+    // One item on two order lines: the bill line takes the order line with the same rate AND quantity, never a guess.
+    // (PMO's line order is not provably the ERP order's line order: the case lines are read without an ORDER BY, so a position tie-break is not offered.)
+    const TWO = (a: Partial<OrderLine>, b: Partial<OrderLine>): OrderLine[] => [
+      { ...LINE, name: 'po-line-1', qty: 2, rate: 100, amount: 200, ...a }, { ...LINE, name: 'po-line-2', qty: 2, rate: 100, amount: 200, ...b }];
+
+    it('a bill line whose item is on two order lines at different rates is billed against the line with its rate', async () => {
+      const items = await sentBillItems(billClient({ qty: 2, rate: 150 }), billFetch(TWO({}, { rate: 150, amount: 300 })));
+      expect(items[0]).toMatchObject({ purchase_order: 'PUR-ORD-2026-00001', po_detail: 'po-line-2' });
+      const first = await sentBillItems(billClient({ qty: 2, rate: 100 }), billFetch(TWO({}, { rate: 150, amount: 300 })));
+      expect(first[0]).toMatchObject({ po_detail: 'po-line-1' });
+    });
+
+    it('a bill line whose item is on two order lines at the same rate and different quantities is billed against the line with its quantity', async () => {
+      const items = await sentBillItems(billClient({ qty: 5, rate: 100 }), billFetch(TWO({}, { qty: 5, amount: 500 })));
+      expect(items[0]).toMatchObject({ po_detail: 'po-line-2' });
+    });
+
+    it('refuses a bill line whose item is on two order lines with the same rate and quantity, before any ERP write', async () => {
+      const fetchImpl = billFetch(TWO({}, {}));
+      await expect(adapterFor(billClient({ qty: 2, rate: 100 }), fetchImpl)).rejects.toThrow(/has SPIKE-ITEM-1 on more than one line; PMO cannot tell which one this bill settles/);
+      expect(writes(fetchImpl)).toHaveLength(0);
+    });
+
+    it('refuses a bill line whose item is on two order lines and matches neither in rate and quantity, before any ERP write', async () => {
+      const fetchImpl = billFetch(TWO({}, { rate: 150, amount: 300 }));
+      await expect(adapterFor(billClient({ qty: 2, rate: 120 }), fetchImpl)).rejects.toThrow(/on more than one line/);
+      expect(writes(fetchImpl)).toHaveLength(0);
+    });
+
+    it('the amount left is checked on the chosen order line, not the other one', async () => {
+      const fetchImpl = billFetch(TWO({}, { rate: 150, amount: 300, billed_amt: 200 }));
+      await expect(adapterFor(billClient({ qty: 2, rate: 150 }), fetchImpl)).rejects.toThrow(/has 100\.00 left to bill for SPIKE-ITEM-1; this bill asks 300\.00/);
+      expect(writes(fetchImpl)).toHaveLength(0);
+    });
+
     it('refuses a bill above what is left to bill on its order line, before any ERP write', async () => {
       const fetchImpl = billFetch([{ ...LINE, amount: 400, billed_amt: 300 }]);
       await expect(adapterFor(billClient({ qty: 2, rate: 100 }), fetchImpl)).rejects.toThrow(/has 100\.00 left to bill for SPIKE-ITEM-1; this bill asks 200\.00/);
@@ -472,6 +507,16 @@ describe('erpnext/dispatchFactory — Slice 5 PO/GR cross-doctype ref resolution
       for (const bad of [{ item_code: 'SPIKE-ITEM-1', qty: 1 }, { item_code: 'SPIKE-ITEM-1', qty: 'x', rate: 100 }]) {
         const fetchImpl = billFetch([LINE]);
         await expect(adapterFor(billClient(), fetchImpl, false, [bad])).rejects.toThrow(/quantity and rate must be numbers/);
+        expect(writes(fetchImpl)).toHaveLength(0);
+      }
+    });
+
+    it('refuses a linked line whose qty is not above zero or whose rate is below zero, null or empty, before any ERP write', async () => {
+      const bads = [{ qty: -1, rate: 100 }, { qty: 0, rate: 100 }, { qty: null, rate: 100 }, { qty: '', rate: 100 },
+        { qty: 1, rate: -5 }, { qty: 1, rate: null }, { qty: 1, rate: '' }];
+      for (const bad of bads) {
+        const fetchImpl = billFetch([LINE]);
+        await expect(adapterFor(billClient(), fetchImpl, false, [{ item_code: 'SPIKE-ITEM-1', ...bad }])).rejects.toThrow(/quantity and rate must be numbers/);
         expect(writes(fetchImpl)).toHaveLength(0);
       }
     });

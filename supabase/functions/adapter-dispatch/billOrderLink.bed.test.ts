@@ -50,9 +50,9 @@ async function countFor(type: string): Promise<number> {
 const SUPPLIER = `${bench.stamp} Supplier`;
 const ITEM = `${bench.stamp}-ITEM`;
 
-/** A vendor bill for `qty` of the probe item at 100, dispatched through the shipped handler against the bench. */
-async function dispatchBill(order: string, version: number, qty: number, key: string) {
-  const record = { id: PI_ID, procurementId: PROC_ID, vendorId: VENDOR_ID, erp_doc_kind: 'purchase-invoice', items: [{ item_code: ITEM, qty, rate: 100 }] };
+/** A vendor bill for `qty` of the probe item at `rate` (100), dispatched through the shipped handler against the bench. */
+async function dispatchBill(order: string, version: number, qty: number, key: string, rate = 100) {
+  const record = { id: PI_ID, procurementId: PROC_ID, vendorId: VENDOR_ID, erp_doc_kind: 'purchase-invoice', items: [{ item_code: ITEM, qty, rate }] };
   const routes = [
     ...supabaseBillRoutes({ po: order, site: bench.url, version, supplier: SUPPLIER, company: bench.company }),
     { label: 'real bench', host: new URL(bench.url).host, response: (call: FetchCall) => {
@@ -91,9 +91,9 @@ Deno.test({
     await erp('POST', '/api/resource/Supplier', { supplier_name: SUPPLIER, supplier_group: groups[0].name });
     await erp('POST', '/api/resource/Item', { item_code: ITEM, item_name: ITEM, item_group: itemGroups[0].name, stock_uom: 'Nos', is_stock_item: 1 });
 
-    async function makeOrder(date: string): Promise<{ name: string; line: string }> {
+    async function makeOrder(date: string, lines: Array<{ item_code: string; qty: number; rate: number }> = [{ item_code: ITEM, qty: 4, rate: 100 }]): Promise<{ name: string; line: string }> {
       const name = String((await erp('POST', '/api/resource/Purchase Order', { company: bench.company, supplier: SUPPLIER, transaction_date: date, schedule_date: date,
-        items: [{ item_code: ITEM, qty: 4, rate: 100, warehouse, schedule_date: date }] })).name);
+        items: lines.map((l) => ({ ...l, warehouse, schedule_date: date })) })).name);
       await erp('PUT', docPath('Purchase Order', name), { docstatus: 1 });
       const doc = await erp('GET', docPath('Purchase Order', name));
       return { name, line: (doc.items as Array<{ name: string }>)[0].name };
@@ -134,6 +134,21 @@ Deno.test({
     assertEquals(billC2.erpWrites.length, 0, 'the refusal made no ERPNext write');
     assertEquals(await countFor('Purchase Invoice'), billsBefore, 'no draft bill is left in ERPNext');
     assertEquals(Number((await order(c.name)).per_billed), 75);
+
+    // (e) one item on two order lines at different rates: the bill takes the line with its rate; that line reads billed, the other not.
+    const e = await makeOrder(day(-1), [{ item_code: ITEM, qty: 2, rate: 100 }, { item_code: ITEM, qty: 2, rate: 150 }]);
+    const billE = await dispatchBill(e.name, version, 2, crypto.randomUUID(), 150);
+    assertEquals(billE.status, 200, billE.body);
+    const orderE = (await order(e.name)).items as Array<{ rate: number; billed_amt: number }>;
+    console.log(`(e) two lines: ${orderE.map((l) => `rate ${l.rate} billed_amt ${l.billed_amt}`).join('; ')}`);
+    assertEquals(orderE.map((l) => [Number(l.rate), Number(l.billed_amt)]), [[100, 0], [150, 300]]);
+    // the same bill again at a rate neither line has is refused by PMO before any ERPNext write
+    const billsBeforeE = await countFor('Purchase Invoice');
+    const billE2 = await dispatchBill(e.name, version, 2, crypto.randomUUID(), 120);
+    assertEquals(billE2.status, 422, billE2.body);
+    assert(billE2.body.includes('on more than one line'), billE2.body);
+    assertEquals(billE2.erpWrites.length, 0);
+    assertEquals(await countFor('Purchase Invoice'), billsBeforeE);
 
     // (d) an order dated after today: ERPNext 16 refuses a bill dated before it, so PMO refuses first; ERPNext 15 has no such rule.
     const d = await makeOrder(day(3));

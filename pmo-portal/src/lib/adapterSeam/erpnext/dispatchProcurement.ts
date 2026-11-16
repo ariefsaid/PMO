@@ -104,7 +104,7 @@ async function resolveLinkedPoName(serviceClient: DispatchServiceClient, orgId: 
   return (data[0] as { erp_purchase_documents?: { erp_name?: string } } | undefined)?.erp_purchase_documents?.erp_name ?? null;
 }
 
-interface PoLine { name: string; item_code: string; amount: number; billed_amt: number }
+interface PoLine { name: string; item_code: string; amount: number; billed_amt: number; qty: number; rate: number }
 
 /** `GET` the PO doc: its lines (child-row `name` for the `purchase_order_item` a GR needs, R9 §4, and the
  *  `po_detail` a bill needs) and its date — the ONE place a PO doc is read for this purpose. */
@@ -114,7 +114,7 @@ async function readPo(client: ErpClientDeps, poName: string): Promise<{ lines: P
   const lines: PoLine[] = [];
   for (const item of items) {
     if (typeof item.item_code === 'string' && typeof item.name === 'string') {
-      lines.push({ name: item.name, item_code: item.item_code, amount: Number(item.amount) || 0, billed_amt: Number(item.billed_amt) || 0 });
+      lines.push({ name: item.name, item_code: item.item_code, amount: Number(item.amount) || 0, billed_amt: Number(item.billed_amt) || 0, qty: Number(item.qty), rate: Number(item.rate) });
     }
   }
   return { lines, date: typeof doc.transaction_date === 'string' ? doc.transaction_date : null };
@@ -140,14 +140,17 @@ function linkBillLines<T extends { item_code?: unknown; qty?: unknown; rate?: un
       const { po_item_child_name: _a, po_detail: _b, purchase_order: _c, ...free } = item as T & Record<string, unknown>;
       return free as T;
     }
-    if (onOrder.length > 1) {
+    // Item on several order lines: the one with this bill line's rate AND quantity; none or several such lines → refuse, never a guess.
+    // ponytail: no position tie-break: PMO reads the case lines without an ORDER BY, so its line order is not provably the ERP order's.
+    const sameLine = onOrder.length > 1 ? onOrder.filter((l) => l.qty === Number(item.qty) && l.rate === Number(item.rate)) : onOrder;
+    if (sameLine.length !== 1) {
       throw new AppError(`ERP order ${poName} has ${String(item.item_code)} on more than one line; PMO cannot tell which one this bill settles.`, 'commit-rejected');
     }
     linked += 1;
-    const [line] = onOrder;
+    const [line] = sameLine;
     if (checkLeft) {
       const lineCents = cents(Number(item.qty) * Number(item.rate));
-      if (!Number.isFinite(lineCents)) {
+      if (!Number.isFinite(lineCents) || !(Number(item.qty) > 0) || !(Number(item.rate) >= 0) || [item.qty, item.rate].some((v) => v === null || v === '')) {
         throw new AppError(`A bill line for ${String(item.item_code)} on ERP order ${poName} is missing its quantity or rate; quantity and rate must be numbers.`, 'commit-rejected');
       }
       const asked = (askedByLine.get(line.name) ?? 0) + lineCents;
