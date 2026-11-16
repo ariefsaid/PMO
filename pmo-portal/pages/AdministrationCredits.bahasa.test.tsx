@@ -48,7 +48,8 @@ describe('Administration Credits in Bahasa (#693 F-1)', () => {
     getOrgBalance.mockRejectedValue(new Error('boom'));
     renderPanel();
     expect(await screen.findByText('Gagal memuat saldo')).toBeInTheDocument();
-    expect(screen.getByText('Permintaan gagal. Periksa koneksi Anda dan coba lagi.')).toBeInTheDocument();
+    // The Retry action says 'coba lagi', so the body no longer repeats it (one 'Coba lagi' on screen).
+    expect(screen.getByText('Permintaan gagal. Periksa koneksi Anda.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Coba lagi' })).toBeInTheDocument();
   });
 
