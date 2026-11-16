@@ -632,7 +632,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         kind: 'text',
         rowHeader: true,
         // #1791: with Category shown the list must fit the scroller at 1440; the title clamps to two lines and the code · supplier line to one, each with its full text in `title`.
-        // #2434: 208 leaves the supplier room beside the uncut number (8px went to Category, owner 2026-11-16).
+        // #2434: 208 leaves the supplier room beside the uncut number; Category took 8px.
         size: 208,
         minSize: 208,
         sortKey: 'title',
