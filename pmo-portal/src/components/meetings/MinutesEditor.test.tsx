@@ -319,6 +319,12 @@ describe('MinutesEditor — floor: formatting toolbar (floor-tests/new-meeting.m
     // Select All only works once the editor owns focus; on a loaded shard the click can land
     // before ProseMirror has taken focus and the shortcut is then swallowed (empty selection).
     await waitFor(() => expect(box()).toHaveFocus(), { timeout: 5000 });
+    // Focus is not "settled": ProseMirror's focus handler arms a 20 ms timer (prosemirror-view handlers.focus)
+    // that re-writes the DOM selection from its own state when it differs from what the observer last saw. On a
+    // loaded shard that timer fires AFTER user-event's DOM select-all and BEFORE ProseMirror reads it, collapsing
+    // the range (CI run 43825017010: Ctrl+A delivered, no transaction, empty for 5 s). Timers fire in expiry
+    // order, so a 30 ms timer armed after the click always runs after ProseMirror's 20 ms one, however loaded.
+    await act(() => new Promise<void>((r) => setTimeout(r, 30)));
     await user.keyboard('{Control>}a{/Control}');
     // Precondition first: ProseMirror (the editor's own state, not jsdom's DOM selection, which
     // never reports the range) holds a non-empty selection. The floating toolbar only mounts after
