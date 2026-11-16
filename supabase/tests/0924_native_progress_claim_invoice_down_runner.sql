@@ -13,13 +13,14 @@ begin execute $down$
 -- payment item (the restored create_progress_claim and the ERP raise could not read it), or a native invoice made from a progress or
 -- down-payment claim (dropping the function would leave it with no way to be created again).
 do $$ begin
-  if exists (select 1 from public.progress_claims pc where pc.dp_item_code = 'DOWN-PAYMENT') then
+  if exists (select 1 from public.progress_claims pc where pc.dp_item_code = 'DOWN-PAYMENT'
+                and pc.dp_item_code is distinct from (select o.down_payment_item from public.organizations o where o.id = pc.org_id)) then
     raise exception 'claims that use PMO''s own down payment item exist; withdraw or invoice them before rolling back 0924; rollback refused'
       using errcode = 'P0001';
   end if;
   if exists (select 1 from public.sales_invoices si join public.progress_claims pc on pc.id = si.id
               where si.pmo_native and pc.kind in ('progress','down_payment')) then
-    raise exception 'native invoices made from progress claims exist; cancel and export them before rolling back 0924; rollback refused'
+    raise exception '0924 cannot be rolled back once a claim has been invoiced in PMO; rollback refused'
       using errcode = 'P0001';
   end if;
 end $$;

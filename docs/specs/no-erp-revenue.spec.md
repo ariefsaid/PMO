@@ -194,7 +194,7 @@ dunning, currency conversion · notifications to approvers.
 | AC-NAR-005 | `supabase/tests/0275_native_revenue_approve.test.sql` (pgTAP) | `0275_native_revenue_receipts.test.sql` (receipt blocks cancel) |
 | AC-NAR-006 | `supabase/tests/0275_native_revenue_receipts.test.sql` (pgTAP) | `pages/__tests__/IncomingPayments.native.test.tsx` |
 | AC-NAR-007 | `supabase/tests/0275_revenue_write_roles.test.sql` (pgTAP) | role refusals in the create/approve/receipts files |
-| AC-NAR-040..050 | `supabase/tests/0924_native_progress_claim_invoice.test.sql` (pgTAP) | `0250_progress_billing_claims.test.sql` (ERP-owned refusal), `pages/project-detail/tabs/__tests__/BillingTab.test.tsx`, `src/lib/revenue/nativeInvoice.test.ts` |
+| AC-NAR-040..053 | `supabase/tests/0924_native_progress_claim_invoice.test.sql` (pgTAP) | `0250_progress_billing_claims.test.sql` (ERP-owned refusal), `pages/project-detail/__tests__/WorkOrdersTab.billing.test.tsx` (Contract tab; owner of FR-NAR-040), `BillingTab.test.tsx` (secondary), `src/lib/revenue/nativeInvoice.test.ts` |
 | NFR-NAR-001 | `supabase/tests/0275_native_revenue_acl.test.sql` + `0178_anon_executable_definers.test.sql` | migration §9 assertions |
 
 ## 8. Premises corrected while specifying
@@ -239,7 +239,7 @@ one fixed PMO item (`native_down_payment_item()`, no Administration step); the E
 plain words. Migration 0924, one RPC, no table.
 
 - **FR-NAR-040** While no ERP owns revenue for the org, the system shall let an Admin or Finance member create, evidence and
-  withdraw a progress or down-payment claim, and the Billing tab shall offer New claim, Attach evidence, Raise invoice and
+  withdraw a progress or down-payment claim, and the Contract tab shall offer New claim, Attach evidence, Raise invoice and
   Withdraw to them; with an ERP connected nothing changes.
 - **FR-NAR-041** When an Admin or Finance member raises the invoice of a live claim that has evidence, in an org where no ERP
   owns revenue, the system shall create a PMO Draft whose id is the claim's id, in the claim's (project's, work order's)
@@ -283,7 +283,13 @@ AC (Given/When/Then), each owned by `supabase/tests/0924_native_progress_claim_i
 - **AC-NAR-049.** Given an org whose ERP owns revenue and which has no down-payment item, When Finance bills a down payment,
   Then it is refused as before; with the item set it names that item and its ERP raise passes the fence.
 - **AC-NAR-050.** Given a claim that names the fixed PMO item, When an ERP raise is attempted, Then it is refused in plain
-  words, as is a progress claim that recovers that down payment.
+  words, as is a progress claim that recovers that down payment; unless the item is also the org's own ERP down-payment item, in
+  which case it passes (AC-NAR-053).
+- **AC-NAR-051.** Given an ERP raise for a claim is still in flight, When Finance raises the claim's invoice in PMO, Then it is refused
+  (`claim-erp-raise-in-flight`); once that raise has failed it succeeds.
+- **AC-NAR-052.** Given a down payment invoiced in PMO and an ERP that has since taken over revenue, When a progress claim recovers
+  it, Then the claim names the org's ERP down-payment item (refused with the usual words if none is set) and its ERP raise passes the fence.
+- **AC-NAR-053.** Given an org whose own ERP down-payment item is `DOWN-PAYMENT`, When a claim naming it is raised in the ERP, Then it passes the fence.
 - **NFR-NAR-007 (reversible).** `supabase/migrations/rollback/0924_native_progress_claim_invoice_down.sql` restores the two
-  redefined functions and refuses while a claim names the fixed item or a native invoice shares an id with such a claim
+  redefined functions and refuses while a claim names the fixed item (other than an org's own item of that name) or a claim has been invoiced in PMO
   (`0924_native_progress_claim_invoice_rollback.test.sql`).

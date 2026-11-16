@@ -82,6 +82,12 @@ begin
   if exists (select 1 from public.sales_invoices si where si.id = p_claim) then
     raise exception 'this claim already has an invoice' using errcode = 'P0001', detail = 'claim-already-invoiced';
   end if;
+  -- An ERP raise for this claim still in flight (an ERP released mid-way) would give the claim a second invoice: same predicate as
+  -- withdraw_progress_claim (0250).
+  if exists (select 1 from public.external_command_outbox o
+              where o.org_id = v_org and o.domain = 'revenue' and lower(o.pmo_record_id) = p_claim::text and o.state <> 'failed') then
+    raise exception 'an invoice for this claim is being raised in the ERP: wait for it to finish' using errcode = 'P0001', detail = 'claim-erp-raise-in-flight';
+  end if;
 
   if v_client is null then
     raise exception 'the project has no client to invoice: set the client on the project first' using errcode = 'P0002', detail = 'no-client';
@@ -116,7 +122,7 @@ begin
          sum(x.amount)
     into v_lines, v_amount
     from (
-      select 1 as grp, l.boq_item_id::text as ord, l.item_code, left(l.description, 140) as description, null::text as line_role,
+      select 1 as grp, l.boq_item_id::text as ord, l.item_code, left(concat_ws(' ', l.description, '(' || l.unit || ')'), 140) as description, null::text as line_role,
              l.quantity as qty, l.rate, l.amount
         from public.progress_claim_lines l where l.claim_id = p_claim and v_c.kind = 'progress'
       union all
@@ -194,9 +200,9 @@ begin
     raise exception 'only Admin or Finance may create a progress claim' using errcode = '42501';
   end if;
   perform public.assert_feature_on(public.auth_org_id(), 'sales_invoices');
-  -- ⚑ 0924: a down payment asks who owns revenue (below), so the organisation row lock comes BEFORE the work-order and
+  -- ⚑ 0924: a down payment (and a progress claim that recovers one) asks who owns revenue (below), so the organisation row lock comes BEFORE the work-order and
   --   project locks, the order create_native_sales_invoice and create_native_progress_claim_invoice take.
-  if p_kind = 'down_payment' then
+  if p_kind in ('down_payment', 'progress') then
     perform 1 from public.organizations o where o.id = v_org for share;
   end if;
   -- ⚑ 0262 (OD-BILL-1, DD-BWO-5): the work order's billing lock BEFORE the project row lock — the order every billing
@@ -325,6 +331,16 @@ begin
       raise exception 'there is no down payment to recover on this project' using errcode = 'P0001';
     end if;
 
+    -- ⚑ 0924 (#2465): a down payment invoiced in PMO names PMO's own item. Once an ERP owns revenue the recovery must name the
+    --   organisation's ERP item instead (the ERP fence refuses PMO's), or the advance could never be recovered.
+    if v_recovery > 0 and v_dp_item = public.native_down_payment_item() and public.domain_externally_owned(v_org, 'revenue') then
+      select o.down_payment_item into v_dp_item from public.organizations o where o.id = v_org;
+      if v_dp_item is null then
+        raise exception 'set the down payment item in Administration → Accounting before recovering the down payment'
+          using errcode = 'P0001';
+      end if;
+    end if;
+
     -- ⚑ 0262 (OD-BILL-1, DD-BWO-4): a claim reserves its gross against its work order when it is created.
     if p_work_order_id is not null then
       perform public.assert_work_order_invoiceable(v_org, p_work_order_id, p_project_id, v_id::text, v_gross, v_currency);
@@ -396,8 +412,10 @@ begin
   end if;
   -- ⚑ 0924: a claim made while no ERP owned revenue names PMO's own down payment item, which no ERP knows. Sending it would
   -- fail at the ERP, so say what to do instead.
-  if v_dp_item = public.native_down_payment_item() then
-    raise exception 'this claim uses the down payment item PMO applies when no ERP is connected: withdraw this claim and assemble it again after the ERP''s down payment item is set'
+  --   Not when that is also the organisation's own ERP item (an ERP may really hold an item of that code).
+  if v_dp_item = public.native_down_payment_item()
+     and v_dp_item is distinct from (select o.down_payment_item from public.organizations o where o.id = new.org_id) then
+    raise exception 'this claim uses the down payment item PMO applies when no ERP is connected: set the ERP''s down payment item in Administration → Accounting, then withdraw this claim and assemble it again'
       using errcode = '55000';
   end if;
   return new;

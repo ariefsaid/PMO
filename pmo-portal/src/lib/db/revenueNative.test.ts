@@ -67,13 +67,13 @@ describe('revenueNative DAL (#784) — names the four RPCs and sends what the us
     await expect(createNativeSalesInvoice({ projectId: 'p', customerId: 'c', lines: [] })).rejects.toBeInstanceOf(AppError);
     await expect(cancelNativeReceipt('ip-1')).rejects.toBeInstanceOf(AppError);
   });
-  it('#784 the final refusal codes from migration 0275, #1415 migration 0731 and 0704 (#1817) and 0924 (#2465) are all known (35)', () => {
-    expect(NATIVE_REVENUE_REFUSALS).toHaveLength(35);
+  it('#784 the final refusal codes from migration 0275, #1415 migration 0731 and 0704 (#1817) and 0924 (#2465) are all known (36)', () => {
+    expect(NATIVE_REVENUE_REFUSALS).toHaveLength(36);
     expect(NATIVE_REVENUE_REFUSALS).toEqual(expect.arrayContaining([
       'pmo-native', 'receipt-split-mismatch', 'sod-self-approval', 'illegal-transition',
       'allocation-exceeds-unapplied', 'allocation-exceeds-balance', 'allocation-amount-invalid', 'allocation-duplicate-invoice',
       'allocation-client-mismatch', 'allocation-currency-mismatch', 'allocation-already-reversed', 'receipt-not-applicable',
-      'request-id-reused', 'claim-already-invoiced', 'no-client', 'claim-total-mismatch', 'claim-kind',
+      'request-id-reused', 'claim-already-invoiced', 'no-client', 'claim-total-mismatch', 'claim-kind', 'claim-erp-raise-in-flight',
     ]));
   });
   it('#784 a refusal carrying a machine-readable detail reaches the caller keyed on that detail, not the SQLSTATE', async () => {

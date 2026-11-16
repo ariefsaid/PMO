@@ -239,6 +239,7 @@
         "errors": {
           "claimWithdrawn": "Tagihan ini telah ditarik. Invoice-nya tidak dapat diterbitkan.",
           "alreadyInvoiced": "Tagihan ini sudah memiliki invoice.",
+          "erpRaiseInFlight": "Invoice untuk tagihan ini masih diterbitkan di ERP. Tunggu sampai selesai.",
           "noClient": "Proyek ini belum punya klien untuk ditagih. Atur klien proyek terlebih dahulu.",
           "claimKind": "Invoice tagihan ini dibuat dari persetujuannya, bukan dari sini.",
           "invoiceTotalInvalid": "Nilai neto tagihan ini nol, jadi tidak ada yang bisa diinvoice. Tarik tagihan ini.",

@@ -239,6 +239,7 @@
         "errors": {
           "claimWithdrawn": "This claim was withdrawn. Its invoice can't be raised.",
           "alreadyInvoiced": "This claim already has an invoice.",
+          "erpRaiseInFlight": "An invoice for this claim is still being raised in the ERP. Wait for it to finish.",
           "noClient": "This project has no client to invoice. Set the client on the project first.",
           "claimKind": "This claim is invoiced from its sign-off, not from here.",
           "invoiceTotalInvalid": "This claim's net is zero, so there is nothing to invoice. Withdraw it.",

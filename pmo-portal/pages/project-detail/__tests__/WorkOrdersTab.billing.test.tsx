@@ -557,7 +557,7 @@ describe('WorkOrdersTab — a claim is billed in PMO when no ERP owns revenue (#
     expect(await findToastAnnouncement('status', 'Invoice drafted in PMO')).toBeInTheDocument();
   });
 
-  it('names a claim recovered in full, and one that already has an invoice, in plain words', async () => {
+  it('names a claim recovered in full in plain words', async () => {
     const { AppError } = await import('@/src/lib/appError');
     h.m.raiseNativeInvoice.mutateAsync.mockRejectedValue(new AppError('the invoice total must be above zero', 'invoice-total-invalid'));
     const user = userEvent.setup();
@@ -566,6 +566,32 @@ describe('WorkOrdersTab — a claim is billed in PMO when no ERP owns revenue (#
     await user.click(await screen.findByRole('menuitem', { name: 'Raise invoice' }));
     await user.click(within(screen.getByRole('dialog', { name: "Create this claim's invoice?" })).getByRole('button', { name: 'Create invoice' }));
     expect(await findToastAnnouncement('alert', "This claim's net is zero, so there is nothing to invoice. Withdraw it.")).toBeInTheDocument();
+  });
+
+  it.each([
+    ['claim-already-invoiced', 'This claim already has an invoice.'],
+    ['claim-erp-raise-in-flight', 'An invoice for this claim is still being raised in the ERP. Wait for it to finish.'],
+  ])('names a %s refusal in plain words', async (code, words) => {
+    const { AppError } = await import('@/src/lib/appError');
+    h.m.raiseNativeInvoice.mutateAsync.mockRejectedValue(new AppError('refused', code as never));
+    const user = userEvent.setup();
+    renderTab();
+    await rowActions(user);
+    await user.click(await screen.findByRole('menuitem', { name: 'Raise invoice' }));
+    await user.click(within(screen.getByRole('dialog', { name: "Create this claim's invoice?" })).getByRole('button', { name: 'Create invoice' }));
+    expect(await findToastAnnouncement('alert', words)).toBeInTheDocument();
+  });
+
+  it('keeps the ERP raise when the ownership read fails in an ERP-connected organisation (the route is not decided)', async () => {
+    h.mode = 'native'; h.routeReady = false; h.erpConnected = true;
+    const user = userEvent.setup();
+    renderTab();
+    await rowActions(user);
+    await user.click(await screen.findByRole('menuitem', { name: 'Raise invoice' }));
+    const dialog = screen.getByRole('dialog', { name: "Raise this claim's invoice?" });
+    await user.click(within(dialog).getByRole('button', { name: 'Create ERP invoice' }));
+    expect(h.m.raiseInvoice.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(h.m.raiseNativeInvoice.mutateAsync).not.toHaveBeenCalled();
   });
 
   it('withdraws an open claim', async () => {

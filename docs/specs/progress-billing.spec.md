@@ -297,7 +297,7 @@ Finance bills.
   lines; And claims show their invoice or "Not raised", their evidence count, and Raise only once evidence exists;
   And Finance and Admin see the billing buttons, the project's PM sees "Record progress" and BoQ editing but no
   billing buttons, another PM sees no "Record progress", an Engineer has no Billing tab, and billing buttons are
-  absent without an ERP connection or a project client.
+  absent when no ERP is connected and PMO does not own revenue, or the project has no client.
 - **AC-PB-009** Given the claim dialog, When Finance bills a down payment, Then amount and percentage are validated,
   the proportional percentage is shown as help and the exact input is sent; When Finance claims progress, Then only
   the chosen scope's lines are offered, "start from the latest assessment" fills assessed-minus-claimed quantities,
@@ -370,7 +370,7 @@ Finance bills.
 | AC-PB-019 | Vitest/RTL | `pmo-portal/pages/project-detail/__tests__/ProgressAssessmentModal.test.tsx` |
 | AC-PB-020 | Vitest/RTL | `pmo-portal/pages/project-detail/__tests__/ClaimEvidenceModal.test.tsx` |
 | AC-PBL-NAT-001..003 | pgTAP | `supabase/tests/0924_native_progress_claim_invoice.test.sql` |
-| AC-PBL-NAT-004 | Vitest/RTL | `pmo-portal/pages/project-detail/tabs/__tests__/BillingTab.test.tsx` |
+| AC-PBL-NAT-004 | Vitest/RTL | `pmo-portal/pages/project-detail/__tests__/WorkOrdersTab.billing.test.tsx` (Contract tab; `BillingTab.test.tsx` is a secondary reference) |
 
 ## 6. Out of scope
 
@@ -948,11 +948,11 @@ See the plan's Open points for shipped-code integration questions, not reopened 
 
 Claims are no longer ERP-only. While no ERP owns revenue, an Admin or Finance member creates, evidences and withdraws a
 claim and raises its invoice in PMO (`create_native_progress_claim_invoice`, migration 0924; requirements FR-NAR-040..047 and
-acceptance criteria AC-NAR-040..050 in `docs/specs/no-erp-revenue.spec.md` §10). The invoice is the claim's own lines plus a
+acceptance criteria AC-NAR-040..053 in `docs/specs/no-erp-revenue.spec.md` §10). The invoice is the claim's own lines plus a
 negative down-payment recovery line, so its total is the claim's net; with an ERP connected nothing changes (DD-PBL-1..13 hold).
 
 - **FR-PBL-NAT-001** When a claim's invoice is raised in PMO, the claim's gross, down payment recovered, net and tax shall equal
-  what the ERP raise builds for the same claim.
+  what the ERP raise builds for the same claim, with the VAT of the project's rate and base applied to the claim's net.
 - **FR-PBL-NAT-002** A claim invoiced in PMO shall move held, recovered and remaining down payment, billed work and not-submitted
   exactly once, at the moment its invoice is approved (not while a Draft), and a cancelled one shall release them.
 - **AC-PBL-NAT-001.** Given a native Draft down payment invoice, When it is approved, Then down payment held moves from 0 to 200,000
@@ -963,5 +963,5 @@ negative down-payment recovery line, so its total is the claim's net; with an ER
 - **AC-PBL-NAT-003.** Given a native Draft claim invoice, When it is cancelled, Then it counts nowhere, its quantity is claimable
   again, and a second invoice for the claim is still refused. (pgTAP)
 - **AC-PBL-NAT-004.** Given Finance in an org with no ERP, When it opens the Billing tab, Then it can attach evidence to, withdraw
-  and raise the invoice of a claim through the PMO action; a Project Manager and a project with no client are offered none.
-  (`pages/project-detail/tabs/__tests__/BillingTab.test.tsx`, Vitest/RTL)
+  and raise the invoice of a claim through the PMO action, from the claim row's menu and from its side panel; a Project Manager and a
+  project with no client are offered none. (`pages/project-detail/__tests__/WorkOrdersTab.billing.test.tsx`, Contract tab, Vitest/RTL)

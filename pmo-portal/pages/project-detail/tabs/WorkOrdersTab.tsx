@@ -455,7 +455,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   };
 
   // A time-and-materials claim is invoiced from its own section, so the native raise covers the other claim kinds.
-  const nativeRaise = revenueMode === 'native';
+  const nativeRaise = nativeBilling;  // route decided: a failed ownership read in an ERP-owned org keeps the ERP raise
   const runRaiseClaimInvoice = async () => {
     if (!raiseFor || !clientId) return;
     try {
@@ -476,6 +476,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         'claim-already-invoiced': t('projectDetail.billing.claims.errors.alreadyInvoiced', 'This claim already has an invoice.'),
         'no-client': t('projectDetail.billing.claims.errors.noClient', 'This project has no client to invoice. Set the client on the project first.'),
         'claim-total-mismatch': t('projectDetail.billing.claims.errors.totalMismatch', "This claim's lines do not add up to its total. Withdraw it and assemble it again."),
+        'claim-erp-raise-in-flight': t('projectDetail.billing.claims.errors.erpRaiseInFlight', 'An invoice for this claim is still being raised in the ERP. Wait for it to finish.'),
         'invoice-total-invalid': t('projectDetail.billing.claims.errors.invoiceTotalInvalid', "This claim's net is zero, so there is nothing to invoice. Withdraw it."),
       });
     } finally {

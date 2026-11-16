@@ -222,7 +222,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     if (!raiseFor || !clientId) return;
     const { claim, idempotencyKey } = raiseFor;
     try {
-      if (revenueMode === 'native') {
+      if (nativeBilling) {
         if (claim.kind === 'time_materials') await invoiceTmClaimNative.mutateAsync(claim.id);
         else await mutations.raiseNativeInvoice.mutateAsync(claim.id);
         toast(t('projectDetail.billing.claims.toast.raisedNative', 'Invoice drafted in PMO'), undefined, 'success');
@@ -240,6 +240,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         'claim-already-invoiced': t('projectDetail.billing.claims.errors.alreadyInvoiced', 'This claim already has an invoice.'),
         'no-client': t('projectDetail.billing.claims.errors.noClient', 'This project has no client to invoice. Set the client on the project first.'),
         'claim-total-mismatch': t('projectDetail.billing.claims.errors.totalMismatch', "This claim's lines do not add up to its total. Withdraw it and assemble it again."),
+        'claim-erp-raise-in-flight': t('projectDetail.billing.claims.errors.erpRaiseInFlight', 'An invoice for this claim is still being raised in the ERP. Wait for it to finish.'),
         'invoice-total-invalid': t('projectDetail.billing.claims.errors.invoiceTotalInvalid', "This claim's net is zero, so there is nothing to invoice. Withdraw it."),
       });
     } finally {
@@ -625,7 +626,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       }
     }} />;
 
-  const native = revenueMode === 'native';
+  const native = nativeBilling;
   const raiseInvoiceDialog = raiseFor && (
     <ConfirmDialog
       open

@@ -5,7 +5,7 @@
 -- b7 executive, b8 foreign admin, b9 disabled admin, ba sole-operator Finance (a3), bb ERP-org Finance (a4).
 begin;
 create extension if not exists pgtap;
-select plan(95);
+select plan(108);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('09240000-0000-0000-0000-0000000000a1', 'NPC Org A', 'IDR', 'UTC'),
@@ -139,7 +139,7 @@ reset role;
 select is((select row(amount, tax_amount, status)::text from sales_invoices where id = pg_temp.st('pc1')::uuid), row(160000.00::numeric, 0.00::numeric, 'Draft')::text,
   'AC-PBL-NAT-002 the invoice total is the claim''s net: 200,000 gross less the 40,000 recovered');
 select is((select native_lines::text from sales_invoices where id = pg_temp.st('pc1')::uuid),
-  '[{"qty": 4.000, "rate": 50000.00, "amount": 200000.00, "item_code": "SURVEY", "description": "Route survey"}, '
+  '[{"qty": 4.000, "rate": 50000.00, "amount": 200000.00, "item_code": "SURVEY", "description": "Route survey (km)"}, '
   || '{"qty": 1, "rate": -40000.00, "role": "down_payment_recovery", "amount": -40000.00, "item_code": null, "description": "Down payment recovery"}]',
   'AC-PBL-NAT-002 the lines are the claim line as claimed and one negative recovery line');
 select pg_temp.as_user('b5');
@@ -334,11 +334,65 @@ select lives_ok($q$insert into external_command_outbox (org_id, domain, pmo_reco
 -- ── AC-NAR-050: the ERP raise never carries PMO's own item ─────────────────────────────────────
 select throws_ok($q$insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state)
   values ('09240000-0000-0000-0000-0000000000a1', 'revenue', pg_temp.st('dp1'), 'npc-dp1', 'erpnext', 'create', 'pending')$q$, '55000',
-  'this claim uses the down payment item PMO applies when no ERP is connected: withdraw this claim and assemble it again after the ERP''s down payment item is set',
+  'this claim uses the down payment item PMO applies when no ERP is connected: set the ERP''s down payment item in Administration → Accounting, then withdraw this claim and assemble it again',
   'AC-NAR-050 a claim that names PMO''s own down payment item is refused at the ERP raise, in plain words');
 select throws_ok($q$insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state)
   values ('09240000-0000-0000-0000-0000000000a1', 'revenue', pg_temp.st('pc1'), 'npc-pc1', 'erpnext', 'create', 'pending')$q$, '55000', null,
   'AC-NAR-050 and so is a progress claim that recovers that advance');
+
+
+-- ── AC-NAR-051: an ERP raise for the claim still in flight blocks the native invoice ───────────────
+select pg_temp.as_user('b1');
+select lives_ok($q$insert into _state select 'inf', create_progress_claim('09240000-0000-0000-0000-0000000000c4', 'progress',
+  p_lines => '[{"boq_item_id":"09240000-0000-0000-0000-000000000e05","quantity":1}]'::jsonb)::text$q$, 'AC-NAR-051 a claim with no down payment to recover');
+select lives_ok($q$select attach_claim_evidence(pg_temp.st('inf')::uuid, pg_temp.doc('0f04'))$q$, 'AC-NAR-051 evidence attached');
+reset role;
+select lives_ok($q$insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state)
+  values ('09240000-0000-0000-0000-0000000000a1', 'revenue', pg_temp.st('inf'), 'npc-inf', 'erpnext', 'create', 'pending')$q$, 'AC-NAR-051 an ERP raise of the claim is in flight');
+select pg_temp.as_user('b5');
+select is(pg_temp.detail($q$select create_native_progress_claim_invoice(pg_temp.st('inf')::uuid)$q$), 'P0001 claim-erp-raise-in-flight',
+  'AC-NAR-051 the claim cannot also be invoiced in PMO');
+reset role;
+update external_command_outbox set state = 'failed' where idempotency_key = 'npc-inf';
+select pg_temp.as_user('b5');
+select lives_ok($q$select create_native_progress_claim_invoice(pg_temp.st('inf')::uuid)$q$, 'AC-NAR-051 CONTROL once that ERP raise has failed the claim can be invoiced in PMO');
+reset role;
+
+-- ── AC-NAR-052: a down payment invoiced in PMO is still recoverable after an ERP takes over revenue ──────────
+set local session_replication_role = replica;
+insert into external_domain_ownership (org_id, external_tier, domain) values ('09240000-0000-0000-0000-0000000000a1', 'erpnext', 'revenue');
+set local session_replication_role = origin;
+select pg_temp.as_user('b1');
+select throws_ok($q$select create_progress_claim('09240000-0000-0000-0000-0000000000c1', 'progress',
+  p_lines => '[{"boq_item_id":"09240000-0000-0000-0000-000000000e02","quantity":1}]'::jsonb, p_recover_remaining => true)$q$,
+  'P0001', 'set the down payment item in Administration → Accounting before recovering the down payment',
+  'AC-NAR-052 with the ERP in charge and no item set, recovering the PMO down payment says to set the item');
+reset role;
+update organizations set down_payment_item = 'ERP-A1' where id = '09240000-0000-0000-0000-0000000000a1';
+select pg_temp.as_user('b1');
+select lives_ok($q$insert into _state select 'rec', create_progress_claim('09240000-0000-0000-0000-0000000000c1', 'progress',
+  p_lines => '[{"boq_item_id":"09240000-0000-0000-0000-000000000e02","quantity":1}]'::jsonb, p_recover_remaining => true)::text$q$,
+  'AC-NAR-052 with the item set, the recovering claim is made');
+select is((select dp_item_code from progress_claims where id = pg_temp.st('rec')::uuid), 'ERP-A1', 'AC-NAR-052 and names the organisation''s ERP item, not PMO''s');
+select lives_ok($q$select attach_claim_evidence(pg_temp.st('rec')::uuid, pg_temp.doc('0f01'))$q$, 'AC-NAR-052 evidence attached');
+reset role;
+select lives_ok($q$insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state)
+  values ('09240000-0000-0000-0000-0000000000a1', 'revenue', pg_temp.st('rec'), 'npc-rec', 'erpnext', 'create', 'pending')$q$, 'AC-NAR-052 and its ERP raise passes the fence');
+
+-- ── AC-NAR-053: an ERP item that really is called DOWN-PAYMENT is the organisation's own, and passes the fence ──
+insert into progress_claims (id, org_id, project_id, kind, currency, gross_amount, down_payment_amount, recovery_pct, dp_recovery_amount, dp_item_code, created_by)
+values ('09240000-0000-0000-0000-0000000000e3', '09240000-0000-0000-0000-0000000000a4', '09240000-0000-0000-0000-0000000000e1', 'down_payment', 'IDR', 10, 10, 10, 0,
+        'DOWN-PAYMENT', '09240000-0000-0000-0000-0000000000bb');
+select pg_temp.as_user('bb');
+select lives_ok($q$select attach_claim_evidence('09240000-0000-0000-0000-0000000000e3', pg_temp.doc('0f08'))$q$, 'AC-NAR-053 evidence attached');
+reset role;
+select throws_ok($q$insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state)
+  values ('09240000-0000-0000-0000-0000000000a4', 'revenue', '09240000-0000-0000-0000-0000000000e3', 'npc-e3a', 'erpnext', 'create', 'pending')$q$, '55000', null,
+  'AC-NAR-053 CONTROL PMO''s item is refused while the organisation''s own item is another');
+update organizations set down_payment_item = 'DOWN-PAYMENT' where id = '09240000-0000-0000-0000-0000000000a4';
+select lives_ok($q$insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state)
+  values ('09240000-0000-0000-0000-0000000000a4', 'revenue', '09240000-0000-0000-0000-0000000000e3', 'npc-e3b', 'erpnext', 'create', 'pending')$q$,
+  'AC-NAR-053 the same item passes when it is the organisation''s own ERP item');
 
 select * from finish();
 rollback;
