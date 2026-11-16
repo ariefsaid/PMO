@@ -104,16 +104,92 @@ async function resolveLinkedPoName(serviceClient: DispatchServiceClient, orgId: 
   return (data[0] as { erp_purchase_documents?: { erp_name?: string } } | undefined)?.erp_purchase_documents?.erp_name ?? null;
 }
 
-/** `GET` the PO doc and build `item_code -> child-row name` (the `purchase_order_item` GR needs per
- *  row, R9 §4) — the ONE place a PO doc is read for this purpose. */
-async function resolvePoItemChildNames(client: ErpClientDeps, poName: string): Promise<Record<string, string>> {
-  const doc = (await getDoc(client, 'Purchase Order', poName)) as { items?: unknown };
+interface PoLine { name: string; item_code: string; amount: number; billed_amt: number; qty: number; rate: number }
+
+/** `GET` the PO doc: its lines (child-row `name` for the `purchase_order_item` a GR needs, R9 §4, and the
+ *  `po_detail` a bill needs) and its date — the ONE place a PO doc is read for this purpose. */
+async function readPo(client: ErpClientDeps, poName: string): Promise<{ lines: PoLine[]; date: string | null }> {
+  const doc = (await getDoc(client, 'Purchase Order', poName)) as { items?: unknown; transaction_date?: unknown };
   const items = Array.isArray(doc.items) ? (doc.items as Array<Record<string, unknown>>) : [];
-  const map: Record<string, string> = {};
+  const lines: PoLine[] = [];
   for (const item of items) {
-    if (typeof item.item_code === 'string' && typeof item.name === 'string') map[item.item_code] = item.name;
+    if (typeof item.item_code === 'string' && typeof item.name === 'string') {
+      lines.push({ name: item.name, item_code: item.item_code, amount: Number(item.amount) || 0, billed_amt: Number(item.billed_amt) || 0, qty: Number(item.qty), rate: Number(item.rate) });
+    }
   }
-  return map;
+  return { lines, date: typeof doc.transaction_date === 'string' ? doc.transaction_date : null };
+}
+
+const cents = (n: number): number => Math.round(n * 100);
+const money = (c: number): string => (c / 100).toFixed(2);
+
+/** The two refusals for a line whose price or quantity is unknown, in ONE place for the bill-line check and the
+ *  entered-tax bound. An unpriced line must not count as 0 (it would understate the base the withheld bound checks
+ *  against) and an unknown total (a line without a quantity) must not SKIP the bound. Returns the items total. */
+function assertLinesKnown(lines: ItemsNetLine[]): number | null {
+  if (lines.some((line) => lineRate(line) === null)) {
+    throw new AppError('This case has unpriced lines: give every line a rate, then record the invoice again.', 'config-rejected');
+  }
+  const total = itemsNetTotal(lines);
+  if (lines.length > 0 && total === null) {
+    throw new AdapterError('commit-rejected', "The supplier invoice's items total cannot be computed: a line is missing its quantity. Complete the case's lines, then record the invoice again.");
+  }
+  return total;
+}
+
+/** Every bill line, on an order or not, is sent to ERPNext: quantity above zero, rate zero or more, both real numbers.
+ *  A missing rate or quantity gets the refusals above; this adds what they do not catch (blank, quantity <= 0, negative rate).
+ *  (PMO's case lines hold quantity >= 0 and rate >= 0, so a negative line is not a PMO bill; no discount line exists.)
+ *  Runs for every rebuilt bill before any write, so a bill with no ERP order passes it too. */
+function assertBillLineNumbers(items: Array<{ item_code?: unknown; qty?: unknown; rate?: unknown }>): void {
+  assertLinesKnown(items);
+  const blank = (v: unknown) => typeof v === 'string' && v.trim() === '';
+  for (const item of items) {
+    if (blank(item.qty) || blank(item.rate) || !(Number(item.qty) > 0) || !(Number(item.rate) >= 0)) {
+      throw new AppError(`A bill line for ${String(item.item_code)} is missing its quantity or rate; quantity and rate must be numbers.`, 'commit-rejected');
+    }
+  }
+}
+
+/** Link each bill line to the one order line carrying its item (`po_item_child_name`, which `piToBody` turns into
+ *  `purchase_order` + `po_detail`; ERPNext reads the order billed only from `po_detail`). A line whose item is not on
+ *  the order stays free-standing (freight etc.). Refuses, before any ERP write, what ERPNext would only refuse after
+ *  PMO's insert (a stranded draft): a bill with no line on the order, an item on two order lines that rate and quantity cannot tell apart, a line above what
+ *  is left to bill (lines of one order line add up). `checkLeft` is off on a replay (the bill is already counted in `billed_amt`). */
+function linkBillLines<T extends { item_code?: unknown; qty?: unknown; rate?: unknown }>(
+  items: T[], lines: PoLine[], poName: string, checkLeft: boolean,
+): Array<T & { po_item_child_name?: string }> {
+  let linked = 0;
+  const askedByLine = new Map<string, number>(); // cents asked so far per order line, across the whole bill
+  const out = items.map((item) => {
+    const onOrder = lines.filter((l) => l.item_code === item.item_code);
+    if (onOrder.length === 0) {
+      // Only PMO-resolved order references reach ERPNext: drop any the caller sent on a line that is not on the order.
+      const { po_item_child_name: _a, po_detail: _b, purchase_order: _c, ...free } = item as T & Record<string, unknown>;
+      return free as T;
+    }
+    // Item on several order lines: the one line with this bill line's rate; if several share it, the one with its quantity too;
+    // none or still several → refuse, never a guess.
+    // ponytail: no position tie-break: PMO reads the case lines without an ORDER BY, so its line order is not provably the ERP order's.
+    const byRate = onOrder.length > 1 ? onOrder.filter((l) => l.rate === Number(item.rate)) : onOrder;
+    const sameLine = byRate.length > 1 ? byRate.filter((l) => l.qty === Number(item.qty)) : byRate;
+    if (sameLine.length !== 1) {
+      throw new AppError(`ERP order ${poName} has ${String(item.item_code)} on more than one line; PMO cannot tell which one this bill settles.`, 'commit-rejected');
+    }
+    linked += 1;
+    const [line] = sameLine;
+    if (checkLeft) {
+      const asked = (askedByLine.get(line.name) ?? 0) + cents(Number(item.qty) * Number(item.rate));
+      askedByLine.set(line.name, asked);
+      const left = cents(line.amount) - cents(line.billed_amt);
+      if (asked > left) {
+        throw new AppError(`ERP order ${poName} has ${money(left)} left to bill for ${String(item.item_code)}; this bill asks ${money(asked)}.`, 'commit-rejected');
+      }
+    }
+    return { ...item, po_item_child_name: line.name };
+  });
+  if (linked === 0) throw new AppError(`No line of this bill is on ERP order ${poName}.`, 'commit-rejected');
+  return out;
 }
 
 /** PO/PI cost dimensions use the same project-map resolver and org guard as the revenue path.
@@ -177,20 +253,40 @@ export async function resolveProcurementOrderRefs(
       : caseItems;
   }
 
-  if (kind === 'goods-receipt' && (resolvedItems || hasOwnItems)) {
+  // A bill reads its order only when its body is rebuilt (create/update/amend): a submit or cancel needs no order read.
+  const billRebuilt = kind === 'purchase-invoice' && buildsSalesInvoiceBody({ operation: deps.command.operation, record: { verb: (record as { verb?: unknown }).verb } });
+  if (billRebuilt) {
+    if (resolvedItems) assertBillLineNumbers(resolvedItems);
+    if (hasOwnItems) assertBillLineNumbers(record.items as Array<Record<string, unknown>>);
+  }
+  // A bill reads the order only to link the lines it has (a replayed bill needs it to rebuild its order link): no lines, no read.
+  if ((kind === 'goods-receipt' && (resolvedItems || hasOwnItems)) || (billRebuilt && (resolvedItems?.length || hasOwnItems))) {
     const poPmoId = await resolveLatestPoPmoId(deps.serviceClient, procurementId);
     const mappedPo = poPmoId ? await resolveExternalRef(deps.serviceClient as unknown as ExternalRefsLookupClient, deps.orgId, 'procurement', poPmoId) : null;
     const poExternalName = mappedPo ?? await resolveLinkedPoName(deps.serviceClient, deps.orgId, procurementId);
     if (poExternalName) {
       refs.po = poExternalName;
-      const childNames = await resolvePoItemChildNames(
+      const po = await readPo(
         { fetchImpl: deps.fetchImpl, apiKey: deps.apiKey, apiSecret: deps.apiSecret, baseUrl: binding.site_url, rateLimiter: deps.rateLimiter },
         poExternalName,
       );
-      if (resolvedItems) resolvedItems = resolvedItems.map((item) => ({ ...item, po_item_child_name: childNames[item.item_code] }));
-      if (hasOwnItems) record.items = (record.items as Array<Record<string, unknown>>).map((item) => ({
-        ...item, po_item_child_name: typeof item.item_code === 'string' ? childNames[item.item_code] : undefined,
-      }));
+      const childNames: Record<string, string> = {};
+      for (const l of po.lines) childNames[l.item_code] = l.name;
+      if (billRebuilt) {
+        const first = deps.command.operation === 'create' && !deps.replay;
+        // ERPNext 16 refuses a bill posted (today, server time) before its order's date, at insert. PMO refuses first.
+        // ponytail: UTC today + 1 day so no ERP timezone can cause a false refusal; a one-day gap stays ERPNext's own refusal.
+        if (first && binding.version_major === 16 && po.date && po.date > todayPlusDaysIso(1)) {
+          throw new AppError(`ERP order ${poExternalName} is dated ${po.date}; the bill cannot be billed before that date.`, 'commit-rejected');
+        }
+        if (resolvedItems) resolvedItems = linkBillLines(resolvedItems, po.lines, poExternalName, first);
+        if (hasOwnItems) record.items = linkBillLines(record.items as Array<Record<string, unknown>>, po.lines, poExternalName, first);
+      } else {
+        if (resolvedItems) resolvedItems = resolvedItems.map((item) => ({ ...item, po_item_child_name: childNames[item.item_code] }));
+        if (hasOwnItems) record.items = (record.items as Array<Record<string, unknown>>).map((item) => ({
+          ...item, po_item_child_name: typeof item.item_code === 'string' ? childNames[item.item_code] : undefined,
+        }));
+      }
     }
   }
 
@@ -470,16 +566,8 @@ export async function resolvePurchaseInvoiceTaxes(
   delete record.taxTemplate;
   // The items the PI will carry: the command's own, else the case's (adapter.ts substitutes `resolvedItems`).
   const lines = (Array.isArray(record.items) && record.items.length > 0 ? record.items : resolvedItems ?? []) as ItemsNetLine[];
-  // Both refusals land BEFORE any read (ADR-0072 style, DD-VWH-22): an unpriced line must not count as 0 — it
-  // would understate the base the withheld bound checks against — and an unknown total (a line without a
-  // quantity) must not SKIP the bound — ERPNext would accept the bill and every replay would then refuse it.
-  if (lines.some((line) => lineRate(line) === null)) {
-    throw new AppError('This case has unpriced lines: give every line a rate, then record the invoice again.', 'config-rejected');
-  }
-  const itemsTotal = itemsNetTotal(lines);
-  if (lines.length > 0 && itemsTotal === null) {
-    throw new AdapterError('commit-rejected', "The supplier invoice's items total cannot be computed: a line is missing its quantity. Complete the case's lines, then record the invoice again.");
-  }
+  // Both refusals land BEFORE any read (ADR-0072 style, DD-VWH-22).
+  const itemsTotal = assertLinesKnown(lines);
   const { data, error } = await deps.serviceClient.from('organizations')
     .select('input_vat_account,pph23_payable_account,pph4_2_payable_account').eq('id', deps.orgId).maybeSingle();
   if (error) throw new AppError(error.message, error.code);
