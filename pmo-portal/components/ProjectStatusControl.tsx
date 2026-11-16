@@ -10,6 +10,7 @@ import {
 import { ProjectTransitionConfirm } from './project-status/ProjectTransitionConfirm';
 import type { LostReasonValue } from './project-status/LostReasonFields';
 import { WinDetailsFields } from './project-status/WinDetailsFields';
+import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { winDetailsComplete, winEligibilityMessage } from './project-status/projectTransitionCopy';
 
 interface ProjectStatusControlProps {
@@ -25,9 +26,10 @@ interface ProjectStatusControlProps {
 /** A win is offered only after the server has checked the current actor and value witness. */
 const WinTarget: React.FC<{ eligibility: ReturnType<typeof useProjectWinEligibility>; onSelect: () => void }> = ({ eligibility, onSelect }) => {
   const { t } = useTranslation();
+  const statusLabel = useProjectStatusLabel();
   if (eligibility.data === 'allowed' && !eligibility.isPending && !eligibility.isFetching && !eligibility.isError) {
     return <button type="button" onClick={onSelect}
-      className="block w-full rounded-md px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring">Won, Pending KoM</button>;
+      className="block w-full rounded-md px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring">{statusLabel('Won, Pending KoM')}</button>;
   }
   if (eligibility.isPending || eligibility.isFetching) return <p role="status" className="px-2.5 py-1 text-sm text-muted-foreground">{t('project:winEligibility.checking', 'Checking win eligibility…')}</p>;
   if (eligibility.isError || !eligibility.data) return <p role="status" className="px-2.5 py-1 text-sm text-muted-foreground">{t('project:winEligibility.unavailable', 'Win eligibility is unavailable. Refresh this page and try again.')}</p>;
@@ -48,7 +50,10 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
   triggerVariant = 'outline',
   triggerSize = 'sm',
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation(['common', 'boardDrag']);
+  // English keeps the stored stage names this menu always showed ("Loss Tender"); other languages read the label map.
+  const mapLabel = useProjectStatusLabel();
+  const statusLabel = (s: string) => (i18n.resolvedLanguage === 'id' ? mapLabel(s) : s);
   const can = usePermission();
   const mutation = useProjectTransition();
   const { toast } = useToast();
@@ -148,10 +153,10 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
         opts: lost ? { lostReason: lost.reason, lostNote: lost.note.trim() || undefined } : undefined,
       });
       setConfirmTarget(null);
-      toast('Project updated', `Moved to ${target}`, 'success');
+      toast(t('boardDrag:statusControl.updated', 'Project updated'), t('boardDrag:statusControl.movedTo', 'Moved to {{status}}', { status: statusLabel(target) }), 'success');
     } catch (err) {
       setConfirmTarget(null);
-      toast('Status change failed', err instanceof Error ? err.message : undefined, 'warning');
+      toast(t('boardDrag:statusControl.failed', 'Status change failed'), err instanceof Error ? err.message : undefined, 'warning');
     }
   };
 
@@ -196,11 +201,11 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
           size={triggerSize}
           onClick={() => setOpen(true)}
           disabled={mutation.isPending}
-          aria-label="Change status"
+          aria-label={t('boardDrag:statusControl.change', 'Change status')}
           aria-haspopup="true"
           aria-expanded={false}
         >
-          {mutation.isPending ? 'Saving…' : 'Change status'}
+          {mutation.isPending ? t('boardDrag:statusControl.saving', 'Saving…') : t('boardDrag:statusControl.change', 'Change status')}
         </Button>
       )}
 
@@ -208,7 +213,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
       {open && !pendingTarget && (
         <div ref={popoverRef} className="absolute right-0 z-20 mt-1 min-w-[180px] rounded-lg border border-border bg-popover p-[5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
           <p className="px-2.5 pb-1 pt-1.5 text-sm font-semibold text-muted-foreground">
-            Move to
+            {t('boardDrag:statusControl.moveTo', 'Move to')}
           </p>
           {legalTargets.map(target => target === 'Won, Pending KoM' ? (
             <WinTarget key={target} eligibility={winEligibility} onSelect={() => handleTargetSelect(target)} />
@@ -219,7 +224,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
               onClick={() => handleTargetSelect(target)}
               className="block w-full rounded-md px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
             >
-              {target}
+              {statusLabel(target)}
             </button>
           ))}
           <button
@@ -227,7 +232,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
             onClick={handleCancel}
             className="mt-[5px] block w-full rounded-md border-t border-border px-2.5 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-accent"
           >
-            Cancel
+            {t('entityForm.cancel', 'Cancel')}
           </button>
         </div>
       )}
@@ -238,7 +243,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
           {winEligibility.data === 'allowed' && !winEligibility.isPending && !winEligibility.isFetching && !winEligibility.isError
             ? <p role="status" className="text-sm text-muted-foreground">{t('project:winEligibility.unavailable', 'Win eligibility is unavailable. Refresh this page and try again.')}</p>
             : <WinTarget eligibility={winEligibility} onSelect={() => {}} />}
-          <button type="button" onClick={handleCancel} className="mt-2 text-sm text-foreground">Cancel</button>
+          <button type="button" onClick={handleCancel} className="mt-2 text-sm text-foreground">{t('entityForm.cancel', 'Cancel')}</button>
         </div>
       )}
       {pendingTarget === 'Won, Pending KoM' && canWin && (
@@ -246,21 +251,21 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
           onSubmit={handleWinSubmit}
           className="absolute right-0 z-20 mt-1 min-w-[240px] rounded-lg border border-border bg-popover p-3 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)] space-y-2"
         >
-          <p className="text-sm font-semibold">Win — enter contract details</p>
+          <p className="text-sm font-semibold">{t('boardDrag:statusControl.winTitle', 'Win — enter contract details')}</p>
           <WinDetailsFields idPrefix={project.id} contractRef={contractRef} contractDate={contractDate} onRef={setContractRef} onDate={setContractDate} />
           <div className="flex gap-2 pt-1">
             <button
               type="submit"
               className="flex-1 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_1px_2px_hsl(var(--primary)/0.25)] transition-colors hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
-              Confirm
+              {t('boardDrag:statusControl.confirm', 'Confirm')}
             </button>
             <button
               type="button"
               onClick={handleCancel}
               className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
-              Cancel
+              {t('entityForm.cancel', 'Cancel')}
             </button>
           </div>
         </form>

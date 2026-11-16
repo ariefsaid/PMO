@@ -453,7 +453,7 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
                   <div className="ml-[128px] mt-2 border-l border-border pl-3 text-sm text-muted-foreground max-[640px]:ml-8">
                     {entry.erp && <dl className="mb-2 grid grid-cols-2 gap-x-4 gap-y-1"><dt>{t('details.supplier', 'Supplier')}</dt><dd>{entry.erp.supplier ?? '—'}</dd><dt>{t('timeline.status', 'Status')}</dt><dd>{entry.erp.erpStatus ?? '—'}</dd><dt>{t('timeline.dueDate', 'Due date')}</dt><dd>{showDate(entry.erp.dueDate, t('timeline.dateMissing', 'Date not recorded'))}{entry.overdueDays ? ` · ${t('timeline.overdue', { defaultValue: 'Overdue {{days}} days', days: entry.overdueDays })}` : ''}</dd></dl>}
                     {entry.ledger && <>
-                      {entry.ledger.groupRef && <p>Group ref · {entry.ledger.groupRef}</p>}
+                      {entry.ledger.groupRef && <p>{t('timeline.groupRef', 'Group ref')} · {entry.ledger.groupRef}</p>}
                       {(() => {
                         const phase = phaseByType[entry.ledger.type];
                         const files = filesBatch.data?.[procurementFileParentKey(phase, entry.ledger.recordId)];

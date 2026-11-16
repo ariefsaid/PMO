@@ -77,5 +77,10 @@
   "currencyLoading": "Loading organisation currency…",
   "backToProject": "project",
   "backToStock": "Stock",
+  "headerEdit": {
+    "title": "Edit procurement details",
+    "titlePlaceholder": "Procurement title",
+    "save": "Save procurement"
+  },
   "noCategory": "No category"
 }

@@ -208,7 +208,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
               data-testid="sod-blocked-hint"
               className="text-sm text-muted-foreground"
             >
-              <b className="font-semibold text-foreground">Separation-of-duties gate.</b> {gateMsg}
+              <b className="font-semibold text-foreground">{tProcurement('decisionZone.sodGate', 'Separation-of-duties gate.')}</b> {gateMsg}
             </p>
           ) : showReadyHint ? (
             <p
@@ -235,7 +235,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
               data-testid="sod-pre-announce"
               className="text-sm text-muted-foreground"
             >
-              Submitting hands this to another approver — you can&apos;t approve your own procurement case.
+              {tProcurement('decisionZone.sodPreAnnounce', "Submitting hands this to another approver — you can't approve your own procurement case.")}
             </p>
           )}
 
@@ -250,14 +250,14 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
               className="inline-flex w-fit items-center gap-1 text-sm font-medium text-[hsl(var(--nav-active-text))] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
               <Icon name="plus" className="size-3.5" />
-              Add a note <span className="font-normal text-muted-foreground">(optional)</span>
+              {tProcurement('decisionZone.addNote', 'Add a note')} <span className="font-normal text-muted-foreground">({tProcurement('decisionZone.optional', 'optional')})</span>
             </button>
           )}
 
           {showNotes && notesRevealed && (
             <div className="flex max-w-md flex-col gap-1">
               <label htmlFor="procurement-notes-input" className="text-sm font-semibold text-muted-foreground">
-                Notes <span className="font-normal">(optional)</span>
+                {tProcurement('decisionZone.notes', 'Notes')} <span className="font-normal">({tProcurement('decisionZone.optional', 'optional')})</span>
               </label>
               <textarea
                 id="procurement-notes-input"
@@ -266,7 +266,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
                 autoFocus
                 value={notesInput}
                 onChange={(e) => setNotesInput(e.target.value)}
-                placeholder="Add a note for the approval or rejection…"
+                placeholder={tProcurement('decisionZone.notePlaceholder', 'Add a note for the approval or rejection…')}
                 className="rounded-md border border-input bg-background px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               />
             </div>
@@ -320,7 +320,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
           {/* D10 (AC-W3-D10): gate message below the action bar when Draft with no items. */}
           {isDraft && p.items.length === 0 && actions.some((a) => a.to === 'Requested') && (
             <p className="text-sm text-muted-foreground" data-testid="line-items-gate">
-              Add at least one line item before submitting.
+              {tProcurement('decisionZone.addLineItem', 'Add at least one line item before submitting.')}
             </p>
           )}
 

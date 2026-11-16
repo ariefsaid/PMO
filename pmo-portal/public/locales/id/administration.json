@@ -584,5 +584,55 @@
       "duplicateToken": "Pakai {{token}} tepat satu kali.",
       "missingToken": "Sertakan {{token}} tepat satu kali."
     }
+  },
+  "ux": {
+    "close": "Tutup",
+    "readOnly": "Hanya baca"
+  },
+  "usage": {
+    "errorTitle": "Penggunaan tidak dapat dimuat",
+    "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
+    "emptyTitle": "Belum ada penggunaan",
+    "emptySub": "Penggunaan agen muncul di sini setelah ruang kerja Anda mulai memakai asisten.",
+    "month": "Bulan",
+    "action": "Aksi",
+    "runs": "Eksekusi",
+    "tokens": "Token",
+    "providerCost": "Biaya penyedia",
+    "cost": "Biaya (USD)",
+    "margin": "Margin",
+    "pricingNote": "Harga belum diatur — margin muncul di sini setelah tarif USD per kredit ditetapkan."
+  },
+  "agentCost": {
+    "errorTitle": "Metrik biaya agen tidak dapat dimuat",
+    "emptyTitle": "Belum ada data biaya agen",
+    "emptySub": "Telemetri biaya agen muncul di sini setelah ruang kerja Anda mulai memakai asisten.",
+    "cacheHit": "Tingkat cache hit",
+    "reasoning": "Porsi penalaran",
+    "costP50": "Biaya / eksekusi (p50, berbobot jumlah eksekusi)",
+    "costP95": "Biaya / eksekusi (p95, maks)",
+    "latencyP95": "Latensi (p95, maks)",
+    "chartSummary": "Tingkat cache hit per bulan, {{count}} bulan.",
+    "overview": "Ringkasan biaya agen",
+    "across": "Mencakup semua aksi dan bulan.",
+    "cacheByMonth": "Tingkat cache hit per bulan",
+    "notEnoughTitle": "Data belum cukup",
+    "notEnoughSub": "Tren cache hit muncul setelah penggunaan mencakup dua bulan atau lebih."
+  },
+  "projectIntegrations": {
+    "link": "Hubungkan ke {{tier}}",
+    "listsFailed": "Daftar gagal dimuat",
+    "unreachable": "ClickUp tidak dapat dijangkau. Periksa koneksi, lalu coba lagi.",
+    "bindingsFailed": "Gagal dimuat",
+    "bindingsFailedDetail": "Tautan proyek gagal dimuat",
+    "unlinkTitle": "Putuskan dari {{tier}}?",
+    "unlinkBody": "Tugas yang sudah disinkronkan tetap ada; sinkronisasi berhenti. Anda bisa menghubungkan lagi nanti dengan pengaturan yang sama atau berbeda.",
+    "unlink": "Putuskan dari {{tier}}"
+  },
+  "employeeLinkConfirm": {
+    "cannotConfirm": "Tautan ini tidak dapat dikonfirmasi:",
+    "noIdentity": "catatan ERP tidak memuat nama, nomor karyawan, atau email kerja, jadi tidak ada yang bisa dicocokkan.",
+    "noMatch": "belum ada pengguna PMO yang cocok.",
+    "confirm": "Konfirmasi"
   }
 }

@@ -44,7 +44,8 @@ import { AT_RISK_THRESHOLD } from '@/src/lib/dashboardConstants';
 
 
 const UnavailableComparison: React.FC<{ reason: string }> = ({ reason }) => {
-  const inFigureScope = useFigureReport([{ label: 'Budget comparison', reason }]);
+  const { t } = useTranslation('procurement');
+  const inFigureScope = useFigureReport([{ label: t('decisionSupport.comparison', 'Budget comparison'), reason }]);
   return inFigureScope ? null : <p className="text-control text-muted-foreground">{reason}</p>;
 };
 
@@ -169,7 +170,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
     return (
       <Frame bare={bare}>
           {heading}
-          <div className="flex flex-col gap-2" aria-label="Loading budget impact">
+          <div className="flex flex-col gap-2" aria-label={t('decisionSupport.loading', 'Loading budget impact')}>
             <div className="skel h-[18px] w-3/4" />
             <div className="skel h-[14px] w-1/2" />
           </div>

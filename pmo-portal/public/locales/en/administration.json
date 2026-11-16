@@ -584,5 +584,55 @@
       "duplicateToken": "Use {{token}} exactly once.",
       "missingToken": "Include {{token}} exactly once."
     }
+  },
+  "ux": {
+    "close": "Close",
+    "readOnly": "Read only"
+  },
+  "usage": {
+    "errorTitle": "Couldn't load usage",
+    "errorSub": "The request failed. Check your connection and try again.",
+    "emptyTitle": "No usage yet",
+    "emptySub": "Agent usage appears here once your workspace starts using the assistant.",
+    "month": "Month",
+    "action": "Action",
+    "runs": "Runs",
+    "tokens": "Tokens",
+    "providerCost": "Provider cost",
+    "cost": "Cost (USD)",
+    "margin": "Margin",
+    "pricingNote": "Pricing not yet configured — margin will appear here once a per-credit USD rate is set."
+  },
+  "agentCost": {
+    "errorTitle": "Couldn't load agent cost metrics",
+    "emptyTitle": "No agent cost data yet",
+    "emptySub": "Agent cost telemetry appears here once your workspace starts using the assistant.",
+    "cacheHit": "Cache hit-rate",
+    "reasoning": "Reasoning share",
+    "costP50": "Cost / run (p50, weighted by runs)",
+    "costP95": "Cost / run (p95, max)",
+    "latencyP95": "Latency (p95, max)",
+    "chartSummary": "Cache hit-rate by month, {{count}} months.",
+    "overview": "Agent cost overview",
+    "across": "Across all actions and months.",
+    "cacheByMonth": "Cache hit-rate by month",
+    "notEnoughTitle": "Not enough data yet",
+    "notEnoughSub": "Cache hit-rate trends appear once usage spans two or more months."
+  },
+  "projectIntegrations": {
+    "link": "Link to {{tier}}",
+    "listsFailed": "Failed to load lists",
+    "unreachable": "Couldn't reach ClickUp. Check the connection, then retry.",
+    "bindingsFailed": "Failed to load",
+    "bindingsFailedDetail": "Failed to load project bindings",
+    "unlinkTitle": "Unlink from {{tier}}?",
+    "unlinkBody": "Synced tasks are retained; syncing stops. You can relink later with the same or different settings.",
+    "unlink": "Unlink from {{tier}}"
+  },
+  "employeeLinkConfirm": {
+    "cannotConfirm": "This link cannot be confirmed:",
+    "noIdentity": "the ERP record carries no name, employee number or work email, so there is nothing to confirm it against.",
+    "noMatch": "no PMO user is matched to it yet.",
+    "confirm": "Confirm"
   }
 }

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useState } from 'react';
 import { Button, Icon } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
@@ -38,12 +39,13 @@ export function ImportButton<Input>({
   entity,
   descriptor,
   onImported,
-  label = 'Import',
+  label,
   className,
   onOpen,
   triggerRef,
 }: ImportButtonProps<Input>) {
   const may = usePermission();
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
 
   // FR-IMP-006: hide (not disable) the affordance for a non-create role.
@@ -53,7 +55,7 @@ export function ImportButton<Input>({
     <>
       <Button ref={triggerRef} variant="outline" onClick={onOpen ?? (() => setOpen(true))} className={className}>
         <Icon name="upload" />
-        {label}
+        {label ?? t('projects.import', 'Import')}
       </Button>
       {open && !onOpen && (
         <ImportWizard

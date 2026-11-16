@@ -14,6 +14,7 @@
  * breakpoint — no dual a11y tree. Token-pure (DESIGN.md §6).
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, StatTiles, type StatTile } from '@/src/components/ui';
 import type { ProgressionEvent } from '@/src/lib/db/procurementHistory';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
@@ -59,7 +60,9 @@ export const ProcurementOverviewTab: React.FC<ProcurementOverviewTabProps> = ({
   totalValue,
   status,
   currency,
-}) => (
+}) => {
+  const { t } = useTranslation('procurement');
+  return (
   <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
     {/* ── ov-main (left 2/3) ─────────────────────────────────────────────── */}
     <div className="min-w-0">
@@ -81,7 +84,7 @@ export const ProcurementOverviewTab: React.FC<ProcurementOverviewTabProps> = ({
       {/* Detail <dl> — the Field grammar (overline dt + dd). 2-col on desktop,
           1-col below the rail-collapse breakpoint. */}
       <Card variant="bare">
-        <CardHead>Detail</CardHead>
+        <CardHead>{t('overview.detail', 'Detail')}</CardHead>
         <CardPad>
           <dl
             data-testid="procurement-detail-dl"
@@ -103,13 +106,14 @@ export const ProcurementOverviewTab: React.FC<ProcurementOverviewTabProps> = ({
     {/* ── ov-side (right 1/3, sticky on desktop) ─────────────────────────── */}
     <aside data-testid="procurement-progression" className="min-w-0 lg:sticky lg:top-4">
       <Card>
-        <CardHead>Progression</CardHead>
+        <CardHead>{t('overview.progression', 'Progression')}</CardHead>
         <CardPad>
           <ProcurementProgressionTimeline events={events} />
         </CardPad>
       </Card>
     </aside>
   </div>
-);
+  );
+};
 
 ProcurementOverviewTab.displayName = 'ProcurementOverviewTab';

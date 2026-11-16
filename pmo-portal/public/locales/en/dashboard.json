@@ -910,6 +910,18 @@
     "findingUnavailable": "Summary unavailable",
     "winsAndLosses": "Wins and losses",
     "nothingOwedByClients": "Nothing owed by clients",
-    "hoursInTotal": "{{hours}} h in total"
-  }
+    "hoursInTotal": "{{hours}} h in total",
+    "pipelineMixedCurrency": "Pipeline weighted amounts are hidden for mixed currencies.",
+    "marginCurrencyMismatch": "Forecast margin is hidden when a contract currency differs from the budget currency."
+  },
+  "doneNotYetBilled": {
+    "title": "Done, not yet billed",
+    "error": "Couldn't load earned amounts",
+    "empty": "No earned amounts to show",
+    "openReports": "Open reports"
+  },
+  "valueUnknown": "Value unknown",
+  "unknownValues_one": "{{count}} value unknown",
+  "unknownValues_other": "{{count}} values unknown",
+  "financeLedger": "Finance ledger"
 }

@@ -151,7 +151,8 @@
       "unpaid": "invoice balance"
     },
     "budgetLeft": "Left in budget {{left}}",
-    "budgetLeftUnknown": "Budget left not known yet"
+    "budgetLeftUnknown": "Budget left not known yet",
+    "otherCurrenciesExcluded": " · Other currencies excluded from comparison"
   },
   "timeline": {
     "filterLabel": "Timeline filter",
@@ -187,7 +188,8 @@
       "GR": "Receipt",
       "Invoice": "Supplier invoice",
       "Payment": "Payment"
-    }
+    },
+    "groupRef": "Group ref"
   },
   "files": {
     "heading": "Attachments",

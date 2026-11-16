@@ -414,7 +414,7 @@ const AdministrationExchangeRates: React.FC = () => {
           </div>
         }
         confirmLabel={t('fx.saveRates', 'Save rates')}
-        cancelLabel={t('common.cancel', 'Cancel')}
+        cancelLabel={t('entityForm.cancel', 'Cancel')}
         loading={mutations.upsert.isPending}
         onConfirm={confirmOverwrite}
         onCancel={cancelOverwrite}

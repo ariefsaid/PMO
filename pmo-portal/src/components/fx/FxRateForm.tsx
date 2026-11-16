@@ -88,7 +88,7 @@ const FxRateForm: React.FC<FxRateFormProps> = ({
       open
       title={row ? t('fx.editRate', 'Edit rate') : t('fx.newRate', 'New rate')}
       submitLabel={t('fx.saveRate', 'Save rate')}
-      cancelLabel={t('common.cancel', 'Cancel')}
+      cancelLabel={t('entityForm.cancel', 'Cancel')}
       onSubmit={handleSubmit}
       onClose={onClose}
       submitDisabled={!form.isComplete || loading}
