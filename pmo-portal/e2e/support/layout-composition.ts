@@ -82,7 +82,7 @@ export async function assertProjectsTableComposition(page: Page) {
   await expect(scroller.locator('tbody tr').first()).toBeVisible({ timeout: 20_000 });
   await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
   await waitForFonts(page);
-  const actualHeader = scroller.getByRole('columnheader', { name: /Actual/ });
+  const actualHeader = scroller.getByRole('columnheader', { name: /Spent/ });
   const progressHeader = scroller.getByRole('columnheader', { name: 'Progress', exact: true });
   const actualText = await actualHeader.evaluate((element) => {
     const range = document.createRange();

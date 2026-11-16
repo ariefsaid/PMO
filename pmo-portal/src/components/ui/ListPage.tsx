@@ -57,6 +57,8 @@ export interface ListPageProps {
   mobileToolbarBreakpoint?: number;
   /** Page-specific desktop toolbar layout refinements. */
   desktopToolbarClassName?: string;
+  /** Page-specific phone toolbar layout refinements (e.g. no card frame around a single row of controls). */
+  mobileToolbarClassName?: string;
 
   /** Embedded under a page that already names the list (a switch labels it): no second title, help or count chip. */
   hideHeader?: boolean;
@@ -97,6 +99,7 @@ export const ListPage: React.FC<ListPageProps> = ({
   mobileToolbar,
   mobileToolbarBreakpoint = 768,
   desktopToolbarClassName,
+  mobileToolbarClassName,
   hideHeader = false,
   banner,
   children,
@@ -141,7 +144,7 @@ export const ListPage: React.FC<ListPageProps> = ({
           <Toolbar
             standalone
             data-testid="list-page-toolbar"
-            className="flex-col items-stretch gap-2.5"
+            className={`flex-col items-stretch gap-2.5 ${mobileToolbarClassName ?? ''}`}
           >
             {mobileToolbar}
           </Toolbar>

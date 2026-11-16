@@ -159,8 +159,8 @@ describe('Projects page — Engineer default filter (B-11, AC-W2-IXD-009)', () =
   it('blocks both exports for failed cached assignments and restores fresh ownership on recovery', () => {
     myTasksState.isError = true;
     const { rerender } = renderAsEngineer();
-    fireEvent.click(screen.getByRole('button', { name: /more/i }));
-    const exports = screen.getAllByRole('button', { name: /export/i });
+    fireEvent.click(screen.getByRole('button', { name: /^(export and import|options)$/i }));
+    const exports = screen.getAllByRole('button', { name: /^export$/i });
     expect(exports).toHaveLength(1);
     exports.forEach((button) => expect(button).toBeDisabled());
     myTasksState.isError = false;
@@ -168,7 +168,7 @@ describe('Projects page — Engineer default filter (B-11, AC-W2-IXD-009)', () =
     rerender(<ImpersonationProvider realRole="Engineer"><MemoryRouter><ToastProvider><Projects /></ToastProvider></MemoryRouter></ImpersonationProvider>);
     expect(screen.getByText('Acme Internal')).toBeInTheDocument();
     expect(screen.queryByText('Northwind ERP')).not.toBeInTheDocument();
-    screen.getAllByRole('button', { name: /export/i }).forEach((button) => expect(button).toBeEnabled());
+    screen.getAllByRole('button', { name: /^export$/i }).forEach((button) => expect(button).toBeEnabled());
   });
 
   it('allows retry when assignments cannot be read', () => {

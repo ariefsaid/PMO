@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import net from 'node:net';
-import { CHART_SELECTOR, measureText, violations } from './ux-proof-metrics.mjs';
+import { CHART_SELECTOR, measureText, measureLayout, layoutReport, violations } from './ux-proof-metrics.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const APP = path.join(ROOT, 'pmo-portal');
@@ -60,6 +60,39 @@ async function selfTest() {
     if (!overflowMetrics.horizontalOverflow || !violations(overflowMetrics, undefined, 'fixture @390').some((failure) => failure.includes('horizontalOverflow'))) {
       throw new Error(`Self-test failed: document overflow should fail (${JSON.stringify(overflowMetrics)})`);
     }
+    // Layout checks: each fixture is a small page; `expected` is the check that must fail ('' = clean).
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const panel = (body, extra = '') => `<div style="border:1px solid #ccc;border-radius:8px;padding:24px;margin-bottom:24px;${extra}">${body}</div>`;
+    const layoutCases = [
+      { name: 'one left edge per surface', expected: '', html: `<main style="padding:24px">${panel('<h2>Title</h2><p>Body</p><p>More</p>')}</main>` },
+      { name: 'stray left edge in a panel', expected: 'leftEdges', html: `<main style="padding:24px">${panel('<h2>Title</h2><p style="margin-left:16px">Indented</p>')}</main>` },
+      { name: 'three edges in the page column', expected: 'leftEdges', html: '<main style="padding:24px"><h1>Page</h1><p style="margin-left:24px">A</p><p style="margin-left:48px">B</p></main>' },
+      { name: 'ignored indent', expected: '', html: `<main style="padding:24px">${panel('<h2>Title</h2><p data-layout-ignore style="margin-left:16px">Indented</p>')}</main>` },
+      { name: 'structural second column does not count', expected: '', html: `<main style="padding:24px">${panel('<div style="display:flex;justify-content:space-between"><h2>Title</h2><button>Act</button></div>')}</main>` },
+      { name: 'gap of 80px with content below', expected: 'gaps', html: '<main style="padding:24px"><p>One</p><p style="margin-top:80px">Two</p><p>Three</p></main>' },
+      { name: 'gap of 80px at the end of the page is exempt', expected: '', html: '<main style="padding:24px"><p>One</p><p style="margin-top:80px">Two</p></main>' },
+      { name: 'scale gap', expected: '', html: '<main style="padding:24px"><p>One</p><p style="margin-top:32px">Two</p><p style="margin-top:16px">Three</p></main>' },
+      { name: 'heading far from its content', expected: 'heading content', html: '<main style="padding:24px"><h2>Section</h2><p style="margin-top:36px">Body</p><p>Tail</p></main>' },
+      { name: 'columns end level', expected: '', html: '<main style="padding:24px"><div style="display:flex;gap:24px"><div style="width:400px;height:200px;border:1px solid #ccc">Left</div><div style="width:400px;height:200px;border:1px solid #ccc">Right</div></div><p>Below</p></main>' },
+      { name: 'column ends high', expected: 'columnsLevel', html: '<main style="padding:24px"><div style="display:flex;gap:24px"><div style="width:400px;height:300px;border:1px solid #ccc"><p>Short</p></div><div style="width:400px;height:300px;border:1px solid #ccc"><p>Short</p><p style="margin-top:220px">Tall</p></div></div><p>Below</p></main>' },
+      { name: 'row figure and action share a centre', expected: '', html: `<main style="padding:24px"><ul>${[1, 2].map((i) => `<li style="display:flex;align-items:center;gap:16px;height:48px"><span>Row ${i}</span><span>$1${i}0</span><button>Pay</button></li>`).join('')}</ul></main>` },
+      { name: 'row figure off the action centre', expected: 'rowCentre', html: `<main style="padding:24px"><div>${[1, 2].map((i) => `<div style="display:flex;align-items:flex-start;gap:16px;height:60px"><span style="margin-top:0">Row ${i}</span><span>$1${i}0</span><button style="margin-top:30px;height:28px">Pay</button></div>`).join('')}</div></main>` },
+      { name: 'figure in a shared right-aligned column is exempt', expected: '', html: `<main style="padding:24px"><div>${[1, 2].map((i) => `<div style="display:flex;align-items:flex-start;gap:16px;height:60px"><span>Row ${i}</span><span style="margin-left:auto;width:80px;text-align:right">$1${i}0</span><button style="margin-top:30px;height:28px">Pay</button></div>`).join('')}</div></main>` },
+    ];
+    for (const fixture of layoutCases) {
+      await page.setContent(fixture.html);
+      const report = layoutReport(await page.evaluate(measureLayout), 'fixture @1440');
+      const hit = fixture.expected ? report.failures.some((failure) => failure.includes(fixture.expected)) : report.failures.length === 0;
+      if (!hit) throw new Error(`Self-test failed: layout fixture "${fixture.name}" expected ${fixture.expected || 'clean'}, got ${report.failures.join('; ') || 'clean'}`);
+    }
+    await page.setContent('<main style="padding:24px"><h2>Owner</h2><div><span>Name</span> <span>Ada</span></div><p>Tail</p></main>');
+    const lone = layoutReport(await page.evaluate(measureLayout), 'fixture @1440');
+    if (lone.failures.length || !lone.warnings.some((warning) => warning.includes('Ada'))) throw new Error(`Self-test failed: a one-value section must warn with its value, not fail (${JSON.stringify(lone)})`);
+    // shrink-only: a route may not exceed its baseline, and with none it must be clean
+    const stray = { layout: { leftEdges: [{ surface: 'panel', limit: 1, edges: { 10: ['a'], 40: ['b'] } }], gaps: [], columnsLevel: [], rowCentre: [], loneSection: [] }, smallTextSamples: {} };
+    if (!violations(stray, undefined, 'fixture @1440').some((failure) => failure.includes('layoutFailures=1')) || violations(stray, undefined, 'fixture @1440', undefined, undefined, 1).length) {
+      throw new Error('Self-test failed: layout baseline must be shrink-only');
+    }
     console.log('ux-proof self-test passed');
   } finally { await browser.close(); }
 }
@@ -76,7 +109,12 @@ async function measureHtml(file) {
 if (process.argv.includes('--self-test')) { await selfTest(); process.exit(0); }
 if (process.argv.includes('--measure-html')) { await measureHtml(process.argv[process.argv.indexOf('--measure-html') + 1]); process.exit(0); }
 const updateBudget = process.argv.includes('--update-word-budget');
-const routes = process.argv.slice(2).filter((arg) => arg !== '--update-word-budget');
+// --layout-only: measure only the layout checks (light theme; no screenshots, detector or axe) — the
+// fast sweep behind docs/ux/layout-baseline.*. --update-layout-baseline writes the shrink-only counts.
+const layoutOnly = process.argv.includes('--layout-only');
+const updateLayout = process.argv.includes('--update-layout-baseline');
+const FLAGS = ['--update-word-budget', '--layout-only', '--update-layout-baseline'];
+const routes = process.argv.slice(2).filter((arg) => !FLAGS.includes(arg));
 if (!routes.length || routes.some((route) => !route.startsWith('/'))) {
   console.error('usage: scripts/ux-proof.sh /route [/route ...]');
   process.exit(2);
@@ -95,13 +133,21 @@ const detector = path.join(ROOT, '.claude/skills/impeccable/scripts/impeccable')
 const authFile = process.env.UX_PROOF_AUTH
   ? path.join(APP, 'e2e/.auth', process.env.UX_PROOF_AUTH)
   : path.join(APP, 'e2e/.auth/exec@acme.test.json');
-if (!fs.existsSync(detector)) throw new Error(`Vendored detector missing: ${detector}; run scripts/vendor-skills.sh.`);
+if (!layoutOnly && !fs.existsSync(detector)) throw new Error(`Vendored detector missing: ${detector}; run scripts/vendor-skills.sh.`);
 if (!fs.existsSync(authFile)) throw new Error(`Auth storage state missing: ${authFile}; run the Playwright setup project first.`);
 
 const budgetPath = path.join(ROOT, 'docs/ux/word-budget.json');
 const budget = fs.existsSync(budgetPath) ? JSON.parse(fs.readFileSync(budgetPath, 'utf8')) : {};
 budget.targets ||= {};
 const login = path.basename(authFile).replace(/\.json$/, '');
+// Page state under test. UX_PROOF_BLOCK_READS=1 fails every data read (profile and org lookups still
+// load), so the screens' error states are what gets measured.
+const blockReads = process.env.UX_PROOF_BLOCK_READS === '1';
+const state = blockReads ? 'reads-failing' : 'default';
+const layoutBaselinePath = path.join(ROOT, 'docs/ux/layout-baseline.json');
+const layoutBaseline = fs.existsSync(layoutBaselinePath) ? JSON.parse(fs.readFileSync(layoutBaselinePath, 'utf8')) : {};
+const layoutCounts = {};
+const layoutDetails = {};
 const measurements = [];
 
 const auth = JSON.parse(fs.readFileSync(authFile, 'utf8'));
@@ -131,7 +177,7 @@ try {
     let seriousAxe = 0;
     for (const width of widths) {
       const height = width === 390 ? 844 : 900;
-      for (const theme of ['light', 'dark']) {
+      for (const theme of layoutOnly ? ['light'] : ['light', 'dark']) {
         const stem = `${slug(route)}-${width}-${theme}`;
         const context = await browser.newContext({ viewport: { width, height }, colorScheme: theme });
         const page = await context.newPage();
@@ -142,23 +188,48 @@ try {
         await page.evaluate((items) => {
           for (const { name, value } of items) localStorage.setItem(name, value);
         }, localStorage);
+        if (blockReads) {
+          await page.route('**/rest/v1/**', (request) => /\/(profiles|organizations|user_views|notifications|external_)|rpc\/(resolved_org_features|is_operator)/.test(request.request().url()) ? request.continue() : request.abort());
+        }
         await page.goto(`${base}${route}`, { waitUntil: 'domcontentloaded' });
         await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
         await page.locator('main').or(page.locator('h1')).first().waitFor({ state: 'visible', timeout: 10_000 });
+        if (layoutOnly) await page.waitForTimeout(400);
         await page.mouse.move(0, 0);
         await page.evaluate(() => {
           if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
         });
         await page.mouse.move(0, 0);
+        if (layoutOnly) {
+          const key = `${route}@${width}@${login}${state === 'default' ? '' : `#${state}`}`;
+          const hasMain = await page.evaluate(() => !!document.querySelector('main'));
+          if (hasMain) {
+            const report = layoutReport(await page.evaluate(measureLayout), `${route} @${width}`, state);
+            layoutCounts[key] = report.failures.length;
+            layoutDetails[key] = report.failures;
+            console.log(`${key} | layout failures=${report.failures.length}`);
+            const allowed = layoutBaseline[key] ?? 0;
+            if (!updateLayout && report.failures.length > allowed) {
+              failed = true;
+              console.error(`${route} @${width} [${state}]: layoutFailures=${report.failures.length} (> shrink-only baseline ${allowed})`);
+              report.failures.forEach((failure) => console.error(failure));
+            }
+            report.warnings.forEach((warning) => console.warn(`warning: ${warning}`));
+          } else console.log(`${key} | no <main>: skipped`);
+          await context.close();
+          continue;
+        }
         await page.screenshot({ path: path.join(output, `${stem}.png`), fullPage: true });
         if (theme === 'light') {
           const metrics = await page.evaluate(measureText, CHART_SELECTOR);
+          if (await page.evaluate(() => !!document.querySelector('main'))) metrics.layout = await page.evaluate(measureLayout);
           const key = `${route}@${width}@${login}`;
+          const layoutKey = `${key}${state === 'default' ? '' : `#${state}`}`;
           measurements.push({ route, width, login, ...metrics });
           console.log(`${route} | ${width} | ${metrics.chartCount} | ${metrics.minFontPx} | ${metrics.pctCharsUnder14.toFixed(2)} | ${metrics.distinctFontSizes.join(', ')} | ${metrics.smallInputCount} | ${metrics.smallTargetCount} | ${metrics.horizontalOverflow} | ${metrics.wordCount}`);
           const oldTargetBaseline = budget.targets[key];
           const targetBaseline = updateBudget && oldTargetBaseline === undefined ? metrics.smallTargetCount : oldTargetBaseline;
-          const errors = violations(metrics, budget[key], `${route} @${width}`, budget.charts?.[key], targetBaseline);
+          const errors = violations(metrics, budget[key], `${route} @${width}`, budget.charts?.[key], targetBaseline, layoutBaseline[layoutKey], state);
           if (!updateBudget && targetBaseline === undefined) errors.push(`${route} @${width}: missing shrink-only target baseline; run the measured seed after fixes.`);
           for (const error of errors) console.error(error);
           if (errors.length) failed = true;
@@ -190,7 +261,7 @@ try {
         await context.close();
       }
     }
-    console.log(`${route}: impeccable findings=${detectorCount}; axe serious/critical=${seriousAxe}`);
+    if (!layoutOnly) console.log(`${route}: impeccable findings=${detectorCount}; axe serious/critical=${seriousAxe}`);
   }
 } finally {
   await browser.close();
@@ -199,5 +270,31 @@ fs.writeFileSync(path.join(output, 'measurements.json'), `${JSON.stringify(measu
 if (updateBudget) {
   fs.mkdirSync(path.dirname(budgetPath), { recursive: true });
   fs.writeFileSync(budgetPath, `${JSON.stringify(budget, null, 2)}\n`);
+}
+if (updateLayout) {
+  // Shrink-only: an existing count only ever goes down; a new route is seeded at what it measures.
+  for (const [key, count] of Object.entries(layoutCounts)) layoutBaseline[key] = Math.min(layoutBaseline[key] ?? count, count);
+  const sorted = Object.fromEntries(Object.entries(layoutBaseline).sort(([a], [b]) => a.localeCompare(b)));
+  fs.writeFileSync(layoutBaselinePath, `${JSON.stringify(sorted, null, 2)}\n`);
+  const byRoute = {};
+  for (const [key, count] of Object.entries(sorted)) {
+    const m = key.match(/^(.*)@(\d+)@([^@]+)@[^#]*(#.*)?$/);
+    (byRoute[m[1]] ||= []).push({ width: m[2], who: `${m[3]}${m[4] ? ` ${m[4].slice(1)}` : ''}`, count });
+  }
+  const lines = [
+    '# Layout baseline',
+    '',
+    'Failures of the rendered layout checks (`measureLayout` in `scripts/ux-proof-metrics.mjs`) per route, width and login.',
+    'Shrink-only: a touched route may not get worse, and a route under redesign must reach zero.',
+    'Source of truth is `layout-baseline.json`; regenerate with `scripts/ux-proof-layout-sweep.sh`.',
+    '',
+    '| Route | Login | Width | Failures |',
+    '| --- | --- | --- | --- |',
+    ...Object.entries(byRoute).sort(([a], [b]) => a.localeCompare(b)).flatMap(([route, rows]) => rows.map((row) => `| \`${route}\` | ${row.who} | ${row.width} | ${row.count} |`)),
+    '',
+    `Routes measured: ${Object.keys(byRoute).length}. Routes with failures: ${Object.entries(byRoute).filter(([, rows]) => rows.some((row) => row.count > 0)).length}. Total failures: ${Object.values(sorted).reduce((sum, n) => sum + n, 0)}.`,
+    '',
+  ];
+  fs.writeFileSync(path.join(ROOT, 'docs/ux/layout-baseline.md'), lines.join('\n'));
 }
 process.exitCode = failed ? 1 : 0;

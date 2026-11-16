@@ -13,6 +13,7 @@ vi.mock('react-i18next', () => ({
 vi.mock('@/src/components/ui', () => ({
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   Drawer: () => null,
+  RecordSection: ({ title, actions }: { title: React.ReactNode; actions?: React.ReactNode }) => <section><h2>{title}</h2>{actions}</section>,
 }));
 vi.mock('@/src/components/comments/CommentsSection', () => ({ CommentsSection: () => null }));
 vi.mock('@/src/components/history/RecordHistory', () => ({ RecordHistory: () => null }));

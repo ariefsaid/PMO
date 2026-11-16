@@ -247,10 +247,10 @@ describe('Page-level Export button integration (AC-EXP-008)', () => {
     expect(btn).not.toBeDisabled();
   });
 
-  it('AC-EXP-008: Projects page renders a live (enabled) Export button in More actions', async () => {
+  it('AC-EXP-008: Projects page renders a live (enabled) Export button in Export and import', async () => {
     wrap(<ProjectsPage />);
-    await userEvent.setup().click(screen.getByRole('button', { name: /^More actions/i }));
-    const btn = screen.getByRole('button', { name: /export/i });
+    await userEvent.setup().click(screen.getByRole('button', { name: /^Export and import/i }));
+    const btn = screen.getByRole('button', { name: /^export$/i });
     expect(btn).toBeInTheDocument();
     expect(btn).not.toBeDisabled();
   });
