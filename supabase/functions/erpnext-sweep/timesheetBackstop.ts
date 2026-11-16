@@ -97,10 +97,13 @@ export interface TimesheetBackstopDeps {
    *  ATTRIBUTED outbox row (actor = the sheet's own `approved_by`) when the foreground never reached the
    *  outbox at all. */
   driveTimesheetPush(row: TimesheetMirrorCandidateRow, approvedAt: string, subject?: TimesheetPushSubject): Promise<void>;
-  /** Stamp the listed rows' last attempt BEFORE any is driven (THEME-BACK-06): the queue serves
+  /** Stamp a row's last attempt right BEFORE it is driven (THEME-BACK-06): the queue serves
    *  never-attempted rows first, then the longest-waiting, so a page of refused / failing sheets rotates
    *  behind the rest. The live implementation skips synthetic `absent` rows (no mirror row to stamp). */
   markAttempted?(orgId: string, rows: TimesheetMirrorCandidateRow[]): Promise<void>;
+  /** #2149: true once this tick must start no new row (the org's ERPNext did not answer, or no full ERP try fits the
+   *  invocation's budget). A row not started is left exactly as it is, unstamped; the next tick takes it. */
+  stopNewRows?(): boolean;
 }
 
 export interface ReconcileOrgTimesheetPushesResult {
@@ -124,11 +127,14 @@ export async function reconcileOrgTimesheetPushes(
   org: { orgId: string },
 ): Promise<ReconcileOrgTimesheetPushesResult> {
   const candidates = await deps.listPendingTimesheetPushes(org.orgId, TIMESHEET_BACKSTOP_TICK_LIMIT);
-  if (candidates.length > 0) await deps.markAttempted?.(org.orgId, candidates);
   let driven = 0;
   let skipped = 0;
   const errors: Array<{ timesheetId: string; error: string }> = [];
   for (const row of candidates) {
+    if (deps.stopNewRows?.()) break;
+    // #2149: stamped when its turn comes, one row at a time: a row a stopped tick never reaches keeps its place (and its
+    // retry clock), and the next tick resumes from it. A row that kills the isolate is still stamped before it runs.
+    await deps.markAttempted?.(org.orgId, [row]);
     // ⚑ NEW-3 — per-row containment (see the module header). Record and continue: the row is surfaced,
     // and the rest of the queue still drains.
     try {

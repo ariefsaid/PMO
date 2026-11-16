@@ -7,11 +7,11 @@
 
 ### What the CLI can and cannot do
 
-`node scripts/pmo.mjs --help` is the command reference. The CLI supports bounded reads, selected record writes, a starting-data loader, stage-date correction, recording a bid's win, loss or decline, ERP checks, purchase-document linking, document-reference linking, document register entries and uploads, goods-receipt recording, account maps, cost-attribution rules, read-only T&M inspection, and adding an organisation as the platform Operator (`org add`). It is not a general database console: there is no delete command, no arbitrary RPC, and some writes remain app-only, including every change to an existing organisation. Do not invent flags or call database tables directly.
+`node scripts/pmo.mjs --help` is the command reference. The CLI supports bounded reads, selected record writes, a starting-data loader, previewed corrections of loaded records, stage-date correction, recording a bid's win, loss or decline, ERP checks, purchase-document linking, document-reference linking, document register entries and uploads, goods-receipt recording, account maps, cost-attribution rules, T&M rate cards, assignments, claim assembly and sign-off preparation, and adding an organisation as the platform Operator (`org add`). It is not a general database console: there is no delete command, no arbitrary RPC, and some writes remain app-only, including every change to an existing organisation. Do not invent flags or call database tables directly.
 
 Use Node 22 or newer. Sign in with `node scripts/pmo.mjs login`, then confirm the identity and role with `node scripts/pmo.mjs whoami`. The CLI stores an ordinary owner session and applies the same row-level permissions as the app. Use a real, active Admin account for loading client data and other Admin-only commands.
 
-`pmo load`, `pmo stages`, `pmo stage-date`, `pmo bid`, `pmo accounts map set`, and ERP setup checks require an active Admin. Purchase reads/links and `pmo purchases receive` (a procurement money write) are for active Admin, Executive, Project Manager, or Finance members; the `--include-set-aside` read and setting documents aside are Admin/Finance only. Attribution preview/set/end are Admin/Finance; `pmo attribution list` also serves Executive and Project Manager. T&M reads are for Admin, Finance, Executive, or the project's Project Manager. Other writes remain subject to the signed-in member's normal app permissions.
+`pmo load`, `pmo correct`, `pmo stages`, `pmo stage-date`, `pmo bid`, `pmo accounts map set`, and ERP setup checks require an active Admin. Purchase reads/links and `pmo purchases receive` (a procurement money write) are for active Admin, Executive, Project Manager, or Finance members; the `--include-set-aside` read and setting documents aside are Admin/Finance only. Attribution preview/set/end are Admin/Finance; `pmo attribution list` also serves Executive and Project Manager. T&M reads are for Admin, Finance, Executive, or the project's Project Manager. T&M writes (rates, assignments, claims, sign-off preparation) are for an active Admin or Finance member; a Project Manager uses the app for the same steps. Other writes remain subject to the signed-in member's normal app permissions.
 
 ### Data ownership when an ERP is connected
 
@@ -34,7 +34,7 @@ For a project that names a new Client, include the company in the load file's `c
 1. Confirm the target organization, signed-in user, and role with `node scripts/pmo.mjs whoami` before any write.
 2. Run the command's `--dry-run` first, inspect every planned action/refusal, and only then rerun without `--dry-run`. Do not assume every command has a dry-run flag. For a write that has no preview mode (for example `stage-date` or the organization-creation RPC), stop before writing unless the owner has approved the exact target and values; inspect its current state first.
 3. Never run a command against production, create a production organization, or change hosted setup without the owner's explicit go for that instance. A local dry-run does not authorize a hosted write.
-4. `pmo load` is idempotent for the same source after a completed write: re-running resumes, skips already-loaded rows, and reports conflicts instead of overwriting. If a write's result is unknown because the connection failed, inspect PMO and ERP first. Correct conflicting data in the app, then make a deliberate corrected source file. Do not edit a source row in the hope that an existing project, contract line, or budget line will be overwritten.
+4. `pmo load` is idempotent for the same source after a completed write: re-running resumes, skips already-loaded rows, and reports conflicts instead of overwriting. If a write's result is unknown because the connection failed, inspect PMO and ERP first. Correct a wrong loaded value with `pmo correct` (recipe 11) or in the app. Do not edit a source row in the hope that an existing project, contract line, or budget line will be overwritten.
 5. Keep source files outside the repository and do not include client names, personal details, access tokens, credentials, or live ERP links in public issues or tracked documentation.
 
 Roles below mean an active organization member with that role. Admin-only commands are stated explicitly. Other commands still enforce the signed-in user's own RLS permissions; a CLI success does not grant app permissions.
@@ -52,7 +52,7 @@ Read the complete JSON error on stderr and its `details`; exit `2` means the CLI
 | `contract_value cannot be set`, project status cannot change, or `archived_at cannot be set` | Use the project or record workflow in the app; these fields are deliberately not generic CLI writes. |
 | ERP-owned company creation is refused or the command loses its connection during the write | Inspect **Companies** and the ERP party list before retrying; the request may have completed. If the party is absent, correct the cause and use the app's **Companies → New** flow for an approved Client. Never create a duplicate directly in ERPNext. |
 | Company is ambiguous or archived | Resolve the duplicate or restore the company in **Companies**; rerun the same load after checking the dry-run. |
-| Project / contract-line / budget conflict, or `short_name_conflict` | Compare the source with the existing record in the app. Correct there, or choose a unique alias; rerun the unchanged source first to confirm the skip/conflict. |
+| Project / contract-line / budget conflict, or `short_name_conflict` | Compare the source with the existing record. Correct it with `pmo correct` (recipe 11) or in the app, or choose a unique alias; rerun the unchanged source first to confirm the skip/conflict. |
 | `42501`, row-level-security refusal, or `Not allowed` | Check the active role, organization context, and whether the operation is app-only. Use the named app workflow; do not retry with broader credentials. |
 | `budget activation from the CLI is not enabled yet — activate in the app` | Open **Project → Budget**, review the draft and activate there. |
 | `No '<stage>' stage entry was found` | Run `pmo stages <project-uuid>` and use the exact stage label from its output. |
@@ -281,7 +281,7 @@ The first account is the push account. The dry-run checks that each named accoun
 
 **How to verify:** inspect the load output and read back the Draft version and lines. For maps, inspect the dry-run's `actions`, `push_account`, and `left_in_place`, then verify the saved map with `pmo get budget_category_account_map --select category,erp_account --filter category=eq.Labor`. Confirm the expected Draft is Active in **Project → Budget** after an authorized app activation.
 
-**Common errors:** fix invalid category/amount in the private file and dry-run again. If an identical budget line is skipped, do not change its amount in the file expecting an overwrite; correct it in the app. If an account map refuses, use **Administration → Accounting setup → Budget account map** to inspect the chart and mappings. Never map a category before reviewing the Draft split: `Special expenses` may be classified into Travel & accommodation or Vehicle by the loader based on its description.
+**Common errors:** fix invalid category/amount in the private file and dry-run again. If an identical budget line is skipped, do not change its amount in the file expecting an overwrite; correct it with `pmo correct budget-line` (recipe 11). If an account map refuses, use **Administration → Accounting setup → Budget account map** to inspect the chart and mappings. Never map a category before reviewing the Draft split: `Special expenses` may be classified into Travel & accommodation or Vehicle by the loader based on its description.
 
 ### 5. Cost attribution rules
 
@@ -537,21 +537,50 @@ Each run prints an `intent` before it sends anything, so a run that hangs still 
 
 ### 7. Time and materials
 
-**Goal:** inspect the rate card, estimate the approved unclaimed hours, and review existing claims.
+**Who:** reads for Admin, Finance, Executive or the project's Project Manager; every write for an active Admin or Finance
+member (a Project Manager does the same steps in the app).
 
-**Exact commands:**
+**Every write previews first.** Without `--apply` a command reads, prints what it would do and every problem it sees, and
+writes nothing. With `--apply` it writes once and prints what the server now holds. A preview is advice: the server
+re-checks everything. If a write's outcome is unknown (`outcome_unknown`), run the read it names; never rerun blindly.
+
+**Claim commands take `--project`.** `claim deselect|withdraw` and `signoff prepare` need `--project <id>`: the CLI finds
+the claim in that project's list and refuses (exit 2, nothing sent) a claim that is not on it. `claim sources` needs only
+the claim id.
 
 ```bash
 node scripts/pmo.mjs tm rates list --project <project-uuid> --assignees --json
-node scripts/pmo.mjs tm claim preview --project <project-uuid> --from <YYYY-MM-DD> --to <YYYY-MM-DD> --json
+node scripts/pmo.mjs tm rates set rates.json            # preview; then again with --apply
+node scripts/pmo.mjs tm assign set assignments.json --apply
+node scripts/pmo.mjs tm claim preview --project <project-uuid> --from <YYYY-MM-DD> --to <YYYY-MM-DD>
+node scripts/pmo.mjs tm claim assemble --project <project-uuid> --from <YYYY-MM-DD> --to <YYYY-MM-DD> --apply
+node scripts/pmo.mjs tm claim sources <claim-uuid>
+node scripts/pmo.mjs tm claim deselect <claim-uuid> <source-uuid>... --project <project-uuid> --apply
+node scripts/pmo.mjs tm signoff prepare <claim-uuid> --project <project-uuid> --document <document-uuid> --apply
+node scripts/pmo.mjs tm claim withdraw <claim-uuid> --project <project-uuid> --apply
 node scripts/pmo.mjs tm claim list --project <project-uuid> --json
 ```
 
-The preview is read-only and shows priced hours, unrated hours and the total. The CLI cannot author timesheets, change rates, prepare/sign off a T&M claim, or invoice one. Use **Timesheets** for time entry and approval, then open **Project → Contract & billing → Time and materials** for claim preparation, review and invoicing.
+**Rates file:** a JSON array of `{project_id, kind, label, unit, rate, currency, effective_from}` (optional
+`effective_to`, `asset_id` + `standby_rate` for equipment, `sales_item_code`). To change a line, add its `line_key` and
+`expected_version` from `rates list`. The whole file saves or none of it does; the preview marks each row create, new
+version, unchanged or refused. A new line's key is printed by `--apply`; running the same file again refuses it as a
+duplicate label. **Assignments file:** `{project_id, line_key, user_id, effective_from}` (optional `effective_to`); each
+row is saved on its own, an identical row is skipped.
 
-**How to verify:** confirm the preview's dates and project, resolve every unrated row in the rate card, then compare `claim list` with the app's T&M panel. After a user completes an app action, rerun the relevant read command.
+**Reruns are safe:** an overlapping Draft claim is reported `already_assembled`, a withdrawn claim `already_withdrawn`;
+nothing is sent.
 
-**Common errors:** the range must be valid and no longer than two years. A rate-card read refusal means the current role or CLI API-client tier does not allow that read; use the app with an authorized role. Enhancement: [CLI T&M entry and claim workflow](https://github.com/ariefsaid/PMO/issues/1856).
+**Stays in the app:** entering and approving time (**Timesheets**), issuing the signed document (**Project →
+Documents**; `pmo documents create|upload` registers a Draft and its file), confirming the client's sign-off,
+creating, raising and approving any invoice (**Project → Contract & billing**), and ending a rate line or an
+assignment.
+
+**How to verify:** after each `--apply`, the printed state is the server's; compare `claim list` with the app's T&M panel.
+
+**Common errors:** `tm_role_refused` (sign in as Admin or Finance); a refused rates row (fix the file; nothing was saved);
+`Changed since it was read` (re-read `rates list`); `Refused in the claim's current state` (the claim is no longer Draft,
+or an hour in it is no longer approved).
 
 ### 8. Documents
 
@@ -636,30 +665,40 @@ node scripts/pmo.mjs connect stock dismiss --proposal <id> --confirm
 
 ### 11. Correcting data after a load
 
-**Goal:** repair a specific mismatch without creating duplicate projects, lines, or versions.
+**Goal:** fix one wrong loaded value, with a preview, without creating duplicate projects, lines, or versions.
 
-**Exact commands:** first repeat the original source file as a dry-run and save the output privately:
+`pmo load` never overwrites: a matching project, contract line or budget line is skipped and a differing value is reported (`…_differs`, `…_conflict`, `contract_line.skip`). `pmo correct` is the separate, explicit way to change a loaded value. It is for an active Admin, changes one record per command, finds it by the loader's own key, and makes the same plain table update the app makes, so row-level security, column grants and database triggers decide exactly as they do for the app. Always preview first.
 
 ```bash
-node scripts/pmo.mjs load <original-load.json> --dry-run
-node scripts/pmo.mjs get projects --select id,name,short_name,status,contract_value --filter id=eq.<project-uuid>
-node scripts/pmo.mjs stages <project-uuid>
-node scripts/pmo.mjs get budget_versions --select id,project_id,version,name,status --filter project_id=eq.<project-uuid>
-node scripts/pmo.mjs get budget_line_items --select id,budget_version_id,category,description,budgeted_amount,fiscal_year --filter budget_version_id=eq.<draft-version-uuid>
+# Project header: --code <code>, or --name <name> --client <legal name>
+node scripts/pmo.mjs correct project --code <code> --set end_date=2026-12-31 --dry-run
+node scripts/pmo.mjs correct project --name "<name>" --client "<legal name>" --set short_name=<alias> --set sector=<value> --dry-run
+# Contract line (bill-of-quantities item): the line `key` from the load file
+node scripts/pmo.mjs correct contract-line --code <code> --line-key <line-key> --set rate=1500.50 --set quantity=12 --dry-run
+# Budget line item of a Draft budget: the row exactly as it is in the load file (JSON or @file)
+node scripts/pmo.mjs correct budget-line --code <code> --line '{"category":"Labor","description":"Site crew","fiscal_year":"2026","budgeted_amount":1000}' --set budgeted_amount=1200 --dry-run
 ```
 
-`pmo load` intentionally skips matching rows and never overwrites project fields, contract lines, or loaded budget lines. Use **Project header → Edit** for editable project fields, **Project → Contract & billing** for contract quantities, **Project → Budget** for Draft line corrections, and **Companies** for party corrections. If the historical stage date is wrong, use the stage-date sequence in recipe 3. If an already loaded contract-line value must be changed, use **Project → Contract & billing** and file [CLI correction of loaded records](https://github.com/ariefsaid/PMO/issues/1858).
+The preview prints the record `id` and, for each field, its `before`, `after` and `status` (`changed`, or `unchanged`, which is not sent), plus a `next` line; it writes nothing. Re-run the identical command without `--dry-run` to apply: it prints the same `fields` (without `next`). Text is trimmed as the app trims it, so the `after` shown is what is stored; `award_type` takes `tender` or `direct`, `bidding_entity` takes `alone` or `consortium`.
 
-After the app correction, rerun the original load with `--dry-run`; verify it plans no duplicate and reports existing rows as skipped. Do not delete and reload records to force a correction.
+| Command | Fields | The app screen it matches |
+|---|---|---|
+| `correct project` | `name`, `short_name`, `start_date`, `end_date`, `project_manager_id`, `service_line`, `sector`, `location`, `award_type`, `bidding_entity` | Project header → Edit |
+| `correct contract-line` (a bill-of-quantities item) | `description`, `unit`, `quantity`, `rate`, `basis` (`unit_rate` or `lump_sum`; a lump-sum line has quantity 1) | Project → Contract & billing |
+| `correct budget-line` (a budget line item) | `budgeted_amount`, `description`; only while the budget is a Draft per-year version | Project → Budget |
 
-**How to verify:** inspect the repaired record in the named app screen and compare the new `pmo load --dry-run` output to the original input. Verify the affected version/project IDs, values, and stage history.
+Not available here, by design: a project's code, client, currency, stage or status, contract value and tax (use the app, and `pmo stage-date` for a stage date), a budget line's category, fiscal year or import identity, a contract line's `key` and item code, companies (use **Companies**), clearing a value, and any delete. A refused field names where to change it.
 
-**Common errors:** if the dry-run still reports a different stored value, check that the app save completed and that you selected the correct record ID. A contract-line `skip` means the stable key already exists; it does not mean the line's amount or rate was updated. A budget-line identity conflict needs review of both source and Draft in **Project → Budget** before any further import.
+**What a correction does and does not touch.** A budget line keeps the identity it was loaded with, and so does a contract line (its `key` never changes). Re-running the original load file therefore still reports the line as already loaded. Do **not** put the corrected budget amount back into the load file: its identity would then differ and the loader would add a second line. Address the line again by its original row if it needs another correction. Claims already created keep the rate, quantity and amount they were created with (a claim line is a snapshot and cannot be edited); a later claim, and the contract's earned-value position, use the corrected line. The app lets an Admin correct a line that a claim already uses, and `pmo correct` does the same: preview first.
+
+**How to verify:** read the record back (`pmo get projects --filter code=eq.<code>`, `pmo get budget_line_items --filter budget_version_id=eq.<draft-uuid>`), then re-run the original load file with `--dry-run`: it must plan no creation.
+
+**Common errors:** `no project / contract line / budget line` or `more than one`: the key matched zero or several records; fix the key and read the record first. `line-items can only change while the owning version is Draft`: the budget is Active or Archived, so its lines cannot change. `a lump-sum line must have quantity 1`: send `--set basis=lump_sum --set quantity=1` together. `No row was updated`: row-level security hid the record; check the role and organization with `whoami`. A server refusal is shown with its own message; do not retry with broader credentials. If the historical stage date is wrong, use the stage-date sequence in recipe 3.
 
 ## Command scope and current constraints
 
-The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `pmo bid`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `purchases record-only`, `purchases undo-record-only`, `purchases import-history`, `purchases receive`, `purchases pay-captured`, `documents link`, `documents create`, `documents upload`, `accounts map set`, `attribution set`, and `org add` do support previews. No command deletes records.
+The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `pmo correct`, `pmo bid`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `purchases record-only`, `purchases undo-record-only`, `purchases import-history`, `purchases receive`, `purchases pay-captured`, `documents link`, `documents create`, `documents upload`, `accounts map set`, `attribution set`, every `tm` write (a preview unless `--apply`), and `org add` do support previews. No command deletes records.
 
-The CLI does not create an ERP company directly as a separate ad hoc step, activate a budget, author T&M data, or overwrite a loaded project/contract/budget line. Use the recipes above for their app screens and tracked enhancements: [budget activation](https://github.com/ariefsaid/PMO/issues/1859), [T&M operations](https://github.com/ariefsaid/PMO/issues/1856), and [loader corrections](https://github.com/ariefsaid/PMO/issues/1858).
+The CLI does not create an ERP company directly as a separate ad hoc step, activate a budget, enter or approve time, confirm a sign-off, create or approve an invoice, or change a loaded project's stage, contract value or currency (`pmo correct`, recipe 11, changes the other loaded fields). Use the recipes above for their app screens and tracked enhancements: [budget activation](https://github.com/ariefsaid/PMO/issues/1859) and [T&M operations](https://github.com/ariefsaid/PMO/issues/1856).
 
-**Contract-line and budget-line corrections: what the database allows (known limit).** A command-line sign-in may change an existing contract line (`boq_items`) or budget line (`budget_line_items`) only as an active Admin, and the command sends `Prefer: handling=strict,max-affected=1`. Whatever the header says, the database refuses a command-line request that changes more than one row. Which row it is comes from the caller's own `id=eq.<uuid>` filter, which the database's request check cannot see: a wrong id changes one wrong row, never several. The only columns a command-line sign-in may change are, on contract lines: description, unit, quantity, rate, earning basis; on budget lines: amount, description. Every other column is refused by the database; the app screens stay the place for them. This release ships the database rule only; the commands that use it are tracked in [#1858](https://github.com/ariefsaid/PMO/issues/1858).
+**Contract-line and budget-line corrections: what the database allows (known limit).** A command-line sign-in may change an existing contract line (`boq_items`) or budget line (`budget_line_items`) only as an active Admin, and `pmo correct` sends `Prefer: return=representation,handling=strict,max-affected=1` (the database accepts the request only when `handling=strict` and `max-affected=1` each appear once, spelled exactly). Whatever the header says, the database refuses a command-line request that changes more than one row. Which row it is comes from the caller's own `id=eq.<uuid>` filter, which the database's request check cannot see: a wrong id changes one wrong row, never several. The only columns a command-line sign-in may change are, on contract lines: description, unit, quantity, rate, earning basis; on budget lines: amount, description. Every other column is refused by the database; the app screens stay the place for them. `pmo correct contract-line` and `pmo correct budget-line` (recipe 11) send only columns from those lists; `pmo update` still refuses both tables.

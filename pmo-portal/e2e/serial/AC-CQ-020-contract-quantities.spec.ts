@@ -42,6 +42,7 @@ test('AC-CQ-020 PM allocates 1,000 and prepares final BAST 997; distinct Finance
   const itemDescription = `Cable route survey ${suffix}`;
   const documentTitle = `Signed BAST ${suffix}`;
   let projectId = '';
+  let companyId = '';
   const workOrderId = crypto.randomUUID();
   const documentId = crypto.randomUUID();
 
@@ -53,7 +54,7 @@ test('AC-CQ-020 PM allocates 1,000 and prepares final BAST 997; distinct Finance
 
     const company = await admin.from('companies').insert({ org_id: orgId, name: `Client ${suffix}`, type: 'Client' }).select('id').single();
     if (company.error) throw new Error('AC-CQ-020 fixture client: ' + company.error.message);
-    const companyId = company.data.id as string;
+    companyId = company.data.id as string;
 
     const project = await admin.from('projects').insert({
       org_id: orgId, name: `Contract quantities ${suffix}`, status: 'Ongoing Project', currency: 'IDR', client_id: companyId,
@@ -162,5 +163,7 @@ test('AC-CQ-020 PM allocates 1,000 and prepares final BAST 997; distinct Finance
     // A Confirmed BAST (and the closed order that references it) is immutable by design, so nothing is deleted.
     // Archiving the unique project keeps the leftover out of every live project list.
     if (projectId) await admin.from('projects').update({ archived_at: new Date().toISOString() }).eq('id', projectId);
+    // ...and archiving its client company keeps it out of every live company list too.
+    if (companyId) await admin.from('companies').update({ archived_at: new Date().toISOString() }).eq('id', companyId);
   }
 });
