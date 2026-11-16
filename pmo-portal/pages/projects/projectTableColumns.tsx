@@ -168,7 +168,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
             {ids && <span className="shrink-0 whitespace-nowrap">
               {clientName && <span aria-hidden>·{'\u00a0'}</span>}
               {p.pmo_project_number && <span className="sr-only">{t('projects.identifiers.pmo', 'PMO Project Number')}: </span>}
-              <span className="tabular-nums" title={ids}>{ids}</span>
+              <span className="whitespace-nowrap record-id" title={ids}>{ids}</span>
             </span>}
             {endClientName && <span className="min-w-0 break-words text-muted-foreground">
               {(clientName || ids) && <span aria-hidden>·{'\u00a0'}</span>}{endClientName}
@@ -408,7 +408,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
         {(p.client || ids || p.end_client) && (
           <div className="mt-1 flex min-w-0 flex-wrap gap-x-3 break-words text-sm font-normal text-muted-foreground" onClick={(event) => event.stopPropagation()}>
             {p.client && <CompanyNameLink companyId={p.client_id} name={companyDisplayName(p.client)} className="inline" />}
-            {ids && <span className="whitespace-nowrap tabular-nums" title={ids}>{ids}</span>}
+            {ids && <span className="whitespace-nowrap record-id" title={ids}>{ids}</span>}
             {p.end_client && <span>{companyDisplayName(p.end_client)}</span>}
           </div>
         )}

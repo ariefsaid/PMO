@@ -425,6 +425,15 @@ recording that evidence does not instruct the accounting system to buy again.
 **Captured purchase** — a purchase whose document evidence has been recorded in PMO.
 It describes how evidence arrived, not a separate purchase lifecycle.
 
+**Order family** — one ERP purchase order and every submitted supplier invoice that bills it; the order and its
+invoices always sit in one purchase, so the order's commitment and its invoices' cost are counted once.
+
+**Family placement** — an active Admin's decision that an order family belongs to one PMO project, recorded as one
+record-only purchase (new) or as invoices attached to the order's captured purchase (attach).
+
+**Attachment** — the invoices one family placement linked to a purchase that already held the order; it can be
+undone on its own, leaving the purchase and its order.
+
 **Capture** — the act of recording a purchase document in PMO. Whether it also creates a document
 in the connected accounting system depends on the chosen entry path; record-only capture does not.
 

@@ -6,6 +6,7 @@ import { useFxRate } from '@/src/hooks/useFxRates';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import { formatDay } from '@/src/lib/format';
 import { formatFxEquivalent } from '@/src/lib/fxEquivalent';
+import { FIGURE_LINE_CLASS } from '@/src/components/ui/FigureContent';
 
 export type FxEquivalentDate = string | 'latest' | null;
 
@@ -64,7 +65,7 @@ const FxEquivalent: React.FC<FxEquivalentProps> = ({ amount, currency, date, com
     if (compact) {
       return (
         <span className="block min-w-0 text-control font-normal tabular text-muted-foreground">
-          <span aria-hidden="true" title={equivalent} className="block truncate whitespace-nowrap">
+          <span aria-hidden="true" title={equivalent} className={`block ${FIGURE_LINE_CLASS}`}>
             {equivalent}
           </span>
           <span className="sr-only">{equivalent}</span>
@@ -72,7 +73,7 @@ const FxEquivalent: React.FC<FxEquivalentProps> = ({ amount, currency, date, com
       );
     }
     return (
-      <span className="block min-w-0 break-words text-control font-normal tabular text-muted-foreground">
+      <span className={`block ${FIGURE_LINE_CLASS} text-control font-normal text-muted-foreground`}>
         {equivalent}
       </span>
     );

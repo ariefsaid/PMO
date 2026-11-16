@@ -2,6 +2,7 @@ import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import type { NativeProjectStatementTotals, StatementReportPeriod } from '@/src/lib/adapterSeam/erpnext/statementReports';
 import { formatDayYear } from '@/src/lib/format';
 import { formatNativeStatementAmount } from '@/src/lib/nativeStatementPresentation';
+import { FIGURE_LINE_CLASS } from '@/src/components/ui/FigureContent';
 
 export interface ProjectStatementTotalsProps {
   current: Readonly<NativeProjectStatementTotals>;
@@ -71,7 +72,7 @@ export function ProjectStatementTotals({ current, prior, periods, labels }: Proj
       align: 'num',
       colClassName: 'col-span-2',
       cell: (row) => (
-        <span className="block min-w-0 whitespace-normal break-words text-right tabular">
+        <span className={`block ${FIGURE_LINE_CLASS} text-right`}>
           {formatNativeStatementAmount(amountFor(current, row.key))}
         </span>
       ),
@@ -82,7 +83,7 @@ export function ProjectStatementTotals({ current, prior, periods, labels }: Proj
       align: 'num',
       colClassName: 'col-span-2',
       cell: (row) => (
-        <span className="block min-w-0 whitespace-normal break-words text-right tabular">
+        <span className={`block ${FIGURE_LINE_CLASS} text-right`}>
           {formatNativeStatementAmount(amountFor(prior, row.key))}
         </span>
       ),

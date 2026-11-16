@@ -112,6 +112,7 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
     expect(screen.queryByText(/Customer contract reference/)).not.toBeInTheDocument();
     const first = screen.getByText('Synthetic project 0').closest('tr')!;
     const ids = within(first).getByText('PMO-1000 · CLI-0');
+    expect(ids).toBeInTheDocument();
     // The identifiers never break across lines (their clause is nowrap).
     expect(ids.closest('.whitespace-nowrap')).not.toBeNull();
   });

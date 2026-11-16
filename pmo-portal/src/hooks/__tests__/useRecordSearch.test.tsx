@@ -182,6 +182,21 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
     expect(navigate).toHaveBeenCalledWith('/procurement/pr1');
   });
 
+  it('finds a procurement case by its purchase-request number as well as its own code', () => {
+    state.procurements = {
+      data: [{ id: 'pr2', title: 'HV cabling kit', code: 'SP2402-004', pr_number: 'PR-2511100001' }],
+      isPending: false,
+      isError: false,
+    };
+    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
+
+    for (const typed of ['PR-2511100001', 'sp2402-004']) {
+      const ranked = rankRecords(result.current.records, typed);
+      expect(ranked.items[0]?.title).toBe('HV cabling kit');
+    }
+    expect(result.current.records.find((r) => r.id === 'procurement:pr2')?.code).toBe('SP2402-004 · PR-2511100001');
+  });
+
   // AC-CMDK-004: isPending passthrough while any list is still fetching.
   it('AC-CMDK-004: reports isPending when any cached list is still fetching', () => {
     state.projects = { data: undefined, isPending: true, isError: false };

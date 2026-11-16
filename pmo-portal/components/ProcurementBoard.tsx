@@ -74,7 +74,7 @@ const PrCard: React.FC<{
         {pr.title}
       </div>
       {pr.code && (
-        <div className="mt-0.5 truncate font-mono text-sm text-muted-foreground">
+        <div className="mt-0.5 truncate record-id">
           {pr.code}
         </div>
       )}
