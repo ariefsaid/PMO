@@ -20,9 +20,9 @@ const COMMITTED = 32_921_810_700; // eleven digits
 type Json = Record<string, unknown>;
 
 /** Fetch the real response, then answer it with `patch` applied. */
-async function patched(route: Route, patch: (body: any) => unknown) {
+async function patched<T>(route: Route, patch: (body: T) => unknown) {
   const response = await route.fetch();
-  const body: unknown = await response.json();
+  const body = (await response.json()) as T;
   await route.fulfill({ response, json: patch(body) as object });
 }
 
@@ -67,14 +67,14 @@ async function answerInRupiah(page: Page) {
   const categories = ['Materials', 'Equipment', 'Subcontractors', 'Labor', 'Permits & Fees', 'Contingency'];
   await page.route('**/rest/v1/procurements?**', async (route) => {
     if (route.request().method() !== 'GET') return route.fallback();
-    return patched(route, (rows: any) => (Array.isArray(rows) ? rows.map((row: Json, i: number) => (row.project_id === MERIDIAN
+    return patched(route, (rows: Json[]) => (Array.isArray(rows) ? rows.map((row, i) => (row.project_id === MERIDIAN
       ? { ...row, status: 'Ordered', currency: 'IDR', open_commitment: COMMITTED, budget_category: categories[i % categories.length] }
       : row)) : rows));
   });
   await page.route('**/rest/v1/rpc/get_project_budget**', (route) => route.fulfill({ json: 6 * BUDGET_LINE }));
   await page.route('**/rest/v1/projects?**', async (route) => {
     if (route.request().method() !== 'GET' || !route.request().url().includes(MERIDIAN)) return route.fallback();
-    return patched(route, (body: any) => {
+    return patched<Json | Json[]>(route, (body) => {
       const patch = (o: Json) => (o && o.id === MERIDIAN ? { ...o, currency: 'IDR' } : o);
       return Array.isArray(body) ? body.map(patch) : patch(body);
     });
