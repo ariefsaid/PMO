@@ -204,6 +204,16 @@ export const Combobox: React.FC<ComboboxProps> = ({
     return options.reduce((n, o) => n + (filter(o, q) ? 1 : 0), 0);
   }, [ss, options, query, filter]);
   const hiddenCount = ss ? 0 : Math.max(0, matchCount - MAX_RENDERED_OPTIONS);
+  const hasOptions = state === 'ready' && matchCount > 0;
+  // The list may grow wider than the field to read names; once grown it keeps that width while open, so typing
+  // a query (fewer, shorter rows) does not make the right edge jump back and forth.
+  const popupRef = useRef<HTMLDivElement>(null);
+  const [grownWidth, setGrownWidth] = useState(0);
+  useLayoutEffect(() => {
+    if (!open) { setGrownWidth(0); return; }
+    const width = popupRef.current?.offsetWidth ?? 0;
+    if (hasOptions && width > grownWidth) setGrownWidth(width);
+  }, [open, hasOptions, grownWidth, options]);
 
   const load = useCallback(() => {
     if (!loadOptions) return;
@@ -346,12 +356,19 @@ export const Combobox: React.FC<ComboboxProps> = ({
         {helper && !error && <span id={helpId} className="text-control text-muted-foreground">{helper}</span>}
 
         <BaseCombobox.Portal>
-          <BaseCombobox.Positioner sideOffset={5} collisionPadding={8} className="z-[820]">
+          <BaseCombobox.Positioner align="start" sideOffset={5} collisionPadding={8} className="z-[820]">
             <BaseCombobox.Popup
+              ref={popupRef}
               aria-labelledby={labelId}
               data-instant={instant || undefined}
-              style={{ '--menu-origin': 'var(--transform-origin)' } as React.CSSProperties}
-              className="menu-pop-anim motion-reduce:animate-none w-[var(--anchor-width)] max-w-[calc(100vw-16px)] overflow-hidden rounded-md border border-border bg-popover shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]"
+              style={{ '--menu-origin': 'var(--transform-origin)', ...(grownWidth ? { minWidth: grownWidth } : {}) } as React.CSSProperties}
+              className={cn(
+                'menu-pop-anim motion-reduce:animate-none overflow-hidden rounded-md',
+                // Options to read: at least the field's width, growing to fit the longest name up to 480px (never past the viewport).
+                // Loading, error and empty states keep the field's width.
+                hasOptions ? 'w-max min-w-[var(--anchor-width)] max-w-[min(480px,calc(100vw-16px))]' : 'w-[var(--anchor-width)] max-w-[calc(100vw-16px)]',
+                'border border-border bg-popover shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]',
+              )}
             >
               <div className="flex items-center gap-2 border-b border-border px-3 py-2">
                 <Icon name="search" className="size-[15px] shrink-0 text-muted-foreground" />
