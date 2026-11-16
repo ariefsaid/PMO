@@ -42,3 +42,14 @@ describe('LedgerDateLine stacked (narrow date cell)', () => {
     expect(id.odooOutcome.ledgerDateEntered).toBe('Dimasukkan {{date}}');
   });
 });
+
+// #2290: a date such as "11 Oct" never splits across lines; the line may wrap only between words.
+describe('LedgerDateLine keeps each date whole', () => {
+  it('joins day and month with no-break spaces in the single-line form', () => {
+    render(<LedgerDateLine entered="2026-10-09" posted="2026-10-11" />);
+    const text = screen.getByTestId('ledger-date').textContent ?? '';
+    expect(text).toMatch(/11\u00a0Oct/);
+    expect(text).toMatch(/9\u00a0Oct/);
+    expect(text).not.toMatch(/\d{1,2} Oct/);
+  });
+});

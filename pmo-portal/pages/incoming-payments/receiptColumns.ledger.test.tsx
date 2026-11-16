@@ -64,3 +64,24 @@ describe('AC-ODR-010 receipt: "entered" shows only when it differs from the ledg
     expect(screen.getByTestId('ledger-date')).toHaveTextContent(/entered 3 Nov/);
   });
 });
+
+describe('AC-ODR-010 the receipts date line stays on one line', () => {
+  it('keeps the entered date whole (no-break spaces, nowrap) and the ledger date whole', () => {
+    dateCell(receipt({ date: '2026-10-09', erp_posting_date: '2026-10-11' }));
+    const text = document.body.textContent ?? '';
+    expect(text).toMatch(/9\u00a0Oct/);
+    expect(text).toMatch(/11\u00a0Oct/);
+    expect(text).not.toMatch(/\d{1,2} Oct/);
+    const entered = Array.from(document.querySelectorAll('span.whitespace-nowrap')).find((e) => /9\u00a0Oct/.test(e.textContent ?? ''));
+    expect(entered).toBeTruthy();
+  });
+
+  it('keeps Indonesian dates whole', async () => {
+    await financeTestI18n.changeLanguage('id');
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'UTC' });
+    dateCell(receipt({ date: '2026-10-09', erp_posting_date: '2026-10-11' }));
+    const text = document.body.textContent ?? '';
+    expect(text).toMatch(/11\u00a0Okt/);
+    expect(text).not.toMatch(/\d{1,2} Okt/);
+  });
+});

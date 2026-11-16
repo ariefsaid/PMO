@@ -3,3 +3,6 @@ export function movedLedgerDate(entered: string | null | undefined, posted: stri
   if (!posted || !entered) return null;
   return posted.slice(0, 10) === entered.slice(0, 10) ? null : posted;
 }
+
+/** Keeps a formatted date whole: no-break spaces, so a line may wrap between words but never inside "11 Oct". */
+export const wholeDate = (formatted: string): string => formatted.replace(/ /g, '\u00a0');
