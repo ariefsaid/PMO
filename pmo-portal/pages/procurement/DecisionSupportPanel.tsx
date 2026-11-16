@@ -122,7 +122,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   // ── Loading state ──────────────────────────────────────────────────────────
   if (isPending) {
     return (
-      <Card variant="bare" className="mb-4">
+      <Card className="mb-4">
         <CardPad>
           {heading}
           <div className="flex flex-col gap-2" aria-label="Loading budget impact">
@@ -137,7 +137,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   // ── Error state ────────────────────────────────────────────────────────────
   if (isError) {
     return (
-      <Card variant="bare" className="mb-4">
+      <Card className="mb-4">
         <CardPad>
           {heading}
           <p className="text-control text-muted-foreground">
@@ -153,7 +153,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   // ── No active budget ───────────────────────────────────────────────────────
   if (budgetAmount === 0) {
     return (
-      <Card variant="bare" className="mb-4">
+      <Card className="mb-4">
         <CardPad>
           {heading}
           <p className="text-control text-muted-foreground">
@@ -172,7 +172,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   if (!currency || !projectCurrency || !budgetCurrency ||
       (!requestInOtherCurrency && (currency !== projectCurrency || budgetCurrency !== projectCurrency))) {
     return (
-      <Card variant="bare" className="mb-4"><CardPad>{heading}
+      <Card className="mb-4"><CardPad>{heading}
         <UnavailableComparison reason={t('decisionSupport.currencyUnavailable', 'Budget comparison unavailable for these currencies.')} />
       </CardPad></Card>
     );
@@ -195,7 +195,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       ? computeBudgetSignal({ budget: budgetAmount, committed: committedSpend, reserved, totalValue: 0, status: 'Draft', projectCurrency, budgetCurrency, requestCurrency: projectCurrency })
       : computeBudgetSignal({ budget: budgetAmount, committed: committedSpend, reserved, totalValue, status, projectCurrency, budgetCurrency, requestCurrency: currency });
   } catch {
-    return <Card variant="bare" className="mb-4"><CardPad>{heading}
+    return <Card className="mb-4"><CardPad>{heading}
       <UnavailableComparison reason={t('decisionSupport.amountUnavailable', 'Budget comparison unavailable for these amounts.')} />
     </CardPad></Card>;
   }
@@ -240,7 +240,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   ];
 
   return (
-    <Card variant="bare" className="mb-4">
+    <Card className="mb-4">
       <CardPad>
         {heading}
 
