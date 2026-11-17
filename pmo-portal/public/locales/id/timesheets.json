@@ -21,7 +21,8 @@
     "awaiting": "{{total}} menunggu Anda",
     "empty": "Tidak ada yang menunggu Anda",
     "emptySub": "$t(common:terms.timesheet) yang diajukan anggota tim akan muncul di sini untuk ditinjau.",
-    "showHours": "Tampilkan jam untuk {{name}}"
+    "showHours": "Tampilkan jam untuk {{name}}",
+    "returnSubject": "Timesheet {{name}}"
   },
   "discardWeek": {
     "title": "Buang perubahan yang belum disimpan?",

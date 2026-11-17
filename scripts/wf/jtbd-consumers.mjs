@@ -16,7 +16,7 @@ const PKGS = [
   },
   {
     pkg: 'pb', branch: 'jtbd-pb', title: 'Procurement detail + DecisionSupportPanel links',
-    files: 'pmo-portal/pages/ProcurementDetails.tsx, pmo-portal/pages/procurement/DecisionSupportPanel.tsx (+ tests)',
+    files: 'pmo-portal/pages/ProcurementDetails.tsx, pmo-portal/src/components/procurement/DecisionSupportPanel.tsx (+ tests)',
     work:
       'Census violation E + dead-end. In ProcurementDetails.tsx wrap p.project.name in <ProjectNameLink> at the RecordHeader meta strip (:550, the priority slot) and the StatTile sub-labels (:524, :539) and :386. In DecisionSupportPanel.tsx make the "Budget impact · {projectName}" heading (:56) a link to the project AND add an explicit "Open project budget" affordance (it already has projectId). Use the shared ProjectNameLink where it fits; for the DSP "Open project budget" use a plain <Link to={/projects/${projectId}}> styled per DESIGN.md. Plan task T06.',
   },

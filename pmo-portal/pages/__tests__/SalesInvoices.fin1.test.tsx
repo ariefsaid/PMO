@@ -347,7 +347,7 @@ it('records the selected invoice receipt from the list', async () => {
   await userEvent.type(within(dialog).getByLabelText('Delivered'), '2026-10-12');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
   expect(await within(dialog).findByTestId('entity-modal-save-error')).toBeInTheDocument();
-  expect(within(dialog).getByLabelText('Delivered')).toHaveValue('2026-10-12');
+  expect(within(dialog).getByLabelText('Delivered')).toHaveValue('12 Oct 2026');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
   expect(h.received).toHaveBeenCalledWith({ siId: 'INV-002', receivedDate: '2026-10-12' });
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();

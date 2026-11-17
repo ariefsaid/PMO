@@ -27,6 +27,7 @@ import { AdvanceLoadNotice } from './expenses/AdvanceLoadNotice';
 import { ProjectLoadNotice } from './expenses/ProjectLoadNotice';
 import { useProjectChoices } from './expenses/useProjectChoices';
 import { BudgetCategoryHelp } from './procurement/BudgetCategoryHelp';
+import { DateField } from '@/src/components/ui/DateField';
 
 type DraftLine = { date: string; type: string; description: string; amount: string };
 const blankLine = (): DraftLine => ({ date: '', type: '', description: '', amount: '' });
@@ -221,7 +222,7 @@ const ExpenseClaimNew: React.FC = () => {
           const amount = parseMoneyInputAtScale(line.amount, 2);
           const setLine = (patch: Partial<DraftLine>) => setLines((rows) => rows.map((row, i) => i === index ? { ...row, ...patch } : row));
           const removeLabel = t('expenseClaims:new.removeLine', 'Remove line {{number}}', { number: index + 1 });
-          const dateField = <TextField key="date" label={t('expenses.lines.date', 'Date')} hideLabel={isDesktop} required error={submitted && lineStarted(line) && !line.date ? t('expenseClaims:new.required', 'Required') : undefined} type="date" value={line.date} onChange={(value) => setLine({ date: value })} />;
+          const dateField = <DateField key="date" label={t('expenses.lines.date', 'Date')} hideLabel={isDesktop} required error={submitted && lineStarted(line) && !line.date ? t('expenseClaims:new.required', 'Required') : undefined} value={line.date} onChange={(value) => setLine({ date: value })} />;
           const typeField = <SelectField key="type" label={t('expenses.lines.type', 'Type')} hideLabel={isDesktop} required error={submitted && lineStarted(line) && !line.type ? t('expenseClaims:new.required', 'Required') : undefined} value={line.type} onChange={(value) => setLine({ type: value })} options={[{ value: '', label: t('uxs29.expenseCapture.expenseTypePlaceholder', 'Choose a type') }, ...Constants.public.Enums.expense_type.map((value) => ({ value, label: expenseTypeLabel(value, t) }))]} />;
           const descriptionField = <TextField key="description" label={t('expenses.lines.description', 'Description')} hideLabel={isDesktop} wrapperClassName={isDesktop ? undefined : 'col-span-2'} required error={submitted && lineStarted(line) && !line.description.trim() ? t('expenseClaims:new.required', 'Required') : undefined} value={line.description} onChange={(value) => { setLine({ description: value }); if (index === 0 && !titleEdited) setTitle(value); }} />;
           const amountField = <NumberField

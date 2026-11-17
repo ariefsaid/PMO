@@ -76,7 +76,7 @@ export const PushStateBadge: React.FC<PushStateBadgeProps> = ({
       )}
       {needsAttention && copy.retryable && canRetry && onRetry && (
         <Button variant="outline" size="sm" onClick={onRetry} loading={retryLoading} disabled={retryLoading}>
-          Retry
+          {t('ui.listState.retry', 'Retry')}
         </Button>
       )}
     </div>

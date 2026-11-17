@@ -106,7 +106,7 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@tanstack/react-query')>();
   return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
 });
-vi.mock('@/pages/procurement/DecisionSupportPanel', () => ({
+vi.mock('@/src/components/procurement/DecisionSupportPanel', () => ({
   DecisionSupportPanel: ({ projectName, projectStatus, captionInTooltip }: { projectName?: string | null; projectStatus?: string | null; captionInTooltip?: boolean }) => (
     <div data-testid="decision-support" data-project-status={projectStatus ?? ''} data-caption-in-tooltip={captionInTooltip ? 'yes' : 'no'}>Budget · {projectName}</div>
   ),
@@ -217,7 +217,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     }];
     renderAs('Project Manager');
 
-    const queue = screen.getByRole('heading', { name: /Purchases and timesheets/i });
+    const queue = screen.getByRole('heading', { name: /waiting on your decision/i });
     const history = screen.getByText('Approved history and corrections');
     expect(queue.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(history.closest('details')).not.toHaveAttribute('open');

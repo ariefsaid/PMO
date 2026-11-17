@@ -238,7 +238,8 @@ describe('TimeAndMaterials', () => {
 
     expect(await screen.findByRole('heading', { name: 'Contract' })).toBeInTheDocument();
     await waitFor(() => {
-      expect(screen.getByLabelText('From')).toHaveValue('2026-11-10');
+      expect(screen.getByLabelText('From')).toHaveValue('10 Nov 2026');
+      // Still focused, so the field keeps the text as it was typed; the date itself is committed.
       expect(screen.getByLabelText('To')).toHaveValue('2026-11-12');
     });
   });
@@ -734,8 +735,8 @@ describe('TimeAndMaterials', () => {
     vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-03T20:00:00Z') });
     try {
       renderPanel();
-      expect(await screen.findByLabelText('To')).toHaveValue('2026-11-04');
-      expect(screen.getByLabelText('From')).toHaveValue('2026-11-01');
+      expect(await screen.findByLabelText('To')).toHaveValue('4 Nov 2026');
+      expect(screen.getByLabelText('From')).toHaveValue('1 Nov 2026');
     } finally {
       vi.useRealTimers();
       if (previousTz === undefined) delete process.env.TZ; else process.env.TZ = previousTz;

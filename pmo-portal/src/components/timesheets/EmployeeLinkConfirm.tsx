@@ -264,14 +264,14 @@ export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
                   reason, because the operator's next act depends on WHICH end is missing. */}
               {!decidable && (!needsProfileChoice || erp === null) && (
                 <div className="mt-1 text-control text-muted-foreground">
-                  This link cannot be confirmed:{' '}
+                  {t('administration:employeeLinkConfirm.cannotConfirm', 'This link cannot be confirmed:')}{' '}
                   {erp === null
-                    ? 'the ERP record carries no name, employee number or work email, so there is nothing to confirm it against.'
+                    ? t('administration:employeeLinkConfirm.noIdentity', 'the ERP record carries no name, employee number or work email, so there is nothing to confirm it against.')
                     : needsProfileChoice
                       ? (profileOptions?.length ?? 0) === 0
                         ? t('approvals.employeeLinks.uxs30.noActiveProfiles', 'No active PMO profiles are available.')
                         : t('approvals.employeeLinks.uxs30.chooseProfile', 'Choose an active PMO profile to attribute hours to.')
-                      : 'no PMO user is matched to it yet.'}
+                      : t('administration:employeeLinkConfirm.noMatch', 'no PMO user is matched to it yet.')}
                 </div>
               )}
             </div>
@@ -287,7 +287,7 @@ export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
                 loading={confirmingId === link.id}
                 disabled={confirmingId === link.id}
               >
-                Confirm
+                {t('administration:employeeLinkConfirm.confirm', 'Confirm')}
               </Button>
             )}
           </div>

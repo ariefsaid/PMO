@@ -64,8 +64,8 @@ describe('ProcurementBlock craft rulings', () => {
     expect(screen.getByText('No procurement on this project yet.')).toBeInTheDocument();
   });
 
-  // #1791: number and supplier share ONE clipped line; the full text is reachable on title.
-  it('O10 the record number comes first, the supplier follows, and the whole line is reachable on title', () => {
+  // #2497: number and supplier share one line that wraps whole at 1440 instead of clipping.
+  it('O10 the record number comes first and the supplier follows, both in full', () => {
     procState.data = [{ ...row('a', 'Requested'), code: 'PROC-2026-001', vendor: { name: 'RackMount Systems International' } }];
     renderBlock();
 
@@ -73,19 +73,6 @@ describe('ProcurementBlock craft rulings', () => {
     const line = code.parentElement as HTMLElement;
     expect(line.textContent?.startsWith('PROC-2026-001')).toBe(true);
     expect(line).toHaveTextContent('PROC-2026-001 · RackMount Systems International');
-    expect(line).toHaveAttribute('title', 'PROC-2026-001 · RackMount Systems International');
-  });
-
-  it('one-type r3 a long supplier is cut on one line with its full name reachable, and the number is never cut', () => {
-    procState.data = [{ ...row('a', 'Requested'), code: 'PROC-2026-001', vendor: { name: 'RackMount Systems International' } }];
-    renderBlock();
-
-    const code = screen.getByText('PROC-2026-001');
-    const line = code.parentElement as HTMLElement;
-    expect(line.className).toMatch(/\bline-clamp-1\b/); // the line clips, the number sits first so only the tail goes
-    expect(line.title).toContain('RackMount Systems International');
-    expect(code.className).not.toMatch(/\bline-clamp\b|\btruncate\b/);
-    expect(code.className).not.toMatch(/\bfont-mono\b/); // one type family
   });
 
   it('one-type r4 number and supplier are told apart by the separator " · "', () => {
@@ -96,23 +83,16 @@ describe('ProcurementBlock craft rulings', () => {
     expect(line.textContent).toBe('PROC-2026-001 · VoltEdge Inverters');
   });
 
-  // #2434: the first column leaves room for the supplier beside the uncut number (1440).
-  it('#2434 the procurement column is wide enough to show the supplier beside the number', () => {
-    procState.data = [{ ...row('a', 'Requested'), code: 'PROC-2026-001', vendor: { name: 'VoltEdge Inverters' } }];
-    renderBlock();
-    const header = document.querySelector('th[data-col-key="procurement"]') as HTMLElement;
-    expect(parseInt(header.style.minWidth, 10)).toBeGreaterThanOrEqual(208);
-  });
-
-  // The longest Bahasa category word, "Subkontraktor", is 80.1px at 14px (measured, Hanken Grotesk); the cell has
-  // 16px inset each side, so the column must be at least 112.1px and the cell must wrap at spaces only.
-  it('a category word is never cut mid-word: the column fits the longest word and the cell wraps at spaces', () => {
+  // #2497: the category belongs to the project's budget, so the company list names it under the project.
+  it('the company list shows a purchase\'s budget category with its project; a project tab keeps its own column', () => {
     procState.data = [{ ...row('a', 'Requested'), budget_category: 'Subcontractors' }];
-    renderBlock();
-    const header = document.querySelector('th[data-col-key="category"]') as HTMLElement;
-    expect(parseInt(header.style.minWidth, 10)).toBeGreaterThanOrEqual(113);
-    const cell = screen.getByTitle(/subcontractors/i);
-    expect(cell.className).toContain('break-normal');
+    const { unmount } = renderBlock();
+    const tableRow = screen.getByRole('button', { name: 'Open Row a' }).closest('tr') as HTMLElement;
+    expect(within(tableRow).getByText('Site')).toBeInTheDocument();
+    expect(within(tableRow).getByText(/subcontractors/i)).toBeInTheDocument();
+    unmount();
+    renderBlock('p-1');
+    expect(screen.getByRole('columnheader', { name: /Category/ })).toBeInTheDocument();
   });
 
   // #2434: on a phone card the owner's name takes its own line under the action, so it is never cut by the button.

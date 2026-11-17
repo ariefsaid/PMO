@@ -693,7 +693,8 @@
    A menu opened from the keyboard appears instantly (#2122): Base UI marks such an open with
    data-instant (the Combobox and the hand-rolled NotificationBell set it themselves). ---------- */
 .menu-pop-anim { transform-origin: var(--menu-origin, top left); animation: menuPopIn var(--motion-menu-in) var(--ease-out); }
-@keyframes menuPopIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+/* Scale only, no fade: a menu is an opaque surface from its first frame (a fade reads as see-through). */
+@keyframes menuPopIn { from { transform: scale(0.96); } to { transform: none; } }
 .menu-pop-anim[data-instant] { animation: none; }
 
 /* ---------- Tooltips grow from their trigger: Base UI sets --transform-origin on the

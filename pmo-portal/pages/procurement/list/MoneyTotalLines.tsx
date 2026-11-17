@@ -10,9 +10,11 @@ interface MoneyTotalLinesProps {
   className?: string;
   /** Summary tiles: the figure leads (larger) and reads short ("$2.4M"); the full amount stays in the accessible name. */
   lead?: boolean;
+  /** Currency to name on a known zero (no rows), so an empty column reads "Rp 0", never a bare "0". */
+  zeroCurrency?: string;
 }
 
-export const MoneyTotalLines: React.FC<MoneyTotalLinesProps> = ({ totals: allTotals, tooltip, testId, className = '', lead = false }) => {
+export const MoneyTotalLines: React.FC<MoneyTotalLinesProps> = ({ totals: allTotals, tooltip, testId, className = '', lead = false, zeroCurrency }) => {
   const { t } = useTranslation('procurementList');
   // A zero line beside a real one says nothing ("IDR 0 · $30,000"); keep it only when every currency is zero.
   const nonZero = allTotals.filter((total) => total.amount !== 0);
@@ -33,11 +35,12 @@ export const MoneyTotalLines: React.FC<MoneyTotalLinesProps> = ({ totals: allTot
     : null;
   // C4: no rows at all is a known zero, not a missing amount.
   const empty = totals.length === 0;
+  const zeroText = zeroCurrency ? formatCurrency(0, zeroCurrency) : formatNumber(0);
   const show = ({ total, amount }: { total: CurrencyTotal; amount: number }) => (lead
     ? formatShortMoney(amount, total.currency)
     : formatCurrency(amount, total.currency));
   const valueLabel = [
-    ...(empty ? [formatNumber(0)] : known.map(({ total, amount }) => formatCurrency(amount, total.currency))),
+    ...(empty ? [zeroText] : known.map(({ total, amount }) => formatCurrency(amount, total.currency))),
     partialLabel,
     unknownLabel,
   ].filter(Boolean).join(', ');
@@ -51,7 +54,7 @@ export const MoneyTotalLines: React.FC<MoneyTotalLinesProps> = ({ totals: allTot
       className={`inline-flex flex-col items-start font-semibold tabular text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${lead ? 'text-[20px] leading-tight' : 'text-sm leading-snug'} ${className}`}
     >
       {empty ? (
-        <span>{formatNumber(0)}</span>
+        <span>{zeroText}</span>
       ) : (
         <>
           {known.map((entry) => <span key={entry.total.currency}>{show(entry)}</span>)}

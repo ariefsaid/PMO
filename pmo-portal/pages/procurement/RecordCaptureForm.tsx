@@ -15,6 +15,7 @@ import { VendorInvoiceCaptureFields } from './VendorInvoiceCaptureFields';
  */
 import React, { useState } from 'react';
 import type { TFunction } from 'i18next';
+import { DateField } from '@/src/components/ui/DateField';
 import { Button, ConfirmDialog, FieldError, Icon, SelectField, useMoneyInputMask, useToast } from '@/src/components/ui';
 import { Input } from '@/src/components/shadcn/input';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -473,22 +474,15 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       {/* Two-column row: date + status */}
       <div className="flex flex-wrap gap-3">
         {/* Business date */}
-        <div className="flex min-w-[140px] flex-1 flex-col gap-1">
-          <label
-            htmlFor={`${formId}-date`}
-            className="text-sm font-semibold text-muted-foreground"
-          >
-            {cfg.dateLabel}
-          </label>
-          <Input
-            id={`${formId}-date`}
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            data-testid={cfg.dateTestId}
-            className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-sm outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          />
-        </div>
+        <DateField
+          id={`${formId}-date`}
+          compact
+          label={cfg.dateLabel}
+          value={date}
+          onChange={setDate}
+          data-testid={cfg.dateTestId}
+          wrapperClassName="min-w-[140px] flex-1"
+        />
 
         {/* Status — never rendered for a payment: DD-VPAY-8 (the options are illegal; null is sent). */}
         {!isPayment && !showsQtyGrid && (

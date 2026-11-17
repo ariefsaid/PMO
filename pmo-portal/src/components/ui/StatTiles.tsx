@@ -42,6 +42,8 @@ export interface StatTilesProps {
    * waits for a 52rem strip (3 x 262px + gaps) instead of 28rem, so a figure never outgrows its tile.
    */
   wideFigures?: boolean;
+  /** Labels on one line and figures on one line across each row, with equal row gaps (see the tile classes). */
+  alignRows?: boolean;
 }
 
 /**
@@ -84,10 +86,12 @@ const CONTAINER_SPAN_RESET: Record<number, string> = {
  * ponytail: calibrated on a 155px phone tile ("US$210.000" overflows, "$6,900,000" fits); re-measure if the metric font changes.
  */
 const WIDE_FIGURE_UNITS = 9.25;
-const isWideFigure = (tile: StatTile) =>
+const isWideFigure = (tile: StatTile, units = WIDE_FIGURE_UNITS) =>
   tile.unavailableReason == null
   && typeof tile.value === 'string'
-  && tile.value.length - 0.5 * (tile.value.match(/[.,\s]/g)?.length ?? 0) > WIDE_FIGURE_UNITS;
+  && tile.value.length - 0.5 * (tile.value.match(/[.,\s]/g)?.length ?? 0) > units;
+// alignRows draws narrow figures at the group size (1rem, not 1.875rem), so a figure is wide only past 1.875x the units.
+const GROUP_FIGURE_UNITS = WIDE_FIGURE_UNITS * 1.875;
 
 /**
  * Hairline-gap strip of stat tiles (the 1px `border` shows through as separators).
@@ -113,6 +117,7 @@ export const StatTiles: React.FC<StatTilesProps> = ({
   className,
   variant = 'framed',
   wideFigures = false,
+  alignRows = false,
 }) => {
   const isUnknown = (tile: StatTile) => tile.unavailableReason != null || tile.value == null;
   const unknownTiles = allTiles.filter(isUnknown);
@@ -133,10 +138,12 @@ export const StatTiles: React.FC<StatTilesProps> = ({
   const rowSpan: boolean[] = [];
   let col = 0;
   tiles.forEach((t, i) => {
-    if (isWideFigure(t)) { if (col === 1) rowSpan[i - 1] = true; rowSpan[i] = true; col = 0; }
+    if (isWideFigure(t, alignRows ? GROUP_FIGURE_UNITS : WIDE_FIGURE_UNITS)) { if (col === 1) rowSpan[i - 1] = true; rowSpan[i] = true; col = 0; }
     else col = col === 0 ? 1 : 0;
   });
   if (col === 1) rowSpan[tiles.length - 1] = true;
+  // alignRows: each tile's label, figure and caption share row tracks with its neighbours (subgrid), so labels and
+  // figures in a row sit on one line whatever wraps; figures step down below @md so two fit abreast.
   const isBare = variant === 'bare';
   return (
     <div
@@ -150,7 +157,7 @@ export const StatTiles: React.FC<StatTilesProps> = ({
         smColsClass,
         // framed = the hairline-gap card strip; bare = borderless on the canvas
         isBare
-          ? 'gap-[var(--space-group)]'
+          ? alignRows ? 'gap-x-[var(--space-group)]' : 'gap-[var(--space-group)]'
           : 'rounded-lg border border-border bg-border gap-px',
         className,
       )}
@@ -171,13 +178,14 @@ export const StatTiles: React.FC<StatTilesProps> = ({
               // a wide figure's row span ends at @md (two tiles fit abreast), before any N-col layout starts, so it
               // never spans 2 of 3 columns beside a gap; the odd last tile keeps the N-col reset
               rowSpan[i] && cn('col-span-2', isLastOdd ? spanReset : '@md:col-span-1'),
+              alignRows && 'row-span-3 grid grid-rows-subgrid content-start pb-[var(--space-group)]',
             )}
           >
-            <div className="mb-1 text-control font-medium text-foreground">{t.label}</div>
+            <div className={cn('mb-1 text-control font-medium text-foreground', alignRows && 'self-end')}>{t.label}</div>
             <div
               className={cn(
                 FIGURE_LINE_CLASS,
-                'text-metric font-semibold',
+                alignRows ? 'text-group @md:text-metric font-semibold' : 'text-metric font-semibold',
                 !t.tone && 'text-foreground',
                 // AC-RAM-004 (#688): raw text-success failed color-contrast in dark theme —
                 // the same class of gap the 'neg' tone below was already fixed for. text-success-text

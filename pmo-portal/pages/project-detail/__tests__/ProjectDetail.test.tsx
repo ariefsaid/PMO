@@ -302,7 +302,8 @@ describe('ProjectDetail shell (decomposition)', () => {
     const header = screen.getByTestId('record-header');
     const identity = within(header).getByTestId('project-identity-line');
     const facts = within(header).getByRole('region', { name: 'Project facts' });
-    expect(identity).toHaveTextContent('Innovate Corp·PRJ-001');
+    // Customer then project number, read apart (the visual dot is a separator drawn by CSS).
+    expect(identity).toHaveTextContent(/Innovate Corp PRJ-001$/u);
     expect(identity.querySelector('.sr-only')).toHaveTextContent('Customer');
     expect(within(facts).getByText('Alice Manager')).toBeInTheDocument();
     expect(facts.lastElementChild).toHaveTextContent(/^Updated /u);

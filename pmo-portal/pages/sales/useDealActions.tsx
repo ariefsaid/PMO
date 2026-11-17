@@ -11,7 +11,7 @@ import { useProjectWinEligibility } from '@/src/hooks/useProjectTransitions';
 import { invalidateProjectProjections } from '@/src/hooks/projectQueryKeys';
 import { repositories } from '@/src/lib/repositories';
 import { synchronizeErpProject } from '@/src/lib/repositories/projectErpSetup';
-import { formatPercent } from '@/src/lib/format';
+import { formatIsoDay, formatPercent } from '@/src/lib/format';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import {
   LEGAL_PROJECT_TRANSITIONS, PIPELINE_STATUSES, projectStatusGroup, type TransitionProjectOpts,
@@ -195,9 +195,12 @@ export function useDealActions(project: ProjectWithRefs) {
     if (!canWin) return;
     const refMissing = !contractRef.trim();
     const dateMissing = !contractDate;
+    const dateFuture = !dateMissing && contractDate > today;
     setRefError(refMissing ? t('projectDetail.pipeline.refRequired', 'Customer contract reference is required') : null);
-    setDateError(dateMissing ? t('projectDetail.pipeline.dateRequired', 'Contract date is required') : null);
-    if (refMissing || dateMissing) return;
+    setDateError(dateMissing
+      ? t('projectDetail.pipeline.dateRequired', 'Contract date is required')
+      : dateFuture ? t('dateField.afterMax', { defaultValue: 'Choose a date on or before {{date}}', date: formatIsoDay(today) }) : null);
+    if (refMissing || dateMissing || dateFuture) return;
     void runTransition('Won, Pending KoM', { customerContractRef: contractRef.trim(), contractDate });
   };
 

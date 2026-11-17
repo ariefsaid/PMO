@@ -205,7 +205,19 @@ export const WorkCalendar: React.FC<WorkCalendarProps> = ({
         onEventUpdate={handleUpdate}
         onEventClick={handleClick}
         onRangeChange={handleRange}
-        i18n={{ labels: { noEvents: t('empty', 'Nothing due in this period') } }}
+        i18n={{
+          labels: {
+            noEvents: t('empty', 'Nothing due in this period'),
+            allDay: t('lib.allDay', 'All day'),
+            more: (count: number) => t('lib.more', '+{{count}} more', { count }),
+            loading: t('lib.loading', 'Loading events'),
+            event: t('lib.event', 'event'),
+            events: (count: number) => t('lib.events', { defaultValue_one: '{{count}} event', defaultValue_other: '{{count}} events', count }),
+            selectView: t('lib.selectView', 'Select view'),
+            dropNotAllowed: t('lib.dropNotAllowed', "Can't place here"),
+            continues: t('lib.continues', 'continues'),
+          },
+        }}
         className="min-h-[34rem] flex-1 text-control!"
       >
         <Toolbar scopeNote={scopeNote} />

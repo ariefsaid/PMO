@@ -78,7 +78,6 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
     : null, [isPipeline, project.id]);
   const openBudget = useCallback(() => onOpen('budget'), [onOpen]);
   const canSeeMoney = may('view', 'salesInvoice');
-  const calm = !attention.isPending && !attention.error && attention.items.length === 0;
   if (isPipeline) {
     if (lens === 'delivery') {
       return (
@@ -105,7 +104,8 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
   }
   return (
     lens === 'delivery' ? (
-      <div className="flex min-w-0 flex-col gap-[var(--space-section)]">
+      // Nothing assigned and no phases yet: the two one-line panels share a row instead of stacking as near-empty cards.
+      <div className={`grid min-w-0 gap-[var(--space-section)] ${showDeliveryAttention ? '' : 'xl:[&:has(>:nth-child(1)_[data-empty]):has(>:nth-child(2)_[data-empty])]:grid-cols-2 [&>:nth-child(n+3)]:col-[1/-1]'}`}>
         <div className={`grid min-w-0 gap-[var(--space-section)] ${showDeliveryAttention ? 'xl:grid-cols-2' : 'xl:grid-cols-1'}`}>
           <MyOpenTasks projectId={project.id} />
           {showDeliveryAttention && <ProjectAttention {...attentionProps} className="min-w-0" />}
@@ -124,26 +124,24 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
         {activity}
       </div>
     ) : (
-      <div className="flex min-w-0 flex-col gap-[var(--space-section)]">
-        {/* One question: is this project OK, and what needs me now? Needs attention leads (the work), Money position beside it;
-            then Budget and the Phase timeline span the canvas on one shared row grid. Each panel names its own figures that
-            cannot be computed yet, so nothing sits bare between the tabs and the panels.
-            Grid at xl (1440): canvas ≈ 1440 − 224 sidebar − 2×24 gutters = 1168; 2fr + 3fr with one section gap (32px, the RecordStack token, as on the claim record) = 454 + 682. */}
-        {/* Nothing needs you: Needs attention becomes a slim full-width band, so it never stretches beside Money position. */}
-        <div className={`grid min-w-0 gap-[var(--space-section)] ${canSeeMoney ? 'xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]' : 'xl:grid-cols-2'}`}>
-          <ProjectAttention items={attention.items} isPending={attention.isPending} pendingSources={attention.pendingSources} error={attention.error} fillRow={canSeeMoney && !calm} className={`min-w-0 xl:col-start-1 xl:row-start-1 ${calm ? 'xl:col-span-2' : ''}`} />
-          {canSeeMoney && <div className={`min-w-0 ${calm ? 'xl:col-span-2 xl:col-start-1 xl:row-start-2' : 'xl:col-start-2 xl:row-start-1'}`}><MoneyBlock project={project} fillRow={!calm} footer={<BillingMilestonesBlock projectId={project.id} empty="line" />} /></div>}
-          <div className={`min-w-0 ${canSeeMoney ? `xl:col-span-2 xl:col-start-1 ${calm ? 'xl:row-start-3' : 'xl:row-start-2'}` : ''}`}><CostBlock project={project} onOpenBudget={openBudget} showUnit={!canSeeMoney} /></div>
+      // One question: is this project OK, and what needs me now? Needs attention leads; the money figures answer
+      // contracted, billed, paid and spent; then Budget and the Phase timeline. A panel whose data does not exist yet
+      // (no active budget, no phases) is one line: two of those share a row rather than stacking as near-empty cards.
+      <div className="grid min-w-0 gap-[var(--space-section)] xl:[&:has(>:nth-child(2)_[data-empty]):has(>:nth-child(3)_[data-empty])]:grid-cols-2 [&>:not(:nth-child(2)):not(:nth-child(3))]:col-[1/-1] [&>[data-near-viewport=seen]:empty]:hidden">
+        {/* Needs attention leads as a full-width band, its rows two abreast on a wide screen; Money position spans the row
+            under it. Neither panel is ever stretched to the other's height, in either language (Bahasa rows wrap taller). */}
+        <div className="grid min-w-0 gap-[var(--space-section)]">
+          <ProjectAttention items={attention.items} isPending={attention.isPending} pendingSources={attention.pendingSources} error={attention.error} band className="min-w-0" />
+          {canSeeMoney && <div className="min-w-0"><MoneyBlock project={project} footer={<BillingMilestonesBlock projectId={project.id} empty="line" />} /></div>}
         </div>
+        <CostBlock project={project} onOpenBudget={openBudget} showUnit={!canSeeMoney} />
+        <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock></div>
         {/* An empty milestones slot (its line lives in Money position) takes no gap. */}
-        <div className="flex min-w-0 flex-col gap-[var(--space-section)] [&>[data-near-viewport=seen]:empty]:hidden">
-          <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock></div>
-          <WhenNearViewport>
-            <BillingMilestonesBlock projectId={project.id} empty={canSeeMoney ? 'none' : 'panel'} />
-          </WhenNearViewport>
-          {/* Activity closes the overview: present, but never competing with the work above (Lessons). */}
-          {activity}
-        </div>
+        <WhenNearViewport>
+          <BillingMilestonesBlock projectId={project.id} empty={canSeeMoney ? 'none' : 'panel'} />
+        </WhenNearViewport>
+        {/* Activity closes the overview: present, but never competing with the work above (Lessons). */}
+        {activity}
       </div>
     )
   );
@@ -161,8 +159,10 @@ const AreaContent: React.FC<{ project: ProjectWithRefs; area: Exclude<Area, 'ove
     case 'contract': {
       return (
         <ContractCascade project={project} contractTools={<BillingTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}
-          projectManagerId={project.project_manager_id ?? null} mode="contract-tools" />}>
-          <div className="flex min-w-0 flex-col gap-4">
+          projectManagerId={project.project_manager_id ?? null} mode="contract-tools" />}
+          timeAndMaterials={<BillingTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}
+            projectManagerId={project.project_manager_id ?? null} mode="contract-time-materials" />}>
+          <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
             <WorkOrdersTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}
               focusWorkOrderId={new URLSearchParams(window.location.search).get('wo')}
               autoInvoiceWorkOrderId={new URLSearchParams(window.location.search).get('invoice') === '1' ? new URLSearchParams(window.location.search).get('wo') : null}

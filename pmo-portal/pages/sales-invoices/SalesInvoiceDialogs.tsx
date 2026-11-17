@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ConfirmDialog, EntityFormModal, TextField, useToast, type SubmitError } from '@/src/components/ui';
+import { ConfirmDialog, EntityFormModal, useToast, type SubmitError } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { nativeRevenueHeadlines } from '@/src/lib/revenue/nativeRevenueErrors';
 import { invoiceNumber } from '@/src/lib/revenue/nativeInvoice';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { useSalesInvoiceActions } from './useSalesInvoiceActions';
+import { DateField } from '@/src/components/ui/DateField';
 
 export function SalesInvoiceDialogs({ actions, submitFallback }: { actions: ReturnType<typeof useSalesInvoiceActions>; submitFallback: (invoice: SalesInvoiceRow) => string }) {
   const { t } = useTranslation();
@@ -89,10 +90,9 @@ const ReceivedDateModal: React.FC<{
       submitDisabled={tooEarly}
       submitError={saveError}
     >
-      <TextField
+      <DateField
         label={t('financeCopy.receivedDate', 'Delivered')}
         helper={t('financeCopy.receivedDateHelp', 'The due date follows this date')}
-        type="date"
         value={value}
         onChange={setValue}
         min={invoice.invoice_date ?? undefined}

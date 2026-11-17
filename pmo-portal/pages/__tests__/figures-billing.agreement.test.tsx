@@ -83,7 +83,8 @@ describe('S02 billed-work figure agreement on real screens', () => {
     expect(invoicedStep).toHaveTextContent('—');
     expect(invoicedStep).not.toHaveTextContent('$100');
     expect(invoicedStep).not.toHaveTextContent('$0');
-    expect(invoicedStep).toHaveTextContent('Signed contract · excluding tax');
+    // The tax basis is said once, under the contract value it describes.
+    expect(screen.getByRole('listitem', { name: /^Contract value /u })).toHaveTextContent('Signed contract · excluding tax');
   });
 
   it('contract invoiced is $100 and 10% for a single-currency Contract invoice set', async () => {
@@ -91,7 +92,8 @@ describe('S02 billed-work figure agreement on real screens', () => {
     renderFigureAgreementRoute(contractRoute);
     const invoicedStep = await screen.findByRole('listitem', { name: /^Invoiced /u }, { timeout: 10_000 });
     expect(invoicedStep).toHaveTextContent('$100');
-    expect(invoicedStep).toHaveTextContent('Signed contract · excluding tax');
+    // The tax basis is said once, under the contract value it describes.
+    expect(screen.getByRole('listitem', { name: /^Contract value /u })).toHaveTextContent('Signed contract · excluding tax');
     expect(invoicedStep).toHaveTextContent('10%');
   });
 });

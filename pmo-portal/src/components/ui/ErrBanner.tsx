@@ -15,7 +15,7 @@ export interface ErrBannerProps {
  * A destructive-tinted banner for an EXPECTED, recoverable state — e.g. a week
  * returned for changes. It is `role="status"` (not `alert`): it is part of the
  * normal flow, announced politely, not a fetch failure (those use ListState's
- * `role="alert"`). The deep-red darkened text clears AA on the tint.
+ * `role="alert"`). The title uses the theme's destructive text token, which clears AA on the tint in both themes.
  */
 export const ErrBanner: React.FC<ErrBannerProps> = ({ title, sub, action, className }) => (
   <div
@@ -27,7 +27,8 @@ export const ErrBanner: React.FC<ErrBannerProps> = ({ title, sub, action, classN
   >
     <Icon name="alert" className="mt-px size-[17px] shrink-0 text-destructive" />
     <div className="min-w-0 flex-1">
-      <div className="text-control font-semibold" style={{ color: 'hsl(0 72% 42%)' }}>
+      {/* The theme's AA destructive text: a fixed deep red read 1.9:1 on dark surfaces. */}
+      <div className="text-control font-semibold text-destructive-text">
         {title}
       </div>
       {sub && <div className="mt-px text-control text-muted-foreground">{sub}</div>}

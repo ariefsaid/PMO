@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { nextProcurementStep, stageLabelForStatus } from '@/components/procurement';
+import { stageLabelForStatus } from '@/components/procurement';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 
 /**
@@ -67,23 +67,4 @@ export function useProcurementStatusLabel(): (status: string) => string {
     Cancelled: t('uxs19.status.cancelled', 'Cancelled'),
   }), [t]);
   return useMemo(() => (status: string) => labels[status] ?? stageLabelForStatus(status as ProcurementStatus), [labels]);
-}
-
-/** Localized next-step descriptions stay descriptive and never authorize a transition. */
-export function useProcurementNextStepLabel(): (status: string) => string | null {
-  const { t } = useTranslation();
-  const labels: Partial<Record<string, string>> = {
-    Draft: t('uxs19.nextStep.draft', 'Submit for approval'),
-    Requested: t('uxs19.nextStep.requested', 'Await approval'),
-    Approved: t('uxs19.nextStep.approved', 'Request supplier quotes'),
-    'Vendor Quoted': t('uxs19.nextStep.vendorQuoted', 'Select quote'),
-    'Quote Selected': t('uxs19.nextStep.quoteSelected', 'Prepare purchase order'),
-    Ordered: t('uxs19.nextStep.ordered', 'Record receipt'),
-    Received: t('uxs19.nextStep.received', 'Record supplier invoice'),
-    'Vendor Invoiced': t('uxs19.nextStep.vendorInvoiced', 'Record payment'),
-  };
-  return (status) => {
-    const fallback = nextProcurementStep(status as ProcurementStatus);
-    return fallback == null ? null : labels[status] ?? fallback;
-  };
 }

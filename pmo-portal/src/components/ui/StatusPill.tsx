@@ -48,7 +48,7 @@ const STYLES: Record<StatusVariant, PillStyle> = {
 };
 
 interface StatusPillBase extends Omit<React.HTMLAttributes<HTMLSpanElement>, 'children'> {
-  /** Let a longer translated label wrap inside a constrained card or table cell. */
+  /** Only for a sentence-long label that must wrap; a status name never does (it shortens with an ellipsis, full text in `title`). */
   wrap?: boolean;
 }
 
@@ -74,7 +74,7 @@ export type StatusPillProps = StatusPillByVariant | StatusPillByState;
 const PillBody: React.FC<StatusPillBase & { variant: StatusVariant; children: React.ReactNode }> = ({
   variant,
   children,
-  wrap = true,
+  wrap = false,
   className,
   style,
   ...rest
@@ -85,14 +85,17 @@ const PillBody: React.FC<StatusPillBase & { variant: StatusVariant; children: Re
       className={cn(
         'inline-flex h-auto min-h-6 items-center rounded-full px-2 text-control font-normal',
         s.surfaceCls,
-        wrap ? 'min-w-0 max-w-full' : 'shrink-0 whitespace-nowrap',
+        'min-w-0 max-w-full',
+        !wrap && 'whitespace-nowrap',
         s.labelCls,
         className
       )}
       style={s.labelColor ? { color: s.labelColor, ...style } : style}
+      title={typeof children === 'string' ? children : undefined}
       {...rest}
     >
-      {wrap ? <span className="min-w-0 break-words">{children}</span> : children}
+      {/* Not `.truncate`: table cells rewrite that class to wrap. */}
+      <span className={wrap ? 'min-w-0 break-words' : 'min-w-0 overflow-hidden text-ellipsis'}>{children}</span>
     </span>
   );
 };

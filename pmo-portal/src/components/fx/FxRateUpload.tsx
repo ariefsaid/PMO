@@ -206,8 +206,8 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
         <EntityFormModal
           open
           title={t('fx.upload', 'Upload rates')}
-          submitLabel={t('common.continue', 'Continue')}
-          cancelLabel={t('common.cancel', 'Cancel')}
+          submitLabel={t('fx.continue', 'Continue')}
+          cancelLabel={t('entityForm.cancel', 'Cancel')}
           onSubmit={handleSubmit}
           onClose={close}
           submitDisabled={
@@ -380,7 +380,7 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
           </p>
         }
         confirmLabel={t('fx.saveRates', 'Save rates')}
-        cancelLabel={t('common.cancel', 'Cancel')}
+        cancelLabel={t('entityForm.cancel', 'Cancel')}
         loading={state === 'committing' || mutation.upsert.isPending}
         onConfirm={() => void handleConfirm()}
         onCancel={() => setConfirmOpen(false)}

@@ -293,12 +293,11 @@ describe('AC-IXD-PROC-W5-2d — figures rendered (whole budget basis)', () => {
     expect(screen.queryByText('Project budget')).not.toBeInTheDocument();
   });
 
-  it('rule 15: a budget too wide for half a phone row takes the whole row, label above, number unbroken', () => {
+  it('rule 15: a budget in the billions keeps its number unbroken, label above', () => {
     budgetState.data = 1_240_000_000;
     orders(0);
     renderPanel({ projectId: 'proj-1', totalValue: 22_500, projectName: 'HQ Fit-Out' }, 'id');
     const budgetTile = screen.getByText('Anggaran proyek').closest('[data-testid="stat-tile"]') as HTMLElement;
-    expect(budgetTile.className).toContain('col-span-2');
     expect(within(budgetTile).getByText(/1,240,000,000/).closest('.whitespace-nowrap')).not.toBeNull();
   });
 
@@ -329,7 +328,7 @@ describe('AC-IXD-PROC-W5-2d — figures rendered (whole budget basis)', () => {
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
     expect(screen.getByText(/^left after this purchase$/i)).toBeInTheDocument();
     expect(screen.getByText(/\$165,400/)).toBeInTheDocument();
-    expect(screen.getByText('Spent or committed, with this one: 86%')).toBeInTheDocument();
+    expect(screen.getByText('Committed, including this purchase: 86%')).toBeInTheDocument();
   });
 });
 
@@ -395,7 +394,7 @@ describe('AC-IXD-PROC-W5-2f — heading + the one budget bar', () => {
     expect(bar).toHaveAttribute('aria-valuenow', '60');
     expect(bar.getAttribute('aria-label')).toMatch(/60%/);
     expect(bar.getAttribute('aria-label')).toMatch(/\$1,000/);
-    expect(screen.getByText('Spent or committed, with this one: 60%')).toBeInTheDocument();
+    expect(screen.getByText('Committed, including this purchase: 60%')).toBeInTheDocument();
     // The figure behind the bar: 1000 − 300 − 200 − 100 left after this purchase.
     expect(tileValue(/^left after this purchase$/i).textContent).toMatch(/\$400\b/);
   });
@@ -406,7 +405,7 @@ describe('AC-IXD-PROC-W5-2f — heading + the one budget bar', () => {
     reservedState.data = 200;
     renderPanel({ projectId: 'proj-1', totalValue: 179, projectName: 'HQ Fit-Out', status: 'Requested' });
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '68');
-    expect(screen.getByText('Spent or committed, with this one: 68%')).toBeInTheDocument();
+    expect(screen.getByText('Committed, including this purchase: 68%')).toBeInTheDocument();
     // 1000 − 300 − 200 − 179 = 321 left = 32.1% of the budget
     expect(tileValue(/^left after this purchase$/i).textContent).toMatch(/\$321\b/);
   });
@@ -739,12 +738,12 @@ function primary() {
 }
 
 describe('AC-RB-015 — Left after this purchase counts the whole budget', () => {
-  it('primary: $25 left, "After spending, orders and reserved", bar "Spent or committed, with this one: 98%", Budget used 50% beside it', () => {
+  it('primary: $25 left, "After spending, orders and reserved", bar "Committed, including this purchase: 98%", Budget used 50% beside it', () => {
     renderPanel(primary());
     const tile = tileOf(/^left after this purchase$/i);
     expect(within(tile).getByText('$25')).toBeInTheDocument();
     expect(within(tile).getByText('After spending, orders and reserved')).toBeInTheDocument();
-    expect(screen.getByText('Spent or committed, with this one: 98%')).toBeInTheDocument();
+    expect(screen.getByText('Committed, including this purchase: 98%')).toBeInTheDocument();
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '98');
     expect(screen.queryByText(/not yet committed to purchases/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/headroom/i)).not.toBeInTheDocument();
@@ -755,7 +754,7 @@ describe('AC-RB-015 — Left after this purchase counts the whole budget', () =>
     renderPanel(primary(), 'id');
     const tile = tileOf(/^sisa setelah pembelian ini$/i);
     expect(within(tile).getByText('Setelah pengeluaran, pesanan, dan cadangan')).toBeInTheDocument();
-    expect(screen.getByText('Terpakai atau terikat, termasuk yang ini: 98%')).toBeInTheDocument();
+    expect(screen.getByText('Terikat, termasuk pembelian ini: 98%')).toBeInTheDocument();
     expect(screen.queryByText('Left after this purchase')).not.toBeInTheDocument();
   });
 
@@ -887,8 +886,8 @@ describe('AC-RB-015 — over budget (the Cascade case)', () => {
     expect(screen.getByRole('status').textContent).toMatch(/Over budget.*\$980 over the budget after this purchase/);
     const bar = screen.getByRole('progressbar');
     expect(bar).toHaveAttribute('aria-valuenow', '100');
-    expect(bar.getAttribute('aria-label')).toBe('Spent or committed, with this one: 198% of $1,000');
-    const caption = screen.getByText(/^Spent or committed, with this one: 198%$/);
+    expect(bar.getAttribute('aria-label')).toBe('Committed, including this purchase: 198% of $1,000');
+    const caption = screen.getByText(/^Committed, including this purchase: 198%$/);
     expect(caption.textContent).not.toMatch(/budget used/i);
     expect(within(tileOf(/^budget used$/i)).getByText('104%')).toBeInTheDocument();
   });
@@ -896,9 +895,9 @@ describe('AC-RB-015 — over budget (the Cascade case)', () => {
   it('id: the same, in Bahasa, never "Anggaran terpakai" in the bar', () => {
     renderPanel(cascade(), 'id');
     const bar = screen.getByRole('progressbar');
-    const caption = screen.getByText(/^Terpakai atau terikat, termasuk yang ini: 198%$/);
+    const caption = screen.getByText(/^Terikat, termasuk pembelian ini: 198%$/);
     expect(caption.textContent).not.toMatch(/anggaran terpakai/i);
-    expect(bar.getAttribute('aria-label')).toMatch(/^Terpakai atau terikat, termasuk yang ini: 198% dari /);
+    expect(bar.getAttribute('aria-label')).toMatch(/^Terikat, termasuk pembelian ini: 198% dari /);
     expect(screen.getByRole('status').textContent).toMatch(/Melebihi anggaran/);
     expect(within(tileOf(/^anggaran terpakai$/i)).getByText('104%')).toBeInTheDocument();
   });

@@ -52,8 +52,8 @@ export function QueueButton({
           {waitingDays > 0 && <div className="mt-1"><span className={overdue ? 'text-control font-medium text-destructive-text' : 'text-control text-muted-foreground'}>{t('procurement:approvalQueue.waitingDays', { count: waitingDays, defaultValue_one: '{{count}} day waiting', defaultValue_other: '{{count}} days waiting' })}</span></div>}
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-control text-muted-foreground">
             <span>{row.requested_by?.full_name ?? t('approvals.unknownRequester', 'Unknown requester')}</span>
-            <span>·</span>
-            <span className="record-id">{row.code ?? row.id.slice(0, 8)}</span>
+            {/* The purchase's own number; a record without one shows none rather than an internal id. */}
+            {(row.code ?? row.pr_number) && <><span>·</span><span className="record-id">{row.code ?? row.pr_number}</span></>}
           </div>
         </div>
         <div className="mt-2 text-control text-muted-foreground">

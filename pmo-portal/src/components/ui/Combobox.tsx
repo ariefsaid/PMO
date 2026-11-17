@@ -101,6 +101,8 @@ export interface ComboboxProps {
   className?: string;
   /** Use the compact 30px control when this picker sits beside other compact controls. */
   compact?: boolean;
+  /** Keep the label as the accessible name only, for a picker whose caption sits beside it (a filter bar). */
+  hideLabel?: boolean;
 }
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
@@ -121,12 +123,12 @@ export const Combobox: React.FC<ComboboxProps> = ({
   serverSearch,
   statusOverride,
   onRetry,
-  placeholder = 'Select…',
+  placeholder: placeholderProp,
   required,
   error,
   helper,
   searchPlaceholder,
-  noun = 'option',
+  noun: nounProp = 'option',
   nounPlural,
   emptyMessage,
   clearable,
@@ -136,8 +138,23 @@ export const Combobox: React.FC<ComboboxProps> = ({
   id,
   className,
   compact,
+  hideLabel,
 }) => {
   const { t } = useTranslation();
+  // Callers pass the English noun; the picker's own copy reads it in the reader's language.
+  const NOUNS: Record<string, string> = {
+    option: t('combobox.noun.option', 'option'),
+    project: t('combobox.noun.project', 'project'),
+    supplier: t('combobox.noun.supplier', 'supplier'),
+    vendor: t('combobox.noun.vendor', 'vendor'),
+    customer: t('combobox.noun.customer', 'customer'),
+    person: t('combobox.noun.person', 'person'),
+    task: t('combobox.noun.task', 'task'),
+    invoice: t('combobox.noun.invoice', 'invoice'),
+    'ERP item': t('combobox.noun.erpItem', 'ERP item'),
+  };
+  const noun = NOUNS[nounProp] ?? nounProp;
+  const placeholder = placeholderProp ?? t('combobox.select', 'Select…');
   const baseId = useId();
   const labelId = `${baseId}-lbl`;
   const errId = `${baseId}-err`;
@@ -263,7 +280,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
 
   return (
     <div className={cn('flex flex-col', compact ? 'gap-1.5' : 'gap-2', className)}>
-      <span id={labelId} className={cn('font-semibold text-foreground', 'text-control')}>
+      <span id={labelId} className={cn('font-semibold text-foreground', 'text-control', hideLabel && 'sr-only')}>
         {label}
         {required && (
           <span aria-hidden className="ml-0.5 text-destructive">

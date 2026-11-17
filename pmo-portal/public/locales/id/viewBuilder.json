@@ -51,5 +51,6 @@
     "goToDashboard": "Buka dasbor",
     "invalidTitle": "Definisi tampilan ini tidak sah.",
     "invalidSub": "Tampilan tidak bisa dirender karena spesifikasinya tidak sah."
-  }
+  },
+  "noPanels": "Tampilan ini belum punya panel."
 }

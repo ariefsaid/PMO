@@ -305,7 +305,7 @@
     "ageInStage": "Lama di tahap",
     "ageShort": "Umur",
     "ageInStageDays": "{{count}} hari",
-    "raisedBy": "Dibuat oleh",
+    "raisedBy": "Pemohon",
     "stageCountTooltip": "Jumlah pengadaan yang saat ini berada di tahap {{stage}}. Sumber: kasus pengadaan perusahaan.",
     "table": {
       "accessibleName": "Pengadaan"
@@ -319,7 +319,10 @@
     "inStageDays_other": "{{count}} hari",
     "filters": "Filter",
     "inStageDaysLong_one": "{{count}} hari di tahap ini",
-    "inStageDaysLong_other": "{{count}} hari di tahap ini"
+    "inStageDaysLong_other": "{{count}} hari di tahap ini",
+    "projectColumn": "Proyek",
+    "inStageToday": "Hari ini",
+    "paidShare": "{{percent}} dibayar"
   },
   "common": {
     "loading": "Memuat…",
@@ -369,15 +372,22 @@
     "leftAfterPurchase": "Sisa setelah pembelian ini",
     "leftAfterPurchaseSub": "Setelah pengeluaran, pesanan, dan cadangan",
     "leftAfterPurchaseTooltip": "Anggaran dikurangi pengeluaran tercatat, pesanan terbuka, permintaan yang dicadangkan, dan pembelian ini, masing-masing dihitung sekali, sebelum pajak.",
-    "spentOrCommittedBarLabel": "Terpakai atau terikat, termasuk yang ini: {{pct}}% dari {{budget}}",
-    "spentOrCommittedBarCaption": "Terpakai atau terikat, termasuk yang ini: {{pct}}%",
+    "spentOrCommittedBarLabel": "Terikat, termasuk pembelian ini: {{pct}}% dari {{budget}}",
+    "spentOrCommittedBarCaption": "Terikat, termasuk pembelian ini: {{pct}}%",
     "overBudgetTitle": "Melebihi anggaran",
     "overBudgetAfter": "{{amount}} di atas anggaran setelah pembelian ini. Persetujuan tetap bisa dilakukan; ini hanya peringatan.",
     "leftOtherCurrency": "Pesanan terbuka dalam mata uang lain: {{amounts}}",
     "leftWithoutSpending": "Tanpa pengeluaran: sisa {{amount}} setelah pesanan, cadangan, dan pembelian ini.",
     "leftNotKnown": "Belum diketahui",
     "leftOrdersUnknown": "Pesanan terbuka belum diketahui",
-    "leftSpendingUnknown": "Pengeluaran belum diketahui"
+    "leftSpendingUnknown": "Pengeluaran belum diketahui",
+    "comparison": "Perbandingan anggaran",
+    "loading": "Memuat dampak anggaran",
+    "currencyUnknown": "mata uang tidak tersedia",
+    "otherReservedCurrencies": "Disetujui, belum dipesan. Mata uang lain: {{amounts}}",
+    "beforeTax": "Sebelum pajak",
+    "budgetUnavailable": "Anggaran tidak tersedia: dampak anggaran belum bisa ditampilkan.",
+    "noActiveBudget": "Proyek ini belum punya anggaran aktif."
   },
   "headerEdit": {
     "heading": "Edit rincian pengadaan",
@@ -733,7 +743,8 @@
   "approvalQueue": {
     "headingAll": "Pembelian dan $t(common:terms.timesheet)",
     "waitingDays_one": "Menunggu {{count}} hari",
-    "waitingDays_other": "Menunggu {{count}} hari"
+    "waitingDays_other": "Menunggu {{count}} hari",
+    "waitingOnYou": "menunggu keputusan Anda"
   },
   "voidBill": {
     "action": "Batalkan tagihan",
@@ -773,5 +784,59 @@
       "purchaseOrder": "Simpan pesanan pembelian",
       "goodsReceipt": "Simpan penerimaan"
     }
+  },
+  "progression": {
+    "quote": "Penawaran",
+    "invoice": "Invoice",
+    "payment": "Pembayaran",
+    "empty": "Belum ada riwayat — kejadian muncul di sini seiring pengadaan berjalan.",
+    "ariaLabel": "Riwayat perkembangan",
+    "by": "oleh",
+    "showFewer": "Tampilkan lebih sedikit",
+    "showEarlier": "Tampilkan {{count}} sebelumnya"
+  },
+  "overview": {
+    "detail": "Rincian",
+    "progression": "Perkembangan"
+  },
+  "ledgerFile": {
+    "attached": "Berkas dilampirkan",
+    "attachToRecord": "Lampirkan berkas ke catatan ini",
+    "attach": "Lampirkan berkas",
+    "uploading": "Mengunggah…",
+    "attachShort": "Lampirkan",
+    "viewAll": "{{count}} berkas untuk {{record}} — klik untuk melihat semua",
+    "count": "{{count}} berkas",
+    "drawerTitle": "Berkas — {{record}}"
+  },
+  "decisionZone": {
+    "sodGate": "Pemisahan tugas.",
+    "addNote": "Tambah catatan",
+    "optional": "opsional",
+    "notes": "Catatan",
+    "notePlaceholder": "Tambah catatan untuk persetujuan atau penolakan…",
+    "addLineItem": "Tambahkan minimal satu baris item sebelum mengajukan.",
+    "sodPreAnnounce": "Setelah diajukan, pengadaan ini diteruskan ke penyetuju lain — Anda tidak dapat menyetujui pengadaan sendiri."
+  },
+  "vendorQuotes": {
+    "add": "Tambah penawaran",
+    "title": "Perbandingan penawaran",
+    "colSupplier": "Supplier / No. penawaran",
+    "supplierQuote": "Penawaran supplier",
+    "colValueStatus": "Status nilai",
+    "colAmount": "Jumlah",
+    "colValidUntil": "Berlaku sampai",
+    "colAttachments": "Lampiran",
+    "selectQuote": "Pilih penawaran {{name}}",
+    "select": "Pilih",
+    "tableName": "Perbandingan penawaran supplier",
+    "supplier": "Supplier",
+    "selectSupplier": "Pilih supplier…",
+    "quotedTotal": "Total penawaran",
+    "uploadSoon": "Unggah berkas segera hadir",
+    "attachSoon": "Lampirkan berkas (segera hadir)",
+    "confirmTitle": "Pilih penawaran ini?",
+    "confirmBody": "Penawaran terpilih menentukan nilai dan supplier pengadaan. Jika di atas jumlah yang disetujui, pengadaan kembali untuk persetujuan.",
+    "confirmLabel": "Pilih penawaran"
   }
 }

@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
+import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
@@ -70,13 +71,17 @@ const renderAs = (realRole: Role, path = '/') => {
   );
 };
 
-const statusOptionNames = () =>
-  within(screen.getByRole('combobox', { name: 'Status' })).getAllByRole('option').map((option) => option.textContent);
+const statusOptionNames = async () => {
+  await userEvent.click(screen.getByRole('combobox', { name: 'Status' }));
+  const names = (await screen.findAllByRole('option')).map((option) => option.textContent);
+  await userEvent.keyboard('{Escape}');
+  return names;
+};
 
 describe('Procurement — approver reaches requests needing approval (B-2, AC-W2-IXD-003)', () => {
   it.each<Role>(['Finance', 'Project Manager'])(
     'AC-W2-IXD-003: %s opens "Needs you" from its tab with the Requested PR awaiting their approval, and can filter Status to "Needs approval"',
-    (role) => {
+    async (role) => {
       renderAs(role, '/?tab=needs-you');
       const needsYou = screen.getByRole('tab', { name: /^Needs you/ });
       expect(needsYou).toHaveAttribute('aria-selected', 'true');
@@ -84,15 +89,15 @@ describe('Procurement — approver reaches requests needing approval (B-2, AC-W2
       // The queue holds the pending request only — not the Draft that needs no approval.
       expect(screen.getAllByText('Pending PR').length).toBeGreaterThan(0);
       expect(screen.queryByText('Draft PR')).not.toBeInTheDocument();
-      expect(statusOptionNames()).toContain('Needs approval');
+      expect(await statusOptionNames()).toContain('Needs approval');
     },
   );
 
-  it('AC-W2-IXD-003: an Engineer has an empty "Needs you" queue and no "Needs approval" status (cannot approve)', () => {
+  it('AC-W2-IXD-003: an Engineer has an empty "Needs you" queue and no "Needs approval" status (cannot approve)', async () => {
     renderAs('Engineer');
     expect(screen.getByRole('tab', { name: /^Needs you/ })).toHaveTextContent('0');
     expect(screen.getByRole('tab', { name: /^All/ })).toHaveAttribute('aria-selected', 'true');
-    expect(statusOptionNames()).not.toContain('Needs approval');
+    expect(await statusOptionNames()).not.toContain('Needs approval');
     // Engineer only sees their own request, never the approval-pending one raised by someone else.
     expect(screen.queryByText('Pending PR')).not.toBeInTheDocument();
     expect(screen.getAllByText('Draft PR').length).toBeGreaterThan(0);

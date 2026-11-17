@@ -14,6 +14,7 @@ import { AppError } from '@/src/lib/appError';
 import { OdooConnectionBanner } from './OdooConnectionBanner';
 import { odooErrorMessage } from './odooErrors';
 import { useOdooCan } from './useOdooCan';
+import { DateField } from '@/src/components/ui/DateField';
 
 interface Credential { siteUrl: string; database: string; apiKey: string; keyExpiresOn: string | null; confirmDiscard?: boolean }
 const BLANK = { siteUrl: '', database: '', apiKey: '', keyExpiresOn: '' };
@@ -116,7 +117,7 @@ export function OdooConnectionCard() {
       <div className="flex flex-wrap items-center gap-2">
         <Icon name="plug" aria-hidden="true" />
         <h3 className="text-group font-semibold text-foreground">Odoo</h3>
-        {state && <StatusPill variant={pill[state].v} className="min-w-0 max-w-full shrink whitespace-normal break-words">{pill[state].label}</StatusPill>}
+        {state && <StatusPill wrap variant={pill[state].v} className="min-w-0 max-w-full shrink">{pill[state].label}</StatusPill>}
       </div>
 
       {conn.isPending && <ListState variant="loading" rows={2} />}
@@ -211,7 +212,7 @@ export function OdooConnectionCard() {
               <TextField {...form.fieldProps('siteUrl')} label={t('administration:odoo.connect.siteUrl', 'Site URL')} required type="url" placeholder="https://mycompany.odoo.com" autoComplete="off" fullWidth />
               <TextField {...form.fieldProps('database')} label={t('administration:odoo.connect.database', 'Database')} required autoComplete="off" />
               <TextField {...form.fieldProps('apiKey')} label={t('administration:odoo.connect.apiKey', 'API key')} required type="password" autoComplete="off" helper={t('administration:odoo.connect.subtitle', 'Made for PMO in Odoo. Stored encrypted; never shown again.')} fullWidth />
-              <TextField {...form.fieldProps('keyExpiresOn')} label={t('administration:odoo.connect.keyExpiresOn', 'Key expires on (optional)')} type="date" helper={t('administration:odoo.connect.expiryHelp', 'If you gave the key an expiry in Odoo, enter it so PMO can warn you before it lapses.')} />
+              <DateField {...form.fieldProps('keyExpiresOn')} label={t('administration:odoo.connect.keyExpiresOn', 'Key expires on (optional)')} helper={t('administration:odoo.connect.expiryHelp', 'If you gave the key an expiry in Odoo, enter it so PMO can warn you before it lapses.')} />
             </FormGrid>
           </FormSection>
         </EntityFormModal>

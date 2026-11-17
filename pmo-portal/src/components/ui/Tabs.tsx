@@ -71,6 +71,8 @@ export function Tabs<V extends string = string>({
   // Scroll only the tab strip: scrollIntoView also scrolls the page vertically,
   // which can move the record header out of view on arrival.
   const mounted = useRef(false);
+  // Counts arriving after mount widen the tabs, so the selected one is brought back into view then too.
+  const widths = items.map((item) => `${item.count ?? ''}${item.detail ?? ''}`).join('|');
   useEffect(() => {
     // First mount on the first tab: the strip is already at scroll 0, so skip the forced layout.
     const first = !mounted.current;
@@ -88,7 +90,7 @@ export function Tabs<V extends string = string>({
     const offset = left < strip.left ? left - strip.left : right > strip.right ? right - strip.right : 0;
     if (!offset) return;
     list.scrollBy({ left: offset, behavior: scrollBehavior() });
-  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps -- items only matter on first mount
+  }, [value, widths]); // eslint-disable-line react-hooks/exhaustive-deps -- items only matter on first mount
 
   return (
     <BaseTabs.Root value={value} onValueChange={(next) => onChange(next as V)} className="contents">
