@@ -10,6 +10,24 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.41.2](https://github.com/ariefsaid/PMO/compare/v0.41.1...v0.41.2) (2026-11-17)
+
+
+### Bug Fixes
+
+* **ui:** approvals budget figures on one grid (labels and figures share a line per row, two per row at 1024); purchases tabs stay on one line on phone and the selected tab scrolls into view ([#2497](https://github.com/ariefsaid/PMO/issues/2497)) ([3ae7bb7](https://github.com/ariefsaid/PMO/commit/3ae7bb775688562edab12076c05975bc12f0353f))
+* **ui:** demo screens redesigned for review; shared date field; Bahasa pass ([ea9bb89](https://github.com/ariefsaid/PMO/commit/ea9bb898b8f951de557e1d78d2922edbb98c5fae))
+* **ui:** filter pickers show their own name until chosen, the count holds the row's end, board cards show the whole project name, context columns read grey ([#2497](https://github.com/ariefsaid/PMO/issues/2497)) ([da696cb](https://github.com/ariefsaid/PMO/commit/da696cb00d23613045fa6f8bec534750fe77a31d))
+* **ui:** finance dashboard's supplier-invoiced filter tests reach the status filter through the app picker; goals unchanged ([#2497](https://github.com/ariefsaid/PMO/issues/2497)) ([130d1cf](https://github.com/ariefsaid/PMO/commit/130d1cfddd1c8ee9668a2fe99a9533d2ccf5fd9b))
+* **ui:** home — second currency reads '+ USD 1,85 jt' under the rupiah figure, billing ranking bars drawn as labelled figures, engineer hours bar keyed under it, full phone targets ([#2497](https://github.com/ariefsaid/PMO/issues/2497)) ([b8d11fd](https://github.com/ariefsaid/PMO/commit/b8d11fdb31068e2ba9252a911dc0360dbc1a5c54))
+* **ui:** Needs attention is always a full-width band above Money position, so neither panel stretches around empty space ([d9cbc00](https://github.com/ariefsaid/PMO/commit/d9cbc0046be3089fc4479f4b89ac14391c196bf5))
+* **ui:** phone tab layout check follows the one-line rule: tabs share a line, the selected tab is whole in view ([#2497](https://github.com/ariefsaid/PMO/issues/2497)) ([33c4f4f](https://github.com/ariefsaid/PMO/commit/33c4f4f0d29fbfa37c05480eeb3b0bb0c9382936))
+* **ui:** purchases journeys and layout check follow the app picker; drop dead next-step hook, orphaned keys and stale native-control allowlist ([#2497](https://github.com/ariefsaid/PMO/issues/2497)) ([09f9ca2](https://github.com/ariefsaid/PMO/commit/09f9ca284c58a818eebb4557c2160937d52c9e76))
+* **ui:** purchases list and approvals inbox redesigned ([eb667e4](https://github.com/ariefsaid/PMO/commit/eb667e4e22eea52055da8bd5c5e9ec2b67510792))
+* **ui:** requester shows on the project purchases tab; phone cards name the requester once ([#2497](https://github.com/ariefsaid/PMO/issues/2497)) ([f44868d](https://github.com/ariefsaid/PMO/commit/f44868d3775695785253346a0af1abdd7f65bc0f))
+* **ui:** sentence-long statuses on the integration cards and embedded invoice rows wrap instead of being cut ([#2497](https://github.com/ariefsaid/PMO/issues/2497)) ([cdb67fc](https://github.com/ariefsaid/PMO/commit/cdb67fcddd03c54dc03a83e83409e73b116d0499))
+* **ui:** the header identity line never leaves a separator dot at a line start or end (customer and project number on a phone) ([732f709](https://github.com/ariefsaid/PMO/commit/732f7094bd3bec98f4995893a6a4c65ad0854fa3))
+
 ## [0.41.1](https://github.com/ariefsaid/PMO/compare/v0.41.0...v0.41.1) (2026-11-16)
 
 
