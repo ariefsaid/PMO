@@ -7,7 +7,7 @@ import { AppError } from '@/src/lib/appError';
  * definer/invoker RPC (no client write grant exists). org_id is never sent from the client.
  * The generated types predate 0955, so this module talks to the client through a narrow local shape.
  */
-export interface CatalogueVariant { id: string; project_id: string; name: string }
+export interface CatalogueVariant { id: string; project_id: string; name: string; is_default: boolean }
 export interface CatalogueItem {
   id: string; project_id: string; category: string; class: string; item_code: string;
   description: string; unit: string; work_method: string; test_type: string;
@@ -34,7 +34,7 @@ const fail = (error: { message: string; code?: string }): never => { throw new A
 
 export async function listVariants(projectId: string): Promise<CatalogueVariant[]> {
   return fetchAllPages<CatalogueVariant>((from, to) =>
-    db.from('rate_catalogue_variants').select('id, project_id, name').eq('project_id', projectId).order('name').order('id').range(from, to));
+    db.from('rate_catalogue_variants').select('id, project_id, name, is_default').eq('project_id', projectId).order('name').order('id').range(from, to));
 }
 
 export async function listItems(projectId: string): Promise<CatalogueItem[]> {
@@ -55,6 +55,17 @@ export async function addVariants(projectId: string, names: string[]): Promise<n
   const { data, error } = await db.rpc('rate_catalogue_add_variants', { p_project: projectId, p_names: names });
   if (error) fail(error);
   return Number(data);
+}
+
+export async function setDefaultVariant(projectId: string, variantId: string | null): Promise<void> {
+  const { error } = await db.rpc('rate_catalogue_set_default_variant', { p_project: projectId, p_variant: variantId });
+  if (error) fail(error);
+}
+
+export async function savePricedLine(projectId: string, lineId: string | null, input: { itemCode: string; description: string; unit: string; quantity: number; earningBasis: string; lineNo: number | null }, itemId: string, variantId: string, asOf: string): Promise<string> {
+  const { data, error } = await db.rpc('save_boq_line_from_catalogue', { p_project: projectId, p_line: lineId, p_fields: { item_code: input.itemCode, description: input.description, unit: input.unit, quantity: input.quantity, earning_basis: input.earningBasis, line_no: input.lineNo }, p_item: itemId, p_variant: variantId, p_as_of: asOf });
+  if (error) fail(error);
+  return String(data);
 }
 
 export async function upsertItem(projectId: string, input: CatalogueItemInput): Promise<{ itemId: string; created: boolean; ratesAdded: number }> {

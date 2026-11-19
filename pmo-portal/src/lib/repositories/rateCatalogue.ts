@@ -6,6 +6,8 @@ export const rateCatalogueRepository: RateCatalogueRepository = {
   listItems: dal.listItems,
   listRates: dal.listRates,
   addVariants: dal.addVariants,
+  setDefaultVariant: dal.setDefaultVariant,
+  savePricedLine: dal.savePricedLine,
   upsertItem: dal.upsertItem,
   priceBoqLine: dal.priceBoqLine,
 };
