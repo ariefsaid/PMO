@@ -5507,6 +5507,8 @@ export type Database = {
           body: string | null
           created_at: string
           id: string
+          message_key: string | null
+          message_params: Json | null
           metadata: Json | null
           org_id: string
           owner_id: string
@@ -5518,6 +5520,8 @@ export type Database = {
           body?: string | null
           created_at?: string
           id?: string
+          message_key?: string | null
+          message_params?: Json | null
           metadata?: Json | null
           org_id?: string
           owner_id?: string
@@ -5529,6 +5533,8 @@ export type Database = {
           body?: string | null
           created_at?: string
           id?: string
+          message_key?: string | null
+          message_params?: Json | null
           metadata?: Json | null
           org_id?: string
           owner_id?: string

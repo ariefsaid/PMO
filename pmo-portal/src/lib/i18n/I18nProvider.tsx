@@ -24,7 +24,7 @@ import { useApplyOrgTerminology } from '@/src/hooks/useOrgTerminology';
  */
 export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const resolved = useResolvedLocale();
-  // #2529: the org's renamed terms, applied by the `orgTerms` post-processor in `index.ts`.
+  // #2529: the org's renamed terms, applied by the terminology plugin in `index.ts`.
   useApplyOrgTerminology();
   // A re-render trigger, not a gate. Its only job is to re-render the subtree once the first
   // catalogue has landed, so keys that rendered as their English source string during boot are

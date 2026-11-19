@@ -25,6 +25,10 @@ describe('AC-TERM-002 applyOrgTerms', () => {
     const terms = { en: { workOrder: { singular: 'project', plural: 'projects' }, project: { singular: 'job', plural: 'jobs' } } };
     expect(applyOrgTerms('Work order and project', 'en', terms)).toBe('Project and job');
   });
+  it('uses the singular for a mass noun whose shipped forms coincide', () => {
+    const terms = { en: { clientSuppliedStock: { singular: 'client stock', plural: 'client stocks' } } };
+    expect(applyOrgTerms('Client-supplied stock', 'en', terms)).toBe('Client stock');
+  });
   it('renames the multi-word terms', () => {
     const t = { en: { clientSuppliedStock: { singular: 'free-issue stock', plural: 'free-issue stock' } } };
     expect(applyOrgTerms('Client-supplied stock', 'en', t)).toBe('Free-issue stock');

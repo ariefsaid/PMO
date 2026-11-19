@@ -19,7 +19,7 @@ export function useOrgTerminology() {
 
 /**
  * Mount once under the auth + query providers: loads the org's overrides, hands them to the
- * i18next `orgTerms` post-processor and re-renders subscribers (changeLanguage to the same
+ * i18next terminology plugin and re-renders subscribers (changeLanguage to the same
  * language fires `languageChanged`, which react-i18next is bound to).
  */
 export function useApplyOrgTerminology(): void {

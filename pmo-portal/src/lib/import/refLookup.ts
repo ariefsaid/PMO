@@ -10,6 +10,9 @@
  * non-empty unmatched OR ambiguous (duplicate name) → a row error. No auto-creating refs.
  */
 
+import { getActiveLocale } from '@/src/lib/locale/activeLocale';
+import { withEnglishOrgTerms } from '@/src/lib/i18n/orgTerms';
+
 /** Flat result: `error` set → the cell is bad; else `id` is the resolved id (null = empty cell). */
 export interface RefResolution {
   id: string | null;
@@ -21,6 +24,7 @@ export type RefLookup = (rawName: string) => RefResolution;
 export function makeRefLookup(
   records: readonly { id: string; name: string }[],
   label: string,
+  labelIsAppCopy = false,
 ): RefLookup {
   const byName = new Map<string, string[]>();
   for (const rec of records) {
@@ -34,9 +38,10 @@ export function makeRefLookup(
     const name = rawName.trim();
     if (!name) return { id: null, error: null };
     const hits = byName.get(name.toLowerCase());
-    if (!hits) return { id: null, error: `${label} "${name}" not found.` };
+    const displayLabel = labelIsAppCopy ? withEnglishOrgTerms(label, getActiveLocale().locale) : label;
+    if (!hits) return { id: null, error: `${displayLabel} "${name}" not found.` };
     if (hits.length > 1) {
-      return { id: null, error: `${label} "${name}" is ambiguous (matches ${hits.length} records).` };
+      return { id: null, error: `${displayLabel} "${name}" is ambiguous (matches ${hits.length} records).` };
     }
     return { id: hits[0], error: null };
   };

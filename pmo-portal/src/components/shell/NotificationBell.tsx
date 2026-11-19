@@ -21,6 +21,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { notificationBody, notificationTitle } from '@/src/lib/i18n/notificationCopy';
 import { Icon } from '@/src/components/ui/icons';
 import { cn } from '@/src/components/ui/cn';
 import { useAssistantPanel } from '@/src/hooks/useAssistantPanel';
@@ -95,7 +96,7 @@ type InboxState =
   | { status: 'ready'; rows: NotificationRow[]; nextCursor: NotificationCursor | null };
 
 export const NotificationBell: React.FC = () => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'notifications']);
   const navigate = useNavigate();
   const { openPanel, openThread } = useAssistantPanel();
   const [unread, setUnread] = useState(0);
@@ -306,6 +307,7 @@ export const NotificationBell: React.FC = () => {
               {inbox.rows.map((row) => {
                 const isUnread = row.read_at === null;
                 const sev = severityStyle(row.severity);
+                const body = notificationBody(row, t);
                 return (
                   <li key={row.id}>
                     <button
@@ -330,10 +332,10 @@ export const NotificationBell: React.FC = () => {
                         </span>
                       </span>
                       <span className={cn('break-words text-control', isUnread ? 'font-semibold text-foreground' : 'font-normal text-foreground')}>
-                        {row.title}
+                        {notificationTitle(row, t)}
                       </span>
-                      {row.body && (
-                        <span className="break-words text-control text-muted-foreground">{row.body}</span>
+                      {body && (
+                        <span className="break-words text-control text-muted-foreground">{body}</span>
                       )}
                       <span className="text-control text-muted-foreground">
                         {isUnread

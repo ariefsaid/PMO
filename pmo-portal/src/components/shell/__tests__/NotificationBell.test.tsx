@@ -106,6 +106,13 @@ describe('NotificationBell', () => {
     expect(screen.queryByText('0')).not.toBeInTheDocument();
   });
 
+  it('renders a new structured notification from the app template', async () => {
+    listNotifications.mockResolvedValue([row({ body: 'stored fallback', message_key: 'budgetArchiveWarning', message_params: {} })]);
+    renderBell();
+    await userEvent.click(await screen.findByRole('button', { name: /notifications.*0 unread/i }));
+    expect(await screen.findByText(/ERPNext may still be enforcing a budget/)).toBeInTheDocument();
+  });
+
   it('AC-AAN-033 opening the bell lists notifications most-recent-first as a semantic list', async () => {
     listUnreadCount.mockResolvedValue(2);
     listNotifications.mockResolvedValue([

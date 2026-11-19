@@ -11,8 +11,8 @@ import { shippedTerm, TERM_KEYS, TERM_LOCALES, type TermForms, type TermKey, typ
 /**
  * Administration › Terminology (#2529). The Admin renames the fixed set of PMO terms, in English
  * and Bahasa Indonesia, singular and plural. Saving re-renders every screen through the i18next
- * `orgTerms` post-processor. RLS is the write authority; the shell already limits this page to
- * Admin (ADR-0016).
+ * terminology plugin. RLS is the write authority; write controls follow the Admin permission
+ * (ADR-0016), and read-only viewers can inspect the settings.
  *
  * The "shipped" column is built from the registry, NOT from `t()`, so a rename never rewrites the
  * label that tells the Admin what is being renamed.

@@ -3,21 +3,21 @@
  * Guard: an overridable PMO term is never hard-coded in UI source (#2529).
  *
  * An org Admin renames work order / project / client-supplied stock / purchase request / discipline.
- * The rename reaches a screen only through i18n (`t()`), whose `orgTerms` post-processor rewrites the
+ * The rename reaches a screen only through i18n (`t()`), whose terminology adapter rewrites the
  * shipped wording. A word typed straight into JSX text, a user-facing attribute or a label-like
  * property bypasses that and keeps the old name for every org.
  *
  * Scope: non-test `.ts`/`.tsx` under pmo-portal/pages and pmo-portal/src. Flags (1) JSX text,
  * (2) string JSX attributes named title/label/placeholder/aria-label/alt/description/sub/heading,
  * (3) string values of object properties named label/title/description/message/placeholder/heading.
- * A `t('key', 'Default')` argument is NOT flagged: defaults are post-processed.
+ * A `t('key', 'Default')` argument is NOT flagged: defaults are localized through the catalogue.
  *
  * Existing offenders are a RATCHET (scripts/org-terms-baseline.json: file → count). A file may not
  * gain a hit; a baseline entry whose file now has fewer hits fails as stale, so the list only shrinks.
  *
  * Run: node scripts/check-org-terms.mjs [--update-baseline] | --self-test
  * Known limit: it reads English wording only; Bahasa wording lives in catalogues, which the
- * post-processor already covers.
+ * terminology adapter already covers.
  */
 import { readFileSync, readdirSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -37,8 +37,8 @@ export const TERM_PATTERNS = {
   purchaseRequest: /\bpurchase requests?\b/i,
   discipline: /\bdisciplines?\b/i,
 };
-const ATTRS = new Set(['title', 'label', 'placeholder', 'aria-label', 'alt', 'description', 'sub', 'heading']);
-const PROPS = new Set(['label', 'title', 'description', 'message', 'placeholder', 'heading']);
+const ATTRS = new Set(['title', 'label', 'placeholder', 'aria-label', 'alt', 'description', 'sub', 'heading', 'aria-description', 'aria-valuetext', 'helperText', 'emptyTitle', 'emptyMessage', 'ariaLabel', 'ariaDescription', 'tooltip', 'caption', 'subtitle']);
+const PROPS = new Set(['label', 'title', 'description', 'message', 'placeholder', 'heading', 'ariaLabel', 'ariaDescription', 'emptyTitle', 'emptyMessage', 'helperText', 'tooltip', 'caption', 'subtitle']);
 
 export function findTerm(text) {
   for (const [key, re] of Object.entries(TERM_PATTERNS)) if (re.test(text)) return key;
@@ -56,6 +56,10 @@ export function scanSource(source, fileName = 'x.tsx') {
   };
   const addExpression = (node) => {
     if (ts.isStringLiteralLike(node)) add(node, node.text);
+    else if (ts.isParenthesizedExpression(node)) addExpression(node.expression);
+    else if (ts.isConditionalExpression(node)) { addExpression(node.whenTrue); addExpression(node.whenFalse); }
+    else if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) { addExpression(node.left); addExpression(node.right); }
+    else if (ts.isBinaryExpression(node) && [ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken].includes(node.operatorToken.kind)) addExpression(node.right);
     else if (ts.isTemplateExpression(node)) {
       add(node.head, node.head.text);
       for (const span of node.templateSpans) add(span.literal, span.literal.text);
@@ -63,7 +67,7 @@ export function scanSource(source, fileName = 'x.tsx') {
   };
   const visit = (node) => {
     if (ts.isJsxText(node)) add(node, node.text);
-    else if (ts.isJsxExpression(node) && node.expression && ts.isJsxElement(node.parent)) addExpression(node.expression);
+    else if (ts.isJsxExpression(node) && node.expression && (ts.isJsxElement(node.parent) || ts.isJsxFragment(node.parent))) addExpression(node.expression);
     else if (ts.isJsxAttribute(node) && node.initializer && ATTRS.has(node.name.getText(sf))) {
       if (ts.isJsxExpression(node.initializer) && node.initializer.expression) addExpression(node.initializer.expression);
       else addExpression(node.initializer);
@@ -111,12 +115,13 @@ export function compare(current, baseline) {
 
 function selfTest() {
   const bad = `export const A = () => <div title="Open projects"><p>New work order</p></div>;
-const col = { label: 'Purchase request', key: 'x' };`;
-  const expressionHits = scanSource("const A = () => <span>{'Project'}</span>;");
-  if (expressionHits.length !== 1) throw new Error('JSX expression was not caught');
+const col = { label: 'Purchase request', key: 'x' };
+const extra = { ariaLabel: 'Project', emptyTitle: 'Work orders' };`;
+  const expressionHits = scanSource(`const A = ({ok}) => <><span>{'Project'}</span><p>{ok ? 'Work order' : ''}</p><div aria-description={\`Projects: ${'${count}'}\`} /><b>{'Project ' + name}</b></>;`);
+  if (expressionHits.length !== 4) throw new Error(`JSX expressions not caught: ${expressionHits.length}`);
   const hits = scanSource(bad);
   const terms = hits.map((h) => h.term).sort().join(',');
-  if (terms !== 'project,purchaseRequest,workOrder') throw new Error(`planted cases: got ${terms}`);
+  if (terms !== 'project,project,purchaseRequest,workOrder,workOrder') throw new Error(`planted cases: got ${terms}`);
   const ok = `export const A = () => <p>{t('a.b', 'Work order')}</p>;\nconst x = { key: 'work order' };`;
   if (scanSource(ok).length) throw new Error('t() default or non-label property was flagged');
   if (compare({ a: 2 }, { a: 1 }).length !== 1) throw new Error('growth not caught');

@@ -1,12 +1,4 @@
-/**
- * Organisation terminology (#2529). An org Admin renames a FIXED set of PMO terms; every string
- * that reaches the screen through i18next (screens, exports, notifications) is rewritten by the
- * `orgTerms` post-processor registered in `index.ts`. Generic terms stay in code.
- *
- * Mechanism: the catalogues keep the shipped wording. At output time each overridable term's
- * shipped surface forms (per language) are replaced by the org's override, preserving the case
- * shape of the matched text. No catalogue is edited per org.
- */
+/** Organisation terminology (#2529): rewrite shipped app copy using the active org's terms. */
 
 export const TERM_KEYS = ['workOrder', 'project', 'clientSuppliedStock', 'purchaseRequest', 'discipline'] as const;
 export type TermKey = (typeof TERM_KEYS)[number];
@@ -30,8 +22,8 @@ export const SHIPPED_FORMS: Record<TermLocale, Record<TermKey, { singular: strin
     discipline: { singular: ['discipline'], plural: ['disciplines'] },
   },
   id: {
-    workOrder: { singular: ['work order', 'SPK'], plural: ['work order', 'SPK'] },
-    project: { singular: ['proyek'], plural: ['proyek'] },
+    workOrder: { singular: ['work order', 'SPK', 'Work Order / SPK'], plural: ['work order', 'SPK', 'Work Order / SPK'] },
+    project: { singular: ['proyek', 'proyeknya', 'antarproyek'], plural: ['proyek', 'proyeknya', 'antarproyek'] },
     clientSuppliedStock: { singular: ['stok titipan klien'], plural: ['stok titipan klien'] },
     purchaseRequest: { singular: ['permintaan pembelian'], plural: ['permintaan pembelian'] },
     discipline: { singular: ['disiplin'], plural: ['disiplin'] },
@@ -66,27 +58,59 @@ export function matchCase(matched: string, replacement: string): string {
  * before singular so "work orders" is not left as "<new> s". Matching is whole-word and
  * case-insensitive; the replacement takes the matched text's case shape.
  */
-export function applyOrgTerms(text: string, locale: string, terms: OrgTerms): string {
+export type TermNumber = 'singular' | 'plural';
+export type TermNumberHints = Partial<Record<TermKey, TermNumber | readonly TermNumber[]>>;
+export interface TermRenderContext {
+  englishReference?: string;
+  cursor?: Partial<Record<TermKey, number>>;
+  numberOverrides?: TermNumberHints;
+  protect?: (value: string) => string;
+}
+
+export function applyOrgTerms(text: string, locale: string, terms: OrgTerms, context: TermRenderContext = {}): string {
+  const { englishReference, cursor = {}, numberOverrides = {}, protect = (value: string) => value } = context;
   if (!text) return text;
   const loc: TermLocale = locale.startsWith('id') ? 'id' : 'en';
   const overrides = terms[loc];
   if (!overrides) return text;
-  const replacements = new Map<string, string>();
+  const replacements = new Map<string, { key: TermKey; number: 'singular' | 'plural' }>();
   for (const key of TERM_KEYS) {
-    const override = overrides[key];
-    if (!override) continue;
+    if (!overrides[key]) continue;
     const shipped = SHIPPED_FORMS[loc][key];
-    for (const [forms, replacement] of [[shipped.plural, override.plural], [shipped.singular, override.singular]] as const) {
-      for (const form of forms) {
+    for (const number of ['plural', 'singular'] as const) {
+      for (const form of shipped[number]) {
         const normalized = form.toLowerCase();
-        if (!replacements.has(normalized)) replacements.set(normalized, replacement);
+        if (!replacements.has(normalized) || (loc === 'en' && number === 'singular' && shipped.plural.some((plural) => plural.toLowerCase() === normalized))) replacements.set(normalized, { key, number });
       }
     }
   }
   if (!replacements.size) return text;
   const forms = [...replacements.keys()].sort((a, b) => b.length - a.length).map(escapeRe).join('|');
   const re = new RegExp(`(?<![\\p{L}\\p{N}])(?:${forms})(?![\\p{L}\\p{N}])`, 'giu');
-  return text.replace(re, (match) => matchCase(match, replacements.get(match.toLowerCase())!));
+  return text.replace(re, (match) => {
+    const found = replacements.get(match.toLowerCase())!;
+    let number = found.number;
+    const override = overrides[found.key]!;
+    const numberHint = numberOverrides[found.key];
+    if (loc === 'id' && numberHint) {
+      const index = cursor[found.key] ?? 0;
+      cursor[found.key] = index + 1;
+      number = typeof numberHint === 'string' ? numberHint : numberHint[index] ?? numberHint[numberHint.length - 1] ?? 'singular';
+    } else if (loc === 'id' && englishReference) {
+      const english = SHIPPED_FORMS.en[found.key];
+      const englishForms = [...new Set([...english.plural, ...english.singular])].sort((a, b) => b.length - a.length);
+      const enRe = new RegExp(`(?<![\\p{L}\\p{N}])(?:${englishForms.map(escapeRe).join('|')})(?![\\p{L}\\p{N}])`, 'giu');
+      const occurrences = [...englishReference.matchAll(enRe)].map((m) => m[0].toLowerCase());
+      const index = cursor[found.key] ?? 0;
+      cursor[found.key] = index + 1;
+      const selected = occurrences[index] ?? (occurrences.length === 1 ? occurrences[0] : undefined);
+      number = selected && english.plural.includes(selected) && !english.singular.includes(selected) ? 'plural' : 'singular';
+    }
+    const lowered = match.toLowerCase();
+    const suffix = loc === 'id' && found.key === 'project' && lowered === 'proyeknya' ? 'nya' : '';
+    const prefix = loc === 'id' && found.key === 'project' && lowered === 'antarproyek' ? 'antar ' : '';
+    return protect(matchCase(match, prefix + override[number] + suffix));
+  });
 }
 
 // ── The active org's overrides (module state, set by the provider) ──────────
@@ -101,6 +125,12 @@ export function getOrgTerms(): OrgTerms {
 /** For exports and any string built outside i18next: the same rewrite, active locale and overrides. */
 export function withOrgTerms(text: string, locale: string): string {
   return applyOrgTerms(text, locale, active);
+}
+
+/** Rewrite a known English app label using the viewer's selected terminology language. */
+export function withEnglishOrgTerms(text: string, locale: string): string {
+  const terms = locale.startsWith('id') ? active.id : active.en;
+  return applyOrgTerms(text, 'en', { en: terms });
 }
 
 /** Validate/normalise a DB row set into the OrgTerms map. Unknown keys/locales are dropped. */
