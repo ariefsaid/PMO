@@ -2,13 +2,27 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { violations, layoutReport } from './ux-proof-metrics.mjs';
+import * as proofMetrics from './ux-proof-metrics.mjs';
+const { violations, layoutReport } = proofMetrics;
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCRIPT = path.join(ROOT, 'scripts/ux-proof.mjs');
+
+async function closedLoopbackPort(host) {
+  const server = net.createServer();
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, host, resolve);
+  });
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  return address.port;
+}
 
 test('rendered proof self-test checks its thresholds without an app', () => {
   const result = spawnSync(process.execPath, [SCRIPT, '--self-test'], { cwd: ROOT, encoding: 'utf8' });
@@ -119,19 +133,21 @@ test('#1862 ux-proof.sh does not fail the local port probe for a remote host', (
   assert.doesNotMatch(result.stderr, /nothing is listening/);
 });
 
-test('#1862 ux-proof.sh still fails fast when a local base has no listener', () => {
+test('#1862 ux-proof.sh still fails fast when a local base has no listener', async () => {
+  const port = await closedLoopbackPort('127.0.0.1');
   const result = spawnSync('bash', [path.join(ROOT, 'scripts/ux-proof.sh'), '/x'], {
     cwd: ROOT, encoding: 'utf8', timeout: 60000,
-    env: { ...process.env, SHOT_BASE: 'http://localhost:1', UX_PROOF_PORT: '' },
+    env: { ...process.env, SHOT_BASE: `http://127.0.0.1:${port}`, UX_PROOF_PORT: '' },
   });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /nothing is listening/);
 });
 
-test('#1862 ux-proof.sh treats a bracketed IPv6 loopback base as local and fails fast', () => {
+test('#1862 ux-proof.sh treats a bracketed IPv6 loopback base as local and fails fast', async () => {
+  const port = await closedLoopbackPort('::1');
   const result = spawnSync('bash', [path.join(ROOT, 'scripts/ux-proof.sh'), '/x'], {
     cwd: ROOT, encoding: 'utf8', timeout: 60000,
-    env: { ...process.env, SHOT_BASE: 'http://[::1]:1', UX_PROOF_PORT: '' },
+    env: { ...process.env, SHOT_BASE: `http://[::1]:${port}`, UX_PROOF_PORT: '' },
   });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /nothing is listening/);
@@ -147,6 +163,35 @@ test('#1862 ux-proof.sh does not treat a host merely containing a local name as 
 
 
 const emptyLayout = { leftEdges: [], gaps: [], columnsLevel: [], rowCentre: [], loneSection: [] };
+
+test('R3 aggregation compares tab frames gathered by the normal proof for every route', () => {
+  assert.equal(typeof proofMetrics.compareRuleFrames, 'function');
+  const bar = (route, x) => ({
+    route,
+    width: 1440,
+    role: 'exec',
+    tabBars: [{ labels: 'Overview | Budget', x, y: 120, w: 560, el: 'nav.tabs' }],
+  });
+  const findings = proofMetrics.compareRuleFrames([bar('/projects', 24), bar('/projects/1', 40)]);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].route, '/projects/1');
+  assert.equal(findings[0].rule, 'R3');
+});
+
+test('--rules-only does not read baseline or word-budget settings', async () => {
+  const { loadProofSettings } = await import('./ux-proof-settings.mjs');
+  const accesses = [];
+  const settings = loadProofSettings({
+    root: '/repo',
+    rulesOnly: true,
+    fsApi: {
+      existsSync: (file) => { accesses.push(`exists:${file}`); throw new Error('settings must not be read'); },
+      readFileSync: (file) => { accesses.push(`read:${file}`); throw new Error('settings must not be read'); },
+    },
+  });
+  assert.deepEqual(settings, { budget: { targets: {} }, layoutBaseline: {} });
+  assert.deepEqual(accesses, []);
+});
 
 test('layout failures name the route, state, width, elements and numbers', () => {
   const layout = {
