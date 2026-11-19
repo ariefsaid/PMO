@@ -4,7 +4,7 @@
 -- AC-APR-050 line test · AC-APR-051 project test · AC-APR-052 spending unknown · AC-APR-053 below approval rank ·
 -- AC-APR-054 the list reads return the route spend_approval_route returns.
 begin;
-select plan(56);
+select plan(60);
 
 insert into organizations (id, name, default_currency) values
   ('a0923000-0000-0000-0000-00000000000a', 'Spend Route PMO', 'USD'),
@@ -466,6 +466,58 @@ select is((select bool_or(has_function_privilege('anon', oid, 'execute')) from p
   false, 'AC-APR-054: anonymous callers cannot execute the figure functions');
 select ok((select obj_description('public.spend_approval_route_from_figures(uuid,uuid,public.budget_category,numeric,text,uuid,uuid,timestamptz,jsonb)'::regprocedure, 'pg_proc')) like 'DISPLAY ONLY%spend_approval_route%',
   'AC-APR-054: the logic is documented as display only and names the route every decision uses');
+
+
+-- Cross-category project usage is decided through the actual approval RPC.
+reset role;
+insert into projects (id, org_id, name, status, currency) values
+ ('a0923000-0000-0000-0000-000000000801','a0923000-0000-0000-0000-00000000000a','Cross claim','Ongoing Project','USD'),
+ ('a0923000-0000-0000-0000-000000000802','a0923000-0000-0000-0000-00000000000a','Cross reservation','Ongoing Project','USD');
+insert into budget_versions (id, org_id, project_id, version, name, status, currency) values
+ ('a0923000-0000-0000-0000-000000000811','a0923000-0000-0000-0000-00000000000a','a0923000-0000-0000-0000-000000000801',1,'v1','Draft','USD'),
+ ('a0923000-0000-0000-0000-000000000812','a0923000-0000-0000-0000-00000000000a','a0923000-0000-0000-0000-000000000802',1,'v1','Draft','USD');
+insert into budget_line_items (org_id,budget_version_id,category,budgeted_amount)
+select 'a0923000-0000-0000-0000-00000000000a', v.id, c.category, c.amount
+from budget_versions v cross join (values ('Labor'::budget_category,400::numeric),('Materials'::budget_category,600::numeric)) c(category,amount)
+where v.id in ('a0923000-0000-0000-0000-000000000811','a0923000-0000-0000-0000-000000000812');
+update budget_versions set status='Active' where id in ('a0923000-0000-0000-0000-000000000811','a0923000-0000-0000-0000-000000000812');
+insert into spend_approvers (org_id,project_id,profile_id)
+select 'a0923000-0000-0000-0000-00000000000a', id, 'a0923000-0000-0000-0000-0000000000a1' from projects
+where id in ('a0923000-0000-0000-0000-000000000801','a0923000-0000-0000-0000-000000000802');
+insert into expense_claims (id,org_id,kind,claimant_id,project_id,budget_category,title,amount,currency,status,claim_number,submitted_at) values
+ ('a0923000-0000-0000-0000-000000000821','a0923000-0000-0000-0000-00000000000a','claim','a0923000-0000-0000-0000-0000000000a3','a0923000-0000-0000-0000-000000000801','Labor','Cross claim',600,'USD','Approved','EXP-CROSS-1',now());
+insert into procurements (id,org_id,title,status,total_value,project_id,currency,budget_category,requested_by_id) values
+ ('a0923000-0000-0000-0000-000000000831','a0923000-0000-0000-0000-00000000000a','Cross claim request','Requested',500,'a0923000-0000-0000-0000-000000000801','USD','Materials','a0923000-0000-0000-0000-0000000000a3'),
+ ('a0923000-0000-0000-0000-000000000832','a0923000-0000-0000-0000-00000000000a','Itemized reservation','Approved',0,'a0923000-0000-0000-0000-000000000802','USD','Labor','a0923000-0000-0000-0000-0000000000a3'),
+ ('a0923000-0000-0000-0000-000000000833','a0923000-0000-0000-0000-00000000000a','Cross reservation request','Requested',500,'a0923000-0000-0000-0000-000000000802','USD','Materials','a0923000-0000-0000-0000-0000000000a3');
+insert into procurement_items (org_id,procurement_id,name,quantity,rate) values
+ ('a0923000-0000-0000-0000-00000000000a','a0923000-0000-0000-0000-000000000832','Item',1,600);
+set local role authenticated;
+select pg_temp.act_as('a0923000-0000-0000-0000-0000000000a1');
+select throws_ok($$ select transition_procurement('a0923000-0000-0000-0000-000000000831','Approved') $$,
+ '42501', 'approval routing: exceeds_project requires a named approver', 'AC-APR-051: cross-category claim consumes project headroom');
+select throws_ok($$ select transition_procurement('a0923000-0000-0000-0000-000000000833','Approved') $$,
+ '42501', 'approval routing: exceeds_project requires a named approver', 'AC-APR-051: itemized reservation consumes project headroom');
+reset role;
+
+
+-- ERP project usage counts unposted claims across categories and excludes posted claims already in the ledger.
+insert into expense_claims (id,org_id,kind,claimant_id,project_id,budget_category,title,amount,currency,status,claim_number,submitted_at) values
+ ('a0923000-0000-0000-0000-000000000841','a0923000-0000-0000-0000-00000000000b','claim','a0923000-0000-0000-0000-0000000000b3','a0923000-0000-0000-0000-0000000000e3','Materials','Cross ERP claim',600,'USD','Approved','EXP-CROSS-ERP',now());
+insert into procurements (id,org_id,title,status,total_value,project_id,currency,budget_category,requested_by_id) values
+ ('a0923000-0000-0000-0000-000000000842','a0923000-0000-0000-0000-00000000000b','ERP boundary','Requested',250,'a0923000-0000-0000-0000-0000000000e3','USD','Labor','a0923000-0000-0000-0000-0000000000b3'),
+ ('a0923000-0000-0000-0000-000000000843','a0923000-0000-0000-0000-00000000000b','ERP over','Requested',250,'a0923000-0000-0000-0000-0000000000e3','USD','Labor','a0923000-0000-0000-0000-0000000000b3');
+set local role authenticated;
+select pg_temp.act_as('a0923000-0000-0000-0000-0000000000b1');
+select is((select reason from get_procurement_approval_routes(array['a0923000-0000-0000-0000-000000000842'::uuid])), 'within_budget',
+ 'AC-APR-051: posted ERP claim already in recorded actual is not counted twice');
+reset role;
+update expense_claims set amount = 700 where id = 'a0923000-0000-0000-0000-000000000841';
+set local role authenticated;
+select pg_temp.act_as('a0923000-0000-0000-0000-0000000000b1');
+select throws_ok($$ select transition_procurement('a0923000-0000-0000-0000-000000000843','Approved') $$,
+ '42501', 'approval routing: exceeds_project requires a named approver', 'AC-APR-051: cross-category unposted ERP claim consumes project headroom');
+reset role;
 
 select * from finish();
 rollback;

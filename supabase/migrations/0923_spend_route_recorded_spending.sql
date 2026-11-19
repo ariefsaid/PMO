@@ -14,9 +14,9 @@
 --   claims             Approved and Paid claims; with an accounting system, a claim whose approval is posted to the
 --                      ledger is in recorded spending already
 -- A request is `exceeds_line` when line used + request is over the line budget. When the line fits, the project's
--- whole budget is tested the same way: project budget − recorded spending − open orders − reserved − request < 0 is
+-- whole budget is tested the same way: project budget − recorded spending − claims − open orders − reserved − request < 0 is
 -- `exceeds_project`, read from project_budget_positions (the figures the approval panel shows), the committed-spend
--- and reserved-position reads, and nothing derived a second time. Both reasons route to the senior set.
+-- and the project-wide claim and reservation reads. Both reasons route to the senior set.
 --
 -- Reason order: no_project, no_category, amount_invalid, no_active_budget, currency_mismatch (the request's own
 -- currency), spending_not_visible, currency_mismatch (the figures), spending_unknown, exceeds_line,
@@ -62,10 +62,10 @@ returns table (project_id uuid, figures jsonb)
            'ledger_currency', pp.currency,
            'budget_currency', pp.budget_currency,
            'proj_budget', pp.active_budget_amount::numeric,
-           'proj_spent', pp.spent::numeric,
+           'proj_spent', pp.spent::numeric + cl.amount,
            'proj_open', case when pp.ledger_basis = 'erp' then cs.open else pp.open_commitment::numeric end,
            'proj_reserved', rs.reserved,
-           'proj_foreign', coalesce(cs.foreign_amount, false) or rs.foreign_amount,
+           'proj_foreign', coalesce(cs.foreign_amount, false) or rs.foreign_amount or cl.foreign_amount,
            'recorded', coalesce(er.by_category, rec.by_category, '{}'::jsonb))
     from pos pp
     left join lateral (
@@ -74,9 +74,23 @@ returns table (project_id uuid, figures jsonb)
         from public.project_committed_spend(pp.project_id) c
        where pp.ledger_basis = 'erp') cs on true
     cross join lateral (
-      select coalesce(sum((e->>'amount')::numeric) filter (where e->>'currency' = pp.budget_currency), 0) as reserved,
-             coalesce(bool_or(e->>'currency' is distinct from pp.budget_currency), false) as foreign_amount
-        from public.project_reserved_position(pp.project_id) rp, jsonb_array_elements(rp.positions) e) rs
+      select coalesce(sum(greatest(0, pr.total_value,
+                    coalesce((select sum(i.amount) from public.procurement_items i where i.procurement_id = pr.id), 0)))
+                    filter (where pr.currency = pp.budget_currency), 0) as reserved,
+             coalesce(bool_or(pr.currency is distinct from pp.budget_currency), false) as foreign_amount
+        from public.procurements pr
+       where pr.org_id = public.auth_org_id() and pr.project_id = pp.project_id
+         and pr.status in ('Approved','Vendor Quoted','Quote Selected')) rs
+    cross join lateral (
+      select coalesce(sum(greatest(0, c.amount)) filter (where c.currency = pp.budget_currency), 0) as amount,
+             coalesce(bool_or(c.currency is distinct from pp.budget_currency), false) as foreign_amount
+        from public.expense_claims c
+       where c.org_id = public.auth_org_id() and c.project_id = pp.project_id
+         and c.kind = 'claim' and c.status in ('Approved','Paid')
+         and not (pp.ledger_basis = 'erp' and exists (
+           select 1 from public.expense_posting_erp_mirror m
+            where m.claim_id = c.id and m.posting = 'approval' and m.push_state = 'pushed'
+              and m.erp_cancelled_at is null and coalesce(m.erp_docstatus, 1) <> 2))) cl
     left join erp_rec er on er.project_id = pp.project_id
     left join lateral (
       select jsonb_object_agg(a.category::text, jsonb_build_object('mapped', a.mapped, 'amount', a.actuals_to_date)) as by_category

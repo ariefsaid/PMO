@@ -102,10 +102,12 @@ begin
   end if;
 
   if v_from = 'Requested' and p_to in ('Approved','Rejected') then
-    if v_project is not null and v_category is not null then
+    if v_project is not null then
       -- 0925: whole-project test lock, taken before the line lock (project -> line, everywhere).
       perform pg_advisory_xact_lock(hashtextextended('spend-project:' || v_project::text, 0));
-      perform pg_advisory_xact_lock(hashtextextended('spend-line:' || v_project::text || ':' || v_category::text, 0));
+      if v_category is not null then
+        perform pg_advisory_xact_lock(hashtextextended('spend-line:' || v_project::text || ':' || v_category::text, 0));
+      end if;
     end if;
     v_amount := public.procurement_request_amount(p_id);
     select * into v_route from public.spend_approval_route(v_org, v_project, v_category, v_amount, v_currency, v_requester,
@@ -315,11 +317,13 @@ begin
   elsif p_to in ('Approved','Rejected') then
     -- #803 routing, called — never copied (ADR-0075 §3). Same lock key as transition_procurement (0243 §7) so a
     -- claim and a purchase request on one line serialize (FR-EXP-022). Classification runs AFTER the lock is held.
-    if v_row.project_id is not null and v_row.budget_category is not null then
+    if v_row.project_id is not null then
       -- 0925: whole-project test lock, taken before the line lock (project -> line, everywhere).
       perform pg_advisory_xact_lock(hashtextextended('spend-project:' || v_row.project_id::text, 0));
+      if v_row.budget_category is not null then
       perform pg_advisory_xact_lock(
-        hashtextextended('spend-line:' || v_row.project_id::text || ':' || v_row.budget_category::text, 0));
+          hashtextextended('spend-line:' || v_row.project_id::text || ':' || v_row.budget_category::text, 0));
+      end if;
     end if;
     select * into v_route
       from public.spend_approval_route(v_row.org_id, v_row.project_id, v_row.budget_category, v_row.amount,
@@ -483,11 +487,13 @@ begin
     raise exception 'the amount is already approved' using errcode = 'P0001';
   end if;
 
-  if v_row.project_id is not null and v_row.budget_category is not null then
+  if v_row.project_id is not null then
     -- 0925: whole-project test lock, taken before the line lock (project -> line, everywhere).
     perform pg_advisory_xact_lock(hashtextextended('spend-project:' || v_row.project_id::text, 0));
-    perform pg_advisory_xact_lock(
-      hashtextextended('spend-line:' || v_row.project_id::text || ':' || v_row.budget_category::text, 0));
+    if v_row.budget_category is not null then
+      perform pg_advisory_xact_lock(
+        hashtextextended('spend-line:' || v_row.project_id::text || ':' || v_row.budget_category::text, 0));
+    end if;
   end if;
   v_routed := greatest(p_amount - coalesce(public.procurement_request_amount(p_procurement_id), 0), 0);
   select * into v_route
@@ -526,10 +532,12 @@ begin
   select * into v from public.po_variations where id = p_id and org_id = public.auth_org_id();
   if not found then raise exception 'variation not found' using errcode = 'P0002'; end if;
   select * into v_proc from public.procurements where id = v.procurement_id for update;                  -- D5 1
-  if v_proc.project_id is not null and v_proc.budget_category is not null then                           -- D5 2 (0362 :226)
+  if v_proc.project_id is not null then                           -- D5 2 (0362 :226)
     -- 0925: whole-project test lock, taken before the line lock (project -> line, everywhere).
     perform pg_advisory_xact_lock(hashtextextended('spend-project:' || v_proc.project_id::text, 0));
-    perform pg_advisory_xact_lock(hashtextextended('spend-line:' || v_proc.project_id::text || ':' || v_proc.budget_category::text, 0));
+    if v_proc.budget_category is not null then
+      perform pg_advisory_xact_lock(hashtextextended('spend-line:' || v_proc.project_id::text || ':' || v_proc.budget_category::text, 0));
+    end if;
   end if;
   perform public.subcontract_po_lock(v.po_id);                                                           -- D5 3
   select * into v from public.po_variations where id = p_id for update;

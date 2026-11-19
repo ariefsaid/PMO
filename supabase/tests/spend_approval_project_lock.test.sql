@@ -10,7 +10,7 @@
 --   (4) the second approval reads the first one's figures and goes to the senior set (sequential, the read half of the
 --       property the lock serializes).
 begin;
-select plan(20);
+select plan(24);
 create extension if not exists dblink;
 
 insert into organizations (id, name, default_currency) values ('a0925000-0000-0000-0000-00000000000a', 'Project Lock Org', 'USD');
@@ -54,11 +54,27 @@ insert into purchase_order_lines (po_id, revision, boq_item_id, quantity, rate, 
   ('a0925000-0000-0000-0000-000000000701', 1, 'a0925000-0000-0000-0000-000000000601', 10, 10, 'ls');
 insert into purchase_order_revisions (po_id, procurement_id, revision, status, total, issued_by, issue_basis) values
   ('a0925000-0000-0000-0000-000000000701', 'a0925000-0000-0000-0000-000000000403', 1, 'Issued', 100, 'a0925000-0000-0000-0000-0000000000a1', 'standard');
+insert into procurements (id,org_id,title,status,total_value,project_id,currency,budget_category,requested_by_id) values
+ ('a0925000-0000-0000-0000-000000000404','a0925000-0000-0000-0000-00000000000a','Categoryless request','Requested',100,'a0925000-0000-0000-0000-0000000000d1','USD',null,'a0925000-0000-0000-0000-0000000000a1');
+-- Categoryless counterparts of the other three: a billed purchase, a claim and a subcontract with no line.
+insert into procurements (id, org_id, title, status, total_value, approved_total_value, approved_by_id, project_id, currency, budget_category, requested_by_id, is_subcontract) values
+  ('a0925000-0000-0000-0000-000000000405', 'a0925000-0000-0000-0000-00000000000a', 'categoryless billed',      'Vendor Invoiced', 100, 100, 'a0925000-0000-0000-0000-0000000000a3', 'a0925000-0000-0000-0000-0000000000d1', 'USD', null, 'a0925000-0000-0000-0000-0000000000a1', false),
+  ('a0925000-0000-0000-0000-000000000406', 'a0925000-0000-0000-0000-00000000000a', 'categoryless subcontract', 'Ordered',         100, 100, 'a0925000-0000-0000-0000-0000000000a3', 'a0925000-0000-0000-0000-0000000000d1', 'USD', null, 'a0925000-0000-0000-0000-0000000000a1', true);
+insert into expense_claims (id, org_id, kind, claimant_id, project_id, budget_category, title, amount, currency, status, claim_number, submitted_at) values
+  ('a0925000-0000-0000-0000-000000000502', 'a0925000-0000-0000-0000-00000000000a', 'claim', 'a0925000-0000-0000-0000-0000000000a1', 'a0925000-0000-0000-0000-0000000000d1', null, 'categoryless claim', 50, 'USD', 'Submitted', 'EXP-SPL-0002', now());
+insert into purchase_orders (id, org_id, procurement_id, po_number, status, date, currency) values
+  ('a0925000-0000-0000-0000-000000000702', 'a0925000-0000-0000-0000-00000000000a', 'a0925000-0000-0000-0000-000000000406', 'PO-SPL-2', 'Issued', current_date, 'USD');
+insert into purchase_order_lines (po_id, revision, boq_item_id, quantity, rate, unit) values
+  ('a0925000-0000-0000-0000-000000000702', 1, 'a0925000-0000-0000-0000-000000000601', 10, 10, 'ls');
+insert into purchase_order_revisions (po_id, procurement_id, revision, status, total, issued_by, issue_basis) values
+  ('a0925000-0000-0000-0000-000000000702', 'a0925000-0000-0000-0000-000000000406', 1, 'Issued', 100, 'a0925000-0000-0000-0000-0000000000a1', 'standard');
 -- A pre-work variation, requested by the Engineer who raised the purchase.
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"a0925000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select request_po_variation('a0925000-0000-0000-0000-000000000701', 'pre_work',
   '[{"boq_item_id":"a0925000-0000-0000-0000-000000000601","additional_quantity":1}]', 'SPL variation');
+select request_po_variation('a0925000-0000-0000-0000-000000000702', 'pre_work',
+  '[{"boq_item_id":"a0925000-0000-0000-0000-000000000601","additional_quantity":1}]', 'SPL variation categoryless');
 reset role;
 
 -- The sequential property, on d2: 800 recorded against no category, so the project is at 800 of 1000.
@@ -73,6 +89,7 @@ create function pg_temp.act_as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
 $$;
 create function pg_temp.vid() returns uuid language sql as $$ select id from po_variations where reason = 'SPL variation' $$;
+create function pg_temp.vid_categoryless() returns uuid language sql as $$ select id from po_variations where reason = 'SPL variation categoryless' $$;
 create function pg_temp.route_of(p_id uuid) returns text language sql stable as $$
   select route || '/' || reason from get_procurement_approval_routes(array[p_id]::uuid[]) $$;
 
@@ -92,12 +109,20 @@ set local role authenticated;
 select pg_temp.act_as('a0925000-0000-0000-0000-0000000000a4');
 select throws_ok($$ select transition_procurement('a0925000-0000-0000-0000-000000000401', 'Approved') $$,
   '55P03', 'canceling statement due to lock timeout', 'AC-APR-056: a purchase approval waits for the project lock');
+select throws_ok($$ select transition_procurement('a0925000-0000-0000-0000-000000000404', 'Approved') $$,
+  '55P03', 'canceling statement due to lock timeout', 'AC-APR-056: categoryless purchase approval waits for the project lock');
 select throws_ok($$ select transition_expense_claim('a0925000-0000-0000-0000-000000000501', 'Approved') $$,
   '55P03', 'canceling statement due to lock timeout', 'AC-APR-056: a claim approval waits for the project lock');
 select throws_ok($$ select approve_procurement_amount('a0925000-0000-0000-0000-000000000402', 150) $$,
   '55P03', 'canceling statement due to lock timeout', 'AC-APR-056: a higher-amount approval waits for the project lock');
 select throws_ok($$ select decide_po_variation(pg_temp.vid(), true, null) $$,
   '55P03', 'canceling statement due to lock timeout', 'AC-APR-056: a variation decision waits for the project lock');
+select throws_ok($$ select transition_expense_claim('a0925000-0000-0000-0000-000000000502', 'Approved') $$,
+  '55P03', 'canceling statement due to lock timeout', 'AC-APR-056: categoryless claim approval waits for the project lock');
+select throws_ok($$ select approve_procurement_amount('a0925000-0000-0000-0000-000000000405', 150) $$,
+  '55P03', 'canceling statement due to lock timeout', 'AC-APR-056: categoryless higher-amount approval waits for the project lock');
+select throws_ok($$ select decide_po_variation(pg_temp.vid_categoryless(), true, null) $$,
+  '55P03', 'canceling statement due to lock timeout', 'AC-APR-056: categoryless variation decision waits for the project lock');
 reset role;
 
 -- ── (2) another session holds only the LINE lock: each of the four still waits for it ────────────────────────────
