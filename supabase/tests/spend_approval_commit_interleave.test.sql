@@ -9,6 +9,14 @@ select dblink_exec('approval_first', $clean$
 do $do$
 declare r record; v_blocked int; v_pass int := 0;
 begin
+  -- No caller identity, and versions before anything else: their line items then go by cascade, which the
+  -- Draft guard allows, so the order of the table loop below cannot hit an Active version's lines.
+  perform set_config('request.jwt.claims', '', true);
+  perform set_config('request.jwt.claim.sub', '', true);
+  begin
+    delete from public.budget_versions where org_id = 'a2511000-0000-0000-0000-000000000001';
+  exception when foreign_key_violation then null;
+  end;
   loop
     v_blocked := 0;
     for r in select c.table_name from information_schema.columns c
@@ -74,6 +82,14 @@ select dblink_exec('approval_first', $clean$
 do $do$
 declare r record; v_blocked int; v_pass int := 0;
 begin
+  -- No caller identity, and versions before anything else: their line items then go by cascade, which the
+  -- Draft guard allows, so the order of the table loop below cannot hit an Active version's lines.
+  perform set_config('request.jwt.claims', '', true);
+  perform set_config('request.jwt.claim.sub', '', true);
+  begin
+    delete from public.budget_versions where org_id = 'a2511000-0000-0000-0000-000000000001';
+  exception when foreign_key_violation then null;
+  end;
   loop
     v_blocked := 0;
     for r in select c.table_name from information_schema.columns c
