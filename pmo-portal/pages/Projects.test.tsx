@@ -1382,6 +1382,35 @@ describe('Projects — which project is off track, and how far (#design-1115)', 
     expect(screen.queryByText('Nothing at risk')).not.toBeInTheDocument();
   });
 
+  it('AC-NBR-031: does not cache an empty filter before the initial projects read completes', () => {
+    const previousProjects = { data: projectsState.data, isPending: projectsState.isPending, isError: projectsState.isError };
+    const previousMoney = { data: projectMoneyState.data, isPending: projectMoneyState.isPending };
+    projectsState.data = [] as unknown as ProjectWithRefs[];
+    projectsState.isPending = true;
+    projectsState.isError = false;
+    projectMoneyState.data = undefined;
+    projectMoneyState.isPending = false;
+
+    const view = renderPage('Project Manager', '/projects?filter=at-risk&view=table');
+    try {
+      expect(screen.getByTestId('projects-loading')).toBeInTheDocument();
+
+      projectsState.data = seed as unknown as ProjectWithRefs[];
+      projectsState.isPending = false;
+      projectMoneyState.isPending = true;
+      view.rerender(projectPage('/projects?filter=at-risk&view=table'));
+
+      const container = screen.getByTestId('projects-table-container');
+      expect(within(container).getAllByRole('columnheader').length).toBeGreaterThan(0);
+      expect(within(container).getByTestId('liststate-loading')).toBeInTheDocument();
+      expect(within(container).queryByText('Innovate Corp HQ Fit-Out')).not.toBeInTheDocument();
+    } finally {
+      view.unmount();
+      Object.assign(projectsState, previousProjects);
+      Object.assign(projectMoneyState, previousMoney);
+    }
+  });
+
   it('AC-NBR-031 (F) at-risk table keeps its shell and reports the unavailable risk read', () => {
     projectMoneyState.isError = true;
     renderPage('Project Manager', '/projects?filter=at-risk&view=table');

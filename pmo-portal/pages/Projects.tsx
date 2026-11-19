@@ -87,9 +87,9 @@ const Projects: React.FC = () => {
     return isAtRiskActual(project);
   };
   useEffect(() => {
-    if (secondaryReadUnavailable) return;
+    if (isPending || isError || !data || secondaryReadUnavailable) return;
     lastFilteredSnapshot.current = { key: filteredSnapshotKey, rows: filtered };
-  }, [filtered, filteredSnapshotKey, secondaryReadUnavailable]);
+  }, [data, filtered, filteredSnapshotKey, isError, isPending, secondaryReadUnavailable]);
   useEffect(() => {
     if (moneyPending || moneyError) return;
     lastAtRiskSnapshot.current = {
