@@ -58,3 +58,17 @@ begin
   return new;
 end $$;
 revoke all on function public.check_cost_attribution() from public, anon, authenticated;
+
+create or replace function public.guard_warehouse_move_with_work_orders() returns trigger
+  language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if (new.project_id is distinct from old.project_id or new.kind is distinct from old.kind)
+     and exists (select 1 from public.stock_documents d
+       join public.work_orders w on w.id = d.work_order_id
+       where d.to_warehouse_id = new.id and d.kind = 'transfer'
+         and (new.kind <> 'site' or w.project_id is distinct from new.project_id)) then
+    raise exception 'COST_WO_PROJECT_MOVE: transfers to this warehouse name a work order of its project' using errcode = '23514';
+  end if;
+  return new;
+end $$;
+revoke all on function public.guard_warehouse_move_with_work_orders() from public, anon, authenticated;

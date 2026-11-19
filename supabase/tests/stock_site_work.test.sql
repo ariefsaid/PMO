@@ -5,7 +5,7 @@
 -- Every denial asserts errcode AND message so a different gate moving in front cannot pass it.
 begin;
 create extension if not exists pgtap;
-select plan(47);
+select plan(49);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25230000-0000-0000-0000-00000000000a', 'SSW Org',       'IDR', 'UTC'),
@@ -137,6 +137,11 @@ select is((select count(*)::int from jsonb_array_elements(public.get_work_order_
 -- ── AC-SSW-012 a work order of another project is refused ─────────────────────────────────────────────
 select throws_ok($$ select ssw_attr(current_setting('ssw.t3')::uuid, '25230000-0000-0000-0000-000000000403') $$, '23514',
   'COST_WO_PROJECT: the work order belongs to another project', 'AC-SSW-012 a transfer into a yard cannot name another project''s work order');
+
+select lives_ok($$ update stock_warehouses set kind = 'staging' where id = '25230000-0000-0000-0000-000000002002' $$,
+  'FR-SSW-002 a yard may become staging while transfers to it name work orders');
+select throws_ok($$ update stock_warehouses set kind = 'central' where id = '25230000-0000-0000-0000-000000002002' $$, '23514',
+  'COST_WO_PROJECT_MOVE: transfers to this warehouse name a work order of its project', 'FR-SSW-002 it cannot become a kind that cannot carry a work order');
 
 -- ── AC-SSW-005 tag frozen after movements; free before ─────────────────────────────────────────────────
 select throws_ok($$ update stock_items set tag_id = null where id = '25230000-0000-0000-0000-000000001002' $$, 'P0001',
