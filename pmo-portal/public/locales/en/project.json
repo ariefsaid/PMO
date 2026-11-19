@@ -1114,7 +1114,8 @@
       "ungrouped": "Ungrouped",
       "zoomIn": "Zoom in",
       "zoomOut": "Zoom out"
-    }
+    },
+    "projectIncidents": "Project incidents"
   },
   "common": {
     "retry": "Retry",

@@ -67,6 +67,7 @@ const MAX_PHOTOS = 10;
 export interface IncidentFormModalProps {
   /** null = file (create); a row = edit. */
   incident: IncidentRow | null;
+  defaultProjectId?: string;
   onClose: () => void;
   /** Creates the record and returns it; the caller does NOT close (photos may still need to upload). */
   onCreate: (input: IncidentInput) => Promise<IncidentRow>;
@@ -85,6 +86,7 @@ export interface IncidentFormModalProps {
  */
 export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
   incident,
+  defaultProjectId,
   onClose,
   onCreate,
   onCreated,
@@ -115,7 +117,7 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
       severity: incident?.severity ?? 'Low',
       location: incident?.location ?? '',
       description: incident?.description ?? '',
-      project_id: incident?.project_id ?? null,
+      project_id: incident?.project_id ?? defaultProjectId ?? null,
       work_order_id: incident?.work_order_id ?? null,
       assignee_id: incident?.assignee_id ?? null,
       action: incident?.action ?? '',
@@ -270,7 +272,7 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
             placeholder={t('form.projectPlaceholder', 'Optional — link a project…')}
             value={form.values.project_id}
             selectedOption={selectedProjectOption}
-            onChange={(v) => form.setValue('project_id', v)}
+            onChange={(v) => form.setValues({ project_id: v, ...(v !== form.values.project_id ? { work_order_id: null } : {}) })}
             loadOptions={loadProjects}
           />
           <Combobox

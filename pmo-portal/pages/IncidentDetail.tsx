@@ -309,7 +309,7 @@ const IncidentDetail: React.FC = () => {
 
       {/* Status transition confirm (default tone — a state-machine move, not destructive). */}
       {transitionTo === 'Closed' && (
-        <IncidentCloseDialog incident={incident} onClose={onCloseWithProof} onCancel={() => setTransitionTo(null)} onError={onMutationError} />
+        <IncidentCloseDialog incident={incident} closeProofCount={(files.data ?? []).filter((f) => f.kind === 'at_close').length} onClose={onCloseWithProof} onCancel={() => setTransitionTo(null)} onError={onMutationError} />
       )}
       <ConfirmDialog
         open={transitionTo === 'Investigating'}

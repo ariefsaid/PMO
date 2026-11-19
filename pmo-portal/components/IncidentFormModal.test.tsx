@@ -57,6 +57,14 @@ beforeEach(() => {
 });
 
 describe('IncidentFormModal project selector', () => {
+  it('filing from a project register keeps that project on the new issue', async () => {
+    const onCreate = vi.fn().mockResolvedValue(baseRow);
+    render(<ToastProvider><IncidentFormModal incident={null} defaultProjectId="p1" onClose={vi.fn()} onCreate={onCreate} onUpdate={vi.fn()} onError={vi.fn()} /></ToastProvider>);
+    await userEvent.type(screen.getByLabelText(/^type/i), 'Spill');
+    await userEvent.click(screen.getByRole('button', { name: /file incident/i }));
+    expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ project_id: 'p1' }));
+  });
+
   it('AC-IN-PROJ-011: filing an incident with a selected project sends project_id', async () => {
     const onCreate = vi.fn().mockResolvedValue(undefined);
     renderModal(null, onCreate);
@@ -72,6 +80,15 @@ describe('IncidentFormModal project selector', () => {
     await userEvent.click(screen.getByRole('button', { name: /file incident/i }));
 
     expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ project_id: 'p1' }));
+  });
+
+  it('clears the old work order when changing a project', async () => {
+    const onUpdate = vi.fn().mockResolvedValue(undefined);
+    renderModal({ ...baseRow, project_id: 'p1', work_order_id: 'wo1' }, vi.fn(), onUpdate);
+    await userEvent.click(screen.getByRole('combobox', { name: /project/i }));
+    await userEvent.click(within(await screen.findByRole('listbox')).getByText('Northgate Retrofit'));
+    await userEvent.click(screen.getByRole('button', { name: /save incident/i }));
+    expect(onUpdate).toHaveBeenCalledWith('i1', expect.objectContaining({ project_id: 'p2', work_order_id: null }));
   });
 
   it('AC-IN-PROJ-011: an edit form pre-selects the linked project and can keep it on save', async () => {

@@ -10,7 +10,7 @@ import { useIncidentEvidenceMutations } from '@/src/hooks/useIncidents';
 /**
  * The photos and documents on one issue (#2521, FR-SIL-010): the raise photos and the close proof, each opened through a
  * short-lived signed link. Whoever may add evidence (reporter, assignee, manager — the database decides) gets an
- * "Add photo" button that opens the phone camera. Up to 10 files, 15 MB each.
+ * "Add photo" button that opens the phone camera. Up to 10 raise files and 5 close files, 15 MB each.
  */
 export const IncidentEvidence: React.FC<{
   incident: Pick<IncidentRow, 'id' | 'org_id'>;
@@ -21,6 +21,7 @@ export const IncidentEvidence: React.FC<{
   const { toast } = useToast();
   const { upload } = useIncidentEvidenceMutations();
   const input = useRef<HTMLInputElement>(null);
+  const remainingRaiseSlots = Math.max(0, 10 - files.filter((f) => f.kind === 'at_raise').length);
 
   const open = async (file: IncidentFileRow) => {
     try {
@@ -62,7 +63,7 @@ export const IncidentEvidence: React.FC<{
           ))}
         </ul>
       )}
-      {canAdd && files.length < 10 && (
+      {canAdd && remainingRaiseSlots > 0 && (
         <div className="mt-3">
           <FileInput
             ref={input}
@@ -75,7 +76,7 @@ export const IncidentEvidence: React.FC<{
             onChange={(e) => {
               const picked = Array.from(e.target.files ?? []);
               e.target.value = '';
-              void add(picked);
+              void add(picked.slice(0, remainingRaiseSlots));
             }}
           />
           <Button type="button" variant="outline" size="sm" loading={upload.isPending} onClick={() => input.current?.click()}>

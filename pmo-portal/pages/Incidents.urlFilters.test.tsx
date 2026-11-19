@@ -99,6 +99,13 @@ beforeEach(() => {
 });
 
 describe('R2 — incidents pagination lives in the URL', () => {
+  it('opens a project-scoped register and lets the user return to all issues', async () => {
+    renderPage('/incidents?project=p1');
+    expect(pageCalls.at(-1)).toMatchObject({ projectId: 'p1' });
+    await userEvent.click(screen.getByRole('button', { name: /all incidents/i }));
+    expect(pageCalls.at(-1)).toMatchObject({ projectId: undefined });
+  });
+
   it('a refresh of ?page=2 reopens page 2 and asks the server for it', () => {
     renderPage('/incidents?page=2');
     // The visible window is rows 51–100 of 120, and the server read asked for page 2.

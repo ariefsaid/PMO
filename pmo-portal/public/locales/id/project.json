@@ -1114,7 +1114,8 @@
       "ungrouped": "Tanpa fase",
       "zoomIn": "Perbesar",
       "zoomOut": "Perkecil"
-    }
+    },
+    "projectIncidents": "Insiden proyek"
   },
   "common": {
     "retry": "Coba lagi",

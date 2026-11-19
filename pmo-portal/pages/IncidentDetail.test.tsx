@@ -9,7 +9,7 @@ import { AppError } from '@/src/lib/appError';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 
 // ── The single-incident hook + mutations are mocked; the page is the unit. ──
-const { detailState, mutations, uploadEvidence } = vi.hoisted(() => ({
+const { detailState, mutations, uploadEvidence, evidenceState } = vi.hoisted(() => ({
   detailState: {
     data: undefined as Record<string, unknown> | null | undefined,
     isPending: false,
@@ -18,6 +18,7 @@ const { detailState, mutations, uploadEvidence } = vi.hoisted(() => ({
     refetch: vi.fn(),
   },
   uploadEvidence: vi.fn().mockResolvedValue({}),
+  evidenceState: { data: [] as Array<{ id: string; kind: string; title: string }> },
   mutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
@@ -31,7 +32,7 @@ vi.mock('@/src/hooks/useIncidents', () => ({
   useIncidentMutations: () => mutations,
   useAssigneeOptions: () => ({ data: [] }),
   useIncidentEvidenceMutations: () => ({ upload: { mutateAsync: uploadEvidence, isPending: false }, makeTask: { mutateAsync: vi.fn(), isPending: false } }),
-  useIncidentFiles: () => ({ data: [] }),
+  useIncidentFiles: () => evidenceState,
 }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [] }) }));
 
@@ -86,6 +87,7 @@ beforeEach(() => {
   detailState.isError = false;
   detailState.error = null;
   projectOptions.data = [];
+  evidenceState.data = [];
   mutations.update.mutateAsync.mockClear().mockResolvedValue(undefined);
   mutations.transition.mutateAsync.mockClear().mockResolvedValue(undefined);
   realRole = 'Admin';
@@ -194,6 +196,34 @@ describe('IncidentDetail', () => {
     expect(within(dialog).getByRole('button', { name: /close incident/i })).toBeDisabled();
     await userEvent.upload(within(dialog).getByTestId('incident-close-photo-input'), new File(['x'], 'proof.jpg', { type: 'image/jpeg' }));
     expect(within(dialog).getByRole('button', { name: /close incident/i })).toBeEnabled();
+  });
+
+  it('permits a raise photo when close photos bring the total to ten', () => {
+    evidenceState.data = Array.from({ length: 10 }, (_, n) => ({ id: `f${n}`, title: `photo${n}.jpg`, kind: n < 5 ? 'at_raise' : 'at_close' }));
+    renderPage('Admin');
+    expect(within(screen.getByTestId('incident-evidence')).getByRole('button', { name: /add photo/i })).toBeInTheDocument();
+  });
+
+  it('accepts at most five close photos', async () => {
+    detailState.data = { ...incident, status: 'Investigating', severity: 'High' };
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /close incident/i }));
+    const dialog = await screen.findByRole('dialog');
+    const photos = Array.from({ length: 6 }, (_, n) => new File(['x'], `proof-${n}.jpg`, { type: 'image/jpeg' }));
+    await userEvent.upload(within(dialog).getByTestId('incident-close-photo-input'), photos);
+    expect(within(dialog).getByText('proof-4.jpg')).toBeInTheDocument();
+    expect(within(dialog).queryByText('proof-5.jpg')).not.toBeInTheDocument();
+  });
+
+  it('allows a high issue to close using its existing close proof', async () => {
+    detailState.data = { ...incident, status: 'Investigating', severity: 'High' };
+    evidenceState.data = [{ id: 'f1', kind: 'at_close', title: 'proof.jpg' }];
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /close incident/i }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('button', { name: /close incident/i })).toBeEnabled();
+    await userEvent.click(within(dialog).getByRole('button', { name: /close incident/i }));
+    expect(mutations.transition.mutateAsync).toHaveBeenCalledTimes(1);
   });
 
   it('retries closing after an uploaded proof and a failed status update', async () => {

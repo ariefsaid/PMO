@@ -134,5 +134,7 @@
     "addPhoto": "Tambah foto penutupan",
     "proofRequired": "Isu Tinggi atau Kritis wajib memiliki foto penutupan.",
     "proofOptional": "Opsional untuk tingkat keparahan ini."
-  }
+  },
+  "projectScope": "Insiden proyek",
+  "allIncidents": "Semua insiden"
 }

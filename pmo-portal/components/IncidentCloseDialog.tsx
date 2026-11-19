@@ -13,19 +13,22 @@ import { useIncidentEvidenceMutations } from '@/src/hooks/useIncidents';
  */
 export const IncidentCloseDialog: React.FC<{
   incident: IncidentRow;
+  closeProofCount: number;
   /** Moves the status to Closed with the note; throws on failure. */
   onClose: (note: string) => Promise<void>;
   onCancel: () => void;
   onError: (err: unknown) => void;
-}> = ({ incident, onClose, onCancel, onError }) => {
+}> = ({ incident, closeProofCount, onClose, onCancel, onError }) => {
   const { t } = useTranslation('incidents');
   const { upload } = useIncidentEvidenceMutations();
   const [note, setNote] = useState('');
   const [photos, setPhotos] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
-  const [uploadedProof, setUploadedProof] = useState(false);
+  const [initialProofCount] = useState(closeProofCount);
+  const [uploadedCount, setUploadedCount] = useState(0);
   const input = useRef<HTMLInputElement>(null);
   const proofRequired = needsCloseProof(incident.severity);
+  const effectiveProofCount = Math.max(closeProofCount, initialProofCount + uploadedCount);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,7 +37,7 @@ export const IncidentCloseDialog: React.FC<{
       const remaining = [...photos];
       while (remaining.length > 0) {
         await upload.mutateAsync({ incident, kind: 'at_close', file: remaining[0] });
-        setUploadedProof(true);
+        setUploadedCount((count) => count + 1);
         remaining.shift();
         setPhotos([...remaining]);
       }
@@ -55,7 +58,7 @@ export const IncidentCloseDialog: React.FC<{
       onClose={onCancel}
       loading={busy}
       dirty={note.trim() !== '' || photos.length > 0}
-      submitDisabled={proofRequired && photos.length === 0 && !uploadedProof}
+      submitDisabled={proofRequired && photos.length === 0 && effectiveProofCount === 0}
     >
       <p className="mb-3 text-control text-muted-foreground">{t('transition.Closed.body', 'This marks the incident Closed. Closed is the final state; reopen by filing a follow-up if new information emerges.')}</p>
       <TextArea
@@ -78,7 +81,7 @@ export const IncidentCloseDialog: React.FC<{
           onChange={(e) => {
             const picked = Array.from(e.target.files ?? []);
             e.target.value = '';
-            setPhotos((prev) => [...prev, ...picked].slice(0, 10));
+            setPhotos((prev) => [...prev, ...picked].slice(0, Math.max(0, 5 - effectiveProofCount)));
           }}
         />
         <Button type="button" variant="outline" size="sm" onClick={() => input.current?.click()}>

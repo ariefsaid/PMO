@@ -62,9 +62,10 @@ const likeAny = (value: string) => `"%${value.replace(/[\\%_"]/g, '\\$&')}%"`;
 /** The register's status filter + type/location search, shared by the page read and the full read. */
 function withFilters<Q extends { eq: (c: string, v: string) => Q; or: (f: string) => Q; neq: (c: string, v: string) => Q; lt: (c: string, v: string) => Q }>(
   query: Q,
-  params?: { status?: IncidentStatus; search?: string; overdue?: boolean },
+  params?: { status?: IncidentStatus; search?: string; overdue?: boolean; projectId?: string },
 ): Q {
   if (params?.status) query = query.eq('status', params.status);
+  if (params?.projectId) query = query.eq('project_id', params.projectId);
   // Overdue = not Closed and past its due time, computed here from due_at (FR-SIL-022), not from the escalation job.
   if (params?.overdue) query = query.neq('status', 'Closed').lt('due_at', new Date().toISOString());
   const term = params?.search?.trim();
@@ -80,7 +81,7 @@ function withFilters<Q extends { eq: (c: string, v: string) => Q; or: (f: string
  * incident_date descending (newest first) for a stable, scannable register. Throws an
  * `AppError` (code preserved) on failure.
  */
-export async function listIncidents(params?: { status?: IncidentStatus; search?: string; overdue?: boolean }): Promise<IncidentRow[]> {
+export async function listIncidents(params?: { status?: IncidentStatus; search?: string; overdue?: boolean; projectId?: string }): Promise<IncidentRow[]> {
   return fetchAllPages((from, to) => {
     const query = withFilters(supabase.from('incident_reports').select('*'), params);
     return query.order('incident_date', { ascending: false }).order('id', { ascending: true }).range(from, to);
@@ -103,6 +104,7 @@ export async function listIncidentsPage(input: {
   status?: IncidentStatus;
   search?: string;
   overdue?: boolean;
+  projectId?: string;
 }): Promise<{ rows: IncidentRow[]; total: number }> {
   const from = Math.max(0, input.page - 1) * input.pageSize;
   const { data, error, count } = await withFilters(
@@ -249,7 +251,7 @@ export async function listIncidentFiles(incidentId: string): Promise<IncidentFil
     .eq('incident_id', incidentId)
     .is('archived_at', null)
     .order('created_at', { ascending: true })
-    .limit(50); // bounded: the database allows at most 10 live files per issue
+    .limit(50); // bounded: the database allows at most 15 live files per issue
   if (error) throwWrite(error);
   return data ?? [];
 }
@@ -257,7 +259,7 @@ export async function listIncidentFiles(incidentId: string): Promise<IncidentFil
 /**
  * Upload one photo/PDF for an issue: the object first ({org}/{incident}/{file_id}/{filename}), then the row that
  * records it. A failed row insert removes the object so nothing is left orphaned. The org segment comes from the
- * issue row (RLS-scoped), never from the client. The database caps a file at 15 MB, 10 live files per issue.
+ * issue row (RLS-scoped), never from the client. The database caps a file at 15 MB, 10 raise files and 5 close files per issue.
  */
 export async function uploadIncidentFile(input: {
   incident: Pick<IncidentRow, 'id' | 'org_id'>;

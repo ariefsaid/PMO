@@ -26,12 +26,12 @@ export function useIncidents(status?: IncidentStatus, opts?: { enabled?: boolean
  * them. The previous page stays on screen while the next loads. The unfiltered count is only fetched
  * while a filter is active; unfiltered, the page total IS the denominator.
  */
-export function useIncidentsPage(args: { page: number; pageSize: number; status?: IncidentStatus; search?: string; overdue?: boolean }) {
+export function useIncidentsPage(args: { page: number; pageSize: number; status?: IncidentStatus; search?: string; overdue?: boolean; projectId?: string }) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  const filtered = Boolean(args.status || args.search || args.overdue);
+  const filtered = Boolean(args.status || args.search || args.overdue || args.projectId);
   const list = useQuery({
-    queryKey: ['incidents', orgId, 'page', args.status ?? 'all', args.search ?? '', args.overdue ? 'overdue' : 'any', args.page, args.pageSize],
+    queryKey: ['incidents', orgId, 'page', args.status ?? 'all', args.search ?? '', args.overdue ? 'overdue' : 'any', args.projectId ?? '', args.page, args.pageSize],
     queryFn: () => repositories.incident.listPage(args),
     enabled: Boolean(orgId),
     placeholderData: keepPreviousData,
@@ -47,7 +47,7 @@ export function useIncidentsPage(args: { page: number; pageSize: number; status?
 /** Every incident matching the current status/search, read only when the user exports (the page holds one server page). */
 export function useIncidentsExportAll() {
   return useMutation({
-    mutationFn: (params?: { status?: IncidentStatus; search?: string; overdue?: boolean }) => repositories.incident.list(params),
+    mutationFn: (params?: { status?: IncidentStatus; search?: string; overdue?: boolean; projectId?: string }) => repositories.incident.list(params),
   });
 }
 

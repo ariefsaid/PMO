@@ -64,7 +64,7 @@ const Incidents: React.FC = () => {
   // R2: page joins q/status in the URL so Back/refresh return to the same page; page 1 (the
   // default) stays out of the URL. Filter resets ride the filter's own history entry (replace)
   // and batch with the filter write — react-router 8 does not queue same-tick param writes.
-  const { values, setFilter, setFilters, clear } = useUrlFilters(['q', 'status', 'due', 'page']);
+  const { values, setFilter, setFilters, clear } = useUrlFilters(['q', 'status', 'due', 'page', 'project']);
   const statusFilter = values.status as IncidentStatus | '';
   const search = values.q;
   const overdueOnly = values.due === 'overdue';
@@ -78,6 +78,7 @@ const Incidents: React.FC = () => {
     status: statusFilter || undefined,
     search: search.trim() || undefined,
     overdue: overdueOnly || undefined,
+    projectId: values.project || undefined,
   });
   const { data, isPending, isError, refetch } = list;
   const rows = data?.rows;
@@ -293,11 +294,19 @@ const Incidents: React.FC = () => {
             entity="Incidents"
             columns={columns}
             hasRows={total > 0}
-            fetchRows={() => exportAll.mutateAsync({ status: statusFilter || undefined, search: search.trim() || undefined, overdue: overdueOnly || undefined })}
+            fetchRows={() => exportAll.mutateAsync({ status: statusFilter || undefined, search: search.trim() || undefined, overdue: overdueOnly || undefined, projectId: values.project || undefined })}
           />
         )
       }
     >
+      {values.project && (
+        <div className="mb-4 flex items-center justify-between gap-3 text-control">
+          <span>{t('projectScope', 'Project incidents')}</span>
+          <Button variant="ghost" size="sm" onClick={() => setFilters({ project: '', page: '' })}>
+            {t('allIncidents', 'All incidents')}
+          </Button>
+        </div>
+      )}
       {/* Body */}
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
@@ -367,6 +376,7 @@ const Incidents: React.FC = () => {
       {formTarget && (
         <IncidentFormModal
           incident={formTarget.incident}
+          defaultProjectId={values.project || undefined}
           onClose={() => setFormTarget(null)}
           onCreate={(input) => create.mutateAsync(input)}
           onCreated={(_row, input) => {

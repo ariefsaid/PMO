@@ -134,5 +134,7 @@
     "addPhoto": "Add close photo",
     "proofRequired": "A close photo is required for a High or Critical issue.",
     "proofOptional": "Optional for this severity."
-  }
+  },
+  "projectScope": "Project incidents",
+  "allIncidents": "All incidents"
 }
