@@ -76,6 +76,10 @@ describe('equipment', () => {
     expect(v[0].errors.vendor).toMatch(/Supplier is required/);
     expect(v[1].valid).toBe(true);
   });
+  it('reports an invalid calendar date instead of crashing the preview', () => {
+    const rows = run(d, H, [['E1', 'Crane', 'hours', 'rented', 'Rent Co', '100', 'day', 'IDR', '2026-99-99', '']]);
+    expect(rows[0].errors.rentedFrom).toMatch(/Dates/);
+  });
   it('an unknown supplier and an end before the start are row errors', () => {
     const v = run(d, H, [['E1', 'Crane', 'hours', 'rented', 'Nobody', '100', 'day', 'IDR', '2026-02-01', '2026-01-01']]);
     expect(v[0].errors.vendor).toMatch(/not found/);

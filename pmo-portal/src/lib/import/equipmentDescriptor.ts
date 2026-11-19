@@ -13,7 +13,11 @@ export interface EquipmentImportInput {
 }
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
-const isDate = (s: string) => ISO.test(s) && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s;
+const isDate = (s: string) => {
+  if (!ISO.test(s)) return false;
+  const date = new Date(`${s}T00:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === s;
+};
 
 /**
  * Equipment import (#2530, FR-IMT-011): asset code, name, default unit, ownership and, for a rented asset, the supplier
