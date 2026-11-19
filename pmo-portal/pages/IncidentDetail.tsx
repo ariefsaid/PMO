@@ -1,3 +1,4 @@
+import { IncidentTaskLink } from '@/components/IncidentTaskLink';
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -258,7 +259,7 @@ const IncidentDetail: React.FC = () => {
               label={t('detail.task', 'Task')}
               value={
                 incident.task_id ? (
-                  <span data-testid="incident-task-linked">{t('detail.taskLinked', 'A task was created for this issue.')}</span>
+                  <IncidentTaskLink taskId={incident.task_id} />
                 ) : canMakeTask && incident.project_id ? (
                   <Button variant="outline" size="sm" data-testid="incident-make-task" loading={makeTask.isPending} onClick={() => void onMakeTask()}>
                     {t('detail.makeTask', 'Make a task')}

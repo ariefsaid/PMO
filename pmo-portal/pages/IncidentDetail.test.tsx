@@ -9,7 +9,7 @@ import { AppError } from '@/src/lib/appError';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 
 // ── The single-incident hook + mutations are mocked; the page is the unit. ──
-const { detailState, mutations, uploadEvidence, evidenceState } = vi.hoisted(() => ({
+const { detailState, mutations, uploadEvidence, evidenceState, linkedTaskState } = vi.hoisted(() => ({
   detailState: {
     data: undefined as Record<string, unknown> | null | undefined,
     isPending: false,
@@ -19,6 +19,7 @@ const { detailState, mutations, uploadEvidence, evidenceState } = vi.hoisted(() 
   },
   uploadEvidence: vi.fn().mockResolvedValue({}),
   evidenceState: { data: [] as Array<{ id: string; kind: string; title: string }> },
+  linkedTaskState: { data: { project_id: 'p1' } as { project_id: string } | null },
   mutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
@@ -34,6 +35,7 @@ vi.mock('@/src/hooks/useIncidents', () => ({
   useIncidentEvidenceMutations: () => ({ upload: { mutateAsync: uploadEvidence, isPending: false }, makeTask: { mutateAsync: vi.fn(), isPending: false } }),
   useIncidentFiles: () => evidenceState,
 }));
+vi.mock('@/src/hooks/useIncidentLinkedTask', () => ({ useIncidentLinkedTask: () => linkedTaskState }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [] }) }));
 
 
@@ -88,6 +90,7 @@ beforeEach(() => {
   detailState.error = null;
   projectOptions.data = [];
   evidenceState.data = [];
+  linkedTaskState.data = { project_id: 'p1' };
   mutations.update.mutateAsync.mockClear().mockResolvedValue(undefined);
   mutations.transition.mutateAsync.mockClear().mockResolvedValue(undefined);
   realRole = 'Admin';
@@ -196,6 +199,19 @@ describe('IncidentDetail', () => {
     expect(within(dialog).getByRole('button', { name: /close incident/i })).toBeDisabled();
     await userEvent.upload(within(dialog).getByTestId('incident-close-photo-input'), new File(['x'], 'proof.jpg', { type: 'image/jpeg' }));
     expect(within(dialog).getByRole('button', { name: /close incident/i })).toBeEnabled();
+  });
+
+  it('opens the linked task from the issue', () => {
+    detailState.data = { ...incident, project_id: 'p1', task_id: 't1' };
+    renderPage('Admin');
+    expect(screen.getByTestId('incident-task-linked')).toHaveAttribute('href', '/projects/p1/tasks?open=t1');
+  });
+
+  it('opens the task’s own project if the issue has moved', () => {
+    detailState.data = { ...incident, project_id: 'p2', task_id: 't1' };
+    linkedTaskState.data = { project_id: 'p1' };
+    renderPage('Admin');
+    expect(screen.getByTestId('incident-task-linked')).toHaveAttribute('href', '/projects/p1/tasks?open=t1');
   });
 
   it('permits a raise photo when close photos bring the total to ten', () => {

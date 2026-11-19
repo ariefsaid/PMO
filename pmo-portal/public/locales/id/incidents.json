@@ -87,7 +87,8 @@
     "task": "Tugas",
     "taskLinked": "Sebuah tugas dibuat untuk isu ini.",
     "makeTask": "Buat tugas",
-    "photos": "Foto"
+    "photos": "Foto",
+    "openTask": "Buka tugas"
   },
   "form": {
     "section": "Apa yang terjadi",

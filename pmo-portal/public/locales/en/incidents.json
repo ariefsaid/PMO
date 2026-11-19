@@ -87,7 +87,8 @@
     "task": "Task",
     "taskLinked": "A task was created for this issue.",
     "makeTask": "Make a task",
-    "photos": "Photos"
+    "photos": "Photos",
+    "openTask": "Open task"
   },
   "form": {
     "section": "What happened",
