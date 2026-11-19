@@ -24,7 +24,7 @@ import { ensureErpSellingSettings } from '../../../pmo-portal/src/lib/adapterSea
 import { ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { resolveErpAuthPair } from '../_shared/erpAuthPair.ts';
 import { guardedErpFetch } from '../_shared/erpHostGuard.ts';
-import { findPmoRecordId, insertExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
+import { findPmoRecordId, findPmoRecordIds, insertExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { findCompanyCandidates } from '../_shared/companyCandidates.ts';
 import { recordPartyReview } from '../_shared/recordPartyReview.ts';
 import { surfaceActionRequired } from '../_shared/erpnextFeedDeps.ts';
@@ -119,6 +119,7 @@ export async function handleOnboardRequest(req: Request): Promise<Response> {
     const sources = await listErpPartySources(clientDeps);
 
     const result = await onboardParties(sources, {
+      findPmoRecordIds: (externalRecordIds) => findPmoRecordIds(serviceClient as never, orgId, 'companies', externalRecordIds),
       findPmoRecordId: (externalRecordId) => findPmoRecordId(serviceClient as never, orgId, 'companies', externalRecordId),
       findCandidates: (doctype: PartyDoctype, name: string, taxId?: string | null) => findCompanyCandidates(serviceClient, orgId, doctype, name, taxId),
       insertCompaniesMirror: async (canonical: PmoRecord) => {
