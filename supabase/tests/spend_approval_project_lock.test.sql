@@ -1,5 +1,5 @@
 -- spend_approval_project_lock.test.sql — the whole-project test (exceeds_project) is decided under a project lock.
--- Migration: 0925_spend_approval_project_lock.sql. AC-APR-056 (the project lock), same idiom as
+-- Migration: 0954_spend_approval_project_lock.sql. AC-APR-056 (the project lock), same idiom as
 -- spend_approval_line_lock.test.sql (a second dblink session holds a lock; the approval must WAIT, 55P03 under
 -- lock_timeout). password=postgres is the Supabase LOCAL default; this file only runs under `supabase test db`.
 --
