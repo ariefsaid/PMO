@@ -32,7 +32,7 @@ already shipped in `transition_procurement` (active-member gate, SoD-a, SoD-b, r
    ids. `transition_procurement` enforces with it; `get_procurement_approval_routes` exposes it to the UI;
    #775 and #788 call it. The budget basis is reused, not re-derived: Active-version category line
    (OD-BUDGET-1) against Reserved (ADR-0034) + Committed (OD-BUDGET-2) spend on that line.
-   **Amended (0953, 2026-11-16).** Line used is the line's recorded spending (the ledger actual for an organisation
+   **Amended (0975, 2026-11-16).** Line used is the line's recorded spending (the ledger actual for an organisation
    connected to an accounting system, otherwise PMO's paid purchases before tax plus internal hire charges, read
    from `project_finance_actuals`), plus open orders (order totals less what that spending already holds,
    `procurement_open_commitment`), plus reserved requests, plus approved claims not yet recorded in the ledger. Each

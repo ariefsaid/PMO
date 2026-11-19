@@ -1,4 +1,4 @@
--- 0975_spend_route_recorded_spending_down.sql — restore the 0247 spend_approval_route, the 0724 get_procurement_approval_routes and the 0426 get_expense_claim_approval_routes (function text verbatim), then drop the 0953 functions.
+-- 0975_spend_route_recorded_spending_down.sql — restore the 0247 spend_approval_route, the 0724 get_procurement_approval_routes and the 0426 get_expense_claim_approval_routes (function text verbatim), then drop the 0975 functions.
 
 create or replace function public.spend_approval_route(
   p_org_id       uuid,

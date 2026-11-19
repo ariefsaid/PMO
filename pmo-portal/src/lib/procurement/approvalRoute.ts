@@ -2,7 +2,7 @@ import type { TFunction } from 'i18next';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 
 /**
- * #803 approval routing — the FE mirror of `public.spend_approval_route` (migrations 0243, 0953, ADR-0075).
+ * #803 approval routing — the FE mirror of `public.spend_approval_route` (migrations 0243, 0975, ADR-0075).
  * UX ONLY (ADR-0016): `transition_procurement` is the authority. Pure — no I/O, no React.
  */
 /** `admin`: a senior set is configured but nobody in it can act, so only an Admin decides (DD-APR-4). */
