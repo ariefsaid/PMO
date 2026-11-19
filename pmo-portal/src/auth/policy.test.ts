@@ -61,6 +61,14 @@ describe('AC-009 supporting: statement role eligibility', () => {
   });
 });
 
+describe('rate catalogue permissions', () => {
+  it('permits only Admin and Finance to import or manage locations', () => {
+    expect(allowedRoles('create', 'rateCatalogue')).toEqual(['Admin', 'Finance']);
+    expect(can('create', 'rateCatalogue', { realRole: null })).toBe(false);
+    expect(can('create', 'rateCatalogue', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+  });
+});
+
 describe('can() — RBAC matrix (ADR-0016, rbac-visibility.md §K)', () => {
   // ── create ───────────────────────────────────────────────────────────────
   it('AC-CODE-001: manage organisation project numbering = Admin only', () => {

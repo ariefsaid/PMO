@@ -21,6 +21,7 @@
  */
 import type { RecordHistoryRepository } from './contracts/recordHistory';
 import type { ProjectStageRepository } from './contracts/projectStages';
+import type { RateCatalogueRepository } from './contracts/rateCatalogue';
 import type { SubcontractRepository } from './contracts/subcontracts';
 import type { ProjectMoneyRepository } from './contracts/projectMoney';
 import type { ProjectOverviewRepository } from './contracts/projectOverview';
@@ -120,6 +121,7 @@ export interface Repositories {
   vendorWithholdingSlips: VendorWithholdingSlipsRepository;
   project: ProjectRepository;
   projectStage: ProjectStageRepository;
+  rateCatalogue: RateCatalogueRepository;
   company: CompanyRepository;
   document: DocumentRepository;
   agentAttachment: AgentAttachmentRepository;

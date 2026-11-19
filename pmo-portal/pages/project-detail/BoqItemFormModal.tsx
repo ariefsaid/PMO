@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Combobox, EntityFormModal, FormGrid, FormSection, NumberField, SelectField, TextField, useEntityForm, type SubmitError,
@@ -8,6 +8,7 @@ import { formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format'
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import type { BoqItemInput, BoqItemRow } from '@/src/lib/db/progressBilling';
 import type { EarningBasis } from '@/src/lib/progressBilling';
+import RatePicker, { type PricingChoice } from './RatePicker';
 
 /**
  * Add or edit one bill-of-quantities line (#766). Rates exclude tax (DD-PBL-6). A lump-sum line is one lot earned by percent; its quantity is fixed at 1 (ADR-0091). When ERPNext owns the revenue
@@ -30,14 +31,18 @@ export interface BoqItemFormModalProps {
   item: BoqItemRow | null;
   currencySymbolPrefix: string;
   onClose: () => void;
-  onSave: (input: BoqItemInput) => Promise<void>;
+  onSave: (input: BoqItemInput, pricing?: PricingChoice) => Promise<void>;
+  projectId?: string;
+  today?: string;
+  currency?: string;
   onError: (err: unknown) => void;
 }
 
-const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, currencySymbolPrefix, onClose, onSave, onError }) => {
+const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, currencySymbolPrefix, onClose, onSave, onError, projectId, today, currency }) => {
   const { t } = useTranslation('project');
   const erpItems = useErpItemOptions('sales');
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
+  const [pricing, setPricing] = useState<PricingChoice | null>(null);
 
   const validate = useCallback((v: FormValues) => {
     const errors: Partial<Record<keyof FormValues, string>> = {};
@@ -67,6 +72,8 @@ const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, currencySymbo
     // quantity is required by validate() instead: a lump-sum line has none to type.
     requiredFields: ['itemCode', 'description', 'unit', 'rate'],
   });
+  const setFormRate = form.setValue;
+  useEffect(() => { if (pricing) setFormRate('rate', pricing.rate === null ? '' : formatMoneyInputValue(pricing.rate)); }, [pricing, setFormRate]);
   const itemField = form.fieldProps('itemCode');
   const descriptionField = form.fieldProps('description');
   const unitField = form.fieldProps('unit');
@@ -98,11 +105,13 @@ const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, currencySymbo
       const rate = parseMoneyInputAtScale(values.rate, 2);
       if (quantity === null || rate === null) return;
       try {
-        await onSave({
+        const input = {
           itemCode: values.itemCode.trim(), description: values.description.trim(), unit: values.unit.trim(),
           quantity, rate, earningBasis: basis,
           lineNo: values.lineNo.trim() === '' ? null : Number(values.lineNo.trim()),
-        });
+        };
+        if (pricing) await onSave(input, pricing);
+        else await onSave(input);
       } catch (err) {
         const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
         setSaveError({ headline, detail });
@@ -124,10 +133,11 @@ const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, currencySymbo
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty}
-      submitDisabled={!form.isComplete}
+      submitDisabled={!form.isComplete || (pricing !== null && (pricing.rate === null || !pricing.variantId || !pricing.asOf))}
       errorSummary={errorSummary}
     >
       <FormSection legend={t('projectDetail.billing.boqForm.legend', 'Line')}>
+        {projectId && today && currency && <RatePicker projectId={projectId} today={today} currency={currency} onChange={setPricing} initial={item?.catalogue_item_id && item.catalogue_variant_id && item.catalogue_priced_as_of ? { itemId: item.catalogue_item_id, variantId: item.catalogue_variant_id, asOf: item.catalogue_priced_as_of } : undefined} />}
         <FormGrid>
           {erpItems.connected ? (
             <Combobox label={itemLabel} required value={itemField.value || null}
@@ -150,7 +160,7 @@ const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, currencySymbo
               error={quantityField.error} localeAware />
           )}
           <NumberField id={rateField.id} label={t('projectDetail.billing.boqForm.rate', 'Rate (excl. PPN)')} required
-            prefix={currencySymbolPrefix} value={rateField.value} onChange={rateField.onChange} onBlur={rateField.onBlur}
+            prefix={currencySymbolPrefix} readOnly={pricing !== null} value={rateField.value} onChange={rateField.onChange} onBlur={rateField.onBlur}
             error={rateField.error} localeAware />
           <TextField id={lineNoField.id} label={t('projectTabs:contractQuantities.billing.boqForm.lineNo', 'Line no. (optional)')}
             value={lineNoField.value} onChange={lineNoField.onChange} onBlur={lineNoField.onBlur} error={lineNoField.error} />
