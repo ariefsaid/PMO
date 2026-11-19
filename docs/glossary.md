@@ -231,6 +231,25 @@ Dasbor), not translated as "Pemasok" (owner, 16 Nov).
 **Timesheet entry** — hours recorded against a project on a date within a timesheet, optionally
 with notes.
 
+**Crew** — a named group of people who work together in the field (#2528), with an organisation-unique code, a
+field controller, a kind (own staff or a supplier's crew) and its standard roles. A crew does not replace a person's
+project assignment; it says who works together.
+
+**Standard role (crew)** — a role a crew is built from (for example foreman, welder, helper) with the headcount the
+crew should have; the roster compares it with the people placed.
+
+**Crew member (placement)** — a person placed in a crew for an inclusive date range with an optional end; a person is
+in at most one crew on any day. A correction is versioned and audited and never rewrites approved attendance.
+
+**Roster (crew)** — which crews serve a work order on which dates; a crew serves one work order on any day.
+
+**Field controller** — the user who records a crew's daily attendance; may not approve the hours they recorded.
+
+**Attendance record** — one person's attendance for one day on one work order (present, absent, leave or off
+rotation, with hours), whatever the capture method (roster tick, phone check-in, office correction). It becomes the
+person's timesheet line, or, for a person with no login, holds their approved hours itself. Approved attendance is
+locked; it changes only by re-opening the timesheet (the correction path).
+
 **Incident report** — a dated report of an incident with a type, severity, location, description
 and status, optionally linked to a project.
 
