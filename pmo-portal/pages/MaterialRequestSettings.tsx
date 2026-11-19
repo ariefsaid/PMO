@@ -11,7 +11,7 @@ import { useApprovalChain, useMaterialRequestCutoff, useMaterialRequestMutations
 import type { ChainStepInput } from '@/src/lib/repositories/materialRequests';
 import type { Role } from '@/src/auth/AuthContext';
 import { formatDay } from '@/src/lib/format';
-import { useLabels, useRefusalText, useUserNames } from './materialRequests/shared';
+import { useLabels, useRefusalText, useUserNames } from './materialRequests/useMaterialRequestText';
 
 const ROLES: Role[] = ['Engineer', 'Project Manager', 'Finance', 'Executive', 'Admin'];
 

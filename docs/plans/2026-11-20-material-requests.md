@@ -56,3 +56,21 @@ Migrations 1000 (schema) and 1001 (RPCs); 1002–1003 unused. Proofs: `supabase/
 `supabase/tests/mrq_submit_transfer.test.sql` (34), `pmo-portal/src/lib/db/materialRequests.test.ts`,
 `pmo-portal/src/auth/policy.materialRequest.test.ts`. Mutation-checked: author rule, one-step rule, order rule,
 stand-in window, over-plan reason (each red when disabled, green when restored).
+
+## Build notes (#2524 UI slice, 2026-11-19)
+
+Branch `feat/2524b-material-requests-ui`, on the server slice. No migrations. Screens (slice 4) and the journey (slice 5):
+
+- **Routes** (every member; RLS scopes reads; core-marked in `scripts/check-module-completeness.mjs` until the owner decides a catalogue switch):
+  `/material-requests` (tabs: Waiting for me / All requests, status filter), `/material-requests/new` and `/:requestId/edit`
+  (phone-first form: project → work order, needed-by, items with plan / already requested / new total, over-plan reason),
+  `/material-requests/:requestId` (chain with who acted and stand-in identity, lines against plan, history, approve / send back /
+  reject, withdraw, transfer link, retry when approved without a transfer), `/material-requests/settings` (Admin edits the chain
+  and cut-off; stand-ins set by the person away or an Admin).
+- **Seams used:** `materialRequestRepository` through `useMaterialRequests` hooks; `can()` gates from `policy.ts`
+  (`materialRequest`, `approvalChain`, `standIn`); the final step's decider names the source warehouse (OQ-MRQ-2 default) and the
+  database refusal codes map to plain sentences (`materialRequestRefusal`).
+- **Strings:** `public/locales/{en,id}/materialRequests.json`; computed keys avoided so the extractor sees every string.
+- **Proofs:** Vitest `pages/MaterialRequests*.test.tsx` (AC-MRQ-001 form reason, AC-MRQ-003 author never sees Approve, AC-MRQ-013 queue,
+  AC-MRQ-007 transfer link); e2e `e2e/AC-MRQ-015-request-to-transfer.spec.ts` (Engineer on a 390px phone, PM → Finance → Admin).
+- **Not run here:** the e2e journey and `scripts/ux-proof.sh` need the local Supabase stack and a browser session; see the report.

@@ -10,7 +10,7 @@ import { useStockItems, useStockUnits } from '@/src/hooks/useStock';
 import { useLinePlans, useMaterialRequest, useMaterialRequestMutations } from '@/src/hooks/useMaterialRequests';
 import { draftLineErrors, linePlanStatus } from '@/src/lib/repositories/materialRequests';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
-import { useRefusalText } from './materialRequests/shared';
+import { useRefusalText } from './materialRequests/useMaterialRequestText';
 
 interface FormLine { key: string; itemId: string; quantity: string; reason: string }
 const newLine = (): FormLine => ({ key: crypto.randomUUID(), itemId: '', quantity: '', reason: '' });

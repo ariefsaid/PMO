@@ -6,7 +6,8 @@ import { CanWrite } from '@/src/auth/usePermission';
 import { useMaterialRequests, useWaitingForMe } from '@/src/hooks/useMaterialRequests';
 import type { MaterialRequestRow, MaterialRequestStatus, WaitingStep } from '@/src/lib/repositories/materialRequests';
 import { formatDay } from '@/src/lib/format';
-import { RequestStatusPill, useLabels } from './materialRequests/shared';
+import { RequestStatusPill } from './materialRequests/shared';
+import { useLabels } from './materialRequests/useMaterialRequestText';
 
 const STATUSES: MaterialRequestStatus[] = ['draft', 'pending', 'approved', 'fulfilled', 'rejected', 'cancelled'];
 

@@ -101,7 +101,7 @@ export const ALL_ITEMS: NavItem[] = [
   // #1515: floats are visible to approval rank (policy imprestFloat.view = master-data roles); Engineers see none.
   { to: '/imprest', text: 'Site cash', icon: 'site-cash', group: 'My work', feature: 'imprest', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // #2524: every member raises a request (policy materialRequest.create = ALL); RLS scopes reads.
-  { to: '/material-requests', text: 'Material requests', icon: 'clipboard-check', group: 'My work', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  { to: '/material-requests', text: 'Material requests', icon: 'file', group: 'My work', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/my-tasks', text: 'My Tasks', icon: 'clipboard-check', group: 'My work', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/views', text: 'My Views', icon: 'views', group: undefined, feature: 'user_views', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
 ];

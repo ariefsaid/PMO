@@ -8,7 +8,8 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useMaterialRequest, useMaterialRequestMutations, useWaitingForMe } from '@/src/hooks/useMaterialRequests';
 import { useStockItems, useStockWarehouses } from '@/src/hooks/useStock';
 import { formatDay } from '@/src/lib/format';
-import { RequestStatusPill, StepStatusPill, useLabels, useRefusalText, useUserNames } from './materialRequests/shared';
+import { RequestStatusPill, StepStatusPill } from './materialRequests/shared';
+import { useLabels, useRefusalText, useUserNames } from './materialRequests/useMaterialRequestText';
 
 type Dialog = null | { kind: 'return' | 'reject' } | { kind: 'approve' } | { kind: 'withdraw' } | { kind: 'retry' };
 
