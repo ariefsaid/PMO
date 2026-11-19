@@ -1,5 +1,7 @@
 # Plan versus actual and profit per work order (WPVA)
 
+Decision: [DD-WPVA-1](../decisions.md#dd-wpva-1--work-order-financial-attribution-2026-11-20).
+
 Issue #2519 (map #2516, blocked by #2517). Status: **Draft, 2026-11-20**. Executor on sign-off: **Director-dispatched
 Orca worker, ships alone** (money figures; read-only, but a wrong figure here is a wrong business decision). Plan
 `docs/plans/2026-11-20-work-order-plan-vs-actual.md`. IDs: `FR-WPVA-###`, `AC-WPVA-###`.
