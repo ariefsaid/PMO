@@ -22,6 +22,8 @@ export const crewRepository = {
   roles: (crewId: string) => wrap(() => crews.listStandardRoles(crewId)),
   workers: () => wrap(() => crews.listCrewWorkers()),
   createWorker: (input: crews.CrewWorkerInput) => wrap(() => crews.createCrewWorker(input)),
+  placeNewWorker: (person: crews.CrewWorkerInput, placement: Omit<crews.PlacementInput, 'worker_id'>) =>
+    wrap(() => crews.placeNewCrewWorker(person, placement)),
   members: (crewId: string) => wrap(() => crews.listCrewMembers(crewId)),
   place: (input: crews.PlacementInput) => wrap(() => crews.placeCrewMember(input)),
   correctPlacement: (id: string, version: number, patch: Pick<crews.PlacementInput, 'valid_from' | 'valid_to' | 'standard_role_id'>) =>

@@ -32,7 +32,7 @@ insert into work_orders (id, org_id, project_id, title, status, order_value, tax
 insert into crews (id, org_id, code, name, field_controller_id) values
   ('25280000-0000-0000-0000-000000001c01', '25280000-0000-0000-0000-00000000010a', 'AT-A', 'Crew A', '25280000-0000-0000-0000-0000000001a4'),
   ('25280000-0000-0000-0000-000000001c02', '25280000-0000-0000-0000-00000000010a', 'AT-B', 'Crew B', '25280000-0000-0000-0000-0000000001a4');
-insert into crew_workers (id, org_id, kind, display_name, profile_id) values
+insert into people (id, org_id, kind, name, profile_id) values
   ('25280000-0000-0000-0000-000000001f01', '25280000-0000-0000-0000-00000000010a', 'own',    'Own Worker',  '25280000-0000-0000-0000-0000000001a5'),
   ('25280000-0000-0000-0000-000000001f02', '25280000-0000-0000-0000-00000000010a', 'vendor', 'Vendor Two',   null),
   ('25280000-0000-0000-0000-000000001f03', '25280000-0000-0000-0000-00000000010a', 'vendor', 'Vendor Three', null),

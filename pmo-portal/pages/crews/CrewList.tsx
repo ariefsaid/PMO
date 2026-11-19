@@ -7,6 +7,7 @@ import {
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useUsers } from '@/src/hooks/useUsers';
+import { useCostDisciplines } from '@/src/hooks/useWorkOrderCosts';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useCrewMembers, useCrewMutations, useCrewRoles, useCrewWorkers, useCrews } from '@/src/hooks/useCrews';
 import type { CrewKind, CrewMemberRow, CrewRow } from '@/src/lib/repositories/crews';
@@ -23,10 +24,11 @@ const NewCrewModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { createCrew } = useCrewMutations();
   const users = useUsers();
   const vendors = useVendorOptions();
+  const disciplines = useCostDisciplines();
   const [roles, setRoles] = useState<RoleDraft[]>([{ name: '', headcount: '1' }]);
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
   const form = useEntityForm({
-    initialValues: { code: '', name: '', kind: 'own', controller: '', vendor: '' },
+    initialValues: { code: '', name: '', kind: 'own', controller: '', vendor: '', discipline: '' },
     idPrefix: 'crew',
     requiredFields: ['code', 'name'],
     validate: (v) => (v.kind === 'vendor' && !v.vendor ? { vendor: t('crews:vendorRequired', 'Choose the vendor company') } : {}),
@@ -44,7 +46,7 @@ const NewCrewModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       try {
         await createCrew.mutateAsync({
           input: {
-            code: v.code.trim(), name: v.name.trim(), kind: v.kind as CrewKind, discipline_id: null,
+            code: v.code.trim(), name: v.name.trim(), kind: v.kind as CrewKind, discipline_id: v.discipline || null,
             field_controller_id: v.controller || null, vendor_company_id: v.kind === 'vendor' ? v.vendor || null : null,
           },
           roles: cleanRoles,
@@ -71,6 +73,9 @@ const NewCrewModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             onChange={(v) => form.setValue('vendor', v)} error={form.errors.vendor}
             noun={t('crews:vendorNoun', 'vendor')} nounPlural={t('crews:vendorNounPlural', 'vendors')} />
         )}
+        <SelectField label={t('crews:discipline', 'Discipline')} value={form.values.discipline}
+          onChange={(v) => form.setValue('discipline', v)}
+          options={[{ value: '', label: t('crews:noDiscipline', 'No discipline') }, ...(disciplines.data ?? []).map((d) => ({ value: d.id, label: d.name }))]} />
         <SelectField label={t('crews:controller', 'Field controller')} value={form.values.controller}
           onChange={(v) => form.setValue('controller', v)} options={userOptions} />
       </FormGrid>
@@ -96,34 +101,38 @@ const NewCrewModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 const PlacePersonModal: React.FC<{ crew: CrewRow; onClose: () => void }> = ({ crew, onClose }) => {
   const { t } = useTranslation('crews');
   const { toast } = useToast();
-  const { place, createWorker } = useCrewMutations();
+  const { realRole, effectiveRole } = useEffectiveRole();
+  const canCreatePerson = realRole === effectiveRole && (realRole === 'Admin' || realRole === 'Project Manager');
+  const { place, placeNewWorker } = useCrewMutations();
   const workers = useCrewWorkers();
+  const users = useUsers();
   const roles = useCrewRoles(crew.id);
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
   const form = useEntityForm({
-    initialValues: { worker: '', newName: '', role: '', from: toIso(new Date()), to: '' },
+    initialValues: { worker: '', newName: '', profile: '', role: '', from: toIso(new Date()), to: '' },
     idPrefix: 'crew-place',
     requiredFields: ['from'],
-    validate: (v) => (!v.worker && !v.newName.trim() ? { worker: t('crews:personRequired', 'Choose a person or type a new name') } : {}),
+    validate: (v) => (!v.worker && (!canCreatePerson || !v.newName.trim()) ? { worker: t('crews:personRequired', 'Choose a person or type a new name') } : {}),
   });
   const workerOptions: ComboboxOption[] = useMemo(() => (workers.data ?? []).map((w) => ({
-    value: w.id, label: w.display_name, sub: w.kind === 'vendor' ? t('crews:kindVendor', 'Vendor crew') : t('crews:kindOwn', 'Own staff'),
-  })), [workers.data, t]);
+    value: w.id, label: w.display_name,
+  })), [workers.data]);
   const loadWorkers = useCallback(async () => workerOptions, [workerOptions]);
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);
     void form.handleSubmit(async (v) => {
       try {
-        let workerId = v.worker;
-        if (!workerId) {
-          const created = await createWorker.mutateAsync({
-            kind: crew.kind, display_name: v.newName.trim(), id_reference: null, profile_id: null,
-            vendor_company_id: crew.kind === 'vendor' ? crew.vendor_company_id : null,
+        const placement = { crew_id: crew.id, standard_role_id: v.role || null, valid_from: v.from, valid_to: v.to || null };
+        if (v.worker) {
+          await place.mutateAsync({ ...placement, worker_id: v.worker });
+        } else {
+          await placeNewWorker.mutateAsync({
+            person: { kind: crew.kind, display_name: v.newName.trim(), id_reference: null, profile_id: crew.kind === 'own' ? v.profile || null : null,
+              vendor_company_id: crew.kind === 'vendor' ? crew.vendor_company_id : null },
+            placement,
           });
-          workerId = created.id;
         }
-        await place.mutateAsync({ crew_id: crew.id, worker_id: workerId, standard_role_id: v.role || null, valid_from: v.from, valid_to: v.to || null });
         toast(t('crews:placed', 'Person placed'), undefined, 'success');
         onClose();
       } catch (err) {
@@ -140,7 +149,13 @@ const PlacePersonModal: React.FC<{ crew: CrewRow; onClose: () => void }> = ({ cr
           selectedOption={workerOptions.find((o) => o.value === form.values.worker) ?? null} loadOptions={loadWorkers}
           onChange={(v) => form.setValue('worker', v)} clearable onClear={() => form.setValue('worker', '')} error={form.errors.worker}
           noun={t('crews:personNoun', 'person')} nounPlural={t('crews:personNounPlural', 'people')} />
-        {!form.values.worker && <TextField label={t('crews:newPerson', 'Or a new person')} {...form.fieldProps('newName')} />}
+        {!form.values.worker && canCreatePerson && <TextField label={t('crews:newPerson', 'Or a new person')} {...form.fieldProps('newName')} />}
+        {!form.values.worker && canCreatePerson && crew.kind === 'own' && (
+          <SelectField label={t('crews:linkedUser', 'Linked user')} value={form.values.profile}
+            onChange={(v) => form.setValue('profile', v)}
+            options={[{ value: '', label: t('crews:noLinkedUser', 'No linked user') },
+              ...(users.data ?? []).filter((u) => u.status === 'active').map((u) => ({ value: u.id, label: u.full_name ?? u.email ?? u.id }))]} />
+        )}
         <SelectField label={t('crews:roleName', 'Role')} value={form.values.role} onChange={(v) => form.setValue('role', v)}
           options={[{ value: '', label: t('crews:noRole', 'No role') }, ...(roles.data ?? []).map((r) => ({ value: r.id, label: r.name }))]} />
         <DateField label={t('crews:from', 'From')} required value={form.values.from} onChange={(v) => form.setValue('from', v)} />

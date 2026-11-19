@@ -78,6 +78,8 @@ export function useCrewMutations() {
     createCrew: useMutation({ mutationFn: (v: { input: CrewInput; roles: StandardRoleInput[] }) => crewRepository.create(v.input, v.roles), ...after }),
     archiveCrew: useMutation({ mutationFn: (id: string) => crewRepository.update(id, { archived_at: new Date().toISOString() }), ...after }),
     createWorker: useMutation({ mutationFn: (input: CrewWorkerInput) => crewRepository.createWorker(input), ...after }),
+    placeNewWorker: useMutation({ mutationFn: (v: { person: CrewWorkerInput; placement: Omit<PlacementInput, 'worker_id'> }) =>
+      crewRepository.placeNewWorker(v.person, v.placement), ...after }),
     place: useMutation({ mutationFn: (input: PlacementInput) => crewRepository.place(input), ...after }),
     endPlacement: useMutation({
       mutationFn: (v: { id: string; version: number; valid_from: string; valid_to: string; standard_role_id: string | null }) =>

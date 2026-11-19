@@ -38,15 +38,15 @@ beforeEach(() => {
 });
 
 describe('#2528 crews DAL', () => {
-  it('AC-CRW-001 creates a crew then its standard roles in order, never sending org_id', async () => {
-    h.result.queue = [{ data: { id: 'c1', code: 'CR-1' }, error: null }, { data: null, error: null }];
+  it('AC-CRW-001 creates a crew and its standard roles atomically, never sending org_id', async () => {
+    h.result.value = { data: { id: 'c1', code: 'CR-1' }, error: null };
     await crews.createCrew({ code: 'CR-1', name: 'Crew', kind: 'own', discipline_id: null, field_controller_id: 'u1', vendor_company_id: null },
       [{ name: 'Foreman', headcount: 1 }, { name: 'Welder', headcount: 3 }]);
-    expect(h.calls.from).toEqual(['crews', 'crew_standard_roles']);
-    expect(JSON.stringify(h.calls.insert)).not.toContain('org_id');
-    expect(h.calls.insert[1]).toEqual([
-      { crew_id: 'c1', name: 'Foreman', headcount: 1, sort_order: 0 }, { crew_id: 'c1', name: 'Welder', headcount: 3, sort_order: 1 },
-    ]);
+    expect(h.calls.rpc).toEqual([['create_crew_with_roles', {
+      p_crew: { code: 'CR-1', name: 'Crew', kind: 'own', discipline_id: null, field_controller_id: 'u1', vendor_company_id: null },
+      p_roles: [{ name: 'Foreman', headcount: 1 }, { name: 'Welder', headcount: 3 }],
+    }]]);
+    expect(JSON.stringify(h.calls.rpc)).not.toContain('org_id');
   });
 
   it('AC-CRW-001 a duplicate code keeps its Postgres code', async () => {
@@ -55,6 +55,12 @@ describe('#2528 crews DAL', () => {
       .catch((e) => e);
     expect(err).toBeInstanceOf(AppError);
     expect(err.code).toBe('23505');
+  });
+
+  it('uses the workforce register when choosing crew members', async () => {
+    h.result.value = { data: [], error: null };
+    await crews.listCrewWorkers();
+    expect(h.calls.from).toEqual(['people_directory']);
   });
 
   it('lists live crews sorted by code', async () => {
@@ -70,6 +76,18 @@ describe('#2528 crews DAL', () => {
     h.result.value = { data: [], error: null };
     const err = await crews.correctCrewMember('m1', 3, { valid_from: '2026-11-01', valid_to: null, standard_role_id: null }).catch((e) => e);
     expect(err.code).toBe(crews.STALE_VERSION_CODE);
+  });
+
+  it('creates a new workforce person and placement in one request', async () => {
+    h.result.value = { data: null, error: null };
+    await crews.placeNewCrewWorker(
+      { kind: 'vendor', display_name: 'New person', id_reference: null, profile_id: null, vendor_company_id: null },
+      { crew_id: 'c', standard_role_id: null, valid_from: '2026-11-01', valid_to: null },
+    );
+    expect(h.calls.rpc).toEqual([['place_new_crew_worker', {
+      p_person: { kind: 'vendor', name: 'New person', id_reference: null, profile_id: null, vendor_company_id: null },
+      p_placement: { crew_id: 'c', standard_role_id: null, valid_from: '2026-11-01', valid_to: null },
+    }]]);
   });
 
   it('AC-CRW-003 an overlapping roster keeps 23P01', async () => {
@@ -94,7 +112,7 @@ describe('#2528 crews DAL', () => {
     await crews.listStandardRoles('c1');
     await crews.listWorkOrderCrews('w1');
     await crews.listOpenWorkOrders();
-    expect(h.calls.from).toEqual(['crew_workers', 'crew_members', 'crew_standard_roles', 'work_order_crews', 'work_orders']);
+    expect(h.calls.from).toEqual(['people_directory', 'crew_members', 'crew_standard_roles', 'work_order_crews', 'work_orders']);
     expect(h.calls.neq).toEqual([['status', 'Cancelled']]);
     h.result.queue = [{ data: { id: 'p' }, error: null }, { data: null, error: null }, { data: null, error: null }];
     await crews.createCrewWorker({ kind: 'vendor', display_name: 'V', id_reference: null, profile_id: null, vendor_company_id: null });

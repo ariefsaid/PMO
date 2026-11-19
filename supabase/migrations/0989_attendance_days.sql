@@ -25,7 +25,7 @@ create table public.crew_worker_rotation_off (
   id        uuid primary key default gen_random_uuid(),
   org_id    uuid not null default coalesce(public.auth_org_id(), '00000000-0000-0000-0000-000000000001')
               references public.organizations(id) on delete cascade,
-  worker_id uuid not null references public.crew_workers(id) on delete cascade,
+  worker_id uuid not null references public.people(id) on delete cascade,
   off_from  date not null,
   off_to    date not null,
   constraint crew_worker_rotation_off_range check (off_to >= off_from)
@@ -39,7 +39,7 @@ create policy crew_worker_rotation_off_select on public.crew_worker_rotation_off
   using (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
 create policy crew_worker_rotation_off_insert on public.crew_worker_rotation_off for insert
   with check (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and (select public.crew_can_manage())
-              and exists (select 1 from public.crew_workers w where w.id = worker_id and w.org_id = (select public.auth_org_id())));
+              and exists (select 1 from public.people w where w.id = worker_id and w.org_id = (select public.auth_org_id())));
 create policy crew_worker_rotation_off_update on public.crew_worker_rotation_off for update
   using (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and (select public.crew_can_manage()))
   with check (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
@@ -69,8 +69,8 @@ create or replace function public.work_order_roster(p_work_order_id uuid, p_date
      where r.work_order_id = p_work_order_id
        and p_date between r.valid_from and coalesce(r.valid_to, 'infinity'::date)
   ), placed as (
-    select m.crew_id, m.worker_id, w.display_name, w.kind, w.profile_id, m.standard_role_id
-      from public.crew_members m join public.crew_workers w on w.id = m.worker_id
+    select m.crew_id, m.worker_id, w.name as display_name, m.standard_role_id
+      from public.crew_members m join public.people_directory w on w.id = m.worker_id
      where m.crew_id in (select id from rostered)
        and p_date between m.valid_from and coalesce(m.valid_to, 'infinity'::date)
   ), role_counts as (
@@ -80,7 +80,6 @@ create or replace function public.work_order_roster(p_work_order_id uuid, p_date
   )
   select r.id, r.code, r.name, r.field_controller_id,
          coalesce((select jsonb_agg(jsonb_build_object('worker_id', p.worker_id, 'display_name', p.display_name,
-                                                       'kind', p.kind, 'has_login', p.profile_id is not null,
                                                        'standard_role_id', p.standard_role_id,
                                                        'off_rotation', exists (
                                                          select 1 from public.crew_worker_rotation_off o
@@ -102,7 +101,7 @@ create table public.attendance_days (
   id                 uuid primary key default gen_random_uuid(),
   org_id             uuid not null default coalesce(public.auth_org_id(), '00000000-0000-0000-0000-000000000001')
                        references public.organizations(id) on delete cascade,
-  worker_id          uuid not null references public.crew_workers(id),
+  worker_id          uuid not null references public.people(id),
   work_order_id      uuid not null references public.work_orders(id),
   -- Derived from the work order by the guard; the timesheet line needs it.
   project_id         uuid not null references public.projects(id),
@@ -169,7 +168,7 @@ begin
   if new.project_id is null then
     raise exception 'ATT_REF: the work order is not in this organisation' using errcode = '23514';
   end if;
-  if not exists (select 1 from public.crew_workers w where w.id = new.worker_id and w.org_id = new.org_id) then
+  if not exists (select 1 from public.people w where w.id = new.worker_id and w.org_id = new.org_id) then
     raise exception 'ATT_REF: the person is not in this organisation' using errcode = '23514';
   end if;
 
@@ -206,7 +205,7 @@ create policy attendance_days_select on public.attendance_days for select
   using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
          and ((select public.auth_role()) in ('Admin', 'Executive', 'Project Manager', 'Finance')
               or exists (select 1 from public.crews c where c.id = attendance_days.crew_id and c.field_controller_id = (select auth.uid()))
-              or exists (select 1 from public.crew_workers w where w.id = attendance_days.worker_id and w.profile_id = (select auth.uid()))));
+              or exists (select 1 from public.people w where w.id = attendance_days.worker_id and w.profile_id = (select auth.uid()))));
 -- Writes only through the security-definer RPCs below and in 0990.
 revoke all on public.attendance_days from public, anon, authenticated;
 grant select on public.attendance_days to authenticated;
@@ -331,7 +330,7 @@ begin
     -- OD-CRW-3: the person must be in a crew rostered on this work order that day.
     select m.crew_id, w.profile_id into v_crew, v_profile
       from public.crew_members m
-      join public.crew_workers w on w.id = m.worker_id
+      join public.people w on w.id = m.worker_id
       join public.work_order_crews ro on ro.crew_id = m.crew_id and ro.work_order_id = p_work_order_id
      where m.worker_id = r.worker_id and w.org_id = v_org
        and p_work_date between m.valid_from and coalesce(m.valid_to, 'infinity'::date)
@@ -368,10 +367,24 @@ begin
       v_hours := null; v_ot := null;
     end if;
 
+    -- Serialize entry with week generation and approval, including first-time days.
+    perform pg_advisory_xact_lock(hashtextextended('att-week:' || r.worker_id::text || ':' ||
+      date_trunc('week', p_work_date::timestamp)::date::text, 0));
     select * into v_cur from public.attendance_days a
      where a.worker_id = r.worker_id and a.work_order_id = p_work_order_id and a.work_date = p_work_date
      for update;
     if v_cur.id is null then
+      if exists (select 1 from public.attendance_days a
+                  where a.worker_id = r.worker_id
+                    and a.work_date between date_trunc('week', p_work_date::timestamp)::date
+                                        and date_trunc('week', p_work_date::timestamp)::date + 6
+                    and (a.submitted_at is not null or a.locked_at is not null))
+         or (v_profile is not null and exists (
+              select 1 from public.timesheets t where t.user_id = v_profile and t.org_id = v_org
+                and t.week_start_date = date_trunc('week', p_work_date::timestamp)::date and t.status <> 'Draft')) then
+        raise exception 'ATT_SUBMITTED: this week is submitted; return it through the timesheet correction path to change it'
+          using errcode = '55000';
+      end if;
       insert into public.attendance_days (org_id, worker_id, work_order_id, project_id, crew_id, work_date, status,
                                           hours, overtime_hours, reason, source, tick_hours, phone_hours,
                                           recorded_by, recorded_by_ids)

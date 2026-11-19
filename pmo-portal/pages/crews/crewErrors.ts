@@ -15,7 +15,11 @@ export function crewErrorMessage(t: TFunction, err: unknown): string {
   const prefix = /^([A-Z_]+):/.exec(message)?.[1] ?? '';
   const after = message.replace(/^[A-Z_]+:\s*/, '');
   if (code === STALE_VERSION_CODE) return t('crews:errors.stale', 'Someone changed this since you opened it. Reload and try again.');
-  if (code === '23505') return t('crews:errors.duplicateCode', 'That code is already used by a live crew.');
+  if (code === '23505') {
+    if (message.includes('people_profile_live')) return t('crews:errors.linkedUser', 'That user is already linked to a person. Select that person instead.');
+    if (message.includes('crew_standard_roles_name')) return t('crews:errors.duplicateRole', 'That standard role is already listed for this crew.');
+    return t('crews:errors.duplicateCode', 'That code is already used by a live crew.');
+  }
   if (code === '23P01') return t('crews:errors.overlap', 'These dates overlap another placement. End that one first.');
   switch (prefix) {
     case 'CRW_ARCHIVE_IN_USE': return t('crews:errors.archiveInUse', 'End this crew\'s current and future members and roster placements first.');

@@ -34,11 +34,7 @@ export interface CrewStandardRoleRow {
 
 export interface CrewWorkerRow {
   id: string;
-  kind: CrewKind;
   display_name: string;
-  id_reference: string | null;
-  profile_id: string | null;
-  vendor_company_id: string | null;
   archived_at: string | null;
 }
 
@@ -64,8 +60,6 @@ export interface WorkOrderCrewRow {
 export interface RosterMember {
   worker_id: string;
   display_name: string;
-  kind: CrewKind;
-  has_login: boolean;
   standard_role_id: string | null;
   /** Off rotation that day (FR-CRW-010): the tick screen defaults them to off rotation. */
   off_rotation?: boolean;
@@ -158,17 +152,13 @@ export async function listCrews(): Promise<CrewRow[]> {
   return rows.sort((a, b) => a.code.localeCompare(b.code) || a.id.localeCompare(b.id));
 }
 
-/** Create a crew with its standard roles. The roles follow the crew row; a refused role leaves the crew in place. */
+/** Create the crew and all standard roles in one transaction. */
 export async function createCrew(input: CrewInput, roles: StandardRoleInput[]): Promise<CrewRow> {
-  const { data, error } = await supabase.from('crews').insert(input).select().single();
+  const { data, error } = await supabase.rpc('create_crew_with_roles', {
+    p_crew: { ...input }, p_roles: roles.map((role) => ({ ...role })),
+  });
   fail(error);
-  const crew = data as CrewRow;
-  if (roles.length > 0) {
-    const { error: roleError } = await supabase.from('crew_standard_roles')
-      .insert(roles.map((r, i) => ({ crew_id: crew.id, name: r.name, headcount: r.headcount, sort_order: i })));
-    fail(roleError);
-  }
-  return crew;
+  return data as CrewRow;
 }
 
 export async function updateCrew(id: string, patch: Partial<CrewInput> & { archived_at?: string | null }): Promise<void> {
@@ -193,8 +183,8 @@ export async function listStandardRoles(crewId: string): Promise<CrewStandardRol
 export async function listCrewWorkers(): Promise<CrewWorkerRow[]> {
   const rows = await fetchAllRowsByKeyset<CrewWorkerRow>(async (afterId, limit) => {
     let q = supabase
-      .from('crew_workers')
-      .select('id, kind, display_name, id_reference, profile_id, vendor_company_id, archived_at')
+      .from('people_directory')
+      .select('id, display_name:name, archived_at')
       .is('archived_at', null)
       .order('id', { ascending: true });
     if (afterId !== null) q = q.gt('id', afterId);
@@ -204,9 +194,19 @@ export async function listCrewWorkers(): Promise<CrewWorkerRow[]> {
 }
 
 export async function createCrewWorker(input: CrewWorkerInput): Promise<CrewWorkerRow> {
-  const { data, error } = await supabase.from('crew_workers').insert(input).select().single();
+  const { display_name, ...person } = input;
+  const { data, error } = await supabase.from('people').insert({ ...person, name: display_name }).select('id, display_name:name, archived_at').single();
   fail(error);
   return data as CrewWorkerRow;
+}
+
+/** Create a workforce person and place them in a crew atomically. */
+export async function placeNewCrewWorker(person: CrewWorkerInput, placement: Omit<PlacementInput, 'worker_id'>): Promise<void> {
+  const { display_name, ...fields } = person;
+  const { error } = await supabase.rpc('place_new_crew_worker', {
+    p_person: { ...fields, name: display_name }, p_placement: { ...placement },
+  });
+  fail(error);
 }
 
 /** A crew's placements, newest first. */

@@ -97,8 +97,37 @@ describe('attendance tick screen (#2528)', () => {
     expect(await screen.findByText('This day is approved. Re-open the timesheet to correct it.')).toBeInTheDocument();
   });
 
+  it('requires the displayed attendance to be saved before sending the week', () => {
+    renderAt();
+    expect(screen.getByRole('button', { name: 'Send the week for approval' })).toBeDisabled();
+    expect(h.generate).not.toHaveBeenCalled();
+  });
+
+  it('prevents edits while a save is in flight', async () => {
+    const user = userEvent.setup();
+    let finish!: (value: number) => void;
+    h.record = vi.fn().mockReturnValue(new Promise<number>((resolve) => { finish = resolve; }));
+    renderAt();
+    await user.click(screen.getByRole('button', { name: 'Save attendance' }));
+    expect(screen.getByRole('textbox', { name: 'Hours for the crew' })).toBeDisabled();
+    finish(6);
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Hours for the crew' })).toBeEnabled());
+  });
+
+  it('does not submit stale hours while attendance edits are unsaved', async () => {
+    const user = userEvent.setup();
+    h.day.data = people.map((_, i) => ({ id: `a${i}`, worker_id: `w${i + 1}`, status: 'present', hours: 8, overtime_hours: null, reason: null }));
+    renderAt();
+    const hours = screen.getByRole('textbox', { name: 'Hours for the crew' });
+    await user.clear(hours);
+    await user.type(hours, '10');
+    expect(screen.getByRole('button', { name: 'Send the week for approval' })).toBeDisabled();
+    expect(h.generate).not.toHaveBeenCalled();
+  });
+
   it('AC-CRW-009 sending the week generates each person\'s week once', async () => {
     const user = userEvent.setup();
+    h.day.data = people.map((_, i) => ({ id: `a${i}`, worker_id: `w${i + 1}`, status: 'present', hours: 8, overtime_hours: null, reason: null }));
     renderAt();
     await user.click(screen.getByRole('button', { name: 'Send the week for approval' }));
     await waitFor(() => expect(h.generate).toHaveBeenCalledTimes(6));

@@ -20,8 +20,8 @@ create or replace function public.work_order_roster(p_work_order_id uuid, p_date
      where r.work_order_id = p_work_order_id
        and p_date between r.valid_from and coalesce(r.valid_to, 'infinity'::date)
   ), placed as (
-    select m.crew_id, m.worker_id, w.display_name, w.kind, w.profile_id, m.standard_role_id
-      from public.crew_members m join public.crew_workers w on w.id = m.worker_id
+    select m.crew_id, m.worker_id, w.name as display_name, m.standard_role_id
+      from public.crew_members m join public.people_directory w on w.id = m.worker_id
      where m.crew_id in (select id from rostered)
        and p_date between m.valid_from and coalesce(m.valid_to, 'infinity'::date)
   ), role_counts as (
@@ -31,7 +31,6 @@ create or replace function public.work_order_roster(p_work_order_id uuid, p_date
   )
   select r.id, r.code, r.name, r.field_controller_id,
          coalesce((select jsonb_agg(jsonb_build_object('worker_id', p.worker_id, 'display_name', p.display_name,
-                                                       'kind', p.kind, 'has_login', p.profile_id is not null,
                                                        'standard_role_id', p.standard_role_id)
                                     order by p.display_name, p.worker_id)
                      from placed p where p.crew_id = r.id), '[]'::jsonb),

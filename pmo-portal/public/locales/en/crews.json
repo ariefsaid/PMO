@@ -1,4 +1,9 @@
 {
+  "linkedUser": "Linked user",
+  "noLinkedUser": "No linked user",
+  "saveBeforeSending": "Save attendance before sending the week.",
+  "discipline": "Discipline",
+  "noDiscipline": "No discipline",
   "addRole": "Add role",
   "approve": "Approve",
   "approved": "Week approved",
@@ -41,7 +46,9 @@
     "stale": "Someone changed this since you opened it. Reload and try again.",
     "submitted": "This week is sent for approval. Return it to change a day.",
     "weekEmpty": "This person has no present days that week.",
-    "window": "The earliest date open for attendance is {{date}}."
+    "window": "The earliest date open for attendance is {{date}}.",
+    "linkedUser": "That user is already linked to a person. Select that person instead.",
+    "duplicateRole": "That standard role is already listed for this crew."
   },
   "from": "From",
   "headcount": "Headcount",

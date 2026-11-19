@@ -893,7 +893,7 @@ export type Database = {
             foreignKeyName: "attendance_days_worker_id_fkey"
             columns: ["worker_id"]
             isOneToOne: false
-            referencedRelation: "crew_workers"
+            referencedRelation: "people"
             referencedColumns: ["id"]
           },
         ]
@@ -2360,11 +2360,15 @@ export type Database = {
           },
         ]
       }
-      crew_workers: {
+      people: {
         Row: {
           archived_at: string | null
           created_at: string
-          display_name: string
+          name: string
+          code: string
+          job_title: string | null
+          manager_id: string | null
+          created_by: string | null
           id: string
           id_reference: string | null
           kind: string
@@ -2375,7 +2379,11 @@ export type Database = {
         Insert: {
           archived_at?: string | null
           created_at?: string
-          display_name: string
+          name: string
+          code?: string
+          job_title?: string | null
+          manager_id?: string | null
+          created_by?: string | null
           id?: string
           id_reference?: string | null
           kind?: string
@@ -2386,7 +2394,11 @@ export type Database = {
         Update: {
           archived_at?: string | null
           created_at?: string
-          display_name?: string
+          name?: string
+          code?: string
+          job_title?: string | null
+          manager_id?: string | null
+          created_by?: string | null
           id?: string
           id_reference?: string | null
           kind?: string
@@ -2396,21 +2408,35 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "crew_workers_org_id_fkey"
+            foreignKeyName: "people_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "crew_workers_profile_id_fkey"
-            columns: ["profile_id"]
+            foreignKeyName: "people_created_by_fkey"
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "crew_workers_vendor_company_id_fkey"
+            foreignKeyName: "people_manager_id_org_id_fkey"
+            columns: ["manager_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
+            foreignKeyName: "people_profile_id_org_id_fkey"
+            columns: ["profile_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
+            foreignKeyName: "people_vendor_company_id_fkey"
             columns: ["vendor_company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -2452,7 +2478,7 @@ export type Database = {
             foreignKeyName: "crew_worker_rotation_off_worker_id_fkey"
             columns: ["worker_id"]
             isOneToOne: false
-            referencedRelation: "crew_workers"
+            referencedRelation: "people"
             referencedColumns: ["id"]
           },
         ]
@@ -2559,7 +2585,7 @@ export type Database = {
             foreignKeyName: "crew_members_worker_id_fkey"
             columns: ["worker_id"]
             isOneToOne: false
-            referencedRelation: "crew_workers"
+            referencedRelation: "people"
             referencedColumns: ["id"]
           },
         ]
@@ -12069,6 +12095,10 @@ export type Database = {
       }
     }
     Views: {
+      people_directory: {
+        Row: { id: string | null; name: string | null; code: string | null; job_title: string | null; archived_at: string | null }
+        Relationships: []
+      }
       work_order_cost_lines: {
         Row: {
           discipline_id: string | null
@@ -12383,6 +12413,14 @@ export type Database = {
       }
     }
     Functions: {
+      place_new_crew_worker: {
+        Args: { p_person: Json; p_placement: Json }
+        Returns: undefined
+      }
+      create_crew_with_roles: {
+        Args: { p_crew: Json; p_roles: Json }
+        Returns: Database["public"]["Tables"]["crews"]["Row"]
+      }
       set_cost_attribution: {
         Args: {
           p_discipline_id: string | null

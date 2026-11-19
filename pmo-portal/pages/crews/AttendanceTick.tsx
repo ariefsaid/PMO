@@ -34,6 +34,7 @@ const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: string; 
   const [errors, setErrors] = useState<Record<string, TickError>>({});
   const [photo, setPhoto] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
+  const [dirty, setDirty] = useState(() => crew.members.length === 0 || crew.members.some((m) => !held.some((day) => day.worker_id === m.worker_id)));
   const [problem, setProblem] = useState<string | null>(null);
   const statusLabel = (s: AttendanceStatus) => ({
     present: t('crews:status.present', 'Present'), absent: t('crews:status.absent', 'Absent'),
@@ -45,8 +46,10 @@ const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: string; 
     overtimeRange: t('crews:tickErrors.overtimeRange', 'Overtime runs from 0 to 24'),
     reasonRequired: t('crews:tickErrors.reasonRequired', 'Off rotation: give a reason'),
   })[e];
-  const setPerson = (id: string, patch: Partial<TickState['people'][string]>) =>
+  const setPerson = (id: string, patch: Partial<TickState['people'][string]>) => {
+    setDirty(true);
     setState((s) => ({ ...s, people: { ...s.people, [id]: { ...s.people[id], ...patch } } }));
+  };
 
   const save = async () => {
     setProblem(null);
@@ -60,6 +63,7 @@ const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: string; 
         await uploadPhoto.mutateAsync({ photoId: crypto.randomUUID(), workOrderId, crewId: crew.crew_id, workDate: date, file: photo });
         setPhoto(null);
       }
+      setDirty(false);
       toast(t('crews:saved', 'Attendance saved'), undefined, 'success');
     } catch (err) {
       setProblem(crewErrorMessage(t, err));
@@ -91,11 +95,11 @@ const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: string; 
         {problem && <p role="alert" className="mb-3 text-sm text-destructive-text">{problem}</p>}
         <div className="mb-4 grid gap-4 sm:grid-cols-[160px_minmax(0,1fr)]">
           <TextField label={t('crews:crewHours', 'Hours for the crew')} value={state.defaultHours} inputMode="decimal"
-            onChange={(v) => setState((s) => ({ ...s, defaultHours: v }))} disabled={!canRecord} />
+            onChange={(v) => { setDirty(true); setState((s) => ({ ...s, defaultHours: v })); }} disabled={!canRecord || busy} />
           <div className="flex flex-col gap-1.5">
             <label htmlFor="attendance-photo" className="text-control font-semibold text-foreground">{t('crews:photo', 'Group photo')}</label>
-            <FileInput id="attendance-photo" accept="image/png,image/jpeg,image/webp" disabled={!canRecord}
-              onChange={(e) => setPhoto(e.currentTarget.files?.[0] ?? null)}
+            <FileInput id="attendance-photo" accept="image/png,image/jpeg,image/webp" disabled={!canRecord || busy}
+              onChange={(e) => { setDirty(true); setPhoto(e.currentTarget.files?.[0] ?? null); }}
               className="block min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground file:mr-3 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1 file:text-sm file:font-medium" />
           </div>
         </div>
@@ -119,27 +123,28 @@ const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: string; 
                   </th>
                   <td className="py-2 pr-2">
                     <SelectField label={t('crews:statusFor', 'Status for {{name}}', { name: m.display_name })} hideLabel compact
-                      value={p.status} onChange={(v) => setPerson(m.worker_id, { status: v as AttendanceStatus })} disabled={!canRecord}
+                      value={p.status} onChange={(v) => setPerson(m.worker_id, { status: v as AttendanceStatus })} disabled={!canRecord || busy}
                       options={STATUSES.map((s) => ({ value: s, label: statusLabel(s) }))} />
                   </td>
                   <td className="py-2 pr-2">
                     <TextField label={t('crews:hoursFor', 'Hours for {{name}}', { name: m.display_name })} hideLabel inputMode="decimal"
                       value={p.hours} placeholder={state.defaultHours} onChange={(v) => setPerson(m.worker_id, { hours: v })}
-                      disabled={!canRecord || p.status !== 'present'} />
+                      disabled={!canRecord || busy || p.status !== 'present'} />
                   </td>
                   <td className="py-2">
                     <TextField label={t('crews:reasonFor', 'Reason for {{name}}', { name: m.display_name })} hideLabel
-                      value={p.reason} onChange={(v) => setPerson(m.worker_id, { reason: v })} disabled={!canRecord} />
+                      value={p.reason} onChange={(v) => setPerson(m.worker_id, { reason: v })} disabled={!canRecord || busy} />
                   </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
+        {canRecord && dirty && <p className="mb-3 text-sm text-muted-foreground">{t('crews:saveBeforeSending', 'Save attendance before sending the week.')}</p>}
         {canRecord && (
           <div className="mt-4 flex flex-wrap gap-2">
             <Button variant="primary" onClick={() => void save()} disabled={busy}>{t('crews:save', 'Save attendance')}</Button>
-            <Button variant="outline" onClick={() => void sendWeek()} disabled={busy}>{t('crews:sendWeek', 'Send the week for approval')}</Button>
+            <Button variant="outline" onClick={() => void sendWeek()} disabled={busy || dirty}>{t('crews:sendWeek', 'Send the week for approval')}</Button>
           </div>
         )}
       </CardPad>

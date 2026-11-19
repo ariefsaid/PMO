@@ -2,10 +2,9 @@
 -- Spec: docs/specs/crews-roster-attendance.spec.md (FR-CRW-001..007, FR-CRW-019/020, NFR-CRW-001/003).
 -- Plan: docs/plans/2026-11-20-crews-roster-attendance.md (Slice 1). Proven by supabase/tests/crews_roster.test.sql.
 --
--- Person seam: the #1516 employee master is not shipped, so a crew's people are `crew_workers` — one row per person,
--- `kind` own|vendor, an optional link to a PMO login (`profile_id`) and nothing else personal (FR-CRW-004, NFR-CRW-003).
--- When #1516 lands, an `employee_id` column joins this table; every crew, roster and attendance row keeps pointing at
--- the worker, so nothing downstream changes.
+-- Membership uses the shared workforce register introduced by 0970.
+-- Basic workforce records are available to active members; Admin and Project Manager manage them.
+-- Expiry-document access policies are unchanged.
 --
 -- ── REVERSE (also supabase/migrations/rollback/0988_crews_roster_down.sql) ──────────────────────────────────────
 --   reverse 0990 and 0989 first; then drop function work_order_roster, the tables (reverse order), the guard functions.
@@ -47,26 +46,32 @@ create trigger crew_standard_roles_stamp_org_id before insert on public.crew_sta
   for each row execute function public.stamp_org_id();
 
 -- ── §2 people (FR-CRW-004) ───────────────────────────────────────────────────────────────────────────────────
-create table public.crew_workers (
-  id                uuid primary key default gen_random_uuid(),
-  org_id            uuid not null default coalesce(public.auth_org_id(), '00000000-0000-0000-0000-000000000001')
-                      references public.organizations(id) on delete cascade,
-  kind              text not null default 'own' check (kind in ('own', 'vendor')),
-  display_name      text not null check (char_length(btrim(display_name)) between 1 and 120),
-  -- An ID reference the organisation uses (badge or vendor ID). No salary, contact or location data here.
-  id_reference      text check (id_reference is null or char_length(btrim(id_reference)) between 1 and 60),
-  profile_id        uuid references public.profiles(id),
-  vendor_company_id uuid references public.companies(id),
-  created_at        timestamptz not null default now(),
-  archived_at       timestamptz,
-  -- Vendor workers are not given logins (FR-CRW-004).
-  constraint crew_workers_vendor_no_login check (kind = 'own' or profile_id is null)
-);
-create unique index crew_workers_profile_live on public.crew_workers (org_id, profile_id)
-  where profile_id is not null and archived_at is null;
-create index crew_workers_org_name_idx on public.crew_workers (org_id, display_name);
-create trigger crew_workers_stamp_org_id before insert on public.crew_workers
-  for each row execute function public.stamp_org_id();
+alter table public.people
+  alter column code set default gen_random_uuid()::text,
+  add column kind text not null default 'own' check (kind in ('own', 'vendor')),
+  add column id_reference text check (id_reference is null or char_length(btrim(id_reference)) between 1 and 60),
+  add column vendor_company_id uuid references public.companies(id),
+  add column job_title text check (job_title is null or char_length(btrim(job_title)) between 1 and 120),
+  add constraint people_vendor_no_login check (kind = 'own' or profile_id is null);
+
+drop policy people_insert on public.people;
+drop policy people_update on public.people;
+create policy people_insert on public.people for insert with check (
+  org_id = (select public.auth_org_id()) and (select public.is_active_member())
+  and (select public.auth_role()) in ('Admin', 'Project Manager'));
+create policy people_update on public.people for update using (
+  org_id = (select public.auth_org_id()) and (select public.is_active_member())
+  and (select public.auth_role()) in ('Admin', 'Project Manager'))
+  with check (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
+grant insert (id, kind, id_reference, vendor_company_id, job_title) on public.people to authenticated;
+grant update (kind, id_reference, vendor_company_id, job_title) on public.people to authenticated;
+
+-- A member-readable directory exposes only basic person fields, scoped explicitly to the caller's org.
+create view public.people_directory with (security_barrier = true) as
+  select p.id, p.name, p.code, p.job_title, p.archived_at from public.people p
+  where p.org_id = (select public.auth_org_id()) and (select public.is_active_member());
+revoke all on public.people_directory from public, anon, authenticated;
+grant select on public.people_directory to authenticated;
 
 -- ── §3 membership (FR-CRW-003/005) ───────────────────────────────────────────────────────────────────────────
 create table public.crew_members (
@@ -74,8 +79,8 @@ create table public.crew_members (
   org_id           uuid not null default coalesce(public.auth_org_id(), '00000000-0000-0000-0000-000000000001')
                      references public.organizations(id) on delete cascade,
   crew_id          uuid not null references public.crews(id),
-  worker_id        uuid not null references public.crew_workers(id),
-  standard_role_id uuid references public.crew_standard_roles(id) on delete set null,
+  worker_id        uuid not null references public.people(id),
+  standard_role_id uuid references public.crew_standard_roles(id),
   valid_from       date not null,
   valid_to         date,
   version          integer not null default 1,
@@ -144,11 +149,7 @@ begin
       if not exists (select 1 from public.crews c where c.id = new.crew_id and c.org_id = new.org_id) then
         raise exception 'CRW_REF: the crew is not in this organisation' using errcode = '23514';
       end if;
-    when 'crew_workers' then
-      if new.profile_id is not null and not exists (
-           select 1 from public.profiles p where p.id = new.profile_id and p.org_id = new.org_id) then
-        raise exception 'CRW_REF: the login is not in this organisation' using errcode = '23514';
-      end if;
+    when 'people' then
       if new.vendor_company_id is not null and not exists (
            select 1 from public.companies c where c.id = new.vendor_company_id and c.org_id = new.org_id) then
         raise exception 'CRW_REF: the vendor company is not in this organisation' using errcode = '23514';
@@ -158,7 +159,7 @@ begin
                         and (c.archived_at is null or tg_op = 'UPDATE')) then
         raise exception 'CRW_REF: the crew is not a live crew of this organisation' using errcode = '23514';
       end if;
-      if not exists (select 1 from public.crew_workers w where w.id = new.worker_id and w.org_id = new.org_id) then
+      if not exists (select 1 from public.people w where w.id = new.worker_id and w.org_id = new.org_id) then
         raise exception 'CRW_REF: the person is not in this organisation' using errcode = '23514';
       end if;
       if new.standard_role_id is not null and not exists (
@@ -189,7 +190,7 @@ create trigger zz_crews_refs before insert or update on public.crews
   for each row execute function public.guard_crew_refs();
 create trigger zz_crew_standard_roles_refs before insert or update on public.crew_standard_roles
   for each row execute function public.guard_crew_refs();
-create trigger zz_crew_workers_refs before insert or update on public.crew_workers
+create trigger zz_people_crew_refs before insert or update on public.people
   for each row execute function public.guard_crew_refs();
 create trigger zz_crew_members_refs before insert or update on public.crew_members
   for each row execute function public.guard_crew_refs();
@@ -209,7 +210,7 @@ grant execute on function public.crew_can_manage() to authenticated;
 do $rls$
 declare t text;
 begin
-  foreach t in array array['crews', 'crew_standard_roles', 'crew_workers', 'crew_members', 'work_order_crews'] loop
+  foreach t in array array['crews', 'crew_standard_roles', 'crew_members', 'work_order_crews'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('alter table public.%I force row level security', t);
     -- Every active member of the organisation reads the crew master and roster (the tick screen and pickers need it).
@@ -222,7 +223,7 @@ begin
                    'and (select public.is_active_member()) and (select public.crew_can_manage())) '
                    'with check (org_id = (select public.auth_org_id()) and (select public.is_active_member()))', t || '_update', t);
     execute format('create policy %I on public.%I for delete using (org_id = (select public.auth_org_id()) '
-                   'and (select public.is_active_member()) and (select public.crew_can_manage()))', t || '_delete', t);
+                   'and (select public.is_active_member()) and (select public.auth_role()) = ''Admin'')', t || '_delete', t);
     execute format('revoke all on public.%I from public, anon, authenticated', t);
     execute format('grant select, delete on public.%I to authenticated', t);
     execute format('grant all on public.%I to service_role', t);
@@ -233,12 +234,50 @@ grant insert (id, code, name, discipline_id, field_controller_id, kind, vendor_c
 grant update (code, name, discipline_id, field_controller_id, kind, vendor_company_id, archived_at) on public.crews to authenticated;
 grant insert (id, crew_id, name, headcount, sort_order) on public.crew_standard_roles to authenticated;
 grant update (name, headcount, sort_order) on public.crew_standard_roles to authenticated;
-grant insert (id, kind, display_name, id_reference, profile_id, vendor_company_id) on public.crew_workers to authenticated;
-grant update (display_name, id_reference, profile_id, vendor_company_id, archived_at) on public.crew_workers to authenticated;
 grant insert (id, crew_id, worker_id, standard_role_id, valid_from, valid_to) on public.crew_members to authenticated;
 grant update (standard_role_id, valid_from, valid_to) on public.crew_members to authenticated;
 grant insert (id, work_order_id, crew_id, valid_from, valid_to) on public.work_order_crews to authenticated;
 grant update (valid_from, valid_to) on public.work_order_crews to authenticated;
+
+-- Create the master and its standard roles in one transaction under the caller's RLS grants.
+create function public.create_crew_with_roles(p_crew jsonb, p_roles jsonb)
+  returns public.crews language plpgsql security invoker set search_path = public, pg_temp as $$
+declare v_crew public.crews;
+begin
+  if jsonb_typeof(p_crew) is distinct from 'object' or jsonb_typeof(p_roles) is distinct from 'array' then
+    raise exception 'invalid crew or roles' using errcode = '22023';
+  end if;
+  insert into public.crews (code, name, kind, discipline_id, field_controller_id, vendor_company_id)
+  values (p_crew->>'code', p_crew->>'name', coalesce(p_crew->>'kind', 'own'),
+          nullif(p_crew->>'discipline_id', '')::uuid, nullif(p_crew->>'field_controller_id', '')::uuid,
+          nullif(p_crew->>'vendor_company_id', '')::uuid)
+  returning * into v_crew;
+  insert into public.crew_standard_roles (crew_id, name, headcount, sort_order)
+  select v_crew.id, item->>'name', (item->>'headcount')::integer, (ord - 1)::integer
+  from jsonb_array_elements(p_roles) with ordinality as r(item, ord);
+  return v_crew;
+end $$;
+revoke all on function public.create_crew_with_roles(jsonb, jsonb) from public, anon;
+grant execute on function public.create_crew_with_roles(jsonb, jsonb) to authenticated;
+
+-- New people and their first placement share a transaction under the caller's grants.
+create function public.place_new_crew_worker(p_person jsonb, p_placement jsonb)
+  returns void language plpgsql security invoker set search_path = public, pg_temp as $$
+declare v_person uuid;
+begin
+  if jsonb_typeof(p_person) is distinct from 'object' or jsonb_typeof(p_placement) is distinct from 'object' then
+    raise exception 'invalid person or placement' using errcode = '22023';
+  end if;
+  insert into public.people (name, kind, id_reference, profile_id, vendor_company_id)
+  values (p_person->>'name', coalesce(p_person->>'kind', 'own'), p_person->>'id_reference',
+          nullif(p_person->>'profile_id', '')::uuid, nullif(p_person->>'vendor_company_id', '')::uuid)
+  returning id into v_person;
+  insert into public.crew_members (crew_id, worker_id, standard_role_id, valid_from, valid_to)
+  values ((p_placement->>'crew_id')::uuid, v_person, nullif(p_placement->>'standard_role_id', '')::uuid,
+          (p_placement->>'valid_from')::date, nullif(p_placement->>'valid_to', '')::date);
+end $$;
+revoke all on function public.place_new_crew_worker(jsonb, jsonb) from public, anon;
+grant execute on function public.place_new_crew_worker(jsonb, jsonb) to authenticated;
 
 -- ── §7 the work-order roster for a date (FR-CRW-007, AC-CRW-004) ─────────────────────────────────────────────
 -- One row per crew rostered on the work order that day: its members and, per standard role, headcount vs placed.
@@ -253,8 +292,8 @@ create function public.work_order_roster(p_work_order_id uuid, p_date date)
      where r.work_order_id = p_work_order_id
        and p_date between r.valid_from and coalesce(r.valid_to, 'infinity'::date)
   ), placed as (
-    select m.crew_id, m.worker_id, w.display_name, w.kind, w.profile_id, m.standard_role_id
-      from public.crew_members m join public.crew_workers w on w.id = m.worker_id
+    select m.crew_id, m.worker_id, w.name as display_name, m.standard_role_id
+      from public.crew_members m join public.people_directory w on w.id = m.worker_id
      where m.crew_id in (select id from rostered)
        and p_date between m.valid_from and coalesce(m.valid_to, 'infinity'::date)
   ), role_counts as (
@@ -264,7 +303,6 @@ create function public.work_order_roster(p_work_order_id uuid, p_date date)
   )
   select r.id, r.code, r.name, r.field_controller_id,
          coalesce((select jsonb_agg(jsonb_build_object('worker_id', p.worker_id, 'display_name', p.display_name,
-                                                       'kind', p.kind, 'has_login', p.profile_id is not null,
                                                        'standard_role_id', p.standard_role_id)
                                     order by p.display_name, p.worker_id)
                      from placed p where p.crew_id = r.id), '[]'::jsonb),

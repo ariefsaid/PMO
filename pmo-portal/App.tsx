@@ -99,6 +99,7 @@ const ImprestFloatsPage = lazyWithPreload(() => import('./pages/ImprestFloats'))
 const ImprestFloatDetailPage = lazyWithPreload(() => import('./pages/ImprestFloatDetail'));
 const EquipmentUsagePage = lazyWithPreload(() => import('./pages/equipment/EquipmentUsage'));
 const EquipmentAssetsPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAssets'));
+const ExpiringDocumentsPage = lazyWithPreload(() => import('./pages/equipment/ExpiringDocuments'));
 const EquipmentAssetDetailPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAssetDetail'));
 const CrewsPage = lazyWithPreload(() => import('./pages/crews/Crews'));
 const ApprovalsPage = lazyWithPreload(() => import('./pages/Approvals'));
@@ -237,6 +238,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/imprest/:floatId', chunks: [ImprestFloatDetailPage], namespaces: ['imprest'] },
   { path: '/equipment', chunks: [EquipmentUsagePage], namespaces: ['equipment'] },
   { path: '/equipment/assets', chunks: [EquipmentAssetsPage], namespaces: ['equipment'] },
+  { path: '/equipment/expiring', chunks: [ExpiringDocumentsPage], namespaces: ['equipment'] },
   { path: '/equipment/assets/:assetId', chunks: [EquipmentAssetDetailPage], namespaces: ['equipment'] },
   { path: '/crews', chunks: [CrewsPage], namespaces: ['crews'] },
   { path: '/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
@@ -445,6 +447,7 @@ export const appRouteConfig: RouteObject[] = [
   // #1519: equipment usage grid, asset reference and per-asset costing.
   { path: '/equipment', element: <EquipmentUsagePage /> },
   { path: '/equipment/assets', element: <EquipmentAssetsPage /> },
+  { path: '/equipment/expiring', element: <ExpiringDocumentsPage /> },
   { path: '/equipment/assets/:assetId', element: <EquipmentAssetDetailPage /> },
   // #2528: crews, the roster per work order and the daily attendance tick.
   { path: '/crews', element: <CrewsPage /> },

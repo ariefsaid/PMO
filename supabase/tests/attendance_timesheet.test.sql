@@ -6,7 +6,7 @@
 -- Mutation checks (plan, Slice 3): allowing recorder = approver turns AC-CRW-010 red; dropping the lock turns AC-CRW-011 red.
 begin;
 create extension if not exists pgtap;
-select plan(26);
+select plan(29);
 
 insert into organizations (id, name, default_currency, attendance_backdate_days) values
   ('25280000-0000-0000-0000-00000000020a', 'ATS Org', 'IDR', 60);
@@ -34,7 +34,7 @@ insert into cost_disciplines (id, org_id, code, name) values
 insert into crews (id, org_id, code, name, field_controller_id, discipline_id) values
   ('25280000-0000-0000-0000-000000002c01', '25280000-0000-0000-0000-00000000020a', 'TS-A', 'Crew A',
    '25280000-0000-0000-0000-0000000002a4', '25280000-0000-0000-0000-000000002501');
-insert into crew_workers (id, org_id, kind, display_name, profile_id) values
+insert into people (id, org_id, kind, name, profile_id) values
   ('25280000-0000-0000-0000-000000002f01', '25280000-0000-0000-0000-00000000020a', 'own',    'Own Worker', '25280000-0000-0000-0000-0000000002a5'),
   ('25280000-0000-0000-0000-000000002f02', '25280000-0000-0000-0000-00000000020a', 'vendor', 'Vendor Two', null);
 insert into crew_members (org_id, crew_id, worker_id, valid_from) values
@@ -90,6 +90,32 @@ select throws_ok($$ select attendance_record('25280000-0000-0000-0000-0000000024
   '55000', 'ATT_SUBMITTED: this week is submitted; return it through the timesheet correction path to change it',
   'AC-CRW-009 once submitted, attendance is not silently edited (FR-CRW-017)');
 
+-- A second person has a missing Sunday in an already submitted week.
+insert into people (id, kind, name, profile_id) values
+  ('25280000-0000-0000-0000-000000002f03', 'own', 'Late day worker', '25280000-0000-0000-0000-0000000002a4');
+insert into crew_members (crew_id, worker_id, valid_from) values
+  ('25280000-0000-0000-0000-000000002c01', '25280000-0000-0000-0000-000000002f03', current_date - 50);
+select attendance_record('25280000-0000-0000-0000-000000002401', pg_temp.week(), 'roster_tick',
+  '[{"worker_id": "25280000-0000-0000-0000-000000002f03", "status": "present", "hours": 8}]');
+select attendance_generate_timesheet('25280000-0000-0000-0000-000000002f03', pg_temp.week());
+select throws_ok($$ select attendance_record('25280000-0000-0000-0000-000000002401', pg_temp.week() + 6, 'roster_tick',
+  '[{"worker_id": "25280000-0000-0000-0000-000000002f03", "status": "present", "hours": 8}]') $$,
+  '55000', 'ATT_SUBMITTED: this week is submitted; return it through the timesheet correction path to change it',
+  'AC-CRW-011 a new missed day cannot bypass the submitted-week correction path');
+
+-- The no-login approval path also fences a new day once that week is submitted.
+insert into people (id, kind, name) values
+  ('25280000-0000-0000-0000-000000002f04', 'vendor', 'Late vendor');
+insert into crew_members (crew_id, worker_id, valid_from) values
+  ('25280000-0000-0000-0000-000000002c01', '25280000-0000-0000-0000-000000002f04', current_date - 50);
+select attendance_record('25280000-0000-0000-0000-000000002401', pg_temp.week(), 'roster_tick',
+  '[{"worker_id":"25280000-0000-0000-0000-000000002f04","status":"present","hours":8}]');
+select attendance_generate_timesheet('25280000-0000-0000-0000-000000002f04', pg_temp.week());
+select throws_ok($$ select attendance_record('25280000-0000-0000-0000-000000002401', pg_temp.week() + 6, 'roster_tick',
+  '[{"worker_id":"25280000-0000-0000-0000-000000002f04","status":"present","hours":8}]') $$,
+  '55000', 'ATT_SUBMITTED: this week is submitted; return it through the timesheet correction path to change it',
+  'AC-CRW-011 a submitted no-login week cannot gain an unchecked day');
+
 -- AC-CRW-010: the recorder (also the line manager) tries to approve.
 select throws_ok($$ select transition_timesheet((select id from ats where k = 'sheet'), 'Approved') $$,
   '42501', 'separation of duties: the attendance recorder cannot approve these hours',
@@ -139,12 +165,23 @@ select is((select e.hours from timesheet_entries e where e.timesheet_id = (selec
   'AC-CRW-011 the line carries the corrected hours, still one line');
 
 -- AC-CRW-012: the vendor worker has no login.
+-- Monday was recorded by the controller; later days by a different supervisor.
+-- A shifted approval window must not omit Monday from the recorder rule.
+reset role;
+update attendance_days set recorded_by = '25280000-0000-0000-0000-0000000002a3',
+  recorded_by_ids = array['25280000-0000-0000-0000-0000000002a3'::uuid]
+where worker_id = '25280000-0000-0000-0000-000000002f02' and work_date > pg_temp.week();
+set local role authenticated;
+select pg_temp.act_as('25280000-0000-0000-0000-0000000002a4');
 select is(attendance_generate_timesheet('25280000-0000-0000-0000-000000002f02', pg_temp.week()) ->> 'mode', 'attendance',
   'AC-CRW-012 a person with no login submits on the attendance itself');
+select throws_ok($$ select attendance_decide_week('25280000-0000-0000-0000-000000002f02', pg_temp.week() + 1, 'approve') $$,
+  '22023', 'ATT_WEEK: a week starts on a Monday',
+  'AC-CRW-012 approval rejects a shifted week that could exclude a recorder');
 select throws_ok($$ select attendance_decide_week('25280000-0000-0000-0000-000000002f02', pg_temp.week(), 'approve') $$,
   '42501', 'separation of duties: the attendance recorder cannot approve these hours',
   'AC-CRW-012 the recorder cannot approve the no-login week');
-select pg_temp.act_as('25280000-0000-0000-0000-0000000002a3');
+select pg_temp.act_as('25280000-0000-0000-0000-0000000002a1');
 select is(attendance_decide_week('25280000-0000-0000-0000-000000002f02', pg_temp.week(), 'approve'), 5,
   'AC-CRW-012 a different supervisor approves the five present days');
 select pg_temp.act_as('25280000-0000-0000-0000-0000000002a2');

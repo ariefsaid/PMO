@@ -58,7 +58,7 @@ test.beforeEach(async () => {
   }).select('id').single()).id;
   people = [];
   for (const name of [`${run} Ana`, `${run} Budi`]) {
-    const id = need(name, await admin.from('crew_workers').insert({ org_id: ORG_ID, kind: 'own', display_name: name }).select('id').single()).id;
+    const id = need(name, await admin.from('people').insert({ org_id: ORG_ID, kind: 'own', name }).select('id').single()).id;
     need(`${name} placement`, await admin.from('crew_members')
       .insert({ org_id: ORG_ID, crew_id: crewId, worker_id: id, valid_from: iso(from) }).select('id').single());
     people.push({ id, name });

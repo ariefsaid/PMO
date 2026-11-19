@@ -1,4 +1,9 @@
 {
+  "linkedUser": "Pengguna terkait",
+  "noLinkedUser": "Tanpa pengguna terkait",
+  "saveBeforeSending": "Simpan kehadiran sebelum mengirim minggu ini.",
+  "discipline": "Disiplin",
+  "noDiscipline": "Tanpa disiplin",
   "addRole": "Tambah peran",
   "approve": "Setujui",
   "approved": "Minggu disetujui",
@@ -41,7 +46,9 @@
     "stale": "Seseorang mengubah ini sejak Anda membukanya. Muat ulang lalu coba lagi.",
     "submitted": "Minggu ini sudah dikirim untuk persetujuan. Kembalikan untuk mengubah satu hari.",
     "weekEmpty": "Orang ini tidak punya hari hadir di minggu itu.",
-    "window": "Tanggal paling awal yang terbuka untuk kehadiran adalah {{date}}."
+    "window": "Tanggal paling awal yang terbuka untuk kehadiran adalah {{date}}.",
+    "linkedUser": "Pengguna itu sudah terhubung dengan seseorang. Pilih orang tersebut.",
+    "duplicateRole": "Peran standar itu sudah ada di kru ini."
   },
   "from": "Dari",
   "headcount": "Jumlah orang",

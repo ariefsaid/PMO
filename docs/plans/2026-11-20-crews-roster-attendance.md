@@ -45,9 +45,7 @@ does not lock (AC-CRW-010/011 red); lock guard removed (AC-CRW-011 red); no-logi
 restored to green.
 
 Deviations from the plan text:
-- **People:** #1516's employee master is not shipped, so one `crew_workers` table holds both own staff (optional link
-  to a login) and supplier workers, instead of `vendor_workers` beside an employee table. #1516 adds an `employee_id`
-  column here; nothing downstream changes.
+- **People:** crew membership references the shared `people` workforce register from #2527. Active members can read basic person fields through the scoped directory; the base register retains its narrower reads, while Admin and Project Manager can create and edit people. Expiry-document access remains separately restricted.
 - **Rotation:** #1516's rotation is not shipped; `crew_worker_rotation_off` is the seam, read only through
   `worker_off_rotation` and the roster read.
 - **Approval RPC:** `transition_timesheet` is extended by triggers on `timesheets` (SoD before Approved; lock after;

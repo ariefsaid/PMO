@@ -39,7 +39,7 @@ begin
   if p_week_start is null or extract(isodow from p_week_start) <> 1 then
     raise exception 'ATT_WEEK: a week starts on a Monday' using errcode = '22023';
   end if;
-  select w.profile_id into v_profile from public.crew_workers w where w.id = p_worker_id and w.org_id = v_org;
+  select w.profile_id into v_profile from public.people w where w.id = p_worker_id and w.org_id = v_org;
   if not found then
     raise exception 'person not found' using errcode = 'P0002';   -- SECURITY: another org's id reads as absent
   end if;
@@ -206,10 +206,13 @@ begin
   if v_uid is null or v_org is null then
     raise exception 'not authenticated' using errcode = '42501';
   end if;
+  if p_week_start is null or extract(isodow from p_week_start) <> 1 then
+    raise exception 'ATT_WEEK: a week starts on a Monday' using errcode = '22023';
+  end if;
   if p_decision is null or p_decision not in ('approve', 'reject') then
     raise exception 'ATT_DECISION: approve or reject' using errcode = '22023';
   end if;
-  select w.profile_id into v_profile from public.crew_workers w where w.id = p_worker_id and w.org_id = v_org;
+  select w.profile_id into v_profile from public.people w where w.id = p_worker_id and w.org_id = v_org;
   if not found then
     raise exception 'person not found' using errcode = 'P0002';
   end if;

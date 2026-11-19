@@ -5,7 +5,8 @@
 -- AC-CRW-014 another organisation, or a role without permission, reads nothing and changes nothing.
 begin;
 create extension if not exists pgtap;
-select plan(24);
+select plan(37);
+select fk_ok('public', 'crew_members', 'worker_id', 'public', 'people', 'id', 'crew membership uses the workforce register');
 
 insert into organizations (id, name, default_currency) values
   ('25280000-0000-0000-0000-00000000000a', 'CRW Org',       'IDR'),
@@ -53,16 +54,58 @@ insert into crew_standard_roles (id, crew_id, name, headcount, sort_order) value
 select throws_ok($$ insert into crew_standard_roles (crew_id, name, headcount) values ('25280000-0000-0000-0000-000000000c01', 'welder', 2) $$,
   '23505', null, 'AC-CRW-001 a crew lists each standard role once');
 
+select lives_ok($$ select public.create_crew_with_roles(
+  '{"code":"ATOMIC-OK","name":"Atomic crew","kind":"own"}'::jsonb,
+  '[{"name":"Foreman","headcount":1},{"name":"Welder","headcount":3}]'::jsonb) $$,
+  'AC-CRW-001 crew and standard roles are created together');
+select is((select jsonb_agg(jsonb_build_object('name', r.name, 'headcount', r.headcount) order by r.sort_order)
+  from crew_standard_roles r join crews c on c.id = r.crew_id where c.code = 'ATOMIC-OK'),
+  '[{"name":"Foreman","headcount":1},{"name":"Welder","headcount":3}]'::jsonb,
+  'AC-CRW-001 created roles retain their names, headcounts and order');
+
+-- A bad role rolls back the crew as well, so retry remains possible.
+select throws_ok($$ select public.create_crew_with_roles(
+  '{"code":"ATOMIC-FAIL","name":"Atomic","kind":"own"}'::jsonb,
+  '[{"name":"Invalid","headcount":0}]'::jsonb) $$,
+  '23514', null, 'AC-CRW-001 a refused role rejects the crew creation');
+select is((select count(*)::int from crews where code = 'ATOMIC-FAIL'), 0,
+  'AC-CRW-001 refused roles leave no partial crew');
+
+select lives_ok($$ select public.place_new_crew_worker(
+  '{"kind":"vendor","name":"Placed person"}'::jsonb,
+  '{"crew_id":"25280000-0000-0000-0000-000000000c02","valid_from":"2026-11-01"}'::jsonb) $$,
+  'AC-CRW-002 a new person and placement are created together');
+select is((select count(*)::int from people p join crew_members m on m.worker_id = p.id
+  where p.name = 'Placed person' and m.crew_id = '25280000-0000-0000-0000-000000000c02'), 1,
+  'AC-CRW-002 the new workforce person has the requested crew placement');
+
+select throws_ok($$ select public.place_new_crew_worker(
+  '{"kind":"vendor","name":"Atomic placement person"}'::jsonb,
+  '{"crew_id":"25280000-0000-0000-0000-000000000c01","valid_from":"2026-11-10","valid_to":"2026-11-01"}'::jsonb) $$,
+  '23514', null, 'AC-CRW-002 an invalid placement is rejected');
+select is((select count(*)::int from people where name = 'Atomic placement person'), 0,
+  'AC-CRW-002 a rejected placement leaves no person behind');
+
 -- AC-CRW-002
-insert into crew_workers (id, kind, display_name, profile_id) values
+insert into people (id, kind, name, profile_id) values
   ('25280000-0000-0000-0000-000000000f01', 'own',    'Worker One', '25280000-0000-0000-0000-0000000000a4'),
   ('25280000-0000-0000-0000-000000000f02', 'vendor', 'Worker Two', null),
   ('25280000-0000-0000-0000-000000000f03', 'vendor', 'Worker Three', null);
-select throws_ok($$ insert into crew_workers (kind, display_name, profile_id) values ('vendor', 'Login vendor', '25280000-0000-0000-0000-0000000000a3') $$,
+select throws_ok($$ insert into people (kind, name, profile_id) values ('vendor', 'Login vendor', '25280000-0000-0000-0000-0000000000a3') $$,
   '23514', null, 'AC-CRW-002 a vendor worker is not given a login');
 insert into crew_members (crew_id, worker_id, standard_role_id, valid_from, valid_to) values
   ('25280000-0000-0000-0000-000000000c01', '25280000-0000-0000-0000-000000000f01', '25280000-0000-0000-0000-000000000e01', '2026-11-01', '2026-11-15'),
   ('25280000-0000-0000-0000-000000000c01', '25280000-0000-0000-0000-000000000f02', '25280000-0000-0000-0000-000000000e02', '2026-11-01', null);
+-- A PM cannot hard-delete roles, and even an Admin cannot delete a role used by a placement.
+insert into crew_standard_roles (id, crew_id, name, headcount) values
+  ('25280000-0000-0000-0000-000000000e03', '25280000-0000-0000-0000-000000000c01', 'Spare', 1);
+select is_empty($$ delete from crew_standard_roles where id = '25280000-0000-0000-0000-000000000e03' returning id $$,
+  'AC-CRW-014 Project Manager cannot hard-delete a standard role');
+select pg_temp.act_as('25280000-0000-0000-0000-0000000000a1');
+delete from crew_standard_roles where id = '25280000-0000-0000-0000-000000000e03';
+select throws_ok($$ delete from crew_standard_roles where id = '25280000-0000-0000-0000-000000000e01' $$,
+  '23503', null, 'AC-CRW-014 even Admin cannot delete a role used by a placement');
+select pg_temp.act_as('25280000-0000-0000-0000-0000000000a3');
 select throws_ok($$ insert into crew_members (crew_id, worker_id, valid_from, valid_to)
                     values ('25280000-0000-0000-0000-000000000c02', '25280000-0000-0000-0000-000000000f01', '2026-11-10', '2026-11-20') $$,
   '23P01', null, 'AC-CRW-002 a person in crew A from 1 to 15 cannot be placed in crew B on the 10th');
@@ -112,7 +155,13 @@ select is((select count(*)::int from work_order_roster('25280000-0000-0000-0000-
 
 -- AC-CRW-014: an Engineer reads but cannot manage.
 select pg_temp.act_as('25280000-0000-0000-0000-0000000000a4');
-select is((select count(*)::int from crews where org_id = '25280000-0000-0000-0000-00000000000a'), 4,
+select is((select jsonb_array_length(members) from work_order_roster('25280000-0000-0000-0000-000000000401', '2026-11-05')), 2,
+  'AC-CRW-004 an Engineer sees roster members through the basic directory');
+select is((select bool_and(not (member ? 'has_login') and not (member ? 'kind'))
+  from work_order_roster('25280000-0000-0000-0000-000000000401', '2026-11-05') r,
+       jsonb_array_elements(r.members) as m(member)), true,
+  'AC-CRW-014 the member roster does not expose private workforce fields');
+select is((select count(*)::int from crews where org_id = '25280000-0000-0000-0000-00000000000a'), 5,
   'AC-CRW-014 an Engineer of the organisation reads the crew master');
 select throws_ok($$ insert into crews (code, name) values ('CR-E', 'Engineer crew') $$, '42501', null,
   'AC-CRW-014 an Engineer cannot create a crew');
