@@ -104,7 +104,10 @@ begin
   -- escalation: a client never sets it; moving the due time forward clears it (a later miss escalates again)
   if v_uid is not null then
     new.escalated_at := old.escalated_at;
-    new.task_id := old.task_id;
+    -- the link is written only by create_task_from_incident (0981), which raises this transaction-local flag
+    if current_setting('pmo.incident_task_link', true) is distinct from 'on' then
+      new.task_id := old.task_id;
+    end if;
   end if;
   if old.escalated_at is not null and new.due_at is not null and new.due_at > coalesce(old.due_at, '-infinity') and new.due_at > now() then
     new.escalated_at := null;
