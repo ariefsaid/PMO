@@ -138,5 +138,8 @@
     "proofOptional": "Optional for this severity."
   },
   "projectScope": "Project incidents",
-  "allIncidents": "All incidents"
+  "allIncidents": "All incidents",
+  "notification": {
+    "overdue": "Issue is overdue"
+  }
 }

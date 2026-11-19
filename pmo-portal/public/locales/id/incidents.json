@@ -138,5 +138,8 @@
     "proofOptional": "Opsional untuk tingkat keparahan ini."
   },
   "projectScope": "Insiden proyek",
-  "allIncidents": "Semua insiden"
+  "allIncidents": "Semua insiden",
+  "notification": {
+    "overdue": "Insiden melewati tenggat"
+  }
 }
