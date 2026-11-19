@@ -1214,6 +1214,7 @@
     "chooseLocation": "Pilih lokasi",
     "pricingDate": "Tanggal tarif",
     "unpriced": "Belum ada tarif",
-    "sourceUnavailable": "Lokasi tidak tersedia"
+    "sourceUnavailable": "Lokasi tidak tersedia",
+    "noLocations": "Belum ada lokasi. Tambahkan lokasi."
   }
 }

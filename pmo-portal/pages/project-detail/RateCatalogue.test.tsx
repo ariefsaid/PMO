@@ -28,6 +28,6 @@ describe('Rate catalogue', () => {
     api.listItems.mockRejectedValueOnce(new Error('offline')).mockResolvedValue([]);
     render(<RateCatalogue projectId="p1" currency="USD" canWrite />);
     await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
-    await waitFor(() => expect(screen.getByText('No catalogue items')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('No locations yet. Add a location.')).toBeInTheDocument());
   });
 });

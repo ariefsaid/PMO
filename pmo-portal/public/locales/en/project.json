@@ -1214,6 +1214,7 @@
     "chooseLocation": "Choose location",
     "pricingDate": "Pricing date",
     "unpriced": "Unpriced",
-    "sourceUnavailable": "Location unavailable"
+    "sourceUnavailable": "Location unavailable",
+    "noLocations": "No locations yet. Add a location."
   }
 }
