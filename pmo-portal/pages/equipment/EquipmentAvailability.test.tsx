@@ -206,6 +206,12 @@ describe('Equipment availability screen', () => {
 
   it('clears incomplete terms when switching asset records', async () => { const view = renderTerms('a1'); await userEvent.type(screen.getByLabelText('Rate'), '100'); view.rerender(<ToastProvider><EquipmentRentalTerms key="a3" asset={asset('a3', 'EQU-3', 'rented')} /></ToastProvider>); expect(screen.getByLabelText('Rate')).toHaveValue(''); expect(screen.getByRole('button', { name: 'Save rental terms' })).toBeDisabled(); });
 
+  it('shows that a saved down status still needs proof', () => {
+    h.statusRows = [{ asset_id: 'a1', status_date: new Date().toISOString().slice(0, 10), status: 'broken' }];
+    renderPage();
+    expect(screen.getByText('No proof')).toBeInTheDocument();
+  });
+
   it('shows a proven status after a successful evidence upload', async () => {
     h.statusRows = [{ asset_id: 'a1', status_date: new Date().toISOString().slice(0, 10), status: 'broken' }];
     renderPage();

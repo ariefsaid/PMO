@@ -33,7 +33,7 @@ function statusLabel(t: ReturnType<typeof useTranslation>['t'], s: EquipmentStat
 function ProofUpload({ code, onFile }: { code: string; onFile: (file: File | undefined) => void }) {
   const { t } = useTranslation();
   const input = React.useRef<HTMLInputElement>(null);
-  return <span>
+  return <span className="[&_button]:text-control [&_svg]:size-4">
     <FileCell status="Draft" filePath={null} title={code} onUpload={() => input.current?.click()} />
     <FileInput ref={input} className="sr-only" aria-label={t('equipment:availability.proofFor', 'Attach proof for {{code}}', { code })} accept="image/*,application/pdf" onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; onFile(file); }} />
   </span>;
@@ -152,6 +152,7 @@ const EquipmentAvailabilityPage: React.FC = () => {
                     <Link to={`/equipment/assets/${a.id}`} className="font-medium text-primary-text hover:underline">{a.code}</Link> <span className="text-muted-foreground">{a.name}</span>
                     {current && !may('create', 'equipmentAvailability', writeCtx) && <span className="ml-2">{statusLabel(t, current)}</span>}
                     {(uploadedProofs.has(`${a.id}:${statusDate}`) || (!proofStates.isFetching && provenAssets.has(a.id))) && down && !draft[a.id] && <Badge className="ml-2">{t('equipment:availability.proven', 'Proven')}</Badge>}
+                    {down && todays.has(a.id) && !draft[a.id] && proofStates.data && !proofStates.isFetching && !proofStates.isError && !uploadedProofs.has(`${a.id}:${statusDate}`) && !provenAssets.has(a.id) && <Badge className="ml-2">{t('equipment:availability.noProof', 'No proof')}</Badge>}
                     {flagged.has(a.id) && <span role="status" className="ml-2 text-destructive-text text-sm">{t('equipment:availability.flagged', 'Down more than 2 days')}</span>}
                     {!todays.has(a.id) && !draft[a.id] && <span className="ml-2 text-sm text-muted-foreground">{prev ? t('equipment:availability.last', 'Last: {{status}}', { status: statusLabel(t, prev) }) : t('equipment:availability.unrecorded', 'Not recorded')}</span>}
                   </span>
