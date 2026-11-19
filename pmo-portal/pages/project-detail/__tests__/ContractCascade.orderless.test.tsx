@@ -162,7 +162,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
 
   it.each([
     ['en', 'Invoiced and paid are left out because the invoices are not all in the project currency', 'Signed contract · excluding tax'],
-    ['id', 'Difakturkan dan dibayar tidak ditampilkan karena invoice tidak semuanya dalam mata uang proyek', 'Kontrak ditandatangani · tidak termasuk pajak'],
+    ['id', 'Ditagihkan dan dibayar tidak ditampilkan karena invoice tidak semuanya dalam mata uang proyek', 'Kontrak ditandatangani · tidak termasuk pajak'],
   ])('AC-SET-001 #2204 %s: states why Invoiced and Paid are dashes in a mixed-currency project, and words the billing share as before tax', async (lng, reason, share) => {
     await financeTestI18n.changeLanguage(lng);
     try {
