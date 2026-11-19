@@ -1370,4 +1370,25 @@ describe('Projects — which project is off track, and how far (#design-1115)', 
     expect(screen.getAllByTestId('projects-absence-note')).toHaveLength(1);
     expect(screen.getByTestId('projects-absence-note')).toHaveTextContent('internal');
   });
+
+  it('AC-NBR-031 (P) at-risk table renders its shell while the money read is pending, with rows withheld', () => {
+    projectMoneyState.isPending = true;
+    projectMoneyState.data = undefined as never;
+    renderPage('Project Manager', '/projects?filter=at-risk&view=table');
+    const container = screen.getByTestId('projects-table-container');
+    expect(within(container).getAllByRole('columnheader').length).toBeGreaterThan(0);
+    expect(within(container).getByTestId('liststate-loading')).toBeInTheDocument();
+    expect(within(container).queryByText('Innovate Corp HQ Fit-Out')).not.toBeInTheDocument();
+    expect(screen.queryByText('Nothing at risk')).not.toBeInTheDocument();
+  });
+
+  it('AC-NBR-031 (F) at-risk table keeps its shell and reports the unavailable risk read', () => {
+    projectMoneyState.isError = true;
+    renderPage('Project Manager', '/projects?filter=at-risk&view=table');
+    const container = screen.getByTestId('projects-table-container');
+    expect(within(container).getAllByRole('columnheader').length).toBeGreaterThan(0);
+    expect(screen.getByText("Couldn't check project budget risk")).toBeInTheDocument();
+    expect(screen.queryByText('Nothing at risk')).not.toBeInTheDocument();
+    projectMoneyState.isError = false;
+  });
 });
