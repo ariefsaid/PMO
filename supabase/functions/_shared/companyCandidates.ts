@@ -2,12 +2,9 @@
 // "bring in clients and vendors" step and by the change feed, so both match the same way.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
-import { normalizePartyName, type PartyCandidate, type PartyDoctype } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/partyAdopt.ts';
+import { normalizePartyName, taxKey, type PartyCandidate, type PartyDoctype } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/partyAdopt.ts';
 
 type CompanyRow = { id: string; name: string; erp_tax_id: string | null };
-
-/** A tax id compared as the matcher and the applier compare it: letters and digits only, lower case ("01.234.567.8-901.000" = "012345678901000"). */
-const taxKey = (t?: string | null) => (t ?? '').replace(/[^0-9a-z]/gi, '').toLowerCase();
 
 /** Same-org, same-type, live companies the party might be that are not yet linked to an ERP party: those whose name equals
  *  `name` once normalised (`normalizePartyName`, legal-form suffixes dropped) and those carrying the same tax id (the shared

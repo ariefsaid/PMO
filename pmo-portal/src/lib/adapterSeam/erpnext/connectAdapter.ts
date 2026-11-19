@@ -114,18 +114,20 @@ export function createErpnextConnectAdapter(client: ErpClientDeps, company: stri
       const next = rows.length === ERP_CONNECT_PAGE ? `${s.doctype}:${rows.at(-1)!.name}` : specs[i + 1] ? `${specs[i + 1].doctype}:` : null;
       return { rows: rows.map(s.map), nextCursor: next };
     },
+    // #2119: the counts are independent, read-only GETs, so the census takes them all at once
+    parallelCensus: true,
     async countDomain(kind) {
-      let total = 0;
       const money = DOMAIN_COUNTS[kind as CensusDomain];
-      for (const d of money ?? []) {
-        const q = new URLSearchParams({ doctype: d.doctype, filters: JSON.stringify([['company', '=', company], ['docstatus', '=', 1], ...(d.extra ?? [])]) });
-        total += Number((await erpnextRequest(client, { method: 'GET', path: `/api/method/frappe.client.get_count?${q}` }) as { message?: number }).message ?? 0);
-      }
-      if (money) return total;
-      for (const s of specOf(kind)) {
-        const q = new URLSearchParams({ doctype: s.doctype, filters: JSON.stringify(filters(s.company, null)) });
-        total += Number((await erpnextRequest(client, { method: 'GET', path: `/api/method/frappe.client.get_count?${q}` }) as { message?: number }).message ?? 0);
-      }
+      const queries = money
+        ? money.map((d) => ({ doctype: d.doctype, filters: [['company', '=', company], ['docstatus', '=', 1], ...(d.extra ?? [])] }))
+        : specOf(kind).map((s) => ({ doctype: s.doctype, filters: filters(s.company, null) }));
+      // settled, then read in order: a failing doctype reports the same error the serial loop did
+      const counts = await Promise.allSettled(queries.map(async ({ doctype, filters: f }) => {
+        const q = new URLSearchParams({ doctype, filters: JSON.stringify(f) });
+        return Number((await erpnextRequest(client, { method: 'GET', path: `/api/method/frappe.client.get_count?${q}` }) as { message?: number }).message ?? 0);
+      }));
+      let total = 0;
+      for (const c of counts) { if (c.status === 'rejected') throw c.reason; total += c.value; }
       return total;
     },
     async sendMaster(kind, record, _key, opts) {
