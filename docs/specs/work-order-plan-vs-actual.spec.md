@@ -69,7 +69,7 @@ disciplines make or lose money while there is still time to act.
 - FR-WPVA-024 A work order added or cancelled after a custom split was saved shall make the split "stale"; the
   screen shall say so and fall back to the default until a user re-saves (a split that does not sum to 100 is never used).
 
-**Project-actuals basis (owner ruling, 2026-11-20)**
+**Project-actuals basis (2026-11-20)**
 - The project total shall equal the existing project actuals; work-order amounts and Not assigned shall sum to that total.
 - A paid amount shall follow the most specific document through which it passed: vendor bill, then purchase order or
   receipt, then purchase request. A payment linked to a bill shall follow that bill; an unlinked payment shall follow
