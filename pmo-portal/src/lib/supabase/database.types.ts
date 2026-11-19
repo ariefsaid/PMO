@@ -4976,8 +4976,75 @@ export type Database = {
           },
         ]
       }
+      incident_files: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          file_path: string
+          id: string
+          incident_id: string
+          kind: string
+          org_id: string
+          title: string | null
+          uploaded_by_id: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          file_path: string
+          id?: string
+          incident_id: string
+          kind: string
+          org_id?: string
+          title?: string | null
+          uploaded_by_id?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          file_path?: string
+          id?: string
+          incident_id?: string
+          kind?: string
+          org_id?: string
+          title?: string | null
+          uploaded_by_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incident_files_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incident_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_files_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_files_uploaded_by_id_fkey"
+            columns: ["uploaded_by_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       incident_reports: {
         Row: {
+          action: string | null
+          assignee_id: string | null
+          close_note: string | null
+          closed_at: string | null
+          closed_by: string | null
+          due_at: string | null
+          escalated_at: string | null
+          task_id: string | null
+          work_order_id: string | null
           created_at: string
           description: string | null
           id: string
@@ -4991,6 +5058,15 @@ export type Database = {
           type: string
         }
         Insert: {
+          action?: string | null
+          assignee_id?: string | null
+          close_note?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
+          due_at?: string | null
+          escalated_at?: string | null
+          task_id?: string | null
+          work_order_id?: string | null
           created_at?: string
           description?: string | null
           id?: string
@@ -5004,6 +5080,15 @@ export type Database = {
           type: string
         }
         Update: {
+          action?: string | null
+          assignee_id?: string | null
+          close_note?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
+          due_at?: string | null
+          escalated_at?: string | null
+          task_id?: string | null
+          work_order_id?: string | null
           created_at?: string
           description?: string | null
           id?: string
@@ -5017,6 +5102,34 @@ export type Database = {
           type?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "incident_reports_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_reports_closed_by_fkey"
+            columns: ["closed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_reports_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: true
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_reports_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "incident_reports_org_id_fkey"
             columns: ["org_id"]
@@ -11805,6 +11918,10 @@ export type Database = {
       }
     }
     Functions: {
+      create_task_from_incident: {
+        Args: { p_incident: string }
+        Returns: string
+      }
       set_cost_attribution: {
         Args: {
           p_discipline_id: string | null

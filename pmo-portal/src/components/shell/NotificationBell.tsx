@@ -46,6 +46,7 @@ function severityStyle(severity: string) {
  * unrecognized type falls back to mark-read-only (no navigation). */
 const ENTITY_ROUTE_BASE: Record<string, string> = {
   procurement_case: '/procurement',
+  incident: '/incidents',
   project: '/projects',
   company: '/companies',
   contact: '/contacts',
