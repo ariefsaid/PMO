@@ -1,4 +1,5 @@
 /** Stock repository contract (#1512 S1). */
+import type { CostAttribution } from '@/src/lib/db/workOrderCosts';
 import type {
   StockItemInput, StockItemRow, StockKeeperRow, StockUnitInput, StockUnitRow, StockWarehouseInput, StockWarehouseRow,
 } from '@/src/lib/db/stockMaster';
@@ -31,7 +32,8 @@ export interface StockDocumentsRepository {
   list(f?: StockDocumentFilters): Promise<StockDocumentListRow[]>;
   count(f?: StockDocumentFilters): Promise<number | undefined>;
   get(id: string): Promise<StockDocumentDetail | null>;
-  create(input: StockDocumentInput, opts: { post: boolean; clientRequestId: string }): Promise<string>;
+  /** `attribution` (#2517): the movement's work order and discipline, set right after it is saved and before a connected post. */
+  create(input: StockDocumentInput, opts: { post: boolean; clientRequestId: string; attribution?: CostAttribution }): Promise<string>;
   saveDraft(id: string, input: StockDocumentInput): Promise<void>;
   /** `revision`: the one the approver reviewed (FR-STK-062). */
   post(id: string, revision?: number): Promise<void>;

@@ -31,6 +31,8 @@ function entry(overrides: Partial<TimesheetEntryWithProject>): TimesheetEntryWit
     entry_date: LAST_WEEK_DATES[0],
     hours: 8,
     notes: null,
+    work_order_id: null,
+    discipline_id: null,
     project: { name: 'Alpha Project', code: 'A001' },
     ...overrides,
   };

@@ -17,6 +17,7 @@ import { AppError } from '@/src/lib/appError';
 import { StockDispatchError } from '@/src/lib/stockDispatchError';
 import { wrap } from './repositoryErrors';
 import type { StockRepository } from './contracts/stock';
+import { AttributionRefusedError, hasAttribution, workOrderCostRepository } from './workOrderCosts';
 
 /** A connected org posts a transfer or an issue through the Odoo dispatch; every other kind keeps the RPC (which refuses it while the ERP owns stock). */
 const connectedKind = (kind: string): boolean => kind === 'transfer' || kind === 'issue';
@@ -42,12 +43,25 @@ export const stockRepository: StockRepository = {
     count: (f) => wrap(() => countStockDocuments(f)),
     get: (id) => wrap(() => getStockDocument(id)),
     // Connected: save the Draft first (no post), then dispatch with the revision the keeper just saved.
-    create: async (i, o) => {
-      if (!o.post || routeDomainWrite(INVENTORY_DOMAIN) !== 'external' || !connectedKind(i.kind)) return wrap(() => createStockDocument(i, o));
+    // #2517: the work order / discipline is set right after the document exists (before a connected post, while no
+    // command is live). A refusal never undoes the movement: it surfaces as AttributionRefusedError carrying the id.
+    create: async (i, { attribution, ...o }) => {
+      const attribute = async (id: string): Promise<unknown> => {
+        if (!hasAttribution(attribution)) return null;
+        try { await workOrderCostRepository.attributeCreated('stock_document', id, attribution); return null; } catch (err) { return err; }
+      };
+      if (!o.post || routeDomainWrite(INVENTORY_DOMAIN) !== 'external' || !connectedKind(i.kind)) {
+        const created = await wrap(() => createStockDocument(i, o));
+        const refused = await attribute(created);
+        if (refused) throw new AttributionRefusedError(refused, created);
+        return created;
+      }
       const id = await wrap(() => createStockDocument(i, { ...o, post: false }));
+      const refused = await attribute(id);
       const saved = await wrap(() => getStockDocument(id));
       if (!saved) throw new AppError('The saved stock document could not be read back', 'not-found');
       try { await wrap(() => dispatchPost(id, saved.revision)); } catch (err) { throw new StockDispatchError(err as AppError, id); }
+      if (refused) throw new AttributionRefusedError(refused, id);
       return id;
     },
     saveDraft: (id, i) => wrap(() => saveStockDraft(id, i)),
