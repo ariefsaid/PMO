@@ -1,6 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-// #2517: the work-order/discipline pickers read their own queries; they are proven in CostAttributionFields.test.tsx.
-vi.mock('@/src/components/workOrders/CostAttributionFields', () => ({ CostAttributionFields: () => null }));
 import { clearOwnershipCache } from '@/src/lib/adapterSeam/ownershipCache';
 const itemEligibility = vi.hoisted(() => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }));
 const recordPush = vi.hoisted(() => ({ status: 'idle' as string, error: null }));

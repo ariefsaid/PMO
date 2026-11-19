@@ -17,6 +17,7 @@ vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectWorkOrders: (projectId: string) => { h.projectArg.push(projectId); return h.workOrders; },
 }));
 vi.mock('@/src/hooks/useWorkOrderCosts', () => ({ useCostDisciplines: () => h.disciplines }));
+vi.unmock('@/src/components/workOrders/CostAttributionFields'); // test/setup.ts stubs it for the page suites
 
 import { CostAttributionFields } from './CostAttributionFields';
 

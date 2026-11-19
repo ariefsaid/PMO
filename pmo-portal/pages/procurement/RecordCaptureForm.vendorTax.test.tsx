@@ -5,8 +5,6 @@
  * bill that withholds); an ERP-connected org stages `erpTaxAmounts` (or a template) and asks no amount (OQ-VWH-8).
  */
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
-// #2517: the work-order/discipline pickers read their own queries; they are proven in CostAttributionFields.test.tsx.
-vi.mock('@/src/components/workOrders/CostAttributionFields', () => ({ CostAttributionFields: () => null }));
 
 const repo = vi.hoisted(() => ({
   getCompany: vi.fn(async () => ({ id: 'vendor-1', default_vat_rate: 11 as number | null, default_pph_type: 'pph23' as string | null, default_pph_rate: 2 as number | null })),
