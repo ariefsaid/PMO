@@ -60,6 +60,7 @@ vi.mock('@/src/lib/db/incidents', async (importOriginal) => ({ ...(await importO
 vi.mock('@/src/lib/db/milestones', async (importOriginal) => ({ ...(await importOriginal<object>()), listMilestones: vi.fn() }));
 vi.mock('@/src/lib/db/workOrders', async (importOriginal) => ({ ...(await importOriginal<object>()), listProjectWorkOrders: vi.fn() }));
 vi.mock('@/src/lib/db/progressBilling', async (importOriginal) => ({ ...(await importOriginal<object>()), listBoqItems: vi.fn() }));
+vi.mock('@/src/lib/db/billingStages', async (importOriginal) => ({ ...(await importOriginal<object>()), getClaimBillingTrace: vi.fn() }));
 vi.mock('@/src/lib/db/workOrderAcceptances', async (importOriginal) => ({ ...(await importOriginal<object>()), listProjectAcceptances: vi.fn() }));
 vi.mock('@/src/lib/db/procurementFiles', async (importOriginal) => ({ ...(await importOriginal<object>()), listProcurementFiles: vi.fn() }));
 vi.mock('@/src/lib/db/expenseClaims', async (importOriginal) => ({ ...(await importOriginal<object>()), listExpenseClaims: vi.fn() }));
@@ -119,6 +120,7 @@ const ROWS: Row[] = [
   { member: 'milestone', method: 'list', mod: '@/src/lib/db/milestones', fn: 'listMilestones', args: ['p1'] },
   { member: 'workOrder', method: 'list', mod: '@/src/lib/db/workOrders', fn: 'listProjectWorkOrders', args: ['p1'] },
   { member: 'progressBilling', method: 'listBoq', mod: '@/src/lib/db/progressBilling', fn: 'listBoqItems', args: ['p1'] },
+  { member: 'billingStages', method: 'trace', mod: '@/src/lib/db/billingStages', fn: 'getClaimBillingTrace', args: ['c1', 'p1'] },
   { member: 'workOrderAcceptance', method: 'listByProject', mod: '@/src/lib/db/workOrderAcceptances', fn: 'listProjectAcceptances', args: ['p1'] },
   { member: 'procurementFiles', method: 'list', mod: '@/src/lib/db/procurementFiles', fn: 'listProcurementFiles', args: ['quotation', 'p1'] },
   { member: 'expenseClaim', method: 'list', mod: '@/src/lib/db/expenseClaims', fn: 'listExpenseClaims', args: [], mode: 'called' },

@@ -109,6 +109,7 @@ import type {
   WorkOrderAcceptanceRepository,
   WorkOrderRepository,
 } from './contracts/workOrders';
+import type { BillingStagesRepository } from './contracts/billingStages';
 
 import type { OdooRepository } from './contracts/odoo';
 
@@ -135,6 +136,7 @@ export interface Repositories {
   milestone: MilestoneRepository;
   workOrder: WorkOrderRepository;
   progressBilling: ProgressBillingRepository;
+  billingStages: BillingStagesRepository;
   stock: StockRepository;
   workOrderAcceptance: WorkOrderAcceptanceRepository;
   procurementFiles: ProcurementFileRepository;
@@ -193,6 +195,7 @@ export type { StockMasterRepository, StockRepository } from './contracts/stock';
 export type { IncidentRepository } from './contracts/incidents';
 export type { CommentRepository } from './contracts/comments';
 export type { MilestoneRepository, ProgressBillingRepository, WorkOrderAcceptanceRepository, WorkOrderRepository } from './contracts/workOrders';
+export type { BillingStagesRepository } from './contracts/billingStages';
 export type { ExpenseClaimRepository, ExpensePostingRepository, ExpenseReceiptRepository } from './contracts/expenses';
 export type { ImprestRepository } from './contracts/imprest';
 export type { JournalRepository } from './contracts/journals';
