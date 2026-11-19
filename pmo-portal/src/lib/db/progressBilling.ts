@@ -2,7 +2,7 @@ import { supabase } from '@/src/lib/supabase/client';
 import { fetchAllPages } from '@/src/lib/pagedRead';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import { revenueRefusalCode } from '@/src/lib/db/revenueNative';
-import type { Tables } from '@/src/lib/supabase/database.types';
+import type { Tables, TablesUpdate } from '@/src/lib/supabase/database.types';
 import type { AllocationFacts, ContractLineFacts, EarningBasis, ProjectBillingFacts } from '@/src/lib/progressBilling';
 
 /**
@@ -39,6 +39,7 @@ export interface BoqItemInput {
   lineNo: number | null;
   /** The import identity (`pmo load` / the contract-lines importer); null/absent for a hand-entered line. */
   importKey?: string | null;
+  clearCatalogue?: boolean;
 }
 
 export interface ProgressClaimInput {
@@ -96,10 +97,13 @@ export async function createBoqItem(projectId: string, input: BoqItemInput): Pro
 }
 
 export async function updateBoqItem(id: string, input: BoqItemInput): Promise<void> {
-  const { data, error } = await supabase.from('boq_items').update({
+  const update = {
     item_code: input.itemCode, description: input.description, unit: input.unit,
     quantity: input.quantity, rate: input.rate, earning_basis: input.earningBasis, line_no: input.lineNo,
-  }).eq('id', id).select('id');
+    ...(input.clearCatalogue ? { catalogue_item_id: null, catalogue_variant_id: null, catalogue_priced_as_of: null } : {}),
+  };
+  // The generated schema predates the catalogue columns; the spread is retained at runtime.
+  const { data, error } = await supabase.from('boq_items').update(update as TablesUpdate<'boq_items'>).eq('id', id).select('id');
   if (error) fail(error);
   assertWriteLanded(data, 'Bill of quantities line not found or you do not have permission to edit it.');
 }

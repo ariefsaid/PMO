@@ -141,6 +141,12 @@ describe('progress billing DAL', () => {
     });
   });
 
+  it('removes catalogue provenance when a line returns to manual pricing', async () => {
+    h.result.data = [{ id: 'b1' }];
+    await updateBoqItem('b1', { itemCode: 'A-1', description: 'Cable', unit: 'm', quantity: 1, rate: 50, earningBasis: 'unit_rate', lineNo: null, clearCatalogue: true });
+    expect(h.chain.update).toHaveBeenCalledWith(expect.objectContaining({ catalogue_item_id: null, catalogue_variant_id: null, catalogue_priced_as_of: null }));
+  });
+
   it('AC-CQ-012 the BoQ list is ordered by line number (nulls last), then created_at, then id', async () => {
     h.result.data = [];
     await listBoqItems('p1');

@@ -214,9 +214,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
 
   const saveBoq = async (input: BoqItemInput, pricing?: PricingChoice) => {
     if (pricing) {
-      await repositories.rateCatalogue.savePricedLine(projectId, boqFormFor?.id ?? null, input, pricing.itemId, pricing.variantId, pricing.asOf);
-      await Promise.all([boq.refetch(), billing.refetch()]);
-    } else if (boqFormFor) await mutations.updateBoq.mutateAsync({ id: boqFormFor.id, input });
+      await mutations.savePricedBoq.mutateAsync({ id: boqFormFor?.id ?? null, input, itemId: pricing.itemId, variantId: pricing.variantId, asOf: pricing.asOf });
+    } else if (boqFormFor) await mutations.updateBoq.mutateAsync({ id: boqFormFor.id, input: boqFormFor.catalogue_item_id ? { ...input, clearCatalogue: true } : input });
     else await mutations.createBoq.mutateAsync(input);
     toast(t('projectDetail.billing.boq.toast.saved', 'Bill of quantities line saved'), input.itemCode, 'success');
     setBoqFormFor(undefined);

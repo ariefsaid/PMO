@@ -103,6 +103,15 @@ create index boq_items_catalogue_item_idx on public.boq_items (catalogue_item_id
 create function public.check_boq_catalogue_project() returns trigger
 language plpgsql set search_path = public, pg_temp as $$
 begin
+  -- A manually changed rate no longer has the old catalogue provenance.
+  if tg_op = 'UPDATE' and new.rate is distinct from old.rate
+     and new.catalogue_item_id is not distinct from old.catalogue_item_id
+     and new.catalogue_variant_id is not distinct from old.catalogue_variant_id
+     and new.catalogue_priced_as_of is not distinct from old.catalogue_priced_as_of then
+    new.catalogue_item_id := null;
+    new.catalogue_variant_id := null;
+    new.catalogue_priced_as_of := null;
+  end if;
   if new.catalogue_item_id is not null and not exists (
     select 1 from public.rate_catalogue_items i
     join public.rate_catalogue_variants v on v.project_id = i.project_id and v.org_id = i.org_id
@@ -113,7 +122,7 @@ begin
   end if;
   return new;
 end $$;
-create trigger boq_items_catalogue_project before insert or update of project_id, org_id, catalogue_item_id, catalogue_variant_id
+create trigger boq_items_catalogue_project before insert or update of project_id, org_id, rate, catalogue_item_id, catalogue_variant_id
   on public.boq_items for each row execute function public.check_boq_catalogue_project();
 
 -- Rate in force for (item, variant) on a date: the latest effective_from not after it.
