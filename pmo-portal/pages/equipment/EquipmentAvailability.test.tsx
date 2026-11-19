@@ -75,6 +75,7 @@ describe('Equipment availability screen', () => {
     expect(screen.getByRole('combobox', { name: 'Status of EQU-1' })).toBeInTheDocument();
     expect(screen.getByText('Status of EQU-1')).toHaveClass('sr-only');
     expect(screen.getByRole('button', { name: 'Upload file for EQU-1' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Attach proof for EQU-1')).toHaveAttribute('tabindex', '-1');
   });
 
   it('links each asset to its record for rental setup', () => { h.role = 'Finance'; renderPage(); expect(screen.getByRole('link', { name: 'EQU-1' })).toHaveAttribute('href', '/equipment/assets/a1'); });
