@@ -31,6 +31,7 @@ vi.mock('@/src/hooks/useEquipment', () => ({
 }));
 vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => h.orgToday || new Date().toISOString().slice(0, 10) }));
 vi.mock('@/src/hooks/useResolvedLocale', () => ({ useOrgBusinessTimezone: () => 'UTC' }));
+vi.mock('./RentalInvoiceCheck', () => ({ default: () => <div>Rental invoice check</div> }));
 vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [{ id: 'v1', name: 'Vendor' }] }) }));
 vi.mock('@/src/hooks/useEquipmentAvailability', () => ({
   useStatusDays: (from: string, to: string) => { h.statusRange = [from, to]; return { data: h.statusRows, isError: h.statusError }; },
@@ -224,6 +225,15 @@ describe('Equipment availability screen', () => {
     await userEvent.type(screen.getByLabelText('Rental start'), '2026-01-01');
     await userEvent.click(screen.getByRole('button', { name: 'Next equipment page' }));
     expect(screen.getByRole('button', { name: 'Save rental terms' })).toBeDisabled();
+  });
+
+  it('offers the rental check to Finance and not to a field controller', () => {
+    const engineer = renderPage();
+    expect(screen.queryByText('Rental invoice check')).not.toBeInTheDocument();
+    engineer.unmount();
+    h.role = 'Finance'; renderPage();
+    expect(screen.getByText('Rental invoice check')).toBeInTheDocument();
+
   });
 
 });

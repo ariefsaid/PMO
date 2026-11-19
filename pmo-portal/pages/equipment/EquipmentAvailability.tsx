@@ -14,6 +14,7 @@ import {
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { isDownStatus, type EquipmentStatus } from '@/src/lib/equipmentMetrics';
 import { monthStart } from './equipmentWeek';
+import RentalInvoiceCheck from './RentalInvoiceCheck';
 
 const STATUSES: EquipmentStatus[] = ['ready', 'standby', 'broken', 'at_vendor', 'waiting_parts'];
 
@@ -255,6 +256,7 @@ const EquipmentAvailabilityPage: React.FC = () => {
       )}
 
 
+      {may('approve', 'equipmentAvailability', writeCtx) && <RentalInvoiceCheck assets={rows.filter((a) => (a as { ownership?: string }).ownership === 'rented')} today={today} monthFrom={monthFrom} statusLabel={(value) => statusLabel(t, value)} />}
     </ListPage>
   );
 };

@@ -135,7 +135,9 @@
     "saveInService": "Save in-service date",
     "proofsError": "Could not load evidence status",
     "ownershipSaved": "Ownership saved",
-    "rateChanged": "Rate changed"
+    "rateChanged": "Rate changed",
+    "openProof": "Open {{name}}",
+    "unprovenIncluded": "Unproven — included with reason"
   },
   "basis": {
     "actual_cost": "Actual cost by usage",

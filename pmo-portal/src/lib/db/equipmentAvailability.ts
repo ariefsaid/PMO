@@ -108,3 +108,15 @@ export async function changeRentalRate(assetId: string, effectiveOn: string, new
 export async function setWorkingHours(hours: string): Promise<void> {
   await call('set_equipment_working_hours', { p_hours: hours });
 }
+
+export interface RentalCheckDay { date: string; status: EquipmentStatus; proven: boolean; deducted: boolean; proofs: { id: string; file_name: string; file_path: string }[] }
+export interface RentalCheckResult { currency: string | null; rental_amount: string; deduction: string; expected_amount: string; difference: string | null; days: RentalCheckDay[]; unproven_days: string[]; included_unproven_reason: string | null }
+export async function rentalCheck(assetId: string, from: string, to: string, invoiceAmount?: string | null, includeUnprovenReason?: string | null): Promise<RentalCheckResult> {
+  return (await call('equipment_rental_check', { p_asset: assetId, p_from: from, p_to: to, p_invoice_amount: invoiceAmount ?? null, p_include_unproven_reason: includeUnprovenReason ?? null })) as RentalCheckResult;
+}
+export async function proofUrl(path: string): Promise<string> {
+  const { data, error } = await supabase.storage.from('equipment-proof').createSignedUrl(path, 60);
+  if (error) throw new AppError(error.message);
+  if (!data?.signedUrl) throw new AppError('Proof link is unavailable');
+  return data.signedUrl;
+}

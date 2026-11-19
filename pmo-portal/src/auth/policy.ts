@@ -793,6 +793,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     view: allow(ALL),
     create: allowUnlessViewOnly(EQUIPMENT_STATUS_WRITE),
     manage: allowUnlessViewOnly(EQUIPMENT_RENTAL_MONEY),
+    approve: allowUnlessViewOnly(EQUIPMENT_RENTAL_MONEY),
   },
   /**
    * The Odoo fleet and maintenance register (#1511 F5). UX ONLY — the `adapter-dispatch` `equipment` domain's role

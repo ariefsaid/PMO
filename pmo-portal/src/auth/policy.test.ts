@@ -929,6 +929,8 @@ describe('can() — equipment usage and costing (#1519; transition_equipment_usa
   it('AC-EAV-018 status and proof: the field role and managers; rental terms: Admin and Finance only', () => {
     expect(allowedRoles('create', 'equipmentAvailability')).toEqual(['Admin', 'Project Manager', 'Engineer']);
     expect(allowedRoles('manage', 'equipmentAvailability')).toEqual(['Admin', 'Finance']);
+    expect(allowedRoles('approve', 'equipmentAvailability')).toEqual(['Admin', 'Finance']);
+    expect(can('approve', 'equipmentAvailability', { realRole: 'Executive' })).toBe(false);
     expect(can('manage', 'equipmentAvailability', { realRole: 'Engineer' })).toBe(false);
     expect(can('create', 'equipmentAvailability', { realRole: 'Finance' })).toBe(false);
     expect(can('create', 'equipmentAvailability', { realRole: 'Engineer', record: { viewOnly: true } })).toBe(false); // view-as is read-only

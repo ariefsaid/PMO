@@ -74,3 +74,8 @@ export function useEquipmentWorkingHours() {
   const qc = useQueryClient();
   return useMutation({ mutationFn: repositories.equipmentAvailability.setWorkingHours, onSuccess: () => qc.invalidateQueries({ queryKey: [KEY] }) });
 }
+
+export function useRentalCheck() {
+  return useMutation({ mutationFn: (v: { assetId: string; from: string; to: string; invoice?: string; reason?: string }) =>
+    repositories.equipmentAvailability.rentalCheck(v.assetId, v.from, v.to, v.invoice || null, v.reason || null) });
+}
