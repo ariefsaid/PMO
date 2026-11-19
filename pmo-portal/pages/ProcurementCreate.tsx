@@ -15,7 +15,7 @@ import type { AtomicProcurementInput, ProcurementItemRow } from '@/src/lib/db/pr
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { itemsNetTotal } from '@/src/lib/itemsNet';
 import { BudgetCategoryHelp } from './procurement/BudgetCategoryHelp';
-import { LineItemsSection } from './procurement/LineItemsSection';
+import { LineItemsSection, type LineItemsSectionHandle } from './procurement/LineItemsSection';
 import { readOrigin, readRestockLine, resolveFormOrigin } from '@/src/lib/stockRequestPurchase';
 import { useBudgetCategoryOptions } from './procurement/budgetCategoryOptions';
 import type { BudgetCategory } from '@/src/lib/budget/categoryAccountMap';
@@ -135,12 +135,10 @@ export default function ProcurementCreate() {
   const [lines, setLines] = useState<DraftLine[]>(() => restock && restock.rate !== null
     ? [{ id: crypto.randomUUID(), name: restock.name, quantity: restock.quantity, rate: restock.rate, amount: itemsNetTotal([{ quantity: restock.quantity, rate: restock.rate }]), description: null }]
     : []);
-  // Pending content in the entry row (blocks Save) vs the person having edited it (dirty). A pre-filled
-  // row has the first and not the second.
-  const [addRowHasInput, setAddRowHasInput] = useState(restock !== null && !restockPriced);
+  // A pre-filled unpriced restock row is pending input but is not user-edited until changed.
   const [addRowEdited, setAddRowEdited] = useState(false);
-  const [blockedAddRowMessage, setBlockedAddRowMessage] = useState<string | null>(null);
   const addRowDescriptionRef = useRef<HTMLInputElement>(null);
+  const lineItemsRef = useRef<LineItemsSectionHandle | null>(null);
   const [errors, setErrors] = useState<{ title?: string; save?: { headline: string; detail: string }; conflict?: boolean }>({});
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
@@ -161,9 +159,7 @@ export default function ProcurementCreate() {
   );
   const holdLeave = useCallback((leave: () => void) => setPendingLeave(() => leave), []);
   const updateAddRowDirty = useCallback((hasInput: boolean) => {
-    setAddRowHasInput(hasInput);
     setAddRowEdited(hasInput);
-    if (!hasInput) setBlockedAddRowMessage(null);
   }, []);
   const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: holdLeave });
   // Leaving unsaved returns to where the form was started: the project's procurement tab when the
@@ -181,9 +177,7 @@ export default function ProcurementCreate() {
     setSupplierId(null);
     setBudgetCategory('');
     setLines([]);
-    setAddRowHasInput(false);
     setAddRowEdited(false);
-    setBlockedAddRowMessage(null);
     setErrors({});
   }, [projectId]);
 
@@ -231,17 +225,16 @@ export default function ProcurementCreate() {
     return standardChoices;
   }, [canCaptureDocuments, realRole, t]);
 
-  const addLine = async (line: { name: string; quantity: number; rate: number }) => {
-    const amount = itemsNetTotal([{ quantity: line.quantity, rate: line.rate }]);
-    setLines((current) => [
-      ...current,
-      {
-        ...line,
-        id: crypto.randomUUID(),
-        amount,
-        description: null,
-      },
-    ]);
+  const makeDraftLine = (line: { name: string; quantity: number; rate: number; description?: string }): DraftLine => ({
+    ...line,
+    id: crypto.randomUUID(),
+    amount: itemsNetTotal([{ quantity: line.quantity, rate: line.rate }]),
+    description: line.description ?? null,
+  });
+  const addLine = async (line: { name: string; quantity: number; rate: number; description?: string }) => {
+    const row = makeDraftLine(line);
+    setLines((current) => [...current, row]);
+    return row;
   };
   const updateLine = async (id: string, patch: { name: string; quantity?: number; rate?: number; description?: string }) => {
     setLines((current) => current.map((line) => {
@@ -263,16 +256,26 @@ export default function ProcurementCreate() {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!have || savingRef.current) return;
-    if (addRowHasInput) {
-      setBlockedAddRowMessage(t('addRowIncomplete', 'Add this line or clear it first'));
-      addRowDescriptionRef.current?.focus();
-      return;
-    }
     if (!title.trim()) {
       setErrors({ title: t('titleRequired', 'A procurement title is required.') });
       return;
     }
     setErrors({});
+
+    let pendingLine: DraftLine | null = null;
+    if (have === 'need') {
+      const pendingRow = lineItemsRef.current?.commitPendingRow();
+      if (pendingRow?.status === 'invalid') {
+        addRowDescriptionRef.current?.focus();
+        return;
+      }
+      if (pendingRow?.status === 'committed') {
+        const committedLine = makeDraftLine(pendingRow.input);
+        pendingLine = committedLine;
+        setLines((current) => [...current, committedLine]);
+      }
+    }
+
     savingRef.current = true;
     setSaving(true);
 
@@ -282,7 +285,7 @@ export default function ProcurementCreate() {
         title: title.trim(), projectId: selectedProject, vendorId: supplierId,
         ...(have === 'need' && budgetCategory ? { budgetCategory: budgetCategory as BudgetCategory } : {}),
       },
-      lines: have === 'need' ? lines.map(({ id, name, quantity, rate, description }) => ({ id, name, quantity, rate, description })) : [],
+      lines: have === 'need' ? (pendingLine ? [...lines, pendingLine] : lines).map(({ id, name, quantity, rate, description }) => ({ id, name, quantity, rate, description })) : [],
     };
     const attemptHave = attempt?.have ?? have;
     setAttempt({ input, have: attemptHave });
@@ -436,6 +439,7 @@ export default function ProcurementCreate() {
             : !currencyKnown && <p role="status" className="text-sm text-muted-foreground">{t('currencyLoading', 'Loading organisation currency…')}</p>}
           <fieldset disabled={saving || Boolean(attempt)} className="contents">
             <LineItemsSection
+              ref={lineItemsRef}
               items={lines as unknown as ProcurementItemRow[]}
               editable
               createFormLayout
@@ -446,7 +450,6 @@ export default function ProcurementCreate() {
               onDelete={removeLine}
               onAddRowInputChange={updateAddRowDirty}
               addRowDescriptionRef={addRowDescriptionRef}
-              blockedAddRowMessage={blockedAddRowMessage}
               onError={(error) => { const classified = classifyMutationError(error); toast(classified.headline, classified.detail, 'warning'); }}
               currency={orgCurrency}
               currencyKnown={currencyKnown}
