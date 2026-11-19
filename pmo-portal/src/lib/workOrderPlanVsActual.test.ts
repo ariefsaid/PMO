@@ -227,6 +227,15 @@ describe('rollupProject — actuals and roll-ups (FR-WPVA-010..032)', () => {
     expect(r.totals).toEqual([]);
   });
 
+  it('AC-WPVA-007 flags a saved split as stale even before any cost is recorded', () => {
+    const r = rollupProject({
+      workOrders: [wo('A', 'WO-1'), wo('B', 'WO-2')], lines: [], plans: [],
+      split: [{ workOrderId: 'A', percent: '100' }], restricted: false,
+    });
+    expect(r.allocation.stale).toBe(true);
+    expect(r.allocation.basis).toBe('equal-split');
+  });
+
   it('AC-WPVA-010 a vendor bill in a second currency is listed apart and margin is not comparable', () => {
     const r = rollupProject({
       workOrders: [wo('A', 'WO-1', { revenue: '100.00' })],

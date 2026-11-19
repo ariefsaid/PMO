@@ -299,7 +299,7 @@ export function rollupProject(input: RollupInput): ProjectRollup {
 
   // Shared pools per currency (FR-WPVA-014: never blended).
   const shared = counted.filter((l) => l.workOrderId === null || !workOrders.some((w) => w.id === l.workOrderId));
-  const currencies = [...new Set(counted.map((l) => l.currency ?? '?'))].sort();
+  const currencies = [...new Set([...counted.map((l) => l.currency ?? '?'), ...workOrders.map((w) => w.currency)])].sort();
   const woCurrencies = new Set(workOrders.map((w) => w.currency));
   const mixedCurrency = woCurrencies.size > 1;
 
