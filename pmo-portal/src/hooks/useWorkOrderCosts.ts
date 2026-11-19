@@ -30,7 +30,7 @@ export function useWorkOrderCostMoney(workOrderId: string | null, lines: import(
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery({
-    queryKey: ['work-order-cost-money', orgId, workOrderId, lines?.length ?? 0],
+    queryKey: ['work-order-cost-money', orgId, workOrderId, lines?.map((line) => [line.source, line.recordId]) ?? []],
     queryFn: () => workOrderCostRepository.costMoney(lines as import('@/src/lib/repositories/workOrderCosts').WorkOrderCostLine[]),
     enabled: Boolean(orgId) && Boolean(workOrderId) && Boolean(lines && lines.length > 0),
   });
