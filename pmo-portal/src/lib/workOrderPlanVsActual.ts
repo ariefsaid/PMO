@@ -17,7 +17,7 @@ import type { CostSource } from './db/workOrderCosts';
  * Margin delegates to `deriveMargin` (FR-GM-001: one margin formula).
  */
 
-export type CostReason = 'counted' | 'commitment' | 'stocked' | 'transfer' | 'no-rate';
+export type CostReason = 'counted' | 'commitment' | 'stocked' | 'transfer' | 'no-rate' | 'not-posted';
 export type PlanKind = 'direct_budget' | 'indirect_budget' | 'equipment_hours' | 'crew_hours';
 export const PLAN_KINDS: readonly PlanKind[] = ['direct_budget', 'indirect_budget', 'equipment_hours', 'crew_hours'];
 export const MONEY_PLAN_KINDS: readonly PlanKind[] = ['direct_budget', 'indirect_budget'];
