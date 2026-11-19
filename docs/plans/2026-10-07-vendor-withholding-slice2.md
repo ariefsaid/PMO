@@ -3691,10 +3691,10 @@ Vitest commands run from `$WT/pmo-portal` under `../scripts/with-test-lock.sh`; 
    before any ERP write (DD-VWH-22). Plan: `docs/plans/2026-10-07-vendor-withholding-slice2.md`.
    ```
 2. Change ADR-0084's status line to `Accepted (Director, <date>)`.
-3. In `docs/plans/2026-10-06-purchase-tax-template.md`, directly under AC-520-9, add
+3. In `purchase-tax-template plan (2026-10-06, in git history)`, directly under AC-520-9, add
    `- **Amended 2026-10-07 (#876 slice 2, DD-VWH-15):** the "ERPNext default" option is retired from the form; "Enter the tax amounts" is the default.`
 
-**Verify:** `grep -n "DD-VWH-15..22" docs/decisions.md` → 1 hit; `grep -n "Amended 2026-10-07 (#876 slice 2" docs/plans/2026-10-06-purchase-tax-template.md` → 1 hit.
+**Verify:** `grep -n "DD-VWH-15..22" docs/decisions.md` → 1 hit; `grep -n "Amended 2026-10-07 (#876 slice 2" purchase-tax-template plan (2026-10-06, in git history)` → 1 hit.
 
 ## Task 28 — Local final gate (~5 min)
 

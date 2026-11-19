@@ -3,7 +3,7 @@
 **Status:** owner of `AC-XING-001..004` (written alongside plan task T1, per the plan's premise P-6). Rulings it
 encodes: `OD-XING-1` (the crossing is a connect-time choice, default "start at connect"), `DD-XING-2` (the epoch is
 the binding's activation), `DD-XING-5` (prove it before go-live, over a deliberate gap), ADR-0059 §4–§5 (derived
-keys, the SoT-inversion guard) and Posture B invariant 7. Plan: `docs/plans/2026-09-14-erpnext-crossing-dryrun.md`.
+keys, the SoT-inversion guard) and Posture B invariant 7. Plan: `erpnext-crossing-dryrun plan (2026-09-14, in git history)`.
 
 ## Requirements (EARS)
 

@@ -7,7 +7,7 @@
 | **Rulings it serves** | `OD-INV-PDF-1` (go-live: PMO hands over the ERP's own print-format PDF of a submitted invoice) · `OD-ERP-3` (nobody at the client opens ERPNext; a need an ERPNext screen would meet is a PMO gap) · `OD-SAR-PMO-IS-THE-UI` |
 | **Architecture** | ADR-0055 (ERP is SoT for revenue documents) · ADR-0083 (ERP-rendered documents are proxied on demand, never stored) |
 | **Lane** | auth / token custody — an edge function reads the client's ERP with the org's stored credentials. Director-dispatched build. |
-| **Plan** | `docs/plans/2026-10-07-invoice-pdf.md` |
+| **Plan** | `invoice-pdf plan (2026-10-07, in git history)` |
 | **Migration** | None. No new table, column, policy or SQL function. |
 
 ## 1. Job story

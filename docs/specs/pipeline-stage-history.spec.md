@@ -35,7 +35,7 @@
 | T15 | Day-month display helper exists and renders "12 Oct". It formats in the **browser's** timezone (no `timeZone` option), so a calendar date must be passed as a local-midnight `Date`, never `T00:00:00Z`. | `pmo-portal/src/lib/format.ts:767-772` (`formatDayMonth`) |
 | T16 | "Advance to <stage>" on the deal page is a **single click with no confirm** (write policy OD-UX-1); only Mark lost / Declined confirm and Mark won has its inline capture. | `pmo-portal/pages/project-detail/__tests__/PipelineLens.writePolicy.test.tsx:97` (AC-IXD-WP-004) |
 | T17 | Shipped tests and flows win deals with a contract date **earlier than the day the deal was created or moved** (e.g. `0029_project_win_path.test.sql:29`, `0170_…test.sql:604`, `client_starting_data_sequence.test.sql:24`, `e2e/serial/AC-1011-win-project.spec.ts:73`). Onboarding a client's existing deals does the same. | as cited |
-| T18 | Drag-and-drop on this board (#1637, ruling #1593) moves stages through the same `transition_project` path; it adds `pages/sales-pipeline/DraggableSalesBoard.tsx` and an optional `drag` prop on `SalesKanbanBoard`, and leaves the card body unchanged. | `docs/plans/2026-11-01-board-drag-drop.md` §1.1, S3-T1 |
+| T18 | Drag-and-drop on this board (#1637, ruling #1593) moves stages through the same `transition_project` path; it adds `pages/sales-pipeline/DraggableSalesBoard.tsx` and an optional `drag` prop on `SalesKanbanBoard`, and leaves the card body unchanged. | `board-drag-drop plan (2026-11-01, in git history)` §1.1, S3-T1 |
 
 ## 3. Terms
 

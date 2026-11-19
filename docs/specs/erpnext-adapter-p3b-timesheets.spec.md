@@ -29,7 +29,7 @@
 > **OD-SAR-DRAFT-SUBMIT**, **OD-ENA-SHARED-BINDINGS**, **OD-ENA-VAULT-SEAM** (`docs/decisions.md`); the
 > shipped **P2** adapter (`docs/specs/erpnext-adapter.spec.md` — its **party-adopt path is the pattern §5.9
 > follows, not a new mechanism**) and **P3a** (`docs/specs/erpnext-adapter-p3a-sales-ar.spec.md` + its
-> max-thinking Luna re-audit, `docs/reviews/2026-07-15-luna-p3a-reaudit-maxthinking.md` — P3b is designed to
+> max-thinking Luna re-audit, `luna-p3a-reaudit-maxthinking review (2026-07-15, in git history)` — P3b is designed to
 > **not repeat** its ten findings; §5.2/§5.4/§5.6/§5.9, §12).
 >
 > **Owner intake ruling (binding — the whole scope in one line):**

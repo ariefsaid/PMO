@@ -1,6 +1,6 @@
 # RIS Admin setup-to-first-project route × oracle matrix — spec (#688)
 
-**Status:** proposed, 2026-09-28. **Authority:** `docs/design/2026-09-26-enterprise-coherence-brief.md`
+**Status:** proposed, 2026-09-28. **Authority:** `enterprise-coherence-brief doc (2026-09-26, in git history)`
 (work package 7 and the "Start with an empty RIS organization" contract); `docs/qa-portfolio.md`
 (`routes × oracles` denominator and graduation registry); `DESIGN.md` (Navigation, Organization
 integration readiness, Overlays, Record-Open Rule, Accessibility posture); ADR-0010 (one owning test per

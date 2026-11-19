@@ -53,7 +53,7 @@ export const AgentRuntimeProvider: React.FC<AgentRuntimeProviderProps> = ({ chil
     const nextPrefill = typeof prefill === 'string' ? prefill.trim() : '';
     setPendingPrefill(nextPrefill || null);
     setOpen(true);
-    // GAP-1 (docs/plans/2026-07-03-agent-posthog-events.md §0): no scope-binding UI
+    // GAP-1 (agent-posthog-events plan (2026-07-03, in git history) §0): no scope-binding UI
     // entry point exists in this codebase yet — every real call site opens unscoped.
     safeTrack(() => trackAgentPanelOpened(false));
   }, []);

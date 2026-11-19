@@ -16,7 +16,7 @@ When a disconnect request fails, keep the last confirmed connected state, retain
 
 ## Deciding artifacts
 
-- `docs/design/2026-09-26-enterprise-coherence-brief.md` separates personal connections from organization integrations and distinguishes a connected account from verified data movement.
+- `enterprise-coherence-brief doc (2026-09-26, in git history)` separates personal connections from organization integrations and distinguishes a connected account from verified data movement.
 - `DESIGN.md`'s Stated-State and No-Raw-Token rules require visible, plain-language states and reviewed copy; its Organization integration readiness and Modal dialog error rules keep failures truthful and actionable in their owning dialog.
 - `pmo-portal/src/components/integrations/M365ConnectionCard.tsx` owns the shipped state machine, entitlement gate, callback handling, accessible status/alert roles, and disconnect confirmation.
 - `pmo-portal/src/lib/m365/connectClient.ts` owns the reviewed `M365ErrorCode` to English-copy mapping and throws `AppError` values with stable `code` fields.

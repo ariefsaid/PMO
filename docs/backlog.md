@@ -1495,8 +1495,8 @@ client-side path to exercise in any tenant.**
 | [ADR-0063](adr/0063-microsoft-365-integration-architecture.md) | Integration architecture (auth≠authz, two-switch, Graph-follows-ADR-0055) |
 | [ADR-0064](adr/0064-entra-app-registration-topology.md) | Entra app topology — **Option C**, per-client app in the vendor tenant |
 | [ADR-0060](adr/0060-microsoft-graph-token-custody.md) | The 10 binding token-custody controls + the mandatory live security gate |
-| [Phase-0 spec](specs/m365-phase0-foundation.spec.md) · [plan](plans/2026-07-14-m365-phase0-foundation.md) | SSO + entitlement + the card |
-| [Phase-1 spec](specs/m365-phase1-graph-token-custody.spec.md) · [plan](plans/2026-07-15-m365-phase1-token-custody.md) | The token-custody runtime |
+| [Phase-0 spec](specs/m365-phase0-foundation.spec.md) · plan (2026-07-14, in git history) | SSO + entitlement + the card |
+| [Phase-1 spec](specs/m365-phase1-graph-token-custody.spec.md) · plan (2026-07-15, in git history) | The token-custody runtime |
 | [**OneDrive doc-linking spec**](specs/m365-onedrive-doc-linking.spec.md) | ⏸️ **NOT BUILT** — the next feature; 22 ACs, `AC-M365DOC-0xx` |
 | [Security audit record](spikes/2026-07-15-m365-phase1-security-audit.md) | All 4 adversarial rounds, verbatim |
 

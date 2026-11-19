@@ -1,6 +1,6 @@
 # Sales Pipeline funnel amount readability — spec (#687)
 
-**Status:** proposed within the signed enterprise UX program, 2026-09-28. **Authority:** `docs/design/2026-09-26-enterprise-coherence-brief.md`, `DESIGN.md`, and the rendered 390px Sales Pipeline finding.
+**Status:** proposed within the signed enterprise UX program, 2026-09-28. **Authority:** `enterprise-coherence-brief doc (2026-09-26, in git history)`, `DESIGN.md`, and the rendered 390px Sales Pipeline finding.
 
 ## Job story and observed failure
 

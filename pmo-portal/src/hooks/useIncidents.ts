@@ -84,7 +84,7 @@ export interface TransitionIncidentArgs {
  * plus an open `/incidents/:id` detail page refetch. Errors propagate as `AppError`
  * (code preserved) for the caller to classify via `classifyMutationError`.
  *
- * Reference adoption (UI-freeze hardening, `docs/plans/2026-07-24-mutation-timeout-adoption.md`):
+ * Reference adoption (UI-freeze hardening, `mutation-timeout-adoption plan (2026-07-24, in git history)`):
  * each `mutationFn` is raced against the shared `withTimeout` deadline so a stalled
  * request can never leave a confirm dialog's Cancel/Esc disabled forever — it settles as an
  * ordinary `classifyMutationError`-recognized "Request timed out" failure instead.

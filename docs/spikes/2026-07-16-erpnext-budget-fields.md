@@ -13,7 +13,7 @@ with a real authenticated call before any other work**: `GET Company/PMO Smoke C
 /api/method/frappe.utils.change_log.get_versions` → `{"frappe":"15.96.0","erpnext":"15.94.3"}`.
 
 **⚑ DIRECTION FLIP — read this before using anything below.** `docs/specs/erpnext-adapter-p3c-budget.spec.md`
-and `docs/plans/2026-07-16-erpnext-adapter-p3c-budget.md` were written for an **INBOUND MIRROR** (ERP owns
+and `erpnext-adapter-p3c-budget plan (2026-07-16, in git history)` were written for an **INBOUND MIRROR** (ERP owns
 the budget, PMO only reads it, OQ-BUD-1 framed as a *fetch* problem). **The owner has since ruled the
 opposite: option A — PMO authors the budget and pushes it INTO ERPNext** (ADR-0055 §6's write-back), so ERP
 gets GL/audit-grade budget records + its native overspend controls, while PMO stays the authoring UI. Those

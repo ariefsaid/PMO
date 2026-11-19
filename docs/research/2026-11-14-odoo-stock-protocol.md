@@ -1,6 +1,6 @@
 # Odoo 20 Community: Native Stock Protocol and Valuation Verification
 
-Discovery against the local stock Odoo 20 Community dev bed (`odoo:20.0`, server `20.0-20261015`) for Task 1 of plan #1508 (`docs/plans/2026-11-14-odoo-stock-posting.md`, spec `docs/specs/odoo-stock-posting.spec.md`).
+Discovery against the local stock Odoo 20 Community dev bed (`odoo:20.0`, server `20.0-20261015`) for Task 1 of plan #1508 (`odoo-stock-posting plan (2026-11-14, in git history)`, spec `docs/specs/odoo-stock-posting.spec.md`).
 
 All calls were executed via JSON-2 RPC (`POST /json/2/{model}/{method}`) using the standard `bindCall` client. Responses below record actual observed behaviors, shapes, and HTTP status codes with zero private data or credentials.
 

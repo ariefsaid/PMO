@@ -3,7 +3,7 @@
 > **Status:** DRAFT (round 2) — awaiting owner sign-off. **This round re-roots the design on the
 > "name the fact, then test that fact" fence** (round 1 used "a mirror row exists" as a proxy for "PMO
 > has a budget on record for this year"; those are different facts, and the shipped refusal writer makes
-> the proxy lie — Luna round-2 review `docs/reviews/2026-07-23-luna-fu2-budget-fiscal-year-spec.md`).
+> the proxy lie — Luna round-2 review `luna-fu2-budget-fiscal-year-spec review (2026-07-23, in git history)`).
 > **Issue:** the **OQ-BUD-3 option (c)** follow-up from `docs/specs/erpnext-adapter-p3c-budget.spec.md`
 > (owner ruling 2026-07-21). Adds a fiscal-year dimension to PMO budget line items so multi-fiscal-year
 > projects are no longer flatly refused at the ERPNext budget push, and — while the line items finally

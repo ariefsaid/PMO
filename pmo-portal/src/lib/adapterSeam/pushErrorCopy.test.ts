@@ -1,7 +1,7 @@
 /**
  * I-5 / I-14 / I-15 / I-6 — the ONE place a persisted `push_error` becomes something a human reads.
  *
- * The rendered Discover pass (docs/reviews/2026-07-22-p3bc-rendered-discover.md) found raw adapter
+ * The rendered Discover pass (p3bc-rendered-discover review (2026-07-22, in git history)) found raw adapter
  * tokens (`budget-category-unmapped`, `erpnext-activity-type-missing: …`) reaching the DOM on BOTH
  * push surfaces, and Retry offered for failures retry can never fix. Both are properties of the CODE,
  * so both belong in one tested function rather than two hand-written ladders in two components.

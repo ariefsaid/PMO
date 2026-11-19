@@ -46,7 +46,7 @@ sheet the line manager rejects it back to Draft via the existing `transition_tim
   owns all status changes; its map includes `Rejected → Draft`, so the
   manager's reject **returns a sheet to Draft** and re-opens it for editing — no new "recall" affordance is
   needed (see Open Question OQ-3).
-- **Confirm-before-write rule (binding, `docs/plans/2026-06-07-confirm-mutations.md`):** *NOTHING writes to
+- **Confirm-before-write rule (binding, `confirm-mutations plan (2026-06-07, in git history)`):** *NOTHING writes to
   the DB on a single click.* Destructive/irreversible actions get a **mandatory** `ConfirmDialog`
   (`tone="destructive"`, centered modal + scrim); forward steps get a lightweight confirm. Save here is a
   form-style explicit action (its own deliberate click after typing), which satisfies the rule for the

@@ -1,7 +1,7 @@
 /**
  * The ERP site's Selling Settings that progress billing needs (#766 / DD-PBL-12a). A claim's recovery line is a
  * NEGATIVE-rate line, and ERPNext refuses it at SUBMIT unless Selling Settings "Allow Negative rates for Items" is on
- * (a site-wide switch — docs/reviews/2026-10-06-progress-billing-erp-spike.md). `ensureErpSellingSettings` turns it on
+ * (a site-wide switch — progress-billing-erp-spike review (2026-10-06, in git history)). `ensureErpSellingSettings` turns it on
  * during onboarding; `readNegativeRatesAllowed` lets the dispatch fail fast, before a draft is created, when it is off.
  */
 import { getDoc, updateDoc, type ErpClientDeps } from './client.ts';

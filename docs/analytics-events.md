@@ -55,7 +55,7 @@ registered by `AnalyticsProvider` at `identify()` (see Common Context above) and
 event automatically. Facade helpers only take an explicit `role` where the underlying event builder was
 already defined with one (`empty_state_seen`).
 
-### Wired (calling the facade from a real UI boundary — 2026-07-13, `docs/plans/2026-07-13-wire-engagement-friction-events.md`)
+### Wired (calling the facade from a real UI boundary — 2026-07-13, `wire-engagement-friction-events plan (2026-07-13, in git history)`)
 
 | Event | Purpose | Boundary | Safe properties |
 |---|---|---|---|

@@ -77,7 +77,7 @@ Flat matrix `Admin / Executive / Project Manager / Finance / Engineer`; Admin = 
 A complete **plan → implement → review** design loop, so the mockups reach your gate **already skill-reviewed** —
 you see polished, vetted **ERP / project-management / CRM** screens, not first drafts (`impeccable` + `taste`
 are trusted to carry ~80% of the bar; your gate is the final 20%). Reference baseline: **`ui-ux-pro-max`'s
-built-in ERP / PM / CRM UI conventions** + **`DESIGN.md`** + the existing `docs/design-mockups/proposal-*.html`
+built-in ERP / PM / CRM UI conventions** + **`DESIGN.md`** + the design exploration mockups (`docs/design-mockups/proposal-*.html` — removed from the tree 2026-11; in git history)
 + the shipped IA-3 component library. Deliverables (each step names its agent + skills):
 1. **PLAN (`design-architect` + `ui-ux-pro-max` + `impeccable shape`)** — the CRUD **component architecture**
    (`docs/design/crud-components.md`): how create/edit/delete/approve
@@ -90,7 +90,7 @@ built-in ERP / PM / CRM UI conventions** + **`DESIGN.md`** + the existing `docs/
    Admin also = Delete; *Procurement:* Engineer sees **Raise request** but never Approve/Pay; *Admin Users* tab
    only visible to Admin. This map is the spec that drives `can(action, entity, role)`.
 3. **IMPLEMENT (`ui-implementer` + `ui-ux-pro-max build` + `taste`)** — HTML mockups
-   (`docs/design-mockups/crud-*.html`) of the representative surfaces **AND their per-role variants** (the *same*
+   (`docs/design-mockups/crud-*.html` — removed from the tree 2026-11; in git history) of the representative surfaces **AND their per-role variants** (the *same*
    screen rendered for different roles so you SEE the gating + IA + form design before code): e.g.
    `crud-project-form.html`, `crud-procurement-new-pr.html` (+ line-items), `crud-companies.html`,
    `crud-project-detail-by-role.html` (engineer/PM/admin side-by-side), `crud-admin-users.html`. Strictly DESIGN.md

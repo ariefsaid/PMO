@@ -394,7 +394,7 @@ mechanically. Unit tests for its pure classification logic:
 
 **Superseded by** the "Observability & alerting" section below — the durable `error_events` table +
 Telegram webhook alert this paragraph used to flag as not-yet-built now exists (observability floor,
-`docs/specs/observability-floor.spec.md` + `docs/plans/2026-07-04-observability-floor.md`).
+`docs/specs/observability-floor.spec.md` + `observability-floor plan (2026-07-04, in git history)`).
 
 ## ERPNext integration API-user setup — statement metadata
 
@@ -604,7 +604,7 @@ What the bed showed about the Odoo API, including where the research docs were w
 
 Four pieces, each config-per-deployed-project (ADR-0047): a Telegram alert webhook, PostHog FE error
 tracking, BetterStack uptime/status, and two PostHog dashboards. Code: `docs/specs/observability-floor.spec.md`
-+ `docs/plans/2026-07-04-observability-floor.md`.
++ `observability-floor plan (2026-07-04, in git history)`.
 
 ### Telegram alert webhook — secrets + GUCs (per deployed project)
 

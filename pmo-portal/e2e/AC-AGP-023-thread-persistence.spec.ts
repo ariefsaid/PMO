@@ -11,7 +11,7 @@
  * reply, in sequence) - and when a second user signs in, they see no trace of the first
  * user's thread (it does not appear in their thread list and is not fetchable by id).
  *
- * MECHANISM (binding note, see docs/plans/2026-07-03-agent-persistence.md Phase E / section 0):
+ * MECHANISM (binding note, see agent-persistence plan (2026-07-03, in git history) Phase E / section 0):
  * `agent_threads`/`agent_runs`/`agent_events` INSERTs happen ONLY inside the real Deno
  * `agent-chat` edge function (`supabase/functions/agent-chat/persistence.ts`, bound to the
  * caller-JWT `callerClient`). `docs/environments.md` "Edge Functions" is explicit that the

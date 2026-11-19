@@ -1,6 +1,6 @@
 # Administration information architecture — spec
 
-**Status:** active UX program, 2026-09-26. **Design authority:** `docs/design/2026-09-26-enterprise-coherence-brief.md`, `DESIGN.md`, and the existing organization-integration ownership decisions. This issue reorganizes where existing administration work appears; it does not change who may perform any action.
+**Status:** active UX program, 2026-09-26. **Design authority:** `enterprise-coherence-brief doc (2026-09-26, in git history)`, `DESIGN.md`, and the existing organization-integration ownership decisions. This issue reorganizes where existing administration work appears; it does not change who may perform any action.
 
 ## Job story
 

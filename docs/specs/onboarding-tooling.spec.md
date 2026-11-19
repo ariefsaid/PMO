@@ -15,7 +15,7 @@
 > OD-BUDGET-2 (`docs/decisions.md`; committed spend = Σ `total_value` for statuses Ordered..Paid) is
 > **binding** for Deliverable 3's case-level value handling (see §"Committed-spend correctness" below).
 > **Related docs:** `docs/environments.md` (registry + secret pattern + edge-fn deploy),
-> `docs/spikes/2026-07-04-full-codebase-review.md` (the deferred "bulk-import idempotency" finding),
+> `full-codebase-review spike (2026-07-04, in git history)` (the deferred "bulk-import idempotency" finding),
 > `docs/glossary.md` (Operator, Organization, Entity, System-assigned number, External reference
 > number, Procurement record).
 > **Glossary terms used as binding nouns:** *Operator* (platform persona ≠ org Admin), *Organization
@@ -41,7 +41,7 @@ issue-loop:
    touch the Cloudflare dashboard). `docs/environments.md` gains a per-client registry row.
 
 2. **Deliverable 2 — Import idempotency fix**: the deferred "bulk-import idempotency" defect from
-   `docs/spikes/2026-07-04-full-codebase-review.md` (Reliability ledger: *"bulk procurement import
+   `full-codebase-review spike (2026-07-04, in git history)` (Reliability ledger: *"bulk procurement import
    — retry duplicates, no idempotency key"*). The real defect site is
    `pmo-portal/src/lib/import/procurementCycle/commit.ts` (`commitCase` → `createProcurement` +
    `createRecord`, no pre-existence check; confirmed: no unique constraint catches a re-run, so a
@@ -285,7 +285,7 @@ history decision** (the owner-locked decision below is normative).
 
 ### The defect (encoded)
 
-`docs/spikes/2026-07-04-full-codebase-review.md` Reliability ledger, deferred item: *"bulk
+`full-codebase-review spike (2026-07-04, in git history)` Reliability ledger, deferred item: *"bulk
 procurement import — retry duplicates, no idempotency key."* Real defect site:
 `pmo-portal/src/lib/import/procurementCycle/commit.ts` — `commitCase` unconditionally calls
 `createProcurement` then `createRecord` for every valid group/row. There is **no pre-existence

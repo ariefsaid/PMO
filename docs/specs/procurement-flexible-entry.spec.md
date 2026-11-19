@@ -1,7 +1,7 @@
 # Procurement flexible entry and ERP document linking (PFE)
 
 Issue #1319. ADR-0093 (supersedes DD-XING-2 for purchase documents; amends ADR-0033's "status is declared").
-Plan: `docs/plans/2026-10-23-procurement-flexible-entry.md`.
+Plan: `procurement-flexible-entry plan (2026-10-23, in git history)`.
 
 **Job story.** When a purchase already happened (or is happening) outside the ideal request → approval → order
 chain, I want to record it from whatever step I am at — and pull in the documents ERPNext already holds — so the

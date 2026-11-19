@@ -11,7 +11,7 @@
   (money/SoD/auth tier)**, opus implementer for Tasks 1–22, on its own branch, shipped alone (not batched). The FE
   half (Tasks 23–40) is a bounded FE slice → Orca worker, sonnet `ui-implementer`, after the DB half merges to
   `dev` (it needs the regenerated types). Workers push branches only; the Director opens the PR.
-- **Built on #1637 (board drag-and-drop, `docs/plans/2026-11-01-board-drag-drop.md`).** Branch the FE half from
+- **Built on #1637 (board drag-and-drop, `board-drag-drop plan (2026-11-01, in git history)`).** Branch the FE half from
   `dev` **after** #1637 has merged (or from `feat/board-dnd-1637` if it has not, rebasing before the PR). #1637
   adds `pages/sales-pipeline/DraggableSalesBoard.tsx`, `src/components/kanban/{BoardDnd.tsx,useOptimisticMoves.ts}`,
   `components/project-status/{projectTransitionCopy.ts,ProjectTransitionConfirm.tsx,WinDetailsFields.tsx}`, and an

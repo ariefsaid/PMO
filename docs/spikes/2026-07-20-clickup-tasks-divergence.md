@@ -1,6 +1,6 @@
 # ClickUp ↔ PMO tasks — divergence analysis
 
-**Date:** 2026-07-20 · **Status:** analysis, no code changed · **Follows:** `docs/plans/2026-07-20-clickup-integration-completion.md`
+**Date:** 2026-07-20 · **Status:** analysis, no code changed · **Follows:** `clickup-integration-completion plan (2026-07-20, in git history)`
 
 ### Resolved since (2026-07-22)
 The divergences analyzed here are closed in the merged implementation: task description/priority (#350),
