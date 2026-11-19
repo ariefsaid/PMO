@@ -926,6 +926,16 @@ describe('can() — equipment usage and costing (#1519; transition_equipment_usa
     expect(allowedRoles('delete', 'equipmentAsset')).toEqual(['Admin']);
   });
 
+  it('AC-EAV-018 status and proof: the field role and managers; rental terms and the invoice check: Admin and Finance only', () => {
+    expect(allowedRoles('create', 'equipmentAvailability')).toEqual(['Admin', 'Project Manager', 'Engineer']);
+    expect(allowedRoles('manage', 'equipmentAvailability')).toEqual(['Admin', 'Finance']);
+    expect(allowedRoles('approve', 'equipmentAvailability')).toEqual(['Admin', 'Finance']);
+    expect(can('manage', 'equipmentAvailability', { realRole: 'Engineer' })).toBe(false);
+    expect(can('approve', 'equipmentAvailability', { realRole: 'Executive' })).toBe(false);
+    expect(can('create', 'equipmentAvailability', { realRole: 'Finance' })).toBe(false);
+    expect(can('create', 'equipmentAvailability', { realRole: 'Engineer', record: { viewOnly: true } })).toBe(false); // view-as is read-only
+  });
+
   it('AC-EQU-017 only Admin and Finance set what an hour is worth — never a PM or an Executive', () => {
     expect(allowedRoles('manage', 'equipmentCosting')).toEqual(['Admin', 'Finance']);
     expect(can('manage', 'equipmentCosting', { realRole: 'Project Manager' })).toBe(false);

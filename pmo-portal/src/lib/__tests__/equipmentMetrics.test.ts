@@ -92,7 +92,7 @@ describe('computeEquipmentMetrics', () => {
 });
 
 describe('rentalDeduction', () => {
-  const nov = { from: day(1), to: day(30), rate: '30000.00', basis: 'month', currency: 'IDR' };
+  const nov = { from: day(1), to: day(30), rate: '30000.00', basis: 'month' as const, currency: 'IDR' };
   const downDays = (dates: number[], proven: boolean) => dates.map((n) => ({ date: day(n), proven }));
 
   it('AC-EAV-008 3 proven down days at a monthly rate of 30,000 deduct 3,000 and expect 27,000', () => {

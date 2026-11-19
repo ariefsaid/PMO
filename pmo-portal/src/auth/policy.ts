@@ -126,6 +126,7 @@ export type Entity =
   | 'equipmentAsset'
   | 'equipmentUsage'
   | 'equipmentCosting'
+  | 'equipmentAvailability'
   | 'equipmentRegister'
   | 'maintenance'
   | 'tmRate'
@@ -208,6 +209,10 @@ const EQUIPMENT_APPROVE: Role[] = ['Admin', 'Executive', 'Finance', 'Project Man
 /** #1519: who may set what an hour is worth — mirrors save/end/preview_equipment_costing (Admin, Finance). */
 const EQUIPMENT_COSTING_WRITE: Role[] = ['Admin', 'Finance'];
 /** #1511 F5: who may change the Odoo-backed register — mirrors D7 (the asset rule; dispatch narrows per command). */
+/** #2526: set daily status + attach proof (the field role and managers) — mirrors equipment_can_set_status (0985). */
+const EQUIPMENT_STATUS_WRITE: Role[] = ['Admin', 'Project Manager', 'Engineer'];
+/** #2526: rental terms and the invoice check are money — mirrors equipment_can_edit_terms / equipment_rental_check. */
+const EQUIPMENT_RENTAL_MONEY: Role[] = ['Admin', 'Finance'];
 const EQUIPMENT_REGISTER_WRITE: Role[] = ['Admin', 'Project Manager'];
 /** #1514: who may set the CLIENT contract rate and assign people to it — mirrors save/end_contract_rate_line
  *  and set/end_contract_rate_assignee (0515: Admin, Finance). Cost and revenue are separate settings, never shared. */
@@ -777,6 +782,20 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     ), // Engineers may read their own entries; the audience above may read amounts and others' entries.
   },
   equipmentCosting: { manage: allowUnlessViewOnly(EQUIPMENT_COSTING_WRITE), view: allow(EQUIPMENT_APPROVE) },
+  /**
+   * Equipment availability, ownership and rental downtime (#2526, migrations 0985-0987). UX ONLY — the RPCs
+   * (`set_equipment_status`, `save_equipment_rental_term`, `equipment_metrics`, `equipment_rental_check`) are the authority.
+   *   view   ← every active member reads status (the bulk screen); metrics need the approval audience (`equipment_metrics`).
+   *   create ← set status / attach proof: Admin, PM, Engineer (the field controller). Not Finance or Executive.
+   *   manage ← rental terms: Admin, Finance. A field controller never edits rates.
+   *   approve← the rental invoice check (a deduction off a vendor bill): Admin, Finance.
+   */
+  equipmentAvailability: {
+    view: allow(ALL),
+    create: allowUnlessViewOnly(EQUIPMENT_STATUS_WRITE),
+    manage: allowUnlessViewOnly(EQUIPMENT_RENTAL_MONEY),
+    approve: allowUnlessViewOnly(EQUIPMENT_RENTAL_MONEY),
+  },
   /**
    * The Odoo fleet and maintenance register (#1511 F5). UX ONLY — the `adapter-dispatch` `equipment` domain's role
    * gates and 0797's RPC/RLS are the authority (ADR-0016); the FE may be stricter, never looser.
