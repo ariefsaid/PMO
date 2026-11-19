@@ -9,7 +9,7 @@ import { AppError } from '@/src/lib/appError';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 
 // ── The single-incident hook + mutations are mocked; the page is the unit. ──
-const { detailState, mutations } = vi.hoisted(() => ({
+const { detailState, mutations, uploadEvidence } = vi.hoisted(() => ({
   detailState: {
     data: undefined as Record<string, unknown> | null | undefined,
     isPending: false,
@@ -17,6 +17,7 @@ const { detailState, mutations } = vi.hoisted(() => ({
     error: null as (Error & { code?: string }) | null,
     refetch: vi.fn(),
   },
+  uploadEvidence: vi.fn().mockResolvedValue({}),
   mutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
@@ -29,7 +30,7 @@ vi.mock('@/src/hooks/useIncidents', () => ({
   useIncident: () => detailState,
   useIncidentMutations: () => mutations,
   useAssigneeOptions: () => ({ data: [] }),
-  useIncidentEvidenceMutations: () => ({ upload: { mutateAsync: vi.fn(), isPending: false }, makeTask: { mutateAsync: vi.fn(), isPending: false } }),
+  useIncidentEvidenceMutations: () => ({ upload: { mutateAsync: uploadEvidence, isPending: false }, makeTask: { mutateAsync: vi.fn(), isPending: false } }),
   useIncidentFiles: () => ({ data: [] }),
 }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [] }) }));
@@ -193,6 +194,22 @@ describe('IncidentDetail', () => {
     expect(within(dialog).getByRole('button', { name: /close incident/i })).toBeDisabled();
     await userEvent.upload(within(dialog).getByTestId('incident-close-photo-input'), new File(['x'], 'proof.jpg', { type: 'image/jpeg' }));
     expect(within(dialog).getByRole('button', { name: /close incident/i })).toBeEnabled();
+  });
+
+  it('retries closing after an uploaded proof and a failed status update', async () => {
+    detailState.data = { ...incident, status: 'Investigating', severity: 'High' };
+    mutations.transition.mutateAsync.mockRejectedValueOnce(new Error('network error'));
+    uploadEvidence.mockClear().mockResolvedValue({});
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /close incident/i }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.upload(within(dialog).getByTestId('incident-close-photo-input'), new File(['x'], 'proof.jpg', { type: 'image/jpeg' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: /close incident/i }));
+    expect(mutations.transition.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(within(dialog).getByRole('button', { name: /close incident/i })).toBeEnabled();
+    await userEvent.click(within(dialog).getByRole('button', { name: /close incident/i }));
+    expect(mutations.transition.mutateAsync).toHaveBeenCalledTimes(2);
+    expect(uploadEvidence).toHaveBeenCalledTimes(1);
   });
 
   it('AC-SIL-011: an open issue past its due time shows Overdue on the record', () => {

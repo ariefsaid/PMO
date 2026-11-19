@@ -23,6 +23,7 @@ export const IncidentCloseDialog: React.FC<{
   const [note, setNote] = useState('');
   const [photos, setPhotos] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
+  const [uploadedProof, setUploadedProof] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const proofRequired = needsCloseProof(incident.severity);
 
@@ -33,6 +34,7 @@ export const IncidentCloseDialog: React.FC<{
       const remaining = [...photos];
       while (remaining.length > 0) {
         await upload.mutateAsync({ incident, kind: 'at_close', file: remaining[0] });
+        setUploadedProof(true);
         remaining.shift();
         setPhotos([...remaining]);
       }
@@ -53,7 +55,7 @@ export const IncidentCloseDialog: React.FC<{
       onClose={onCancel}
       loading={busy}
       dirty={note.trim() !== '' || photos.length > 0}
-      submitDisabled={proofRequired && photos.length === 0}
+      submitDisabled={proofRequired && photos.length === 0 && !uploadedProof}
     >
       <p className="mb-3 text-control text-muted-foreground">{t('transition.Closed.body', 'This marks the incident Closed. Closed is the final state; reopen by filing a follow-up if new information emerges.')}</p>
       <TextArea

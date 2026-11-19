@@ -223,6 +223,7 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
       submitDisabled={!form.isComplete}
       errorSummary={errorSummary.length ? errorSummary : undefined}
     >
+      <fieldset disabled={Boolean(saved)} className="min-w-0">
       <FormSection legend={t('form.section', 'What happened')}>
         <FormGrid>
           <DateField
@@ -323,6 +324,7 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
           />
         </FormGrid>
       </FormSection>
+      </fieldset>
       {!isEdit && (
         <FormSection legend={t('form.photos', 'Photos')}>
           {/* Opens the phone camera; on a desktop it is an ordinary file picker. Up to 10, 15 MB each. */}

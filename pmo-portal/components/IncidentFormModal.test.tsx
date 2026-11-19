@@ -111,6 +111,7 @@ describe('IncidentFormModal photos (#2521)', () => {
     expect(onError).toHaveBeenCalled();
     expect(screen.getByLabelText(/^type/i)).toHaveValue('Spill');
     expect(screen.getByText(/photo could not be uploaded/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^type/i)).toBeDisabled();
 
     await userEvent.click(screen.getByRole('button', { name: /retry photo upload/i }));
     expect(onCreate).toHaveBeenCalledTimes(1); // not filed again
