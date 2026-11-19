@@ -255,6 +255,91 @@ class FlockRunStampTests(unittest.TestCase):
                     second.communicate(timeout=5)
 
 
+class FlockRunQueueTests(unittest.TestCase):
+    def test_fifo_dead_ticket_and_timeout_cleanup(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            lock = Path(directory) / "lock"
+            lock.touch()
+            holder = locked_holder(lock)
+            queue = Path(f"{lock}.queue")
+            workers = []
+            try:
+                for i in range(3):
+                    worker = run_locked(lock, label=f"queue-{i}", timeout=10,
+                        child_code=f"from pathlib import Path; p=Path({str(Path(directory) / 'order')!r}); p.open('a').write('{i}\\n')")
+                    workers.append(worker)
+                    seen = read_until(worker, b"waiting for")
+                    self.assertIn(b"position", seen)
+                    self.assertEqual(len(list(queue.iterdir())), i + 1)
+                ghost = subprocess.Popen([sys.executable, "-c", "pass"])
+                ghost.wait()
+                (queue / f"0000000000000000000-{ghost.pid}").touch()
+                timed = run_locked(lock, label="timed", timeout=0.1, child_code="pass")
+                workers.append(timed)
+                _, err = timed.communicate(timeout=5)
+                self.assertEqual(timed.returncode, 75, err)
+                self.assertFalse(any(p.name.endswith(f"-{timed.pid}") for p in queue.iterdir()))
+                release(holder)
+                for worker in workers[:3]:
+                    _, err = worker.communicate(timeout=10)
+                    self.assertEqual(worker.returncode, 0, err)
+                self.assertEqual((Path(directory) / "order").read_text().splitlines(), ["0", "1", "2"])
+                self.assertEqual(list(queue.iterdir()), [])
+            finally:
+                release(holder)
+                for worker in workers:
+                    if worker.poll() is None:
+                        worker.kill()
+                    worker.communicate(timeout=5)
+
+    def test_terminated_waiter_removes_ticket(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            lock = Path(directory) / "lock"
+            lock.touch()
+            holder = locked_holder(lock)
+            waiter = run_locked(lock, label="signal", timeout=0, child_code="pass")
+            try:
+                self.assertIn(b"waiting for", read_until(waiter, b"waiting for"))
+                queue = Path(f"{lock}.queue")
+                self.assertEqual(len(list(queue.iterdir())), 1)
+                waiter.terminate()
+                waiter.communicate(timeout=5)
+                self.assertEqual(waiter.returncode, 143)
+                self.assertEqual(list(queue.iterdir()), [])
+            finally:
+                if waiter.poll() is None:
+                    waiter.kill()
+                waiter.communicate(timeout=5)
+                release(holder)
+
+    def test_two_oldest_waiters_can_enter_two_slots(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            lock = Path(directory) / "lock"
+            lock.touch()
+            Path(f"{lock}.1").touch()
+            holders = [locked_holder(lock), locked_holder(Path(f"{lock}.1"))]
+            workers = []
+            try:
+                for i in range(3):
+                    worker = run_locked(lock, label=f"slot-queue-{i}", timeout=10, slots=2,
+                        child_code="import sys; print('READY', flush=True); sys.stdin.readline()")
+                    workers.append(worker)
+                    self.assertIn(b"waiting for", read_until(worker, b"waiting for"))
+                for holder in holders:
+                    release(holder)
+                for worker in workers[:2]:
+                    self.assertEqual(worker.stdout.readline(), b"READY\n")
+                self.assertIsNone(workers[2].poll())
+                self.assertFalse(select.select([workers[2].stdout], [], [], 0.2)[0])
+                release(workers[0])
+                self.assertEqual(workers[2].stdout.readline(), b"READY\n")
+            finally:
+                for holder in holders:
+                    release(holder)
+                for worker in workers:
+                    release(worker)
+
+
 class FlockRunHolderRecordTests(unittest.TestCase):
     def test_long_wait_names_the_holder_command_once_and_release_clears_the_record(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
