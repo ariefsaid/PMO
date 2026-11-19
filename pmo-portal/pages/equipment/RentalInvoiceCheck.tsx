@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, SelectField, TextField } from '@/src/components/ui';
+import { Button, ListState, SelectField, TextField } from '@/src/components/ui';
 import { useRentalCheck } from '@/src/hooks/useEquipmentAvailability';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -39,7 +39,7 @@ export default function RentalInvoiceCheck({ assets, today, monthFrom, statusLab
     try { const url = await repositories.equipmentAvailability.proofUrl(path); setProofLinks((previous) => ({ ...previous, [path]: url })); }
     catch (error) { setProblem(classifyMutationError(error).headline); }
   };
-  if (!assets.length) return null;
+  if (!assets.length) return <ListState variant="empty" title={t('equipment:availability.noRentedOnPage', 'No rented equipment on this page')} />;
   return <section aria-labelledby="eav-check-h">
     <h2 id="eav-check-h" className="text-base font-semibold mb-2">{t('equipment:availability.checkHeading', 'Rental invoice check')}</h2>
     {problem && <p role="alert">{problem}</p>}

@@ -16,6 +16,10 @@ beforeEach(() => { vi.clearAllMocks(); h.unproven = false; h.proofUrl.mockResolv
 const renderCheck = () => render(<RentalInvoiceCheck assets={[{ id: 'a', code: 'EQU-1', name: 'Machine' }]} today="2026-09-30" monthFrom="2026-09-01" statusLabel={() => 'Broken'} />);
 
 describe('rental invoice check', () => {
+  it('explains when the current equipment page has no rented assets', () => {
+    render(<RentalInvoiceCheck assets={[]} today="2026-09-30" monthFrom="2026-09-01" statusLabel={() => 'Broken'} />);
+    expect(screen.getByText('No rented equipment on this page')).toBeInTheDocument();
+  });
   it('AC-EAV-014 displays the actual RPC amounts and lets Finance open the supporting proof', async () => {
     renderCheck();
     expect(screen.getByText('IDR 30,000')).toBeInTheDocument();
