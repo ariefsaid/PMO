@@ -22,6 +22,7 @@ describe('Rate catalogue', () => {
     render(<RateCatalogue projectId="p1" currency="USD" canWrite={false} />);
     expect(await screen.findByText(/Weld/)).toBeInTheDocument();
     expect(screen.getByText(/120/)).toBeInTheDocument();
+    expect(screen.getByText('1 Jan 2026')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Import' })).not.toBeInTheDocument();
   });
   it('lets a writer retry an unsuccessful read', async () => {

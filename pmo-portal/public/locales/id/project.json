@@ -1213,6 +1213,7 @@
     "pickItem": "Item daftar tarif",
     "chooseLocation": "Pilih lokasi",
     "pricingDate": "Tanggal tarif",
+    "unpricedReason": "Tidak ada tarif untuk lokasi pada tanggal ini.",
     "unpriced": "Belum ada tarif",
     "sourceUnavailable": "Lokasi tidak tersedia",
     "noLocations": "Belum ada lokasi. Tambahkan lokasi."

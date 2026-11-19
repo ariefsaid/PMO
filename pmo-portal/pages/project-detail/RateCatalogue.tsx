@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, SelectField, TextField } from '@/src/components/ui';
 import { ImportWizard } from '@/src/components/import';
 import { makeRateCatalogueImportDescriptor } from '@/src/lib/import';
-import { formatCurrency, formatDay } from '@/src/lib/format';
+import { formatCurrency, formatDayYear } from '@/src/lib/format';
 import { repositories } from '@/src/lib/repositories';
 import type { CatalogueItem, CatalogueRate, CatalogueVariant } from '@/src/lib/db/rateCatalogue';
 
@@ -45,8 +45,8 @@ export default function RateCatalogue({ projectId, currency, canWrite, onImportO
       <Button variant="primary" onClick={() => { setImportOpen(true); onImportOpenChange?.(true); }} disabled={variants.length === 0}>{t('rateCatalogue.import', 'Import')}</Button>
     </div>}
     {error && <p role="alert">{t('rateCatalogue.saveError', 'Could not save. Try again.')}</p>}
-    {items.length === 0 ? <p>{variants.length === 0 && canWrite ? t('rateCatalogue.noLocations', 'No locations yet. Add a location.') : t('rateCatalogue.empty', 'No catalogue items')}</p> : <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b border-border text-left"><th scope="col">{t('rateCatalogue.item', 'Item')}</th><th scope="col">{t('rateCatalogue.location', 'Location')}</th><th scope="col" className="text-right">{t('rateCatalogue.rate', 'Rate')}</th><th scope="col">{t('rateCatalogue.effective', 'Effective from')}</th></tr></thead><tbody>
-      {items.flatMap((item) => { const itemRates = ratesByItem.get(item.id) ?? []; return itemRates.length ? itemRates.map((rate) => <tr className="border-b border-border" key={`${item.id}-${rate.variant_id}-${rate.effective_from}`}><td>{item.item_code} · {item.description}</td><td>{variantsById.get(rate.variant_id)}</td><td className="text-right tabular">{formatCurrency(rate.rate, currency, { precision: 'minor' })}</td><td>{formatDay(rate.effective_from)}</td></tr>) : [<tr key={item.id}><td>{item.item_code} · {item.description}</td><td>—</td><td>—</td><td>—</td></tr>]; })}
+    {items.length === 0 ? <p>{variants.length === 0 && canWrite ? t('rateCatalogue.noLocations', 'No locations yet. Add a location.') : t('rateCatalogue.empty', 'No catalogue items')}</p> : <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b border-border text-left"><th scope="col">{t('rateCatalogue.item', 'Item')}</th><th scope="col">{t('rateCatalogue.location', 'Location')}</th><th scope="col" className="text-right pr-4">{t('rateCatalogue.rate', 'Rate')}</th><th scope="col">{t('rateCatalogue.effective', 'Effective from')}</th></tr></thead><tbody>
+      {items.flatMap((item) => { const itemRates = ratesByItem.get(item.id) ?? []; return itemRates.length ? itemRates.map((rate) => <tr className="border-b border-border" key={`${item.id}-${rate.variant_id}-${rate.effective_from}`}><td>{item.item_code} · {item.description}</td><td>{variantsById.get(rate.variant_id)}</td><td className="text-right tabular pr-4">{formatCurrency(rate.rate, currency, { precision: 'minor' })}</td><td className="whitespace-nowrap">{formatDayYear(rate.effective_from)}</td></tr>) : [<tr key={item.id}><td>{item.item_code} · {item.description}</td><td>—</td><td>—</td><td>—</td></tr>]; })}
     </tbody></table></div>}
     {importOpen && <ImportWizard descriptor={makeRateCatalogueImportDescriptor(projectId, variants.map((v) => v.name), t)} onClose={(didImport) => { setImportOpen(false); onImportOpenChange?.(false); if (didImport) void load(); }} />}
   </section>;
