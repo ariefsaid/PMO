@@ -10,7 +10,7 @@ const q = (data: unknown, over: Record<string, unknown> = {}) => ({ data, isPend
 const viewerOpen = vi.hoisted(() => vi.fn());
 vi.mock('@/src/components/documents/viewerContext', () => ({ useViewerOnDemand: () => ({ open: viewerOpen }) }));
 const h = vi.hoisted(() => ({ wo: null as unknown, alloc: null as unknown, boq: null as unknown, basts: null as unknown, billing: null as unknown,
-  docs: null as unknown, claimDocs: null as unknown, lines: null as unknown, money: null as unknown, links: null as unknown, discs: null as unknown, project: null as unknown, canBilling: true }));
+  docs: null as unknown, claimDocs: null as unknown, lines: null as unknown, money: null as unknown, links: null as unknown, discs: null as unknown, labels: null as unknown, project: null as unknown, canBilling: true }));
 vi.mock('@/src/hooks/useWorkOrderRecord', () => ({ useWorkOrder: () => h.wo, useWorkOrderAllocations: () => h.alloc, useWorkOrderClaimDocuments: () => h.claimDocs }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => h.project }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({ useBoqItems: () => h.boq }));
@@ -18,7 +18,7 @@ vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({ useWorkOrderAcceptances:
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => h.docs }));
 vi.mock('@/src/hooks/useWorkOrderCosts', () => ({
-  useWorkOrderCostLines: () => h.lines, useWorkOrderCostMoney: () => h.money, useWorkOrderCostLinks: () => h.links, useCostDisciplines: () => h.discs,
+  useWorkOrderCostLines: () => h.lines, useWorkOrderCostMoney: () => h.money, useWorkOrderCostLinks: () => h.links, useCostDisciplines: () => h.discs, useWorkOrderTimesheetLabels: () => h.labels,
 }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canBilling }));
 
@@ -42,6 +42,7 @@ beforeEach(async () => {
   h.lines = q({ purchase_order: [ln('purchase_order', 'po1', 'd1'), ln('purchase_order', 'po2', null)], vendor_bill: [], timesheet_entry: [] });
   h.money = q({ purchase_order: { po1: { amount: 100, currency: 'IDR' }, po2: { amount: 50, currency: 'IDR' } } });
   h.links = q({});
+  h.labels = q({});
   h.discs = q([{ id: 'd1', code: 'MECH', name: 'Mechanical' }]);
 });
 
@@ -85,6 +86,21 @@ describe('WorkOrderDetail', () => {
     renderPage();
     expect(screen.queryByRole('link', { name: 'stock1' })).toBeNull();
     expect(screen.getByText('Not yet costed')).toBeTruthy();
+  });
+  it('identifies a timesheet by person and week, and uses the standard whole-unit money display', () => {
+    h.lines = q({ timesheet_entry: [{ ...ln('timesheet_entry', 'hour1', null), reference: null }], purchase_order: [ln('purchase_order', 'po1', 'd1')] });
+    h.labels = q({ hour1: { person: 'Morgan Lee', weekStart: '2026-10-26' } });
+    h.money = q({ purchase_order: { po1: { amount: 45000, currency: 'USD' } } });
+    renderPage();
+    expect(screen.getByTestId('cost-line-hour1').textContent).toMatch(/Morgan Lee.*26 Oct/);
+    expect(within(screen.getByTestId('cost-line-hour1')).queryByRole('link')).toBeNull();
+    expect(screen.getByTestId('cost-total-purchase_order').textContent).toBe('$45,000');
+  });
+  it('uses a readable fallback when the timesheet identity is unavailable', () => {
+    h.lines = q({ timesheet_entry: [{ ...ln('timesheet_entry', 'hour1', null), reference: null }] });
+    renderPage();
+    expect(screen.getByTestId('cost-line-hour1').textContent).toContain('Timesheet');
+    expect(screen.getByTestId('cost-line-hour1').textContent).not.toContain('hour1');
   });
   it('explains when costs have no available amount', () => {
     h.lines = q({ timesheet_entry: [ln('timesheet_entry', 'hour1', null)] });

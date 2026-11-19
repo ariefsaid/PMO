@@ -9,7 +9,7 @@ import { useBoqItems } from '@/src/hooks/useProgressBilling';
 import { useWorkOrderAcceptances } from '@/src/hooks/useWorkOrderAcceptances';
 import { useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
 import { useDocuments } from '@/src/hooks/useDocuments';
-import { useCostDisciplines, useWorkOrderCostLines, useWorkOrderCostMoney, useWorkOrderCostLinks } from '@/src/hooks/useWorkOrderCosts';
+import { useCostDisciplines, useWorkOrderCostLines, useWorkOrderCostMoney, useWorkOrderCostLinks, useWorkOrderTimesheetLabels } from '@/src/hooks/useWorkOrderCosts';
 import { useWorkOrder, useWorkOrderAllocations, useWorkOrderClaimDocuments } from '@/src/hooks/useWorkOrderRecord';
 import { deriveScopeProgress } from '@/src/lib/workOrderProgress';
 import { buildCostView } from '@/src/lib/workOrderCostView';
@@ -41,6 +41,7 @@ const WorkOrderDetail: React.FC = () => {
   const docs = useDocuments(projectId);
   const costLines = useWorkOrderCostLines(wo.data ? id ?? null : null);
   const flatLines = useMemo(() => Object.values(costLines.data ?? {}).flat(), [costLines.data]);
+  const labels = useWorkOrderTimesheetLabels(wo.data ? id ?? null : null, flatLines);
   const links = useWorkOrderCostLinks(wo.data ? id ?? null : null, flatLines);
   const money = useWorkOrderCostMoney(wo.data ? id ?? null : null, flatLines);
   const disciplines = useCostDisciplines(Boolean(wo.data));
@@ -88,8 +89,8 @@ const WorkOrderDetail: React.FC = () => {
       <RecordStack>
         <ScopeSection projectId={row.project_id} progress={progress} isPending={allocations.isPending || boq.isPending || bastList.isPending} isError={allocations.isError || boq.isError || bastList.isError}
           onRetry={() => { void allocations.refetch(); void boq.refetch(); void bastList.refetch(); }} />
-        <CostSection links={links.data ?? {}} groups={groups} disciplines={disciplines.data ?? []} isPending={costLines.isPending} isError={costLines.isError || money.isError || disciplines.isError || links.isError}
-          onRetry={() => { void costLines.refetch(); void money.refetch(); void disciplines.refetch(); void links.refetch(); }} moneyPending={money.isPending && flatLines.length > 0} />
+        <CostSection labels={labels.data ?? {}} links={links.data ?? {}} groups={groups} disciplines={disciplines.data ?? []} isPending={costLines.isPending} isError={costLines.isError || money.isError || disciplines.isError || links.isError || labels.isError}
+          onRetry={() => { void costLines.refetch(); void money.refetch(); void disciplines.refetch(); void links.refetch(); void labels.refetch(); }} moneyPending={money.isPending && flatLines.length > 0} />
         <BillingSection billing={canBilling ? { row: billingRow, isPending: billing.isPending, isError: billing.isError, onRetry: () => void billing.refetch() } : null}
           acceptances={acceptances} acceptancesPending={bastList.isPending} acceptancesError={bastList.isError} onRetryAcceptances={() => void bastList.refetch()} />
         <DocumentsSection documents={documents} isPending={docs.isPending || bastList.isPending || claimDocs.isPending} isError={docs.isError || bastList.isError || claimDocs.isError} onRetry={() => { void docs.refetch(); void bastList.refetch(); void claimDocs.refetch(); }} />

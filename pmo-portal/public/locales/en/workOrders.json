@@ -35,7 +35,9 @@
       "equipment_usage": "Equipment usage"
     },
     "unavailable": "Amount unavailable",
-    "notCosted": "Not yet costed"
+    "notCosted": "Not yet costed",
+    "timesheetLabel": "{{person}}, week of {{week}}",
+    "timesheetFallback": "Timesheet"
   },
   "billing": {
     "title": "Billing and acceptances",

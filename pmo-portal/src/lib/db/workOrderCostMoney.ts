@@ -50,3 +50,20 @@ export async function listWorkOrderCostLinks(lines: readonly WorkOrderCostLine[]
   }
   return links;
 }
+
+/** Caller-visible timesheet owner and week, for readable labels on attributed entries. */
+export async function listWorkOrderTimesheetLabels(lines: readonly WorkOrderCostLine[]): Promise<Record<string, { person: string; weekStart: string }>> {
+  const ids = lines.filter((line) => line.source === 'timesheet_entry').map((line) => line.recordId);
+  const labels: Record<string, { person: string; weekStart: string }> = {};
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const { data, error } = await supabase.from('timesheet_entries')
+      .select('id, timesheet:timesheets(week_start_date, owner:profiles!timesheets_user_id_fkey(full_name))')
+      .in('id', ids.slice(i, i + CHUNK)).limit(CHUNK);
+    if (error) throw new AppError(error.message, error.code);
+    for (const row of data ?? []) {
+      const sheet = row.timesheet;
+      if (sheet?.week_start_date && sheet.owner?.full_name) labels[row.id] = { person: sheet.owner.full_name, weekStart: sheet.week_start_date };
+    }
+  }
+  return labels;
+}

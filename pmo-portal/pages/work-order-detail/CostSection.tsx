@@ -8,6 +8,7 @@ import type { CostDiscipline } from '@/src/lib/db/workOrderCosts';
 
 interface Props {
   links: Record<string, string>;
+  labels: Record<string, { person: string; weekStart: string }>;
   groups: SourceGroup[] | null;
   disciplines: CostDiscipline[];
   isPending: boolean;
@@ -18,7 +19,7 @@ interface Props {
 }
 
 /** Costs (FR-WORP-021/022): lines grouped by source then discipline; a total only where the money is readable. */
-export const CostSection: React.FC<Props> = ({ links, groups, disciplines, isPending, isError, onRetry, moneyPending }) => {
+export const CostSection: React.FC<Props> = ({ labels, links, groups, disciplines, isPending, isError, onRetry, moneyPending }) => {
   const { t } = useTranslation('workOrders');
   const title = t('costs.title', 'Costs');
   if (isPending) return <RecordSection title={title}><ListState variant="loading" rows={3} /></RecordSection>;
@@ -29,7 +30,7 @@ export const CostSection: React.FC<Props> = ({ links, groups, disciplines, isPen
     return <RecordSection title={title}><p className="text-control text-muted-foreground">{t('costs.empty', 'No costs are attributed to this work order yet.')}</p></RecordSection>;
   }
   const nameOf = (id: string) => (id === NO_DISCIPLINE ? t('costs.noDiscipline', 'No discipline') : disciplines.find((d) => d.id === id)?.name ?? t('costs.unknownDiscipline', 'Discipline'));
-  const money = (m: CostMoney) => formatCurrency(m.amount, m.currency, { precision: 'minor' });
+  const money = (m: CostMoney) => formatCurrency(m.amount, m.currency);
   return (
     <RecordSection title={title}>
       <div className="flex flex-col gap-5">
@@ -51,7 +52,10 @@ export const CostSection: React.FC<Props> = ({ links, groups, disciplines, isPen
                 <ul className="divide-y divide-border">
                   {d.lines.map((l) => {
                     const href = links[`${l.source}:${l.recordId}`];
-                    const label = l.reference ?? l.recordId.slice(0, 8);
+                    const sheet = labels[l.recordId];
+                    const label = l.source === 'timesheet_entry'
+                      ? sheet ? t('costs.timesheetLabel', '{{person}}, week of {{week}}', { person: sheet.person, week: formatDay(sheet.weekStart) }) : t('costs.timesheetFallback', 'Timesheet')
+                      : l.reference ?? l.recordId.slice(0, 8);
                     return (
                       <li key={l.recordId} className="flex flex-wrap items-baseline justify-between gap-x-4 py-1.5" data-testid={`cost-line-${l.recordId}`}>
                         <span>{href ? <Link className="underline" to={href}>{label}</Link> : label}</span>

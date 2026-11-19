@@ -14,7 +14,7 @@ import {
   type CostSource,
   type WorkOrderCostLine,
 } from '@/src/lib/db/workOrderCosts';
-import { listWorkOrderCostMoney, listWorkOrderCostLinks } from '@/src/lib/db/workOrderCostMoney';
+import { listWorkOrderCostMoney, listWorkOrderCostLinks, listWorkOrderTimesheetLabels } from '@/src/lib/db/workOrderCostMoney';
 import { wrap } from './repositoryErrors';
 
 export type { CostAttribution, CostDiscipline, CostSource, WorkOrderCostLine };
@@ -59,6 +59,7 @@ export const workOrderCostRepository = {
   costLines: (workOrderId: string): Promise<WorkOrderCostLine[]> => wrap(() => listWorkOrderCostLines(workOrderId)),
   /** Per-source money behind the lines (#2518); `null` for a source the caller cannot read. */
   costLinks: (lines: WorkOrderCostLine[]) => wrap(() => listWorkOrderCostLinks(lines)),
+  timesheetLabels: (lines: WorkOrderCostLine[]) => wrap(() => listWorkOrderTimesheetLabels(lines)),
   costMoney: (lines: WorkOrderCostLine[]) => wrap(() => listWorkOrderCostMoney(lines)),
   /** One work order's cost lines, grouped by source — the foundation #2518/#2519/#2523 read. */
   costLinesBySource: async (workOrderId: string) => groupCostLinesBySource(await wrap(() => listWorkOrderCostLines(workOrderId))),

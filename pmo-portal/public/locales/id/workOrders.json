@@ -35,7 +35,9 @@
       "equipment_usage": "Penggunaan peralatan"
     },
     "unavailable": "Jumlah tidak tersedia",
-    "notCosted": "Biaya belum dihitung"
+    "notCosted": "Biaya belum dihitung",
+    "timesheetLabel": "{{person}}, minggu {{week}}",
+    "timesheetFallback": "Lembar waktu"
   },
   "billing": {
     "title": "Penagihan dan penerimaan",

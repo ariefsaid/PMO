@@ -45,3 +45,14 @@ export function useWorkOrderCostLinks(workOrderId: string | null, lines: import(
     enabled: Boolean(orgId) && Boolean(workOrderId) && lines.length > 0,
   });
 }
+
+/** Caller-scoped labels for timesheet rows, without exposing record identifiers. */
+export function useWorkOrderTimesheetLabels(workOrderId: string | null, lines: import('@/src/lib/repositories/workOrderCosts').WorkOrderCostLine[]) {
+  const orgId = useAuth().currentUser?.org_id;
+  const ids = lines.filter((line) => line.source === 'timesheet_entry').map((line) => line.recordId);
+  return useQuery({
+    queryKey: ['work-order-timesheet-labels', orgId, workOrderId, ids],
+    queryFn: () => workOrderCostRepository.timesheetLabels(lines),
+    enabled: Boolean(orgId) && Boolean(workOrderId) && ids.length > 0,
+  });
+}
