@@ -66,7 +66,10 @@
     "alreadyImported": "Sudah diimpor.",
     "notCreated": "Tidak dibuat",
     "downloadFailed": "Unduh baris yang tidak diimpor",
-    "reasonColumn": "Alasan tidak diimpor"
+    "reasonColumn": "Alasan tidak diimpor",
+    "failedSheet": "Tidak diimpor",
+    "alreadyThereSheet": "Sudah ada",
+    "rowInFile": "Baris di berkas Anda"
   },
   "paste": {
     "label": "Atau tempel baris yang disalin dari spreadsheet",
@@ -135,5 +138,16 @@
       "stagesSum": "Bobot tahap harus berjumlah 100.",
       "duplicate": "Kode item ini muncul dua kali di lembar."
     }
+  },
+  "template": {
+    "download": "Unduh templat",
+    "sheet": "Templat",
+    "notes": "Catatan",
+    "field": "Kolom",
+    "required": "Wajib",
+    "optional": "Opsional",
+    "meaning": "Arti",
+    "accepted": "Nilai yang diterima",
+    "rowCap": "Maksimal {{max}} baris per berkas."
   }
 }

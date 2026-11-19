@@ -66,7 +66,10 @@
     "alreadyImported": "Already imported.",
     "notCreated": "Not created",
     "downloadFailed": "Download rows not imported",
-    "reasonColumn": "Why not imported"
+    "reasonColumn": "Why not imported",
+    "failedSheet": "Not imported",
+    "alreadyThereSheet": "Already there",
+    "rowInFile": "Row in your file"
   },
   "paste": {
     "label": "Or paste rows copied from a spreadsheet",
@@ -135,5 +138,16 @@
       "stagesSum": "Stage weights must add up to 100.",
       "duplicate": "This item code appears twice in the sheet."
     }
+  },
+  "template": {
+    "download": "Download template",
+    "sheet": "Template",
+    "notes": "Notes",
+    "field": "Field",
+    "required": "Required",
+    "optional": "Optional",
+    "meaning": "Meaning",
+    "accepted": "Accepted values",
+    "rowCap": "Up to {{max}} rows per file."
   }
 }
