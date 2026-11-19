@@ -1,6 +1,6 @@
 # Plan — work orders on the cost side (#2517)
 
-Spec: `docs/specs/work-order-cost-attribution.spec.md` · ADR-0103 · branch `feat/2517-work-order-cost-spine` ·
+Spec: `docs/specs/work-order-cost-attribution.spec.md` · ADR-0104 · branch `feat/2517-work-order-cost-spine` ·
 migrations 0950–0952 (range 0950–0954).
 
 ## Tasks (as built)

@@ -41,9 +41,21 @@ it('FR-ODC-110 an Odoo org lists the Odoo steps and none of ERPNext\'s activity-
   h.conn.data = read({});
   render(<OdooSetupChecklist />);
   const names = screen.getAllByRole('listitem').map((li) => li.getAttribute('aria-label'));
-  expect(names).toEqual(['Odoo connected', 'Company chosen', 'Odoo apps available', 'Map once', 'Payment journal', 'Desk journal', 'Customer-advance account', 'Tax-prepaid account', 'Sends finished', 'Vendors and clients managed in Odoo', 'Purchases go to Odoo']);
+  expect(names).toEqual(['Odoo connected', 'Company chosen', 'Odoo apps available', 'Map once', 'Payment journal', 'Desk journal', 'Customer-advance account', 'Tax-prepaid account', 'Add PPh 23 withholding tax', 'Add PPh 4(2) withholding tax', 'Sends finished', 'Vendors and clients managed in Odoo', 'Purchases go to Odoo']);
   expect(screen.queryByText(/activity type/i)).not.toBeInTheDocument();
   expect(screen.queryByText(/budget categor/i)).not.toBeInTheDocument();
+});
+
+it('#1504 shows PPh 23 and PPh 4(2) as informational setup reminders without completion status', () => {
+  h.conn.data = read({});
+  render(<OdooSetupChecklist />);
+
+  for (const name of ['Add PPh 23 withholding tax', 'Add PPh 4(2) withholding tax']) {
+    const row = item(name);
+    expect(within(row).getByText('Add it in Odoo as a purchase tax on a liability account. It is not in the stock chart.')).toBeInTheDocument();
+    expect(within(row).queryByText('Done')).not.toBeInTheDocument();
+    expect(within(row).queryByText('To do')).not.toBeInTheDocument();
+  }
 });
 
 it('FR-ODC-110 each step is done only when its own fact holds', () => {

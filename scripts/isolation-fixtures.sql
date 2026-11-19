@@ -96,6 +96,21 @@ values ('a6120000-0000-4000-8000-0000000000e2', 'a6120000-0000-4000-8000-0000000
 insert into public.journal_entry_authors (journal_id, profile_id, org_id)
 select 'a6120000-0000-4000-8000-0000000000e1', p.id, 'a6120000-0000-4000-8000-00000000000a'
   from public.profiles p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
+-- Provide disposable rows even when the seed contains no work orders or disciplines.
+insert into public.cost_disciplines (id, org_id, code, name)
+values ('a6120000-0000-4000-8000-0000000000d1', 'a6120000-0000-4000-8000-00000000000a', 'iso', 'Isolation discipline');
+insert into public.work_orders (id, org_id, project_id, title, currency, tax_treatment, tax_amount)
+select 'a6120000-0000-4000-8000-0000000000d2', p.org_id, p.id, 'Isolation work order', 'IDR', 'exclusive', 0
+from public.projects p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
+insert into public.boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate)
+select 'a6120000-0000-4000-8000-0000000000d3', org_id, project_id, 'iso', 'Isolation line', 'each', 1, 1
+from public.work_orders where id = 'a6120000-0000-4000-8000-0000000000d2';
+insert into public.work_order_lines (id, org_id, work_order_id, boq_item_id, quantity)
+values ('a6120000-0000-4000-8000-0000000000d4', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000d2', 'a6120000-0000-4000-8000-0000000000d3', 1);
+insert into public.work_order_acceptances (id, org_id, project_id, work_order_id, acceptance_date, prepared_by)
+select 'a6120000-0000-4000-8000-0000000000d5', w.org_id, w.project_id, w.id, current_date, p.id
+from public.work_orders w join lateral (select id from public.profiles where org_id = w.org_id order by id limit 1) p on true
+where w.id = 'a6120000-0000-4000-8000-0000000000d2';
 select 'ISO-COPY-SKIPPED ' || tbl || ': ' || why from _iso_skipped order by tbl;
 \endif
 

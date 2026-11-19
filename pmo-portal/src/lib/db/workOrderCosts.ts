@@ -3,7 +3,7 @@ import { AppError } from '@/src/lib/appError';
 import { fetchAllRowsByKeyset } from '@/src/lib/pagedRead';
 
 /**
- * Work orders on the cost side (#2517, migrations 0950 + 0951, ADR-0103).
+ * Work orders on the cost side (#2517, migrations 0950 + 0951, ADR-0104).
  *
  * Seven cost sources can name an optional work order and an optional discipline. The database decides
  * whether that is allowed (the work order must be on the cost's own project and org; the discipline must be

@@ -1,4 +1,4 @@
--- 0950_work_order_cost_attribution.test.sql — #2517 (ADR-0103; docs/specs/work-order-cost-attribution.spec.md).
+-- 0950_work_order_cost_attribution.test.sql — #2517 (ADR-0104; docs/specs/work-order-cost-attribution.spec.md).
 -- Migrations under test: 0950_cost_disciplines.sql, 0951_work_order_cost_attribution.sql, 0952_timesheet_week_attribution.sql.
 -- AC-WCA-001 every cost source carries a work order and a discipline · AC-WCA-002 a work order on another project,
 -- another org or cancelled is refused by the database, for every writer · AC-WCA-003 a discipline must be the org's,
