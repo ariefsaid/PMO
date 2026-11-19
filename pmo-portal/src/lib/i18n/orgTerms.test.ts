@@ -21,6 +21,10 @@ describe('AC-TERM-002 applyOrgTerms', () => {
     expect(applyOrgTerms('Semua proyek', 'id', t)).toBe('Semua pekerjaan');
     expect(applyOrgTerms('Proyek baru', 'id-ID', t)).toBe('Pekerjaan baru');
   });
+  it('does not rewrite the replacement as another term', () => {
+    const terms = { en: { workOrder: { singular: 'project', plural: 'projects' }, project: { singular: 'job', plural: 'jobs' } } };
+    expect(applyOrgTerms('Work order and project', 'en', terms)).toBe('Project and job');
+  });
   it('renames the multi-word terms', () => {
     const t = { en: { clientSuppliedStock: { singular: 'free-issue stock', plural: 'free-issue stock' } } };
     expect(applyOrgTerms('Client-supplied stock', 'en', t)).toBe('Free-issue stock');

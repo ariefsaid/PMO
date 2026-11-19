@@ -71,27 +71,22 @@ export function applyOrgTerms(text: string, locale: string, terms: OrgTerms): st
   const loc: TermLocale = locale.startsWith('id') ? 'id' : 'en';
   const overrides = terms[loc];
   if (!overrides) return text;
-  let out = text;
+  const replacements = new Map<string, string>();
   for (const key of TERM_KEYS) {
-    const o = overrides[key];
-    if (!o) continue;
+    const override = overrides[key];
+    if (!override) continue;
     const shipped = SHIPPED_FORMS[loc][key];
-    const pairs: Array<[string, string]> = [
-      ...shipped.plural.map((f): [string, string] => [f, o.plural]),
-      ...shipped.singular.map((f): [string, string] => [f, o.singular]),
-    ];
-    // Longest shipped form first; a form already seen (id has one form for both numbers) is kept once.
-    const seen = new Set<string>();
-    pairs.sort((a, b) => b[0].length - a[0].length);
-    for (const [form, replacement] of pairs) {
-      if (seen.has(form.toLowerCase())) continue;
-      seen.add(form.toLowerCase());
-      if (form.toLowerCase() === replacement.toLowerCase()) continue;
-      const re = new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(form)}(?![\\p{L}\\p{N}])`, 'giu');
-      out = out.replace(re, (m) => matchCase(m, replacement));
+    for (const [forms, replacement] of [[shipped.plural, override.plural], [shipped.singular, override.singular]] as const) {
+      for (const form of forms) {
+        const normalized = form.toLowerCase();
+        if (!replacements.has(normalized)) replacements.set(normalized, replacement);
+      }
     }
   }
-  return out;
+  if (!replacements.size) return text;
+  const forms = [...replacements.keys()].sort((a, b) => b.length - a.length).map(escapeRe).join('|');
+  const re = new RegExp(`(?<![\\p{L}\\p{N}])(?:${forms})(?![\\p{L}\\p{N}])`, 'giu');
+  return text.replace(re, (match) => matchCase(match, replacements.get(match.toLowerCase())!));
 }
 
 // ── The active org's overrides (module state, set by the provider) ──────────
