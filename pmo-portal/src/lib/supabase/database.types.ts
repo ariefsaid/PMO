@@ -4985,6 +4985,7 @@ export type Database = {
           incident_id: string
           kind: string
           org_id: string
+          storage_object_id: string
           title: string | null
           uploaded_by_id: string | null
         }
@@ -4996,6 +4997,7 @@ export type Database = {
           incident_id: string
           kind: string
           org_id?: string
+          storage_object_id?: string
           title?: string | null
           uploaded_by_id?: string | null
         }
@@ -5007,6 +5009,7 @@ export type Database = {
           incident_id?: string
           kind?: string
           org_id?: string
+          storage_object_id?: string
           title?: string | null
           uploaded_by_id?: string | null
         }

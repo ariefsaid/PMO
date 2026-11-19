@@ -7,23 +7,26 @@
 --      The task is built without a work-order link when `tasks.work_order_id` does not exist yet (#2531); once it does, the
 --      same call sets it (read from information_schema at call time, no re-migration needed).
 -- ── REVERSE (also rollback/0981_site_issue_escalation_and_task_down.sql) ─────────────────────────────
---   select cron.unschedule('incident-escalation'); drop function public.escalate_overdue_incidents(); drop function public.create_task_from_incident(uuid);
+--   select cron.unschedule('incident-escalation'); drop function public.escalate_overdue_incidents(uuid); drop function public.create_task_from_incident(uuid);
 
-create function public.escalate_overdue_incidents() returns integer
+create function public.escalate_overdue_incidents(p_incident uuid default null) returns integer
   language plpgsql security definer set search_path = public, pg_temp as $$
 declare r record; v_pm uuid; v_to uuid[]; v_who uuid; v_n integer := 0; v_label text;
 begin
   for r in
     select i.id, i.org_id, i.project_id, i.assignee_id, i.action, i.due_at, i.type, i.location, i.description
       from public.incident_reports i
-     where i.status <> 'Closed' and i.due_at is not null and i.due_at < now() and i.escalated_at is null
-       -- the org switch (a missing row means on, as org_feature_enabled reads it); the job has no caller to ask
-       and coalesce((select f.enabled from public.org_features f where f.org_id = i.org_id and f.feature_key = 'incidents'), true)
+     where (p_incident is null or i.id = p_incident)
+       and i.status <> 'Closed' and i.due_at is not null and i.due_at < now() and i.escalated_at is null
+       -- The scheduler has no user JWT; resolve the same global/override/plan rule directly.
+       and coalesce((select f.enabled from public.resolve_feature_internal(i.org_id, 'incidents') f), false)
      order by i.due_at
        for update of i skip locked
   loop
     update public.incident_reports set escalated_at = now() where id = r.id;
-    select p.project_manager_id into v_pm from public.projects p where p.id = r.project_id;
+    select p.project_manager_id into v_pm from public.projects p
+      join public.profiles m on m.id = p.project_manager_id and m.org_id = r.org_id and m.status = 'active'
+     where p.id = r.project_id;
     v_to := array[]::uuid[];
     if r.assignee_id is not null then v_to := v_to || r.assignee_id; end if;
     if v_pm is not null then v_to := v_to || v_pm; end if;
@@ -41,13 +44,13 @@ begin
   end loop;
   return v_n;
 end; $$;
-revoke all on function public.escalate_overdue_incidents() from public, anon, authenticated;
+revoke all on function public.escalate_overdue_incidents(uuid) from public, anon, authenticated;
 
 select cron.schedule('incident-escalation', '*/15 * * * *', 'select public.escalate_overdue_incidents()');
 
 create function public.create_task_from_incident(p_incident uuid) returns uuid
   language plpgsql security definer set search_path = public, pg_temp as $$
-declare i public.incident_reports; v_task uuid;
+declare i public.incident_reports; v_task uuid; v_timezone text;
 begin
   if not public.is_active_member() or public.auth_role() not in ('Admin','Executive','Project Manager','Finance') then
     raise exception 'only a manager may create a task from an issue' using errcode = '42501';
@@ -64,9 +67,12 @@ begin
     raise exception 'name the issue''s project before making a task' using errcode = '23514';
   end if;
 
+  select coalesce(nullif(p.timezone, ''), nullif(o.default_timezone, ''), 'Asia/Jakarta') into v_timezone
+    from public.profiles p join public.organizations o on o.id = p.org_id where p.id = auth.uid();
+
   insert into public.tasks (org_id, project_id, name, description, assignee_id, end_date)
   values (i.org_id, i.project_id, left(coalesce(nullif(btrim(i.action), ''), i.type || ' issue'), 200),
-          nullif(btrim(coalesce(i.description, '')), ''), i.assignee_id, (i.due_at at time zone 'UTC')::date)
+          nullif(btrim(coalesce(i.description, '')), ''), i.assignee_id, (i.due_at at time zone v_timezone)::date)
   returning id into v_task;
 
   if i.work_order_id is not null and exists (select 1 from information_schema.columns

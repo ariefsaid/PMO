@@ -220,19 +220,6 @@ export const ALLOWED_SKIPS = [
     verified: '2026-09-30',
   },
 
-  {
-    file: 'AC-SIL-010-raise-issue-with-photo.spec.ts',
-    reason: 'Incidents module is feature-flagged OFF (same flag as AC-IN-001); the site issue log lives on it.',
-    restore: 'Flip src/lib/features.ts incidents to true.',
-    verified: '2026-11-20',
-  },
-  {
-    file: 'AC-SIL-014-issue-lifecycle.spec.ts',
-    reason: 'Incidents module is feature-flagged OFF (same flag as AC-IN-001); the site issue log lives on it.',
-    restore: 'Flip src/lib/features.ts incidents to true.',
-    verified: '2026-11-20',
-  },
-
   // serial/AC-IXD-PROC-W5-3-approvals-inbox.spec.ts was un-quarantined 2026-07-27: its
   // AC-IXD-TS-W5-3 test now runs (drives the stacked fallback at a small viewport). The entry
   // was REMOVED — a skip allowlist entry for a test that runs again is STALE and fails this gate.

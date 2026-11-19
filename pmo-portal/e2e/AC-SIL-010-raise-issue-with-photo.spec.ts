@@ -1,19 +1,21 @@
-// @e2e-isolation: self-isolated — unique issue type (Date.now()), an Engineer raises it on a phone viewport; feature-flagged skip.
+// @e2e-isolation: self-isolated — unique issue type and cleanup, an Engineer raises it on a phone viewport.
 import { test, expect } from '@playwright/test';
 import { login } from './helpers';
+import { cleanSiteIssue } from './siteIssueFixture';
 
 /**
  * AC-SIL-010  Raise a site issue from a phone with a camera photo (docs/specs/site-issue-log.spec.md).
  * Given a phone viewport, when an Engineer raises an issue with a photo, it is saved with the photo and appears in the register.
  *
- * QUARANTINE: feature flag incidents=false (src/lib/features.ts) — /incidents redirects home. Un-skip when the flag is on;
- * the allowlist entry in scripts/check-e2e-skips.mjs names the restore path.
  */
+let issueType = '';
+test.afterEach(async () => { await cleanSiteIssue(issueType); });
+
 test.setTimeout(120_000);
 test.use({ viewport: { width: 375, height: 800 } });
 
-test.skip('AC-SIL-010: an Engineer raises an issue with a camera photo and finds it in the register (QUARANTINE: incidents flag off)', async ({ page }) => {
-  const type = `E2E-Issue-${Date.now()}`;
+test('AC-SIL-010: an Engineer raises an issue with a camera photo and finds it in the register', async ({ page }) => {
+  const type = issueType = `E2E-Issue-${crypto.randomUUID()}`;
   await login(page, 'engineer@acme.test');
   await page.goto('/incidents');
   await page.getByRole('button', { name: /file incident/i }).click();

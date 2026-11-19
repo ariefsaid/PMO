@@ -68,6 +68,10 @@ select set_eq(
             -- 0887 (#895): journal_entries carries maker_id AND approver_id, both -> profiles. Checked before
             -- adding: the journals DAL reads journal_entries with select('*') and no embed; names resolve through
             -- the profiles directory by id. Any future embed must name its constraint.
+            -- #2521: incident_reports adds assignee_id and closed_by alongside reported_by.
+            -- Incident DAL reads unembedded rows; repository, pages, edge functions, scripts and
+            -- e2e references do not embed profiles. Future embeds must qualify the relationship.
+            ('incident_reports -> profiles'),
             ('journal_entries -> profiles'),
             -- 0970: people has profile_id and manager_id; the expiry DAL uses an RPC, not a profiles embed.
             ('people -> profiles'),

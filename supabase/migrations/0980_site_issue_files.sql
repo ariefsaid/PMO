@@ -1,6 +1,6 @@
 -- 0980_site_issue_files.sql — #2521: photo / document evidence on an issue, and the close-proof rule.
 -- Spec docs/specs/site-issue-log.spec.md (FR-SIL-010, FR-SIL-012); proven by supabase/tests/0979_site_issue_log.test.sql.
---   §1 incident_files: child table, soft-archive (ADR-0018), org stamped from the parent, at most 10 live files per issue,
+--   §1 incident_files: child table, soft-archive (ADR-0018), org stamped from the parent, at most 10 raise and 5 close live files per issue,
 --      kind `at_raise` / `at_close`. Read = anyone who reads the issue; add = reporter, assignee, manager roles.
 --   §2 private bucket incident-files (15 MB, images + PDF), path {org}/{incident}/{file_id}/{filename}; storage RLS mirrors §1.
 --   §3 close-proof guard: an issue of severity High or Critical cannot become Closed without a live `at_close` file.
@@ -18,13 +18,17 @@ create table public.incident_files (
   kind           text not null check (kind in ('at_raise','at_close')),
   title          text,
   file_path      text not null,
+  storage_object_id uuid not null default gen_random_uuid(),
+  constraint incident_files_storage_object_fkey foreign key (storage_object_id) references storage.objects(id) on delete restrict,
   uploaded_by_id uuid references public.profiles(id) default auth.uid(),
   created_at     timestamptz not null default now(),
   archived_at    timestamptz
 );
 create index incident_files_parent_idx on public.incident_files (incident_id, created_at desc) where archived_at is null;
+create index incident_files_storage_object_idx on public.incident_files (storage_object_id);
 alter table public.incident_files enable row level security;
 alter table public.incident_files force row level security;
+grant select, insert, update on public.incident_files to authenticated;
 
 -- ⚑ one place for "who may add evidence": reporter, assignee, manager roles — of an issue in the caller's own org.
 create function public.can_add_incident_evidence(p_incident uuid) returns boolean
@@ -33,6 +37,7 @@ create function public.can_add_incident_evidence(p_incident uuid) returns boolea
     select 1 from public.incident_reports i
      where i.id = p_incident and i.org_id = public.auth_org_id()
        and public.is_active_member()
+       and public.org_feature_enabled(i.org_id, 'incidents')
        and (i.reported_by = auth.uid() or i.assignee_id = auth.uid()
             or public.auth_role() in ('Admin','Executive','Project Manager','Finance')))
 $$;
@@ -52,22 +57,63 @@ create policy incident_files_update on public.incident_files for update
     and (uploaded_by_id = (select auth.uid()) or (select public.auth_role()) in ('Admin','Executive','Project Manager','Finance')))
   with check (org_id = (select public.auth_org_id()));
 
--- org from the parent; at most 10 live files per issue
+-- org from the parent; independent limits for raise and close evidence
 create function public.guard_incident_file() returns trigger
   language plpgsql security definer set search_path = public, pg_temp as $$
-declare v_org uuid;
+declare v_org uuid; v_object_id uuid;
 begin
-  select i.org_id into v_org from public.incident_reports i where i.id = new.incident_id;
+  if tg_op = 'UPDATE' then
+    if (to_jsonb(new) - 'archived_at') is distinct from (to_jsonb(old) - 'archived_at') then
+      raise exception 'only archiving evidence is allowed' using errcode = '42501';
+    end if;
+    if old.archived_at is not null and new.archived_at is null then
+      perform 1 from public.incident_reports i where i.id = new.incident_id for update;
+      if (select count(*) from public.incident_files f where f.incident_id = new.incident_id
+            and f.kind = new.kind and f.archived_at is null) >= (case when new.kind = 'at_close' then 5 else 10 end) then
+        if new.kind = 'at_close' then
+          raise exception 'an issue holds at most 5 close attachments' using errcode = '23514';
+        else
+          raise exception 'an issue holds at most 10 raise attachments' using errcode = '23514';
+        end if;
+      end if;
+      if not exists (select 1 from storage.objects o where o.bucket_id = 'incident-files' and o.name = new.file_path) then
+        raise exception 'evidence object is missing or invalid' using errcode = '23514';
+      end if;
+    end if;
+    return new;
+  end if;
+  select i.org_id into v_org from public.incident_reports i where i.id = new.incident_id for update;
   if new.org_id is null or new.org_id = '00000000-0000-0000-0000-000000000001'::uuid then new.org_id := v_org; end if;
   if new.org_id is distinct from v_org then raise exception 'issue not in this org' using errcode = '42501'; end if;
+  if auth.uid() is not null then
+    if v_org is distinct from public.auth_org_id() then
+      raise exception 'issue not in this org' using errcode = '42501';
+    end if;
+    new.uploaded_by_id := auth.uid();
+    if new.file_path not like (new.org_id::text || '/' || new.incident_id::text || '/' || new.id::text || '/%') then
+      raise exception 'evidence object is missing or invalid' using errcode = '23514';
+    end if;
+  end if;
+  select o.id into v_object_id from storage.objects o
+   where o.bucket_id = 'incident-files' and o.name = new.file_path
+   order by o.created_at desc, o.id limit 1;
+  if v_object_id is null then
+    raise exception 'evidence object is missing or invalid' using errcode = '23514';
+  end if;
+  new.storage_object_id := v_object_id;
   if new.archived_at is null and (select count(*) from public.incident_files f
-        where f.incident_id = new.incident_id and f.archived_at is null) >= 10 then
-    raise exception 'an issue holds at most 10 attachments' using errcode = '23514';
+        where f.incident_id = new.incident_id and f.kind = new.kind and f.archived_at is null)
+        >= (case when new.kind = 'at_close' then 5 else 10 end) then
+    if new.kind = 'at_close' then
+      raise exception 'an issue holds at most 5 close attachments' using errcode = '23514';
+    else
+      raise exception 'an issue holds at most 10 raise attachments' using errcode = '23514';
+    end if;
   end if;
   return new;
 end; $$;
 revoke all on function public.guard_incident_file() from public, anon, authenticated;
-create trigger incident_files_guard before insert on public.incident_files
+create trigger incident_files_guard before insert or update on public.incident_files
   for each row execute function public.guard_incident_file();
 
 -- ── §2 bucket + storage RLS ───────────────────────────────────────────────────────────────────────
@@ -89,6 +135,15 @@ create policy storage_objects_incident_file_write on storage.objects for insert
     and split_part(name, '/', 1) = auth_org_id()::text
     and array_length(string_to_array(name, '/'), 1) = 4
     and public.can_add_incident_evidence(nullif(split_part(name, '/', 2), '')::uuid));
+
+-- Uploaders may clean up an object only while no evidence row references it.
+create policy storage_objects_incident_orphan_delete on storage.objects for delete
+  using (
+    bucket_id = 'incident-files' and (select public.is_active_member())
+    and owner_id = (select auth.uid())::text
+    and split_part(name, '/', 1) = (select public.auth_org_id())::text
+    and not exists (select 1 from public.incident_files f where f.storage_object_id = objects.id)
+  );
 
 -- ── §3 close proof ────────────────────────────────────────────────────────────────────────────────
 create function public.guard_incident_close_proof() returns trigger

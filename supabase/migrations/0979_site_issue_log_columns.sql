@@ -83,6 +83,9 @@ begin
        is distinct from (to_jsonb(old) - 'status' - 'close_note' - 'closed_at' - 'closed_by') then
       raise exception 'only a manager may change the assignee, due time, work order or action' using errcode = '42501';
     end if;
+    if old.status = 'Open' and new.status = 'Closed' then
+      raise exception 'an assignee must investigate before closing' using errcode = '23514';
+    end if;
     if old.status = 'Closed' and new.status <> 'Closed' then
       raise exception 'only a manager may reopen an issue' using errcode = '42501';
     end if;
