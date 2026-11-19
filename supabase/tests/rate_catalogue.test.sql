@@ -1,7 +1,7 @@
 -- rate_catalogue.test.sql — #2520 unit-rate catalogue. AC-RC-1..6, see docs/specs/unit-rate-catalogue.spec.md.
 begin;
 create extension if not exists pgtap;
-select plan(39);
+select plan(45);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25200000-0000-0000-0000-0000000000a1', 'RC Org A', 'USD', 'UTC'),
@@ -56,6 +56,9 @@ update public.boq_items set rate=130 where item_code='L2';
 select is((select catalogue_item_id from public.boq_items where item_code='L2'), null::uuid, 'a manual rate change clears obsolete provenance');
 select throws_ok($$select public.save_boq_line_from_catalogue(null, '25200000-0000-0000-0000-0000000000c1', '{"item_code":"L3","description":"Line three","unit":"m","quantity":1,"earning_basis":"unit_rate"}'::jsonb, (select id from public.rate_catalogue_items where item_code='W-1'), (select id from public.rate_catalogue_variants where name='Remote'), '2025-01-01')$$, 'P0002', null, 'saving without a matching rate fails atomically');
 select is((select count(*)::int from public.boq_items where item_code='L3'), 0, 'failed pricing leaves no partially saved line');
+select throws_ok($$select public.save_boq_line_from_catalogue((select id from public.boq_items where item_code='L1'), '25200000-0000-0000-0000-0000000000c1', '{"item_code":"L1","description":"Changed","unit":"m","quantity":2,"earning_basis":"unit_rate"}'::jsonb, (select id from public.rate_catalogue_items where item_code='W-1'), (select id from public.rate_catalogue_variants where name='Remote'), '2025-01-01')$$, 'P0002', null, 'an edit without a matching rate fails atomically');
+select is((select description from public.boq_items where item_code='L1'), 'Line one', 'failed pricing rolls back the line edit');
+
 
 
 select is((public.rate_catalogue_upsert_item('25200000-0000-0000-0000-0000000000c1',
@@ -69,6 +72,9 @@ select throws_ok($$insert into public.rate_catalogue_rates (item_id, variant_id,
 
 select ok((select bool_and(not has_table_privilege('authenticated', format('public.%I', tab), privilege)) from unnest(array['rate_catalogue_items','rate_catalogue_variants','rate_catalogue_rates','rate_catalogue_stage_weights']) tab cross join unnest(array['INSERT','UPDATE','DELETE']) privilege), 'AC-RC-6 all catalogue tables deny direct DML');
 select ok(not has_function_privilege('anon', 'public.rate_catalogue_upsert_item(uuid,jsonb)', 'EXECUTE') and not has_function_privilege('anon', 'public.rate_catalogue_add_variants(uuid,text[])', 'EXECUTE') and not has_function_privilege('anon', 'public.rate_catalogue_set_default_variant(uuid,uuid)', 'EXECUTE') and not has_function_privilege('anon', 'public.price_boq_line_from_catalogue(uuid,uuid,uuid,date)', 'EXECUTE') and not has_function_privilege('anon', 'public.save_boq_line_from_catalogue(uuid,uuid,jsonb,uuid,uuid,date)', 'EXECUTE'), 'AC-RC-6 anonymous cannot invoke catalogue writers');
+select set_config('test.rc_line', (select id::text from public.boq_items where item_code='L1'), true);
+select set_config('test.rc_item', (select id::text from public.rate_catalogue_items where item_code='W-1'), true);
+select set_config('test.rc_variant', (select id::text from public.rate_catalogue_variants where project_id='25200000-0000-0000-0000-0000000000c1' and name='Remote'), true);
 select throws_ok($$update public.rate_catalogue_items set description='Changed' where item_code='W-1'$$, '42501', null, 'AC-RC-6 direct item update denied');
 select throws_ok($$delete from public.rate_catalogue_variants where name='Remote'$$, '42501', null, 'AC-RC-6 direct variant delete denied');
 select throws_ok($$delete from public.rate_catalogue_stage_weights$$, '42501', null, 'AC-RC-6 direct stage delete denied');
@@ -76,6 +82,8 @@ set local request.jwt.claims = '{"sub":"25200000-0000-0000-0000-0000000000b2","r
 select is((select count(*)::int from public.rate_catalogue_items), 0, 'AC-RC-6 an engineer cannot read catalogue items');
 select is((select count(*)::int from public.rate_catalogue_rates) + (select count(*)::int from public.rate_catalogue_variants) + (select count(*)::int from public.rate_catalogue_stage_weights), 0, 'AC-RC-6 an engineer cannot read rates, locations or stages');
 select throws_ok($$select public.rate_catalogue_upsert_item('25200000-0000-0000-0000-0000000000c1', '{"item_code":"W-1"}'::jsonb)$$, '42501', null, 'AC-RC-6 a non-Finance role cannot write items');
+select throws_ok($$select public.price_boq_line_from_catalogue(current_setting('test.rc_line')::uuid, current_setting('test.rc_item')::uuid, current_setting('test.rc_variant')::uuid, '2026-02-01')$$, '23514', null, 'AC-RC-6 engineer cannot use known catalogue identifiers to price');
+select throws_ok($$select public.save_boq_line_from_catalogue(current_setting('test.rc_line')::uuid, '25200000-0000-0000-0000-0000000000c1', '{"item_code":"L1","description":"Changed","unit":"m","quantity":2,"earning_basis":"unit_rate"}'::jsonb, current_setting('test.rc_item')::uuid, current_setting('test.rc_variant')::uuid, '2026-02-01')$$, '42501', null, 'AC-RC-6 engineer cannot save a priced line');
 select throws_ok($$select public.price_boq_line_from_catalogue((select id from public.boq_items where item_code='L1'), '25200000-0000-0000-0000-0000000000d1', '25200000-0000-0000-0000-0000000000d1', '2026-02-01')$$, '23514', null, 'AC-RC-6 a non-Finance role cannot price with an inaccessible catalogue');
 select throws_ok($$select public.rate_catalogue_add_variants('25200000-0000-0000-0000-0000000000c1', array['X'])$$, '42501', null, 'AC-RC-6 a non-Finance role cannot change the catalogue');
 select throws_ok($$select public.rate_catalogue_set_default_variant('25200000-0000-0000-0000-0000000000c1', null)$$, '42501', null, 'non-Finance cannot change the default');
@@ -83,6 +91,8 @@ set local request.jwt.claims = '{"sub":"25200000-0000-0000-0000-0000000000b3","r
 select throws_ok($$select public.rate_catalogue_add_variants('25200000-0000-0000-0000-0000000000c1', array['X'])$$, 'P0002', null, 'AC-RC-6 another organization cannot reach the contract');
 
 select is((select count(*)::int from public.rate_catalogue_items), 0, 'AC-RC-6 a foreign organization cannot read catalogue items');
+select throws_ok($$select public.price_boq_line_from_catalogue(current_setting('test.rc_line')::uuid, current_setting('test.rc_item')::uuid, current_setting('test.rc_variant')::uuid, '2026-02-01')$$, 'P0002', null, 'AC-RC-6 foreign organization cannot price a known line');
+select throws_ok($$select public.save_boq_line_from_catalogue(current_setting('test.rc_line')::uuid, '25200000-0000-0000-0000-0000000000c1', '{"item_code":"L1","description":"Changed","unit":"m","quantity":2,"earning_basis":"unit_rate"}'::jsonb, current_setting('test.rc_item')::uuid, current_setting('test.rc_variant')::uuid, '2026-02-01')$$, '42501', null, 'AC-RC-6 foreign organization cannot save a priced line');
 select is((select count(*)::int from public.rate_catalogue_rates) + (select count(*)::int from public.rate_catalogue_variants) + (select count(*)::int from public.rate_catalogue_stage_weights), 0, 'AC-RC-6 a foreign organization cannot read rates, locations or stages');
 select throws_ok($$select public.rate_catalogue_upsert_item('25200000-0000-0000-0000-0000000000c1', '{"item_code":"W-1"}'::jsonb)$$, 'P0002', null, 'AC-RC-6 a foreign organization cannot write items');
 
