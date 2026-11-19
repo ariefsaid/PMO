@@ -61,6 +61,7 @@ const ENTITY_LIST_ROUTE: Record<string, string> = {
   task: '/my-tasks',
   imprest_plan: '/imprest',
   imprest_replenishment: '/imprest',
+  expiry_document: '/equipment/expiring',
 };
 
 interface NotificationEntity {

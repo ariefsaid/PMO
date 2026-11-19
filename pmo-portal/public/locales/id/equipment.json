@@ -132,9 +132,29 @@
     "units": "satuan",
     "unitsOption": "Jam atau hari yang dicatat"
   },
+  "expiry": {
+    "detail": "Nomor / status",
+    "empty": "Tidak ada yang kedaluwarsa dalam 30 hari ke depan",
+    "emptySub": "Dokumen orang dan peralatan tampil di sini saat mendekati batas.",
+    "error": "Gagal memuat dokumen yang akan kedaluwarsa",
+    "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
+    "expired_one": "Kedaluwarsa {{count}} hari lalu",
+    "expired_other": "Kedaluwarsa {{count}} hari lalu",
+    "expires": "Kedaluwarsa",
+    "left": "Sisa hari",
+    "location": "Disimpan di",
+    "medical": {
+      "fit": "Layak",
+      "unfit": "Tidak layak"
+    },
+    "subject": "Orang / peralatan",
+    "title": "Dokumen akan kedaluwarsa",
+    "type": "Dokumen"
+  },
   "nav": {
     "assets": "Aset",
-    "equipment": "Peralatan"
+    "equipment": "Peralatan",
+    "expiring": "Dokumen akan kedaluwarsa"
   },
   "panel": {
     "notRecorded": "{{count}} tidak tercatat",
