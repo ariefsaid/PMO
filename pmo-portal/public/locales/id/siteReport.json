@@ -10,7 +10,6 @@
   "consumables": {
     "add": "Tambah bahan habis pakai",
     "item": "Barang stok",
-    "none": "Tidak ada yang dicatat",
     "pickItem": "Pilih barang",
     "quantity": "Jumlah",
     "title": "Bahan habis pakai"

@@ -10,7 +10,6 @@
   "consumables": {
     "add": "Add consumable",
     "item": "Stock item",
-    "none": "None recorded",
     "pickItem": "Choose an item",
     "quantity": "Quantity",
     "title": "Consumables used"

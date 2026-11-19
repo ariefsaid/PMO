@@ -128,6 +128,9 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
   return (
     <div className="max-sm:pb-[var(--mobile-action-bar-height,0px)]">
       <RecordHeader
+        panelInset
+        actionsOnTitleRow
+        clampNameOnMobile
         name={detail.workOrder?.label ?? t('detail.title', 'Site report')}
         status={<span data-testid="dsr-status" data-status={report.status}><StatusPill record="siteReport" state={report.status} /></span>}
         meta={
@@ -162,10 +165,12 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
           </div>
         )}
 
-        <RecordSection title={t('progress.title', 'Progress')} data-testid="dsr-progress"
-          subline={seeRevenue && lineRevenue.unratedCount > 0 ? t('progress.unrated', { defaultValue: '{{count}} lines without a rate', count: lineRevenue.unratedCount }) : undefined}>
+        <RecordSection title={t('progress.title', 'Progress')} data-testid="dsr-progress">
+          {seeRevenue && lineRevenue.unratedCount > 0 && (
+            <p className="text-foreground">{t('progress.unrated', { defaultValue: '{{count}} lines without a rate', count: lineRevenue.unratedCount })}</p>
+          )}
           {form.progress.length === 0 && !editable && <p className="text-muted-foreground">{t('progress.none', 'No progress recorded')}</p>}
-          <ul className="space-y-3">
+          {form.progress.length > 0 && <ul className="space-y-3">
             {form.progress.map((line, i) => {
               const saved = detail.progress[i];
               const rated = saved && saved.work_order_line_id === line.workOrderLineId ? lineRevenue.lines[i] : undefined;
@@ -197,7 +202,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
                 </li>
               );
             })}
-          </ul>
+          </ul>}
           {editable && (
             <Button variant="outline" className="mt-3" onClick={() => update({ progress: [...form.progress, { workOrderLineId: '', subStage: '', quantity: '' }] })}>
               {t('progress.add', 'Add progress')}
@@ -211,7 +216,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
             <TextField label={t('hours.end', 'End')} type="time" value={form.endTime} disabled={!editable} onChange={(v) => update({ endTime: v })} />
             <p className="self-end text-foreground"><span className="text-muted-foreground">{t('hours.total', 'Total')}</span> <span className="tabular-nums">{hours(total)}</span></p>
           </div>
-          <ul className="mt-3 space-y-3">
+          {form.idle.length > 0 && <ul className="mt-3 space-y-3">
             {form.idle.map((idle, i) => (
               <li key={i} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto] sm:items-end">
                 <TextField label={t('hours.idleMinutes', 'Idle minutes')} inputMode="numeric" value={idle.minutes} disabled={!editable} error={errText(`idle.${i}.minutes`)}
@@ -222,7 +227,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
                 {editable && <Button variant="ghost" onClick={() => update({ idle: form.idle.filter((_, j) => j !== i) })}>{t('form.remove', 'Remove')}</Button>}
               </li>
             ))}
-          </ul>
+          </ul>}
           {editable && (
             <Button variant="outline" className="mt-3" onClick={() => update({ idle: [...form.idle, { minutes: '', reasonId: '' }] })}>{t('hours.addIdle', 'Add idle time')}</Button>
           )}
@@ -233,8 +238,8 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
           </div>
         </RecordSection>
 
-        <RecordSection title={t('consumables.title', 'Consumables used')}>
-          <ul className="space-y-3">
+        {(editable || form.consumables.length > 0) && <RecordSection title={t('consumables.title', 'Consumables used')}>
+          {form.consumables.length > 0 && <ul className="space-y-3">
             {form.consumables.map((c, i) => (
               <li key={i} className="grid gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto] sm:items-end">
                 <SelectField label={t('consumables.item', 'Stock item')} value={c.stockItemId} disabled={!editable} error={errText(`consumables.${i}.item`)}
@@ -245,12 +250,11 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
                 {editable && <Button variant="ghost" onClick={() => update({ consumables: form.consumables.filter((_, j) => j !== i) })}>{t('form.remove', 'Remove')}</Button>}
               </li>
             ))}
-          </ul>
-          {form.consumables.length === 0 && !editable && <p className="text-muted-foreground">{t('consumables.none', 'None recorded')}</p>}
+          </ul>}
           {editable && (
             <Button variant="outline" className="mt-3" onClick={() => update({ consumables: [...form.consumables, { stockItemId: '', quantity: '' }] })}>{t('consumables.add', 'Add consumable')}</Button>
           )}
-        </RecordSection>
+        </RecordSection>}
 
         <RecordSection title={t('equipment.title', 'Equipment hours')} data-testid="dsr-equipment"
           actions={editable ? <Link to="/equipment" className="text-primary-text hover:underline">{t('equipment.add', 'Add usage')}</Link> : undefined}>
