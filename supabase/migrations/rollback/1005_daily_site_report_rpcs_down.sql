@@ -7,6 +7,7 @@ drop policy if exists dsr_photos_insert on public.dsr_photos;
 drop function if exists public.dsr_seed_default_lists_trigger();
 drop function if exists public.dsr_seed_default_lists(uuid);
 drop function if exists public.dsr_photo_writable(uuid);
+drop function if exists public.dsr_photo_stored(text);
 drop function if exists public.dsr_validation_queue();
 drop function if exists public.work_order_validated_revenue(uuid);
 drop function if exists public.dsr_report_revenue(uuid);

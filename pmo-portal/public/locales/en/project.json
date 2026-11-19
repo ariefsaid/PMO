@@ -49,7 +49,7 @@
         "ordered": "Source: contract allocation quantities × contract rates.",
         "delivered": "Source: quantities accepted on confirmed BASTs × contract rates.",
         "invoiced": "Invoices under the signed contract, in the contract currency and tax basis. Shown as unknown when an invoice currency or tax basis differs from the contract. The percentage is of the signed contract value.",
-        "paid": "Source: invoice amount less the accounting balance outstanding.",
+        "paid": "Source: invoice amount including tax, less the accounting balance outstanding.",
         "canInvoice": "Accepted quantity not yet claimed, priced at contract rates, plus remaining value on money-only orders.",
         "overdue": "Sum of positive outstanding balances on invoices past their due date.",
         "notOrderedValue": "Source: unallocated contract quantity multiplied by its contract rate.",
@@ -66,7 +66,8 @@
         "invoiceUnpaid": "Source: accounting balance outstanding for this invoice.",
         "acceptedHistory": "Source: quantity recorded on this BAST.",
         "invoiceAmount": "Source: invoice amount mirrored from accounting.",
-        "invoicePaid": "Computed as invoice amount less accounting balance outstanding."
+        "invoicePaid": "Computed as invoice amount including tax, less accounting balance outstanding.",
+        "overdueUnknown": "Unknown: overdue invoices are in more than one currency, so their balances are not added up."
       },
       "ordered": "Ordered",
       "delivered": "Delivered",
@@ -143,7 +144,10 @@
       "noLineSplit": "No order allocation history is available.",
       "noConfirmedBastHistory": "No confirmed BAST quantity history yet.",
       "invoiceDueDate": "Due date",
-      "invoiceDateSource": "Source: invoice date from accounting."
+      "invoiceDateSource": "Source: invoice date from accounting.",
+      "mixedCurrencyNote": "Invoiced and paid are left out because the invoices are not all in the project currency",
+      "mixedCurrencyNotePaid": "Paid is left out because the invoices are not all in the project currency",
+      "paidOfInvoiced": "of {{amount}} invoiced, including tax"
     },
     "billing": {
       "sources": {
@@ -483,9 +487,9 @@
       "delivered": "Delivered",
       "deliveredSource": "Sum of accepted quantities multiplied by BoQ unit rates.",
       "invoiced": "Invoiced",
-      "invoicedSource": "Sum of non-draft, non-cancelled invoices in the project currency.",
+      "invoicedSource": "Sum of non-draft, non-cancelled invoices in the project currency, including tax.",
       "paid": "Paid",
-      "paidSource": "Invoice amount less accounting outstanding balance; this is settlement, not receipt cash.",
+      "paidSource": "Invoice amount including tax, less accounting outstanding balance; this is settlement, not receipt cash.",
       "marginSource": "Billed-work revenue less complete recorded spending in the same currency.",
       "noBoq": "Ordered and delivered values are not tracked until the project has a BoQ.",
       "invoiceError": "Couldn't load invoice settlement.",
@@ -515,7 +519,9 @@
       "contractLocked": "read-only",
       "cashIncompleteShort": "Cash received (receipts not allocated to invoices)",
       "cashInvalidShort": "Cash received (receipt reading not verified)",
-      "cashUnmatchedShort": "Cash received (no receipt matched yet)"
+      "cashUnmatchedShort": "Cash received (no receipt matched yet)",
+      "settlementCurrencyOut": "Invoiced and paid are left out because the invoices are not all in the project currency.",
+      "invoicedAndPaid": "Invoiced and paid"
     },
     "cost": {
       "colCategory": "Category",
@@ -1054,7 +1060,8 @@
         "figuresIncomplete": "Invoice figures are incomplete.",
         "retryFigures": "Retry invoice figures",
         "orderlessHeading": "Invoices without a customer order",
-        "orderlessFiguresIncomplete": "Paid and unpaid amounts will appear once the accounting system reports an invoice balance."
+        "orderlessFiguresIncomplete": "Paid and unpaid amounts will appear once the accounting system reports an invoice balance.",
+        "mixedCurrency": "Invoices on this order are in more than one currency, so they are not added up."
       },
       "delivery": {
         "chooseOrder": "Choose the customer order receiving this delivery."

@@ -91,6 +91,7 @@ describe('S02 billed-work figure agreement on real screens', () => {
     setFigureAgreementSingleCurrencyContractCase(true);
     renderFigureAgreementRoute(contractRoute);
     const invoicedStep = await screen.findByRole('listitem', { name: /^Invoiced /u }, { timeout: 10_000 });
+    // Contract-kind invoices only (40 + 60, tax 0): the other-work (50) and advance (20) invoices are not contract billing.
     expect(invoicedStep).toHaveTextContent('$100');
     // The tax basis is said once, under the contract value it describes.
     expect(screen.getByRole('listitem', { name: /^Contract value /u })).toHaveTextContent('Signed contract · excluding tax');

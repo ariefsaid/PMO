@@ -38,6 +38,7 @@ table or job and on a stale entry. Decision cell starts with `purge, <N days|mon
 | `cron-run-history-purge` | keep: purge job, stores no rows |
 | `error-events-purge` | keep: purge job, stores no rows |
 | `clickup-webhook-inbox-purge` | keep: purge job, stores no rows |
+| `document-expiry-warnings` | keep: writes one dedupe row per notice (`document_expiry_notices`, removed with its document); notifications fall under `notifications-purge` |
 | `alert-send-log-purge` | keep: purge job, stores no rows |
 | `notifications-purge` | keep: purge job, stores no rows |
 | `agent-dispatch-tick` | keep: trigger only, stores no rows |

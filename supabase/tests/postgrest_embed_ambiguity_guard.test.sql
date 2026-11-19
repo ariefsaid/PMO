@@ -72,6 +72,8 @@ select set_eq(
             -- adding: the journals DAL reads journal_entries with select('*') and no embed; names resolve through
             -- the profiles directory by id. Any future embed must name its constraint.
             ('journal_entries -> profiles'),
+            -- 0970: people has profile_id and manager_id; the expiry DAL uses an RPC, not a profiles embed.
+            ('people -> profiles'),
             ('platform_operators -> profiles'),
             ('procurements -> profiles'),
             ('projects -> profiles'),

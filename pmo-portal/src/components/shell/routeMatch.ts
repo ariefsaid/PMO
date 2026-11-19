@@ -343,6 +343,7 @@ export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
   '/stock/new/adjustment': '/stock',
   // #1519: the asset reference list is part of Equipment.
   '/equipment/assets': '/equipment',
+  '/equipment/expiring': '/equipment',
 };
 
 /** Finance record routes remain addressable while their list parent is the Receivables area. */
@@ -364,6 +365,7 @@ export const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }
   '/stock/new/count': { label: 'Stock count', i18nKey: 'stock:kinds.count' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/new/adjustment': { label: 'Adjustment', i18nKey: 'stock:kinds.adjustment' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/equipment/assets': { label: 'Assets', i18nKey: 'equipment:nav.assets' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/equipment/expiring': { label: 'Expiring documents', i18nKey: 'equipment:nav.expiring' }, // i18n-exempt: fallback label is replaced from i18nKey at render
 };
 
 /** Canonical Administration child routes and their route-derived breadcrumb labels (English source). */

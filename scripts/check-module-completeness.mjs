@@ -65,6 +65,7 @@ export const CORE_ROUTES = {
   '/expenses/:claimId': 'expense_claims — core',
   '/equipment': 'equipment — not a catalogue module',
   '/equipment/assets': 'equipment — not a catalogue module',
+  '/equipment/expiring': 'equipment — not a catalogue module',
   '/equipment/assets/:assetId': 'equipment — not a catalogue module',
   '/site-reports': 'site reports (#1522) — not a catalogue module',
   '/site-reports/:reportId': 'site reports (#1522) — not a catalogue module',
