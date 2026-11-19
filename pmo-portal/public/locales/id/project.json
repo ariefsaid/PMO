@@ -407,6 +407,30 @@
           "otherProject": "Dokumen harus milik proyek ini.",
           "generic": "Tahap tidak dapat disimpan. Coba lagi."
         }
+      },
+      "terms": {
+        "title": "Ketentuan penagihan",
+        "save": "Simpan ketentuan penagihan",
+        "loadError": "Ketentuan penagihan tidak dapat dimuat.",
+        "stagesTitle": "Tahap penagihan",
+        "stagesHelp": "Setiap klaim progres baru harus menyelesaikan tahap ini, berurutan, sebelum fakturnya dapat diterbitkan.",
+        "stageN": "Tahap {{n}}",
+        "stageName": "Nama tahap",
+        "nameMissing": "Beri nama tahap.",
+        "moveUp": "Naikkan {{stage}}",
+        "up": "Naik",
+        "remove": "Hapus {{stage}}",
+        "removeShort": "Hapus",
+        "required": "Dokumen wajib, satu per baris",
+        "optional": "Dokumen opsional, satu per baris",
+        "add": "Tambah tahap",
+        "deadlineDay": "Batas faktur (tanggal dalam bulan)",
+        "deadlineInvalid": "Masukkan tanggal 1 sampai 31, atau kosongkan.",
+        "warnDays": "Ingatkan sekian hari sebelumnya",
+        "warnInvalid": "Masukkan 0 sampai 27 hari.",
+        "retention": "Retensi (%)",
+        "retentionInvalid": "Masukkan persentase dari 0 sampai kurang dari 100.",
+        "retentionHelp": "Retensi ditahan dari setiap klaim progres baru; faktur dan PPN-nya tetap bernilai penuh."
       }
     },
     "drawer": {

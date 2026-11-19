@@ -126,6 +126,19 @@ export async function getBillingStageTemplate(projectId: string): Promise<StageT
   }));
 }
 
+export interface ProjectBillingTerms {
+  deadlineDay: number | null;
+  warnDays: number;
+  retentionPct: number;
+}
+
+export async function getProjectBillingTerms(projectId: string): Promise<ProjectBillingTerms | null> {
+  const { data, error } = await supabase.from('projects')
+    .select('invoice_deadline_day,invoice_deadline_warn_days,retention_pct').eq('id', projectId).maybeSingle();
+  if (error) fail(error);
+  return data ? { deadlineDay: data.invoice_deadline_day, warnDays: data.invoice_deadline_warn_days, retentionPct: num(data.retention_pct) } : null;
+}
+
 export async function setProjectInvoiceDeadline(projectId: string, day: number | null, warnDays: number): Promise<void> {
   const { error } = await supabase.rpc('set_project_invoice_deadline', { p_project: projectId, p_day: day as number, p_warn_days: warnDays });
   if (error) fail(error);

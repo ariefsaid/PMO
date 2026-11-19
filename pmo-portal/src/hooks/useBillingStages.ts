@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
-import type { CompleteStageInput } from '@/src/lib/db/billingStages';
+import type { CompleteStageInput, StageTemplateInput } from '@/src/lib/db/billingStages';
 
 /** One claim's billing stages, retention and the project's invoice deadline (#2522). Keys carry org_id. */
 export function useClaimBillingTrace(claimId: string, projectId: string) {
@@ -43,4 +43,38 @@ export function useBillingStageMutations(claimId: string, projectId: string) {
     onSuccess: invalidate,
   });
   return { attachDocument, completeStage };
+}
+
+/** The project's billing terms: its stage list, monthly invoice deadline and retention percentage. */
+export function useProjectBillingTerms(projectId: string, enabled = true) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({
+    queryKey: ['project-billing-terms', orgId, projectId],
+    queryFn: async () => {
+      const [stages, terms] = await Promise.all([repositories.billingStages.getTemplate(projectId), repositories.billingStages.getTerms(projectId)]);
+      return { stages, terms };
+    },
+    enabled: enabled && Boolean(orgId) && Boolean(projectId),
+  });
+}
+
+export interface SaveBillingTermsInput {
+  stages: StageTemplateInput[];
+  deadlineDay: number | null;
+  warnDays: number;
+  retentionPct: number;
+}
+
+/** Saves the three terms in order (each its own Finance/Admin RPC); new claims take the new stage list. */
+export function useSaveBillingTerms(projectId: string) {
+  const qc = useQueryClient();
+  const orgId = useAuth().currentUser?.org_id;
+  return useMutation({
+    mutationFn: async (input: SaveBillingTermsInput) => {
+      await repositories.billingStages.setTemplate(projectId, input.stages);
+      await repositories.billingStages.setInvoiceDeadline(projectId, input.deadlineDay, input.warnDays);
+      await repositories.billingStages.setRetention(projectId, input.retentionPct);
+    },
+    onSettled: () => { void qc.invalidateQueries({ queryKey: ['project-billing-terms', orgId, projectId] }); },
+  });
 }

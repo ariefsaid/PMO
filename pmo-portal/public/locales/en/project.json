@@ -407,6 +407,30 @@
           "otherProject": "The document must be one of this project's documents.",
           "generic": "The stage could not be saved. Try again."
         }
+      },
+      "terms": {
+        "title": "Billing terms",
+        "save": "Save billing terms",
+        "loadError": "The billing terms could not be loaded.",
+        "stagesTitle": "Billing stages",
+        "stagesHelp": "Each new progress claim must complete these stages, in order, before its invoice can be raised.",
+        "stageN": "Stage {{n}}",
+        "stageName": "Stage name",
+        "nameMissing": "Name the stage.",
+        "moveUp": "Move {{stage}} up",
+        "up": "Up",
+        "remove": "Remove {{stage}}",
+        "removeShort": "Remove",
+        "required": "Required documents, one per line",
+        "optional": "Optional documents, one per line",
+        "add": "Add stage",
+        "deadlineDay": "Invoice deadline (day of month)",
+        "deadlineInvalid": "Enter a day from 1 to 31, or leave it empty.",
+        "warnDays": "Warn this many days ahead",
+        "warnInvalid": "Enter 0 to 27 days.",
+        "retention": "Retention (%)",
+        "retentionInvalid": "Enter a percentage from 0 to under 100.",
+        "retentionHelp": "Retention is held from each new progress claim; the invoice and its VAT stay at full value."
       }
     },
     "drawer": {

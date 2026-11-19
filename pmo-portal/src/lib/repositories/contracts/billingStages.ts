@@ -1,6 +1,7 @@
 /** Measurement to invoice (#2522, #1572): billing stages, per-item reconciliation, retention. Operational only — never dispatches. */
 import type {
   ClaimBillingTrace,
+  ProjectBillingTerms,
   CompleteStageInput,
   ReconciliationRow,
   RetentionReleaseInput,
@@ -11,6 +12,7 @@ import type {
 export interface BillingStagesRepository {
   getTemplate(projectId: string): Promise<StageTemplateInput[]>;
   setTemplate(projectId: string, stages: StageTemplateInput[]): Promise<number>;
+  getTerms(projectId: string): Promise<ProjectBillingTerms | null>;
   setInvoiceDeadline(projectId: string, day: number | null, warnDays: number): Promise<void>;
   setRetention(projectId: string, pct: number): Promise<void>;
   trace(claimId: string, projectId: string): Promise<ClaimBillingTrace>;
