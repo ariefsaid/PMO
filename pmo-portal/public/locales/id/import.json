@@ -1,7 +1,9 @@
 {
   "entity": {
     "contractLines": "baris kontrak",
-    "contractLine": "baris kontrak"
+    "contractLine": "baris kontrak",
+    "rateCatalogue": "item katalog",
+    "rateCatalogueItem": "item katalog"
   },
   "wizard": {
     "title": "Impor {{entity}}",
@@ -62,7 +64,9 @@
     "invalid": "{{n}} dilewati karena kesalahan",
     "listName": "Baris yang tidak diimpor",
     "alreadyImported": "Sudah diimpor.",
-    "notCreated": "Tidak dibuat"
+    "notCreated": "Tidak dibuat",
+    "downloadFailed": "Unduh baris yang tidak diimpor",
+    "reasonColumn": "Alasan tidak diimpor"
   },
   "paste": {
     "label": "Atau tempel baris yang disalin dari spreadsheet",
@@ -103,5 +107,33 @@
     "alreadyThere": "Sudah ada di kontrak ini.",
     "existingUnavailable": "Tidak dapat memeriksa baris yang sudah ada di kontrak ini. Baris yang sudah ada akan dilewati saat impor.",
     "nothingNew": "Tidak ada yang perlu diimpor: semua baris yang valid sudah ada di kontrak ini."
+  },
+  "rateCatalogue": {
+    "category": "Kategori",
+    "class": "Kelas",
+    "itemCode": "Kode item",
+    "description": "Deskripsi",
+    "unit": "Satuan",
+    "workMethod": "Metode kerja",
+    "testType": "Jenis uji",
+    "effectiveFrom": "Berlaku mulai",
+    "stages": "Bobot tahap",
+    "effectiveFromHint": "Ditulis tahun-bulan-hari, mis. 2026-01-31. Tarif di bawah berlaku mulai tanggal ini.",
+    "rateHint": "Tarif untuk varian lokasi ini. Kosongkan jika tidak ada tarif.",
+    "stagesHint": "Opsional. Nama tahap dan persen, mis. Fabrikasi=10; Pengelasan=80; Uji=10. Jumlahnya harus 100.",
+    "error": {
+      "itemCodeRequired": "Kode item wajib diisi.",
+      "itemCodeTooLong": "Kode item terlalu panjang.",
+      "descriptionRequired": "Deskripsi wajib diisi.",
+      "descriptionTooLong": "Deskripsi terlalu panjang.",
+      "unitRequired": "Satuan wajib diisi.",
+      "unitTooLong": "Satuan terlalu panjang.",
+      "effectiveFrom": "Berlaku mulai harus berupa tanggal tahun-bulan-hari.",
+      "rate": "Tarif harus berupa angka 0 atau lebih (maks. 2 desimal).",
+      "noRate": "Isi minimal satu tarif lokasi.",
+      "stagesFormat": "Bobot tahap harus berbentuk Fabrikasi=10; Pengelasan=80.",
+      "stagesSum": "Bobot tahap harus berjumlah 100.",
+      "duplicate": "Kode item ini muncul dua kali di lembar."
+    }
   }
 }

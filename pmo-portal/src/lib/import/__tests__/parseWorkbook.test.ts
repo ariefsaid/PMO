@@ -217,3 +217,15 @@ it('enforces the FX consumer limit on validation ranges', async () => {
   const buf = await workbookWithRanges('<dataValidations count="1"><dataValidation sqref="A1:A521"/></dataValidations>');
   await expect(parseFxFile(new File([buf], 'rates.xlsx'), '2026-10-31')).rejects.toMatchObject({ code: 'too_many_rows' });
 });
+
+it('accepts the catalogue boundary and rejects a sheet above its cap', async () => {
+  const rows = Array.from({ length: 5001 }, (_, i) => [`ITEM-${i}`]);
+  const allowed = await xlsxBuf(['Item'], rows.slice(0, 5000));
+  expect((await parseWorkbook(allowed, 5000)).rows).toHaveLength(5000);
+  await expect(parseWorkbook(await xlsxBuf(['Item'], rows), 5000)).rejects.toMatchObject({ code: 'too_many_rows' });
+}, 20000);
+
+it('reads real Excel date cells as ISO calendar days', async () => {
+  const workbook = await xlsxBuf(['Effective from'], [['2026-01-01']]);
+  expect((await parseWorkbook(workbook)).rows).toEqual([['2026-01-01']]);
+});
