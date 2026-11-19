@@ -40,12 +40,12 @@ returns table (asset_id uuid, bucket_start date, in_service_days int, available_
                work_hours numeric, availability_pct numeric, utilisation_pct numeric, pending_usage_entries int)
 language plpgsql stable security definer set search_path = public, pg_temp as $$
 #variable_conflict use_column
-declare v_org uuid := public.auth_org_id(); v_wh numeric;
+declare v_org uuid := public.auth_org_id(); v_wh numeric; v_max int := case when p_grain = 'day' then 93 else 400 end;
 begin
   perform public.assert_is_active_member();
   if public.auth_role() not in ('Admin','Project Manager','Finance','Executive') then raise exception 'not authorized' using errcode = '42501'; end if;
   if p_grain is null or p_grain not in ('day','week','month') then raise exception 'grain must be day, week or month' using errcode = '22023'; end if;
-  if p_from is null or p_to is null or p_to < p_from or p_to - p_from + 1 > case when p_grain = 'day' then 93 else 400 end then
+  if p_from is null or p_to is null or p_to < p_from or p_to - p_from + 1 > v_max then
     raise exception 'the period is invalid or too long' using errcode = '22023';
   end if;
   if p_asset_ids is null or cardinality(p_asset_ids) = 0 or cardinality(p_asset_ids) > 200 then
