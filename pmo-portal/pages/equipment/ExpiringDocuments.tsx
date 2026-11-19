@@ -17,7 +17,7 @@ const ExpiringDocumentsPage: React.FC = () => {
     { key: 'type', header: t('equipment:expiry.type', 'Document'), cell: (d) => <span>{d.type_name}</span> },
     { key: 'detail', header: t('equipment:expiry.detail', 'Number / status'),
       cell: (d) => d.is_medical && d.medical_status
-        ? <span>{t(`equipment:expiry.medical.${d.medical_status}`, d.medical_status === 'fit' ? 'Fit' : 'Unfit')}</span>
+        ? <span>{d.medical_status === 'fit' ? t('equipment:expiry.medical.fit', 'Fit') : t('equipment:expiry.medical.unfit', 'Unfit')}</span>
         : d.number ? <span className="record-id">{d.number}</span> : null },
     { key: 'expires', header: t('equipment:expiry.expires', 'Expires'), cell: (d) => <span>{d.expires_on}</span> },
     { key: 'left', header: t('equipment:expiry.left', 'Days left'),

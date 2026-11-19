@@ -1,7 +1,7 @@
 -- document_expiry.test.sql — 0970-0974 (#2527). Owns AC-DEX-001..008 (RLS, runner schedule, idempotency, list, medical shape).
 begin;
 create extension if not exists pgtap;
-select plan(37);
+select plan(43);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25270000-0000-0000-0000-00000000000a', 'DEX Org',   'IDR', 'UTC'),
@@ -101,17 +101,27 @@ select throws_ok($$insert into expiry_documents (subject_kind, person_id, type_i
   '42501', null, 'AC-DEX-005 a PM cannot write person documents');
 select pg_temp.act_as('25270000-0000-0000-0000-0000000000b1');
 select is((select count(*)::int from expiry_documents), 0, 'AC-DEX-005 another organisation sees nothing');
+select is((select count(*)::int from people where id = '25270000-0000-0000-0000-0000000000e1'), 0, 'AC-DEX-005 another organisation cannot read the person');
+select is((select count(*)::int from document_types), 0, 'AC-DEX-005 another organisation cannot read document types');
+select throws_ok($$select * from document_expiry_notices$$, '42501', null, 'AC-DEX-005 another organisation cannot read notice records');
 select pg_temp.act_as('25270000-0000-0000-0000-0000000000a4');
 select is((select count(*)::int from expiry_documents where subject_kind = 'person'), 0, 'AC-DEX-005 linked person cannot read own documents');
 select is((select count(*)::int from expiry_documents where subject_kind = 'equipment'), 0, 'AC-DEX-005 unrelated Engineer cannot read equipment documents');
 reset role;
 select is((select document_warning_days from organizations where id = '25270000-0000-0000-0000-00000000000a'), array[60,5], 'AC-DEX-008 warning days are stored sorted and unique');
+select is((select document_warning_days from organizations where id = '25270000-0000-0000-0000-00000000000b'), array[30,14,7], 'AC-DEX-008 updating one organisation leaves the other unchanged');
+set local role anon;
+select throws_ok($$select public.set_document_warning_days(array[10])$$, '42501', null, 'AC-DEX-008 anonymous callers cannot change warning days');
+reset role;
 
 insert into expiry_documents (org_id, subject_kind, person_id, type_id, expires_on)
 select '25270000-0000-0000-0000-00000000000a', 'person', '25270000-0000-0000-0000-0000000000e1', '25270000-0000-0000-0000-0000000000f1', '2026-12-01' from generate_series(1, 501);
 set local role authenticated;
 select pg_temp.act_as('25270000-0000-0000-0000-0000000000a1');
 select is((select count(*)::int from list_expiring_documents(30, '2026-11-20')), 504, 'AC-DEX-006 list includes more than 500 documents');
+select lives_ok($$insert into expiry_documents (subject_kind, person_id, type_id, expires_on)
+  values ('person', '25270000-0000-0000-0000-0000000000e1', '25270000-0000-0000-0000-0000000000f1', '2027-01-01')$$,
+  'AC-DEX-005 Admin can insert without specifying org_id');
 reset role;
 select throws_ok($$update people set manager_id = '25270000-0000-0000-0000-0000000000b1' where id = '25270000-0000-0000-0000-0000000000e1'$$, '23503', null, 'AC-DEX-005 cross-org manager update is rejected');
 select throws_ok($$update people set profile_id = '25270000-0000-0000-0000-0000000000b1' where id = '25270000-0000-0000-0000-0000000000e1'$$, '23503', null, 'AC-DEX-005 cross-org profile update is rejected');

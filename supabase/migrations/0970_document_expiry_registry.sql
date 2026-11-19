@@ -106,7 +106,7 @@ begin
   new.is_medical := t.is_medical;
   return new;
 end $$;
-create trigger expiry_documents_guard_trg before insert or update on public.expiry_documents
+create trigger expiry_documents_z_guard_trg before insert or update on public.expiry_documents
   for each row execute function public.expiry_documents_guard();
 
 alter table public.people enable row level security;           alter table public.people force row level security;
@@ -115,37 +115,37 @@ alter table public.expiry_documents enable row level security; alter table publi
 
 -- people: planners read all; a manager reads their reports; a linked person reads themself. Admin manages.
 create policy people_select on public.people for select using (
-  org_id = public.auth_org_id() and public.is_active_member()
-  and (public.auth_role() in ('Admin','Project Manager','Finance','Executive') or manager_id = auth.uid() or profile_id = auth.uid()));
+  org_id = (select public.auth_org_id()) and (select public.is_active_member())
+  and ((select public.auth_role()) in ('Admin','Project Manager','Finance','Executive') or manager_id = (select auth.uid()) or profile_id = (select auth.uid())));
 create policy people_insert on public.people for insert
-  with check (org_id = public.auth_org_id() and public.is_active_member() and public.auth_role() = 'Admin');
+  with check (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and (select public.auth_role()) = 'Admin');
 create policy people_update on public.people for update
-  using (org_id = public.auth_org_id() and public.is_active_member() and public.auth_role() = 'Admin')
-  with check (org_id = public.auth_org_id());
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and (select public.auth_role()) = 'Admin')
+  with check (org_id = (select public.auth_org_id()));
 
 create policy document_types_select on public.document_types for select
-  using (org_id = public.auth_org_id() and public.is_active_member());
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
 create policy document_types_insert on public.document_types for insert
-  with check (org_id = public.auth_org_id() and public.is_active_member() and public.auth_role() = 'Admin');
+  with check (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and (select public.auth_role()) = 'Admin');
 create policy document_types_update on public.document_types for update
-  using (org_id = public.auth_org_id() and public.is_active_member() and public.auth_role() = 'Admin')
-  with check (org_id = public.auth_org_id());
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and (select public.auth_role()) = 'Admin')
+  with check (org_id = (select public.auth_org_id()));
 
 -- Admin reads all; a PM reads equipment; a manager reads their reports' non-medical documents.
 create policy expiry_documents_select on public.expiry_documents for select using (
-  org_id = public.auth_org_id() and public.is_active_member()
-  and (public.auth_role() = 'Admin'
-       or (subject_kind = 'equipment' and public.auth_role() = 'Project Manager')
+  org_id = (select public.auth_org_id()) and (select public.is_active_member())
+  and ((select public.auth_role()) = 'Admin'
+       or (subject_kind = 'equipment' and (select public.auth_role()) = 'Project Manager')
        or (not is_medical and person_id is not null and exists
-           (select 1 from public.people p where p.id = person_id and p.manager_id = auth.uid()))));
+           (select 1 from public.people p where p.id = person_id and p.manager_id = (select auth.uid())))));
 -- Admin keeps every document; a Project Manager keeps equipment documents only
 create policy expiry_documents_insert on public.expiry_documents for insert with check (
-  org_id = public.auth_org_id() and public.is_active_member()
-  and (public.auth_role() = 'Admin' or (public.auth_role() = 'Project Manager' and subject_kind = 'equipment')));
+  org_id = (select public.auth_org_id()) and (select public.is_active_member())
+  and ((select public.auth_role()) = 'Admin' or ((select public.auth_role()) = 'Project Manager' and subject_kind = 'equipment')));
 create policy expiry_documents_update on public.expiry_documents for update using (
-  org_id = public.auth_org_id() and public.is_active_member()
-  and (public.auth_role() = 'Admin' or (public.auth_role() = 'Project Manager' and subject_kind = 'equipment')))
-  with check (org_id = public.auth_org_id());
+  org_id = (select public.auth_org_id()) and (select public.is_active_member())
+  and ((select public.auth_role()) = 'Admin' or ((select public.auth_role()) = 'Project Manager' and subject_kind = 'equipment')))
+  with check (org_id = (select public.auth_org_id()));
 
 revoke all on public.people, public.document_types, public.expiry_documents from public, anon, authenticated;
 grant select on public.people, public.document_types, public.expiry_documents to authenticated;
