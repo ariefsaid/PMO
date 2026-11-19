@@ -130,7 +130,9 @@ export type Entity =
   | 'maintenance'
   | 'tmRate'
   | 'tmClaim'
-  | 'tmSignoff';
+  | 'tmSignoff'
+  | 'crew'
+  | 'attendance';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -777,6 +779,21 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     ), // Engineers may read their own entries; the audience above may read amounts and others' entries.
   },
   equipmentCosting: { manage: allowUnlessViewOnly(EQUIPMENT_COSTING_WRITE), view: allow(EQUIPMENT_APPROVE) },
+  /**
+   * Crews, roster and daily attendance (#2528, migrations 0988-0990). UX ONLY — RLS, `crew_can_manage`,
+   * `attendance_can_record`, `attendance_record` and `attendance_decide_week` are the authority (ADR-0016).
+   *   crew        ← every active member reads the master and roster; `crew_can_manage` (Admin, Executive, PM) writes.
+   *   attendance  ← create = a crew manager, or the field controller of the crew (`record.field_controller_id`);
+   *                 approve (a no-login week) = a crew manager who recorded none of it (`record.recorder_ids`, the SoD
+   *                 mirror of 0990). A login's week is approved on the timesheet, whose own gate applies.
+   */
+  crew: { view: allow(ALL), manage: allowUnlessViewOnly(DELIVERY) },
+  attendance: {
+    create: (role, ctx) => ctx.record?.viewOnly !== true && (
+      has(DELIVERY, role) || (!!ctx.currentUserId && ctx.record?.field_controller_id === ctx.currentUserId)),
+    approve: (role, ctx) => ctx.record?.viewOnly !== true && has(DELIVERY, role) && !(
+      !!ctx.currentUserId && Array.isArray(ctx.record?.recorder_ids) && (ctx.record.recorder_ids as unknown[]).includes(ctx.currentUserId)),
+  },
   /**
    * The Odoo fleet and maintenance register (#1511 F5). UX ONLY — the `adapter-dispatch` `equipment` domain's role
    * gates and 0797's RPC/RLS are the authority (ADR-0016); the FE may be stricter, never looser.
