@@ -12097,9 +12097,9 @@ export type Database = {
       mrq_decide_step: {
         Args: {
           p_decision: string
-          p_reason?: string
+          p_reason?: string | null
           p_request_id: string
-          p_source_warehouse_id?: string
+          p_source_warehouse_id?: string | null
           p_step_position: number
         }
         Returns: undefined
