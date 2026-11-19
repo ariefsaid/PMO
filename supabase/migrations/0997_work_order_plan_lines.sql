@@ -68,7 +68,7 @@ begin
   return case when tg_op = 'DELETE' then old else new end;
 end $$;
 revoke all on function public.check_work_order_plan_line() from public, anon, authenticated;
-create trigger a0_work_order_plan_lines_check before insert or update or delete on public.work_order_plan_lines
+create trigger zz_work_order_plan_lines_check before insert or update or delete on public.work_order_plan_lines
   for each row execute function public.check_work_order_plan_line();
 
 -- FR-WPVA-003: every edit leaves one audit row with before and after.
