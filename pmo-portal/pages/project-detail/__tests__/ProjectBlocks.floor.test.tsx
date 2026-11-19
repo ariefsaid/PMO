@@ -107,6 +107,7 @@ describe('ProjectBlocks floor', () => {
   it('floor: Match payments opens Receivables on the payments view', async () => {
     state.boqItems = [{ id: 'boq-1', quantity: 10, rate: 100 }];
     state.invoices = [{ id: 'inv-1', status: 'Submitted', invoice_date: '2026-10-01', erp_due_date: '2026-10-20', erp_payment_terms_days: 30, erp_outstanding_amount: 50, grand_total: '9999', currency: 'USD', amount: 250 }];
+    state.finances.invoices = [{ currency: 'USD', invoice_count: 1, invoiced: '250.00', settled: '200.00', outstanding: '50.00', missing_amount: 0, missing_outstanding: 0, tax_basis: 'inclusive', work_revenue: '250.00', missing_work: 0 }];
 
     renderWithQueryClient(
       <MemoryRouter initialEntries={['/projects/p1/overview']}>
