@@ -13,6 +13,7 @@ import { useProjectIdentity } from '@/src/hooks/useProjects';
 import {
   useStockUnits, useStockItems, useStockWarehouses, useStockKeepers, useStockKeeperCandidates, useStockMasterMutations, useStockOnHand,
 } from '@/src/hooks/useStock';
+import { useStockTags } from '@/src/hooks/useStockSiteWork';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { parseStockError } from '@/src/lib/stockErrors';
 import { useUrlFilters } from '@/src/components/ui/useUrlFilters';
@@ -306,11 +307,12 @@ interface FormProps {
   onClose: () => void;
   onDone: (isEdit: boolean) => void;
 }
-interface Values { code: string; name: string; wholeOnly: boolean; description: string; unitId: string; leadTime: string; kind: 'central' | 'site'; projectId: string }
+interface Values { code: string; name: string; wholeOnly: boolean; description: string; unitId: string; leadTime: string; kind: 'central' | 'site' | 'yard' | 'staging'; projectId: string; tagId: string }
 
 const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, onClose, onDone }) => {
   const { t } = useTranslation('stock');
   const m = useStockMasterMutations();
+  const tags = useStockTags().data ?? [];
   const errorCopy = useErrorCopy();
   const isEdit = !!row;
   const k = which === 'units' ? 'unit' : which === 'items' ? 'item' : 'warehouse';
@@ -332,7 +334,7 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, onC
     initialValues: {
       code: row ? (row as { code: string }).code : '', name: row ? (row as { name: string }).name : '',
       wholeOnly: unitRow?.whole_only ?? false, description: itemRow?.description ?? '', unitId: itemRow?.unit_id ?? '',
-      leadTime: itemRow?.lead_time_days == null ? '' : String(itemRow.lead_time_days), kind: (whRow?.kind as Values['kind'] | undefined) ?? 'site', projectId: whRow?.project_id ?? '',
+      leadTime: itemRow?.lead_time_days == null ? '' : String(itemRow.lead_time_days), kind: (whRow?.kind as Values['kind'] | undefined) ?? 'site', projectId: whRow?.project_id ?? '', tagId: itemRow?.tag_id ?? '',
     },
     validate,
     idPrefix: `stock-${k}-form`,
@@ -347,6 +349,7 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, onC
   const description = form.fieldProps('description');
   const kind = form.fieldProps('kind');
   const projectId = form.fieldProps('projectId');
+  const tagId = form.fieldProps('tagId');
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -356,7 +359,7 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, onC
           const input: StockUnitInput = { code: v.code, name: v.name, wholeOnly: v.wholeOnly };
           if (row) await m.updateUnit.mutateAsync({ id: row.id, input }); else await m.createUnit.mutateAsync(input);
         } else if (which === 'items') {
-          const input: StockItemInput = { code: v.code, name: v.name, description: v.description || null, unitId: v.unitId, leadTimeDays: v.leadTime.trim() ? Number(v.leadTime) : null };
+          const input: StockItemInput = { code: v.code, name: v.name, description: v.description || null, unitId: v.unitId, leadTimeDays: v.leadTime.trim() ? Number(v.leadTime) : null, tagId: v.tagId || null };
           if (row) await m.updateItem.mutateAsync({ id: row.id, input }); else await m.createItem.mutateAsync(input);
         } else {
           const input: StockWarehouseInput = { code: v.code, name: v.name, kind: v.kind, projectId: v.projectId || null };
@@ -403,13 +406,15 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, onC
             <SelectField id={unitId.id} label={t('setup.form.item.unit')} required value={unitId.value} onChange={unitId.onChange} onBlur={unitId.onBlur} error={unitId.error}
               placeholder={t('setup.form.item.unitPlaceholder')} options={units.map((u) => ({ value: u.id, label: `${u.name} (${u.code})` }))} />
             <TextField id={leadTime.id} label={t('setup.form.item.leadTime')} helper={t('setup.form.item.leadTimeHelp')} value={leadTime.value} onChange={leadTime.onChange} onBlur={leadTime.onBlur} error={leadTime.error} inputMode="numeric" />
+            <SelectField id={tagId.id} label={t('setup.form.item.tag')} helper={t('setup.form.item.tagHelp')} value={tagId.value} onChange={tagId.onChange} onBlur={tagId.onBlur}
+              placeholder={t('setup.form.item.noTag')} options={tags.map((g) => ({ value: g.id, label: g.name }))} />
             <TextArea id={description.id} label={t('setup.form.item.description')} value={description.value} onChange={description.onChange} onBlur={description.onBlur} fullWidth />
           </>
         )}
         {which === 'warehouses' && (
           <>
-            <SelectField id={kind.id} label={t('setup.form.warehouse.kind')} required value={kind.value} onChange={(v) => kind.onChange(v as 'central' | 'site')} onBlur={kind.onBlur}
-              options={[{ value: 'central', label: t('setup.kinds.central') }, { value: 'site', label: t('setup.kinds.site') }]} />
+            <SelectField id={kind.id} label={t('setup.form.warehouse.kind')} required value={kind.value} onChange={(v) => kind.onChange(v as Values['kind'])} onBlur={kind.onBlur}
+              options={(['central', 'site', 'yard', 'staging'] as const).map((k2) => ({ value: k2, label: t(`setup.kinds.${k2}`) }))} />
             <SelectField id={projectId.id} label={t('setup.form.warehouse.project')} helper={t('setup.form.warehouse.projectHelp')} value={projectId.value} onChange={projectId.onChange} onBlur={projectId.onBlur}
               placeholder={t('setup.form.warehouse.noProject')} options={projects.map((p) => ({ value: p.id, label: p.name }))} />
           </>

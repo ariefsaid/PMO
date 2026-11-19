@@ -32,7 +32,9 @@
     "leadTimeDays": "days",
     "kinds": {
       "central": "Central",
-      "site": "Site"
+      "site": "Site",
+      "yard": "Yard",
+      "staging": "Staging"
     },
     "noKeepers": "No keeper",
     "active": "Active",
@@ -75,7 +77,10 @@
         "codeRequired": "Code is required.",
         "nameRequired": "Name is required.",
         "unitRequired": "Choose a unit.",
-        "leadTimeInvalid": "Enter whole days between 0 and 365."
+        "leadTimeInvalid": "Enter whole days between 0 and 365.",
+        "tag": "Tag",
+        "tagHelp": "Optional. Fixed once the item has movements.",
+        "noTag": "No tag"
       },
       "warehouse": {
         "newTitle": "New warehouse",
@@ -626,5 +631,20 @@
     "column": "Restock",
     "action": "Request purchase",
     "rowLabel": "Request purchase for {{item}}"
+  },
+  "siteWork": {
+    "balance": {
+      "title": "Stock for this work order",
+      "empty": "No stock has moved for this work order yet.",
+      "item": "Item",
+      "location": "Location",
+      "received": "Received",
+      "movedOut": "Moved on",
+      "issued": "Issued",
+      "onSite": "On site",
+      "value": "Value",
+      "unassigned": "Not assigned to a work order",
+      "noValue": "—"
+    }
   }
 }

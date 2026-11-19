@@ -32,7 +32,9 @@
     "leadTimeDays": "hari",
     "kinds": {
       "central": "Pusat",
-      "site": "Lokasi proyek"
+      "site": "Lokasi proyek",
+      "yard": "Halaman proyek",
+      "staging": "Area penyiapan"
     },
     "noKeepers": "Belum ada penjaga",
     "active": "Aktif",
@@ -75,7 +77,10 @@
         "codeRequired": "Kode wajib diisi.",
         "nameRequired": "Nama wajib diisi.",
         "unitRequired": "Pilih satuan.",
-        "leadTimeInvalid": "Isi hari bulat antara 0 dan 365."
+        "leadTimeInvalid": "Isi hari bulat antara 0 dan 365.",
+        "tag": "Label",
+        "tagHelp": "Opsional. Terkunci setelah barang punya pergerakan.",
+        "noTag": "Tanpa label"
       },
       "warehouse": {
         "newTitle": "Gudang baru",
@@ -626,5 +631,20 @@
     "column": "Isi ulang",
     "action": "Ajukan pembelian",
     "rowLabel": "Ajukan pembelian untuk {{item}}"
+  },
+  "siteWork": {
+    "balance": {
+      "title": "Stok untuk perintah kerja ini",
+      "empty": "Belum ada stok yang bergerak untuk perintah kerja ini.",
+      "item": "Barang",
+      "location": "Lokasi",
+      "received": "Diterima",
+      "movedOut": "Dipindahkan",
+      "issued": "Dikeluarkan",
+      "onSite": "Di lokasi",
+      "value": "Nilai",
+      "unassigned": "Tidak terkait perintah kerja",
+      "noValue": "—"
+    }
   }
 }
