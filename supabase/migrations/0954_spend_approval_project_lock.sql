@@ -103,7 +103,7 @@ begin
 
   if v_from = 'Requested' and p_to in ('Approved','Rejected') then
     if v_project is not null then
-      -- 0925: whole-project test lock, taken before the line lock (project -> line, everywhere).
+      -- 0954: whole-project test lock, taken before the line lock (project -> line, everywhere).
       perform pg_advisory_xact_lock(hashtextextended('spend-project:' || v_project::text, 0));
       if v_category is not null then
         perform pg_advisory_xact_lock(hashtextextended('spend-line:' || v_project::text || ':' || v_category::text, 0));
@@ -318,7 +318,7 @@ begin
     -- #803 routing, called — never copied (ADR-0075 §3). Same lock key as transition_procurement (0243 §7) so a
     -- claim and a purchase request on one line serialize (FR-EXP-022). Classification runs AFTER the lock is held.
     if v_row.project_id is not null then
-      -- 0925: whole-project test lock, taken before the line lock (project -> line, everywhere).
+      -- 0954: whole-project test lock, taken before the line lock (project -> line, everywhere).
       perform pg_advisory_xact_lock(hashtextextended('spend-project:' || v_row.project_id::text, 0));
       if v_row.budget_category is not null then
       perform pg_advisory_xact_lock(
@@ -488,7 +488,7 @@ begin
   end if;
 
   if v_row.project_id is not null then
-    -- 0925: whole-project test lock, taken before the line lock (project -> line, everywhere).
+    -- 0954: whole-project test lock, taken before the line lock (project -> line, everywhere).
     perform pg_advisory_xact_lock(hashtextextended('spend-project:' || v_row.project_id::text, 0));
     if v_row.budget_category is not null then
       perform pg_advisory_xact_lock(
@@ -533,7 +533,7 @@ begin
   if not found then raise exception 'variation not found' using errcode = 'P0002'; end if;
   select * into v_proc from public.procurements where id = v.procurement_id for update;                  -- D5 1
   if v_proc.project_id is not null then                           -- D5 2 (0362 :226)
-    -- 0925: whole-project test lock, taken before the line lock (project -> line, everywhere).
+    -- 0954: whole-project test lock, taken before the line lock (project -> line, everywhere).
     perform pg_advisory_xact_lock(hashtextextended('spend-project:' || v_proc.project_id::text, 0));
     if v_proc.budget_category is not null then
       perform pg_advisory_xact_lock(hashtextextended('spend-line:' || v_proc.project_id::text || ':' || v_proc.budget_category::text, 0));
