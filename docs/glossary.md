@@ -326,6 +326,10 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Work order** — a client's purchase order against a project, with an order value, tax basis and a Draft, Issued, Closed or Cancelled status; it is the commitment that billing and acceptance run against.
 
+**Cost attribution** — the optional work order and discipline a cost record names (purchase request, purchase order, goods receipt, vendor bill, timesheet line, stock movement, equipment usage); a cost with neither is a project-level cost. The work order must be on the cost's own project (ADR-0103).
+
+**Discipline** — an entry in the organisation's own list of trades or engineering disciplines (for example civil, mechanical, electrical) that a cost can name; kept by an Admin and archived rather than deleted.
+
 **Work order line** — an allocation of a positive quantity of one project contract line (bill-of-quantities item) to a work order, so one contract line can be ordered across several work orders.
 
 **Work order acceptance** — a BAST (acceptance record) for a work order, in Draft, Confirmed or Withdrawn status; a stage acceptance is cumulative evidence, and a confirmed final acceptance closes the work order at its accepted value.
