@@ -96,6 +96,23 @@ values ('a6120000-0000-4000-8000-0000000000e2', 'a6120000-0000-4000-8000-0000000
 insert into public.journal_entry_authors (journal_id, profile_id, org_id)
 select 'a6120000-0000-4000-8000-0000000000e1', p.id, 'a6120000-0000-4000-8000-00000000000a'
   from public.profiles p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
+-- 0965 (#2525): the seed org carries no three-way match rows either. Give A one of each so their by-id probes run. The
+-- match stays off for A (enabled = false), so none of A's purchases is gated. FK triggers are off here, so the line and
+-- exception rows name one fixed bill and receipt id of their own.
+insert into public.org_three_way_match_settings (org_id, enabled, updated_by)
+select 'a6120000-0000-4000-8000-00000000000a', false, p.id
+  from public.profiles p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
+insert into public.procurement_receipt_lines (receipt_id, item_id, org_id, quantity, recorded_by)
+select 'a6120000-0000-4000-8000-0000000000e3', 'a6120000-0000-4000-8000-0000000000e4', 'a6120000-0000-4000-8000-00000000000a', 1, p.id
+  from public.profiles p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
+insert into public.procurement_bill_matches (invoice_id, org_id, recorded_by)
+select 'a6120000-0000-4000-8000-0000000000e5', 'a6120000-0000-4000-8000-00000000000a', p.id
+  from public.profiles p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
+insert into public.procurement_bill_match_lines (invoice_id, item_id, org_id, quantity, rate)
+values ('a6120000-0000-4000-8000-0000000000e5', 'a6120000-0000-4000-8000-0000000000e4', 'a6120000-0000-4000-8000-00000000000a', 1, 1);
+insert into public.bill_match_exceptions (invoice_id, org_id, approved_by, reason, match)
+select 'a6120000-0000-4000-8000-0000000000e5', 'a6120000-0000-4000-8000-00000000000a', p.id, 'isolation-proof exception', '{}'::jsonb
+  from public.profiles p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
 select 'ISO-COPY-SKIPPED ' || tbl || ': ' || why from _iso_skipped order by tbl;
 \endif
 
