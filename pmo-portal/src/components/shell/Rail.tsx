@@ -100,6 +100,8 @@ export const ALL_ITEMS: NavItem[] = [
   { to: '/expenses', text: 'Expenses', icon: 'expenses', group: 'My work', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // #1515: floats are visible to approval rank (policy imprestFloat.view = master-data roles); Engineers see none.
   { to: '/imprest', text: 'Site cash', icon: 'site-cash', group: 'My work', feature: 'imprest', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  // #2524: every member raises a request (policy materialRequest.create = ALL); RLS scopes reads.
+  { to: '/material-requests', text: 'Material requests', icon: 'clipboard-check', group: 'My work', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/my-tasks', text: 'My Tasks', icon: 'clipboard-check', group: 'My work', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/views', text: 'My Views', icon: 'views', group: undefined, feature: 'user_views', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
 ];
@@ -335,6 +337,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
     '/timesheets': t('shell.nav.timesheets', 'Timesheets'),
     '/expenses': t('shell.nav.expenses', 'Expenses'),
     '/imprest': t('imprest:nav.siteCash', 'Site cash'),
+    '/material-requests': t('materialRequests:nav.materialRequests', 'Material requests'),
     '/equipment': t('equipment:nav.equipment', 'Equipment'),
     '/finance': t('financeHub:nav.finance', 'Finance'),
     '/finance/receivables': t('financeHub:hub.receivables', 'Receivables'),

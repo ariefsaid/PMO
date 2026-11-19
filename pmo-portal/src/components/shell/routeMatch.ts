@@ -157,6 +157,9 @@ export const MODULES: ModuleDef[] = [
   { module: 'imprest', icon: 'site-cash', label: 'Site cash', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'imprest:nav.siteCash', path: '/imprest', detail: { pattern: '/imprest/:floatId', param: 'floatId' },
     feature: 'imprest', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  // #2524: Material requests — every role raises one; RLS scopes reads.
+  { module: 'materialRequests', icon: 'clipboard-check', label: 'Material requests', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'materialRequests:nav.materialRequests', path: '/material-requests', detail: { pattern: '/material-requests/:requestId', param: 'requestId' } },
   // #1519: Equipment usage — every role logs; the Approvals view and amounts gate inside the pages.
   { module: 'equipment', icon: 'equipment', label: 'Equipment', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'equipment:nav.equipment', path: '/equipment', detail: { pattern: '/equipment/assets/:assetId', param: 'assetId' } },
