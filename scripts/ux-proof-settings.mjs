@@ -18,10 +18,13 @@ export function loadProofSettings({ root, rulesOnly, fsApi }) {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** A route with record ids normalised (`/work-orders/<uuid>` -> `/work-orders/:id`); query and hash dropped. */
+/** A route with record ids normalised (`/work-orders/<uuid>` -> `/work-orders/:id`); query retained, hash dropped. */
 export function routePattern(route) {
-  const [pathOnly] = route.split(/[?#]/);
-  return pathOnly.split('/').map((segment) => (UUID.test(segment) ? ':id' : segment)).join('/');
+  const [withoutHash] = route.split('#');
+  const queryAt = withoutHash.indexOf('?');
+  const pathOnly = queryAt < 0 ? withoutHash : withoutHash.slice(0, queryAt);
+  const query = queryAt < 0 ? '' : withoutHash.slice(queryAt);
+  return pathOnly.split('/').map((segment) => (UUID.test(segment) ? ':id' : segment)).join('/') + query;
 }
 
 /**

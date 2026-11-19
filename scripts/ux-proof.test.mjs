@@ -351,7 +351,7 @@ test('#2549 text baselines are keyed by route pattern: ids are normalised, exact
   const { routePattern, baselineKey } = await import('./ux-proof-settings.mjs');
   const uuid = '3f2b8c1e-9d4a-4e7b-8a61-0c5d2e9f7a14';
   assert.equal(routePattern(`/work-orders/${uuid}`), '/work-orders/:id');
-  assert.equal(routePattern(`/projects/${uuid}/tasks/${uuid.toUpperCase()}?tab=x`), '/projects/:id/tasks/:id');
+  assert.equal(routePattern(`/projects/${uuid}/tasks/${uuid.toUpperCase()}?tab=x`), '/projects/:id/tasks/:id?tab=x');
   assert.equal(routePattern('/companies/new'), '/companies/new');
   assert.equal(routePattern('/projects'), '/projects');
   // a fixed route keeps its exact key (backward compatible with every existing baseline)
@@ -364,4 +364,19 @@ test('#2549 text baselines are keyed by route pattern: ids are normalised, exact
   assert.equal(baselineKey(legacy, `/work-orders/${uuid}`, 1440, 'exec'), `/work-orders/${uuid}@1440@exec`);
   // no baseline anywhere: new records are keyed by the pattern, so the next record page shares it
   assert.equal(baselineKey({}, `/work-orders/${uuid}`, 390, 'exec'), '/work-orders/:id@390@exec');
+});
+
+test('#2549 existing record baselines also apply to another record id', async () => {
+  const { baselineKey } = await import('./ux-proof-settings.mjs');
+  const { readFileSync } = await import('node:fs');
+  const budget = JSON.parse(readFileSync(new URL('../docs/ux/word-budget.json', import.meta.url)));
+  const route = '/projects/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  const key = baselineKey(budget, route, 390, 'pm@acme.test');
+  assert.equal(budget[key], 133);
+  assert.notEqual(budget.targets[key], undefined);
+});
+
+test('#2549 keeps distinct query-driven views when normalising record ids', async () => {
+  const { routePattern } = await import('./ux-proof-settings.mjs');
+  assert.equal(routePattern('/projects/41000000-0000-0000-0000-000000000002/tasks?view=board&scope=all'), '/projects/:id/tasks?view=board&scope=all');
 });
