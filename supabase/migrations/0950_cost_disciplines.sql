@@ -1,6 +1,6 @@
 -- 0950_cost_disciplines.sql — #2517: the organisation's own list of disciplines (civil, mechanical, electrical, …)
 -- that a cost line can name. Spec: docs/specs/work-order-cost-attribution.spec.md (FR-WCA-010..013).
--- ADR-0103. Proven by supabase/tests/0950_work_order_cost_attribution.test.sql.
+-- ADR-0104. Proven by supabase/tests/0950_work_order_cost_attribution.test.sql.
 -- ── REVERSE (also supabase/migrations/rollback/0950_cost_disciplines_down.sql) ───────────────────────
 --   drop table if exists public.cost_disciplines;   -- drops its policies and triggers (0951 must be reversed first)
 

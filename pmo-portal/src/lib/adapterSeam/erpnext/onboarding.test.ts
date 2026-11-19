@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { listErpContactSources, listErpPartySources, onboardParties, type OnboardPartiesDeps } from './onboarding.ts';
 import type { PmoRecord } from '../contract.ts';
+import { AppError } from '../../appError.ts';
 import { ERP_RESPONSE_MAX_BYTES, type ErpClientDeps } from './client.ts';
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -130,7 +131,8 @@ describe('erpnext/onboarding — onboardParties (keyed by ERPNext ID)', () => {
   function fakeDeps(refs: Record<string, string>) {
     const calls = { inserted: [] as PmoRecord[], updated: [] as string[], refs: [] as { pmoRecordId: string; externalRecordId: string }[], lookups: [] as string[] };
     const deps: OnboardPartiesDeps = {
-      findPmoRecordId: async (ext) => { calls.lookups.push(ext); return refs[ext] ?? null; },
+      findPmoRecordIds: async (ids) => { calls.lookups.push(...ids); return new Map(ids.filter((ext) => refs[ext]).map((ext) => [ext, refs[ext]])); },
+      findPmoRecordId: async (ext) => refs[ext] ?? null,
       findCandidates: async () => [],
       insertCompaniesMirror: async (c) => { calls.inserted.push(c); },
       updateCompaniesMirror: async (id) => { calls.updated.push(id); },
@@ -159,5 +161,135 @@ describe('erpnext/onboarding — onboardParties (keyed by ERPNext ID)', () => {
     expect(calls.updated).toEqual(['pmo-1']);
     expect(calls.inserted).toHaveLength(0);
     expect(calls.refs).toHaveLength(0);
+  });
+});
+
+describe('#2119 onboardParties: one mapping read, bounded concurrency, one mapping per external id', () => {
+  /** A latency-bearing in-memory (companies, external_refs) store that refuses duplicates like Postgres, and counts
+   *  every round trip and the peak number of parties in flight. */
+  function store(opts: { latencyMs?: number; candidates?: (name: string, taxId?: string | null) => string[] } = {}) {
+    const refs = new Map<string, string>(); const companies = new Set<string>();
+    const trips: Record<string, number> = {}; let inFlight = 0; let peak = 0;
+    const trip = async <T>(name: string, fn: () => T): Promise<T> => {
+      trips[name] = (trips[name] ?? 0) + 1; inFlight += 1; peak = Math.max(peak, inFlight);
+      try { await new Promise((r) => setTimeout(r, opts.latencyMs ?? 1)); return fn(); } finally { inFlight -= 1; }
+    };
+    const deps: OnboardPartiesDeps = {
+      findPmoRecordIds: (ids) => trip('findPmoRecordIds', () => new Map(ids.filter((id) => refs.has(id)).map((id) => [id, refs.get(id)!]))),
+      findPmoRecordId: (ext) => trip('findPmoRecordId', () => refs.get(ext) ?? null),
+      findCandidates: (_d, name, taxId) => trip('findCandidates', () => (opts.candidates?.(name, taxId) ?? []).filter((id) => ![...refs.values()].includes(id)).map((pmoRecordId) => ({ pmoRecordId, taxId: null }))),
+      insertCompaniesMirror: (c) => trip('insert', () => { if (companies.has(c.id)) throw Object.assign(new Error('dup'), { code: '23505' }); companies.add(c.id); }),
+      updateCompaniesMirror: (id) => trip('update', () => { if (!companies.has(id)) throw new Error('update of a missing company'); }),
+      recordExternalRef: ({ pmoRecordId, externalRecordId }) => trip('recordExternalRef', () => {
+        if (refs.has(externalRecordId) || [...refs.values()].includes(pmoRecordId)) throw Object.assign(new Error('dup'), { code: '23505' });
+        refs.set(externalRecordId, pmoRecordId);
+      }),
+      mirrorExists: (id) => trip('mirrorExists', () => companies.has(id)),
+      notifyUnclearMatch: async () => {},
+      recordReview: async () => {},
+    };
+    return { deps, refs, companies, trips, peak: () => peak };
+  }
+  const parties = (n: number) => Array.from({ length: n }, (_, i) => ({ doctype: (i % 2 ? 'Customer' : 'Supplier') as 'Customer' | 'Supplier', id: `P-${i}`, name: `Party ${i}`, taxId: null }));
+
+  it('#2119 500 fresh parties: the mappings are read once, never per party, and each party costs 3 round trips (was 4)', async () => {
+    const s = store();
+    const res = await onboardParties(parties(500), s.deps);
+    expect(res.adopted).toBe(500);
+    expect(s.trips.findPmoRecordIds).toBe(1);
+    expect(s.trips.findPmoRecordId ?? 0).toBe(0);
+    expect(s.trips).toEqual({ findPmoRecordIds: 1, findCandidates: 500, recordExternalRef: 500, insert: 500 });
+    expect(s.refs.size).toBe(500);
+  });
+
+  it('#2119 a re-run over 500 mapped parties: one mapping read, then 2 round trips each (was 3), nothing minted', async () => {
+    const s = store();
+    await onboardParties(parties(500), s.deps);
+    for (const k of Object.keys(s.trips)) delete s.trips[k];
+    const res = await onboardParties(parties(500), s.deps);
+    expect(res).toEqual({ adopted: 0, reconciled: 500, needsDecision: [], skippedInternal: 0 });
+    expect(s.trips).toEqual({ findPmoRecordIds: 1, mirrorExists: 500, update: 500 });
+  });
+
+  it('#2119 parties run with bounded concurrency (more than one, at most 8 in flight)', async () => {
+    const s = store({ latencyMs: 5 });
+    await onboardParties(parties(100), s.deps);
+    expect(s.peak()).toBeGreaterThan(1);
+    expect(s.peak()).toBeLessThanOrEqual(8);
+  });
+
+  it('#2119 AC-ENA-041 two sources with the SAME external id, processed concurrently, mint exactly one mapping and one company', async () => {
+    const s = store({ latencyMs: 5 });
+    const dup = { doctype: 'Supplier' as const, id: 'DUP-1', name: 'Same Party', taxId: null };
+    const res = await onboardParties([dup, { ...dup }, { ...dup, name: 'Same Party renamed' }, ...parties(20)], s.deps); // adjacent: same worker wave
+    expect([...s.refs.keys()].filter((k) => k === 'Supplier:DUP-1')).toHaveLength(1);
+    expect(s.refs.size).toBe(21);
+    expect(s.companies.size).toBe(21);
+    expect(res).toMatchObject({ adopted: 21, reconciled: 2, needsDecision: [] });
+    // the repeats run after the first in one group: they never race it for the link claim
+    expect(s.trips.recordExternalRef).toBe(21);
+    expect(s.trips.findPmoRecordId ?? 0).toBe(0);
+  });
+
+  it('#2119 two ERP parties that could be the same PMO company are decided one after the other, as when serial', async () => {
+    // both match the one existing company by name: serially the second sees it taken and mints its own; run at
+    // once, both would claim it and the loser would be wrongly flagged "already-linked"
+    const s = store({ latencyMs: 5, candidates: (name) => (name === 'Acme' ? ['pmo-acme'] : []) });
+    s.companies.add('pmo-acme');
+    const res = await onboardParties([
+      { doctype: 'Supplier', id: 'S-A', name: 'Acme', taxId: null },
+      { doctype: 'Supplier', id: 'S-B', name: 'Acme', taxId: null },
+    ], s.deps);
+    expect(res.needsDecision).toEqual([]);
+    expect(res.adopted).toBe(2);
+    expect(s.refs.get('Supplier:S-A')).toBe('pmo-acme');
+  });
+
+  it('#2119 needsDecision keeps source order even when parties finish out of order', async () => {
+    const s = store({ latencyMs: 2 });
+    s.deps.findCandidates = async (_d, name) => {
+      await new Promise((r) => setTimeout(r, name === 'Early' ? 30 : 1));
+      throw new AppError('unclear', 'action-required', 'ambiguous');
+    };
+    const res = await onboardParties([
+      { doctype: 'Supplier', id: 'E', name: 'Early', taxId: null },
+      { doctype: 'Supplier', id: 'L', name: 'Late', taxId: null },
+    ], s.deps);
+    expect(res.needsDecision.map((d) => d.id)).toEqual(['E', 'L']);
+  });
+  describe('grouping by tax id', () => {
+    const acme = (id: string, taxId: string | null, name = id) => ({ doctype: 'Supplier' as const, id, name, taxId });
+    const byTax = (name: string, taxId?: string | null) => (taxId && taxId.replace(/[^0-9a-z]/gi, '').toLowerCase() === '012345678901000' ? ['pmo-acme'] : []);
+
+    it.each([
+      ['dots and dashes', '01.234.567.8-901.000', '012345678901000'],
+      ['spaces', ' 01 234 567 8 901 000 ', '01.234.567.8-901.000'],
+      ['letter case', '01234567-8901000', '012345678901000'],
+    ])('#2119 the same tax id written with %s is one group: decided one after the other, no race for the company', async (_n, a, b) => {
+      const s = store({ latencyMs: 5, candidates: byTax });
+      s.companies.add('pmo-acme');
+      const res = await onboardParties([acme('S-A', a, 'Alpha'), acme('S-B', b, 'Beta')], s.deps);
+      expect(res.needsDecision).toEqual([]);
+      expect(res.adopted).toBe(2);
+      expect(s.peak()).toBe(1);
+    });
+
+    it('#2119 the same tax id in different letter case is one group', async () => {
+      const s = store({ latencyMs: 5 });
+      await onboardParties([acme('S-A', 'ab-12', 'Alpha'), acme('S-B', 'AB 12', 'Beta')], s.deps);
+      expect(s.peak()).toBe(1);
+    });
+
+    it('#2119 different tax ids stay apart and run at once', async () => {
+      const s = store({ latencyMs: 5 });
+      await onboardParties([acme('S-A', '111', 'Alpha'), acme('S-B', '222', 'Beta')], s.deps);
+      expect(s.peak()).toBeGreaterThan(1);
+    });
+
+    it('#2119 a missing tax id does not group parties', async () => {
+      const s = store({ latencyMs: 5 });
+      await onboardParties([acme('S-A', null, 'Alpha'), acme('S-B', '', 'Beta'), acme('S-C', '--', 'Gamma')], s.deps);
+      expect(s.peak()).toBeGreaterThan(1);
+    });
   });
 });

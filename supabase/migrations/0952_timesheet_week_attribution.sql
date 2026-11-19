@@ -1,5 +1,5 @@
 -- 0952_timesheet_week_attribution.sql — #2517: a timesheet line carries its work order and discipline through the
--- week save. ADR-0103; spec docs/specs/work-order-cost-attribution.spec.md (FR-WCA-032).
+-- week save. ADR-0104; spec docs/specs/work-order-cost-attribution.spec.md (FR-WCA-032).
 -- 0268's save_timesheet_week, byte-for-byte, plus ONE statement (§3c) after the upsert: a line that names
 -- `work_order_id` / `discipline_id` takes them. Nothing else moves: the ownership, Draft, week-bound and tenancy gates,
 -- the role set, the upsert key and the deletes are unchanged. No status, approval or push changes.

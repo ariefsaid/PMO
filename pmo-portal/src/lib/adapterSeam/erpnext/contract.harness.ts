@@ -238,6 +238,7 @@ export function createErpnextHarness(): ErpHarness {
       let review = 0;
       for (let i = 0; i < runs; i += 1) {
         await onboardParties(parties.map((p) => ({ doctype: p.role === 'vendor' ? 'Supplier' : 'Customer', id: p.externalId, name: p.name, taxId: p.taxId ?? null })), {
+          findPmoRecordIds: async (ids) => new Map(ids.filter((ext) => refs.has(ext)).map((ext) => [ext, refs.get(ext)!])),
           findPmoRecordId: async (ext) => refs.get(ext) ?? null,
           findCandidates: async () => existing.filter((c) => ![...refs.values()].includes(c.pmoId)).map((c) => ({ pmoRecordId: c.pmoId, taxId: c.taxId })),
           insertCompaniesMirror: async (c) => {

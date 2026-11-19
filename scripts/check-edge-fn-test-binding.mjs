@@ -45,6 +45,7 @@ const REQUIRED = {
   'supabase/functions/external-disconnect/disconnect.test.ts': 'handleDisconnectRequest',
   'supabase/functions/odoo-sweep/sweep.test.ts': 'handleOdooSweepRequest',
   'supabase/functions/erpnext-onboard/onboard.test.ts': 'handleOnboardRequest',
+  'supabase/functions/erpnext-onboard/findRecordIds.test.ts': 'handleOnboardRequest',
   'supabase/functions/telegram-notify/index.test.ts': 'handleTelegramNotifyRequest',
   'supabase/functions/m365-token-custody/documentLinking.test.ts': 'handler',
   'supabase/functions/m365-token-custody/recordFolders.test.ts': 'handler',
