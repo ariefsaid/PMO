@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   computeEquipmentMetrics,
-  rentalDeduction,
   type EquipmentStatus,
   type StatusDay,
   type UsageEntry,
@@ -46,6 +45,11 @@ describe('computeEquipmentMetrics', () => {
     expect(m.utilisationPct).toBe('41.7');
   });
 
+  it('AC-EAV-002 excludes work on unrecorded days from utilisation', () => {
+    const m = computeEquipmentMetrics({ from: day(1), to: day(2), workingHoursPerDay: '8', statuses: [{ date: day(1), status: 'ready' }], usage: [work('8', 'Approved', day(2))] });
+    expect(m.utilisationPct).toBe('0.0');
+  });
+
   it('AC-EAV-011 only Approved usage counts; pending usage is named', () => {
     const m = computeEquipmentMetrics({
       ...base,
@@ -88,54 +92,5 @@ describe('computeEquipmentMetrics', () => {
     expect(weeks.reduce((s, w) => s + w.availableDays, 0)).toBe(27);
     expect(m.byGrain('month')).toHaveLength(1);
     expect(m.byGrain('month')[0].availabilityPct).toBe('90.0');
-  });
-});
-
-describe('rentalDeduction', () => {
-  const nov = { from: day(1), to: day(30), rate: '30000.00', basis: 'month' as const, currency: 'IDR' };
-  const downDays = (dates: number[], proven: boolean) => dates.map((n) => ({ date: day(n), proven }));
-
-  it('AC-EAV-008 3 proven down days at a monthly rate of 30,000 deduct 3,000 and expect 27,000', () => {
-    const r = rentalDeduction({ ...nov, downDays: downDays([21, 22, 23], true), invoiceAmount: '27500.00' });
-    expect(r.deduction).toBe('3000.00');
-    expect(r.expectedAmount).toBe('27000.00');
-    expect(r.rentalAmount).toBe('30000.00');
-    expect(r.difference).toBe('500.00'); // invoice minus expected: vendor billed 500 too much
-  });
-
-  it('missing invoice amount shows the expected amount only', () => {
-    const r = rentalDeduction({ ...nov, downDays: downDays([21], true) });
-    expect(r.difference).toBeNull();
-    expect(r.expectedAmount).toBe('29000.00');
-  });
-
-  it('AC-EAV-009 unproven days are listed apart and excluded unless included with a reason', () => {
-    const r = rentalDeduction({ ...nov, downDays: [...downDays([21], true), ...downDays([22], false)] });
-    expect(r.deduction).toBe('1000.00');
-    expect(r.unprovenDays).toEqual([day(22)]);
-    const incl = rentalDeduction({ ...nov, downDays: [...downDays([21], true), ...downDays([22], false)], includeUnproven: { reason: 'vendor ticket pending' } });
-    expect(incl.deduction).toBe('2000.00');
-    expect(() => rentalDeduction({ ...nov, downDays: downDays([22], false), includeUnproven: { reason: '  ' } })).toThrow();
-  });
-
-  it('AC-EAV-010 the deduction never exceeds the period rental amount', () => {
-    const r = rentalDeduction({ ...nov, from: day(1), to: day(3), downDays: downDays([1, 2, 3], true) });
-    expect(r.rentalAmount).toBe('3000.00');
-    expect(r.deduction).toBe('3000.00');
-    const all = rentalDeduction({ ...nov, downDays: downDays(Array.from({ length: 30 }, (_, i) => i + 1), true) });
-    expect(all.deduction).toBe('30000.00');
-    expect(all.expectedAmount).toBe('0.00');
-  });
-
-  it('daily basis charges the rate per in-service day', () => {
-    const r = rentalDeduction({ from: day(1), to: day(10), rate: '100.00', basis: 'day', currency: 'IDR', downDays: downDays([4, 5], true) });
-    expect(r.rentalAmount).toBe('1000.00');
-    expect(r.deduction).toBe('200.00');
-  });
-
-  it('a monthly rate is divided by the calendar days of the day\'s own month, exactly', () => {
-    // 31-day month: 31000 / 31 = 1000 per day; 1 day down in Oct
-    const r = rentalDeduction({ from: '2026-10-01', to: '2026-10-31', rate: '31000.00', basis: 'month', currency: 'IDR', downDays: [{ date: '2026-10-10', proven: true }] });
-    expect(r.deduction).toBe('1000.00');
   });
 });

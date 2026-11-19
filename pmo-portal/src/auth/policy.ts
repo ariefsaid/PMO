@@ -783,18 +783,16 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   },
   equipmentCosting: { manage: allowUnlessViewOnly(EQUIPMENT_COSTING_WRITE), view: allow(EQUIPMENT_APPROVE) },
   /**
-   * Equipment availability, ownership and rental downtime (#2526, migrations 0985-0987). UX ONLY — the RPCs
-   * (`set_equipment_status`, `save_equipment_rental_term`, `equipment_metrics`, `equipment_rental_check`) are the authority.
+   * Equipment availability, ownership and rental downtime (#2526, migrations 0985-0986). UX ONLY — the RPCs
+   * (`set_equipment_status`, `save_equipment_rental_term`, `equipment_metrics`) are the authority.
    *   view   ← every active member reads status (the bulk screen); metrics need the approval audience (`equipment_metrics`).
    *   create ← set status / attach proof: Admin, PM, Engineer (the field controller). Not Finance or Executive.
    *   manage ← rental terms: Admin, Finance. A field controller never edits rates.
-   *   approve← the rental invoice check (a deduction off a vendor bill): Admin, Finance.
-   */
+     */
   equipmentAvailability: {
     view: allow(ALL),
     create: allowUnlessViewOnly(EQUIPMENT_STATUS_WRITE),
     manage: allowUnlessViewOnly(EQUIPMENT_RENTAL_MONEY),
-    approve: allowUnlessViewOnly(EQUIPMENT_RENTAL_MONEY),
   },
   /**
    * The Odoo fleet and maintenance register (#1511 F5). UX ONLY — the `adapter-dispatch` `equipment` domain's role

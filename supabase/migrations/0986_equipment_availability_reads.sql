@@ -27,7 +27,8 @@ language sql stable set search_path = public, pg_temp as $$
   select r.status_date, r.status, r.pstart, r.pend,
          exists (select 1 from public.equipment_downtime_proofs pr
                   where pr.org_id = p_org and pr.asset_id = p_asset and pr.proof_date >= r.pstart
-                    and (r.pend is null or pr.proof_date < r.pend))
+                    and (r.pend is null or pr.proof_date < r.pend)
+                    and exists (select 1 from storage.objects o where o.bucket_id = 'equipment-proof' and o.name = pr.file_path))
     from r where r.status_date between p_from and p_to
 $$;
 revoke all on function public.equipment_downtime_days(uuid, uuid, date, date) from public, anon, authenticated;
@@ -40,7 +41,7 @@ returns table (asset_id uuid, bucket_start date, in_service_days int, available_
                work_hours numeric, availability_pct numeric, utilisation_pct numeric, pending_usage_entries int)
 language plpgsql stable security definer set search_path = public, pg_temp as $$
 #variable_conflict use_column
-declare v_org uuid := public.auth_org_id(); v_wh numeric; v_max int := case when p_grain = 'day' then 93 else 400 end;
+declare v_org uuid := public.auth_org_id(); v_wh numeric; v_timezone text; v_max int := case when p_grain = 'day' then 93 else 400 end;
 begin
   perform public.assert_is_active_member();
   if public.auth_role() not in ('Admin','Project Manager','Finance','Executive') then raise exception 'not authorized' using errcode = '42501'; end if;
@@ -51,7 +52,7 @@ begin
   if p_asset_ids is null or cardinality(p_asset_ids) = 0 or cardinality(p_asset_ids) > 200 then
     raise exception 'between 1 and 200 assets' using errcode = '22023';
   end if;
-  select o.equipment_working_hours into v_wh from public.organizations o where o.id = v_org;
+  select o.equipment_working_hours, coalesce(o.default_timezone, 'UTC') into v_wh, v_timezone from public.organizations o where o.id = v_org;
   return query
   with a as (
     select q.id, q.in_service_on, q.archived_at, q.ownership from public.equipment_assets q
@@ -62,7 +63,7 @@ begin
   ), st as (
     select days.aid, days.d,
            (case when days.in_service_on is not null and days.d < days.in_service_on then false
-                 when days.archived_at is not null and days.d >= days.archived_at::date then false
+                 when days.archived_at is not null and days.d >= (days.archived_at at time zone v_timezone)::date then false
                  when days.ownership = 'rented' then exists (select 1 from public.equipment_rental_terms t
                         where t.asset_id = days.aid and t.org_id = v_org and t.rented_from <= days.d and coalesce(t.rented_to, 'infinity'::date) >= days.d)
                  else true end) as in_svc,
@@ -78,7 +79,7 @@ begin
   ), j as (
     select st.aid, st.in_svc, st.status,
            case p_grain when 'day' then st.d when 'week' then date_trunc('week', st.d)::date else date_trunc('month', st.d)::date end as b,
-           coalesce(w.hrs, 0) as hrs, coalesce(w.pend, 0) as pend
+           case when st.in_svc and st.status is not null then coalesce(w.hrs, 0) else 0 end as hrs, coalesce(w.pend, 0) as pend
       from st left join w on w.aid = st.aid and w.d = st.d
   ), g as (
     select j.aid, j.b,
@@ -100,12 +101,16 @@ end $$;
 create function public.equipment_downtime_escalations(p_org uuid, p_as_of date)
 returns table (asset_id uuid, period_start date, down_days int)
 language sql stable set search_path = public, pg_temp as $$
-  select a.id, d.period_start, count(*)::int
-    from public.equipment_assets a
-   cross join lateral public.equipment_downtime_days(p_org, a.id, date '0001-01-01', p_as_of) d
-   where a.org_id = p_org and a.archived_at is null and d.period_end is null
-   group by a.id, d.period_start
-  having count(*) > 2 and max(d.status_date) >= p_as_of - 1
+  with recorded as (
+    select a.id, d.status_date, d.period_start,
+           d.status_date - row_number() over (partition by a.id, d.period_start order by d.status_date)::int as streak
+      from public.equipment_assets a
+      cross join lateral public.equipment_downtime_days(p_org, a.id, date '0001-01-01', p_as_of) d
+     where a.org_id = p_org and a.archived_at is null and d.period_end is null
+  )
+  select id, period_start, count(*)::int from recorded
+   group by id, period_start, streak
+  having count(*) > 2 and max(status_date) >= p_as_of - 1
 $$;
 revoke all on function public.equipment_downtime_escalations(uuid, date) from public, anon, authenticated;
 

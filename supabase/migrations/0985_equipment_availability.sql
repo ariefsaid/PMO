@@ -165,8 +165,14 @@ begin
   perform public.assert_is_active_member();
   if public.auth_role() not in ('Admin','Project Manager','Finance') then raise exception 'not authorized' using errcode = '42501'; end if;
   if p_ownership is null or p_ownership not in ('owned','rented') then raise exception 'ownership must be owned or rented' using errcode = '22023'; end if;
+  if p_ownership = 'rented' and not exists (select 1 from public.equipment_rental_terms t where t.asset_id = p_asset and t.org_id = v_org) then
+    raise exception 'a rented asset needs a rental period' using errcode = '22023';
+  end if;
   if p_ownership = 'owned' and exists (select 1 from public.equipment_rental_terms t where t.asset_id = p_asset and t.org_id = v_org) then
     raise exception 'an asset with rental periods stays rented' using errcode = '22023';
+  end if;
+  if p_in_service_on is not null and exists (select 1 from public.equipment_status_days d where d.org_id = v_org and d.asset_id = p_asset and d.status_date < p_in_service_on) then
+    raise exception 'in-service date follows an existing status' using errcode = '22023';
   end if;
   update public.equipment_assets a set ownership = p_ownership, in_service_on = p_in_service_on
    where a.id = p_asset and a.org_id = v_org;
@@ -322,7 +328,8 @@ create policy storage_objects_equipment_proof_write on storage.objects for inser
   with check (bucket_id = 'equipment-proof' and auth.uid() is not null
          and split_part(name, '/', 1) = public.auth_org_id()::text
          and array_length(string_to_array(name, '/'), 1) = 4
-         and public.equipment_can_set_status(public.auth_role())
+         and public.is_active_member()
+         and public.auth_role() in ('Admin','Project Manager','Engineer')
          and exists (select 1 from public.equipment_downtime_proofs p
                       where p.id::text = split_part(name, '/', 3) and p.org_id = public.auth_org_id() and p.file_path = name));
 

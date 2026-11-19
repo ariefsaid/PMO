@@ -11,19 +11,37 @@ import { ToastProvider } from '@/src/components/ui';
 const h = vi.hoisted(() => ({
   role: 'Engineer' as string,
   bulk: vi.fn(),
-  check: vi.fn(),
+  saveTerm: vi.fn(),
+  ownership: vi.fn(),
+  changeRate: vi.fn(),
+  workingHours: vi.fn(),
   assets: [] as unknown[],
+  nextAssets: [] as unknown[],
+  metricIds: [] as string[],
+  statusRange: [] as string[],
+  assetsError: false,
+  statusError: false,
+  orgToday: '',
+  statusRows: [] as { asset_id: string; status_date: string; status: string }[],
 }));
 vi.mock('@/src/hooks/useEquipment', () => ({
-  useEquipmentAssetPages: () => ({ data: { pages: [{ rows: h.assets, truncated: false }] }, isPending: false }),
+  useEquipmentAssetPages: () => ({ data: { pages: [{ rows: h.assets, truncated: !!h.nextAssets.length }, ...(h.nextAssets.length ? [{ rows: h.nextAssets, truncated: false }] : [])] }, isPending: false, isError: h.assetsError, refetch: vi.fn(), hasNextPage: false }),
 }));
+vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => h.orgToday || new Date().toISOString().slice(0, 10) }));
+vi.mock('@/src/hooks/useResolvedLocale', () => ({ useOrgBusinessTimezone: () => 'UTC' }));
+vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [{ id: 'v1', name: 'Vendor' }] }) }));
 vi.mock('@/src/hooks/useEquipmentAvailability', () => ({
-  useStatusDays: () => ({ data: [] }),
+  useStatusDays: (from: string, to: string) => { h.statusRange = [from, to]; return { data: h.statusRows, isError: h.statusError }; },
+  useLatestStatusDays: () => ({ data: [] }),
   useDowntimeFlags: () => ({ data: [] }),
-  useEquipmentMetrics: () => ({ data: [] }),
+  useEquipmentMetrics: (ids: string[]) => { h.metricIds = ids; return { data: [] }; },
   useSetStatusBulk: () => ({ mutateAsync: h.bulk, isPending: false }),
   useAttachProof: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useRentalCheck: () => ({ mutateAsync: h.check, isPending: false }),
+  useRentalTerms: () => ({ mutateAsync: h.saveTerm, isPending: false }),
+  useRentalTermHistory: (assetId: string) => ({ data: assetId === 'a3' ? [{ id: 'term1', rate: 100, currency: 'IDR', basis: 'day', rented_from: '2026-01-01', rented_to: null, vendor_id: 'v1' }] : [] }),
+  useEquipmentOwnership: () => ({ mutateAsync: h.ownership, isPending: false }),
+  useChangeRentalRate: () => ({ mutateAsync: h.changeRate, isPending: false }),
+  useEquipmentWorkingHours: () => ({ mutateAsync: h.workingHours, isPending: false }),
 }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role as Role, effectiveRole: h.role as Role }) }));
 
@@ -35,7 +53,12 @@ const renderPage = () => render(<MemoryRouter><ToastProvider><EquipmentAvailabil
 beforeEach(() => {
   h.role = 'Engineer';
   h.bulk = vi.fn().mockResolvedValue(2);
-  h.check = vi.fn().mockResolvedValue(undefined);
+  h.saveTerm = vi.fn().mockResolvedValue(undefined);
+  h.ownership = vi.fn().mockResolvedValue(undefined);
+  h.changeRate = vi.fn().mockResolvedValue(undefined);
+  h.workingHours = vi.fn().mockResolvedValue(undefined);
+  h.nextAssets = [];
+  h.assetsError = false; h.statusError = false; h.statusRows = [];
   h.assets = [asset('a1', 'EQU-1'), asset('a2', 'EQU-2'), asset('a3', 'EQU-3', 'rented')];
 });
 
@@ -44,21 +67,132 @@ describe('Equipment availability screen', () => {
     renderPage();
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Status of EQU-1' }), 'broken');
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Status of EQU-2' }), 'ready');
-    await userEvent.click(screen.getByRole('button', { name: "Save today's status" }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save statuses' }));
     await waitFor(() => expect(h.bulk).toHaveBeenCalledTimes(1));
     const arg = h.bulk.mock.calls[0][0] as { items: { asset_id: string; status: string }[] };
     expect(arg.items).toEqual([{ asset_id: 'a1', status: 'broken' }, { asset_id: 'a2', status: 'ready' }]);
   });
 
-  it('AC-EAV-018 a field controller sees no rental invoice check', () => {
-    renderPage();
-    expect(screen.queryByText('Rental invoice check')).not.toBeInTheDocument();
-  });
-
-  it('AC-EAV-018 Finance sees the check for a rented machine but cannot set status', () => {
+  it('Finance can enter rental terms for an asset', async () => {
     h.role = 'Finance';
     renderPage();
-    expect(screen.getByText('Rental invoice check')).toBeInTheDocument();
-    expect(screen.queryByRole('combobox', { name: 'Status of EQU-1' })).not.toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText('Asset for rental terms'), 'a1');
+    await userEvent.selectOptions(screen.getByLabelText('Vendor'), 'v1');
+    await userEvent.type(screen.getByLabelText('Rate'), '100');
+    await userEvent.type(screen.getByLabelText('Rental start'), '2026-01-01');
+    await userEvent.click(screen.getByRole('button', { name: 'Save rental terms' }));
+    await waitFor(() => expect(h.saveTerm).toHaveBeenCalledWith(expect.objectContaining({ asset_id: 'a1', vendor_id: 'v1', rate: '100', rented_from: '2026-01-01' })));
   });
+
+  it('a manager can choose the metric period and day breakdown', () => {
+    h.role = 'Finance';
+    renderPage();
+    expect(screen.getByLabelText('Metric interval')).toBeInTheDocument();
+    expect(screen.getByLabelText('Metric period from')).toBeInTheDocument();
+  });
+
+  it('lets a field controller record a past status with a note', async () => {
+    renderPage();
+    const date = screen.getByLabelText('Status date');
+    await userEvent.clear(date);
+    await userEvent.type(date, '2026-01-15');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Status of EQU-1' }), 'broken');
+    await userEvent.type(screen.getByLabelText('Note for EQU-1'), 'Hydraulic leak');
+    await userEvent.click(screen.getByRole('button', { name: 'Save statuses' }));
+    expect(h.bulk).toHaveBeenCalledWith({ date: '2026-01-15', items: [{ asset_id: 'a1', status: 'broken', note: 'Hydraulic leak' }] });
+  });
+
+  it('lets a controller reach machines on the next page', async () => {
+    h.nextAssets = [asset('a4', 'EQU-4')];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Next equipment page' }));
+    expect(screen.getByRole('combobox', { name: 'Status of EQU-4' })).toBeInTheDocument();
+  });
+
+  it('allows Finance to mark an asset owned', async () => {
+    h.role = 'Finance'; renderPage();
+    await userEvent.selectOptions(screen.getByLabelText('Asset for rental terms'), 'a1');
+    await userEvent.click(screen.getByRole('button', { name: 'Mark owned' }));
+    expect(h.ownership).toHaveBeenCalledWith({ assetId: 'a1', ownership: 'owned', inServiceOn: null });
+  });
+
+  it('allows Finance to change a rental rate from an effective date', async () => {
+    h.role = 'Finance'; renderPage();
+    await userEvent.selectOptions(screen.getByLabelText('Asset for rental terms'), 'a3');
+    await userEvent.type(screen.getByLabelText('Rate'), '120');
+    await userEvent.type(screen.getByLabelText('Rental start'), '2026-01-15');
+    await userEvent.click(screen.getByRole('button', { name: 'Change rate from date' }));
+    expect(h.changeRate).toHaveBeenCalledWith({ assetId: 'a3', date: '2026-01-15', rate: '120' });
+  });
+
+  it('limits metrics to the chosen assets', async () => {
+    h.role = 'Finance'; renderPage();
+    await userEvent.click(screen.getByText('Assets for metrics'));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'EQU-1 Machine EQU-1' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'EQU-3 Machine EQU-3' }));
+    expect(h.metricIds).toEqual(['a1', 'a3']);
+  });
+
+  it('does not show an empty register when loading assets fails', () => {
+    h.assets = []; h.assetsError = true; renderPage();
+    expect(screen.getByText("Couldn't load equipment")).toBeInTheDocument();
+    expect(screen.queryByText('No equipment yet')).not.toBeInTheDocument();
+  });
+  it('warns when status data could not be loaded', () => {
+    h.statusError = true; renderPage();
+    expect(screen.getByText('Could not load statuses')).toHaveAttribute('role', 'alert');
+  });
+
+  it('shows a rented machine’s existing rate and dates before a change', async () => {
+    h.role = 'Finance'; renderPage();
+    await userEvent.selectOptions(screen.getByLabelText('Asset for rental terms'), 'a3');
+    expect(screen.getByText(/100 IDR/)).toBeInTheDocument();
+    expect(screen.getByText(/2026-01-01/)).toBeInTheDocument();
+  });
+
+  it('lets an admin set the hours used by utilisation', async () => {
+    h.role = 'Admin'; renderPage();
+    await userEvent.type(screen.getByLabelText('Working hours per day'), '10');
+    await userEvent.click(screen.getByRole('button', { name: 'Save working hours' }));
+    expect(h.workingHours).toHaveBeenCalledWith('10');
+  });
+
+  it('shows the selected day’s status to a read-only user', () => {
+    h.role = 'Finance'; h.statusRows = [{ asset_id: 'a1', status_date: new Date().toISOString().slice(0, 10), status: 'broken' }];
+    renderPage();
+    expect(screen.getByText('Broken')).toBeInTheDocument();
+  });
+
+  it('lets Finance record the in-service date of rented equipment', async () => {
+    h.role = 'Finance'; renderPage();
+    await userEvent.selectOptions(screen.getByLabelText('Asset for rental terms'), 'a3');
+    await userEvent.type(screen.getByLabelText('In service from (optional)'), '2026-01-10');
+    await userEvent.click(screen.getByRole('button', { name: 'Save in-service date' }));
+    expect(h.ownership).toHaveBeenCalledWith({ assetId: 'a3', ownership: 'rented', inServiceOn: '2026-01-10' });
+  });
+
+  it('follows the organisation date when it becomes available', () => {
+    h.orgToday = '2026-01-01';
+    const view = renderPage();
+    h.orgToday = '2026-01-02';
+    view.rerender(<MemoryRouter><ToastProvider><EquipmentAvailabilityPage /></ToastProvider></MemoryRouter>);
+    expect(screen.getByLabelText('Status date')).toHaveValue('2026-01-02');
+    h.orgToday = '';
+  });
+
+  it('does not query a malformed date while a date field is cleared', async () => {
+    renderPage();
+    await userEvent.clear(screen.getByLabelText('Status date'));
+    expect(h.statusRange.every((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))).toBe(true);
+    expect(screen.getByRole('button', { name: 'Save statuses' })).toBeDisabled();
+  });
+
+  it('clears unsaved rental values when choosing another asset', async () => {
+    h.role = 'Finance'; renderPage();
+    await userEvent.selectOptions(screen.getByLabelText('Asset for rental terms'), 'a1');
+    await userEvent.type(screen.getByLabelText('Rate'), '100');
+    await userEvent.selectOptions(screen.getByLabelText('Asset for rental terms'), 'a3');
+    expect(screen.getByLabelText('Rate')).toHaveValue('');
+  });
+
 });

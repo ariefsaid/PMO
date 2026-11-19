@@ -230,7 +230,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // 'imprest' from site cash (#1515 S4+S5).
       // 'journal' from manual journals (#895): the draft, second-approver and reversal RPCs.
       // 'equipment' from equipment usage and allocation (#1519 S5, plan S5.2): assets, usage, costing and allocations.
-      // 'equipmentAvailability' from equipment availability, ownership and rental downtime (#2526, migrations 0985-0987).
+      // 'equipmentAvailability' from equipment availability, ownership and rental downtime (#2526, migrations 0985-0986).
       // 'stock' from inventory master data (#1512 S1, migration 0412); S2a+ add documents and reports to it.
       // 'subcontracts' from subcontract acceptance, caps and variations (#1513 S6).
       // 'projectStage' from stage history (#1638).

@@ -70,7 +70,7 @@ const cell = (iso: string, project = 'EQU P1', unit = 'hours') =>
 
 const LocationProbe: React.FC = () => {
   const location = useLocation();
-  return <div data-testid="location-probe" data-search={location.search} />;
+  return <div data-testid="location-probe" data-search={location.search} data-path={location.pathname} />;
 };
 
 const renderPage = (role: Role = 'Engineer', initialEntry = '/equipment/usage') =>
@@ -87,6 +87,12 @@ const renderPage = (role: Role = 'Engineer', initialEntry = '/equipment/usage') 
 
 const probe = () => screen.getByTestId('location-probe');
 const weekRead = () => h.usageArgs.at(-1) as { from: string; to: string };
+
+it('opens equipment availability from usage', async () => {
+  renderPage();
+  await userEvent.click(screen.getByRole('button', { name: 'Availability' }));
+  expect(probe()).toHaveAttribute('data-path', '/equipment/availability');
+});
 
 beforeEach(() => {
   // Fri 11 Sep 2026 — the week is Mon 7 – Sun 13 Sep, so "this week" is out of the URL by default.

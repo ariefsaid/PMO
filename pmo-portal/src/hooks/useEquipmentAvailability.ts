@@ -11,6 +11,10 @@ export function useStatusDays(from: string, to: string) {
   const orgId = useOrgId();
   return useQuery({ queryKey: [KEY, orgId, 'status', from, to], queryFn: () => repositories.equipmentAvailability.listStatusDays(from, to), enabled: Boolean(orgId) });
 }
+export function useLatestStatusDays(assetIds: string[], asOf: string) {
+  const orgId = useOrgId();
+  return useQuery({ queryKey: [KEY, orgId, 'latest', assetIds, asOf], queryFn: () => repositories.equipmentAvailability.listLatestStatusDays(assetIds, asOf), enabled: Boolean(orgId) && assetIds.length > 0 });
+}
 export function useDowntimeFlags() {
   const orgId = useOrgId();
   return useQuery({ queryKey: [KEY, orgId, 'flags'], queryFn: () => repositories.equipmentAvailability.listDowntimeFlags(), enabled: Boolean(orgId) });
@@ -41,9 +45,28 @@ export function useAttachProof() {
     onSuccess: () => qc.invalidateQueries({ queryKey: [KEY] }),
   });
 }
-export function useRentalCheck() {
-  return useMutation({
-    mutationFn: (v: { assetId: string; from: string; to: string; invoice?: string; reason?: string }) =>
-      repositories.equipmentAvailability.rentalCheck(v.assetId, v.from, v.to, v.invoice || null, v.reason || null),
-  });
+export function useRentalTermHistory(assetId: string, enabled: boolean) {
+  const orgId = useOrgId();
+  return useQuery({ queryKey: [KEY, orgId, 'terms', assetId], queryFn: () => repositories.equipmentAvailability.listRentalTerms(assetId), enabled: Boolean(orgId && assetId && enabled) });
+}
+export function useRentalTerms() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: repositories.equipmentAvailability.saveRentalTerm,
+    onSuccess: async () => { await Promise.all([qc.invalidateQueries({ queryKey: [KEY] }), qc.invalidateQueries({ queryKey: ['equipment-assets'] })]); } });
+}
+
+export function useEquipmentOwnership() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: (v: { assetId: string; ownership: 'owned' | 'rented'; inServiceOn: string | null }) => repositories.equipmentAvailability.setOwnership(v.assetId, v.ownership, v.inServiceOn),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['equipment-assets'] }) });
+}
+export function useChangeRentalRate() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: (v: { assetId: string; date: string; rate: string }) => repositories.equipmentAvailability.changeRentalRate(v.assetId, v.date, v.rate),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [KEY] }) });
+}
+
+export function useEquipmentWorkingHours() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: repositories.equipmentAvailability.setWorkingHours, onSuccess: () => qc.invalidateQueries({ queryKey: [KEY] }) });
 }
