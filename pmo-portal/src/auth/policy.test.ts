@@ -65,6 +65,7 @@ describe('rate catalogue permissions', () => {
   it('permits only Admin and Finance to import or manage locations', () => {
     expect(allowedRoles('create', 'rateCatalogue')).toEqual(['Admin', 'Finance']);
     expect(can('create', 'rateCatalogue', { realRole: null })).toBe(false);
+    expect(can('create', 'rateCatalogue', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
   });
 });
 

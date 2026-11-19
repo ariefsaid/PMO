@@ -686,7 +686,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         </div>
         {raiseInvoiceDialog}
         <Drawer open={catalogueOpen} nestedOpen={catalogueImportOpen} width="lg" title={t('rateCatalogue.title', 'Rate catalogue')} onClose={() => setCatalogueOpen(false)}>
-          {catalogueOpen && <RateCatalogue projectId={projectId} currency={currency} canWrite={may('create', 'rateCatalogue')} onImportOpenChange={setCatalogueImportOpen} />}
+          {catalogueOpen && <RateCatalogue projectId={projectId} currency={currency} canWrite={may('create', 'rateCatalogue', { record: { viewOnly: realRole !== effectiveRole } })} onImportOpenChange={setCatalogueImportOpen} />}
         </Drawer>
         <Drawer open={contractLinesOpen} nestedOpen={Boolean(boqDetailFor)} width="lg" title={t('projectDetail.billing.boq.title', 'Bill of quantities')}
           initialFocus={() => {
@@ -702,7 +702,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         {claimDetailDrawer}
         {allowanceFor && <MaterialAllowanceModal projectId={projectId} workItem={allowanceFor} onClose={() => setAllowanceFor(null)} />}
         {boqFormFor !== undefined && (
-          <BoqItemFormModal item={boqFormFor} projectId={projectId} today={orgToday} currency={currency} currencySymbolPrefix={currencySymbol(currency)}
+          <BoqItemFormModal item={boqFormFor} projectId={realRole === effectiveRole ? projectId : undefined} today={orgToday} currency={currency} currencySymbolPrefix={currencySymbol(currency)}
             onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail} />
         )}
         {assessOpen && (
@@ -813,7 +813,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       {importOpen && <ImportWizard descriptor={boqImportDescriptor} onClose={closeImport} />}
       {allowanceFor && <MaterialAllowanceModal projectId={projectId} workItem={allowanceFor} onClose={() => setAllowanceFor(null)} />}
       {boqFormFor !== undefined && (
-        <BoqItemFormModal item={boqFormFor} projectId={projectId} today={orgToday} currency={currency} currencySymbolPrefix={currencySymbol(currency)}
+        <BoqItemFormModal item={boqFormFor} projectId={realRole === effectiveRole ? projectId : undefined} today={orgToday} currency={currency} currencySymbolPrefix={currencySymbol(currency)}
           onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail} />
       )}
       {boqDetailDrawer}
