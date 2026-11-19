@@ -134,8 +134,7 @@ const People: React.FC = () => {
       {!q.isPending && q.isError && <ListState variant="error" title={t('administration:people.error', "Couldn't load people")}
         sub={t('administration:people.errorSub', 'The request failed. Check your connection and try again.')} onRetry={() => void q.refetch()} retryLabel={t('administration:people.retry', 'Retry')} />}
       {!q.isPending && !q.isError && (rows.length === 0
-        ? <ListState variant="empty" title={t('administration:people.empty', 'No people yet')}
-            sub={t('administration:people.emptySub', 'Add the people who hold certificates or permits, then record their documents.')}
+        ? <ListState variant="empty" title={t('administration:people.empty', 'No people yet. Add the first person to record their documents.')}
             action={canEdit ? { label: t('administration:people.add', 'Add person'), onClick: () => setEditing('new') } : undefined} />
         : <DataTable<PersonListRow> rows={rows} columns={columns} rowKey={(p) => p.id} tableId="people-register" />)}
       {editing && <PersonForm person={editing === 'new' ? undefined : editing} profileNames={profileNames} onClose={() => setEditing(null)} />}

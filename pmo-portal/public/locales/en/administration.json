@@ -663,8 +663,7 @@
     "error": "Couldn't load people",
     "errorSub": "The request failed. Check your connection and try again.",
     "retry": "Retry",
-    "empty": "No people yet",
-    "emptySub": "Add the people who hold certificates or permits, then record their documents.",
+    "empty": "No people yet. Add the first person to record their documents.",
     "archiveTitle": "Archive person",
     "archiveBody": "They leave the register and the expiry list, and no more warnings are sent for their documents.",
     "navLabel": "People"

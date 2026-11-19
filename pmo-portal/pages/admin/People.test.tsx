@@ -83,7 +83,7 @@ describe('People register screen', () => {
   it('shows the empty state with an add action for an Admin', () => {
     h.people = { data: [], isPending: false, isError: false, refetch: vi.fn() };
     renderPage();
-    expect(screen.getByText('No people yet')).toBeInTheDocument();
+    expect(screen.getByText(/^No people yet/)).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Add person' }).length).toBeGreaterThan(0);
   });
 });

@@ -665,8 +665,7 @@
     "error": "Gagal memuat daftar personel",
     "errorSub": "Permintaan gagal. Periksa koneksi Anda lalu coba lagi.",
     "retry": "Coba lagi",
-    "empty": "Belum ada personel",
-    "emptySub": "Tambahkan personel yang memegang sertifikat atau izin, lalu catat dokumennya.",
+    "empty": "Belum ada personel. Tambahkan personel pertama untuk mencatat dokumennya.",
     "navLabel": "Personel"
   }
 }
