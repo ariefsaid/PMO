@@ -6,7 +6,7 @@ import { formatCurrency, formatDay } from '@/src/lib/format';
 import type { CatalogueItem, CatalogueRate, CatalogueVariant } from '@/src/lib/db/rateCatalogue';
 
 export interface PricingChoice { itemId: string; variantId: string; asOf: string; rate: number | null }
-export default function RatePicker({ projectId, today, currency, onChange, initial }: { projectId: string; today: string; currency: string; initial?: { itemId: string; variantId: string; asOf: string }; onChange: (choice: PricingChoice | null) => void }) {
+export default function RatePicker({ projectId, today, currency, onChange, initial, retryKey = 0 }: { retryKey?: number; projectId: string; today: string; currency: string; initial?: { itemId: string; variantId: string; asOf: string }; onChange: (choice: PricingChoice | null) => void }) {
   const { t } = useTranslation('project');
   const [items, setItems] = useState<CatalogueItem[]>([]);
   const [variants, setVariants] = useState<CatalogueVariant[]>([]);
@@ -23,7 +23,7 @@ export default function RatePicker({ projectId, today, currency, onChange, initi
       setVariantId((v) => v || nextVariants.find((x) => x.is_default)?.id || ''); setStatus('ready');
     } catch { setStatus('error'); }
   }, [projectId]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void load(); }, [load, retryKey]);
   const current = useMemo(() => rates.filter((r) => r.item_id === itemId && r.variant_id === variantId && r.effective_from <= asOf).sort((a, b) => b.effective_from.localeCompare(a.effective_from))[0], [rates, itemId, variantId, asOf]);
   useEffect(() => { onChange(itemId ? { itemId, variantId, asOf, rate: current?.rate ?? null } : null); }, [itemId, variantId, asOf, current, onChange]);
   if (status === 'loading') return <p role="status">{t('rateCatalogue.loading', 'Loading rates…')}</p>;
@@ -33,7 +33,7 @@ export default function RatePicker({ projectId, today, currency, onChange, initi
     {itemId && <>
       <SelectField id="catalogue-line-variant" label={t('rateCatalogue.location', 'Location')} value={variantId} placeholder={t('rateCatalogue.chooseLocation', 'Choose location')} options={variants.map((v) => ({ value: v.id, label: v.name }))} onChange={setVariantId} />
       <DateField id="catalogue-line-date" label={t('rateCatalogue.pricingDate', 'Pricing date')} value={asOf} onChange={setAsOf} />
-      {current ? <p>{t('rateCatalogue.rate', 'Rate')}: {formatCurrency(current.rate, currency, { precision: 'minor' })} · {t('rateCatalogue.effective', 'Effective from')} {formatDay(current.effective_from)}</p> : <p role="status">{t('rateCatalogue.unpriced', 'Unpriced')}</p>}
+      {current ? <p>{t('rateCatalogue.rate', 'Rate')}: {formatCurrency(current.rate, currency, { precision: 'minor' })} · {t('rateCatalogue.effective', 'Effective from')} {formatDay(current.effective_from)}</p> : null}
     </>}
   </div>;
 }

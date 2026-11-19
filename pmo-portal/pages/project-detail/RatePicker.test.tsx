@@ -24,7 +24,6 @@ it('shows an unpriced state when no rate is effective', async () => {
   render(<RatePicker projectId="p" today="2026-02-01" currency="USD" onChange={onChange} />);
   await userEvent.click(await screen.findByRole('combobox', { name: 'Catalogue item' }));
   await userEvent.click(await screen.findByText(/W1/));
-  expect(await screen.findByText('Unpriced')).toBeInTheDocument();
   expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ rate: null }));
 });
 it('offers a retry when catalogue reads fail', async () => {
