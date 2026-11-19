@@ -177,7 +177,8 @@ revoke all on function public.guard_stock_document_immutable() from public, anon
 --   Admin, Executive, Finance, Project Manager: any record of their org, any status (a correction is audited);
 --   anyone else: only their own records, and only while the record is still editable —
 --     timesheet line: own sheet in Draft · equipment usage: own entry in Draft/Rejected, not archived ·
---     stock document: created by them, Draft · purchase records: a purchase they requested.
+--     stock document: created by them (a movement posts on create, so its author attributes it right after) ·
+--     purchase records: a purchase they requested.
 -- The §2 trigger decides whether the work order and discipline are allowed; existing record guards (record-only
 -- purchase, voided bill, …) still apply, so a locked record stays locked.
 create function public.set_cost_attribution(p_source text, p_ids uuid[], p_work_order_id uuid, p_discipline_id uuid)
@@ -247,7 +248,7 @@ begin
        where e.id = any(v_ids) and e.org_id = v_org;
     when 'stock_document' then
       perform 1 from public.stock_documents d where d.id = any(v_ids) and d.org_id = v_org for update of d;
-      select count(*), count(*) filter (where v_priv or (d.created_by = v_uid and d.status = 'Draft')),
+      select count(*), count(*) filter (where v_priv or d.created_by = v_uid),
              jsonb_agg(jsonb_build_object('id', d.id, 'work_order_id', d.work_order_id, 'discipline_id', d.discipline_id))
         into v_found, v_allowed, v_before
         from public.stock_documents d

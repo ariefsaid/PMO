@@ -10,7 +10,7 @@
 -- Every denial asserts the errcode AND the message, so a different gate moving in front cannot pass it.
 begin;
 create extension if not exists pgtap;
-select plan(39);
+select plan(40);
 
 -- ── Fixtures: org A (several roles), org B (another tenant). Written as the table owner. ─────────────────
 insert into organizations (id, name, default_currency) values
@@ -182,10 +182,15 @@ select is(public.set_cost_attribution('timesheet_entry', array['25170000-0000-00
   '25170000-0000-0000-0000-000000000401', '25170000-0000-0000-0000-000000000501'), 1, 'AC-WCA-008 an Engineer attributes a line of their own draft timesheet');
 select throws_ok($$ select public.set_cost_attribution('timesheet_entry', array['25170000-0000-0000-0000-000000000712']::uuid[], null, null) $$,
   '42501', 'you cannot change the work order or discipline of this record', 'AC-WCA-008 an Engineer cannot change another person''s timesheet line');
-select throws_ok($$ select public.set_cost_attribution('stock_document', array['25170000-0000-0000-0000-000000000811']::uuid[], null, null) $$,
-  '42501', 'you cannot change the work order or discipline of this record', 'AC-WCA-008 an Engineer cannot re-attribute their posted stock issue');
+select is(public.set_cost_attribution('stock_document', array['25170000-0000-0000-0000-000000000811']::uuid[],
+  '25170000-0000-0000-0000-000000000401', '25170000-0000-0000-0000-000000000501'), 1,
+  'AC-WCA-008 the storekeeper who posted a stock issue attributes it right after (a movement posts on create)');
 select is(public.set_cost_attribution('equipment_usage', array['25170000-0000-0000-0000-000000000911']::uuid[], null, null), 1,
   'AC-WCA-008 an Engineer clears the attribution of their own draft equipment entry');
+
+select pg_temp.act_as('25170000-0000-0000-0000-0000000000a5');
+select throws_ok($$ select public.set_cost_attribution('stock_document', array['25170000-0000-0000-0000-000000000811']::uuid[], null, null) $$,
+  '42501', 'you cannot change the work order or discipline of this record', 'AC-WCA-008 an Engineer cannot change another person''s stock document');
 
 -- AC-WCA-007: org B reads nothing of org A and changes nothing.
 select pg_temp.act_as('25170000-0000-0000-0000-0000000000b1');

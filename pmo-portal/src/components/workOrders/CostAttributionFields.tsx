@@ -21,9 +21,11 @@ export interface CostAttributionFieldsProps {
   disabled?: boolean;
   compact?: boolean;
   idPrefix?: string;
+  /** Wraps each picker (e.g. a width in a flex row of fields). */
+  itemClassName?: string;
 }
 
-export function CostAttributionFields({ projectId, value, onChange, disabled, compact, idPrefix = 'cost' }: CostAttributionFieldsProps) {
+export function CostAttributionFields({ projectId, value, onChange, disabled, compact, idPrefix = 'cost', itemClassName }: CostAttributionFieldsProps) {
   const { t } = useTranslation();
   const workOrders = useProjectWorkOrders(projectId ?? '');
   const disciplines = useCostDisciplines();
@@ -51,9 +53,10 @@ export function CostAttributionFields({ projectId, value, onChange, disabled, co
   }, [projectId, value, onChange]);
 
   const noProject = !projectId;
+  const item = (node: React.ReactNode) => (itemClassName ? <div className={itemClassName}>{node}</div> : node);
   return (
     <>
-      <Combobox
+      {item(<Combobox
         id={`${idPrefix}-work-order`}
         label={t('costAttribution.workOrder', 'Work order')}
         value={value.workOrderId}
@@ -72,8 +75,8 @@ export function CostAttributionFields({ projectId, value, onChange, disabled, co
         helper={noProject ? t('costAttribution.needsProject', 'Choose a project to pick one of its work orders.') : undefined}
         disabled={disabled || noProject}
         compact={compact}
-      />
-      <Combobox
+      />)}
+      {item(<Combobox
         id={`${idPrefix}-discipline`}
         label={t('costAttribution.discipline', 'Discipline')}
         value={value.disciplineId}
@@ -91,7 +94,7 @@ export function CostAttributionFields({ projectId, value, onChange, disabled, co
         emptyMessage={t('costAttribution.noDisciplines', 'Your organisation has no disciplines yet. An Admin adds them.')}
         disabled={disabled}
         compact={compact}
-      />
+      />)}
     </>
   );
 }

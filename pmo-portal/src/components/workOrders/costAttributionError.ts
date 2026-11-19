@@ -18,7 +18,7 @@ export function describeAttributionError(error: unknown, t: TFunction): { headli
   // Codes are matched as the message's leading `CODE:` token, so COST_WO_NO_PROJECT is never read as COST_WO_PROJECT.
   const code = REFUSALS.find((c) => message.startsWith(`${c}:`)) ?? 'generic';
   return {
-    headline: t('costAttribution.savedWithoutAttribution', 'Saved, but the work order or discipline was not set'),
-    detail: t(`costAttribution.refusal.${code}`, DEFAULTS[code]),
+    headline: t('common:costAttribution.savedWithoutAttribution', 'Saved, but the work order or discipline was not set'),
+    detail: t(`common:costAttribution.refusal.${code}`, DEFAULTS[code]),
   };
 }

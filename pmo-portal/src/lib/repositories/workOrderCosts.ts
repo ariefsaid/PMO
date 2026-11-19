@@ -19,6 +19,21 @@ import { wrap } from './repositoryErrors';
 export type { CostAttribution, CostDiscipline, CostSource, WorkOrderCostLine };
 export { NO_ATTRIBUTION, hasAttribution, COST_SOURCES } from '@/src/lib/db/workOrderCosts';
 
+/**
+ * The record was saved (and, for a stock movement, posted) but its work order / discipline was refused. Carries the
+ * saved record's id so the form can open it instead of creating it again.
+ */
+export class AttributionRefusedError extends Error {
+  readonly refusal: unknown;
+  readonly recordId: string;
+  constructor(refusal: unknown, recordId: string) {
+    super(String((refusal as { message?: string })?.message ?? 'attribution refused'));
+    this.name = 'AttributionRefusedError';
+    this.refusal = refusal;
+    this.recordId = recordId;
+  }
+}
+
 export const workOrderCostRepository = {
   disciplines: (): Promise<CostDiscipline[]> => wrap(() => listCostDisciplines()),
   setAttribution: (source: CostSource, ids: string[], attribution: CostAttribution): Promise<number> =>
@@ -30,6 +45,15 @@ export const workOrderCostRepository = {
   attributeCreated: async (source: CostSource, id: string | null | undefined, attribution: CostAttribution | null | undefined): Promise<void> => {
     if (!id || !hasAttribution(attribution)) return;
     await wrap(() => setCostAttribution(source, [id], attribution));
+  },
+  /**
+   * Same, for a create that resolved to a row (or an id): a refusal becomes AttributionRefusedError carrying the
+   * saved record's id, so the form can say "saved, but…" instead of offering a retry that would duplicate it.
+   */
+  attributeOrRefuse: async (source: CostSource, created: unknown, attribution: CostAttribution | null | undefined): Promise<void> => {
+    const id = typeof created === 'string' ? created : (created as { id?: unknown } | null | undefined)?.id;
+    if (typeof id !== 'string' || !id || !hasAttribution(attribution)) return;
+    try { await wrap(() => setCostAttribution(source, [id], attribution)); } catch (err) { throw new AttributionRefusedError(err, id); }
   },
   costLines: (workOrderId: string): Promise<WorkOrderCostLine[]> => wrap(() => listWorkOrderCostLines(workOrderId)),
   /** One work order's cost lines, grouped by source — the foundation #2518/#2519/#2523 read. */
