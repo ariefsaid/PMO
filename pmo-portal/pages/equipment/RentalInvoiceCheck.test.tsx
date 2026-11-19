@@ -47,4 +47,13 @@ describe('rental invoice check', () => {
     expect(await screen.findByRole('alert')).toBeInTheDocument();
   });
 
+  it('clears the selected invoice when the equipment page changes', async () => {
+    const view = renderCheck();
+    await userEvent.selectOptions(screen.getByLabelText('Rented machine'), 'a');
+    h.reset.mockClear();
+    view.rerender(<RentalInvoiceCheck assets={[{ id: 'b', code: 'EQU-2', name: 'Other' }]} today="2026-09-30" monthFrom="2026-09-01" statusLabel={() => 'Broken'} />);
+    expect(h.reset).toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Check invoice' })).toBeDisabled();
+  });
+
 });

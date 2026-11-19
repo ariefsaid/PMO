@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, SelectField, TextField } from '@/src/components/ui';
 import { useRentalCheck } from '@/src/hooks/useEquipmentAvailability';
@@ -20,6 +20,12 @@ export default function RentalInvoiceCheck({ assets, today, monthFrom, statusLab
   const [problem, setProblem] = useState<string | null>(null);
   const [proofLinks, setProofLinks] = useState<Record<string, string>>({});
   const from = start ?? monthFrom; const to = end ?? today;
+  const resetCheck = check.reset;
+  useEffect(() => {
+    if (asset && !assets.some((a) => a.id === asset)) {
+      setAsset(''); setProofLinks({}); setProblem(null); setReason(''); resetCheck();
+    }
+  }, [asset, assets, resetCheck]);
   const clear = () => { check.reset(); setProofLinks({}); setProblem(null); setReason(''); };
   const run = async (includeReason: boolean) => {
     setProblem(null); setProofLinks({});
