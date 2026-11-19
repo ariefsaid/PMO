@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   Button,
@@ -237,6 +238,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
             </button>
           </h3>
           <span className="min-w-0 break-words text-sm text-foreground">{row.title}</span>
+          <Link to={`/work-orders/${row.id}`} data-testid={`wo-page-link-${row.id}`} className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground">{t('workOrders:openPage', 'Open page')}</Link>
           <StatusPill variant={workOrderStatusTone}>{statusLabel('workOrder', row.status, t)}</StatusPill>
           {canViewBilling && billingState && billingState !== 'not-billable' && <StatusPill variant={billingStateTones[billingState]}>
             {billingStateLabels[billingState]}

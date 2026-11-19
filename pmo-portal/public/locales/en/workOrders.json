@@ -62,5 +62,6 @@
     "title": "Issues and open tasks",
     "issuesEmpty": "No issues name this work order.",
     "tasksEmpty": "No open tasks name this work order."
-  }
+  },
+  "openPage": "Open page"
 }
