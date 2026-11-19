@@ -368,6 +368,7 @@ export const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }
 /** Canonical Administration child routes and their route-derived breadcrumb labels (English source). */
 export const ADMINISTRATION_SECTION_LABELS = {
   users: 'Users',
+  people: 'People',
   integrations: 'Organization integrations',
   accounting: 'Accounting setup',
   projects: 'Project setup',
@@ -390,6 +391,7 @@ export const ADMINISTRATION_SECTION_I18N_KEY: Record<
   string
 > = {
   users: 'admin.nav.users',
+  people: 'admin.nav.people',
   integrations: 'admin.nav.integrations',
   accounting: 'admin.nav.accounting',
   projects: 'admin.nav.projects',

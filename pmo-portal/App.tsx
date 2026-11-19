@@ -453,6 +453,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/reports', element: <FinanceLegacyRedirect to="/finance/reports" /> },
   { path: '/administration', element: <AdministrationEntryRedirect /> },
   { path: '/administration/users', element: <AdministrationPage /> },
+  { path: '/administration/people', element: <AdministrationPage /> },
   { path: '/administration/integrations', element: <AdministrationPage /> },
   { path: '/administration/accounting', element: <AdministrationPage /> },
   { path: '/administration/projects', element: <AdministrationPage /> },

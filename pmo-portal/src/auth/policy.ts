@@ -128,6 +128,7 @@ export type Entity =
   | 'equipmentCosting'
   | 'equipmentRegister'
   | 'expiryDocument'
+  | 'person'
   | 'maintenance'
   | 'tmRate'
   | 'tmClaim'
@@ -803,6 +804,16 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     create: expiryDocumentWrite,
     edit: expiryDocumentWrite,
     archive: expiryDocumentWrite,
+  },
+  /**
+   * The People register (#2542 follow-up, migration 1008). UX ONLY — RLS (0970 people_* policies) and the column grants are the
+   * authority (ADR-0016): planners read, Admin (HR maps to Admin) writes. View-as is view-only.
+   */
+  person: {
+    view: allow(['Admin', 'Project Manager', 'Finance', 'Executive']),
+    create: allowUnlessViewOnly(ADMIN),
+    edit: allowUnlessViewOnly(ADMIN),
+    archive: allowUnlessViewOnly(ADMIN),
   },
   maintenance: {
     view: allow(ALL),

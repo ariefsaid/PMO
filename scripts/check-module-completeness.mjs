@@ -71,6 +71,7 @@ export const CORE_ROUTES = {
   '/reports': 'redirect to /finance/reports',
   '/administration': 'administration — core',
   '/administration/users': 'administration — core',
+  '/administration/people': 'administration — core',
   '/administration/integrations': 'administration — core',
   '/administration/accounting': 'administration — core',
   '/administration/projects': 'administration — core',

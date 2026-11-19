@@ -517,7 +517,8 @@
       "title": "Administrasi",
       "usage": "Pemakaian",
       "users": "Pengguna",
-      "projects": "Pengaturan proyek"
+      "projects": "Pengaturan proyek",
+      "people": "Personel"
     },
     "taxDefault": {
       "adminOnly": "Hanya Admin yang bisa mengubah ini.",
@@ -768,6 +769,39 @@
         "save": "Tambah",
         "projectLoadError": "Tidak bisa memuat daftar proyek"
       }
+    },
+    "people": {
+      "add": "Tambah personel",
+      "addTitle": "Tambah personel",
+      "editTitle": "Ubah personel",
+      "save": "Simpan personel",
+      "saved": "Personel disimpan",
+      "name": "Nama",
+      "code": "Kode personel",
+      "codeAuto": "Diberikan otomatis jika dikosongkan",
+      "jobTitle": "Jabatan",
+      "user": "Pengguna aplikasi (opsional)",
+      "userPlaceholder": "Bukan pengguna aplikasi",
+      "userSearch": "Cari pengguna",
+      "edit": "Ubah",
+      "editLabel": "Ubah {{name}}",
+      "archive": "Arsipkan",
+      "archiveLabel": "Arsipkan {{name}}",
+      "archiveTitle": "Arsipkan personel",
+      "archiveBody": "Personel ini keluar dari daftar dan daftar kedaluwarsa, dan tidak ada lagi peringatan untuk dokumennya.",
+      "archived": "Personel diarsipkan",
+      "actions": "Tindakan",
+      "errName": "Isi nama",
+      "errCode": "Isi kode personel",
+      "dupCode": "Kode personel itu sudah dipakai",
+      "dupCodeSub": "Pilih kode lain, atau kosongkan agar diberikan otomatis.",
+      "dupProfile": "Pengguna itu sudah terhubung ke personel lain",
+      "dupProfileSub": "Pilih pengguna lain, atau hapus tautannya.",
+      "error": "Gagal memuat daftar personel",
+      "errorSub": "Permintaan gagal. Periksa koneksi Anda lalu coba lagi.",
+      "retry": "Coba lagi",
+      "empty": "Belum ada personel",
+      "emptySub": "Tambahkan personel yang memegang sertifikat atau izin, lalu catat dokumennya."
     }
   },
   "approvals": {

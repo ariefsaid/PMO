@@ -69,6 +69,7 @@ import { imprestRepository } from './imprest';
 import { journalRepository } from './journals';
 import { equipmentRepository } from './equipment';
 import { documentExpiryRepository } from './documentExpiry';
+import { peopleRepository } from './people';
 import { timeAndMaterialsRepository } from './timeAndMaterials';
 import { integrationsRepository } from './integrations';
 import { odooRepository } from './odoo';
@@ -128,6 +129,7 @@ export const repositories: Repositories = {
   journal: journalRepository,
   equipment: equipmentRepository,
   documentExpiry: documentExpiryRepository,
+  people: peopleRepository,
   timeAndMaterials: timeAndMaterialsRepository,
   expenseReceipts: expenseReceiptsRepository,
   expensePostings: expensePostingsRepository,
