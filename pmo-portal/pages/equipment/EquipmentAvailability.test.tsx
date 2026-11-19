@@ -67,6 +67,22 @@ beforeEach(() => {
 });
 
 describe('Equipment availability screen', () => {
+  it('offers an accessible status selector and upload action without repeating the visible label', () => {
+    h.statusRows = [{ asset_id: 'a1', status_date: new Date().toISOString().slice(0, 10), status: 'broken' }];
+    renderPage();
+    expect(screen.getByRole('combobox', { name: 'Status of EQU-1' })).toBeInTheDocument();
+    expect(screen.getByText('Status of EQU-1')).toHaveClass('sr-only');
+    expect(screen.getByRole('button', { name: 'Upload file for EQU-1' })).toBeInTheDocument();
+  });
+
+  it('keeps rental setup in a separate view from daily status', async () => {
+    h.role = 'Finance'; renderPage();
+    expect(screen.queryByLabelText('Asset for rental terms')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Rental terms' }));
+    expect(screen.getByLabelText('Asset for rental terms')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Equipment status' })).not.toBeInTheDocument();
+  });
+
   it('AC-EAV-013 a field controller sets several machines and saves only the ones they changed', async () => {
     renderPage();
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Status of EQU-1' }), 'broken');
@@ -80,6 +96,7 @@ describe('Equipment availability screen', () => {
   it('Finance can enter rental terms for an asset', async () => {
     h.role = 'Finance';
     renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Rental terms' }));
     await userEvent.selectOptions(screen.getByLabelText('Asset for rental terms'), 'a1');
     await userEvent.selectOptions(screen.getByLabelText('Vendor'), 'v1');
     await userEvent.type(screen.getByLabelText('Rate'), '100');
@@ -115,7 +132,9 @@ describe('Equipment availability screen', () => {
 
   it('allows Finance to mark an asset owned', async () => {
     h.role = 'Finance'; renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Rental terms' }));
     await userEvent.selectOptions(screen.getByLabelText('Asset for rental terms'), 'a1');
+    await userEvent.click(screen.getByText('Other asset actions'));
     await userEvent.click(screen.getByRole('button', { name: 'Mark owned' }));
     expect(h.ownership).toHaveBeenCalledWith({ assetId: 'a1', ownership: 'owned', inServiceOn: null });
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Ownership saved'));
@@ -123,9 +142,11 @@ describe('Equipment availability screen', () => {
 
   it('allows Finance to change a rental rate from an effective date', async () => {
     h.role = 'Finance'; renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Rental terms' }));
     await userEvent.selectOptions(screen.getByLabelText('Asset for rental terms'), 'a3');
     await userEvent.type(screen.getByLabelText('Rate'), '120');
     await userEvent.type(screen.getByLabelText('Rental start'), '2026-01-15');
+    await userEvent.click(screen.getByText('Other asset actions'));
     await userEvent.click(screen.getByRole('button', { name: 'Change rate from date' }));
     expect(h.changeRate).toHaveBeenCalledWith({ assetId: 'a3', date: '2026-01-15', rate: '120' });
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Rate changed'));
@@ -151,6 +172,7 @@ describe('Equipment availability screen', () => {
 
   it('shows a rented machine’s existing rate and dates before a change', async () => {
     h.role = 'Finance'; renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Rental terms' }));
     await userEvent.selectOptions(screen.getByLabelText('Asset for rental terms'), 'a3');
     expect(screen.getByText(/100 IDR/)).toBeInTheDocument();
     expect(screen.getByText(/2026-01-01/)).toBeInTheDocument();
@@ -171,8 +193,10 @@ describe('Equipment availability screen', () => {
 
   it('lets Finance record the in-service date of rented equipment', async () => {
     h.role = 'Finance'; renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Rental terms' }));
     await userEvent.selectOptions(screen.getByLabelText('Asset for rental terms'), 'a3');
     await userEvent.type(screen.getByLabelText('In service from (optional)'), '2026-01-10');
+    await userEvent.click(screen.getByText('Other asset actions'));
     await userEvent.click(screen.getByRole('button', { name: 'Save in-service date' }));
     expect(h.ownership).toHaveBeenCalledWith({ assetId: 'a3', ownership: 'rented', inServiceOn: '2026-01-10' });
   });
@@ -195,6 +219,7 @@ describe('Equipment availability screen', () => {
 
   it('clears unsaved rental values when choosing another asset', async () => {
     h.role = 'Finance'; renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Rental terms' }));
     await userEvent.selectOptions(screen.getByLabelText('Asset for rental terms'), 'a1');
     await userEvent.type(screen.getByLabelText('Rate'), '100');
     await userEvent.selectOptions(screen.getByLabelText('Asset for rental terms'), 'a3');
@@ -218,6 +243,7 @@ describe('Equipment availability screen', () => {
 
   it('clears the selected asset before moving to another equipment page', async () => {
     h.role = 'Finance'; h.nextAssets = [asset('a4', 'EQU-4')]; renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Rental terms' }));
     await userEvent.selectOptions(screen.getByLabelText('Asset for rental terms'), 'a1');
     await userEvent.selectOptions(screen.getByLabelText('Vendor'), 'v1');
     await userEvent.type(screen.getByLabelText('Rate'), '100');
