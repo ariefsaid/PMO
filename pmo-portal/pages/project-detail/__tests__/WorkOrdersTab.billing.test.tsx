@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
+import { DocumentViewerContext, type DocumentViewerApi } from '@/src/components/documents';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import type { Role } from '@/src/auth/AuthContext';
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
@@ -92,10 +93,11 @@ const bill = (over: Partial<WorkOrderBillingRow> = {}): WorkOrderBillingRow => (
   workOrderId: 'wo-1', projectId: 'p1', status: 'Issued', currency: 'USD', orderNet: 500_000, invoiced: 330_000,
   pending: 90_000, paid: 100_000, remaining: 80_000, figuresComplete: true, lineCount: 6, unpaidCount: 3, ...over,
 });
-const renderTab = (role: Role = 'Finance', clientId: string | null = 'c-1', focusWorkOrderId: string | null = null, initialEntry = '/', autoInvoiceWorkOrderId: string | null = null) => {
+const renderTab = (role: Role = 'Finance', clientId: string | null = 'c-1', focusWorkOrderId: string | null = null, initialEntry = '/', autoInvoiceWorkOrderId: string | null = null, open?: DocumentViewerApi['open']) => {
   h.role = role;
+  const content = <><WorkOrdersTab projectId="p1" currency="USD" clientId={clientId} focusWorkOrderId={focusWorkOrderId} autoInvoiceWorkOrderId={autoInvoiceWorkOrderId} /><RouteSearch /></>;
   return render(
-    <MemoryRouter initialEntries={[initialEntry]}><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId={clientId} focusWorkOrderId={focusWorkOrderId} autoInvoiceWorkOrderId={autoInvoiceWorkOrderId} /><RouteSearch /></ToastProvider></MemoryRouter>,
+    <MemoryRouter initialEntries={[initialEntry]}><ToastProvider>{open ? <DocumentViewerContext.Provider value={{ open, close: vi.fn() }}>{content}</DocumentViewerContext.Provider> : content}</ToastProvider></MemoryRouter>,
   );
 };
 
@@ -535,6 +537,31 @@ describe('WorkOrdersTab — a claim is billed in PMO when no ERP owns revenue (#
     const claims = screen.getByRole('table', { name: 'Claims & down payment' });
     await user.click(within(claims).getByRole('button', { name: 'Row actions' }));
   };
+
+  describe('document evidence in the claim drawer', () => {
+    const evidenceClaim = () => [{ id: 'cl-1', work_order_id: 'wo-1', kind: 'progress', withdrawn_at: null, created_at: '2026-10-01T00:00:00Z',
+      down_payment_amount: null, gross_amount: 100_000, dp_recovery_amount: 0, invoice: null,
+      evidence: [{ id: 'ev-1', document_id: 'doc-9', document_status: 'active', document_revision: 'A' }] }];
+
+    it('document-preview AC-016 opens work-order claim evidence by its readable document title', async () => {
+      h.claims = evidenceClaim();
+      h.documents = { data: [{ id: 'doc-9', title: 'Site report', status: 'Issued', file_path: 'org/p/doc-9/r.pdf', source: 'upload' }], isPending: false, isError: false, refetch: vi.fn() };
+      const open = vi.fn<DocumentViewerApi['open']>();
+      renderTab('Finance', 'c-1', null, '/?open=cl-1&openType=workOrderClaim', null, open);
+      expect(screen.queryByText('doc-9')).toBeNull();
+      await userEvent.click(await screen.findByRole('button', { name: 'Preview Site report' }));
+      expect(open).toHaveBeenCalledTimes(1);
+      expect(open.mock.calls[0][0].key).toBe('project-document:doc-9');
+    });
+
+    it('document-preview AC-017 reports unavailable work-order evidence without a raw id', async () => {
+      h.claims = evidenceClaim();
+      renderTab('Finance', 'c-1', null, '/?open=cl-1&openType=workOrderClaim');
+      expect(await screen.findByText('Document not available')).toBeInTheDocument();
+      expect(screen.queryByText('doc-9')).toBeNull();
+      expect(screen.queryByRole('button', { name: /Preview/ })).toBeNull();
+    });
+  });
 
   it('offers New claim, Attach evidence, Raise invoice and Withdraw to Finance with no ERP', async () => {
     const user = userEvent.setup();
