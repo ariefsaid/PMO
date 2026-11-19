@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 import net from 'node:net';
 import { CHART_SELECTOR, LAYOUT_NUMBERS, RULE_NUMBERS, measureText, measureLayout, layoutReport, measureRules, rulesReport, tabFrameFindings, compareRuleFrames, violations } from './ux-proof-metrics.mjs';
 import { blockDataReads, loadReusedChecks, measureSettledLayout, pageLanguage, settlePage } from './ux-proof-measure.mjs';
-import { loadProofSettings } from './ux-proof-settings.mjs';
+import { baselineKey, loadProofSettings } from './ux-proof-settings.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const APP = path.join(ROOT, 'pmo-portal');
@@ -69,6 +69,8 @@ async function selfTest() {
       { name: 'one left edge per surface', expected: '', html: `<main style="padding:24px">${panel('<h2 style="margin:0 0 12px">Title</h2><p>Body</p><p>More</p>')}</main>` },
       { name: 'stray left edge in a panel', expected: 'leftEdges', html: `<main style="padding:24px">${panel('<h2 style="margin:0 0 12px">Title</h2><p style="margin-left:16px">Indented</p>')}</main>` },
       { name: 'three edges in the page column', expected: 'leftEdges', html: '<main style="padding:24px"><h1>Page</h1><p style="margin-left:24px">A</p><p style="margin-left:48px">B</p></main>' },
+      { name: 'adjacent record panels at the 32px section gap (#2548)', expected: '', html: `<main style="padding:24px"><div style="display:flex;flex-direction:column;gap:32px"><section class="panel-card" style="border:1px solid #ccc;border-radius:8px;padding:24px"><h2 style="margin:0">Activity</h2></section><section class="panel-card" style="border:1px solid #ccc;border-radius:8px;padding:24px"><h2 style="margin:0 0 12px">Details</h2><p style="margin:0">Body</p></section><section class="panel-card" style="border:1px solid #ccc;border-radius:8px;padding:24px"><h2 style="margin:0 0 12px">Notes</h2><p style="margin:0">Body</p></section></div></main>` },
+      { name: 'a heading with a loose gap above its content still fails (#2548)', expected: 'gaps', html: '<main style="padding:24px"><h2 style="margin:0 0 40px">Loose</h2><p style="margin:0">Content</p><p>Tail</p></main>' },
       { name: 'ignored indent', expected: '', html: `<main style="padding:24px">${panel('<h2 style="margin:0 0 12px">Title</h2><p data-layout-ignore style="margin-left:16px">Indented</p>')}</main>` },
       { name: 'structural second column does not count', expected: '', html: `<main style="padding:24px">${panel('<div style="display:flex;justify-content:space-between"><h2 style="margin:0 0 12px">Title</h2><button>Act</button></div>')}</main>` },
       { name: 'gap of 80px with content below', expected: 'gaps', html: '<main style="padding:24px"><p>One</p><p style="margin-top:80px">Two</p><p>Three</p></main>' },
@@ -322,7 +324,7 @@ try {
         await page.screenshot({ path: path.join(output, `${stem}.png`), fullPage: true });
         if (theme === 'light') {
           if (layout) metrics.layout = layout;
-          const key = `${route}@${width}@${login}`;
+          const key = baselineKey(budget, route, width, login);
           measurements.push({ route, width, login, ...metrics });
           console.log(`${route} | ${width} | ${metrics.chartCount} | ${metrics.minFontPx} | ${metrics.pctCharsUnder14.toFixed(2)} | ${metrics.distinctFontSizes.join(', ')} | ${metrics.smallInputCount} | ${metrics.smallTargetCount} | ${metrics.horizontalOverflow} | ${metrics.wordCount}`);
           const oldTargetBaseline = budget.targets[key];

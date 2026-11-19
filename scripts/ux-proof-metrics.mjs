@@ -413,6 +413,9 @@ export function measureLayout(N) {
   };
   const headingLike = (el) => {
     if (/^H[2-6]$/.test(el.tagName) || (el.getAttribute('role') === 'heading')) return true;
+    // A bordered/shadowed panel (a heading-only RecordSection) is a surface, not a bare heading: the gap
+    // between two adjacent panels is the section gap and is judged by the scale check, not the 12-16px heading rule.
+    if (isPanel(el)) return false;
     const h = el.querySelector('h2, h3, h4, h5, h6, [role="heading"]');
     return !!h && el.getBoundingClientRect().height <= 96 && !el.querySelector('table, input, select, textarea');
   };
