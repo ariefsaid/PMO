@@ -519,6 +519,7 @@ begin
   end if;
   return new;
 end $$;
+drop trigger if exists zz_material_request_transfer_status on public.stock_documents;
 create trigger zz_material_request_transfer_status after update of status on public.stock_documents
   for each row execute function public.mrq_on_transfer_status();
 
