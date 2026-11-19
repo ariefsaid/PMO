@@ -165,3 +165,41 @@ describe('diffEntries', () => {
     expect(diff.deletes).toHaveLength(0);
   });
 });
+
+describe('AC-WCA-016 diffEntries carries a row\'s work order and discipline (#2517)', () => {
+  const attributed = (r: EditRow, workOrderId: string | null, disciplineId: string | null): EditRow => ({ ...r, attribution: { workOrderId, disciplineId } });
+
+  it('keeps each existing line attribution when only hours change on a mixed row', () => {
+    const server = [
+      { id: 'a', project_id: 'P', entry_date: WEEK[0], hours: 8, work_order_id: 'wo1', discipline_id: null },
+      { id: 'b', project_id: 'P', entry_date: WEEK[1], hours: 6, work_order_id: 'wo2', discipline_id: null },
+    ];
+    const r = { ...attributed(row('P', ['7', '6']), 'wo1', null), originalAttribution: { workOrderId: 'wo1', disciplineId: null } };
+    expect(diffEntries([r], WEEK, server, 'ts1').upserts).toEqual([
+      expect.objectContaining({ entry_date: WEEK[0], hours: 7 }),
+    ]);
+    expect(diffEntries([r], WEEK, server, 'ts1').upserts[0]).not.toHaveProperty('work_order_id');
+  });
+
+  it('AC-WCA-016 a new line of an attributed row is saved with its work order and discipline', () => {
+    const diff = diffEntries([attributed(row('P', ['8']), 'wo1', 'd1')], WEEK, [], 'ts1');
+    expect(diff.upserts).toEqual([
+      { timesheet_id: 'ts1', project_id: 'P', entry_date: '2026-06-01', hours: 8, notes: null, work_order_id: 'wo1', discipline_id: 'd1' },
+    ]);
+  });
+
+  it('AC-WCA-016 changing only the work order re-saves the row\'s existing lines (hours unchanged)', () => {
+    const server = [{ id: 'se1', project_id: 'P', entry_date: '2026-06-01', hours: 8, work_order_id: 'wo1', discipline_id: null }];
+    const diff = diffEntries([attributed(row('P', ['8']), 'wo2', null)], WEEK, server, 'ts1');
+    expect(diff.upserts).toEqual([
+      { timesheet_id: 'ts1', project_id: 'P', entry_date: '2026-06-01', hours: 8, notes: null, work_order_id: 'wo2', discipline_id: null },
+    ]);
+  });
+
+  it('AC-WCA-016 an unchanged attribution produces no write, and a row without one sends no attribution keys', () => {
+    const server = [{ id: 'se1', project_id: 'P', entry_date: '2026-06-01', hours: 8, work_order_id: 'wo1', discipline_id: 'd1' }];
+    expect(diffEntries([attributed(row('P', ['8']), 'wo1', 'd1')], WEEK, server, 'ts1').upserts).toEqual([]);
+    const plain = diffEntries([row('P', ['6'])], WEEK, server, 'ts1');
+    expect(plain.upserts).toEqual([{ timesheet_id: 'ts1', project_id: 'P', entry_date: '2026-06-01', hours: 6, notes: null }]);
+  });
+});

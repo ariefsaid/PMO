@@ -166,11 +166,15 @@ export async function saveTimesheetWeek(
     p_week_start_date: weekStartDate,
     // The RPC re-targets entries at the resolved sheet id, so timesheet_id in the payload is
     // ignored; send only the cell coordinates + values it reads (project_id/entry_date/hours/notes).
-    p_upserts: upserts.map(({ project_id, entry_date, hours, notes }) => ({
+    // #2517 (0952): a line's work order and discipline travel only when the row carries them.
+    p_upserts: upserts.map(({ project_id, entry_date, hours, notes, work_order_id, discipline_id }) => ({
       project_id,
       entry_date,
       hours,
       notes,
+      ...(work_order_id !== undefined || discipline_id !== undefined
+        ? { work_order_id: work_order_id ?? null, discipline_id: discipline_id ?? null }
+        : {}),
     })),
     p_delete_ids: deleteIds,
   })) as unknown as { data: string | null; error: PostgrestErrorLike | null };

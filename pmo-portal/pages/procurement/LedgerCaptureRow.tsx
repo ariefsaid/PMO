@@ -92,6 +92,8 @@ export interface LedgerCaptureRowProps {
   itemsNet?: number | null;
   /** The purchase's currency, named on the capture form's amount field. */
   currency?: string | null;
+  /** #2517: the purchase's project, whose work orders the capture form offers. */
+  projectId?: string | null;
   /** The org's purchase rules (read by the page). Unknown = nothing is held back; the server still enforces. */
   gates?: ProcurementGates;
 }
@@ -136,6 +138,7 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
   vendorId,
   itemsNet,
   currency,
+  projectId = null,
   gates,
 }) => {
   const [open, setOpen] = useState(false);
@@ -201,6 +204,7 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
           vendorId={vendorId}
           itemsNet={itemsNet}
           currency={currency}
+          projectId={projectId}
           busy={busy}
           onCreate={(input) => onCreate(nextKind, input)}
           onStage={onStage && (nextKind === 'goods_receipt' || nextKind === 'vendor_invoice') ? onStage : undefined}
