@@ -971,3 +971,11 @@ export function tabFrameFindings(bars, tolerance = RULE_NUMBERS.tolerance) {
   }
   return out;
 }
+
+/** Compare tab frames collected from each rendered route, preserving each route's viewport and login. */
+export function compareRuleFrames(routeMeasurements) {
+  const bars = routeMeasurements.flatMap(({ route, width, role, tabBars = [] }) =>
+    tabBars.map((bar) => ({ ...bar, route, width, role })),
+  );
+  return tabFrameFindings(bars);
+}

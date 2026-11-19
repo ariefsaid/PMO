@@ -5,8 +5,9 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import net from 'node:net';
-import { CHART_SELECTOR, LAYOUT_NUMBERS, RULE_NUMBERS, measureText, measureLayout, layoutReport, measureRules, rulesReport, tabFrameFindings, violations } from './ux-proof-metrics.mjs';
+import { CHART_SELECTOR, LAYOUT_NUMBERS, RULE_NUMBERS, measureText, measureLayout, layoutReport, measureRules, rulesReport, tabFrameFindings, compareRuleFrames, violations } from './ux-proof-metrics.mjs';
 import { blockDataReads, loadReusedChecks, measureSettledLayout, pageLanguage, settlePage } from './ux-proof-measure.mjs';
+import { loadProofSettings } from './ux-proof-settings.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const APP = path.join(ROOT, 'pmo-portal');
@@ -220,19 +221,17 @@ if (!layoutOnly && !rulesOnly && !fs.existsSync(detector)) throw new Error(`Vend
 if (!fs.existsSync(authFile)) throw new Error(`Auth storage state missing: ${authFile}; run the Playwright setup project first.`);
 
 const budgetPath = path.join(ROOT, 'docs/ux/word-budget.json');
-const budget = fs.existsSync(budgetPath) ? JSON.parse(fs.readFileSync(budgetPath, 'utf8')) : {};
-budget.targets ||= {};
 const login = path.basename(authFile).replace(/\.json$/, '');
 // Page state under test. UX_PROOF_BLOCK_READS=1 fails every data read (profile and org lookups still
 // load), so the screens' error states are what gets measured.
 const blockReads = process.env.UX_PROOF_BLOCK_READS === '1';
 const state = blockReads ? 'reads-failing' : 'default';
 const layoutBaselinePath = path.join(ROOT, 'docs/ux/layout-baseline.json');
-const layoutBaseline = fs.existsSync(layoutBaselinePath) ? JSON.parse(fs.readFileSync(layoutBaselinePath, 'utf8')) : {};
+const { budget, layoutBaseline } = loadProofSettings({ root: ROOT, rulesOnly, fsApi: fs });
 const reusedTools = rulesOnly ? null : await loadReusedChecks();
 const layoutFound = {};
 const unsettled = [];
-const ruleBars = [];
+const routeRuleMeasurements = [];
 const measurements = [];
 
 const auth = JSON.parse(fs.readFileSync(authFile, 'utf8'));
@@ -289,7 +288,7 @@ try {
           const report = rulesReport(measured, `${route} @${width} [${login}]`);
           report.failures.forEach((line) => console.error(line));
           if (report.failures.length) failed = true;
-          ruleBars.push(...measured.tabBars.map((bar) => ({ ...bar, route, width, role: login })));
+          routeRuleMeasurements.push({ ...measured, route, width, role: login });
           await context.close();
           continue;
         }
@@ -298,7 +297,11 @@ try {
         const hasMain = await page.evaluate(() => !!document.querySelector('main'));
         const layout = hasMain ? await measureSettledLayout(page, reusedTools, width) : null;
         const metrics = !layoutOnly && theme === 'light' ? await page.evaluate(measureText, CHART_SELECTOR) : null;
-        if (!layoutOnly && theme === 'light' && hasMain) rulesReport(await page.evaluate(measureRules, RULE_NUMBERS), `${route} @${width}`).failures.forEach((line) => console.warn(`warning: ${line}`));
+        if (!layoutOnly && theme === 'light' && hasMain) {
+          const measuredRules = await page.evaluate(measureRules, RULE_NUMBERS);
+          rulesReport(measuredRules, `${route} @${width}`).failures.forEach((line) => console.warn(`warning: ${line}`));
+          routeRuleMeasurements.push({ ...measuredRules, route, width, role: login });
+        }
         if (layoutOnly) {
           if (layout) {
             const report = layoutReport(layout, `${route} @${width}`, state);
@@ -361,13 +364,15 @@ try {
 } finally {
   await browser.close();
 }
+const frameFindings = compareRuleFrames(routeRuleMeasurements);
 if (rulesOnly) {
-  const frames = tabFrameFindings(ruleBars);
+  const frames = frameFindings;
   frames.forEach((finding) => console.error(`${finding.message} [${finding.role}]`));
   if (frames.length) failed = true;
   console.log(`rules-only: ${routes.length} route(s) x ${widths.length} viewport(s); ${failed ? 'findings above' : 'no findings'}`);
   process.exit(failed ? 1 : 0);
 }
+if (!layoutOnly) frameFindings.forEach((finding) => console.warn(`warning: ${finding.message} [${finding.role}]`));
 fs.writeFileSync(path.join(output, 'measurements.json'), `${JSON.stringify(measurements, null, 2)}\n`);
 if (updateBudget) {
   fs.mkdirSync(path.dirname(budgetPath), { recursive: true });
