@@ -467,6 +467,7 @@ export function breadcrumbForPath(
   /** Same-owner return descriptor, minted only by `contextualListReturnNavigation`. */
   contextualParent?: ListReturnNavigation,
   routeSearch = '',
+  workOrderProject?: { id: string; name: string },
 ): BreadcrumbPart[] {
   const administrationBreadcrumb = administrationBreadcrumbForPath(pathname, navigate);
   if (administrationBreadcrumb) return administrationBreadcrumb;
@@ -597,6 +598,7 @@ export function breadcrumbForPath(
   if (/^\/work-orders\/[^/]+$/.test(pathname)) {
     return [
       { label: 'Projects', i18nKey: 'shell.nav.projects', href: '/projects', onClick: () => navigate?.('/projects') }, // i18n-exempt: fallback label is replaced from i18nKey at render
+      ...(workOrderProject ? [{ label: workOrderProject.name, href: `/projects/${workOrderProject.id}`, onClick: () => navigate?.(`/projects/${workOrderProject.id}`) }] : []),
       recordLabel
         ? { label: recordLabel }
         : recordResolved
@@ -668,7 +670,7 @@ export function breadcrumbForPath(
 
 /** Cached index lists the breadcrumb reads to resolve a detail route's name. */
 export interface RecordLists {
-  workOrders?: { id: string; wo_number: string | null; title: string }[];
+  workOrders?: { id: string; wo_number: string | null; title: string; project_id?: string }[];
   projects?: { id: string; name: string; short_name?: string | null }[];
   opportunities?: { id: string; name: string; short_name?: string | null }[];
   procurements?: { id: string; title: string }[];

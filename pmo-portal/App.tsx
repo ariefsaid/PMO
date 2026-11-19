@@ -1,3 +1,4 @@
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   createBrowserRouter,
@@ -685,6 +686,9 @@ export const ShellChrome: React.FC = () => {
     // deal is absent from both the open-pipeline cache and the active-projects cache, so it must be
     // unioned in here or its crumb resolves to "Projects > Not found".
     const recordLabel = recordLabelForPath(pathname, cachedLists);
+    const orderId = /^\/work-orders\/([^/]+)$/.exec(pathname)?.[1];
+    const order = orderId ? cachedLists.workOrders?.find((item) => item.id === orderId) : undefined;
+    const parentProject = order?.project_id ? cachedLists.projects?.find((item) => item.id === order.project_id) : undefined;
     const parts = breadcrumbForPath(
       pathname,
       recordLabel,
@@ -695,6 +699,7 @@ export const ShellChrome: React.FC = () => {
       // vocabulary in the route-derived parts; the Breadcrumb component keeps a
       // render-level fallback for direct mounts without the router location.
       location.search,
+      parentProject ? { id: parentProject.id, name: projectDisplayName(parentProject) } : undefined,
     );
     const contractualName = recordContractualNameForPath(pathname, cachedLists);
     if (!contractualName || parts.length === 0) return parts;
