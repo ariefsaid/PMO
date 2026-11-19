@@ -124,6 +124,31 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(submitted.lines[0]).not.toHaveProperty('taxBasis');
   });
 
+  it('#2514 includes a complete pending line in the same draft save and preserves added lines', async () => {
+    renderCreate();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Office supplies' } });
+
+    fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Envelopes' } });
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '5' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add line item' }));
+    await waitFor(() => expect(screen.getByLabelText('New item description')).toHaveValue(''));
+
+    fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '3' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '10' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+
+    await waitFor(() => expect(mocks.createAtomic).toHaveBeenCalledOnce());
+    expect(mocks.createAtomic.mock.calls[0][0]).toMatchObject({
+      header: { title: 'Office supplies' },
+      lines: [
+        expect.objectContaining({ name: 'Envelopes', quantity: 2, rate: 5 }),
+        expect.objectContaining({ name: 'Paper', quantity: 3, rate: 10 }),
+      ],
+    });
+  });
+
   it('SEC-RS-5: shows the five intake choices to Finance and only the plain request to an Engineer', () => {
     mocks.realRole = 'Finance';
     const finance = renderCreate('/procurement/new');
@@ -704,18 +729,23 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(screen.queryByText('$0')).not.toBeInTheDocument();
   });
 
-  it('C1(b) blocks form submit while the add row has input and focuses that row', () => {
+  it('#2514 blocks an invalid pending row and explains the fields that need correction', async () => {
     renderCreate();
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Office supplies' } });
     fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '0' } });
 
     const saveDraft = screen.getByRole('button', { name: 'Save draft' });
     const form = saveDraft.closest('form');
     fireEvent.click(saveDraft);
 
     expect(mocks.createAtomic).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('Add this line or clear it first');
+    expect(await screen.findByText('Item is required.')).toBeVisible();
+    expect(screen.getByText('Unit price must be greater than 0 with no more than 2 decimal places.')).toBeVisible();
     expect(screen.getByLabelText('New item description')).toHaveFocus();
+    expect(screen.getByLabelText('New item description')).toHaveValue('');
+    expect(screen.getByLabelText('New item quantity')).toHaveValue('2');
+    expect(screen.getByLabelText('New item unit price')).toHaveValue('0');
 
     fireEvent.submit(form as HTMLFormElement);
     expect(mocks.createAtomic).not.toHaveBeenCalled();
