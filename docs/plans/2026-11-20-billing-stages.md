@@ -19,7 +19,7 @@ Money path: ships alone. Every gate is in the database with a pgTAP proof and a 
   date arithmetic is pure (`src/lib/billingStages.ts`), unit-tested.
 - **Retention.** 0961: `projects.retention_pct`; `progress_claims.retention_pct/amount` stamped by BEFORE INSERT trigger;
   `retention_releases` with `schedule_retention_release` / `release_retention` / `cancel_retention_release`; view
-  `claim_retention`. Project billing terms (deadline, retention) change only for Finance/Admin (guard trigger).
+  `claim_retention`. Project billing terms (deadline, retention) have no client column grant on `projects`; only the Finance/Admin RPCs move them, and both are captured in record history.
 - **Reconciliation.** 0962: `billing_reconciliation(project, work_order)` SECURITY INVOKER, one derivation.
 - **UI.** `ClaimBillingStages` in both claim drawers (Billing tab, Work orders tab): stages in order with age, checklist,
   attach/complete for the current stage, deadline pill, retention held. Seam: `src/lib/db/billingStages.ts` →

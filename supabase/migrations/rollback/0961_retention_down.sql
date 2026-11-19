@@ -15,19 +15,6 @@ drop function if exists public.guard_retention_release();
 drop function if exists public.set_project_retention(uuid, numeric);
 drop trigger if exists progress_claims_zz_stamp_retention on public.progress_claims;
 drop function if exists public.stamp_progress_claim_retention();
--- Restore the 0960 billing-terms guard (deadline columns only).
-drop trigger if exists projects_zz_guard_billing_terms on public.projects;
-create or replace function public.guard_project_billing_terms() returns trigger
-  language plpgsql set search_path = public as $$
-begin
-  if public.actor_bypasses_rls() then return new; end if;
-  if (new.invoice_deadline_day, new.invoice_deadline_warn_days) is distinct from (old.invoice_deadline_day, old.invoice_deadline_warn_days)
-     and coalesce(public.auth_role()::text, '') not in ('Admin','Finance') then
-    raise exception 'only Finance or an Admin can change the invoice deadline' using errcode = '42501';
-  end if;
-  return new;
-end; $$;
-create trigger projects_zz_guard_billing_terms before update of invoice_deadline_day, invoice_deadline_warn_days on public.projects
-  for each row execute function public.guard_project_billing_terms();
+update public.record_history_config set captured = captured - 'retention_pct' where entity_type = 'project';
 alter table public.progress_claims drop column if exists retention_amount, drop column if exists retention_pct;
 alter table public.projects drop column if exists retention_pct;

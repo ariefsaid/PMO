@@ -15,8 +15,8 @@ drop function if exists public.attach_billing_stage_document(uuid, uuid);
 drop function if exists public.lock_billing_stage_claim(uuid);
 drop trigger if exists progress_claims_zz_billing_stages on public.progress_claims;
 drop function if exists public.instantiate_claim_billing_stages();
-drop trigger if exists projects_zz_guard_billing_terms on public.projects;
-drop function if exists public.guard_project_billing_terms();
+update public.record_history_config
+   set captured = captured - 'invoice_deadline_day' - 'invoice_deadline_warn_days' where entity_type = 'project';
 drop function if exists public.set_project_invoice_deadline(uuid, integer, integer);
 drop function if exists public.set_billing_stage_template(uuid, jsonb);
 drop table if exists public.claim_billing_stage_documents;

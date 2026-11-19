@@ -52,21 +52,10 @@ end; $$;
 revoke all on function public.set_project_retention(uuid, numeric) from public, anon;
 grant execute on function public.set_project_retention(uuid, numeric) to authenticated, service_role;
 
--- Extend the 0960 billing-terms guard to the retention percentage (same rule: Finance/Admin only).
-create or replace function public.guard_project_billing_terms() returns trigger
-  language plpgsql set search_path = public as $$
-begin
-  if public.actor_bypasses_rls() then return new; end if;
-  if (new.invoice_deadline_day, new.invoice_deadline_warn_days, new.retention_pct)
-       is distinct from (old.invoice_deadline_day, old.invoice_deadline_warn_days, old.retention_pct)
-     and coalesce(public.auth_role()::text, '') not in ('Admin','Finance') then
-    raise exception 'only Finance or an Admin can change the invoice deadline or the retention percentage' using errcode = '42501';
-  end if;
-  return new;
-end; $$;
-drop trigger projects_zz_guard_billing_terms on public.projects;
-create trigger projects_zz_guard_billing_terms before update of invoice_deadline_day, invoice_deadline_warn_days, retention_pct on public.projects
-  for each row execute function public.guard_project_billing_terms();
+-- No client column grant on projects.retention_pct: it moves only through set_project_retention. Captured in record history.
+update public.record_history_config
+   set captured = captured || '{"retention_pct":"number"}'::jsonb
+ where entity_type = 'project' and not (captured ? 'retention_pct');
 
 -- ── releases ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 create table public.retention_releases (
@@ -89,6 +78,7 @@ create table public.retention_releases (
 create index retention_releases_claim_idx on public.retention_releases (claim_id);
 create index retention_releases_org_idx on public.retention_releases (org_id, project_id);
 alter table public.retention_releases enable row level security;
+alter table public.retention_releases force row level security;
 revoke all on public.retention_releases from public, anon, authenticated;
 grant select on public.retention_releases to authenticated;
 grant all on public.retention_releases to service_role;
@@ -135,6 +125,7 @@ create or replace function public.schedule_retention_release(p_claim uuid, p_amo
   language plpgsql security definer set search_path = public as $$
 declare v_c public.progress_claims; v_id uuid;
 begin
+  perform public.assert_is_active_member();
   v_c := public.lock_retention_claim(p_claim);
   if v_c.withdrawn_at is not null then
     raise exception 'this progress claim was withdrawn' using errcode = '55000', detail = 'claim-withdrawn';
@@ -168,6 +159,7 @@ declare
   v_date   date;
   v_d_org  uuid; v_d_proj uuid; v_d_status public.doc_status; v_file text;
 begin
+  perform public.assert_is_active_member();
   select * into v_r from public.retention_releases r where r.id = p_release and r.org_id = public.auth_org_id();
   if not found then
     perform public.lock_retention_claim(null);   -- role refusal first for a caller who may not manage retention
@@ -212,6 +204,7 @@ create or replace function public.cancel_retention_release(p_release uuid) retur
   language plpgsql security definer set search_path = public as $$
 declare v_r public.retention_releases; v_c public.progress_claims;
 begin
+  perform public.assert_is_active_member();
   select * into v_r from public.retention_releases r where r.id = p_release and r.org_id = public.auth_org_id();
   if not found then perform public.lock_retention_claim(null); end if;
   v_c := public.lock_retention_claim(v_r.claim_id);

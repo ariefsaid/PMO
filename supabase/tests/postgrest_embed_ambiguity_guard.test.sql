@@ -174,7 +174,11 @@ select set_eq(
             -- 0731: incoming_payment_allocations carries created_by AND reversed_by -> profiles. CHECKED BEFORE ADDING:
             -- the only DAL embed of the table is from incoming_payments (revenue.ts, no profiles embed); nothing embeds
             -- profiles from it. Whatever ships first MUST qualify it with !constraint_name.
-            ('incoming_payment_allocations -> profiles') $$,
+            ('incoming_payment_allocations -> profiles'),
+            -- 0961 (#1572): retention_releases carries created_by AND released_by -> auth.users. CHECKED BEFORE ADDING:
+            -- the only DAL read (src/lib/db/billingStages.ts listRetentionReleases) embeds nothing; whatever embeds users
+            -- from it MUST qualify with !constraint_name.
+            ('retention_releases -> users') $$,
   'AC-EMBED-001 the set of multi-FK table pairs is EXACTLY the known set — a new pair here means '
   'every unqualified PostgREST embed of that target is now a runtime error (0177 shipped one, and '
   'it took 19 e2e specs down). Before updating this list: grep the DAL for embeds of the target '

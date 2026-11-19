@@ -7,7 +7,7 @@
 -- later edit of the list never changes a claim already made. Every write is a SECURITY DEFINER function; no client write grant.
 -- The gate is two BEFORE INSERT triggers, on the ERP outbox (domain revenue) and on sales_invoices (the native raise and any
 -- mirror insert share the claim id as the invoice id): neither path can mint an invoice for a claim with an open stage.
--- Also: projects.invoice_deadline_day / invoice_deadline_warn_days (the monthly cut-off), set by set_project_invoice_deadline.
+-- Also: projects.invoice_deadline_day / invoice_deadline_warn_days (the monthly cut-off), set only by set_project_invoice_deadline.
 
 -- ── the monthly invoice deadline on the project (the contract) ─────────────────────────────────────────────────────────
 alter table public.projects
@@ -81,6 +81,7 @@ declare t text;
 begin
   foreach t in array array['billing_stage_templates','billing_stage_template_documents','claim_billing_stages','claim_billing_stage_documents'] loop
     execute format('alter table public.%I enable row level security', t);
+    execute format('alter table public.%I force row level security', t);
     execute format('revoke all on public.%I from public, anon, authenticated', t);
     execute format('grant select on public.%I to authenticated', t);
     execute format('grant all on public.%I to service_role', t);
@@ -169,19 +170,11 @@ end; $$;
 revoke all on function public.set_project_invoice_deadline(uuid, integer, integer) from public, anon;
 grant execute on function public.set_project_invoice_deadline(uuid, integer, integer) to authenticated, service_role;
 
--- The deadline columns move only through the function above (Finance/Admin): a Project Manager may still edit the project row.
-create or replace function public.guard_project_billing_terms() returns trigger
-  language plpgsql set search_path = public as $$
-begin
-  if public.actor_bypasses_rls() then return new; end if;
-  if (new.invoice_deadline_day, new.invoice_deadline_warn_days) is distinct from (old.invoice_deadline_day, old.invoice_deadline_warn_days)
-     and coalesce(public.auth_role()::text, '') not in ('Admin','Finance') then
-    raise exception 'only Finance or an Admin can change the invoice deadline' using errcode = '42501';
-  end if;
-  return new;
-end; $$;
-create trigger projects_zz_guard_billing_terms before update of invoice_deadline_day, invoice_deadline_warn_days on public.projects
-  for each row execute function public.guard_project_billing_terms();
+-- No client column grant is added on projects (it grants per column): the deadline moves only through the function above.
+-- Change-capture registry (AC-CHG-011): who changed a project's invoice deadline is history worth keeping.
+update public.record_history_config
+   set captured = captured || '{"invoice_deadline_day":"number","invoice_deadline_warn_days":"number"}'::jsonb
+ where entity_type = 'project' and not (captured ? 'invoice_deadline_day');
 
 -- ── snapshot the list onto a new progress claim ─────────────────────────────────────────────────────────────────────────
 create or replace function public.instantiate_claim_billing_stages() returns trigger
@@ -285,6 +278,7 @@ create or replace function public.note_billing_stage(p_stage uuid, p_note text) 
   language plpgsql security definer set search_path = public as $$
 declare v_s public.claim_billing_stages;
 begin
+  perform public.assert_is_active_member();
   if p_stage is null then raise exception 'billing stage not found' using errcode = 'P0002'; end if;
   v_s := public.lock_billing_stage_claim(p_stage);
   update public.claim_billing_stages s set note = nullif(btrim(p_note), '') where s.id = p_stage;
@@ -302,6 +296,7 @@ declare
   v_prev date;
   v_ref  text := nullif(btrim(p_client_reference), '');
 begin
+  perform public.assert_is_active_member();
   if p_stage is null then raise exception 'billing stage not found' using errcode = 'P0002'; end if;
   v_s := public.lock_billing_stage_claim(p_stage);
   if exists (select 1 from public.claim_billing_stages s where s.claim_id = v_s.claim_id and s.position < v_s.position and s.completed_on is null) then
