@@ -62,7 +62,6 @@ stock issues, timesheets and equipment usage linked only to the project.
 - A record-only purchase or a voided bill refuses attribution through its existing guard — a locked record stays locked.
 - A timesheet row is one project's week (unique key `timesheet, project, date` is unchanged), so all of a row's lines
   share one work order. Splitting one day's hours across two work orders of one project is a follow-up.
-- A transfer is checked against the site's project when it is written; a later change to a warehouse's project does
-  not re-check old transfers.
+- A site warehouse cannot change project or kind while an attributed transfer would cease to match its work order.
 - The ERP mirrors never set these columns, so an inbound mirror write is never refused by this rule.
 - Reversal: `supabase/migrations/rollback/0952_…_down.sql`, `0951_…_down.sql`, `0950_…_down.sql`, in that order.
