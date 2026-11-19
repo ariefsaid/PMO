@@ -116,9 +116,9 @@ export async function deletePlanLine(id: string): Promise<void> {
 
 /** The saved custom split, or null when the project uses the default. */
 export async function getSharedSplit(projectId: string): Promise<SplitPercent[] | null> {
-  const { data, error } = await supabase.from('project_shared_cost_splits').select('work_order_id, percent').eq('project_id', projectId).limit(1001);
-  if (error) throw new AppError(error.message, error.code);
-  const rows = (data ?? []) as Array<{ work_order_id: string; percent: number | string }>;
+  const rows = await fetchAllPages<{ work_order_id: string; percent: number | string }>((from, to) =>
+    supabase.from('project_shared_cost_splits').select('work_order_id, percent').eq('project_id', projectId)
+      .order('work_order_id', { ascending: true }).range(from, to));
   if (rows.length === 0) return null;
   return rows.map((r) => {
     const p = num(r.percent);

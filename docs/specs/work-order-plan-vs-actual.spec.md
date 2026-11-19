@@ -71,9 +71,11 @@ disciplines make or lose money while there is still time to act.
 
 **Project-actuals basis (owner ruling, 2026-11-20)**
 - The project total shall equal the existing project actuals; work-order amounts and Not assigned shall sum to that total.
-- A purchase's paid amount shall be apportioned by each purchase line's share of the purchase value, independent of which
-  payment or invoice carried it. The rounding remainder shall go to the largest share; lines with no work order shall
-  remain Not assigned. The system shall not infer a work-order link.
+- A paid amount shall follow the most specific document through which it passed: vendor bill, then purchase order or
+  receipt, then purchase request. A payment linked to a bill shall follow that bill; an unlinked payment shall follow
+  its purchase's documents. Amounts without a work-order link shall remain Not assigned; links shall never be inferred.
+- Where bills on one purchase name different work orders, each bill's paid amount shall go to its own work order and the
+  remainder of the purchase's 0909-basis amount shall follow the purchase's work order.
 - ERP-ledger actuals and allocated overhead without a work-order link shall remain Not assigned, unless the project has
   a configured shared-cost split, in which case that split applies.
 

@@ -62,6 +62,16 @@ describe('listProjectCostAmounts', () => {
   });
 });
 
+describe('getSharedSplit', () => {
+  it('reads every saved work-order share beyond the API page limit', async () => {
+    h.queue.push({ data: Array.from({ length: 1000 }, (_, i) => ({ work_order_id: `wo-${i}`, percent: '0.1' })), error: null });
+    h.queue.push({ data: [{ work_order_id: 'wo-last', percent: '0' }], error: null });
+    const split = await dal.getSharedSplit('p1');
+    expect(split).toHaveLength(1001);
+    expect(split?.at(-1)).toEqual({ workOrderId: 'wo-last', percent: '0' });
+  });
+});
+
 describe('writes send no org_id', () => {
   it('creates a plan figure, or updates only value and note of an existing one', async () => {
     await dal.savePlanLine({ projectId: 'p1', workOrderId: 'A', disciplineId: null, kind: 'direct_budget', value: '100.50', note: 'tender' }, null);
