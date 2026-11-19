@@ -101,7 +101,7 @@ const AdministrationTerminology: React.FC = () => {
       {!isLoading && !isError ? (
         <>
         {TERM_KEYS.map((key) => (
-          <Card key={key} className="space-y-4 p-4" data-testid={`term-card-${key}`}>
+          <Card key={key} className="space-y-3 p-4" data-testid={`term-card-${key}`}>
             <h3 className="text-base font-semibold">{shippedTerm('en', key).singular}</h3>
             {TERM_LOCALES.map((locale) => (
               <div key={locale} className="space-y-2">
