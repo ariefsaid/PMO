@@ -5366,6 +5366,7 @@ export type Database = {
           acted_for: string | null
           action: string
           actor_id: string | null
+          client_request_id: string | null
           created_at: string
           from_status: string | null
           id: string
@@ -5379,6 +5380,7 @@ export type Database = {
           acted_for?: string | null
           action: string
           actor_id?: string | null
+          client_request_id?: string | null
           created_at?: string
           from_status?: string | null
           id?: string
@@ -5392,6 +5394,7 @@ export type Database = {
           acted_for?: string | null
           action?: string
           actor_id?: string | null
+          client_request_id?: string | null
           created_at?: string
           from_status?: string | null
           id?: string

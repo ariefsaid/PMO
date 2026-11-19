@@ -6,7 +6,7 @@
 -- Reuse, not a new engine:
 --   • SoD follows ADR-0019 exactly as transition_procurement / timesheet approval do: a security-definer RPC that
 --     locks the record row (FOR UPDATE), re-reads state under the lock and refuses — the requester never decides a
---     step (0181's self-approval rule), one person decides at most one step of a round.
+--     step (0181's self-approval rule), one person decides at most one step across all rounds.
 --   • Authority is the caller's real role from profiles (ADR-0016: never the impersonated view role) — the same
 --     population check spend routing uses (0243 §5: active profile + role + not the requester). The spend router
 --     itself is not called: it routes by money amount and budget line, and a material request carries neither.
@@ -47,18 +47,17 @@ $$;
 
 -- FR-MRQ-014/015: the earliest needed-by date accepted at instant p_at, or NULL when p_needed_by is accepted.
 -- Pure: the caller passes the clock (mrq_submit passes now()), so the rule is testable at exact times without a
--- client-settable clock. Today and earlier are never accepted; with a cut-off set, tomorrow is accepted only
--- before the cut-off (project-local time = the organisation's time zone; projects carry no zone of their own).
+-- client-settable clock. Only tomorrow is restricted, and only when a cut-off is set and has passed
+-- (project-local time = the organisation's time zone; projects carry no zone of their own).
 create or replace function public.mrq_cutoff_earliest(p_cutoff time, p_tz text, p_needed_by date, p_at timestamptz) returns date
   language plpgsql immutable set search_path = pg_catalog, pg_temp as $$
 declare v_local timestamp := p_at at time zone coalesce(p_tz, 'UTC'); v_earliest date;
 begin
-  v_earliest := v_local::date + 1;
-  if p_cutoff is not null and v_local::time >= p_cutoff then
+  if p_cutoff is not null and p_needed_by = v_local::date + 1 and v_local::time >= p_cutoff then
     v_earliest := v_local::date + 2;
+    return v_earliest;
   end if;
-  if p_needed_by >= v_earliest then return null; end if;
-  return v_earliest;
+  return null;
 end $$;
 
 -- Who may decide a step: the caller holding the step's role directly (acting_for = null), else the caller as an
@@ -316,12 +315,14 @@ begin
   perform public.assert_feature_on(v_org, 'stock');
   select * into r from public.material_requests x where x.id = p_request_id and x.org_id = v_org for update;
   if not found then raise exception 'MRQ_NOT_FOUND: the request is not in your organisation' using errcode = 'P0001'; end if;
-  if r.status = 'pending' and p_client_request_id is not null and r.submit_request_id = p_client_request_id
-     and r.created_by = v_uid then
-    return;                                                                 -- FR-MRQ-004 replay
-  end if;
   if r.created_by <> v_uid then
     raise exception 'MRQ_NOT_AUTHOR: only the person who raised the request can change or submit it' using errcode = '42501'; end if;
+  if p_client_request_id is not null and exists (
+    select 1 from public.material_request_events e where e.request_id = r.id and e.action = 'submitted'
+      and e.client_request_id = p_client_request_id
+  ) then
+    return;                                                                 -- FR-MRQ-004 replay, including earlier rounds
+  end if;
   if r.status <> 'draft' then
     raise exception 'MRQ_NOT_DRAFT: only a draft request can be changed or submitted' using errcode = 'P0001'; end if;
   select w.status into v_wo_status from public.work_orders w where w.id = r.work_order_id;
@@ -332,13 +333,12 @@ begin
   select o.default_timezone into v_tz from public.organizations o where o.id = v_org;
   v_earliest := public.mrq_cutoff_earliest(v_cutoff, v_tz, r.needed_by, now());
   if v_earliest is not null then
-    if v_cutoff is not null and v_earliest > (now() at time zone coalesce(v_tz, 'UTC'))::date + 1 then
-      raise exception 'MRQ_CUTOFF: requests for tomorrow close at %; the earliest date you can request is %',
-        to_char(v_cutoff, 'HH24:MI'), v_earliest using errcode = 'P0001';
-    end if;
-    raise exception 'MRQ_NEEDED_BY: the earliest date you can request is %', v_earliest using errcode = 'P0001';
+    raise exception 'MRQ_CUTOFF: requests for tomorrow close at %; the earliest date you can request is %',
+      to_char(v_cutoff, 'HH24:MI'), v_earliest using errcode = 'P0001';
   end if;
 
+  -- Serialize submissions sharing a work order before reading prior quantities.
+  perform pg_advisory_xact_lock(hashtextextended('mrq-plan:' || r.work_order_id::text, 0));
   for l in select * from public.material_request_lines x where x.request_id = r.id order by x.line_no for update loop
     v_plan  := public.mrq_plan_quantity(r.work_order_id, l.item_id);
     v_prior := public.mrq_prior_quantity(r.work_order_id, l.item_id, r.id);
@@ -365,7 +365,8 @@ begin
      set status = 'pending', round = v_round, submitted_at = now(), submit_request_id = p_client_request_id,
          decided_at = null, updated_at = now()
    where id = r.id;
-  perform public.mrq_log(r, 'submitted', 'draft', 'pending', null, v_uid, null, null);
+  insert into public.material_request_events (org_id, request_id, action, from_status, to_status, actor_id, client_request_id)
+  values (v_org, r.id, 'submitted', 'draft', 'pending', v_uid, p_client_request_id);
 end $$;
 
 -- FR-MRQ-007/008/010/011/012: decide the open step. Row lock on the request serialises concurrent deciders.
@@ -397,7 +398,8 @@ begin
       using errcode = '42501';
   end if;
   if exists (select 1 from public.material_request_steps x                                             -- mut:twice
-              where x.request_id = r.id and x.round = r.round and x.id <> s.id and x.status = 'approved'
+              where x.request_id = r.id and x.id <> s.id and x.status in ('approved','returned','rejected')
+                and (x.round = r.round or (x.position, x.role, x.label) is distinct from (s.position, s.role, s.label))
                 and (x.decided_by = any(array_remove(array[v_uid, v_for], null))
                      or x.acted_for = any(array_remove(array[v_uid, v_for], null)))) then
     raise exception 'MRQ_SOD_TWICE: you already decided another step of this request' using errcode = '42501';
@@ -496,7 +498,8 @@ begin
        where r.org_id = v_org and r.status = 'pending' and r.created_by <> v_uid and a.ok
     ) q
    where not exists (select 1 from public.material_request_steps x
-                      where x.request_id = q.request_id and x.round = q.round and x.id <> q.step_id and x.status = 'approved'
+                      where x.request_id = q.request_id and x.id <> q.step_id and x.status in ('approved','returned','rejected')
+                        and (x.round = q.round or (x.position, x.role, x.label) is distinct from (q.position, q.role, q.label))
                         and (x.decided_by = any(array_remove(array[v_uid, q.acting_for], null))
                              or x.acted_for = any(array_remove(array[v_uid, q.acting_for], null))))
    order by q.submitted_at, q.request_id;

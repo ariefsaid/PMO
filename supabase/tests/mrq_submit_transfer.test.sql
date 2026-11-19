@@ -6,7 +6,8 @@
 -- FR-MRQ-004 create and submit replay on a client request id · FR-MRQ-013 a cancelled draft flags the request.
 begin;
 create extension if not exists pgtap;
-select plan(34);
+create extension if not exists dblink;
+select plan(38);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25240000-0000-0000-0000-00000000010a', 'MRQ Submit Org', 'IDR', 'Asia/Jakarta');
@@ -66,8 +67,10 @@ select is(public.mrq_cutoff_earliest('12:00', 'Asia/Jakarta', '2026-11-21', '202
   'AC-MRQ-009 a request for two days ahead at 12:01 is accepted');
 select is(public.mrq_cutoff_earliest(null, 'Asia/Jakarta', '2026-11-20', '2026-11-19 16:30:00+00'), null::date,
   'AC-MRQ-009 with no cut-off a next-day request is never refused');
-select is(public.mrq_cutoff_earliest(null, 'Asia/Jakarta', '2026-11-19', '2026-11-19 01:00:00+00'), '2026-11-20'::date,
-  'FR-MRQ-014 a request needed today or earlier is refused');
+select is(public.mrq_cutoff_earliest(null, 'Asia/Jakarta', '2026-11-19', '2026-11-19 01:00:00+00'), null::date,
+  'FR-MRQ-014 a same-day request is accepted when no cutoff is configured');
+select is(public.mrq_cutoff_earliest('12:00', 'Asia/Jakarta', '2026-11-19', '2026-11-19 05:01:00+00'), null::date,
+  'FR-MRQ-014 a same-day request is unaffected by the next-day cutoff');
 
 set local role authenticated;
 select pg_temp._as('25240000-0000-0000-0000-0000000001a1');
@@ -91,6 +94,23 @@ select lives_ok($$ select public.mrq_cancel((select v from t_ids where k = 'cut'
 insert into t_ids values ('idem', pg_temp._draft(50, null, current_date + 5, '25240000-0000-0000-0000-00000000c001'));
 select is(pg_temp._draft(50, null, current_date + 5, '25240000-0000-0000-0000-00000000c001'), (select v from t_ids where k = 'idem'),
   'FR-MRQ-004 a replayed create returns the first request');
+-- A concurrent submission for this work order must wait before reading the shared prior quantity.
+reset role;
+select dblink_connect('mrq_plan_lock', format('dbname=%s user=%s password=postgres host=%s port=%s',
+  current_database(), current_user, coalesce(host(inet_server_addr()), 'supabase_db_pmo-portal'), coalesce(inet_server_port(), 5432)));
+select dblink_exec('mrq_plan_lock', 'begin');
+select ok((select count(*) from dblink('mrq_plan_lock',
+  format($q$select pg_advisory_xact_lock(%s)$q$, hashtextextended('mrq-plan:25240000-0000-0000-0000-000000001401', 0))) as t(x text)) = 1,
+  'FR-MRQ-002 another transaction holds the work-order submission lock');
+set local lock_timeout = '300ms';
+set local role authenticated;
+select throws_ok($$ select public.mrq_submit((select v from t_ids where k = 'idem'), '25240000-0000-0000-0000-00000000c002') $$,
+  '55P03', null, 'FR-MRQ-002 concurrent submissions wait before checking the work-order plan');
+reset role;
+select dblink_exec('mrq_plan_lock', 'rollback');
+select dblink_disconnect('mrq_plan_lock');
+set local lock_timeout = 0;
+set local role authenticated;
 select lives_ok($$ select public.mrq_submit((select v from t_ids where k = 'idem'), '25240000-0000-0000-0000-00000000c002') $$,
   'FR-MRQ-004 submit');
 select lives_ok($$ select public.mrq_submit((select v from t_ids where k = 'idem'), '25240000-0000-0000-0000-00000000c002') $$,
@@ -151,6 +171,10 @@ select is((select count(*)::int || ':' || string_agg(l.item_id::text || '=' || l
   '1:25240000-0000-0000-0000-000000001311=50.000', 'AC-MRQ-007 the transfer carries the request''s lines');
 select is((select count(*)::int from stock_documents where work_order_id = '25240000-0000-0000-0000-000000001401'), 1,
   'AC-MRQ-007 exactly one transfer exists, and nothing is posted');
+select pg_temp._as('25240000-0000-0000-0000-0000000001a2');
+select lives_ok($$ select public.mrq_submit((select v from t_ids where k = 'idem'), '25240000-0000-0000-0000-00000000c002') $$,
+  'FR-MRQ-004 a delayed submit replay remains a no-op after approval');
+select pg_temp._as('25240000-0000-0000-0000-0000000001a5');
 
 -- ── AC-MRQ-012: the keeper posts the transfer; the request is fulfilled ─────────────────────────────────────────
 select lives_ok($$ select public.create_stock_document(

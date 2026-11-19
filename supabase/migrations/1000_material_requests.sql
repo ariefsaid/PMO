@@ -136,12 +136,15 @@ create table public.material_request_events (
   from_status text,
   to_status   text not null,
   step_position integer,
+  client_request_id uuid,
   actor_id    uuid,
   acted_for   uuid,
   reason      text,
   created_at  timestamptz not null default now()
 );
 create index material_request_events_request_idx on public.material_request_events (request_id, created_at);
+create unique index material_request_events_submit_idem_idx on public.material_request_events (request_id, client_request_id)
+  where action = 'submitted' and client_request_id is not null;
 
 -- 0074 idiom: the caller's real org overrides the seed-org default.
 create trigger material_request_settings_stamp_org_id before insert on public.material_request_settings for each row execute function public.stamp_org_id();

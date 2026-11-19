@@ -7,7 +7,7 @@
 -- Every denial asserts the errcode AND the message, so a different gate moving in front cannot pass it.
 begin;
 create extension if not exists pgtap;
-select plan(40);
+select plan(51);
 
 -- ── Fixtures (written as the table owner) ─────────────────────────────────────────────────────────────────────
 insert into organizations (id, name, default_currency, default_timezone) values
@@ -159,6 +159,29 @@ select throws_ok($$ select public.mrq_decide_step((select v from t_ids where k =
   'MRQ_SOD_TWICE: you already decided another step of this request', 'AC-MRQ-004 the same person cannot take step 2');
 select is((select status from material_requests where id = (select v from t_ids where k = 'r2')), 'pending',
   'AC-MRQ-004 the request is still pending at step 2');
+
+-- A return restarts review: the original decider may revisit their own step, but cannot take a different step in a later round.
+select pg_temp._as('25240000-0000-0000-0000-0000000000a6');
+select lives_ok($$ select public.mrq_decide_step((select v from t_ids where k = 'r2'), 2, 'return', 'revise') $$, 'AC-MRQ-004 the second approver returns the request');
+select pg_temp._as('25240000-0000-0000-0000-0000000000a2');
+select lives_ok($$ select public.mrq_submit((select v from t_ids where k = 'r2'), '25240000-0000-0000-0000-00000000d001') $$, 'AC-MRQ-004 the author resubmits');
+select pg_temp._as('25240000-0000-0000-0000-0000000000a5');
+select lives_ok($$ select public.mrq_decide_step((select v from t_ids where k = 'r2'), 1, 'approve') $$, 'AC-MRQ-004 the same person may review the same step again');
+select pg_temp._as('25240000-0000-0000-0000-0000000000a6');
+select lives_ok($$ select public.mrq_decide_step((select v from t_ids where k = 'r2'), 2, 'return', 'revise again') $$, 'AC-MRQ-004 the same returner may revisit their step');
+select pg_temp._as('25240000-0000-0000-0000-0000000000a2');
+select lives_ok($$ select public.mrq_submit((select v from t_ids where k = 'r2'), '25240000-0000-0000-0000-00000000d001') $$, 'FR-MRQ-004 a delayed replay after a return succeeds');
+select is((select status from material_requests where id = (select v from t_ids where k = 'r2')), 'draft', 'FR-MRQ-004 replay does not resubmit the returned draft');
+select pg_temp._as('25240000-0000-0000-0000-0000000000a1');
+select lives_ok($$ select public.mrq_set_chain('[{"role":"Finance","label":"Stock"}]'::jsonb) $$, 'AC-MRQ-004 the chain changes after return');
+select pg_temp._as('25240000-0000-0000-0000-0000000000a2');
+select lives_ok($$ select public.mrq_submit((select v from t_ids where k = 'r2'), '25240000-0000-0000-0000-00000000d002') $$, 'AC-MRQ-004 the author resubmits after the chain change');
+select lives_ok($$ select public.mrq_submit((select v from t_ids where k = 'r2'), '25240000-0000-0000-0000-00000000d001') $$, 'FR-MRQ-004 a replay from an earlier round remains a no-op');
+select pg_temp._as('25240000-0000-0000-0000-0000000000a5');
+select ok(not exists (select 1 from public.mrq_waiting_for_me() where request_id = (select v from t_ids where k = 'r2')),
+  'AC-MRQ-013 the queue excludes a different step decided in a prior round');
+select throws_ok($$ select public.mrq_decide_step((select v from t_ids where k = 'r2'), 1, 'approve', null, '25240000-0000-0000-0000-000000000801') $$,
+  '42501', 'MRQ_SOD_TWICE: you already decided another step of this request', 'AC-MRQ-004 a different step is refused even when moved to the original position');
 
 -- AC-MRQ-005 / 006: stand-ins on the three-step chain.
 select pg_temp._as('25240000-0000-0000-0000-0000000000a1');
