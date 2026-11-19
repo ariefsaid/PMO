@@ -445,6 +445,28 @@ the project's actuals. (#2282.)
 **Reorder level / suggestion** — the on-hand quantity at which an item should be reordered at a warehouse; a
 *suggestion* is computed from past usage and only a person turns it into a level.
 
+## Material requests (#2524)
+
+**Material request** — a request for stock items and quantities for one work order, with a needed-by date. Draft,
+Pending (waiting for approval), Approved, Rejected, Cancelled or Fulfilled. An approved request becomes a stock
+**Transfer** draft to the work order's site; a keeper posts it, which marks the request Fulfilled. Not a purchase
+request: it moves stock the organisation already holds.
+
+**Planned quantity (material request)** — the material allowances of the contract lines a work order carries, in
+proportion to the share of each line the work order holds. A line whose already-requested quantity plus the new
+quantity exceeds it is **over plan** and carries a reason.
+
+**Approval chain** — the organisation's ordered list of approval steps for material requests, each naming a role and
+a purpose; a step may apply only to over-plan requests. A submitted request keeps a copy of the chain as it was, and
+steps are decided in order. The requester never decides a step, and one person decides at most one step of a request.
+
+**Stand-in** — a person named, for a date range, to decide approval steps on behalf of someone away. Only that
+person's own role counts (one hop), never on a request the stand-in or the person away raised; both names are kept on
+the decision.
+
+**Cut-off (material request)** — an optional time of day after which a request needed by the next day is refused;
+later dates are not affected. Checked on the server clock in the organisation's time zone.
+
 ## Purchase history & figure language
 
 The purchase-history terms below describe the intended model; their presence does not assert that
