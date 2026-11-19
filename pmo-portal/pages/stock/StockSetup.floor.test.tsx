@@ -135,7 +135,7 @@ describe('stock setup floor controls', () => {
     await userEvent.clear(leadTime);
     await userEvent.type(leadTime, '14');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Create item' }));
-    await waitFor(() => expect(master.createItem).toHaveBeenCalledWith({ code: 'ANCHOR', name: 'Chemical anchor', description: 'Fixing compound', unitId: 'u1', leadTimeDays: 14 }));
+    await waitFor(() => expect(master.createItem).toHaveBeenCalledWith({ code: 'ANCHOR', name: 'Chemical anchor', description: 'Fixing compound', unitId: 'u1', leadTimeDays: 14, tagId: null }));
   });
 
   it('floor: warehouse form sends its kind and default project', async () => {
