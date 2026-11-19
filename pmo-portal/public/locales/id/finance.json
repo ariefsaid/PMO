@@ -1133,5 +1133,6 @@
   },
   "snapshotProvenance": {
     "empty": "Belum ada snapshot"
-  }
+  },
+  "workOrderReference": "Work Order / SPK"
 }

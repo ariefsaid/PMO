@@ -33,7 +33,9 @@
       "timesheet_entry": "Timesheets",
       "stock_document": "Stock movements",
       "equipment_usage": "Equipment usage"
-    }
+    },
+    "unavailable": "Amount unavailable",
+    "notCosted": "Not yet costed"
   },
   "billing": {
     "title": "Billing and acceptances",
@@ -56,7 +58,7 @@
   "documents": {
     "title": "Documents",
     "error": "Couldn't load the documents",
-    "empty": "No documents are linked to this work order yet."
+    "empty": "No visible documents are linked to this work order yet."
   },
   "issuesTasks": {
     "title": "Issues and open tasks",

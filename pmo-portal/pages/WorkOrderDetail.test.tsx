@@ -7,16 +7,18 @@ import { join } from 'node:path';
 import i18n from '@/src/lib/i18n';
 
 const q = (data: unknown, over: Record<string, unknown> = {}) => ({ data, isPending: false, isError: false, refetch: vi.fn(), ...over });
+const viewerOpen = vi.hoisted(() => vi.fn());
+vi.mock('@/src/components/documents/viewerContext', () => ({ useViewerOnDemand: () => ({ open: viewerOpen }) }));
 const h = vi.hoisted(() => ({ wo: null as unknown, alloc: null as unknown, boq: null as unknown, basts: null as unknown, billing: null as unknown,
-  docs: null as unknown, lines: null as unknown, money: null as unknown, discs: null as unknown, project: null as unknown, canBilling: true }));
-vi.mock('@/src/hooks/useWorkOrderRecord', () => ({ useWorkOrder: () => h.wo, useWorkOrderAllocations: () => h.alloc }));
+  docs: null as unknown, claimDocs: null as unknown, lines: null as unknown, money: null as unknown, links: null as unknown, discs: null as unknown, project: null as unknown, canBilling: true }));
+vi.mock('@/src/hooks/useWorkOrderRecord', () => ({ useWorkOrder: () => h.wo, useWorkOrderAllocations: () => h.alloc, useWorkOrderClaimDocuments: () => h.claimDocs }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => h.project }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({ useBoqItems: () => h.boq }));
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({ useWorkOrderAcceptances: () => h.basts }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => h.docs }));
 vi.mock('@/src/hooks/useWorkOrderCosts', () => ({
-  useWorkOrderCostLines: () => h.lines, useWorkOrderCostMoney: () => h.money, useCostDisciplines: () => h.discs,
+  useWorkOrderCostLines: () => h.lines, useWorkOrderCostMoney: () => h.money, useWorkOrderCostLinks: () => h.links, useCostDisciplines: () => h.discs,
 }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canBilling }));
 
@@ -35,9 +37,11 @@ beforeEach(async () => {
   h.basts = q([{ id: 'a1', work_order_id: 'w1', status: 'Confirmed', is_final: false, acceptance_date: '2026-03-01', document_id: 'd1', lines: [{ boq_item_id: 'b1', quantity: 5 }] },
     { id: 'a2', work_order_id: 'other', status: 'Confirmed', is_final: false, acceptance_date: '2026-03-02', document_id: null, lines: [{ boq_item_id: 'b1', quantity: 9 }] }]);
   h.billing = q([{ workOrderId: 'w1', currency: 'IDR', invoiced: 10, pending: 20, paid: 30, remaining: 40, figuresComplete: true }]);
+  h.claimDocs = q([]);
   h.docs = q([{ id: 'd1', title: 'BAST scan' }, { id: 'd2', title: 'Unrelated' }]);
   h.lines = q({ purchase_order: [ln('purchase_order', 'po1', 'd1'), ln('purchase_order', 'po2', null)], vendor_bill: [], timesheet_entry: [] });
   h.money = q({ purchase_order: { po1: { amount: 100, currency: 'IDR' }, po2: { amount: 50, currency: 'IDR' } } });
+  h.links = q({});
   h.discs = q([{ id: 'd1', code: 'MECH', name: 'Mechanical' }]);
 });
 
@@ -71,6 +75,18 @@ describe('WorkOrderDetail', () => {
     expect(within(po).getByTestId('cost-total-purchase_order')).toBeTruthy();
     expect(screen.queryByTestId('cost-group-vendor_bill')).toBeNull();
   });
+  it('does not link stock costs until the work-order cost build is ready', () => {
+    h.lines = q({ stock_document: [ln('stock_document', 'stock1', null)] });
+    renderPage();
+    expect(screen.queryByRole('link', { name: 'stock1' })).toBeNull();
+    expect(screen.getByText('Not yet costed')).toBeTruthy();
+  });
+  it('explains when costs have no available amount', () => {
+    h.lines = q({ timesheet_entry: [ln('timesheet_entry', 'hour1', null)] });
+    h.money = q({});
+    renderPage();
+    expect(screen.getByText('Not yet costed')).toBeTruthy();
+  });
   it('AC-WORP-007 a caller who cannot read purchase money sees records with no total and a restricted note', () => {
     h.money = q({ purchase_order: null });
     renderPage();
@@ -85,6 +101,22 @@ describe('WorkOrderDetail', () => {
     expect(screen.getByTestId('acceptance-a1')).toBeTruthy();
     expect(screen.queryByTestId('acceptance-a2')).toBeNull();
   });
+  it('does not claim that pending issue and task integrations are empty', () => {
+    renderPage();
+    expect(screen.queryByTestId('wo-issues-empty')).toBeNull();
+    expect(screen.queryByTestId('wo-tasks-empty')).toBeNull();
+  });
+  it('opens a linked file in the document viewer', async () => {
+    h.docs = q([{ id: 'd1', title: 'BAST scan', file_path: 'file.pdf', status: 'Draft' }]);
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'BAST scan' }));
+    expect(viewerOpen).toHaveBeenCalledWith(expect.objectContaining({ name: 'BAST scan' }));
+  });
+  it('includes documents attached to the work order through time and materials sign-off', () => {
+    h.claimDocs = q(['d2']);
+    renderPage();
+    expect(within(screen.getByTestId('wo-documents')).getByText('Unrelated')).toBeTruthy();
+  });
   it('lists only the documents this work order points to', () => {
     renderPage();
     const docs = screen.getByTestId('wo-documents');
@@ -96,7 +128,7 @@ describe('WorkOrderDetail', () => {
     h.basts = q(undefined, { isError: true, refetch });
     renderPage();
     expect(screen.queryByTestId('scope-pct-b1')).toBeNull();
-    expect(screen.queryByText('No documents are linked to this work order yet.')).toBeNull();
+    expect(screen.queryByText('No visible documents are linked to this work order yet.')).toBeNull();
     const buttons = screen.getAllByRole('button', { name: /retry|try again/i });
     for (const button of buttons) await userEvent.click(button);
     expect(refetch).toHaveBeenCalled();
@@ -135,7 +167,7 @@ describe('WorkOrderDetail', () => {
     expect(screen.getByText(/No contract lines are allocated/)).toBeTruthy();
     expect(screen.getByText(/No costs are attributed/)).toBeTruthy();
     expect(screen.getByText('No acceptances yet.')).toBeTruthy();
-    expect(screen.getByText(/No documents are linked/)).toBeTruthy();
+    expect(screen.getByText(/No visible documents are linked/)).toBeTruthy();
   });
   it('AC-WORP-011 the Bahasa Indonesia catalogue has every English key, translated', () => {
     const read = (l: string) => JSON.parse(readFileSync(join(process.cwd(), `public/locales/${l}/workOrders.json`), 'utf8'));

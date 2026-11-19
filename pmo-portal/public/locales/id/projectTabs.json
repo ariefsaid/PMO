@@ -124,7 +124,8 @@
         "withdrawLabel": "Tarik draft BAST tanggal {{date}}",
         "confirmDelivery": "Konfirmasi draf BAST",
         "finalConfirmed": "Final terkonfirmasi",
-        "confirmed": "Terkonfirmasi"
+        "confirmed": "Terkonfirmasi",
+        "openWorkOrder": "Buka Work Order / SPK"
       },
       "closing": {
         "closedAt": "Ditutup pada {{amount}} (belum termasuk PPN)",

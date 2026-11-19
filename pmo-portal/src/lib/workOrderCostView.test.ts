@@ -30,6 +30,11 @@ describe('AC-WORP-006 buildCostView', () => {
     expect(buildCostView([ln('purchase_order', 'a', null), ln('purchase_order', 'b', null)], { purchase_order: { a: { amount: 1, currency: 'IDR' } } })[0].total).toBeNull();
     expect(buildCostView([ln('purchase_order', 'a', null), ln('purchase_order', 'b', null)], { purchase_order: { a: { amount: 1, currency: 'IDR' }, b: { amount: 1, currency: 'USD' } } })[0].total).toBeNull();
   });
+  it('keeps mixed currencies as separate exact totals rather than silently hiding them', () => {
+    const group = buildCostView([ln('purchase_order', 'a', null), ln('purchase_order', 'b', null)], { purchase_order: { a: { amount: 2, currency: 'IDR' }, b: { amount: 3, currency: 'USD' } } })[0];
+    expect(group.totals).toEqual([{ amount: 2, currency: 'IDR' }, { amount: 3, currency: 'USD' }]);
+    expect(group.disciplines[0].totals).toEqual(group.totals);
+  });
   it('a source with no money read in this version shows no total and is not flagged restricted', () => {
     const v = buildCostView([ln('timesheet_entry', 't', null, 2)], {});
     expect(v[0]).toMatchObject({ total: null, restricted: false });

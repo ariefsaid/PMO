@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { WorkOrderAcceptanceWithLines } from '@/src/lib/db/workOrderAcceptances';
@@ -34,7 +35,7 @@ const renderAcceptances = (
   onConfirm = vi.fn(),
 ) => {
   render(
-    <WorkOrderAcceptances
+    <MemoryRouter><WorkOrderAcceptances
       workOrder={{ id: 'wo-1', status: 'Issued' }}
       boqItems={[]}
       documents={[]}
@@ -48,12 +49,16 @@ const renderAcceptances = (
       onEdit={vi.fn()}
       onWithdraw={vi.fn()}
       onConfirm={onConfirm}
-    />,
+    /></MemoryRouter>,
   );
   return { onPrepare, onConfirm };
 };
 
 describe('WorkOrderAcceptances C21 primary actions', () => {
+  it('AC-WORP-004 opens the work order from an acceptance', () => {
+    renderAcceptances();
+    expect(screen.getByRole('link', { name: 'Open work order' })).toHaveAttribute('href', '/work-orders/wo-1');
+  });
   it('keeps Confirm BAST and Prepare BAST available and each starts its existing action', async () => {
     const user = userEvent.setup();
     const { onPrepare, onConfirm } = renderAcceptances();

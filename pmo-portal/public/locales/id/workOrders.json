@@ -33,7 +33,9 @@
       "timesheet_entry": "Lembar waktu",
       "stock_document": "Pergerakan stok",
       "equipment_usage": "Penggunaan peralatan"
-    }
+    },
+    "unavailable": "Jumlah tidak tersedia",
+    "notCosted": "Biaya belum dihitung"
   },
   "billing": {
     "title": "Penagihan dan penerimaan",
@@ -56,7 +58,7 @@
   "documents": {
     "title": "Dokumen",
     "error": "Dokumen tidak dapat dimuat",
-    "empty": "Belum ada dokumen yang ditautkan ke perintah kerja ini."
+    "empty": "Belum ada dokumen yang dapat Anda lihat untuk Work Order ini."
   },
   "issuesTasks": {
     "title": "Masalah dan tugas terbuka",

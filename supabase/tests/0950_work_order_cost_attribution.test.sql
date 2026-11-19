@@ -11,7 +11,7 @@
 -- Every denial asserts the errcode AND the message, so a different gate moving in front cannot pass it.
 begin;
 create extension if not exists pgtap;
-select plan(44);
+select plan(48);
 
 -- ── Fixtures: org A (several roles), org B (another tenant). Written as the table owner. ─────────────────
 insert into organizations (id, name, default_currency) values
@@ -43,8 +43,8 @@ insert into work_orders (id, org_id, project_id, title, status, order_value, tax
 -- Source rows are written with triggers off: this file proves the attribution rule, not each record's create path
 -- (each has its own proof). Attribution columns stay NULL here; every attribution below goes through the triggers.
 set local session_replication_role = replica;
-insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount, cancelled_at) values
-  ('25170000-0000-0000-0000-000000000403', '25170000-0000-0000-0000-00000000000a', '25170000-0000-0000-0000-0000000000d1', 'WCA WO cancelled', 'Cancelled', 0, 'exclusive', 0, now());
+insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount, currency, cancelled_at) values
+  ('25170000-0000-0000-0000-000000000403', '25170000-0000-0000-0000-00000000000a', '25170000-0000-0000-0000-0000000000d1', 'WCA WO cancelled', 'Cancelled', 0, 'exclusive', 0, 'IDR', now());
 insert into cost_disciplines (id, org_id, code, name, archived_at) values
   ('25170000-0000-0000-0000-000000000501', '25170000-0000-0000-0000-00000000000a', 'CIV', 'Civil', null),
   ('25170000-0000-0000-0000-000000000502', '25170000-0000-0000-0000-00000000000a', 'OLD', 'Retired', now()),
@@ -54,15 +54,15 @@ insert into procurements (id, org_id, title, project_id, requested_by_id, status
    '25170000-0000-0000-0000-0000000000a4', 'Ordered', 1000000, 1000000, 'IDR'),
   ('25170000-0000-0000-0000-000000000609', '25170000-0000-0000-0000-00000000000b', 'WCA other purchase', '25170000-0000-0000-0000-0000000000d9',
    '25170000-0000-0000-0000-0000000000b1', 'Ordered', 500000, 500000, 'IDR');
-insert into purchase_requests (id, org_id, procurement_id, pr_number, status, date, amount) values
-  ('25170000-0000-0000-0000-000000000611', '25170000-0000-0000-0000-00000000000a', '25170000-0000-0000-0000-000000000601', 'PR-WCA-1', 'Approved', '2026-11-16', 1000000),
-  ('25170000-0000-0000-0000-000000000619', '25170000-0000-0000-0000-00000000000b', '25170000-0000-0000-0000-000000000609', 'PR-WCA-9', 'Approved', '2026-11-16', 500000);
-insert into purchase_orders (id, org_id, procurement_id, po_number, status, date, amount) values
-  ('25170000-0000-0000-0000-000000000612', '25170000-0000-0000-0000-00000000000a', '25170000-0000-0000-0000-000000000601', 'PO-WCA-1', 'Issued', '2026-11-16', 1000000);
+insert into purchase_requests (id, org_id, procurement_id, pr_number, status, date, amount, currency) values
+  ('25170000-0000-0000-0000-000000000611', '25170000-0000-0000-0000-00000000000a', '25170000-0000-0000-0000-000000000601', 'PR-WCA-1', 'Approved', '2026-11-16', 1000000, 'IDR'),
+  ('25170000-0000-0000-0000-000000000619', '25170000-0000-0000-0000-00000000000b', '25170000-0000-0000-0000-000000000609', 'PR-WCA-9', 'Approved', '2026-11-16', 500000, 'IDR');
+insert into purchase_orders (id, org_id, procurement_id, po_number, status, date, amount, currency) values
+  ('25170000-0000-0000-0000-000000000612', '25170000-0000-0000-0000-00000000000a', '25170000-0000-0000-0000-000000000601', 'PO-WCA-1', 'Issued', '2026-11-16', 1000000, 'IDR');
 insert into procurement_receipts (id, org_id, procurement_id, gr_number, receipt_date, status) values
   ('25170000-0000-0000-0000-000000000613', '25170000-0000-0000-0000-00000000000a', '25170000-0000-0000-0000-000000000601', 'GR-WCA-1', '2026-11-16', 'Partial');
-insert into procurement_invoices (id, org_id, procurement_id, vi_number, invoice_date, status, tax_treatment, tax_amount) values
-  ('25170000-0000-0000-0000-000000000614', '25170000-0000-0000-0000-00000000000a', '25170000-0000-0000-0000-000000000601', 'VI-WCA-1', '2026-11-16', 'Received', 'exclusive', 0);
+insert into procurement_invoices (id, org_id, procurement_id, vi_number, invoice_date, status, tax_treatment, tax_amount, currency) values
+  ('25170000-0000-0000-0000-000000000614', '25170000-0000-0000-0000-00000000000a', '25170000-0000-0000-0000-000000000601', 'VI-WCA-1', '2026-11-16', 'Received', 'exclusive', 0, 'IDR');
 insert into timesheets (id, org_id, user_id, week_start_date, status) values
   ('25170000-0000-0000-0000-000000000701', '25170000-0000-0000-0000-00000000000a', '25170000-0000-0000-0000-0000000000a4', '2026-11-16', 'Draft'),
   ('25170000-0000-0000-0000-000000000702', '25170000-0000-0000-0000-00000000000a', '25170000-0000-0000-0000-0000000000a5', '2026-11-16', 'Approved');
@@ -210,10 +210,19 @@ select pg_temp.act_as('25170000-0000-0000-0000-0000000000a5');
 select throws_ok($$ select public.set_cost_attribution('stock_document', array['25170000-0000-0000-0000-000000000811']::uuid[], null, null) $$,
   '42501', 'you cannot change the work order or discipline of this record', 'AC-WCA-008 an Engineer cannot change another person''s stock document');
 
+-- AC-WORP-002: the page reads an accessible order, but foreign and random IDs are indistinguishable.
+select is((select count(*)::int from public.work_orders where id = '25170000-0000-0000-0000-000000000401'), 1,
+  'AC-WORP-002 control: a caller reads an order in their org');
 -- AC-WCA-007: org B reads nothing of org A and changes nothing.
 select pg_temp.act_as('25170000-0000-0000-0000-0000000000b1');
 select throws_ok($$ select public.set_cost_attribution('timesheet_entry', array['25170000-0000-0000-0000-000000000711']::uuid[], null, null) $$,
   'P0002', 'record not found', 'AC-WCA-007 another org''s record reads as absent');
+select is((select count(*)::int from public.work_orders where id = '25170000-0000-0000-0000-000000000401'), 0,
+  'AC-WORP-002 a foreign order is unreadable');
+select is((select count(*)::int from public.work_orders where id = '25170000-0000-0000-0000-000000000499'), 0,
+  'AC-WORP-002 a random order is equally unreadable');
+select ok(has_table_privilege('authenticated', 'public.work_orders', 'SELECT'),
+  'AC-WORP-002 authenticated can reach the RLS-protected table');
 select is((select count(*)::int from public.work_order_cost_lines where org_id = '25170000-0000-0000-0000-00000000000a'), 0,
   'AC-WCA-007 another org reads none of org A''s cost lines');
 select throws_ok($$ select public.set_cost_attribution('purchase_request', array['25170000-0000-0000-0000-000000000619']::uuid[],

@@ -21,3 +21,13 @@ export function useWorkOrderAllocations(id: string | undefined) {
     enabled: Boolean(orgId) && Boolean(id),
   });
 }
+
+/** Visible T&M sign-off documents linked to this work order. */
+export function useWorkOrderClaimDocuments(id: string | undefined) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({
+    queryKey: ['work-order-claim-documents', orgId, id],
+    queryFn: () => repositories.workOrder.claimDocuments(id as string),
+    enabled: Boolean(orgId) && Boolean(id),
+  });
+}

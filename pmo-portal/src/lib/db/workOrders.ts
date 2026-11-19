@@ -338,3 +338,19 @@ export async function getProjectDrawdown(projectId: string): Promise<ProjectDraw
     basis: row.basis,
   };
 }
+
+/** Document evidence on the caller-visible T&M claims for one work order. */
+export async function listWorkOrderClaimDocuments(workOrderId: string): Promise<string[]> {
+  const rows = await fetchAllRowsByKeyset<{ id: string; document_id: string | null }>(async (afterId, limit) => {
+    let q = supabase.from('tm_claims').select('id, document_id').eq('work_order_id', workOrderId).order('id', { ascending: true });
+    if (afterId !== null) q = q.gt('id', afterId);
+    return q.limit(limit);
+  });
+  const evidence = await fetchAllRowsByKeyset<{ id: string; document_id: string }>(async (afterId, limit) => {
+    let q = supabase.from('progress_claim_evidence').select('id, document_id, progress_claims!inner(work_order_id)')
+      .eq('progress_claims.work_order_id', workOrderId).order('id', { ascending: true });
+    if (afterId !== null) q = q.gt('id', afterId);
+    return q.limit(limit);
+  });
+  return [...rows.map((row) => row.document_id).filter((id): id is string => Boolean(id)), ...evidence.map((row) => row.document_id)];
+}

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
@@ -6,6 +7,7 @@ import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
 import { FigureScope } from '@/src/components/ui';
 import { ProcurementBudgetSignal, ProcurementMoneySummary, ProcurementTimeline } from './ProcurementDetailPanels';
 
+vi.mock('../ProcurementFilesSubsection', () => ({ ProcurementFilesSubsection: () => null }));
 vi.mock('@/src/hooks/useProcurementFilesBatch', () => ({ useProcurementFilesBatch: () => ({ data: undefined, isError: false }) }));
 
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
@@ -58,6 +60,16 @@ describe('procurement record panels', () => {
     expect(summary).not.toHaveTextContent(/Overdue|Due/);
   });
 
+  it('links a named and readable work order from its cost record', () => {
+    const row = { id: 'Invoice-bill', recordId: 'bill', type: 'Invoice', date: '2026-01-01', systemNumber: 'INV-1', amount: 25, currency: 'USD', status: 'Received', fileCount: 0 } as import('@/src/lib/db/procurementLedger').LedgerRow;
+    render(<MemoryRouter><ProcurementTimeline procurement={procurement} ledgerRows={[row]} linkedDocuments={[]} isEngineer={false} canWriteFiles={false} uploadedById={null} onFullHistory={vi.fn()} focusedRecordId="bill" workOrderLinks={{ bill: { id: 'wo1', label: 'WO-1' } }} /></MemoryRouter>);
+    expect(screen.getByRole('link', { name: 'WO-1' })).toHaveAttribute('href', '/work-orders/wo1');
+  });
+  it('opens the requested cost record on arrival from its work order', () => {
+    const row = { id: 'Invoice-bill', recordId: 'bill', type: 'Invoice', date: '2026-01-01', systemNumber: 'INV-1', amount: 25, currency: 'USD', status: 'Received', fileCount: 0 } as import('@/src/lib/db/procurementLedger').LedgerRow;
+    render(<ProcurementTimeline procurement={procurement} ledgerRows={[row]} linkedDocuments={[]} isEngineer={false} canWriteFiles={false} uploadedById={null} onFullHistory={vi.fn()} focusedRecordId="bill" />);
+    expect(screen.getByText('INV-1').closest('details')).toHaveAttribute('open');
+  });
   it('shows a recorded procurement total when its request amount is missing', () => {
     const missingRequestAmount = {
       ...procurement,

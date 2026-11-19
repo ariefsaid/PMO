@@ -1133,5 +1133,6 @@
   },
   "snapshotProvenance": {
     "empty": "No snapshot available yet"
-  }
+  },
+  "workOrderReference": "Work order"
 }

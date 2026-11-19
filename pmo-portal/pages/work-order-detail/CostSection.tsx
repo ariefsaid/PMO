@@ -7,16 +7,17 @@ import { NO_DISCIPLINE, type CostMoney, type SourceGroup } from '@/src/lib/workO
 import type { CostDiscipline, CostSource, WorkOrderCostLine } from '@/src/lib/db/workOrderCosts';
 
 const HREF: Record<CostSource, (l: WorkOrderCostLine) => string | null> = {
-  purchase_request: (l) => (l.projectId ? `/projects/${l.projectId}?tab=procurement` : null),
-  purchase_order: (l) => (l.projectId ? `/projects/${l.projectId}?tab=procurement` : null),
-  goods_receipt: (l) => (l.projectId ? `/projects/${l.projectId}?tab=procurement` : null),
-  vendor_bill: (l) => (l.projectId ? `/projects/${l.projectId}?tab=procurement` : null),
-  timesheet_entry: () => '/timesheets',
-  stock_document: () => '/stock',
-  equipment_usage: () => '/equipment',
+  purchase_request: () => null,
+  purchase_order: () => null,
+  goods_receipt: () => null,
+  vendor_bill: () => null,
+  timesheet_entry: () => null,
+  stock_document: () => null,
+  equipment_usage: () => null,
 };
 
 interface Props {
+  links: Record<string, string>;
   groups: SourceGroup[] | null;
   disciplines: CostDiscipline[];
   isPending: boolean;
@@ -27,7 +28,7 @@ interface Props {
 }
 
 /** Costs (FR-WORP-021/022): lines grouped by source then discipline; a total only where the money is readable. */
-export const CostSection: React.FC<Props> = ({ groups, disciplines, isPending, isError, onRetry, moneyPending }) => {
+export const CostSection: React.FC<Props> = ({ links, groups, disciplines, isPending, isError, onRetry, moneyPending }) => {
   const { t } = useTranslation('workOrders');
   const title = t('costs.title', 'Costs');
   if (isPending) return <RecordSection title={title}><ListState variant="loading" rows={3} /></RecordSection>;
@@ -46,19 +47,20 @@ export const CostSection: React.FC<Props> = ({ groups, disciplines, isPending, i
           <div key={g.source} data-testid={`cost-group-${g.source}`}>
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h3 className="font-medium">{t(`costs.source.${g.source}`, g.source)}</h3>
-              {g.total && <span className="tabular-nums font-medium" data-testid={`cost-total-${g.source}`}>{money(g.total)}</span>}
-              {!g.total && g.restricted && <span className="text-control text-muted-foreground" data-testid={`cost-restricted-${g.source}`}>{t('costs.restricted', 'Amount restricted for your role')}</span>}
-              {!g.total && !g.restricted && moneyPending && <span className="text-control text-muted-foreground">{t('costs.loadingTotal', 'Total loading…')}</span>}
+              {g.totals.length > 0 && <span className="tabular-nums font-medium" data-testid={`cost-total-${g.source}`}>{g.totals.map(money).join(" · ")}</span>}
+              {g.totals.length === 0 && g.restricted && <span className="text-control text-muted-foreground" data-testid={`cost-restricted-${g.source}`}>{t('costs.restricted', 'Amount restricted for your role')}</span>}
+              {g.totals.length === 0 && !g.restricted && moneyPending && <span className="text-control text-muted-foreground">{t('costs.loadingTotal', 'Total loading…')}</span>}
+              {g.totals.length === 0 && !g.restricted && !moneyPending && !['timesheet_entry', 'stock_document', 'equipment_usage'].includes(g.source) && <span className="text-control text-muted-foreground">{t('costs.unavailable', 'Amount unavailable')}</span>}
             </div>
             {g.disciplines.map((d) => (
               <div key={d.disciplineId} className="mt-2" data-testid={`cost-discipline-${g.source}-${d.disciplineId}`}>
                 <div className="flex justify-between text-control text-muted-foreground">
                   <span>{nameOf(d.disciplineId)}</span>
-                  {d.total && <span className="tabular-nums">{money(d.total)}</span>}
+                  {d.totals.length > 0 && <span className="tabular-nums">{d.totals.map(money).join(" · ")}</span>}
                 </div>
                 <ul className="divide-y divide-border">
                   {d.lines.map((l) => {
-                    const href = HREF[l.source](l);
+                    const href = links[l.recordId] ?? HREF[l.source](l);
                     const label = l.reference ?? l.recordId.slice(0, 8);
                     return (
                       <li key={l.recordId} className="flex flex-wrap items-baseline justify-between gap-x-4 py-1.5" data-testid={`cost-line-${l.recordId}`}>
@@ -66,6 +68,7 @@ export const CostSection: React.FC<Props> = ({ groups, disciplines, isPending, i
                         <span className="tabular-nums text-control text-muted-foreground">
                           {l.occurredOn ? formatDay(l.occurredOn) : '—'}
                           {l.quantity != null && ` · ${formatNumberExact(l.quantity)} ${l.quantityUnit ?? ''}`}
+                          {['timesheet_entry', 'stock_document', 'equipment_usage'].includes(l.source) && <> · <span>{t('costs.notCosted', 'Not yet costed')}</span></>}
                         </span>
                       </li>
                     );

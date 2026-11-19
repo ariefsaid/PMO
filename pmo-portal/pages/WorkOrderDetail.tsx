@@ -9,8 +9,8 @@ import { useBoqItems } from '@/src/hooks/useProgressBilling';
 import { useWorkOrderAcceptances } from '@/src/hooks/useWorkOrderAcceptances';
 import { useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
 import { useDocuments } from '@/src/hooks/useDocuments';
-import { useCostDisciplines, useWorkOrderCostLines, useWorkOrderCostMoney } from '@/src/hooks/useWorkOrderCosts';
-import { useWorkOrder, useWorkOrderAllocations } from '@/src/hooks/useWorkOrderRecord';
+import { useCostDisciplines, useWorkOrderCostLines, useWorkOrderCostMoney, useWorkOrderCostLinks } from '@/src/hooks/useWorkOrderCosts';
+import { useWorkOrder, useWorkOrderAllocations, useWorkOrderClaimDocuments } from '@/src/hooks/useWorkOrderRecord';
 import { deriveScopeProgress } from '@/src/lib/workOrderProgress';
 import { buildCostView } from '@/src/lib/workOrderCostView';
 import { formatCurrency } from '@/src/lib/format';
@@ -18,7 +18,6 @@ import { ScopeSection } from './work-order-detail/ScopeSection';
 import { CostSection } from './work-order-detail/CostSection';
 import { BillingSection } from './work-order-detail/BillingSection';
 import { DocumentsSection } from './work-order-detail/DocumentsSection';
-import { IssuesTasksSection } from './work-order-detail/IssuesTasksSection';
 
 /**
  * `/work-orders/:id` (#2518): one read-only page for a work order — scope and progress, costs, billing and
@@ -34,6 +33,7 @@ const WorkOrderDetail: React.FC = () => {
   const projectId = wo.data?.project_id ?? '';
   const project = useProject(projectId || undefined);
   const allocations = useWorkOrderAllocations(wo.data ? id : undefined);
+  const claimDocs = useWorkOrderClaimDocuments(wo.data ? id : undefined);
   const boq = useBoqItems(projectId);
   const bastList = useWorkOrderAcceptances(projectId);
   const canBilling = may('view', 'salesInvoice');
@@ -41,6 +41,7 @@ const WorkOrderDetail: React.FC = () => {
   const docs = useDocuments(projectId);
   const costLines = useWorkOrderCostLines(wo.data ? id ?? null : null);
   const flatLines = useMemo(() => Object.values(costLines.data ?? {}).flat(), [costLines.data]);
+  const links = useWorkOrderCostLinks(wo.data ? id ?? null : null, flatLines);
   const money = useWorkOrderCostMoney(wo.data ? id ?? null : null, flatLines);
   const disciplines = useCostDisciplines(Boolean(wo.data));
 
@@ -54,9 +55,9 @@ const WorkOrderDetail: React.FC = () => {
   );
   const groups = useMemo(() => (costLines.data ? buildCostView(flatLines, money.data ?? {}) : null), [costLines.data, flatLines, money.data]);
   const documents = useMemo(() => {
-    const ids = new Set(acceptances.map((a) => a.document_id).filter((d): d is string => Boolean(d)));
+    const ids = new Set([...acceptances.map((a) => a.document_id).filter((d): d is string => Boolean(d)), ...(claimDocs.data ?? [])]);
     return (docs.data ?? []).filter((d) => ids.has(d.id));
-  }, [docs.data, acceptances]);
+  }, [docs.data, acceptances, claimDocs.data]);
 
   if (wo.isPending) return <><BackBar label={backLabel} phoneOnly onBack={goBack} /><ListState variant="loading" shape="detail" rows={5} /></>;
   if (wo.isError) {
@@ -87,12 +88,11 @@ const WorkOrderDetail: React.FC = () => {
       <RecordStack>
         <ScopeSection projectId={row.project_id} progress={progress} isPending={allocations.isPending || boq.isPending || bastList.isPending} isError={allocations.isError || boq.isError || bastList.isError}
           onRetry={() => { void allocations.refetch(); void boq.refetch(); void bastList.refetch(); }} />
-        <CostSection groups={groups} disciplines={disciplines.data ?? []} isPending={costLines.isPending} isError={costLines.isError || money.isError || disciplines.isError}
-          onRetry={() => { void costLines.refetch(); void money.refetch(); void disciplines.refetch(); }} moneyPending={money.isPending && flatLines.length > 0} />
+        <CostSection links={links.data ?? {}} groups={groups} disciplines={disciplines.data ?? []} isPending={costLines.isPending} isError={costLines.isError || money.isError || disciplines.isError || links.isError}
+          onRetry={() => { void costLines.refetch(); void money.refetch(); void disciplines.refetch(); void links.refetch(); }} moneyPending={money.isPending && flatLines.length > 0} />
         <BillingSection billing={canBilling ? { row: billingRow, isPending: billing.isPending, isError: billing.isError, onRetry: () => void billing.refetch() } : null}
           acceptances={acceptances} acceptancesPending={bastList.isPending} acceptancesError={bastList.isError} onRetryAcceptances={() => void bastList.refetch()} />
-        <DocumentsSection projectId={row.project_id} documents={documents} isPending={docs.isPending || bastList.isPending} isError={docs.isError || bastList.isError} onRetry={() => { void docs.refetch(); void bastList.refetch(); }} />
-        <IssuesTasksSection />
+        <DocumentsSection documents={documents} isPending={docs.isPending || bastList.isPending || claimDocs.isPending} isError={docs.isError || bastList.isError || claimDocs.isError} onRetry={() => { void docs.refetch(); void bastList.refetch(); void claimDocs.refetch(); }} />
       </RecordStack>
     </>
   );

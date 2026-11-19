@@ -35,3 +35,13 @@ export function useWorkOrderCostMoney(workOrderId: string | null, lines: import(
     enabled: Boolean(orgId) && Boolean(workOrderId) && Boolean(lines && lines.length > 0),
   });
 }
+
+/** Resolve purchase costs to the record in their procurement timeline. */
+export function useWorkOrderCostLinks(workOrderId: string | null, lines: import('@/src/lib/repositories/workOrderCosts').WorkOrderCostLine[]) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({
+    queryKey: ['work-order-cost-links', orgId, workOrderId, lines.map((line) => [line.source, line.recordId])],
+    queryFn: () => workOrderCostRepository.costLinks(lines),
+    enabled: Boolean(orgId) && Boolean(workOrderId) && lines.length > 0,
+  });
+}
