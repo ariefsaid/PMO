@@ -2,7 +2,7 @@
 -- AC-TWOP-001..006, 011, 012 (count). Fixtures are written as the owner role; assertions run as the actor.
 -- ⚑ Row-changing assertions COUNT ROWS where an RLS-denied write is a silent no-op.
 begin;
-select plan(22);
+select plan(21);
 
 insert into organizations (id, name) values
   ('09910000-0000-0000-0000-00000000000a','TWOP Org A'),

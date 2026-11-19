@@ -10303,6 +10303,32 @@ export type Database = {
           },
         ]
       }
+      task_proofs: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          file_name: string | null
+          file_path: string
+          id: string
+          org_id: string
+          task_id: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          file_name?: string | null
+          file_path: string
+          id?: string
+          org_id?: string
+          task_id: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+        }
+        Relationships: []
+      }
       tasks: {
         Row: {
           archived_at: string | null
@@ -10324,6 +10350,8 @@ export type Database = {
           start_date: string | null
           status: Database["public"]["Enums"]["task_status"]
           tombstoned_at: string | null
+          work_order_id: string | null
+          proof_required: boolean
         }
         Insert: {
           archived_at?: string | null
@@ -10345,6 +10373,8 @@ export type Database = {
           start_date?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           tombstoned_at?: string | null
+          work_order_id?: string | null
+          proof_required?: boolean
         }
         Update: {
           archived_at?: string | null
@@ -10366,6 +10396,8 @@ export type Database = {
           start_date?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           tombstoned_at?: string | null
+          work_order_id?: string | null
+          proof_required?: boolean
         }
         Relationships: [
           {

@@ -30,6 +30,7 @@ import ProjectGantt from '../ProjectGantt';
 const TaskCalendarView = React.lazy(() => import('./TaskCalendarView').then((m) => ({ default: m.TaskCalendarView })));
 import TaskBoard from './TaskBoard';
 import TaskFormModal from './TaskFormModal';
+import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import MilestoneGroupedList from './MilestoneGroupedList';
 import { useProjectTaskColumns } from './TaskList';
 import TaskRecordDrawer from './TaskRecordDrawer';
@@ -92,6 +93,9 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
   const updateAsync = update.mutateAsync;
   const archiveAsync = archive.mutateAsync;
   const { data: milestones } = useMilestones(projectId);
+  const { data: workOrders } = useProjectWorkOrders(projectId);
+  // #2531: the work-order link and proof flag are structure edits (migration 0991 refuses any other writer).
+  const canStructure = realRole === 'Admin' || realRole === 'Executive' || realRole === 'Project Manager';
   const location = useLocation();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -630,6 +634,11 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         openTask={openTask}
         onClose={closeTask}
         nestedOpen={!!(formTarget && (formTarget.task ? canEditTask(formTarget.task) : canCreate)) || (!!deleteTarget && canDelete)}
+        proof={selectedTask ? {
+          canAttach: !externallyOwned && (canStructure || (!!currentUserId && selectedTask.assignee_id === currentUserId)),
+          canSetStatus: canSetStatus(selectedTask),
+          onMarkDone: async (task) => { await onStatusChange(task, 'Done'); },
+        } : undefined}
       />
 
       {/* Create / edit modal */}
@@ -641,6 +650,8 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
           allTasks={all}
           defaultMilestoneId={formTarget.defaultMilestoneId ?? null}
           milestones={milestoneList}
+          workOrders={workOrders ?? []}
+          canStructure={canStructure && !externallyOwned}
           pendingPushState={
             formTarget.task && externallyOwned
               ? (pendingPushByTask[formTarget.task.id] ?? IDLE_PENDING_PUSH)
