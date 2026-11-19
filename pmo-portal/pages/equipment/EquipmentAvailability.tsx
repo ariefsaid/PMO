@@ -189,7 +189,7 @@ const EquipmentAvailabilityPage: React.FC = () => {
             <summary>{t('equipment:availability.metricAssets', 'Assets for metrics')}</summary>
             <p className="text-sm text-muted-foreground">{t('equipment:availability.allWhenNone', 'Select none to show all on this page.')}</p>
             <div className="grid gap-2 sm:grid-cols-2">
-              {rows.map((a) => <Checkbox key={a.id} label={`${a.code} ${a.name}`} checked={metricAssets.includes(a.id)} onChange={(checked) => setMetricAssets((selected) => checked ? [...selected, a.id] : selected.filter((id) => id !== a.id))} />)}
+              {rows.map((a) => <Checkbox key={a.id} label={`${a.code} ${a.name}`} checked={metricAssets.includes(a.id)} onChange={(checked) => setMetricAssets((selected) => checked ? [...selected, a.id] : selected.filter((id) => id !== a.id))}>{a.code} {a.name}</Checkbox>)}
             </div>
           </details>
           <div className="grid gap-3 sm:grid-cols-3 mb-3">
