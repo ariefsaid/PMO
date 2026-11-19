@@ -2079,9 +2079,8 @@
       "note": "Approval for this procurement is routed to {{names}}: {{why}}",
       "nameJoiner": " or ",
       "why": {
-        "projectApprover": "they are the approver set for this project.",
         "withinBudget": "it is within the project's {{category}} budget.",
-        "exceedsLine": "it would take the project's {{category}} budget over its limit.",
+        "exceedsLine": "it would take the project's {{category}} budget over its limit, counting what is already spent.",
         "noProject": "it is overhead spend, not charged to a project.",
         "noCategory": "it has no budget category, so it cannot be checked against the project budget.",
         "noActiveBudget": "the project has no active budget.",
