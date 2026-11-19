@@ -223,12 +223,14 @@ describe('Equipment availability screen', () => {
 
   it('clears incomplete terms when switching asset records', async () => { const view = renderTerms('a1'); await userEvent.type(screen.getByLabelText('Rate'), '100'); view.rerender(<ToastProvider><EquipmentRentalTerms key="a3" asset={asset('a3', 'EQU-3', 'rented')} /></ToastProvider>); expect(screen.getByLabelText('Rate')).toHaveValue(''); expect(screen.getByRole('button', { name: 'Save rental terms' })).toBeDisabled(); });
 
-  it('offers the rental check to Finance and not to a field controller', () => {
+  it('offers the rental check to Finance and not to a field controller', async () => {
     const engineer = renderPage();
     expect(screen.queryByText('Rental invoice check')).not.toBeInTheDocument();
     engineer.unmount();
     h.role = 'Finance'; renderPage();
-    expect(screen.getByText('Rental invoice check')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Rental invoice check' }));
+    expect(screen.getByText('Rental invoice check', { selector: 'div' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Equipment status' })).not.toBeInTheDocument();
   });
 
 });

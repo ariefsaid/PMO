@@ -51,6 +51,8 @@ const EquipmentAvailabilityPage: React.FC = () => {
   const today = useOrgToday(timezone);
   const monthFrom = monthStart(today);
 
+  const [view, setView] = useState<'status' | 'check'>('status');
+  const canCheck = may('approve', 'equipmentAvailability', writeCtx);
   const [chosenStatusDate, setStatusDate] = useState<string | null>(null);
   const statusDate = chosenStatusDate ?? today;
   const [notes, setNotes] = useState<Record<string, string>>({});
@@ -121,6 +123,10 @@ const EquipmentAvailabilityPage: React.FC = () => {
   return (
     <ListPage title={t('equipment:availability.title', 'Availability')}>
 
+      {canCheck && <nav aria-label={t('equipment:availability.views', 'Availability views')} className="mb-4 flex gap-2">
+        <Button variant="outline" aria-pressed={view === 'status'} onClick={() => setView('status')}>{t('equipment:availability.statusHeading', 'Equipment status')}</Button>
+        <Button variant="outline" aria-pressed={view === 'check'} onClick={() => setView('check')}>{t('equipment:availability.checkHeading', 'Rental invoice check')}</Button>
+      </nav>}
       {problem && <p role="alert" className="mb-3 text-sm text-destructive-text">{problem}</p>}
       {assets.isPending && <ListState variant="loading" shape="table" rows={4} />}
       {assets.isError && <ListState variant="error" title={t('equipment:availability.assetsError', "Couldn't load equipment")} onRetry={() => void assets.refetch()} />}
@@ -131,7 +137,7 @@ const EquipmentAvailabilityPage: React.FC = () => {
         <ListState variant="empty" title={t('equipment:availability.empty', 'No equipment yet')}
           sub={t('equipment:availability.emptySub', 'Add assets under Equipment → Assets, then set their daily status here.')} />
       )}
-      {!assets.isError && !status.isError && rows.length > 0 && (
+      {view === 'status' && !assets.isError && !status.isError && rows.length > 0 && (
         <section aria-labelledby="eav-status-h" className="mb-6">
           <h2 id="eav-status-h" className="text-base font-semibold mb-2">{t('equipment:availability.statusHeading', 'Equipment status')}</h2>
           <div className="mb-3 max-w-xs"><TextField label={t('equipment:availability.statusDate', 'Status date')} type="date" value={statusDate} onChange={(v) => { setStatusDate(v); setDraft({}); setNotes({}); }} /></div>
@@ -175,7 +181,7 @@ const EquipmentAvailabilityPage: React.FC = () => {
         <Button variant="outline" disabled={(!assets.hasNextPage && assetPage + 1 >= pages.length) || Object.keys(draft).length > 0 || assets.isFetchingNextPage} onClick={() => void nextPage()}>{t('equipment:availability.nextPage', 'Next equipment page')}</Button>
       </div>}
 
-      {canMetrics && rows.length > 0 && (
+      {view === 'status' && canMetrics && rows.length > 0 && (
         <section aria-labelledby="eav-metrics-h" className="mb-6">
           <h2 id="eav-metrics-h" className="text-base font-semibold mb-2">{t('equipment:availability.metricsHeading', 'This month')}</h2>
           <details className="mb-3">
@@ -223,7 +229,7 @@ const EquipmentAvailabilityPage: React.FC = () => {
 
 
 
-      {may('approve', 'equipmentAvailability', writeCtx) && <RentalInvoiceCheck assets={rows.filter((a) => (a as { ownership?: string }).ownership === 'rented')} today={today} monthFrom={monthFrom} statusLabel={(value) => statusLabel(t, value)} />}
+      {view === 'check' && canCheck && <RentalInvoiceCheck assets={rows.filter((a) => (a as { ownership?: string }).ownership === 'rented')} today={today} monthFrom={monthFrom} statusLabel={(value) => statusLabel(t, value)} />}
     </ListPage>
   );
 };

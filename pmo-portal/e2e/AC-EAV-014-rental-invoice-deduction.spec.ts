@@ -46,16 +46,17 @@ test.afterEach(async () => {
 });
 test('AC-EAV-014 Finance checks the test month and opens evidence for the exact deduction', async ({ page }) => {
   await signIn(page, 'finance@acme.test'); await page.goto('/equipment/availability');
+  await page.getByRole('button', { name: 'Rental invoice check' }).click();
   await page.getByLabel('Rented machine').selectOption(ids[0]);
   await page.getByLabel('Invoice period from').fill('2026-09-01');
   await page.getByLabel('Invoice period to').fill('2026-09-30');
   await page.getByLabel('Vendor invoice amount').fill('27500.00');
   await page.getByRole('button', { name: 'Check invoice' }).click();
   const result = page.getByRole('region', { name: 'Check result' });
-  await expect(result.getByText('3000.00', { exact: true })).toBeVisible({ timeout: 20_000 });
-  await expect(result.getByText('27000.00', { exact: true })).toBeVisible();
-  await expect(result.getByText('500.00', { exact: true })).toBeVisible();
-  await expect(result.getByText('2026-09-21', { exact: false })).toBeVisible();
+  await expect(result.getByText('IDR 3,000', { exact: true })).toBeVisible({ timeout: 20_000 });
+  await expect(result.getByText('IDR 27,000', { exact: true })).toBeVisible();
+  await expect(result.getByText('IDR 500', { exact: true })).toBeVisible();
+  await expect(result.getByText('21 Sep 2026', { exact: false })).toBeVisible();
   await result.getByRole('button', { name: 'Open ticket.png' }).first().click();
   const evidenceLink = result.getByRole('link', { name: 'ticket.png' }).first();
   await expect(evidenceLink).toHaveAttribute('href', /token=/);

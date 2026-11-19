@@ -21,7 +21,7 @@ export default function RentalInvoiceCheck({ assets, today, monthFrom, statusLab
   const [reason, setReason] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
   const [proofLinks, setProofLinks] = useState<Record<string, string>>({});
-  const money = (value: string, currency: string) => formatExactMoney(String(value), currency, getNumberLocale(), { trimZeroFraction: true }) ?? '—';
+  const money = (value: string, currency: string | null) => currency ? (formatExactMoney(String(value), currency, getNumberLocale(), { trimZeroFraction: true }) ?? '—') : '—';
   const from = start ?? monthFrom; const to = end ?? today;
   const resetCheck = check.reset;
   useEffect(() => {
