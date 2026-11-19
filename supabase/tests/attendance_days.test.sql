@@ -7,7 +7,7 @@
 -- Dates are relative to today because the back-date window is.
 begin;
 create extension if not exists pgtap;
-select plan(25);
+select plan(26);
 
 insert into organizations (id, name, default_currency) values
   ('25280000-0000-0000-0000-00000000010a', 'ATT Org',       'IDR'),
@@ -83,6 +83,9 @@ select throws_ok($$ select attendance_record('25280000-0000-0000-0000-0000000014
   '23514', null, 'AC-CRW-005 hours above 24 are refused');
 
 -- AC-CRW-006
+select is((select m->>'off_rotation' from work_order_roster('25280000-0000-0000-0000-000000001401', pg_temp.d('d1')) r,
+                  jsonb_array_elements(r.members) m where m->>'worker_id' = '25280000-0000-0000-0000-000000001f03'), 'true',
+  'AC-CRW-006 the roster read names a person off rotation that day, so the tick screen defaults them');
 select throws_ok($$ select attendance_record('25280000-0000-0000-0000-000000001401', pg_temp.d('d1'), 'roster_tick',
   '[{"worker_id": "25280000-0000-0000-0000-000000001f03", "status": "present", "hours": 8}]') $$,
   '23514', 'ATT_OFF_ROTATION: this person is off rotation that day; give a reason to mark them present',
