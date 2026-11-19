@@ -1,6 +1,6 @@
 # Spec: Material requests against a work order (#2524)
 
-**Status:** proposed; owner decisions below need sign-off before build. IDs `FR-MRQ-###`, `NFR-MRQ-###`, `AC-MRQ-###`. Plan: `docs/plans/2026-11-20-material-requests.md`. Executor: Director-dispatched (approval order, stand-in and stock transfer are SoD and stock paths; ships alone). Map #2516; blocked by #2517 (work order on every cost line) and #2523 (read for its stock-to-work-order contract before build).
+**Status:** accepted (Director rulings 2026-11-20). IDs `FR-MRQ-###`, `NFR-MRQ-###`, `AC-MRQ-###`. Plan: `docs/plans/2026-11-20-material-requests.md`. Executor: Director-dispatched (approval order, stand-in and stock transfer are SoD and stock paths; ships alone). Map #2516; blocked by #2517 (work order on every cost line) and #2523 (read for its stock-to-work-order contract before build).
 
 ## Job story
 
@@ -75,7 +75,7 @@ When a site needs material for a work order, I want to request items and quantit
 | Transfer creation fails | Request stays pending at last step; error shown; retry |
 | No user holds the open step's role | Queue shows "no approver"; Admin can reassign role holders, not approve |
 
-## Owner decisions (recommended defaults, not rulings)
+## Owner decisions (accepted 2026-11-20)
 | ID | Decision and default | If wrong, what breaks |
 |---|---|---|
 | OD-MRQ-1 | Chain is organisation-wide, ordered; per-project override is out of scope. | Different projects needing different chains cannot be modelled. |
@@ -84,10 +84,12 @@ When a site needs material for a work order, I want to request items and quantit
 | OD-MRQ-4 | Stand-in: one hop, date-ranged, set by the delegator or an Admin. | Open-ended or chained delegation lets approval drift to unreviewed people. |
 | OD-MRQ-5 | Approved request creates a transfer **draft**; the keeper posts. | Auto-post changes stock and valuation unchecked. |
 | OD-MRQ-6 | Cut-off applies to next-day needed-by only, one time for the organisation. | Per-project or per-category cut-offs are not covered. |
-| OQ-MRQ-1 | What is "plan" for a material (BoQ material line, budget line, or a work-order material list)? Confirm with #2523/#2517. | Over-plan test compares to the wrong number. |
-| OQ-MRQ-2 | Which warehouse is the source of the transfer: chosen on the request, or by the coordinator at the last step? Default: coordinator picks at the stock step. | Wrong source warehouse on the delivery document. |
+| OQ-MRQ-1 | **Answered:** plan = the work order's allocated contract (BoQ) material quantity. | Over-plan test compares to the wrong number. |
+| OQ-MRQ-2 | **Accepted:** coordinator picks the source warehouse at the stock step. | Wrong source warehouse on the delivery document. |
+
+**Build check (OQ-MRQ-1 vs migrations 1000-1001):** `mrq_plan_quantity` takes the BoQ material allowance per BoQ line, prorated by the work order's share of that BoQ line's quantity, not the raw BoQ quantity. No allowance means plan 0, so any request is over plan. Matches the answer in spirit (allocated share of the contract quantity); the spec does not yet say the proration or the zero-plan rule.
 
 ## Delivery checklist
-- [ ] Owner signs OD-MRQ-1..6; answer OQ-MRQ-1..2; read #2523.
+- [x] Owner signs OD-MRQ-1..6; answer OQ-MRQ-1..2; read #2523.
 - [ ] Server slice with pgTAP and mutation checks ships alone; UI slice follows.
 - [ ] Glossary: material request, approval chain, stand-in, cut-off.
