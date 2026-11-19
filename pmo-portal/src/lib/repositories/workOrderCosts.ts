@@ -1,0 +1,37 @@
+/**
+ * repositories/workOrderCosts.ts (#2517) — the seam over work-order cost attribution (ADR-0103):
+ * the discipline list, the one write path and the one read seam. Standalone module (same shape as
+ * `costAttribution.ts`): imported directly by its consumers. Errors keep their Postgres code via `wrap`.
+ */
+import {
+  listCostDisciplines,
+  setCostAttribution,
+  listWorkOrderCostLines,
+  groupCostLinesBySource,
+  hasAttribution,
+  type CostAttribution,
+  type CostDiscipline,
+  type CostSource,
+  type WorkOrderCostLine,
+} from '@/src/lib/db/workOrderCosts';
+import { wrap } from './repositoryErrors';
+
+export type { CostAttribution, CostDiscipline, CostSource, WorkOrderCostLine };
+export { NO_ATTRIBUTION, hasAttribution, COST_SOURCES } from '@/src/lib/db/workOrderCosts';
+
+export const workOrderCostRepository = {
+  disciplines: (): Promise<CostDiscipline[]> => wrap(() => listCostDisciplines()),
+  setAttribution: (source: CostSource, ids: string[], attribution: CostAttribution): Promise<number> =>
+    wrap(() => setCostAttribution(source, ids, attribution)),
+  /**
+   * Called by a form right after it created a record: writes the attribution only when one was picked, so a
+   * form whose pickers were left empty makes no extra call.
+   */
+  attributeCreated: async (source: CostSource, id: string | null | undefined, attribution: CostAttribution | null | undefined): Promise<void> => {
+    if (!id || !hasAttribution(attribution)) return;
+    await wrap(() => setCostAttribution(source, [id], attribution));
+  },
+  costLines: (workOrderId: string): Promise<WorkOrderCostLine[]> => wrap(() => listWorkOrderCostLines(workOrderId)),
+  /** One work order's cost lines, grouped by source — the foundation #2518/#2519/#2523 read. */
+  costLinesBySource: async (workOrderId: string) => groupCostLinesBySource(await wrap(() => listWorkOrderCostLines(workOrderId))),
+};
