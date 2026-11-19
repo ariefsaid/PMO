@@ -3,6 +3,7 @@ import { I18nextProvider } from 'react-i18next';
 import { initI18n, i18next } from './index';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { useResolvedLocale } from '@/src/hooks/useResolvedLocale';
+import { useApplyOrgTerminology } from '@/src/hooks/useOrgTerminology';
 
 /**
  * Mounts i18next and points BOTH string translation and `src/lib/format.ts` at the resolved locale.
@@ -23,6 +24,8 @@ import { useResolvedLocale } from '@/src/hooks/useResolvedLocale';
  */
 export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const resolved = useResolvedLocale();
+  // #2529: the org's renamed terms, applied by the `orgTerms` post-processor in `index.ts`.
+  useApplyOrgTerminology();
   // A re-render trigger, not a gate. Its only job is to re-render the subtree once the first
   // catalogue has landed, so keys that rendered as their English source string during boot are
   // replaced by their catalogue entry. Deliberately NOT used to withhold children: blanking the

@@ -1,5 +1,6 @@
 import i18next, { type BackendModule, type ReadCallback, type i18n as I18nInstance } from 'i18next';
 import { initReactI18next } from 'react-i18next';
+import { applyOrgTerms, getOrgTerms } from './orgTerms';
 import { FALLBACK_LOCALE, isUsableLocaleTag } from '@/src/lib/locale/resolveLocale';
 
 /**
@@ -31,6 +32,20 @@ export const DEFAULT_NS = 'common';
  * first data reads. A namespace nobody is looking at is pure latency.
  */
 export const BOOT_NAMESPACES: readonly string[] = [DEFAULT_NS];
+
+/**
+ * #2529 — the org terminology post-processor. Runs on every translated string (`postProcess` in
+ * the init options), so screens, exports and notifications that go through `t()` all pick up the
+ * org's renamed terms. A no-op while the org has no overrides.
+ */
+export const orgTermsPostProcessor = {
+  type: 'postProcessor' as const,
+  name: 'orgTerms',
+  process(value: string, _key: unknown, options: { lng?: string } | undefined, translator: { language?: string }): string {
+    if (typeof value !== 'string') return value;
+    return applyOrgTerms(value, options?.lng ?? translator?.language ?? FALLBACK_LOCALE, getOrgTerms());
+  },
+};
 
 /**
  * FR-L10N-043 — lazy per-locale load. i18next requests only the ACTIVE language plus `fallbackLng`,
@@ -120,6 +135,7 @@ export function i18nInitOptions(
   const bootLocale = locale && isUsableLocaleTag(locale) ? locale : FALLBACK_LOCALE;
   return {
     lng: bootLocale,
+    postProcess: ['orgTerms'],
     fallbackLng: FALLBACK_LOCALE,
     fallbackNS: DEFAULT_NS,
     // #2097: the shell's catalogue only. Feature catalogues are fetched on demand (BOOT_NAMESPACES)
@@ -166,6 +182,7 @@ export function initI18n(locale: string = FALLBACK_LOCALE): Promise<I18nInstance
   if (!initPromise) {
     initPromise = i18next
       .use(catalogueBackend)
+      .use(orgTermsPostProcessor)
       .use(initReactI18next)
       .init(i18nInitOptions(locale))
       .then(() => i18next);

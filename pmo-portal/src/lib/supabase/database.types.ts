@@ -5672,6 +5672,51 @@ export type Database = {
           },
         ]
       }
+      org_terminology: {
+        Row: {
+          locale: string
+          org_id: string
+          plural: string
+          singular: string
+          term_key: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          locale: string
+          org_id?: string
+          plural: string
+          singular: string
+          term_key: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          locale?: string
+          org_id?: string
+          plural?: string
+          singular?: string
+          term_key?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_terminology_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_terminology_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       org_imprest_settings: {
         Row: {
           org_id: string

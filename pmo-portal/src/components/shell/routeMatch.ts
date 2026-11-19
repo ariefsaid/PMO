@@ -374,6 +374,7 @@ export const ADMINISTRATION_SECTION_LABELS = {
   usage: 'Usage',
   features: 'Features',
   'exchange-rates': 'Exchange rates',
+  terminology: 'Terminology',
   'cost-attribution': 'Cost attribution',
 } as const;
 
@@ -396,6 +397,7 @@ export const ADMINISTRATION_SECTION_I18N_KEY: Record<
   usage: 'admin.nav.usage',
   features: 'admin.nav.features',
   'exchange-rates': 'admin.nav.exchangeRates',
+  terminology: 'administration:terminology.nav',
   'cost-attribution': 'costAttribution:title',
 };
 

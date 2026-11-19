@@ -499,3 +499,8 @@ submission; distinct from general project risk or everything assigned to them.
 UI vocabulary keeps **Supplier** rather than vendor, **Purchase** for a procurement case,
 and **Phase** for a milestone. **Actual** and **Recorded spending** name the same spending position;
 **Cash received** and **Settlement** name different quantities and must stay distinct.
+
+## Organisation terminology
+**Term override** — an org Admin's replacement display name (singular and plural, per language) for one of
+five fixed terms: work order, project, client-supplied stock, purchase request, discipline. It changes the
+wording shown, never the data or the code identifier. Generic terms are not overridable.
