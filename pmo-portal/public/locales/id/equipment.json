@@ -262,5 +262,43 @@
     "waiting": "Menunggu persetujuan",
     "entrySubject": "entri pemakaian",
     "chartLabel": "Pekerjaan per bulan, {{unit}}"
+  },
+  "expiryEdit": {
+    "title": "Dokumen",
+    "add": "Tambah dokumen",
+    "addTitle": "Tambah dokumen",
+    "editTitle": "Ubah dokumen",
+    "save": "Simpan dokumen",
+    "saved": "Dokumen disimpan",
+    "type": "Jenis dokumen",
+    "typePlaceholder": "Pilih jenis",
+    "status": "Status medis",
+    "number": "Nomor",
+    "issued": "Tanggal terbit",
+    "expires": "Tanggal kedaluwarsa",
+    "location": "Disimpan di",
+    "attachment": "Lampiran",
+    "attachmentHelp": "PDF atau gambar, maksimal 5 MB.",
+    "attachmentKeep": "Sudah ada file terlampir. Pilih file lain untuk menggantinya.",
+    "openFile": "Buka file",
+    "actions": "Aksi",
+    "edit": "Ubah",
+    "editLabel": "Ubah {{name}}",
+    "archive": "Arsipkan",
+    "archiveLabel": "Arsipkan {{name}}",
+    "archiveTitle": "Arsipkan dokumen",
+    "archiveBody": "Dokumen keluar dari catatan ini dan daftar kedaluwarsa, dan tidak ada lagi peringatan untuknya.",
+    "archived": "Dokumen diarsipkan",
+    "error": "Dokumen tidak dapat dimuat",
+    "empty": "Belum ada dokumen pada catatan ini",
+    "emptySub": "Sertifikat dan izin tampil di sini beserta tanggal kedaluwarsanya.",
+    "errType": "Pilih jenis dokumen",
+    "errExpiry": "Isi tanggal kedaluwarsa",
+    "errOrder": "Tanggal kedaluwarsa harus sama dengan atau setelah tanggal terbit"
+  },
+  "people": {
+    "error": "Orang ini tidak dapat dimuat",
+    "notFound": "Orang ini tidak ditemukan",
+    "notFoundSub": "Mungkin sudah diarsipkan, atau Anda tidak punya akses."
   }
 }

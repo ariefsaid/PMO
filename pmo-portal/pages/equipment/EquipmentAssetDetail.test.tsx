@@ -28,6 +28,7 @@ vi.mock('@/src/hooks/useEquipment', () => ({
   useSaveCosting: () => ({ mutateAsync: h.save, isPending: false }),
   useEndCosting: () => ({ mutateAsync: h.end, isPending: false }),
 }));
+vi.mock('./ExpiryDocumentsCard', () => ({ ExpiryDocumentsCard: () => null })); // #2542: the documents card has its own test
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({ data: [{ id: 'pj1', name: 'EQU P1', short_name: null, currency: 'IDR' }, { id: 'pj2', name: 'EQU P2', short_name: null, currency: 'IDR' }] }),
 }));

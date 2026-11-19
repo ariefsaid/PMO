@@ -5,7 +5,7 @@ Builds on `document-expiry.spec.md` (#2527). That increment stores, warns on and
 **Job story:** When a certificate or permit is renewed or newly issued, the person who keeps the records wants to add or update it on the person's or equipment's record, so the warnings follow the real expiry date.
 
 ## Scope and decisions
-- **Where.** A "Documents" card on the equipment asset record (`/equipment/assets/:assetId`) and on a new minimal person record (`/people/:personId`: name, code, the same card). Rows of the expiring list link to the subject record.
+- **Where.** A "Documents" card on the equipment asset record (`/equipment/assets/:assetId`) and on a new minimal person record (`/equipment/people/:personId`: name, code, the same card). Rows of the expiring list link to the subject record.
 - **Fields.** Type (from the org's types for that kind), number, issue date, expiry date, location note, attachment. A medical type shows a status (fit / unfit) and the dates only; number, note and attachment are hidden (and refused by the 0970 constraint).
 - **Archive, not delete** (ADR-0018). Renewing = edit the expiry date; the warning sequence restarts (FR-DEX-004).
 - **Authority.** Writes already ride RLS and column grants (0970): Admin any document; Project Manager equipment documents only. `can('create'|'edit'|'archive', 'expiryDocument', {record:{kind}})` mirrors that for the UI only.

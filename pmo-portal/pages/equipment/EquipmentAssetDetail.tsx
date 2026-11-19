@@ -18,6 +18,7 @@ import { formatCurrency, formatDay, formatNumberMax2, formatMonthYear } from '@/
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
+import { ExpiryDocumentsCard } from './ExpiryDocumentsCard';
 import { EquipmentCostingForm } from './EquipmentCostingForm';
 import { basisLabel, driverLabel, unitLabel } from './equipmentLabels';
 import { fromIso, monthStart } from './equipmentWeek';
@@ -279,6 +280,7 @@ const EquipmentAssetDetail: React.FC = () => {
           <span>{t('equipment:assets.unitLine', 'Logged in {{unit}}', { unit: unitLabel(t, asset.default_unit) })}</span>
           {asset.external_ref && <span>{t('equipment:assets.refLine', 'ERP reference {{ref}}', { ref: asset.external_ref })}</span>}
         </span>} />
+      <ExpiryDocumentsCard kind="equipment" subjectId={asset.id} />
       <UsageCard assetId={asset.id} today={today} projectName={projectName} />
       {may('view', 'equipmentCosting') && <CostingCard asset={asset} assetRow={asset} projectName={projectName} money={money} />}
       {may('view', 'equipmentUsage') && <AllocationsCard assetId={asset.id} today={today} projectName={projectName} money={money} />}

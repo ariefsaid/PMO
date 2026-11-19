@@ -67,10 +67,10 @@ select throws_ok($q$insert into expiry_documents (subject_kind, asset_id, type_i
   values ('equipment', '25420000-0000-0000-0000-0000000000d1', '25420000-0000-0000-0000-0000000000f3', '2027-01-01')$q$,
   '42501', null, 'AC-DEE-008 Finance cannot add a document');
 select pg_temp.act_as('25420000-0000-0000-0000-0000000000a2');
-select lives_ok($q$insert into expiry_documents (id, subject_kind, asset_id, type_id, expires_on)
-  values ('25420000-0000-0000-0000-000000000201', 'equipment', '25420000-0000-0000-0000-0000000000d1', '25420000-0000-0000-0000-0000000000f3', '2027-01-01')$q$,
+select lives_ok($q$insert into expiry_documents (subject_kind, asset_id, type_id, expires_on)
+  values ('equipment', '25420000-0000-0000-0000-0000000000d1', '25420000-0000-0000-0000-0000000000f3', '2027-01-01')$q$,
   'AC-DEE-008 PM adds an equipment document');
-select lives_ok($q$update expiry_documents set archived_at = now() where id = '25420000-0000-0000-0000-000000000201'$q$,
+select lives_ok($q$update expiry_documents set archived_at = now() where asset_id = '25420000-0000-0000-0000-0000000000d1' and expires_on = '2027-01-01'$q$,
   'AC-DEE-008 PM archives an equipment document');
 select * from finish();
 rollback;
