@@ -12,7 +12,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
-import { signIn, requireServiceRoleKey } from './helpers';
+import { signIn, requireServiceRoleKey, visibleToast } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -86,9 +86,9 @@ test('AC-CRW-015 a crew\'s day is ticked, the week sent, a supervisor approves, 
   await page.getByRole('textbox', { name: 'Hours for the crew' }).fill('8');
   await page.getByRole('textbox', { name: `Hours for ${budi.name}` }).fill('6');
   await page.getByRole('button', { name: 'Save attendance' }).click();
-  await expect(page.getByText('Attendance saved')).toBeVisible({ timeout: 15_000 });
+  await expect(visibleToast(page, 'Attendance saved')).toBeVisible({ timeout: 15_000 });
   await page.getByRole('button', { name: 'Send the week for approval' }).click();
-  await expect(page.getByText('Week sent for approval')).toBeVisible({ timeout: 15_000 });
+  await expect(visibleToast(page, 'Week sent for approval')).toBeVisible({ timeout: 15_000 });
 
   // 2. The Project Manager, who recorded none of it, approves each person's week from the same page.
   await signIn(page, 'pm@acme.test');
