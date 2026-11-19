@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FileInput } from '@/src/components/ui/FormFields';
-import { Button, Checkbox, ListPage, ListState, SelectField, TextField, useToast } from '@/src/components/ui';
+import { FileCell } from '@/src/components/FileCell';
+import { Badge, Button, Checkbox, ListPage, ListState, SelectField, TextField, useToast } from '@/src/components/ui';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useEquipmentAssetPages } from '@/src/hooks/useEquipment';
@@ -29,6 +30,15 @@ function statusLabel(t: ReturnType<typeof useTranslation>['t'], s: EquipmentStat
   }
 }
 
+function ProofUpload({ code, onFile }: { code: string; onFile: (file: File | undefined) => void }) {
+  const { t } = useTranslation();
+  const input = React.useRef<HTMLInputElement>(null);
+  return <span>
+    <FileCell status="Draft" filePath={null} title={code} onUpload={() => input.current?.click()} />
+    <FileInput ref={input} className="sr-only" aria-label={t('equipment:availability.proofFor', 'Attach proof for {{code}}', { code })} accept="image/*,application/pdf" onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; onFile(file); }} />
+  </span>;
+}
+
 /** Equipment → Availability (#2526): set today's status for every machine (phone-first), see availability and utilisation,
  *  with organisation-scoped terms and working hours. UX only; the RPCs enforce. */
 const EquipmentAvailabilityPage: React.FC = () => {
@@ -41,6 +51,7 @@ const EquipmentAvailabilityPage: React.FC = () => {
   const today = useOrgToday(timezone);
   const monthFrom = monthStart(today);
 
+  const [view, setView] = useState<'status' | 'terms'>('status');
   const [chosenStatusDate, setStatusDate] = useState<string | null>(null);
   const statusDate = chosenStatusDate ?? today;
   const [notes, setNotes] = useState<Record<string, string>>({});
@@ -129,6 +140,10 @@ const EquipmentAvailabilityPage: React.FC = () => {
 
   return (
     <ListPage title={t('equipment:availability.title', 'Availability')}>
+      {canTerms && <nav aria-label={t('equipment:availability.views', 'Availability views')} className="mb-4 flex gap-2">
+        <Button variant="outline" aria-pressed={view === 'status'} onClick={() => setView('status')}>{t('equipment:availability.statusHeading', 'Equipment status')}</Button>
+        <Button variant="outline" aria-pressed={view === 'terms'} onClick={() => setView('terms')}>{t('equipment:availability.terms', 'Rental terms')}</Button>
+      </nav>}
       {problem && <p role="alert" className="mb-3 text-sm text-destructive-text">{problem}</p>}
       {assets.isPending && <ListState variant="loading" shape="table" rows={4} />}
       {assets.isError && <ListState variant="error" title={t('equipment:availability.assetsError', "Couldn't load equipment")} onRetry={() => void assets.refetch()} />}
@@ -139,7 +154,7 @@ const EquipmentAvailabilityPage: React.FC = () => {
         <ListState variant="empty" title={t('equipment:availability.empty', 'No equipment yet')}
           sub={t('equipment:availability.emptySub', 'Add assets under Equipment → Assets, then set their daily status here.')} />
       )}
-      {!assets.isError && !status.isError && rows.length > 0 && (
+      {view === 'status' && !assets.isError && !status.isError && rows.length > 0 && (
         <section aria-labelledby="eav-status-h" className="mb-6">
           <h2 id="eav-status-h" className="text-base font-semibold mb-2">{t('equipment:availability.statusHeading', 'Equipment status')}</h2>
           <div className="mb-3 max-w-xs"><TextField label={t('equipment:availability.statusDate', 'Status date')} type="date" value={statusDate} onChange={(v) => { setStatusDate(v); setDraft({}); setNotes({}); }} /></div>
@@ -153,20 +168,17 @@ const EquipmentAvailabilityPage: React.FC = () => {
                   <span className="min-w-40 flex-1">
                     <span className="font-medium">{a.code}</span> <span className="text-muted-foreground">{a.name}</span>
                     {current && !may('create', 'equipmentAvailability', writeCtx) && <span className="ml-2">{statusLabel(t, current)}</span>}
-                    {(uploadedProofs.has(`${a.id}:${statusDate}`) || (!proofStates.isFetching && provenAssets.has(a.id))) && down && !draft[a.id] && <span className="ml-2">{t('equipment:availability.proven', 'Proven')}</span>}
+                    {(uploadedProofs.has(`${a.id}:${statusDate}`) || (!proofStates.isFetching && provenAssets.has(a.id))) && down && !draft[a.id] && <Badge className="ml-2">{t('equipment:availability.proven', 'Proven')}</Badge>}
                     {flagged.has(a.id) && <span role="status" className="ml-2 text-destructive-text text-sm">{t('equipment:availability.flagged', 'Down more than 2 days')}</span>}
                     {!todays.has(a.id) && !draft[a.id] && <span className="ml-2 text-sm text-muted-foreground">{prev ? t('equipment:availability.last', 'Last: {{status}}', { status: statusLabel(t, prev) }) : t('equipment:availability.unrecorded', 'Not recorded')}</span>}
                   </span>
                   <CanWrite entity="equipmentAvailability" action="create" ctx={writeCtx}>
-                    <SelectField label={t('equipment:availability.statusFor', 'Status of {{code}}', { code: a.code })} value={current ?? ''}
+                    <SelectField hideLabel label={t('equipment:availability.statusFor', 'Status of {{code}}', { code: a.code })} value={current ?? ''}
                       onChange={(v) => setDraft((d) => ({ ...d, [a.id]: v as EquipmentStatus }))}
                       options={[{ value: '', label: t('equipment:availability.choose', 'Choose…') }, ...STATUSES.map((s) => ({ value: s, label: statusLabel(t, s) }))]} />
                     {draft[a.id] && <TextField label={t('equipment:availability.noteFor', 'Note for {{code}}', { code: a.code })} value={notes[a.id] ?? ''} onChange={(v) => setNotes((n) => ({ ...n, [a.id]: v }))} />}
                     {down && todays.has(a.id) && !draft[a.id] && (
-                      <label className="text-sm">
-                        <span className="sr-only">{t('equipment:availability.proofFor', 'Attach proof for {{code}}', { code: a.code })}</span>
-                        <FileInput accept="image/*,application/pdf" onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; void attach(a.id, file); }} />
-                      </label>
+                      <ProofUpload code={a.code} onFile={(file) => void attach(a.id, file)} />
                     )}
                   </CanWrite>
                 </li>
@@ -186,7 +198,7 @@ const EquipmentAvailabilityPage: React.FC = () => {
         <Button variant="outline" disabled={(!assets.hasNextPage && assetPage + 1 >= pages.length) || Object.keys(draft).length > 0 || assets.isFetchingNextPage} onClick={() => void nextPage()}>{t('equipment:availability.nextPage', 'Next equipment page')}</Button>
       </div>}
 
-      {canMetrics && rows.length > 0 && (
+      {view === 'status' && canMetrics && rows.length > 0 && (
         <section aria-labelledby="eav-metrics-h" className="mb-6">
           <h2 id="eav-metrics-h" className="text-base font-semibold mb-2">{t('equipment:availability.metricsHeading', 'This month')}</h2>
           <details className="mb-3">
@@ -231,7 +243,7 @@ const EquipmentAvailabilityPage: React.FC = () => {
         </section>
       )}
 
-      {canTerms && rows.length > 0 && (
+      {view === 'terms' && canTerms && rows.length > 0 && (
         <section aria-labelledby="eav-terms-h" className="mb-6">
           <h2 id="eav-terms-h" className="text-base font-semibold mb-2">{t('equipment:availability.terms', 'Rental terms')}</h2>
           {terms.isError && <p role="alert">{t('equipment:availability.termsError', 'Could not load rental terms')}</p>}
@@ -249,9 +261,11 @@ const EquipmentAvailabilityPage: React.FC = () => {
             <TextField label={t('equipment:availability.rentedTo', 'Rental end (optional)')} type="date" value={rentedTo} onChange={setRentedTo} />
           </div>
           <Button variant="primary" className="mt-3" disabled={!termAsset || !vendor || !rate || !rentedFrom || saveTerm.isPending} onClick={() => void submitTerm()}>{t('equipment:availability.saveTerms', 'Save rental terms')}</Button>
+          <details className="mt-3"><summary>{t('equipment:availability.otherAssetActions', 'Other asset actions')}</summary>
           <Button variant="outline" className="mt-3 ml-2" disabled={!termAsset || saveOwnership.isPending} onClick={() => { const a = rows.find((row) => row.id === termAsset) as { ownership?: string } | undefined; void saveOwnership.mutateAsync({ assetId: termAsset, ownership: a?.ownership === 'rented' ? 'rented' : 'owned', inServiceOn: inService || null }).then(() => toast(t('equipment:availability.inServiceSaved', 'In-service date saved'), undefined, 'success')).catch((err: unknown) => setProblem(classifyMutationError(err).headline)); }}>{t('equipment:availability.saveInService', 'Save in-service date')}</Button>
           <Button variant="outline" className="mt-3 ml-2" disabled={!termAsset || saveOwnership.isPending} onClick={() => { setProblem(null); void saveOwnership.mutateAsync({ assetId: termAsset, ownership: 'owned', inServiceOn: inService || null }).then(() => toast(t('equipment:availability.ownershipSaved', 'Ownership saved'), undefined, 'success')).catch((err: unknown) => setProblem(classifyMutationError(err).headline)); }}>{t('equipment:availability.markOwned', 'Mark owned')}</Button>
           <Button variant="outline" className="mt-3 ml-2" disabled={!termAsset || !rate || !rentedFrom || changeRate.isPending} onClick={() => { setProblem(null); void changeRate.mutateAsync({ assetId: termAsset, date: rentedFrom, rate }).then(() => toast(t('equipment:availability.rateChanged', 'Rate changed'), undefined, 'success')).catch((err: unknown) => setProblem(classifyMutationError(err).headline)); }}>{t('equipment:availability.changeRate', 'Change rate from date')}</Button>
+          </details>
         </section>
       )}
 
