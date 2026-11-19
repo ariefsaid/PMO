@@ -144,6 +144,25 @@ describe('#1525 browser Back holds an unsaved purchase draft', () => {
     expect(screen.getByTestId('procurement-list')).toBeVisible();
     expect(unsavedDialog()).not.toBeInTheDocument();
   });
+
+  it('#2514 treats a typed pending line as unsaved work during browser Back', async () => {
+    const router = renderApp();
+    await act(async () => { await router.navigate('/procurement/new?have=need'); });
+    fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '3' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '12' } });
+
+    await act(async () => { window.history.back(); });
+    await waitFor(() => expect(unsavedDialog()).toBeInTheDocument());
+    expect(window.location.pathname).toBe('/procurement/new');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    await waitFor(() => expect(unsavedDialog()).not.toBeInTheDocument());
+    expect(screen.getByLabelText('New item description')).toHaveValue('Paper');
+    expect(screen.getByLabelText('New item quantity')).toHaveValue('3');
+    expect(screen.getByLabelText('New item unit price')).toHaveValue('12');
+    expect(mocks.createAtomic).not.toHaveBeenCalled();
+  });
 });
 
 afterEach(() => {

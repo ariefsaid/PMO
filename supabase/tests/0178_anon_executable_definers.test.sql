@@ -278,7 +278,9 @@ select plan(7);
 -- it moves credit; proven by supabase/tests/0907_credit_allocations.test.sql and
 -- scripts/credit-allocation-race.test.mjs (AC-ALLOC-001..013).
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
+-- The union of the dev and work-order finance RPC inventories contains 182 retained names.
 insert into client_callable_rpc_names (proname) values
+  ('set_document_warning_days'), -- 0972: active Admin, scoped to caller org; document_expiry pgTAP
   ('accept_connect_proposals'),
   ('accept_equipment_asset_matches'),  -- ⚑ AMENDED BY 0854 (#1511)
   ('activate_budget_version'),
@@ -481,8 +483,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  181,
-  'AC-ACL-002 all 181 retained client-callable RPC names still have a public function');
+  182,
+  'AC-ACL-002 all 182 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -491,8 +493,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  181,
-  'AC-ACL-003 all 181 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  182,
+  'AC-ACL-003 all 182 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
