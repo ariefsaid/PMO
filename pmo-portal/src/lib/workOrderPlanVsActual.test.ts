@@ -249,6 +249,16 @@ describe('rollupProject — actuals and roll-ups (FR-WPVA-010..032)', () => {
     expect(r.workOrders[0].directMargin.reason).toBe('actuals-unavailable');
   });
 
+  it('keeps allocated cost and result unknown when a shared cost is unknown', () => {
+    const r = rollupProject({
+      workOrders: [wo('A', 'WO-1', { revenue: '100.00' })],
+      lines: [line({ workOrderId: 'A', amount: '40.00' }), line({ amount: null })],
+      plans: [], split: null, restricted: false,
+    });
+    expect(r.workOrders[0].allocated).toBeNull();
+    expect(r.workOrders[0].result.amount).toBeNull();
+  });
+
   it('AC-WPVA-013 equipment hours show as hours, day entries separately (no silent conversion)', () => {
     const r = rollupProject({
       workOrders: [wo('A', 'WO-1')],

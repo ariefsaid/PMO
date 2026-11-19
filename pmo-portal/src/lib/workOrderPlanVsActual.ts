@@ -345,7 +345,7 @@ export function rollupProject(input: RollupInput): ProjectRollup {
     const own = counted.filter((l) => l.workOrderId === w.id && l.currency === w.currency);
     const others = counted.filter((l) => l.workOrderId === w.id && l.currency !== w.currency);
     const d = direct.get(w.id) ?? null;
-    const a = allocated.get(w.id) ?? 0n;
+    const a = allocated.has(w.id) ? allocated.get(w.id)! : 0n;
 
     const directBySource: Partial<Record<CostSource, ExactMoney>> = {};
     for (const source of [...new Set(own.map((l) => l.source))]) {
