@@ -14,6 +14,8 @@ import { toastStateLabel } from '../../components/procurement';
 import { classifySubcontractBillError } from './subcontractBillError';
 import type { ActionVariant } from '@/src/lib/procurement/mainAction';
 import type { VendorInvoiceCapture } from './ProcurementDecisionZone';
+import { describeAttributionError } from '@/src/components/workOrders/costAttributionError';
+import { AttributionRefusedError, workOrderCostRepository, type CostAttribution } from '@/src/lib/repositories/workOrderCosts';
 
 
 /** A staged, not-yet-committed mutation awaiting the ConfirmDialog. */
@@ -40,6 +42,8 @@ export type PendingConfirm =
       receiptLines?: Array<{ itemRef: string; quantity: number }>;
       /** BLOCK 2 (ADR-0058): the capture form's command identity, carried verbatim to the commit. */
       intent: CommandIntent;
+      /** #2517: the work order and discipline, set right after the receipt is saved. */
+      attribution?: CostAttribution;
     }
   | {
       kind: 'createVI';
@@ -69,6 +73,8 @@ export type PendingConfirm =
       taxIds?: string[];
       /** BLOCK 2 (ADR-0058): see the createGR variant. */
       intent: CommandIntent;
+      /** #2517: see the createGR variant. */
+      attribution?: CostAttribution;
     };
 
 // ── Write policy (OD-UX-1): a transition gets a ConfirmDialog IFF it is
@@ -266,6 +272,19 @@ export function useProcurementDecision(
   // ── Commit the staged confirm (kept for the consequential set + GR/VI). Toast is
   //    classified by the preserved RPC error code (sub-task b) so an illegal-stage /
   //    SoD failure reads as such instead of a silent no-op.
+  // #2517: after a receipt or bill is saved, put it on the picked work order / discipline. The record is saved
+  // either way; a refusal is reported as "saved, but…" and never re-opens the confirm (a retry would duplicate it).
+  const attributeSaved = async (source: 'goods_receipt' | 'vendor_bill', created: unknown, attribution: CostAttribution | undefined) => {
+    try {
+      await workOrderCostRepository.attributeOrRefuse(source, created, attribution);
+      return true;
+    } catch (err) {
+      const d = describeAttributionError(err instanceof AttributionRefusedError ? err.refusal : err, t);
+      toast(d.headline, d.detail, 'warning');
+      return false;
+    }
+  };
+
   const commitConfirm = async (overrideNotes?: string) => {
     if (!pendingConfirm) return;
     setMutationError(null);
@@ -275,7 +294,7 @@ export function useProcurementDecision(
     }
     try {
       if (pendingConfirm.kind === 'createGR') {
-        await mutations.createReceipt.mutateAsync({
+        const receipt = await mutations.createReceipt.mutateAsync({
           status: pendingConfirm.status,
           receiptDate: pendingConfirm.receiptDate,
           referenceNumber: pendingConfirm.referenceNumber,
@@ -285,6 +304,7 @@ export function useProcurementDecision(
         setShowCreateGR(false);
         setCaptureKind(null);
         toast(t('procurementDetail.toast.grRecorded', 'Goods receipt recorded'), undefined, 'success');
+        await attributeSaved('goods_receipt', receipt, pendingConfirm.attribution);
       } else {
         const invoice = {
           status: pendingConfirm.status,
@@ -303,14 +323,13 @@ export function useProcurementDecision(
           ...(pendingConfirm.taxIds ? { taxIds: pendingConfirm.taxIds } : {}),
           intent: pendingConfirm.intent,
         };
-        if (pendingConfirm.lines) {
-          await mutations.captureSubcontractVendorInvoice.mutateAsync({ ...invoice, lines: pendingConfirm.lines });
-        } else {
-          await mutations.createInvoice.mutateAsync(invoice);
-        }
+        const bill = pendingConfirm.lines
+          ? await mutations.captureSubcontractVendorInvoice.mutateAsync({ ...invoice, lines: pendingConfirm.lines })
+          : await mutations.createInvoice.mutateAsync(invoice);
         setShowCreateVI(false);
         setCaptureKind(null);
         toast(t('procurementDetail.toast.viRecorded', 'Supplier invoice recorded'), undefined, 'success');
+        await attributeSaved('vendor_bill', bill, pendingConfirm.attribution);
       }
       setPendingConfirm(null);
     } catch (err) {

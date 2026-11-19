@@ -67,7 +67,7 @@ if [ "$#" -eq 0 ]; then
 fi
 
 exec python3 -c '
-import fcntl, os, sys, time, subprocess
+import fcntl, os, sys, time, subprocess, signal
 label        = sys.argv[1]
 lock_path    = sys.argv[2]
 timeout      = float(sys.argv[3])
@@ -78,7 +78,7 @@ joined       = " ".join(cmd)
 # FLOCK_SLOTS=N (default 1) turns the mutex into an N-slot semaphore: slot 0 is lock_path itself,
 # slots 1..N-1 are lock_path.1 .. lock_path.<N-1>. A wrapper with N=1 (or an older copy of this
 # script) still contends only for slot 0, so mixed versions stay compatible.
-# ponytail: polls free slots every second; a FIFO queue only if starvation shows up.
+
 slots = max(1, int(os.environ.pop("FLOCK_SLOTS", "1") or "1"))  # pop: a nested lock (e.g. the db lock) must not inherit our slot count
 paths = [lock_path] + ["%s.%d" % (lock_path, i) for i in range(1, slots)]
 t0 = time.time()
@@ -142,49 +142,84 @@ def report_holder_if_due(waited):
     reported_holder = True
     sys.stderr.write("[%s] still waiting after %.0fs - holder: %s\n" % (label, waited, describe_holders()))
 
-if slots > 1:
-    files = [open(p, "a") for p in paths]
-    f = None
+# Serialize ticket creation and admission so an older ticket cannot appear after a
+# younger waiter has checked the queue. Legacy callers still contend on slots.
+queue_path = lock_path + ".queue"
+os.makedirs(queue_path, exist_ok=True)
+guard = open(lock_path + ".queue.guard", "a")
+ticket = None
+files = [open(p, "a") for p in paths]
+f = None
+
+def cleanup_ticket():
+    if ticket:
+        try:
+            os.unlink(ticket)
+        except FileNotFoundError:
+            pass
+
+def stop_waiting(signum, _frame):
+    raise SystemExit(128 + signum)
+
+old_handlers = {sig: signal.signal(sig, stop_waiting) for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)}
+try:
+    fcntl.flock(guard, fcntl.LOCK_EX)
+    try:
+        ticket = os.path.join(queue_path, "%019d-%d" % (time.time_ns(), os.getpid()))
+        with open(ticket, "x"):
+            pass
+    finally:
+        fcntl.flock(guard, fcntl.LOCK_UN)
     while f is None:
-        for cand, fh in zip(paths, files):
-            try:
-                fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                f, lock_path = fh, cand
-                break
-            except BlockingIOError:
-                pass
+        fcntl.flock(guard, fcntl.LOCK_EX)
+        try:
+            live = []
+            for name in sorted(os.listdir(queue_path)):
+                try:
+                    pid = int(name.rsplit("-", 1)[1])
+                    os.kill(pid, 0)
+                except ProcessLookupError:
+                    try:
+                        os.unlink(os.path.join(queue_path, name))
+                    except FileNotFoundError:
+                        pass
+                    continue
+                except (ValueError, IndexError):
+                    continue
+                except PermissionError:
+                    pass  # A process owned by another user is still alive.
+                live.append(name)
+            position = live.index(os.path.basename(ticket)) + 1
+            if position <= slots:
+                for cand, fh in zip(paths, files):
+                    try:
+                        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        f, lock_path = fh, cand
+                        cleanup_ticket()
+                        ticket = None
+                        break
+                    except BlockingIOError:
+                        pass
+        finally:
+            fcntl.flock(guard, fcntl.LOCK_UN)
         if f is None:
             waited = time.time() - t0
             if timeout > 0 and waited > timeout:
-                sys.stderr.write("[%s] gave up after %.0fs waiting for a free slot of %s\n" % (label, timeout, paths[0]))
-                sys.exit(75)  # EX_TEMPFAIL
+                sys.stderr.write("[%s] gave up after %.0fs waiting for %s\n" % (label, timeout, paths[0]))
+                sys.exit(75)
             if not announced:
-                sys.stderr.write("[%s] waiting for %s (%d slots, %s)...\n" % (label, waiting_desc, slots, paths[0]))
+                sys.stderr.write("[%s] waiting for %s (%s, queue position %d)...\n" % (label, waiting_desc, paths[0], position))
                 announced = True
             report_holder_if_due(waited)
             time.sleep(1)
+finally:
+    cleanup_ticket()
+    guard.close()
+    for sig, handler in old_handlers.items():
+        signal.signal(sig, handler)
     for fh in files:
         if fh is not f:
             fh.close()
-else:
-    # Opening in write mode truncates before flock succeeds, so a waiter would
-    # erase the current lock-owner stamp while it is still blocked. Poll non-blocking so a long
-    # wait can report its holder; the kernel still releases the lock the instant we exit.
-    f = open(lock_path, "a")
-    while True:
-        try:
-            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            break
-        except BlockingIOError:
-            waited = time.time() - t0
-            if timeout > 0 and waited > timeout:
-                sys.stderr.write("[%s] gave up after %.0fs waiting for %s\n" % (label, timeout, lock_path))
-                sys.exit(75)  # EX_TEMPFAIL
-            if not announced:
-                sys.stderr.write("[%s] waiting for %s (%s)...\n" % (label, waiting_desc, lock_path))
-                announced = True
-            report_holder_if_due(waited)
-            time.sleep(1)
 waited = time.time() - t0
 started = time.strftime("%H:%M:%S")
 # Replace the prior stamp only after this process owns the lock.

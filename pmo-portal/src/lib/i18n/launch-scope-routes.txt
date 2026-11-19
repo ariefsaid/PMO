@@ -161,3 +161,12 @@
 
 # ── Odoo directories (#1504 S5, FR-ODC-111): items, units, warehouses, cost accounts, accounts and taxes mirrored from Odoo.
 /master-data/:kind            pages/MasterData.tsx src/components/integrations/odoo/OdooConnectionBanner.tsx
+
+# ── Finance hub and its pages (#1598, AC-WALK-004). Every /finance/* route now has its own line.
+#    The record lists named on /sales-invoices, /incoming-payments, /financial-statements and /reports
+#    render inside these pages, so they appear here too; the shared finance components are named once.
+/finance                       pages/finance/FinanceHub.tsx src/components/finance/*.tsx src/components/integrations/InvoicePairReview.tsx
+/finance/receivables           pages/finance/ReceivablesPage.tsx src/components/finance/receivables/*.tsx pages/SalesInvoices.tsx pages/IncomingPayments.tsx
+/finance/payables              pages/finance/PayablesPage.tsx
+/finance/reports               pages/ManagementPack.tsx src/components/reports/RecordProgressModal.tsx
+/finance/statements            pages/FinancialStatements.tsx src/components/financial-statements/FinancialStatementsSection.tsx

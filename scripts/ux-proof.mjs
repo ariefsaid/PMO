@@ -5,8 +5,9 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import net from 'node:net';
-import { CHART_SELECTOR, LAYOUT_NUMBERS, measureText, measureLayout, layoutReport, violations } from './ux-proof-metrics.mjs';
+import { CHART_SELECTOR, LAYOUT_NUMBERS, RULE_NUMBERS, measureText, measureLayout, layoutReport, measureRules, rulesReport, tabFrameFindings, compareRuleFrames, violations } from './ux-proof-metrics.mjs';
 import { blockDataReads, loadReusedChecks, measureSettledLayout, pageLanguage, settlePage } from './ux-proof-measure.mjs';
+import { loadProofSettings } from './ux-proof-settings.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const APP = path.join(ROOT, 'pmo-portal');
@@ -115,6 +116,45 @@ async function selfTest() {
     if (!violations(bad, undefined, 'fixture @1440', undefined, undefined, ['gaps-gap|main>p|main>p.other']).some((failure) => failure.includes('layoutFingerprints=1'))) {
       throw new Error('Self-test failed: fixing one defect and adding another must not pass on an equal count');
     }
+    // Fixed rules R1-R5: each fixture passes or fails on its own, whatever any baseline says. `expected` is the rule that
+    // must fire ('' = no rule fires at all).
+    const card = (body, extra = '') => `<section style="border:1px solid #ccc;border-radius:8px;padding:24px;${extra}">${body}</section>`;
+    const option = (name, tag, tagStyle = '') => `<li role="option" style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;list-style:none"><span>${name}</span><span style="border:1px solid #888;border-radius:999px;padding:2px 8px;white-space:nowrap;${tagStyle}">${tag}</span></li>`;
+    const bar = (width, extra = '') => `<div role="progressbar" style="height:8px;width:${width};border-radius:4px;overflow:hidden;background:#eee;margin-bottom:12px;${extra}"><div style="width:60%;height:100%;background:#36c"></div></div>`;
+    const ruleCases = [
+      { name: 'R1 content at the heading edge', expected: '', html: `<main>${card('<h2 style="margin:0 0 12px">Title</h2><p style="margin:0 0 12px">Body</p><input style="display:block;border:1px solid #888">')}</main>` },
+      { name: 'R1 block inset from the heading edge', expected: 'R1', html: `<main>${card('<h2 style="margin:0 0 12px">Title</h2><p style="margin:0 0 12px;padding-left:16px">Body</p>')}</main>` },
+      { name: 'R1 bullets hang at the heading edge', expected: '', html: `<main>${card('<h2 style="margin:0 0 12px">Title</h2><ul style="margin:0;padding-left:20px"><li>One</li><li>Two</li></ul>')}</main>` },
+      { name: 'R1 avatar leads the heading row', expected: '', html: `<main>${card('<div style="display:flex;gap:12px;align-items:center"><span style="width:40px;height:40px;background:#36c;color:#fff;border-radius:8px;display:inline-flex;align-items:center;justify-content:center">E</span><h1 style="margin:0">Name</h1></div><p style="margin:12px 0 0">Company</p>')}</main>` },
+      { name: 'R1 a full-width footer band is not content', expected: '', html: `<main><div style="border:1px solid #ccc;border-radius:8px;width:400px"><div style="padding:16px"><h2 style="margin:0 0 12px">Title</h2><p style="margin:0">Body</p></div><div style="border-top:1px solid #ccc;background:#f4f4f4;padding:12px 16px"><button>Save</button></div></div></main>` },
+      { name: 'R1 full-bleed table', expected: '', html: `<main>${card('<h2 style="margin:0 0 12px">Title</h2><div style="margin:0 -24px"><table style="width:100%;border-collapse:collapse"><tr><td style="padding:8px 24px">A</td></tr></table></div>')}</main>` },
+      { name: 'R1 table bleeding on one side only', expected: 'R1', html: `<main>${card('<h2 style="margin:0 0 12px">Title</h2><div style="margin:0 0 0 -24px"><table style="width:100%;border-collapse:collapse"><tr><td style="padding:8px 24px">A</td></tr></table></div>')}</main>` },
+      { name: 'R2 tags share a right edge on one line', expected: '', html: `<main><ul role="listbox" style="width:300px;padding:0">${option('Alpha', 'Open')}${option('A much longer option name', 'Closed')}</ul></main>` },
+      { name: 'R2 tag wraps onto two lines', expected: 'R2', html: `<main><ul role="listbox" style="width:300px;padding:0">${option('Alpha', 'In progress now', 'white-space:normal;width:60px')}${option('Beta', 'Open')}</ul></main>` },
+      { name: 'R2 tags follow the text and end apart', expected: 'R2', html: `<main><ul role="listbox" style="width:300px;padding:0">${['Alpha', 'A much longer name'].map((n) => `<li role="option" style="padding:8px 12px;list-style:none"><span>${n}</span> <span style="border:1px solid #888;border-radius:999px;padding:2px 8px;margin-left:80px">Open</span></li>`).join('')}</ul></main>` },
+      { name: 'R2 plain trailing codes in one column', expected: '', html: `<main><div role="listbox" style="width:300px">${[['Alpha', 'P001'], ['A much longer option name', 'SP-2401']].map(([n, c]) => `<div role="option" style="display:flex;justify-content:space-between;gap:8px"><span>${n}</span><span>${c}</span></div>`).join('')}</div></main>` },
+      { name: 'R2 plain trailing codes follow the text', expected: 'R2', html: `<main><div role="listbox" style="width:300px">${[['Alpha', 'P001'], ['A much longer option name', 'SP-2401']].map(([n, c]) => `<div role="option" style="display:flex;gap:8px"><span>${n}</span><span style="margin-left:60px">${c}</span></div>`).join('')}</div></main>` },
+      { name: 'R2 a timeline row ends in content, not a tag', expected: '', html: `<main><ol style="width:400px;padding:0">${['One', 'Two'].map((n) => `<li style="display:flex;gap:8px;list-style:none"><span>16 Nov</span><span>Procurement raised by somebody ${n}</span></li>`).join('')}</ol></main>` },
+      { name: 'R4 lone row at the top of its container', expected: '', html: '<main><div style="min-height:240px;padding:16px;border:1px solid #ccc"><div>Only row</div></div></main>' },
+      { name: 'R4 lone row centred in a tall container', expected: 'R4', html: '<main><div style="min-height:240px;padding:16px;border:1px solid #ccc;display:flex;align-items:center"><div>Only row</div></div></main>' },
+      { name: 'R5 bars share their ends', expected: '', html: `<main style="padding:24px"><div>${bar('300px')}${bar('300px')}${bar('300px')}</div></main>` },
+      { name: 'R5 one bar ends early', expected: 'R5', html: `<main style="padding:24px"><div>${bar('300px')}${bar('260px')}${bar('300px')}</div></main>` },
+      { name: 'R5 figures share a right edge', expected: '', html: `<main style="padding:24px"><div>${[1, 2, 3].map((i) => `<div style="display:flex;width:400px"><span>Row ${i}</span><span style="margin-left:auto;width:100px;text-align:right">1,2${i}0.00</span></div>`).join('')}</div></main>` },
+      { name: 'R5 figures end apart', expected: 'R5', html: `<main style="padding:24px"><div>${[1, 2, 3].map((i) => `<div style="display:flex;width:400px"><span>Row ${i}</span><span style="margin-left:auto;width:100px;text-align:right;padding-right:${i * 6}px">1,2${i}0.00</span></div>`).join('')}</div></main>` },
+    ];
+    for (const fixture of ruleCases) {
+      await page.setContent(fixture.html);
+      const report = rulesReport(await page.evaluate(measureRules, RULE_NUMBERS), 'fixture @1440');
+      const rules = [...new Set(report.findings.map((f) => f.rule))];
+      const hit = fixture.expected ? rules.includes(fixture.expected) : rules.length === 0;
+      if (!hit) throw new Error(`Self-test failed: rule fixture "${fixture.name}" expected ${fixture.expected || 'no finding'}, got ${report.failures.join('; ') || 'none'}`);
+    }
+    // R3 needs two routes: the same tab labels at the same frame pass; a moved bar fails and names its route.
+    const tabs = (left, top) => `<main><nav style="position:absolute;left:${left}px;top:${top}px;width:400px;display:flex;gap:8px"><a href="/a">List</a><a href="/b">Budget</a></nav></main>`;
+    const barsAt = async (route, html) => { await page.setContent(html); return (await page.evaluate(measureRules, RULE_NUMBERS)).tabBars.map((b) => ({ ...b, route, width: 1440 })); };
+    const sameFrame = tabFrameFindings([...await barsAt('/projects', tabs(24, 100)), ...await barsAt('/projects/1', tabs(24, 100))]);
+    const movedFrame = tabFrameFindings([...await barsAt('/projects', tabs(24, 100)), ...await barsAt('/projects/1', tabs(24, 100)), ...await barsAt('/projects/new', tabs(40, 100))]);
+    if (sameFrame.length || movedFrame.length !== 1 || movedFrame[0].route !== '/projects/new') throw new Error(`Self-test failed: R3 must pass an equal frame and name the route whose tab bar moved (${JSON.stringify({ sameFrame, movedFrame })})`);
     console.log('ux-proof self-test passed');
   } finally { await browser.close(); }
 }
@@ -153,7 +193,11 @@ const updateBudget = process.argv.includes('--update-word-budget');
 const layoutOnly = process.argv.includes('--layout-only');
 const updateLayout = process.argv.includes('--update-layout-baseline');
 const seedNew = process.argv.includes('--seed-new');
-const FLAGS = ['--update-word-budget', '--layout-only', '--update-layout-baseline', '--seed-new'];
+// --rules-only: the five fixed rules (R1-R5, ux-proof-metrics.mjs) at 1440, 1024 and 390, printed as findings. No
+// screenshots, detector, axe, word budget or layout baseline is read or written; exits 1 when any rule fires.
+// A plain run prints the same findings as warnings (they do not fail it until the screens are fixed).
+const rulesOnly = process.argv.includes('--rules-only');
+const FLAGS = ['--update-word-budget', '--layout-only', '--update-layout-baseline', '--seed-new', '--rules-only'];
 const routes = process.argv.slice(2).filter((arg) => !FLAGS.includes(arg));
 if (!routes.length || routes.some((route) => !route.startsWith('/'))) {
   console.error('usage: scripts/ux-proof.sh /route [/route ...]');
@@ -161,7 +205,7 @@ if (!routes.length || routes.some((route) => !route.startsWith('/'))) {
 }
 const widths = process.env.UX_PROOF_WIDTHS
   ? process.env.UX_PROOF_WIDTHS.split(',').map((value) => Number(value.trim()))
-  : [390, 1440];
+  : rulesOnly ? [1440, 1024, 390] : [390, 1440];
 if (!widths.length || widths.some((width) => !Number.isInteger(width) || width < 320)) {
   throw new Error('UX_PROOF_WIDTHS must be a comma-separated list of integer viewport widths >= 320.');
 }
@@ -173,28 +217,27 @@ const detector = path.join(ROOT, '.claude/skills/impeccable/scripts/impeccable')
 const authFile = process.env.UX_PROOF_AUTH
   ? path.join(APP, 'e2e/.auth', process.env.UX_PROOF_AUTH)
   : path.join(APP, 'e2e/.auth/exec@acme.test.json');
-if (!layoutOnly && !fs.existsSync(detector)) throw new Error(`Vendored detector missing: ${detector}; run scripts/vendor-skills.sh.`);
+if (!layoutOnly && !rulesOnly && !fs.existsSync(detector)) throw new Error(`Vendored detector missing: ${detector}; run scripts/vendor-skills.sh.`);
 if (!fs.existsSync(authFile)) throw new Error(`Auth storage state missing: ${authFile}; run the Playwright setup project first.`);
 
 const budgetPath = path.join(ROOT, 'docs/ux/word-budget.json');
-const budget = fs.existsSync(budgetPath) ? JSON.parse(fs.readFileSync(budgetPath, 'utf8')) : {};
-budget.targets ||= {};
 const login = path.basename(authFile).replace(/\.json$/, '');
 // Page state under test. UX_PROOF_BLOCK_READS=1 fails every data read (profile and org lookups still
 // load), so the screens' error states are what gets measured.
 const blockReads = process.env.UX_PROOF_BLOCK_READS === '1';
 const state = blockReads ? 'reads-failing' : 'default';
 const layoutBaselinePath = path.join(ROOT, 'docs/ux/layout-baseline.json');
-const layoutBaseline = fs.existsSync(layoutBaselinePath) ? JSON.parse(fs.readFileSync(layoutBaselinePath, 'utf8')) : {};
-const reusedTools = await loadReusedChecks();
+const { budget, layoutBaseline } = loadProofSettings({ root: ROOT, rulesOnly, fsApi: fs });
+const reusedTools = rulesOnly ? null : await loadReusedChecks();
 const layoutFound = {};
 const unsettled = [];
+const routeRuleMeasurements = [];
 const measurements = [];
 
 const auth = JSON.parse(fs.readFileSync(authFile, 'utf8'));
 const localStorage = (auth.origins || []).flatMap((origin) => origin.localStorage || []);
 if (!localStorage.length) throw new Error(`No localStorage session found in ${authFile}`);
-fs.mkdirSync(output, { recursive: true });
+if (!rulesOnly) fs.mkdirSync(output, { recursive: true });
 
 const slug = (route) => route.replace(/^\/+|\/+$/g, '').replace(/[^a-zA-Z0-9]+/g, '-') || 'root';
 const countDetectorFindings = (value) => {
@@ -206,7 +249,7 @@ const countDetectorFindings = (value) => {
 };
 
 let failed = false;
-console.log('route | width | charts | min px | chars <14% | font sizes | inputs <16 | targets <44 | overflow | words');
+if (!rulesOnly) console.log('route | width | charts | min px | chars <14% | font sizes | inputs <16 | targets <44 | overflow | words');
 const cdpServer = net.createServer();
 await new Promise((resolve, reject) => cdpServer.listen(0, '127.0.0.1', resolve).once('error', reject));
 const cdpPort = cdpServer.address().port;
@@ -217,8 +260,8 @@ try {
     let detectorCount = 0;
     let seriousAxe = 0;
     for (const width of widths) {
-      const height = width === 390 ? 844 : 900;
-      for (const theme of layoutOnly ? ['light'] : ['light', 'dark']) {
+      const height = width === 390 ? 844 : width === 1024 ? 768 : 900;
+      for (const theme of layoutOnly || rulesOnly ? ['light'] : ['light', 'dark']) {
         const stem = `${slug(route)}-${width}-${theme}`;
         const context = await browser.newContext({ viewport: { width, height }, colorScheme: theme });
         const page = await context.newPage();
@@ -239,11 +282,26 @@ try {
           await context.close();
           continue;
         }
+        if (rulesOnly) {
+          const measured = await page.evaluate(measureRules, RULE_NUMBERS);
+          if (measured.skipped) console.log(`${route} @${width} [${login}]: no <main>: skipped`);
+          const report = rulesReport(measured, `${route} @${width} [${login}]`);
+          report.failures.forEach((line) => console.error(line));
+          if (report.failures.length) failed = true;
+          routeRuleMeasurements.push({ ...measured, route, width, role: login });
+          await context.close();
+          continue;
+        }
         const language = await pageLanguage(page);
         const layoutKey = `${route}@${width}@${login}${state === 'default' ? '' : `#${state}`}${language === 'en' ? '' : `~${language}`}`;
         const hasMain = await page.evaluate(() => !!document.querySelector('main'));
         const layout = hasMain ? await measureSettledLayout(page, reusedTools, width) : null;
         const metrics = !layoutOnly && theme === 'light' ? await page.evaluate(measureText, CHART_SELECTOR) : null;
+        if (!layoutOnly && theme === 'light' && hasMain) {
+          const measuredRules = await page.evaluate(measureRules, RULE_NUMBERS);
+          rulesReport(measuredRules, `${route} @${width}`).failures.forEach((line) => console.warn(`warning: ${line}`));
+          routeRuleMeasurements.push({ ...measuredRules, route, width, role: login });
+        }
         if (layoutOnly) {
           if (layout) {
             const report = layoutReport(layout, `${route} @${width}`, state);
@@ -301,11 +359,20 @@ try {
         await context.close();
       }
     }
-    if (!layoutOnly) console.log(`${route}: impeccable findings=${detectorCount}; axe serious/critical=${seriousAxe}`);
+    if (!layoutOnly && !rulesOnly) console.log(`${route}: impeccable findings=${detectorCount}; axe serious/critical=${seriousAxe}`);
   }
 } finally {
   await browser.close();
 }
+const frameFindings = compareRuleFrames(routeRuleMeasurements);
+if (rulesOnly) {
+  const frames = frameFindings;
+  frames.forEach((finding) => console.error(`${finding.message} [${finding.role}]`));
+  if (frames.length) failed = true;
+  console.log(`rules-only: ${routes.length} route(s) x ${widths.length} viewport(s); ${failed ? 'findings above' : 'no findings'}`);
+  process.exit(failed ? 1 : 0);
+}
+if (!layoutOnly) frameFindings.forEach((finding) => console.warn(`warning: ${finding.message} [${finding.role}]`));
 fs.writeFileSync(path.join(output, 'measurements.json'), `${JSON.stringify(measurements, null, 2)}\n`);
 if (updateBudget) {
   fs.mkdirSync(path.dirname(budgetPath), { recursive: true });

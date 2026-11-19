@@ -1,0 +1,24 @@
+{
+  "workOrder": "Work order",
+  "projectLevel": "Project level",
+  "searchWorkOrders": "Search work orders…",
+  "workOrderNoun": "work order",
+  "workOrderNounPlural": "work orders",
+  "noWorkOrders": "This project has no open work orders.",
+  "needsProject": "Choose a project to pick one of its work orders.",
+  "discipline": "Discipline",
+  "noDiscipline": "No discipline",
+  "searchDisciplines": "Search disciplines…",
+  "disciplineNoun": "discipline",
+  "disciplineNounPlural": "disciplines",
+  "noDisciplines": "Your organisation has no disciplines yet. An Admin adds them.",
+  "savedWithoutAttribution": "Saved, but the work order or discipline was not set",
+  "refusal": {
+    "COST_WO_PROJECT": "That work order belongs to another project.",
+    "COST_WO_CANCELLED": "That work order is cancelled.",
+    "COST_WO_NO_PROJECT": "This record has no project, so it cannot go on a work order.",
+    "COST_DISCIPLINE": "That discipline is no longer on your organisation's list.",
+    "generic": "Try again from the record."
+  },
+  "timesheetSection": "Work order and discipline per project"
+}
