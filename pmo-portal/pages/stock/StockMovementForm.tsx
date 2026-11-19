@@ -118,8 +118,8 @@ const StockMovementForm: React.FC = () => {
   const needsProject = kind === 'issue' || kind === 'return';
   // #2517: an issue goes to its project's work order; a transfer to a site goes to the work order of that site's project.
   const destination = (warehouses.data ?? []).find((w) => w.id === toWarehouseId);
-  const attributionProject = kind === 'issue' ? projectId : kind === 'transfer' && destination?.kind === 'site' ? destination.project_id : null;
-  const offersAttribution = kind === 'issue' || kind === 'transfer';
+  const attributionProject = needsProject ? projectId : kind === 'transfer' && destination?.kind === 'site' ? destination.project_id : null;
+  const offersAttribution = needsProject || kind === 'transfer';
   const heading = t(`kinds.${kind}`);
 
   const setLine = (key: number, patch: Partial<LineState>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));

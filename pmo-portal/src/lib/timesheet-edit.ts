@@ -11,6 +11,7 @@ export interface EditRow {
   note: string;
   /** #2517: the row's work order and discipline, applied to every line of the row. Absent = not edited here. */
   attribution?: { workOrderId: string | null; disciplineId: string | null };
+  originalAttribution?: { workOrderId: string | null; disciplineId: string | null };
 }
 
 /** An entry-write payload for the (timesheet_id, project_id, entry_date) upsert key. org_id NOT sent. */
@@ -146,12 +147,15 @@ export function diffEntries(
         const noteChanged = existing ? (existing.notes ?? null) !== notes : false;
         // #2517: a row whose work order / discipline differs from the line's re-saves that line too.
         const a = r.attribution;
-        const attributionChanged = Boolean(a && existing
+        const original = r.originalAttribution;
+        const rowAttributionChanged = Boolean(a && (!original
+          || original.workOrderId !== a.workOrderId || original.disciplineId !== a.disciplineId));
+        const attributionChanged = Boolean(rowAttributionChanged && a && existing
           && (existing.workOrderId !== a.workOrderId || existing.disciplineId !== a.disciplineId));
         if (!existing || existing.hours !== value || noteChanged || attributionChanged) {
           upserts.push({
             timesheet_id: timesheetId, project_id: r.project_id, entry_date: entryDate, hours: value, notes,
-            ...(a ? { work_order_id: a.workOrderId, discipline_id: a.disciplineId } : {}),
+            ...(a && (!existing || rowAttributionChanged) ? { work_order_id: a.workOrderId, discipline_id: a.disciplineId } : {}),
           });
         }
       } else if (existing) {

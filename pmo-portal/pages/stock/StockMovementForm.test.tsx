@@ -76,6 +76,12 @@ async function fillIssue(qty = '5', search = 'cem', option: RegExp = /CEM - Ceme
 }
 
 describe('StockMovementForm', () => {
+  it('FR-WCA-050 offers attribution when returning stock from a project', async () => {
+    renderForm('return');
+    expect(await screen.findByLabelText(/^Project/)).toBeInTheDocument();
+    expect(screen.getByTestId('cost-attribution-stub')).toBeInTheDocument();
+  });
+
   it('AC-STK-030 every field has a label, the item picker finds by code or name, and axe reports no violation', async () => {
     const { container } = renderForm('issue');
     await fillIssue();

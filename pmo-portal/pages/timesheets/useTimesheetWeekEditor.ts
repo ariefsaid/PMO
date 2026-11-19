@@ -72,6 +72,7 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
           hours: r.hours.map((h) => (h === 0 ? '' : String(h))),
           note,
           attribution: { workOrderId: attributed?.work_order_id ?? null, disciplineId: attributed?.discipline_id ?? null },
+          originalAttribution: { workOrderId: attributed?.work_order_id ?? null, disciplineId: attributed?.discipline_id ?? null },
         };
       }),
     [gridRows, currentWeekEntries]
