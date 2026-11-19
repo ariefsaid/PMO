@@ -1,6 +1,6 @@
 # Work orders on the cost side — cost attribution (#2517)
 
-- **Map:** #2516 (contractor field operations). **ADR:** ADR-0103. **Plan:** `docs/plans/2026-11-20-work-order-cost-attribution.md`.
+- **Map:** #2516 (contractor field operations). **ADR:** ADR-0104. **Plan:** `docs/plans/2026-11-20-work-order-cost-attribution.md`.
 - **Job story:** When I run a project as several client work orders, I want every cost — purchases, stock issued,
   hours and equipment — to say which work order and discipline it was spent on, so I can see what each work order
   really costs without breaking the project totals I already trust.
