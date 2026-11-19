@@ -1,4 +1,4 @@
--- 0976_spend_approval_project_lock_down.sql — restore transition_procurement (0868), transition_expense_claim (0855),
+-- 1017_spend_approval_project_lock_down.sql — restore transition_procurement (0868), transition_expense_claim (0855),
 -- approve_procurement_amount (0349) and decide_po_variation (0474), function text verbatim.
 
 create or replace function public.transition_procurement(p_id uuid, p_to procurement_status, p_notes text default null)
