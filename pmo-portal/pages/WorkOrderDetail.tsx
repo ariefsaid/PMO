@@ -45,7 +45,7 @@ const WorkOrderDetail: React.FC = () => {
   const disciplines = useCostDisciplines(Boolean(wo.data));
 
   const backLabel = t('back', 'Work orders');
-  const goBack = () => navigate(projectId ? `/projects/${projectId}?tab=work-orders` : '/projects');
+  const goBack = () => navigate(projectId ? `/projects/${projectId}/work-orders` : '/projects');
 
   const acceptances = useMemo(() => (bastList.data ?? []).filter((a) => a.work_order_id === id), [bastList.data, id]);
   const progress = useMemo(
@@ -85,13 +85,13 @@ const WorkOrderDetail: React.FC = () => {
           { label: t('orderValue', 'Order value'), value: <span className="tabular-nums" data-testid="wo-order-value">{formatCurrency(Number(row.order_value), row.currency)}</span> },
         ]} />
       <RecordStack>
-        <ScopeSection projectId={row.project_id} progress={progress} isPending={allocations.isPending || boq.isPending} isError={allocations.isError || boq.isError}
-          onRetry={() => { void allocations.refetch(); void boq.refetch(); }} />
-        <CostSection groups={groups} disciplines={disciplines.data ?? []} isPending={costLines.isPending} isError={costLines.isError}
-          onRetry={() => void costLines.refetch()} moneyPending={money.isPending && flatLines.length > 0} />
+        <ScopeSection projectId={row.project_id} progress={progress} isPending={allocations.isPending || boq.isPending || bastList.isPending} isError={allocations.isError || boq.isError || bastList.isError}
+          onRetry={() => { void allocations.refetch(); void boq.refetch(); void bastList.refetch(); }} />
+        <CostSection groups={groups} disciplines={disciplines.data ?? []} isPending={costLines.isPending} isError={costLines.isError || money.isError || disciplines.isError}
+          onRetry={() => { void costLines.refetch(); void money.refetch(); void disciplines.refetch(); }} moneyPending={money.isPending && flatLines.length > 0} />
         <BillingSection billing={canBilling ? { row: billingRow, isPending: billing.isPending, isError: billing.isError, onRetry: () => void billing.refetch() } : null}
           acceptances={acceptances} acceptancesPending={bastList.isPending} acceptancesError={bastList.isError} onRetryAcceptances={() => void bastList.refetch()} />
-        <DocumentsSection projectId={row.project_id} documents={documents} isPending={docs.isPending || bastList.isPending} isError={docs.isError} onRetry={() => void docs.refetch()} />
+        <DocumentsSection projectId={row.project_id} documents={documents} isPending={docs.isPending || bastList.isPending} isError={docs.isError || bastList.isError} onRetry={() => { void docs.refetch(); void bastList.refetch(); }} />
         <IssuesTasksSection />
       </RecordStack>
     </>

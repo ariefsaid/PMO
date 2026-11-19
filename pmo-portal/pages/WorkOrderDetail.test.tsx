@@ -91,6 +91,24 @@ describe('WorkOrderDetail', () => {
     expect(within(docs).getByText('BAST scan')).toBeTruthy();
     expect(within(docs).queryByText('Unrelated')).toBeNull();
   });
+  it('does not report zero progress or no documents when acceptances fail, and retries the failed read', async () => {
+    const refetch = vi.fn();
+    h.basts = q(undefined, { isError: true, refetch });
+    renderPage();
+    expect(screen.queryByTestId('scope-pct-b1')).toBeNull();
+    expect(screen.queryByText('No documents are linked to this work order yet.')).toBeNull();
+    const buttons = screen.getAllByRole('button', { name: /retry|try again/i });
+    for (const button of buttons) await userEvent.click(button);
+    expect(refetch).toHaveBeenCalled();
+  });
+  it('reports and retries a failed cost money read instead of silently omitting totals', async () => {
+    const refetch = vi.fn();
+    h.money = q(undefined, { isError: true, refetch });
+    renderPage();
+    expect(screen.getByText("Couldn't load the costs")).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: /retry|try again/i }));
+    expect(refetch).toHaveBeenCalled();
+  });
   it('AC-WORP-009 one failing section shows its own error with retry; the rest render', async () => {
     const refetch = vi.fn();
     h.lines = q(undefined, { isError: true, refetch });
@@ -105,6 +123,11 @@ describe('WorkOrderDetail', () => {
     renderPage();
     expect(screen.queryByTestId('billing-invoiced')).toBeNull();
     expect(screen.getByTestId('acceptance-a1')).toBeTruthy();
+  });
+  it('links an empty scope to the project work orders area', () => {
+    h.alloc = q([]);
+    renderPage();
+    expect(screen.getByRole('link', { name: 'Allocate lines on the project' }).getAttribute('href')).toBe('/projects/p1/work-orders');
   });
   it('FR-WORP-027 empty sections say so, never blank', () => {
     h.alloc = q([]); h.lines = q({}); h.basts = q([]);

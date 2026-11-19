@@ -20,7 +20,7 @@ export const ScopeSection: React.FC<Props> = ({ projectId, progress, isPending, 
       <RecordSection title={title}>
         <p className="text-control text-muted-foreground">
           {t('scope.empty', 'No contract lines are allocated to this work order yet.')}{' '}
-          <Link className="underline" to={`/projects/${projectId}?tab=work-orders`}>{t('scope.allocate', 'Allocate lines on the project')}</Link>
+          <Link className="underline" to={`/projects/${projectId}/work-orders`}>{t('scope.allocate', 'Allocate lines on the project')}</Link>
         </p>
       </RecordSection>
     );
