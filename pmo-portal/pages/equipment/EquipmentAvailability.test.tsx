@@ -163,8 +163,8 @@ describe('Equipment availability screen', () => {
 
   it('shows a rented machine’s existing rate and dates before a change', async () => {
     h.role = 'Finance'; renderTerms('a3');
-    expect(screen.getByText(/100 IDR/)).toBeInTheDocument();
-    expect(screen.getByText(/2026-01-01/)).toBeInTheDocument();
+    expect(screen.getByText(/IDR 100/)).toBeInTheDocument();
+    expect(screen.getByText(/1 Jan 2026/)).toBeInTheDocument();
   });
 
   it('lets an admin set the hours used by utilisation', async () => {

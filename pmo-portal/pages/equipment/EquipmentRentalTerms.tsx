@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { Button, SelectField, TextField, useToast } from '@/src/components/ui';
 import { useCompanies } from '@/src/hooks/useCompanies';
 import { useRentalTerms, useRentalTermHistory, useEquipmentOwnership, useChangeRentalRate } from '@/src/hooks/useEquipmentAvailability';
+import { formatExactMoney, formatIsoDay } from '@/src/lib/format';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 
 type Asset = { id: string; ownership?: string | null; in_service_on?: string | null };
@@ -27,7 +29,7 @@ export function EquipmentRentalTerms({ asset }: { asset: Asset }) {
           <h2 id="eav-terms-h" className="text-base font-semibold mb-2">{t('equipment:availability.terms', 'Rental terms')}</h2>
           {terms.isError && <p role="alert">{t('equipment:availability.termsError', 'Could not load rental terms')}</p>}
           {(terms.data?.length ?? 0) > 0 && <ul className="mb-3">
-            {terms.data?.map((term) => <li key={term.id}>{term.rented_from} – {term.rented_to ?? '…'} · {vendors.data?.find((v) => v.id === term.vendor_id)?.name ?? term.vendor_id} · {term.rate} {term.currency} / {term.basis === 'day' ? t('equipment:availability.day', 'Day') : t('equipment:availability.month', 'Month')}</li>)}
+            {terms.data?.map((term) => <li key={term.id}>{formatIsoDay(term.rented_from)} – {term.rented_to ? formatIsoDay(term.rented_to) : '…'} · {vendors.data?.find((v) => v.id === term.vendor_id)?.name ?? term.vendor_id} · {formatExactMoney(String(term.rate), term.currency, getNumberLocale(), { trimZeroFraction: true }) ?? '—'} / {term.basis === 'day' ? t('equipment:availability.day', 'Day') : t('equipment:availability.month', 'Month')}</li>)}
           </ul>}
           <div className="grid gap-3 sm:grid-cols-2">
             <SelectField label={t('equipment:availability.vendor', 'Vendor')} value={vendor} onChange={setVendor} options={[{ value: '', label: t('equipment:availability.choose', 'Choose…') }, ...(vendors.data ?? []).map((v) => ({ value: v.id, label: v.name }))]} />
