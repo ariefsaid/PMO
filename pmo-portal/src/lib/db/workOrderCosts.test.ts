@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AppError } from '@/src/lib/appError';
 
 /**
- * AC-WCA-012 / AC-WCA-013 (data half) — the work-order cost attribution DAL (#2517, ADR-0103).
+ * AC-WCA-012 / AC-WCA-013 (data half) — the work-order cost attribution DAL (#2517, ADR-0104).
  * The write path sends only the source, the ids and the two attribution values (never org_id); the read seam
  * returns a work order's cost lines grouped by source; a refusal keeps its Postgres code.
  */

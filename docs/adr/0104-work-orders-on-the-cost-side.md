@@ -3,7 +3,7 @@ status: proposed
 date: 2026-11-20
 ---
 
-# ADR-0103 — Work orders on the cost side: an optional work order and discipline on every cost source
+# ADR-0104 — Work orders on the cost side: an optional work order and discipline on every cost source
 
 - **Issue:** #2517 (map #2516, contractor field operations). Foundation for #2518 (work-order page), #2519 (plan vs
   actual) and #2523 (stock per work order).

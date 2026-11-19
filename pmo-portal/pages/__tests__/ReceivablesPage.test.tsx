@@ -323,6 +323,16 @@ describe('Receivables page', () => {
     expect(cash).not.toHaveTextContent(/999/);
   });
 
+  it('shows a minus sign when received cash is below last month', () => {
+    h.payments = [
+      payment({ received_amount: 40 }),
+      payment({ id: 'payment-previous', date: '2026-09-05', amount: 100, received_amount: 100, withheld_amount: 0 }),
+    ];
+    renderPage();
+
+    expect(tile('Received this month')).toHaveTextContent(/−IDR\s*60 vs last month/);
+  });
+
   it('O8: an unchanged month carries no sign', () => {
     h.payments = [payment(), payment({ id: 'payment-previous', date: '2026-09-05', amount: 100, received_amount: 100, withheld_amount: 0 })];
     renderPage();

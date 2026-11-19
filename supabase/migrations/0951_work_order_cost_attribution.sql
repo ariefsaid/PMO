@@ -1,5 +1,5 @@
 -- 0951_work_order_cost_attribution.sql — #2517: every cost source can name an optional work order and an optional
--- discipline. ADR-0103; spec docs/specs/work-order-cost-attribution.spec.md; plan
+-- discipline. ADR-0104; spec docs/specs/work-order-cost-attribution.spec.md; plan
 -- docs/plans/2026-11-20-work-order-cost-attribution.md. Proven by supabase/tests/0950_work_order_cost_attribution.test.sql.
 --
 -- What this adds, and what it deliberately does not touch:
