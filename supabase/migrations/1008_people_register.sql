@@ -6,13 +6,13 @@ alter table public.people add column job_title text check (job_title is null or 
 -- so a number is never reused. Named z_ so it fires after people_stamp_org_id has fixed org_id.
 create or replace function public.people_assign_code() returns trigger
 language plpgsql set search_path = public, pg_temp as $$
-declare v_next integer;
+declare v_next numeric;
 begin
   if new.code is not null and btrim(new.code) <> '' then return new; end if;
   perform pg_advisory_xact_lock(hashtextextended('people_code:' || new.org_id::text, 0));
-  select coalesce(max(substring(code from '^P-([0-9]{1,9})$')::integer), 0) + 1 into v_next
-    from public.people where org_id = new.org_id and code ~ '^P-[0-9]{1,9}$';
-  new.code := 'P-' || lpad(v_next::text, 4, '0');
+  select coalesce(max(substring(code from '^P-([0-9]{1,38})$')::numeric), 0) + 1 into v_next
+    from public.people where org_id = new.org_id and code ~ '^P-[0-9]{1,38}$';
+  new.code := 'P-' || lpad(v_next::text, greatest(4, length(v_next::text)), '0');
   return new;
 end $$;
 revoke all on function public.people_assign_code() from public, anon, authenticated;

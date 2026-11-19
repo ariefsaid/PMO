@@ -807,12 +807,12 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   },
   /**
    * The People register (#2542 follow-up, migration 1008). UX ONLY — RLS (0970 people_* policies) and the column grants are the
-   * authority (ADR-0016): planners read, Admin (HR maps to Admin) writes. View-as is view-only.
+   * authority (ADR-0016). The crews policy change grants basic reads to members and create/edit to Admin and Project Manager; archive remains Admin-only. View-as is view-only.
    */
   person: {
-    view: allow(['Admin', 'Project Manager', 'Finance', 'Executive']),
-    create: allowUnlessViewOnly(ADMIN),
-    edit: allowUnlessViewOnly(ADMIN),
+    view: allow(ALL),
+    create: allowUnlessViewOnly(['Admin', 'Project Manager']),
+    edit: allowUnlessViewOnly(['Admin', 'Project Manager']),
     archive: allowUnlessViewOnly(ADMIN),
   },
   maintenance: {

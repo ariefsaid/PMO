@@ -50,7 +50,7 @@ export type AdministrationSection =
 const ORGANIZATION_SECTIONS: AdministrationSection[] = ['users', 'people', 'integrations', 'accounting', 'projects', 'plan', 'credits', 'exchange-rates'];
 const OPERATOR_SECTIONS: AdministrationSection[] = ['usage', 'features'];
 /** #1271: Finance's second destination, beside Exchange rates. Admin/Executive reach cost attribution inside Accounting setup, so it is not in their nav. */
-const FINANCE_SECTIONS: AdministrationSection[] = ['exchange-rates', 'cost-attribution'];
+const FINANCE_SECTIONS: AdministrationSection[] = ['people', 'exchange-rates', 'cost-attribution'];
 const ALL_SECTIONS: AdministrationSection[] = [...ORGANIZATION_SECTIONS, 'cost-attribution', ...OPERATOR_SECTIONS];
 
 /** English defaults for the shell's labels — the translatable source (i18next-parser convention). */
@@ -336,9 +336,12 @@ const Administration: React.FC = () => {
   const operatorRoute = section !== undefined && isOperatorSection(section);
   const fxRoute = section === 'exchange-rates';
   const costAttributionRoute = section === 'cost-attribution';
-  const canEnterAdministration = isAdminViewer || isOperator || (fxRoute && isFinance && canFx) || (costAttributionRoute && isFinance && canManageCostAttribution);
-  const needsOperatorCheck = operatorRoute || (!isAdminViewer && !isFinance);
-  const navigationSections: AdministrationSection[] = isFinance
+  const peopleRoute = section === 'people' && may('view', 'person');
+  const canEnterAdministration = isAdminViewer || isOperator || peopleRoute || (fxRoute && isFinance && canFx) || (costAttributionRoute && isFinance && canManageCostAttribution);
+  const needsOperatorCheck = operatorRoute || (!isAdminViewer && !isFinance && !peopleRoute);
+  const navigationSections: AdministrationSection[] = !isAdminViewer && !isFinance && !isOperator
+    ? ['people']
+    : isFinance
     ? FINANCE_SECTIONS.filter((id) => id !== 'cost-attribution' || canManageCostAttribution)
     : [
       ...ORGANIZATION_SECTIONS.filter((id) => id !== 'exchange-rates' || canFx)

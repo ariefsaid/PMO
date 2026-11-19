@@ -1,7 +1,7 @@
 -- people_register.test.sql — 1008 (#2542 follow-up). Owns AC-PPL-001..004: code generation, uniqueness, write roles, second-org isolation.
 begin;
 create extension if not exists pgtap;
-select plan(22);
+select plan(25);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25420000-0000-0000-0000-00000000000a', 'PPL Org',   'IDR', 'UTC'),
@@ -27,6 +27,9 @@ insert into people (id, org_id, code, name) values
 create or replace function pg_temp.act_as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
 $$;
+
+-- The fixture supplies stable IDs for later assertions; this grant is rolled back with the test.
+grant insert (id) on public.people to authenticated;
 
 set local role authenticated;
 select pg_temp.act_as('25420000-0000-0000-0000-0000000000a1');
@@ -54,6 +57,11 @@ select lives_ok($$insert into people (name, code) values ('Reuse', 'P-0011')$$, 
 select lives_ok($$update people set name = 'Person Two B', code = 'P-0002B', job_title = 'Foreman' where id = '25420000-0000-0000-0000-0000000000e2'$$, 'AC-PPL-002 name, code and job title are editable');
 select throws_ok($$update people set code = 'P-0001' where id = '25420000-0000-0000-0000-0000000000e2'$$, '23505', null, 'AC-PPL-003 editing into a live duplicate is refused');
 
+-- A typed high code must not cause the generator to truncate at five digits.
+insert into people (id, name, code) values ('25420000-0000-0000-0000-0000000000ea', 'High Code', 'P-9999');
+insert into people (id, name) values ('25420000-0000-0000-0000-0000000000eb', 'Next High Code');
+select is((select code from people where id = '25420000-0000-0000-0000-0000000000eb'), 'P-10000', 'AC-PPL-002 generated codes grow beyond four digits');
+
 -- AC-PPL-003 profile link
 select lives_ok($$update people set profile_id = '25420000-0000-0000-0000-0000000000a4' where id = '25420000-0000-0000-0000-0000000000e1'$$, 'AC-PPL-003 an Admin links an app user profile');
 select throws_ok($$update people set profile_id = '25420000-0000-0000-0000-0000000000a4' where id = '25420000-0000-0000-0000-0000000000e2'$$, '23505', null, 'AC-PPL-003 a profile already on a live person cannot be linked twice');
@@ -61,7 +69,7 @@ select throws_ok($$update people set profile_id = '25420000-0000-0000-0000-00000
 
 -- AC-PPL-003 write roles
 select pg_temp.act_as('25420000-0000-0000-0000-0000000000a2');
-select is((select count(*)::int from people where org_id = '25420000-0000-0000-0000-00000000000a'), 8, 'AC-PPL-003 a Project Manager reads the register');
+select is((select count(*)::int from people where org_id = '25420000-0000-0000-0000-00000000000a'), 10, 'AC-PPL-003 a Project Manager reads the register');
 select throws_ok($$insert into people (name) values ('By PM')$$, '42501', null, 'AC-PPL-003 a Project Manager cannot add a person');
 select pg_temp.act_as('25420000-0000-0000-0000-0000000000a3');
 select throws_ok($$insert into people (name) values ('By Finance')$$, '42501', null, 'AC-PPL-003 Finance cannot add a person');
@@ -81,5 +89,13 @@ set local role authenticated;
 select pg_temp.act_as('25420000-0000-0000-0000-0000000000b1');
 insert into people (id, name) values ('25420000-0000-0000-0000-0000000000e8', 'Other Org New');
 select is((select code from people where id = '25420000-0000-0000-0000-0000000000e8'), 'P-0008', 'AC-PPL-004 each org numbers on its own (continues after its own P-0007)');
+-- Mutation controls: prove these probes actually detect a permissive policy.
+reset role;
+alter policy people_insert on public.people with check (true);
+alter policy people_select on public.people using (true);
+set local role authenticated;
+select pg_temp.act_as('25420000-0000-0000-0000-0000000000a2');
+select lives_ok($$insert into people (name, code) values ('Mutant PM', 'MUTANT')$$, 'mutation: permissive insert allows PM, so the earlier denial detects this break');
+select is((select count(*)::int from people where id = '25420000-0000-0000-0000-0000000000e9'), 1, 'mutation: permissive select reveals foreign row, so the earlier isolation check detects this break');
 select * from finish();
 rollback;

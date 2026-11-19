@@ -314,6 +314,12 @@ describe('Administration route-backed shell', () => {
     expect(screen.getByTestId('administration-panel-cost-attribution')).toHaveTextContent('Cost attribution panel');
   });
 
+  it.each(['Finance', 'Project Manager'] as const)('AC-PPL-008 %s can open the People register', async (role) => {
+    renderShell('/administration/people', role);
+    expect(await screen.findByTestId('administration-panel-people')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'People' })).toHaveAttribute('aria-current', 'page');
+  });
+
   it('Finance entering Administration still lands on Exchange rates', async () => {
     renderShell('/administration', 'Finance');
 
@@ -326,6 +332,7 @@ describe('Administration route-backed shell', () => {
     renderShell('/administration/exchange-rates', 'Finance');
     const nav = await screen.findByRole('navigation', { name: 'Administration sections' });
     expect(within(nav).getAllByRole('link').map((l) => l.getAttribute('href'))).toEqual([
+      '/administration/people',
       '/administration/exchange-rates',
       '/administration/cost-attribution',
     ]);

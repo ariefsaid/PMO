@@ -80,6 +80,14 @@ describe('People register screen', () => {
     expect(screen.queryByRole('button', { name: /Add person|Edit|Archive/ })).toBeNull();
   });
 
+  it('Project Managers can add and edit but not archive', () => {
+    h.role = 'Project Manager';
+    renderPage();
+    expect(screen.getByRole('button', { name: 'Add person' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Edit Budi Santoso/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Archive Budi Santoso/ })).toBeNull();
+  });
+
   it('shows the empty state with an add action for an Admin', () => {
     h.people = { data: [], isPending: false, isError: false, refetch: vi.fn() };
     renderPage();
