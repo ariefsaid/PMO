@@ -26,7 +26,7 @@ export interface CostAttributionFieldsProps {
 }
 
 export function CostAttributionFields({ projectId, value, onChange, disabled, compact, idPrefix = 'cost', itemClassName }: CostAttributionFieldsProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation('workOrderCost');
   const workOrders = useProjectWorkOrders(projectId ?? '');
   const disciplines = useCostDisciplines();
 
@@ -58,7 +58,7 @@ export function CostAttributionFields({ projectId, value, onChange, disabled, co
     <>
       {item(<Combobox
         id={`${idPrefix}-work-order`}
-        label={t('costAttribution.workOrder', 'Work order')}
+        label={t('workOrderCost:workOrder', 'Work order')}
         value={value.workOrderId}
         selectedOption={workOrderOptions.find((o) => o.value === value.workOrderId) ?? null}
         loadOptions={loadWorkOrders}
@@ -67,18 +67,18 @@ export function CostAttributionFields({ projectId, value, onChange, disabled, co
         onChange={(v) => onChange({ ...value, workOrderId: v || null })}
         clearable
         onClear={() => onChange({ ...value, workOrderId: null })}
-        placeholder={t('costAttribution.projectLevel', 'Project level')}
-        searchPlaceholder={t('costAttribution.searchWorkOrders', 'Search work orders…')}
-        noun={t('costAttribution.workOrderNoun', 'work order')}
-        nounPlural={t('costAttribution.workOrderNounPlural', 'work orders')}
-        emptyMessage={t('costAttribution.noWorkOrders', 'This project has no open work orders.')}
-        helper={noProject ? t('costAttribution.needsProject', 'Choose a project to pick one of its work orders.') : undefined}
+        placeholder={t('workOrderCost:projectLevel', 'Project level')}
+        searchPlaceholder={t('workOrderCost:searchWorkOrders', 'Search work orders…')}
+        noun={t('workOrderCost:workOrderNoun', 'work order')}
+        nounPlural={t('workOrderCost:workOrderNounPlural', 'work orders')}
+        emptyMessage={t('workOrderCost:noWorkOrders', 'This project has no open work orders.')}
+        helper={noProject ? t('workOrderCost:needsProject', 'Choose a project to pick one of its work orders.') : undefined}
         disabled={disabled || noProject}
         compact={compact}
       />)}
       {item(<Combobox
         id={`${idPrefix}-discipline`}
-        label={t('costAttribution.discipline', 'Discipline')}
+        label={t('workOrderCost:discipline', 'Discipline')}
         value={value.disciplineId}
         selectedOption={disciplineOptions.find((o) => o.value === value.disciplineId) ?? null}
         loadOptions={loadDisciplines}
@@ -87,11 +87,11 @@ export function CostAttributionFields({ projectId, value, onChange, disabled, co
         onChange={(v) => onChange({ ...value, disciplineId: v || null })}
         clearable
         onClear={() => onChange({ ...value, disciplineId: null })}
-        placeholder={t('costAttribution.noDiscipline', 'No discipline')}
-        searchPlaceholder={t('costAttribution.searchDisciplines', 'Search disciplines…')}
-        noun={t('costAttribution.disciplineNoun', 'discipline')}
-        nounPlural={t('costAttribution.disciplineNounPlural', 'disciplines')}
-        emptyMessage={t('costAttribution.noDisciplines', 'Your organisation has no disciplines yet. An Admin adds them.')}
+        placeholder={t('workOrderCost:noDiscipline', 'No discipline')}
+        searchPlaceholder={t('workOrderCost:searchDisciplines', 'Search disciplines…')}
+        noun={t('workOrderCost:disciplineNoun', 'discipline')}
+        nounPlural={t('workOrderCost:disciplineNounPlural', 'disciplines')}
+        emptyMessage={t('workOrderCost:noDisciplines', 'Your organisation has no disciplines yet. An Admin adds them.')}
         disabled={disabled}
         compact={compact}
       />)}

@@ -11,12 +11,12 @@ export function TimesheetRowAttribution({ rows, onChange }: {
   rows: Array<{ projectId: string; project: string; attribution: CostAttribution }>;
   onChange: (projectId: string, attribution: CostAttribution) => void;
 }) {
-  const { t } = useTranslation();
+  const { t } = useTranslation('workOrderCost');
   if (rows.length === 0) return null;
   return (
-    <section data-testid="timesheets-row-attribution" aria-label={t('costAttribution.timesheetSection', 'Work order and discipline per project')}
+    <section data-testid="timesheets-row-attribution" aria-label={t('workOrderCost:timesheetSection', 'Work order and discipline per project')}
       className="border-t border-border px-3.5 py-3">
-      <h3 className="mb-2 text-sm font-semibold text-muted-foreground">{t('costAttribution.timesheetSection', 'Work order and discipline per project')}</h3>
+      <h3 className="mb-2 text-sm font-semibold text-muted-foreground">{t('workOrderCost:timesheetSection', 'Work order and discipline per project')}</h3>
       <ul className="flex flex-col gap-3">
         {rows.map((r) => (
           <li key={r.projectId} className="flex flex-wrap items-end gap-3">

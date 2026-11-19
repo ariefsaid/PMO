@@ -9,6 +9,17 @@ const DEFAULTS: Record<(typeof REFUSALS)[number] | 'generic', string> = {
   generic: 'Try again from the record.',
 };
 
+// Static keys (not a template) so the i18n gate can see each one is used.
+function refusalText(code: (typeof REFUSALS)[number] | 'generic', t: TFunction): string {
+  switch (code) {
+    case 'COST_WO_PROJECT': return t('workOrderCost:refusal.COST_WO_PROJECT', DEFAULTS.COST_WO_PROJECT);
+    case 'COST_WO_CANCELLED': return t('workOrderCost:refusal.COST_WO_CANCELLED', DEFAULTS.COST_WO_CANCELLED);
+    case 'COST_WO_NO_PROJECT': return t('workOrderCost:refusal.COST_WO_NO_PROJECT', DEFAULTS.COST_WO_NO_PROJECT);
+    case 'COST_DISCIPLINE': return t('workOrderCost:refusal.COST_DISCIPLINE', DEFAULTS.COST_DISCIPLINE);
+    default: return t('workOrderCost:refusal.generic', DEFAULTS.generic);
+  }
+}
+
 /**
  * The plain sentence for a refused work-order/discipline write (#2517). The record itself was already saved
  * when this runs, so the headline says so; the detail names the database's reason (0951 §2) when it is one.
@@ -18,7 +29,7 @@ export function describeAttributionError(error: unknown, t: TFunction): { headli
   // Codes are matched as the message's leading `CODE:` token, so COST_WO_NO_PROJECT is never read as COST_WO_PROJECT.
   const code = REFUSALS.find((c) => message.startsWith(`${c}:`)) ?? 'generic';
   return {
-    headline: t('common:costAttribution.savedWithoutAttribution', 'Saved, but the work order or discipline was not set'),
-    detail: t(`common:costAttribution.refusal.${code}`, DEFAULTS[code]),
+    headline: t('workOrderCost:savedWithoutAttribution', 'Saved, but the work order or discipline was not set'),
+    detail: refusalText(code, t),
   };
 }
