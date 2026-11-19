@@ -132,7 +132,10 @@
     "saveHours": "Simpan jam kerja",
     "hoursSaved": "Jam kerja disimpan",
     "inServiceSaved": "Tanggal mulai digunakan disimpan",
-    "saveInService": "Simpan tanggal mulai digunakan"
+    "saveInService": "Simpan tanggal mulai digunakan",
+    "proofsError": "Status bukti tidak dapat dimuat",
+    "ownershipSaved": "Kepemilikan disimpan",
+    "rateChanged": "Tarif diubah"
   },
   "basis": {
     "actual_cost": "Biaya aktual menurut pemakaian",

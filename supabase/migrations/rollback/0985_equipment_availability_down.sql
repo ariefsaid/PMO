@@ -1,8 +1,9 @@
 -- 0985_equipment_availability_down.sql — reverse of 0985 (#2526), reverse dependency order. Loses status, rental and proof rows.
 drop policy if exists storage_objects_equipment_proof_write on storage.objects;
 drop policy if exists storage_objects_equipment_proof_read  on storage.objects;
-delete from storage.objects where bucket_id = 'equipment-proof';
-delete from storage.buckets where id = 'equipment-proof';
+-- Keep the private bucket and its objects: object removal belongs to the Storage API, not SQL.
+-- The access policies above are removed; an operator may handle retained files through Storage.
+
 drop function if exists public.set_equipment_working_hours(numeric);
 drop function if exists public.add_equipment_downtime_proof(uuid, date, text, text);
 drop function if exists public.set_equipment_status_bulk(date, jsonb);

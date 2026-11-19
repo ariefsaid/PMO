@@ -4,13 +4,13 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
-  setStatusBulk: vi.fn(), addProof: vi.fn(), uploadProof: vi.fn(), getMetrics: vi.fn(), listLatestStatusDays: vi.fn(),
+  listEquipmentProofs: vi.fn(), setStatusBulk: vi.fn(), addProof: vi.fn(), uploadProof: vi.fn(), getMetrics: vi.fn(), listLatestStatusDays: vi.fn(),
   listStatusDays: vi.fn(), listDowntimeFlags: vi.fn(), listRentalTerms: vi.fn(), saveRentalTerm: vi.fn(),
   setOwnership: vi.fn(), changeRentalRate: vi.fn(), setWorkingHours: vi.fn(),
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-a' } }) }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { equipmentAvailability: h } }));
-import { useAttachProof, useChangeRentalRate, useEquipmentMetrics, useEquipmentOwnership, useEquipmentWorkingHours, useLatestStatusDays, useRentalTermHistory, useRentalTerms, useSetStatusBulk } from './useEquipmentAvailability';
+import { useAttachProof, useEquipmentProofs, useChangeRentalRate, useEquipmentMetrics, useEquipmentOwnership, useEquipmentWorkingHours, useLatestStatusDays, useRentalTermHistory, useRentalTerms, useSetStatusBulk } from './useEquipmentAvailability';
 
 let client: QueryClient;
 const wrapper = ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
@@ -18,7 +18,7 @@ beforeEach(() => {
   client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   vi.clearAllMocks();
   h.setStatusBulk.mockResolvedValue(1); h.addProof.mockResolvedValue({ path: 'org-a/asset/proof/photo.jpg' }); h.uploadProof.mockResolvedValue(undefined);
-  h.getMetrics.mockResolvedValue([]); h.listLatestStatusDays.mockResolvedValue([]); h.listRentalTerms.mockResolvedValue([]);
+  h.listEquipmentProofs.mockResolvedValue([{ asset_id: 'a', proven: true }]); h.getMetrics.mockResolvedValue([]); h.listLatestStatusDays.mockResolvedValue([]); h.listRentalTerms.mockResolvedValue([]);
   h.saveRentalTerm.mockResolvedValue('term'); h.setOwnership.mockResolvedValue(undefined); h.changeRentalRate.mockResolvedValue('term'); h.setWorkingHours.mockResolvedValue(undefined);
 });
 
@@ -40,10 +40,11 @@ describe('equipment availability hooks', () => {
     await expect(result.current.mutateAsync({ assetId: 'a', date: '2026-01-02', file })).rejects.toThrow('upload failed');
   });
   it('keeps metrics and latest statuses scoped to the caller’s org and asset selection', async () => {
-    renderHook(() => { useEquipmentMetrics(['a'], '2026-01-01', '2026-01-31', 'month', true); useLatestStatusDays(['a'], '2026-01-31'); useRentalTermHistory('a', true); }, { wrapper });
+    renderHook(() => { useEquipmentMetrics(['a'], '2026-01-01', '2026-01-31', 'month', true); useLatestStatusDays(['a'], '2026-01-31'); useEquipmentProofs(['a'], '2026-01-31'); useRentalTermHistory('a', true); }, { wrapper });
     await waitFor(() => expect(h.getMetrics).toHaveBeenCalledWith(['a'], '2026-01-01', '2026-01-31', 'month'));
     expect(h.listLatestStatusDays).toHaveBeenCalledWith(['a'], '2026-01-31');
     expect(h.listRentalTerms).toHaveBeenCalledWith('a');
+    expect(h.listEquipmentProofs).toHaveBeenCalledWith(['a'], '2026-01-31');
     expect(client.getQueryCache().getAll().every((q) => q.queryKey[1] === 'org-a')).toBe(true);
   });
   it('refreshes terms and assets after changes to ownership, rates and working hours', async () => {

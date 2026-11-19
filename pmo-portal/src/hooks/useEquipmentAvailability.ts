@@ -7,13 +7,17 @@ import type { EquipmentStatus } from '@/src/lib/equipmentMetrics';
 const useOrgId = (): string | undefined => useAuth().currentUser?.org_id;
 const KEY = 'equipment-availability';
 
-export function useStatusDays(from: string, to: string) {
+export function useStatusDays(from: string, to: string, assetIds: string[]) {
   const orgId = useOrgId();
-  return useQuery({ queryKey: [KEY, orgId, 'status', from, to], queryFn: () => repositories.equipmentAvailability.listStatusDays(from, to), enabled: Boolean(orgId) });
+  return useQuery({ queryKey: [KEY, orgId, 'status', from, to, assetIds], queryFn: () => repositories.equipmentAvailability.listStatusDays(from, to, assetIds), enabled: Boolean(orgId) && assetIds.length > 0 });
 }
 export function useLatestStatusDays(assetIds: string[], asOf: string) {
   const orgId = useOrgId();
   return useQuery({ queryKey: [KEY, orgId, 'latest', assetIds, asOf], queryFn: () => repositories.equipmentAvailability.listLatestStatusDays(assetIds, asOf), enabled: Boolean(orgId) && assetIds.length > 0 });
+}
+export function useEquipmentProofs(assetIds: string[], date: string) {
+  const orgId = useOrgId();
+  return useQuery({ queryKey: [KEY, orgId, 'proofs', assetIds, date], queryFn: () => repositories.equipmentAvailability.listEquipmentProofs(assetIds, date), enabled: Boolean(orgId && date) && assetIds.length > 0 });
 }
 export function useDowntimeFlags() {
   const orgId = useOrgId();

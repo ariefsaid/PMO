@@ -3,7 +3,7 @@
 -- 21-23 broken, 24-30 ready, approved work 80 h  =>  27/30 = 90.0 % available, 80 / (27 x 8) = 37.0 % utilised.
 begin;
 create extension if not exists pgtap;
-select plan(46);
+select plan(49);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25260000-0000-0000-0000-00000000000a', 'EAV Org A', 'IDR', 'UTC'),
@@ -117,6 +117,15 @@ select lives_ok($$ insert into storage.objects (bucket_id, name)
   select 'equipment-proof', file_path from equipment_downtime_proofs where asset_id = '25260000-0000-0000-0000-0000000000d6' $$,
   'AC-EAV-013 the field controller can upload the registered proof');
 
+create function pg_temp.proof_after_upload() returns boolean language plpgsql as $$
+declare result boolean;
+begin
+  execute $q$ select proven from public.list_equipment_proofs(array['25260000-0000-0000-0000-0000000000d6']::uuid[], '2026-09-10') $q$ into result;
+  return result;
+exception when undefined_function then return null;
+end $$;
+select is(pg_temp.proof_after_upload(), true, 'AC-EAV-013 uploaded evidence is visible as proven');
+
 -- ── AC-EAV-006 / 007 rental periods ──
 select pg_temp.act_as('25260000-0000-0000-0000-0000000000a2');   -- Finance edits terms
 select lives_ok($$ select save_equipment_rental_term('{"asset_id":"25260000-0000-0000-0000-0000000000d7","vendor_id":"25260000-0000-0000-0000-0000000000e1","rate":"100.00","basis":"day","currency":"IDR","rented_from":"2026-01-01","rented_to":"2026-03-31"}'::jsonb) $$,
@@ -172,6 +181,15 @@ update organizations set default_timezone = 'UTC' where id = '25260000-0000-0000
 set local role authenticated;
 select pg_temp.act_as('25260000-0000-0000-0000-0000000000b1');   -- another organisation's Admin
 select is((select count(*)::int from equipment_status_days), 0, 'AC-EAV-012 another org reads no status rows');
+create function pg_temp.foreign_proof_count() returns integer language plpgsql as $$
+declare result integer;
+begin
+  execute $q$ select count(*)::int from public.list_equipment_proofs(array['25260000-0000-0000-0000-0000000000d6']::uuid[], '2026-09-10') $q$ into result;
+  return result;
+exception when undefined_function then return -1;
+end $$;
+select is(pg_temp.foreign_proof_count(), 0, 'AC-EAV-012 another org cannot read proof status');
+select is(coalesce(has_function_privilege('anon', to_regprocedure('public.list_equipment_proofs(uuid[],date)'), 'EXECUTE'), false), false, 'AC-EAV-012 anon cannot call proof status');
 select throws_ok($$ select set_equipment_status('25260000-0000-0000-0000-0000000000d1', '2026-09-30', 'ready') $$,
   'P0002', 'asset not found', 'AC-EAV-012 another org cannot write status on this asset');
 select pg_temp.act_as('25260000-0000-0000-0000-0000000000a6');   -- Engineer: status yes, terms and metrics no

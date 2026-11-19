@@ -9,7 +9,7 @@ import { useCompanies } from '@/src/hooks/useCompanies';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useOrgBusinessTimezone } from '@/src/hooks/useResolvedLocale';
 import {
-  useAttachProof, useDowntimeFlags, useEquipmentMetrics, useRentalTerms, useRentalTermHistory, useEquipmentOwnership, useChangeRentalRate, useEquipmentWorkingHours, useSetStatusBulk, useStatusDays, useLatestStatusDays,
+  useAttachProof, useDowntimeFlags, useEquipmentMetrics, useRentalTerms, useRentalTermHistory, useEquipmentOwnership, useChangeRentalRate, useEquipmentWorkingHours, useSetStatusBulk, useStatusDays, useLatestStatusDays, useEquipmentProofs,
 } from '@/src/hooks/useEquipmentAvailability';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { isDownStatus, type EquipmentStatus } from '@/src/lib/equipmentMetrics';
@@ -43,18 +43,21 @@ const EquipmentAvailabilityPage: React.FC = () => {
   const [chosenStatusDate, setStatusDate] = useState<string | null>(null);
   const statusDate = chosenStatusDate ?? today;
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [uploadedProofs, setUploadedProofs] = useState<Set<string>>(() => new Set());
   const assets = useEquipmentAssetPages();
   const [assetPage, setAssetPage] = useState(0);
   const pages = assets.data?.pages ?? [];
   const rows = pages[assetPage]?.rows ?? [];
   const nextPage = async () => {
-    if (assetPage + 1 < pages.length) { setAssetPage(assetPage + 1); setMetricAssets([]); return; }
+    if (assetPage + 1 < pages.length) { setAssetPage(assetPage + 1); setMetricAssets([]); setTermAsset(''); return; }
     const next = await assets.fetchNextPage();
-    if (next.data && next.data.pages.length > assetPage + 1) { setAssetPage(assetPage + 1); setMetricAssets([]); }
+    if (next.data && next.data.pages.length > assetPage + 1) { setAssetPage(assetPage + 1); setMetricAssets([]); setTermAsset(''); }
   };
   const queryDate = statusDate || today;
-  const status = useStatusDays(monthStart(queryDate), queryDate);
+  const status = useStatusDays(monthStart(queryDate), queryDate, rows.map((a) => a.id));
   const latest = useLatestStatusDays(rows.map((a) => a.id), queryDate);
+  const proofStates = useEquipmentProofs(rows.map((a) => a.id), statusDate);
+  const provenAssets = new Set((proofStates.data ?? []).filter((p) => p.proven).map((p) => p.asset_id));
   const flags = useDowntimeFlags();
   const flagged = new Set((flags.data ?? []).map((f) => f.asset_id));
   const lastStatus = useMemo(() => {
@@ -77,6 +80,7 @@ const EquipmentAvailabilityPage: React.FC = () => {
       await bulk.mutateAsync({ date: statusDate, items });
       setDraft({});
       setNotes({});
+      setUploadedProofs((prior) => { const next = new Set(prior); for (const item of items) next.delete(`${item.asset_id}:${statusDate}`); return next; });
       toast(t('equipment:availability.saved', 'Status saved'), undefined, 'success');
     } catch (err) { setProblem(classifyMutationError(err).headline); }
   };
@@ -85,6 +89,7 @@ const EquipmentAvailabilityPage: React.FC = () => {
     setProblem(null);
     try {
       await proof.mutateAsync({ assetId, date: statusDate, file });
+      setUploadedProofs((prior) => new Set(prior).add(`${assetId}:${statusDate}`));
       toast(t('equipment:availability.proofSaved', 'Proof attached'), undefined, 'success');
     } catch (err) { setProblem(classifyMutationError(err).headline); }
   };
@@ -127,6 +132,7 @@ const EquipmentAvailabilityPage: React.FC = () => {
       {assets.isPending && <ListState variant="loading" shape="table" rows={4} />}
       {assets.isError && <ListState variant="error" title={t('equipment:availability.assetsError', "Couldn't load equipment")} onRetry={() => void assets.refetch()} />}
       {latest.isError && <p role="alert">{t('equipment:availability.latestError', 'Could not load last statuses')}</p>}
+      {proofStates.isError && <p role="alert">{t('equipment:availability.proofsError', 'Could not load evidence status')}</p>}
       {status.isError && <p role="alert">{t('equipment:availability.statusError', 'Could not load statuses')}</p>}
       {!assets.isPending && !assets.isError && rows.length === 0 && (
         <ListState variant="empty" title={t('equipment:availability.empty', 'No equipment yet')}
@@ -146,6 +152,7 @@ const EquipmentAvailabilityPage: React.FC = () => {
                   <span className="min-w-40 flex-1">
                     <span className="font-medium">{a.code}</span> <span className="text-muted-foreground">{a.name}</span>
                     {current && !may('create', 'equipmentAvailability', writeCtx) && <span className="ml-2">{statusLabel(t, current)}</span>}
+                    {(uploadedProofs.has(`${a.id}:${statusDate}`) || (!proofStates.isFetching && provenAssets.has(a.id))) && down && !draft[a.id] && <span className="ml-2">{t('equipment:availability.proven', 'Proven')}</span>}
                     {flagged.has(a.id) && <span role="status" className="ml-2 text-destructive-text text-sm">{t('equipment:availability.flagged', 'Down more than 2 days')}</span>}
                     {!todays.has(a.id) && !draft[a.id] && <span className="ml-2 text-sm text-muted-foreground">{prev ? t('equipment:availability.last', 'Last: {{status}}', { status: statusLabel(t, prev) }) : t('equipment:availability.unrecorded', 'Not recorded')}</span>}
                   </span>
@@ -157,7 +164,7 @@ const EquipmentAvailabilityPage: React.FC = () => {
                     {down && todays.has(a.id) && !draft[a.id] && (
                       <label className="text-sm">
                         <span className="sr-only">{t('equipment:availability.proofFor', 'Attach proof for {{code}}', { code: a.code })}</span>
-                        <FileInput accept="image/*,application/pdf" onChange={(e) => void attach(a.id, e.target.files?.[0])} />
+                        <FileInput accept="image/*,application/pdf" onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; void attach(a.id, file); }} />
                       </label>
                     )}
                   </CanWrite>
@@ -174,7 +181,7 @@ const EquipmentAvailabilityPage: React.FC = () => {
       )}
 
       {(assetPage > 0 || assetPage + 1 < pages.length || assets.hasNextPage) && <div className="flex gap-2 mb-4">
-        <Button variant="outline" disabled={assetPage === 0 || Object.keys(draft).length > 0} onClick={() => { setAssetPage(assetPage - 1); setMetricAssets([]); }}>{t('equipment:availability.previousPage', 'Previous equipment page')}</Button>
+        <Button variant="outline" disabled={assetPage === 0 || Object.keys(draft).length > 0} onClick={() => { setAssetPage(assetPage - 1); setMetricAssets([]); setTermAsset(''); }}>{t('equipment:availability.previousPage', 'Previous equipment page')}</Button>
         <Button variant="outline" disabled={(!assets.hasNextPage && assetPage + 1 >= pages.length) || Object.keys(draft).length > 0 || assets.isFetchingNextPage} onClick={() => void nextPage()}>{t('equipment:availability.nextPage', 'Next equipment page')}</Button>
       </div>}
 
@@ -242,8 +249,8 @@ const EquipmentAvailabilityPage: React.FC = () => {
           </div>
           <Button variant="primary" className="mt-3" disabled={!termAsset || !vendor || !rate || !rentedFrom || saveTerm.isPending} onClick={() => void submitTerm()}>{t('equipment:availability.saveTerms', 'Save rental terms')}</Button>
           <Button variant="outline" className="mt-3 ml-2" disabled={!termAsset || saveOwnership.isPending} onClick={() => { const a = rows.find((row) => row.id === termAsset) as { ownership?: string } | undefined; void saveOwnership.mutateAsync({ assetId: termAsset, ownership: a?.ownership === 'rented' ? 'rented' : 'owned', inServiceOn: inService || null }).then(() => toast(t('equipment:availability.inServiceSaved', 'In-service date saved'), undefined, 'success')).catch((err: unknown) => setProblem(classifyMutationError(err).headline)); }}>{t('equipment:availability.saveInService', 'Save in-service date')}</Button>
-          <Button variant="outline" className="mt-3 ml-2" disabled={!termAsset || saveOwnership.isPending} onClick={() => { void saveOwnership.mutateAsync({ assetId: termAsset, ownership: 'owned', inServiceOn: inService || null }).catch((err: unknown) => setProblem(classifyMutationError(err).headline)); }}>{t('equipment:availability.markOwned', 'Mark owned')}</Button>
-          <Button variant="outline" className="mt-3 ml-2" disabled={!termAsset || !rate || !rentedFrom || changeRate.isPending} onClick={() => { void changeRate.mutateAsync({ assetId: termAsset, date: rentedFrom, rate }).catch((err: unknown) => setProblem(classifyMutationError(err).headline)); }}>{t('equipment:availability.changeRate', 'Change rate from date')}</Button>
+          <Button variant="outline" className="mt-3 ml-2" disabled={!termAsset || saveOwnership.isPending} onClick={() => { setProblem(null); void saveOwnership.mutateAsync({ assetId: termAsset, ownership: 'owned', inServiceOn: inService || null }).then(() => toast(t('equipment:availability.ownershipSaved', 'Ownership saved'), undefined, 'success')).catch((err: unknown) => setProblem(classifyMutationError(err).headline)); }}>{t('equipment:availability.markOwned', 'Mark owned')}</Button>
+          <Button variant="outline" className="mt-3 ml-2" disabled={!termAsset || !rate || !rentedFrom || changeRate.isPending} onClick={() => { setProblem(null); void changeRate.mutateAsync({ assetId: termAsset, date: rentedFrom, rate }).then(() => toast(t('equipment:availability.rateChanged', 'Rate changed'), undefined, 'success')).catch((err: unknown) => setProblem(classifyMutationError(err).headline)); }}>{t('equipment:availability.changeRate', 'Change rate from date')}</Button>
         </section>
       )}
 

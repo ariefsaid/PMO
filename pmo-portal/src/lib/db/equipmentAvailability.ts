@@ -26,14 +26,17 @@ export interface RentalTermInput {
   asset_id: string; vendor_id: string; rate: string; basis: 'day' | 'month'; currency: string; rented_from: string; rented_to?: string | null;
 }
 
-export async function listStatusDays(from: string, to: string): Promise<StatusDayRow[]> {
-  type Query = { select: (c: string) => Query; gte: (c: string, v: string) => Query; lte: (c: string, v: string) => Query; order: (c: string) => Query; range: (from: number, to: number) => Promise<RpcResult> };
+export async function listStatusDays(from: string, to: string, assetIds?: string[]): Promise<StatusDayRow[]> {
+  if (assetIds && !assetIds.length) return [];
+  type Query = { select: (c: string) => Query; in: (c: string, v: string[]) => Query; gte: (c: string, v: string) => Query; lte: (c: string, v: string) => Query; order: (c: string) => Query; range: (from: number, to: number) => Promise<RpcResult> };
   const client = supabase as unknown as { from: (t: string) => Query };
   const rows: StatusDayRow[] = [];
   const size = 1000;
   for (let offset = 0; ; offset += size) {
-    const { data, error } = await client.from('equipment_status_days').select('asset_id, status_date, status, note')
-      .gte('status_date', from).lte('status_date', to).order('status_date').order('asset_id').range(offset, offset + size - 1);
+    let query = client.from('equipment_status_days').select('asset_id, status_date, status, note')
+      .gte('status_date', from).lte('status_date', to);
+    if (assetIds) query = query.in('asset_id', assetIds);
+    const { data, error } = await query.order('status_date').order('asset_id').range(offset, offset + size - 1);
     if (error) throw new AppError(error.message, error.code);
     const page = (data ?? []) as StatusDayRow[];
     rows.push(...page);
@@ -54,6 +57,10 @@ export async function listLatestStatusDays(assetIds: string[], asOf: string): Pr
     for (const row of page) if (!found.has(row.asset_id)) found.set(row.asset_id, row);
     if (page.length < 1000 || found.size === assetIds.length) return [...found.values()];
   }
+}
+export interface EquipmentProofState { asset_id: string; proven: boolean }
+export async function listEquipmentProofs(assetIds: string[], date: string): Promise<EquipmentProofState[]> {
+  return ((await call('list_equipment_proofs', { p_asset_ids: assetIds, p_on: date })) ?? []) as EquipmentProofState[];
 }
 export async function setStatusBulk(date: string, items: { asset_id: string; status: EquipmentStatus; note?: string }[]): Promise<number> {
   return (await call('set_equipment_status_bulk', { p_date: date, p_items: items })) as number;

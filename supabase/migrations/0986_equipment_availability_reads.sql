@@ -33,6 +33,24 @@ language sql stable set search_path = public, pg_temp as $$
 $$;
 revoke all on function public.equipment_downtime_days(uuid, uuid, date, date) from public, anon, authenticated;
 
+-- The selected down day exposes the same proof rule as the rental check, scoped to the caller's org.
+create function public.list_equipment_proofs(p_asset_ids uuid[], p_on date)
+returns table (asset_id uuid, proven boolean)
+language plpgsql stable security definer set search_path = public, pg_temp as $$
+declare v_org uuid := public.auth_org_id();
+begin
+  perform public.assert_is_active_member();
+  if p_on is null or p_asset_ids is null or cardinality(p_asset_ids) = 0 or cardinality(p_asset_ids) > 200 then
+    raise exception 'a date and between 1 and 200 assets are required' using errcode = '22023';
+  end if;
+  return query select a.id, d.proven from public.equipment_assets a
+    cross join lateral public.equipment_downtime_days(v_org, a.id, p_on, p_on) d
+   where a.org_id = v_org and a.id = any(p_asset_ids);
+end $$;
+alter function public.list_equipment_proofs(uuid[], date) owner to postgres;
+revoke all on function public.list_equipment_proofs(uuid[], date) from public, anon, authenticated;
+grant execute on function public.list_equipment_proofs(uuid[], date) to authenticated;
+
 -- FR-EAV-011/012/013: per asset and day|week|month bucket. Exact numerators plus the display percentages (one decimal,
 -- rounded only here). Approved work only; Draft/Submitted usage is counted so the screen can say it is pending.
 -- Bounded (NFR-EAV-001): at most 200 assets, 400 days (93 for the day grain).

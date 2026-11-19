@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
-const h = vi.hoisted(() => ({ range: vi.fn() }));
+const h = vi.hoisted(() => ({ range: vi.fn(), ids: vi.fn(), rpc: vi.fn() }));
 vi.mock('@/src/lib/supabase/client', () => {
-  const builder = { select: () => builder, gte: () => builder, lte: () => builder, eq: () => builder, in: () => builder, order: () => builder, limit: () => h.range(0, 999), range: h.range };
-  return { supabase: { from: () => builder } };
+  const builder = { select: () => builder, gte: () => builder, lte: () => builder, eq: () => builder, in: (column: string, ids: string[]) => { h.ids(column, ids); return builder; }, order: () => builder, limit: () => h.range(0, 999), range: h.range };
+  return { supabase: { from: () => builder, rpc: h.rpc } };
 });
-import { listStatusDays, listLatestStatusDays, listRentalTerms } from './equipmentAvailability';
+import { listStatusDays, listLatestStatusDays, listRentalTerms, listEquipmentProofs } from './equipmentAvailability';
 
 describe('status reads', () => {
   it('returns all pages when the server caps a response at 1000 rows', async () => {
@@ -37,6 +37,19 @@ describe('status reads', () => {
     const rows = await listRentalTerms('a');
     expect(rows).toHaveLength(1001);
     expect(rows[1000]).toEqual(last);
+  });
+
+  it('limits the status read to the current equipment page', async () => {
+    h.range.mockReset().mockResolvedValue({ data: [], error: null });
+    h.ids.mockClear();
+    await listStatusDays('2026-09-01', '2026-09-30', ['a', 'b']);
+    expect(h.ids).toHaveBeenCalledWith('asset_id', ['a', 'b']);
+  });
+
+  it('requests proof status for the selected page and day', async () => {
+    h.rpc.mockResolvedValueOnce({ data: [{ asset_id: 'a', proven: true }], error: null });
+    expect(await listEquipmentProofs(['a'], '2026-09-10')).toEqual([{ asset_id: 'a', proven: true }]);
+    expect(h.rpc).toHaveBeenCalledWith('list_equipment_proofs', { p_asset_ids: ['a'], p_on: '2026-09-10' });
   });
 
 });

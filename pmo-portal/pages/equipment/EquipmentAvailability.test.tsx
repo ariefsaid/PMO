@@ -15,6 +15,7 @@ const h = vi.hoisted(() => ({
   ownership: vi.fn(),
   changeRate: vi.fn(),
   workingHours: vi.fn(),
+  proof: vi.fn(),
   assets: [] as unknown[],
   nextAssets: [] as unknown[],
   metricIds: [] as string[],
@@ -22,6 +23,7 @@ const h = vi.hoisted(() => ({
   assetsError: false,
   statusError: false,
   orgToday: '',
+  provenRows: [] as { asset_id: string; proven: boolean }[],
   statusRows: [] as { asset_id: string; status_date: string; status: string }[],
 }));
 vi.mock('@/src/hooks/useEquipment', () => ({
@@ -33,10 +35,11 @@ vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [{ id:
 vi.mock('@/src/hooks/useEquipmentAvailability', () => ({
   useStatusDays: (from: string, to: string) => { h.statusRange = [from, to]; return { data: h.statusRows, isError: h.statusError }; },
   useLatestStatusDays: () => ({ data: [] }),
+  useEquipmentProofs: () => ({ data: h.provenRows }),
   useDowntimeFlags: () => ({ data: [] }),
   useEquipmentMetrics: (ids: string[]) => { h.metricIds = ids; return { data: [] }; },
   useSetStatusBulk: () => ({ mutateAsync: h.bulk, isPending: false }),
-  useAttachProof: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useAttachProof: () => ({ mutateAsync: h.proof, isPending: false }),
   useRentalTerms: () => ({ mutateAsync: h.saveTerm, isPending: false }),
   useRentalTermHistory: (assetId: string) => ({ data: assetId === 'a3' ? [{ id: 'term1', rate: 100, currency: 'IDR', basis: 'day', rented_from: '2026-01-01', rented_to: null, vendor_id: 'v1' }] : [] }),
   useEquipmentOwnership: () => ({ mutateAsync: h.ownership, isPending: false }),
@@ -57,8 +60,9 @@ beforeEach(() => {
   h.ownership = vi.fn().mockResolvedValue(undefined);
   h.changeRate = vi.fn().mockResolvedValue(undefined);
   h.workingHours = vi.fn().mockResolvedValue(undefined);
+  h.proof = vi.fn().mockResolvedValue(undefined);
   h.nextAssets = [];
-  h.assetsError = false; h.statusError = false; h.statusRows = [];
+  h.assetsError = false; h.statusError = false; h.statusRows = []; h.provenRows = [];
   h.assets = [asset('a1', 'EQU-1'), asset('a2', 'EQU-2'), asset('a3', 'EQU-3', 'rented')];
 });
 
@@ -114,6 +118,7 @@ describe('Equipment availability screen', () => {
     await userEvent.selectOptions(screen.getByLabelText('Asset for rental terms'), 'a1');
     await userEvent.click(screen.getByRole('button', { name: 'Mark owned' }));
     expect(h.ownership).toHaveBeenCalledWith({ assetId: 'a1', ownership: 'owned', inServiceOn: null });
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Ownership saved'));
   });
 
   it('allows Finance to change a rental rate from an effective date', async () => {
@@ -123,6 +128,7 @@ describe('Equipment availability screen', () => {
     await userEvent.type(screen.getByLabelText('Rental start'), '2026-01-15');
     await userEvent.click(screen.getByRole('button', { name: 'Change rate from date' }));
     expect(h.changeRate).toHaveBeenCalledWith({ assetId: 'a3', date: '2026-01-15', rate: '120' });
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Rate changed'));
   });
 
   it('limits metrics to the chosen assets', async () => {
@@ -193,6 +199,31 @@ describe('Equipment availability screen', () => {
     await userEvent.type(screen.getByLabelText('Rate'), '100');
     await userEvent.selectOptions(screen.getByLabelText('Asset for rental terms'), 'a3');
     expect(screen.getByLabelText('Rate')).toHaveValue('');
+  });
+
+  it('shows a proven status after a successful evidence upload', async () => {
+    h.statusRows = [{ asset_id: 'a1', status_date: new Date().toISOString().slice(0, 10), status: 'broken' }];
+    renderPage();
+    const file = new File(['photo'], 'photo.jpg', { type: 'image/jpeg' });
+    await userEvent.upload(screen.getByLabelText('Attach proof for EQU-1'), file);
+    await waitFor(() => expect(screen.getByText('Proven')).toBeInTheDocument());
+  });
+
+  it('shows saved proof after the page is reopened', () => {
+    h.statusRows = [{ asset_id: 'a1', status_date: new Date().toISOString().slice(0, 10), status: 'broken' }];
+    h.provenRows = [{ asset_id: 'a1', proven: true }];
+    renderPage();
+    expect(screen.getByText('Proven')).toBeInTheDocument();
+  });
+
+  it('clears the selected asset before moving to another equipment page', async () => {
+    h.role = 'Finance'; h.nextAssets = [asset('a4', 'EQU-4')]; renderPage();
+    await userEvent.selectOptions(screen.getByLabelText('Asset for rental terms'), 'a1');
+    await userEvent.selectOptions(screen.getByLabelText('Vendor'), 'v1');
+    await userEvent.type(screen.getByLabelText('Rate'), '100');
+    await userEvent.type(screen.getByLabelText('Rental start'), '2026-01-01');
+    await userEvent.click(screen.getByRole('button', { name: 'Next equipment page' }));
+    expect(screen.getByRole('button', { name: 'Save rental terms' })).toBeDisabled();
   });
 
 });
