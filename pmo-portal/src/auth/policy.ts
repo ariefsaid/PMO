@@ -127,6 +127,7 @@ export type Entity =
   | 'equipmentUsage'
   | 'equipmentCosting'
   | 'equipmentRegister'
+  | 'expiryDocument'
   | 'maintenance'
   | 'tmRate'
   | 'tmClaim'
@@ -232,6 +233,11 @@ type Predicate = (role: Role | null, ctx: PolicyContext) => boolean;
 
 const allow = (set: Role[]): Predicate => (role) => has(set, role);
 /** Like `allow`, but a view-as (impersonation) session is view-only. */
+const expiryDocumentWrite: Predicate = (role, ctx) => {
+  const kind = ctx.record?.kind;
+  if (ctx.record?.viewOnly === true) return false;
+  return role === 'Admin' ? kind === 'person' || kind === 'equipment' : role === 'Project Manager' && kind === 'equipment';
+};
 const allowUnlessViewOnly = (set: Role[]): Predicate => (role, ctx) => has(set, role) && ctx.record?.viewOnly !== true;
 
 /** Stock master data (#1512, 0412): mirrors the RLS - rank >= 20 writes, Admin deletes. UX only; RLS is the authority. */
@@ -787,6 +793,16 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     view: allow(ALL),
     create: allowUnlessViewOnly(EQUIPMENT_REGISTER_WRITE),
     edit: allowUnlessViewOnly(EQUIPMENT_REGISTER_WRITE),
+  },
+  /**
+   * Expiring documents on people and equipment (#2542, migration 0970 RLS). UX ONLY — RLS and the column grants are the
+   * authority (ADR-0016): Admin writes any document, a Project Manager equipment documents only. `record.kind` is the subject.
+   */
+  expiryDocument: {
+    view: allow(ALL),
+    create: expiryDocumentWrite,
+    edit: expiryDocumentWrite,
+    archive: expiryDocumentWrite,
   },
   maintenance: {
     view: allow(ALL),
