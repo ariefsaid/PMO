@@ -2974,7 +2974,7 @@ the first client on 2026-10-16.
 
 ## DD-UX-1..10 — declutter audit decisions (2026-10-16)
 
-From `docs/ux/2026-10-16-declutter-audit.md` § Owner decisions. 1 and 2 were agreed by the owner; 3–10 are
+From the 2026-10-16 declutter audit § Owner decisions (audit since deleted; the decisions live here). 1 and 2 were agreed by the owner; 3–10 are
 Director decisions within PRODUCT.md's principles.
 1. The dashboard spend bar is renamed "Spending vs contract" now. A budget-usage bar follows once budgets are active.
 2. Each project shows one money summary (contract, spent, billed, received), drilling into spending, forecast
