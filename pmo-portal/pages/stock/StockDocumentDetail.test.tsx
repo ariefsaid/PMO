@@ -20,6 +20,7 @@ vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { documents, r
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));
 let role: Role = 'Engineer';
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: role, effectiveRole: role }) }));
+vi.mock('@/src/hooks/useWorkOrderRecord', () => ({ useWorkOrder: () => ({ data: { id: 'wo1', wo_number: 'WO-1', title: 'Install' } }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR' }));
 
 import StockDocumentDetail from './StockDocumentDetail';
@@ -73,6 +74,11 @@ beforeEach(() => {
 });
 
 describe('StockDocumentDetail (AC-STK-032)', () => {
+  it('AC-WORP-004 opens the readable work order named by the stock document', async () => {
+    documents.get.mockResolvedValue(detail({ work_order_id: 'wo1' }));
+    renderPage();
+    expect(await screen.findByRole('link', { name: 'WO-1' })).toHaveAttribute('href', '/work-orders/wo1');
+  });
   it('AC-STK-032 loading, then the header, the lines and the ledger entries it posted', async () => {
     renderPage();
     expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();

@@ -346,6 +346,8 @@ export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
 /** Finance record routes remain addressable while their list parent is the Receivables area. */
 export function railParentForPath(pathname: string): string | undefined {
   if (/^\/(sales-invoices|incoming-payments)\/[^/]+$/.test(pathname)) return '/finance/receivables';
+  // #2518: a work order's page belongs to Projects.
+  if (/^\/work-orders\/[^/]+$/.test(pathname)) return '/projects';
   return RAIL_PARENT_FOR_PATH[pathname];
 }
 
@@ -467,6 +469,7 @@ export function breadcrumbForPath(
   /** Same-owner return descriptor, minted only by `contextualListReturnNavigation`. */
   contextualParent?: ListReturnNavigation,
   routeSearch = '',
+  workOrderProject?: { id: string; name: string },
 ): BreadcrumbPart[] {
   const administrationBreadcrumb = administrationBreadcrumbForPath(pathname, navigate);
   if (administrationBreadcrumb) return administrationBreadcrumb;
@@ -593,6 +596,19 @@ export function breadcrumbForPath(
     return [{ label: selectedIndexModule.label, ...(selectedIndexModule.labelKey ? { i18nKey: selectedIndexModule.labelKey } : {}) }];
   }
 
+  // #2518: /work-orders/:id reads as Projects > the work order (no work-order module of its own).
+  if (/^\/work-orders\/[^/]+$/.test(pathname)) {
+    return [
+      { label: 'Projects', i18nKey: 'shell.nav.projects', href: '/projects', onClick: () => navigate?.('/projects') }, // i18n-exempt: fallback label is replaced from i18nKey at render
+      ...(workOrderProject ? [{ label: workOrderProject.name, href: `/projects/${workOrderProject.id}`, onClick: () => navigate?.(`/projects/${workOrderProject.id}`) }] : []),
+      recordLabel
+        ? { label: recordLabel }
+        : recordResolved
+          ? { label: 'Not found', i18nKey: 'shell.breadcrumb.recordNotFound' } // i18n-exempt: fallback label is replaced from i18nKey at render
+          : { label: 'Loading…', i18nKey: 'shell.breadcrumb.recordLoading' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+    ];
+  }
+
   for (const m of MODULES) {
     // Detail route → [module link > record]. The dashboard has no detail route.
     if (m.detail) {
@@ -656,6 +672,7 @@ export function breadcrumbForPath(
 
 /** Cached index lists the breadcrumb reads to resolve a detail route's name. */
 export interface RecordLists {
+  workOrders?: { id: string; wo_number: string | null; title: string; project_id?: string }[];
   projects?: { id: string; name: string; short_name?: string | null }[];
   opportunities?: { id: string; name: string; short_name?: string | null }[];
   procurements?: { id: string; title: string }[];
@@ -769,6 +786,12 @@ export function recordLabelForPath(
 
   const project = projectIdentityForPath(pathname, lists);
   if (project) return projectDisplayName(project);
+
+  const workOrderId = idFrom('/work-orders');
+  if (workOrderId) {
+    const order = lists.workOrders?.find((item) => item.id === workOrderId);
+    return order?.wo_number ?? order?.title;
+  }
 
   const procurementId = idFrom('/procurement');
   if (procurementId) return lists.procurements?.find((p) => p.id === procurementId)?.title;

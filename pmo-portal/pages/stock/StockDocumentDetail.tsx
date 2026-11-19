@@ -9,6 +9,7 @@ import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { STOCK_COMMAND_IN_FLIGHT, useProjectConsumption, useStockDocument, useStockErpState, useStockDocumentCosts, useStockDocumentEntries, useStockDocumentMutations, useStockKeepers, useStockOnHand } from '@/src/hooks/useStock';
+import { useWorkOrder } from '@/src/hooks/useWorkOrderRecord';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { formatQuantity, formatStockValue, stockValuePreview, subtractDecimal } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
@@ -16,6 +17,13 @@ import { isSetupRefusal, parseRefusalEvidence } from '@/src/lib/adapterSeam/odoo
 import { formatDay } from '@/src/lib/format';
 import type { StockDocumentLine } from '@/src/lib/db/stockDocuments';
 import type { StockLedgerRow } from '@/src/lib/db/stockReports';
+
+function StockWorkOrder({ id }: { id: string }) {
+  const { t } = useTranslation('stock');
+  const order = useWorkOrder(id);
+  if (!order.data) return null;
+  return <span>{t('detail.workOrder', 'Work order')} · <Link className="underline" to={`/work-orders/${order.data.id}`}>{order.data.wo_number ?? order.data.title}</Link></span>;
+}
 
 /** OQ-STK-7: after an issue posts, flag any of its work-item lines now over allowance (to the issue's date). Never blocks. */
 const OverAllowanceNotice: React.FC<{ projectId: string; on: string; lines: StockDocumentLine[] }> = ({ projectId, on, lines }) => {
@@ -211,7 +219,7 @@ const StockDocumentDetail: React.FC = () => {
             className="!mb-4"
             headingLevel={2}
             name={t(`kinds.${d.kind}`)}
-            meta={formatDay(d.occurred_on)}
+            meta={<>{formatDay(d.occurred_on)}{d.work_order_id && <> · <StockWorkOrder id={d.work_order_id} /></>}</>}
             status={<StatusPill record="stockDocument" state={d.status === 'Draft' && held ? 'On hold' : d.status} />}
             primaryAction={canPost
               ? <Button variant="primary" size="sm" loading={m.post.isPending} onClick={() => setConfirmPost(true)}>{t('detail.post')}</Button>

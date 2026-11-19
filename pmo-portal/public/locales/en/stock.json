@@ -327,7 +327,8 @@
         "sentTitle": "Sent to Odoo",
         "sentBody": "Waiting for Odoo's answer. Open the document to see where it stands."
       }
-    }
+    },
+    "workOrder": "Work order"
   },
   "ledger": {
     "title": "Ledger",

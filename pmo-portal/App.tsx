@@ -1,3 +1,4 @@
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   createBrowserRouter,
@@ -96,6 +97,7 @@ const ProcurementDetails = lazyWithPreload(() => import('./pages/ProcurementDeta
 const ProcurementCreate = lazyWithPreload(() => import('./pages/ProcurementCreate'));
 const TimesheetsPage = lazyWithPreload(() => import('./pages/Timesheets'));
 const ImprestFloatsPage = lazyWithPreload(() => import('./pages/ImprestFloats'));
+const WorkOrderDetailPage = lazyWithPreload(() => import('./pages/WorkOrderDetail'));
 const ImprestFloatDetailPage = lazyWithPreload(() => import('./pages/ImprestFloatDetail'));
 const EquipmentUsagePage = lazyWithPreload(() => import('./pages/equipment/EquipmentUsage'));
 const EquipmentAssetsPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAssets'));
@@ -233,6 +235,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/expenses', chunks: [ExpenseClaimsPage], namespaces: ['expenseClaims'] },
   { path: '/expenses/new', chunks: [ExpenseClaimNewPage], namespaces: ['expenseClaims', 'imprest'] },
   { path: '/expenses/:claimId', chunks: [ExpenseClaimDetailPage], namespaces: ['imprest'] },
+  { path: '/work-orders/:id', chunks: [WorkOrderDetailPage], namespaces: ['workOrders', 'workOrderCost', 'status'] },
   { path: '/imprest', chunks: [ImprestFloatsPage], namespaces: ['imprest'] },
   { path: '/imprest/:floatId', chunks: [ImprestFloatDetailPage], namespaces: ['imprest'] },
   { path: '/equipment', chunks: [EquipmentUsagePage], namespaces: ['equipment'] },
@@ -440,6 +443,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/expenses', element: <ExpenseClaimsPage /> },
   { path: '/expenses/new', element: <ExpenseClaimNewPage /> },
   { path: '/expenses/:claimId', element: <ExpenseClaimDetailPage /> },
+  { path: '/work-orders/:id', element: <WorkOrderDetailPage /> },
   { path: '/imprest', element: gated('imprest', <ImprestFloatsPage />) },
   { path: '/imprest/:floatId', element: gated('imprest', <ImprestFloatDetailPage />) },
   // #1519: equipment usage grid, asset reference and per-asset costing.
@@ -685,6 +689,9 @@ export const ShellChrome: React.FC = () => {
     // deal is absent from both the open-pipeline cache and the active-projects cache, so it must be
     // unioned in here or its crumb resolves to "Projects > Not found".
     const recordLabel = recordLabelForPath(pathname, cachedLists);
+    const orderId = /^\/work-orders\/([^/]+)$/.exec(pathname)?.[1];
+    const order = orderId ? cachedLists.workOrders?.find((item) => item.id === orderId) : undefined;
+    const parentProject = order?.project_id ? cachedLists.projects?.find((item) => item.id === order.project_id) : undefined;
     const parts = breadcrumbForPath(
       pathname,
       recordLabel,
@@ -695,6 +702,7 @@ export const ShellChrome: React.FC = () => {
       // vocabulary in the route-derived parts; the Breadcrumb component keeps a
       // render-level fallback for direct mounts without the router location.
       location.search,
+      parentProject ? { id: parentProject.id, name: projectDisplayName(parentProject) } : undefined,
     );
     const contractualName = recordContractualNameForPath(pathname, cachedLists);
     if (!contractualName || parts.length === 0) return parts;
