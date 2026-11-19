@@ -668,6 +668,7 @@ export function breadcrumbForPath(
 
 /** Cached index lists the breadcrumb reads to resolve a detail route's name. */
 export interface RecordLists {
+  workOrders?: { id: string; wo_number: string | null; title: string }[];
   projects?: { id: string; name: string; short_name?: string | null }[];
   opportunities?: { id: string; name: string; short_name?: string | null }[];
   procurements?: { id: string; title: string }[];
@@ -781,6 +782,12 @@ export function recordLabelForPath(
 
   const project = projectIdentityForPath(pathname, lists);
   if (project) return projectDisplayName(project);
+
+  const workOrderId = idFrom('/work-orders');
+  if (workOrderId) {
+    const order = lists.workOrders?.find((item) => item.id === workOrderId);
+    return order?.wo_number ?? order?.title;
+  }
 
   const procurementId = idFrom('/procurement');
   if (procurementId) return lists.procurements?.find((p) => p.id === procurementId)?.title;

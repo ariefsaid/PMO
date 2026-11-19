@@ -39,7 +39,7 @@ export const BillingSection: React.FC<Props> = ({ billing, acceptances, acceptan
           </dl>
         )}
         <div>
-          <h3 className="mb-1 font-medium">{t('billing.acceptances', 'Acceptances')}</h3>
+          <h3 className="mb-3 font-medium">{t('billing.acceptances', 'Acceptances')}</h3>
           {acceptancesPending && <ListState variant="loading" rows={1} />}
           {acceptancesError && <ListState variant="error" title={t('billing.acceptancesError', "Couldn't load the acceptances")} onRetry={onRetryAcceptances} />}
           {!acceptancesPending && !acceptancesError && acceptances && acceptances.length === 0 && <p className="text-control text-muted-foreground">{t('billing.noAcceptances', 'No acceptances yet.')}</p>}

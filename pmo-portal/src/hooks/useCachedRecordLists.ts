@@ -35,6 +35,7 @@ function useCached<T>(key: readonly unknown[] | undefined, enabledByOrg: boolean
 function detailKeyFor(pathname: string, orgId: string | undefined, actorId: string | undefined, role: string | undefined) {
   const routes: [prefix: string, key: string][] = [
     ['/projects/', 'project'],
+    ['/work-orders/', 'work-order'],
     ['/procurement/', 'procurement'],
     ['/companies/', 'company'],
     ['/contacts/', 'contact'],
@@ -102,6 +103,7 @@ export function useCachedRecordLists(pathname: string): CachedRecordLists {
     const at = (prefix: string) => detailPrefix === prefix;
     const lists: CachedRecordLists['lists'] = {
       projects: one(projects.data, at('/projects/')),
+      workOrders: one(undefined, at('/work-orders/')) as RecordLists['workOrders'],
       opportunities: [...(pipeline.data?.projects ?? []), ...(lostDeals.data ?? [])],
       procurements: one(procurements.data, at('/procurement/')),
       incidents: one(incidents.data, at('/incidents/')),
