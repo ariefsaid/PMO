@@ -503,3 +503,17 @@ submission; distinct from general project risk or everything assigned to them.
 UI vocabulary keeps **Supplier** rather than vendor, **Purchase** for a procurement case,
 and **Phase** for a milestone. **Actual** and **Recorded spending** name the same spending position;
 **Cash received** and **Settlement** name different quantities and must stay distinct.
+
+## Equipment availability (#2526)
+
+**Equipment status** — the condition of a machine on one calendar day: ready, standby, broken, at vendor or waiting for parts. One per machine per day; separate from what the machine did (usage).
+
+**Physical availability** — the share of a machine's recorded in-service days on which it was ready or standby, shown to one decimal. A day with no status is unrecorded and counts in neither the top nor the bottom of the fraction; the screen names how many.
+
+**Utilisation** — approved work hours divided by available days times the organisation's working hours per day. Standby is available but not utilised; unapproved usage is left out and named.
+
+**Downtime period** — a run that starts at the first down status after a non-down status and ends at the first later ready or standby status. Derived from the daily statuses, never stored.
+
+**Proven downtime** — a downtime period with at least one proof (photo or vendor ticket) attached. Only proven down days are deducted from a rental bill unless a user includes unproven days with a stated reason.
+
+**Rental downtime deduction** — proven down days in the invoice period times the daily rate (a monthly rate divided by the calendar days of that month), never more than the period's rental amount. The invoice check compares the vendor's bill with rent minus this deduction; it never edits, posts or pays the bill.
