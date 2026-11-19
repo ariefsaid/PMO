@@ -36,6 +36,7 @@ describe('ExpiringDocumentsPage (AC-DEX-006)', () => {
     h.q.data = [];
     renderPage();
     expect(screen.getByText('Nothing expires in the next 30 days')).toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
   it('offers retry when the read fails', () => {

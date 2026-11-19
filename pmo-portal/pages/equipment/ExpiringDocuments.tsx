@@ -35,11 +35,10 @@ const ExpiringDocumentsPage: React.FC = () => {
           sub={t('equipment:expiry.errorSub', 'The request failed. Check your connection and try again.')}
           onRetry={() => void refetch()} retryLabel={t('equipment:usage.retry', 'Retry')} />
       )}
-      {!isPending && !isError && (
-        <DataTable<ExpiringDocumentRow> rows={rows} columns={columns} rowKey={(d) => d.id} tableId="expiring-documents-table"
-          state={rows.length === 0 ? 'empty' : undefined}
-          emptyTitle={t('equipment:expiry.empty', 'Nothing expires in the next 30 days')}
-          emptySub={t('equipment:expiry.emptySub', 'Documents for people and equipment show here as they come due.')} />
+      {!isPending && !isError && (rows.length === 0
+        ? <ListState variant="empty" title={t('equipment:expiry.empty', 'Nothing expires in the next 30 days')}
+            sub={t('equipment:expiry.emptySub', 'Documents for people and equipment show here as they come due.')} />
+        : <DataTable<ExpiringDocumentRow> rows={rows} columns={columns} rowKey={(d) => d.id} tableId="expiring-documents-table" />
       )}
     </ListPage>
   );
