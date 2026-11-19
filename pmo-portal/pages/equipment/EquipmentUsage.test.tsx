@@ -102,6 +102,11 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
   });
   afterEach(() => { vi.useRealTimers(); });
 
+  it('links to the expiry list from equipment', () => {
+    renderPage('Admin');
+    expect(screen.getByRole('link', { name: /expiring documents/i })).toHaveAttribute('href', '/equipment/expiring');
+  });
+
   it('C8 EquipmentUsage.tsx:83,101 scopes the bounded week read to the selected asset', () => {
     renderPage('Engineer', '/equipment/usage?week=2026-09-07&asset=a1');
     expect(h.usageArgs.at(-1)).toMatchObject({ from: '2026-09-07', to: '2026-09-13', assetId: 'a1' });

@@ -26,6 +26,13 @@ vi.mock('@/src/components/integrations/M365DefaultLibraryCard', () => ({
   M365DefaultLibraryCard: () => createElement('div', { 'data-testid': 'm365-default-library-stub' }),
 }));
 
+// #2517: the work-order / discipline pickers read their own queries (work orders, disciplines) and auth, which the
+// page suites (timesheets, procurement, stock, equipment) do not provide. CostAttributionFields.test.tsx unmocks and
+// proves them; the page suites need only know they are mounted.
+vi.mock('@/src/components/workOrders/CostAttributionFields', () => ({
+  CostAttributionFields: ({ idPrefix }: { idPrefix?: string }) => createElement('div', { 'data-testid': 'cost-attribution-stub', 'data-prefix': idPrefix }),
+}));
+
 // The Odoo section reads its own queries (connection, companies, ownership) that the Integrations view suites do not
 // provide. Its parts have their own suites; the view suites need only know it is mounted.
 vi.mock('@/src/components/integrations/odoo/OdooIntegrationSection', () => ({

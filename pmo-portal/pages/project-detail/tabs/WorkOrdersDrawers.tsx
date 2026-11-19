@@ -148,7 +148,7 @@ export const WorkOrderInvoiceDrawer: React.FC<{
     <dl className="grid grid-cols-2 gap-4 p-4 text-sm">
       {invoice.invoice_date && <QuantityFigure label={t('projectDetail.cascade.invoiceDate', 'Date')} value={formatDay(invoice.invoice_date)} />}
       {invoice.amount !== null && <QuantityFigure label={t('projectDetail.cascade.invoiceAmount', 'Amount')} value={formatCurrency(invoice.amount, invoiceCurrency)} detail={t('projectDetail.cascade.source.invoiceAmount', 'Source: invoice amount mirrored from accounting.') } />}
-      {figures.paid !== null && <QuantityFigure label={t('projectDetail.cascade.paid', 'Paid')} value={formatCurrency(figures.paid, invoiceCurrency)} detail={t('projectDetail.cascade.source.invoicePaid', 'Computed as invoice amount less accounting balance outstanding.') } />}
+      {figures.paid !== null && <QuantityFigure label={t('projectDetail.cascade.paid', 'Paid')} value={formatCurrency(figures.paid, invoiceCurrency)} detail={t('projectDetail.cascade.source.invoicePaid', 'Computed as invoice amount including tax, less accounting balance outstanding.') } />}
       {figures.unpaid !== null && <QuantityFigure label={t('projectDetail.cascade.unpaid', 'Unpaid')} value={formatCurrency(figures.unpaid, invoiceCurrency)} detail={t('projectDetail.cascade.source.invoiceUnpaid', 'Source: accounting balance outstanding for this invoice.') } />}
       {invoice.erp_due_date && <QuantityFigure label={t('projectDetail.cascade.invoiceDueDate', 'Due date')} value={formatDay(invoice.erp_due_date)} />}
     </dl>

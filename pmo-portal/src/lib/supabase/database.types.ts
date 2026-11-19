@@ -2192,6 +2192,36 @@ export type Database = {
           },
         ]
       }
+      cost_disciplines: {
+        Row: {
+          archived_at: string | null
+          code: string
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          org_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          code: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          org_id?: string
+        }
+        Update: {
+          archived_at?: string | null
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          org_id?: string
+        }
+        Relationships: []
+      }
       credit_reservations: {
         Row: {
           amount: number
@@ -2522,6 +2552,7 @@ export type Database = {
           author_id: string
           created_at: string
           decision_notes: string | null
+          discipline_id: string | null
           fuel_litres: number | null
           id: string
           kind: string
@@ -2536,6 +2567,7 @@ export type Database = {
           unit: string
           updated_at: string
           work_date: string
+          work_order_id: string | null
         }
         Insert: {
           approved_at?: string | null
@@ -2545,6 +2577,7 @@ export type Database = {
           author_id: string
           created_at?: string
           decision_notes?: string | null
+          discipline_id?: string | null
           fuel_litres?: number | null
           id?: string
           kind?: string
@@ -2559,6 +2592,7 @@ export type Database = {
           unit: string
           updated_at?: string
           work_date: string
+          work_order_id?: string | null
         }
         Update: {
           approved_at?: string | null
@@ -2568,6 +2602,7 @@ export type Database = {
           author_id?: string
           created_at?: string
           decision_notes?: string | null
+          discipline_id?: string | null
           fuel_litres?: number | null
           id?: string
           kind?: string
@@ -2582,8 +2617,23 @@ export type Database = {
           unit?: string
           updated_at?: string
           work_date?: string
+          work_order_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "equipment_usage_entries_discipline_id_fkey"
+            columns: ["discipline_id"]
+            isOneToOne: false
+            referencedRelation: "cost_disciplines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_usage_entries_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "equipment_usage_entries_approver_id_fkey"
             columns: ["approver_id"]
@@ -6906,6 +6956,7 @@ export type Database = {
           amount: number | null
           created_at: string
           currency: string
+          discipline_id: string | null
           efaktur_date: string | null
           efaktur_number: string | null
           erp_amended_from: string | null
@@ -6942,11 +6993,13 @@ export type Database = {
           voided_by: string | null
           withheld_amount: number
           withheld_pph_type: string | null
+          work_order_id: string | null
         }
         Insert: {
           amount?: number | null
           created_at?: string
           currency?: string
+          discipline_id?: string | null
           efaktur_date?: string | null
           efaktur_number?: string | null
           erp_amended_from?: string | null
@@ -6983,11 +7036,13 @@ export type Database = {
           voided_by?: string | null
           withheld_amount?: number
           withheld_pph_type?: string | null
+          work_order_id?: string | null
         }
         Update: {
           amount?: number | null
           created_at?: string
           currency?: string
+          discipline_id?: string | null
           efaktur_date?: string | null
           efaktur_number?: string | null
           erp_amended_from?: string | null
@@ -7024,8 +7079,23 @@ export type Database = {
           voided_by?: string | null
           withheld_amount?: number
           withheld_pph_type?: string | null
+          work_order_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "procurement_invoices_discipline_id_fkey"
+            columns: ["discipline_id"]
+            isOneToOne: false
+            referencedRelation: "cost_disciplines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_invoices_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "procurement_invoices_org_id_fkey"
             columns: ["org_id"]
@@ -7379,6 +7449,7 @@ export type Database = {
       procurement_receipts: {
         Row: {
           created_at: string
+          discipline_id: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
@@ -7402,9 +7473,11 @@ export type Database = {
           receipt_date: string | null
           reference_number: string | null
           status: Database["public"]["Enums"]["procurement_receipt_status"]
+          work_order_id: string | null
         }
         Insert: {
           created_at?: string
+          discipline_id?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
@@ -7428,9 +7501,11 @@ export type Database = {
           receipt_date?: string | null
           reference_number?: string | null
           status: Database["public"]["Enums"]["procurement_receipt_status"]
+          work_order_id?: string | null
         }
         Update: {
           created_at?: string
+          discipline_id?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
@@ -7454,8 +7529,23 @@ export type Database = {
           receipt_date?: string | null
           reference_number?: string | null
           status?: Database["public"]["Enums"]["procurement_receipt_status"]
+          work_order_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "procurement_receipts_discipline_id_fkey"
+            columns: ["discipline_id"]
+            isOneToOne: false
+            referencedRelation: "cost_disciplines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_receipts_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "procurement_receipts_org_id_fkey"
             columns: ["org_id"]
@@ -8764,6 +8854,7 @@ export type Database = {
           created_at: string
           currency: string
           date: string | null
+          discipline_id: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
@@ -8784,12 +8875,14 @@ export type Database = {
           procurement_id: string
           reference_number: string | null
           status: string
+          work_order_id: string | null
         }
         Insert: {
           amount?: number | null
           created_at?: string
           currency?: string
           date?: string | null
+          discipline_id?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
@@ -8810,12 +8903,14 @@ export type Database = {
           procurement_id: string
           reference_number?: string | null
           status?: string
+          work_order_id?: string | null
         }
         Update: {
           amount?: number | null
           created_at?: string
           currency?: string
           date?: string | null
+          discipline_id?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
@@ -8836,8 +8931,23 @@ export type Database = {
           procurement_id?: string
           reference_number?: string | null
           status?: string
+          work_order_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "purchase_orders_discipline_id_fkey"
+            columns: ["discipline_id"]
+            isOneToOne: false
+            referencedRelation: "cost_disciplines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "purchase_orders_org_id_fkey"
             columns: ["org_id"]
@@ -8943,6 +9053,7 @@ export type Database = {
           created_at: string
           currency: string
           date: string | null
+          discipline_id: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
@@ -8959,12 +9070,14 @@ export type Database = {
           procurement_id: string
           reference_number: string | null
           status: string
+          work_order_id: string | null
         }
         Insert: {
           amount?: number | null
           created_at?: string
           currency?: string
           date?: string | null
+          discipline_id?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
@@ -8981,12 +9094,14 @@ export type Database = {
           procurement_id: string
           reference_number?: string | null
           status?: string
+          work_order_id?: string | null
         }
         Update: {
           amount?: number | null
           created_at?: string
           currency?: string
           date?: string | null
+          discipline_id?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
@@ -9003,8 +9118,23 @@ export type Database = {
           procurement_id?: string
           reference_number?: string | null
           status?: string
+          work_order_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "purchase_requests_discipline_id_fkey"
+            columns: ["discipline_id"]
+            isOneToOne: false
+            referencedRelation: "cost_disciplines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_requests_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "purchase_requests_org_id_fkey"
             columns: ["org_id"]
@@ -9844,6 +9974,7 @@ export type Database = {
           client_request_id: string | null
           created_at: string
           created_by: string
+          discipline_id: string | null
           id: string
           kind: string
           note: string | null
@@ -9859,6 +9990,7 @@ export type Database = {
           status: string
           to_warehouse_id: string | null
           warehouse_id: string
+          work_order_id: string | null
         }
         Insert: {
           cancelled_at?: string | null
@@ -9866,6 +9998,7 @@ export type Database = {
           client_request_id?: string | null
           created_at?: string
           created_by: string
+          discipline_id?: string | null
           id?: string
           kind: string
           note?: string | null
@@ -9881,6 +10014,7 @@ export type Database = {
           status?: string
           to_warehouse_id?: string | null
           warehouse_id: string
+          work_order_id?: string | null
         }
         Update: {
           cancelled_at?: string | null
@@ -9888,6 +10022,7 @@ export type Database = {
           client_request_id?: string | null
           created_at?: string
           created_by?: string
+          discipline_id?: string | null
           id?: string
           kind?: string
           note?: string | null
@@ -9903,8 +10038,23 @@ export type Database = {
           status?: string
           to_warehouse_id?: string | null
           warehouse_id?: string
+          work_order_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "stock_documents_discipline_id_fkey"
+            columns: ["discipline_id"]
+            isOneToOne: false
+            referencedRelation: "cost_disciplines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_documents_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "stock_documents_cancelled_by_fkey"
             columns: ["cancelled_by"]
@@ -10617,6 +10767,7 @@ export type Database = {
       }
       timesheet_entries: {
         Row: {
+          discipline_id: string | null
           entry_date: string
           hours: number
           id: string
@@ -10624,8 +10775,10 @@ export type Database = {
           org_id: string
           project_id: string
           timesheet_id: string
+          work_order_id: string | null
         }
         Insert: {
+          discipline_id?: string | null
           entry_date: string
           hours?: number
           id?: string
@@ -10633,8 +10786,10 @@ export type Database = {
           org_id?: string
           project_id: string
           timesheet_id: string
+          work_order_id?: string | null
         }
         Update: {
+          discipline_id?: string | null
           entry_date?: string
           hours?: number
           id?: string
@@ -10642,8 +10797,23 @@ export type Database = {
           org_id?: string
           project_id?: string
           timesheet_id?: string
+          work_order_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "timesheet_entries_discipline_id_fkey"
+            columns: ["discipline_id"]
+            isOneToOne: false
+            referencedRelation: "cost_disciplines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheet_entries_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "timesheet_entries_org_id_fkey"
             columns: ["org_id"]
@@ -11718,6 +11888,21 @@ export type Database = {
           },
         ]
       }
+      work_order_cost_lines: {
+        Row: {
+          discipline_id: string | null
+          occurred_on: string | null
+          org_id: string | null
+          project_id: string | null
+          quantity: number | null
+          quantity_unit: string | null
+          record_id: string | null
+          reference: string | null
+          source: string | null
+          work_order_id: string | null
+        }
+        Relationships: []
+      }
       erp_financial_statement_availability: {
         Row: {
           calendar: Json | null
@@ -12017,6 +12202,15 @@ export type Database = {
       }
     }
     Functions: {
+      set_cost_attribution: {
+        Args: {
+          p_discipline_id: string | null
+          p_ids: string[]
+          p_source: string
+          p_work_order_id: string | null
+        }
+        Returns: number
+      }
       accept_equipment_asset_matches: { Args: { p_pairs: Json }; Returns: Json }
       accept_invoice_pairs: { Args: { p_pairs: Json }; Returns: number }
       apply_native_receipt: {

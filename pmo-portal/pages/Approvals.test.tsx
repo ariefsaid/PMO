@@ -163,6 +163,8 @@ const submittedSheets: TimesheetAwaitingApproval[] = [
         hours: 8,
         notes: null,
         org_id: 'org-1',
+        work_order_id: null,
+        discipline_id: null,
         project: { name: 'Project Alpha', code: 'PA' },
       },
     ],

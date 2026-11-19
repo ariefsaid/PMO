@@ -37,6 +37,9 @@ import type { CommandIntent } from '@/src/lib/repositories/types';
 import type { VendorInvoiceContext } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
 import { SubcontractBillLines } from './SubcontractBillLines';
 import type { SubcontractBillLineInput } from '@/src/lib/db/subcontracts';
+import { CostAttributionFields } from '@/src/components/workOrders/CostAttributionFields';
+import { describeAttributionError } from '@/src/components/workOrders/costAttributionError';
+import { AttributionRefusedError, NO_ATTRIBUTION, hasAttribution, type CostAttribution } from '@/src/lib/repositories/workOrderCosts';
 
 import { type RecordKind, STATUS_OPTIONS, GROUP_REF_KINDS, localizedRecordKindLabel, statusOptionLabel, kindConfig } from './recordCaptureConfig';
 export type { RecordKind };
@@ -54,6 +57,8 @@ export interface CreatePRInput {
   amount: number | null;
   /** BLOCK 2 (ADR-0058): the capture form's OWN command identity — the SAME on every retry. */
   intent?: CommandIntent;
+  /** #2517: the work order and discipline, set right after the record is saved. */
+  attribution?: CostAttribution;
 }
 
 export interface CreateRfqInput {
@@ -72,6 +77,8 @@ export interface CreatePOInput {
   date: string | null;
   amount: number | null;
   intent?: CommandIntent;
+  /** #2517: see CreatePRInput.attribution. */
+  attribution?: CostAttribution;
 }
 
 export interface CreatePaymentInput {
@@ -105,6 +112,8 @@ export interface StagedGR {
   referenceNumber: string | null;
   /** #1505 P8: the quantities entered per line on an Odoo-owned org (absent = everything still open). */
   receiptLines?: ReceiptLine[];
+  /** #2517: the work order and discipline, set right after the receipt is saved. */
+  attribution?: CostAttribution;
 }
 
 export interface StagedVI {
@@ -137,6 +146,8 @@ export interface StagedVI {
   erpTaxAmounts?: ErpVendorTaxAmounts;
   /** #1505 P8: the taxes picked from the Odoo tax directory on an Odoo-owned org (absent = the organisation default). */
   taxIds?: string[];
+  /** #2517: the work order and discipline, set right after the bill is saved. */
+  attribution?: CostAttribution;
 }
 
 export type StagedRecord = StagedGR | StagedVI;
@@ -177,6 +188,8 @@ export interface RecordCaptureFormProps {
   subcontractPoId?: string;
   /** Reports local draft edits to a host that guards route navigation. */
   onDirtyChange?: (dirty: boolean) => void;
+  /** #2517: the purchase's project — its work orders are the ones a request, order, receipt or bill can go on. */
+  projectId?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -197,6 +210,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   currency = null,
   subcontractPoId,
   onDirtyChange,
+  projectId = null,
 }) => {
   const { toast } = useToast();
   const { t } = useTranslation();
@@ -214,6 +228,10 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   const paymentBillRequired = isPayment && !groupRefIsPmoAuthored();
   const [billError, setBillError] = useState<string | undefined>(undefined);
   const [referenceNumber, setReferenceNumber] = useState('');
+  const [attribution, setAttribution] = useState<CostAttribution>(NO_ATTRIBUTION);
+  // #2517: the four purchase records that are costs can go on a work order and a discipline.
+  const offersAttribution = kind === 'purchase_request' || kind === 'purchase_order' || kind === 'goods_receipt' || kind === 'vendor_invoice';
+  const attributionField = offersAttribution && hasAttribution(attribution) ? { attribution } : {};
   const [groupRef, setGroupRef] = useState('');
   // Hidden on an ERP-owned org: the dispatched create never carries it (see groupRefIsPmoAuthored).
   const hasGroupRef = GROUP_REF_KINDS.has(kind) && groupRefIsPmoAuthored();
@@ -324,6 +342,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           receiptDate: date,
           referenceNumber: refNum,
           ...(parsedQty.lines.length ? { receiptLines: parsedQty.lines } : {}),
+          ...attributionField,
         });
       } else {
         // #505: refuse to stage without the tax facts. Unreachable through the UI (Save VI is
@@ -341,6 +360,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           amount: isSubcontractInvoice && subcontractBill ? subcontractBill.amount : parsedAmount,
           ...(isSubcontractInvoice && subcontractBill ? { lines: subcontractBill.lines } : {}),
           ...taxFacts,
+          ...attributionField,
         });
       }
       return;
@@ -380,6 +400,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           date: dateVal,
           amount: parsedAmount,
           intent,
+          ...attributionField,
         } satisfies CreatePRInput;
       }
 
@@ -389,6 +410,16 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       onDirtyChange?.(false);
       onClose();
     } catch (err) {
+      // #2517: the record was saved; only its work order / discipline was refused. Close the form (a retry would
+      // create the record again) and say what to fix.
+      if (err instanceof AttributionRefusedError) {
+        const d = describeAttributionError(err.refusal, t);
+        toast(d.headline, d.detail, 'warning');
+        setFormDirty(false);
+        onDirtyChange?.(false);
+        onClose();
+        return;
+      }
       const paymentConflict = (err as { code?: unknown } | null)?.code === 'payment-in-flight-for-bill'
         ? {
             headline: t('procurementRecord:errors.paymentInFlight.title', 'Payment already in progress'),
@@ -581,6 +612,13 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       )}
 
       <VendorInvoiceCaptureFields formId={formId} capture={vi} isVendorInvoice={isVendorInvoice} />
+
+      {offersAttribution && (
+        <div className="flex flex-wrap gap-3">
+          <CostAttributionFields idPrefix={`${formId}-cost`} itemClassName="min-w-48 flex-1" compact projectId={projectId}
+            value={attribution} onChange={(next) => { setAttribution(next); markDirty(); }} />
+        </div>
+      )}
 
       {/* [PD-5]: predecessor FK for payment — required on a flipped org (DD-VPAY-3), optional otherwise */}
       {cfg.showInvoiceFk && (

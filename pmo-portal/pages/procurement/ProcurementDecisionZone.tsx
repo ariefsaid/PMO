@@ -351,6 +351,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
                 <RecordCaptureForm
                   kind="goods_receipt"
                   items={p.items}
+                  projectId={p.project_id}
                   busy={mutations.createReceipt.isPending}
                   onCreate={() => Promise.resolve()}
                   onStage={(staged) => {
@@ -373,6 +374,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
               {showCreateVI && (
                 <RecordCaptureForm
                   kind="vendor_invoice"
+                  projectId={p.project_id}
                   vendorId={p.vendor_id}
                   itemsNet={itemsNetTotal(p.items)}
                   currency={p.currency}

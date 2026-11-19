@@ -52,6 +52,7 @@
         "paid": "Sumber: jumlah invoice dikurangi saldo terutang menurut akuntansi.",
         "canInvoice": "Kuantitas diterima yang belum diklaim, dihitung dengan tarif kontrak, ditambah sisa nilai pesanan tanpa rincian kuantitas.",
         "overdue": "Jumlah saldo terutang positif pada invoice yang telah melewati tanggal jatuh tempo.",
+        "overdueUnknown": "Tidak diketahui: invoice yang jatuh tempo menggunakan lebih dari satu mata uang, sehingga saldonya tidak dijumlahkan.",
         "notOrderedValue": "Sumber: kuantitas kontrak yang belum dialokasikan dikalikan tarif kontraknya.",
         "downPayment": "Sumber: total uang muka proyek yang ditagihkan dan dipulihkan.",
         "contractQuantity": "Sumber: kuantitas pada baris kontrak berharga.",
@@ -71,9 +72,9 @@
       "ordered": "Dipesan",
       "delivered": "Terkirim",
       "invoiced": "Ditagih",
-      "signedContractInclusive": "Kontrak yang ditandatangani · termasuk pajak",
-      "signedContractExclusive": "Kontrak yang ditandatangani · tidak termasuk pajak",
-      "signedContractBasisUnknown": "Kontrak yang ditandatangani · dasar pajak tidak diketahui",
+      "signedContractInclusive": "Kontrak ditandatangani · termasuk pajak",
+      "signedContractExclusive": "Kontrak ditandatangani · tidak termasuk pajak",
+      "signedContractBasisUnknown": "Kontrak ditandatangani · dasar pajak tidak diketahui",
       "paid": "Dibayar",
       "orderBillingError": "Jumlah yang dapat ditagihkan tidak dapat dimuat.",
       "orderBillingLoading": "Nilai yang dapat ditagihkan sedang dimuat.",
@@ -143,7 +144,10 @@
       "noLineSplit": "Riwayat alokasi pesanan tidak tersedia.",
       "noConfirmedBastHistory": "Belum ada riwayat kuantitas BAST terkonfirmasi.",
       "invoiceDueDate": "Tenggat",
-      "invoiceDateSource": "Sumber: tanggal invoice dari akuntansi."
+      "invoiceDateSource": "Sumber: tanggal invoice dari akuntansi.",
+      "mixedCurrencyNote": "Ditagihkan dan dibayar tidak ditampilkan karena invoice tidak semuanya dalam mata uang proyek",
+      "mixedCurrencyNotePaid": "Nilai dibayar tidak ditampilkan karena invoice tidak semuanya dalam mata uang proyek",
+      "paidOfInvoiced": "dari {{amount}} ditagih, termasuk pajak"
     },
     "billing": {
       "sources": {
@@ -633,7 +637,9 @@
       "contractLocked": "hanya baca",
       "cashIncompleteShort": "Kas diterima (kwitansi belum dialokasikan ke invoice)",
       "cashInvalidShort": "Kas diterima (pembacaan kwitansi belum diverifikasi)",
-      "cashUnmatchedShort": "Kas diterima (belum ada penerimaan yang dicocokkan)"
+      "cashUnmatchedShort": "Kas diterima (belum ada penerimaan yang dicocokkan)",
+      "settlementCurrencyOut": "Ditagihkan, dibayar, dan % ditagihkan tidak ditampilkan karena invoice tidak semuanya dalam mata uang proyek.",
+      "invoicedAndPaid": "Ditagihkan, dibayar, dan % ditagihkan"
     },
     "cost": {
       "colCategory": "Kategori",
@@ -1172,7 +1178,8 @@
         "figuresIncomplete": "Angka invoice belum lengkap.",
         "retryFigures": "Coba lagi memuat angka invoice",
         "orderlessHeading": "Invoice tanpa pesanan pelanggan",
-        "orderlessFiguresIncomplete": "Jumlah yang sudah dan belum dibayar akan muncul setelah sistem akuntansi melaporkan saldo invoice."
+        "orderlessFiguresIncomplete": "Jumlah yang sudah dan belum dibayar akan muncul setelah sistem akuntansi melaporkan saldo invoice.",
+        "mixedCurrency": "Invoice pada pesanan ini menggunakan lebih dari satu mata uang, sehingga tidak dijumlahkan."
       },
       "delivery": {
         "chooseOrder": "Pilih pesanan pelanggan yang menerima pengiriman ini."

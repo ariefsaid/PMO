@@ -206,28 +206,37 @@ describe('BillingTab', () => {
     expect(screen.getByText('ACC-SINV-1 · Belum dibayar')).toBeInTheDocument();
   });
 
-  it('AC-1402 counts only fully-paid invoices when any submitted invoice balance is unknown', () => {
+  const settles = (status: string, amount: number, erp_outstanding_amount: number | null) => ({
+    status, amount, erp_outstanding_amount, currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 0,
+  });
+
+  // Changed field (#2204, FR-SET-006): dev read `paid` 2,000 here (fully-Paid invoices only). Callers showed Paid only
+  // when every balance was known, so 2,000 was never rendered; the rule now states settled as unknown.
+  it('AC-1402 AC-SET-004 #2204 counts no partial or status-based paid amount when any submitted invoice balance is unknown', () => {
     const invoices = [
-      { status: 'Unpaid', amount: 10_000.01, erp_outstanding_amount: 4_000.01 },
-      { status: 'Paid', amount: 2_000, erp_outstanding_amount: 0 },
-      { status: 'Unpaid', amount: 5_000, erp_outstanding_amount: null },
-      { status: 'Draft', amount: 500, erp_outstanding_amount: null },
-      { status: 'Cancelled', amount: 900, erp_outstanding_amount: 0 },
-    ] as const;
+      settles('Unpaid', 10_000.01, 4_000.01),
+      settles('Paid', 2_000, 0),
+      settles('Unpaid', 5_000, null),
+      settles('Draft', 500, null),
+      settles('Cancelled', 900, 0),
+    ];
 
     expect(summarizeInvoiceSettlement(invoices)).toEqual({
-      invoiced: 17_000.01,
-      paid: 2_000,
-      unpaid: null,
+      denomination: 'single',
+      currency: 'IDR',
+      documentTotal: 17_000.01,
+      gross: 17_000.01,
+      outstanding: null,
+      settled: null,
       balancesKnown: false,
     });
   });
 
-  it('AC-1402 adds partial payments only when every invoice balance is known', () => {
+  it('AC-1402 #2204 adds partial payments only when every invoice balance is known', () => {
     expect(summarizeInvoiceSettlement([
-      { status: 'Unpaid', amount: 10_000.01, erp_outstanding_amount: 4_000.01 },
-      { status: 'Paid', amount: 2_000, erp_outstanding_amount: 0 },
-    ])).toEqual({ invoiced: 12_000.01, paid: 8_000, unpaid: 4_000.01, balancesKnown: true });
+      settles('Unpaid', 10_000.01, 4_000.01),
+      settles('Paid', 2_000, 0),
+    ])).toEqual({ denomination: 'single', currency: 'IDR', documentTotal: 12_000.01, gross: 12_000.01, settled: 8_000, outstanding: 4_000.01, balancesKnown: true });
   });
 
   it('AC-PB-008 the summary shows contract, billed, assessed, the gap, DP held, not yet billed and not submitted, net of tax', () => {
