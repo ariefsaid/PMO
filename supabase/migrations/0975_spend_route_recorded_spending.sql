@@ -1,6 +1,6 @@
--- 0953_spend_route_recorded_spending.sql — spend_approval_route judges a request against what the line and the
+-- 0975_spend_route_recorded_spending.sql — spend_approval_route judges a request against what the line and the
 -- project have spent, as well as what they have committed.
--- Rollback: supabase/migrations/rollback/0953_spend_route_recorded_spending_down.sql.
+-- Rollback: supabase/migrations/rollback/0975_spend_route_recorded_spending_down.sql.
 -- Redefines public.spend_approval_route (from 0247, the highest migration that defines it),
 --          public.get_procurement_approval_routes (from 0724) and public.get_expense_claim_approval_routes (from 0426).
 --
