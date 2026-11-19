@@ -1118,3 +1118,48 @@ describe('#1671 vendor bill void (UX gate; void_subcontract_bill is the authorit
     expect(allowedRoles('void', 'procurementInvoice')).toEqual(['Admin', 'Finance']);
   });
 });
+
+describe('can() — daily site report (#1522; dsr_save_draft / dsr_validate / dsr_report_revenue are the authority)', () => {
+  const rec = (author_id: string, project_manager_id: string | null) => ({ currentUserId: 'u1', record: { author_id, project_manager_id } });
+
+  it('AC-DSR-013 enter and submit: Admin, Engineer (the field role) or the project\'s own PM; never Finance or Executive', () => {
+    for (const realRole of ['Admin', 'Engineer'] as const) {
+      expect(can('create', 'dailySiteReport', { realRole, ...rec('u2', 'u9') })).toBe(true);
+    }
+    expect(can('create', 'dailySiteReport', { realRole: 'Project Manager', ...rec('u2', 'u1') })).toBe(true);
+    expect(can('create', 'dailySiteReport', { realRole: 'Project Manager', ...rec('u2', 'u9') })).toBe(false);
+    for (const realRole of ['Finance', 'Executive'] as const) {
+      expect(can('create', 'dailySiteReport', { realRole, ...rec('u2', 'u9') })).toBe(false);
+    }
+    expect(can('create', 'dailySiteReport', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+  });
+
+  it('AC-DSR-005 validate: Admin, Finance or the project\'s PM, and never the author', () => {
+    for (const realRole of ['Admin', 'Finance'] as const) {
+      expect(can('approve', 'dailySiteReport', { realRole, ...rec('u2', 'u9') })).toBe(true);
+      expect(can('approve', 'dailySiteReport', { realRole, ...rec('u1', 'u9') })).toBe(false);
+    }
+    expect(can('approve', 'dailySiteReport', { realRole: 'Project Manager', ...rec('u2', 'u1') })).toBe(true);
+    expect(can('approve', 'dailySiteReport', { realRole: 'Project Manager', ...rec('u2', 'u9') })).toBe(false);
+    expect(can('approve', 'dailySiteReport', { realRole: 'Engineer', ...rec('u2', 'u1') })).toBe(false);
+    expect(can('approve', 'dailySiteReport', { realRole: 'Executive', ...rec('u2', 'u9') })).toBe(false);
+  });
+
+  it('correct: the validate audience, author or not (the corrector becomes the new version\'s author)', () => {
+    expect(can('revise', 'dailySiteReport', { realRole: 'Finance', ...rec('u1', 'u9') })).toBe(true);
+    expect(can('revise', 'dailySiteReport', { realRole: 'Engineer', ...rec('u2', 'u9') })).toBe(false);
+  });
+
+  it('revenue: the rate catalogue\'s readers only', () => {
+    for (const realRole of ['Admin', 'Finance', 'Executive'] as const) {
+      expect(can('view', 'dailySiteReportRevenue', { realRole, ...rec('u2', 'u9') })).toBe(true);
+    }
+    expect(can('view', 'dailySiteReportRevenue', { realRole: 'Project Manager', ...rec('u2', 'u1') })).toBe(true);
+    expect(can('view', 'dailySiteReportRevenue', { realRole: 'Project Manager', ...rec('u2', 'u9') })).toBe(false);
+    expect(can('view', 'dailySiteReportRevenue', { realRole: 'Engineer', ...rec('u2', 'u1') })).toBe(false);
+  });
+
+  it('every active role views reports', () => {
+    expect(allowedRoles('view', 'dailySiteReport')).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance', 'Engineer']);
+  });
+});
