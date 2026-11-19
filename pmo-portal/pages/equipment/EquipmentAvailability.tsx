@@ -35,7 +35,7 @@ function ProofUpload({ code, onFile }: { code: string; onFile: (file: File | und
   const input = React.useRef<HTMLInputElement>(null);
   return <span className="[&_button]:text-control [&_svg]:size-4">
     <FileCell status="Draft" filePath={null} title={code} onUpload={() => input.current?.click()} />
-    <FileInput ref={input} className="sr-only" aria-label={t('equipment:availability.proofFor', 'Attach proof for {{code}}', { code })} accept="image/*,application/pdf" onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; onFile(file); }} />
+    <FileInput ref={input} tabIndex={-1} className="sr-only" aria-label={t('equipment:availability.proofFor', 'Attach proof for {{code}}', { code })} accept="image/*,application/pdf" onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; onFile(file); }} />
   </span>;
 }
 
