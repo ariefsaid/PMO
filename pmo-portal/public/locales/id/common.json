@@ -4919,6 +4919,7 @@
       "COST_WO_NO_PROJECT": "Catatan ini tidak punya proyek, jadi tidak bisa masuk ke perintah kerja.",
       "COST_DISCIPLINE": "Disiplin itu sudah tidak ada di daftar organisasi Anda.",
       "generic": "Coba lagi dari catatannya."
-    }
+    },
+    "timesheetSection": "Perintah kerja dan disiplin per proyek"
   }
 }

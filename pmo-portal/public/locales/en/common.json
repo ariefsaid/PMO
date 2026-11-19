@@ -4919,6 +4919,7 @@
       "COST_WO_NO_PROJECT": "This record has no project, so it cannot go on a work order.",
       "COST_DISCIPLINE": "That discipline is no longer on your organisation's list.",
       "generic": "Try again from the record."
-    }
+    },
+    "timesheetSection": "Work order and discipline per project"
   }
 }

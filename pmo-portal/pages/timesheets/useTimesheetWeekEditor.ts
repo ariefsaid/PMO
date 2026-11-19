@@ -63,12 +63,15 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
         const note =
           currentWeekEntries.find((e) => e.project_id === r.id && (e.notes ?? '') !== '')?.notes ??
           '';
+        // #2517: the row's work order / discipline is what its lines carry (one row = one project's week).
+        const attributed = currentWeekEntries.find((e) => e.project_id === r.id && (e.work_order_id || e.discipline_id));
         return {
           project_id: r.id,
           project: r.project,
           code: r.code,
           hours: r.hours.map((h) => (h === 0 ? '' : String(h))),
           note,
+          attribution: { workOrderId: attributed?.work_order_id ?? null, disciplineId: attributed?.discipline_id ?? null },
         };
       }),
     [gridRows, currentWeekEntries]
@@ -125,6 +128,8 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
         entry_date: e.entry_date,
         hours: e.hours,
         notes: e.notes ?? null,
+        work_order_id: e.work_order_id ?? null,
+        discipline_id: e.discipline_id ?? null,
       })),
     [currentWeekEntries]
   );
@@ -189,6 +194,14 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
     );
   const setNote = (rowId: string, note: string) =>
     setEditRows((rows) => rows.map((r) => (r.project_id === rowId ? { ...r, note } : r)));
+  // #2517: a row's work order and discipline, saved with the row's lines on the next Save.
+  const setAttribution = (rowId: string, attribution: NonNullable<EditRow['attribution']>) =>
+    setEditRows((rows) => rows.map((r) => (r.project_id === rowId ? { ...r, attribution } : r)));
+  const rowAttributions = editRows.map((r) => ({
+    projectId: r.project_id,
+    project: r.project,
+    attribution: r.attribution ?? { workOrderId: null, disciplineId: null },
+  }));
   const addProject = (projectId: string) => {
     const proj = (allProjects ?? []).find((p) => p.id === projectId);
     if (!proj || presentProjectIds.has(projectId)) return;
@@ -200,6 +213,7 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
         code: proj.code,
         hours: ['', '', '', '', '', '', ''],
         note: '',
+        attribution: { workOrderId: null, disciplineId: null },
       },
     ]);
   };
@@ -470,11 +484,11 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
   };
 
   return {
-    view: { pickerOptions, invalidCells, editValid, editTotals, editGridRows, editNotes,
+    view: { pickerOptions, invalidCells, editValid, editTotals, editGridRows, editNotes, rowAttributions,
       editRawHours, rowToDelete, dirty, hasUnsavedBuffer, weeklyTotal, pendingWeekDelta, weekRangeLabel,
       isOwner, editBufferHasHours, canSubmit, confirmSubmit,
       copyPlan: { addedCount: copyPlan.addedCount, lastWeekHasRows: copySource.length > 0 } },
-    actions: { setCell, setNote, addProject, copyLastWeek, requestDelete: setConfirmDeleteRowId,
+    actions: { setCell, setNote, setAttribution, addProject, copyLastWeek, requestDelete: setConfirmDeleteRowId,
       cancelDelete: () => setConfirmDeleteRowId(null), confirmDeleteRow, commitSave,
       stepWeek, cancelWeekChange: () => setPendingWeekDelta(null),
       confirmWeekChange: () => { if (pendingWeekDelta !== null) moveWeek(pendingWeekDelta); setPendingWeekDelta(null); },

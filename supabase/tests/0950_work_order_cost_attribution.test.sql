@@ -1,16 +1,17 @@
 -- 0950_work_order_cost_attribution.test.sql — #2517 (ADR-0103; docs/specs/work-order-cost-attribution.spec.md).
--- Migrations under test: 0950_cost_disciplines.sql, 0951_work_order_cost_attribution.sql.
+-- Migrations under test: 0950_cost_disciplines.sql, 0951_work_order_cost_attribution.sql, 0952_timesheet_week_attribution.sql.
 -- AC-WCA-001 every cost source carries a work order and a discipline · AC-WCA-002 a work order on another project,
 -- another org or cancelled is refused by the database, for every writer · AC-WCA-003 a discipline must be the org's,
 -- live · AC-WCA-004 a cost with no project names no work order · AC-WCA-005 a transfer to a work order's site may name it ·
 -- AC-WCA-006 project totals are unchanged · AC-WCA-007 a second org reads nothing and changes nothing ·
 -- AC-WCA-008 an author changes only their own editable record · AC-WCA-009 only an Admin keeps the discipline list ·
 -- AC-WCA-010 a posted stock document stays immutable except its attribution · AC-WCA-011 a purchase cannot move
--- away from its records' work orders · AC-WCA-012 one read seam returns a work order's cost lines by source.
+-- away from its records' work orders · AC-WCA-012 one read seam returns a work order's cost lines by source ·
+-- AC-WCA-015 the timesheet week save carries a line's work order and discipline.
 -- Every denial asserts the errcode AND the message, so a different gate moving in front cannot pass it.
 begin;
 create extension if not exists pgtap;
-select plan(40);
+select plan(44);
 
 -- ── Fixtures: org A (several roles), org B (another tenant). Written as the table owner. ─────────────────
 insert into organizations (id, name, default_currency) values
@@ -187,6 +188,23 @@ select is(public.set_cost_attribution('stock_document', array['25170000-0000-000
   'AC-WCA-008 the storekeeper who posted a stock issue attributes it right after (a movement posts on create)');
 select is(public.set_cost_attribution('equipment_usage', array['25170000-0000-0000-0000-000000000911']::uuid[], null, null), 1,
   'AC-WCA-008 an Engineer clears the attribution of their own draft equipment entry');
+
+-- AC-WCA-015 (0952): the week save carries a line's work order and discipline; a line that names neither keeps them.
+select lives_ok($$ select public.save_timesheet_week('25170000-0000-0000-0000-000000000701', '2026-11-16',
+  '[{"project_id":"25170000-0000-0000-0000-0000000000d1","entry_date":"2026-11-17","hours":2,"notes":null,
+     "work_order_id":"25170000-0000-0000-0000-000000000401","discipline_id":"25170000-0000-0000-0000-000000000501"}]'::jsonb) $$,
+  'AC-WCA-015 an Engineer saves a timesheet line with a work order and discipline');
+select is((select work_order_id from public.timesheet_entries where timesheet_id = '25170000-0000-0000-0000-000000000701' and entry_date = '2026-11-17'),
+  '25170000-0000-0000-0000-000000000401'::uuid, 'AC-WCA-015 the saved line names the work order');
+select public.save_timesheet_week('25170000-0000-0000-0000-000000000701', '2026-11-16',
+  '[{"project_id":"25170000-0000-0000-0000-0000000000d1","entry_date":"2026-11-17","hours":3,"notes":null}]'::jsonb);
+select is((select work_order_id::text || '/' || hours::text from public.timesheet_entries
+            where timesheet_id = '25170000-0000-0000-0000-000000000701' and entry_date = '2026-11-17'),
+  '25170000-0000-0000-0000-000000000401/3.00', 'AC-WCA-015 a re-save that names no work order keeps it and changes the hours');
+select throws_ok($$ select public.save_timesheet_week('25170000-0000-0000-0000-000000000701', '2026-11-16',
+  '[{"project_id":"25170000-0000-0000-0000-0000000000d1","entry_date":"2026-11-17","hours":3,"notes":null,
+     "work_order_id":"25170000-0000-0000-0000-000000000402","discipline_id":null}]'::jsonb) $$,
+  '23514', 'COST_WO_PROJECT: the work order belongs to another project', 'AC-WCA-015 the week save refuses a work order of another project');
 
 select pg_temp.act_as('25170000-0000-0000-0000-0000000000a5');
 select throws_ok($$ select public.set_cost_attribution('stock_document', array['25170000-0000-0000-0000-000000000811']::uuid[], null, null) $$,
