@@ -67,6 +67,8 @@ export interface RosterMember {
   kind: CrewKind;
   has_login: boolean;
   standard_role_id: string | null;
+  /** Off rotation that day (FR-CRW-010): the tick screen defaults them to off rotation. */
+  off_rotation?: boolean;
 }
 
 export interface RosterRole {
