@@ -158,7 +158,7 @@ export const ExpiryDocumentsCard: React.FC<{ kind: SubjectKind; subjectId: strin
   return (
     <Card role="region" aria-label={t('equipment:expiryEdit.title', 'Documents')} className="mb-4">
       <CardHead actions={<CanWrite entity="expiryDocument" action="create" ctx={ctx}>
-        <Button size="sm" onClick={() => setEditing('new')}>{t('equipment:expiryEdit.add', 'Add document')}</Button>
+        <Button variant="outline" size="sm" onClick={() => setEditing('new')}>{t('equipment:expiryEdit.add', 'Add document')}</Button>
       </CanWrite>}>{t('equipment:expiryEdit.title', 'Documents')}</CardHead>
       <CardPad className="pt-0">
         {q.isPending && <ListState variant="loading" rows={2} />}
