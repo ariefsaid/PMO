@@ -19,7 +19,7 @@ import {
 import { ExportAllButton } from '@/src/components/export';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useIncidentsPage, useIncidentsExportAll, useIncidentMutations } from '@/src/hooks/useIncidents';
+import { useIncidentsPage, useIncidentsExportAll, useIncidentMutations, useAssigneeOptions } from '@/src/hooks/useIncidents';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import { INCIDENTS_PAGE_SIZE, type IncidentRow, type IncidentStatus } from '@/src/lib/db/incidents';
@@ -27,6 +27,7 @@ import { formatDay } from '@/src/lib/format';
 import { severityVariant } from '@/src/lib/status/statusVariants';
 import { statusLabel } from '@/src/lib/status/statusMap';
 import { NEXT_STATUS, transitionCopy as getTransitionCopy, severityLabel, type AdvanceStatus } from '@/src/lib/incidents/transitions';
+import { isIncidentOverdue, needsCloseProof } from '@/src/lib/incidents/overdue';
 import { IncidentFormModal } from '@/components/IncidentFormModal';
 
 /** Status filter segments: All + the three incident_status enum values. */
@@ -58,13 +59,15 @@ const Incidents: React.FC = () => {
   const { toast } = useToast();
   const { create, update, transition, remove } = useIncidentMutations();
   const exportAll = useIncidentsExportAll();
+  const { data: assigneeOptions } = useAssigneeOptions();
 
   // R2: page joins q/status in the URL so Back/refresh return to the same page; page 1 (the
   // default) stays out of the URL. Filter resets ride the filter's own history entry (replace)
   // and batch with the filter write — react-router 8 does not queue same-tick param writes.
-  const { values, setFilter, setFilters, clear } = useUrlFilters(['q', 'status', 'page']);
+  const { values, setFilter, setFilters, clear } = useUrlFilters(['q', 'status', 'due', 'page']);
   const statusFilter = values.status as IncidentStatus | '';
   const search = values.q;
+  const overdueOnly = values.due === 'overdue';
   const page = Math.max(1, Number.parseInt(values.page || '1', 10) || 1);
   const setPage = (next: number, options?: { replace?: boolean }) =>
     setFilter('page', next > 1 ? String(next) : '', options);
@@ -74,6 +77,7 @@ const Incidents: React.FC = () => {
     pageSize: INCIDENTS_PAGE_SIZE,
     status: statusFilter || undefined,
     search: search.trim() || undefined,
+    overdue: overdueOnly || undefined,
   });
   const { data, isPending, isError, refetch } = list;
   const rows = data?.rows;
@@ -129,8 +133,20 @@ const Incidents: React.FC = () => {
     {
       key: 'status',
       header: t('col.status', 'Status'),
-      cell: (i) => <StatusPill record="incident" state={i.status} />,
+      cell: (i) => (
+        <span className="flex flex-wrap items-center gap-1">
+          <StatusPill record="incident" state={i.status} />
+          {isIncidentOverdue(i) && <StatusPill variant="lost">{t('overdue', 'Overdue')}</StatusPill>}
+        </span>
+      ),
       exportValue: (i) => i.status,
+    },
+    {
+      key: 'assignee',
+      header: t('col.assignee', 'Person in charge'),
+      cell: (i) => <span className="truncate text-muted-foreground">{i.assignee_id ? assigneeOptions?.find((o) => o.value === i.assignee_id)?.label ?? '…' : '—'}</span>,
+      exportValue: (i) => assigneeOptions?.find((o) => o.value === i.assignee_id)?.label ?? '',
+      colClassName: 'hidden md:table-cell',
     },
     {
       key: 'incident_date',
@@ -159,7 +175,8 @@ const Incidents: React.FC = () => {
     if (canTransition && next) {
       items.push({
         label: getTransitionCopy(t, next).menu,
-        onClick: () => setTransitionTarget({ incident: i, to: next }),
+        // A High or Critical issue closes with a photo: open its page, where the close form takes one.
+        onClick: () => (next === 'Closed' && needsCloseProof(i.severity) ? navigate(`/incidents/${i.id}`) : setTransitionTarget({ incident: i, to: next })),
       });
     }
     if (canEdit) items.push({ label: t('action.edit', 'Edit'), onClick: () => setFormTarget({ incident: i }) });
@@ -218,6 +235,13 @@ const Incidents: React.FC = () => {
         label: statusLabel('incident', s as IncidentStatus, tStatus),
       })),
     },
+    {
+      key: 'due',
+      label: t('filterByDue', 'Filter by due time'),
+      kind: 'segment',
+      semantics: 'toggle',
+      options: [{ value: 'overdue', label: t('overdue', 'Overdue') }],
+    },
   ], [tStatus, t]);
 
   const handleFilterChange = (key: string, value: string) => {
@@ -269,7 +293,7 @@ const Incidents: React.FC = () => {
             entity="Incidents"
             columns={columns}
             hasRows={total > 0}
-            fetchRows={() => exportAll.mutateAsync({ status: statusFilter || undefined, search: search.trim() || undefined })}
+            fetchRows={() => exportAll.mutateAsync({ status: statusFilter || undefined, search: search.trim() || undefined, overdue: overdueOnly || undefined })}
           />
         )
       }
@@ -344,8 +368,8 @@ const Incidents: React.FC = () => {
         <IncidentFormModal
           incident={formTarget.incident}
           onClose={() => setFormTarget(null)}
-          onCreate={async (input) => {
-            await create.mutateAsync(input);
+          onCreate={(input) => create.mutateAsync(input)}
+          onCreated={(_row, input) => {
             toast(t('toast.filed', 'Incident filed'), input.type, 'success');
             setFormTarget(null);
           }}

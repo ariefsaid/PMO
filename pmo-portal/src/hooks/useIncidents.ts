@@ -1,6 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
-import type { IncidentRow, IncidentStatus, IncidentInput } from '@/src/lib/db/incidents';
+import type { IncidentRow, IncidentStatus, IncidentInput, IncidentFileRow, IncidentFileKind } from '@/src/lib/db/incidents';
+import type { ComboboxOption } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { withTimeout } from '@/src/lib/withTimeout';
 
@@ -25,12 +26,12 @@ export function useIncidents(status?: IncidentStatus, opts?: { enabled?: boolean
  * them. The previous page stays on screen while the next loads. The unfiltered count is only fetched
  * while a filter is active; unfiltered, the page total IS the denominator.
  */
-export function useIncidentsPage(args: { page: number; pageSize: number; status?: IncidentStatus; search?: string }) {
+export function useIncidentsPage(args: { page: number; pageSize: number; status?: IncidentStatus; search?: string; overdue?: boolean }) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  const filtered = Boolean(args.status || args.search);
+  const filtered = Boolean(args.status || args.search || args.overdue);
   const list = useQuery({
-    queryKey: ['incidents', orgId, 'page', args.status ?? 'all', args.search ?? '', args.page, args.pageSize],
+    queryKey: ['incidents', orgId, 'page', args.status ?? 'all', args.search ?? '', args.overdue ? 'overdue' : 'any', args.page, args.pageSize],
     queryFn: () => repositories.incident.listPage(args),
     enabled: Boolean(orgId),
     placeholderData: keepPreviousData,
@@ -46,7 +47,7 @@ export function useIncidentsPage(args: { page: number; pageSize: number; status?
 /** Every incident matching the current status/search, read only when the user exports (the page holds one server page). */
 export function useIncidentsExportAll() {
   return useMutation({
-    mutationFn: (params?: { status?: IncidentStatus; search?: string }) => repositories.incident.list(params),
+    mutationFn: (params?: { status?: IncidentStatus; search?: string; overdue?: boolean }) => repositories.incident.list(params),
   });
 }
 
@@ -75,6 +76,8 @@ export interface UpdateIncidentArgs {
 export interface TransitionIncidentArgs {
   id: string;
   status: IncidentStatus;
+  /** Written with the closing update (optional). */
+  closeNote?: string;
 }
 
 /**
@@ -112,8 +115,8 @@ export function useIncidentMutations() {
   });
 
   const transition = useMutation({
-    mutationFn: ({ id, status }: TransitionIncidentArgs) =>
-      withTimeout(repositories.incident.transition(id, status)),
+    mutationFn: ({ id, status, closeNote }: TransitionIncidentArgs) =>
+      withTimeout(repositories.incident.transition(id, status, closeNote)),
     onSettled: invalidate,
   });
 
@@ -124,4 +127,49 @@ export function useIncidentMutations() {
   });
 
   return { create, update, transition, remove };
+}
+
+/** The live attachments of one issue (#2521). Keyed under `['incident', …]` so every incident mutation refetches it. */
+export function useIncidentFiles(incidentId: string | undefined) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<IncidentFileRow[]>({
+    queryKey: ['incident', orgId, incidentId, 'files'],
+    queryFn: () => repositories.incident.listFiles(incidentId!),
+    enabled: Boolean(orgId && incidentId),
+  });
+}
+
+/** Upload one photo/PDF for an issue, and make a task from an issue (#2521). */
+export function useIncidentEvidenceMutations() {
+  const qc = useQueryClient();
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['incident'] });
+    qc.invalidateQueries({ queryKey: ['incidents'] });
+    qc.invalidateQueries({ queryKey: ['tasks'] });
+  };
+  const upload = useMutation({
+    mutationFn: (args: { incident: Pick<IncidentRow, 'id' | 'org_id'>; kind: IncidentFileKind; file: File }) =>
+      repositories.incident.uploadFile(args),
+    onSettled: invalidate,
+  });
+  const makeTask = useMutation({
+    mutationFn: (incidentId: string) => withTimeout(repositories.incident.createTask(incidentId)),
+    onSettled: invalidate,
+  });
+  return { upload, makeTask };
+}
+
+/** Active members of the org as assignee options (RLS scopes the list; org_id only keys the cache). */
+export function useAssigneeOptions() {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<ComboboxOption[]>({
+    queryKey: ['fk-options', 'incident-assignee', orgId],
+    queryFn: async () => (await repositories.profile.listOrgProfiles())
+      .filter((p) => p.status === 'active')
+      .map((p) => ({ value: p.id, label: p.full_name ?? p.email ?? p.id, sub: p.role })),
+    enabled: Boolean(orgId),
+    staleTime: 5 * 60_000,
+  });
 }

@@ -28,7 +28,14 @@ const { detailState, mutations } = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useIncidents', () => ({
   useIncident: () => detailState,
   useIncidentMutations: () => mutations,
+  useAssigneeOptions: () => ({ data: [] }),
+  useIncidentEvidenceMutations: () => ({ upload: { mutateAsync: vi.fn(), isPending: false }, makeTask: { mutateAsync: vi.fn(), isPending: false } }),
+  useIncidentFiles: () => ({ data: [] }),
 }));
+vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [] }) }));
+
+
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-self', org_id: 'org-1' } }) }));
 
 // Project FK options back the project-link display name on the detail page.
 const { projectOptions } = vi.hoisted(() => ({
@@ -169,12 +176,35 @@ describe('IncidentDetail', () => {
   });
 
   it('AC-INC-003: an Investigating incident advances to Closed via the header action', async () => {
-    detailState.data = { ...incident, status: 'Investigating' };
+    // A Medium issue closes without a photo (proof is required from High up — see the next test).
+    detailState.data = { ...incident, status: 'Investigating', severity: 'Medium' };
     renderPage('Admin');
     await userEvent.click(screen.getByRole('button', { name: /close incident/i }));
     const dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /close incident/i }));
     expect(mutations.transition.mutateAsync).toHaveBeenCalledWith({ id: 'i1', status: 'Closed' });
+  });
+
+  it('AC-SIL-004: a High issue cannot be closed from the form until a close photo is added', async () => {
+    detailState.data = { ...incident, status: 'Investigating', severity: 'High' };
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /close incident/i }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('button', { name: /close incident/i })).toBeDisabled();
+    await userEvent.upload(within(dialog).getByTestId('incident-close-photo-input'), new File(['x'], 'proof.jpg', { type: 'image/jpeg' }));
+    expect(within(dialog).getByRole('button', { name: /close incident/i })).toBeEnabled();
+  });
+
+  it('AC-SIL-011: an open issue past its due time shows Overdue on the record', () => {
+    detailState.data = { ...incident, status: 'Open', due_at: '2020-01-01T00:00:00Z' };
+    renderPage('Admin');
+    expect(screen.getByTestId('incident-pills')).toHaveTextContent(/overdue/i);
+  });
+
+  it('AC-SIL-013: a legacy issue with every new column empty renders without an Overdue badge', () => {
+    detailState.data = { ...incident, status: 'Open', due_at: null, assignee_id: null, work_order_id: null, task_id: null };
+    renderPage('Admin');
+    expect(screen.getByTestId('incident-pills')).not.toHaveTextContent(/overdue/i);
   });
 
   it('AC-INC-003: a rejected transition (RLS) surfaces a classified warning toast, record unchanged', async () => {

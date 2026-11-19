@@ -7,18 +7,50 @@
   "filterByStatus": "Filter by status",
   "openRow": "Open {{type}}",
   "reported": "Reported {{date}}",
-  "col": { "incident": "Incident", "severity": "Severity", "status": "Status", "date": "Date", "location": "Location" },
-  "action": { "edit": "Edit", "delete": "Delete", "next": "Next action", "clearFilters": "Clear filters" },
-  "severity": { "Low": "Low", "Medium": "Medium", "High": "High", "Critical": "Critical" },
-  "error": { "title": "Couldn't load incidents", "sub": "The request failed. Check your connection and try again." },
+  "col": {
+    "incident": "Incident",
+    "severity": "Severity",
+    "status": "Status",
+    "date": "Date",
+    "location": "Location",
+    "assignee": "Person in charge"
+  },
+  "action": {
+    "edit": "Edit",
+    "delete": "Delete",
+    "next": "Next action",
+    "clearFilters": "Clear filters"
+  },
+  "severity": {
+    "Low": "Low",
+    "Medium": "Medium",
+    "High": "High",
+    "Critical": "Critical"
+  },
+  "error": {
+    "title": "Couldn't load incidents",
+    "sub": "The request failed. Check your connection and try again."
+  },
   "empty": {
     "title": "No incidents reported",
     "sub": "When something goes wrong on a project or site, file it here so it can be investigated and closed out.",
     "noMatchTitle": "No incidents match your filters",
     "noMatchSub": "Try a different status or clear the search."
   },
-  "pager": { "label": "Pages", "range": "{{from}}–{{to}} of {{total}}", "prev": "Previous page", "next": "Next page" },
-  "toast": { "closed": "Incident closed", "started": "Investigation started", "deleted": "Incident deleted", "filed": "Incident filed", "updated": "Incident updated" },
+  "pager": {
+    "label": "Pages",
+    "range": "{{from}}–{{to}} of {{total}}",
+    "prev": "Previous page",
+    "next": "Next page"
+  },
+  "toast": {
+    "closed": "Incident closed",
+    "started": "Investigation started",
+    "deleted": "Incident deleted",
+    "filed": "Incident filed",
+    "updated": "Incident updated",
+    "taskMade": "Task created"
+  },
   "transition": {
     "advance": "Advance incident?",
     "confirm": "Confirm",
@@ -48,7 +80,14 @@
     "description": "Description",
     "noDescription": "No description was recorded.",
     "viewProject": "View project",
-    "type": "Type"
+    "type": "Type",
+    "escalated": "Escalated",
+    "escalatedBody": "This issue passed its due time on {{date}}; the person in charge and the project manager were told.",
+    "closedOn": "Closed on",
+    "task": "Task",
+    "taskLinked": "A task was created for this issue.",
+    "makeTask": "Make a task",
+    "photos": "Photos"
   },
   "form": {
     "section": "What happened",
@@ -64,6 +103,36 @@
     "description": "Description",
     "descriptionPlaceholder": "What happened, who was involved, and any immediate action taken.",
     "dateRequired": "Incident date is required.",
-    "typeRequired": "Incident type is required."
+    "typeRequired": "Incident type is required.",
+    "workOrder": "Work order",
+    "workOrderNoun": "work order",
+    "workOrderPlaceholder": "Optional — name a work order…",
+    "workOrderNeedsProject": "Choose a project first",
+    "assignee": "Person in charge",
+    "assigneeNoun": "person",
+    "assigneePlaceholder": "Optional — who must fix it…",
+    "due": "Fix by",
+    "action": "What must be done",
+    "actionPlaceholder": "e.g. Replace the damaged guard rail",
+    "photos": "Photos",
+    "addPhoto": "Add photo",
+    "photoHint": "Up to 10 photos, 15 MB each.",
+    "removePhoto": "Remove",
+    "retryUpload": "Retry photo upload",
+    "uploadFailed": "The issue was saved, but a photo could not be uploaded. Your text is kept — retry to send the remaining photos."
+  },
+  "filterByDue": "Filter by due time",
+  "overdue": "Overdue",
+  "evidence": {
+    "none": "No photos yet.",
+    "atClose": "Close proof",
+    "atRaise": "At raise"
+  },
+  "close": {
+    "note": "Close note",
+    "notePlaceholder": "What was done to fix it.",
+    "addPhoto": "Add close photo",
+    "proofRequired": "A close photo is required for a High or Critical issue.",
+    "proofOptional": "Optional for this severity."
   }
 }
