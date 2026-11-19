@@ -502,3 +502,6 @@ and **Phase** for a milestone. **Actual** and **Recorded spending** name the sam
 
 ## Expiring document
 A certificate, permit or similar record with an expiry date that belongs to a person or an equipment asset, of an org-defined document type. Added, edited and archived on the subject's record (#2542); warned about at the org's thresholds and listed on the expiring-documents screen (#2527). A medical type holds a status (fit / unfit) and dates only.
+
+## People register
+The workforce register: anyone who holds expiring documents, whether or not they use the app (a person may optionally link to an app user profile). Kept under Administration › People by Admin (HR maps to Admin); app users are never added automatically. Each person has a **person code**, assigned by the database as `P-0001`, `P-0002`, … per organisation when left blank, editable, unique among live people. Archiving hides a person and their warnings (soft, ADR-0018).

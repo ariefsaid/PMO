@@ -517,8 +517,7 @@
       "title": "Administration",
       "usage": "Usage",
       "users": "Users",
-      "projects": "Project setup",
-      "people": "People"
+      "projects": "Project setup"
     },
     "taxDefault": {
       "adminOnly": "Only an Admin can change this.",
@@ -769,39 +768,6 @@
         "save": "Add",
         "projectLoadError": "Couldn't load the projects"
       }
-    },
-    "people": {
-      "errName": "Enter the name",
-      "errCode": "Enter a person code",
-      "saved": "Person saved",
-      "dupCode": "That person code is already in use",
-      "dupCodeSub": "Choose another code, or leave it blank to have one assigned.",
-      "dupProfile": "That user is already linked to another person",
-      "dupProfileSub": "Choose a different user, or clear the link.",
-      "editTitle": "Edit person",
-      "addTitle": "Add person",
-      "save": "Save person",
-      "name": "Name",
-      "code": "Person code",
-      "codeAuto": "Assigned if left blank",
-      "jobTitle": "Job title",
-      "user": "App user (optional)",
-      "userPlaceholder": "Not an app user",
-      "userSearch": "Search users",
-      "archived": "Person archived",
-      "actions": "Actions",
-      "editLabel": "Edit {{name}}",
-      "edit": "Edit",
-      "archiveLabel": "Archive {{name}}",
-      "archive": "Archive",
-      "add": "Add person",
-      "error": "Couldn't load people",
-      "errorSub": "The request failed. Check your connection and try again.",
-      "retry": "Retry",
-      "empty": "No people yet",
-      "emptySub": "Add the people who hold certificates or permits, then record their documents.",
-      "archiveTitle": "Archive person",
-      "archiveBody": "They leave the register and the expiry list, and no more warnings are sent for their documents."
     }
   },
   "approvals": {

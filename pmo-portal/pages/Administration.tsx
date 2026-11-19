@@ -75,7 +75,7 @@ const SECTION_LABEL_DEFAULTS: Record<AdministrationSection, string> = {
  */
 const buildSectionLabels = (t: TFunction): Record<AdministrationSection, string> => ({
   users: t('admin.nav.users', SECTION_LABEL_DEFAULTS.users),
-  people: t('admin.nav.people', SECTION_LABEL_DEFAULTS.people),
+  people: t('administration:people.navLabel', SECTION_LABEL_DEFAULTS.people),
   integrations: t('admin.nav.integrations', SECTION_LABEL_DEFAULTS.integrations),
   accounting: t('admin.nav.accounting', SECTION_LABEL_DEFAULTS.accounting),
   projects: t('admin.nav.projects', SECTION_LABEL_DEFAULTS.projects),

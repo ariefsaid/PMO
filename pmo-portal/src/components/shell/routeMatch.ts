@@ -391,7 +391,7 @@ export const ADMINISTRATION_SECTION_I18N_KEY: Record<
   string
 > = {
   users: 'admin.nav.users',
-  people: 'admin.nav.people',
+  people: 'administration:people.navLabel',
   integrations: 'admin.nav.integrations',
   accounting: 'admin.nav.accounting',
   projects: 'admin.nav.projects',
