@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { FileInput } from '@/src/components/ui/FormFields';
 import { FileCell } from '@/src/components/FileCell';
-import { Badge, Button, Checkbox, ListPage, ListState, SelectField, TextField, useToast } from '@/src/components/ui';
+import { Button, Checkbox, ListPage, ListState, SelectField, StatusPill, TextField, useToast } from '@/src/components/ui';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useEquipmentAssetPages } from '@/src/hooks/useEquipment';
@@ -144,8 +144,8 @@ const EquipmentAvailabilityPage: React.FC = () => {
                   <span className="min-w-40 flex-1">
                     <Link to={`/equipment/assets/${a.id}`} className="font-medium text-primary-text hover:underline">{a.code}</Link> <span className="text-muted-foreground">{a.name}</span>
                     {current && !may('create', 'equipmentAvailability', writeCtx) && <span className="ml-2">{statusLabel(t, current)}</span>}
-                    {(uploadedProofs.has(`${a.id}:${statusDate}`) || (!proofStates.isFetching && provenAssets.has(a.id))) && down && !draft[a.id] && <Badge className="ml-2">{t('equipment:availability.proven', 'Proven')}</Badge>}
-                    {down && todays.has(a.id) && !draft[a.id] && proofStates.data && !proofStates.isFetching && !proofStates.isError && !uploadedProofs.has(`${a.id}:${statusDate}`) && !provenAssets.has(a.id) && <Badge className="ml-2">{t('equipment:availability.noProof', 'No proof')}</Badge>}
+                    {(uploadedProofs.has(`${a.id}:${statusDate}`) || (!proofStates.isFetching && provenAssets.has(a.id))) && down && !draft[a.id] && <StatusPill variant="won" className="ml-2">{t('equipment:availability.proven', 'Proven')}</StatusPill>}
+                    {down && todays.has(a.id) && !draft[a.id] && proofStates.data && !proofStates.isFetching && !proofStates.isError && !uploadedProofs.has(`${a.id}:${statusDate}`) && !provenAssets.has(a.id) && <StatusPill variant="warn" className="ml-2">{t('equipment:availability.noProof', 'No proof')}</StatusPill>}
                     {flagged.has(a.id) && <span role="status" className="ml-2 text-destructive-text text-sm">{t('equipment:availability.flagged', 'Down more than 2 days')}</span>}
                     {!todays.has(a.id) && !draft[a.id] && <span className="ml-2 text-sm text-muted-foreground">{prev ? t('equipment:availability.last', 'Last: {{status}}', { status: statusLabel(t, prev) }) : t('equipment:availability.unrecorded', 'Not recorded')}</span>}
                   </span>
