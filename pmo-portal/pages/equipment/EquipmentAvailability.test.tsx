@@ -146,6 +146,7 @@ describe('Equipment availability screen', () => {
   it('limits metrics to the chosen assets', async () => {
     h.role = 'Finance'; renderPage();
     await userEvent.click(screen.getByText('Assets for metrics'));
+    expect(screen.getByText('EQU-1 Machine EQU-1')).toBeVisible();
     await userEvent.click(screen.getByRole('checkbox', { name: 'EQU-1 Machine EQU-1' }));
     await userEvent.click(screen.getByRole('checkbox', { name: 'EQU-3 Machine EQU-3' }));
     expect(h.metricIds).toEqual(['a1', 'a3']);
