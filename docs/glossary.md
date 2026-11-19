@@ -509,3 +509,9 @@ and **Phase** for a milestone. **Actual** and **Recorded spending** name the sam
 - **Location variant** — a per-contract name (e.g. Remote, Non-remote) that selects which rate of a catalogue item applies. Names are added, never renamed or removed.
 - **Effective-dated rate** — a rate that applies from a date until a later rate replaces it. An amendment adds a row; it never edits an earlier one, and a contract line already priced keeps the rate it was priced at.
 - **Stage weights** — optional split of an item's progress credit across named stages (e.g. 10 / 80 / 10), adding to 100, effective-dated.
+
+## Daily site report (#1522)
+- **Daily site report** — one record per work order and work date: progress quantities on the work order's contract items, working hours and idle periods, weather, consumables used, and photos of the paper form. It links to equipment usage and timesheet hours; it never copies them, posts stock, or bills anything.
+- **Sub-stage** — a named stage of a contract item on a progress line; it is a stage of the catalogue item's stage weights, and its rate is the item rate times that stage's weight share.
+- **Daily revenue** — progress quantity times the rate in force for that item, sub-stage and work location on the work date, rounded to cents per line. A line with no rate shows "no rate" and adds nothing.
+- **Validation (site report)** — a second person (never the author) confirms a submitted report; only then does it count toward revenue and progress, and its rates are frozen. **Return** sends it back with a reason. A validated report changes only by a **correction**, a new version that replaces it once validated.
