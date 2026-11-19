@@ -120,7 +120,8 @@
     "photoHint": "Maksimal 10 foto, masing-masing 15 MB.",
     "removePhoto": "Hapus",
     "retryUpload": "Coba unggah foto lagi",
-    "uploadFailed": "Isu sudah disimpan, tetapi sebuah foto gagal diunggah. Teks Anda tetap ada — coba lagi untuk mengirim foto yang tersisa."
+    "uploadFailed": "Isu sudah disimpan, tetapi sebuah foto gagal diunggah. Teks Anda tetap ada — coba lagi untuk mengirim foto yang tersisa.",
+    "invalidDueTime": "Waktu jatuh tempo tidak berlaku di zona waktu Anda."
   },
   "filterByDue": "Filter berdasarkan tenggat",
   "overdue": "Terlambat",

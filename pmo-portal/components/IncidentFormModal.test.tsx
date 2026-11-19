@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
 import type { IncidentRow } from '@/src/lib/db/incidents';
@@ -57,6 +58,22 @@ beforeEach(() => {
 });
 
 describe('IncidentFormModal project selector', () => {
+  it('uses the resolved timezone for the last minute of the chosen due day', async () => {
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'America/Los_Angeles' });
+    const onCreate = vi.fn().mockResolvedValue(baseRow);
+    renderModal(null, onCreate);
+    await userEvent.type(screen.getByLabelText(/^type/i), 'Spill');
+    fireEvent.change(screen.getByLabelText(/fix by/i), { target: { value: '2050-01-01' } });
+    await userEvent.click(screen.getByRole('button', { name: /file incident/i }));
+    expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ due_at: '2050-01-02T07:59:00.000Z' }));
+  });
+
+  it('edits the due day in the resolved timezone', () => {
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'America/Los_Angeles' });
+    renderModal({ ...baseRow, due_at: '2050-01-02T07:59:00.000Z' });
+    expect(screen.getByLabelText(/fix by/i)).toHaveValue('1 Jan 2050');
+  });
+
   it('filing from a project register keeps that project on the new issue', async () => {
     const onCreate = vi.fn().mockResolvedValue(baseRow);
     render(<ToastProvider><IncidentFormModal incident={null} defaultProjectId="p1" onClose={vi.fn()} onCreate={onCreate} onUpdate={vi.fn()} onError={vi.fn()} /></ToastProvider>);

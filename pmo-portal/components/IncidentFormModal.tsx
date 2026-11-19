@@ -1,3 +1,4 @@
+import { instantToZonedDatetimeLocal, zonedDatetimeLocalToInstant } from '@/src/lib/format';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -51,15 +52,15 @@ function todayLocalISO(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-/** The due DAY (local) → the end of that day as an ISO instant; '' → no due time. */
-function dueDateToIso(date: string): string | null {
-  return date ? new Date(`${date}T23:59:00`).toISOString() : null;
+/** The selected due day ends in the user's resolved timezone. */
+function dueDateToIso(date: string, invalidMessage: string): string | null {
+  if (!date) return null;
+  const instant = zonedDatetimeLocalToInstant(`${date}T23:59`);
+  if (!instant) throw new Error(invalidMessage);
+  return instant.toISOString();
 }
 function isoToDueDate(iso: string | null | undefined): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return iso ? instantToZonedDatetimeLocal(new Date(iso)).slice(0, 10) : '';
 }
 
 const MAX_PHOTOS = 10;
@@ -173,19 +174,19 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit(async (values) => {
-      const input: IncidentInput = {
-        work_order_id: values.project_id ? values.work_order_id : null,
-        assignee_id: values.assignee_id,
-        action: values.action.trim() || undefined,
-        due_at: dueDateToIso(values.due_date),
-        incident_date: values.incident_date,
-        type: values.type.trim(),
-        severity: values.severity,
-        location: values.location.trim() || undefined,
-        description: values.description.trim() || undefined,
-        project_id: values.project_id,
-      };
       try {
+        const input: IncidentInput = {
+          work_order_id: values.project_id ? values.work_order_id : null,
+          assignee_id: values.assignee_id,
+          action: values.action.trim() || undefined,
+          due_at: dueDateToIso(values.due_date, t('form.invalidDueTime', 'The due time is not valid in your timezone.')),
+          incident_date: values.incident_date,
+          type: values.type.trim(),
+          severity: values.severity,
+          location: values.location.trim() || undefined,
+          description: values.description.trim() || undefined,
+          project_id: values.project_id,
+        };
         if (isEdit && incident) {
           await onUpdate(incident.id, input);
           return;

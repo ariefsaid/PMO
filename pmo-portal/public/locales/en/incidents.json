@@ -120,7 +120,8 @@
     "photoHint": "Up to 10 photos, 15 MB each.",
     "removePhoto": "Remove",
     "retryUpload": "Retry photo upload",
-    "uploadFailed": "The issue was saved, but a photo could not be uploaded. Your text is kept — retry to send the remaining photos."
+    "uploadFailed": "The issue was saved, but a photo could not be uploaded. Your text is kept — retry to send the remaining photos.",
+    "invalidDueTime": "The due time is not valid in your timezone."
   },
   "filterByDue": "Filter by due time",
   "overdue": "Overdue",
