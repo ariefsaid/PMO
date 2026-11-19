@@ -634,7 +634,12 @@ describe('contract billing block', () => {
 
     renderWithQueryClient(<MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>);
 
-    await userEvent.click(screen.getByText('Details', { exact: true }));
+    const details = screen.getByRole('button', { name: 'Details' });
+    expect(details).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('Project finances')).not.toBeInTheDocument();
+
+    await userEvent.click(details);
+    expect(details).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByText('Project finances')).toBeInTheDocument();
     expect(screen.getByText('2 invoices')).toBeInTheDocument();
     expect(screen.getByText(/Updated/)).toBeInTheDocument();
@@ -654,6 +659,10 @@ describe('contract billing block', () => {
     expect(currencySection.getByText('Billed-work revenue')).toBeInTheDocument();
     expect(currencySection.getByText('Mixed tax bases')).toBeInTheDocument();
     expect(screen.getByText('Remaining to invoice')).toBeInTheDocument();
+
+    await userEvent.click(details);
+    expect(details).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('Project finances')).not.toBeInTheDocument();
   });
 
   it('AC-UNB-001 shows the contract invoice position on a won project', async () => {
