@@ -52,6 +52,7 @@ const STRUCTURAL_ALLOW = [
   { path: 'pmo-portal/pages/equipment/EquipmentCostingForm.tsx', rule: 'raw-control', count: 1, reason: 'Existing form control is outside A1 ownership and is retained as shipped.' },
   { path: 'pmo-portal/pages/expenses/ExpenseClaimFormModal.tsx', rule: 'raw-control', count: 1, reason: 'Existing form control is outside A1 ownership and is retained as shipped.' },
   { path: 'pmo-portal/pages/expenses/ExpenseReceiptsCard.tsx', rule: 'raw-control', count: 1, reason: 'Existing form control is outside A1 ownership and is retained as shipped.' },
+  { path: 'pmo-portal/pages/siteReports/SiteReportPhotos.tsx', rule: 'raw-control', count: 1, reason: 'Visually hidden camera/file picker opened by the two photo Buttons; no shared file control exists.' },
   { path: 'pmo-portal/pages/procurement/LedgerFileCell.tsx', rule: 'raw-control', count: 1, reason: 'Existing screen-owned native control is retained; A1 adds the guard without changing procurement file behavior.' },
   { path: 'pmo-portal/pages/procurement/ProcurementDecisionZone.tsx', rule: 'raw-control', count: 6, reason: 'Existing approval form controls are outside A1 ownership; this guard preserves their behavior and caps the baseline.' },
   { path: 'pmo-portal/pages/procurement/ProcurementFilesSubsection.tsx', rule: 'raw-control', count: 1, reason: 'Existing form control is outside A1 ownership and is retained as shipped.' },

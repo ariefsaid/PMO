@@ -1,11 +1,11 @@
 import type {
   DsrContractItem, DsrDraftInput, DsrEquipmentHours, DsrListFilter, DsrListOption, DsrPeopleHours, DsrPhoto,
-  DsrQueueRow, DsrReport, DsrReportDetail, DsrRevenueLineRow,
+  DsrQueueRow, DsrReport, DsrReportDetail, DsrReportListRow, DsrRevenueLineRow,
 } from '@/src/lib/db/dailySiteReports';
 
 /** #1522 daily site report seam (ADR-0017). Every write is a server RPC; org_id never leaves the server. */
 export interface DailySiteReportRepository {
-  list(filter: DsrListFilter, page?: number): Promise<{ rows: DsrReport[]; hasMore: boolean }>;
+  list(filter: DsrListFilter, page?: number): Promise<{ rows: DsrReportListRow[]; hasMore: boolean }>;
   get(id: string): Promise<DsrReportDetail | null>;
   listIdleReasons(): Promise<DsrListOption[]>;
   listWeatherConditions(): Promise<DsrListOption[]>;

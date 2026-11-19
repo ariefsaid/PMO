@@ -37,13 +37,17 @@ export interface DsrReport {
   weather_note: string | null;
   note: string | null;
 }
+/** A list row: the header plus the work order and author it names (embeds qualified: two FKs reach profiles). */
+export interface DsrReportListRow extends DsrReport { work_order_label: string; author_name: string | null }
 export interface DsrProgressLine { id: string; position: number; work_order_line_id: string; sub_stage: string | null; quantity: number; unit: string }
 export interface DsrIdlePeriod { id: string; position: number; minutes: number; reason_id: string }
 export interface DsrConsumable { id: string; position: number; stock_item_id: string; quantity: number; unit: string }
 export interface DsrPhoto { id: string; kind: 'paper_form' | 'other'; file_path: string; created_at: string }
 export interface DsrEvent { id: string; action: string; actor_id: string | null; reason: string | null; at: string }
+export interface DsrWorkOrderRef { label: string; currency: string; orderValue: number }
 export interface DsrReportDetail {
   report: DsrReport;
+  workOrder: DsrWorkOrderRef | null;
   progress: DsrProgressLine[];
   idle: DsrIdlePeriod[];
   consumables: DsrConsumable[];
@@ -74,8 +78,8 @@ export interface DsrDraftInput {
 export interface DsrListFilter { projectId?: string; workOrderId?: string; from?: string; to?: string; status?: DsrStatus }
 export interface DsrRevenueLineRow { line_id: string; rate: number | null; rate_source: string | null; amount: number | null; frozen: boolean }
 export interface DsrQueueRow {
-  report_id: string; project_id: string; work_order_id: string; work_date: string; author_id: string;
-  submitted_at: string; total_revenue: number; unrated_lines: number; age_days: number; waiting_for_validator: boolean;
+  report_id: string; project_id: string; work_order_id: string; work_order_label: string; work_date: string; author_id: string;
+  author_name: string | null; submitted_at: string; total_revenue: number; unrated_lines: number; age_days: number; waiting_for_validator: boolean;
 }
 
 export const DSR_PAGE_SIZE = 50;
@@ -98,34 +102,42 @@ async function rows<T>(query: PromiseLike<{ data: unknown; error: Err }>): Promi
 }
 
 /** FR-DSR-021: newest first with id as the stable tie-break, one bounded page (one extra row says "more"). */
-export async function listReports(filter: DsrListFilter, page = 0): Promise<{ rows: DsrReport[]; hasMore: boolean }> {
-  let q = db.from('daily_site_reports').select(HEADER).is('archived_at', null);
+export async function listReports(filter: DsrListFilter, page = 0): Promise<{ rows: DsrReportListRow[]; hasMore: boolean }> {
+  let q = db.from('daily_site_reports')
+    .select(`${HEADER}, work_orders(title, wo_number), author:profiles!daily_site_reports_author_id_fkey(full_name)`).is('archived_at', null);
   if (filter.projectId) q = q.eq('project_id', filter.projectId);
   if (filter.workOrderId) q = q.eq('work_order_id', filter.workOrderId);
   if (filter.status) q = q.eq('status', filter.status);
   if (filter.from) q = q.gte('work_date', filter.from);
   if (filter.to) q = q.lte('work_date', filter.to);
   const from = page * DSR_PAGE_SIZE;
-  const data = await rows<DsrReport>(q.order('work_date', { ascending: false }).order('id', { ascending: false }).range(from, from + DSR_PAGE_SIZE));
-  return { rows: data.slice(0, DSR_PAGE_SIZE), hasMore: data.length > DSR_PAGE_SIZE };
+  type Raw = DsrReport & { work_orders: { title: string; wo_number: string | null } | null; author: { full_name: string | null } | null };
+  const data = await rows<Raw>(q.order('work_date', { ascending: false }).order('id', { ascending: false }).range(from, from + DSR_PAGE_SIZE));
+  const list = data.slice(0, DSR_PAGE_SIZE).map(({ work_orders: wo, author, ...r }) => ({
+    ...r, work_order_label: wo ? [wo.wo_number, wo.title].filter(Boolean).join(' · ') : '', author_name: author?.full_name ?? null,
+  }));
+  return { rows: list, hasMore: data.length > DSR_PAGE_SIZE };
 }
 
 export async function getReport(id: string): Promise<DsrReportDetail | null> {
-  const { data, error } = await db.from('daily_site_reports').select(HEADER).eq('id', id).maybeSingle();
+  const { data, error } = await db.from('daily_site_reports')
+    .select(`${HEADER}, work_orders(title, wo_number, currency, order_value)`).eq('id', id).maybeSingle();
   if (error) fail(error);
   if (!data) return null;
+  const { work_orders: wo, ...report } = data as DsrReport & { work_orders: { title: string; wo_number: string | null; currency: string; order_value: number } | null };
   const [progress, idle, consumables, photos, events] = await Promise.all([
-    rows<DsrProgressLine>(db.from('dsr_progress_lines').select('id, position, work_order_line_id, sub_stage, quantity, unit').eq('report_id', id).order('position')),
-    rows<DsrIdlePeriod>(db.from('dsr_idle_periods').select('id, position, minutes, reason_id').eq('report_id', id).order('position')),
-    rows<DsrConsumable>(db.from('dsr_consumables').select('id, position, stock_item_id, quantity, unit').eq('report_id', id).order('position')),
-    rows<DsrPhoto>(db.from('dsr_photos').select('id, kind, file_path, created_at').eq('report_id', id).order('created_at').order('id')),
-    rows<DsrEvent>(db.from('dsr_events').select('id, action, actor_id, reason, at').eq('report_id', id).order('at').order('id')),
+    fetchAllPages<DsrProgressLine>((f, t) => db.from('dsr_progress_lines').select('id, position, work_order_line_id, sub_stage, quantity, unit').eq('report_id', id).order('position').range(f, t)),
+    fetchAllPages<DsrIdlePeriod>((f, t) => db.from('dsr_idle_periods').select('id, position, minutes, reason_id').eq('report_id', id).order('position').range(f, t)),
+    fetchAllPages<DsrConsumable>((f, t) => db.from('dsr_consumables').select('id, position, stock_item_id, quantity, unit').eq('report_id', id).order('position').range(f, t)),
+    fetchAllPages<DsrPhoto>((f, t) => db.from('dsr_photos').select('id, kind, file_path, created_at').eq('report_id', id).order('created_at').order('id').range(f, t)),
+    fetchAllPages<DsrEvent>((f, t) => db.from('dsr_events').select('id, action, actor_id, reason, at').eq('report_id', id).order('at').order('id').range(f, t)),
   ]);
-  return { report: data as DsrReport, progress, idle, consumables, photos, events };
+  const workOrder = wo ? { label: [wo.wo_number, wo.title].filter(Boolean).join(' · '), currency: wo.currency, orderValue: Number(wo.order_value) } : null;
+  return { report, workOrder, progress, idle, consumables, photos, events };
 }
 
 async function listOptions(table: 'dsr_idle_reasons' | 'dsr_weather_conditions'): Promise<DsrListOption[]> {
-  return rows<DsrListOption>(db.from(table).select('id, label').is('archived_at', null).order('label').order('id'));
+  return fetchAllPages<DsrListOption>((f, t) => db.from(table).select('id, label').is('archived_at', null).order('label').order('id').range(f, t));
 }
 export const listIdleReasons = () => listOptions('dsr_idle_reasons');
 export const listWeatherConditions = () => listOptions('dsr_weather_conditions');
@@ -140,16 +152,16 @@ export async function listContractItems(workOrderId: string): Promise<DsrContrac
 
 /** FR-DSR-006: equipment usage already entered against this work order and date (read, never copied). */
 export async function listEquipmentHours(workOrderId: string, workDate: string): Promise<DsrEquipmentHours[]> {
-  const data = await rows<{ id: string; quantity: number; unit: string; kind: string; status: string; equipment_assets: { name: string } | null }>(
+  const data = await fetchAllPages<{ id: string; quantity: number; unit: string; kind: string; status: string; equipment_assets: { name: string } | null }>((f, t) =>
     db.from('equipment_usage_entries').select('id, quantity, unit, kind, status, equipment_assets(name)')
-      .eq('work_order_id', workOrderId).eq('work_date', workDate).is('archived_at', null).order('id'));
+      .eq('work_order_id', workOrderId).eq('work_date', workDate).is('archived_at', null).order('id').range(f, t));
   return data.map((r) => ({ id: r.id, asset_name: r.equipment_assets?.name ?? '', quantity: Number(r.quantity), unit: r.unit, kind: r.kind, status: r.status }));
 }
 
 /** FR-DSR-007: people hours from timesheets on this work order and date, read-only (RLS decides what is visible). */
 export async function listPeopleHours(workOrderId: string, workDate: string): Promise<DsrPeopleHours[]> {
-  const data = await rows<{ id: string; hours: number }>(
-    db.from('timesheet_entries').select('id, hours').eq('work_order_id', workOrderId).eq('entry_date', workDate).order('id'));
+  const data = await fetchAllPages<{ id: string; hours: number }>((f, t) =>
+    db.from('timesheet_entries').select('id, hours').eq('work_order_id', workOrderId).eq('entry_date', workDate).order('id').range(f, t));
   return data.map((r) => ({ id: r.id, hours: Number(r.hours) }));
 }
 

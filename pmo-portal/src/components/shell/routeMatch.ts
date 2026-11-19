@@ -160,6 +160,9 @@ export const MODULES: ModuleDef[] = [
   // #1519: Equipment usage — every role logs; the Approvals view and amounts gate inside the pages.
   { module: 'equipment', icon: 'equipment', label: 'Equipment', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'equipment:nav.equipment', path: '/equipment', detail: { pattern: '/equipment/assets/:assetId', param: 'assetId' } },
+  // #1522: daily site reports — every role reads; entry and validation gate inside the pages.
+  { module: 'site-reports', icon: 'reports', label: 'Site reports', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'siteReport:nav', path: '/site-reports', detail: { pattern: '/site-reports/:reportId', param: 'reportId' } },
   // UXS-007: My Tasks is the assignee-scoped personal doorway for PMs, Finance, Engineers and Admins
   // (Finance works assigned tasks like an Engineer, owner 2026-10-23).
   // Project-level Tasks remain available for oversight; Executive navigation is unchanged.

@@ -356,13 +356,15 @@ end $$;
 
 -- FR-DSR-017: the QS queue, oldest first, for the caller's validatable projects.
 create function public.dsr_validation_queue()
-returns table (report_id uuid, project_id uuid, work_order_id uuid, work_date date, author_id uuid, submitted_at timestamptz,
-               total_revenue numeric, unrated_lines integer, age_days integer, waiting_for_validator boolean)
+returns table (report_id uuid, project_id uuid, work_order_id uuid, work_order_label text, work_date date, author_id uuid,
+               author_name text, submitted_at timestamptz, total_revenue numeric, unrated_lines integer, age_days integer,
+               waiting_for_validator boolean)
 language plpgsql stable security definer set search_path = public, pg_temp as $$
 begin
   perform public.dsr_require_member();
   return query
-  select d.id, d.project_id, d.work_order_id, d.work_date, d.author_id, d.submitted_at,
+  select d.id, d.project_id, d.work_order_id, coalesce(w.wo_number || ' · ', '') || w.title, d.work_date, d.author_id,
+         a.full_name, d.submitted_at,
          coalesce((select sum(public.dsr_line_amount(l.quantity, v.rate)) from public.dsr_progress_lines l
                    left join lateral public.dsr_line_rate(l.work_order_line_id, l.sub_stage, d.variant_id, d.work_date) v on true
                    where l.report_id = d.id), 0),
@@ -373,6 +375,8 @@ begin
                       where pr.org_id = d.org_id and pr.status = 'active' and pr.id <> d.author_id
                         and (pr.role in ('Admin','Finance') or (pr.role = 'Project Manager' and p.project_manager_id = pr.id)))
     from public.daily_site_reports d
+    join public.work_orders w on w.id = d.work_order_id
+    left join public.profiles a on a.id = d.author_id
    where d.org_id = public.auth_org_id() and d.status = 'submitted' and d.archived_at is null
      and public.dsr_may_validate(d.project_id)
    order by d.submitted_at, d.id
