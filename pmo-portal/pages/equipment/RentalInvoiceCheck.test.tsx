@@ -18,10 +18,11 @@ const renderCheck = () => render(<RentalInvoiceCheck assets={[{ id: 'a', code: '
 describe('rental invoice check', () => {
   it('AC-EAV-014 displays the actual RPC amounts and lets Finance open the supporting proof', async () => {
     renderCheck();
-    expect(screen.getByText('30000.00 IDR')).toBeInTheDocument();
-    expect(screen.getByText('3000.00')).toBeInTheDocument();
-    expect(screen.getByText('27000.00')).toBeInTheDocument();
-    expect(screen.getByText('500.00')).toBeInTheDocument();
+    expect(screen.getByText('IDR 30,000')).toBeInTheDocument();
+    expect(screen.getByText('IDR 3,000')).toBeInTheDocument();
+    expect(screen.getByText('IDR 27,000')).toBeInTheDocument();
+    expect(screen.getByText('IDR 500')).toBeInTheDocument();
+    expect(screen.getByText(/21 Sep 2026/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Open ticket.pdf' }));
     expect(await screen.findByRole('link', { name: 'ticket.pdf' })).toHaveAttribute('href', 'https://example.test/proof');
     expect(h.proofUrl).toHaveBeenCalledWith('org/a/p/ticket.pdf');
