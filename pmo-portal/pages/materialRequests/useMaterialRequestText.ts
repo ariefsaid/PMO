@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { formatDay } from '@/src/lib/format';
 import { useUsers } from '@/src/hooks/useUsers';
 import { materialRequestRefusal, type MaterialRequestRefusal, type MaterialRequestStatus, type StepStatus } from '@/src/lib/repositories/materialRequests';
 
@@ -59,5 +60,10 @@ export function useRefusalText(): (err: unknown) => string {
     adminOnly: t('refusal.adminOnly', 'Only an administrator can do this.'),
     unknown: t('refusal.unknown', 'That did not work. Try again.'),
   };
-  return (err) => copy[materialRequestRefusal(err)];
+  return (err) => {
+    const kind = materialRequestRefusal(err);
+    // The server names the cut-off time and the earliest accepted date (FR-MRQ-014); say both.
+    const m = kind === 'cutoff' ? /close at (\d{2}:\d{2}).*earliest date you can request is (\d{4}-\d{2}-\d{2})/.exec(String((err as { message?: unknown }).message)) : null;
+    return m ? t('refusal.cutoffDated', 'Requests for tomorrow closed at {{time}}. The earliest date you can request is {{date}}.', { time: m[1], date: formatDay(m[2]) }) : copy[kind];
+  };
 }

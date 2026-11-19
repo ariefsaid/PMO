@@ -120,6 +120,10 @@ const StandInEditor: React.FC = () => {
     try { await m.setStandIn.mutateAsync({ delegatorId: delegator, standInId: standIn, startsOn: from, endsOn: to }); setStandIn(''); setFrom(''); setTo(''); toast(t('settings.standInSaved', 'Stand-in saved'), undefined, 'success'); }
     catch (err) { setError(refusal(err)); }
   };
+  const revoke = async (id: string) => {
+    setError(null);
+    try { await m.revokeStandIn.mutateAsync(id); } catch (err) { setError(refusal(err)); }
+  };
   const live = (standIns.data ?? []).filter((s) => !s.revokedAt);
   return (
     <RecordSection title={t('settings.standIn', 'Stand-ins')} subline={t('settings.standInSub', 'Someone who can approve in your place for a date range. One hop only: a stand-in cannot hand it on.')}>
@@ -130,7 +134,7 @@ const StandInEditor: React.FC = () => {
           <li key={s.id} className="flex flex-wrap items-center justify-between gap-2" data-testid="stand-in-row">
             <span>{t('settings.standInRow', '{{standIn}} for {{delegator}}, {{from}} to {{to}}', { standIn: name(s.standInId), delegator: name(s.delegatorId), from: formatDay(s.startsOn), to: formatDay(s.endsOn) })}</span>
             {may('manage', 'standIn', { record: { delegator_id: s.delegatorId }, currentUserId: currentUser?.id }) &&
-              <Button variant="ghost" size="sm" onClick={() => void m.revokeStandIn.mutateAsync(s.id)}>{t('settings.revoke', 'End')}</Button>}
+              <Button variant="ghost" size="sm" onClick={() => void revoke(s.id)}>{t('settings.revoke', 'End')}</Button>}
           </li>
         ))}
       </ul>

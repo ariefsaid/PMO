@@ -114,6 +114,7 @@
   },
   "refusal": {
     "adminOnly": "Hanya administrator yang dapat melakukan ini.",
+    "cutoffDated": "Permintaan untuk besok ditutup pukul {{time}}. Tanggal paling awal yang bisa diminta adalah {{date}}.",
     "cutoff": "Batas waktu harian untuk besok sudah lewat. Pilih tanggal dibutuhkan yang lebih lambat.",
     "neededBy": "Pilih tanggal dibutuhkan yang belum lewat.",
     "noChain": "Rantai persetujuan belum diatur. Hubungi administrator.",

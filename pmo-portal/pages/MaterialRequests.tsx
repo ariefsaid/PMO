@@ -3,11 +3,18 @@ import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Card, DataTable, Icon, ListPage, ListState, SelectField, useUrlFilters, type Column } from '@/src/components/ui';
 import { CanWrite } from '@/src/auth/usePermission';
-import { useMaterialRequests, useWaitingForMe } from '@/src/hooks/useMaterialRequests';
+import { useMaterialRequest, useMaterialRequests, useWaitingForMe } from '@/src/hooks/useMaterialRequests';
 import type { MaterialRequestRow, MaterialRequestStatus, WaitingStep } from '@/src/lib/repositories/materialRequests';
 import { formatDay } from '@/src/lib/format';
 import { RequestStatusPill } from './materialRequests/shared';
 import { useLabels } from './materialRequests/useMaterialRequestText';
+
+/** A waiting step's request: from the loaded list page when present, else fetched (the queue is oldest-first, the list newest-first and bounded). */
+const WaitingRequest: React.FC<{ id: string; known?: MaterialRequestRow; render: (r: MaterialRequestRow) => React.ReactNode }> = ({ id, known, render }) => {
+  const fetched = useMaterialRequest(known ? undefined : id).data;
+  const r = known ?? fetched;
+  return <>{r ? render(r) : '…'}</>;
+};
 
 const STATUSES: MaterialRequestStatus[] = ['draft', 'pending', 'approved', 'fulfilled', 'rejected', 'cancelled'];
 
@@ -28,11 +35,11 @@ const MaterialRequestsPage: React.FC = () => {
 
   const waitingColumns: Column<WaitingStep>[] = [
     { key: 'number', header: t('list.columns.number', 'Request'), rowHeader: true,
-      cell: (w) => <span className="font-semibold">{requestOf(w.requestId)?.number ?? '…'}</span> },
+      cell: (w) => <WaitingRequest id={w.requestId} known={requestOf(w.requestId)} render={(r) => <span className="font-semibold">{r.number}</span>} /> },
     { key: 'step', header: t('list.columns.step', 'Your step'), cell: (w) => <>
       {t('list.stepOf', 'Step {{n}}: {{label}}', { n: w.stepPosition, label: w.label })}
       {w.actingFor && <span className="ml-2 text-muted-foreground">{t('list.standingIn', 'standing in')}</span>}</> },
-    { key: 'needed', header: t('list.columns.neededBy', 'Needed by'), cell: (w) => { const r = requestOf(w.requestId); return r ? formatDay(r.neededBy) : '—'; } },
+    { key: 'needed', header: t('list.columns.neededBy', 'Needed by'), cell: (w) => <WaitingRequest id={w.requestId} known={requestOf(w.requestId)} render={(r) => formatDay(r.neededBy)} /> },
     { key: 'sent', header: t('list.columns.submitted', 'Sent'), cell: (w) => formatDay(w.submittedAt) },
   ];
   const columns: Column<MaterialRequestRow>[] = [
@@ -75,7 +82,7 @@ const MaterialRequestsPage: React.FC = () => {
           ? <Card clip><ListState variant="empty" title={t('list.waitingEmpty', 'Nothing is waiting for you')} /></Card>
           : <DataTable<WaitingStep> rows={waiting.data} columns={waitingColumns} rowKey={(w) => `${w.requestId}:${w.stepPosition}`}
               onActivate={(w) => navigate(`/material-requests/${w.requestId}`)}
-              rowLabel={(w) => t('list.rowLabel', 'Open {{number}}', { number: requestOf(w.requestId)?.number ?? '' })} tableId="material-requests-waiting" />)}
+              rowLabel={(w) => t('list.rowLabel', 'Open {{number}}', { number: requestOf(w.requestId)?.number ?? w.requestId.slice(0, 8) })} tableId="material-requests-waiting" />)}
       </>}
 
       {view === 'all' && <>

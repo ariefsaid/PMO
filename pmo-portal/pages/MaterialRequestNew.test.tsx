@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 
 const h = vi.hoisted(() => ({
@@ -9,7 +9,10 @@ const h = vi.hoisted(() => ({
   submit: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
 }));
 vi.mock('@/src/hooks/useMaterialRequests', () => ({
-  useMaterialRequest: () => ({ data: undefined, isPending: false, isError: false }),
+  useMaterialRequest: (id?: string) => ({
+    data: id ? { projectId: 'p1', workOrderId: 'w1', neededBy: '2026-11-25', note: null, lines: [{ id: 'l1', itemId: 'i1', quantity: 2, overPlanReason: null }] } : undefined,
+    isPending: false, isError: false,
+  }),
   useMaterialRequestMutations: () => ({ saveDraft: h.saveDraft, submit: h.submit }),
   useLinePlans: () => ({ data: [{ itemId: 'i1', planQty: 10, priorQty: 4 }], isPending: false, isError: false }),
 }));
@@ -51,5 +54,20 @@ describe('raise a material request', () => {
     await userEvent.selectOptions(screen.getByLabelText(/^item/i), 'i1');
     await userEvent.type(screen.getByLabelText(/^quantity/i), '3');
     expect(screen.queryByLabelText(/Why do you need more/)).not.toBeInTheDocument();
+  });
+
+  it('a refused submit leaves the draft saved and still shows why on the edit screen', async () => {
+    h.saveDraft.mutateAsync.mockResolvedValueOnce('r9');
+    h.submit.mutateAsync.mockRejectedValueOnce(new Error('MRQ_CUTOFF: requests for tomorrow close at 12:00; the earliest date you can request is 2026-11-22'));
+    render(<MemoryRouter><ToastProvider><Routes>
+      <Route path="/" element={<MaterialRequestNewPage />} />
+      <Route path="/material-requests/:requestId/edit" element={<MaterialRequestNewPage />} />
+    </Routes></ToastProvider></MemoryRouter>);
+    await pick(/^project/i, 'Site Alpha');
+    await pick(/^work order/i, 'WO-1 · Slab');
+    await userEvent.selectOptions(screen.getByLabelText(/^item/i), 'i1');
+    await userEvent.type(screen.getByLabelText(/^quantity/i), '2');
+    await userEvent.click(screen.getByRole('button', { name: 'Send for approval' }));
+    expect(await screen.findByText(/closed at 12:00.*earliest date/)).toBeInTheDocument();
   });
 });

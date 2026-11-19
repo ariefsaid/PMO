@@ -11,6 +11,7 @@ const row = (id: string, number: string) => ({ id, number, workOrderId: 'w', pro
   createdBy: 'u', createdAt: '2026-11-19T07:00:00Z', submittedAt: '2026-11-19T07:30:00Z', transferDocumentId: null, transferCancelled: false });
 
 vi.mock('@/src/hooks/useMaterialRequests', () => ({
+  useMaterialRequest: (id?: string) => ({ data: id === 'r99' ? row('r99', 'MRQ-0099') : undefined }),
   useWaitingForMe: () => ({ data: h.waiting, isPending: false, isError: false, refetch: vi.fn() }),
   useMaterialRequests: () => ({ data: { rows: [row('r1', 'MRQ-0001'), row('r2', 'MRQ-0002')], nextCursor: null }, isPending: false, isError: false, refetch: vi.fn() }),
 }));
@@ -27,6 +28,12 @@ describe('material requests list', () => {
     expect(table).toHaveTextContent('MRQ-0002');
     expect(table).toHaveTextContent('Step 2: Billable change');
     expect(table).not.toHaveTextContent('MRQ-0001');
+  });
+
+  it('FR-MRQ-017 a waiting request beyond the first page of the list still shows its number', () => {
+    h.waiting = [{ requestId: 'r99', stepPosition: 1, role: 'Finance', label: 'Stock', actingFor: null, submittedAt: '2026-11-01T08:00:00Z' }];
+    renderPage();
+    expect(screen.getByRole('table')).toHaveTextContent('MRQ-0099');
   });
 
   it('empty queue says nothing is waiting', () => {
