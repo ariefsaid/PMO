@@ -30,6 +30,13 @@ export interface RentalTermInput {
   asset_id: string; vendor_id: string; rate: string; basis: 'day' | 'month'; currency: string; rented_from: string; rented_to?: string | null;
 }
 
+export type RentedAssetInput = Omit<RentalTermInput, 'asset_id'> & { code: string; name: string; default_unit: 'hours' | 'days' };
+export async function createRentedAsset(input: RentedAssetInput): Promise<string> {
+  return (await call('create_rented_equipment_asset', { p_code: input.code, p_name: input.name, p_unit: input.default_unit,
+    p_vendor: input.vendor_id, p_rate: input.rate, p_basis: input.basis, p_currency: input.currency,
+    p_from: input.rented_from, p_to: input.rented_to ?? null })) as string;
+}
+
 export async function listStatusDays(from: string, to: string): Promise<StatusDayRow[]> {
   const { data, error } = await (supabase as unknown as { from: (t: string) => { select: (c: string) => { gte: (c: string, v: string) => { lte: (c: string, v: string) => { order: (c: string) => { limit: (n: number) => Promise<RpcResult> } } } } } })
     .from('equipment_status_days').select('asset_id, status_date, status, note').gte('status_date', from).lte('status_date', to)

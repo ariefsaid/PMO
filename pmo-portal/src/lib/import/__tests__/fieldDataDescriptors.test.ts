@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const h = vi.hoisted(() => ({
   createItem: vi.fn().mockResolvedValue({}), createWarehouse: vi.fn().mockResolvedValue({}),
-  createAsset: vi.fn().mockResolvedValue({ id: 'a1' }), setOwnership: vi.fn().mockResolvedValue(undefined), saveRentalTerm: vi.fn().mockResolvedValue('t1'),
+  createRentedAsset: vi.fn().mockResolvedValue('a1'), createAsset: vi.fn().mockResolvedValue({ id: 'a1' }), setOwnership: vi.fn().mockResolvedValue(undefined), saveRentalTerm: vi.fn().mockResolvedValue('t1'),
   createPerson: vi.fn().mockResolvedValue({}),
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: {
   stock: { master: { createItem: h.createItem, createWarehouse: h.createWarehouse } },
   equipment: { createAsset: h.createAsset },
-  equipmentAvailability: { setOwnership: h.setOwnership, saveRentalTerm: h.saveRentalTerm },
+  equipmentAvailability: { createRentedAsset: h.createRentedAsset, setOwnership: h.setOwnership, saveRentalTerm: h.saveRentalTerm },
   documentExpiry: { createPerson: h.createPerson },
 } }));
 import { makeStockItemImportDescriptor, makeStockLocationImportDescriptor } from '../stockItemDescriptor';
@@ -85,14 +85,14 @@ describe('equipment', () => {
     expect(v[0].errors.vendor).toMatch(/not found/);
     expect(v[0].errors.rentedTo).toMatch(/before/);
   });
-  it('creates the asset, then ownership and the rental term, only for a rented asset', async () => {
+  it('creates a rented asset and its terms atomically, and uses the existing path for owned assets', async () => {
     await d.create(d.toInput({ code: 'E1', name: 'Crane', unit: 'hours', ownership: 'rented', vendor: 'Rent Co', rate: '100', basis: 'month', currency: 'idr', rentedFrom: '2026-01-01' }));
-    expect(h.setOwnership).toHaveBeenCalledWith('a1', 'rented', '2026-01-01');
-    expect(h.saveRentalTerm).toHaveBeenCalledWith({ asset_id: 'a1', vendor_id: 'v1', rate: '100', basis: 'month', currency: 'IDR', rented_from: '2026-01-01', rented_to: null });
-    h.setOwnership.mockClear();
+    expect(h.createRentedAsset).toHaveBeenCalledWith({ code: 'E1', name: 'Crane', default_unit: 'hours', vendor_id: 'v1', rate: '100', basis: 'month', currency: 'IDR', rented_from: '2026-01-01', rented_to: null });
+    expect(h.createAsset).not.toHaveBeenCalled();
     await d.create(d.toInput({ code: 'E2', name: 'Truck', unit: 'days', ownership: 'owned' }));
-    expect(h.setOwnership).not.toHaveBeenCalled();
+    expect(h.createAsset).toHaveBeenCalledWith({ code: 'E2', name: 'Truck', default_unit: 'days' });
   });
+
 });
 
 describe('people', () => {

@@ -211,6 +211,7 @@
     {"table":"work_orders","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
   ],
   "definer_functions": [
+    "create_rented_equipment_asset(text,text,text,uuid,numeric,text,text,date,date)",
     "run_document_expiry_warnings(date)",
     "set_document_warning_days(integer[])",
     "_erp_ack_statement_dirty_dates(uuid,text,bigint)",

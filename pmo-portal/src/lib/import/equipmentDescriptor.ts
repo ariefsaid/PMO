@@ -21,8 +21,7 @@ const isDate = (s: string) => {
 
 /**
  * Equipment import (#2530, FR-IMT-011): asset code, name, default unit, ownership and, for a rented asset, the supplier
- * (by name), rate, basis, currency and rental dates. `create` is the equipment module's own path: the asset is created,
- * and a rented asset then gets its ownership and rental term through the availability repository, so every rule there applies.
+ * (by name), rate, basis, currency and rental dates. `create` is the equipment module's own path: rented assets and their initial terms are created atomically through the availability repository.
  */
 export function makeEquipmentImportDescriptor(
   vendors: readonly { id: string; name: string }[], existingCodes: () => Promise<Iterable<string>>, currencies: readonly string[] = ['IDR', 'USD'], t?: TFunction,
@@ -82,14 +81,13 @@ export function makeEquipmentImportDescriptor(
       };
     },
     create: async (i) => {
-      const asset = await repositories.equipment.createAsset({ code: i.code, name: i.name, default_unit: i.unit });
       if (i.ownership === 'rented') {
-        await repositories.equipmentAvailability.setOwnership(asset.id, 'rented', i.rentedFrom);
-        await repositories.equipmentAvailability.saveRentalTerm({
-          asset_id: asset.id, vendor_id: i.vendorId ?? '', rate: i.rate, basis: i.basis, currency: i.currency, rented_from: i.rentedFrom ?? '', rented_to: i.rentedTo,
+        return repositories.equipmentAvailability.createRentedAsset({
+          code: i.code, name: i.name, default_unit: i.unit, vendor_id: i.vendorId ?? '', rate: i.rate,
+          basis: i.basis, currency: i.currency, rented_from: i.rentedFrom ?? '', rented_to: i.rentedTo,
         });
       }
-      return asset;
+      return repositories.equipment.createAsset({ code: i.code, name: i.name, default_unit: i.unit });
     },
   };
 }
