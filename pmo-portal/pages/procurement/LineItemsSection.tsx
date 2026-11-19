@@ -24,12 +24,17 @@ function describeFormatError(label: string, locale = getNumberLocale()): string 
   const example = formatMoneyInputValue(1234.56, locale);
   return `${label} must use "${group}" to group thousands and "${decimal}" for decimals — for example ${example}.`;
 }
-function validateLineNum(raw: string, label: string): string | undefined {
-  if (!raw.trim()) return `${label} is required.`;
+interface LineNumMessages {
+  required: (label: string) => string;
+  positive: (label: string) => string;
+  format: (label: string) => string;
+}
+function validateLineNum(raw: string, label: string, messages?: LineNumMessages): string | undefined {
+  if (!raw.trim()) return messages?.required(label) ?? `${label} is required.`;
   const n = parseMoneyInputAtScale(raw, 2);
   if (n !== null && n > 0) return undefined;
-  if (moneyInputErrorKind(raw, 2) === 'format') return describeFormatError(label);
-  return `${label} must be greater than 0 with no more than 2 decimal places.`;
+  if (moneyInputErrorKind(raw, 2) === 'format') return messages?.format(label) ?? describeFormatError(label);
+  return messages?.positive(label) ?? `${label} must be greater than 0 with no more than 2 decimal places.`;
 }
 function parseRate(raw: string): number | null {
   const n = parseMoneyInputAtScale(raw, 2);
@@ -142,9 +147,18 @@ export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineIte
     const pending = draftRef.current;
     if (pending.name === '' && pending.quantity === '' && pending.rate === '' && (pending.description ?? '') === '') return { status: 'empty' };
     setAddMutationError(null);
-    const nameError = pending.name.trim() ? undefined : 'Item is required.';
-    const quantityError = validateLineNum(pending.quantity, 'Quantity');
-    const rateError = validateLineNum(pending.rate, 'Unit price');
+    const pendingMessages: LineNumMessages = {
+      required: (label) => t('lineItems.validation.required', '{{label}} is required.', { label }),
+      positive: (label) => t('lineItems.validation.positive', '{{label}} must be greater than 0 with no more than 2 decimal places.', { label }),
+      format: (label) => {
+        const { decimal, group } = numberSymbols(getNumberLocale());
+        const example = formatMoneyInputValue(1234.56, getNumberLocale());
+        return t('lineItems.validation.format', '{{label}} must use "{{group}}" to group thousands and "{{decimal}}" for decimals — for example {{example}}.', { label, group, decimal, example });
+      },
+    };
+    const nameError = pending.name.trim() ? undefined : t('lineItems.validation.itemRequired', 'Item is required.');
+    const quantityError = validateLineNum(pending.quantity, t('lineItems.validation.quantityLabel', 'Quantity'), pendingMessages);
+    const rateError = validateLineNum(pending.rate, t('lineItems.validation.unitPriceLabel', 'Unit price'), pendingMessages);
     const rate = parseRate(pending.rate);
     if (nameError || quantityError || rateError || rate === null) {
       setAddErrors({ name: nameError, quantity: quantityError, rate: rateError });
@@ -160,10 +174,18 @@ export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineIte
     };
   };
   useImperativeHandle(ref, () => ({ commitPendingRow }));
-  const addLineAmount = itemsNetTotal([{
-    quantity: parseMoneyInputAtScale(draft.quantity, 2),
-    rate: parseMoneyInputAtScale(draft.rate, 2),
-  }]);
+  const draftQuantity = parseMoneyInputAtScale(draft.quantity, 2);
+  const draftRate = parseRate(draft.rate);
+  const pendingRowComplete = Boolean(draft.name.trim()) && draftQuantity !== null && draftQuantity > 0 && draftRate !== null;
+  const pendingRowHasInput = hasAddRowInput(draft) || Boolean(draft.description);
+  const addLineAmount = pendingRowComplete
+    ? itemsNetTotal([{ quantity: draftQuantity, rate: draftRate }])
+    : null;
+  const estimatedTotal = createFormLayout && pendingRowHasInput
+    ? pendingRowComplete
+      ? itemsNetTotal([...items, { quantity: draftQuantity, rate: draftRate }])
+      : null
+    : total;
   const addLineAmountLabel = addLineAmount === null
     ? '—'
     : currencyKnown
@@ -267,7 +289,7 @@ export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineIte
     const it = row.item;
     return editingId === it.id ? <div className="flex flex-col gap-1"><div className="flex gap-1"><Button size="sm" variant="primary" loading={busy} onClick={() => void submitEdit(it.id)}>{t('lineItems.save', 'Save')}</Button><Button size="sm" variant="ghost" onClick={() => { setEditingId(null); setEditMutationError(null); }}>{t('lineItems.cancel', 'Cancel')}</Button></div>{editMutationError && <p role="alert" className="text-sm text-destructive-text">{editMutationError.headline}. {editMutationError.detail}</p>}</div> : <div className="flex gap-1"><Button size="sm" variant="ghost" aria-label={`Edit ${it.name}`} onClick={() => startEdit(it)}>{t('lineItems.edit', 'Edit')}</Button><Button size="sm" variant="ghost" iconOnly aria-label={`Remove ${it.name}`} onClick={() => { setDeleteMutationError(null); setDeleteTarget(it); }}><Icon name="x" /></Button></div>;
   } });
-  const estimatedTotalValue = !currencyKnown ? unknownAmount : total === null ? '—' : formatCurrency(total, currency);
+  const estimatedTotalValue = !currencyKnown ? unknownAmount : estimatedTotal === null ? '—' : formatCurrency(estimatedTotal, currency);
   const columnsTotal = { amount: estimatedTotalValue };
   const mobileCardDetails = createFormLayout ? (row: LineTableRow) => {
     const detailColumns = columns.filter((column) => column.key !== 'description' && column.key !== 'actions');
