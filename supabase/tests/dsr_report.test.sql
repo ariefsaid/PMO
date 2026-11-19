@@ -1,7 +1,7 @@
 -- dsr_report.test.sql — #1522 daily site report. AC-DSR-001/002/005..012/014/015, see docs/specs/daily-site-report.spec.md.
 begin;
 create extension if not exists pgtap;
-select plan(53);
+select plan(57);
 
 -- ── fixtures (as the table owner) ────────────────────────────────────────────────────────────────
 insert into organizations (id, name, default_currency, default_timezone) values
@@ -102,6 +102,15 @@ select throws_ok($$select public.dsr_save_draft(jsonb_build_object('client_reque
   '23505', 'A report exists for this date', 'AC-DSR-010 a second report for the same work order and date is refused');
 
 -- Photo of the paper form while still a draft (the bucket row stands in for the upload).
+select throws_ok($$insert into dsr_photos (report_id, kind, file_path)
+  select v, 'paper_form', 'missing/object' from ids where k = 'r1'$$, '42501', null,
+  'AC-DSR-005 a metadata row cannot claim an absent paper form');
+delete from dsr_photos where file_path = 'missing/object';
+reset role;
+insert into storage.objects (bucket_id, name, owner)
+  select 'site-report-photos', '15220000-0000-0000-0000-0000000000a1/' || v || '/15220000-0000-0000-0000-000000000031/form.jpg',
+    '15220000-0000-0000-0000-0000000000b1' from ids where k = 'r1';
+set local role authenticated;
 insert into dsr_photos (report_id, kind, file_path)
   select v, 'paper_form', '15220000-0000-0000-0000-0000000000a1/' || v || '/15220000-0000-0000-0000-000000000031/form.jpg' from ids where k = 'r1';
 select is((select org_id from dsr_photos limit 1), '15220000-0000-0000-0000-0000000000a1'::uuid, 'the photo row is stamped with the caller org');
@@ -111,10 +120,6 @@ select throws_ok($$select * from public.dsr_report_revenue((select v from ids wh
   'AC-DSR-012 a field role cannot read revenue');
 select throws_ok($$select frozen_amount from dsr_progress_lines$$, '42501', null, 'AC-DSR-012 a field role cannot read frozen money columns');
 
-reset role;
-insert into storage.objects (bucket_id, name, owner)
-  select 'site-report-photos', file_path, '15220000-0000-0000-0000-0000000000b1' from dsr_photos;
-set local role authenticated;
 set local request.jwt.claims = '{"sub":"15220000-0000-0000-0000-0000000000b4","role":"authenticated"}';
 select throws_ok($$select public.dsr_save_draft(jsonb_build_object('work_order_id', '15220000-0000-0000-0000-0000000000e1', 'work_date', '2026-03-01'))$$,
   '42501', null, 'AC-DSR-012 an Executive cannot enter a report');
@@ -133,6 +138,21 @@ select throws_ok($$select public.dsr_validate((select v from ids where k = 'r1')
   'AC-DSR-005 the author cannot validate their own report');
 select throws_ok($$insert into dsr_photos (report_id, file_path) select v, 'x/y/z/w.jpg' from ids where k = 'r1'$$, '42501', null,
   'a submitted report takes no more photos');
+insert into ids select 'missing_photo', public.dsr_save_draft(jsonb_build_object('work_order_id', '15220000-0000-0000-0000-0000000000e2', 'work_date', '2026-03-09'));
+select throws_ok($$insert into dsr_photos (report_id, kind, file_path)
+  select (select v from ids where k = 'missing_photo'), 'paper_form', file_path from dsr_photos where report_id = (select v from ids where k = 'r1')$$,
+  '42501', null, 'AC-DSR-005 another report cannot claim an existing paper form');
+reset role;
+delete from dsr_photos where report_id = (select v from ids where k = 'missing_photo');
+insert into dsr_photos (org_id, report_id, kind, file_path)
+  select '15220000-0000-0000-0000-0000000000a1', v, 'paper_form', 'missing/object' from ids where k = 'missing_photo';
+set local role authenticated;
+select public.dsr_submit((select v from ids where k = 'missing_photo'));
+set local request.jwt.claims = '{"sub":"15220000-0000-0000-0000-0000000000b3","role":"authenticated"}';
+select throws_ok($$select public.dsr_validate((select v from ids where k = 'missing_photo'))$$, '23514',
+  'a photo of the paper form is required to validate', 'AC-DSR-005 metadata without a stored paper form cannot validate');
+select lives_ok($$select id, org_id, report_id, position, work_order_line_id, sub_stage, quantity, unit, frozen_at from public.dsr_progress_lines$$,
+  'the isolation probe reads only granted progress columns');
 set local request.jwt.claims = '{"sub":"15220000-0000-0000-0000-0000000000b4","role":"authenticated"}';
 select throws_ok($$select public.dsr_validate((select v from ids where k = 'r1'))$$, '42501', null, 'an Executive cannot validate');
 

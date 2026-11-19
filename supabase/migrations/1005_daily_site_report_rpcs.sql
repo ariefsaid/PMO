@@ -249,7 +249,8 @@ begin
     raise exception 'you cannot validate site reports on this project' using errcode = '42501';
   end if;
   -- OD-DSR-4: the paper form's photo is the evidence.
-  if not exists (select 1 from public.dsr_photos ph where ph.report_id = r.id and ph.kind = 'paper_form') then
+  if not exists (select 1 from public.dsr_photos ph where ph.report_id = r.id and ph.kind = 'paper_form'
+                 and public.dsr_photo_stored(ph.file_path)) then
     raise exception 'a photo of the paper form is required to validate' using errcode = '23514';
   end if;
   -- FR-DSR-011: freeze the rate in force on the work date.
@@ -391,8 +392,18 @@ language sql stable security definer set search_path = public, pg_temp as $$
       and public.is_active_member() and (d.author_id = auth.uid() or public.dsr_may_enter(d.project_id))), false)
 $$;
 
+-- A photo row is evidence only while its uploaded object exists in the bucket.
+create function public.dsr_photo_stored(p_path text) returns boolean
+language sql stable security definer set search_path = public, pg_temp as $$
+  select exists (select 1 from storage.objects o where o.bucket_id = 'site-report-photos' and o.name = p_path)
+$$;
+revoke all on function public.dsr_photo_stored(text) from public, anon;
+grant execute on function public.dsr_photo_stored(text) to authenticated;
+
 create policy dsr_photos_insert on public.dsr_photos for insert
-  with check (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and public.dsr_photo_writable(report_id));
+  with check (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and public.dsr_photo_writable(report_id)
+              and split_part(file_path, '/', 1) = org_id::text and split_part(file_path, '/', 2) = report_id::text
+              and public.dsr_photo_stored(file_path));
 create policy dsr_photos_delete on public.dsr_photos for delete
   using (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and public.dsr_photo_writable(report_id));
 grant insert (report_id, kind, file_path) on public.dsr_photos to authenticated;
