@@ -23,6 +23,9 @@ import { isPositiveDecimal, isWholeQuantity, normalizeDecimal } from '@/src/lib/
 import type { StockDocumentInput, StockDocumentKind, StockLineInput } from '@/src/lib/db/stockDocuments';
 import StockCount from './StockCount';
 import { DateField } from '@/src/components/ui/DateField';
+import { CostAttributionFields } from '@/src/components/workOrders/CostAttributionFields';
+import { describeAttributionError } from '@/src/components/workOrders/costAttributionError';
+import { AttributionRefusedError, NO_ATTRIBUTION, type CostAttribution } from '@/src/lib/repositories/workOrderCosts';
 
 const KINDS = ['receive', 'transfer', 'issue', 'return'] as const;
 type MovementKind = (typeof KINDS)[number];
@@ -78,6 +81,7 @@ const StockMovementForm: React.FC = () => {
   const [lines, setLines] = useState<LineState[]>([blankLine(1)]);
   const [occurredOn, setOccurredOn] = useState('');
   const [note, setNote] = useState('');
+  const [attribution, setAttribution] = useState<CostAttribution>(NO_ATTRIBUTION);
   const [submitError, setSubmitError] = useState<unknown>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState(false);
@@ -112,6 +116,10 @@ const StockMovementForm: React.FC = () => {
   const retryLines = () => { for (const q of [items, units]) if (q.isError) void q.refetch(); };
   const canSubmit = may('create', 'stockDocument', { record: { isKeeper: keptIds.has(warehouseId), viewOnly } });
   const needsProject = kind === 'issue' || kind === 'return';
+  // #2517: an issue goes to its project's work order; a transfer to a site goes to the work order of that site's project.
+  const destination = (warehouses.data ?? []).find((w) => w.id === toWarehouseId);
+  const attributionProject = needsProject ? projectId : kind === 'transfer' && destination?.kind === 'site' ? destination.project_id : null;
+  const offersAttribution = needsProject || kind === 'transfer';
   const heading = t(`kinds.${kind}`);
 
   const setLine = (key: number, patch: Partial<LineState>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
@@ -166,7 +174,7 @@ const StockMovementForm: React.FC = () => {
     if (!input) return;
     setSubmitError(null);
     try {
-      const id = await create.mutateAsync({ input, post: true, clientRequestId: requestId.current });
+      const id = await create.mutateAsync({ input, post: true, clientRequestId: requestId.current, ...(offersAttribution ? { attribution } : {}) });
       requestId.current = crypto.randomUUID(); // a success mints the next submit's id; a failure keeps it for the retry
       toast(t('form.posted'), heading, 'success');
       setSaved(true);
@@ -174,6 +182,15 @@ const StockMovementForm: React.FC = () => {
     } catch (err) {
       // The Draft was saved and the post did not go through: open it (its page says where it stands) rather than create it again.
       if (err instanceof StockDispatchError) { notify(err); setSaved(true); navigate(`/stock/documents/${err.documentId}`); return; }
+      // Posted, but the work order / discipline was refused: open the movement and say why (it is not created again).
+      if (err instanceof AttributionRefusedError) {
+        const d = describeAttributionError(err.refusal, t);
+        requestId.current = crypto.randomUUID();
+        toast(d.headline, d.detail, 'warning');
+        setSaved(true);
+        navigate(`/stock/documents/${err.recordId}`);
+        return;
+      }
       setSubmitError(err);
       const s = parseStockError(err);
       if (s?.code === 'STK_INSUFFICIENT') {
@@ -236,6 +253,9 @@ const StockMovementForm: React.FC = () => {
                   placeholder={projects.isPending ? t('form.loading') : t('form.projectPlaceholder')}
                   error={fieldErrors.project}
                 />
+              )}
+              {offersAttribution && (
+                <CostAttributionFields idPrefix="stock-movement" projectId={attributionProject} value={attribution} onChange={setAttribution} disabled={viewOnly} />
               )}
             </FormGrid>
           </FormSection>

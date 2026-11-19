@@ -35,6 +35,8 @@ import type { Column, RowMenuItem } from '@/src/components/ui';
 import { EfakturModal, type EfakturSaveValues } from '@/src/components/EfakturModal';
 import { EfakturCell } from '@/src/components/EfakturCell';
 import { LedgerCaptureRow } from './LedgerCaptureRow';
+import type { CreatePOInput, CreatePRInput } from './RecordCaptureForm';
+import { workOrderCostRepository } from '@/src/lib/repositories/workOrderCosts';
 import { LedgerFileCell } from './LedgerFileCell';
 import { WithholdingBreakdown } from './WithholdingBreakdown';
 import { OdooOutcome } from '@/src/components/procurement/OdooOutcome';
@@ -502,21 +504,26 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   // Handle capture onCreate dispatching to the right mutation
   const handleCreate = async (kind: RecordKind, input: unknown) => {
     switch (kind) {
-      case 'purchase_request':
-        await mutations.createPurchaseRequest.mutateAsync(
+      case 'purchase_request': {
+        const row = await mutations.createPurchaseRequest.mutateAsync(
           input as Parameters<typeof mutations.createPurchaseRequest.mutateAsync>[0],
         );
+        // #2517: the work order / discipline goes on right after the record exists (a refusal says "saved, but…").
+        await workOrderCostRepository.attributeOrRefuse('purchase_request', row, (input as CreatePRInput).attribution);
         break;
+      }
       case 'rfq':
         await mutations.createRfq.mutateAsync(
           input as Parameters<typeof mutations.createRfq.mutateAsync>[0],
         );
         break;
-      case 'purchase_order':
-        await mutations.createPurchaseOrder.mutateAsync(
+      case 'purchase_order': {
+        const row = await mutations.createPurchaseOrder.mutateAsync(
           input as Parameters<typeof mutations.createPurchaseOrder.mutateAsync>[0],
         );
+        await workOrderCostRepository.attributeOrRefuse('purchase_order', row, (input as CreatePOInput).attribution);
         break;
+      }
       case 'payment':
         await mutations.createPayment.mutateAsync(
           input as Parameters<typeof mutations.createPayment.mutateAsync>[0],
@@ -667,6 +674,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
           vendorId={invoiceVendorId}
           itemsNet={itemsNet}
           currency={detail.currency}
+          projectId={detail.project_id}
           gates={gates}
           busy={captureBusy}
           onCreate={handleCreate}
