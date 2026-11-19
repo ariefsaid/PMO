@@ -2,7 +2,7 @@
 
 **Status:** specification + implementation design for Director/owner sign-off; not implemented by this document.
 **Depends on:** #876. **Consumer:** #898. **Timing:** required capability, **not a go-live item** (the #911 brief).
-**Plan:** `docs/plans/2026-10-08-vendor-withholding-slip.md`.
+**Plan:** `vendor-withholding-slip plan (2026-10-08, in git history)`.
 
 ## 0. Job story
 

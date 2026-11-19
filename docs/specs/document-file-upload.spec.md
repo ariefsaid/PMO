@@ -9,7 +9,7 @@ them into EARS requirements, acceptance criteria, and implementation constraints
 owner decisions are introduced.
 
 - **Grounds:** OD-DOC-1..5; glossary (Document / Revision / Superseded);
-  design-plan + approved mockup `docs/design-mockups/document-file-upload/`;
+  design-plan + approved mockup document-file-upload (2026-06, in git history);
   ADR-0010 (test pyramid); ADR-0012 (transition-RPC pattern);
   ADR-0016 (`can()` FE gating); ADR-0017 (repository seam);
   ADR-0019 (server-enforced SoD).

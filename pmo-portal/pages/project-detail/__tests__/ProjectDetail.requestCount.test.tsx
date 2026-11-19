@@ -1,7 +1,7 @@
 /**
  * T0.2 — the route-specific request-count harness for `/projects/:id` (Overview, finance lens).
  *
- * WHY THIS EXISTS (plan: docs/plans/2026-11-05-project-detail-read-fanout.md): the project record
+ * WHY THIS EXISTS (plan: project-detail-read-fanout plan (2026-11-05, in git history)): the project record
  * fired ~22 route-specific reads on mount, most for content that is NOT first paint (VAT
  * editability, stage history behind a closed disclosure, the below-the-fold work-order billing
  * block). Performance is P0 (50-user load); this harness pins the count so every defer step moves

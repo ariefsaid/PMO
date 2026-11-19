@@ -5,7 +5,7 @@
  * AC-MC-001..007 (docs/specs/agent-model-client.spec.md).
  *
  * Test-location convention (standing rule, established by this issue + issue-2 plan
- * docs/plans/2026-07-03-agent-persistence.md REC-1): edge-fn logic tests live under
+ * agent-persistence plan (2026-07-03, in git history) REC-1): edge-fn logic tests live under
  * pmo-portal/ (Vitest's root); the implementation stays in supabase/functions/,
  * imported here via a relative path — Vite's dev-server fs boundary (server.fs.allow)
  * blocks Vitest from discovering test files that live outside pmo-portal/ itself, even

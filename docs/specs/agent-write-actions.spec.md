@@ -74,7 +74,7 @@ approve/deny (A3)."
 >   transcript) + the UI chip-disable, not an in-memory `consumed` set. AW-OD-005's expiry is realized as
 >   chip-disable + graceful "stale decision → rejected", not a server timer.
 >
-> **The authoritative behavior + tests are in `docs/plans/2026-06-30-agent-write-actions.md` §5. Treat the
+> **The authoritative behavior + tests are in `agent-write-actions plan (2026-06-30, in git history)` §5. Treat the
 > prose below as the lifecycle intent; where it names `waitForApproval`/`agent-approve`, read the plan.**
 
 The entire A3 design pivots on this protocol. Every other requirement is a consequence of it.

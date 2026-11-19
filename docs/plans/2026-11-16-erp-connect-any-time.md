@@ -1,7 +1,7 @@
 # Plan — Connect an ERP at any time, with no step inside the ERP (#1599, ECX)
 
 - **Issue:** #1599 (`OD-ERP-ANYTIME-1`), map #791 / #1442. Builds on the owner-signed spec
-  `docs/specs/erp-connect-anytime.spec.md` (ECA) and its as-built plan `docs/plans/2026-11-01-erp-connect-anytime.md`.
+  `docs/specs/erp-connect-anytime.spec.md` (ECA) and its as-built plan `erp-connect-anytime plan (2026-11-01, in git history)`.
 - **Owner rule (binding for this plan):** clients never work in the ERP. PMO is the only interface; the ERP is the source of
   truth, PMO writes to it and reads it back. A no-ERP organisation keeps its own records in PMO as the truth. Any step a person
   would have to do inside the ERP is a **GAP** (§6), never a plan step.

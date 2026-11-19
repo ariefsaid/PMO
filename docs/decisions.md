@@ -315,7 +315,7 @@ One `projects` record; one `/projects/:id` detail page with a stage-adaptive len
 The no-op Board-pack CTA becomes a visibly-disabled "coming soon" affordance (no fake success); a real export lands with the Reports module.
 
 ## OD-W2 — UX-naturalness Wave 2 (RBAC view-gating + IxD) (LOCKED 2026-06-09, owner-decided)
-Plan: `docs/plans/2026-06-09-ux-naturalness-wave2.md`. Enforces ADR-0016 (`can()` FE gating; RLS stays the authority).
+Plan: `ux-naturalness-wave2 plan (2026-06-09, in git history)`. Enforces ADR-0016 (`can()` FE gating; RLS stays the authority).
 ### OD-W2-1 — Engineer procurement = own-scoped
 Engineer sees `/procurement` scoped to their OWN requests and may "Raise request"; no approve/edit/manage on others' PRs (rbac-visibility §A/§E + the existing RLS scoping).
 ### OD-W2-2 — Engineer approval = OFF at the FE for now; configurable role-access DEFERRED to a future admin-settings / config engine (the OD-PROC-6 bridge)
@@ -336,7 +336,7 @@ Entering the invoice details becomes part of the **Mark-Vendor-Invoiced** action
 ### OD-W3-4 — Inline pipeline stage-change = KEEP / DEFER (no change)
 No drag-and-drop / row-dropdown stage change on the board; the detail page (PipelineLens) stays the single place to advance a deal. DnD kanban is a sizeable build — revisit only if pipeline grooming becomes a real pain.
 
-## Wave 5 — Approval Experience (OD-W5-*, locked 2026-06-09; plan `docs/plans/2026-06-09-wave5-approval-experience.md`)
+## Wave 5 — Approval Experience (OD-W5-*, locked 2026-06-09; plan `wave5-approval-experience plan (2026-06-09, in git history)`)
 ### OD-W5-1 — Approvals inbox = PROMOTE the existing `/approvals` route
 One canonical role-aware inbox (NOT a new `/inbox`): lists everything awaiting the viewer's decision — procurement PRs (link to the decision screen) + timesheet weeks (embedded queue) — gated by `may('transition', entity)` (Engineer → no access; Finance → procurement; PM/Exec → both). UX-only; RLS is authority. Dashboard "Awaiting your approval" KPI-as-link routes here (N15). For timesheets, the later and more specific OD-TS-5 applies: a viewer of any role sees the timesheet section when they have eligible pending or correction records; Admin break-glass and Executive unmanaged fallback remain subject to separation of duties. The procurement and invoice gates are unchanged.
 ### OD-W5-2 — Approved stage = BOTH forward paths stay, skip-able (one VISUAL primary, both reachable)
@@ -348,7 +348,7 @@ The decision-support panel's "spent/remaining" uses the existing **OD-BUDGET-2 c
 ### OD-W5-5 — PO-commitment approval gate + cashflow = DEFERRED to their own feature track (NOT this IxD wave)
 Owner insight: the **PO/commitment** approval is the business-critical gate (actual order commitment vs budget AND cashflow), more so than the request approval. But (a) a *server-enforced PO-commitment approval gate* (a distinct authority signs off the PO before it's placed) is a new state-machine state + RPC + ADR, and (b) **no cashflow / cash-position data exists** in the system at all. BOTH are new features, NOT IxD. Decision: ship Cluster-1 IxD now (make the PO decision evidence-rich with the budget/committed data we already have), and spin the PO-commitment-approval gate + a cash-position data domain into a **separate spec/ADR feature track** (see backlog "Deferred feature track"). Cluster-1 IxD must NOT change the procurement state machine / RPCs.
 
-## Wave 5 — Cluster 2: Dashboard drill-through + finance-console (OD-W5-C2-*, Director-adopted 2026-06-10; plan `docs/plans/2026-06-10-wave5-dashboard-console.md`)
+## Wave 5 — Cluster 2: Dashboard drill-through + finance-console (OD-W5-C2-*, Director-adopted 2026-06-10; plan `wave5-dashboard-console plan (2026-06-10, in git history)`)
 Owner mandate "proceed until wave 5 & wave 4 completion" → Director adopts the design-architect's recommendations (all within the signed Wave-5 direction + the locked honest-dashboard rule):
 ### OD-W5-C2-A — "at-risk" = the existing `spent/budget ≥ 0.9` (one shared constant)
 Reuse the canonical threshold already in `get_executive_dashboard`/BvACard/PMDashboard. No schedule/aging signal (would need a data domain that doesn't exist). Pin it as one shared constant consumed by the at-risk filter + PM risk-sort.
@@ -364,7 +364,7 @@ Revenue-on-hand, Pipeline-forecast-margin, and the on-hand/contract-value tiles 
 ### OD-W5-C2-E — N17 variance ranking = HONEST-LABELLED FE-resort NOW + backend RPC tracked
 The `top_projects` RPC is `LIMIT 5 by contract_value`, so an FE variance re-sort only re-orders those 5 — the worst bleeder could be the 6th-largest and never fetched. Per the honest-dashboard rule we do NOT present it as "the most over-budget projects". Ship now: FE-resort the available set with an **honest label** ("Top contracts by variance" / scoped wording) so it's not misrepresented; track a backend `get_finance_budget_review()` (rank ALL projects by variance) as a follow-up feature. **Owner may override to fund the backend slice into this cluster** (flagged in the report + backlog).
 
-## Wave 5 — Cluster 3: Project/record detail legibility (OD-W5-C3-*, Director-adopted 2026-06-10; plan `docs/plans/2026-06-10-wave5-detail-legibility.md`)
+## Wave 5 — Cluster 3: Project/record detail legibility (OD-W5-C3-*, Director-adopted 2026-06-10; plan `wave5-detail-legibility plan (2026-06-10, in git history)`)
 Adopt the design-architect recommendations (within OD-W3-4 / OD-UX-1 / role-shaping):
 ### OD-W5-C3-A — D15 finance-chrome demotion = MOVE-BELOW (not hide), Engineer default tab = Tasks
 For delivery-forward roles (Engineer) the header finance StatTiles + contract-value SoD row MOVE into an Overview "Financial summary" card (reachable + labelled, read-only lock — never DELETED, RLS-permitted data stays visible), the header leads with delivery meta, and the default tab is Tasks. Finance-forward roles (Admin·Exec·Finance·PM — PM owns the budget) keep the finance-forward header unchanged. FE-only on `realRole`; FE never shows less than RLS forbids, just reprioritizes.
@@ -374,9 +374,9 @@ A persistent quiet "Back to Sales Pipeline" link in the Next-actions area + focu
 Stepper nodes show full words (Purchase Request / Vendor Quote / Purchase Order / Goods Receipt / Vendor Invoice / Paid); the mono acronym stays as the ref; `title`/`aria-label` per node. Pipeline "PQ" → "Pre-Qualification". Full word always visible (legible without hover).
 
 ## OD-W5-C6 — Cluster 6: D13 only; D11/D12 detail drawers DEFERRED (owner 2026-06-10)
-Cluster 6 plan (`docs/plans/2026-06-10-wave5-detail-drawers.md`) needed a NET-NEW quick-view Drawer primitive for D11/D12 (company/document detail + inline status). Owner chose: **skip the drawers, ship only D13, go straight to Wave 4 (mobile — the bigger flagged item).** D11/D12 (company + document quick-view drawer + inline status; the design-plan + the Drawer-primitive sketch are ready to pick up) are **deferred** to a later polish pass. **D13 DONE:** removed the dead disabled "Attach file (coming soon)" button on the Documents register (honest-affordance rule OD-W2-5) — the Storage deferral is signposted by the register subtitle copy, not a fake control. (The exec-dashboard Board-pack "coming soon" is a DIFFERENT, legitimate honest-disabled signpost with a future Reports route — unchanged.)
+Cluster 6 plan (`wave5-detail-drawers plan (2026-06-10, in git history)`) needed a NET-NEW quick-view Drawer primitive for D11/D12 (company/document detail + inline status). Owner chose: **skip the drawers, ship only D13, go straight to Wave 4 (mobile — the bigger flagged item).** D11/D12 (company + document quick-view drawer + inline status; the design-plan + the Drawer-primitive sketch are ready to pick up) are **deferred** to a later polish pass. **D13 DONE:** removed the dead disabled "Attach file (coming soon)" button on the Documents register (honest-affordance rule OD-W2-5) — the Storage deferral is signposted by the register subtitle copy, not a fake control. (The exec-dashboard Board-pack "coming soon" is a DIFFERENT, legitimate honest-disabled signpost with a future Reports route — unchanged.)
 
-## Wave 4 — Mobile responsiveness (OD-W4-*, Director-adopted 2026-06-10; plan `docs/plans/2026-06-10-wave4-mobile.md`)
+## Wave 4 — Mobile responsiveness (OD-W4-*, Director-adopted 2026-06-10; plan `wave4-mobile plan (2026-06-10, in git history)`)
 The app was MORE mobile-ready than "desktop-only" implied (rail→drawer ≤920px, `.touch-target` ≥44px utility, StatTiles scroll-snap, LifecycleStepper/Funnel/kanban overflow-x, TimesheetGrid sticky-col all already shipped). The ONE structural gap = the shared `DataTable` has no stacked-card reflow. Adopt the design-architect recommendations (standard mobile patterns, low-risk):
 ### OD-W4-1 — Shell mobile nav = KEEP the DRAWER (not bottom-nav)
 The grouped role-nav exceeds the 5-item bottom-nav ceiling; the rail→drawer at ≤920px already works. Harden it (focus-trap/Esc/close, safe-area) rather than replace.
@@ -846,7 +846,7 @@ for containers only). New tiers add rows, never new tables.
 The self-serve UI for connecting an external system (ClickUp P1, ERPNext P2/#315) to an org. The sync
 engines already exist (`adapter-dispatch`/`clickup-webhook`/`clickup-sweep`; `erpnext-onboard`/`erpnext-
 sweep`); this is the operator/admin **connection** layer on top. Full scope + phases + #315 alignment:
-`docs/plans/2026-07-13-clickup-admin-integration-flow.md`. Backlog: the "EXTERNAL-SYSTEM ADMIN-CONNECT"
+`clickup-admin-integration-flow plan (2026-07-13, in git history)`. Backlog: the "EXTERNAL-SYSTEM ADMIN-CONNECT"
 section. Depends on ADR-0055 (external adapters), ADR-0016/0019 (can()+RLS/RPC authority), ADR-0057
 (`verifyCallerJwt`). Sequenced **after #315 merges**.
 
@@ -1546,7 +1546,7 @@ reversibility correction.
 
 ## DD-FMT-1 — negative money renders `-$1,234.50`, not `$-1,234.50` (Director, 2026-08-19)
 
-Surfaced by the #477 review (`docs/reviews/2026-08-19-477-locale-drift-sweep.md`). The swept money
+Surfaced by the #477 review (`477-locale-drift-sweep review (2026-08-19, in git history)`). The swept money
 formatters disagreed with each other: `formatCurrencyCents`/`formatCurrencyFine` used `Intl`
 `style: 'currency'` and rendered `-$1,234.50`, while `formatCurrencyAuto` welded a `$` onto a plain
 number and rendered `$-1,234.5`. `RevenueByProject` renders **both on one screen** — KPI tiles and
@@ -2254,7 +2254,7 @@ no existing descriptor returns it, so every current importer's counts are unchan
 
 ## DD-PB-1 — the budget account-map gap is recorded, not fixed (Director, 2026-08-20)
 
-Surfaced by #479's Posture-B state-stamp audit (`docs/reviews/2026-08-20-posture-b-state-stamps.md`).
+Surfaced by #479's Posture-B state-stamp audit (`posture-b-state-stamps review (2026-08-20, in git history)`).
 
 **The gap.** The pushed budget `accounts[]` is built from `budget_category_account_map` (Admin-writable
 `FOR ALL`, `0137:129-133`) and the overspend `action_if_*` fields from binding config
@@ -2321,7 +2321,7 @@ Drained from the wayfinder owner frontier on [RIS goes live: first-client delive
 
 ### OD-XING-1 — the standalone → connected crossing is a connect-time choice, defaulting to "start at connect"; RIS's history is loaded straight into ERPNext
 
-`DD-XING-3` claimed the crossing needed no bespoke backfill. **It is falsified** (#523, evidence in `docs/reviews/2026-08-20-posture-b-state-stamps.md`): `erpnext-sweep/index.ts:1491-1494,1503,1511` refuses pre-binding hours *by design*, and `:1180-1182` writes no budget mirror row before dispatch — so "records whose mirror row is missing" does not select the set `DD-XING-3` means. **`DD-XING-3` is superseded by this entry.**
+`DD-XING-3` claimed the crossing needed no bespoke backfill. **It is falsified** (#523, evidence in `posture-b-state-stamps review (2026-08-20, in git history)`): `erpnext-sweep/index.ts:1491-1494,1503,1511` refuses pre-binding hours *by design*, and `:1180-1182` writes no budget mirror row before dispatch — so "records whose mirror row is missing" does not select the set `DD-XING-3` means. **`DD-XING-3` is superseded by this entry.**
 
 **The policy (owner):** the crossing is a **per-client choice at connect time**, from four options — (1) replay everything from the beginning · (2) push nothing pre-binding, the ERP starts at connect · (3) a summarised opening entry · (4) ask, i.e. the chooser itself. **Default is (2).** (1) and (3) remain available for a client who asks.
 
@@ -3092,7 +3092,7 @@ advance-item mechanism (ADR-0077) holds: the down payment books to the liability
 line nets it with tax on the reduced base. Two requirements follow: ERP setup must turn on Selling Settings "Allow
 Negative rates for Items" (site-wide, off by default — the claim is refused at submit otherwise), and the invoice
 body must send tax rows explicitly (naming a taxes template alone yields none). Re-check on v16 before enabling.
-Evidence: `docs/reviews/2026-10-06-progress-billing-erp-spike.md`.
+Evidence: `progress-billing-erp-spike review (2026-10-06, in git history)`.
 
 **DD-PBL-13 (Director, 2026-10-06, #856) — every sales invoice and claim sends explicit tax rows, gated by the project's VAT flag (OD-TAX-4).**
 One helper (`resolveSalesTaxRows`) serves ordinary invoice creates and claim/down-payment invoices: rate and account come from
@@ -3139,7 +3139,7 @@ and writes the rows into the command before the outbox snapshot, so a sweep repl
 Edits and amends send none. Only the "Record vendor invoice" form offers the picker; the inline "Mark Vendor Invoiced" capture
 writes through the PMO-only atomic RPC and does not dispatch, so it is not offered there (asking and discarding is #505's defect).
 The sales side is unchanged: DD-PBL-13 (project VAT flag + default template) already sends explicit rows. Plan:
-`docs/plans/2026-10-06-purchase-tax-template.md`.
+`purchase-tax-template plan (2026-10-06, in git history)`.
 - **DD-VI-3a (Director, 2026-10-06, #520 review):** a template with any `Deduct` row or negative rate (withholding, e.g. PPh) is
   refused before any ERP write (`config-rejected`, "This template withholds tax (e.g. PPh), which PMO cannot record yet — choose a
   template without withholding."): the vendor-invoice mirror allows a negative tax only on a negative amount (0196), so the ERP
@@ -3199,7 +3199,7 @@ money header — FR-ENA-116's paid-detection, built (DD-VWH-5) · the ledger sho
 under a withholding bill, nothing else changes (DD-VWH-6) · the column default is a fact for PMO-native bills; the
 mirror always states the value (DD-VWH-7) · no cost, actual, commitment or budget figure is reduced by withholding;
 never map a PPh payable account into a budget category (DD-VWH-8) · sales symmetry: client withholding stays on the
-receipt, and a negative sales tax row is refused (DD-VWH-9). Plan: `docs/plans/2026-10-07-vendor-withholding.md`.
+receipt, and a negative sales tax row is refused (DD-VWH-9). Plan: `vendor-withholding plan (2026-10-07, in git history)`.
 
 **OD-VWH-1 (owner, 2026-10-07, #876)** — vendor tax is set up **in PMO**: each vendor company carries a default tax treatment (VAT rate; withholding type PPh 23 / PPh 4(2) and rate; or none). A vendor bill starts from that default and its tax amounts are **editable**, so the bill can capture exactly what the vendor's own invoice shows (including invoices made outside PMO and the ERP). For an ERP-connected org PMO sends those amounts to ERPNext as fixed tax rows, so no ERPNext tax template is required (templates stay optional). PMO never recomputes ERP-calculated figures, so PMO and the ERP cannot disagree by rounding.
 

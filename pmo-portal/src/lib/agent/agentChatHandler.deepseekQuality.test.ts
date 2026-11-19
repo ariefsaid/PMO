@@ -2,7 +2,7 @@
  * Quality-gate tests on hand-shaped deepseek/deepseek-v4-flash-realistic fixtures
  * (MC-OD-008 — fixture provenance: hand-shaped to the OpenRouter/OpenAI schema;
  * not yet cross-checked against a live deepseek-v4-flash call — see this plan's
- * (docs/plans/2026-07-03-agent-model-client.md) §5 verification notes for live-run
+ * (agent-model-client plan (2026-07-03, in git history)) §5 verification notes for live-run
  * status, recorded by the Director/Task 21).
  *
  * AC-MC-020: read-tool answer quality, deterministic fixture.

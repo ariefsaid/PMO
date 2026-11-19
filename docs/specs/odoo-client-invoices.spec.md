@@ -338,4 +338,4 @@ Every new function that is `SECURITY DEFINER` is added to the pgTAP 0178 allow-l
 
 ## 12. Slice split
 
-See `docs/plans/2026-11-02-odoo-client-invoices.md` §3. Money-committing slices (C2–C5) are Director-dispatched, ship alone, and pass the three-reviewer battery with `security-auditor` mandatory.
+See `odoo-client-invoices plan (2026-11-02, in git history)` §3. Money-committing slices (C2–C5) are Director-dispatched, ship alone, and pass the three-reviewer battery with `security-auditor` mandatory.

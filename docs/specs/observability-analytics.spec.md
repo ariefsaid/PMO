@@ -572,7 +572,7 @@ network request leaves the browser, which cannot be proven at a lower layer.
 
 ## 9. Amendments after planning (2026-07-25; extended 2026-07-28)
 
-The plan (`docs/plans/2026-07-25-observability-analytics.md`) surfaced four defects in this spec at
+The plan (`observability-analytics plan (2026-07-25, in git history)`) surfaced four defects in this spec at
 planning time (items 1–4 below). A later spec-reviewer pass (2026-07-28), run after all 11 PRs had
 already shipped, found two more defects that a review at Design+Plan time could not have caught — one
 where the implementation diverged from the spec without an amendment (item 5), and one where the spec

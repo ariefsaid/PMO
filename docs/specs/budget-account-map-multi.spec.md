@@ -1,6 +1,6 @@
 # Feature: Budget account map — several ERP accounts per budget category (#768)
 
-> **Status:** Draft for Director sign-off (2026-10-06). Plan: `docs/plans/2026-10-06-budget-account-map-multi.md`.
+> **Status:** Draft for Director sign-off (2026-10-06). Plan: `budget-account-map-multi plan (2026-10-06, in git history)`.
 > No ADR: this relaxes one constraint inside the shipped map (P3c, `0137`) and adds one flag; no new seam,
 > table, domain or integration posture.
 > **Tier:** money path (the map decides which ERP account a pushed budget lands on) → Director-dispatched.

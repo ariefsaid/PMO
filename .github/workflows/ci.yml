@@ -1001,7 +1001,7 @@ jobs:
       # playwright.config.ts's `webServer` is an ARRAY of two servers (#1968: PRODUCTION builds
       # served via `vite build` + `vite preview` — CI defaults to E2E_SERVER=build): the ordinary
       # one (:3000, analytics disabled) and a second, analytics-ENABLED one (:3100, the `consent`
-      # project's lane, D6 in docs/plans/2026-07-25-observability-analytics.md — a server with a
+      # project's lane, D6 in 2026-07-25-observability-analytics plan (in git history) — a server with a
       # real key was the only way to make AC-CON-003 non-vacuous; its env is baked in at build
       # time). Both are started for every project invocation below since `webServer` is a top-level
       # config, not per-project. reuseExistingServer=false in CI so Playwright owns the lifecycle

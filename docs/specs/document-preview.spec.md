@@ -246,7 +246,7 @@ spec makes no claim about live database grants or production state.
 
 ## Implementation handoff checklist
 
-Implementation plan: `docs/plans/2026-10-31-document-preview.md` (branch `feat/document-preview`).
+Implementation plan: `document-preview plan (2026-10-31, in git history)` (branch `feat/document-preview`).
 
 - [ ] Obtain owner spec sign-off; design the side panel and complete source adapters.
 - [x] Define the bounded Graph preview and record-folder upload operations, preserving

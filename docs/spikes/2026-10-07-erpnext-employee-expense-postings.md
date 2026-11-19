@@ -1,7 +1,7 @@
 # Spike: ERPNext postings for employee expense claims + cash advances (#775 phase B)
 
 > **Resolves:** `docs/specs/expense-claims.spec.md` §10 spike questions 1–5, via the seven probes of
-> `docs/plans/2026-10-06-expense-claims.part6-i18n-e2e.md` Task 46. Method = the timesheet spike
+> `expense-claims.part6-i18n-e2e plan (2026-10-06, in git history)` Task 46. Method = the timesheet spike
 > (`docs/spikes/2026-07-20-erpnext-timesheet-fields.md`): real REST request → read the response → re-fetch and
 > diff; ERPNext source read inside the container only to explain an observed result, never to predict one.
 > Every request ran under `scripts/with-erpnext-lock.sh`. Auth header shown as `Authorization: token <redacted>`

@@ -124,7 +124,7 @@ I've read all the code and tests independently. Vitest reproduced green (9 files
 
 # Spec Review — M365 Phase-1 Token Custody
 
-**Contract:** `docs/specs/m365-phase1-graph-token-custody.spec.md` · **Plan:** `docs/plans/2026-07-15-m365-phase1-token-custody.md` · **Branch:** `m365-impl` · **Diff base:** `b3b6a2d4`
+**Contract:** `docs/specs/m365-phase1-graph-token-custody.spec.md` · **Plan:** `m365-phase1-token-custody plan (2026-07-15, in git history)` · **Branch:** `m365-impl` · **Diff base:** `b3b6a2d4`
 
 ## Verification method (no trust)
 - Ran `npx vitest run src/lib/m365/__tests__` myself → **9 files / 60 tests pass** (reproduced, not trusted).

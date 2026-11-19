@@ -1,6 +1,6 @@
 # Projects list coherence — spec
 
-**Status:** active enterprise UX program, 2026-09-26. **Authority:** `DESIGN.md` ListPage contract and `docs/design/2026-09-26-enterprise-coherence-brief.md`. This issue fixes the Projects list's phone-width control density and ambiguous project-manager choices. It preserves existing project reads, writes, roles, status meanings, and desktop slot order.
+**Status:** active enterprise UX program, 2026-09-26. **Authority:** `DESIGN.md` ListPage contract and `enterprise-coherence-brief doc (2026-09-26, in git history)`. This issue fixes the Projects list's phone-width control density and ambiguous project-manager choices. It preserves existing project reads, writes, roles, status meanings, and desktop slot order.
 
 ## Job story
 

@@ -30,7 +30,7 @@ re-proves what pgTAP already pins — one owning layer each.
 
 ## 1. Context & problem
 
-agent-native's gap-analysis row "Observability & tracing" (`docs/spikes/2026-07-08-agent-native-gap-analysis.md`,
+agent-native's gap-analysis row "Observability & tracing" (`agent-native-gap-analysis spike (2026-07-08, in git history)`,
 summary point 2) is the highest-signal observability gap. The framework ships a `TraceSummary`
 (`dist/observability/types.d.ts`: `llmCalls`, `toolCalls`, `successfulTools`, `failedTools`, `cost`,
 `durationMs`, `status`, `model`) that is **trivially derivable from rows PMO already writes** — yet PMO

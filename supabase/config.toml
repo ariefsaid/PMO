@@ -122,7 +122,7 @@ port = 54324
 
 [storage]
 # Re-enabled 2026-06-12 for the document-file-upload issue (OD-DOC-1; Phase 0 health gate
-# in docs/plans/2026-06-12-document-file-upload.md). Historical health-check flake is the
+# in document-file-upload plan (2026-06-12, in git history)). Historical health-check flake is the
 # named abort condition — if `supabase db reset` hangs or /storage/v1/health is non-200, STOP.
 enabled = true
 # The maximum file size allowed (e.g. "5MB", "500KB"). Mirrors MAX_FILE_SIZE_BYTES (OD-DOC-5 knob).

@@ -1,7 +1,7 @@
 # Plan: Budget fiscal-year / phasing dimension (Issue BFY)
 
 > **Spec (authority):** `docs/specs/budget-fiscal-year-phasing.spec.md` (round 2, the four-fact fence).
-> **Review it answers:** `docs/reviews/2026-07-23-luna-fu2-budget-fiscal-year-spec.md` (findings 1–11).
+> **Review it answers:** `luna-fu2-budget-fiscal-year-spec review (2026-07-23, in git history)` (findings 1–11).
 > **Closes:** OQ-BUD-3 option (c) + **FR-BUD-152** (rewire `get_budget_projection` to PMO's own facts).
 > **IDs:** `FR-BFY-###` / `NFR-BFY-###` / `AC-BFY-###`. **ADRs:** 0048 (no invented allocation), 0055 §6
 > (one ERP `Budget` per project × FY), 0059 (Posture B), 0010 (test pyramid), 0011/0016/0017/0019.

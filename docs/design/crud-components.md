@@ -1,6 +1,6 @@
 # CRUD Component Architecture — PMO Portal
 
-**Status:** Design-plan (Phase 0, step 1 of the CRUD+RBAC program). Drives `docs/design-mockups/crud-*.html`, the Phase-1 form primitives, and every per-entity build.
+**Status:** Design-plan (Phase 0, step 1 of the CRUD+RBAC program). Drove the `crud-*.html` mockups (removed from the tree 2026-11; in git history), the Phase-1 form primitives, and every per-entity build.
 **Authority:** `DESIGN.md` is the identity authority — every visual decision below names a `DESIGN.md` token, never a literal. This doc adds CRUD *patterns* on top of the shipped IA-3 shell + primitive library; it does not introduce a new aesthetic, palette, or font.
 **Plan:** `docs/plans/2026-06-07-crud-rbac-program.md` (RBAC matrix, owner/Director decisions, ADR-0016..0019).
 **Companion:** `docs/design/rbac-visibility.md` (the role × affordance visibility map; the precise UI projection of the matrix).

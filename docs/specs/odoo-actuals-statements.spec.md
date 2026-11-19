@@ -24,7 +24,7 @@ When I close a month on an Odoo-connected project, I want PMO's budget-versus-ac
 **In:** read posted Odoo journal lines into the existing ledger mirror with source, period and project attribution kept; a per-sweep reconciliation of PMO's sums to Odoo's own grouped totals; freshness, unmapped and unattributed signals; Odoo-tier project actuals (budget-versus-actual) through the existing projection; Odoo-tier statements (Trial Balance, Profit and Loss, Balance Sheet, project P&L) computed from the mirror; declaring `actuals.read` supported and the three `budget.*` workflows unavailable.
 
 **Out (fenced):**
-- **`budget.push`, `budget.unowned-occupant`, `budget.resolve-occupant`** are not built. Odoo Community has no budget object (DD-ODC-5, `docs/plans/2026-11-01-erp-connect-anytime.md` §12). They are declared `unavailable` with that reason here (DD-ODA-6); PMO budgets stay PMO-only on Odoo.
+- **`budget.push`, `budget.unowned-occupant`, `budget.resolve-occupant`** are not built. Odoo Community has no budget object (DD-ODC-5, `erp-connect-anytime plan (2026-11-01, in git history)` §12). They are declared `unavailable` with that reason here (DD-ODA-6); PMO budgets stay PMO-only on Odoo.
 - Any write to Odoo: this issue only reads. No outbox, no new Odoo command.
 - Posting, closing, period lock, cash flow, consolidation, GL drill-down to Odoo screens, auditor export (as #897).
 - Multi-currency: company-currency amounts only; a line in another currency is mirrored at its company-currency value and flagged (OQ-ODA-5).
