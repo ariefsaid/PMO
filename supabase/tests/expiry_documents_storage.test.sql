@@ -1,7 +1,7 @@
 -- expiry_documents_storage.test.sql — 0994 (#2542). Owns AC-DEE-007 (bucket access by role/kind/org) and AC-DEE-008 (row writes by role).
 begin;
 create extension if not exists pgtap;
-select plan(14);
+select plan(18);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25420000-0000-0000-0000-00000000000a', 'DEE Org',   'IDR', 'UTC'),
@@ -27,7 +27,8 @@ insert into document_types (id, org_id, name, applies_to) values
 -- seeded objects (as owner) so read and delete have targets
 insert into storage.objects (bucket_id, name, owner) values
   ('expiry-documents', '25420000-0000-0000-0000-00000000000a/person/25420000-0000-0000-0000-0000000000e1/f1/permit.pdf', null),
-  ('expiry-documents', '25420000-0000-0000-0000-00000000000a/equipment/25420000-0000-0000-0000-0000000000d1/f2/cert.pdf', null);
+  ('expiry-documents', '25420000-0000-0000-0000-00000000000a/equipment/25420000-0000-0000-0000-0000000000d1/f2/cert.pdf', null),
+  ('expiry-documents', '25420000-0000-0000-0000-00000000000b/person/25420000-0000-0000-0000-0000000000e1/f10/other.pdf', null);
 
 create or replace function pg_temp.act_as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
@@ -56,7 +57,9 @@ select ok(not pg_temp.try_upload('25420000-0000-0000-0000-00000000000a/equipment
 select is((select count(*)::int from storage.objects where bucket_id = 'expiry-documents'), 0, 'AC-DEE-007 Finance reads no attachments');
 
 select pg_temp.act_as('25420000-0000-0000-0000-0000000000a3');
-select is((select count(*)::int from storage.objects where bucket_id = 'expiry-documents'), 1, 'AC-DEE-007 a person''s manager reads that person''s file only');
+select ok(exists(select 1 from storage.objects where bucket_id = 'expiry-documents' and name = '25420000-0000-0000-0000-00000000000a/person/25420000-0000-0000-0000-0000000000e1/f1/permit.pdf'), 'AC-DEE-007 manager reads the seeded person file');
+select ok(exists(select 1 from storage.objects where bucket_id = 'expiry-documents' and name = '25420000-0000-0000-0000-00000000000a/person/25420000-0000-0000-0000-0000000000e1/f3/a.pdf'), 'AC-DEE-007 manager reads the newly uploaded person file');
+select ok(not exists(select 1 from storage.objects where bucket_id = 'expiry-documents' and name = '25420000-0000-0000-0000-00000000000b/person/25420000-0000-0000-0000-0000000000e1/f10/other.pdf'), 'AC-DEE-007 manager cannot read another org file');
 
 select pg_temp.act_as('25420000-0000-0000-0000-0000000000a2');
 select is((select count(*)::int from storage.objects where bucket_id = 'expiry-documents' and name like '%/person/%'), 0, 'AC-DEE-007 PM reads no person files');
@@ -70,7 +73,14 @@ select pg_temp.act_as('25420000-0000-0000-0000-0000000000a2');
 select lives_ok($q$insert into expiry_documents (subject_kind, asset_id, type_id, expires_on)
   values ('equipment', '25420000-0000-0000-0000-0000000000d1', '25420000-0000-0000-0000-0000000000f3', '2027-01-01')$q$,
   'AC-DEE-008 PM adds an equipment document');
+select pg_temp.act_as('25420000-0000-0000-0000-0000000000a5');
+with changed as (update expiry_documents set archived_at = now() where asset_id = '25420000-0000-0000-0000-0000000000d1' returning id)
+select is(count(*)::int, 0, 'AC-DEE-008 Finance cannot archive a document') from changed;
+select pg_temp.act_as('25420000-0000-0000-0000-0000000000a1');
+select is((select count(*)::int from expiry_documents where asset_id = '25420000-0000-0000-0000-0000000000d1' and archived_at is null), 1, 'AC-DEE-008 Finance leaves the document unarchived');
+select pg_temp.act_as('25420000-0000-0000-0000-0000000000a2');
 select lives_ok($q$update expiry_documents set archived_at = now() where asset_id = '25420000-0000-0000-0000-0000000000d1' and expires_on = '2027-01-01'$q$,
   'AC-DEE-008 PM archives an equipment document');
+select is((select count(*)::int from expiry_documents where asset_id = '25420000-0000-0000-0000-0000000000d1' and archived_at is not null), 1, 'AC-DEE-008 the PM archive changes the document');
 select * from finish();
 rollback;
