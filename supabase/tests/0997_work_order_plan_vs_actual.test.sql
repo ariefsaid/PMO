@@ -8,7 +8,7 @@
 -- Every denial asserts the errcode AND the message.
 begin;
 create extension if not exists pgtap;
-select plan(44);
+select plan(77);
 
 -- ── Fixtures: org A (several roles), org B (another tenant). Written as the table owner. ─────────────────
 insert into organizations (id, name, default_currency) values
@@ -70,6 +70,14 @@ insert into procurement_invoices (id, org_id, procurement_id, vi_number, invoice
   ('25190000-0000-0000-0000-000000000625', '25190000-0000-0000-0000-00000000000a', '25190000-0000-0000-0000-000000000603', 'VI-S1', '2026-11-16', 'Received', 70, 'exclusive', 0, 'IDR', null),
   -- a bill of goods received into stock: counted when issued, never as the bill
   ('25190000-0000-0000-0000-000000000626', '25190000-0000-0000-0000-00000000000a', '25190000-0000-0000-0000-000000000604', 'VI-ST', '2026-11-16', 'Received', 999, 'exclusive', 0, 'IDR', null);
+-- Paid amounts make the project basis 600 + 400 + 100 before attribution.
+update public.procurements set budget_category = 'Materials'
+ where id in ('25190000-0000-0000-0000-000000000601', '25190000-0000-0000-0000-000000000602', '25190000-0000-0000-0000-000000000603');
+insert into public.payments (id, org_id, procurement_id, invoice_id, status, amount, currency) values
+ ('25190000-0000-0000-0000-000000000641', '25190000-0000-0000-0000-00000000000a', '25190000-0000-0000-0000-000000000601', '25190000-0000-0000-0000-000000000621', 'Paid', 555, 'IDR'),
+ ('25190000-0000-0000-0000-000000000642', '25190000-0000-0000-0000-00000000000a', '25190000-0000-0000-0000-000000000601', '25190000-0000-0000-0000-000000000622', 'Paid', 111, 'IDR'),
+ ('25190000-0000-0000-0000-000000000643', '25190000-0000-0000-0000-00000000000a', '25190000-0000-0000-0000-000000000602', '25190000-0000-0000-0000-000000000623', 'Paid', 400, 'IDR'),
+ ('25190000-0000-0000-0000-000000000644', '25190000-0000-0000-0000-00000000000a', '25190000-0000-0000-0000-000000000603', null, 'Paid', 100, 'IDR');
 insert into timesheets (id, org_id, user_id, week_start_date, status) values
   ('25190000-0000-0000-0000-000000000701', '25190000-0000-0000-0000-00000000000a', '25190000-0000-0000-0000-0000000000a4', '2026-11-16', 'Approved');
 insert into timesheet_entries (id, org_id, timesheet_id, project_id, entry_date, hours) values
@@ -107,9 +115,12 @@ grant all on wpva_snap to authenticated;
 set local role authenticated;
 select pg_temp.act_as('25190000-0000-0000-0000-0000000000a2');
 insert into wpva_snap select 'total_before', sum(amount::numeric)
-  from public.work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1') where reason = 'counted';
+  from public.work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1') where reason in ('counted', 'unassigned', 'split-when-custom');
+select is((select v from wpva_snap where label = 'total_before'),
+  (select (public.get_project_finances('25190000-0000-0000-0000-0000000000d1')->'actuals'->>'total')::numeric),
+  'AC-WPVA-012 the work-order cost read equals the existing project actuals basis');
 select is((select v from wpva_snap where label = 'total_before'), 1100.00::numeric,
-  'AC-WPVA-012 the project total counts each cost once: bills 600 + 400 + 70 and the stock issue 30 — not the PO, the stocked bill or the voided bill');
+  'AC-WPVA-012 the project total counts paid purchases 600 + 400 + 100 once');
 
 -- Attribute: A's bills and PO to WO-A (Civil / Electrical), B's bill to WO-B; the site-office bill and the issue stay shared.
 select is(public.set_cost_attribution('vendor_bill', array['25190000-0000-0000-0000-000000000621']::uuid[],
@@ -125,17 +136,19 @@ select is(public.set_cost_attribution('timesheet_entry', array['25190000-0000-00
 
 -- ── AC-WPVA-003 / 004 / 012: the read ─────────────────────────────────────────────────────────────────
 create temp table wpva_rows as select * from public.work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1');
-select is((select sum(amount::numeric) from wpva_rows where reason = 'counted'), (select v from wpva_snap where label = 'total_before'),
+select is((select sum(amount::numeric) from wpva_rows where reason in ('counted', 'unassigned', 'split-when-custom')), (select v from wpva_snap where label = 'total_before'),
   'AC-WPVA-012 naming work orders does not change the project total (every counted line still appears exactly once)');
 select is((select sum(amount::numeric) from wpva_rows where reason = 'counted' and work_order_id = '25190000-0000-0000-0000-000000000401'), 600.00::numeric,
   'AC-WPVA-004 WO-A direct cost is 600 (an exclusive bill 500 + an inclusive bill 111 less its 11 tax)');
 select is((select sum(amount::numeric) from wpva_rows where reason = 'counted' and work_order_id = '25190000-0000-0000-0000-000000000402'), 400.00::numeric,
   'AC-WPVA-004 WO-B direct cost is 400 (its stocked bill is not summed)');
-select is((select sum(amount::numeric) from wpva_rows where reason = 'counted' and work_order_id is null), 100.00::numeric,
-  'AC-WPVA-004 the shared pool is 100 (the site-office bill 70 + the stock issue at ledger value 30)');
+select is((select sum(amount::numeric) from wpva_rows where reason in ('counted', 'unassigned', 'split-when-custom') and work_order_id is null), 100.00::numeric,
+  'AC-WPVA-004 the unlinked site-office payment remains unassigned');
+select is((select reference from wpva_rows where source = 'purchase_balance' and record_id = '25190000-0000-0000-0000-000000000603'),
+  'WPVA site office', 'the unassigned payment retains its purchase reference');
 select is((select sum(amount::numeric) from wpva_rows where reason = 'counted' and work_order_id is not null)
-          + (select sum(amount::numeric) from wpva_rows where reason = 'counted' and work_order_id is null), 1100.00::numeric,
-  'AC-WPVA-012 project total = the work orders'' direct cost + the shared cost');
+          + (select sum(amount::numeric) from wpva_rows where reason in ('counted', 'unassigned', 'split-when-custom') and work_order_id is null), 1100.00::numeric,
+  'AC-WPVA-012 project total = the work orders'' direct cost + the unassigned cost');
 select is((select array_agg(amount::numeric order by amount::numeric) from wpva_rows
             where work_order_id = '25190000-0000-0000-0000-000000000401' and discipline_id is not null), array[100.00, 500.00]::numeric[],
   'AC-WPVA-003 WO-A''s discipline groups (Electrical 100, Civil 500) sum to its total');
@@ -145,17 +158,23 @@ select is((select reason from wpva_rows where record_id = '25190000-0000-0000-00
   'a bill of goods received into stock is listed as stocked, not summed (its issue carries the cost)');
 select is((select count(*)::int from wpva_rows where record_id = '25190000-0000-0000-0000-000000000624'), 0,
   'a voided bill is not in the read');
-select is((select amount from wpva_rows where record_id = '25190000-0000-0000-0000-000000000811'), '30.00',
-  'a posted stock issue costs its stock-ledger value');
+select ok((select reason = 'outside-basis' and amount is null from wpva_rows where record_id = '25190000-0000-0000-0000-000000000811'),
+  'a stock issue is listed but excluded from the paid-purchase basis');
 select ok((select reason = 'no-rate' and amount is null and quantity = 8 and person_id = '25190000-0000-0000-0000-0000000000a4'
              from wpva_rows where record_id = '25190000-0000-0000-0000-000000000711'),
   'timesheet hours carry hours and the person, no money (no labour rate in PMO)');
 select ok((select reason = 'not-posted' and amount is null and quantity = 6 and quantity_unit = 'hours'
              from wpva_rows where record_id = '25190000-0000-0000-0000-000000000911'),
   'equipment usage not yet approved carries its hours and no money');
-select is((select count(*)::int from wpva_rows), (select count(*)::int from public.work_order_cost_lines where project_id = '25190000-0000-0000-0000-0000000000d1')
-                                                   - (select count(*)::int from public.procurement_invoices where voided_at is not null and procurement_id = '25190000-0000-0000-0000-000000000602'),
-  'the read lists the same records as the #2517 read seam (less voided bills)');
+select is((select count(*)::int from public.work_order_cost_lines l where l.project_id = '25190000-0000-0000-0000-0000000000d1'
+            and l.record_id <> '25190000-0000-0000-0000-000000000624'
+            and not exists (select 1 from wpva_rows r where r.source = l.source and r.record_id = l.record_id)), 0,
+  'the read retains every record from the #2517 seam except voided bills');
+select is((select count(*)::int from wpva_rows r where exists (select 1 from public.work_order_cost_lines l
+            where l.project_id = '25190000-0000-0000-0000-0000000000d1' and l.source = r.source and l.record_id = r.record_id)),
+          (select count(*)::int from public.work_order_cost_lines l where l.project_id = '25190000-0000-0000-0000-0000000000d1'
+            and l.record_id <> '25190000-0000-0000-0000-000000000624'),
+  'each #2517 source record appears exactly once');
 
 -- ── AC-WPVA-009: a role that cannot read the money is refused; another org's project reads as absent ───────────
 select pg_temp.act_as('25190000-0000-0000-0000-0000000000a4');
@@ -246,6 +265,266 @@ select is((select count(*)::int from public.audit_events where entity_id = '2519
 select is((select count(*)::int from information_schema.role_table_grants
             where table_name = 'project_shared_cost_splits' and grantee = 'authenticated' and privilege_type <> 'SELECT'), 0,
   'the split is written only through its RPCs');
+
+select set_eq($$ select privilege_type::text from information_schema.role_table_grants
+                 where table_schema = 'public' and table_name = 'work_order_plan_lines' and grantee = 'authenticated' $$,
+              $$ values ('SELECT'::text), ('DELETE'::text) $$,
+  'plan-line table grants expose select and delete; inserts and updates use column grants');
+select is((select count(distinct cmd)::int from pg_policies
+            where schemaname = 'public' and tablename = 'work_order_plan_lines'
+              and cmd in ('SELECT', 'INSERT', 'UPDATE', 'DELETE')), 4,
+  'plan-line RLS has separate policies for all four operations');
+select ok(not has_function_privilege('anon', 'public.set_shared_cost_split(uuid,jsonb)', 'EXECUTE')
+          and not has_function_privilege('anon', 'public.clear_shared_cost_split(uuid)', 'EXECUTE')
+          and not has_function_privilege('anon', 'public.set_work_order_plan(uuid,uuid,jsonb)', 'EXECUTE'),
+  'anonymous callers cannot execute either split writer');
+
+-- A plan form is a single transaction even when one figure is invalid.
+set local role authenticated;
+select pg_temp.act_as('25190000-0000-0000-0000-0000000000a4');
+select throws_ok($$ select public.set_work_order_plan('25190000-0000-0000-0000-0000000000d1',
+ '25190000-0000-0000-0000-000000000401', '[{"kind":"crew_hours","value":"1"}]') $$,
+ '42501', 'not authorized', 'an Engineer cannot save a plan form');
+select pg_temp.act_as('25190000-0000-0000-0000-0000000000b1');
+select throws_ok($$ select public.set_work_order_plan('25190000-0000-0000-0000-0000000000d1',
+ '25190000-0000-0000-0000-000000000401', '[{"kind":"crew_hours","value":"1"}]') $$,
+ 'P0002', 'work order not found', 'another organisation cannot save a plan form');
+select pg_temp.act_as('25190000-0000-0000-0000-0000000000a2');
+select lives_ok($$ select public.set_work_order_plan('25190000-0000-0000-0000-0000000000d1',
+ '25190000-0000-0000-0000-000000000401',
+ '[{"kind":"direct_budget","value":"500"},{"kind":"crew_hours","value":"10"}]') $$,
+ 'a plan form saves all its figures');
+select throws_ok($$ select public.set_work_order_plan('25190000-0000-0000-0000-0000000000d1',
+ '25190000-0000-0000-0000-000000000401',
+ '[{"kind":"direct_budget","value":"700"},{"kind":"crew_hours","value":"-1"}]') $$,
+ '23514', null, 'an invalid figure rejects the entire plan form');
+select is((select value from public.work_order_plan_lines where work_order_id = '25190000-0000-0000-0000-000000000401'
+ and kind = 'direct_budget' and discipline_id is null), 500::numeric,
+ 'a rejected plan form leaves the earlier figure unchanged');
+select lives_ok($$ select public.set_work_order_plan('25190000-0000-0000-0000-0000000000d1',
+ '25190000-0000-0000-0000-000000000401', '[{"kind":"direct_budget","value":"99999999999999.99"}]') $$,
+ 'the plan form accepts a large exact amount');
+select is((select value::text from public.work_order_plan_lines where work_order_id = '25190000-0000-0000-0000-000000000401'
+ and kind = 'direct_budget' and discipline_id is null), '99999999999999.99',
+ 'the plan form preserves every cent of a large amount');
+reset role;
+
+-- Two bills of one purchase, paid in different proportions and assigned to different work orders.
+set local session_replication_role = replica;
+delete from public.payments where id in ('25190000-0000-0000-0000-000000000641', '25190000-0000-0000-0000-000000000642', '25190000-0000-0000-0000-000000000643', '25190000-0000-0000-0000-000000000644');
+update public.procurements set budget_category = 'Materials' where id = '25190000-0000-0000-0000-000000000601';
+update public.procurement_invoices set work_order_id = '25190000-0000-0000-0000-000000000402'
+ where id = '25190000-0000-0000-0000-000000000622';
+insert into public.payments (id, org_id, procurement_id, invoice_id, status, amount, currency) values
+ ('25190000-0000-0000-0000-000000000631', '25190000-0000-0000-0000-00000000000a',
+  '25190000-0000-0000-0000-000000000601', '25190000-0000-0000-0000-000000000621', 'Paid', 277.50, 'IDR'),
+ ('25190000-0000-0000-0000-000000000632', '25190000-0000-0000-0000-00000000000a',
+  '25190000-0000-0000-0000-000000000601', '25190000-0000-0000-0000-000000000622', 'Paid', 111, 'IDR');
+set local session_replication_role = origin;
+set local role authenticated;
+select pg_temp.act_as('25190000-0000-0000-0000-0000000000a2');
+select is((select sum(amount::numeric) from public.work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1') where reason in ('counted', 'unassigned', 'split-when-custom')),
+  (select (public.get_project_finances('25190000-0000-0000-0000-0000000000d1')->'actuals'->>'total')::numeric),
+  'AC-WPVA-012 paid cost equals project actuals, not unpaid bills or stock issues');
+select is((select sum(amount::numeric) from public.work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1')
+ where reason = 'counted' and work_order_id = '25190000-0000-0000-0000-000000000401'), 250::numeric,
+ 'AC-WPVA-012 the partially paid first bill follows its work order');
+select is((select sum(amount::numeric) from public.work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1')
+ where reason = 'counted' and work_order_id = '25190000-0000-0000-0000-000000000402'), 100::numeric,
+ 'AC-WPVA-012 the second bill on the same purchase follows its own work order');
+reset role;
+
+-- A missing bill amount does not hide a project actual that the paid-purchase basis can determine.
+set local session_replication_role = replica;
+insert into public.projects (id, org_id, name, status, currency, pmo_project_number)
+values ('25190000-0000-0000-0000-0000000000d3', '25190000-0000-0000-0000-00000000000a', 'Unresolved bill project', 'Ongoing Project', 'IDR', 'WPVA-UNKNOWN');
+insert into public.work_orders (id, org_id, project_id, wo_number, title, status, order_value, tax_treatment, tax_amount, currency)
+values ('25190000-0000-0000-0000-000000000405', '25190000-0000-0000-0000-00000000000a', '25190000-0000-0000-0000-0000000000d3',
+ 'WO-U', 'Unknown direct cost', 'Issued', 100, 'exclusive', 0, 'IDR');
+insert into public.procurements (id, org_id, title, project_id, status, total_value, currency, budget_category)
+values ('25190000-0000-0000-0000-000000000606', '25190000-0000-0000-0000-00000000000a', 'Unresolved purchase',
+ '25190000-0000-0000-0000-0000000000d3', 'Ordered', 20, 'IDR', 'Materials');
+insert into public.procurement_invoices (id, org_id, procurement_id, status, amount, currency, tax_treatment, tax_amount, work_order_id)
+values ('25190000-0000-0000-0000-000000000628', '25190000-0000-0000-0000-00000000000a', '25190000-0000-0000-0000-000000000606',
+ 'Received', null, 'IDR', 'exclusive', 0, '25190000-0000-0000-0000-000000000405');
+insert into public.payments (id, org_id, procurement_id, invoice_id, status, amount, currency)
+values ('25190000-0000-0000-0000-000000000634', '25190000-0000-0000-0000-00000000000a', '25190000-0000-0000-0000-000000000606',
+ '25190000-0000-0000-0000-000000000628', 'Paid', 20, 'IDR');
+set local session_replication_role = origin;
+set local role authenticated;
+select pg_temp.act_as('25190000-0000-0000-0000-0000000000a2');
+select ok((select reason = 'unresolved-direct' and amount is null from public.work_order_cost_amounts('25190000-0000-0000-0000-0000000000d3')
+            where record_id = '25190000-0000-0000-0000-000000000628'),
+  'a bill without an amount leaves the work-order cost unknown');
+select is((select sum(amount::numeric) from public.work_order_cost_amounts('25190000-0000-0000-0000-0000000000d3')
+            where reason in ('counted', 'unassigned', 'split-when-custom')),
+          (select (public.get_project_finances('25190000-0000-0000-0000-0000000000d3')->'actuals'->>'total')::numeric),
+  'AC-WPVA-012 the known paid total remains visible as unassigned');
+reset role;
+
+-- A paid bill in another currency remains visible separately and never becomes project-currency cost.
+set local session_replication_role = replica;
+insert into public.procurements (id, org_id, title, project_id, status, total_value, currency, budget_category)
+values ('25190000-0000-0000-0000-000000000605', '25190000-0000-0000-0000-00000000000a', 'Foreign purchase',
+ '25190000-0000-0000-0000-0000000000d2', 'Ordered', 25, 'USD', 'Materials');
+insert into public.procurement_invoices (id, org_id, procurement_id, status, amount, currency, tax_treatment, tax_amount, work_order_id)
+values ('25190000-0000-0000-0000-000000000627', '25190000-0000-0000-0000-00000000000a', '25190000-0000-0000-0000-000000000605',
+ 'Received', 25, 'USD', 'exclusive', 0, '25190000-0000-0000-0000-000000000404');
+insert into public.payments (id, org_id, procurement_id, invoice_id, status, amount, currency)
+values ('25190000-0000-0000-0000-000000000633', '25190000-0000-0000-0000-00000000000a', '25190000-0000-0000-0000-000000000605',
+ '25190000-0000-0000-0000-000000000627', 'Paid', 25, 'USD');
+set local session_replication_role = origin;
+set local role authenticated;
+select pg_temp.act_as('25190000-0000-0000-0000-0000000000a2');
+select ok((select currency = 'USD' and amount::numeric = 25 from public.work_order_cost_amounts('25190000-0000-0000-0000-0000000000d2')
+            where source = 'vendor_bill' and record_id = '25190000-0000-0000-0000-000000000627'),
+  'AC-WPVA-010 a foreign-currency paid bill is shown in its own currency');
+select ok((select amount is null from public.work_order_cost_amounts('25190000-0000-0000-0000-0000000000d2')
+            where source = 'project_actuals' and currency = 'IDR'),
+  'AC-WPVA-010 the project-currency total remains unknown');
+reset role;
+
+-- Equipment is priced once per asset-month, then assigned to its usage entries without losing the cent.
+set local session_replication_role = replica;
+insert into public.equipment_costing_settings (org_id, asset_id, setting_key, version, basis, work_rate, rate_unit, charge_category, effective_from)
+values ('25190000-0000-0000-0000-00000000000a', '25190000-0000-0000-0000-000000000901',
+        '25190000-0000-0000-0000-000000000902', 1, 'hire_rate', 0.01, 'hours', 'Equipment', '2026-01-01');
+update public.equipment_usage_entries set status = 'Approved', quantity = 0.5,
+       work_order_id = '25190000-0000-0000-0000-000000000401', approved_at = now()
+ where id = '25190000-0000-0000-0000-000000000911';
+insert into public.equipment_usage_entries (id, org_id, asset_id, project_id, work_date, quantity, unit, kind, status,
+ author_id, approver_id, approved_at, work_order_id) values
+ ('25190000-0000-0000-0000-000000000912', '25190000-0000-0000-0000-00000000000a', '25190000-0000-0000-0000-000000000901',
+  '25190000-0000-0000-0000-0000000000d1', '2026-11-17', 0.5, 'hours', 'work', 'Approved',
+  '25190000-0000-0000-0000-0000000000a4', '25190000-0000-0000-0000-0000000000a1', now(),
+  '25190000-0000-0000-0000-000000000402'),
+ ('25190000-0000-0000-0000-000000000913', '25190000-0000-0000-0000-00000000000a', '25190000-0000-0000-0000-000000000901',
+  '25190000-0000-0000-0000-0000000000d1', '2026-11-17', 1, 'hours', 'standby', 'Approved',
+  '25190000-0000-0000-0000-0000000000a4', '25190000-0000-0000-0000-0000000000a1', now(),
+  '25190000-0000-0000-0000-000000000402');
+set local session_replication_role = origin;
+set local role authenticated;
+select pg_temp.act_as('25190000-0000-0000-0000-0000000000a2');
+select is((select sum(amount::numeric) from public.work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1')
+            where source = 'equipment_usage' and reason = 'counted'), 0.01::numeric,
+  'AC-WPVA-012 equipment allocations equal the asset-month charge');
+select is((select amount::numeric from public.work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1')
+            where source = 'equipment_usage' and record_id = '25190000-0000-0000-0000-000000000911'), 0.01::numeric,
+  'the first equipment entry retains its rounded cent');
+select is((select amount::numeric from public.work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1')
+            where source = 'equipment_usage' and record_id = '25190000-0000-0000-0000-000000000913'), 0::numeric,
+  'zero-rate usage never receives a negative rounding remainder');
+select is((select sum(amount::numeric) from public.work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1')
+            where work_order_id = '25190000-0000-0000-0000-000000000401' and reason = 'counted'), 250.01::numeric,
+  'AC-WPVA-003 paid bills and equipment charges sum to the work-order cost');
+select is((select array[sum(amount::numeric) filter (where source = 'vendor_bill'),
+                         sum(amount::numeric) filter (where source = 'equipment_usage')]
+             from public.work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1')
+            where work_order_id = '25190000-0000-0000-0000-000000000401' and reason = 'counted'), array[250, 0.01]::numeric[],
+  'AC-WPVA-003 the reachable source amounts are the bill and equipment charge');
+select is((select sum(amount::numeric) from public.work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1')
+            where reason in ('counted', 'unassigned', 'split-when-custom')),
+          (select (public.get_project_finances('25190000-0000-0000-0000-0000000000d1')->'actuals'->>'total')::numeric),
+  'AC-WPVA-012 purchase and equipment amounts equal the project actual');
+reset role;
+
+-- An ERP ledger project uses the ledger actual, not the PMO purchase records above.
+set local session_replication_role = replica;
+insert into public.external_org_bindings (org_id, external_tier, site_url, secret_ref, status, connected_by, connected_at)
+values ('25190000-0000-0000-0000-00000000000a', 'erpnext', 'https://erp.example.test', 'test-ref', 'active',
+        '25190000-0000-0000-0000-0000000000a1', now());
+insert into public.budget_category_account_map (org_id, category, erp_account, is_push_target)
+values ('25190000-0000-0000-0000-00000000000a', 'Materials', 'WPVA-MATERIALS', true);
+insert into public.erp_actuals_snapshot (org_id, project_id, account, fiscal_year, net, as_of, snapshot_id, created_at)
+values ('25190000-0000-0000-0000-00000000000a', '25190000-0000-0000-0000-0000000000d1', 'WPVA-MATERIALS',
+        'FY-2026', 125, now(), '25190000-0000-0000-0000-0000000000e1', now());
+set local session_replication_role = origin;
+set local role authenticated;
+select pg_temp.act_as('25190000-0000-0000-0000-0000000000a2');
+select is((select sum(amount::numeric) from public.work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1')
+            where reason in ('counted', 'unassigned', 'split-when-custom')),
+          (select (public.get_project_finances('25190000-0000-0000-0000-0000000000d1')->'actuals'->>'total')::numeric),
+  'AC-WPVA-012 ERP cost equals the project actuals ledger basis');
+select is((select amount::numeric from public.work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1')
+            where source = 'project_actuals' and reason = 'split-when-custom'), 125::numeric,
+  'unlinked ERP actuals stay separate for an explicit custom split');
+reset role;
+
+-- Project and contract work revenue includes other billing, which remains visible as a separate component.
+set local session_replication_role = replica;
+insert into public.sales_invoices (id, org_id, project_id, invoice_date, amount, tax_treatment, tax_amount, currency, status, billing_kind) values
+ ('25190000-0000-0000-0000-000000000a11', '25190000-0000-0000-0000-00000000000a', '25190000-0000-0000-0000-0000000000d1',
+  '2026-11-18', 30, 'exclusive', 0, 'IDR', 'Submitted', 'other'),
+ ('25190000-0000-0000-0000-000000000a12', '25190000-0000-0000-0000-00000000000a', '25190000-0000-0000-0000-0000000000d1',
+  '2026-11-18', 170, 'exclusive', 0, 'IDR', 'Submitted', 'contract');
+set local session_replication_role = origin;
+set local role authenticated;
+select pg_temp.act_as('25190000-0000-0000-0000-0000000000a2');
+select is((select amount::numeric from public.work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1')
+            where source = 'other_revenue' and currency = 'IDR'), 30::numeric,
+  'other billed work is stated separately, without contract-billing invoices');
+select is((select (x->>'work_revenue')::numeric from jsonb_array_elements(public.get_project_finances('25190000-0000-0000-0000-0000000000d1')->'invoices') x
+            where x->>'currency' = 'IDR'), 200::numeric,
+  'project work revenue still includes both contract and other billing');
+reset role;
+
+-- Mutation check: a wrong project total must be distinguishable from the authoritative read.
+do $$
+declare original text; mutant text;
+begin
+  select pg_get_functiondef('public.work_order_cost_amounts(uuid)'::regprocedure) into original;
+  mutant := replace(original, 'v_actual := (v_fin->>''total'')::numeric;',
+                    'v_actual := (v_fin->>''total'')::numeric + 1;');
+  if mutant = original then raise exception 'mutation did not apply'; end if;
+  execute mutant;
+end $$;
+set local role authenticated;
+select pg_temp.act_as('25190000-0000-0000-0000-0000000000a2');
+select isnt((select sum(amount::numeric) from public.work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1')
+              where reason in ('counted', 'unassigned', 'split-when-custom')),
+            (select (public.get_project_finances('25190000-0000-0000-0000-0000000000d1')->'actuals'->>'total')::numeric),
+  'AC-WPVA-012 mutation: changing the cost total breaks equality with project actuals');
+reset role;
+
+-- Security mutation: remove the form role gate and its table-policy defenses inside this rollback-only test.
+-- The earlier Engineer-denial assertion must distinguish the live controls from this deliberately broken pair.
+do $$
+declare original text; mutant text;
+begin
+  select pg_get_functiondef('public.set_work_order_plan(uuid,uuid,jsonb)'::regprocedure) into original;
+  mutant := replace(original,
+    $guard$if not public.is_active_member() or public.auth_role() is null
+     or public.auth_role() not in ('Admin', 'Executive', 'Finance', 'Project Manager') then$guard$,
+    'if false then');
+  if mutant = original then raise exception 'security mutation did not apply'; end if;
+  execute mutant;
+end $$;
+alter policy work_order_plan_lines_select on public.work_order_plan_lines using (true);
+alter policy work_order_plan_lines_insert on public.work_order_plan_lines with check (true);
+set local role authenticated;
+select pg_temp.act_as('25190000-0000-0000-0000-0000000000a4');
+select lives_ok($$ select public.set_work_order_plan('25190000-0000-0000-0000-0000000000d1',
+ '25190000-0000-0000-0000-000000000401', '[{"kind":"equipment_hours","value":"1"}]') $$,
+ 'security mutation: an Engineer can write only after both role and RLS checks are broken');
+reset role;
+
+-- Mutation check of the separation of duties on the split RPC (rolled back with this test).
+do $$
+declare original text; mutant text;
+begin
+  select pg_get_functiondef('public.set_shared_cost_split(uuid,jsonb)'::regprocedure) into original;
+  mutant := replace(original,
+    $guard$if public.auth_role() is null or public.auth_role() not in ('Admin', 'Executive', 'Finance') then$guard$,
+    'if false then');
+  if mutant = original then raise exception 'split role mutation did not apply'; end if;
+  execute mutant;
+end $$;
+set local role authenticated;
+select pg_temp.act_as('25190000-0000-0000-0000-0000000000a3');
+select lives_ok($$ select public.set_shared_cost_split('25190000-0000-0000-0000-0000000000d1',
+ '[{"work_order_id":"25190000-0000-0000-0000-000000000401","percent":"50"},{"work_order_id":"25190000-0000-0000-0000-000000000402","percent":"50"}]') $$,
+ 'AC-WPVA-015 mutation: the Project Manager can set a split when the role gate is removed');
+reset role;
 
 select * from finish();
 rollback;

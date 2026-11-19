@@ -117,3 +117,63 @@ grant select, delete on public.work_order_plan_lines to authenticated;
 grant insert (project_id, work_order_id, discipline_id, kind, value, note) on public.work_order_plan_lines to authenticated;
 grant update (value, note) on public.work_order_plan_lines to authenticated;
 grant all on public.work_order_plan_lines to service_role;
+
+-- A form may change several figures. Apply its changes in one caller-scoped transaction so an error cannot leave
+-- an apparently failed save partially applied. Existing row policies and audit triggers remain authoritative.
+create function public.set_work_order_plan(p_project_id uuid, p_work_order_id uuid, p_changes jsonb) returns integer
+  language plpgsql security invoker set search_path = public, pg_temp as $$
+declare
+  v_change jsonb;
+  v_kind text;
+  v_value text;
+  v_note text;
+  v_id uuid;
+  v_count integer := 0;
+begin
+  if not public.is_active_member() or public.auth_role() is null
+     or public.auth_role() not in ('Admin', 'Executive', 'Finance', 'Project Manager') then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
+  if not exists (select 1 from public.work_orders w where w.id = p_work_order_id and w.project_id = p_project_id
+                  and w.org_id = public.auth_org_id()) then
+    raise exception 'work order not found' using errcode = 'P0002';
+  end if;
+  if p_changes is null or jsonb_typeof(p_changes) <> 'array' or jsonb_array_length(p_changes) not between 1 and 4 then
+    raise exception 'invalid plan changes' using errcode = '22023';
+  end if;
+  if exists (select 1 from jsonb_array_elements(p_changes) x
+              where jsonb_typeof(x) <> 'object' or not x ? 'value'
+                 or x->>'kind' is null or x->>'kind' not in ('direct_budget', 'indirect_budget', 'equipment_hours', 'crew_hours')
+                 or (x ? 'note' and jsonb_typeof(x->'note') not in ('string', 'null'))
+                 or jsonb_typeof(x->'value') not in ('string', 'null'))
+     or (select count(*) <> count(distinct x->>'kind') from jsonb_array_elements(p_changes) x) then
+    raise exception 'invalid plan changes' using errcode = '22023';
+  end if;
+  for v_change in select value from jsonb_array_elements(p_changes) loop
+    v_kind := v_change->>'kind';
+    v_value := v_change->>'value';
+    v_note := v_change->>'note';
+    if v_value is not null and v_value !~ '^\d{1,15}(\.\d{1,2})?$' then
+      raise exception 'invalid plan figure' using errcode = '23514';
+    end if;
+    select l.id into v_id from public.work_order_plan_lines l
+     where l.org_id = public.auth_org_id() and l.project_id = p_project_id and l.work_order_id = p_work_order_id
+       and l.discipline_id is null and l.kind = v_kind for update;
+    if v_value is null then
+      if v_id is not null then
+        delete from public.work_order_plan_lines where id = v_id;
+        v_count := v_count + 1;
+      end if;
+    elsif v_id is null then
+      insert into public.work_order_plan_lines (project_id, work_order_id, discipline_id, kind, value, note)
+        values (p_project_id, p_work_order_id, null, v_kind, v_value::numeric, v_note);
+      v_count := v_count + 1;
+    else
+      update public.work_order_plan_lines set value = v_value::numeric, note = v_note where id = v_id;
+      v_count := v_count + 1;
+    end if;
+  end loop;
+  return v_count;
+end $$;
+revoke all on function public.set_work_order_plan(uuid, uuid, jsonb) from public, anon;
+grant execute on function public.set_work_order_plan(uuid, uuid, jsonb) to authenticated;

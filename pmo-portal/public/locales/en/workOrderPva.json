@@ -3,7 +3,7 @@
   "basisCaption": "Cost records behind these figures",
   "basisCustom": "Shared cost uses the saved split.",
   "basisDirect": "Shared cost is split by each work order's share of direct cost.",
-  "basisEqual": "Equal split, no direct cost yet.",
+  "basisNone": "Shared cost remains unassigned until a custom split is saved.",
   "byDiscipline": "By discipline",
   "col": {
     "actions": "Actions",
@@ -13,6 +13,7 @@
     "directMargin": "Direct margin",
     "discipline": "Discipline",
     "plan": "Planned direct",
+    "planIndirect": "Planned indirect",
     "record": "Record",
     "result": "After shared cost",
     "revenue": "Billed revenue",
@@ -50,12 +51,20 @@
     "save": "Save plan",
     "title": "Plan for {{number}}"
   },
-  "projectTotal": "Project total",
+  "orderValue": "Order value (ceiling)",
+  "projectHours": "Project and contract hours",
+  "planLabel": "Plan",
+  "projectTotal": "Project and contract total",
   "reason": {
     "commitment": "Commitment, not summed (its bill carries the cost)",
     "counted": "Counted",
     "noRate": "Hours only, no rate set",
     "notPosted": "Not posted or approved yet",
+    "unassigned": "Not assigned to a work order",
+    "splitWhenCustom": "Split only when a custom split is set",
+    "outsideBasis": "Not part of project actuals",
+    "unresolvedDirect": "Work-order cost cannot be determined",
+    "otherRevenue": "Other billed work",
     "stocked": "Bought into stock, counted when issued",
     "transfer": "Moved to site, still on hand"
   },
@@ -67,6 +76,9 @@
   "sharedShort": "shared",
   "source": {
     "equipment_usage": "Equipment usage",
+    "project_actuals": "Project actuals",
+    "purchase_balance": "Paid purchase balance",
+    "other_revenue": "Other revenue",
     "goods_receipt": "Goods receipt",
     "purchase_order": "Purchase order",
     "purchase_request": "Purchase request",

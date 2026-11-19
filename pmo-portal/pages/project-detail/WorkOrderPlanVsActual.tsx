@@ -92,13 +92,22 @@ const WorkOrderPlanVsActual: React.FC<Props> = ({ projectId }) => {
   }
 
   const basisNote = (() => {
-    const { basis, stale, mixedCurrency } = rollup.allocation;
+    const { basis, stale, mixedCurrency, byCurrency } = rollup.allocation;
     const parts: string[] = [];
+    const message = (item: typeof basis) => {
+      if (item === 'custom') return t('basisCustom', 'Shared cost uses the saved split.');
+      if (item === 'direct-share') return t('basisDirect', 'Shared cost is split by each work order\'s share of direct cost.');
+      if (item === 'none') return t('basisNone', 'Shared cost remains unassigned until a custom split is saved.');
+      return null;
+    };
     if (stale) parts.push(t('splitStale', 'The saved split is stale: a work order was added or cancelled since. The default is used until someone saves it again.'));
-    if (mixedCurrency) parts.push(t('splitMixed', 'Work orders use more than one currency, so shared cost is split within each currency.'));
-    if (basis === 'custom') parts.push(t('basisCustom', 'Shared cost uses the saved split.'));
-    if (basis === 'direct-share') parts.push(t('basisDirect', 'Shared cost is split by each work order\'s share of direct cost.'));
-    if (basis === 'equal-split') parts.push(t('basisEqual', 'Equal split, no direct cost yet.'));
+    if (mixedCurrency) {
+      parts.push(t('splitMixed', 'Work orders use more than one currency, so shared cost is split within each currency.'));
+      byCurrency.forEach((item) => { const note = message(item.basis); if (note) parts.push(`${item.currency}: ${note}`); });
+    } else {
+      const note = message(basis);
+      if (note) parts.push(note);
+    }
     return parts;
   })();
 
@@ -124,6 +133,11 @@ const WorkOrderPlanVsActual: React.FC<Props> = ({ projectId }) => {
     transfer: t('reason.transfer', 'Moved to site, still on hand'),
     'no-rate': t('reason.noRate', 'Hours only, no rate set'),
     'not-posted': t('reason.notPosted', 'Not posted or approved yet'),
+    unassigned: t('reason.unassigned', 'Not assigned to a work order'),
+    'split-when-custom': t('reason.splitWhenCustom', 'Split only when a custom split is set'),
+    'outside-basis': t('reason.outsideBasis', 'Not part of project actuals'),
+    'unresolved-direct': t('reason.unresolvedDirect', 'Work-order cost cannot be determined'),
+    'other-revenue': t('reason.otherRevenue', 'Other billed work'),
   })[l.reason];
 
   const sourceText = (l: CostAmountLine) => t(`source.${l.source}`, l.source);
@@ -169,7 +183,9 @@ const WorkOrderPlanVsActual: React.FC<Props> = ({ projectId }) => {
             <div className="text-muted-foreground">{variantText(f.plan.direct_budget, f.direct, w.currency)}</div>
           </td>
           <td className="py-2 pr-4 text-right tabular-nums" data-testid="wo-pva-allocated">{money(f.allocated, w.currency)}</td>
-          <td className="py-2 pr-4 text-right tabular-nums">{w.revenue === null || !w.revenueComplete ? t('revenueUnknown', 'Revenue unknown') : money(w.revenue, w.currency)}</td>
+          <td className="py-2 pr-4 text-right tabular-nums">{w.revenue === null || !w.revenueComplete ? t('revenueUnknown', 'Revenue unknown') : money(w.revenue, w.currency)}
+            {w.orderValue != null && <div className="text-muted-foreground">{t('orderValue', 'Order value (ceiling)')}: {money(w.orderValue, w.currency)}</div>}
+          </td>
           <td className="py-2 pr-4 text-right tabular-nums" data-testid="wo-pva-direct-margin">{marginText(f.directMargin, w.currency)}</td>
           <td className="py-2 pr-4 text-right tabular-nums" data-testid="wo-pva-result">{marginText(f.result, w.currency)}</td>
           <td className="py-2 text-right">
@@ -195,7 +211,7 @@ const WorkOrderPlanVsActual: React.FC<Props> = ({ projectId }) => {
             </dl>
             {f.disciplines.length > 0 && (
               <ul className="py-1 text-sm">{f.disciplines.map((d) => (
-                <li key={d.disciplineId ?? 'none'}>{disciplineName(d.disciplineId)}: {money(d.direct, w.currency)} {t('directShort', 'direct')} · {money(d.allocated, w.currency)} {t('sharedShort', 'shared')}</li>
+                <li key={d.disciplineId ?? 'none'}>{disciplineName(d.disciplineId)}: {t('col.plan', 'Planned direct')} {d.planDirect === null ? t('noPlan', 'No plan') : money(d.planDirect, w.currency)} · {money(d.direct, w.currency)} {t('directShort', 'direct')}{d.planDirect !== null && ` · ${variantText(d.planDirect, d.direct, w.currency)}`} · {t('col.planIndirect', 'Planned indirect')} {d.planIndirect === null ? t('noPlan', 'No plan') : money(d.planIndirect, w.currency)} · {money(d.allocated, w.currency)} {t('sharedShort', 'shared')}{d.planIndirect !== null && ` · ${variantText(d.planIndirect, d.allocated, w.currency)}`}</li>
               ))}</ul>
             )}
             {f.uncostedHours > 0 && <p className="text-sm text-muted-foreground">{t('uncosted', '{{hours}} h carry no rate and are not in the cost.', { hours: formatNumberExact(f.uncostedHours) })}</p>}
@@ -214,9 +230,8 @@ const WorkOrderPlanVsActual: React.FC<Props> = ({ projectId }) => {
       </CardHead>
       <CardPad className="pt-0">
         {basisNote.map((n) => <p key={n} className="text-sm text-muted-foreground" data-testid="wo-pva-basis-note">{n}</p>)}
-        {workOrders.length === 0
-          ? <p className="text-sm text-muted-foreground">{t('empty', 'No work orders on this project yet.')}</p>
-          : <div className="overflow-x-auto">
+        {workOrders.length === 0 && <p className="text-sm text-muted-foreground">{t('empty', 'No work orders on this project yet.')}</p>}
+        {(workOrders.length > 0 || rollup.totals.length > 0) && <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <caption className="sr-only">{title}</caption>
               <thead><tr className="text-right text-muted-foreground">
@@ -242,29 +257,58 @@ const WorkOrderPlanVsActual: React.FC<Props> = ({ projectId }) => {
                       </tr>
                     )}
                     <tr className="border-t-2 border-border font-medium" data-testid={`wo-pva-total-${tot.currency}`}>
-                      <th scope="row" className="py-2 pr-4 text-left">{t('projectTotal', 'Project total')} ({tot.currency})</th>
-                      <td colSpan={3} className="py-2 pr-4 text-right tabular-nums">{money(tot.total, tot.currency)}</td>
-                      <td colSpan={4} />
+                      <th scope="row" className="py-2 pr-4 text-left">{t('projectTotal', 'Project and contract total')} ({tot.currency})</th>
+                      <td className="py-2 pr-4 text-right tabular-nums">
+                        {tot.planDirect === null ? t('noPlan', 'No plan') : money(tot.planDirect, tot.currency)}
+                        {tot.planDirect !== null && <div className="font-normal text-muted-foreground">{variantText(tot.planDirect, tot.direct, tot.currency)}</div>}
+                        <div className="font-normal text-muted-foreground">{t('col.planIndirect', 'Planned indirect')}: {tot.planIndirect === null ? t('noPlan', 'No plan') : money(tot.planIndirect, tot.currency)}</div>
+                      </td>
+                      <td colSpan={2} className="py-2 pr-4 text-right tabular-nums">{money(tot.total, tot.currency)}</td>
+                      <td className="py-2 pr-4 text-right tabular-nums">{money(tot.revenue, tot.currency)}</td>
+                      <td className="py-2 pr-4 text-right tabular-nums">{marginText(tot.directMargin, tot.currency)}</td>
+                      <td className="py-2 pr-4 text-right tabular-nums">{marginText(tot.result, tot.currency)}</td>
+                      <td />
                     </tr>
+                    {tot.hasOtherRevenue && <tr className="border-t border-border">
+                      <th scope="row" className="py-2 pr-4 text-left font-normal">{t('source.other_revenue', 'Other revenue')}</th>
+                      <td colSpan={3} />
+                      <td className="py-2 pr-4 text-right tabular-nums">{money(tot.otherRevenue, tot.currency)}</td>
+                      <td colSpan={3} />
+                    </tr>}
                   </React.Fragment>
                 ))}
               </tbody>
             </table>
           </div>}
+        {rollup.hours && (workOrders.length > 0 || rollup.hours.equipmentHours > 0 || rollup.hours.equipmentDays > 0 || rollup.hours.crewHours > 0) && (
+          <section className="mt-4 text-sm" data-testid="wo-pva-project-hours">
+            <h3 className="font-medium">{t('projectHours', 'Project and contract hours')}</h3>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-1 py-2 sm:grid-cols-4">
+              <div><dt className="text-muted-foreground">{t('equipmentHours', 'Equipment hours')}</dt><dd>{formatNumberExact(rollup.hours.equipmentHours)} · {t('planLabel', 'Plan')}: {rollup.hours.planEquipmentHours === null ? t('noPlan', 'No plan') : formatNumberExact(rollup.hours.planEquipmentHours)}</dd></div>
+              {rollup.hours.equipmentDays > 0 && <div><dt className="text-muted-foreground">{t('equipmentDays', 'Equipment days (kept apart)')}</dt><dd>{formatNumberExact(rollup.hours.equipmentDays)}</dd></div>}
+              <div><dt className="text-muted-foreground">{t('crewHours', 'Crew hours')}</dt><dd>{formatNumberExact(rollup.hours.crewHours)} · {t('planLabel', 'Plan')}: {rollup.hours.planCrewHours === null ? t('noPlan', 'No plan') : formatNumberExact(rollup.hours.planCrewHours)}</dd></div>
+              <div><dt className="text-muted-foreground">{t('crewSize', 'People with hours')}</dt><dd>{formatNumberExact(rollup.hours.crewSize)}</dd></div>
+            </dl>
+          </section>
+        )}
         {rollup.disciplines.length > 0 && (
           <div className="mt-4 overflow-x-auto" data-testid="wo-pva-disciplines">
             <table className="w-full text-sm">
               <caption className="py-1 text-left font-medium">{t('byDiscipline', 'By discipline')}</caption>
               <thead><tr className="text-right text-muted-foreground">
                 <th scope="col" className="py-1 pr-4 text-left font-normal">{t('col.discipline', 'Discipline')}</th>
+                <th scope="col" className="py-1 pr-4 font-normal">{t('col.plan', 'Planned direct')}</th>
                 <th scope="col" className="py-1 pr-4 font-normal">{t('col.direct', 'Direct cost')}</th>
+                <th scope="col" className="py-1 pr-4 font-normal">{t('col.planIndirect', 'Planned indirect')}</th>
                 <th scope="col" className="py-1 font-normal">{t('col.shared', 'Shared cost')}</th>
               </tr></thead>
               <tbody>{rollup.disciplines.map((d) => (
                 <tr key={`${d.currency}:${d.disciplineId ?? ''}`} className="border-t border-border">
                   <th scope="row" className="py-1 pr-4 text-left font-normal">{disciplineName(d.disciplineId)}</th>
-                  <td className="py-1 pr-4 text-right tabular-nums">{money(d.direct, d.currency)}</td>
-                  <td className="py-1 text-right tabular-nums">{money(d.allocated, d.currency)}</td>
+                  <td className="py-1 pr-4 text-right tabular-nums">{d.planDirect === null ? t('noPlan', 'No plan') : money(d.planDirect, d.currency)}</td>
+                  <td className="py-1 pr-4 text-right tabular-nums">{money(d.direct, d.currency)}{d.planDirect !== null && <div className="text-muted-foreground">{variantText(d.planDirect, d.direct, d.currency)}</div>}</td>
+                  <td className="py-1 pr-4 text-right tabular-nums">{d.planIndirect === null ? t('noPlan', 'No plan') : money(d.planIndirect, d.currency)}</td>
+                  <td className="py-1 text-right tabular-nums">{money(d.allocated, d.currency)}{d.planIndirect !== null && <div className="text-muted-foreground">{variantText(d.planIndirect, d.allocated, d.currency)}</div>}</td>
                 </tr>
               ))}</tbody>
             </table>

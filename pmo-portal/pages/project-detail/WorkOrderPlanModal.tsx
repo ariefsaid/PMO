@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { EntityFormModal, FormGrid, TextField, type SubmitError } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { useDeletePlanLine, useSavePlanLine } from '@/src/hooks/useWorkOrderPlanVsActual';
+import { useSaveWorkOrderPlan } from '@/src/hooks/useWorkOrderPlanVsActual';
 import { PLAN_KINDS, planValueProblem, type PlanKind, type PlanLine, type PvaWorkOrder } from '@/src/lib/workOrderPlanVsActual';
 
 /**
@@ -19,11 +19,10 @@ interface Props {
 
 const WorkOrderPlanModal: React.FC<Props> = ({ projectId, workOrder, plans, onClose }) => {
   const { t } = useTranslation('workOrderPva');
-  const save = useSavePlanLine(projectId);
-  const remove = useDeletePlanLine(projectId);
+  const save = useSaveWorkOrderPlan(projectId);
   const initial = Object.fromEntries(PLAN_KINDS.map((k) => {
     const p = plans.find((x) => x.kind === k);
-    return [k, p ? String(Number(p.value)) : ''];
+    return [k, p ? p.value : ''];
   })) as Record<PlanKind, string>;
   const [values, setValues] = useState<Record<PlanKind, string>>(initial);
   const [tried, setTried] = useState(false);
@@ -45,19 +44,12 @@ const WorkOrderPlanModal: React.FC<Props> = ({ projectId, workOrder, plans, onCl
     if (problems.length > 0) return;
     setBusy(true);
     try {
-      for (const kind of PLAN_KINDS) {
-        const raw = values[kind].trim();
-        if (raw === initial[kind]) continue;
-        const existing = plans.find((p) => p.kind === kind) ?? null;
-        if (raw === '') {
-          if (existing) await remove.mutateAsync(existing.id);
-          continue;
-        }
-        await save.mutateAsync({
-          input: { projectId, workOrderId: workOrder.id, disciplineId: null, kind, value: raw, note: existing?.note ?? null },
-          existingId: existing?.id ?? null,
-        });
-      }
+      const changes = PLAN_KINDS.filter((kind) => values[kind].trim() !== initial[kind]).map((kind) => ({
+        kind,
+        value: values[kind].trim() || null,
+        note: plans.find((p) => p.kind === kind)?.note ?? null,
+      }));
+      if (changes.length > 0) await save.mutateAsync({ workOrderId: workOrder.id, changes });
       onClose();
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);

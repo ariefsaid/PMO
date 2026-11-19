@@ -3,7 +3,7 @@
   "basisCaption": "Catatan biaya di balik angka ini",
   "basisCustom": "Biaya bersama memakai pembagian yang disimpan.",
   "basisDirect": "Biaya bersama dibagi menurut porsi biaya langsung tiap perintah kerja.",
-  "basisEqual": "Dibagi rata, belum ada biaya langsung.",
+  "basisNone": "Biaya bersama belum dialokasikan sampai pembagian khusus disimpan.",
   "byDiscipline": "Per disiplin",
   "col": {
     "actions": "Tindakan",
@@ -13,6 +13,7 @@
     "directMargin": "Margin langsung",
     "discipline": "Disiplin",
     "plan": "Rencana langsung",
+    "planIndirect": "Rencana tidak langsung",
     "record": "Catatan",
     "result": "Setelah biaya bersama",
     "revenue": "Pendapatan ditagih",
@@ -50,12 +51,20 @@
     "save": "Simpan rencana",
     "title": "Rencana untuk {{number}}"
   },
-  "projectTotal": "Total proyek",
+  "orderValue": "Nilai pesanan (batas)",
+  "projectHours": "Jam proyek dan kontrak",
+  "planLabel": "Rencana",
+  "projectTotal": "Total proyek dan kontrak",
   "reason": {
     "commitment": "Komitmen, tidak dijumlahkan (tagihannya yang membawa biaya)",
     "counted": "Dihitung",
     "noRate": "Hanya jam, tarif belum diatur",
     "notPosted": "Belum diposting atau disetujui",
+    "unassigned": "Belum ditetapkan ke perintah kerja",
+    "splitWhenCustom": "Dibagi hanya saat pembagian khusus ditetapkan",
+    "outsideBasis": "Tidak termasuk dalam realisasi proyek",
+    "unresolvedDirect": "Biaya perintah kerja belum dapat ditentukan",
+    "otherRevenue": "Pekerjaan tertagih lainnya",
     "stocked": "Dibeli ke stok, dihitung saat dikeluarkan",
     "transfer": "Dipindah ke lokasi, masih tersedia"
   },
@@ -67,6 +76,9 @@
   "sharedShort": "bersama",
   "source": {
     "equipment_usage": "Pemakaian alat",
+    "project_actuals": "Realisasi proyek",
+    "purchase_balance": "Sisa pembelian yang dibayar",
+    "other_revenue": "Pendapatan lain",
     "goods_receipt": "Penerimaan barang",
     "purchase_order": "Pesanan pembelian",
     "purchase_request": "Permintaan pembelian",

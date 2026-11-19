@@ -12,8 +12,7 @@ vi.unmock('@/pages/project-detail/WorkOrderPlanVsActual'); // test/setup.ts stub
 const h = vi.hoisted(() => ({ query: {} as Record<string, unknown>, role: 'Finance' as string }));
 vi.mock('@/src/hooks/useWorkOrderPlanVsActual', () => ({
   useProjectPlanVsActual: () => h.query,
-  useSavePlanLine: () => ({ mutateAsync: vi.fn() }),
-  useDeletePlanLine: () => ({ mutateAsync: vi.fn() }),
+  useSaveWorkOrderPlan: () => ({ mutateAsync: vi.fn() }),
   useSetSharedSplit: () => ({ mutateAsync: vi.fn() }),
   useClearSharedSplit: () => ({ mutateAsync: vi.fn() }),
 }));
@@ -35,12 +34,12 @@ const line = (extra: Partial<CostAmountLine>): CostAmountLine => ({
   reference: null, currency: 'IDR', amount: '0.00', reason: 'counted', quantity: null, quantityUnit: null, personId: null, ...extra,
 });
 
-function setData(input: { workOrders: PvaWorkOrder[]; lines: CostAmountLine[]; plans?: PlanLine[]; split?: SplitPercent[] | null; restricted?: boolean }) {
+function setData(input: { workOrders: PvaWorkOrder[]; lines: CostAmountLine[]; plans?: PlanLine[]; split?: SplitPercent[] | null; restricted?: boolean; projectRevenue?: Array<{ currency: string; work_revenue: string | null; missing_work: number }> }) {
   const plans = input.plans ?? [];
   const split = input.split ?? null;
   h.query = {
     isPending: false, isError: false, refetch: vi.fn(),
-    data: { workOrders: input.workOrders, plans, split, rollup: rollupProject({ workOrders: input.workOrders, lines: input.lines, plans, split, restricted: input.restricted ?? false }) },
+    data: { workOrders: input.workOrders, plans, split, rollup: rollupProject({ workOrders: input.workOrders, lines: input.lines, plans, split, restricted: input.restricted ?? false, projectRevenue: input.projectRevenue }) },
   };
 }
 
@@ -72,6 +71,90 @@ describe('WorkOrderPlanVsActual', () => {
     expect(screen.getAllByTestId('wo-pva-basis-note').map((n) => n.textContent).join(' ')).toMatch(/stale.*default is used/);
   });
 
+  it('shows order value as the ceiling beside billed revenue', () => {
+    setData({ workOrders: [wo('A', 'WO-1', { orderValue: '1500.00' })], lines: [] });
+    render(<WorkOrderPlanVsActual projectId="p1" />);
+    expect(within(screen.getByTestId('wo-pva-row-A')).getByText(/Order value/).textContent).toMatch(/1[.,]500/);
+  });
+
+  it('shows project hours and distinct crew alongside their plans', () => {
+    setData({ workOrders: [wo('A', 'WO-1')],
+      plans: [{ id: 'p', workOrderId: 'A', disciplineId: null, kind: 'crew_hours', value: '20.00', note: null }],
+      lines: [line({ workOrderId: 'A', source: 'timesheet_entry', reason: 'no-rate', amount: null, quantity: 7, quantityUnit: 'hours', personId: 'u1' })] });
+    render(<WorkOrderPlanVsActual projectId="p1" />);
+    const summary = screen.getByTestId('wo-pva-project-hours');
+    expect(summary.textContent).toMatch(/7/);
+    expect(summary.textContent).toMatch(/20/);
+    expect(summary.textContent).toMatch(/1/);
+  });
+
+  it('states project direct-cost overspend in words', () => {
+    setData({ workOrders: [wo('A', 'WO-1')], lines: [line({ workOrderId: 'A', amount: '60.00' })],
+      plans: [{ id: 'p', workOrderId: 'A', disciplineId: null, kind: 'direct_budget', value: '50.00', note: null }] });
+    render(<WorkOrderPlanVsActual projectId="p1" />);
+    expect(within(screen.getByTestId('wo-pva-total-IDR')).getByText(/Over plan by/).textContent).toMatch(/10/);
+  });
+
+  it('shows project and contract revenue and margins in the total row', () => {
+    setData({ workOrders: [wo('A', 'WO-1')], lines: [line({ workOrderId: 'A', amount: '60.00' }), line({ amount: '40.00', reason: 'unassigned' }),
+      line({ source: 'other_revenue', reason: 'other-revenue', amount: '30.00' })],
+      plans: [{ id: 'a', workOrderId: 'A', disciplineId: null, kind: 'direct_budget', value: '150.00', note: null },
+        { id: 'b', workOrderId: 'A', disciplineId: null, kind: 'indirect_budget', value: '25.00', note: null }],
+      projectRevenue: [{ currency: 'IDR', work_revenue: '200.00', missing_work: 0 }] });
+    render(<WorkOrderPlanVsActual projectId="p1" />);
+    const total = screen.getByTestId('wo-pva-total-IDR');
+    expect(total.textContent).toMatch(/150/);
+    expect(total.textContent).toMatch(/25/);
+    expect(total.textContent).toMatch(/200/);
+    expect(total.textContent).toMatch(/140/);
+    expect(total.textContent).toMatch(/100/);
+    expect(screen.getByText('Other revenue').closest('tr')?.textContent).toMatch(/30/);
+  });
+
+  it('states other revenue even when its billed amount is zero', () => {
+    setData({ workOrders: [wo('A', 'WO-1')], projectRevenue: [{ currency: 'IDR', work_revenue: '0.00', missing_work: 0 }],
+      lines: [line({ source: 'other_revenue', reason: 'other-revenue', amount: '0.00' })] });
+    render(<WorkOrderPlanVsActual projectId="p1" />);
+    expect(screen.getByText('Other revenue').closest('tr')?.textContent).toMatch(/0/);
+  });
+
+  it('shows planned and actual cost by discipline', () => {
+    setData({ workOrders: [wo('A', 'WO-1')], lines: [line({ workOrderId: 'A', disciplineId: 'civ', amount: '60.00' })],
+      plans: [{ id: 'p', workOrderId: 'A', disciplineId: 'civ', kind: 'direct_budget', value: '100.00', note: null },
+        { id: 'q', workOrderId: 'A', disciplineId: 'civ', kind: 'indirect_budget', value: '20.00', note: null }] });
+    render(<WorkOrderPlanVsActual projectId="p1" />);
+    const table = screen.getByTestId('wo-pva-disciplines');
+    expect(within(table).getByText('Planned direct')).toBeTruthy();
+    expect(within(table).getByText('Planned indirect')).toBeTruthy();
+    expect(table.textContent).toMatch(/100/);
+    expect(table.textContent).toMatch(/20/);
+    expect(table.textContent).toMatch(/60/);
+  });
+
+  it('states discipline overspend in words', () => {
+    setData({ workOrders: [wo('A', 'WO-1')], lines: [line({ workOrderId: 'A', disciplineId: 'civ', amount: '60.00' })],
+      plans: [{ id: 'p', workOrderId: 'A', disciplineId: 'civ', kind: 'direct_budget', value: '50.00', note: null }] });
+    render(<WorkOrderPlanVsActual projectId="p1" />);
+    expect(within(screen.getByTestId('wo-pva-disciplines')).getByText(/Over plan by/).textContent).toMatch(/10/);
+  });
+
+  it('shows unassigned project cost even when no work orders exist', () => {
+    setData({ workOrders: [], lines: [line({ amount: '25.00', reason: 'unassigned' })] });
+    render(<WorkOrderPlanVsActual projectId="p1" />);
+    expect(screen.getByText('No work orders on this project yet.')).toBeTruthy();
+    expect(screen.getByTestId('wo-pva-not-assigned-IDR').textContent).toMatch(/25/);
+    expect(screen.getByTestId('wo-pva-total-IDR').textContent).toMatch(/25/);
+  });
+
+  it('names each currency when allocation bases differ', () => {
+    setData({ workOrders: [wo('A', 'WO-1'), wo('B', 'WO-2', { currency: 'USD' })],
+      lines: [line({ workOrderId: 'A', amount: '100.00' }), line({ currency: 'USD', amount: '10.00' })] });
+    render(<WorkOrderPlanVsActual projectId="p1" />);
+    const notes = screen.getAllByTestId('wo-pva-basis-note').map((node) => node.textContent).join(' ');
+    expect(notes).toMatch(/IDR.*share of direct cost/);
+    expect(notes).toMatch(/USD.*remains unassigned/);
+  });
+
   it('AC-WPVA-009 a restricted read shows restricted, never a zero', () => {
     setData({ workOrders: [wo('A', 'WO-1')], lines: [], restricted: true });
     render(<WorkOrderPlanVsActual projectId="p1" />);
@@ -96,9 +179,10 @@ describe('WorkOrderPlanVsActual', () => {
     });
     render(<WorkOrderPlanVsActual projectId="p1" />);
     fireEvent.click(within(screen.getByTestId('wo-pva-row-A')).getByRole('button', { name: 'Basis' }));
-    expect(screen.getByText('Equipment hours').nextSibling?.textContent).toMatch(/^6/);
-    expect(screen.getByText('Equipment days (kept apart)').nextSibling?.textContent).toBe('1');
-    expect(screen.getByText(/Commitment, not summed/)).toBeTruthy();
+    const basis = screen.getByTestId('wo-pva-row-A').nextElementSibling as HTMLElement;
+    expect(within(basis).getByText('Equipment hours').nextSibling?.textContent).toMatch(/^6/);
+    expect(within(basis).getByText('Equipment days (kept apart)').nextSibling?.textContent).toBe('1');
+    expect(within(basis).getByText(/Commitment, not summed/)).toBeTruthy();
   });
 
   it('AC-WPVA-015 the split action is offered to Finance, not to a Project Manager; an Engineer sees no card', () => {

@@ -9,22 +9,21 @@ import type { CostSource } from './db/workOrderCosts';
  * exact scale-two strings from `work_order_cost_amounts` (migration 0999).
  *
  * The rules that keep every cost counted exactly once (FR-WPVA-032):
- *   • only lines whose `reason` is `counted` carry cost — a purchase request/order/receipt is a commitment or a
- *     receipt of the same money its vendor bill carries, a bill for stocked goods is counted when the stock is
- *     issued, a transfer moves stock still on hand (the database decides the reason; this module never sums the others);
+ *   • `counted`, `unassigned`, and `split-when-custom` lines carry project actuals; other rows give context only;
  *   • a counted line naming a work order is that work order's direct cost; one naming none is shared cost;
  *   • shared cost is allocated, or else stays "Not assigned" — never both, never dropped.
  * Margin delegates to `deriveMargin` (FR-GM-001: one margin formula).
  */
 
-export type CostReason = 'counted' | 'commitment' | 'stocked' | 'transfer' | 'no-rate' | 'not-posted';
+export type FinanceCostSource = CostSource | 'project_actuals' | 'purchase_balance' | 'other_revenue';
+export type CostReason = 'counted' | 'commitment' | 'stocked' | 'transfer' | 'no-rate' | 'not-posted' | 'unassigned' | 'split-when-custom' | 'outside-basis' | 'unresolved-direct' | 'other-revenue';
 export type PlanKind = 'direct_budget' | 'indirect_budget' | 'equipment_hours' | 'crew_hours';
 export const PLAN_KINDS: readonly PlanKind[] = ['direct_budget', 'indirect_budget', 'equipment_hours', 'crew_hours'];
 export const MONEY_PLAN_KINDS: readonly PlanKind[] = ['direct_budget', 'indirect_budget'];
 
 /** One cost record with what it costs (null when not money, or when the amount cannot be read). */
 export interface CostAmountLine {
-  source: CostSource;
+  source: FinanceCostSource;
   recordId: string;
   projectId: string | null;
   workOrderId: string | null;
@@ -49,6 +48,8 @@ export interface PvaWorkOrder {
   /** Billed work revenue excl. tax, in `currency` (the shipped per-work-order billing derivation). */
   revenue: ExactMoney | null;
   revenueComplete: boolean;
+  /** Net order value is a billing ceiling, not revenue. */
+  orderValue?: ExactMoney | null;
 }
 
 export interface PlanLine {
@@ -65,32 +66,21 @@ export interface SplitPercent { workOrderId: string; percent: string }
 
 // ── allocation ─────────────────────────────────────────────────────────────────────────────────────
 
-/** Rational rounding, half away from zero. */
-function divRound(n: bigint, d: bigint): bigint {
-  if (d === 0n) return 0n;
-  const neg = (n < 0n) !== (d < 0n);
-  const an = n < 0n ? -n : n;
-  const ad = d < 0n ? -d : d;
-  const q = (an * 2n + ad) / (ad * 2n);
-  return neg ? -q : q;
-}
-
-/**
- * Split `total` cents over `weights` in the order given: each share rounds to cents, the last takes the remainder,
- * so the shares always sum exactly to the total (FR-WPVA-023, as FR-CAT-022).
- */
+/** Largest-remainder allocation in cents; ties use input order and a negative pool keeps its sign. */
 export function apportion(total: bigint, weights: readonly bigint[]): bigint[] {
   if (weights.length === 0) return [];
-  const sum = weights.reduce((a, b) => a + b, 0n);
-  const out: bigint[] = [];
-  let given = 0n;
-  weights.forEach((w, i) => {
-    if (i === weights.length - 1) { out.push(total - given); return; }
-    const share = divRound(total * w, sum);
-    out.push(share);
-    given += share;
-  });
-  return out;
+  const nonnegative = weights.map((weight) => weight > 0n ? weight : 0n);
+  const sum = nonnegative.reduce((a, b) => a + b, 0n);
+  if (sum === 0n) {
+    if (total !== 0n) throw new RangeError('Cannot apportion without a positive weight');
+    return weights.map(() => 0n);
+  }
+  const magnitude = total < 0n ? -total : total;
+  const shares = nonnegative.map((weight, index) => ({ index, cents: magnitude * weight / sum, remainder: magnitude * weight % sum }));
+  const left = magnitude - shares.reduce((value, share) => value + share.cents, 0n);
+  const ranked = [...shares].sort((a, b) => a.remainder === b.remainder ? a.index - b.index : a.remainder > b.remainder ? -1 : 1);
+  for (let i = 0; BigInt(i) < left; i++) ranked[i].cents += 1n;
+  return shares.map((share) => total < 0n ? -share.cents : share.cents);
 }
 
 /** "0".."100" with up to 4 decimals → millionths of the whole (100% = 1 000 000). Anything else → null. */
@@ -120,7 +110,7 @@ export function planValueProblem(raw: string): 'format' | null {
 
 export interface AllocationInput { workOrderId: string; woNumber: string | null; direct: bigint; cancelled: boolean }
 export interface AllocationResult {
-  basis: 'direct-share' | 'equal-split' | 'custom' | 'none';
+  basis: 'direct-share' | 'custom' | 'none';
   /** A saved custom split exists but no longer fits the project's work orders (or does not sum to 100). */
   stale: boolean;
   allocations: Map<string, bigint>;
@@ -150,15 +140,10 @@ export function allocateShared(workOrders: readonly AllocationInput[], shared: b
     stale = true;
   }
 
-  const carrying = ordered.filter((w) => w.direct !== 0n);
-  const directSum = carrying.reduce((t, w) => t + w.direct, 0n);
-  if (carrying.length > 0 && directSum > 0n) {
+  const carrying = ordered.filter((w) => w.direct > 0n);
+  if (carrying.length > 0) {
     assign(carrying, carrying.map((w) => w.direct));
     return { basis: 'direct-share', stale, allocations, unallocated: 0n };
-  }
-  if (live.length > 0) {
-    assign(live, live.map(() => 1n));
-    return { basis: 'equal-split', stale, allocations, unallocated: 0n };
   }
   return { basis: 'none', stale, allocations, unallocated: shared };
 }
@@ -169,13 +154,15 @@ export interface DisciplineFigures {
   disciplineId: string | null;
   direct: ExactMoney | null;
   allocated: ExactMoney | null;
+  planDirect: ExactMoney | null;
+  planIndirect: ExactMoney | null;
 }
 
 export interface WorkOrderFigures {
   workOrderId: string;
   currency: string;
   direct: ExactMoney | null;
-  directBySource: Partial<Record<CostSource, ExactMoney>>;
+  directBySource: Partial<Record<FinanceCostSource, ExactMoney>>;
   otherCurrency: Array<{ currency: string; amount: ExactMoney | null }>;
   allocated: ExactMoney | null;
   disciplines: DisciplineFigures[];
@@ -192,11 +179,12 @@ export interface WorkOrderFigures {
   lines: CostAmountLine[];
 }
 
-export interface CurrencyTotals { currency: string; total: ExactMoney | null; notAssigned: ExactMoney | null }
+export interface CurrencyTotals { currency: string; planDirect: ExactMoney | null; planIndirect: ExactMoney | null; direct: ExactMoney | null; total: ExactMoney | null; notAssigned: ExactMoney | null; revenue: ExactMoney | null; otherRevenue: ExactMoney | null; hasOtherRevenue: boolean; directMargin: Margin; result: Margin }
 
 export interface ProjectRollup {
   restricted: boolean;
-  allocation: { basis: AllocationResult['basis']; stale: boolean; mixedCurrency: boolean };
+  hours: { equipmentHours: number; equipmentDays: number; crewHours: number; crewSize: number; planEquipmentHours: number | null; planCrewHours: number | null } | null;
+  allocation: { basis: AllocationResult['basis']; stale: boolean; mixedCurrency: boolean; byCurrency: Array<{ currency: string; basis: AllocationResult['basis'] }> };
   workOrders: WorkOrderFigures[];
   /** Project-level discipline roll-up (FR-WPVA-031): direct + allocated per discipline, in the shared currency. */
   disciplines: Array<DisciplineFigures & { currency: string }>;
@@ -212,6 +200,8 @@ export interface RollupInput {
   split: readonly SplitPercent[] | null;
   /** The caller may not read a source's money (FR-WPVA-013): every money figure is restricted. */
   restricted: boolean;
+  /** Existing project billing buckets, including revenue not assigned to a work order. */
+  projectRevenue?: ReadonlyArray<{ currency: string; work_revenue: ExactMoney | null; missing_work: number }> | null;
 }
 
 const text = (c: bigint | null): ExactMoney | null => (c === null ? null : moneyText(c));
@@ -246,6 +236,8 @@ function sumHours(values: number[]): number {
 export function rollupProject(input: RollupInput): ProjectRollup {
   const { workOrders, lines, plans, split, restricted } = input;
   const counted = lines.filter((l) => l.reason === 'counted');
+  const directRows = lines.filter((l) => l.reason === 'counted' || l.reason === 'unresolved-direct');
+  const projectCosts = lines.filter((l) => l.reason === 'counted' || l.reason === 'unassigned' || l.reason === 'split-when-custom');
   const cents = (l: CostAmountLine) => moneyUnits(l.amount);
 
   const planFor = (woId: string): WorkOrderFigures['plan'] => {
@@ -268,7 +260,7 @@ export function rollupProject(input: RollupInput): ProjectRollup {
       equipmentHours: sumHours(equip.filter((l) => l.quantityUnit === 'hours').map((l) => l.quantity ?? 0)),
       equipmentDays: sumHours(equip.filter((l) => l.quantityUnit === 'days').map((l) => l.quantity ?? 0)),
       crewHours: sumHours(crew.map((l) => l.quantity ?? 0)),
-      crewSize: new Set(crew.map((l) => l.personId).filter(Boolean)).size,
+      crewSize: new Set(crew.filter((l) => (l.quantity ?? 0) > 0).map((l) => l.personId).filter(Boolean)).size,
       uncostedHours: sumHours(woLines.filter((l) => l.reason === 'no-rate' && l.quantityUnit === 'hours').map((l) => l.quantity ?? 0)),
     };
   };
@@ -276,7 +268,8 @@ export function rollupProject(input: RollupInput): ProjectRollup {
   if (restricted) {
     return {
       restricted: true,
-      allocation: { basis: 'none', stale: false, mixedCurrency: false },
+      hours: null,
+      allocation: { basis: 'none', stale: false, mixedCurrency: false, byCurrency: [] },
       workOrders: workOrders.map((w) => {
         const woLines = lines.filter((l) => l.workOrderId === w.id);
         return {
@@ -294,31 +287,45 @@ export function rollupProject(input: RollupInput): ProjectRollup {
   // Direct cost per work order, in its own currency; anything else on it is listed apart.
   const direct = new Map<string, bigint | null>();
   for (const w of workOrders) {
-    direct.set(w.id, sumOrNull(counted.filter((l) => l.workOrderId === w.id && l.currency === w.currency).map(cents)));
+    direct.set(w.id, sumOrNull(directRows.filter((l) => l.workOrderId === w.id && l.currency === w.currency).map(cents)));
   }
 
   // Shared pools per currency (FR-WPVA-014: never blended).
   const shared = counted.filter((l) => l.workOrderId === null || !workOrders.some((w) => w.id === l.workOrderId));
-  const currencies = [...new Set([...counted.map((l) => l.currency ?? '?'), ...workOrders.map((w) => w.currency)])].sort();
+  const currencies = [...new Set([...projectCosts.map((l) => l.currency ?? '?'), ...workOrders.map((w) => w.currency), ...(input.projectRevenue ?? []).map((b) => b.currency)])].sort();
   const woCurrencies = new Set(workOrders.map((w) => w.currency));
   const mixedCurrency = woCurrencies.size > 1;
 
   const allocated = new Map<string, bigint | null>();
   const notAssigned = new Map<string, bigint | null>();
   let basis: AllocationResult['basis'] = 'none';
+  const byCurrency: Array<{ currency: string; basis: AllocationResult['basis'] }> = [];
   let stale = false;
   for (const cur of currencies) {
-    const pool = sumOrNull(shared.filter((l) => (l.currency ?? '?') === cur).map(cents));
     const targets = workOrders.filter((w) => w.currency === cur);
+    const candidates = targets.map((w) => ({ workOrderId: w.id, woNumber: w.woNumber, direct: direct.get(w.id) ?? 0n, cancelled: w.status === 'Cancelled' }));
+    const splitCheck = allocateShared(candidates, 0n, split);
+    const eligibleCustom = !mixedCurrency && splitCheck.basis === 'custom';
+    if (targets.length > 0 && split?.length) stale = stale || mixedCurrency || splitCheck.stale;
+    const conditional = projectCosts.filter((l) => l.reason === 'split-when-custom' && (l.currency ?? '?') === cur);
+    const held = projectCosts.filter((l) => l.reason === 'unassigned' && (l.currency ?? '?') === cur)
+      .concat(eligibleCustom ? [] : conditional);
+    const heldTotal = sumOrNull(held.map(cents));
+    const pool = sumOrNull(shared.filter((l) => (l.currency ?? '?') === cur).concat(eligibleCustom ? conditional : []).map(cents));
+    if (heldTotal === null) {
+      targets.forEach((w) => allocated.set(w.id, null));
+      notAssigned.set(cur, null);
+      continue;
+    }
     if (pool === null) {
       targets.forEach((w) => allocated.set(w.id, null));
-      notAssigned.set(cur, targets.length === 0 ? null : 0n);
+      notAssigned.set(cur, targets.length === 0 ? null : heldTotal);
       continue;
     }
     if (targets.some((w) => direct.get(w.id) === null)) {
       // An unknown direct cost makes every share in this pool unknown — never a share computed from a partial weight.
       targets.forEach((w) => allocated.set(w.id, null));
-      notAssigned.set(cur, 0n);
+      notAssigned.set(cur, heldTotal);
       continue;
     }
     const r = allocateShared(
@@ -327,27 +334,29 @@ export function rollupProject(input: RollupInput): ProjectRollup {
       mixedCurrency ? null : split,
     );
     targets.forEach((w) => allocated.set(w.id, r.allocations.get(w.id) ?? 0n));
-    notAssigned.set(cur, r.unallocated);
-    if (targets.length > 0) { basis = r.basis; stale = stale || r.stale || (mixedCurrency && Boolean(split?.length)); }
+    notAssigned.set(cur, heldTotal === null ? null : heldTotal + r.unallocated);
+    if (targets.length > 0) { byCurrency.push({ currency: cur, basis: r.basis }); basis = r.basis; stale = stale || r.stale || (mixedCurrency && Boolean(split?.length)); }
   }
 
-  const projectDisciplines = new Map<string, { disciplineId: string | null; currency: string; direct: bigint | null; allocated: bigint | null }>();
-  const addProjectDiscipline = (disciplineId: string | null, currency: string, d: bigint | null, a: bigint | null) => {
+  const projectDisciplines = new Map<string, { disciplineId: string | null; currency: string; direct: bigint | null; allocated: bigint | null; planDirect: bigint | null; planIndirect: bigint | null }>();
+  const addProjectDiscipline = (disciplineId: string | null, currency: string, d: bigint | null, a: bigint | null, pd: bigint | null, pi: bigint | null) => {
     const key = `${currency}|${disciplineId ?? ''}`;
-    const cur = projectDisciplines.get(key) ?? { disciplineId, currency, direct: 0n, allocated: 0n };
+    const cur = projectDisciplines.get(key) ?? { disciplineId, currency, direct: 0n, allocated: 0n, planDirect: null, planIndirect: null };
     cur.direct = cur.direct === null || d === null ? null : cur.direct + d;
     cur.allocated = cur.allocated === null || a === null ? null : cur.allocated + a;
+    if (pd !== null) cur.planDirect = (cur.planDirect ?? 0n) + pd;
+    if (pi !== null) cur.planIndirect = (cur.planIndirect ?? 0n) + pi;
     projectDisciplines.set(key, cur);
   };
 
   const figures: WorkOrderFigures[] = workOrders.map((w) => {
     const woLines = lines.filter((l) => l.workOrderId === w.id);
-    const own = counted.filter((l) => l.workOrderId === w.id && l.currency === w.currency);
-    const others = counted.filter((l) => l.workOrderId === w.id && l.currency !== w.currency);
+    const own = directRows.filter((l) => l.workOrderId === w.id && l.currency === w.currency);
+    const others = directRows.filter((l) => l.workOrderId === w.id && l.currency !== w.currency);
     const d = direct.get(w.id) ?? null;
     const a = allocated.has(w.id) ? allocated.get(w.id)! : 0n;
 
-    const directBySource: Partial<Record<CostSource, ExactMoney>> = {};
+    const directBySource: Partial<Record<FinanceCostSource, ExactMoney>> = {};
     for (const source of [...new Set(own.map((l) => l.source))]) {
       const s = sumOrNull(own.filter((l) => l.source === source).map(cents));
       if (s !== null) directBySource[source] = moneyText(s);
@@ -358,20 +367,26 @@ export function rollupProject(input: RollupInput): ProjectRollup {
     }));
 
     // Disciplines: direct per discipline; the allocation split by each discipline's share of direct (FR-WPVA-031).
-    const ids = [...new Set(own.map((l) => l.disciplineId))].sort((x, y) => (x === null ? 1 : y === null ? -1 : x.localeCompare(y)));
+    const ids = [...new Set([...own.map((l) => l.disciplineId), ...plans.filter((p) => p.workOrderId === w.id && p.disciplineId !== null && MONEY_PLAN_KINDS.includes(p.kind)).map((p) => p.disciplineId)])].sort((x, y) => (x === null ? 1 : y === null ? -1 : x.localeCompare(y)));
     const dDirect = ids.map((id) => sumOrNull(own.filter((l) => l.disciplineId === id).map(cents)));
     let dAlloc: Array<bigint | null>;
     if (a === null || dDirect.some((v) => v === null)) dAlloc = ids.map(() => null);
     else if (ids.length === 0 || (d ?? 0n) <= 0n) dAlloc = ids.map(() => 0n);
     else dAlloc = apportion(a, dDirect as bigint[]);
-    const disciplines: DisciplineFigures[] = ids.map((id, i) => ({ disciplineId: id, direct: text(dDirect[i]), allocated: text(dAlloc[i]) }));
+    const disciplinePlan = (id: string | null, kind: PlanKind) => {
+      if (id === null) return null; // Work-order-wide plans do not name a discipline.
+      const matching = plans.filter((p) => p.workOrderId === w.id && p.disciplineId === id && p.kind === kind);
+      return matching.length ? text(sumOrNull(matching.map((p) => moneyUnits(p.value)))) : null;
+    };
+    const disciplines: DisciplineFigures[] = ids.map((id, i) => ({ disciplineId: id, direct: text(dDirect[i]), allocated: text(dAlloc[i]),
+      planDirect: disciplinePlan(id, 'direct_budget'), planIndirect: disciplinePlan(id, 'indirect_budget') }));
     if (a !== null && a !== 0n && (ids.length === 0 || (d ?? 0n) <= 0n)) {
       // No direct cost to weigh by: the allocation rolls under "No discipline".
       const none = disciplines.find((x) => x.disciplineId === null);
       if (none) none.allocated = moneyText(a);
-      else disciplines.push({ disciplineId: null, direct: '0.00', allocated: moneyText(a) });
+      else disciplines.push({ disciplineId: null, direct: '0.00', allocated: moneyText(a), planDirect: null, planIndirect: null });
     }
-    disciplines.forEach((x) => addProjectDiscipline(x.disciplineId, w.currency, moneyUnits(x.direct), moneyUnits(x.allocated)));
+    disciplines.forEach((x) => addProjectDiscipline(x.disciplineId, w.currency, moneyUnits(x.direct), moneyUnits(x.allocated), moneyUnits(x.planDirect), moneyUnits(x.planIndirect)));
 
     const comparable = others.length === 0;
     const directMargin = marginOf(w.currency, w.revenue, w.revenueComplete, d, comparable);
@@ -383,19 +398,35 @@ export function rollupProject(input: RollupInput): ProjectRollup {
     };
   });
 
-  const totals: CurrencyTotals[] = currencies.map((currency) => ({
-    currency,
-    total: text(sumOrNull(counted.filter((l) => (l.currency ?? '?') === currency).map(cents))),
-    notAssigned: text(notAssigned.get(currency) ?? null),
-  }));
+  const totals: CurrencyTotals[] = currencies.map((currency) => {
+    const total = sumOrNull(projectCosts.filter((l) => (l.currency ?? '?') === currency).map(cents));
+    const directCost = sumOrNull(directRows.filter((l) => l.workOrderId !== null && (l.currency ?? '?') === currency).map(cents));
+    const planSum = (kind: 'direct_budget' | 'indirect_budget') => {
+      const values = figures.filter((f) => f.currency === currency).map((f) => f.plan[kind]).filter((v) => v !== null);
+      return values.length ? text(sumOrNull(values.map(moneyUnits))) : null;
+    };
+    const bucket = input.projectRevenue?.find((b) => b.currency === currency);
+    const revenue = bucket ? bucket.work_revenue : input.projectRevenue != null ? '0.00' : null;
+    const complete = input.projectRevenue != null && revenue !== null && (bucket?.missing_work ?? 0) === 0;
+    return { currency, planDirect: planSum('direct_budget'), planIndirect: planSum('indirect_budget'), direct: text(directCost), total: text(total), notAssigned: text(notAssigned.get(currency) ?? null), revenue: complete ? revenue : null,
+      otherRevenue: text(sumOrNull(lines.filter((l) => l.reason === 'other-revenue' && l.currency === currency).map(cents))),
+      hasOtherRevenue: lines.some((l) => l.reason === 'other-revenue' && l.currency === currency),
+      directMargin: marginOf(currency, revenue, complete, directCost, true),
+      result: marginOf(currency, revenue, complete, total, true) };
+  });
 
+  const projectPlanHours = (kind: PlanKind) => {
+    const matching = plans.filter((p) => p.kind === kind);
+    return matching.length ? sumHours(matching.map((p) => Number(p.value))) : null;
+  };
   return {
     restricted: false,
-    allocation: { basis, stale, mixedCurrency },
+    hours: { ...hourFigures([...lines]), planEquipmentHours: projectPlanHours('equipment_hours'), planCrewHours: projectPlanHours('crew_hours') },
+    allocation: { basis, stale, mixedCurrency, byCurrency },
     workOrders: figures,
-    disciplines: [...projectDisciplines.values()].map((x) => ({ disciplineId: x.disciplineId, currency: x.currency, direct: text(x.direct), allocated: text(x.allocated) })),
+    disciplines: [...projectDisciplines.values()].map((x) => ({ disciplineId: x.disciplineId, currency: x.currency, direct: text(x.direct), allocated: text(x.allocated), planDirect: text(x.planDirect), planIndirect: text(x.planIndirect) })),
     totals,
-    sharedLines: lines.filter((l) => l.workOrderId === null),
+    sharedLines: lines.filter((l) => l.workOrderId === null && l.reason !== 'other-revenue'),
   };
 }
 

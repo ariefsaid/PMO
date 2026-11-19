@@ -11862,6 +11862,7 @@ export type Database = {
       }
     }
     Functions: {
+      set_work_order_plan: { Args: { p_project_id: string; p_work_order_id: string; p_changes: Json }; Returns: number }
       set_shared_cost_split: { Args: { p_project_id: string; p_split: Json }; Returns: number }
       clear_shared_cost_split: { Args: { p_project_id: string }; Returns: number }
       work_order_cost_amounts: {

@@ -1,8 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import { fetchAllPages } from '@/src/lib/pagedRead';
-import type { CostSource } from '@/src/lib/db/workOrderCosts';
-import type { CostAmountLine, CostReason, PlanKind, PlanLine, SplitPercent } from '@/src/lib/workOrderPlanVsActual';
+import type { CostAmountLine, CostReason, FinanceCostSource, PlanKind, PlanLine, SplitPercent } from '@/src/lib/workOrderPlanVsActual';
 
 /**
  * Plan versus actual per work order (#2519, migrations 0997–0999). Data access only — every figure is derived in
@@ -11,15 +10,15 @@ import type { CostAmountLine, CostReason, PlanKind, PlanLine, SplitPercent } fro
  *   • `listProjectCostAmounts` — the ONE money read (`work_order_cost_amounts`, definer, role-gated): every cost record
  *     of the project with its amount and the reason it is or is not summed. A role that cannot read work-order money
  *     is refused (42501); the repository turns that into "restricted", never into zero.
- *   • plan figures — `work_order_plan_lines` (RLS: Admin, Executive, Finance, Project Manager).
+ *   • plan figures — `work_order_plan_lines` and one transactional form RPC (RLS: Admin, Executive, Finance, Project Manager).
  *   • the custom shared-cost split — read from `project_shared_cost_splits`, written only through its two RPCs.
  *
  * org_id is never sent: RLS, the column default and the RPCs scope everything to the caller's org.
  */
 
 const MALFORMED = 'malformed-response';
-const SOURCES: readonly CostSource[] = ['purchase_request', 'purchase_order', 'goods_receipt', 'vendor_bill', 'timesheet_entry', 'stock_document', 'equipment_usage'];
-const REASONS: readonly CostReason[] = ['counted', 'commitment', 'stocked', 'transfer', 'no-rate', 'not-posted'];
+const SOURCES: readonly FinanceCostSource[] = ['purchase_request', 'purchase_order', 'goods_receipt', 'vendor_bill', 'timesheet_entry', 'stock_document', 'equipment_usage', 'project_actuals', 'purchase_balance', 'other_revenue'];
+const REASONS: readonly CostReason[] = ['counted', 'commitment', 'stocked', 'transfer', 'no-rate', 'not-posted', 'unassigned', 'split-when-custom', 'outside-basis', 'unresolved-direct', 'other-revenue'];
 const KINDS: readonly PlanKind[] = ['direct_budget', 'indirect_budget', 'equipment_hours', 'crew_hours'];
 const EXACT = /^-?\d+(\.\d{1,2})?$/;
 
@@ -42,15 +41,15 @@ interface CostAmountRow {
 export async function listProjectCostAmounts(projectId: string): Promise<CostAmountLine[]> {
   const rows = await fetchAllPages<CostAmountRow>((from, to) =>
     supabase.rpc('work_order_cost_amounts', { p_project_id: projectId })
-      .order('record_id', { ascending: true }).range(from, to) as unknown as PromiseLike<{ data: CostAmountRow[] | null; error: { message: string; code?: string } | null }>);
+      .order('record_id', { ascending: true }).order('source', { ascending: true }).range(from, to) as unknown as PromiseLike<{ data: CostAmountRow[] | null; error: { message: string; code?: string } | null }>);
   return rows.map((r) => {
-    if (!SOURCES.includes(r.source as CostSource) || !REASONS.includes(r.reason as CostReason) || !str(r.record_id)) {
+    if (!SOURCES.includes(r.source as FinanceCostSource) || !REASONS.includes(r.reason as CostReason) || !str(r.record_id)) {
       throw new AppError('Work-order cost read: unexpected row', MALFORMED);
     }
     const amount = r.amount === null ? null : String(r.amount);
     if (amount !== null && !EXACT.test(amount)) throw new AppError('Work-order cost read: unreadable amount', MALFORMED);
     return {
-      source: r.source as CostSource,
+      source: r.source as FinanceCostSource,
       recordId: r.record_id,
       projectId: r.project_id,
       workOrderId: r.work_order_id,
@@ -72,45 +71,23 @@ interface PlanRow { id: string; work_order_id: string; discipline_id: string | n
 /** The project's plan figures (money as exact scale-two text, hours as a decimal string). */
 export async function listProjectPlanLines(projectId: string): Promise<PlanLine[]> {
   const rows = await fetchAllPages<PlanRow>((from, to) =>
-    supabase.from('work_order_plan_lines').select('id, work_order_id, discipline_id, kind, value, note')
+    supabase.from('work_order_plan_lines').select('id, work_order_id, discipline_id, kind, value::text, note')
       .eq('project_id', projectId).order('id', { ascending: true }).range(from, to) as unknown as PromiseLike<{ data: PlanRow[] | null; error: { message: string; code?: string } | null }>);
   return rows.map((r) => {
-    const value = num(r.value);
-    if (!KINDS.includes(r.kind as PlanKind) || value === null) throw new AppError('Plan figure: unexpected row', MALFORMED);
-    return { id: r.id, workOrderId: r.work_order_id, disciplineId: r.discipline_id, kind: r.kind as PlanKind, value: value.toFixed(2), note: r.note };
+    const value = String(r.value);
+    if (!KINDS.includes(r.kind as PlanKind) || !EXACT.test(value)) throw new AppError('Plan figure: unexpected row', MALFORMED);
+    return { id: r.id, workOrderId: r.work_order_id, disciplineId: r.discipline_id, kind: r.kind as PlanKind, value, note: r.note };
   });
 }
 
-export interface PlanLineInput {
-  projectId: string;
-  workOrderId: string;
-  disciplineId: string | null;
-  kind: PlanKind;
-  /** Non-negative decimal with at most two places (validated again by the database). */
-  value: string;
-  note: string | null;
-}
+export interface PlanChange { kind: PlanKind; value: string | null; note: string | null }
 
-/** Create a plan figure, or change the value and note of the existing one (work order × discipline × kind). */
-export async function savePlanLine(input: PlanLineInput, existingId: string | null): Promise<void> {
-  if (existingId) {
-    const { error } = await supabase.from('work_order_plan_lines').update({ value: Number(input.value), note: input.note }).eq('id', existingId);
-    if (error) throw new AppError(error.message, error.code);
-    return;
-  }
-  const { error } = await supabase.from('work_order_plan_lines').insert({
-    project_id: input.projectId,
-    work_order_id: input.workOrderId,
-    discipline_id: input.disciplineId,
-    kind: input.kind,
-    value: Number(input.value),
-    note: input.note,
+/** The complete form is saved by one database transaction. */
+export async function setWorkOrderPlan(projectId: string, workOrderId: string, changes: readonly PlanChange[]): Promise<void> {
+  const { error } = await supabase.rpc('set_work_order_plan', {
+    p_project_id: projectId, p_work_order_id: workOrderId,
+    p_changes: changes.map((item) => ({ kind: item.kind, value: item.value, note: item.note })),
   });
-  if (error) throw new AppError(error.message, error.code);
-}
-
-export async function deletePlanLine(id: string): Promise<void> {
-  const { error } = await supabase.from('work_order_plan_lines').delete().eq('id', id);
   if (error) throw new AppError(error.message, error.code);
 }
 

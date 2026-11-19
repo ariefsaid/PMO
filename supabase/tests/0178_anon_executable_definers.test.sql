@@ -432,6 +432,7 @@ insert into client_callable_rpc_names (proname) values
   ('set_sales_invoice_received_date'),
   ('set_cost_attribution'),
   ('set_shared_cost_split'),
+  ('set_work_order_plan'),
   ('clear_shared_cost_split'),
   ('set_stock_reorder_level'),
   ('set_stock_warehouse_keeper'),
@@ -480,8 +481,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  180,
-  'AC-ACL-002 all 180 retained client-callable RPC names still have a public function');
+  181,
+  'AC-ACL-002 all 181 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -490,8 +491,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  180,
-  'AC-ACL-003 all 180 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  181,
+  'AC-ACL-003 all 181 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

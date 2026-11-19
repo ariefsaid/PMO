@@ -7,11 +7,12 @@ import { AppError } from '@/src/lib/appError';
  */
 const h = vi.hoisted(() => {
   const queue: Array<{ data: unknown; error: unknown }> = [];
-  const calls = { from: [] as string[], rpc: [] as Array<[string, unknown]>, insert: [] as unknown[], update: [] as unknown[], eq: [] as unknown[], range: [] as unknown[] };
+  const calls = { from: [] as string[], rpc: [] as Array<[string, unknown]>, insert: [] as unknown[], update: [] as unknown[], eq: [] as unknown[], range: [] as unknown[], select: [] as unknown[] };
   const next = () => queue.shift() ?? { data: [], error: null };
   const builder: Record<string, unknown> = {};
   const chain = (name?: keyof typeof calls) => (...a: unknown[]) => { if (name) (calls[name] as unknown[]).push(a.length === 1 ? a[0] : a); return builder; };
-  for (const k of ['select', 'order', 'limit', 'delete'] as const) builder[k] = chain();
+  for (const k of ['order', 'limit', 'delete'] as const) builder[k] = chain();
+  builder.select = chain('select');
   builder.eq = chain('eq'); builder.range = chain('range'); builder.insert = chain('insert'); builder.update = chain('update');
   builder.then = (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) => Promise.resolve(next()).then(resolve, reject);
   const from = vi.fn((t: string) => { calls.from.push(t); return builder; });
@@ -25,9 +26,12 @@ vi.mock('@/src/lib/db/workOrders', () => ({
     { id: 'A', wo_number: 'WO-1', title: 'One', status: 'Issued', currency: 'IDR' },
   ]),
 }));
+vi.mock('@/src/lib/db/revenue', () => ({
+  getProjectFinances: vi.fn(async () => ({ invoices: [{ currency: 'IDR', work_revenue: '2000.00', missing_work: 0 }] })),
+}));
 vi.mock('@/src/lib/db/workOrderBilling', () => ({
   listWorkOrderBilling: vi.fn(async () => [
-    { workOrderId: 'A', currency: 'IDR', invoiced: 1000, figuresComplete: true },
+    { workOrderId: 'A', currency: 'IDR', invoiced: 1000, orderNet: 1500, figuresComplete: true },
     { workOrderId: 'B', currency: 'IDR', invoiced: 500, figuresComplete: true },
   ]),
 }));
@@ -54,11 +58,34 @@ describe('listProjectCostAmounts', () => {
     expect(lines[0]).toMatchObject({ amount: '600.00', workOrderId: 'A', reason: 'counted' });
   });
 
+  it('preserves unassigned and custom-split-only project actuals', async () => {
+    h.queue.push({ data: [row({ reason: 'unassigned' }), row({ reason: 'split-when-custom' }), row({ reason: 'unresolved-direct' })], error: null });
+    const lines = await dal.listProjectCostAmounts('p1');
+    expect(lines.map((item) => item.reason)).toEqual(['unassigned', 'split-when-custom', 'unresolved-direct']);
+  });
+
+  it('accepts project actuals as a distinct cost source', async () => {
+    h.queue.push({ data: [row({ source: 'project_actuals', reason: 'unassigned', amount: '10.00' }),
+      row({ source: 'purchase_balance', reason: 'unassigned', amount: '5.00' }),
+      row({ source: 'other_revenue', reason: 'other-revenue', amount: '3.00' })], error: null });
+    const lines = await dal.listProjectCostAmounts('p1');
+    expect(lines.map((item) => item.source)).toEqual(['project_actuals', 'purchase_balance', 'other_revenue']);
+  });
+
   it('a malformed amount or unknown reason is an error, never a figure', async () => {
     h.queue.push({ data: [row({ amount: '1e3' })], error: null });
     await expect(dal.listProjectCostAmounts('p1')).rejects.toBeInstanceOf(AppError);
     h.queue.push({ data: [row({ reason: 'whatever' })], error: null });
     await expect(dal.listProjectCostAmounts('p1')).rejects.toBeInstanceOf(AppError);
+  });
+});
+
+describe('plan figures', () => {
+  it('preserves every cent in a large plan figure', async () => {
+    h.queue.push({ data: [{ id: 'p', work_order_id: 'A', discipline_id: null, kind: 'direct_budget', value: '99999999999999.99', note: null }], error: null });
+    const plans = await dal.listProjectPlanLines('p1');
+    expect(plans[0].value).toBe('99999999999999.99');
+    expect(h.calls.select).toContain('id, work_order_id, discipline_id, kind, value::text, note');
   });
 });
 
@@ -73,12 +100,10 @@ describe('getSharedSplit', () => {
 });
 
 describe('writes send no org_id', () => {
-  it('creates a plan figure, or updates only value and note of an existing one', async () => {
-    await dal.savePlanLine({ projectId: 'p1', workOrderId: 'A', disciplineId: null, kind: 'direct_budget', value: '100.50', note: 'tender' }, null);
-    expect(h.calls.insert).toEqual([{ project_id: 'p1', work_order_id: 'A', discipline_id: null, kind: 'direct_budget', value: 100.5, note: 'tender' }]);
-    await dal.savePlanLine({ projectId: 'p1', workOrderId: 'A', disciplineId: null, kind: 'direct_budget', value: '90', note: null }, 'pl1');
-    expect(h.calls.update).toEqual([{ value: 90, note: null }]);
-    expect(h.calls.eq).toContainEqual(['id', 'pl1']);
+  it('saves the plan in one scoped RPC without a client-supplied org', async () => {
+    await dal.setWorkOrderPlan('p1', 'A', [{ kind: 'direct_budget', value: '99999999999999.99', note: null }]);
+    expect(h.calls.rpc).toEqual([['set_work_order_plan', { p_project_id: 'p1', p_work_order_id: 'A',
+      p_changes: [{ kind: 'direct_budget', value: '99999999999999.99', note: null }] }]]);
   });
 
   it('sets the split through its RPC and keeps a refusal\'s code', async () => {
@@ -96,8 +121,10 @@ describe('workOrderFinanceRepository.projectPlanVsActual', () => {
     h.queue.push({ data: [], error: null });   // split
     const r = await workOrderFinanceRepository.projectPlanVsActual('p1');
     expect(r.workOrders.map((w) => w.id)).toEqual(['A', 'B']);
+    expect(r.workOrders[0].orderValue).toBe('1500.00');
     expect(r.rollup.workOrders[0]).toMatchObject({ direct: '600.00', allocated: '60.00', result: { amount: '340.00', reason: null } });
     expect(r.rollup.restricted).toBe(false);
+    expect(r.rollup.totals[0]).toMatchObject({ revenue: '2000.00', result: { amount: '900.00', reason: null } });
   });
 
   it('AC-WPVA-009 a refused money read is restricted — no figures, no margin, no plan read', async () => {

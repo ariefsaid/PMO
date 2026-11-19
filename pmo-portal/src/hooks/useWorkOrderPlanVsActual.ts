@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
-import { workOrderFinanceRepository, type PlanLineInput } from '@/src/lib/repositories/workOrderFinance';
+import { workOrderFinanceRepository, type PlanChange } from '@/src/lib/repositories/workOrderFinance';
 import type { SplitPercent } from '@/src/lib/workOrderPlanVsActual';
 
 /** #2519: one project's plan versus actual per work order and discipline. Keys carry org_id (tenant scope). */
@@ -20,17 +20,13 @@ function useInvalidate(projectId: string) {
   return () => qc.invalidateQueries({ queryKey: ['work-order-plan-vs-actual', currentUser?.org_id, projectId] });
 }
 
-export function useSavePlanLine(projectId: string) {
+export function useSaveWorkOrderPlan(projectId: string) {
   const invalidate = useInvalidate(projectId);
   return useMutation({
-    mutationFn: ({ input, existingId }: { input: PlanLineInput; existingId: string | null }) => workOrderFinanceRepository.savePlan(input, existingId),
+    mutationFn: ({ workOrderId, changes }: { workOrderId: string; changes: PlanChange[] }) =>
+      workOrderFinanceRepository.setPlan(projectId, workOrderId, changes),
     onSuccess: invalidate,
   });
-}
-
-export function useDeletePlanLine(projectId: string) {
-  const invalidate = useInvalidate(projectId);
-  return useMutation({ mutationFn: (id: string) => workOrderFinanceRepository.deletePlan(id), onSuccess: invalidate });
 }
 
 export function useSetSharedSplit(projectId: string) {

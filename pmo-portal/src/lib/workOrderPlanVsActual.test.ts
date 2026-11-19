@@ -35,7 +35,7 @@ describe('allocateShared (FR-WPVA-020..024)', () => {
     expect(r.unallocated).toBe(0n);
   });
 
-  it('AC-WPVA-005 rounds a custom split to cents and gives the remainder to the last work order by number', () => {
+  it('AC-WPVA-005 distributes the remaining cent to the largest fraction', () => {
     const split = [
       { workOrderId: 'C', percent: '33.3334' },
       { workOrderId: 'A', percent: '33.3333' },
@@ -95,7 +95,7 @@ describe('allocateShared (FR-WPVA-020..024)', () => {
     expect(r.allocations.get('A')).toBe(100n);
   });
 
-  it('AC-WPVA-008 splits equally over live work orders when none carries direct cost yet, and flags it', () => {
+  it('AC-WPVA-008 leaves shared cost unassigned when no work order has positive direct cost', () => {
     const r = allocateShared(
       [
         { workOrderId: 'A', woNumber: 'WO-1', direct: 0n, cancelled: false },
@@ -106,9 +106,9 @@ describe('allocateShared (FR-WPVA-020..024)', () => {
       9000n,
       null,
     );
-    expect(r.basis).toBe('equal-split');
-    expect([r.allocations.get('A'), r.allocations.get('B'), r.allocations.get('C')]).toEqual([3000n, 3000n, 3000n]);
-    expect(r.allocations.has('X')).toBe(false);
+    expect(r.basis).toBe('none');
+    expect(r.allocations.size).toBe(0);
+    expect(r.unallocated).toBe(9000n);
   });
 
   it('includes a cancelled work order in the default split only when it carries cost', () => {
@@ -118,6 +118,17 @@ describe('allocateShared (FR-WPVA-020..024)', () => {
       null,
     );
     expect(r.allocations.get('X')).toBe(100n);
+  });
+
+  it('gives negative direct cost no default weight and leaves cost unassigned when no weight is positive', () => {
+    const r = allocateShared([{ workOrderId: 'A', woNumber: 'WO-1', direct: -100n, cancelled: false },
+      { workOrderId: 'B', woNumber: 'WO-2', direct: 200n, cancelled: false }], 100n, null);
+    expect(r.allocations.get('A') ?? 0n).toBe(0n);
+    expect(r.allocations.get('B')).toBe(100n);
+    const none = allocateShared([{ workOrderId: 'A', woNumber: 'WO-1', direct: -100n, cancelled: false },
+      { workOrderId: 'B', woNumber: 'WO-2', direct: 0n, cancelled: false }], 100n, null);
+    expect(none.unallocated).toBe(100n);
+    expect(none.allocations.size).toBe(0);
   });
 
   it('leaves shared cost unallocated when the project has no live work order', () => {
@@ -133,6 +144,11 @@ describe('apportion and parseSplitPercent', () => {
     expect(out).toEqual([334n, 334n, 333n]);
     expect(apportion(-1001n, [1n, 1n, 1n]).reduce((a, b) => a + b, 0n)).toBe(-1001n);
   });
+  it('distributes leftover cents by largest fractional remainder without charging a zero share', () => {
+    expect(apportion(1n, [50n, 50n, 0n])).toEqual([1n, 0n, 0n]);
+    expect(apportion(100n, [1n, 1n, 1n])).toEqual([34n, 33n, 33n]);
+    expect(apportion(-100n, [1n, 1n, 1n])).toEqual([-34n, -33n, -33n]);
+  });
   it('reads 0..100 with up to 4 decimals and refuses anything else', () => {
     expect(parseSplitPercent('33.3333')).toBe(333333n);
     expect(parseSplitPercent('100')).toBe(1000000n);
@@ -143,12 +159,12 @@ describe('apportion and parseSplitPercent', () => {
 });
 
 describe('rollupProject — actuals and roll-ups (FR-WPVA-010..032)', () => {
-  it('AC-WPVA-003 totals a work order from three sources, and its discipline groups sum to the total', () => {
+  it('AC-WPVA-003 totals reachable PMO money sources and retains stock as context', () => {
     const r = rollupProject({
       workOrders: [wo('A', 'WO-1')],
       lines: [
         line({ workOrderId: 'A', source: 'vendor_bill', amount: '100.00', disciplineId: 'civ' }),
-        line({ workOrderId: 'A', source: 'stock_document', amount: '25.50', disciplineId: 'ele' }),
+        line({ workOrderId: 'A', source: 'stock_document', amount: null, reason: 'outside-basis', disciplineId: 'ele' }),
         line({ workOrderId: 'A', source: 'equipment_usage', amount: '10.25', quantity: 4, quantityUnit: 'hours' }),
         // a purchase order is a commitment — listed, never summed (no double count with its bill)
         line({ workOrderId: 'A', source: 'purchase_order', amount: null, reason: 'commitment' }),
@@ -156,10 +172,11 @@ describe('rollupProject — actuals and roll-ups (FR-WPVA-010..032)', () => {
       plans: [], split: null, restricted: false,
     });
     const a = r.workOrders[0];
-    expect(a.direct).toBe('135.75');
-    expect(a.directBySource).toEqual({ vendor_bill: '100.00', stock_document: '25.50', equipment_usage: '10.25' });
+    expect(a.direct).toBe('110.25');
+    expect(a.directBySource).toEqual({ vendor_bill: '100.00', equipment_usage: '10.25' });
+    expect(a.lines.find((l) => l.source === 'stock_document')?.reason).toBe('outside-basis');
     const groups = a.disciplines.map((d) => d.direct);
-    expect(groups).toEqual(['100.00', '25.50', '10.25']);
+    expect(groups).toEqual(['100.00', '10.25']);
   });
 
   it('AC-WPVA-004 result after shared cost = revenue - direct - allocated', () => {
@@ -201,6 +218,66 @@ describe('rollupProject — actuals and roll-ups (FR-WPVA-010..032)', () => {
     expect(civ?.direct).toBe('233.33');
   });
 
+  it('rolls discipline plans into work-order and project discipline figures, including plan-only disciplines', () => {
+    const r = rollupProject({ workOrders: [wo('A', 'WO-1'), wo('B', 'WO-2')], lines: [], split: null, restricted: false,
+      plans: [
+        { id: 'p1', workOrderId: 'A', disciplineId: 'civ', kind: 'direct_budget', value: '100.00', note: null },
+        { id: 'p2', workOrderId: 'B', disciplineId: 'civ', kind: 'direct_budget', value: '50.00', note: null },
+        { id: 'p3', workOrderId: 'A', disciplineId: 'civ', kind: 'indirect_budget', value: '20.00', note: null },
+      ] });
+    expect(r.workOrders[0].disciplines).toEqual([{ disciplineId: 'civ', direct: '0.00', allocated: '0.00', planDirect: '100.00', planIndirect: '20.00' }]);
+    expect(r.disciplines.find((d) => d.disciplineId === 'civ')).toMatchObject({ planDirect: '150.00', planIndirect: '20.00' });
+  });
+
+  it('retains the allocation basis for each currency in a mixed-currency project', () => {
+    const r = rollupProject({ workOrders: [wo('A', 'WO-1'), wo('B', 'WO-2', { currency: 'USD' })],
+      plans: [], split: null, restricted: false,
+      lines: [line({ workOrderId: 'A', amount: '100.00' }), line({ currency: 'USD', amount: '10.00' })] });
+    expect(r.allocation.byCurrency).toEqual([{ currency: 'IDR', basis: 'direct-share' }, { currency: 'USD', basis: 'none' }]);
+  });
+
+  it('rolls hours and distinct crew across work orders and unassigned entries', () => {
+    const r = rollupProject({ workOrders: [wo('A', 'WO-1'), wo('B', 'WO-2')], split: null, restricted: false,
+      plans: [{ id: 'p', workOrderId: 'A', disciplineId: null, kind: 'crew_hours', value: '20.00', note: null }],
+      lines: [line({ workOrderId: 'A', source: 'timesheet_entry', reason: 'no-rate', amount: null, quantity: 4, quantityUnit: 'hours', personId: 'u1' }),
+        line({ workOrderId: 'B', source: 'timesheet_entry', reason: 'no-rate', amount: null, quantity: 3, quantityUnit: 'hours', personId: 'u1' }),
+        line({ source: 'equipment_usage', reason: 'no-rate', amount: null, quantity: 2, quantityUnit: 'hours' })] });
+    expect(r.hours).toMatchObject({ crewHours: 7, crewSize: 1, equipmentHours: 2, planCrewHours: 20 });
+  });
+
+  it('rolls planned direct and indirect budgets up by project currency', () => {
+    const r = rollupProject({ workOrders: [wo('A', 'WO-1'), wo('B', 'WO-2')], lines: [], split: null, restricted: false,
+      plans: [
+        { id: 'a', workOrderId: 'A', disciplineId: null, kind: 'direct_budget', value: '100.00', note: null },
+        { id: 'b', workOrderId: 'B', disciplineId: null, kind: 'direct_budget', value: '50.00', note: null },
+        { id: 'c', workOrderId: 'A', disciplineId: null, kind: 'indirect_budget', value: '20.00', note: null },
+      ] });
+    expect(r.totals[0]).toMatchObject({ planDirect: '150.00', planIndirect: '20.00' });
+  });
+
+  it('shows project revenue and both margins using project billing, including revenue not linked to a work order', () => {
+    const r = rollupProject({ workOrders: [wo('A', 'WO-1', { revenue: '100.00' })],
+      lines: [line({ workOrderId: 'A', amount: '60.00' }), line({ amount: '40.00', reason: 'unassigned' })],
+      plans: [], split: null, restricted: false,
+      projectRevenue: [{ currency: 'IDR', work_revenue: '200.00', missing_work: 0 }] });
+    expect(r.totals[0]).toMatchObject({ revenue: '200.00', directMargin: { amount: '140.00', reason: null },
+      result: { amount: '100.00', reason: null } });
+  });
+
+  it('shows zero project revenue when the successful billing read has no invoices', () => {
+    const r = rollupProject({ workOrders: [wo('A', 'WO-1')], plans: [], split: null, restricted: false,
+      lines: [line({ workOrderId: 'A', amount: '60.00' })], projectRevenue: [] });
+    expect(r.totals[0]).toMatchObject({ revenue: '0.00', result: { amount: '-60.00', reason: null } });
+  });
+
+  it('states other revenue separately without counting it as cost', () => {
+    const r = rollupProject({ workOrders: [wo('A', 'WO-1')], plans: [], split: null, restricted: false,
+      projectRevenue: [{ currency: 'IDR', work_revenue: '200.00', missing_work: 0 }],
+      lines: [line({ workOrderId: 'A', amount: '60.00' }),
+        line({ source: 'other_revenue', reason: 'other-revenue', amount: '30.00' })] });
+    expect(r.totals[0]).toMatchObject({ total: '60.00', revenue: '200.00', otherRevenue: '30.00' });
+  });
+
   it('AC-WPVA-012 project total = sum of work orders + Not assigned = sum of every counted line, once', () => {
     const lines = [
       line({ workOrderId: 'A', amount: '123.45' }),
@@ -233,7 +310,48 @@ describe('rollupProject — actuals and roll-ups (FR-WPVA-010..032)', () => {
       split: [{ workOrderId: 'A', percent: '100' }], restricted: false,
     });
     expect(r.allocation.stale).toBe(true);
-    expect(r.allocation.basis).toBe('equal-split');
+    expect(r.allocation.basis).toBe('none');
+  });
+
+  it('flags a stale split even when a cost amount is unknown', () => {
+    const r = rollupProject({ workOrders: [wo('A', 'WO-1'), wo('B', 'WO-2')], plans: [], restricted: false,
+      lines: [line({ workOrderId: 'A', amount: null })], split: [{ workOrderId: 'A', percent: '100' }] });
+    expect(r.allocation.stale).toBe(true);
+  });
+
+  it('keeps a paid amount with no work-order link unassigned instead of splitting it', () => {
+    const r = rollupProject({ workOrders: [wo('A', 'WO-1')], plans: [], split: null, restricted: false,
+      lines: [line({ workOrderId: 'A', amount: '40.00' }), line({ amount: '60.00', reason: 'unassigned' })] });
+    expect(r.workOrders[0].allocated).toBe('0.00');
+    expect(r.totals[0]).toMatchObject({ total: '100.00', notAssigned: '60.00' });
+  });
+
+  it('keeps a work-order cost unknown without losing a known project total', () => {
+    const r = rollupProject({ workOrders: [wo('A', 'WO-1', { revenue: '100.00' })], plans: [], split: null, restricted: false,
+      lines: [line({ workOrderId: 'A', amount: null, reason: 'unresolved-direct' }),
+        line({ amount: '20.00', reason: 'unassigned' })] });
+    expect(r.workOrders[0].direct).toBeNull();
+    expect(r.workOrders[0].directMargin.amount).toBeNull();
+    expect(r.totals[0].total).toBe('20.00');
+  });
+
+  it('does not show a margin when an unassigned project cost is unknown', () => {
+    const r = rollupProject({ workOrders: [wo('A', 'WO-1', { revenue: '100.00' })], plans: [], split: null, restricted: false,
+      lines: [line({ amount: null, reason: 'unassigned' })] });
+    expect(r.workOrders[0].result.amount).toBeNull();
+  });
+
+  it('keeps unlinked ERP actuals unassigned unless a valid custom split exists', () => {
+    const args = { workOrders: [wo('A', 'WO-1'), wo('B', 'WO-2')], plans: [], restricted: false,
+      lines: [line({ amount: '100.00', reason: 'split-when-custom' })] };
+    const without = rollupProject({ ...args, split: null });
+    expect(without.totals[0]).toMatchObject({ total: '100.00', notAssigned: '100.00' });
+    const withSplit = rollupProject({ ...args, split: [{ workOrderId: 'A', percent: '60' }, { workOrderId: 'B', percent: '40' }] });
+    expect(withSplit.workOrders.map((w) => w.allocated)).toEqual(['60.00', '40.00']);
+    expect(withSplit.totals[0].notAssigned).toBe('0.00');
+    const stale = rollupProject({ ...args, split: [{ workOrderId: 'A', percent: '100' }] });
+    expect(stale.allocation.stale).toBe(true);
+    expect(stale.totals[0].notAssigned).toBe('100.00');
   });
 
   it('AC-WPVA-010 a vendor bill in a second currency is listed apart and margin is not comparable', () => {
@@ -289,6 +407,7 @@ describe('rollupProject — actuals and roll-ups (FR-WPVA-010..032)', () => {
         line({ workOrderId: 'A', source: 'timesheet_entry', amount: null, reason: 'no-rate', quantity: 8, quantityUnit: 'hours', personId: 'u1' }),
         line({ workOrderId: 'A', source: 'timesheet_entry', amount: null, reason: 'no-rate', quantity: 4, quantityUnit: 'hours', personId: 'u1' }),
         line({ workOrderId: 'A', source: 'timesheet_entry', amount: null, reason: 'no-rate', quantity: 6, quantityUnit: 'hours', personId: 'u2' }),
+        line({ workOrderId: 'A', source: 'timesheet_entry', amount: null, reason: 'no-rate', quantity: 0, quantityUnit: 'hours', personId: 'u3' }),
       ],
       plans: [], split: null, restricted: false,
     });

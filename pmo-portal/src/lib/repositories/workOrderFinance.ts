@@ -9,19 +9,19 @@
 import {
   listProjectCostAmounts,
   listProjectPlanLines,
-  savePlanLine,
-  deletePlanLine,
+  setWorkOrderPlan,
   getSharedSplit,
   setSharedSplit,
   clearSharedSplit,
-  type PlanLineInput,
+  type PlanChange,
 } from '@/src/lib/db/workOrderFinance';
 import { listProjectWorkOrders } from '@/src/lib/db/workOrders';
 import { listWorkOrderBilling, type WorkOrderBillingRow } from '@/src/lib/db/workOrderBilling';
+import { getProjectFinances } from '@/src/lib/db/revenue';
 import { rollupProject, type CostAmountLine, type PlanLine, type ProjectRollup, type PvaWorkOrder, type SplitPercent } from '@/src/lib/workOrderPlanVsActual';
 import { wrap } from './repositoryErrors';
 
-export type { PlanLineInput };
+export type { PlanChange };
 
 export interface ProjectPlanVsActual {
   workOrders: PvaWorkOrder[];
@@ -35,7 +35,7 @@ function isRefused(err: unknown): boolean {
 }
 
 async function load(projectId: string): Promise<ProjectPlanVsActual> {
-  const [orders, billing, money] = await Promise.all([
+  const [orders, billing, money, projectFinances] = await Promise.all([
     listProjectWorkOrders(projectId),
     // Revenue is the shipped per-work-order billing read; when it cannot be read, revenue is unknown, never zero.
     listWorkOrderBilling(projectId).catch((): WorkOrderBillingRow[] | null => null),
@@ -44,6 +44,7 @@ async function load(projectId: string): Promise<ProjectPlanVsActual> {
       if (isRefused(err)) return null;
       throw err;
     }),
+    getProjectFinances(projectId).catch(() => null),
   ]);
   const restricted = money === null;
   const [plans, split] = restricted ? [[], null] : await Promise.all([listProjectPlanLines(projectId), getSharedSplit(projectId)]);
@@ -60,6 +61,7 @@ async function load(projectId: string): Promise<ProjectPlanVsActual> {
         currency: o.currency,
         revenue: b ? b.invoiced.toFixed(2) : null,
         revenueComplete: Boolean(b?.figuresComplete && b.currency === o.currency),
+        orderValue: b && b.currency === o.currency && Number.isFinite(b.orderNet) ? b.orderNet.toFixed(2) : null,
       };
     })
     .sort((a, b) => (a.woNumber ?? '').localeCompare(b.woNumber ?? '', undefined, { numeric: true }) || a.id.localeCompare(b.id));
@@ -68,14 +70,13 @@ async function load(projectId: string): Promise<ProjectPlanVsActual> {
     workOrders,
     plans,
     split,
-    rollup: rollupProject({ workOrders, lines: money ?? [], plans, split, restricted }),
+    rollup: rollupProject({ workOrders, lines: money ?? [], plans, split, restricted, projectRevenue: projectFinances?.invoices ?? null }),
   };
 }
 
 export const workOrderFinanceRepository = {
   projectPlanVsActual: (projectId: string): Promise<ProjectPlanVsActual> => wrap(() => load(projectId)),
-  savePlan: (input: PlanLineInput, existingId: string | null): Promise<void> => wrap(() => savePlanLine(input, existingId)),
-  deletePlan: (id: string): Promise<void> => wrap(() => deletePlanLine(id)),
+  setPlan: (projectId: string, workOrderId: string, changes: readonly PlanChange[]): Promise<void> => wrap(() => setWorkOrderPlan(projectId, workOrderId, changes)),
   setSplit: (projectId: string, split: readonly SplitPercent[]): Promise<number> => wrap(() => setSharedSplit(projectId, split)),
   clearSplit: (projectId: string): Promise<number> => wrap(() => clearSharedSplit(projectId)),
 };

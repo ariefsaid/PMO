@@ -3,12 +3,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 /** #2519 — the split editor's live sum (FR-WPVA-022) and the plan editor's save path (FR-WPVA-001/002). */
-const h = vi.hoisted(() => ({ setSplit: vi.fn(), clearSplit: vi.fn(), savePlan: vi.fn(), deletePlan: vi.fn() }));
+const h = vi.hoisted(() => ({ setSplit: vi.fn(), clearSplit: vi.fn(), saveBatch: vi.fn() }));
 vi.mock('@/src/hooks/useWorkOrderPlanVsActual', () => ({
   useSetSharedSplit: () => ({ mutateAsync: h.setSplit }),
   useClearSharedSplit: () => ({ mutateAsync: h.clearSplit }),
-  useSavePlanLine: () => ({ mutateAsync: h.savePlan }),
-  useDeletePlanLine: () => ({ mutateAsync: h.deletePlan }),
+  useSaveWorkOrderPlan: () => ({ mutateAsync: h.saveBatch }),
 }));
 
 import SharedCostSplitModal from '../SharedCostSplitModal';
@@ -56,10 +55,28 @@ describe('WorkOrderPlanModal', () => {
     fireEvent.change(screen.getByLabelText('Crew hours'), { target: { value: '' } });
     fireEvent.submit(screen.getByLabelText('Crew hours').closest('form') as HTMLFormElement);
     await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(h.savePlan).toHaveBeenCalledWith({
-      input: { projectId: 'p1', workOrderId: 'A', disciplineId: null, kind: 'direct_budget', value: '1500', note: null }, existingId: null,
-    });
-    expect(h.deletePlan).toHaveBeenCalledWith('pl1');
+    expect(h.saveBatch).toHaveBeenCalledWith({ workOrderId: 'A', changes: [
+      { kind: 'direct_budget', value: '1500', note: null }, { kind: 'crew_hours', value: null, note: null },
+    ] });
+  });
+
+  it('saves multiple changes as one operation', async () => {
+    const onClose = vi.fn();
+    render(<WorkOrderPlanModal projectId="p1" workOrder={wo('A', 'WO-1')} onClose={onClose} plans={[]} />);
+    fireEvent.change(screen.getByLabelText('Direct budget (IDR)'), { target: { value: '100' } });
+    fireEvent.change(screen.getByLabelText('Crew hours'), { target: { value: '10' } });
+    fireEvent.submit(screen.getByLabelText('Crew hours').closest('form') as HTMLFormElement);
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(h.saveBatch).toHaveBeenCalledOnce();
+    expect(h.saveBatch).toHaveBeenCalledWith({ workOrderId: 'A', changes: [
+      { kind: 'direct_budget', value: '100', note: null }, { kind: 'crew_hours', value: '10', note: null },
+    ] });
+  });
+
+  it('shows a large saved plan amount without changing its cents', () => {
+    render(<WorkOrderPlanModal projectId="p1" workOrder={wo('A', 'WO-1')} onClose={() => {}}
+      plans={[{ id: 'pl1', workOrderId: 'A', disciplineId: null, kind: 'direct_budget', value: '99999999999999.99', note: null }]} />);
+    expect((screen.getByLabelText('Direct budget (IDR)') as HTMLInputElement).value).toBe('99999999999999.99');
   });
 
   it('refuses a negative figure before sending anything', async () => {
@@ -67,6 +84,6 @@ describe('WorkOrderPlanModal', () => {
     fireEvent.change(screen.getByLabelText('Equipment hours'), { target: { value: '-3' } });
     fireEvent.submit(screen.getByLabelText('Equipment hours').closest('form') as HTMLFormElement);
     await screen.findAllByText(/zero or more/);
-    expect(h.savePlan).not.toHaveBeenCalled();
+    expect(h.saveBatch).not.toHaveBeenCalled();
   });
 });
