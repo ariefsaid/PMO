@@ -1193,5 +1193,28 @@
     "replace": "Ganti",
     "downloadFor": "Unduh berkas untuk {{title}}",
     "download": "Unduh berkas"
+  },
+  "rateCatalogue": {
+    "title": "Daftar tarif",
+    "loading": "Memuat tarif…",
+    "loadError": "Tarif tidak dapat dimuat",
+    "retry": "Coba lagi",
+    "newVariant": "Lokasi baru",
+    "addVariant": "Tambah lokasi",
+    "defaultVariant": "Lokasi bawaan",
+    "none": "Tidak ada",
+    "import": "Impor",
+    "saveError": "Tidak dapat menyimpan. Coba lagi.",
+    "empty": "Belum ada item tarif",
+    "item": "Item",
+    "location": "Lokasi",
+    "rate": "Tarif",
+    "effective": "Berlaku mulai",
+    "pickItem": "Item daftar tarif",
+    "chooseLocation": "Pilih lokasi",
+    "pricingDate": "Tanggal tarif",
+    "unpriced": "Belum ada tarif",
+    "sourceUnavailable": "Lokasi tidak tersedia",
+    "noLocations": "Belum ada lokasi. Tambahkan lokasi."
   }
 }
