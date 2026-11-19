@@ -6,7 +6,7 @@
 
 alter table public.organizations
   add column document_warning_days integer[] not null default '{30,14,7}'
-  check (cardinality(document_warning_days) between 1 and 5 and document_warning_days <@ array(select generate_series(1, 365)));
+  check (cardinality(document_warning_days) between 1 and 5 and array_position(document_warning_days, null) is null and 1 <= all(document_warning_days) and 365 >= all(document_warning_days));
 
 create table public.people (
   id          uuid primary key default gen_random_uuid(),
@@ -14,11 +14,13 @@ create table public.people (
                 references public.organizations(id) on delete cascade,
   code        text not null check (char_length(btrim(code)) between 1 and 40),
   name        text not null check (char_length(btrim(name)) between 1 and 120),
-  profile_id  uuid references public.profiles(id),
-  manager_id  uuid references public.profiles(id),
+  profile_id  uuid,
+  manager_id  uuid,
   created_by  uuid references public.profiles(id) default auth.uid(),
   created_at  timestamptz not null default now(),
-  archived_at timestamptz
+  archived_at timestamptz,
+  foreign key (profile_id, org_id) references public.profiles(id, org_id),
+  foreign key (manager_id, org_id) references public.profiles(id, org_id)
 );
 create unique index people_code_live on public.people (org_id, lower(btrim(code))) where archived_at is null;
 create unique index people_profile_live on public.people (profile_id) where profile_id is not null and archived_at is null;
@@ -129,12 +131,13 @@ create policy document_types_update on public.document_types for update
   using (org_id = public.auth_org_id() and public.is_active_member() and public.auth_role() = 'Admin')
   with check (org_id = public.auth_org_id());
 
--- documents: audience reads; a manager/self reads a person's non-medical docs (via people RLS); medical = Admin only.
+-- Admin reads all; a PM reads equipment; a manager reads their reports' non-medical documents.
 create policy expiry_documents_select on public.expiry_documents for select using (
   org_id = public.auth_org_id() and public.is_active_member()
-  and (not is_medical or public.auth_role() = 'Admin')
-  and (public.auth_role() in ('Admin','Project Manager','Finance','Executive')
-       or (person_id is not null and exists (select 1 from public.people p where p.id = person_id))));
+  and (public.auth_role() = 'Admin'
+       or (subject_kind = 'equipment' and public.auth_role() = 'Project Manager')
+       or (not is_medical and person_id is not null and exists
+           (select 1 from public.people p where p.id = person_id and p.manager_id = auth.uid()))));
 -- Admin keeps every document; a Project Manager keeps equipment documents only
 create policy expiry_documents_insert on public.expiry_documents for insert with check (
   org_id = public.auth_org_id() and public.is_active_member()

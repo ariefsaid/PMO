@@ -2,7 +2,7 @@ import { ReturnedBanner } from '@/src/components/ui/ReturnedBanner';
 import { mapBoundedSettled } from '@/src/lib/pagedRead';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import {
   Button, Combobox, ConfirmDialog, DataTable, Icon, ListPage, ListState, ReasonDialog, SelectField, StatusPill, Tabs, TextField, tabId, tabPanelId, useToast, useUrlFilters,
   type Column,
@@ -330,6 +330,7 @@ const EquipmentUsagePage: React.FC = () => {
       </CanWrite> : undefined}
       filters={header}
     >
+      <Link className="text-primary underline" to="/equipment/expiring">{t('equipment:nav.expiring', 'Expiring documents')}</Link>
       {canApproveTab && <Tabs items={tabs} value={tab} onChange={setTab} ariaLabel={t('equipment:usage.tabsLabel', 'Equipment usage views')} idBase="equipment-usage" className="mb-3" />}
       {/* The machine reads (picker, row names) page through the register: say how many are loaded so
           a machine past the first page is never silently missing from the picker. */}

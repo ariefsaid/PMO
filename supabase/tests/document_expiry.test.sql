@@ -1,7 +1,7 @@
 -- document_expiry.test.sql — 0970-0974 (#2527). Owns AC-DEX-001..008 (RLS, runner schedule, idempotency, list, medical shape).
 begin;
 create extension if not exists pgtap;
-select plan(28);
+select plan(37);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25270000-0000-0000-0000-00000000000a', 'DEX Org',   'IDR', 'UTC'),
@@ -11,16 +11,20 @@ insert into auth.users (id, email) values
   ('25270000-0000-0000-0000-0000000000a2', 'dex-pm@example.com'),
   ('25270000-0000-0000-0000-0000000000a3', 'dex-mgr@example.com'),
   ('25270000-0000-0000-0000-0000000000a4', 'dex-eng@example.com'),
-  ('25270000-0000-0000-0000-0000000000b1', 'dex-xorg@example.com');
+  ('25270000-0000-0000-0000-0000000000b1', 'dex-xorg@example.com'),
+  ('25270000-0000-0000-0000-0000000000a5', 'dex-finance@example.com'),
+  ('25270000-0000-0000-0000-0000000000a6', 'dex-executive@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('25270000-0000-0000-0000-0000000000a1', '25270000-0000-0000-0000-00000000000a', 'DEX Admin', 'dex-admin@example.com', 'Admin', 'active'),
   ('25270000-0000-0000-0000-0000000000a2', '25270000-0000-0000-0000-00000000000a', 'DEX PM',    'dex-pm@example.com',    'Project Manager', 'active'),
   ('25270000-0000-0000-0000-0000000000a3', '25270000-0000-0000-0000-00000000000a', 'DEX Mgr',   'dex-mgr@example.com',   'Engineer', 'active'),
   ('25270000-0000-0000-0000-0000000000a4', '25270000-0000-0000-0000-00000000000a', 'DEX Eng',   'dex-eng@example.com',   'Engineer', 'active'),
-  ('25270000-0000-0000-0000-0000000000b1', '25270000-0000-0000-0000-00000000000b', 'DEX XOrg',  'dex-xorg@example.com',  'Admin', 'active');
-insert into people (id, org_id, code, name, manager_id) values
-  ('25270000-0000-0000-0000-0000000000e1', '25270000-0000-0000-0000-00000000000a', 'P-1', 'Person One', '25270000-0000-0000-0000-0000000000a3'),
-  ('25270000-0000-0000-0000-0000000000e9', '25270000-0000-0000-0000-00000000000b', 'P-X', 'Foreign Person', null);
+  ('25270000-0000-0000-0000-0000000000b1', '25270000-0000-0000-0000-00000000000b', 'DEX XOrg',  'dex-xorg@example.com',  'Admin', 'active'),
+  ('25270000-0000-0000-0000-0000000000a5', '25270000-0000-0000-0000-00000000000a', 'Finance', 'dex-finance@example.com', 'Finance', 'active'),
+  ('25270000-0000-0000-0000-0000000000a6', '25270000-0000-0000-0000-00000000000a', 'Executive', 'dex-executive@example.com', 'Executive', 'active');
+insert into people (id, org_id, code, name, manager_id, profile_id) values
+  ('25270000-0000-0000-0000-0000000000e1', '25270000-0000-0000-0000-00000000000a', 'P-1', 'Person One', '25270000-0000-0000-0000-0000000000a3', '25270000-0000-0000-0000-0000000000a4'),
+  ('25270000-0000-0000-0000-0000000000e9', '25270000-0000-0000-0000-00000000000b', 'P-X', 'Foreign Person', null, null);
 insert into equipment_assets (id, org_id, code, name) values
   ('25270000-0000-0000-0000-0000000000d1', '25270000-0000-0000-0000-00000000000a', 'EQ-1', 'Crane One');
 insert into document_types (id, org_id, name, applies_to, is_medical, notify_roles) values
@@ -54,6 +58,8 @@ select throws_ok($$insert into expiry_documents (org_id, subject_kind, person_id
   values ('25270000-0000-0000-0000-00000000000a','person','25270000-0000-0000-0000-0000000000e9','25270000-0000-0000-0000-0000000000f1','2027-01-01')$$,
   '22023', null, 'AC-DEX-002 a foreign-org person is rejected');
 
+select throws_ok($$insert into people (org_id, code, name, profile_id) values ('25270000-0000-0000-0000-00000000000a','CROSS-P','Cross profile','25270000-0000-0000-0000-0000000000b1')$$, '23503', null, 'AC-DEX-005 cross-org profile is rejected');
+select throws_ok($$insert into people (org_id, code, name, manager_id) values ('25270000-0000-0000-0000-00000000000a','CROSS-M','Cross manager','25270000-0000-0000-0000-0000000000b1')$$, '23503', null, 'AC-DEX-005 cross-org manager is rejected');
 -- time-controlled runner. Warning days default {30,14,7}.
 select is(public.run_document_expiry_warnings('2026-11-04'), 0, 'AC-DEX-003 nothing is sent before the first threshold (earliest doc is 31 days out)');
 -- 2026-11-20: equipment cert (12-05) is 15 days out -> threshold 30; permit (12-20) is 30 days -> threshold 30; medical 12-10 is 20 -> 30
@@ -65,17 +71,21 @@ select is((select count(*)::int from notifications where owner_id = '25270000-00
 select is((select count(*)::int from notifications where owner_id = '25270000-0000-0000-0000-0000000000a4'), 0, 'AC-DEX-003 an unrelated Engineer is never notified');
 select is((select count(*)::int from notifications where owner_id = '25270000-0000-0000-0000-0000000000a2'), 1, 'AC-DEX-003 equipment notice reaches the PM role only for equipment');
 select is(public.run_document_expiry_warnings('2026-12-01'), 4, 'AC-DEX-004 next crossings only: certificate to 7 days (2), medical to 14 days (2); permit stays at 30');
-select is((select severity from notifications where owner_id = '25270000-0000-0000-0000-0000000000a2' and body like '%Crane One%' order by created_at desc limit 1), 'critical', 'AC-DEX-004 the 7-day warning is critical');
+select is((select severity from notifications where owner_id = '25270000-0000-0000-0000-0000000000a2' and body like '%Crane One%' and title like '%expires in 4 days%'), 'critical', 'AC-DEX-004 the 7-day warning is critical');
 select is((select count(*)::int from notifications where body ilike '%fit%' or body ilike '%unfit%'), 0, 'AC-DEX-002 no notification discloses a medical status');
 
 -- RLS
 set local role authenticated;
 select pg_temp.act_as('25270000-0000-0000-0000-0000000000a4');
 select is((select count(*)::int from expiry_documents), 0, 'AC-DEX-005 an unrelated Engineer sees no documents');
+select pg_temp.act_as('25270000-0000-0000-0000-0000000000a5');
+select is((select count(*)::int from expiry_documents), 0, 'AC-DEX-005 Finance cannot read unrelated documents');
+select pg_temp.act_as('25270000-0000-0000-0000-0000000000a6');
+select is((select count(*)::int from expiry_documents), 0, 'AC-DEX-005 Executive cannot read unrelated documents');
 select pg_temp.act_as('25270000-0000-0000-0000-0000000000a3');
 select is((select count(*)::int from expiry_documents), 1, 'AC-DEX-005 a manager sees their report''s non-medical document only');
 select pg_temp.act_as('25270000-0000-0000-0000-0000000000a2');
-select is((select count(*)::int from expiry_documents), 2, 'AC-DEX-005 a PM sees person and equipment documents but never medical');
+select is((select count(*)::int from expiry_documents), 1, 'AC-DEX-005 a PM sees equipment documents only');
 select pg_temp.act_as('25270000-0000-0000-0000-0000000000a1');
 select is((select count(*)::int from expiry_documents), 3, 'AC-DEX-005 Admin sees all three, including medical');
 select is((select count(*)::int from list_expiring_documents(15, '2026-11-20')), 1, 'AC-DEX-006 the list shows only what expires within the window (certificate, 15 days)');
@@ -91,8 +101,20 @@ select throws_ok($$insert into expiry_documents (subject_kind, person_id, type_i
   '42501', null, 'AC-DEX-005 a PM cannot write person documents');
 select pg_temp.act_as('25270000-0000-0000-0000-0000000000b1');
 select is((select count(*)::int from expiry_documents), 0, 'AC-DEX-005 another organisation sees nothing');
+select pg_temp.act_as('25270000-0000-0000-0000-0000000000a4');
+select is((select count(*)::int from expiry_documents where subject_kind = 'person'), 0, 'AC-DEX-005 linked person cannot read own documents');
+select is((select count(*)::int from expiry_documents where subject_kind = 'equipment'), 0, 'AC-DEX-005 unrelated Engineer cannot read equipment documents');
 reset role;
 select is((select document_warning_days from organizations where id = '25270000-0000-0000-0000-00000000000a'), array[60,5], 'AC-DEX-008 warning days are stored sorted and unique');
+
+insert into expiry_documents (org_id, subject_kind, person_id, type_id, expires_on)
+select '25270000-0000-0000-0000-00000000000a', 'person', '25270000-0000-0000-0000-0000000000e1', '25270000-0000-0000-0000-0000000000f1', '2026-12-01' from generate_series(1, 501);
+set local role authenticated;
+select pg_temp.act_as('25270000-0000-0000-0000-0000000000a1');
+select is((select count(*)::int from list_expiring_documents(30, '2026-11-20')), 504, 'AC-DEX-006 list includes more than 500 documents');
+reset role;
+select throws_ok($$update people set manager_id = '25270000-0000-0000-0000-0000000000b1' where id = '25270000-0000-0000-0000-0000000000e1'$$, '23503', null, 'AC-DEX-005 cross-org manager update is rejected');
+select throws_ok($$update people set profile_id = '25270000-0000-0000-0000-0000000000b1' where id = '25270000-0000-0000-0000-0000000000e1'$$, '23503', null, 'AC-DEX-005 cross-org profile update is rejected');
 
 select * from finish();
 rollback;

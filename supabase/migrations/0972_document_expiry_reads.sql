@@ -21,8 +21,7 @@ begin
       left join public.people pe on pe.id = x.person_id
       left join public.equipment_assets a on a.id = x.asset_id
      where x.archived_at is null and x.org_id = public.auth_org_id() and x.expires_on <= v_today + p_days
-     order by x.expires_on, 4
-     limit 500;
+     order by x.expires_on, 4, x.id;
 end $$;
 revoke all on function public.list_expiring_documents(integer, date) from public, anon;
 grant execute on function public.list_expiring_documents(integer, date) to authenticated;
