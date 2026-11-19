@@ -1,0 +1,66 @@
+{
+  "back": "Work orders",
+  "errorTitle": "Couldn't load this work order",
+  "notFound": "Work order not found",
+  "notFoundSub": "It doesn't exist, or you don't have access to it.",
+  "notNumbered": "Not yet numbered",
+  "clientPo": "Client PO {{po}}",
+  "project": "Project",
+  "client": "Client",
+  "orderValue": "Order value",
+  "scope": {
+    "title": "Scope and progress",
+    "error": "Couldn't load the scope",
+    "empty": "No contract lines are allocated to this work order yet.",
+    "allocate": "Allocate lines on the project",
+    "overall": "Overall {{pct}} complete",
+    "lump": "{{done}} of {{all}}",
+    "qty": "{{done}} of {{all}} {{unit}}"
+  },
+  "costs": {
+    "title": "Costs",
+    "error": "Couldn't load the costs",
+    "empty": "No costs are attributed to this work order yet.",
+    "noDiscipline": "No discipline",
+    "unknownDiscipline": "Discipline",
+    "restricted": "Amount restricted for your role",
+    "loadingTotal": "Total loading…",
+    "source": {
+      "purchase_request": "Purchase requests",
+      "purchase_order": "Purchase orders",
+      "goods_receipt": "Goods receipts",
+      "vendor_bill": "Vendor bills",
+      "timesheet_entry": "Timesheets",
+      "stock_document": "Stock movements",
+      "equipment_usage": "Equipment usage"
+    }
+  },
+  "billing": {
+    "title": "Billing and acceptances",
+    "error": "Couldn't load the billing figures",
+    "noFigures": "No billing figures for this work order yet.",
+    "invoiced": "Invoiced",
+    "pending": "Pending",
+    "paid": "Paid",
+    "remaining": "Remaining",
+    "incomplete": "Some invoices could not be totalled, so these figures are incomplete.",
+    "acceptances": "Acceptances",
+    "acceptancesError": "Couldn't load the acceptances",
+    "noAcceptances": "No acceptances yet.",
+    "final": "Final",
+    "stage": "Stage",
+    "lines": "lines",
+    "confirmed": "Confirmed",
+    "draft": "Draft"
+  },
+  "documents": {
+    "title": "Documents",
+    "error": "Couldn't load the documents",
+    "empty": "No documents are linked to this work order yet."
+  },
+  "issuesTasks": {
+    "title": "Issues and open tasks",
+    "issuesEmpty": "No issues name this work order.",
+    "tasksEmpty": "No open tasks name this work order."
+  }
+}

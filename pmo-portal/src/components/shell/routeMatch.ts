@@ -345,6 +345,8 @@ export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
 /** Finance record routes remain addressable while their list parent is the Receivables area. */
 export function railParentForPath(pathname: string): string | undefined {
   if (/^\/(sales-invoices|incoming-payments)\/[^/]+$/.test(pathname)) return '/finance/receivables';
+  // #2518: a work order's page belongs to Projects.
+  if (/^\/work-orders\/[^/]+$/.test(pathname)) return '/projects';
   return RAIL_PARENT_FOR_PATH[pathname];
 }
 
@@ -589,6 +591,18 @@ export function breadcrumbForPath(
   );
   if (selectedIndexModule) {
     return [{ label: selectedIndexModule.label, ...(selectedIndexModule.labelKey ? { i18nKey: selectedIndexModule.labelKey } : {}) }];
+  }
+
+  // #2518: /work-orders/:id reads as Projects > the work order (no work-order module of its own).
+  if (/^\/work-orders\/[^/]+$/.test(pathname)) {
+    return [
+      { label: 'Projects', i18nKey: 'shell.nav.projects', href: '/projects', onClick: () => navigate?.('/projects') }, // i18n-exempt: fallback label is replaced from i18nKey at render
+      recordLabel
+        ? { label: recordLabel }
+        : recordResolved
+          ? { label: 'Not found', i18nKey: 'shell.breadcrumb.recordNotFound' } // i18n-exempt: fallback label is replaced from i18nKey at render
+          : { label: 'Loading…', i18nKey: 'shell.breadcrumb.recordLoading' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+    ];
   }
 
   for (const m of MODULES) {

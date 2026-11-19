@@ -24,3 +24,14 @@ export function useWorkOrderCostLines(workOrderId: string | null) {
     enabled: Boolean(orgId) && Boolean(workOrderId),
   });
 }
+
+/** Per-source money behind a work order's cost lines (#2518); runs after the lines are read. */
+export function useWorkOrderCostMoney(workOrderId: string | null, lines: import('@/src/lib/repositories/workOrderCosts').WorkOrderCostLine[] | undefined) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery({
+    queryKey: ['work-order-cost-money', orgId, workOrderId, lines?.length ?? 0],
+    queryFn: () => workOrderCostRepository.costMoney(lines as import('@/src/lib/repositories/workOrderCosts').WorkOrderCostLine[]),
+    enabled: Boolean(orgId) && Boolean(workOrderId) && Boolean(lines && lines.length > 0),
+  });
+}
