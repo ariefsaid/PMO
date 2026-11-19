@@ -134,7 +134,7 @@ create table public.material_request_events (
   action      text not null check (action in ('created','submitted','approved_step','returned','rejected','approved',
                                               'cancelled','fulfilled','transfer_cancelled','transfer_created')),
   from_status text,
-  to_status   text,
+  to_status   text not null,
   step_position integer,
   actor_id    uuid,
   acted_for   uuid,

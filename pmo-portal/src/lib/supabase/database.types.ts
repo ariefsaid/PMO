@@ -5373,7 +5373,7 @@ export type Database = {
           reason: string | null
           request_id: string
           step_position: number | null
-          to_status: string | null
+          to_status: string
         }
         Insert: {
           acted_for?: string | null
@@ -5386,7 +5386,7 @@ export type Database = {
           reason?: string | null
           request_id: string
           step_position?: number | null
-          to_status?: string | null
+          to_status: string
         }
         Update: {
           acted_for?: string | null
@@ -5399,7 +5399,7 @@ export type Database = {
           reason?: string | null
           request_id?: string
           step_position?: number | null
-          to_status?: string | null
+          to_status?: string
         }
         Relationships: []
       }
