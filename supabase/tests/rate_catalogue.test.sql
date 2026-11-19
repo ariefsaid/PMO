@@ -1,7 +1,7 @@
 -- rate_catalogue.test.sql — #2520 unit-rate catalogue. AC-RC-1..6, see docs/specs/unit-rate-catalogue.spec.md.
 begin;
 create extension if not exists pgtap;
-select plan(14);
+select plan(17);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25200000-0000-0000-0000-0000000000a1', 'RC Org A', 'USD', 'UTC'),
@@ -15,7 +15,7 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('25200000-0000-0000-0000-0000000000b2', '25200000-0000-0000-0000-0000000000a1', 'RC Engineer', 'rc-eng@example.com', 'Engineer', 'active'),
   ('25200000-0000-0000-0000-0000000000b3', '25200000-0000-0000-0000-0000000000a2', 'RC Foreign', 'rc-foreign@example.com', 'Finance', 'active');
 insert into projects (id, org_id, name, status, currency) values
-  ('25200000-0000-0000-0000-0000000000c1', '25200000-0000-0000-0000-0000000000a1', 'RC Contract', 'Active', 'USD');
+  ('25200000-0000-0000-0000-0000000000c1', '25200000-0000-0000-0000-0000000000a1', 'RC Contract', 'Ongoing Project', 'USD');
 insert into boq_items (org_id, project_id, item_code, description, unit, quantity, rate) values
   ('25200000-0000-0000-0000-0000000000a1', '25200000-0000-0000-0000-0000000000c1', 'L1', 'Line one', 'm', 10, 0);
 
@@ -30,6 +30,10 @@ select is((public.rate_catalogue_upsert_item('25200000-0000-0000-0000-0000000000
 select is((select count(*)::int from public.rate_catalogue_stage_weights), 3, 'AC-RC-5 three stage weights stored');
 select throws_ok($$select public.rate_catalogue_upsert_item('25200000-0000-0000-0000-0000000000c1','{"item_code":"W-2","description":"d","unit":"m","effective_from":"2026-01-01","stages":[{"stage":"a","weight_pct":50}]}'::jsonb)$$,
   '22023', null, 'AC-RC-5 stage weights that do not add to 100 are refused');
+select throws_ok($$select public.rate_catalogue_upsert_item('25200000-0000-0000-0000-0000000000c1','{"item_code":"W-3","description":"d","unit":"m","effective_from":"2026-01-01","stages":[{"stage":"a","weight_pct":33.333},{"stage":"b","weight_pct":33.333},{"stage":"c","weight_pct":33.334}]}'::jsonb)$$,
+  '22023', null, 'AC-RC-5 weights with more than two decimals are refused before rounding');
+select lives_ok($$select public.rate_catalogue_upsert_item('25200000-0000-0000-0000-0000000000c1','{"item_code":"W-1","effective_from":"2026-01-01","rates":{"Remote":120,"Non-remote":100},"stages":[{"stage":"Fab","weight_pct":10},{"stage":"Weld","weight_pct":80},{"stage":"Test","weight_pct":10}]}'::jsonb)$$,
+  'AC-RC-5 repeating an identical import is idempotent');
 select throws_ok($$select public.rate_catalogue_upsert_item('25200000-0000-0000-0000-0000000000c1','{"item_code":"W-2","description":"d","unit":"m","effective_from":"2026-01-01","rates":{"Mars":1}}'::jsonb)$$,
   '23503', null, 'AC-RC-2 an unknown variant is refused');
 

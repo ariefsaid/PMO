@@ -193,19 +193,32 @@ begin
   end loop;
 
   if jsonb_typeof(p_item->'stages') = 'array' and jsonb_array_length(p_item->'stages') > 0 then
+    if exists (select 1 from jsonb_array_elements(p_item->'stages') s
+               where (s->>'weight_pct')::numeric <> round((s->>'weight_pct')::numeric, 2)) then
+      raise exception 'stage weights must have at most 2 decimals' using errcode = '22023';
+    end if;
     select coalesce(sum((s->>'weight_pct')::numeric), 0) into v_stage_sum from jsonb_array_elements(p_item->'stages') s;
     if v_stage_sum <> 100 then raise exception 'stage weights must add up to 100 (they add up to %)', v_stage_sum using errcode = '22023'; end if;
     select max(effective_from) into v_latest_w from public.rate_catalogue_stage_weights where item_id = v_id;
     if v_latest_w is not null and v_from < v_latest_w then raise exception 'stage weights already exist from %', v_latest_w using errcode = '23505'; end if;
     if v_latest_w = v_from then
-      raise exception 'stage weights are already set from %; amend them with a later effective date', v_from using errcode = '23505';
-    end if;
+      if exists (
+        (select position, stage, weight_pct from public.rate_catalogue_stage_weights where item_id = v_id and effective_from = v_from
+         except select ordinality::integer, btrim(value->>'stage'), (value->>'weight_pct')::numeric from jsonb_array_elements(p_item->'stages') with ordinality)
+        union all
+        (select ordinality::integer, btrim(value->>'stage'), (value->>'weight_pct')::numeric from jsonb_array_elements(p_item->'stages') with ordinality
+         except select position, stage, weight_pct from public.rate_catalogue_stage_weights where item_id = v_id and effective_from = v_from)
+      ) then
+        raise exception 'stage weights are already set from %; amend them with a later effective date', v_from using errcode = '23505';
+      end if;
+    else
     v_pos := 0;
     for v_stage in select * from jsonb_array_elements(p_item->'stages') loop
       v_pos := v_pos + 1;
       insert into public.rate_catalogue_stage_weights (org_id, item_id, effective_from, position, stage, weight_pct)
       values (v_org, v_id, v_from, v_pos, btrim(v_stage->>'stage'), (v_stage->>'weight_pct')::numeric);
     end loop;
+    end if;
   end if;
   return jsonb_build_object('item_id', v_id, 'created', v_item_created, 'rates_added', v_new);
 end $$;

@@ -178,6 +178,18 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
                   {t('import:wizard.back', 'Back')}
                 </Button>
               )}
+              {wiz.step === 'preview' && wiz.counts.invalid > 0 && wiz.parsed && (
+                <Button variant="outline" size="sm" onClick={() => {
+                  const rejected = wiz.validation.filter((v) => !v.valid && !v.already).map((v) => ({
+                    index: v.index,
+                    reason: descriptor.fields.flatMap((field) => v.errors[field.key] ? [v.errors[field.key] as string] : []).join(' '),
+                  }));
+                  const table = buildFailedRowsTable(wiz.parsed!.headers, wiz.parsed!.rows, rejected, t('import:result.reasonColumn', 'Why not imported'));
+                  triggerBlobDownload(new Blob([toCsv(table)], { type: 'text/csv;charset=utf-8' }), 'rows-not-imported.csv');
+                }}>
+                  {t('import:result.downloadFailed', 'Download rows not imported')}
+                </Button>
+              )}
               <div className="ml-auto flex items-center gap-2">
                 {wiz.step === 'upload' && (
                   <Button variant="ghost" size="sm" onClick={requestClose}>
