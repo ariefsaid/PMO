@@ -1,6 +1,6 @@
 -- spend_approval_route_spending.test.sql — the line a request is judged against counts recorded spending + open
 -- orders + reserved + approved claims not yet in the ledger, each once; then the project's whole budget is
--- tested the same way. Migration: 0975_spend_route_recorded_spending.sql.
+-- tested the same way. Migration: 1016_spend_route_recorded_spending.sql.
 -- AC-APR-050 line test · AC-APR-051 project test · AC-APR-052 spending unknown · AC-APR-053 below approval rank ·
 -- AC-APR-054 the list reads return the route spend_approval_route returns.
 begin;
