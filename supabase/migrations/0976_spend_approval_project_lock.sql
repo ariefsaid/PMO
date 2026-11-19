@@ -1,5 +1,5 @@
--- 0954_spend_approval_project_lock.sql — an approval takes a project-wide lock before its budget-line lock.
--- Rollback: supabase/migrations/rollback/0954_spend_approval_project_lock_down.sql.
+-- 0976_spend_approval_project_lock.sql — an approval takes a project-wide lock before its budget-line lock.
+-- Rollback: supabase/migrations/rollback/0976_spend_approval_project_lock_down.sql.
 -- Redefines public.transition_procurement (from 0868), public.transition_expense_claim (from 0855),
 --          public.approve_procurement_amount (from 0349) and public.decide_po_variation (from 0474), each the
 --          highest migration that defines it; the only change in each is the one project lock statement.
