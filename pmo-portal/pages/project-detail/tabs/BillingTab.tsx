@@ -28,6 +28,7 @@ import ProgressAssessmentModal from '../ProgressAssessmentModal';
 import ProgressClaimModal from '../ProgressClaimModal';
 import ClaimEvidenceModal from '../ClaimEvidenceModal';
 import { ClaimEvidenceList } from './ClaimEvidenceList';
+import { ClaimBillingStages } from './ClaimBillingStages';
 import ProjectBillingStart from '../ProjectBillingStart';
 import TimeAndMaterials from '../TimeAndMaterials';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
@@ -610,6 +611,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         ? <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.billing.claims.noEvidence', 'No evidence attached yet.')}</p>
         : <ClaimEvidenceList evidence={claimDetailFor.evidence} projectId={projectId} documents={documents.data ?? []} />}
     </section>
+    {claimDetailFor.kind === 'progress' && <ClaimBillingStages claimId={claimDetailFor.id} projectId={projectId} currency={currency}
+      invoiced={Boolean(claimDetailFor.invoice)} withdrawn={Boolean(claimDetailFor.withdrawn_at)} />}
   </Drawer>;
 
   const timeAndMaterials = canViewMoney && <TimeAndMaterials projectId={projectId} projectManagerId={projectManagerId} currency={currency}

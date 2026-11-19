@@ -78,6 +78,7 @@ export type Entity =
   | 'workOrder'
   | 'boqItem'
   | 'progressClaim'
+  | 'billingStage'
   | 'workOrderLine'
   | 'workOrderAcceptance'
   | 'expenseClaim'
@@ -374,6 +375,16 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     view: allow(MASTER_DATA),
     create: allow(REVENUE_WRITE),
     transition: allow(REVENUE_WRITE),
+  },
+  /**
+   * Billing stages and retention (#2522, #1572; 0960/0961). transition = record a stage and attach its documents
+   * (lock_billing_stage_claim: Admin, Finance, Project Manager); edit = the stage list, the invoice deadline, retention
+   * and its releases (Finance/Admin). The database is the authority.
+   */
+  billingStage: {
+    view: allow(MASTER_DATA),
+    transition: allow(['Admin', 'Finance', 'Project Manager']),
+    edit: allow(CONFIRM_BAST),
   },
   /**
    * Expense claims and cash advances (#775, migration 0247). Mirrors the server:

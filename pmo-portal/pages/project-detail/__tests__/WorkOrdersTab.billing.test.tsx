@@ -54,6 +54,11 @@ vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useWorkOrderAcceptanceMutations: () => ({}),
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => h.documents }));
+// #2522: the claim drawer's billing stages; a claim with no stage plan renders nothing.
+vi.mock('@/src/hooks/useBillingStages', () => ({
+  useClaimBillingTrace: () => ({ data: { stages: [], retention: null, deadline: null }, isPending: false, isError: false, refetch: vi.fn() }),
+  useBillingStageMutations: () => ({ attachDocument: { mutateAsync: vi.fn(), isPending: false }, completeStage: { mutateAsync: vi.fn(), isPending: false } }),
+}));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing, useWorkOrderAcceptanceAge: () => h.age }));
 vi.mock('@/src/hooks/useRevenue', () => ({ useSalesInvoices: () => h.invoices }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: h.erpConnected }) }));

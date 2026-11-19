@@ -17,6 +17,7 @@ import { claimNet } from '@/src/lib/progressBilling';
 import { statusLabel } from '@/src/lib/status/statusMap';
 import { invoiceBalanceFigures, QuantityFigure, type InvoiceWithWorkOrder, type OrderLineView, basisNote } from './workOrdersTabFigures';
 import { ClaimEvidenceList } from './ClaimEvidenceList';
+import { ClaimBillingStages } from './ClaimBillingStages';
 
 /** The delivery-selector drawer picks the work order a new BAST is recorded against. */
 export const DeliverySelectorDrawer: React.FC<{
@@ -193,5 +194,7 @@ export const WorkOrderClaimDrawer: React.FC<{
         ? <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.billing.claims.noEvidence', 'No evidence attached yet.')}</p>
         : <ClaimEvidenceList evidence={claim.evidence ?? []} projectId={projectId} documents={documents} />}
     </section>
+    {claim.kind === 'progress' && <ClaimBillingStages claimId={claim.id} projectId={projectId} currency={currency}
+      invoiced={Boolean(claim.invoice)} withdrawn={Boolean(claim.withdrawn_at)} />}
   </Drawer>;
 };
