@@ -48,7 +48,7 @@ describe('rate catalogue import descriptor (#2520)', () => {
     expect(out[0]).toEqual({}); expect(out[1]).toEqual({});
   });
 
-  it('AC-RC-7 a 2,000-item sheet passes preview and every row is written through the repository', async () => {
+  it('maps 2,000 items to repository writes', async () => {
     expect(RATE_CATALOGUE_MAX_ROWS).toBeGreaterThanOrEqual(2000);
     expect(d().maxRows).toBe(RATE_CATALOGUE_MAX_ROWS);
     const desc = d();

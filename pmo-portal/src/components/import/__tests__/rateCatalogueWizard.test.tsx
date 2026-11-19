@@ -5,7 +5,7 @@ vi.mock('@/src/lib/repositories', () => ({ repositories: { rateCatalogue: { upse
 import { makeRateCatalogueImportDescriptor } from '@/src/lib/import/rateCatalogueDescriptor';
 import { useImportWizard } from '../useImportWizard';
 
-it('AC-RC-7 previews and commits 2,000 catalogue items through the import wizard', async () => {
+it('previews and commits 2,000 pasted catalogue items through the import wizard', async () => {
   const descriptor = makeRateCatalogueImportDescriptor('project', ['Remote']);
   const rows = Array.from({ length: 2000 }, (_, i) => `ITEM-${i}\tDescription ${i}\tm\t2026-01-01\t120`);
   const paste = ['Item code\tDescription\tUnit\tEffective from\tRemote', ...rows].join('\n');
