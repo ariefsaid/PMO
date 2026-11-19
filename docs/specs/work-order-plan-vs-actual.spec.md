@@ -58,7 +58,7 @@ disciplines make or lose money while there is still time to act.
 **Shared-cost allocation**
 - FR-WPVA-020 By default, each work order's share of a project's shared cost shall equal its share of the project's
   direct cost (its direct cost / sum of all work orders' direct cost on that project, Cancelled included only if it
-  carries cost).
+  carries cost), subject to the project-actuals basis ruling below.
 - FR-WPVA-021 Where a project has no direct cost on any work order, the default split shall be an equal split over
   its non-Cancelled work orders, flagged "equal split, no direct cost yet".
 - FR-WPVA-022 Where a user sets a custom split for a project, the system shall store one percentage per work order
@@ -68,6 +68,14 @@ disciplines make or lose money while there is still time to act.
   remainder, so the allocations sum exactly to the shared total.
 - FR-WPVA-024 A work order added or cancelled after a custom split was saved shall make the split "stale"; the
   screen shall say so and fall back to the default until a user re-saves (a split that does not sum to 100 is never used).
+
+**Project-actuals basis (owner ruling, 2026-11-20)**
+- The project total shall equal the existing project actuals; work-order amounts and Not assigned shall sum to that total.
+- A purchase's paid amount shall be apportioned by each purchase line's share of the purchase value, independent of which
+  payment or invoice carried it. The rounding remainder shall go to the largest share; lines with no work order shall
+  remain Not assigned. The system shall not infer a work-order link.
+- ERP-ledger actuals and allocated overhead without a work-order link shall remain Not assigned, unless the project has
+  a configured shared-cost split, in which case that split applies.
 
 **Roll-ups**
 - FR-WPVA-030 The system shall roll the same figures up to discipline (within a project), project and contract with
