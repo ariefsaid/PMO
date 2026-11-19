@@ -223,6 +223,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // body-edit are ordinary table writes; `order_value`, `tax_treatment`, `tax_amount`, `status`
       // and every witness column are absent from UPDATE, which is what forces the MONEY and
       // 'expenseClaim' + 'expenseReceipts' from #775 (migration 0247); 'expensePostings' from #775 phase B (0270).
+      // 'rateCatalogue' from #2520 (0955); 'dailySiteReport' from #1522 (1004/1005).
       // LIFECYCLE moves through set_work_order_value / transition_work_order. Believing the insert
       // path impossible invites "fixing" a non-insertable column with a TABLE-level grant — the
       // silent no-op trap 0193 §5 exists to prevent.
@@ -234,7 +235,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // 'subcontracts' from subcontract acceptance, caps and variations (#1513 S6).
       // 'projectStage' from stage history (#1638).
       // 'timeAndMaterials' from time-and-materials claims (#1514 T7): rate card, assembly, sign-off and the reads.
-      ['agentAttachment', 'agentRun', 'budget', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'dashboard', 'document', 'equipment', 'erpJournalLines', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'journal', 'integrations', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'notification', 'odoo', 'odooLedger', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'projectMoney', 'projectOverview', 'projectStage', 'recordHistory', 'reports', 'revenue', 'stock', 'subcontracts', 'task', 'timeAndMaterials', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder', 'workOrderAcceptance'].sort(),
+      ['agentAttachment', 'agentRun', 'budget', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'dailySiteReport', 'dashboard', 'document', 'equipment', 'erpJournalLines', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'journal', 'integrations', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'notification', 'odoo', 'odooLedger', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'projectMoney', 'projectOverview', 'projectStage', 'rateCatalogue', 'recordHistory', 'reports', 'revenue', 'stock', 'subcontracts', 'task', 'timeAndMaterials', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder', 'workOrderAcceptance'].sort(),
     );
   });
 
