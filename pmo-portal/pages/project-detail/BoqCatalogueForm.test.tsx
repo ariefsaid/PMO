@@ -21,3 +21,19 @@ it('saves the selected catalogue rate and location with the line', async () => {
   await user.click(screen.getByRole('button', { name: 'Save line' }));
   expect(save).toHaveBeenCalledWith(expect.objectContaining({ rate: 120 }), { itemId: 'i', variantId: 'v', asOf: '2026-02-01', rate: 120 });
 });
+it('clears the prior preview when the chosen date has no rate', async () => {
+  api.listItems.mockResolvedValue([{ id: 'i', item_code: 'W1', description: 'Weld' }]);
+  api.listVariants.mockResolvedValue([{ id: 'v', name: 'Remote', is_default: true }]);
+  api.listRates.mockResolvedValue([{ item_id: 'i', variant_id: 'v', rate: 120, effective_from: '2026-01-01' }]);
+  const user = userEvent.setup();
+  render(<ToastProvider><BoqItemFormModal item={null} projectId="p" today="2026-02-01" currency="USD" currencySymbolPrefix="$" onSave={vi.fn()} onClose={vi.fn()} onError={vi.fn()} /></ToastProvider>);
+  await user.click(await screen.findByRole('combobox', { name: 'Catalogue item' }));
+  await user.click(await screen.findByText(/W1/));
+  expect(screen.getByLabelText(/Rate \(excl/)).toHaveValue('120');
+  const date = screen.getByLabelText('Pricing date');
+  await user.clear(date);
+  await user.type(date, '2025-01-01');
+  await user.tab();
+  expect(await screen.findByText('Unpriced')).toBeInTheDocument();
+  expect(screen.getByLabelText(/Rate \(excl/)).toHaveValue('');
+});

@@ -73,7 +73,7 @@ const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, currencySymbo
     requiredFields: ['itemCode', 'description', 'unit', 'rate'],
   });
   const setFormRate = form.setValue;
-  useEffect(() => { if (pricing?.rate != null) setFormRate('rate', formatMoneyInputValue(pricing.rate)); }, [pricing, setFormRate]);
+  useEffect(() => { if (pricing) setFormRate('rate', pricing.rate === null ? '' : formatMoneyInputValue(pricing.rate)); }, [pricing, setFormRate]);
   const itemField = form.fieldProps('itemCode');
   const descriptionField = form.fieldProps('description');
   const unitField = form.fieldProps('unit');
