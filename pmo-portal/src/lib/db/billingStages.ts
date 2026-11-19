@@ -11,8 +11,6 @@ import { AppError } from '@/src/lib/appError';
 
 /** A stage plan has at most 20 stages (the table's check), each with at most 20 checklist items. */
 const STAGE_LIMIT = 20;
-/** Releases shown per claim: a claim's retention is released in a few parts; 200 is far above any schedule. */
-const RELEASE_LIMIT = 200;
 
 function fail(error: { message: string; code?: string; details?: string | null }): never {
   const detail = typeof error.details === 'string' && /^[a-z][a-z-]*$/.test(error.details) ? error.details : undefined;
@@ -112,6 +110,15 @@ export async function setBillingStageTemplate(projectId: string, stages: StageTe
   });
   if (error) fail(error);
   return Number(data);
+}
+
+export async function setProjectBillingTerms(projectId: string, stages: StageTemplateInput[], day: number | null, warnDays: number, pct: number): Promise<void> {
+  const { error } = await supabase.rpc('set_project_billing_terms', {
+    p_project: projectId,
+    p_stages: stages.map(s => ({ name: s.name, client_side: s.clientSide, documents: s.documents.map(d => ({ name: d.name, required: d.required })) })),
+    p_day: day as number, p_warn_days: warnDays, p_pct: pct,
+  });
+  if (error) fail(error);
 }
 
 export async function getBillingStageTemplate(projectId: string): Promise<StageTemplateInput[]> {
@@ -225,11 +232,10 @@ export async function getBillingReconciliation(projectId: string, workOrderId: s
 }
 
 export async function listRetentionReleases(claimId: string): Promise<RetentionReleaseRow[]> {
-  const { data, error } = await supabase.from('retention_releases')
+  const rows = await fetchAllPages((from, to) => supabase.from('retention_releases')
     .select('id,amount,due_on,note,released_on,reference_no,document_id')
-    .eq('claim_id', claimId).order('due_on').order('id').limit(RELEASE_LIMIT);
-  if (error) fail(error);
-  return (data ?? []).map((r) => ({
+    .eq('claim_id', claimId).order('due_on').order('id').range(from, to));
+  return rows.map((r) => ({
     id: r.id, amount: num(r.amount), dueOn: r.due_on, note: r.note, releasedOn: r.released_on, referenceNo: r.reference_no, documentId: r.document_id,
   }));
 }

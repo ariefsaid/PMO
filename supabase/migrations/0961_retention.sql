@@ -52,6 +52,24 @@ end; $$;
 revoke all on function public.set_project_retention(uuid, numeric) from public, anon;
 grant execute on function public.set_project_retention(uuid, numeric) to authenticated, service_role;
 
+-- Billing terms are one transaction: lock the project before replacing any of its terms.
+create or replace function public.set_project_billing_terms(p_project uuid, p_stages jsonb, p_day integer, p_warn_days integer, p_pct numeric)
+  returns void language plpgsql security definer set search_path = public as $$
+declare v_org uuid := public.auth_org_id(); v_role user_role := public.auth_role();
+begin
+  perform public.assert_is_active_member();
+  if v_role is null or v_role not in ('Admin','Finance') then
+    raise exception 'only Finance or an Admin can set billing terms' using errcode = '42501';
+  end if;
+  perform 1 from public.projects p where p.id = p_project and p.org_id = v_org for update;
+  if not found then raise exception 'project not found' using errcode = 'P0002'; end if;
+  perform public.set_billing_stage_template(p_project, p_stages);
+  perform public.set_project_invoice_deadline(p_project, p_day, p_warn_days);
+  perform public.set_project_retention(p_project, p_pct);
+end; $$;
+revoke all on function public.set_project_billing_terms(uuid, jsonb, integer, integer, numeric) from public, anon;
+grant execute on function public.set_project_billing_terms(uuid, jsonb, integer, integer, numeric) to authenticated, service_role;
+
 -- No client column grant on projects.retention_pct: it moves only through set_project_retention. Captured in record history.
 update public.record_history_config
    set captured = captured || '{"retention_pct":"number"}'::jsonb

@@ -6,8 +6,7 @@
 --   scope     the work order's line quantity, or the BoQ quantity for the project view;
 --   progress  quantity to date on the latest monthly assessment that states the item. In a work-order view an item also
 --             allocated to another work order has project-level progress only: null, never apportioned (FR-BST-042);
---   measured  quantity on claims not withdrawn whose invoice, if any, is not cancelled (a claim gets one invoice ever, so a
---             cancelled one leaves the claim dead);
+--   measured  quantity on claims not withdrawn, regardless of the invoice status;
 --   billed    quantity on claims whose invoice exists and is not cancelled (any status: the claim is invoiced). The same
 --             rows sales_invoice_work_billed counts, joined by the claim id that is the invoice id (FR-BST-041);
 --   unbilled  progress less billed, not below 0 (null when progress is unknown);
@@ -38,7 +37,7 @@ create or replace function public.billing_reconciliation(p_project uuid, p_work_
   ),
   claimed as (
     select l.boq_item_id,
-           sum(l.quantity) filter (where pc.withdrawn_at is null and si.status is distinct from 'Cancelled') as measured,
+           sum(l.quantity) filter (where pc.withdrawn_at is null) as measured,
            sum(l.quantity) filter (where si.id is not null and si.status <> 'Cancelled')                    as billed,
            sum(l.amount)   filter (where si.id is not null and si.status <> 'Cancelled')                    as billed_amount
       from public.progress_claim_lines l

@@ -143,6 +143,7 @@ how much of each invoice the client is still holding back as retention.
   released leaves 25,000 held; the released row cannot be cancelled; the scheduled one can.
 - **AC-RET-003** Given a Project Manager, When they schedule or release retention or change the project's retention
   percentage, Then it is refused (42501).
+- **AC-RET-004** Given a project with measured work and an approved claim invoice, When Finance views the reconciliation and schedules, cancels and records a retention release with proof, Then the quantities and billed amount agree with the claim and the recorded release and proof are visible.
 - **AC-TRACE-001** Given one work order, When it is traced (progress → claim → each stage with its documents →
   invoice → retention), Then every stage has its documents attached, the invoice is raised and the reconciliation
   agrees with the claim and invoice.
@@ -162,5 +163,6 @@ how much of each invoice the client is still holding back as retention.
 | AC-BST-001..006 | `supabase/tests/0960_billing_stages.test.sql` (pgTAP) |
 | AC-BST-010, AC-BST-011 | `pmo-portal/src/lib/billingStages.test.ts` (unit) |
 | AC-BST-020 | `supabase/tests/0962_billing_reconciliation.test.sql` (pgTAP) |
+| AC-RET-004 | `pmo-portal/e2e/AC-RET-004-billing-reconciliation-retention.spec.ts` (e2e) |
 | AC-RET-001..003 | `supabase/tests/0961_retention.test.sql` (pgTAP) |
 | AC-TRACE-001 | `supabase/tests/0962_billing_reconciliation.test.sql` (pgTAP, the full trace) · `pmo-portal/pages/project-detail/tabs/__tests__/ClaimBillingStages.test.tsx` (render) |

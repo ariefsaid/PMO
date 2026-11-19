@@ -3,7 +3,7 @@
 -- AC-BST-020, AC-TRACE-001 (docs/specs/billing-stages.spec.md). Ids: 09620000-… (synthetic).
 begin;
 create extension if not exists pgtap;
-select plan(32);
+select plan(34);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('09620000-0000-0000-0000-0000000000a1', 'REC Org A', 'IDR', 'UTC'),
@@ -126,8 +126,8 @@ select is((select row(retention_amount, held)::text from claim_retention where c
   'AC-TRACE-001 c1 holds 10% retention (40,000), none released');
 
 -- ── AC-BST-020: the per-item reconciliation ────────────────────────────────────────────────────────
-select is(pg_temp.rec('A'), row(10::numeric, 6::numeric, 6::numeric, 4::numeric, 2::numeric, 0::numeric, 400000::numeric, 'partly_billed')::text,
-  'AC-BST-020 A: progress 6, measured 6 (c4 cancelled drops out), billed 4, 2 unbilled, partly billed');
+select is(pg_temp.rec('A'), row(10::numeric, 6::numeric, 7::numeric, 4::numeric, 2::numeric, 0::numeric, 400000::numeric, 'partly_billed')::text,
+  'AC-BST-020 A: progress 6, measured 7 (c4 remains claimed after invoice cancellation), billed 4, 2 unbilled, partly billed');
 select is(pg_temp.rec('B'), row(5::numeric, 5::numeric, 6::numeric, 6::numeric, 0::numeric, 1::numeric, 300000::numeric, 'surplus')::text,
   'AC-BST-020 B: billed 6 against an order of 5 is a surplus of 1');
 select is(pg_temp.rec('D'), row(4::numeric, null::numeric, 0::numeric, 0::numeric, null::numeric, 0::numeric, 0::numeric, 'unbilled')::text,
@@ -155,7 +155,7 @@ select is((select sum(billed_qty) from billing_reconciliation('09620000-0000-000
 -- c2 raised later moves A to 6 billed (still partly billed: the order says 10)
 select lives_ok($q$select pg_temp.walk_and_raise('c2')$q$, 'c2 invoiced');
 select pg_temp.as_user('b4');
-select is(pg_temp.rec('A'), row(10::numeric, 6::numeric, 6::numeric, 6::numeric, 0::numeric, 0::numeric, 600000::numeric, 'partly_billed')::text,
+select is(pg_temp.rec('A'), row(10::numeric, 6::numeric, 7::numeric, 6::numeric, 0::numeric, 0::numeric, 600000::numeric, 'partly_billed')::text,
   'AC-BST-020 A after c2: billed 6, nothing done is unbilled');
 
 -- tenancy: a foreign Admin sees nothing
@@ -169,6 +169,11 @@ select lives_ok($q$select attach_claim_evidence(pg_temp.st('c5')::uuid, '0962000
 select pg_temp.as_user('b2');
 select is(pg_temp.detail($q$select create_native_progress_claim_invoice(pg_temp.st('c5')::uuid)$q$), '55000 billing-stages-incomplete',
   'AC-BST-005 a claim with evidence but open stages cannot be invoiced');
+
+select pg_temp.as_user('b1');
+select lives_ok($q$select withdraw_progress_claim(pg_temp.st('c5')::uuid)$q$, 'unbilled claim c5 is withdrawn');
+select is(pg_temp.rec('A'), row(10::numeric, 6::numeric, 7::numeric, 6::numeric, 0::numeric, 0::numeric, 600000::numeric, 'partly_billed')::text,
+  'withdrawn claim quantity is excluded from measured work');
 
 select * from finish();
 rollback;

@@ -11,6 +11,7 @@ import { useDocuments } from '@/src/hooks/useDocuments';
 import { currentStageIndex, nextInvoiceDeadline, stageAgeDays } from '@/src/lib/billingStages';
 import { formatIsoDay, formatNumberExact, formatTableMoney } from '@/src/lib/format';
 import { localToday } from '@/src/lib/efaktur';
+import { RetentionReleases } from './RetentionReleases';
 import type { ClaimBillingStage } from '@/src/lib/db/billingStages';
 
 /**
@@ -68,7 +69,8 @@ export const ClaimBillingStages: React.FC<ClaimBillingStagesProps> = ({ claimId,
   const current = currentStageIndex(trace.stages);
   const done = trace.stages.filter((s) => s.completedOn).length;
   const deadline = open && trace.deadline ? nextInvoiceDeadline(today, trace.deadline.day, trace.deadline.warnDays) : null;
-  if (trace.stages.length === 0 && !deadline && !(trace.retention && trace.retention.amount > 0)) return null;
+  const hasRetention = Boolean(trace.retention && (trace.retention.pct > 0 || trace.retention.amount > 0));
+  if (trace.stages.length === 0 && !deadline && !hasRetention) return null;
   const eligible = (documents.data ?? []).filter((d) => (d.status === 'Issued' || d.status === 'Approved') && Boolean(d.file_path));
   const titleOf = (id: string) => (documents.data ?? []).find((d) => d.id === id)?.title ?? t('projectDetail.billing.evidence.document', 'Evidence document');
 
@@ -96,7 +98,7 @@ export const ClaimBillingStages: React.FC<ClaimBillingStagesProps> = ({ claimId,
 
   return <section aria-labelledby={`billing-stages-${claimId}`} className="border-t border-border p-4">
     <div className="flex flex-wrap items-baseline justify-between gap-2">
-      <h3 id={`billing-stages-${claimId}`} className="text-group font-semibold">{t('projectDetail.billing.stages.title', 'Billing stages')}</h3>
+      <h3 id={`billing-stages-${claimId}`} className="text-group font-semibold">{trace.stages.length > 0 ? t('projectDetail.billing.stages.title', 'Billing stages') : t('projectDetail.billing.terms.title', 'Billing terms')}</h3>
       {trace.stages.length > 0 && <span className="text-sm tabular-nums text-muted-foreground">
         {t('projectDetail.billing.stages.progress', '{{done}} of {{total}} complete', { done: formatNumberExact(done), total: formatNumberExact(trace.stages.length) })}
       </span>}
@@ -106,17 +108,23 @@ export const ClaimBillingStages: React.FC<ClaimBillingStagesProps> = ({ claimId,
         {t('projectDetail.billing.stages.deadline', 'Invoice deadline {{date}} · {{count}} days left', { date: formatIsoDay(deadline.date), count: deadline.daysLeft })}
       </StatusPill>
     </p>}
-    {trace.retention && trace.retention.amount > 0 && <p className="mt-1 text-sm text-muted-foreground">
+    {trace.retention && hasRetention && <p className="mt-1 text-sm text-muted-foreground">
       {t('projectDetail.billing.stages.retentionHeld', 'Retention held: {{amount}} ({{pct}}%)', {
         amount: formatTableMoney(trace.retention.held, currency) ?? '', pct: formatNumberExact(trace.retention.pct),
       })}
     </p>}
+    {trace.retention && hasRetention && <p className="mt-1 text-sm text-muted-foreground">
+      {t('projectDetail.billing.releases.totals', 'Scheduled total (including released): {{scheduled}} · Released: {{released}}', {
+        scheduled: formatTableMoney(trace.retention.scheduled, currency) ?? '', released: formatTableMoney(trace.retention.released, currency) ?? '',
+      })}
+    </p>}
+    {trace.retention && trace.retention.amount > 0 && <RetentionReleases claimId={claimId} projectId={projectId} currency={currency} today={today} withdrawn={withdrawn} />}
     {open && current !== null && <p className="mt-1 text-sm text-muted-foreground">
       {t('projectDetail.billing.stages.gate', 'Complete every stage before raising the invoice.')}
     </p>}
     {refusal && <p role="alert" className="mt-2 text-sm text-destructive">{refusal}</p>}
 
-    <ol aria-label={t('projectDetail.billing.stages.title', 'Billing stages')} className="mt-3 divide-y divide-border">
+    {trace.stages.length > 0 && <ol aria-label={t('projectDetail.billing.stages.title', 'Billing stages')} className="mt-3 divide-y divide-border">
       {trace.stages.map((stage, index) => {
         const age = stageAgeDays(stage, today);
         const isCurrent = index === current;
@@ -176,7 +184,7 @@ export const ClaimBillingStages: React.FC<ClaimBillingStagesProps> = ({ claimId,
           </div>}
         </li>;
       })}
-    </ol>
+    </ol>}
   </section>;
 };
 

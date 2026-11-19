@@ -3,7 +3,7 @@
 -- Org a1 has no ERP; a2 is foreign. Users: b1 fin1 (claims), b2 fin2 (raises), b3 admin, b4 pm, b6 engineer, b8 foreign admin.
 begin;
 create extension if not exists pgtap;
-select plan(50);
+select plan(51);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('09600000-0000-0000-0000-0000000000a1', 'BST Org A', 'IDR', 'UTC'),
@@ -200,5 +200,7 @@ reset role;
 select is((select count(*)::int from audit_events where action = 'billing_stage.complete' and org_id = '09600000-0000-0000-0000-0000000000a1'), 3,
   'NFR-BST-002 each completion is audited once');
 
+select ok(not has_function_privilege('authenticated', 'public.billing_stages_open(uuid)', 'execute'),
+  'authenticated clients cannot call the internal stage predicate');
 select * from finish();
 rollback;

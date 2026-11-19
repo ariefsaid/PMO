@@ -12135,6 +12135,7 @@ export type Database = {
         Args: { p_day: number; p_project: string; p_warn_days?: number }
         Returns: undefined
       }
+      set_project_billing_terms: { Args: { p_project: string; p_stages: Json; p_day: number; p_warn_days: number; p_pct: number }; Returns: undefined }
       set_project_retention: {
         Args: { p_pct: number; p_project: string }
         Returns: undefined

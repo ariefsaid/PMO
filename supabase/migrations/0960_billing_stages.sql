@@ -336,8 +336,8 @@ create or replace function public.billing_stages_open(p_claim uuid) returns bool
   language sql stable security definer set search_path = public as $$
   select exists (select 1 from public.claim_billing_stages s where s.claim_id = p_claim and s.completed_on is null)
 $$;
-revoke all on function public.billing_stages_open(uuid) from public, anon;
-grant execute on function public.billing_stages_open(uuid) to authenticated, service_role;
+revoke all on function public.billing_stages_open(uuid) from public, anon, authenticated;
+grant execute on function public.billing_stages_open(uuid) to service_role;
 
 create or replace function public.assert_claim_billing_stages_complete() returns trigger
   language plpgsql security definer set search_path = public as $$

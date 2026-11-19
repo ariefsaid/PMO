@@ -5,10 +5,11 @@ const h = vi.hoisted(() => {
   const calls: Array<{ table: string; op: string; args: unknown[] }> = [];
   const builder = (table: string) => {
     const b: Record<string, unknown> = {};
+    let start = 0; let end: number | undefined;
     for (const op of ['select', 'eq', 'order', 'limit', 'range', 'maybeSingle']) {
-      b[op] = (...args: unknown[]) => { calls.push({ table, op, args }); return b; };
+      b[op] = (...args: unknown[]) => { calls.push({ table, op, args }); if (op === 'limit') end = Number(args[0]); if (op === 'range') { start = Number(args[0]); end = Number(args[1]) + 1; } return b; };
     }
-    b.then = (resolve: (v: unknown) => unknown) => resolve(results[table] ?? { data: [], error: null });
+    b.then = (resolve: (v: unknown) => unknown) => { const result = results[table] ?? { data: [], error: null }; return resolve({ ...result, data: Array.isArray(result.data) ? result.data.slice(start, end) : result.data }); };
     return b;
   };
   const rpc = vi.fn();
@@ -17,13 +18,21 @@ const h = vi.hoisted(() => {
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
 import {
-  completeBillingStage, getClaimBillingTrace, getBillingReconciliation, scheduleRetentionRelease, setBillingStageTemplate,
+  completeBillingStage, getClaimBillingTrace, getBillingReconciliation, listRetentionReleases, scheduleRetentionRelease, setBillingStageTemplate,
 } from './billingStages';
 import { AppError } from '@/src/lib/appError';
 
 beforeEach(() => { h.rpc.mockReset(); h.calls.length = 0; for (const k of Object.keys(h.results)) delete h.results[k]; });
 
 describe('billing stages DAL', () => {
+  it('saves all project terms in one request', async () => {
+    h.rpc.mockResolvedValue({ data: null, error: null });
+    const dal = await import('./billingStages');
+    await dal.setProjectBillingTerms('p1', [{ name: 'Stage', clientSide: false, documents: [] }], 25, 5, 2.5);
+    expect(h.rpc).toHaveBeenCalledOnce();
+    expect(h.rpc).toHaveBeenCalledWith('set_project_billing_terms', { p_project: 'p1', p_stages: [{ name: 'Stage', client_side: false, documents: [] }], p_day: 25, p_warn_days: 5, p_pct: 2.5 });
+  });
+
   it('AC-BST-004 a refusal detail from the database becomes the error code the screen explains', async () => {
     h.rpc.mockResolvedValue({ data: null, error: { message: 'complete the earlier billing stages first', code: '55000', details: 'stage-out-of-order' } });
     const err = await completeBillingStage({ stageId: 's2', completedOn: '2026-03-02', clientReference: 'JS-1', note: null }).catch((e) => e);
@@ -71,6 +80,11 @@ describe('billing stages DAL', () => {
     const rows = await getBillingReconciliation('p1', 'wo1');
     expect(h.rpc).toHaveBeenCalledWith('billing_reconciliation', { p_project: 'p1', p_work_order: 'wo1' });
     expect(rows).toEqual([expect.objectContaining({ itemCode: 'A', status: 'partly_billed', billedAmount: 400000 })]);
+  });
+
+  it('lists every retention release across multiple pages', async () => {
+    h.results.retention_releases = { data: Array.from({ length: 1001 }, (_, i) => ({ id: String(i), amount: 1, due_on: '2026-01-01', note: null, released_on: null, reference_no: null, document_id: null })), error: null };
+    expect(await listRetentionReleases('c1')).toHaveLength(1001);
   });
 
   it('AC-RET-002 scheduling returns the release id and names the over-release refusal', async () => {

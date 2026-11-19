@@ -5,6 +5,7 @@ do $$ begin
     raise exception 'retention is held on claims or releases are recorded; 0961 cannot be rolled back' using errcode = 'P0001';
   end if;
 end $$;
+drop function if exists public.set_project_billing_terms(uuid, jsonb, integer, integer, numeric);
 drop view if exists public.claim_retention;
 drop function if exists public.cancel_retention_release(uuid);
 drop function if exists public.release_retention(uuid, date, text, uuid);

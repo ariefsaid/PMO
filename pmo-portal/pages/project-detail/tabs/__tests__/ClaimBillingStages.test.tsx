@@ -27,6 +27,7 @@ vi.mock('@/src/hooks/useBillingStages', () => ({
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs, isPending: false, isError: false }) }));
 
+vi.mock('../RetentionReleases', () => ({ RetentionReleases: () => null }));
 import { ClaimBillingStages } from '../ClaimBillingStages';
 
 const doc = (id: string, title: string, status = 'Approved', file: string | null = `o/p/${id}/f.pdf`) => ({ id, title, status, file_path: file });
@@ -74,6 +75,7 @@ describe('ClaimBillingStages', () => {
     expect(screen.getByText('1 of 3 complete')).toBeInTheDocument();
     expect(screen.getByText(/Invoice deadline 25 Mar 2026 · 5 days left/)).toBeInTheDocument();
     expect(screen.getByText(/Retention held/)).toHaveTextContent('Retention held: IDR 50,000 (5%)');
+    expect(screen.getByText(/Scheduled total/)).toHaveTextContent('Scheduled total (including released): IDR 0 · Released: IDR 0');
     expect(screen.getByText('Complete every stage before raising the invoice.')).toBeInTheDocument();
   });
 
@@ -125,6 +127,14 @@ describe('ClaimBillingStages', () => {
     renderIt();
     expect(screen.getByText(/Invoice deadline 25 Mar 2026/)).toBeInTheDocument();
     expect(screen.getByText(/Retention held/)).toHaveTextContent('IDR 50,000');
+    expect(screen.getByRole('heading', { name: 'Billing terms' })).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Billing stages' })).not.toBeInTheDocument();
+  });
+
+  it('shows configured retention even when its held amount is zero', () => {
+    h.trace = { ...trace(), stages: [], deadline: null, retention: { pct: 5, amount: 0, scheduled: 0, released: 0, held: 0 } };
+    renderIt();
+    expect(screen.getByText(/Retention held/)).toHaveTextContent('IDR 0 (5%)');
   });
 
   it('renders nothing when no stages, deadline or retention exist', () => {

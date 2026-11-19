@@ -33,6 +33,7 @@ export function useProgressBillingMutations(projectId: string) {
     void qc.invalidateQueries({ queryKey: ['boq-items', orgId, projectId] });
     void qc.invalidateQueries({ queryKey: ['progress-claims', orgId, projectId] });
     void qc.invalidateQueries({ queryKey: ['project-billing', orgId, projectId] });
+    void qc.invalidateQueries({ queryKey: ['billing-reconciliation', orgId, projectId] });
     void qc.invalidateQueries({ queryKey: ['salesInvoices'] });
   };
   // OD-BILL-1: an unraised claim counts as pending against its work order, so a claim write also moves the

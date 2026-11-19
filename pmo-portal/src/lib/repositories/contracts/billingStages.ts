@@ -12,6 +12,7 @@ import type {
 export interface BillingStagesRepository {
   getTemplate(projectId: string): Promise<StageTemplateInput[]>;
   setTemplate(projectId: string, stages: StageTemplateInput[]): Promise<number>;
+  setTerms(projectId: string, stages: StageTemplateInput[], day: number | null, warnDays: number, pct: number): Promise<void>;
   getTerms(projectId: string): Promise<ProjectBillingTerms | null>;
   setInvoiceDeadline(projectId: string, day: number | null, warnDays: number): Promise<void>;
   setRetention(projectId: string, pct: number): Promise<void>;

@@ -18,6 +18,7 @@ import { statusLabel } from '@/src/lib/status/statusMap';
 import { invoiceBalanceFigures, QuantityFigure, type InvoiceWithWorkOrder, type OrderLineView, basisNote } from './workOrdersTabFigures';
 import { ClaimEvidenceList } from './ClaimEvidenceList';
 import { ClaimBillingStages } from './ClaimBillingStages';
+import { BillingReconciliation } from './BillingReconciliation';
 
 /** The delivery-selector drawer picks the work order a new BAST is recorded against. */
 export const DeliverySelectorDrawer: React.FC<{
@@ -127,6 +128,7 @@ export const WorkOrderPoDrawer: React.FC<{
       {canViewBilling && row.order_value !== null && <div><dt className="text-sm text-muted-foreground">{t('projectDetail.workOrders.orderValue', 'Order value')}</dt><dd className="mt-1 w-fit cursor-help font-semibold tabular-nums"><Tooltip content={t('projectDetail.workOrders.orderValueSource', 'Source: the customer order value set by an authorized reviewer.') }><span>{formatCurrency(Number(row.order_value), currency)} · {basisNote(row, t)}</span></Tooltip></dd></div>}
       {canViewBilling && row.closing_value !== null && <p className="text-sm font-semibold tabular-nums">{t('projectTabs:contractQuantities.workOrders.closing.closedAt', 'Closed at {{amount}} (excl. PPN)', { amount: formatCurrency(Number(row.closing_value), currency), interpolation: { escapeValue: false } })}</p>}
     </dl>
+    {canViewBilling && <BillingReconciliation projectId={projectId} workOrderId={row.id} currency={currency} />}
   </Drawer>;
 };
 
@@ -161,12 +163,13 @@ export const WorkOrderClaimDrawer: React.FC<{
   canRaise?: boolean;
   currency: string;
   projectId: string;
+  today?: string;
   /** The project register, when the caller has it: the evidence rows label each document by title. */
   documents?: ReadonlyArray<{ id: string; title: string | null }>;
   onClose: () => void;
   onRaise: (claim: ProgressClaimWithInvoice) => void;
   onAttachEvidence: (claimId: string) => void;
-}> = ({ claim, canBill, canRaise = true, currency, projectId, documents = [], onClose, onRaise, onAttachEvidence }) => {
+}> = ({ claim, canBill, canRaise = true, currency, projectId, today, documents = [], onClose, onRaise, onAttachEvidence }) => {
   const { t } = useTranslation('project');
   return <Drawer open width="lg" title={claim.kind === 'down_payment'
     ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment')
@@ -195,6 +198,6 @@ export const WorkOrderClaimDrawer: React.FC<{
         : <ClaimEvidenceList evidence={claim.evidence ?? []} projectId={projectId} documents={documents} />}
     </section>
     {claim.kind === 'progress' && <ClaimBillingStages claimId={claim.id} projectId={projectId} currency={currency}
-      invoiced={Boolean(claim.invoice)} withdrawn={Boolean(claim.withdrawn_at)} />}
+      invoiced={Boolean(claim.invoice)} withdrawn={Boolean(claim.withdrawn_at)} today={today} />}
   </Drawer>;
 };

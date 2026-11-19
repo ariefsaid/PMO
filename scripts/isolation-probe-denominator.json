@@ -1,5 +1,10 @@
 {
   "tables": [
+    {"table":"billing_stage_templates","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"billing_stage_template_documents","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"claim_billing_stages","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"claim_billing_stage_documents","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"retention_releases","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"agent_attachments","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"agent_automation_fires","has_org":false,"pk":"automation_id","columns":"*","b_read":"none","by_id":"n/a: no org_id; blind read covers the declared B visibility"},
     {"table":"agent_automations","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
@@ -206,6 +211,19 @@
     {"table":"work_orders","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
   ],
   "definer_functions": [
+    "set_billing_stage_template(uuid,jsonb)",
+    "set_project_invoice_deadline(uuid,integer,integer)",
+    "lock_billing_stage_claim(uuid)",
+    "attach_billing_stage_document(uuid,uuid)",
+    "note_billing_stage(uuid,text)",
+    "complete_billing_stage(uuid,date,text,text)",
+    "billing_stages_open(uuid)",
+    "set_project_retention(uuid,numeric)",
+    "set_project_billing_terms(uuid,jsonb,integer,integer,numeric)",
+    "lock_retention_claim(uuid)",
+    "schedule_retention_release(uuid,numeric,date,text)",
+    "release_retention(uuid,date,text,uuid)",
+    "cancel_retention_release(uuid)",
     "_erp_ack_statement_dirty_dates(uuid,text,bigint)",
     "_erp_statement_change_context(uuid,uuid,uuid,timestamp with time zone)",
     "_erp_statement_change_lease_check(uuid,uuid)",
@@ -750,6 +768,7 @@
     "project-documents"
   ],
   "rpcs": [
+    {"class":"write","expect_denial":[{"http":403,"sqlstate":"42501"},{"http":500,"sqlstate":"P0002"}],"name":"set_project_billing_terms","source":["supabase/migrations/0961_retention.sql:62","supabase/migrations/0961_retention.sql:65"]},
     {"name":"capture_history_apply","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0866_erp_purchase_capture.sql:191"]},
     {"name":"capture_history_apply_internal","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0866_erp_purchase_capture.sql:191"]},
     {"name":"assign_capture_invoices","class":"read","expect_denial":[{"http":403,"sqlstate":"42501"}],"shape":"own-org-no-foreign-ids","source":["supabase/migrations/0882_capture_invoice_assignment.sql:617","supabase/migrations/0882_capture_invoice_assignment.sql:626"]},

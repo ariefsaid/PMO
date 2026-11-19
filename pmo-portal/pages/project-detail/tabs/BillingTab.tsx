@@ -29,6 +29,7 @@ import ProgressClaimModal from '../ProgressClaimModal';
 import ClaimEvidenceModal from '../ClaimEvidenceModal';
 import { ClaimEvidenceList } from './ClaimEvidenceList';
 import { ClaimBillingStages } from './ClaimBillingStages';
+import { BillingReconciliation } from './BillingReconciliation';
 import { BillingTermsModal } from './BillingTermsModal';
 import ProjectBillingStart from '../ProjectBillingStart';
 import TimeAndMaterials from '../TimeAndMaterials';
@@ -619,7 +620,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         : <ClaimEvidenceList evidence={claimDetailFor.evidence} projectId={projectId} documents={documents.data ?? []} />}
     </section>
     {claimDetailFor.kind === 'progress' && <ClaimBillingStages claimId={claimDetailFor.id} projectId={projectId} currency={currency}
-      invoiced={Boolean(claimDetailFor.invoice)} withdrawn={Boolean(claimDetailFor.withdrawn_at)} />}
+      invoiced={Boolean(claimDetailFor.invoice)} withdrawn={Boolean(claimDetailFor.withdrawn_at)} today={orgToday} />}
   </Drawer>;
 
   const timeAndMaterials = canViewMoney && <TimeAndMaterials projectId={projectId} projectManagerId={projectManagerId} currency={currency}
@@ -670,6 +671,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           <Button variant="outline" size="sm" onClick={() => setContractLinesOpen(true)}>
             {t('projectDetail.billing.boq.manage', 'Edit contract lines')}
           </Button>
+          {may('edit', 'billingStage') && <Button variant="outline" size="sm" onClick={() => setTermsOpen(true)}>{t('projectDetail.billing.terms.title', 'Billing terms')}</Button>}
           {canStartInvoice && <Link
             className={buttonClasses('outline', 'sm')}
             to={`/finance/receivables?create=1&project=${encodeURIComponent(projectId)}`}
@@ -678,6 +680,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           </Link>}
         </div>
         {raiseInvoiceDialog}
+        {termsOpen && <BillingTermsModal projectId={projectId} onClose={() => setTermsOpen(false)} />}
         <Drawer open={contractLinesOpen} nestedOpen={Boolean(boqDetailFor)} width="lg" title={t('projectDetail.billing.boq.title', 'Bill of quantities')}
           initialFocus={() => {
             if (!focusImportOnReopen.current) return true;
@@ -797,6 +800,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           {canViewMoney && claimsCard}
         </>
       )}
+
+      {canViewMoney && <BillingReconciliation projectId={projectId} workOrderId={null} currency={currency} />}
 
       {timeAndMaterials}
 

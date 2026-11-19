@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
-import type { CompleteStageInput, StageTemplateInput } from '@/src/lib/db/billingStages';
+import type { CompleteStageInput, RetentionReleaseInput, StageTemplateInput } from '@/src/lib/db/billingStages';
 
 /** One claim's billing stages, retention and the project's invoice deadline (#2522). Keys carry org_id. */
 export function useClaimBillingTrace(claimId: string, projectId: string) {
@@ -19,6 +19,7 @@ export function useBillingReconciliation(projectId: string, workOrderId: string 
   return useQuery({
     queryKey: ['billing-reconciliation', orgId, projectId, workOrderId],
     queryFn: () => repositories.billingStages.reconciliation(projectId, workOrderId),
+    staleTime: 0,
     enabled: Boolean(orgId) && Boolean(projectId),
   });
 }
@@ -65,16 +66,28 @@ export interface SaveBillingTermsInput {
   retentionPct: number;
 }
 
-/** Saves the three terms in order (each its own Finance/Admin RPC); new claims take the new stage list. */
+/** Saves all terms in one transaction; new claims take the new stage list. */
 export function useSaveBillingTerms(projectId: string) {
   const qc = useQueryClient();
   const orgId = useAuth().currentUser?.org_id;
   return useMutation({
-    mutationFn: async (input: SaveBillingTermsInput) => {
-      await repositories.billingStages.setTemplate(projectId, input.stages);
-      await repositories.billingStages.setInvoiceDeadline(projectId, input.deadlineDay, input.warnDays);
-      await repositories.billingStages.setRetention(projectId, input.retentionPct);
-    },
+    mutationFn: (input: SaveBillingTermsInput) => repositories.billingStages.setTerms(projectId, input.stages, input.deadlineDay, input.warnDays, input.retentionPct),
     onSettled: () => { void qc.invalidateQueries({ queryKey: ['project-billing-terms', orgId, projectId] }); },
   });
+}
+
+/** Retention releases share the claim's totals and refresh after every write. */
+export function useRetentionReleases(claimId: string, projectId: string) {
+  const qc = useQueryClient();
+  const orgId = useAuth().currentUser?.org_id;
+  const invalidate = () => {
+    void qc.invalidateQueries({ queryKey: ['retention-releases', orgId, claimId] });
+    void qc.invalidateQueries({ queryKey: ['claim-billing-trace', orgId, claimId] });
+    void qc.invalidateQueries({ queryKey: ['progress-claims', orgId, projectId] });
+  };
+  const releases = useQuery({ queryKey: ['retention-releases', orgId, claimId], queryFn: () => repositories.billingStages.listReleases(claimId), enabled: Boolean(orgId && claimId) });
+  const schedule = useMutation({ mutationFn: (input: RetentionReleaseInput) => repositories.billingStages.scheduleRelease(input), onSuccess: invalidate });
+  const release = useMutation({ mutationFn: (input: { releaseId: string; releasedOn: string; reference: string | null; documentId: string | null }) => repositories.billingStages.release(input.releaseId, input.releasedOn, input.reference, input.documentId), onSuccess: invalidate });
+  const cancel = useMutation({ mutationFn: (releaseId: string) => repositories.billingStages.cancelRelease(releaseId), onSuccess: invalidate });
+  return { releases, schedule, release, cancel };
 }
