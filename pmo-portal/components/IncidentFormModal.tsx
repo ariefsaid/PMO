@@ -13,6 +13,7 @@ import {
   Button,
   Icon,
 } from '@/src/components/ui';
+import { FileInput } from '@/src/components/ui/FormFields';
 import { useProjectOptions } from '@/src/hooks/useFkOptions';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useAssigneeOptions, useIncidentEvidenceMutations } from '@/src/hooks/useIncidents';
@@ -325,9 +326,8 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
       {!isEdit && (
         <FormSection legend={t('form.photos', 'Photos')}>
           {/* Opens the phone camera; on a desktop it is an ordinary file picker. Up to 10, 15 MB each. */}
-          <input
+          <FileInput
             ref={fileInput}
-            type="file"
             accept="image/*"
             capture="environment"
             multiple

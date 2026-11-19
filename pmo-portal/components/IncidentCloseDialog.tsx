@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { EntityFormModal, TextArea, Button, Icon } from '@/src/components/ui';
+import { FileInput } from '@/src/components/ui/FormFields';
 import { needsCloseProof } from '@/src/lib/incidents/overdue';
 import type { IncidentRow } from '@/src/lib/db/incidents';
 import { useIncidentEvidenceMutations } from '@/src/hooks/useIncidents';
@@ -64,9 +65,8 @@ export const IncidentCloseDialog: React.FC<{
         fullWidth
       />
       <div className="mt-3">
-        <input
+        <FileInput
           ref={input}
-          type="file"
           accept="image/*"
           capture="environment"
           multiple

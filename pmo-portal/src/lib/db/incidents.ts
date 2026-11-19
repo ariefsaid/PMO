@@ -248,7 +248,8 @@ export async function listIncidentFiles(incidentId: string): Promise<IncidentFil
     .select('*')
     .eq('incident_id', incidentId)
     .is('archived_at', null)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: true })
+    .limit(50); // bounded: the database allows at most 10 live files per issue
   if (error) throwWrite(error);
   return data ?? [];
 }

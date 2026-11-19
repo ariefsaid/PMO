@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Icon, useToast } from '@/src/components/ui';
+import { FileInput } from '@/src/components/ui/FormFields';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { IncidentFileRow, IncidentRow } from '@/src/lib/db/incidents';
@@ -63,9 +64,8 @@ export const IncidentEvidence: React.FC<{
       )}
       {canAdd && files.length < 10 && (
         <div className="mt-3">
-          <input
+          <FileInput
             ref={input}
-            type="file"
             accept="image/*"
             capture="environment"
             multiple
