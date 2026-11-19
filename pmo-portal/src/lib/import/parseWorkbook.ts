@@ -6,7 +6,7 @@ import { readWorkbookGrid } from './readWorkbookGrid';
  * The shared raw-cell reader keeps ExcelJS lazy and the compatibility projection below
  * deliberately preserves the original first-row/header, blank-row and size behavior.
  */
-export async function parseWorkbook(buf: ArrayBuffer): Promise<ParsedSheet> {
+export async function parseWorkbook(buf: ArrayBuffer, maxRows: number = MAX_IMPORT_ROWS): Promise<ParsedSheet> {
   const grid = await readWorkbookGrid(buf);
   const headers = (grid.rows[0] ?? []).map(cell => cell.text);
   const rows: string[][] = [];
@@ -15,8 +15,8 @@ export async function parseWorkbook(buf: ArrayBuffer): Promise<ParsedSheet> {
     if (cells.some(value => value !== '')) rows.push(cells);
   }
   if (rows.length === 0) throw new ImportParseError('empty', 'The sheet has no data rows to import.');
-  if (rows.length > MAX_IMPORT_ROWS) {
-    throw new ImportParseError('too_many_rows', `Too many rows: ${rows.length}. Import at most ${MAX_IMPORT_ROWS} rows at a time.`);
+  if (rows.length > maxRows) {
+    throw new ImportParseError('too_many_rows', `Too many rows: ${rows.length}. Import at most ${maxRows} rows at a time.`);
   }
   return { headers, rows };
 }

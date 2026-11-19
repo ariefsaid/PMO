@@ -67,6 +67,8 @@ export interface ImportDescriptor<Input> {
    */
   wide?: boolean;
   fields: ImportField<Input>[];
+  /** OPTIONAL row cap for this entity's sheet; ABSENT → `MAX_IMPORT_ROWS`. A large reference list (the rate catalogue, #2520) sets it. */
+  maxRows?: number;
   /**
    * OPTIONAL cross-field row rule, run after every per-cell `validate` (#513).
    *
