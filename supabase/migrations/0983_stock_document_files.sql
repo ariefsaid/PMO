@@ -53,6 +53,38 @@ grant insert (id, document_id, file_path, label) on public.stock_document_files 
 grant delete on public.stock_document_files to authenticated;
 -- No UPDATE grant: archiving goes through archive_stock_document_file only.
 
+-- Bind the evidence row to the uploaded object and its exact document and file identity.
+create or replace function public.guard_stock_file_object() returns trigger
+  language plpgsql security definer set search_path = public, storage, pg_temp as $$
+begin
+  if split_part(new.file_path, '/', 1) is distinct from new.org_id::text
+     or split_part(new.file_path, '/', 2) is distinct from new.document_id::text
+     or split_part(new.file_path, '/', 3) is distinct from new.id::text
+     or array_length(string_to_array(new.file_path, '/'), 1) is distinct from 4
+     or split_part(new.file_path, '/', 4) = ''
+     or not exists (select 1 from storage.objects o where o.bucket_id = 'stock-documents' and o.name = new.file_path) then
+    raise exception 'STK_FILE_MISSING: upload the attachment before linking it' using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+revoke all on function public.guard_stock_file_object() from public, anon, authenticated;
+create trigger stock_document_files_zz_object before insert on public.stock_document_files for each row execute function public.guard_stock_file_object();
+
+-- Serialize object deletion with posting; a posted document keeps its uploaded paper.
+create or replace function public.guard_stock_storage_delete() returns trigger
+  language plpgsql security definer set search_path = public, storage, pg_temp as $$
+declare v_status text;
+begin
+  if old.bucket_id <> 'stock-documents' then return old; end if;
+  select d.status into v_status from public.stock_documents d where d.id::text = split_part(old.name, '/', 2) for update;
+  if v_status is distinct from 'Draft' then
+    raise exception 'STK_FILE_LOCKED: a posted document''s attachment cannot be deleted; archive it with a reason' using errcode = 'P0001';
+  end if;
+  return old;
+end $$;
+revoke all on function public.guard_stock_storage_delete() from public, anon, authenticated;
+create trigger stock_storage_no_posted_delete before delete on storage.objects for each row execute function public.guard_stock_storage_delete();
+
 -- A Posted (or Cancelled) document's attachment is never deleted, by any caller.
 create or replace function public.guard_stock_file_delete() returns trigger
   language plpgsql security definer set search_path = public as $$
@@ -72,7 +104,11 @@ create or replace function public.archive_stock_document_file(p_file_id uuid, p_
 declare f public.stock_document_files; v_uid uuid := auth.uid();
 begin
   perform public.assert_is_active_member();
-  select * into f from public.stock_document_files x where x.id = p_file_id and x.org_id = public.auth_org_id() for update;
+  select * into f from public.stock_document_files x where x.id = p_file_id and x.org_id = public.auth_org_id();
+  if found then
+    perform 1 from public.stock_documents d where d.id = f.document_id for update;
+    select * into f from public.stock_document_files x where x.id = p_file_id and x.org_id = public.auth_org_id() for update;
+  end if;
   if not found then raise exception 'STK_NOT_FOUND: the file is not in your organisation' using errcode = 'P0001'; end if;
   if not public.stock_can_attach(f.document_id) then raise exception 'you cannot change this document''s attachments' using errcode = '42501'; end if;
   if nullif(btrim(p_reason), '') is null or length(p_reason) > 500 then raise exception 'STK_INVALID: archiving needs a reason' using errcode = 'P0001'; end if;
@@ -137,12 +173,20 @@ begin
   if exists (select 1 from public.stock_warehouses w where w.id in (d.warehouse_id, coalesce(d.to_warehouse_id, d.warehouse_id)) and w.archived_at is not null)
      or exists (select 1 from public.stock_document_lines l join public.stock_items i on i.id = l.item_id where l.document_id = d.id and i.archived_at is not null) then
     raise exception 'STK_ARCHIVED: a warehouse or item on this document was archived' using errcode = 'P0001'; end if;
+  -- Retagging is allowed until the first movement; recheck any draft lines under item/tag locks.
+  perform 1 from public.stock_tags t where t.id in (select i.tag_id from public.stock_document_lines l join public.stock_items i on i.id = l.item_id where l.document_id = d.id) order by t.id for share;
+  if exists (select 1 from public.stock_document_lines l join public.stock_items i on i.id = l.item_id
+             join public.stock_tags t on t.id = i.tag_id where l.document_id = d.id and t.zero_cost and l.unit_cost <> 0) then
+    raise exception 'STK_ZERO_COST: a client-supplied item is received at cost 0' using errcode = 'P0001';
+  end if;
+  -- Lock live evidence before checking it, so an archive cannot race the posting.
+  perform 1 from public.stock_document_files f where f.document_id = d.id and f.archived_at is null order by f.id for share;
   -- FR-SSW-022: a transfer of a zero-cost item whose tag says "paper required" posts only with a live attachment.
   if d.kind = 'transfer'
      and exists (select 1 from public.stock_document_lines l join public.stock_items i on i.id = l.item_id
                    join public.stock_tags t on t.id = i.tag_id
                   where l.document_id = d.id and t.zero_cost and t.paper_required)                     -- mut:paper
-     and not exists (select 1 from public.stock_document_files f where f.document_id = d.id and f.archived_at is null) then
+     and not exists (select 1 from public.stock_document_files f join storage.objects o on o.bucket_id = 'stock-documents' and o.name = f.file_path where f.document_id = d.id and f.archived_at is null) then
     raise exception 'STK_PAPER_REQUIRED: attach the delivery paper before posting this client-supplied transfer' using errcode = 'P0001';
   end if;
   perform public.stock_apply(d, true);

@@ -139,7 +139,7 @@ create or replace function public.guard_stock_tag_flags() returns trigger
   language plpgsql security definer set search_path = public as $$
 begin
   if (new.zero_cost is distinct from old.zero_cost) and exists (
-       select 1 from public.stock_items i join public.stock_document_lines l on l.item_id = i.id where i.tag_id = new.id) then
+       select 1 from public.stock_items i join public.stock_ledger l on l.item_id = i.id where i.tag_id = new.id) then
     raise exception 'STK_TAG_LOCKED: the zero-cost flag of a tag whose items have movements cannot change' using errcode = 'P0001';
   end if;
   return new;
@@ -170,7 +170,7 @@ create trigger stock_document_lines_zz_zero_cost before insert or update of unit
 create or replace function public.guard_stock_item_tag() returns trigger
   language plpgsql security definer set search_path = public as $$
 begin
-  if new.tag_id is distinct from old.tag_id and exists (select 1 from public.stock_document_lines l where l.item_id = new.id) then   -- mut:tag_frozen
+  if new.tag_id is distinct from old.tag_id and exists (select 1 from public.stock_ledger l where l.item_id = new.id) then   -- mut:tag_frozen
     raise exception 'STK_TAG_LOCKED: the tag of an item with movements cannot change' using errcode = 'P0001';
   end if;
   return new;

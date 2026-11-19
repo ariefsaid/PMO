@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Button,
@@ -27,6 +27,7 @@ import { statusLabel } from '@/src/lib/status/statusMap';
 import { summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
 import WorkOrderAcceptances from '../WorkOrderAcceptances';
 import { WorkOrderCostVariations } from '../WorkOrderCostVariations';
+import { WorkOrderStockBalance } from '../../stock/WorkOrderStockBalance';
 import { MoneyFigure, type InvoiceWithWorkOrder, type OrderLineView } from './workOrdersTabFigures';
 
 /** The billing/invoice figure reads the card's incompleteness states surface. */
@@ -122,6 +123,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
   linesRead,
 }) => {
   const { t } = useTranslation('project');
+  useTranslation('stock');
   const may = usePermission();
   const billingStateLabels: Record<Exclude<WorkOrderBillingState, 'not-billable'>, string> = {
     incomplete: t('common:projectDetail.workOrders.billing.status.incomplete', "Can't total"),
@@ -142,6 +144,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
     'partly-invoiced': 'progress',
   };
 
+  const [stockOpen, setStockOpen] = useState(false);
   const orderAllocations = contractAllocationsByWo.get(row.id) ?? [];
   const rawLines = allocationsByWo.get(row.id) ?? [];
   const hasOrderLines = orderAllocations.length > 0 || rawLines.length > 0;
@@ -380,6 +383,13 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
 
       <div className="mt-3 border-t border-border pt-3">
         <WorkOrderCostVariations workOrderId={row.id} currency={currency} />
+      </div>
+
+      <div className="mt-3 border-t border-border pt-3">
+        <Button variant="ghost" size="sm" aria-expanded={stockOpen} onClick={() => setStockOpen(!stockOpen)}>
+          {t('stock:siteWork.balance.open', 'Stock for this work order')}
+        </Button>
+        {stockOpen && <WorkOrderStockBalance workOrderId={row.id} currency={currency} />}
       </div>
 
       <div className="mt-4 flex flex-col gap-3">

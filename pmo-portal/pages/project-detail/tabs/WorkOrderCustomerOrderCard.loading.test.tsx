@@ -1,6 +1,6 @@
 /** AC-NBR-009: a customer-order card shows the parent's settlement figures and issues no read of its own. */
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
@@ -10,6 +10,7 @@ import type { InvoiceWithWorkOrder } from './workOrdersTabFigures';
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => false }));
 // Their own reads are not this card's invoice/billing reads; stubbed so the cache can only hold the card's.
 vi.mock('../WorkOrderAcceptances', () => ({ default: () => null }));
+vi.mock('../../stock/WorkOrderStockBalance', () => ({ WorkOrderStockBalance: ({ workOrderId }: { workOrderId: string }) => <p>Stock for {workOrderId}</p> }));
 vi.mock('../WorkOrderCostVariations', () => ({ WorkOrderCostVariations: () => null }));
 
 import WorkOrderCustomerOrderCard from './WorkOrderCustomerOrderCard';
@@ -63,4 +64,11 @@ describe('AC-NBR-009 customer-order card reads come from its parent', () => {
     expect(billingRead.refetch).toHaveBeenCalled();
     expect(invoicesRead.refetch).toHaveBeenCalled();
   });
+});
+
+it('opens the stock balance for this work order on request', () => {
+  mount(card());
+  expect(screen.queryByText('Stock for wo1')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByText('Stock for this work order'));
+  expect(screen.getByText('Stock for wo1')).toBeInTheDocument();
 });
