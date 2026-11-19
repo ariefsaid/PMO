@@ -11,8 +11,9 @@ vi.mock('@/src/hooks/useWorkOrderPlanVsActual', () => ({
   useDeletePlanLine: () => ({ mutateAsync: h.deletePlan }),
 }));
 
-import SharedCostSplitModal, { splitSum } from '../SharedCostSplitModal';
-import WorkOrderPlanModal, { planValueProblem } from '../WorkOrderPlanModal';
+import SharedCostSplitModal from '../SharedCostSplitModal';
+import WorkOrderPlanModal from '../WorkOrderPlanModal';
+import { planValueProblem, splitSum } from '@/src/lib/workOrderPlanVsActual';
 
 const wo = (id: string, n: string) => ({ id, woNumber: n, title: n, status: 'Issued' as const, currency: 'IDR', revenue: null, revenueComplete: false });
 

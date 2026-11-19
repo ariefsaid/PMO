@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { EntityFormModal, FormGrid, TextField, type SubmitError } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useDeletePlanLine, useSavePlanLine } from '@/src/hooks/useWorkOrderPlanVsActual';
-import { PLAN_KINDS, type PlanKind, type PlanLine, type PvaWorkOrder } from '@/src/lib/workOrderPlanVsActual';
+import { PLAN_KINDS, planValueProblem, type PlanKind, type PlanLine, type PvaWorkOrder } from '@/src/lib/workOrderPlanVsActual';
 
 /**
  * #2519 FR-WPVA-001..003: a work order's planned figures (whole-work-order level). A blank field means no figure;
@@ -15,13 +15,6 @@ interface Props {
   workOrder: PvaWorkOrder;
   plans: PlanLine[];
   onClose: () => void;
-}
-
-const VALID = /^\d{1,15}(\.\d{1,2})?$/;
-
-export function planValueProblem(raw: string): 'format' | null {
-  const v = raw.trim();
-  return v === '' || VALID.test(v) ? null : 'format';
 }
 
 const WorkOrderPlanModal: React.FC<Props> = ({ projectId, workOrder, plans, onClose }) => {

@@ -101,6 +101,23 @@ export function parseSplitPercent(value: string): bigint | null {
   return units > 1000000n ? null : units;
 }
 
+/** The split editor's live sum in millionths of the whole, or null while any entry is unreadable. */
+export function splitSum(values: readonly string[]): bigint | null {
+  let total = 0n;
+  for (const v of values) {
+    const p = parseSplitPercent(v);
+    if (p === null) return null;
+    total += p;
+  }
+  return total;
+}
+
+/** A plan figure as typed: blank (no figure) or a non-negative number with up to 2 decimals (FR-WPVA-002). */
+export function planValueProblem(raw: string): 'format' | null {
+  const v = raw.trim();
+  return v === '' || /^\d{1,15}(\.\d{1,2})?$/.test(v) ? null : 'format';
+}
+
 export interface AllocationInput { workOrderId: string; woNumber: string | null; direct: bigint; cancelled: boolean }
 export interface AllocationResult {
   basis: 'direct-share' | 'equal-split' | 'custom' | 'none';

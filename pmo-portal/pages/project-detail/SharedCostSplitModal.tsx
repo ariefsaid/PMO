@@ -4,7 +4,7 @@ import { Button, EntityFormModal, FormGrid, TextField, type SubmitError } from '
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatExactDecimal } from '@/src/lib/format';
 import { useClearSharedSplit, useSetSharedSplit } from '@/src/hooks/useWorkOrderPlanVsActual';
-import { parseSplitPercent, type PvaWorkOrder, type SplitPercent } from '@/src/lib/workOrderPlanVsActual';
+import { splitSum, type PvaWorkOrder, type SplitPercent } from '@/src/lib/workOrderPlanVsActual';
 
 /**
  * #2519 FR-WPVA-022: a project's custom split of its shared cost — one percentage per live work order, up to 4
@@ -16,17 +16,6 @@ interface Props {
   workOrders: PvaWorkOrder[];
   split: SplitPercent[] | null;
   onClose: () => void;
-}
-
-/** The live sum in millionths of the whole, or null while any entry is unreadable. */
-export function splitSum(values: readonly string[]): bigint | null {
-  let total = 0n;
-  for (const v of values) {
-    const p = parseSplitPercent(v);
-    if (p === null) return null;
-    total += p;
-  }
-  return total;
 }
 
 function percentText(units: bigint): string {
