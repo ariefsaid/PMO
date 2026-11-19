@@ -34,6 +34,7 @@ import { dayKey, weekStart, datesInWeek, entriesToGridRows, gridDaysForWeek } fr
 import { useTimesheetWeekEditor } from './timesheets/useTimesheetWeekEditor';
 import { TimesheetWeekToolbar } from './timesheets/TimesheetWeekToolbar';
 import { TimesheetWeekActions } from './timesheets/TimesheetWeekActions';
+import { TimesheetRowAttribution } from './timesheets/TimesheetRowAttribution';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 
 // RF-061: recognizable code + short title in the picker; the added row shows the full name.
@@ -127,10 +128,10 @@ const TimesheetsPage: React.FC = () => {
     currentTimesheet, currentWeekEntries, gridRows, weekDates, weekStartDate, weekStartString,
     allProjects, signedInUserId, currentDate, setCurrentDate, lastWeekEntries, entryMutations, submit,
   });
-  const { pickerOptions, invalidCells, editValid, editTotals, editGridRows, editNotes,
+  const { pickerOptions, invalidCells, editValid, editTotals, editGridRows, editNotes, rowAttributions,
     editRawHours, rowToDelete, dirty, hasUnsavedBuffer, pendingWeekDelta, weekRangeLabel,
     isOwner, editBufferHasHours, canSubmit, confirmSubmit, copyPlan } = editor.view;
-  const { setCell, setNote, addProject, copyLastWeek, requestDelete, cancelDelete, confirmDeleteRow,
+  const { setCell, setNote, setAttribution, addProject, copyLastWeek, requestDelete, cancelDelete, confirmDeleteRow,
     commitSave, stepWeek, cancelWeekChange, confirmWeekChange, requestSubmit,
     cancelSubmit, commitSubmit } = editor.actions;
   const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
@@ -373,18 +374,21 @@ const TimesheetsPage: React.FC = () => {
               </p>
             </div>
           ) : (
-            <TimesheetGrid
-              days={gridDays}
-              rows={editGridRows}
-              editable
-              notes={editNotes}
-              rawHours={editRawHours}
-              invalidCells={invalidCells}
-              onCellChange={setCell}
-              onNoteChange={setNote}
-              onDeleteRow={requestDelete}
-              hideMobileWeekTotal={!isDesktop}
-            />
+            <>
+              <TimesheetGrid
+                days={gridDays}
+                rows={editGridRows}
+                editable
+                notes={editNotes}
+                rawHours={editRawHours}
+                invalidCells={invalidCells}
+                onCellChange={setCell}
+                onNoteChange={setNote}
+                onDeleteRow={requestDelete}
+                hideMobileWeekTotal={!isDesktop}
+              />
+              <TimesheetRowAttribution rows={rowAttributions} onChange={setAttribution} />
+            </>
           )
         ) : gridRows.length === 0 ? (
           <div data-testid="timesheets-empty">

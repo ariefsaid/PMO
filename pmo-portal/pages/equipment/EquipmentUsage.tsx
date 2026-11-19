@@ -20,11 +20,14 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatDay, formatNumberMax2, formatWeekdayDay } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { addDays, fromIso, mondayOf, toIso, weekDays } from './equipmentWeek';
+import { CostAttributionFields } from '@/src/components/workOrders/CostAttributionFields';
+import { describeAttributionError } from '@/src/components/workOrders/costAttributionError';
+import { NO_ATTRIBUTION, workOrderCostRepository, type CostAttribution } from '@/src/lib/repositories/workOrderCosts';
 
 type Field = 'quantity' | 'fuel_litres' | 'trips';
 type Kind = 'work' | 'standby';
 /** One grid line: an (asset, project, kind) pair, or a fuel/trips line opened under it. */
-interface GridRow { key: string; assetId: string; projectId: string; kind: Kind; field: Field }
+interface GridRow { key: string; assetId: string; projectId: string; kind: Kind; field: Field; attribution: CostAttribution }
 type Tab = 'log' | 'approvals';
 type Pending = { id: string; label: string } | null;
 
@@ -71,10 +74,10 @@ const EquipmentUsagePage: React.FC = () => {
   const setTab = (next: Tab) => setFilter('tab', next === 'log' ? '' : next);
   const assetFilter = values.asset || null;
   const setAssetFilter = (next: string | null) => setFilter('asset', next ?? '');
-  const [added, setAdded] = useState<Array<{ assetId: string; projectId: string; kind: Kind }>>([]);
+  const [added, setAdded] = useState<Array<{ assetId: string; projectId: string; kind: Kind; attribution: CostAttribution }>>([]);
   const [opened, setOpened] = useState<Set<string>>(new Set());
   const [adding, setAdding] = useState(false);
-  const [draftRow, setDraftRow] = useState<{ assetId: string | null; projectId: string | null; kind: Kind }>({ assetId: null, projectId: null, kind: 'work' });
+  const [draftRow, setDraftRow] = useState<{ assetId: string | null; projectId: string | null; kind: Kind; attribution: CostAttribution }>({ assetId: null, projectId: null, kind: 'work', attribution: NO_ATTRIBUTION });
   const [warnings, setWarnings] = useState<Record<string, number>>({});
   const [problem, setProblem] = useState<string | null>(null);
   const [decisionError, setDecisionError] = useState<string | null>(null);
@@ -120,8 +123,16 @@ const EquipmentUsagePage: React.FC = () => {
   // Rows: every (asset, project, kind) with an entry this week, plus the ones added by hand; fuel/trips lines open beneath their row.
   const gridRows = useMemo(() => {
     const seen = new Map<string, GridRow>();
-    for (const e of mine) seen.set(rowKey(e.asset_id, e.project_id, e.kind), { key: rowKey(e.asset_id, e.project_id, e.kind), assetId: e.asset_id, projectId: e.project_id, kind: e.kind as Kind, field: 'quantity' });
-    for (const a of added) if (!assetFilter || a.assetId === assetFilter) seen.set(rowKey(a.assetId, a.projectId, a.kind), { key: rowKey(a.assetId, a.projectId, a.kind), ...a, field: 'quantity' });
+    // A row's work order and discipline (#2517) come from its entries, or from the Add-row pickers for a new row.
+    for (const e of mine) {
+      const key = rowKey(e.asset_id, e.project_id, e.kind);
+      if (!seen.has(key)) seen.set(key, { key, assetId: e.asset_id, projectId: e.project_id, kind: e.kind as Kind, field: 'quantity',
+        attribution: { workOrderId: e.work_order_id ?? null, disciplineId: e.discipline_id ?? null } });
+    }
+    for (const a of added) {
+      const key = rowKey(a.assetId, a.projectId, a.kind);
+      if ((!assetFilter || a.assetId === assetFilter) && !seen.has(key)) seen.set(key, { key, ...a, field: 'quantity' });
+    }
     const base = [...seen.values()].sort((a, b) =>
       assetName(a.assetId).localeCompare(assetName(b.assetId)) || projectName(a.projectId).localeCompare(projectName(b.projectId)) || a.kind.localeCompare(b.kind));
     return base.flatMap((r) => (opened.has(r.key)
@@ -163,6 +174,11 @@ const EquipmentUsagePage: React.FC = () => {
           fuel_litres: row.field === 'fuel_litres' ? value : entry.fuel_litres, trips: row.field === 'trips' ? value : entry.trips }
         : { asset_id: row.assetId, project_id: row.projectId, work_date: date, quantity: value ?? 0, unit: unit as UsageInput['unit'], kind: row.kind };
       const result = await save.mutateAsync(input);
+      // A NEW entry takes its row's work order and discipline (#2517); the entry is saved even if that step is refused.
+      if (!entry) {
+        try { await workOrderCostRepository.attributeCreated('equipment_usage', result.id, row.attribution); }
+        catch (err) { const d = describeAttributionError(err, t); setProblem(`${d.headline}. ${d.detail}`); }
+      }
       setWarnings((w) => {
         const next = { ...w };
         if (result.over_24h) next[date] = result.day_total_hours; else delete next[date];
@@ -240,8 +256,8 @@ const EquipmentUsagePage: React.FC = () => {
 
   const addRow = () => {
     if (!draftRow.assetId || !draftRow.projectId) return;
-    setAdded((rows) => [...rows, { assetId: draftRow.assetId!, projectId: draftRow.projectId!, kind: draftRow.kind }]);
-    setDraftRow({ assetId: null, projectId: null, kind: 'work' });
+    setAdded((rows) => [...rows, { assetId: draftRow.assetId!, projectId: draftRow.projectId!, kind: draftRow.kind, attribution: draftRow.attribution }]);
+    setDraftRow({ assetId: null, projectId: null, kind: 'work', attribution: NO_ATTRIBUTION });
     setAdding(false);
   };
 
@@ -367,6 +383,8 @@ const EquipmentUsagePage: React.FC = () => {
                     loadOptions={() => Promise.resolve(projectOptions)} onChange={(v) => setDraftRow((d) => ({ ...d, projectId: v }))} /></div>
                   <div className="w-36"><SelectField label={t('equipment:usage.rowKind', 'Kind')} value={draftRow.kind} onChange={(v) => setDraftRow((d) => ({ ...d, kind: v as Kind }))}
                     options={[{ value: 'work', label: t('equipment:usage.kindWork', 'Work') }, { value: 'standby', label: t('equipment:usage.kindStandby', 'Standby') }]} /></div>
+                  <CostAttributionFields idPrefix="equipment-row" itemClassName="w-64" projectId={draftRow.projectId} value={draftRow.attribution}
+                    onChange={(attribution) => setDraftRow((d) => ({ ...d, attribution }))} />
                   <Button variant="primary" disabled={!draftRow.assetId || !draftRow.projectId} onClick={addRow}>{t('equipment:usage.addRowConfirm', 'Add')}</Button>
                   <Button variant="ghost" onClick={() => setAdding(false)}>{t('equipment:usage.cancel', 'Cancel')}</Button>
                 </div>}

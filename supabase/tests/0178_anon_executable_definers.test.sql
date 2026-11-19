@@ -431,6 +431,7 @@ insert into client_callable_rpc_names (proname) values
   ('accept_invoice_pairs'),
   ('set_sales_invoice_efaktur'),
   ('set_sales_invoice_received_date'),
+  ('set_cost_attribution'),
   ('set_stock_reorder_level'),
   ('set_stock_warehouse_keeper'),
   ('set_subcontract_po_lines'),
