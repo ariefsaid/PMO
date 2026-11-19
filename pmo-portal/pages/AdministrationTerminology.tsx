@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { usePermission } from '@/src/auth/usePermission';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, ListState, TextField, useToast } from '@/src/components/ui';
@@ -22,6 +23,7 @@ const LOCALE_NAME: Record<TermLocale, string> = { en: 'English', id: 'Bahasa Ind
 const TermRow: React.FC<{ termKey: TermKey; locale: TermLocale; current?: TermForms }> = ({ termKey, locale, current }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
+  const canEdit = usePermission()('edit', 'user');
   const qc = useQueryClient();
   const shipped = shippedTerm(locale, termKey);
   const [singular, setSingular] = useState(current?.singular ?? '');
@@ -58,6 +60,7 @@ const TermRow: React.FC<{ termKey: TermKey; locale: TermLocale; current?: TermFo
       </div>
       <TextField
         label={t('administration:terminology.singular', 'Singular')}
+        disabled={!canEdit}
         value={singular}
         placeholder={shipped.singular}
         maxLength={60}
@@ -66,20 +69,21 @@ const TermRow: React.FC<{ termKey: TermKey; locale: TermLocale; current?: TermFo
       />
       <TextField
         label={t('administration:terminology.plural', 'Plural')}
+        disabled={!canEdit}
         value={plural}
         placeholder={shipped.plural}
         maxLength={60}
         onChange={setPlural}
         fullWidth
       />
-      <div className="flex gap-2">
+      {canEdit && <div className="flex gap-2">
         <Button variant="primary" disabled={!dirty || singular.trim() === '' || invalid || save.isPending} onClick={() => save.mutate()}>
           {t('administration:terminology.save', 'Save')}
         </Button>
         <Button variant="outline" disabled={!current || reset.isPending} onClick={() => reset.mutate()}>
           {t('administration:terminology.reset', 'Reset')}
         </Button>
-      </div>
+      </div>}
     </div>
   );
 };

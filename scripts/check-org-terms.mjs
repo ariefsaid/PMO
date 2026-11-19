@@ -54,10 +54,21 @@ export function scanSource(source, fileName = 'x.tsx') {
     if (!term) return;
     hits.push({ line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1, term, text: text.trim().slice(0, 60) });
   };
+  const addExpression = (node) => {
+    if (ts.isStringLiteralLike(node)) add(node, node.text);
+    else if (ts.isTemplateExpression(node)) {
+      add(node.head, node.head.text);
+      for (const span of node.templateSpans) add(span.literal, span.literal.text);
+    }
+  };
   const visit = (node) => {
     if (ts.isJsxText(node)) add(node, node.text);
-    else if (ts.isJsxAttribute(node) && node.initializer && ts.isStringLiteral(node.initializer) && ATTRS.has(node.name.getText(sf))) add(node.initializer, node.initializer.text);
-    else if (ts.isPropertyAssignment(node) && ts.isStringLiteralLike(node.initializer) && PROPS.has(node.name.getText(sf).replace(/['"]/g, ''))) add(node.initializer, node.initializer.text);
+    else if (ts.isJsxExpression(node) && node.expression && ts.isJsxElement(node.parent)) addExpression(node.expression);
+    else if (ts.isJsxAttribute(node) && node.initializer && ATTRS.has(node.name.getText(sf))) {
+      if (ts.isJsxExpression(node.initializer) && node.initializer.expression) addExpression(node.initializer.expression);
+      else addExpression(node.initializer);
+    }
+    else if (ts.isPropertyAssignment(node) && PROPS.has(node.name.getText(sf).replace(/['"]/g, ''))) addExpression(node.initializer);
     ts.forEachChild(node, visit);
   };
   visit(sf);
@@ -101,6 +112,8 @@ export function compare(current, baseline) {
 function selfTest() {
   const bad = `export const A = () => <div title="Open projects"><p>New work order</p></div>;
 const col = { label: 'Purchase request', key: 'x' };`;
+  const expressionHits = scanSource("const A = () => <span>{'Project'}</span>;");
+  if (expressionHits.length !== 1) throw new Error('JSX expression was not caught');
   const hits = scanSource(bad);
   const terms = hits.map((h) => h.term).sort().join(',');
   if (terms !== 'project,purchaseRequest,workOrder') throw new Error(`planted cases: got ${terms}`);
