@@ -120,14 +120,17 @@ const PayablesPage: React.FC = () => {
       header: t('financeHub:hub.invoiceAge', 'Invoice age'),
       kind: 'status',
       size: 130,
-      cell: (row) => agePending
-        ? <span aria-label={t('ui.listState.loading', 'Loading…')} className="text-muted-foreground">…</span>
-        : ageError
-          ? <span title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} className="text-muted-foreground">—</span>
-        : row.ageDays === null ? null : row.ageDays > 90
-        // Late in words, not only in colour: the pill reads "100 days overdue" to a screen reader.
-        ? <StatusPill variant="overdue" data-testid="payables-late-age" className={isMostUrgentLateRow(lateRows, row) ? 'font-semibold' : undefined}>{t('financeHub:hub.daysSinceInvoice', '{{count}} days', { count: row.ageDays })}<span className="sr-only">{' '}{t('financeHub:hub.overdueWord', 'overdue')}</span></StatusPill>
-        : <StatusPill variant={row.ageDays <= 30 ? 'neutral' : 'warn'}>{t('financeHub:hub.daysSinceInvoice', '{{count}} days', { count: row.ageDays })}</StatusPill>,
+      cell: (row) => {
+        const isLateAge = row.ageDays !== null && row.ageDays > 90;
+        return agePending
+          ? <span aria-label={t('ui.listState.loading', 'Loading…')} className="text-muted-foreground">…</span>
+          : ageError
+            ? <span title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} className="text-muted-foreground">—</span>
+            : row.ageDays === null ? null : isLateAge
+            // Late in words, not only in colour: the pill reads "100 days overdue" to a screen reader.
+            ? <StatusPill variant="overdue" data-testid="payables-late-age" className={isMostUrgentLateRow(lateRows, row) ? 'font-semibold' : undefined}>{t('financeHub:hub.daysSinceInvoice', '{{count}} days', { count: row.ageDays })}<span className="sr-only">{' '}{t('financeHub:hub.overdueWord', 'overdue')}</span></StatusPill>
+            : <StatusPill variant={row.ageDays <= 30 ? 'neutral' : 'warn'}>{t('financeHub:hub.daysSinceInvoice', '{{count}} days', { count: row.ageDays })}</StatusPill>;
+      },
       exportValue: (row) => agePending || ageError || row.ageDays === null ? '' : `${row.ageDays} days`,
     },
     {
