@@ -109,6 +109,16 @@ export interface ImportDescriptor<Input> {
     /** The disabled button's reason, when no row is left to import. */
     nothingNew: string;
   };
+  /**
+   * OPTIONAL downloadable template (#2530, FR-IMT-001): the wizard offers "Download template" when this is present.
+   * `version` goes into the file; an upload of the current or the previous version is accepted, any other is refused.
+   * `example` is one row keyed by field key; `lists` gives closed lists (field key → values) as dropdowns.
+   */
+  template?: {
+    version: number;
+    example: Record<string, string>;
+    lists?: Record<string, string[]>;
+  };
   /** Mapped cells → the entity's create `Input` (trims, casts; emits NO org_id). */
   toInput: (cells: Record<string, string>) => Input;
   /** The entity's existing create repository fn. RLS stamps org_id + gates the role. */
@@ -119,6 +129,8 @@ export interface ImportDescriptor<Input> {
 export interface ParsedSheet {
   headers: string[];
   rows: string[][];
+  /** The template marker stored in the workbook's properties, when the file came from a downloaded template. */
+  templateMarker?: string | null;
 }
 
 /** field.key → header column index (null = unmapped). */
