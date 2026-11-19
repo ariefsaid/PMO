@@ -26,4 +26,7 @@ effective-dated. A contract (BOQ) line can be priced from the catalogue at its l
 - **AC-RC-8** Given rows refused at preview or failed at write, when the import finishes, then a file of exactly those rows with a reason column can be downloaded.  *(unit)*
 
 ## Not in this slice
-A catalogue management screen, per-line pricing control on the Billing tab, and staged-progress credit that reads the stage weights. The stored shape and server functions they need are here.
+Staged-progress credit that reads the stage weights.
+
+## Director decision — screen and pricing scope
+The catalogue lives in the project's Billing area and lists items, location rates and effective dates. Finance and Admin can import and set a project default location variant; other permitted readers have read-only access. The screen provides loading, empty, error with retry and list states. The BOQ form offers a catalogue item, a location variant defaulted from the project setting but overridable per line, and a pricing date defaulting to today; it previews the rate before saving. Pricing and line saving should be atomic where possible; otherwise a failed pricing attempt leaves the line visibly unpriced with a retry action. The ticket's 2,000-item import and location-priced BOQ line remain the done condition.

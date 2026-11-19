@@ -4,9 +4,12 @@ do $$ begin
     raise exception 'contract lines priced from the catalogue exist; clear their catalogue link before rolling back 0955; rollback refused' using errcode = 'P0001';
   end if;
 end $$;
+drop trigger if exists boq_items_catalogue_project on public.boq_items;
+drop function if exists public.check_boq_catalogue_project();
 drop function if exists public.price_boq_line_from_catalogue(uuid, uuid, uuid, date);
 drop function if exists public.rate_catalogue_upsert_item(uuid, jsonb);
 drop function if exists public.rate_catalogue_add_variants(uuid, text[]);
+drop function if exists public.rate_catalogue_set_default_variant(uuid, uuid);
 drop function if exists public.rate_catalogue_writer_check(uuid);
 drop function if exists public.rate_catalogue_rate_at(uuid, uuid, date);
 alter table public.boq_items drop constraint if exists boq_items_catalogue_trio,

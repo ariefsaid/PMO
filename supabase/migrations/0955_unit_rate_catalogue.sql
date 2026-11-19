@@ -10,9 +10,11 @@ create table public.rate_catalogue_variants (
   org_id uuid not null references public.organizations(id) on delete cascade,
   project_id uuid not null references public.projects(id) on delete cascade,
   name text not null check (char_length(btrim(name)) between 1 and 60),
+  is_default boolean not null default false,
   created_at timestamptz not null default now(),
   unique (project_id, name)
 );
+create unique index rate_catalogue_variants_one_default on public.rate_catalogue_variants (project_id) where is_default;
 create unique index rate_catalogue_variants_name_ci on public.rate_catalogue_variants (project_id, lower(name));
 
 create table public.rate_catalogue_items (
@@ -97,6 +99,23 @@ alter table public.boq_items
     or (catalogue_item_id is not null and catalogue_variant_id is not null and catalogue_priced_as_of is not null));
 create index boq_items_catalogue_item_idx on public.boq_items (catalogue_item_id) where catalogue_item_id is not null;
 
+-- Even direct column updates must not attach provenance from another contract.
+create function public.check_boq_catalogue_project() returns trigger
+language plpgsql set search_path = public, pg_temp as $$
+begin
+  if new.catalogue_item_id is not null and not exists (
+    select 1 from public.rate_catalogue_items i
+    join public.rate_catalogue_variants v on v.project_id = i.project_id and v.org_id = i.org_id
+    where i.id = new.catalogue_item_id and v.id = new.catalogue_variant_id
+      and i.project_id = new.project_id and i.org_id = new.org_id
+  ) then
+    raise exception 'catalogue item and location variant must belong to the line''s contract' using errcode = '23514';
+  end if;
+  return new;
+end $$;
+create trigger boq_items_catalogue_project before insert or update of project_id, org_id, catalogue_item_id, catalogue_variant_id
+  on public.boq_items for each row execute function public.check_boq_catalogue_project();
+
 -- Rate in force for (item, variant) on a date: the latest effective_from not after it.
 create function public.rate_catalogue_rate_at(p_item uuid, p_variant uuid, p_as_of date) returns numeric
 language sql stable set search_path = public, pg_temp as $$
@@ -121,6 +140,22 @@ begin
   return v_org;
 end $$;
 revoke all on function public.rate_catalogue_writer_check(uuid) from public, anon, authenticated;
+
+-- Serialise changes to the project's single default and validate the caller and variant.
+create function public.rate_catalogue_set_default_variant(p_project uuid, p_variant uuid) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare v_org uuid;
+begin
+  v_org := public.rate_catalogue_writer_check(p_project);
+  perform 1 from public.projects where id = p_project for update;
+  if p_variant is not null and not exists (select 1 from public.rate_catalogue_variants where id = p_variant and project_id = p_project and org_id = v_org) then
+    raise exception 'variant must belong to the project' using errcode = '23514';
+  end if;
+  update public.rate_catalogue_variants set is_default = false where project_id = p_project and is_default;
+  update public.rate_catalogue_variants set is_default = true where id = p_variant and project_id = p_project;
+end $$;
+revoke all on function public.rate_catalogue_set_default_variant(uuid, uuid) from public, anon;
+grant execute on function public.rate_catalogue_set_default_variant(uuid, uuid) to authenticated;
 
 -- Variant names for a contract. Adds the missing ones; never renames or removes (rates and lines point at them).
 create function public.rate_catalogue_add_variants(p_project uuid, p_names text[]) returns integer
