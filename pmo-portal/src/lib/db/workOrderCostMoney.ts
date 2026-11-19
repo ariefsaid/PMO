@@ -45,7 +45,7 @@ export async function listWorkOrderCostLinks(lines: readonly WorkOrderCostLine[]
     for (let i = 0; i < ids.length; i += CHUNK) {
       const { data, error } = await supabase.from(tables[source]).select('id, procurement_id').in('id', ids.slice(i, i + CHUNK));
       if (error) throw new AppError(error.message, error.code);
-      for (const row of data ?? []) links[row.id] = `/procurement/${encodeURIComponent(row.procurement_id)}/timeline#cost-${encodeURIComponent(row.id)}`;
+      for (const row of data ?? []) links[`${source}:${row.id}`] = `/procurement/${encodeURIComponent(row.procurement_id)}/timeline#cost-${encodeURIComponent(row.id)}`;
     }
   }
   return links;

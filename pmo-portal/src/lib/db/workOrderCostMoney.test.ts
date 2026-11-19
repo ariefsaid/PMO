@@ -8,7 +8,7 @@ describe('work order money reads', () => {
   it('finds each purchase record’s own parent for a direct timeline link', async () => {
     fetchRows.mockResolvedValue({ data: [{ id: 'bill', procurement_id: 'purchase-1' }], error: null });
     const links = await listWorkOrderCostLinks([line('vendor_bill', 'bill')]);
-    expect(links.bill).toBe('/procurement/purchase-1/timeline#cost-bill');
+    expect(links['vendor_bill:bill']).toBe('/procurement/purchase-1/timeline#cost-bill');
   });
   it('marks a partially unreadable source restricted rather than showing partial totals', async () => {
     fetchRows.mockResolvedValue({ data: [{ id: 'bill1', amount: 10, currency: 'USD' }], error: null });

@@ -4,17 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ListState, RecordSection } from '@/src/components/ui';
 import { formatCurrency, formatDay, formatNumberExact } from '@/src/lib/format';
 import { NO_DISCIPLINE, type CostMoney, type SourceGroup } from '@/src/lib/workOrderCostView';
-import type { CostDiscipline, CostSource, WorkOrderCostLine } from '@/src/lib/db/workOrderCosts';
-
-const HREF: Record<CostSource, (l: WorkOrderCostLine) => string | null> = {
-  purchase_request: () => null,
-  purchase_order: () => null,
-  goods_receipt: () => null,
-  vendor_bill: () => null,
-  timesheet_entry: () => null,
-  stock_document: () => null,
-  equipment_usage: () => null,
-};
+import type { CostDiscipline } from '@/src/lib/db/workOrderCosts';
 
 interface Props {
   links: Record<string, string>;
@@ -60,7 +50,7 @@ export const CostSection: React.FC<Props> = ({ links, groups, disciplines, isPen
                 </div>
                 <ul className="divide-y divide-border">
                   {d.lines.map((l) => {
-                    const href = links[l.recordId] ?? HREF[l.source](l);
+                    const href = links[`${l.source}:${l.recordId}`];
                     const label = l.reference ?? l.recordId.slice(0, 8);
                     return (
                       <li key={l.recordId} className="flex flex-wrap items-baseline justify-between gap-x-4 py-1.5" data-testid={`cost-line-${l.recordId}`}>

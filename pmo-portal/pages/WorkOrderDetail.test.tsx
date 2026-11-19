@@ -75,6 +75,11 @@ describe('WorkOrderDetail', () => {
     expect(within(po).getByTestId('cost-total-purchase_order')).toBeTruthy();
     expect(screen.queryByTestId('cost-group-vendor_bill')).toBeNull();
   });
+  it('links a purchase cost to its resolved source record', () => {
+    h.links = q({ 'purchase_order:po1': '/procurement/purchase-1/timeline#cost-po1' });
+    renderPage();
+    expect(screen.getByRole('link', { name: 'po1' }).getAttribute('href')).toBe('/procurement/purchase-1/timeline#cost-po1');
+  });
   it('does not link stock costs until the work-order cost build is ready', () => {
     h.lines = q({ stock_document: [ln('stock_document', 'stock1', null)] });
     renderPage();
