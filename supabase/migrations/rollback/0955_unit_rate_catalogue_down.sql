@@ -6,6 +6,7 @@ do $$ begin
 end $$;
 drop trigger if exists boq_items_catalogue_project on public.boq_items;
 drop function if exists public.check_boq_catalogue_project();
+drop function if exists public.save_boq_line_from_catalogue(uuid,uuid,jsonb,uuid,uuid,date);
 drop function if exists public.price_boq_line_from_catalogue(uuid, uuid, uuid, date);
 drop function if exists public.rate_catalogue_upsert_item(uuid, jsonb);
 drop function if exists public.rate_catalogue_add_variants(uuid, text[]);

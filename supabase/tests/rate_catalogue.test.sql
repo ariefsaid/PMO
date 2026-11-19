@@ -1,7 +1,7 @@
 -- rate_catalogue.test.sql — #2520 unit-rate catalogue. AC-RC-1..6, see docs/specs/unit-rate-catalogue.spec.md.
 begin;
 create extension if not exists pgtap;
-select plan(30);
+select plan(33);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25200000-0000-0000-0000-0000000000a1', 'RC Org A', 'USD', 'UTC'),
@@ -50,6 +50,10 @@ select is(public.price_boq_line_from_catalogue((select id from boq_items where i
   (select id from rate_catalogue_items where item_code='W-1'), (select id from rate_catalogue_variants where name='Remote'), '2026-02-01'), 120.00::numeric,
   'AC-RC-3 a BOQ line priced from the catalogue takes the location variant rate');
 select is((select rate from boq_items where item_code='L1'), 120.00::numeric, 'AC-RC-3 the line carries that rate');
+select lives_ok($$select public.save_boq_line_from_catalogue(null, '25200000-0000-0000-0000-0000000000c1', '{"item_code":"L2","description":"Line two","unit":"m","quantity":1,"earning_basis":"unit_rate"}'::jsonb, (select id from public.rate_catalogue_items where item_code='W-1'), (select id from public.rate_catalogue_variants where name='Remote'), '2026-02-01')$$, 'saving a priced line succeeds atomically');
+select is((select rate from public.boq_items where item_code='L2'), 120::numeric, 'saved line carries catalogue rate');
+select throws_ok($$select public.save_boq_line_from_catalogue(null, '25200000-0000-0000-0000-0000000000c1', '{"item_code":"L3","description":"Line three","unit":"m","quantity":1,"earning_basis":"unit_rate"}'::jsonb, (select id from public.rate_catalogue_items where item_code='W-1'), (select id from public.rate_catalogue_variants where name='Remote'), '2025-01-01')$$, 'P0002', null, 'saving without a matching rate fails atomically');
+
 
 select is((public.rate_catalogue_upsert_item('25200000-0000-0000-0000-0000000000c1',
   '{"item_code":"W-1","effective_from":"2026-06-01","rates":{"Remote":150}}'::jsonb)->>'rates_added')::int, 1, 'AC-RC-4 an amendment adds a new effective-dated rate');

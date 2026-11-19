@@ -279,6 +279,31 @@ begin
 end $$;
 grant update (catalogue_item_id, catalogue_variant_id, catalogue_priced_as_of) on public.boq_items to authenticated;
 
+-- The line and its catalogue price commit together; RLS and money locks remain those of the caller.
+create function public.save_boq_line_from_catalogue(p_line uuid, p_project uuid, p_fields jsonb,
+  p_item uuid, p_variant uuid, p_as_of date) returns uuid
+language plpgsql set search_path = public, pg_temp as $$
+declare v_line uuid;
+begin
+  if p_line is null then
+    insert into public.boq_items (project_id, item_code, description, unit, quantity, rate, earning_basis, line_no)
+    values (p_project, p_fields->>'item_code', p_fields->>'description', p_fields->>'unit',
+      (p_fields->>'quantity')::numeric, 0, p_fields->>'earning_basis', (p_fields->>'line_no')::integer)
+    returning id into v_line;
+  else
+    update public.boq_items set item_code=p_fields->>'item_code', description=p_fields->>'description',
+      unit=p_fields->>'unit', quantity=(p_fields->>'quantity')::numeric,
+      earning_basis=p_fields->>'earning_basis', line_no=(p_fields->>'line_no')::integer
+    where id=p_line and project_id=p_project returning id into v_line;
+    if v_line is null then raise exception 'contract line cannot be changed' using errcode='42501'; end if;
+  end if;
+  perform public.price_boq_line_from_catalogue(v_line, p_item, p_variant, p_as_of);
+  return v_line;
+end $$;
+revoke all on function public.save_boq_line_from_catalogue(uuid,uuid,jsonb,uuid,uuid,date) from public, anon;
+grant execute on function public.save_boq_line_from_catalogue(uuid,uuid,jsonb,uuid,uuid,date) to authenticated;
+
+
 revoke all on function public.rate_catalogue_add_variants(uuid, text[]) from public, anon;
 revoke all on function public.rate_catalogue_upsert_item(uuid, jsonb) from public, anon;
 revoke all on function public.price_boq_line_from_catalogue(uuid, uuid, uuid, date) from public, anon;
