@@ -7,11 +7,17 @@ import { readWorkbookGrid } from './readWorkbookGrid';
  * deliberately preserves the original first-row/header, blank-row and size behavior.
  */
 export async function parseWorkbook(buf: ArrayBuffer, maxRows: number = MAX_IMPORT_ROWS): Promise<ParsedSheet> {
-  const grid = await readWorkbookGrid(buf);
+  // The preflight cap includes the header and remains bounded independently of the descriptor.
+  // Keep the default 2,000-row preflight for existing importers while allowing large catalogues.
+  const preflightRows = Math.min(5001, Math.max(2000, maxRows + 1));
+  const grid = await readWorkbookGrid(buf, { maxRows: preflightRows, maxColumns: 100 });
   const headers = (grid.rows[0] ?? []).map(cell => cell.text);
   const rows: string[][] = [];
   for (const row of grid.rows.slice(1)) {
-    const cells = headers.map((_, index) => row[index]?.text ?? '');
+    const cells = headers.map((_, index) => {
+      const cell = row[index];
+      return cell?.value instanceof Date && !Number.isNaN(cell.value.getTime()) ? cell.value.toISOString().slice(0, 10) : cell?.text ?? '';
+    });
     if (cells.some(value => value !== '')) rows.push(cells);
   }
   if (rows.length === 0) throw new ImportParseError('empty', 'The sheet has no data rows to import.');

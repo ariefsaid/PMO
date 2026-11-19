@@ -22,7 +22,7 @@ effective-dated. A contract (BOQ) line can be priced from the catalogue at its l
 - **AC-RC-4** Given a line priced at 120, when Remote is amended to 150 from a later date, then the line still shows 120, the rate on earlier dates reads 120, and an amendment dated before an existing rate is refused. Rates cannot be written outside the server function.  *(pgTAP; unit for `rateAt`)*
 - **AC-RC-5** Given stage weights 10/80/10, then they store; weights adding to anything other than 100 are refused.  *(pgTAP; unit)*
 - **AC-RC-6** Given a non-Finance role or another organization, when it calls a catalogue write, then it is refused.  *(pgTAP)*
-- **AC-RC-7** Given a sheet of 2,000 valid items, when imported, then the preview accepts all and every row is written.  *(unit on the descriptor; the repository call is the same per-row server function pgTAP proves)*
+- **AC-RC-7** Given a sheet of 2,000 valid items, when imported, then the preview accepts all and every row is written.  *(unit on the import wizard and descriptor; the repository call is the same per-row server function pgTAP proves)*
 - **AC-RC-8** Given rows refused at preview or failed at write, when the import finishes, then a file of exactly those rows with a reason column can be downloaded.  *(unit)*
 
 ## Not in this slice
