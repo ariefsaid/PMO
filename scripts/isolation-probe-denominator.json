@@ -256,6 +256,7 @@
     "mrq_create_transfer_core(uuid,uuid)",
     "mrq_decide_step(uuid,integer,text,text,uuid)",
     "mrq_log(material_requests,text,text,text,integer,uuid,uuid,text)",
+    "mrq_plan_for(uuid,uuid[],uuid)",
     "mrq_plan_quantity(uuid,uuid)",
     "mrq_prior_quantity(uuid,uuid,uuid)",
     "mrq_retry_transfer(uuid,uuid)",

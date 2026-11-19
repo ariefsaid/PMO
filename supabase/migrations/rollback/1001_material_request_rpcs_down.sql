@@ -1,6 +1,7 @@
 -- Reverses 1001_material_request_rpcs.sql. Run before 1000's rollback. Loses no business rows.
 drop trigger if exists zz_material_request_transfer_status on public.stock_documents;
 drop function if exists public.mrq_on_transfer_status();
+drop function if exists public.mrq_plan_for(uuid, uuid[], uuid);
 drop function if exists public.mrq_waiting_for_me();
 drop function if exists public.mrq_cancel(uuid, text);
 drop function if exists public.mrq_retry_transfer(uuid, uuid);

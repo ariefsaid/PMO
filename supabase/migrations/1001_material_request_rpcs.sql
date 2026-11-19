@@ -502,6 +502,24 @@ begin
    order by q.submitted_at, q.request_id;
 end $$;
 
+-- FR-MRQ-002: what the form shows per line before submit — plan and already-requested for items on a work order.
+-- The same two internals mrq_submit snapshots, so the screen and the server never compute plan differently.
+create or replace function public.mrq_plan_for(p_work_order_id uuid, p_item_ids uuid[], p_exclude_request uuid default null)
+  returns table (item_id uuid, plan_qty numeric, prior_qty numeric)
+  language plpgsql stable security definer set search_path = public, pg_temp as $$
+declare v_org uuid := public.auth_org_id();
+begin
+  if v_org is null or not public.is_active_member() then return; end if;
+  if not exists (select 1 from public.work_orders w where w.id = p_work_order_id and w.org_id = v_org) then return; end if;
+  if coalesce(array_length(p_item_ids, 1), 0) > 200 then
+    raise exception 'MRQ_INVALID: 200 items at most' using errcode = 'P0001'; end if;
+  return query
+  select i.id, public.mrq_plan_quantity(p_work_order_id, i.id),
+         public.mrq_prior_quantity(p_work_order_id, i.id, coalesce(p_exclude_request, '00000000-0000-0000-0000-000000000000'::uuid))
+    from public.stock_items i
+   where i.id = any(p_item_ids) and i.org_id = v_org;
+end $$;
+
 -- FR-MRQ-013: the linked transfer posted → fulfilled; cancelled → approved with the transfer-cancelled flag.
 create or replace function public.mrq_on_transfer_status() returns trigger
   language plpgsql security definer set search_path = public, pg_temp as $$
@@ -536,11 +554,11 @@ revoke all on function
   public.mrq_set_chain(jsonb), public.mrq_set_cutoff(time), public.mrq_set_stand_in(uuid, uuid, date, date),
   public.mrq_revoke_stand_in(uuid), public.mrq_save_draft(uuid, jsonb, jsonb, uuid), public.mrq_submit(uuid, uuid),
   public.mrq_decide_step(uuid, integer, text, text, uuid), public.mrq_retry_transfer(uuid, uuid),
-  public.mrq_cancel(uuid, text), public.mrq_waiting_for_me()
+  public.mrq_cancel(uuid, text), public.mrq_waiting_for_me(), public.mrq_plan_for(uuid, uuid[], uuid)
   from public, anon;
 grant execute on function
   public.mrq_set_chain(jsonb), public.mrq_set_cutoff(time), public.mrq_set_stand_in(uuid, uuid, date, date),
   public.mrq_revoke_stand_in(uuid), public.mrq_save_draft(uuid, jsonb, jsonb, uuid), public.mrq_submit(uuid, uuid),
   public.mrq_decide_step(uuid, integer, text, text, uuid), public.mrq_retry_transfer(uuid, uuid),
-  public.mrq_cancel(uuid, text), public.mrq_waiting_for_me()
+  public.mrq_cancel(uuid, text), public.mrq_waiting_for_me(), public.mrq_plan_for(uuid, uuid[], uuid)
   to authenticated;

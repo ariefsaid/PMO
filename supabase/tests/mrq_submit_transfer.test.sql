@@ -6,7 +6,7 @@
 -- FR-MRQ-004 create and submit replay on a client request id · FR-MRQ-013 a cancelled draft flags the request.
 begin;
 create extension if not exists pgtap;
-select plan(33);
+select plan(34);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25240000-0000-0000-0000-00000000010a', 'MRQ Submit Org', 'IDR', 'Asia/Jakarta');
@@ -100,6 +100,10 @@ select is((select array_agg(role::text order by position) from material_request_
   array['Project Manager', 'Finance'], 'OD-MRQ-2 a within-plan request skips the over-plan-only step, once');
 select is((select plan_qty::text || '/' || prior_qty::text from material_request_lines where request_id = (select v from t_ids where k = 'idem')),
   '100.000/0.000', 'FR-MRQ-002 the plan and prior quantities are snapshotted at submission');
+
+select is((select plan_qty::text || '/' || prior_qty::text from public.mrq_plan_for('25240000-0000-0000-0000-000000001401',
+            array['25240000-0000-0000-0000-000000001311']::uuid[])),
+  '100.000/50.000', 'FR-MRQ-002 the form reads the same plan and already-requested figures the server snapshots');
 
 -- ── AC-MRQ-001: 50 already requested + 60 = 110 > 100 → a reason is required ──────────────────────────────────
 insert into t_ids values ('over', pg_temp._draft(60, null, current_date + 5));
