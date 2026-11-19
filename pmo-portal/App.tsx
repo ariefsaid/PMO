@@ -100,6 +100,7 @@ const ImprestFloatDetailPage = lazyWithPreload(() => import('./pages/ImprestFloa
 const EquipmentUsagePage = lazyWithPreload(() => import('./pages/equipment/EquipmentUsage'));
 const EquipmentAvailabilityPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAvailability'));
 const EquipmentAssetsPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAssets'));
+const ExpiringDocumentsPage = lazyWithPreload(() => import('./pages/equipment/ExpiringDocuments'));
 const EquipmentAssetDetailPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAssetDetail'));
 const ApprovalsPage = lazyWithPreload(() => import('./pages/Approvals'));
 const CompaniesPage = lazyWithPreload(() => import('./pages/Companies'));
@@ -238,6 +239,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/equipment', chunks: [EquipmentUsagePage], namespaces: ['equipment'] },
   { path: '/equipment/assets', chunks: [EquipmentAssetsPage], namespaces: ['equipment'] },
   { path: '/equipment/availability', chunks: [EquipmentAvailabilityPage], namespaces: ['equipment'] },
+  { path: '/equipment/expiring', chunks: [ExpiringDocumentsPage], namespaces: ['equipment'] },
   { path: '/equipment/assets/:assetId', chunks: [EquipmentAssetDetailPage], namespaces: ['equipment'] },
   { path: '/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
   { path: '/administration/:section', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement'] },
@@ -446,6 +448,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/equipment', element: <EquipmentUsagePage /> },
   { path: '/equipment/assets', element: <EquipmentAssetsPage /> },
   { path: '/equipment/availability', element: <EquipmentAvailabilityPage /> },
+  { path: '/equipment/expiring', element: <ExpiringDocumentsPage /> },
   { path: '/equipment/assets/:assetId', element: <EquipmentAssetDetailPage /> },
   { path: '/reports', element: <FinanceLegacyRedirect to="/finance/reports" /> },
   { path: '/administration', element: <AdministrationEntryRedirect /> },

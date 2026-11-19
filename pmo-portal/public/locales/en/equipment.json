@@ -176,9 +176,29 @@
     "units": "units",
     "unitsOption": "Logged hours or days"
   },
+  "expiry": {
+    "title": "Expiring documents",
+    "subject": "Person / equipment",
+    "type": "Document",
+    "detail": "Number / status",
+    "expires": "Expires",
+    "left": "Days left",
+    "expired_one": "Expired {{count}} day ago",
+    "expired_other": "Expired {{count}} days ago",
+    "location": "Kept at",
+    "error": "Couldn't load expiring documents",
+    "errorSub": "The request failed. Check your connection and try again.",
+    "empty": "Nothing expires in the next 30 days",
+    "emptySub": "Documents for people and equipment show here as they come due.",
+    "medical": {
+      "fit": "Fit",
+      "unfit": "Unfit"
+    }
+  },
   "nav": {
     "assets": "Assets",
-    "equipment": "Equipment"
+    "equipment": "Equipment",
+    "expiring": "Expiring documents"
   },
   "panel": {
     "notRecorded": "{{count}} not recorded",
