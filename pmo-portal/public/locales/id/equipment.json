@@ -54,6 +54,10 @@
     "unitLine": "Dicatat dalam {{unit}}"
   },
   "availability": {
+    "noProof": "Belum ada bukti",
+    "views": "Tampilan ketersediaan",
+    "otherAssetActions": "Tindakan aset lainnya",
+    "noRentedOnPage": "Tidak ada peralatan sewa di halaman ini",
     "title": "Ketersediaan",
     "empty": "Belum ada alat",
     "emptySub": "Tambahkan aset di Alat → Aset, lalu atur status hariannya di sini.",

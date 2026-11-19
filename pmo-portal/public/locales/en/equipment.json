@@ -54,6 +54,10 @@
     "unitLine": "Logged in {{unit}}"
   },
   "availability": {
+    "noProof": "No proof",
+    "views": "Availability views",
+    "otherAssetActions": "Other asset actions",
+    "noRentedOnPage": "No rented equipment on this page",
     "title": "Availability",
     "empty": "No equipment yet",
     "emptySub": "Add assets under Equipment → Assets, then set their daily status here.",
