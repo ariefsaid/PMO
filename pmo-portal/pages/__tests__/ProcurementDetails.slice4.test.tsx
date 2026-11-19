@@ -17,6 +17,8 @@
 
 import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+// #2517: the work-order/discipline pickers read their own queries; they are proven in CostAttributionFields.test.tsx.
+vi.mock('@/src/components/workOrders/CostAttributionFields', () => ({ CostAttributionFields: () => null }));
 import { render, screen, within } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';

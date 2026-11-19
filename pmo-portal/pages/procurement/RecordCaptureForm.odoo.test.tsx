@@ -4,6 +4,8 @@
  * and will not offer a bill that needs attention.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+// #2517: the work-order/discipline pickers read their own queries; they are proven in CostAttributionFields.test.tsx.
+vi.mock('@/src/components/workOrders/CostAttributionFields', () => ({ CostAttributionFields: () => null }));
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';

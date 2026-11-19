@@ -1,5 +1,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+// #2517: the work-order/discipline pickers read their own queries; they are proven in CostAttributionFields.test.tsx.
+vi.mock('@/src/components/workOrders/CostAttributionFields', () => ({ CostAttributionFields: () => null }));
 import { render, screen, within, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';

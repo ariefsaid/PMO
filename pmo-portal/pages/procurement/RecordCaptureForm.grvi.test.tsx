@@ -8,6 +8,8 @@
  *   - VI status options exclude Paid (N1)
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+// #2517: the work-order/discipline pickers read their own queries; they are proven in CostAttributionFields.test.tsx.
+vi.mock('@/src/components/workOrders/CostAttributionFields', () => ({ CostAttributionFields: () => null }));
 
 // OD-TAX-1 (#548): the VI capture form PRE-SELECTS the org's `default_tax_treatment`. Only the org
 // READ is stubbed — `useTaxTreatmentPreselect` stays the shipped implementation, so what runs below
