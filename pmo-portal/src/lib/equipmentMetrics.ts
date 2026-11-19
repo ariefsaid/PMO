@@ -26,7 +26,7 @@ export interface MetricsInput {
   statuses: StatusDay[];
   usage: UsageEntry[];
 }
-export interface DayRow { date: string; status: EquipmentStatus | null; available: boolean; workHundredthsHours: number }
+export interface DayRow { date: string; status: EquipmentStatus | null; available: boolean; workTenThousandthsHours: number }
 export interface GrainRow {
   start: string;
   inServiceDays: number;
@@ -82,7 +82,8 @@ export function computeEquipmentMetrics(input: MetricsInput): EquipmentMetrics {
     if (e.status === 'Submitted' || e.status === 'Draft') pending += 1;
     if (e.status !== 'Approved' || e.kind !== 'work') continue;
     const q = hundredths(e.quantity);
-    workByDay.set(e.date, (workByDay.get(e.date) ?? 0n) + (e.unit === 'days' ? q * whC / 100n : q));
+    // ten-thousandths of an hour: hours x100, days x working hours (both carry 2 decimals), so no precision is lost
+    workByDay.set(e.date, (workByDay.get(e.date) ?? 0n) + (e.unit === 'days' ? q * whC : q * 100n));
   }
 
   const days: DayRow[] = [];
@@ -96,10 +97,10 @@ export function computeEquipmentMetrics(input: MetricsInput): EquipmentMetrics {
       if (st === null) unrecorded += 1; else inService += 1;
       if (isAvail) available += 1;
     }
-    days.push({ date, status: outside ? null : st, available: isAvail, workHundredthsHours: Number(workByDay.get(date) ?? 0n) });
+    days.push({ date, status: outside ? null : st, available: isAvail, workTenThousandthsHours: Number(workByDay.get(date) ?? 0n) });
   }
 
-  const sumWork = (rows: DayRow[]) => rows.reduce((s, r) => s + BigInt(r.workHundredthsHours), 0n);
+  const sumWork = (rows: DayRow[]) => rows.reduce((s, r) => s + BigInt(r.workTenThousandthsHours), 0n);
   const figures = (rows: DayRow[]): Omit<GrainRow, 'start'> => {
     let svc = 0, av = 0, un = 0;
     for (const r of rows) {
@@ -111,14 +112,14 @@ export function computeEquipmentMetrics(input: MetricsInput): EquipmentMetrics {
     return {
       inServiceDays: svc, availableDays: av, unrecordedDays: un,
       availabilityPct: pct1(BigInt(av), BigInt(svc)),
-      utilisationPct: av > 0 ? pct1(sumWork(rows), BigInt(av) * whC) : null,
+      utilisationPct: av > 0 ? pct1(sumWork(rows), BigInt(av) * whC * 100n) : null,
     };
   };
 
   return {
     inServiceDays: inService, availableDays: available, unrecordedDays: unrecorded,
     availabilityPct: pct1(BigInt(available), BigInt(inService)),
-    utilisationPct: available > 0 ? pct1(sumWork(days), BigInt(available) * whC) : null,
+    utilisationPct: available > 0 ? pct1(sumWork(days), BigInt(available) * whC * 100n) : null,
     pendingUsageEntries: pending,
     days,
     byGrain(g) {
