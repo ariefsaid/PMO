@@ -1,6 +1,6 @@
 -- 0950_cost_disciplines.sql — #2517: the organisation's own list of disciplines (civil, mechanical, electrical, …)
 -- that a cost line can name. Spec: docs/specs/work-order-cost-attribution.spec.md (FR-WCA-010..013).
--- ADR-0103. Proven by supabase/tests/0950_work_order_cost_attribution.test.sql.
+-- ADR-0104. Proven by supabase/tests/0950_work_order_cost_attribution.test.sql.
 -- ── REVERSE (also supabase/migrations/rollback/0950_cost_disciplines_down.sql) ───────────────────────
 --   drop table if exists public.cost_disciplines;   -- drops its policies and triggers (0951 must be reversed first)
 
@@ -25,16 +25,16 @@ alter table public.cost_disciplines force row level security;
 
 -- Every active member reads the list (the cost forms need the picker).
 create policy cost_disciplines_select on public.cost_disciplines for select
-  using (org_id = public.auth_org_id() and public.is_active_member());
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
 -- FR-WCA-011: an Admin keeps the list. Soft-archive (ADR-0018) instead of deleting a discipline that is in use;
 -- a referenced row FK-blocks a delete (23503).
 create policy cost_disciplines_insert on public.cost_disciplines for insert
-  with check (org_id = public.auth_org_id() and public.is_active_member() and public.auth_role() = 'Admin');
+  with check (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and (select public.auth_role()) = 'Admin');
 create policy cost_disciplines_update on public.cost_disciplines for update
-  using (org_id = public.auth_org_id() and public.is_active_member() and public.auth_role() = 'Admin')
-  with check (org_id = public.auth_org_id());
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and (select public.auth_role()) = 'Admin')
+  with check (org_id = (select public.auth_org_id()));
 create policy cost_disciplines_delete on public.cost_disciplines for delete
-  using (org_id = public.auth_org_id() and public.is_active_member() and public.auth_role() = 'Admin');
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and (select public.auth_role()) = 'Admin');
 
 revoke all on public.cost_disciplines from public, anon, authenticated;
 grant select, delete on public.cost_disciplines to authenticated;

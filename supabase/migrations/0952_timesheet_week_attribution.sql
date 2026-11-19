@@ -1,5 +1,5 @@
 -- 0952_timesheet_week_attribution.sql — #2517: a timesheet line carries its work order and discipline through the
--- week save. ADR-0103; spec docs/specs/work-order-cost-attribution.spec.md (FR-WCA-032).
+-- week save. ADR-0104; spec docs/specs/work-order-cost-attribution.spec.md (FR-WCA-032).
 -- 0268's save_timesheet_week, byte-for-byte, plus ONE statement (§3c) after the upsert: a line that names
 -- `work_order_id` / `discipline_id` takes them. Nothing else moves: the ownership, Draft, week-bound and tenancy gates,
 -- the role set, the upsert key and the deletes are unchanged. No status, approval or push changes.
@@ -20,6 +20,7 @@ declare
   v_sheet_week date;
   v_bad_proj   int;
   v_bad_date   int;
+  v_attribution record;
 begin
   -- ⚑ 0180 (FR-AMG-001): user-JWT-only caller — this RPC already refuses a NULL auth.uid() below, so
   -- it never had a machine caller to protect. Placed FIRST so an offboarded user gets the offboarding
@@ -103,14 +104,19 @@ begin
     -- 3c. 0952 (#2517): a line that names `work_order_id` / `discipline_id` takes both (a missing one = none).
     --     A line that names neither keeps what it had, so a caller that predates this keeps its behaviour.
     --     check_cost_attribution (0951 §2) refuses a work order of another project or org (23514).
-    update public.timesheet_entries te
-       set work_order_id = nullif(e->>'work_order_id', '')::uuid,
-           discipline_id = nullif(e->>'discipline_id', '')::uuid
-      from jsonb_array_elements(p_upserts) e
-     where (e ? 'work_order_id' or e ? 'discipline_id')
-       and te.timesheet_id = v_sheet_id
-       and te.project_id = (e->>'project_id')::uuid
-       and te.entry_date = (e->>'entry_date')::date;
+    for v_attribution in
+      select te.id, nullif(e->>'work_order_id', '')::uuid as work_order_id,
+             nullif(e->>'discipline_id', '')::uuid as discipline_id
+        from jsonb_array_elements(p_upserts) e
+        join public.timesheet_entries te on te.timesheet_id = v_sheet_id
+         and te.project_id = (e->>'project_id')::uuid and te.entry_date = (e->>'entry_date')::date
+       where (e ? 'work_order_id' or e ? 'discipline_id')
+         and (te.work_order_id is distinct from nullif(e->>'work_order_id', '')::uuid
+           or te.discipline_id is distinct from nullif(e->>'discipline_id', '')::uuid)
+    loop
+      perform public.set_cost_attribution('timesheet_entry', array[v_attribution.id],
+        v_attribution.work_order_id, v_attribution.discipline_id);
+    end loop;
   end if;
 
   -- 4. Deletes — pinned to entries on the RESOLVED (own) sheet, so a caller can never
@@ -122,4 +128,3 @@ begin
 
   return v_sheet_id;
 end; $$;
-

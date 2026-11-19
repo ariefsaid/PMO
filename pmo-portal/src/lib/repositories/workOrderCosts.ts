@@ -1,5 +1,5 @@
 /**
- * repositories/workOrderCosts.ts (#2517) — the seam over work-order cost attribution (ADR-0103):
+ * repositories/workOrderCosts.ts (#2517) — the seam over work-order cost attribution (ADR-0104):
  * the discipline list, the one write path and the one read seam. Standalone module (same shape as
  * `costAttribution.ts`): imported directly by its consumers. Errors keep their Postgres code via `wrap`.
  */

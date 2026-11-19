@@ -48,7 +48,7 @@ select is(
 select is(
   (select string_agg(column_name, ',' order by column_name)
      from information_schema.columns where table_schema = 'public' and table_name = 'timesheet_entries'),
-  'entry_date,hours,id,notes,org_id,project_id,timesheet_id',
+  'discipline_id,entry_date,hours,id,notes,org_id,project_id,timesheet_id,work_order_id',
   'AC-TSP-004: timesheet_entries column set unchanged on a flipped org');
 select is(
   (select string_agg(column_name, ',' order by column_name)
@@ -112,7 +112,7 @@ select is(
   (select string_agg(distinct trigger_name, ',' order by trigger_name)
      from information_schema.triggers
     where event_object_schema = 'public' and event_object_table = 'timesheet_entries'),
-  'timesheet_entries_stamp_org_id,timesheet_entries_week_bounds',
+  'timesheet_entries_stamp_org_id,timesheet_entries_week_bounds,zz_cost_attribution_audit,zz_cost_attribution_check',
   'AC-TSP-004: no ERP-driven trigger on timesheet_entries (org_id stamp + the local week-bounds guard only)');
 
 -- ── B) Behavior parity — the shipped assertions re-run under a FLIPPED org ───────────────────────────

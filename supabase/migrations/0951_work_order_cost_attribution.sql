@@ -1,5 +1,5 @@
 -- 0951_work_order_cost_attribution.sql — #2517: every cost source can name an optional work order and an optional
--- discipline. ADR-0103; spec docs/specs/work-order-cost-attribution.spec.md; plan
+-- discipline. ADR-0104; spec docs/specs/work-order-cost-attribution.spec.md; plan
 -- docs/plans/2026-11-20-work-order-cost-attribution.md. Proven by supabase/tests/0950_work_order_cost_attribution.test.sql.
 --
 -- What this adds, and what it deliberately does not touch:
@@ -62,6 +62,11 @@ create index procurement_invoices_discipline_idx    on public.procurement_invoic
 create index timesheet_entries_discipline_idx       on public.timesheet_entries (discipline_id)       where discipline_id is not null;
 create index stock_documents_discipline_idx         on public.stock_documents (discipline_id)         where discipline_id is not null;
 create index equipment_usage_entries_discipline_idx on public.equipment_usage_entries (discipline_id) where discipline_id is not null;
+
+-- The history registry classifies both new fields on its tracked purchase records.
+update public.record_history_config
+   set captured = captured || '{"work_order_id":"ref","discipline_id":"ref"}'::jsonb
+ where table_name in ('purchase_requests', 'purchase_orders', 'procurement_invoices');
 
 -- ── §2 the rule (FR-WCA-020..024) ─────────────────────────────────────────────────────────────────────
 -- The cost's project: its own project_id (timesheet line, equipment usage, stock issue/return); the destination
@@ -127,6 +132,28 @@ create trigger zz_cost_attribution_check before insert or update of work_order_i
 create trigger zz_cost_attribution_check before insert or update of work_order_id, discipline_id, project_id, kind, to_warehouse_id
   on public.stock_documents for each row execute function public.check_cost_attribution();
 
+-- Direct writes to an editable timesheet line are granted to its owner as well as the week RPC.
+-- Audit at the table boundary so both paths leave the same per-record evidence.
+create function public.audit_timesheet_cost_attribution() returns trigger
+  language plpgsql security definer set search_path = public, pg_temp as $$
+declare v_before jsonb;
+begin
+  if tg_op = 'INSERT' then
+    v_before := jsonb_build_object('work_order_id', null, 'discipline_id', null);
+    if new.work_order_id is null and new.discipline_id is null then return new; end if;
+  else
+    if new.work_order_id is not distinct from old.work_order_id and new.discipline_id is not distinct from old.discipline_id then return new; end if;
+    v_before := jsonb_build_object('work_order_id', old.work_order_id, 'discipline_id', old.discipline_id);
+  end if;
+  perform public.log_audit('cost_attribution.set', new.org_id, auth.uid(), new.id,
+    jsonb_build_object('source', 'timesheet_entry', 'before', v_before,
+      'after', jsonb_build_object('work_order_id', new.work_order_id, 'discipline_id', new.discipline_id)));
+  return new;
+end $$;
+revoke all on function public.audit_timesheet_cost_attribution() from public, anon, authenticated;
+create trigger zz_cost_attribution_audit after insert or update of work_order_id, discipline_id on public.timesheet_entries
+  for each row execute function public.audit_timesheet_cost_attribution();
+
 -- ── §3 a purchase keeps its records' work orders on its project (FR-WCA-023) ─────────────────────────
 -- Same shape as 0699's journal-line move guard: refuse, name the way out.
 create function public.guard_procurement_move_with_work_orders() returns trigger
@@ -151,6 +178,23 @@ end $$;
 revoke all on function public.guard_procurement_move_with_work_orders() from public, anon, authenticated;
 create trigger a0_procurements_work_order_move_guard before update of project_id on public.procurements
   for each row execute function public.guard_procurement_move_with_work_orders();
+
+-- A site's project determines the project of every transfer to it.
+create function public.guard_warehouse_move_with_work_orders() returns trigger
+  language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if (new.project_id is distinct from old.project_id or new.kind is distinct from old.kind)
+     and exists (select 1 from public.stock_documents d
+       join public.work_orders w on w.id = d.work_order_id
+       where d.to_warehouse_id = new.id and d.kind = 'transfer'
+         and (new.kind <> 'site' or w.project_id is distinct from new.project_id)) then
+    raise exception 'COST_WO_PROJECT_MOVE: transfers to this warehouse name a work order of its project' using errcode = '23514';
+  end if;
+  return new;
+end $$;
+revoke all on function public.guard_warehouse_move_with_work_orders() from public, anon, authenticated;
+create trigger a0_warehouse_work_order_move_guard before update of project_id, kind on public.stock_warehouses
+  for each row execute function public.guard_warehouse_move_with_work_orders();
 
 -- ── §4 a posted stock document: only its attribution may change (FR-WCA-031) ──────────────────────────
 -- 0413's body, plus one exemption: an UPDATE whose only changed columns are work_order_id / discipline_id.
@@ -284,7 +328,7 @@ begin
   perform public.log_audit('cost_attribution.set', v_org, v_uid, (b->>'id')::uuid,
             jsonb_build_object('source', p_source, 'before', b - 'id',
                                'after', jsonb_build_object('work_order_id', p_work_order_id, 'discipline_id', p_discipline_id)))
-     from jsonb_array_elements(v_before) b;
+     from jsonb_array_elements(v_before) b where p_source <> 'timesheet_entry';
   return v_n;
 end $$;
 revoke all on function public.set_cost_attribution(text, uuid[], uuid, uuid) from public, anon;

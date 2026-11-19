@@ -6,7 +6,7 @@ import { useCostDisciplines } from '@/src/hooks/useWorkOrderCosts';
 import type { CostAttribution } from '@/src/lib/repositories/workOrderCosts';
 
 /**
- * The work-order and discipline pickers every cost form shares (#2517, ADR-0103).
+ * The work-order and discipline pickers every cost form shares (#2517, ADR-0104).
  *
  * A cost sits at project level (no work order) or on one of its project's work orders; cancelled work orders are
  * not offered. With no project there is nothing to pick from, so the work-order picker says so. The database

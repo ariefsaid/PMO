@@ -1,4 +1,4 @@
--- 0950_work_order_cost_attribution.test.sql — #2517 (ADR-0103; docs/specs/work-order-cost-attribution.spec.md).
+-- 0950_work_order_cost_attribution.test.sql — #2517 (ADR-0104; docs/specs/work-order-cost-attribution.spec.md).
 -- Migrations under test: 0950_cost_disciplines.sql, 0951_work_order_cost_attribution.sql, 0952_timesheet_week_attribution.sql.
 -- AC-WCA-001 every cost source carries a work order and a discipline · AC-WCA-002 a work order on another project,
 -- another org or cancelled is refused by the database, for every writer · AC-WCA-003 a discipline must be the org's,
@@ -11,7 +11,7 @@
 -- Every denial asserts the errcode AND the message, so a different gate moving in front cannot pass it.
 begin;
 create extension if not exists pgtap;
-select plan(44);
+select plan(48);
 
 -- ── Fixtures: org A (several roles), org B (another tenant). Written as the table owner. ─────────────────
 insert into organizations (id, name, default_currency) values
@@ -43,8 +43,8 @@ insert into work_orders (id, org_id, project_id, title, status, order_value, tax
 -- Source rows are written with triggers off: this file proves the attribution rule, not each record's create path
 -- (each has its own proof). Attribution columns stay NULL here; every attribution below goes through the triggers.
 set local session_replication_role = replica;
-insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount, cancelled_at) values
-  ('25170000-0000-0000-0000-000000000403', '25170000-0000-0000-0000-00000000000a', '25170000-0000-0000-0000-0000000000d1', 'WCA WO cancelled', 'Cancelled', 0, 'exclusive', 0, now());
+insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount, cancelled_at, currency) values
+  ('25170000-0000-0000-0000-000000000403', '25170000-0000-0000-0000-00000000000a', '25170000-0000-0000-0000-0000000000d1', 'WCA WO cancelled', 'Cancelled', 0, 'exclusive', 0, now(), 'IDR');
 insert into cost_disciplines (id, org_id, code, name, archived_at) values
   ('25170000-0000-0000-0000-000000000501', '25170000-0000-0000-0000-00000000000a', 'CIV', 'Civil', null),
   ('25170000-0000-0000-0000-000000000502', '25170000-0000-0000-0000-00000000000a', 'OLD', 'Retired', now()),
@@ -54,15 +54,15 @@ insert into procurements (id, org_id, title, project_id, requested_by_id, status
    '25170000-0000-0000-0000-0000000000a4', 'Ordered', 1000000, 1000000, 'IDR'),
   ('25170000-0000-0000-0000-000000000609', '25170000-0000-0000-0000-00000000000b', 'WCA other purchase', '25170000-0000-0000-0000-0000000000d9',
    '25170000-0000-0000-0000-0000000000b1', 'Ordered', 500000, 500000, 'IDR');
-insert into purchase_requests (id, org_id, procurement_id, pr_number, status, date, amount) values
-  ('25170000-0000-0000-0000-000000000611', '25170000-0000-0000-0000-00000000000a', '25170000-0000-0000-0000-000000000601', 'PR-WCA-1', 'Approved', '2026-11-16', 1000000),
-  ('25170000-0000-0000-0000-000000000619', '25170000-0000-0000-0000-00000000000b', '25170000-0000-0000-0000-000000000609', 'PR-WCA-9', 'Approved', '2026-11-16', 500000);
-insert into purchase_orders (id, org_id, procurement_id, po_number, status, date, amount) values
-  ('25170000-0000-0000-0000-000000000612', '25170000-0000-0000-0000-00000000000a', '25170000-0000-0000-0000-000000000601', 'PO-WCA-1', 'Issued', '2026-11-16', 1000000);
+insert into purchase_requests (id, org_id, procurement_id, pr_number, status, date, amount, currency) values
+  ('25170000-0000-0000-0000-000000000611', '25170000-0000-0000-0000-00000000000a', '25170000-0000-0000-0000-000000000601', 'PR-WCA-1', 'Approved', '2026-11-16', 1000000, 'IDR'),
+  ('25170000-0000-0000-0000-000000000619', '25170000-0000-0000-0000-00000000000b', '25170000-0000-0000-0000-000000000609', 'PR-WCA-9', 'Approved', '2026-11-16', 500000, 'IDR');
+insert into purchase_orders (id, org_id, procurement_id, po_number, status, date, amount, currency) values
+  ('25170000-0000-0000-0000-000000000612', '25170000-0000-0000-0000-00000000000a', '25170000-0000-0000-0000-000000000601', 'PO-WCA-1', 'Issued', '2026-11-16', 1000000, 'IDR');
 insert into procurement_receipts (id, org_id, procurement_id, gr_number, receipt_date, status) values
   ('25170000-0000-0000-0000-000000000613', '25170000-0000-0000-0000-00000000000a', '25170000-0000-0000-0000-000000000601', 'GR-WCA-1', '2026-11-16', 'Partial');
-insert into procurement_invoices (id, org_id, procurement_id, vi_number, invoice_date, status, tax_treatment, tax_amount) values
-  ('25170000-0000-0000-0000-000000000614', '25170000-0000-0000-0000-00000000000a', '25170000-0000-0000-0000-000000000601', 'VI-WCA-1', '2026-11-16', 'Received', 'exclusive', 0);
+insert into procurement_invoices (id, org_id, procurement_id, vi_number, invoice_date, status, tax_treatment, tax_amount, currency) values
+  ('25170000-0000-0000-0000-000000000614', '25170000-0000-0000-0000-00000000000a', '25170000-0000-0000-0000-000000000601', 'VI-WCA-1', '2026-11-16', 'Received', 'exclusive', 0, 'IDR');
 insert into timesheets (id, org_id, user_id, week_start_date, status) values
   ('25170000-0000-0000-0000-000000000701', '25170000-0000-0000-0000-00000000000a', '25170000-0000-0000-0000-0000000000a4', '2026-11-16', 'Draft'),
   ('25170000-0000-0000-0000-000000000702', '25170000-0000-0000-0000-00000000000a', '25170000-0000-0000-0000-0000000000a5', '2026-11-16', 'Approved');
@@ -181,6 +181,7 @@ select is((select coalesce(jsonb_agg(to_jsonb(a) order by a.category), '[]') fro
 select pg_temp.act_as('25170000-0000-0000-0000-0000000000a4');
 select is(public.set_cost_attribution('timesheet_entry', array['25170000-0000-0000-0000-000000000711']::uuid[],
   '25170000-0000-0000-0000-000000000401', '25170000-0000-0000-0000-000000000501'), 1, 'AC-WCA-008 an Engineer attributes a line of their own draft timesheet');
+select lives_ok($$ update public.timesheet_entries set work_order_id = null where id = '25170000-0000-0000-0000-000000000711' $$, 'FR-WCA-034 owner can directly change an editable line');
 select throws_ok($$ select public.set_cost_attribution('timesheet_entry', array['25170000-0000-0000-0000-000000000712']::uuid[], null, null) $$,
   '42501', 'you cannot change the work order or discipline of this record', 'AC-WCA-008 an Engineer cannot change another person''s timesheet line');
 select is(public.set_cost_attribution('stock_document', array['25170000-0000-0000-0000-000000000811']::uuid[],
@@ -245,7 +246,10 @@ select throws_ok($$ update public.procurements set project_id = '25170000-0000-0
                      where id = '25170000-0000-0000-0000-000000000601' $$,
   '23514', 'COST_WO_PROJECT_MOVE: records of this purchase name a work order of its project. Clear their work orders before moving the purchase.',
   'AC-WCA-011 a purchase whose records name a work order cannot move project');
+select throws_ok($$ update public.stock_warehouses set project_id = '25170000-0000-0000-0000-0000000000d2' where id = '25170000-0000-0000-0000-000000000802' $$, '23514', 'COST_WO_PROJECT_MOVE: transfers to this warehouse name a work order of its project', 'FR-WCA-020 a warehouse cannot move away from an attributed transfer');
 -- Audit and ACL.
+select is((select count(*)::int from public.audit_events where action = 'cost_attribution.set' and entity_id = '25170000-0000-0000-0000-000000000711'), 2, 'FR-WCA-034 direct changes are audited as well as RPC changes');
+select ok(exists (select 1 from public.audit_events a join public.timesheet_entries e on e.id = a.entity_id where a.action = 'cost_attribution.set' and e.timesheet_id = '25170000-0000-0000-0000-000000000701' and e.entry_date = '2026-11-17'), 'FR-WCA-034 week save audits attribution changes');
 select ok((select count(*) from public.audit_events where action = 'cost_attribution.set'
             and entity_id = '25170000-0000-0000-0000-000000000611') = 1, 'set_cost_attribution writes one audit row per record');
 select ok(not has_function_privilege('anon', 'public.set_cost_attribution(text,uuid[],uuid,uuid)', 'EXECUTE')
