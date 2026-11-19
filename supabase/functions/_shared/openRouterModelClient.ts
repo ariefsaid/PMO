@@ -24,7 +24,7 @@ const RETRY_BASE_DELAY_MS = 400;
  * pinned model slug — decisive for both prompt-cache economics (a stable backend keeps the shared
  * static prefix warm) and data privacy (`only` hard-restricts routing to a vetted allow-list, so the
  * agent never falls through to a host that trains on request data).
- * See docs/plans/2026-07-09-agent-model-cost-optimization.md.
+ * See 2026-07-09-agent-model-cost-optimization plan (in git history).
  */
 export interface OpenRouterProviderPolicy {
   /** Deterministic backend preference order (provider slugs). Preferred first → cache locality. */
