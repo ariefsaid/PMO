@@ -29,8 +29,8 @@ const CrewsPage: React.FC = () => {
   return (
     <ListPage
       title={t('crews:title', 'Crews')}
-      primaryAction={view === 'crews' && canManage
-        ? <Button variant="primary" onClick={() => setCreating(true)}><Icon name="plus" />{t('crews:new', 'New crew')}</Button>
+      primaryAction={canManage
+        ? <Button variant="primary" onClick={() => { setFilter('view', ''); setCreating(true); }}><Icon name="plus" />{t('crews:new', 'New crew')}</Button>
         : undefined}
     >
       <Tabs items={tabs} value={view} onChange={(v) => setFilter('view', v === 'crews' ? '' : v)}
