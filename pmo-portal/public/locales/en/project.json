@@ -429,7 +429,7 @@
         "warnDays": "Warn this many days ahead",
         "warnInvalid": "Enter 0 to 27 days.",
         "retention": "Retention (%)",
-        "retentionInvalid": "Enter a percentage from 0 to under 100.",
+        "retentionInvalid": "Enter a percentage from 0 to under 100 with at most 2 decimal places.",
         "retentionHelp": "Retention is held from each new progress claim; the invoice and its VAT stay at full value."
       }
     },

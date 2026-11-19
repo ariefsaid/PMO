@@ -80,6 +80,15 @@ describe('BillingTermsModal', () => {
     expect(h.save).not.toHaveBeenCalled();
   });
 
+  it('rejects retention with more than two decimal places', async () => {
+    const { user } = renderIt();
+    await user.clear(screen.getByRole('textbox', { name: 'Retention (%)' }));
+    await user.type(screen.getByRole('textbox', { name: 'Retention (%)' }), '2.555');
+    await user.click(screen.getByRole('button', { name: 'Save billing terms' }));
+    expect(h.save).not.toHaveBeenCalled();
+    expect(screen.getByText(/at most 2 decimal places/)).toBeInTheDocument();
+  });
+
   it('a refused save stays open and says why', async () => {
     h.save.mockRejectedValue(new AppError('only Finance or an Admin can set a project\'s billing stages', '42501'));
     const { user, onClose } = renderIt();

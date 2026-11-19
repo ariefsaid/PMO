@@ -429,7 +429,7 @@
         "warnDays": "Ingatkan sekian hari sebelumnya",
         "warnInvalid": "Masukkan 0 sampai 27 hari.",
         "retention": "Retensi (%)",
-        "retentionInvalid": "Masukkan persentase dari 0 sampai kurang dari 100.",
+        "retentionInvalid": "Masukkan persentase dari 0 sampai kurang dari 100 dengan maksimal 2 angka desimal.",
         "retentionHelp": "Retensi ditahan dari setiap klaim progres baru; faktur dan PPN-nya tetap bernilai penuh."
       }
     },

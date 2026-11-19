@@ -60,7 +60,7 @@ export const BillingTermsModal: React.FC<{ projectId: string; onClose: () => voi
     const next = {
       day: dayNum !== null && !(Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 31),
       warn: !(Number.isInteger(warnNum) && warnNum >= 0 && warnNum <= 27),
-      retention: !(Number.isFinite(pct) && pct >= 0 && pct < 100),
+      retention: !(Number.isFinite(pct) && pct >= 0 && pct < 100 && /^\d+(?:[.,]\d{1,2})?$/.test(retention.trim())),
       names: (rows ?? []).some((r) => r.name.trim() === ''),
     };
     setErrors(next);
@@ -119,7 +119,7 @@ export const BillingTermsModal: React.FC<{ projectId: string; onClose: () => voi
       </div>
       <div>
         <TextField inputMode="decimal" label={t('projectDetail.billing.terms.retention', 'Retention (%)')} value={retention} onChange={touch(setRetention)} />
-        {errors.retention && <FieldError>{t('projectDetail.billing.terms.retentionInvalid', 'Enter a percentage from 0 to under 100.')}</FieldError>}
+        {errors.retention && <FieldError>{t('projectDetail.billing.terms.retentionInvalid', 'Enter a percentage from 0 to under 100 with at most 2 decimal places.')}</FieldError>}
       </div>
     </div>
     <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.billing.terms.retentionHelp', 'Retention is held from each new progress claim; the invoice and its VAT stay at full value.')}</p>

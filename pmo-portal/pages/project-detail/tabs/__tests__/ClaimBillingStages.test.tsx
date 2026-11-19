@@ -120,8 +120,15 @@ describe('ClaimBillingStages', () => {
     expect(screen.queryByText('Complete every stage before raising the invoice.')).toBeNull();
   });
 
-  it('FR-BST-002 a claim with no stage plan renders nothing', () => {
+  it('shows deadline and retention without a stage plan', () => {
     h.trace = { ...trace(), stages: [] };
+    renderIt();
+    expect(screen.getByText(/Invoice deadline 25 Mar 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/Retention held/)).toHaveTextContent('IDR 50,000');
+  });
+
+  it('renders nothing when no stages, deadline or retention exist', () => {
+    h.trace = { stages: [], deadline: null, retention: null };
     const { container } = render(<MemoryRouter><ClaimBillingStages claimId="c1" projectId="p1" currency="IDR" invoiced={false} withdrawn={false} today="2026-03-20" /></MemoryRouter>);
     expect(container).toBeEmptyDOMElement();
   });

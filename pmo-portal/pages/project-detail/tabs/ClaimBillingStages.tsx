@@ -61,13 +61,14 @@ export const ClaimBillingStages: React.FC<ClaimBillingStagesProps> = ({ claimId,
     </section>;
   }
   const trace = traceQuery.data;
-  if (!trace || trace.stages.length === 0) return null;
+  if (!trace) return null;
 
   const open = !invoiced && !withdrawn;
   const canRecord = open && may('transition', 'billingStage');
   const current = currentStageIndex(trace.stages);
   const done = trace.stages.filter((s) => s.completedOn).length;
   const deadline = open && trace.deadline ? nextInvoiceDeadline(today, trace.deadline.day, trace.deadline.warnDays) : null;
+  if (trace.stages.length === 0 && !deadline && !(trace.retention && trace.retention.amount > 0)) return null;
   const eligible = (documents.data ?? []).filter((d) => (d.status === 'Issued' || d.status === 'Approved') && Boolean(d.file_path));
   const titleOf = (id: string) => (documents.data ?? []).find((d) => d.id === id)?.title ?? t('projectDetail.billing.evidence.document', 'Evidence document');
 
@@ -96,9 +97,9 @@ export const ClaimBillingStages: React.FC<ClaimBillingStagesProps> = ({ claimId,
   return <section aria-labelledby={`billing-stages-${claimId}`} className="border-t border-border p-4">
     <div className="flex flex-wrap items-baseline justify-between gap-2">
       <h3 id={`billing-stages-${claimId}`} className="text-group font-semibold">{t('projectDetail.billing.stages.title', 'Billing stages')}</h3>
-      <span className="text-sm tabular-nums text-muted-foreground">
+      {trace.stages.length > 0 && <span className="text-sm tabular-nums text-muted-foreground">
         {t('projectDetail.billing.stages.progress', '{{done}} of {{total}} complete', { done: formatNumberExact(done), total: formatNumberExact(trace.stages.length) })}
-      </span>
+      </span>}
     </div>
     {deadline && <p className="mt-1 text-sm">
       <StatusPill variant={deadline.warn ? 'warn' : 'neutral'} wrap={false}>
