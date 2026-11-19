@@ -6,7 +6,7 @@
  * shape (the edge fn `supabase/functions/erpnext-onboard/index.ts` is thin wiring around this).
  */
 import { AppError } from '../../appError.ts';
-import { adoptParty, externalIdFor, reviewReasonOf, type ErpPartySource, type PartyCandidate } from './partyAdopt.ts';
+import { adoptParty, externalIdFor, normalizePartyName, reviewReasonOf, taxKey, type ErpPartySource, type PartyCandidate } from './partyAdopt.ts';
 import { erpnextRequest, ERP_RESPONSE_MAX_BYTES, type ErpClientDeps } from './client.ts';
 import { getDoc } from './client.ts';
 import { listErpChangesSinceWatermark } from './sweepCursor.ts';
@@ -69,8 +69,11 @@ export async function listErpPartySources(client: ErpClientDeps): Promise<ErpPar
 }
 
 export interface OnboardPartiesDeps {
-  /** Resolve an already-adopted party by its doctype-encoded external id (the idempotency check —
-   *  a second run of the SAME source finds this and takes the update, not the mint, branch). */
+  /** The already-adopted parties among these doctype-encoded external ids, read once per run (#2119): the
+   *  idempotency check for every party, so a second run of the SAME source takes the update, not the mint, branch. */
+  findPmoRecordIds: (externalRecordIds: readonly string[]) => Promise<ReadonlyMap<string, string>>;
+  /** Resolve one party by its doctype-encoded external id: only after losing the link claim (23505), when the
+   *  run's prefetched mappings are stale by definition. */
   findPmoRecordId: (externalRecordId: string) => Promise<string | null>;
   /** Existing PMO `companies` candidates for a first-time adopt (mixed-state onboarding matching,
    *  FR-ENA-093) — never consulted on the idempotent-retry branch (the mapping is already known). */
@@ -101,30 +104,60 @@ export interface OnboardPartiesResult {
   skippedInternal: number;
 }
 
+/** Parties onboarded at once (#2119): bounded so a large first onboarding does not flood the database. */
+export const ONBOARD_PARTY_CONCURRENCY = 6;
+
+/**
+ * Split the sources into groups that cannot affect one another, so the groups can run at once while each runs in
+ * source order. Two sources share a group when they share the external id (the one-mapping-per-id invariant) or could
+ * be offered the same PMO company: same doctype and the same normalised name or tax id, the keys the candidate lookup
+ * matches on. Groups keep the order of their first source.
+ */
+function independentGroups(sources: readonly ErpPartySource[]): number[][] {
+  const parent = sources.map((_, i) => i);
+  const root = (i: number): number => (parent[i] === i ? i : (parent[i] = root(parent[i])));
+  const owner = new Map<string, number>();
+  sources.forEach((source, i) => {
+    const keys = [`id:${externalIdFor(source.doctype, source.id)}`, `name:${source.doctype}:${normalizePartyName(source.name)}`];
+    const tax = taxKey(source.taxId);
+    if (tax) keys.push(`tax:${source.doctype}:${tax}`);
+    for (const key of keys) {
+      const seen = owner.get(key);
+      if (seen === undefined) owner.set(key, i);
+      else { const [a, b] = [root(seen), root(i)]; if (a !== b) parent[Math.max(a, b)] = Math.min(a, b); }
+    }
+  });
+  const groups = new Map<number, number[]>();
+  sources.forEach((_, i) => { const r = root(i); groups.set(r, [...(groups.get(r) ?? []), i]); });
+  return [...groups.values()];
+}
+
 /**
  * Pull-adopt every given ERP Supplier/Customer source. AC-ENA-041's "adopted twice ⇒ exactly one
  * mirror + one external_refs" holds because the SECOND call for the same source finds its mapping
- * via `findPmoRecordId` and takes the update branch — `insertCompaniesMirror`/`recordExternalRef`
+ * via `findPmoRecordIds` and takes the update branch — `insertCompaniesMirror`/`recordExternalRef`
  * (the mint path) are called AT MOST ONCE per distinct external id, no matter how many times
- * `onboardParties` runs against the same underlying state.
+ * `onboardParties` runs against the same underlying state. Within a run, sources with one external id run one after
+ * the other in one group, and a mint is recorded in the run's mappings, so a repeat takes the update branch too.
  */
 export async function onboardParties(sources: readonly ErpPartySource[], deps: OnboardPartiesDeps): Promise<OnboardPartiesResult> {
   let adopted = 0;
   let reconciled = 0;
-  let skippedInternal = 0;
-  const needsDecision: OnboardPartiesResult['needsDecision'] = [];
-  const flagForDecision = async (entry: OnboardPartiesResult['needsDecision'][number]) => {
-    needsDecision.push(entry);
+  const live = sources.filter((source) => !source.isInternal);
+  // Internal-type parties are PMO's own org marker, never ERP-flipped: skipped, not an error.
+  const skippedInternal = sources.length - live.length;
+  const decisions: Array<{ at: number; entry: OnboardPartiesResult['needsDecision'][number] }> = [];
+  const flagForDecision = async (at: number, entry: OnboardPartiesResult['needsDecision'][number]) => {
+    decisions.push({ at, entry });
     await deps.notifyUnclearMatch(entry);
   };
-  for (const source of sources) {
-    if (source.isInternal) {
-      skippedInternal += 1;
-      continue;
-    }
-    // Keyed by the ERPNext ID, never the display name, so a ref the sweep minted is found here (#760).
+  // Keyed by the ERPNext ID, never the display name, so a ref the sweep minted is found here (#760).
+  const ids = [...new Set(live.map((source) => externalIdFor(source.doctype, source.id)))];
+  const known = new Map(ids.length > 0 ? await deps.findPmoRecordIds(ids) : []);
+
+  const onboardOne = async (at: number, source: ErpPartySource) => {
     const externalRecordId = externalIdFor(source.doctype, source.id);
-    const existingPmoRecordId = await deps.findPmoRecordId(externalRecordId);
+    const existingPmoRecordId = known.get(externalRecordId);
     if (existingPmoRecordId) {
       // Idempotent-retry branch: the mapping is already known — re-derive the canonical shape
       // (picking up any field changes on the ERP side) and UPDATE, never re-mint / re-record-ref.
@@ -138,7 +171,7 @@ export async function onboardParties(sources: readonly ErpPartySource[], deps: O
         await deps.insertCompaniesMirror(canonical); // claimed link, company never landed: repair with the same id
         adopted += 1;
       }
-      continue;
+      return;
     }
     let adoptedParty;
     let looked: PartyCandidate[] = [];
@@ -146,9 +179,9 @@ export async function onboardParties(sources: readonly ErpPartySource[], deps: O
       adoptedParty = await adoptParty(source, { findCandidates: async (doctype, name, taxId) => (looked = await deps.findCandidates(doctype, name, taxId)) });
     } catch (err) {
       if (!(err instanceof AppError) || err.code !== 'action-required') throw err;
-      await flagForDecision({ doctype: source.doctype, id: source.id, name: source.name, reason: err.details ?? 'unclear-match' });
+      await flagForDecision(at, { doctype: source.doctype, id: source.id, name: source.name, reason: err.details ?? 'unclear-match' });
       await deps.recordReview({ pmoIds: looked.map((c) => c.pmoRecordId).sort(), externalId: externalRecordId, reason: reviewReasonOf(err) });
-      continue;
+      return;
     }
     const { canonical, externalRecordId: mintedExternalId, matched } = adoptedParty;
     // Claim the link FIRST (#1600): a concurrent sweep that already linked this ERP party wins (23505) and no
@@ -157,18 +190,40 @@ export async function onboardParties(sources: readonly ErpPartySource[], deps: O
       await deps.recordExternalRef({ pmoRecordId: canonical.id, externalRecordId: mintedExternalId });
     } catch (err) {
       if ((err as { code?: string }).code !== '23505') throw err;
-      if (await deps.findPmoRecordId(externalRecordId)) {
+      const winner = await deps.findPmoRecordId(externalRecordId);
+      if (winner) {
+        known.set(externalRecordId, winner);
         reconciled += 1;
       } else {
-        await flagForDecision({ doctype: source.doctype, id: source.id, name: source.name, reason: 'already-linked' });
+        await flagForDecision(at, { doctype: source.doctype, id: source.id, name: source.name, reason: 'already-linked' });
       }
-      continue;
+      return;
     }
+    known.set(externalRecordId, canonical.id);
     // A matched company already exists under `canonical.id`: link it, never insert it again (#1600).
     if (matched) await deps.updateCompaniesMirror(canonical.id, canonical);
     else await deps.insertCompaniesMirror(canonical);
     adopted += 1;
-  }
+  };
+
+  // #2119: independent groups run at once, at most ONBOARD_PARTY_CONCURRENCY; the first failure stops new work and
+  // is rethrown once the parties already in flight settle (a re-run resumes idempotently).
+  const groups = independentGroups(live);
+  let next = 0;
+  let failure: { error: unknown } | null = null;
+  const worker = async () => {
+    while (failure === null && next < groups.length) {
+      const group = groups[next++];
+      try {
+        for (const at of group) await onboardOne(at, live[at]);
+      } catch (error) {
+        failure ??= { error };
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(ONBOARD_PARTY_CONCURRENCY, groups.length) }, worker));
+  if (failure !== null) throw (failure as { error: unknown }).error;
+  const needsDecision = decisions.sort((a, b) => a.at - b.at).map((d) => d.entry);
   return { adopted, reconciled, needsDecision, skippedInternal };
 }
 
