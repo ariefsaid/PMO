@@ -2297,7 +2297,6 @@ export type Database = {
           archived_at: string | null
           code: string
           created_at: string
-          created_by: string | null
           discipline_id: string | null
           field_controller_id: string | null
           id: string
@@ -2310,7 +2309,6 @@ export type Database = {
           archived_at?: string | null
           code: string
           created_at?: string
-          created_by?: string | null
           discipline_id?: string | null
           field_controller_id?: string | null
           id?: string
@@ -2323,7 +2321,6 @@ export type Database = {
           archived_at?: string | null
           code?: string
           created_at?: string
-          created_by?: string | null
           discipline_id?: string | null
           field_controller_id?: string | null
           id?: string
@@ -2333,13 +2330,6 @@ export type Database = {
           vendor_company_id?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "crews_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "crews_discipline_id_fkey"
             columns: ["discipline_id"]
