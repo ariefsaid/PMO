@@ -217,6 +217,15 @@ describe('NotificationBell', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/procurement/pc-42');
   });
 
+  it('opens the expiry list from an expiry notification', async () => {
+    listUnreadCount.mockResolvedValue(1);
+    listNotifications.mockResolvedValue([row({ id: 'n1', title: 'Permit expiring', metadata: { entity: { type: 'expiry_document', id: 'd1' } } })]);
+    renderBell();
+    await userEvent.click(await screen.findByRole('button', { name: /notifications/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /permit expiring/i }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/equipment/expiring'));
+  });
+
   it('AC-WFN-001 selecting a timesheet or task hand-off navigates to its queue page', async () => {
     listUnreadCount.mockResolvedValue(2);
     listNotifications.mockResolvedValue([
