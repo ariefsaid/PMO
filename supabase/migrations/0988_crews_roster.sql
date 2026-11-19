@@ -23,7 +23,6 @@ create table public.crews (
   field_controller_id uuid references public.profiles(id),
   kind                text not null default 'own' check (kind in ('own', 'vendor')),
   vendor_company_id   uuid references public.companies(id),
-  created_by          uuid references public.profiles(id) default auth.uid(),
   created_at          timestamptz not null default now(),
   archived_at         timestamptz,
   constraint crews_vendor_company check ((kind = 'vendor') = (vendor_company_id is not null))
@@ -111,7 +110,7 @@ create index work_order_crews_wo_dates_idx on public.work_order_crews (work_orde
 create trigger work_order_crews_stamp_org_id before insert on public.work_order_crews
   for each row execute function public.stamp_org_id();
 
--- ── §5 same-organisation references, version and audit ───────────────────────────────────────────────────────
+-- ── §5 same-organisation references, version and audit (zz_: after the org stamp, 0215) ───────────────────────────────────────────────────────
 -- SECURITY: definer so it can see a foreign row's org to refuse it; RLS alone would make a foreign id look absent
 -- only on read, not on an FK write.
 create function public.guard_crew_refs() returns trigger
@@ -186,15 +185,15 @@ begin
 end $$;
 revoke all on function public.guard_crew_refs() from public, anon, authenticated;
 
-create trigger a0_crews_refs before insert or update on public.crews
+create trigger zz_crews_refs before insert or update on public.crews
   for each row execute function public.guard_crew_refs();
-create trigger a0_crew_standard_roles_refs before insert or update on public.crew_standard_roles
+create trigger zz_crew_standard_roles_refs before insert or update on public.crew_standard_roles
   for each row execute function public.guard_crew_refs();
-create trigger a0_crew_workers_refs before insert or update on public.crew_workers
+create trigger zz_crew_workers_refs before insert or update on public.crew_workers
   for each row execute function public.guard_crew_refs();
-create trigger a0_crew_members_refs before insert or update on public.crew_members
+create trigger zz_crew_members_refs before insert or update on public.crew_members
   for each row execute function public.guard_crew_refs();
-create trigger a0_work_order_crews_refs before insert or update on public.work_order_crews
+create trigger zz_work_order_crews_refs before insert or update on public.work_order_crews
   for each row execute function public.guard_crew_refs();
 
 -- ── §6 who may manage crews (FR-CRW-019) ─────────────────────────────────────────────────────────────────────
@@ -214,14 +213,16 @@ begin
     execute format('alter table public.%I enable row level security', t);
     execute format('alter table public.%I force row level security', t);
     -- Every active member of the organisation reads the crew master and roster (the tick screen and pickers need it).
-    execute format('create policy %I on public.%I for select using (org_id = public.auth_org_id() and public.is_active_member())',
-                   t || '_select', t);
-    execute format('create policy %I on public.%I for insert with check (org_id = public.auth_org_id() and public.crew_can_manage())',
-                   t || '_insert', t);
-    execute format('create policy %I on public.%I for update using (org_id = public.auth_org_id() and public.crew_can_manage()) '
-                   'with check (org_id = public.auth_org_id())', t || '_update', t);
-    execute format('create policy %I on public.%I for delete using (org_id = public.auth_org_id() and public.crew_can_manage())',
-                   t || '_delete', t);
+    -- Helpers are scalar-selected (evaluated once per query, 0646/0696) and every policy names the membership gate (0203).
+    execute format('create policy %I on public.%I for select using (org_id = (select public.auth_org_id()) '
+                   'and (select public.is_active_member()))', t || '_select', t);
+    execute format('create policy %I on public.%I for insert with check (org_id = (select public.auth_org_id()) '
+                   'and (select public.is_active_member()) and (select public.crew_can_manage()))', t || '_insert', t);
+    execute format('create policy %I on public.%I for update using (org_id = (select public.auth_org_id()) '
+                   'and (select public.is_active_member()) and (select public.crew_can_manage())) '
+                   'with check (org_id = (select public.auth_org_id()) and (select public.is_active_member()))', t || '_update', t);
+    execute format('create policy %I on public.%I for delete using (org_id = (select public.auth_org_id()) '
+                   'and (select public.is_active_member()) and (select public.crew_can_manage()))', t || '_delete', t);
     execute format('revoke all on public.%I from public, anon, authenticated', t);
     execute format('grant select, delete on public.%I to authenticated', t);
     execute format('grant all on public.%I to service_role', t);

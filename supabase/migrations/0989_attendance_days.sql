@@ -36,11 +36,15 @@ create trigger crew_worker_rotation_off_stamp_org_id before insert on public.cre
 alter table public.crew_worker_rotation_off enable row level security;
 alter table public.crew_worker_rotation_off force row level security;
 create policy crew_worker_rotation_off_select on public.crew_worker_rotation_off for select
-  using (org_id = public.auth_org_id() and public.is_active_member());
-create policy crew_worker_rotation_off_write on public.crew_worker_rotation_off for all
-  using (org_id = public.auth_org_id() and public.crew_can_manage())
-  with check (org_id = public.auth_org_id() and public.crew_can_manage()
-              and exists (select 1 from public.crew_workers w where w.id = worker_id and w.org_id = public.auth_org_id()));
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
+create policy crew_worker_rotation_off_insert on public.crew_worker_rotation_off for insert
+  with check (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and (select public.crew_can_manage())
+              and exists (select 1 from public.crew_workers w where w.id = worker_id and w.org_id = (select public.auth_org_id())));
+create policy crew_worker_rotation_off_update on public.crew_worker_rotation_off for update
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and (select public.crew_can_manage()))
+  with check (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
+create policy crew_worker_rotation_off_delete on public.crew_worker_rotation_off for delete
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and (select public.crew_can_manage()));
 revoke all on public.crew_worker_rotation_off from public, anon, authenticated;
 grant select, delete on public.crew_worker_rotation_off to authenticated;
 grant insert (worker_id, off_from, off_to) on public.crew_worker_rotation_off to authenticated;
@@ -188,7 +192,7 @@ begin
   return new;
 end $$;
 revoke all on function public.guard_attendance_day() from public, anon, authenticated;
-create trigger a0_attendance_days_guard before insert or update or delete on public.attendance_days
+create trigger zz_attendance_days_guard before insert or update or delete on public.attendance_days
   for each row execute function public.guard_attendance_day();
 
 -- The timesheet line generated from this record (0990 writes it). Here so the lock guard can name it.
@@ -199,10 +203,10 @@ alter table public.attendance_days enable row level security;
 alter table public.attendance_days force row level security;
 -- Read: the office roles, the field controller of the person's crew, and the person themself (FR-CRW-019).
 create policy attendance_days_select on public.attendance_days for select
-  using (org_id = public.auth_org_id() and public.is_active_member()
-         and (public.auth_role() in ('Admin', 'Executive', 'Project Manager', 'Finance')
-              or exists (select 1 from public.crews c where c.id = attendance_days.crew_id and c.field_controller_id = auth.uid())
-              or exists (select 1 from public.crew_workers w where w.id = attendance_days.worker_id and w.profile_id = auth.uid())));
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
+         and ((select public.auth_role()) in ('Admin', 'Executive', 'Project Manager', 'Finance')
+              or exists (select 1 from public.crews c where c.id = attendance_days.crew_id and c.field_controller_id = (select auth.uid()))
+              or exists (select 1 from public.crew_workers w where w.id = attendance_days.worker_id and w.profile_id = (select auth.uid()))));
 -- Writes only through the security-definer RPCs below and in 0990.
 revoke all on public.attendance_days from public, anon, authenticated;
 grant select on public.attendance_days to authenticated;
@@ -239,17 +243,17 @@ create trigger attendance_photos_stamp_org_id before insert on public.attendance
 alter table public.attendance_photos enable row level security;
 alter table public.attendance_photos force row level security;
 create policy attendance_photos_select on public.attendance_photos for select
-  using (org_id = public.auth_org_id() and public.is_active_member()
-         and (public.auth_role() in ('Admin', 'Executive', 'Project Manager', 'Finance')
-              or exists (select 1 from public.crews c where c.id = attendance_photos.crew_id and c.field_controller_id = auth.uid())));
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
+         and ((select public.auth_role()) in ('Admin', 'Executive', 'Project Manager', 'Finance')
+              or exists (select 1 from public.crews c where c.id = attendance_photos.crew_id and c.field_controller_id = (select auth.uid()))));
 create policy attendance_photos_insert on public.attendance_photos for insert
-  with check (org_id = public.auth_org_id() and public.attendance_can_record(crew_id)
+  with check (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and public.attendance_can_record(crew_id)
               and exists (select 1 from public.work_order_crews r
                            where r.crew_id = attendance_photos.crew_id and r.work_order_id = attendance_photos.work_order_id
                              and attendance_photos.work_date between r.valid_from and coalesce(r.valid_to, 'infinity'::date)));
 create policy attendance_photos_update on public.attendance_photos for update
-  using (org_id = public.auth_org_id() and public.attendance_can_record(crew_id))
-  with check (org_id = public.auth_org_id());
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and public.attendance_can_record(crew_id))
+  with check (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
 revoke all on public.attendance_photos from public, anon, authenticated;
 grant select on public.attendance_photos to authenticated;
 grant insert (id, work_order_id, crew_id, work_date, file_path) on public.attendance_photos to authenticated;
@@ -261,16 +265,16 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
   values ('attendance-photos', 'attendance-photos', false, 10485760, array['image/png', 'image/jpeg', 'image/webp'])
   on conflict (id) do nothing;
 create policy storage_objects_attendance_photo_read on storage.objects for select to authenticated
-  using (bucket_id = 'attendance-photos' and auth.uid() is not null
-         and split_part(name, '/', 1) = public.auth_org_id()::text
+  using (bucket_id = 'attendance-photos' and (select auth.uid()) is not null
+         and split_part(name, '/', 1) = (select public.auth_org_id())::text
          and array_length(string_to_array(name, '/'), 1) = 4
          and exists (select 1 from public.attendance_photos p where p.id::text = split_part(name, '/', 3)));
 create policy storage_objects_attendance_photo_write on storage.objects for insert to authenticated
-  with check (bucket_id = 'attendance-photos' and auth.uid() is not null
-         and split_part(name, '/', 1) = public.auth_org_id()::text
+  with check (bucket_id = 'attendance-photos' and (select auth.uid()) is not null
+         and split_part(name, '/', 1) = (select public.auth_org_id())::text
          and array_length(string_to_array(name, '/'), 1) = 4
          and exists (select 1 from public.work_order_crews r join public.crews c on c.id = r.crew_id
-                      where r.work_order_id::text = split_part(name, '/', 2) and c.org_id = public.auth_org_id()
+                      where r.work_order_id::text = split_part(name, '/', 2) and c.org_id = (select public.auth_org_id())
                         and public.attendance_can_record(c.id)));
 
 -- ── §6 recording (FR-CRW-008..013, AC-CRW-005..008, 013) ─────────────────────────────────────────────────────
