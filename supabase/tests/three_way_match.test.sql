@@ -5,7 +5,7 @@
 -- Bills are recorded through create_procurement_invoice so their create audit carries the real author.
 begin;
 create extension if not exists pgtap;
-select plan(64);
+select plan(79);
 
 insert into organizations (id, name, default_currency) values
   ('25250000-0000-0000-0000-00000000000a', 'TWM Org',       'IDR'),
@@ -227,6 +227,18 @@ select pg_temp.act_as('25250000-0000-0000-0000-0000000000a1');
 select throws_ok($$ select approve_bill_match_exception(pg_temp.id('bill3'), 'again') $$, '23505', null,
   'AC-TWM-008 a bill''s exception is approved once');
 
+-- A later receipt resolves the variance but must not erase the permanent approval.
+select pg_temp.act_as('25250000-0000-0000-0000-0000000000a4');
+select lives_ok($$ select record_receipt_match_lines('25250000-0000-0000-0000-000000000022',
+  '[{"item_id":"25250000-0000-0000-0000-000000000011","quantity":25},{"item_id":"25250000-0000-0000-0000-000000000012","quantity":10}]'::jsonb) $$,
+  'AC-TWM-008 a later receipt resolves the approved variance');
+select pg_temp.act_as('25250000-0000-0000-0000-0000000000a1');
+select is(pg_temp.status('bill3'), 'exception_approved', 'AC-TWM-008 the approval remains the status after correction');
+select is(get_bill_match(pg_temp.id('bill3'))->'exception'->>'reason', 'extra cement delivered on site, receipt to follow',
+  'AC-TWM-008 the approval reason remains visible after correction');
+select throws_ok($$ select approve_bill_match_exception(pg_temp.id('bill3'), 'again after correction') $$, '23505', null,
+  'AC-TWM-008 a corrected bill cannot be approved twice');
+
 -- Bills 4 and 5 (author and lines Fin1): Fin2 approves. Then the purchase moves to payment again.
 select pg_temp.act_as('25250000-0000-0000-0000-0000000000a3');
 select lives_ok($$ select approve_bill_match_exception(pg_temp.id('bill4'), 'price rise agreed in writing') $$,
@@ -249,6 +261,7 @@ select throws_ok($$ select approve_bill_match_exception('25250000-0000-0000-0000
 
 -- ── AC-TWM-010: scope — what the match leaves alone ────────────────────────────────────────────────────────
 reset role;
+select set_config('request.jwt.claims', '', true);
 insert into procurement_invoices (id, org_id, procurement_id, status, amount, tax_treatment, tax_amount, created_at) values
   ('25250000-0000-0000-0000-000000000034', '25250000-0000-0000-0000-00000000000a', '25250000-0000-0000-0000-0000000000f3',
    'Received', 1000, 'exclusive', 0, now() - interval '1 day'),
@@ -275,6 +288,16 @@ select pg_temp.act_as('25250000-0000-0000-0000-0000000000c1');
 select lives_ok($$ select create_payment('25250000-0000-0000-0000-0000000000fc', null, null, null, current_date, 500) $$,
   'AC-TWM-010 an organisation without the match pays a bill with no lines as before');
 
+-- A cumulative bill beyond the order is held even when receipts exceed the ordered amount.
+select pg_temp.act_as('25250000-0000-0000-0000-0000000000a2');
+select set_config('twm.bill6', pg_temp.bill(30000)::text, true);
+select throws_ok($$ select record_bill_match_lines(pg_temp.id('bill6'), pg_temp.lines('25250000-0000-0000-0000-000000000031', 1, 1000)) $$,
+  '22023', null, 'AC-TWM-004 a bill line from another order is refused');
+select record_bill_match_lines(pg_temp.id('bill6'), pg_temp.lines('25250000-0000-0000-0000-000000000011', 30, 1000));
+select ok((get_bill_match(pg_temp.id('bill6'))->'lines'->0->'reasons') @> '["over_ordered"]'::jsonb,
+  'AC-TWM-004 cumulative billing beyond the order reports over-ordered');
+select is(pg_temp.status('bill6'), 'held', 'AC-TWM-004 billing beyond the order holds the bill');
+
 -- ── AC-TWM-012: tenancy and read roles ─────────────────────────────────────────────────────────────────────
 select pg_temp.act_as('25250000-0000-0000-0000-0000000000b1');
 select throws_ok($$ select get_bill_match(pg_temp.id('bill1')) $$, 'P0002', null, 'AC-TWM-012 another org cannot read a bill''s match');
@@ -282,6 +305,16 @@ select throws_ok($$ select approve_bill_match_exception(pg_temp.id('bill1'), 'x'
   'AC-TWM-012 another org cannot approve an exception');
 select is((select count(*)::int from procurement_bill_match_lines) + (select count(*)::int from bill_match_exceptions)
           + (select count(*)::int from procurement_receipt_lines), 0, 'AC-TWM-012 another org sees no match rows');
+-- Both sides of the RLS proof: these children have real, visible parents in A.
+select is((select count(*)::int from procurement_bill_matches where invoice_id = pg_temp.id('bill3')), 0, 'AC-TWM-012 B cannot see A match header');
+select is((select count(*)::int from procurement_bill_match_lines where invoice_id = pg_temp.id('bill3')), 0, 'AC-TWM-012 B cannot see A match lines');
+select is((select count(*)::int from bill_match_exceptions where invoice_id = pg_temp.id('bill3')), 0, 'AC-TWM-012 B cannot see A exception');
+select is((select count(*)::int from procurement_receipt_lines where receipt_id = '25250000-0000-0000-0000-000000000021'), 0, 'AC-TWM-012 B cannot see A receipt lines');
+select pg_temp.act_as('25250000-0000-0000-0000-0000000000a1');
+select is((select count(*)::int from procurement_bill_matches where invoice_id = pg_temp.id('bill3')), 1, 'AC-TWM-012 A sees its match header');
+select is((select count(*)::int from procurement_bill_match_lines where invoice_id = pg_temp.id('bill3')), 1, 'AC-TWM-012 A sees its match line');
+select is((select count(*)::int from bill_match_exceptions where invoice_id = pg_temp.id('bill3')), 1, 'AC-TWM-012 A sees its exception');
+select is((select count(*)::int from procurement_receipt_lines where receipt_id = '25250000-0000-0000-0000-000000000021'), 1, 'AC-TWM-012 A sees its receipt line');
 select pg_temp.act_as('25250000-0000-0000-0000-0000000000a5');
 select throws_ok($$ select get_bill_match(pg_temp.id('bill1')) $$, '42501', 'not authorized',
   'AC-TWM-012 an Engineer cannot read bill matches');

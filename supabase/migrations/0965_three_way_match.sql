@@ -186,15 +186,15 @@ begin
     -- The bill's own pre-tax amount must agree with its lines within the amount tolerance (FR-TWM-005).
     v_net := v_inv.amount - case when v_inv.tax_treatment = 'inclusive' then coalesce(v_inv.tax_amount, 0) else 0 end;
     if v_net is null or abs(v_net - v_lines_total) > round(v_lines_total * v_a, 2) then
-      v_reasons := v_reasons || 'amount_mismatch';
+      v_reasons := array_append(v_reasons, 'amount_mismatch');
     end if;
   end if;
-  if cardinality(v_reasons) = 0 and not v_line_held then
-    v_status := 'matched';
-  else
-    select * into v_exc from public.bill_match_exceptions where invoice_id = v_inv.id;
-    v_status := case when v_exc.invoice_id is null then 'held' else 'exception_approved' end;
-  end if;
+  select * into v_exc from public.bill_match_exceptions where invoice_id = v_inv.id;
+  v_status := case
+    when v_exc.invoice_id is not null then 'exception_approved'
+    when cardinality(v_reasons) = 0 and not v_line_held then 'matched'
+    else 'held'
+  end;
   return jsonb_build_object(
     'status', v_status, 'reasons', to_jsonb(v_reasons), 'lines', v_lines,
     'quantity_tolerance_pct', v_set.quantity_tolerance_pct, 'amount_tolerance_pct', v_set.amount_tolerance_pct,

@@ -37,6 +37,16 @@ judge(){
   [ "$bad" = 0 ]
 }
 
+# Every update deferred by the paired read run must have an actual denial in the write run.
+paired_updates(){
+  local read_log=$1 write_log=$2 table failed=0
+  while IFS= read -r table; do
+    [ -n "$table" ] || continue
+    grep -Fqx "  EXPECTED-DENIAL  table $table update" "$write_log" || { echo "  FAIL: paired write did not prove $table update" >&2; failed=1; }
+  done < <(sed -n 's/^  N\/A  \(.*\) update — paired write run$/\1/p' "$read_log")
+  [ "$failed" = 0 ]
+}
+
 # local_only <api|db> <url>: succeed only when the host parses as exactly 127.0.0.1, localhost or [::1].
 local_only(){
   local host='(127\.0\.0\.1|localhost|\[::1\])'
@@ -65,6 +75,11 @@ self_test(){
   t fail read 3 40 0 0 3                                    # probe exit code
   t fail write 0 40 0 0 5 '  SKIPPED  t update - needs disposable tenant A\n'; t pass read 0 40 0 0 3 '  SKIPPED  t update - needs disposable tenant A\n'
   printf 'curl: (7) refused\n' > "$d/none"; judge read 2 "$d/none" >/dev/null 2>&1 && { echo 'self-test FAIL: crashed probe passed' >&2; fails=1; }
+  printf '  N/A  sample update — paired write run\n' > "$d/paired-read"
+  printf '  EXPECTED-DENIAL  table sample update\n' > "$d/paired-write"
+  paired_updates "$d/paired-read" "$d/paired-write" >/dev/null 2>&1 || { echo 'self-test FAIL: paired update proof rejected' >&2; fails=1; }
+  : > "$d/paired-write"
+  if paired_updates "$d/paired-read" "$d/paired-write" >/dev/null 2>&1; then echo 'self-test FAIL: missing write update passed' >&2; fails=1; fi
   lo(){ # lo <pass|fail> <api|db> <url>
     local_only "$2" "$3"; local got=$?
     if { [ "$1" = pass ] && [ $got != 0 ]; } || { [ "$1" = fail ] && [ $got = 0 ]; }; then echo "self-test FAIL: host guard $2 $3 expected $1" >&2; fails=1; fi
@@ -83,7 +98,7 @@ self_test(){
 
 command -v jq >/dev/null && command -v curl >/dev/null || { echo 'isolation-proof: jq and curl are required' >&2; exit 2; }
 # Nothing from the caller's shell may stand in for the local stack's values, and no probe knob may shrink the run.
-unset API_URL ANON_KEY SERVICE_ROLE_KEY DB_URL RPC_ONLY ISOLATION_VALIDATE_ONLY PROBE_A_DISPOSABLE TABLES_JSON
+unset API_URL ANON_KEY SERVICE_ROLE_KEY DB_URL RPC_ONLY ISOLATION_VALIDATE_ONLY PROBE_A_DISPOSABLE TABLES_JSON PAIRED_READ_WRITE
 eval "$(cd "$SCRIPT_DIR/.." && supabase status -o env 2>/dev/null | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY|DB_URL)=')"
 for v in API_URL ANON_KEY SERVICE_ROLE_KEY DB_URL; do [ -n "${!v:-}" ] || { echo "isolation-proof: local stack not running ($v missing)" >&2; exit 2; }; done
 local_only api "$API_URL" && local_only db "$DB_URL" || { echo 'isolation-proof: refusing a host that is not this machine' >&2; exit 2; }
@@ -95,13 +110,46 @@ b_password=$(head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9')Aa1
 fixtures(){ sql -v action="$1" -v b_password="$b_password" < "$SCRIPT_DIR/isolation-fixtures.sql"; }
 cleanup(){
   fixtures down >/dev/null 2>&1
-  left=$(sql -c "select (select count(*) from organizations where id in ('$A_ORG','$B_ORG')) + (select count(*) from auth.users where email = 'isolation-proof-b@example.invalid') + (select count(*) from auth.sessions where user_id = 'a6120000-0000-4000-8000-0000000000b1')" 2>/dev/null)
+  left=$(sql -c "select (select count(*) from organizations where id in ('$A_ORG','$B_ORG')) + (select count(*) from auth.users where id in ('a6120000-0000-4000-8000-0000000000a1', 'a6120000-0000-4000-8000-0000000000b1')) + (select count(*) from auth.sessions where user_id = 'a6120000-0000-4000-8000-0000000000b1')" 2>/dev/null)
   rm -rf "$work"
   [ "$left" = 0 ] || { echo "isolation-proof: fixtures not fully removed (left=$left)" >&2; exit 5; }
 }
 trap cleanup EXIT
 
 fixtures up | sed 's/^ISO-COPY-SKIPPED /  copy skipped: /' | cut -c1-200 || exit 2
+# The match children must be visible through their real parents to A before B's denial can prove isolation.
+sql <<'SQL' || exit 2
+begin;
+select set_config('request.jwt.claims', '{"sub":"a6120000-0000-4000-8000-0000000000a1","role":"authenticated"}', true);
+set local role authenticated;
+do $$ begin
+  if (select count(*) from public.procurement_receipt_lines where receipt_id = 'a6120000-0000-4000-8000-0000000000e3') <> 1
+     or (select count(*) from public.procurement_bill_matches where invoice_id = 'a6120000-0000-4000-8000-0000000000e5') <> 1
+     or (select count(*) from public.procurement_bill_match_lines where invoice_id = 'a6120000-0000-4000-8000-0000000000e5') <> 1
+     or (select count(*) from public.bill_match_exceptions where invoice_id = 'a6120000-0000-4000-8000-0000000000e5') <> 1 then
+    raise exception 'three-way match isolation fixtures are not visible to their owner';
+  end if;
+end $$;
+select set_config('request.jwt.claims', '{"sub":"a6120000-0000-4000-8000-0000000000b1","role":"authenticated"}', true);
+do $$ begin
+  if (select count(*) from public.org_three_way_match_settings where org_id = 'a6120000-0000-4000-8000-00000000000b') <> 1
+     or (select count(*) from public.procurement_receipt_lines where receipt_id = 'a6120000-0000-4000-8000-0000000000b5') <> 1
+     or (select count(*) from public.procurement_bill_matches where invoice_id = 'a6120000-0000-4000-8000-0000000000b6') <> 1
+     or (select count(*) from public.procurement_bill_match_lines where invoice_id = 'a6120000-0000-4000-8000-0000000000b6') <> 1
+     or (select count(*) from public.bill_match_exceptions where invoice_id = 'a6120000-0000-4000-8000-0000000000b6') <> 1 then
+    raise exception 'three-way match isolation fixtures are not visible to B';
+  end if;
+end $$;
+do $$ begin
+  if (select count(*) from public.procurement_receipt_lines where receipt_id = 'a6120000-0000-4000-8000-0000000000e3') <> 0
+     or (select count(*) from public.procurement_bill_matches where invoice_id = 'a6120000-0000-4000-8000-0000000000e5') <> 0
+     or (select count(*) from public.procurement_bill_match_lines where invoice_id = 'a6120000-0000-4000-8000-0000000000e5') <> 0
+     or (select count(*) from public.bill_match_exceptions where invoice_id = 'a6120000-0000-4000-8000-0000000000e5') <> 0 then
+    raise exception 'three-way match isolation fixtures are visible to another organization';
+  end if;
+end $$;
+rollback;
+SQL
 # Sign B in with its password (never printed).
 code=$(curl -sS -o "$work/login" -w '%{http_code}' -H "apikey: $ANON_KEY" -H 'Content-Type: application/json' \
   -d "$(jq -nc --arg p "$b_password" '{email:"isolation-proof-b@example.invalid",password:$p}')" "$API_URL/auth/v1/token?grant_type=password")
@@ -116,10 +164,11 @@ echo "isolation-proof: tenant A rows for $(jq length "$work/rows") tables"
 export BASE="$API_URL" ANON="$ANON_KEY" SERVICE="$SERVICE_ROLE_KEY" JWT_B A_ORG B_ORG A_ROWS_JSON="$work/rows" STRICT=0
 fail=0
 for mode in read write; do
-  if [ "$mode" = write ]; then export PROBE_A_DISPOSABLE=1; else unset PROBE_A_DISPOSABLE; fi
+  if [ "$mode" = write ]; then export PROBE_A_DISPOSABLE=1; unset PAIRED_READ_WRITE; else unset PROBE_A_DISPOSABLE; export PAIRED_READ_WRITE=1; fi
   "$PROBE" > "$work/$mode.log" 2>&1; rc=$?
   grep -E 'LEAK|PROBE-ERROR|SKIPPED' "$work/$mode.log" | sort | uniq -c | sort -rn
   judge "$mode" "$rc" "$work/$mode.log" || fail=1
   { echo "isolation-proof[$mode]: $(grep -E '^=== checks' "$work/$mode.log" | tail -1)"; } >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
 done
+paired_updates "$work/read.log" "$work/write.log" || fail=1
 exit $fail

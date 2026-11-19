@@ -27,7 +27,7 @@ do $$ declare t record; begin
   delete from auth.refresh_tokens where user_id = 'a6120000-0000-4000-8000-0000000000b1';  -- B's sign-in leaves these behind
   delete from auth.sessions where user_id = 'a6120000-0000-4000-8000-0000000000b1';
   delete from auth.identities where user_id = 'a6120000-0000-4000-8000-0000000000b1';
-  delete from auth.users where id = 'a6120000-0000-4000-8000-0000000000b1';
+  delete from auth.users where id in ('a6120000-0000-4000-8000-0000000000a1', 'a6120000-0000-4000-8000-0000000000b1');
 end $$;
 
 \if :is_up
@@ -86,6 +86,12 @@ begin
     end;
   end loop;
 end $$;
+-- A real active auth user is required by is_active_member; copied profiles have no matching auth.users.
+insert into auth.users (id, email) values
+  ('a6120000-0000-4000-8000-0000000000a1', 'isolation-proof-a@example.invalid');
+insert into profiles (id, org_id, full_name, email, role, status) values
+  ('a6120000-0000-4000-8000-0000000000a1', 'a6120000-0000-4000-8000-00000000000a',
+   'Isolation Proof A', 'isolation-proof-a@example.invalid', 'Admin', 'active');
 -- The seed org carries no journal, so the copy leaves the three journal tables empty and their by-id read and update
 -- probes would skip. Give A one draft journal (one line, one author) so every probe on them runs.
 insert into public.journal_entries (id, org_id, kind, entry_date, memo, status, maker_id)
@@ -97,8 +103,17 @@ insert into public.journal_entry_authors (journal_id, profile_id, org_id)
 select 'a6120000-0000-4000-8000-0000000000e1', p.id, 'a6120000-0000-4000-8000-00000000000a'
   from public.profiles p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
 -- 0965 (#2525): the seed org carries no three-way match rows either. Give A one of each so their by-id probes run. The
--- match stays off for A (enabled = false), so none of A's purchases is gated. FK triggers are off here, so the line and
--- exception rows name one fixed bill and receipt id of their own.
+-- match stays off for A (enabled = false), so none of A's purchases is gated. Each child has a real parent in A,
+-- so an authenticated A member can see it through the parent-visible policies.
+insert into public.procurement_items (id, org_id, procurement_id, name, quantity, rate)
+select 'a6120000-0000-4000-8000-0000000000e4', p.org_id, p.id, 'isolation-proof item', 1, 1
+  from public.procurements p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
+insert into public.procurement_receipts (id, org_id, procurement_id, status)
+select 'a6120000-0000-4000-8000-0000000000e3', p.org_id, p.procurement_id, 'Partial'
+  from public.procurement_items p where p.id = 'a6120000-0000-4000-8000-0000000000e4';
+insert into public.procurement_invoices (id, org_id, procurement_id, status, tax_treatment, tax_amount, currency)
+select 'a6120000-0000-4000-8000-0000000000e5', p.org_id, p.procurement_id, 'Received', 'exclusive', 0, 'IDR'
+  from public.procurement_items p where p.id = 'a6120000-0000-4000-8000-0000000000e4';
 insert into public.org_three_way_match_settings (org_id, enabled, updated_by)
 select 'a6120000-0000-4000-8000-00000000000a', false, p.id
   from public.profiles p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
@@ -113,6 +128,30 @@ values ('a6120000-0000-4000-8000-0000000000e5', 'a6120000-0000-4000-8000-0000000
 insert into public.bill_match_exceptions (invoice_id, org_id, approved_by, reason, match)
 select 'a6120000-0000-4000-8000-0000000000e5', 'a6120000-0000-4000-8000-00000000000a', p.id, 'isolation-proof exception', '{}'::jsonb
   from public.profiles p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
+-- A complete B purchase and match, so its own-organisation reads are non-vacuous.
+insert into public.projects (id, org_id, name, status, pmo_project_number, currency) values
+  ('a6120000-0000-4000-8000-0000000000b2', 'a6120000-0000-4000-8000-00000000000b', 'isolation-proof project B', 'Ongoing Project', 'ISO-B-1', 'IDR');
+insert into public.procurements (id, org_id, title, project_id, requested_by_id, status, total_value, approved_total_value,
+  approved_by_id, budget_category, currency, is_subcontract) values
+  ('a6120000-0000-4000-8000-0000000000b3', 'a6120000-0000-4000-8000-00000000000b', 'isolation-proof purchase B',
+   'a6120000-0000-4000-8000-0000000000b2', 'a6120000-0000-4000-8000-0000000000b1', 'Vendor Invoiced', 1, 1,
+   'a6120000-0000-4000-8000-0000000000b1', 'Materials', 'IDR', false);
+insert into public.procurement_items (id, org_id, procurement_id, name, quantity, rate) values
+  ('a6120000-0000-4000-8000-0000000000b4', 'a6120000-0000-4000-8000-00000000000b', 'a6120000-0000-4000-8000-0000000000b3', 'isolation-proof item B', 1, 1);
+insert into public.procurement_receipts (id, org_id, procurement_id, status) values
+  ('a6120000-0000-4000-8000-0000000000b5', 'a6120000-0000-4000-8000-00000000000b', 'a6120000-0000-4000-8000-0000000000b3', 'Partial');
+insert into public.procurement_invoices (id, org_id, procurement_id, status, tax_treatment, tax_amount, currency) values
+  ('a6120000-0000-4000-8000-0000000000b6', 'a6120000-0000-4000-8000-00000000000b', 'a6120000-0000-4000-8000-0000000000b3', 'Received', 'exclusive', 0, 'IDR');
+insert into public.org_three_way_match_settings (org_id, enabled, updated_by) values
+  ('a6120000-0000-4000-8000-00000000000b', false, 'a6120000-0000-4000-8000-0000000000b1');
+insert into public.procurement_receipt_lines (receipt_id, item_id, org_id, quantity, recorded_by) values
+  ('a6120000-0000-4000-8000-0000000000b5', 'a6120000-0000-4000-8000-0000000000b4', 'a6120000-0000-4000-8000-00000000000b', 1, 'a6120000-0000-4000-8000-0000000000b1');
+insert into public.procurement_bill_matches (invoice_id, org_id, recorded_by) values
+  ('a6120000-0000-4000-8000-0000000000b6', 'a6120000-0000-4000-8000-00000000000b', 'a6120000-0000-4000-8000-0000000000b1');
+insert into public.procurement_bill_match_lines (invoice_id, item_id, org_id, quantity, rate) values
+  ('a6120000-0000-4000-8000-0000000000b6', 'a6120000-0000-4000-8000-0000000000b4', 'a6120000-0000-4000-8000-00000000000b', 1, 1);
+insert into public.bill_match_exceptions (invoice_id, org_id, approved_by, reason, match) values
+  ('a6120000-0000-4000-8000-0000000000b6', 'a6120000-0000-4000-8000-00000000000b', 'a6120000-0000-4000-8000-0000000000b1', 'isolation-proof exception B', '{}'::jsonb);
 select 'ISO-COPY-SKIPPED ' || tbl || ': ' || why from _iso_skipped order by tbl;
 \endif
 
