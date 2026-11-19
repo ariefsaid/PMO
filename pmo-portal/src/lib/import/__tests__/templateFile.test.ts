@@ -73,7 +73,7 @@ describe('failed rows download', () => {
     const ws = wb.worksheets[0];
     expect((ws.getRow(1).values as unknown[]).slice(1)).toEqual(['Code', 'Unit', 'Row in your file', 'Reason']);
     expect(ws.rowCount).toBe(3);
-    expect(ws.getRow(2).values).toEqual([, 'B', 'bad', 3, 'Unknown unit']);
+    expect((ws.getRow(2).values as unknown[]).slice(1)).toEqual(['B', 'bad', 3, 'Unknown unit']);
     expect(ws.getRow(3).getCell(1).value).toBe("'=HYPERLINK(\"x\")");
     expect(ws.getRow(3).getCell(3).value).toBe(4);
     const there = wb.worksheets[1];

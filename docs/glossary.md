@@ -528,3 +528,7 @@ and **Phase** for a milestone. **Actual** and **Recorded spending** name the sam
 **Proven downtime** — a downtime period with at least one proof (photo or vendor ticket) attached. Only proven down days are deducted from a rental bill unless a user includes unproven days with a stated reason.
 
 **Rental downtime deduction** — proven down days in the invoice period times the daily rate (a monthly rate divided by the calendar days of that month), never more than the period's rental amount. The invoice check compares the vendor's bill with rent minus this deduction; it never edits, posts or pays the bill.
+
+## Import templates (#2530)
+- **Import template** — a spreadsheet a person downloads from an import screen: the field labels as headers, one example row, dropdowns for closed lists and a Notes sheet saying what each column holds. It carries a version, and an upload of the current or the previous version is accepted.
+- **Failed-rows file** — the spreadsheet offered when an import ends with rows that did not go in: the original cells of those rows plus "Row in your file" and "Reason", so they can be fixed and uploaded again. Rows that already existed are on their own "Already there" sheet.

@@ -145,7 +145,7 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
         if (generation === parseGeneration.current) setParsing(false);
       }
     },
-    [descriptor, descriptor.fields, descriptor.maxRows],
+    [descriptor],
   );
 
   const selectPaste = useCallback(
