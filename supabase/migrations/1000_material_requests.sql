@@ -190,9 +190,6 @@ create policy material_request_events_select on public.material_request_events f
 revoke all on public.material_request_settings, public.approval_chain_steps, public.approval_stand_ins,
   public.material_requests, public.material_request_lines, public.material_request_steps, public.material_request_events
   from public, anon, authenticated;
-revoke insert, update, delete, truncate, trigger, references on public.material_request_settings, public.approval_chain_steps,
-  public.approval_stand_ins, public.material_requests, public.material_request_lines, public.material_request_steps,
-  public.material_request_events from service_role;
 grant select on public.material_request_settings, public.approval_chain_steps, public.approval_stand_ins,
   public.material_requests, public.material_request_lines, public.material_request_steps, public.material_request_events
   to authenticated;
