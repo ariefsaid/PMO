@@ -54,6 +54,7 @@
     "unitLine": "Logged in {{unit}}"
   },
   "availability": {
+    "amountInvalid": "Enter the amount as a number with at most 2 decimals",
     "noProof": "No proof",
     "views": "Availability views",
     "otherAssetActions": "Other asset actions",

@@ -3216,3 +3216,63 @@ test('AC-1789-CLI-007: pmo bid needs a known outcome, a project UUID and a proje
     assert.deepEqual(rpcs(), []);
   });
 });
+
+test('AC-CLUI-002 purchases undo-import previews by default and applies only with --confirm; the reason travels with it', async () => {
+  const calls = [];
+  const fake = await fakeSupabase({ handler: ({ url, body, send }) => {
+    if (url.pathname === '/rest/v1/rpc/undo_imported_purchase') {
+      const b = JSON.parse(body);
+      calls.push(b);
+      send(200, { outcome: 'undo', dry_run: b.p_dry_run, import_key: b.p_import_key, erp_write: false });
+      return true;
+    }
+    return false;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const preview = await runCli(['purchases', 'undo-import', 'H-1', '--reason', 'Wrong project', '--url', fake.url], { configDir });
+    assert.equal(preview.code, 0, preview.err);
+    assert.deepEqual(calls[0], { p_import_key: 'H-1', p_reason: 'Wrong project', p_dry_run: true });
+    const applied = await runCli(['purchases', 'undo-import', 'H-1', '--reason', 'Wrong project', '--confirm', '--url', fake.url], { configDir });
+    assert.equal(applied.code, 0, applied.err);
+    assert.deepEqual(calls[1], { p_import_key: 'H-1', p_reason: 'Wrong project', p_dry_run: false });
+    assert.equal(JSON.parse(applied.out).dry_run, false);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('AC-CLUI-001 undo-import without a key or a reason sends nothing', async () => {
+  const calls = [];
+  const fake = await fakeSupabase({ handler: ({ url, send }) => { if (url.pathname.includes('undo_imported_purchase')) { calls.push(1); send(200, {}); return true; } return false; } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    for (const args of [['purchases', 'undo-import', '--reason', 'x'], ['purchases', 'undo-import', 'H-1'], ['purchases', 'undo-import', 'H-1', '--reason', ' ']]) {
+      const r = await runCli([...args, '--url', fake.url], { configDir });
+      assert.equal(r.code, 2, args.join(' '));
+    }
+    assert.equal(calls.length, 0);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('AC-CLUI-003 undo-import exits 1 when the purchase has later records, naming what blocks it; exit 2 for a non-Admin', async () => {
+  let mode = 'refuse';
+  const fake = await fakeSupabase({ handler: ({ url, send }) => {
+    if (url.pathname === '/rest/v1/rpc/undo_imported_purchase') {
+      if (mode === 'deny') send(403, { code: '42501', message: 'Only an active Admin can undo an imported purchase.' });
+      else send(200, { outcome: 'refused', reason: 'has_later_records', blocked_by: ['payments'], erp_write: false });
+      return true;
+    }
+    return false;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const refused = await runCli(['purchases', 'undo-import', 'H-1', '--reason', 'Wrong vendor', '--confirm', '--url', fake.url], { configDir });
+    assert.equal(refused.code, 1, refused.err);
+    assert.deepEqual(JSON.parse(refused.out).blocked_by, ['payments']);
+    mode = 'deny';
+    const denied = await runCli(['purchases', 'undo-import', 'H-1', '--reason', 'Wrong vendor', '--url', fake.url], { configDir });
+    assert.equal(denied.code, 2, denied.err);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});

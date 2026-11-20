@@ -627,7 +627,6 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
       <TaskRecordDrawer
         task={selectedTask}
         allTasks={all}
-        workOrders={workOrders ?? []}
         projectId={projectId}
         canEdit={selectedTask ? canEditTask(selectedTask) : false}
         canArchive={selectedTask ? canArchive && !externallyOwned : false}

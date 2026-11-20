@@ -1,5 +1,5 @@
 import type {
-  DsrContractItem, DsrDraftInput, DsrEquipmentHours, DsrListFilter, DsrListOption, DsrPeopleHours, DsrPhoto,
+  DsrContractItem, DsrDraftInput, DsrListAdminOption, DsrListFilter, DsrListKind, DsrListOption, DsrReportHours, DsrPhoto,
   DsrQueueRow, DsrReport, DsrReportDetail, DsrReportListRow, DsrRevenueLineRow,
 } from '@/src/lib/db/dailySiteReports';
 
@@ -9,9 +9,12 @@ export interface DailySiteReportRepository {
   get(id: string): Promise<DsrReportDetail | null>;
   listIdleReasons(): Promise<DsrListOption[]>;
   listWeatherConditions(): Promise<DsrListOption[]>;
+  listListItems(kind: DsrListKind): Promise<DsrListAdminOption[]>;
+  addListItem(kind: DsrListKind, label: string): Promise<void>;
+  renameListItem(kind: DsrListKind, id: string, label: string): Promise<void>;
+  setListItemArchived(kind: DsrListKind, id: string, archived: boolean): Promise<void>;
   listContractItems(workOrderId: string): Promise<DsrContractItem[]>;
-  listEquipmentHours(workOrderId: string, workDate: string): Promise<DsrEquipmentHours[]>;
-  listPeopleHours(workOrderId: string, workDate: string): Promise<DsrPeopleHours[]>;
+  reportHours(reportId: string): Promise<DsrReportHours>;
   saveDraft(input: DsrDraftInput): Promise<string>;
   submit(id: string): Promise<void>;
   validate(id: string): Promise<void>;

@@ -191,7 +191,7 @@ describe('ERP domain setup actions', () => {
     fireEvent.click(await screen.findByRole('button',{name:'Choose information to keep updated'}));
     fireEvent.change(screen.getByRole('combobox',{name:'Business information'}),{target:{value:'timesheets'}});
     fireEvent.click(screen.getByRole('button',{name:'Save information choices'}));
-    expect(await screen.findByText('Could not employ this domain. Check ERP read permissions and try again.')).toBeInTheDocument();
+    expect(await screen.findByText('Could not employ this domain. Your operator will fix the integration role; then try again.')).toBeInTheDocument();
     expect(screen.getByRole('combobox',{name:'Business information'})).toHaveValue('timesheets');
     fireEvent.click(screen.getByRole('button',{name:'Save information choices'}));
     await waitFor(()=>expect(screen.queryByRole('dialog',{name:'Information to keep updated'})).not.toBeInTheDocument());

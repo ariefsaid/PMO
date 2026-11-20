@@ -410,7 +410,7 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Stage age** — days a billing stage has been current: from its start (the previous stage's completion) to its completion, or to today while open.
 
-**Invoice deadline** — the project's monthly day (1–31, clamped to the month's end) by which its invoice must reach the client, with a warning window in days.
+**Invoice deadline** — the project's monthly day (1–31, clamped to the month's end) by which its invoice must reach the client, with a warning window in days. A claim shows it while its stages are still open or it has no stage plan; it is hidden once every planned stage is complete (#2522).
 
 **Measured quantity** — quantity on progress claims that are not withdrawn and whose invoice, if any, is not cancelled. **Billed quantity** — quantity on progress claims with an invoice that is not cancelled. Per bill-of-quantities item the reconciliation reads unbilled, partly billed, fully billed or surplus.
 
@@ -618,7 +618,8 @@ document with a file before the stage completes, and that document becomes the c
 completion, or to today while open.
 
 **Invoice deadline** — the project's monthly day (1-31, clamped to the month's end) by which its invoice must reach the
-client, with a warning window in days.
+client, with a warning window in days. A claim shows it while its stages remain open or it has no stage plan; it is
+hidden when every planned stage is complete (#2522).
 
 **Measured quantity** — per bill-of-quantities item, the quantity on progress claims that are not withdrawn.
 **Billed quantity** — the quantity on progress claims whose invoice exists and is not cancelled. The reconciliation reads
@@ -914,6 +915,12 @@ behind them; distinct from instructions or an explanation of the page.
 **Waits on you** — work requiring the current person's action, such as a decision or a returned
 submission; distinct from general project risk or everything assigned to them.
 
+**Import key** — the stable id a row of `purchases import-history` carries; it makes a rerun safe (same row: skip) and names the row
+for `purchases undo-import`. Undoing an import frees its key.
+
+**Undo of an imported purchase** — a preview-first, Admin-only removal of one import's rows, refused once anything outside the import
+exists against the purchase; audited with a reason.
+
 **Row link** — how a list row opens its record: a real link to the record's own page, not a button, so it opens in a
 new tab like any link and the list stays in place (#2077).
 
@@ -988,3 +995,7 @@ quantity is set aside) to **pickup** (collection, which posts a zero-cost stock 
 collected and still to collect; the figures are derived from recorded events, never stored. Distinct from a material request,
 which moves the organisation's own stock.
 **Tracker reading** — one figure from a machine's tracker for one unit and calendar day: engine hours and an optional place label, matched to an equipment asset by its tracker unit identifier. Held apart from usage entries; it never counts in any cost or total until a person proposes it as a Draft usage entry and a different person approves it (#2582).
+
+## Import templates (#2530)
+- **Import template** — a spreadsheet a person downloads from an import screen: the field labels as headers, one example row, dropdowns for closed lists and a Notes sheet saying what each column holds. It carries a version, and an upload of the current or the previous version is accepted.
+- **Failed-rows file** — the spreadsheet offered when an import ends with rows that did not go in: the original cells of those rows plus "Row in your file" and "Reason", so they can be fixed and uploaded again. Rows that already existed are on their own "Already there" sheet.

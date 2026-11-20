@@ -57,7 +57,7 @@ export interface DsrReportDetail {
 export interface DsrListOption { id: string; label: string }
 export interface DsrContractItem { id: string; boq_item_id: string; item_code: string; description: string; unit: string }
 export interface DsrEquipmentHours { id: string; asset_name: string; quantity: number; unit: string; kind: string; status: string }
-export interface DsrPeopleHours { id: string; hours: number }
+export interface DsrReportHours { peopleHours: string; equipment: DsrEquipmentHours[] }
 
 export interface DsrDraftInput {
   id?: string | null;
@@ -142,6 +142,29 @@ async function listOptions(table: 'dsr_idle_reasons' | 'dsr_weather_conditions')
 export const listIdleReasons = () => listOptions('dsr_idle_reasons');
 export const listWeatherConditions = () => listOptions('dsr_weather_conditions');
 
+/** #2621 FR-DSR-003/004: the Admin-kept pick lists (idle reasons, weather). RLS lets only an Admin write; org_id is stamped. */
+export type DsrListKind = 'idle' | 'weather';
+export interface DsrListAdminOption { id: string; label: string; archived_at: string | null }
+const listTable = (kind: DsrListKind) => (kind === 'idle' ? 'dsr_idle_reasons' : 'dsr_weather_conditions') as 'dsr_idle_reasons' | 'dsr_weather_conditions';
+
+/** Every item including archived ones, so an archived item can be restored. */
+export async function listListItems(kind: DsrListKind): Promise<DsrListAdminOption[]> {
+  return fetchAllPages<DsrListAdminOption>((f, t) => db.from(listTable(kind)).select('id, label, archived_at').order('label').order('id').range(f, t));
+}
+export async function addListItem(kind: DsrListKind, label: string): Promise<void> {
+  const { error } = await db.from(listTable(kind)).insert({ label: label.trim() });
+  if (error) fail(error);
+}
+export async function renameListItem(kind: DsrListKind, id: string, label: string): Promise<void> {
+  const { error } = await db.from(listTable(kind)).update({ label: label.trim() }).eq('id', id);
+  if (error) fail(error);
+}
+/** Archive hides the item from the report pickers; reports that already used it keep it. */
+export async function setListItemArchived(kind: DsrListKind, id: string, archived: boolean): Promise<void> {
+  const { error } = await db.from(listTable(kind)).update({ archived_at: archived ? new Date().toISOString() : null }).eq('id', id);
+  if (error) fail(error);
+}
+
 /** The work order's contract items (work_order_lines + their BOQ line). */
 export async function listContractItems(workOrderId: string): Promise<DsrContractItem[]> {
   const data = await fetchAllPages<{ id: string; boq_item_id: string; boq_items: { item_code: string; description: string; unit: string } | null }>((from, to) =>
@@ -150,19 +173,19 @@ export async function listContractItems(workOrderId: string): Promise<DsrContrac
     .sort((a, b) => a.item_code.localeCompare(b.item_code) || (a.id < b.id ? -1 : 1));
 }
 
-/** FR-DSR-006: equipment usage already entered against this work order and date (read, never copied). */
-export async function listEquipmentHours(workOrderId: string, workDate: string): Promise<DsrEquipmentHours[]> {
-  const data = await fetchAllPages<{ id: string; quantity: number; unit: string; kind: string; status: string; equipment_assets: { name: string } | null }>((f, t) =>
-    db.from('equipment_usage_entries').select('id, quantity, unit, kind, status, equipment_assets(name)')
-      .eq('work_order_id', workOrderId).eq('work_date', workDate).is('archived_at', null).order('id').range(f, t));
-  return data.map((r) => ({ id: r.id, asset_name: r.equipment_assets?.name ?? '', quantity: Number(r.quantity), unit: r.unit, kind: r.kind, status: r.status }));
-}
-
-/** FR-DSR-007: people hours from timesheets on this work order and date, read-only (RLS decides what is visible). */
-export async function listPeopleHours(workOrderId: string, workDate: string): Promise<DsrPeopleHours[]> {
-  const data = await fetchAllPages<{ id: string; hours: number }>((f, t) =>
-    db.from('timesheet_entries').select('id, hours').eq('work_order_id', workOrderId).eq('entry_date', workDate).order('id').range(f, t));
-  return data.map((r) => ({ id: r.id, hours: Number(r.hours) }));
+/**
+ * FR-DSR-006/007: the hours for the report's work order and date, read through one org-scoped RPC (#2619) so an
+ * Engineer sees the whole crew, not only their own rows. Timesheet lines, attendance not yet on a timesheet and
+ * equipment usage; read-only, it never creates hours. `peopleHours` stays an exact decimal string.
+ */
+export async function reportHours(reportId: string): Promise<DsrReportHours> {
+  const { data, error } = await db.rpc('dsr_report_hours', { p_report: reportId });
+  if (error) fail(error);
+  const r = (data ?? {}) as { people_hours?: number | string | null; equipment?: Array<{ id: string; asset_name: string; quantity: number | string; unit: string; kind: string; status: string }> | null };
+  return {
+    peopleHours: String(r.people_hours ?? '0'),
+    equipment: (r.equipment ?? []).map((e) => ({ id: e.id, asset_name: e.asset_name ?? '', quantity: Number(e.quantity), unit: e.unit, kind: e.kind, status: e.status })),
+  };
 }
 
 export async function saveDraft(input: DsrDraftInput): Promise<string> {

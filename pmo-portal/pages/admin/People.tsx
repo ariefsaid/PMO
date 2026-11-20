@@ -11,6 +11,9 @@ import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePeople, usePeopleMutations } from '@/src/hooks/usePeople';
 import { useOrgProfilesLoader } from '@/src/hooks/useOrgProfilesLoader';
+import { ImportButton } from '@/src/components/import';
+import { makePeopleImportDescriptor } from '@/src/lib/import';
+import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { PersonListRow } from '@/src/lib/db/people';
 
@@ -92,6 +95,7 @@ const People: React.FC = () => {
   const loadProfiles = useOrgProfilesLoader();
   const [profileNames, setProfileNames] = useState<Map<string, string>>(new Map());
   const rows = q.data ?? [];
+  const importDescriptor = useMemo(() => makePeopleImportDescriptor(async () => (await repositories.people.list()).map((p) => p.code), t), [t]);
   const canEdit = may('edit', 'person', ctx);
   const canArchive = may('archive', 'person', ctx);
 
@@ -127,6 +131,7 @@ const People: React.FC = () => {
     <div>
       <div className="mb-[var(--space-group)] flex flex-wrap items-center justify-end gap-[var(--space-group)]">
         <CanWrite entity="person" action="create" ctx={ctx}>
+          <ImportButton entity="person" descriptor={importDescriptor} onImported={() => void q.refetch()} />
           <Button variant="primary" onClick={() => setEditing('new')}><Icon name="plus" />{t('administration:people.add', 'Add person')}</Button>
         </CanWrite>
       </div>
