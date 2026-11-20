@@ -1,4 +1,4 @@
--- 0960_billing_stages.test.sql — billing stages: a claim's stage plan, its checklist and the invoice gate.
+-- 1021_billing_stages.test.sql — billing stages: a claim's stage plan, its checklist and the invoice gate.
 -- AC-BST-001..006 (docs/specs/billing-stages.spec.md). Ids: 09600000-… (synthetic).
 -- Org a1 has no ERP; a2 is foreign. Users: b1 fin1 (claims), b2 fin2 (raises), b3 admin, b4 pm, b6 engineer, b8 foreign admin.
 begin;

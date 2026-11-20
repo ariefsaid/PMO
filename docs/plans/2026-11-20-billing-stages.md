@@ -27,9 +27,9 @@ Money path: ships alone. Every gate is in the database with a pgTAP proof and a 
 
 ## Tasks (as built)
 
-1. pgTAP `supabase/tests/0960_billing_stages.test.sql` (red) → `supabase/migrations/0960_billing_stages.sql` (green) →
+1. pgTAP `supabase/tests/1021_billing_stages.test.sql` (red) → `supabase/migrations/1021_billing_stages.sql` (green) →
    mutate `billing_stages_open` to `false` and drop each gate trigger: AC-BST-005 goes red. Verify:
-   `npx supabase@2.122.1 test db supabase/tests/0960_billing_stages.test.sql`.
+   `npx supabase@2.122.1 test db supabase/tests/1021_billing_stages.test.sql`.
 2. pgTAP `0961_retention.test.sql` → `0961_retention.sql` → mutate the stamp, the release-total guard and the
    submitted-invoice check: each goes red.
 3. pgTAP `0962_billing_reconciliation.test.sql` (with the full work-order trace) → `0962_billing_reconciliation.sql` →
@@ -45,7 +45,7 @@ Money path: ships alone. Every gate is in the database with a pgTAP proof and a 
 
 | AC | Layer | Owning test |
 |---|---|---|
-| AC-BST-001 | pgTAP | `supabase/tests/0960_billing_stages.test.sql` |
+| AC-BST-001 | pgTAP | `supabase/tests/1021_billing_stages.test.sql` |
 | AC-BST-002 | pgTAP | same (UX mirror: `src/auth/policy.billingStages.test.ts`) |
 | AC-BST-003 | pgTAP | same (screen: `ClaimBillingStages.test.tsx`) |
 | AC-BST-004 | pgTAP | same (screen: `ClaimBillingStages.test.tsx`) |

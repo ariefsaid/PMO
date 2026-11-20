@@ -124,12 +124,12 @@ Totals: 14 ACs, 14 covered, 0 missing: none
 
 | AC | Intended layer (per spec) | Test found on branch |
 |---|---|---|
-| AC-BST-001 | (unstated) | pgTAP: `supabase/tests/0960_billing_stages.test.sql` |
+| AC-BST-001 | (unstated) | pgTAP: `supabase/tests/1021_billing_stages.test.sql` |
 | AC-BST-002 | (unstated) | vitest: `pmo-portal/pages/project-detail/tabs/__tests__/BillingTermsModal.test.tsx`; vitest: `pmo-portal/src/auth/policy.billingStages.test.ts`; vitest: `pmo-portal/src/lib/db/billingStages.test.ts` |
-| AC-BST-003 | (unstated) | vitest: `pmo-portal/pages/project-detail/tabs/__tests__/ClaimBillingStages.test.tsx`; vitest: `pmo-portal/src/auth/policy.billingStages.test.ts`; pgTAP: `supabase/tests/0960_billing_stages.test.sql` |
-| AC-BST-004 | (unstated) | vitest: `pmo-portal/pages/project-detail/tabs/__tests__/ClaimBillingStages.test.tsx`; vitest: `pmo-portal/src/lib/db/billingStages.test.ts`; pgTAP: `supabase/tests/0960_billing_stages.test.sql` |
-| AC-BST-005 | (unstated) | pgTAP: `supabase/tests/0960_billing_stages.test.sql`; pgTAP: `supabase/tests/0962_billing_reconciliation.test.sql` |
-| AC-BST-006 | (unstated) | pgTAP: `supabase/tests/0960_billing_stages.test.sql` |
+| AC-BST-003 | (unstated) | vitest: `pmo-portal/pages/project-detail/tabs/__tests__/ClaimBillingStages.test.tsx`; vitest: `pmo-portal/src/auth/policy.billingStages.test.ts`; pgTAP: `supabase/tests/1021_billing_stages.test.sql` |
+| AC-BST-004 | (unstated) | vitest: `pmo-portal/pages/project-detail/tabs/__tests__/ClaimBillingStages.test.tsx`; vitest: `pmo-portal/src/lib/db/billingStages.test.ts`; pgTAP: `supabase/tests/1021_billing_stages.test.sql` |
+| AC-BST-005 | (unstated) | pgTAP: `supabase/tests/1021_billing_stages.test.sql`; pgTAP: `supabase/tests/0962_billing_reconciliation.test.sql` |
+| AC-BST-006 | (unstated) | pgTAP: `supabase/tests/1021_billing_stages.test.sql` |
 | AC-BST-010 | (unstated) | vitest: `pmo-portal/src/lib/billingStages.test.ts` |
 | AC-BST-011 | (unstated) | vitest: `pmo-portal/src/lib/billingStages.test.ts` |
 | AC-BST-020 | (unstated) | vitest: `pmo-portal/src/lib/db/billingStages.test.ts`; pgTAP: `supabase/tests/0962_billing_reconciliation.test.sql` |

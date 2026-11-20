@@ -131,7 +131,7 @@
 -- ⚑ AMENDED BY 0960/0961 (#2522, #1572): `set_billing_stage_template`, `set_project_invoice_deadline`, `attach_billing_stage_document`,
 -- `note_billing_stage`, `complete_billing_stage`, `set_project_retention`, `schedule_retention_release`, `release_retention` and
 -- `cancel_retention_release`, and `set_project_billing_terms` join (+10). SECURITY DEFINER writers under a member's JWT: each re-asserts active membership, role
--- (Admin/Finance, or Project Manager for stage recording) and the caller's org; proved by supabase/tests/0960_billing_stages.test.sql
+-- (Admin/Finance, or Project Manager for stage recording) and the caller's org; proved by supabase/tests/1021_billing_stages.test.sql
 -- and supabase/tests/0961_retention.test.sql.
 -- ⚑ AMENDED BY 0924: `create_native_progress_claim_invoice` joins (+1, count 177 on dev's 176). SECURITY DEFINER writer under a member's JWT: re-asserts active
 -- membership, Admin / Finance, the org's own claim and that no ERP owns revenue; proved by supabase/tests/0924_native_progress_claim_invoice.test.sql.

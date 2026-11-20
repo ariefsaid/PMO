@@ -1,4 +1,4 @@
--- 0960_billing_stages.sql — measurement to invoice: a project's ordered billing stages, copied onto each progress claim, each
+-- 1021_billing_stages.sql — measurement to invoice: a project's ordered billing stages, copied onto each progress claim, each
 -- with a document checklist; the claim's invoice cannot be raised (native or ERP) until every stage is complete.
 -- FR-BST-001..031, AC-BST-001..006 (docs/specs/billing-stages.spec.md); #2522.
 --

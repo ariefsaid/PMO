@@ -1,4 +1,4 @@
--- 0960_billing_stages_down.sql — reverses 0960. Refuses while any claim has a stage plan (dropping it would remove the record of
+-- 1021_billing_stages_down.sql — reverses 0960. Refuses while any claim has a stage plan (dropping it would remove the record of
 -- how each claim reached its invoice, and the gate that held it). Project stage lists alone are dropped.
 do $$ begin
   if exists (select 1 from public.claim_billing_stages) then
