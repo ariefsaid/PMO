@@ -85,7 +85,7 @@ describe('plan figures', () => {
     h.queue.push({ data: [{ id: 'p', work_order_id: 'A', discipline_id: null, kind: 'direct_budget', value: '99999999999999.99', note: null }], error: null });
     const plans = await dal.listProjectPlanLines('p1');
     expect(plans[0].value).toBe('99999999999999.99');
-    expect(h.calls.select).toContain('id, work_order_id, discipline_id, kind, value::text, note');
+    expect(h.calls.select).toContain('id, work_order_id, section_id, discipline_id, kind, value::text, note');
   });
 });
 
