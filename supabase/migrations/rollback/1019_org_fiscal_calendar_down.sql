@@ -1,4 +1,4 @@
--- Rollback of 1018_org_fiscal_calendar.sql. Apply 1019's rollback first (its functions call these).
+-- Rollback of 1019_org_fiscal_calendar.sql. Apply 1019's rollback first (its functions call these).
 drop function if exists public.get_pmo_fiscal_calendar(uuid);
 drop function if exists public.set_org_fiscal_year_start_month(integer);
 drop function if exists public.get_org_fiscal_year_setting();
