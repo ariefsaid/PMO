@@ -617,10 +617,10 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
         </div>
       )}
 
-      {(role === UserRole.Executive || role === UserRole.Finance || role === UserRole.Admin || isOperator) && (
+      {(role === UserRole.Executive || role === UserRole.Finance || role === UserRole.Admin || role === UserRole.ProjectManager || isOperator) && (
         <div className="flex-shrink-0 border-t border-border p-2.5">
           <NavLink
-            to={role === UserRole.Finance ? '/administration/exchange-rates' : '/administration'}
+            to={role === UserRole.Finance ? '/administration/exchange-rates' : role === UserRole.ProjectManager ? '/administration/people' : '/administration'}
             onClick={onNavigate}
             className={({ isActive }: { isActive: boolean }) =>
               cn(

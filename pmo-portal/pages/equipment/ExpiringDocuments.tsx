@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { DataTable, ListPage, ListState, type Column } from '@/src/components/ui';
 import { useExpiringDocuments } from '@/src/hooks/useDocumentExpiry';
@@ -13,7 +14,7 @@ const ExpiringDocumentsPage: React.FC = () => {
 
   const columns: Column<ExpiringDocumentRow>[] = [
     { key: 'subject', header: t('equipment:expiry.subject', 'Person / equipment'), kind: 'primary', rowHeader: true,
-      cell: (d) => <span className="font-semibold text-foreground">{d.subject_name}</span> },
+      cell: (d) => <Link className="font-semibold text-foreground underline-offset-2 hover:underline" to={d.subject_kind === 'person' ? `/equipment/people/${d.subject_id}` : `/equipment/assets/${d.subject_id}`}>{d.subject_name}</Link> },
     { key: 'type', header: t('equipment:expiry.type', 'Document'), cell: (d) => <span>{d.type_name}</span> },
     { key: 'detail', header: t('equipment:expiry.detail', 'Number / status'),
       cell: (d) => d.is_medical && d.medical_status

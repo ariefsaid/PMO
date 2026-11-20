@@ -107,6 +107,7 @@ const EquipmentUsagePage = lazyWithPreload(() => import('./pages/equipment/Equip
 const EquipmentAvailabilityPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAvailability'));
 const EquipmentAssetsPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAssets'));
 const ExpiringDocumentsPage = lazyWithPreload(() => import('./pages/equipment/ExpiringDocuments'));
+const PersonDetailPage = lazyWithPreload(() => import('./pages/equipment/PersonDetail'));
 const EquipmentAssetDetailPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAssetDetail'));
 const SiteReportsPage = lazyWithPreload(() => import('./pages/siteReports/SiteReports'));
 const SiteReportDetailPage = lazyWithPreload(() => import('./pages/siteReports/SiteReportDetail'));
@@ -259,6 +260,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/site-reports', chunks: [SiteReportsPage], namespaces: ['siteReport'] },
   { path: '/site-reports/:reportId', chunks: [SiteReportDetailPage], namespaces: ['siteReport'] },
   { path: '/crews', chunks: [CrewsPage], namespaces: ['crews'] },
+  { path: '/equipment/people/:personId', chunks: [PersonDetailPage], namespaces: ['equipment'] },
   { path: '/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
   { path: '/administration/:section', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement'] },
   { path: '/administration', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement'] },
@@ -479,9 +481,11 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/site-reports/:reportId', element: <SiteReportDetailPage /> },
   // #2528: crews, the roster per work order and the daily attendance tick.
   { path: '/crews', element: <CrewsPage /> },
+  { path: '/equipment/people/:personId', element: <PersonDetailPage /> },
   { path: '/reports', element: <FinanceLegacyRedirect to="/finance/reports" /> },
   { path: '/administration', element: <AdministrationEntryRedirect /> },
   { path: '/administration/users', element: <AdministrationPage /> },
+  { path: '/administration/people', element: <AdministrationPage /> },
   { path: '/administration/integrations', element: <AdministrationPage /> },
   { path: '/administration/accounting', element: <AdministrationPage /> },
   { path: '/administration/projects', element: <AdministrationPage /> },

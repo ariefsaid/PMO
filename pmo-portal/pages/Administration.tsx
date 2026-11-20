@@ -11,6 +11,7 @@ import { cn } from '@/src/components/ui/cn';
 import { GateNotice, ListState, PageHeader } from '@/src/components/ui';
 import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 import AdminUsers from './AdminUsers';
+import People from './admin/People';
 import AdministrationCredits from './AdministrationCredits';
 import { AdministrationUsage } from './AdministrationUsage';
 import AdministrationFeatures from './AdministrationFeatures';
@@ -34,6 +35,7 @@ import { useUsage, useAgentRunStats } from '@/src/hooks/useUsage';
 
 export type AdministrationSection =
   | 'users'
+  | 'people'
   | 'integrations'
   | 'accounting'
   | 'projects'
@@ -45,15 +47,16 @@ export type AdministrationSection =
   | 'features';
 
 /** Canonical section order (Task 4/6): the four organization destinations, then the Operator-only pair. */
-const ORGANIZATION_SECTIONS: AdministrationSection[] = ['users', 'integrations', 'accounting', 'projects', 'plan', 'credits', 'exchange-rates'];
+const ORGANIZATION_SECTIONS: AdministrationSection[] = ['users', 'people', 'integrations', 'accounting', 'projects', 'plan', 'credits', 'exchange-rates'];
 const OPERATOR_SECTIONS: AdministrationSection[] = ['usage', 'features'];
 /** #1271: Finance's second destination, beside Exchange rates. Admin/Executive reach cost attribution inside Accounting setup, so it is not in their nav. */
-const FINANCE_SECTIONS: AdministrationSection[] = ['exchange-rates', 'cost-attribution'];
+const FINANCE_SECTIONS: AdministrationSection[] = ['people', 'exchange-rates', 'cost-attribution'];
 const ALL_SECTIONS: AdministrationSection[] = [...ORGANIZATION_SECTIONS, 'cost-attribution', ...OPERATOR_SECTIONS];
 
 /** English defaults for the shell's labels — the translatable source (i18next-parser convention). */
 const SECTION_LABEL_DEFAULTS: Record<AdministrationSection, string> = {
   users: 'Users',
+  people: 'People',
   integrations: 'Organization integrations',
   accounting: 'Accounting setup',
   projects: 'Project setup',
@@ -72,6 +75,7 @@ const SECTION_LABEL_DEFAULTS: Record<AdministrationSection, string> = {
  */
 const buildSectionLabels = (t: TFunction): Record<AdministrationSection, string> => ({
   users: t('admin.nav.users', SECTION_LABEL_DEFAULTS.users),
+  people: t('administration:people.navLabel', SECTION_LABEL_DEFAULTS.people),
   integrations: t('admin.nav.integrations', SECTION_LABEL_DEFAULTS.integrations),
   accounting: t('admin.nav.accounting', SECTION_LABEL_DEFAULTS.accounting),
   projects: t('admin.nav.projects', SECTION_LABEL_DEFAULTS.projects),
@@ -232,6 +236,13 @@ const SelectedAdministrationPanel: React.FC<{
           <AdminUsers embedded />
         </div>
       );
+    case 'people':
+      return (
+        <div data-testid="administration-panel-people" className="min-w-0">
+          <SectionName name={label('people')} />
+          <People />
+        </div>
+      );
     case 'integrations':
       return (
         <div data-testid="administration-panel-integrations" className="min-w-0">
@@ -325,9 +336,12 @@ const Administration: React.FC = () => {
   const operatorRoute = section !== undefined && isOperatorSection(section);
   const fxRoute = section === 'exchange-rates';
   const costAttributionRoute = section === 'cost-attribution';
-  const canEnterAdministration = isAdminViewer || isOperator || (fxRoute && isFinance && canFx) || (costAttributionRoute && isFinance && canManageCostAttribution);
-  const needsOperatorCheck = operatorRoute || (!isAdminViewer && !isFinance);
-  const navigationSections: AdministrationSection[] = isFinance
+  const peopleRoute = section === 'people' && may('view', 'person');
+  const canEnterAdministration = isAdminViewer || isOperator || peopleRoute || (fxRoute && isFinance && canFx) || (costAttributionRoute && isFinance && canManageCostAttribution);
+  const needsOperatorCheck = operatorRoute || (!isAdminViewer && !isFinance && !peopleRoute);
+  const navigationSections: AdministrationSection[] = !isAdminViewer && !isFinance && !isOperator
+    ? ['people']
+    : isFinance
     ? FINANCE_SECTIONS.filter((id) => id !== 'cost-attribution' || canManageCostAttribution)
     : [
       ...ORGANIZATION_SECTIONS.filter((id) => id !== 'exchange-rates' || canFx)

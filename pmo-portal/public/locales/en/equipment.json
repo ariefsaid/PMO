@@ -352,5 +352,43 @@
     "waiting": "Waiting approval",
     "entrySubject": "usage entry",
     "chartLabel": "Work per month, {{unit}}"
+  },
+  "expiryEdit": {
+    "title": "Documents",
+    "add": "Add document",
+    "addTitle": "Add document",
+    "editTitle": "Edit document",
+    "save": "Save document",
+    "saved": "Document saved",
+    "type": "Document type",
+    "typePlaceholder": "Choose a type",
+    "status": "Medical status",
+    "number": "Number",
+    "issued": "Issue date",
+    "expires": "Expiry date",
+    "location": "Kept at",
+    "attachment": "Attachment",
+    "attachmentHelp": "PDF or image, up to 5 MB.",
+    "attachmentKeep": "A file is attached. Choose another to replace it.",
+    "openFile": "Open file",
+    "actions": "Actions",
+    "edit": "Edit",
+    "editLabel": "Edit {{name}}",
+    "archive": "Archive",
+    "archiveLabel": "Archive {{name}}",
+    "archiveTitle": "Archive document",
+    "archiveBody": "It leaves this record and the expiry list, and no more warnings are sent for it.",
+    "archived": "Document archived",
+    "error": "Couldn't load documents",
+    "empty": "No documents on this record",
+    "emptySub": "Certificates and permits show here with their expiry dates.",
+    "errType": "Choose a document type",
+    "errExpiry": "Enter the expiry date",
+    "errOrder": "Expiry date must be on or after the issue date"
+  },
+  "people": {
+    "error": "Couldn't load this person",
+    "notFound": "This person was not found",
+    "notFoundSub": "They may have been archived, or you may not have access."
   }
 }
