@@ -47,7 +47,6 @@ import {
   usePrefetchProject,
   useClientCompanies,
   useProjectManagers,
-  useProjectNumbers,
   useProjectsMilestoneDates,
   useProjectMutations,
 } from './useProjects';
@@ -71,15 +70,6 @@ describe('useProjects', () => {
   });
 });
 
-describe('useProjectNumbers', () => {
-  it('makes one narrow batched lookup for the stable unique card ids', async () => {
-    const { result } = renderHook(() => useProjectNumbers(['p2', 'p1', 'p2']), { wrapper: makeWrapper() });
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(repoListNumbers).toHaveBeenCalledTimes(1);
-    expect(repoListNumbers).toHaveBeenCalledWith(['p1', 'p2']);
-    expect(result.current.data).toEqual({ p1: 'PMO-1' });
-  });
-});
 
 describe('useClientCompanies', () => {
   it("keys by ['companies', 'client', orgId] and returns company rows (FR-QRY-002)", async () => {

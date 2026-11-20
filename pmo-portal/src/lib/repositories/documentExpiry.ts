@@ -14,4 +14,10 @@ export const documentExpiryRepository: DocumentExpiryRepository = {
   uploadAttachment: (kind, id, file) => wrap(() => dal.uploadExpiryAttachment(kind, id, file)),
   removeAttachment: (path) => wrap(() => dal.removeExpiryAttachment(path)),
   attachmentUrl: (path) => wrap(() => dal.getExpiryAttachmentUrl(path)),
+  listAdminTypes: () => wrap(() => dal.listAdminDocumentTypes()),
+  createType: (input) => wrap(() => dal.createDocumentType(input)),
+  updateType: (id, input) => wrap(() => dal.updateDocumentType(id, input)),
+  archiveType: (id) => wrap(() => dal.archiveDocumentType(id)),
+  getWarningDays: () => wrap(() => dal.getDocumentWarningDays()),
+  setWarningDays: (days) => wrap(() => dal.setDocumentWarningDays(days)),
 };

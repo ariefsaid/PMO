@@ -25,7 +25,7 @@ async function waitReady(page: Page) {
 function contactRow(page: Page, name: string) {
   // CW-4b: rows navigate to /contacts/:id — the activation button reads "Open <name>".
   return page.locator('table tbody tr').filter({
-    has: page.getByRole('button', { name: `Open ${name}`, exact: true }),
+    has: page.getByRole('link', { name: `Open ${name}`, exact: true }),
   });
 }
 
@@ -62,7 +62,7 @@ test(
     await expect(row).toBeVisible({ timeout: 15_000 });
 
     // ── Step 3: open the routable record page and log a Call ─────────────────
-    await row.getByRole('button', { name: `Open ${name}`, exact: true }).click();
+    await row.getByRole('link', { name: `Open ${name}`, exact: true }).click();
     // GOAL ORACLE (navigation): the routable /contacts/:id record page rendered.
     await expect(page).toHaveURL(/\/contacts\/[0-9a-f-]+$/i, { timeout: 15_000 });
     const header = page.getByTestId('record-header');

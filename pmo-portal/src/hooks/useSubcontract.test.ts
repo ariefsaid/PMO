@@ -41,7 +41,6 @@ import {
   useSubcontractAcceptances,
   usePoVariations,
   useVariationRoute,
-  useProjectSubcontractExposure,
   useWorkOrderCostVariations,
   useSubcontractCapExceptions,
   useSubcontractMutations,
@@ -125,16 +124,6 @@ describe('useSubcontract hooks (src/hooks/useSubcontract.ts)', () => {
     expect(result.current.data).toEqual({ route: 'standard', line_budget: 1000 });
   });
 
-  it('useProjectSubcontractExposure fetches exposure by projectId', async () => {
-    const { Wrapper } = makeWrapper();
-    h.getProjectSubcontractExposure.mockResolvedValueOnce([{ currency: 'IDR', verified_not_on_po_value: 1000 }]);
-
-    const { result } = renderHook(() => useProjectSubcontractExposure('proj-1'), { wrapper: Wrapper });
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-    expect(h.getProjectSubcontractExposure).toHaveBeenCalledWith('proj-1');
-    expect(result.current.data).toEqual([{ currency: 'IDR', verified_not_on_po_value: 1000 }]);
-  });
 
   it('useWorkOrderCostVariations fetches variations for workOrderId', async () => {
     const { Wrapper } = makeWrapper();

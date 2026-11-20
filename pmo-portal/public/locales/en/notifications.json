@@ -5,5 +5,9 @@
   "budgetPushFailed": "PMO could not push the activated budget to ERPNext ({{reason}}) — ERPNext is still enforcing the previous budget (or none) for this project.",
   "unassignedInvoiceTitle": "Invoice needs a project",
   "unassignedInvoice": "Sales Invoice {{invoice}}{{amount}} arrived from ERPNext without a project and is in the Unassigned bucket. Assign it to a project.",
-  "literal": "{{body}}"
+  "literal": "{{body}}",
+  "documentExpiryTitle_one": "{{type}} expires in {{count}} day",
+  "documentExpiryTitle_other": "{{type}} expires in {{count}} days",
+  "documentExpiry_one": "{{subject}} — {{type}} expires on {{date}}, in {{count}} day.",
+  "documentExpiry_other": "{{subject}} — {{type}} expires on {{date}}, in {{count}} days."
 }

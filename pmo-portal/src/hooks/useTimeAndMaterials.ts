@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
-import { useAuth } from '@/src/auth/useAuth';
+import { useOrgId } from '@/src/hooks/useOrgId';
 import type {
   AssembleTmClaimInput, ContractRateLineInput, EndRateAssigneeInput, EndRateLineInput, PrepareTmSignoffInput,
   RateAssigneeInput, TmClaimPreviewInput,
@@ -21,7 +21,6 @@ export const TM_QUERY_ROOTS = ['tm-rate-lines', 'tm-rate-assignees', 'tm-claims'
 /** `useProjectFinances` exports no root constant, so the literal first key segment is the prefix we invalidate. */
 const PROJECT_FINANCES_ROOT = 'project-finances';
 
-const useOrgId = (): string | undefined => useAuth().currentUser?.org_id;
 /** An empty range is not a range: the RPC refuses `p_to < p_from` with 22023, so do not ask. */
 const rangeIsValid = (from: string, to: string): boolean => Boolean(from && to && to >= from);
 

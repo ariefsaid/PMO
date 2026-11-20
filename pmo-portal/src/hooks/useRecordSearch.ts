@@ -310,7 +310,8 @@ export function filterAndCap(
 /**
  * Records-group ranking: empty query → no records (records show only while the
  * user is searching); otherwise delegates to the shared `filterAndCap` with
- * exact-code-first ranking. The ONE place Records ranking is defined.
+ * exact-code-first ranking. The ONE place Records ranking is defined, and the
+ * oracle the palette tests read the live hook's records through.
  */
 export function rankRecords(records: PaletteItem[], query: string): RankedRecords {
   const q = query.trim().toLowerCase();
