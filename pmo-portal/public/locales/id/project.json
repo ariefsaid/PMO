@@ -1121,6 +1121,21 @@
       "ungrouped": "Tanpa fase",
       "zoomIn": "Perbesar",
       "zoomOut": "Perkecil"
+    },
+    "approvalPins": {
+      "title": "Penyetuju per langkah",
+      "intro": "Tetapkan satu orang untuk sebuah langkah di proyek ini. Tanpa penetapan, siapa pun dengan peran langkah itu dapat memutuskannya.",
+      "anyone": "Siapa pun dengan peran ini",
+      "pinnedTo": "Ditetapkan ke {{name}}",
+      "unpinned": "Setiap {{role}}",
+      "choose": "Pilih orang",
+      "save": "Simpan",
+      "cleared": "Penetapan dihapus",
+      "saved": "Penetapan disimpan",
+      "step": "Langkah {{n}}: {{label}}",
+      "noChain": "Rantai persetujuan belum diatur.",
+      "loadFailed": "Langkah persetujuan tidak dapat dimuat",
+      "retry": "Coba lagi"
     }
   },
   "common": {

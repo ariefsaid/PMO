@@ -192,6 +192,10 @@ where w.id = 'a6120000-0000-4000-8000-0000000000d2';
 insert into public.material_request_settings (org_id) values ('a6120000-0000-4000-8000-00000000000a') on conflict do nothing;
 insert into public.approval_chain_steps (id, org_id, position, role, label)
 values ('a6120000-0000-4000-8000-0000000000c1', 'a6120000-0000-4000-8000-00000000000a', 1, 'Finance', 'Isolation review');
+insert into public.approval_step_pins (id, org_id, project_id, position, role, approver_id, created_by)
+select 'a6120000-0000-4000-8000-0000000000c4', w.org_id, w.project_id, 1, 'Finance', p.id, p.id
+from public.work_orders w join lateral (select id from public.profiles where org_id = w.org_id order by id limit 1) p on true
+where w.id = 'a6120000-0000-4000-8000-0000000000d2';
 insert into public.approval_stand_ins (id, org_id, delegator_id, stand_in_id, starts_on, ends_on, created_by)
 select 'a6120000-0000-4000-8000-0000000000c2', a.org_id, a.id, b.id, current_date, current_date, a.id
 from public.profiles a cross join lateral (select id from public.profiles where org_id = a.org_id and id <> a.id order by id limit 1) b
