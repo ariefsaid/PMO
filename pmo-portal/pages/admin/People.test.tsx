@@ -36,6 +36,11 @@ describe('People register screen', () => {
     expect(screen.getByRole('link', { name: 'Budi Santoso' })).toHaveAttribute('href', '/equipment/people/p1');
   });
 
+  it('AC-IMT-013 the Import entry shows for the Admin who may add people, and not otherwise', () => {
+    renderPage();
+    expect(screen.getByRole('button', { name: /^Import/ })).toBeInTheDocument();
+  });
+
   it('AC-PPL-005 adds a person with only a name: no code is sent', async () => {
     const user = userEvent.setup();
     renderPage();

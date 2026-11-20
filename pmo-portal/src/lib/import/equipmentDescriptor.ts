@@ -47,7 +47,7 @@ export function makeEquipmentImportDescriptor(
       F('unit', 'Default unit', 'Satuan bawaan', true, (r) => (['hours', 'days'].includes(r.trim().toLowerCase()) ? null : L('import:equipment.error.unit', 'Default unit must be hours or days.'))),
       F('ownership', 'Ownership', 'Kepemilikan', true, (r) => (['owned', 'rented'].includes(r.trim().toLowerCase()) ? null : L('import:equipment.error.ownership', 'Ownership must be owned or rented.'))),
       F('vendor', 'Supplier', 'Pemasok', false, refValidate(vendor, false), { hint: L('import:equipment.vendorHint', 'Required when rented: the name of an existing supplier.') }),
-      F('rate', 'Rental rate', 'Tarif sewa', false, (r) => (r.trim() === '' || (parseNeutralMoneyInputAtScale(r, 2) ?? -1) >= 0 ? null : L('import:equipment.error.rate', 'Rental rate must be a number of 0 or more.')), { numeric: true }),
+      F('rate', 'Rental rate', 'Tarif sewa', false, (r) => (r.trim() === '' || (parseNeutralMoneyInputAtScale(r, 2) ?? 0) > 0 ? null : L('import:equipment.error.rate', 'Rental rate must be a number above 0, with at most 2 decimals.')), { numeric: true }),
       F('basis', 'Rate basis', 'Dasar tarif', false, (r) => (r.trim() === '' || ['day', 'month'].includes(r.trim().toLowerCase()) ? null : L('import:equipment.error.basis', 'Rate basis must be day or month.'))),
       F('currency', 'Currency', 'Mata uang', false, (r) => (r.trim() === '' || currencies.includes(r.trim().toUpperCase()) ? null : L('import:equipment.error.currency', 'Currency is not one the organisation uses.'))),
       F('rentedFrom', 'Rental start', 'Mulai sewa', false, (r) => (r.trim() === '' || isDate(r.trim()) ? null : L('import:equipment.error.date', 'Dates are written year-month-day, e.g. 2026-01-31.'))),

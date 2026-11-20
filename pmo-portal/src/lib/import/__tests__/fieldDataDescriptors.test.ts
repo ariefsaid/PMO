@@ -8,7 +8,7 @@ vi.mock('@/src/lib/repositories', () => ({ repositories: {
   stock: { master: { createItem: h.createItem, createWarehouse: h.createWarehouse } },
   equipment: { createAsset: h.createAsset },
   equipmentAvailability: { createRentedAsset: h.createRentedAsset, setOwnership: h.setOwnership, saveRentalTerm: h.saveRentalTerm },
-  documentExpiry: { createPerson: h.createPerson },
+  people: { create: h.createPerson },
 } }));
 import { makeStockItemImportDescriptor, makeStockLocationImportDescriptor } from '../stockItemDescriptor';
 import { makeEquipmentImportDescriptor } from '../equipmentDescriptor';
@@ -80,6 +80,10 @@ describe('equipment', () => {
     const rows = run(d, H, [['E1', 'Crane', 'hours', 'rented', 'Rent Co', '100', 'day', 'IDR', '2026-99-99', '']]);
     expect(rows[0].errors.rentedFrom).toMatch(/Dates/);
   });
+  it('a zero rental rate is a row error (the term needs a positive rate)', () => {
+    const v = run(d, H, [['E1', 'Crane', 'hours', 'rented', 'Rent Co', '0', 'day', 'IDR', '2026-02-01', '']]);
+    expect(v[0].errors.rate).toMatch(/above 0/);
+  });
   it('an unknown supplier and an end before the start are row errors', () => {
     const v = run(d, H, [['E1', 'Crane', 'hours', 'rented', 'Nobody', '100', 'day', 'IDR', '2026-02-01', '2026-01-01']]);
     expect(v[0].errors.vendor).toMatch(/not found/);
@@ -105,6 +109,6 @@ describe('people', () => {
     const v = run(d, ['Employee code', 'Display name'], [['E-1', ''], ['E-2', 'Sam']]);
     expect(v[0].errors.name).toBeTruthy();
     await d.create(d.toInput({ code: ' E-2 ', name: ' Sam ' }));
-    expect(h.createPerson).toHaveBeenCalledWith({ code: 'E-2', name: 'Sam' });
+    expect(h.createPerson).toHaveBeenCalledWith({ code: 'E-2', name: 'Sam', job_title: null, profile_id: null });
   });
 });

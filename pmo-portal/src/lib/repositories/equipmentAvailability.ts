@@ -39,4 +39,5 @@ export const equipmentAvailabilityRepository: EquipmentAvailabilityRepository = 
   listRentalTerms: (a) => wrap(() => dal.listRentalTerms(a)),
   saveRentalTerm: (t) => wrap(() => dal.saveRentalTerm(t)),
   changeRentalRate: (a, e, r) => wrap(() => dal.changeRentalRate(a, e, r)),
+  createRentedAsset: (input) => wrap(() => dal.createRentedAsset(input)),
 };

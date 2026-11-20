@@ -220,7 +220,7 @@
       "nameLong": "Nama terlalu panjang.",
       "unit": "Satuan bawaan harus hours atau days.",
       "ownership": "Kepemilikan harus owned atau rented.",
-      "rate": "Tarif sewa harus berupa angka 0 atau lebih.",
+      "rate": "Tarif sewa harus berupa angka di atas 0, paling banyak 2 desimal.",
       "basis": "Dasar tarif harus day atau month.",
       "currency": "Mata uang bukan yang dipakai organisasi.",
       "date": "Tanggal ditulis tahun-bulan-hari, mis. 2026-01-31.",
