@@ -9,7 +9,10 @@ drop function if exists public.qcr_log(uuid, text, text, text, text);
 drop policy if exists storage_objects_qcr_orphan_delete on storage.objects;
 drop policy if exists storage_objects_qcr_file_write on storage.objects;
 drop policy if exists storage_objects_qcr_file_read on storage.objects;
+-- Supabase blocks direct deletes from storage tables unless the session allows it; the bucket must be empty first.
+set storage.allow_delete_query = 'true';
 delete from storage.buckets where id = 'quantity-change-files';
+reset storage.allow_delete_query;
 drop table if exists public.quantity_change_request_files;
 drop function if exists public.guard_qcr_file();
 drop function if exists public.can_add_qcr_file(uuid, text);
