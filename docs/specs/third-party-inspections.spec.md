@@ -10,6 +10,7 @@ When an external body must test or inspect part of a work order, I want to track
 
 - A **third-party inspection** is one external test or inspection of a work order (or of one of its sections), done by an outside company (a vendor, an existing `companies` row), whose cost is bought through procurement.
 - Cost reuses procurement end to end. The inspection **links** to a procurement case (`procurements`, with its `purchase_requests`, `purchase_orders`, `procurement_receipts`, `procurement_invoices`); cost attribution (#2517) already stamps `work_order_id` on those records and the database already refuses a work order of another project (`check_cost_attribution`). This feature adds **no cost table, no cost writer and no posting path**. Its cost figures are a read of the linked case's records already attributed to the same work order.
+- **`estimate` is a planning figure.** The optional estimate and currency on an inspection are the requester's expectation of the test price. They never post cost, never create or fill a purchase record, are not used in any total, roll-up or the prerequisite read, and are shown only beside the real cost, labelled "estimate". Only records of the linked procurement case carry cost.
 - Approvals, SoD, three-way match (#2525), payment and ERP outbox all stay procurement's. An inspection never approves, posts or pays anything.
 - Sections do not exist yet (#2576: no table, no spec on `dev`). The inspection carries a nullable section reference, hidden until #2576 ships (FR-TPI-004).
 - The report is an attachment (shared private file mechanism, as `purchase_request_files`). A vendor portal, e-mail send to the vendor and any lab-system integration are out of scope; an invitation is recorded by hand (who, when, how). Any later automation goes behind the connector seam.
@@ -20,19 +21,20 @@ When an external body must test or inspect part of a work order, I want to track
 - **Result**: `pending` (default), `pass`, `fail`, `conditional`. Set when the report is recorded.
 - **Required for**: a set of gates this inspection blocks, any of `readiness`, `billing`; empty means tracked only.
 - **Complete** (the prerequisite meaning): status `reported` and result `pass` or `conditional`, or a recorded **waiver** (FR-TPI-014). `fail`, `pending` and cancelled-without-waiver are not complete (OD-TPI-2).
-- **Inspection cost**: sum of `procurement_invoices` amounts of the linked case whose `work_order_id` equals the inspection's, per currency (never blended). **Committed** is the same over `purchase_orders`. Both come from procurement's own rows.
+- **Inspection cost**: read through the shipped `work_order_cost_lines` view (#2517), which names each cost record by `source` and `record_id` but carries no money and no case id. The read keeps the lines whose `work_order_id` is the inspection's and whose record (joined by `record_id` to `purchase_orders` / `procurement_invoices`) belongs to the linked case, then takes the amounts from those procurement rows, per currency (never blended). **Committed** = `purchase_order` lines; **billed** = `vendor_bill` lines, excluding voided and ERP-cancelled bills as the work-order cost amounts of #2519 do. An **actual (paid)** figure, where wanted, is taken from the shipped `work_order_cost_amounts(project_id)` rows with the same `record_id`s, so it can never disagree with the work-order plan-versus-actual. Money is visible to Admin, Executive, Finance and Project Manager only (the roles of that read); other roles see the status without amounts.
 
 ## Requirements (EARS)
 
 **Tracking**
-- FR-TPI-001 The system shall let an authorized user create an inspection on a work order with a title, test kind (text from an organisation list, OQ-TPI-1), planned date, optional vendor (company), optional estimate and currency, optional note, and the `required for` gates.
+- FR-TPI-001 The system shall let an authorized user create an inspection on a work order with a title, test kind (text from an organisation list, OQ-TPI-1), planned date, optional vendor (company), optional estimate and currency (a planning figure only: see Context), optional note, and the `required for` gates.
 - FR-TPI-002 The system shall move an inspection only forward through the status order via one RPC per step, each stamping the date and actor; no client may write `status` directly.
 - FR-TPI-003 When an inspection is cancelled, the system shall require a reason and keep the row and its history; archived, never hard-deleted (ADR-0018).
 - FR-TPI-004 The inspection shall carry a nullable `section_id` with no foreign key until #2576 ships. Where sections exist, the system shall refuse a section of another work order or organisation and the screen shall offer a section picker; until then the field is not shown. Roll-up per section and per work order (counts by status) shall work with the section null.
 - FR-TPI-005 Every status step shall be audited in record history with actor and time.
 
 **Purchase and cost**
-- FR-TPI-006 When an inspection is `requested`, the system shall let a Project Manager, Finance or Admin raise its purchase: one RPC creates (or links an existing, unlinked) procurement case on the inspection's project through the existing procurement create functions, attributes the case's records to the inspection's work order and the inspection's vendor, and moves the inspection to `purchase_raised`.
+- FR-TPI-006 When an inspection is `requested`, the system shall let a Project Manager, Finance or Admin raise its purchase: one RPC creates a Draft procurement case on the inspection's project with the inspection's vendor in its header by calling the shipped `create_procurement_with_items(p_id, p_header, p_items)` (0449; no direct insert into any procurement table), or links an existing unlinked case, and moves the inspection to `purchase_raised`. On a linked existing case it attributes that case's existing purchase request, purchase order, goods receipt and vendor bill rows to the inspection's work order through the shipped `set_cost_attribution` (0951, FR-TPI-021). It does not call `create_purchase_request` or `create_purchase_order`: the request and order are created by procurement's own flow, and the estimate is never copied into them.
+- FR-TPI-021 While a procurement case is linked to an inspection, each purchase request, purchase order, goods receipt and vendor bill later added to it shall take the inspection's work order when none is named, so its cost reaches the work-order cost read without a manual step; a record that already names another work order is refused by the shipped `check_cost_attribution` rule (OD-TPI-6).
 - FR-TPI-007 The system shall refuse linking a case whose project differs from the inspection's, whose records name another work order, or that another inspection already holds (one case per inspection; a case may be reused only by the same inspection).
 - FR-TPI-008 The system shall show each inspection's committed and billed cost, per currency, from the linked case, never entered by hand and never written by this feature.
 - FR-TPI-009 The work-order cost read of #2517 shall include these purchases unchanged; project totals shall not change because an inspection exists (NFR-WCA-001 holds).
@@ -41,8 +43,8 @@ When an external body must test or inspect part of a work order, I want to track
 **Invitation, execution, report**
 - FR-TPI-011 `invited` requires the purchase raised, and records invitation date, who was invited (free text or the vendor contact) and how (note).
 - FR-TPI-012 `executed` requires `invited` and records the execution date, which shall not be in the future.
-- FR-TPI-013 `reported` requires `executed`, at least one report attachment (file, uploader, time; PDF/image/Office types, 15 MB each, capped at 10) and a result. The database refuses the step without them.
-- FR-TPI-014 Where an inspection is `required for` a gate and is not complete, a Project Manager, Finance or Admin may record a **waiver** with a mandatory reason; it is audited, and shows on the prerequisite read. A person shall not waive an inspection they created (OD-TPI-3).
+- FR-TPI-013 `reported` requires `executed`, at least one report attachment (file, uploader, time; PDF/image/Office types, 15 MB each, capped at 10, kept in a new private bucket, see the plan: the shipped procurement bucket is 5 MB and closed to the Engineer role) and a result. The database refuses the step without them.
+- FR-TPI-014 Where an inspection is `required for` a gate and is not complete, a Project Manager, Finance or Admin may record a **waiver** with a mandatory reason; it is audited, and shows on the prerequisite read. A person shall not waive an inspection they created (OD-TPI-3): the waiver RPC refuses when the caller is the inspection's creator, and no role may write the waiver columns directly, so the rule cannot be bypassed from the client.
 - FR-TPI-015 A report attachment of a `reported` inspection is append-only; a correction is a new attachment plus a note.
 
 **Prerequisite read (for #2522 and #2576)**
@@ -67,14 +69,16 @@ Hand-worked example: work order WO-1 has two required inspections, A (soil test)
 
 | ID | Given / When / Then | Layer |
 |---|---|---|
-| AC-TPI-001 | Given the example, when costs are read, then A 1,000/1,000, B 2,500/2,400, work order totals 3,500 committed / 3,400 billed USD, C none; no EUR is added to USD. | pgTAP (read) + Unit (display) |
-| AC-TPI-002 | Given a requested inspection, when a Project Manager raises its purchase, then a case exists on the inspection's project with its records attributed to the work order and vendor, the inspection is `purchase_raised`, and no client-supplied amount or work order was needed. | pgTAP |
+| AC-TPI-001 | Given the example, when costs are read, then A 1,000/1,000, B 2,500/2,400, work order totals 3,500 committed / 3,400 billed USD, C none (its estimate is not in any figure); no EUR is added to USD; the figures come from `work_order_cost_lines` records of the linked case and an Engineer sees no amounts. | pgTAP (read) + Unit (display) |
+| AC-TPI-002 | Given a requested inspection with an estimate, when a Project Manager raises its purchase, then a Draft case exists on the inspection's project with the inspection's vendor, the inspection is `purchase_raised`, no procurement row was written except through `create_procurement_with_items` and `set_cost_attribution`, no purchase record or amount was created from the estimate, and no client-supplied amount or work order was needed. | pgTAP |
+| AC-TPI-018 | Given a linked case, when a purchase request, purchase order, goods receipt or vendor bill is later added to it, then the record names the inspection's work order and appears in `work_order_cost_lines` for it; a record naming another work order is refused. | pgTAP |
 | AC-TPI-003 | Given a case on another project, or one naming another work order, or already held by another inspection, when linked, then refused (`23514`, a `TPI_*` message). | pgTAP |
 | AC-TPI-004 | Given an inspection, when a client writes `status` directly or skips a step (invite before purchase, report before execute), then refused. | pgTAP |
 | AC-TPI-005 | Given an executed inspection, when it is reported with no attachment or no result, then refused; with both, it is `reported`. | pgTAP |
 | AC-TPI-006 | Given a `reported` inspection, when a report attachment is removed or replaced, then refused; a new attachment is accepted. | pgTAP |
 | AC-TPI-007 | Given the example, when the prerequisite is read for `billing`, then `complete` is false with B blocking; after B is reported `conditional`, true; a `fail` stays false. | pgTAP + Unit (completeness rule) |
-| AC-TPI-008 | Given an incomplete required inspection, when a Project Manager waives it with a reason, then the read shows complete with the waiver; without a reason, or by the creator, refused; the waiver is audited. | pgTAP |
+| AC-TPI-008 | Given an incomplete required inspection, when a Project Manager other than its creator waives it with a reason, then the read shows complete with the waiver and the waiver is audited; without a reason, refused. | pgTAP |
+| AC-TPI-017 | Given an inspection created by a Project Manager, when that same person calls the waiver RPC, or any user updates the waiver columns directly, then refused (`TPI_WAIVE_SELF` / no grant) and the read stays incomplete; a different Project Manager, Finance or Admin may waive. | pgTAP |
 | AC-TPI-009 | Given an inspection that names a section, when the section belongs to another work order or organisation, then refused; with the section null the roll-up still counts it (the column carries no foreign key until #2576). | pgTAP |
 | AC-TPI-010 | Given a cancelled inspection, when read, then it stays with its reason and history and is excluded from the prerequisite unless waived-required is set; it is never hard-deleted. | pgTAP |
 | AC-TPI-011 | Given a planned date in the past and no report, when the overdue sweep runs twice, then exactly one notice per inspection exists for each recipient. | pgTAP |
@@ -90,7 +94,7 @@ Hand-worked example: work order WO-1 has two required inspections, A (soil test)
 | Linking a case of another project, another work order, or held by another inspection | Refused, names which |
 | Step out of order, or direct status write | Refused: "complete the previous step" |
 | Report without file or result; execution date in the future | Field error |
-| Waiver without reason, or by the creator | Refused with reason |
+| Waiver without reason, or by the creator (`TPI_WAIVE_SELF`) | Refused with reason |
 | Section of another work order | Refused (once #2576 ships) |
 | Purchase refused by procurement's own rules (budget, approval) | Passed through unchanged; the inspection stays `requested` |
 
@@ -102,13 +106,14 @@ Hand-worked example: work order WO-1 has two required inspections, A (soil test)
 | OD-TPI-3 | A waiver needs a reason and a person other than the creator. | If the creator may waive, one person can request a test and waive it, so the prerequisite is meaningless. |
 | OD-TPI-4 | This feature only exposes the prerequisite; #2522 and #2576 own the block. | If the block is wanted now, an invoice can still be issued while a required test is open. |
 | OD-TPI-5 | One inspection = one test event; a re-test is a new inspection on the same work order. | If re-tests must share one record, history and cost of the failed attempt merge. |
+| OD-TPI-6 | A trigger on the four procurement record tables stamps the linked inspection's work order on a new record that names none (attribution columns only; no create function, status or amount changes). | If wanted not to touch those tables, each later record must be attributed by hand with `set_cost_attribution`, and an unattributed bill drops out of the work-order cost until someone does. |
 | OQ-TPI-1 | Is the test-kind list per organisation (default: a small org-kept list, free text allowed for now) or fixed? | Reports cannot be grouped by kind. |
 | OQ-TPI-2 | Does the vendor's own invoice always come through a purchase (default yes), or may the client pay the tester directly? | Direct client payment means no cost to attribute; the tracker then holds a zero-cost inspection. |
 | OQ-TPI-3 | Overdue is the planned date, or the planned date plus N days? Default the planned date. | Noise or silence. |
 | OQ-TPI-4 | Is one inspection ever required at the work-order level and again per section? Default no: it names one or the other. | Prerequisite counts it twice or not at all. |
 
 ## Delivery checklist
-- [ ] Owner signs OD-TPI-1..5, answers OQ-TPI-1..4.
+- [ ] Owner signs OD-TPI-1..6, answers OQ-TPI-1..4.
 - [ ] Tracker (status, files, overdue) ships before the purchase link; the purchase link and cost read ship alone (money).
 - [ ] Section picker waits for #2576; prerequisite wiring into #2522 / #2576 is their ticket.
 - [ ] Glossary: third-party inspection, inspection prerequisite.
