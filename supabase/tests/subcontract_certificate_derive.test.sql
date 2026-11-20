@@ -3,7 +3,7 @@
 -- The hand calculation is the spec's "Definitions" table: A 40.000 x 10.00, B 12.500 x 8.40, C 3.333 x 9.99 = 538.30; backcharge 38.30; net 500.00.
 begin;
 create extension if not exists pgtap;
-select plan(49);
+select plan(48);
 
 -- ── shared fixture (the hand-calculation month, spec "Definitions"): org A (multi-member), org B (another tenant). ──
 -- PO quantity 100 and rate 12.00 on every item; vendor V1's crew works work order W1 in March 2026.

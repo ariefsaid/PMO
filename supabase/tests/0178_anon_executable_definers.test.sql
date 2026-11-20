@@ -283,6 +283,13 @@ select plan(7);
 -- hand from the list). SECURITY DEFINER writer under a member's JWT: it re-asserts active membership, the Admin/Finance
 -- role, the caller's org, no ERP, and author ≠ voider unless the sole active member. Proven by
 -- supabase/tests/subcontract_bill_void.test.sql.
+-- ⚑ AMENDED BY 1135-1138 (#2584): the twelve subcontractor-progress-certificate writers join the retained set (+12, count 236 on dev's 224, re-derived by hand from the
+-- list): `set_subcontractor_rate`, `prepare_subcontract_certificate`, `set_certificate_deselection`, `record_subcontract_backcharge`,
+-- `archive_subcontract_backcharge`, `set_certificate_backcharge`, `submit_subcontract_certificate`, `return_subcontract_certificate`,
+-- `cancel_subcontract_certificate`, `approve_subcontract_certificate`, `bill_subcontract_certificate` and `prepare_certificate_acceptance`.
+-- SECURITY DEFINER writers under a member's JWT: each re-asserts active membership, the caller's org and a role gate (Admin/Finance for the
+-- rate card, approval and billing; Project Manager of the project, Finance or Admin for preparing) in its body; approval enforces approver !=
+-- preparer/submitter with no sole-operator escape. Proven by supabase/tests/subcontract_rate_card.test.sql, subcontract_certificate_*.test.sql.
 -- ⚑ AMENDED BY 0907 (#564): `admin_move_credit_allocation` joins the retained set (+1). SECURITY DEFINER writer under a
 -- member's JWT that re-asserts active membership, the Admin role and that both users belong to the caller's org before
 -- it moves credit; proven by supabase/tests/0907_credit_allocations.test.sql and
@@ -349,6 +356,18 @@ insert into client_callable_rpc_names (proname) values
   ('detach_erp_journal_line'),  -- 0687: Admin/Finance, org-scoped; 0687 pgTAP
   ('attribute_subcontract_bill_lines'),
   ('void_subcontract_bill'),  -- ⚑ AMENDED BY 0885 (#1671)
+  ('set_subcontractor_rate'),  -- ⚑ AMENDED BY 1135-1138 (#2584)
+  ('prepare_subcontract_certificate'),  -- ⚑ AMENDED BY 1135-1138 (#2584)
+  ('set_certificate_deselection'),  -- ⚑ AMENDED BY 1135-1138 (#2584)
+  ('record_subcontract_backcharge'),  -- ⚑ AMENDED BY 1135-1138 (#2584)
+  ('archive_subcontract_backcharge'),  -- ⚑ AMENDED BY 1135-1138 (#2584)
+  ('set_certificate_backcharge'),  -- ⚑ AMENDED BY 1135-1138 (#2584)
+  ('submit_subcontract_certificate'),  -- ⚑ AMENDED BY 1135-1138 (#2584)
+  ('return_subcontract_certificate'),  -- ⚑ AMENDED BY 1135-1138 (#2584)
+  ('cancel_subcontract_certificate'),  -- ⚑ AMENDED BY 1135-1138 (#2584)
+  ('approve_subcontract_certificate'),  -- ⚑ AMENDED BY 1135-1138 (#2584)
+  ('bill_subcontract_certificate'),  -- ⚑ AMENDED BY 1135-1138 (#2584)
+  ('prepare_certificate_acceptance'),  -- ⚑ AMENDED BY 1135-1138 (#2584)
   ('attest_timesheet_no_erp_document'),
   ('cancel_native_receipt'),
   ('cancel_stock_document'),
@@ -550,8 +569,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  224,
-  'AC-ACL-002 all 224 retained client-callable RPC names still have a public function');
+  236,
+  'AC-ACL-002 all 236 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -560,8 +579,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  224,
-  'AC-ACL-003 all 224 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  236,
+  'AC-ACL-003 all 236 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
