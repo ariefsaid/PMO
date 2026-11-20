@@ -257,6 +257,10 @@
 -- supabase/tests/operator_create_org.test.sql (AC-ORG-001/002). Anything added here without that
 -- pairing IS a relaxation.
 
+-- ⚑ AMENDED BY 1018 (#2329): `set_org_fiscal_year_start_month` joins the retained set (+1, count 180 on dev's 179). SECURITY DEFINER
+-- writer under a member's JWT: it re-asserts active membership, the Admin role and the caller's org, and refuses where the
+-- organization reads an accounting-system ledger; proved by supabase/tests/1018_fiscal_calendar.test.sql (AC-FCAL-003/004).
+--
 begin;
 create extension if not exists pgtap;
 select plan(7);
@@ -457,6 +461,7 @@ insert into client_callable_rpc_names (proname) values
   ('set_procurement_invoice_efaktur'),
   ('set_contract_rate_assignee'),  -- ⚑ AMENDED BY 0515 (#1514)
   ('set_procurement_gates'),
+  ('set_org_fiscal_year_start_month'), -- 1018 (#2329): active Admin, caller org, refused where a ledger is read; 1018_fiscal_calendar pgTAP
   ('set_project_contract_value'),
   ('set_sales_invoice_billing_kind'),
   ('accept_invoice_pairs'),
@@ -529,8 +534,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  216,
-  'AC-ACL-002 all 216 retained client-callable RPC names still have a public function');
+  217,
+  'AC-ACL-002 all 217 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -539,8 +544,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  216,
-  'AC-ACL-003 all 216 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  217,
+  'AC-ACL-003 all 217 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

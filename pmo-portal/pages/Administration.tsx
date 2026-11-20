@@ -23,6 +23,7 @@ import { AgentCostMetrics } from '@/src/components/admin/AgentCostMetrics';
 import { IntegrationsView } from '@/src/components/integrations/IntegrationsView';
 import { AccountingHelp } from './admin/AccountingHelp';
 import OrgTaxDefault from './admin/OrgTaxDefault';
+import OrgFiscalYearStart from './admin/OrgFiscalYearStart';
 import SpendApprovers from './admin/SpendApprovers';
 import OrgWithholdingAccount from './admin/OrgWithholdingAccount';
 import OrgVendorTaxAccounts from './admin/OrgVendorTaxAccounts';
@@ -261,6 +262,7 @@ const SelectedAdministrationPanel: React.FC<{
           <SectionName name={label('accounting')} />
           <div className="space-y-6 [&>section+section]:border-t [&>section+section]:border-border [&>section+section]:pt-6">
             <OrgTaxDefault />
+            <OrgFiscalYearStart />
             <SpendApprovers />
             <OrgWithholdingAccount />
             <OrgVendorTaxAccounts />

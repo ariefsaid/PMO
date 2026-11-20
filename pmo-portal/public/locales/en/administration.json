@@ -572,6 +572,17 @@
     "spendApprovers": {
       "whoNow": "Who can approve now",
       "helpRule": "With nobody listed, {{roles}} can approve another person's case."
+    },
+    "fiscalYear": {
+      "title": "Fiscal year",
+      "label": "Fiscal year starts in",
+      "notSet": "Not set",
+      "helper": "PMO places each payment in a fiscal year by its date, and the Budget tab shows spending per year. Changing the month re-sorts every past payment.",
+      "save": "Save fiscal year",
+      "saved": "Fiscal year saved",
+      "loadError": "Couldn't load the fiscal year",
+      "accountingSystem": "Your accounting system sets the fiscal year.",
+      "adminOnly": "Only an Admin can change this."
     }
   },
   "exchangeRates": {
