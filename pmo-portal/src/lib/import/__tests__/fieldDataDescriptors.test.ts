@@ -109,6 +109,6 @@ describe('people', () => {
     const v = run(d, ['Employee code', 'Display name'], [['E-1', ''], ['E-2', 'Sam']]);
     expect(v[0].errors.name).toBeTruthy();
     await d.create(d.toInput({ code: ' E-2 ', name: ' Sam ' }));
-    expect(h.createPerson).toHaveBeenCalledWith({ code: 'E-2', name: 'Sam', job_title: null, profile_id: null });
+    expect(h.createPerson).toHaveBeenCalledWith({ code: 'E-2', name: 'Sam' });
   });
 });

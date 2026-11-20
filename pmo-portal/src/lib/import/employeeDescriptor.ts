@@ -31,6 +31,6 @@ export function makePeopleImportDescriptor(existingCodes: () => Promise<Iterable
       nothingNew: L('import:existing.nothingNew', 'Every row is already there.'),
     }),
     toInput: (c) => ({ code: c.code.trim(), name: c.name.trim() }),
-    create: (input) => repositories.documentExpiry.createPerson(input),
+    create: (input) => repositories.people.create(input),
   };
 }
