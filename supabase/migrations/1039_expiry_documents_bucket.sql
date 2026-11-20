@@ -1,8 +1,8 @@
--- 0994_expiry_documents_bucket.sql — #2542 (map #2516): private bucket for expiring-document attachments.
+-- 1039_expiry_documents_bucket.sql — #2542 (map #2516): private bucket for expiring-document attachments.
 -- Path: {org}/{kind}/{subject}/{file}/{filename}, kind = person | equipment. Write follows the row rule in 0970
 -- (Admin any kind; Project Manager equipment only); read adds a person's manager. Medical documents hold no file (0970 constraint).
 -- Helpers are SECURITY INVOKER: people and equipment_assets RLS still apply to the subject lookup.
--- Reverse: rollback/0994_expiry_documents_bucket_down.sql
+-- Reverse: rollback/1039_expiry_documents_bucket_down.sql
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
   values ('expiry-documents', 'expiry-documents', false, 5242880,
