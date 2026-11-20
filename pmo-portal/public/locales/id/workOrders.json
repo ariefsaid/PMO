@@ -47,7 +47,7 @@
     "pending": "Menunggu",
     "paid": "Dibayar",
     "remaining": "Sisa",
-    "incomplete": "Beberapa faktur tidak dapat dijumlahkan, sehingga angka ini belum lengkap.",
+    "incomplete": "Beberapa invoice tidak dapat dijumlahkan, sehingga angka ini belum lengkap.",
     "acceptances": "Penerimaan",
     "acceptancesError": "Penerimaan tidak dapat dimuat",
     "noAcceptances": "Belum ada penerimaan.",
