@@ -107,13 +107,3 @@ export const CardPad: React.FC<CardPadProps> = ({
     {children}
   </div>
 );
-
-export const CardFoot: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
-  className,
-  children,
-  ...rest
-}) => (
-  <div className={cn('border-t border-border px-[var(--panel-inset)] py-3', className)} {...rest}>
-    {children}
-  </div>
-);

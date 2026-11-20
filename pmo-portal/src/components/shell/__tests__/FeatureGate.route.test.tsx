@@ -1,8 +1,6 @@
 /**
- * AC-ENT-003 — <FeatureGate> + <FeatureRoute> hide CRM affordances (ops-admin-surface S6).
+ * AC-ENT-003 — <FeatureRoute> hides CRM affordances (ops-admin-surface S6).
  *
- *   - <FeatureGate feature="crm"> renders children when useFeature('crm') is true and omits
- *     them when false.
  *   - <FeatureRoute feature="crm"> renders the element when enabled and the not-available state
  *     when disabled — a deep-link degrades gracefully, never a 404. (S3/AC-PLN-008 replaced the
  *     old redirect to `/` with that state: the route now says why, and data is kept either way.
@@ -36,7 +34,6 @@ vi.mock('@/src/hooks/useUserViews', () => ({
 }));
 
 import { FeatureRoute } from '@/src/components/FeatureRoute';
-import { FeatureGate } from '@/src/auth/useFeature';
 import { Rail } from '@/src/components/shell/Rail';
 import { RailDrawerContext } from '../railDrawerContext';
 
@@ -52,28 +49,6 @@ const wrap = (ui: React.ReactNode, initial = '/crm') =>
   );
 
 describe('AC-ENT-003 — FeatureRoute hides CRM affordances', () => {
-
-  it('AC-ENT-003 FeatureGate hides an in-page affordance when crm is disabled', () => {
-    featuresState.value = { crm: false };
-    wrap(
-      <FeatureGate feature="crm">
-        <button type="button">Create company</button>
-      </FeatureGate>,
-      '/',
-    );
-    expect(screen.queryByRole('button', { name: 'Create company' })).toBeNull();
-  });
-
-  it('AC-ENT-003 FeatureGate renders an in-page affordance when crm is enabled', () => {
-    featuresState.value = { crm: true };
-    wrap(
-      <FeatureGate feature="crm">
-        <button type="button">Create company</button>
-      </FeatureGate>,
-      '/',
-    );
-    expect(screen.getByRole('button', { name: 'Create company' })).toBeInTheDocument();
-  });
 
   it('AC-PLN-008 <FeatureRoute> renders the not-available state for a /crm deep-link when crm is disabled', () => {
     featuresState.value = { crm: false };
