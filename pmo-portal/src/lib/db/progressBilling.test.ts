@@ -2,14 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const h = vi.hoisted(() => {
   const chain: Record<string, ReturnType<typeof vi.fn>> = {};
   const result = { data: null as unknown, error: null as unknown };
-  for (const name of ['select', 'insert', 'update', 'delete', 'eq', 'order', 'range', 'single']) chain[name] = vi.fn(() => chain);
+  for (const name of ['select', 'insert', 'update', 'delete', 'eq', 'order', 'range', 'single', 'limit', 'in']) chain[name] = vi.fn(() => chain);
   const thenable = { ...chain, then: (resolve: (v: unknown) => unknown) => resolve(result) };
   for (const name of Object.keys(chain)) chain[name].mockImplementation(() => thenable);
   return { rpc: vi.fn(), from: vi.fn(() => thenable), chain, result };
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: h.from } }));
 import {
-  attachClaimEvidence, createBoqItem, createNativeProgressClaimInvoice, createProgressClaim, getProjectBilling, listBoqItems, recordProgressAssessment, updateBoqItem,
+  attachClaimEvidence, listProjectClaims, createBoqItem, createNativeProgressClaimInvoice, createProgressClaim, getProjectBilling, listBoqItems, recordProgressAssessment, updateBoqItem,
 } from './progressBilling';
 
 const CONTRACT = {
@@ -170,5 +170,19 @@ describe('progress billing DAL', () => {
     await expect(createNativeProgressClaimInvoice('claim-1')).rejects.toMatchObject({ code: 'claim-kind' });
     h.rpc.mockResolvedValue({ data: null, error: null });
     await expect(createNativeProgressClaimInvoice('claim-1')).rejects.toMatchObject({ name: 'AppError' });
+  });
+});
+
+describe('#2624 listProjectClaims carries each claim\'s open billing stages', () => {
+  it('AC-BST-005 counts the stages not yet completed, and reads them with the claim', async () => {
+    h.result.data = [
+      { id: 'k1', lines: [], evidence: [], stages: [{ completed_on: '2026-10-02' }, { completed_on: null }, { completed_on: null }] },
+      { id: 'k2', lines: [], evidence: [], stages: [{ completed_on: '2026-10-02' }] },
+      { id: 'k3', lines: [], evidence: [] },
+    ];
+    const rows = await listProjectClaims('p1');
+    expect(rows.map((r) => [r.id, r.open_stage_count])).toEqual([['k1', 2], ['k2', 0], ['k3', 0]]);
+    expect(h.chain.select.mock.calls[0][0]).toContain('stages:claim_billing_stages(completed_on)');
+    expect(rows[0]).not.toHaveProperty('stages');
   });
 });

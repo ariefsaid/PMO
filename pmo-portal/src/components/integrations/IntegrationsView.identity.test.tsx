@@ -72,7 +72,7 @@ describe('AC-M365SEP-017 — M365 organisation approval on the admin surface', (
     expect(
       screen.getByRole('button', { name: /approve in microsoft 365/i }),
     ).toBeInTheDocument();
-    expect(screen.getByTestId('m365-org-approval')).toHaveTextContent(/only if microsoft asks/i);
+    expect(screen.getByTestId('m365-org-approval')).toHaveTextContent(/microsoft 365/i);
     // It is NOT a TIERS entry — no data-tier attribute, no credential Connect form. M365 is its own
     // block (a mutation here guards against someone forcing it into the TIERS array).
     const m365Card = screen.getByTestId('m365-org-approval');

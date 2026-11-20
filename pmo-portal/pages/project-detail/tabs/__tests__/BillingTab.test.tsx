@@ -554,6 +554,43 @@ describe('BillingTab', () => {
     expect(toast).not.toHaveTextContent('Update failed');
   });
 
+  describe('#2624 a progress claim with an open billing stage (FR-BST-020)', () => {
+    const STAGE_MSG = 'Complete every billing stage of this claim before raising its invoice.';
+    it('AC-BST-005 UI: the claim offers no Raise invoice and names the open stage as the reason, never the withdrawn message', async () => {
+      h.claims = [claim('k2', { evidence: [{ id: 'ev-1', document_id: 'doc-1', document_status: 'Issued', document_revision: 'A' }], open_stage_count: 1 })];
+      const user = renderTab();
+      const actions = within(screen.getByTestId('claim-actions-k2'));
+      expect(actions.queryByRole('button', { name: 'Raise invoice' })).not.toBeInTheDocument();
+      expect(actions.getByText(STAGE_MSG)).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: /Open Progress claim from/ }));
+      const drawer = within(screen.getByRole('dialog'));
+      expect(drawer.queryByRole('button', { name: 'Raise invoice' })).not.toBeInTheDocument();
+      expect(drawer.getByText(STAGE_MSG)).toBeInTheDocument();
+      expect(drawer.queryByText(/withdrawn/i)).not.toBeInTheDocument();
+      expect(actions.queryByText(/withdrawn/i)).not.toBeInTheDocument();
+    });
+    it('AC-BST-005 UI: once every stage is complete the claim offers Raise invoice again', () => {
+      h.claims = [claim('k2', { evidence: [{ id: 'ev-1', document_id: 'doc-1', document_status: 'Issued', document_revision: 'A' }], open_stage_count: 0 })];
+      renderTab();
+      expect(within(screen.getByTestId('claim-actions-k2')).getByRole('button', { name: 'Raise invoice' })).toBeInTheDocument();
+    });
+    it('AC-BST-005 UI: a billing-stages-incomplete refusal toasts the stage reason, never "withdrawn"', async () => {
+      const { AppError } = await import('@/src/lib/appError');
+      h.m.raiseInvoice.mutateAsync.mockRejectedValue(new AppError('complete every billing stage', 'billing-stages-incomplete'));
+      const user = renderTab();
+      await user.click(within(screen.getByTestId('claim-actions-k2')).getByRole('button', { name: 'Raise invoice' }));
+      await user.click(screen.getByRole('button', { name: 'Create ERP invoice' }));
+      const toast = await findToastAnnouncement('alert', STAGE_MSG);
+      expect(toast).toHaveTextContent(STAGE_MSG);
+      expect(toast).not.toHaveTextContent('withdrawn');
+    });
+    it('AC-BST-005 UI: the stage reason is localized — Bahasa (id)', async () => {
+      h.claims = [claim('k2', { evidence: [{ id: 'ev-1', document_id: 'doc-1', document_status: 'Issued', document_revision: 'A' }], open_stage_count: 2 })];
+      await renderTabLocalized('id');
+      expect(within(screen.getByTestId('claim-actions-k2')).getByText('Selesaikan semua tahap penagihan klaim ini sebelum menerbitkan invoice-nya.')).toBeInTheDocument();
+    });
+  });
+
   it('keeps evidence unavailable while documents load and offers retry after failure', async () => {
     h.docsState = { isPending: true, isError: false, refetch: vi.fn() };
     const user = renderTab();

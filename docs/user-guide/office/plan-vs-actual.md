@@ -55,6 +55,9 @@ project's positive direct cost. To set your own split:
   *Not comparable (other currency)* replaces the margin rather than blending currencies.
 - Per discipline: a table of planned direct, direct cost, planned indirect and shared cost,
   with *No discipline* for records without one.
+- **Crew hours** and **People with hours** count approved timesheet weeks only. Hours on a week
+  not yet approved (draft, submitted or rejected) are not counted; a line says how many:
+  *⟨n⟩ h on timesheets not yet approved are not counted.*
 - Every figure can show its **basis** — the cost records behind it — on demand.
 - Shared cost with no basis yet shows as **Not assigned** until a valid custom split is saved.
 - Project totals always equal today's project totals: every cost record appears exactly once,
@@ -135,6 +138,9 @@ langsung positifnya. Untuk menetapkan pembagian sendiri:
   uang lain)* menggantikan margin daripada mencampur mata uang.
 - Per disiplin: tabel rencana langsung, biaya langsung, rencana tidak langsung, dan biaya
   bersama, dengan *Tanpa disiplin* untuk catatan tanpa disiplin.
+- **Jam kru** dan **Orang yang mencatat jam** hanya menghitung minggu timesheet yang disetujui. Jam pada
+  minggu yang belum disetujui (draf, diajukan, atau ditolak) tidak dihitung; satu baris menyebut
+  jumlahnya: *⟨n⟩ jam pada timesheet yang belum disetujui tidak dihitung.*
 - Tiap angka dapat menampilkan **dasarnya** — catatan biaya di baliknya — sesuai permintaan.
 - Biaya bersama tanpa dasar menampilkan **Belum dialokasikan** sampai pembagian khusus yang
   sah disimpan.

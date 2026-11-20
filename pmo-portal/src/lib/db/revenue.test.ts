@@ -464,7 +464,7 @@ describe('db/revenue singular reads — getSalesInvoice / getIncomingPayment (AC
 
     expect(h.state.columnCalls).toContainEqual({
       table: 'sales_invoices',
-      columns: '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name,short_name), sales_invoice_authors(user_id), project:projects!sales_invoices_project_id_fkey(subject_to_vat,receipt_withholding_article)',
+      columns: '*, retention_held, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name,short_name), sales_invoice_authors(user_id), project:projects!sales_invoices_project_id_fkey(subject_to_vat,receipt_withholding_article)',
     });
     expect(h.state.eqCalls).toContainEqual(['id', 'si-1']);
     expect(row?.customer_name).toBe('Acme Co');

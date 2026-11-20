@@ -27,7 +27,7 @@ import { selectOverdueInvoices, selectSupplierInvoices } from './useNeedsYou';
 import { withLinkedDocuments } from '@/src/lib/procurement/procurementMoney';
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 import { orderByCurrency, tileMoneyLines } from './currencyOrder';
-import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
+import { clientInvoiceDueNowCents, clientInvoiceOverdueDays, retentionHeldCents } from '@/src/lib/repositories/revenueDisplay';
 import type { OverdueInvoiceFact } from '@/src/lib/db/revenue';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { supplierUnpaid } from '@/src/lib/procurement/procurementMoney';
@@ -109,7 +109,11 @@ export function splitReceivables(rows: OverdueInvoiceFact[] | undefined, organiz
     if (days !== null) { overdueCount += 1; oldestDays = Math.max(oldestDays ?? 0, days); }
     const amount = invoice.erp_outstanding_amount;
     if (amount === null || amount === undefined || !Number.isFinite(amount)) { unknownBalances += 1; continue; }
-    addTo(days === null ? notDue : overdue, invoice.currency, amount);
+    if (days === null) { addTo(notDue, invoice.currency, amount); continue; }
+    // #2625: only the due-now part is overdue; the retention still held is owed but not yet due.
+    addTo(overdue, invoice.currency, (clientInvoiceDueNowCents(invoice) ?? 0) / 100);
+    const held = retentionHeldCents(invoice) ?? 0;
+    if (held > 0) addTo(notDue, invoice.currency, held / 100);
   }
   return { count: rows.length, notDue: listOf(notDue), overdue: listOf(overdue), overdueCount, unknownBalances, oldestDays };
 }

@@ -11,6 +11,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { formatList } from '@/src/lib/format';
 import type { ExternalTier } from '@/src/lib/repositories/types';
 import { repositories } from '@/src/lib/repositories';
+import { M365AppRegistrationCard } from './M365AppRegistrationCard';
 import { M365OrgApprovalCard } from './M365OrgApprovalCard';
 import { M365DefaultLibraryCard } from './M365DefaultLibraryCard';
 import { OdooIntegrationSection } from './odoo/OdooIntegrationSection';
@@ -262,7 +263,9 @@ export const IntegrationsView: React.FC = () => {
             entry (⚠️ do NOT add 'm365' to TIERS). M365 has no external_org_bindings row, no health
             probe, and no source-of-truth domains; forcing it into that array would hand it a
             credential-and-health model it does not have. The card self-gates Admin-only on the FE;
-            the edge fn re-enforces Admin-of-org OR Operator (FR-M365SEP-004/009). */}
+            the edge fn re-enforces Admin-of-org OR Operator (FR-M365SEP-004/009).
+            Step order: the org's own app registration (#1017) → org approval → each user connects. */}
+        <M365AppRegistrationCard />
         <M365OrgApprovalCard />
         {/* Org default document library — an org setting, deliberately separate from the personal
             connection and from the org approval above (it grants no access to anything). */}
