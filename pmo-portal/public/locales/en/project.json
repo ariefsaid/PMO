@@ -1252,6 +1252,7 @@
       "saved": "Pin saved",
       "step": "Step {{n}}: {{label}}",
       "loadFailed": "Approval steps could not be loaded",
+      "stuck": "{{name}} can no longer decide this step. Anyone with the role can until you choose someone else.",
       "retry": "Retry"
     },
     "projectIncidents": "Project incidents"

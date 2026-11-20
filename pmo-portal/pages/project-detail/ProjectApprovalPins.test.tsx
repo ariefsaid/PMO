@@ -83,6 +83,30 @@ it('AC-MRQ-017 the server\'s refusal is shown as a plain sentence', async () => 
   expect(await screen.findByRole('alert')).toHaveTextContent("Choose an active member who holds this step's role.");
 });
 
+it('AC-MRQ-024 a pin whose person was deactivated or lost the role is flagged as needing attention, and the step reads as role-level', () => {
+  h.chain.data = [{ id: 's3', position: 3, role: 'Finance', label: 'Stock' }];
+  h.pins.data = [{ position: 3, role: 'Finance', approverId: 'u7' }];
+  mount();
+  expect(screen.getByRole('status')).toHaveTextContent('Fin Gone can no longer decide this step. Anyone with the role can until you choose someone else.');
+  cleanup();
+  h.users.data = [{ id: 'u6', full_name: 'Fin Two', role: 'Engineer', status: 'active' }];
+  h.pins.data = [{ position: 3, role: 'Finance', approverId: 'u6' }];
+  mount();
+  expect(screen.getByRole('status')).toBeTruthy();
+});
+
+it('AC-MRQ-024 a live pin shows no warning, and the read-only view says the pin needs attention', () => {
+  h.chain.data = [{ id: 's3', position: 3, role: 'Finance', label: 'Stock' }];
+  h.pins.data = [{ position: 3, role: 'Finance', approverId: 'u6' }];
+  mount();
+  expect(screen.queryByRole('status')).toBeNull();
+  cleanup();
+  h.pins.data = [{ position: 3, role: 'Finance', approverId: 'u7' }];
+  h.me = { id: 'u-eng' };
+  mount('u-other');
+  expect(screen.getByRole('status')).toBeTruthy();
+});
+
 it('no chain set: nothing to pin, the panel stays out of the way', () => {
   h.chain.data = [];
   const { container } = mount();
