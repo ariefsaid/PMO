@@ -669,6 +669,17 @@ rotation, with hours), whatever the capture method (roster tick, phone check-in,
 person's timesheet line, or, for a person with no login, holds their approved hours itself. Approved attendance is locked
 and changes only by re-opening the timesheet.
 
+### Crew tools (#2581)
+
+**Tool line** (*baris alat*) - a named hand tool held by one crew, with a quantity and an optional serial number. Machines
+that are hired, costed or tracked by usage stay equipment assets and are not tool lines.
+
+**Tool report** (*laporan alat*) - a field report that a quantity of a tool line is damaged or lost. It lowers the crew's
+usable quantity at once and creates one replacement task for the equipment coordinator.
+
+**Equipment coordinator** (*koordinator peralatan*) - the user the organisation names to receive replacement tasks for
+damaged or lost tools.
+
 ### Document expiry and the people register (#2527, #2542)
 
 **Expiring document** (*dokumen kedaluwarsa*) — a certificate, permit or similar record with an expiry date that belongs to
