@@ -774,6 +774,7 @@
     "start_connect_run(uuid,text,uuid)",
     "start_procurement_import_run(uuid)",
     "stock_can_attach(uuid)",
+    "stock_doc_readable(text,boolean)",
     "stock_apply(stock_documents,boolean)",
     "stock_apply_adjustment(stock_documents,boolean)",
     "stock_apply_count(stock_documents,boolean)",
