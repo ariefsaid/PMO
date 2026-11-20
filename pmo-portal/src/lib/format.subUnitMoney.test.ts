@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { formatMoneyLines, formatTableMoney, formatTileMoney } from './format';
 
-const norm = (s: string) => s.replace(/ /g, ' ');
+const norm = (s: string) => s.replace(/[\u00a0\u202f]/g, ' ');
 afterEach(() => resetActiveLocale());
 
 // screen-rules "Numbers": never show a non-zero amount as zero; show its exact value (or a "less than" mark
