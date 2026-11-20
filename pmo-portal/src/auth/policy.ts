@@ -129,6 +129,7 @@ export type Entity =
   | 'materialRequest'
   | 'approvalChain'
   | 'standIn'
+  | 'approvalStepPin'
   | 'materialAllowance'
   | 'reorderLevel'
   | 'subcontractLines'
@@ -410,6 +411,13 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     manage: (role, ctx) =>
       has(ALL, role) && ctx.record?.viewOnly !== true &&
       (role === 'Admin' || (!!ctx.currentUserId && ctx.record?.delegator_id === ctx.currentUserId)),
+  },
+  /** Pinning an approval step to a named person on a project (#2598, mrq_set_step_pin): an Admin or the project's own manager. */
+  approvalStepPin: {
+    view: allow(ALL),
+    manage: (role, ctx) =>
+      has(ALL, role) && ctx.record?.viewOnly !== true &&
+      (role === 'Admin' || (!!ctx.currentUserId && ctx.record?.project_manager_id === ctx.currentUserId)),
   },
   /**
    * Work-order allocations of contract lines (ADR-0091, migration 0337). Mirrors the allocation table's RLS:

@@ -117,6 +117,13 @@ export interface StandIn {
   revokedAt: string | null;
 }
 
+/** A project's named approver for one chain position (#2598). No row = the step is role-level on that project. */
+export interface StepPin {
+  position: number;
+  role: Role;
+  approverId: string;
+}
+
 export interface LinePlan {
   itemId: string;
   planQty: number;
@@ -153,7 +160,7 @@ export function draftLineErrors(
 export type MaterialRequestRefusal =
   | 'sodAuthor' | 'sodTwice' | 'outOfOrder' | 'notApprover' | 'reasonRequired' | 'overPlanReason' | 'cutoff'
   | 'neededBy' | 'noChain' | 'sourceRequired' | 'noDestination' | 'notKeeper' | 'notPending' | 'notDraft'
-  | 'notAuthor' | 'workOrder' | 'standIn' | 'adminOnly' | 'unknown';
+  | 'notAuthor' | 'workOrder' | 'standIn' | 'adminOnly' | 'notPinned' | 'pinForbidden' | 'pinInvalid' | 'unknown';
 
 const REFUSALS: Array<[string, MaterialRequestRefusal]> = [
   ['MRQ_SOD_AUTHOR', 'sodAuthor'], ['MRQ_SOD_TWICE', 'sodTwice'], ['MRQ_OUT_OF_ORDER', 'outOfOrder'],
@@ -161,7 +168,7 @@ const REFUSALS: Array<[string, MaterialRequestRefusal]> = [
   ['MRQ_CUTOFF', 'cutoff'], ['MRQ_NEEDED_BY', 'neededBy'], ['MRQ_NO_CHAIN', 'noChain'], ['MRQ_SOURCE_REQUIRED', 'sourceRequired'],
   ['MRQ_NO_DESTINATION', 'noDestination'], ['STK_NOT_KEEPER', 'notKeeper'], ['MRQ_NOT_PENDING', 'notPending'],
   ['MRQ_NOT_DRAFT', 'notDraft'], ['MRQ_NOT_AUTHOR', 'notAuthor'], ['MRQ_WORK_ORDER', 'workOrder'], ['MRQ_STAND_IN', 'standIn'],
-  ['MRQ_ADMIN_ONLY', 'adminOnly'],
+  ['MRQ_ADMIN_ONLY', 'adminOnly'], ['MRQ_NOT_PINNED', 'notPinned'], ['MRQ_PIN_FORBIDDEN', 'pinForbidden'], ['MRQ_PIN_INVALID', 'pinInvalid'],
 ];
 
 /** Maps a database refusal to a stable key the screen translates. The message prefix is the contract. */
@@ -296,6 +303,14 @@ export async function listStandIns(): Promise<StandIn[]> {
   }));
 }
 
+/** #2598: the pins set on one project, by chain position. */
+export async function listStepPins(projectId: string): Promise<StepPin[]> {
+  const { data, error } = await (supabase.from('approval_step_pins').select('position, role, approver_id').eq('project_id', projectId)
+    .order('position', { ascending: true }).limit(10) as unknown as DbResult<Array<{ position: number; role: Role; approver_id: string }>>);
+  if (error) fail(error);
+  return (data ?? []).map((p) => ({ position: p.position, role: p.role, approverId: p.approver_id }));
+}
+
 // ── writes (one RPC each) ─────────────────────────────────────────────────────────────────────────────────────
 
 const toLinesJson = (lines: MaterialRequestLineInput[]): Json =>
@@ -361,5 +376,13 @@ export async function setStandIn(s: { delegatorId: string; standInId: string; st
 
 export async function revokeStandIn(id: string): Promise<void> {
   const { error } = await supabase.rpc('mrq_revoke_stand_in', { p_id: id });
+  if (error) fail(error);
+}
+
+/** #2598: pin one chain step on a project to a named person, or clear it with a null approver. */
+export async function setStepPin(projectId: string, position: number, approverId: string | null): Promise<void> {
+  const { error } = await supabase.rpc('mrq_set_step_pin', {
+    p_project_id: projectId, p_position: position, p_approver_id: approverId as string,
+  });
   if (error) fail(error);
 }

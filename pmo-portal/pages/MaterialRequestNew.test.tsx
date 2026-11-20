@@ -73,7 +73,7 @@ describe('raise a material request', () => {
     expect(await screen.findByText(/closed at 12:00.*earliest date/)).toBeInTheDocument();
   });
 
-  describe('AC-MRQ-021 default needed-by is tomorrow in the organisation calendar', () => {
+  describe('AC-MRQ-022 default needed-by is tomorrow in the organisation calendar', () => {
     afterEach(() => { vi.useRealTimers(); });
     const shown = () => (screen.getByLabelText(/needed by/i) as HTMLInputElement).value;
 

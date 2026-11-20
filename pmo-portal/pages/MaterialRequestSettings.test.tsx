@@ -32,7 +32,7 @@ describe('material request approval settings', () => {
     expect(await screen.findByText(/stand-in is not allowed/)).toBeInTheDocument();
   });
 
-  it('AC-MRQ-020 a non-Admin does not see the cut-off control', () => {
+  it('AC-MRQ-021 a non-Admin does not see the cut-off control', () => {
     h.role = 'Engineer';
     render(<MemoryRouter><ToastProvider><MaterialRequestSettingsPage /></ToastProvider></MemoryRouter>);
     expect(screen.queryByText('Daily cut-off')).not.toBeInTheDocument();
@@ -40,7 +40,7 @@ describe('material request approval settings', () => {
     expect(screen.queryByRole('button', { name: 'Save cut-off' })).not.toBeInTheDocument();
   });
 
-  it('AC-MRQ-020 an Admin sees the cut-off control and can save it', () => {
+  it('AC-MRQ-021 an Admin sees the cut-off control and can save it', () => {
     h.role = 'Admin';
     render(<MemoryRouter><ToastProvider><MaterialRequestSettingsPage /></ToastProvider></MemoryRouter>);
     expect(screen.getByText('Daily cut-off')).toBeInTheDocument();

@@ -1241,6 +1241,19 @@
       "zoomIn": "Zoom in",
       "zoomOut": "Zoom out"
     },
+    "approvalPins": {
+      "title": "Approver by step",
+      "intro": "Pin a step to one person on this project. With no pin, anyone with the step's role can decide it.",
+      "anyone": "Anyone with the role",
+      "pinnedTo": "Pinned to {{name}}",
+      "unpinned": "Any {{role}}",
+      "save": "Save",
+      "cleared": "Pin removed",
+      "saved": "Pin saved",
+      "step": "Step {{n}}: {{label}}",
+      "loadFailed": "Approval steps could not be loaded",
+      "retry": "Retry"
+    },
     "projectIncidents": "Project incidents"
   },
   "common": {

@@ -58,6 +58,9 @@ export function useRefusalText(): (err: unknown) => string {
     workOrder: t('refusal.workOrder', 'Choose a work order you can see.'),
     standIn: t('refusal.standIn', 'This stand-in is not allowed: choose an active colleague and a valid date range.'),
     adminOnly: t('refusal.adminOnly', 'Only an administrator can do this.'),
+    notPinned: t('refusal.notPinned', 'This step is pinned to another approver on this project.'),
+    pinForbidden: t('refusal.pinForbidden', 'Only an administrator or the project\'s manager can pin an approval step.'),
+    pinInvalid: t('refusal.pinInvalid', 'Choose an active member who holds this step\'s role.'),
     unknown: t('refusal.unknown', 'That did not work. Try again.'),
   };
   return (err) => {

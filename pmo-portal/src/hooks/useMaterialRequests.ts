@@ -50,6 +50,12 @@ export function useStandIns() {
   return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'stand-ins'], queryFn: () => repo.standIns(), enabled: Boolean(orgId) });
 }
 
+/** #2598: the approval steps pinned to a person on one project. */
+export function useStepPins(projectId: string | undefined) {
+  const orgId = useOrgId();
+  return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'step-pins', projectId], queryFn: () => repo.stepPins(projectId as string), enabled: Boolean(orgId) && Boolean(projectId) });
+}
+
 export function useMaterialRequestMutations() {
   const qc = useQueryClient();
   const orgId = useOrgId();
@@ -70,6 +76,7 @@ export function useMaterialRequestMutations() {
     setChain: useMutation({ mutationFn: (steps: ChainStepInput[]) => repo.setChain(steps), ...opts }),
     setCutoff: useMutation({ mutationFn: (c: string | null) => repo.setCutoff(c), ...opts }),
     setStandIn: useMutation({ mutationFn: (s: { delegatorId: string; standInId: string; startsOn: string; endsOn: string }) => repo.setStandIn(s), ...opts }),
+    setStepPin: useMutation({ mutationFn: (a: { projectId: string; position: number; approverId: string | null }) => repo.setStepPin(a.projectId, a.position, a.approverId), ...opts }),
     revokeStandIn: useMutation({ mutationFn: (id: string) => repo.revokeStandIn(id), ...opts }),
   };
 }
