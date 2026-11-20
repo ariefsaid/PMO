@@ -6784,6 +6784,8 @@ export type Database = {
           body: string | null
           created_at: string
           id: string
+          message_key: string | null
+          message_params: Json | null
           metadata: Json | null
           org_id: string
           owner_id: string
@@ -6795,6 +6797,8 @@ export type Database = {
           body?: string | null
           created_at?: string
           id?: string
+          message_key?: string | null
+          message_params?: Json | null
           metadata?: Json | null
           org_id?: string
           owner_id?: string
@@ -6806,6 +6810,8 @@ export type Database = {
           body?: string | null
           created_at?: string
           id?: string
+          message_key?: string | null
+          message_params?: Json | null
           metadata?: Json | null
           org_id?: string
           owner_id?: string
@@ -6942,6 +6948,51 @@ export type Database = {
           },
           {
             foreignKeyName: "org_features_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      org_terminology: {
+        Row: {
+          locale: string
+          org_id: string
+          plural: string
+          singular: string
+          term_key: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          locale: string
+          org_id?: string
+          plural: string
+          singular: string
+          term_key: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          locale?: string
+          org_id?: string
+          plural?: string
+          singular?: string
+          term_key?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_terminology_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_terminology_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "profiles"

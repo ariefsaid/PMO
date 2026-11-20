@@ -84,6 +84,7 @@ export const CORE_ROUTES = {
   '/administration/cost-attribution': 'administration — core',
   '/administration/usage': 'administration — core',
   '/administration/features': 'administration — core',
+  '/administration/terminology': 'administration — core',
   '/administration/:section': 'administration — core (unknown sections stay inside the shell)',
   '/finance': 'Finance hub — role-gated (can(view,finance)), no entitlement',
   '/journals': 'manual journals (#895) — the Finance desk, role-gated like the Finance hub (can(view,finance)); no switch key',
