@@ -1,7 +1,7 @@
 {
   "tables": [
     {"table":"equipment_downtime_proofs","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"equipment_escalation_log","has_org":true,"pk":"asset_id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"equipment_escalation_log","has_org":true,"pk":"asset_id","columns":"*","b_read":"none","by_id":"n/a: no client SELECT grant (server-written escalation log); the blind read proves the denial"},
     {"table":"equipment_rental_checks","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"equipment_rental_terms","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"equipment_status_days","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
