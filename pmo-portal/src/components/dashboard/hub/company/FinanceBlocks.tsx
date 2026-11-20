@@ -47,7 +47,7 @@ export function ReadyToPayCard({ rows, pending, error, retry, unpaidOf, today }:
         ? <div className="px-[var(--panel-inset)] pb-4"><ListState variant="error" title={t('dashboard:hub.company.readyToPayError', "Couldn't load ready-to-pay records")} onRetry={retry} quiet /></div>
         : (
           <div className={cn('overflow-x-auto [--table-cell-inset:var(--panel-inset)]', pending && PHONE_TABLE_HOLD)}>
-            <DataTable rows={ready} columns={columns} rowKey={(row) => row.id} onActivate={(row) => navigate(`/procurement/${row.id}`)} rowLabel={(row) => t('dashboard:hub.company.openProcurementNamed', 'Open {{name}}', { name: row.title })} state={pending ? 'loading' : ready.length === 0 ? 'empty' : undefined} emptyTitle={t('dashboard:hub.company.nothingReadyToPay', 'No supplier invoices are awaiting payment')} tableId="dashboard-company-ready-to-pay" embedded />
+            <DataTable rows={ready} columns={columns} rowKey={(row) => row.id} onActivate={(row) => navigate(`/procurement/${row.id}`)} rowHref={(row) => `/procurement/${row.id}`} rowLabel={(row) => t('dashboard:hub.company.openProcurementNamed', 'Open {{name}}', { name: row.title })} state={pending ? 'loading' : ready.length === 0 ? 'empty' : undefined} emptyTitle={t('dashboard:hub.company.nothingReadyToPay', 'No supplier invoices are awaiting payment')} tableId="dashboard-company-ready-to-pay" embedded />
           </div>
         )}
     </Card>
@@ -83,7 +83,7 @@ export function BudgetReviewCard({ rows, pending, error, retry }: { rows: Budget
     <Card>
       <CardHead level={2} actions={<ExportButton rows={rows} columns={columns} entity={t('dashboard:hub.company.budgetReview', 'Budget review')} label={t('dashboard:hub.company.export', 'Export')} />}>{t('dashboard:hub.company.budgetReview', 'Budget review')}</CardHead>
       <div className="overflow-x-auto [--table-cell-inset:var(--panel-inset)]">
-        <DataTable rows={rows} columns={columns} rowKey={(row) => row.id} onActivate={(row) => navigate(`/projects/${row.id}/budget`)} rowLabel={(row) => t('dashboard:hub.company.openBudgetFor', 'Open budget for {{name}}', { name: projectDisplayName(row) })} rowMenu={(row) => [
+        <DataTable rows={rows} columns={columns} rowKey={(row) => row.id} onActivate={(row) => navigate(`/projects/${row.id}/budget`)} rowHref={(row) => `/projects/${row.id}/budget`} rowLabel={(row) => t('dashboard:hub.company.openBudgetFor', 'Open budget for {{name}}', { name: projectDisplayName(row) })} rowMenu={(row) => [
           { label: t('dashboard:hub.company.openProject', 'Open project'), onClick: () => navigate(`/projects/${row.id}`) },
           { label: t('dashboard:hub.company.openBudget', 'Open budget'), onClick: () => navigate(`/projects/${row.id}/budget`) },
         ]} state={pending ? 'loading' : error ? 'error' : undefined} onRetry={retry} errorTitle={t('dashboard:hub.company.budgetReviewError', "Couldn't load budget review")} tableId="dashboard-company-budget-review" embedded />

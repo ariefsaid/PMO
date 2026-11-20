@@ -10,6 +10,107 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.42.0](https://github.com/ariefsaid/PMO/compare/v0.41.2...v0.42.0) (2026-11-20)
+
+
+### Features
+
+* **#1522:** daily site report data access, exact revenue and permission gates ([5dc0e04](https://github.com/ariefsaid/PMO/commit/5dc0e04d15e4992570982062e82a1aaefa063ef2))
+* **#1522:** site report screens, validation queue and field journey ([7fc5bd8](https://github.com/ariefsaid/PMO/commit/7fc5bd8e489f2a36c34c41cd149320f850c7e629))
+* **#2517:** cost attribution seam, shared work-order and discipline pickers, EN/ID strings ([d9d7896](https://github.com/ariefsaid/PMO/commit/d9d7896eb91704913e4e549f311f7a0bc79da68d))
+* **#2517:** timesheet lines carry work order and discipline through the week save ([5f4e0ea](https://github.com/ariefsaid/PMO/commit/5f4e0eae01db989085c50bd2bfc5c63c096a24c6))
+* **#2517:** work-order and discipline pickers on equipment, stock and purchase record forms ([3d869ab](https://github.com/ariefsaid/PMO/commit/3d869abdda0c147c68ad4762cd1b7f64b4d918eb))
+* **#2518:** entry links to the work-order page, e2e journey, module-completeness marking ([befacff](https://github.com/ariefsaid/PMO/commit/befacff77c2e2adce31cb54c9e996ab6cb2160c5))
+* **#2518:** work-order record page at /work-orders/:id (scope, costs, billing, documents) ([066cb81](https://github.com/ariefsaid/PMO/commit/066cb81b52a5812100aeb84dd09fa93a25ccf03e))
+* **#2519:** plan vs actual card on the project's contract area, plan and split editors ([3b0cb7e](https://github.com/ariefsaid/PMO/commit/3b0cb7e28314230213e3730476c71af12cd756b6))
+* **#2519:** plan-vs-actual data access, repository and hooks ([27f7562](https://github.com/ariefsaid/PMO/commit/27f756205ef6f602472be3a54d6907c36ae025d4))
+* **#2519:** pure plan-vs-actual allocation and roll-up with Layer-1 money tests ([7c1934d](https://github.com/ariefsaid/PMO/commit/7c1934d3cd61053180662d5b080308c2f73baa0f))
+* **#2521:** issue log UI, hooks, locales, tests and e2e specs ([99de14c](https://github.com/ariefsaid/PMO/commit/99de14c9572b0702e49f66843f1f4b7d4a558b59))
+* **#2521:** shared FileInput, retention entry for the escalation job, bounded file list ([b8ae472](https://github.com/ariefsaid/PMO/commit/b8ae4727505a3887f5fc29b977d4689ef33c7020))
+* **#2523:** stock for site work - yard/staging, stock tags with zero-cost rule, document attachments, balance per work order ([9dc1fbb](https://github.com/ariefsaid/PMO/commit/9dc1fbb98d02e4e89efd7e42f21166602cff13c3))
+* **#2524:** material request repository, plan status and refusal helpers, can() gates ([4b328e3](https://github.com/ariefsaid/PMO/commit/4b328e36c072c6129dfa04d8f5471f5f4562b5a6))
+* **#2524:** material request screens, hooks, nav and en/id strings ([e538c3b](https://github.com/ariefsaid/PMO/commit/e538c3b0ff46ff4f2538eac893b67bb94a786c9d))
+* **#2524:** material request tests, AC-MRQ-015 journey, distinct rail icon, plan notes ([035b531](https://github.com/ariefsaid/PMO/commit/035b5315e21bd86efee374ec9ff39652f2825fd2))
+* **#2524:** plan read for the request form; database types for material requests ([5a928bf](https://github.com/ariefsaid/PMO/commit/5a928bf1733e835b2ddb2cf973313d6cf7e46718))
+* **#2527:** expiring documents list screen, repository seam, en/id strings, retention entry ([baacb24](https://github.com/ariefsaid/PMO/commit/baacb2409a712d1cf4ddc44ec37adea596fe4d83))
+* **#2528:** crews and attendance data layer, repository, hooks, role-matrix entries and tick model ([f5a631e](https://github.com/ariefsaid/PMO/commit/f5a631edc286c8a0ef70258094c8f4e1c7755140))
+* **#2528:** Crews in the canonical navigation order; crews type without created_by ([398b76e](https://github.com/ariefsaid/PMO/commit/398b76ed854344e290bbec644c139491e25e552b))
+* **#2528:** Crews page — crew master and membership, work-order roster with shortfall, attendance tick and no-login week approval (EN/ID) ([0d8b147](https://github.com/ariefsaid/PMO/commit/0d8b1473cdb94173fa51877785f1f32d025043e5))
+* **#2529:** material request is a renameable organisation term (EN/ID, singular/plural) ([6f0fcc9](https://github.com/ariefsaid/PMO/commit/6f0fcc9d5d8980a7514e61dad4bb8f4fcde32208))
+* **#2542:** add, edit and archive expiring documents on equipment and person records ([652ef36](https://github.com/ariefsaid/PMO/commit/652ef36b547f8d57945e438cbd725da0825fb531))
+* **#2542:** expiryDocument policy, attachment bucket migration 0994 and pgTAP ([15541d5](https://github.com/ariefsaid/PMO/commit/15541d5ab45418dcd1e3f4a1b0ee7cecc00081b2))
+* **#2542:** People register e2e journey, nav test update, glossary, strings in the administration namespace ([5699c68](https://github.com/ariefsaid/PMO/commit/5699c6847b8f2dc5ea34b5751083fff7a977cb06))
+* **#2542:** People register nav test updates and one-line empty state ([620884a](https://github.com/ariefsaid/PMO/commit/620884a4b6def70deff2e60f5d568580dc9d5753))
+* **#2542:** People register under Administration (add, edit, archive, link to app user) ([7acd7d7](https://github.com/ariefsaid/PMO/commit/7acd7d774814a7ed388601af37602e33283dfd23))
+* 15 Dec work-order map landing (21 branches) ([d71cca3](https://github.com/ariefsaid/PMO/commit/d71cca3ca0b27acddef233be86ea46785fff9e03))
+* **billing:** Billing terms dialog sets the stage list, invoice deadline and retention ([#2522](https://github.com/ariefsaid/PMO/issues/2522), [#1572](https://github.com/ariefsaid/PMO/issues/1572)) ([e77be2a](https://github.com/ariefsaid/PMO/commit/e77be2ac56f2dfb70da52b42c051476b473b7135))
+* **billing:** billing-stages DAL and repository seam ([#2522](https://github.com/ariefsaid/PMO/issues/2522)) ([9af8c9f](https://github.com/ariefsaid/PMO/commit/9af8c9f53480359d71c67282b99af77d67515b0e))
+* **billing:** claim drawer shows and records billing stages, deadline and retention held ([#2522](https://github.com/ariefsaid/PMO/issues/2522)) ([6888fed](https://github.com/ariefsaid/PMO/commit/6888fed3ce02bc6b119fbec03012d13048e4593c))
+* **billing:** stage age and monthly invoice deadline arithmetic; DB types for billing stages and retention ([#2522](https://github.com/ariefsaid/PMO/issues/2522)) ([d7fc629](https://github.com/ariefsaid/PMO/commit/d7fc629325e4da20a7646b34829749115a7cd9c2))
+* **budget:** Budget tab and Administration read the PMO fiscal calendar ([#2329](https://github.com/ariefsaid/PMO/issues/2329)) ([9448615](https://github.com/ariefsaid/PMO/commit/944861586dd693c6ef670937474239856a04288e))
+* **i18n:** org terminology settings screen, post-processor and hard-coded-term guard ([#2529](https://github.com/ariefsaid/PMO/issues/2529)) ([c68dada](https://github.com/ariefsaid/PMO/commit/c68dada30269a16352d69a66e619cdd9ada159bd))
+* **i18n:** org terminology table, RLS proof and override engine ([#2529](https://github.com/ariefsaid/PMO/issues/2529)) ([dcf5665](https://github.com/ariefsaid/PMO/commit/dcf56654e23ee58ffd2b3c311ad48ba8ff22065d))
+* material requests with role approval chain ([180a4c4](https://github.com/ariefsaid/PMO/commit/180a4c475104a4e88e6a4fce3ee10e3ebca50fb9))
+* preview linked project evidence ([d090882](https://github.com/ariefsaid/PMO/commit/d09088226c90d51dfbc2dd57d9d8cf90aae2deaa))
+* **receivables:** phone cards and record drawer keep project manager and delivery context ([#2564](https://github.com/ariefsaid/PMO/issues/2564)) ([d9d6b4c](https://github.com/ariefsaid/PMO/commit/d9d6b4c52be0adc473c63553c8fa62a2b9205fb8))
+* timesheet save feedback, receivables context, unit coverage ([831f27a](https://github.com/ariefsaid/PMO/commit/831f27a9d4b8cbdbcb98dc66d126c9f49916ee32))
+* **timesheets:** explicit weekly save states (invalid, saving, failed, unsaved, saved) and invalid-aware week switch ([#2559](https://github.com/ariefsaid/PMO/issues/2559)) ([35c7034](https://github.com/ariefsaid/PMO/commit/35c7034581be56a062006078e80af0ca96962104))
+* work order and discipline on every cost line ([277d9a2](https://github.com/ariefsaid/PMO/commit/277d9a292e59907b640ecec1aceff06d38fc2197))
+* work-order plan vs actual and shared cost split ([f807a4b](https://github.com/ariefsaid/PMO/commit/f807a4b9b22aa580a329875bb4b8c230385b9c73))
+
+
+### Bug Fixes
+
+* **#1522:** site report record page layout (one left edge, no single-line sections) and list word budget ([ab26294](https://github.com/ariefsaid/PMO/commit/ab26294dd2f05a1bd3aee142ee7bb0118e818b29))
+* **#2517:** move cost-attribution strings to a workOrderCost namespace; static refusal keys ([947ba37](https://github.com/ariefsaid/PMO/commit/947ba370c6ce3801269aa27b20c045d8ff80fa05))
+* **#2523:** complete site stock workflow and ledger safeguards ([da21dbb](https://github.com/ariefsaid/PMO/commit/da21dbb86c1933d3f687f228539a4fdae316788f))
+* **#2523:** compose work-order stock panel (one heading, units, phone cards, plain labels, zero-cost wording) ([f00987d](https://github.com/ariefsaid/PMO/commit/f00987dbaddd09304c6e20da1e1d8244ac1ee9f7))
+* **#2523:** shorter moved-elsewhere label so the header fits ([71f8131](https://github.com/ariefsaid/PMO/commit/71f8131804d2aa2a1fb66ea461a915bcf416f737))
+* **#2523:** unit once, beside the on-site quantity ([921d627](https://github.com/ariefsaid/PMO/commit/921d627015113f93e5f7329ef93b01dcb8a6b3aa))
+* **#2524:** request events always carry a to-status; declare their retention ([f1100a2](https://github.com/ariefsaid/PMO/commit/f1100a2437fbab244b4e16bc178f221ed32ba286))
+* **#2524:** waiting queue shows request past the list page, cut-off refusal names time and date, stand-in revoke errors shown ([24e9c61](https://github.com/ariefsaid/PMO/commit/24e9c61a0c6356fa06c5743abd30b9b37b129d83))
+* **#2528:** attendance approval list names each line's work order (JOB-H8) ([f6bf81d](https://github.com/ariefsaid/PMO/commit/f6bf81dfdb2c5f61086f9be639212cad8343aa37))
+* **#2528:** New crew stays in the header on every view so the tab bar keeps one position (R3) ([2553a05](https://github.com/ariefsaid/PMO/commit/2553a05707dd0e567ecdb4a11e8f3703d99de92f))
+* **#2542:** explicit button variant and module-completeness registration for the person record ([fccc0dc](https://github.com/ariefsaid/PMO/commit/fccc0dce6e8fea6342a8add6e8fd8ec958437908))
+* **#2571:** material request needed-by default in organisation calendar; cut-off control Admin only ([e0f35d8](https://github.com/ariefsaid/PMO/commit/e0f35d89820a05af55428406ed1d3da487e06168))
+* approval routing counts recorded spending ([6e8dcef](https://github.com/ariefsaid/PMO/commit/6e8dcef60329cf3d238929c05129732b16a5ed14))
+* Bahasa stock string says sisa not saldo; repositories test lists taskProof and listOpenByWorkOrder ([921e315](https://github.com/ariefsaid/PMO/commit/921e315f203dbf5485c47f31ea030a3082a60d01))
+* **build:** place the landing's new files in their tsconfig projects ([#2317](https://github.com/ariefsaid/PMO/issues/2317)) ([0743855](https://github.com/ariefsaid/PMO/commit/0743855a44f65590393efb8fb13a6f4050e7720b))
+* complete work order evidence and cost navigation ([5b569c9](https://github.com/ariefsaid/PMO/commit/5b569c90e5444fb27973c9ccb956bb853960fe6e))
+* enforce material request submission and approval rules ([75412aa](https://github.com/ariefsaid/PMO/commit/75412aa560249a4c502c89061f7248ec0348d519))
+* flag stale shared splits before costs exist ([765336a](https://github.com/ariefsaid/PMO/commit/765336a1ac195c33096c4e4f296585b21d8b43a8))
+* **i18n:** avoid cascading terminology replacements ([a17b62a](https://github.com/ariefsaid/PMO/commit/a17b62aa63f364211df27d5f68fdf48194d626a7))
+* **i18n:** Bahasa billing-stage copy keeps faktur for the tax invoice only ([e7b2488](https://github.com/ariefsaid/PMO/commit/e7b248858528f3649eaff1841f740683956b7281))
+* **i18n:** Bahasa billing-stage copy keeps faktur for the tax invoice only ([86cb96b](https://github.com/ariefsaid/PMO/commit/86cb96b6975ea20d102ec3f42e50998691e0aefc))
+* **i18n:** remove unused BAST document translation ([e915a37](https://github.com/ariefsaid/PMO/commit/e915a37b604a8a917b6be25adb782340b62d7dab))
+* keep at-risk loading through initial list read ([3b6fb37](https://github.com/ariefsaid/PMO/commit/3b6fb37238c33def3beae8a01e7dc9687fd10edd))
+* offer cost attribution for stock returns ([420b585](https://github.com/ariefsaid/PMO/commit/420b58575835fbff8c99445b567eabe6210ae954))
+* preserve existing timesheet attribution on hour edits ([3241787](https://github.com/ariefsaid/PMO/commit/3241787b93ee1c203c1143f7fea4ce444567ba06))
+* preserve list readiness per source ([a1923ce](https://github.com/ariefsaid/PMO/commit/a1923ce41b10508728f0d95e676fa07f233418b9))
+* preserve unknown shared cost in work order margins ([00b2e25](https://github.com/ariefsaid/PMO/commit/00b2e2543b6c08612b5de14d5ac087144fa57fbe))
+* **procurement:** include pending item on draft save ([c715e62](https://github.com/ariefsaid/PMO/commit/c715e620cf441bec8a30ebbca90126082fe5b63c))
+* rate catalogue RPCs in ACL allow-list, 0950 plan count, WORP-003 header locator ([5f8a709](https://github.com/ariefsaid/PMO/commit/5f8a709ea4d8ff7b9a8a2ca870f38f93b3ae590b))
+* read all saved work order split shares ([433a18f](https://github.com/ariefsaid/PMO/commit/433a18ff6fe28ca668923ee57542e2fea75ea597))
+* refresh work order costs when records change ([348a88c](https://github.com/ariefsaid/PMO/commit/348a88cab46427c03f588185821dfd491afb8ea1))
+* release e2e reds after the work-order landing ([277c2c8](https://github.com/ariefsaid/PMO/commit/277c2c86658b2f009850ef82033287aa50223ec7))
+* resolve work order breadcrumbs and verify invoice journey ([3612965](https://github.com/ariefsaid/PMO/commit/36129653537869669475c2810c36ceec850a09e8))
+* scope cost links by record source ([fc7ab43](https://github.com/ariefsaid/PMO/commit/fc7ab43b5d15eb4cbe7f05ca03557e801541831d))
+* show claim terms without billing stages ([ffdde2c](https://github.com/ariefsaid/PMO/commit/ffdde2cf2e3d4e1628724a8a4a3b654337a2c67d))
+* surface work order section read failures ([ad5c97d](https://github.com/ariefsaid/PMO/commit/ad5c97db06a53cedd85f9c01954aa4819ca1b8fe))
+* **ui:** a notice never takes the control it covers ([d393718](https://github.com/ariefsaid/PMO/commit/d39371801e3688904cbd62d433d191e72b53c872)), closes [#2502](https://github.com/ariefsaid/PMO/issues/2502)
+* work-order breadcrumb reads the Projects module label; org-terms baseline counts the material-request module label (translated from labelKey) ([ad51622](https://github.com/ariefsaid/PMO/commit/ad51622c407b944e81fab92c89b86c1ea7429ea4))
+
+
+### Performance
+
+* parallelize ERPNext census and party onboarding ([#2119](https://github.com/ariefsaid/PMO/issues/2119)) ([91fa3bc](https://github.com/ariefsaid/PMO/commit/91fa3bc24b85cc420de6ce2ce8d0665df91fa4dd))
+* **rail:** defer overdue count until Finance intent ([bc2ad7f](https://github.com/ariefsaid/PMO/commit/bc2ad7ff56f83fc8ead713522ee4135902754d17))
+
+
+### Refactors
+
+* **#2519:** editor helpers live in the pure module (fast-refresh lint) ([1d1fbca](https://github.com/ariefsaid/PMO/commit/1d1fbca0d6cea2dfea51101dc83b95d1c6f865e3))
+
 ## [0.41.2](https://github.com/ariefsaid/PMO/compare/v0.41.1...v0.41.2) (2026-11-17)
 
 

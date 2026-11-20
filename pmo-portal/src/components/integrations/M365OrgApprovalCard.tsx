@@ -22,6 +22,10 @@ import { m365ErrorReason } from '@/src/lib/m365/errorCopy';
  * service-side, so a hidden button is never the whole story. The FE cannot detect Operator status
  * (a server-side table), so it is stricter (Admin-only) — permitted, never looser than the edge fn.
  *
+ * The "only if Microsoft asks" guidance and the "Organization approval" badge are NOT here (#2260):
+ * both are setup help, so they live in the setup card's disclosure one card up, and this card keeps
+ * its heading and its one action.
+ *
  * Persists nothing (NFR-M365SEP-005, spec §1.5): the card sends the admin to Microsoft's admin-
  * consent URL and records no approval state — Microsoft is the authority; a stored flag would drift
  * the moment an admin revokes consent in Entra. On success the FE top-level-navigates to the consent
@@ -67,22 +71,11 @@ export const M365OrgApprovalCard: React.FC = () => {
 
   return (
     <Card className="mb-3.5 p-4" data-testid="m365-org-approval">
-      <div className="flex items-center gap-2">
-        <Icon name="plug" aria-hidden="true" />
-        <h2 className="text-group text-foreground font-semibold">
-          {t('integrations.m365OrgApproval.heading', 'Microsoft 365')}
-        </h2>
-        <span className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-control text-muted-foreground">
-          {t('integrations.m365OrgApproval.badge', 'Organization approval')}
-        </span>
-      </div>
-
-      <p className="mt-2 text-sm text-muted-foreground">
-        {t(
-          'uxs07.m365ApprovalDescription',
-          'Only if Microsoft asks for organization approval.',
-        )}
-      </p>
+      {/* One left edge (#2260): the leading icon pushed this heading 22px in from the card's content
+          edge, so the heading and the action under it started at two different x positions. */}
+      <h2 className="text-group text-foreground font-semibold">
+        {t('integrations.m365OrgApproval.heading', 'Microsoft 365')}
+      </h2>
 
       {phase === 'error' && error && (
         <p

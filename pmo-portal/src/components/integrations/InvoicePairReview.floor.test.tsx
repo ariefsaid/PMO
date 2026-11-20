@@ -7,6 +7,7 @@ const h = vi.hoisted(() => ({
   proposeInvoicePairs: vi.fn(),
   acceptInvoicePairs: vi.fn(),
   unpairInvoice: vi.fn(),
+  compareAndUnpairInvoice: vi.fn(),
   listUnpairedNativeInvoices: vi.fn(),
   listAcceptedInvoicePairs: vi.fn(),
   listOwn: vi.fn(),
@@ -43,6 +44,7 @@ beforeEach(() => {
   h.listAcceptedInvoicePairs.mockResolvedValue([]);
   h.acceptInvoicePairs.mockResolvedValue(1);
   h.unpairInvoice.mockResolvedValue(undefined);
+  h.compareAndUnpairInvoice.mockResolvedValue(undefined);
 });
 afterEach(cleanup);
 
@@ -60,14 +62,14 @@ describe('invoice pair review floor controls', () => {
   it('floor: Undo removes the accepted pair after confirmation', async () => {
     h.proposeInvoicePairs.mockResolvedValue([]);
     h.listAcceptedInvoicePairs
-      .mockResolvedValueOnce([{ pmoInvoiceId: 'pmo-9', pmoNumber: 'PMO-9', amount: 9000, currency: 'IDR', pairedAt: '2026-11-02T01:00:00Z', erpNumber: 'SI-9' }])
+      .mockResolvedValueOnce([{ pmoInvoiceId: 'pmo-9', pmoNumber: 'PMO-9', amount: 9000, currency: 'IDR', pairedAt: '2026-11-02T01:00:00Z', erpInvoiceId: 'erp-9', erpLifecycle: { docstatus: 1, cancelledAt: null }, erpNumber: 'SI-9', erpCancelled: false, erpReplacedBy: null }])
       .mockResolvedValue([]);
     mount();
     fireEvent.click(await screen.findByText('1 invoice already counts once'));
     fireEvent.click(screen.getByRole('button', { name: 'Undo PMO-9' }));
     const dialog = await screen.findByRole('dialog', { name: 'Count PMO-9 on its own again?' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Undo' }));
-    await waitFor(() => expect(h.unpairInvoice).toHaveBeenCalledWith('pmo-9'));
+    await waitFor(() => expect(h.compareAndUnpairInvoice).toHaveBeenCalledWith(expect.objectContaining({ pmoInvoiceId: 'pmo-9', erpInvoiceId: 'erp-9' })));
     await waitFor(() => expect(h.listAcceptedInvoicePairs).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(screen.queryByText('PMO-9')).not.toBeInTheDocument());
   });

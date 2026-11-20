@@ -457,6 +457,11 @@ test('validateDenominator rejects a table entry with an empty pk', () => {
   assert.throws(() => validateDenominator(bad), /pk/);
 });
 
+test('guarded invoice unpair is included in the isolation denominator', () => {
+  const manifest = readDenominator(path.resolve('scripts/isolation-probe-denominator.json'));
+  assert.ok(manifest.definer_functions.includes('compare_and_unpair_invoice(uuid,uuid,timestamp with time zone,integer,timestamp with time zone)'));
+});
+
 test('capture surfaces are included in the isolation denominator', () => {
   const manifest = readDenominator(path.resolve('scripts/isolation-probe-denominator.json'));
   for (const name of ['erp_capture_batches', 'erp_capture_feed_witnesses']) {

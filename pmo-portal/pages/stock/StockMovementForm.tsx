@@ -276,7 +276,7 @@ const StockMovementForm: React.FC = () => {
                           label={`${t('form.cite')}${n}`}
                           required
                           value={l.sourceLineId}
-                          onChange={(v) => { const s = sourceById.get(v); setLine(l.key, { sourceLineId: v, itemId: s?.item_id ?? null }); if (s && !warehouseId) setWarehouseId(s.document.warehouse_id); }}
+                          onChange={(v) => { const s = sourceById.get(v); setLine(l.key, { sourceLineId: v, itemId: s?.item_id ?? null }); if (s && !warehouseId) setWarehouseId(s.document.warehouse_id); if (s?.document.work_order_id && !attribution.workOrderId) setAttribution({ ...attribution, workOrderId: s.document.work_order_id }); }}
                           options={sourceOptions}
                           placeholder={!projectId ? t('form.pickProjectFirst') : issueLines.isPending ? t('form.loading') : t('form.citePlaceholder')}
                           disabled={!projectId}

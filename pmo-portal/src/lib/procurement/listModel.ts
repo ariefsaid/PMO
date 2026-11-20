@@ -3,7 +3,6 @@ import { stageForStatus, type StageKey } from './stage';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 export { matchesSearch } from '@/src/lib/procurementSearch';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
-import { formatShortMoney } from '@/src/lib/format';
 
 export type ProcurementListRole = 'Engineer' | 'Project Manager' | 'Finance' | 'Executive' | 'Admin' | string | null | undefined;
 export type ProcurementGroupKey = 'needs-approval' | 'in-progress' | 'invoiced' | 'done';
@@ -109,9 +108,6 @@ export function matchesStage(row: ProcurementWithRefs, stage: StageKey | null): 
   return !stage || stageForStatus(row.status) === ({ request: 'Request', order: 'Order', receive: 'Receive', pay: 'Pay' } as const)[stage];
 }
 
-export function daysSince(date: Date, now = new Date()): number {
-  return Math.max(0, Math.floor((now.getTime() - date.getTime()) / 86_400_000));
-}
 
 /** Accounting-system documents no procurement holds yet, totalled per currency (an unrecorded amount stays visibly unknown). */
 export function orphanTotals(orphans: readonly ErpPurchaseRow[]): CurrencyTotal[] {
@@ -136,10 +132,3 @@ export function shownAmount(total: CurrencyTotal): number | null {
 }
 
 /** "$2.4M · IDR 10M" for a tab label: non-zero figures only; empty when nothing is recorded. */
-export function shortTotalsLabel(totals: readonly CurrencyTotal[]): string {
-  return totals
-    .map((total) => ({ total, amount: shownAmount(total) }))
-    .filter((entry): entry is { total: CurrencyTotal; amount: number } => entry.amount !== null && entry.amount !== 0)
-    .map(({ total, amount }) => formatShortMoney(amount, total.currency))
-    .join(' · ');
-}

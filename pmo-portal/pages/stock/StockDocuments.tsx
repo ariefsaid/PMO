@@ -13,7 +13,7 @@ import { formatDay } from '@/src/lib/format';
 import { statusLabel } from '@/src/lib/status/statusMap';
 import type { StockDocumentKind, StockDocumentListRow, StockDocumentStatus } from '@/src/lib/db/stockDocuments';
 
-const KINDS: StockDocumentKind[] = ['receive', 'transfer', 'issue', 'return', 'adjustment', 'count'];
+const KINDS: StockDocumentKind[] = ['receive', 'transfer', 'issue', 'return', 'adjustment', 'count', 'opening'];
 const STATUSES: StockDocumentStatus[] = ['Draft', 'Posted', 'Cancelled'];
 const NEW_DOCUMENT_KINDS: StockDocumentKind[] = ['receive', 'transfer', 'issue', 'return', 'count', 'adjustment'];
 

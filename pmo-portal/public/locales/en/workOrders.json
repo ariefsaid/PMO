@@ -62,12 +62,22 @@
     "error": "Couldn't load the documents",
     "empty": "No visible documents are linked to this work order yet."
   },
-  "issuesTasks": {
-    "title": "Issues and open tasks",
-    "issuesEmpty": "No issues name this work order.",
-    "tasksEmpty": "No open tasks name this work order."
-  },
   "openPage": "Open page",
+  "issues": {
+    "title": "Issues",
+    "error": "Couldn't load the issues",
+    "empty": "No issues name this work order.",
+    "due": "Fix by {{date}}",
+    "noDue": "No due time",
+    "overdue": "Overdue"
+  },
+  "openTasks": {
+    "title": "Open tasks",
+    "error": "Couldn't load the open tasks",
+    "empty": "No open tasks name this work order.",
+    "unassigned": "Unassigned",
+    "noDue": "No due date"
+  },
   "clientMaterial": {
     "title": "Client material",
     "status": {

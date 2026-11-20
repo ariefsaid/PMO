@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   allocateShared,
   apportion,
+  hoursVariance,
   parseSplitPercent,
   planVariance,
   rollupProject,
@@ -413,6 +414,26 @@ describe('rollupProject — actuals and roll-ups (FR-WPVA-010..032)', () => {
     });
     expect(r.workOrders[0].crewHours).toBe(18);
     expect(r.workOrders[0].crewSize).toBe(2);
+  });
+
+  it('AC-WPVA-017 crew hours and crew size count approved weeks only; hours not yet approved are named apart (FR-WPVA-012)', () => {
+    const r = rollupProject({
+      workOrders: [wo('A', 'WO-1')],
+      lines: [
+        // an Approved week: counted
+        line({ workOrderId: 'A', source: 'timesheet_entry', amount: null, reason: 'no-rate', quantity: 8, quantityUnit: 'hours', personId: 'u1' }),
+        // a Rejected / Draft / Submitted week: the database marks it not-posted; it is never actual crew hours
+        line({ workOrderId: 'A', source: 'timesheet_entry', amount: null, reason: 'not-posted', quantity: 10, quantityUnit: 'hours', personId: 'u2' }),
+        line({ workOrderId: 'A', source: 'timesheet_entry', amount: null, reason: 'not-posted', quantity: 2.5, quantityUnit: 'hours', personId: 'u1' }),
+      ],
+      plans: [{ id: 'p', workOrderId: 'A', disciplineId: null, kind: 'crew_hours', value: '9.00', note: null }], split: null, restricted: false,
+    });
+    expect(r.workOrders[0].crewHours).toBe(8);
+    expect(r.workOrders[0].crewSize).toBe(1);
+    expect(r.workOrders[0].pendingCrewHours).toBe(12.5);
+    expect(r.workOrders[0].uncostedHours).toBe(8);
+    expect(hoursVariance(r.workOrders[0].plan.crew_hours, r.workOrders[0].crewHours).state).toBe('within');
+    expect(r.hours).toMatchObject({ crewHours: 8, crewSize: 1, pendingCrewHours: 12.5 });
   });
 
   it('puts plan figures beside the matching actuals', () => {

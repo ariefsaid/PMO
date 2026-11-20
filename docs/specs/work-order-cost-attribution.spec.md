@@ -72,6 +72,9 @@
   it on a later save that names none, and a work order of another project is refused.
 - **AC-WCA-016** Given the timesheet grid, When only a row's work order changes, Then Save re-sends that row's lines
   with it; an unchanged row sends nothing.
+- **AC-WCA-017** Given an Admin on Administration → Project setup, When they add a discipline (code, name), rename it or
+  archive it, Then the list and every discipline picker reflect it; a duplicate live code is refused with its reason; an
+  archived discipline stays on the records that name it; Given any other role, Then the list is read-only (#2623).
 
 ## Owning layer
 
@@ -79,13 +82,15 @@
 |---|---|---|
 | AC-WCA-001..011, 015 | pgTAP | `supabase/tests/0950_work_order_cost_attribution.test.sql` |
 | AC-WCA-012, 013 | Unit | `src/lib/db/workOrderCosts.test.ts`, `src/components/workOrders/costAttributionError.test.ts` |
+| AC-WCA-017 | Unit (RTL) | `pages/admin/CostDisciplines.test.tsx`, `src/lib/db/workOrderCosts.test.ts`, `src/auth/policy.test.ts` |
 | AC-WCA-014 | Unit (RTL) | `src/components/workOrders/CostAttributionFields.test.tsx` |
 | AC-WCA-016 | Unit | `src/lib/timesheet-edit.test.ts` |
 
 ## Open questions
 
-1. **Discipline list screen.** The list is Admin-kept in the database; no settings screen ships here. Recommended:
-   a small Admin settings section in the next slice (or seed per client through the CLI).
+1. **Discipline list screen.** *Closed (#2623):* Administration → Project setup → **Cost disciplines**: an Admin adds,
+   renames and archives a discipline (code, name) over 0950's Admin-only RLS; other roles read it (AC-WCA-017). A
+   `pmo` CLI command for onboarding is not built.
 2. **Two work orders in one day on one project** (timesheet). The row key is unchanged, so a row has one work order.
 3. **The second vendor-bill entry point** (the inline capture on the decision zone) does not offer the pickers yet;
    the bill can be attributed afterwards through the write path.

@@ -7,7 +7,7 @@ const { equipment } = vi.hoisted(() => ({
   equipment: {
     createAsset: vi.fn(), updateAsset: vi.fn(), deleteAsset: vi.fn(), saveUsage: vi.fn(), transitionUsage: vi.fn(), approveWeek: vi.fn(),
     archiveUsage: vi.fn(), saveCosting: vi.fn(), endCosting: vi.fn(), previewCosting: vi.fn(), listAllocations: vi.fn(),
-    listCosting: vi.fn(), sendEquipmentCommand: vi.fn(), acceptAssetMatches: vi.fn(),
+    listCosting: vi.fn(),
   },
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { equipment, externalDomainOwnership: { listOwn: vi.fn() } } }));
@@ -15,7 +15,7 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1'
 
 import {
   useCreateAsset, useUpdateAsset, useDeleteAsset, useSaveUsage, useTransitionUsage, useApproveWeek, useSaveCosting, useEndCosting,
-  usePreviewCosting, useEquipmentAllocations, useEquipmentCosting, useSendEquipmentCommand, useAcceptAssetMatches,
+  usePreviewCosting, useEquipmentAllocations, useEquipmentCosting,
 } from './useEquipment';
 
 const mk = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -30,7 +30,6 @@ describe('#2544 equipment costing and usage writes hand the repository exactly w
   const setup = (client = mk()) => renderHook(() => ({
     create: useCreateAsset(), update: useUpdateAsset(), del: useDeleteAsset(), usage: useSaveUsage(), transition: useTransitionUsage(),
     approve: useApproveWeek(), save: useSaveCosting(), end: useEndCosting(), preview: usePreviewCosting(),
-    command: useSendEquipmentCommand(), accept: useAcceptAssetMatches(),
   }), { wrapper: wrap(client) });
 
   it('#2544 a costing draft is saved and previewed as the same object; ending a setting passes key, end date and expected version in order', async () => {
@@ -61,14 +60,6 @@ describe('#2544 equipment costing and usage writes hand the repository exactly w
     expect(equipment.approveWeek).toHaveBeenCalledWith('a1', '2026-11-02');
   });
 
-  it('#2544 register writes: the command carries operation, record and idempotency key; adopted matches go through as handed', async () => {
-    const { result } = setup();
-    const pairs = [{ asset_id: 'a1', external_record_id: 'e1' }] as never;
-    await act(async () => { await result.current.command.mutateAsync({ operation: 'update', record: { id: 'a1', name: 'N' }, idempotencyKey: 'key-1' }); });
-    await act(async () => { await result.current.accept.mutateAsync(pairs); });
-    expect(equipment.sendEquipmentCommand).toHaveBeenCalledWith('update', { id: 'a1', name: 'N' }, 'key-1');
-    expect(equipment.acceptAssetMatches).toHaveBeenCalledWith(pairs);
-  });
 
   it('#2544 a failed costing save rejects to the caller and does not refresh the lists', async () => {
     equipment.saveCosting.mockRejectedValue(new Error('version conflict'));

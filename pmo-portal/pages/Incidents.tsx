@@ -349,6 +349,7 @@ const Incidents: React.FC = () => {
           // functional dead-end). Create/edit-in-modal are unchanged; only the row-open behavior
           // is added. RLS scopes which records the detail page can read.
           onActivate={(i) => navigate(`/incidents/${i.id}`)}
+          rowHref={(i) => `/incidents/${i.id}`}
           rowLabel={(i) => t('openRow', 'Open {{type}}', { type: i.type })}
           rowMenu={canRowWrite ? rowMenuOrNone : undefined}
           state={(rows ?? []).length === 0 ? 'empty' : undefined}

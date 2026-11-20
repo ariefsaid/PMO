@@ -62,12 +62,22 @@
     "error": "Dokumen tidak dapat dimuat",
     "empty": "Belum ada dokumen yang dapat Anda lihat untuk Work Order ini."
   },
-  "issuesTasks": {
-    "title": "Masalah dan tugas terbuka",
-    "issuesEmpty": "Tidak ada masalah yang menyebut perintah kerja ini.",
-    "tasksEmpty": "Tidak ada tugas terbuka yang menyebut perintah kerja ini."
-  },
   "openPage": "Buka halaman",
+  "issues": {
+    "title": "Masalah",
+    "error": "Masalah tidak dapat dimuat",
+    "empty": "Tidak ada masalah yang menyebut perintah kerja ini.",
+    "due": "Selesaikan sebelum {{date}}",
+    "noDue": "Tanpa batas waktu",
+    "overdue": "Terlambat"
+  },
+  "openTasks": {
+    "title": "Tugas terbuka",
+    "error": "Tugas terbuka tidak dapat dimuat",
+    "empty": "Tidak ada tugas terbuka yang menyebut perintah kerja ini.",
+    "unassigned": "Belum ditugaskan",
+    "noDue": "Tanpa tenggat"
+  },
   "clientMaterial": {
     "awaiting": "Menunggu reservasi",
     "cancel": "Batalkan",

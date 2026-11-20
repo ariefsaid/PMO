@@ -5,5 +5,9 @@
   "budgetPushFailed": "PMO tidak dapat mengirim anggaran aktif ke ERPNext ({{reason}}) — ERPNext masih menerapkan anggaran sebelumnya (atau tidak ada anggaran) untuk proyek ini.",
   "unassignedInvoiceTitle": "Invoice memerlukan proyek",
   "unassignedInvoice": "Invoice penjualan {{invoice}}{{amount}} tiba dari ERPNext tanpa proyek dan berada dalam daftar belum ditetapkan. Tetapkan invoice ke proyek.",
-  "literal": "{{body}}"
+  "literal": "{{body}}",
+  "documentExpiryTitle_other": "{{type}} kedaluwarsa dalam {{count}} hari",
+  "documentExpiry_other": "{{subject}} — {{type}} kedaluwarsa pada {{date}}, dalam {{count}} hari.",
+  "documentExpiryTitle_one": "{{type}} kedaluwarsa dalam {{count}} hari",
+  "documentExpiry_one": "{{subject}} — {{type}} kedaluwarsa pada {{date}}, dalam {{count}} hari."
 }
