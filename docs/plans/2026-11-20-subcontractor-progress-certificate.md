@@ -55,8 +55,8 @@
 | AC-SPC-019 | Unit/RTL | `pages/__tests__/SubcontractCertificate.test.tsx` |
 | AC-SPC-020 | E2E, one journey | `e2e/AC-SPC-020-certificate-to-bill.spec.ts` |
 
-## Glossary (same PR as Slice 2, `domain-modeling`)
-Add to `docs/glossary.md`: subcontractor progress certificate, measured line, rate card (subcontractor), backcharge, net certified amount.
+## Glossary (added with the spec)
+Added to `docs/glossary.md` (`domain-modeling` checks them at build): subcontractor progress certificate, measured line, rate card (subcontractor), backcharge, net certified amount.
 
 ## Final gate (each slice)
 `npm run check:guards`, `npm run typecheck`, `npx eslint --max-warnings=0 <touched>`, the touched vitest files, touched pgTAP files under `scripts/with-db-lock.sh`, the touched e2e journey, `scripts/ux-proof.sh` on touched routes. Slice 4 ships as its own PR to `dev`.
