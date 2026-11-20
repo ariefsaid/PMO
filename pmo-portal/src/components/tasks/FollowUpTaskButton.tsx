@@ -14,6 +14,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { invalidateTaskProjections } from '@/src/hooks/taskQueryKeys';
+import { openTaskPath } from './recordPaths';
 import type { RecordLinkType } from '@/src/lib/db/tasks';
 
 const COLUMN: Record<RecordLinkType, 'procurement_id' | 'expense_claim_id' | 'material_request_id'> = {
@@ -21,10 +22,6 @@ const COLUMN: Record<RecordLinkType, 'procurement_id' | 'expense_claim_id' | 'ma
   expense_claim: 'expense_claim_id',
   material_request: 'material_request_id',
 };
-
-export function openTaskPath(task: { id: string; name: string; project_id: string | null }): string {
-  return task.project_id ? `/projects/${task.project_id}/tasks#task-${task.id}` : `/my-tasks?q=${encodeURIComponent(task.name)}`;
-}
 
 interface Props {
   type: RecordLinkType;

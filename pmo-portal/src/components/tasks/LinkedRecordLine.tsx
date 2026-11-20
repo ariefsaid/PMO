@@ -8,6 +8,7 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { StatusPill } from '@/src/components/ui';
 import { statusLabel, type StatusRecord } from '@/src/lib/status/statusMap';
+import { recordPath } from './recordPaths';
 import { closedReasonOf, recordLinkOf, type RecordLinkType, type TaskLinkedRecord, type TaskRow } from '@/src/lib/db/tasks';
 
 type LinkCols = Pick<TaskRow, 'procurement_id' | 'expense_claim_id' | 'material_request_id'>;
@@ -18,12 +19,6 @@ const STATUS_RECORD: Record<RecordLinkType, StatusRecord> = {
   expense_claim: 'expense',
   material_request: 'materialRequest',
 };
-
-export function recordPath(type: RecordLinkType, id: string): string {
-  if (type === 'procurement') return `/procurement/${id}`;
-  if (type === 'expense_claim') return `/expenses/${id}`;
-  return `/material-requests/${id}`;
-}
 
 type T = (key: string, defaultValue: string, opts?: Record<string, string>) => string;
 
