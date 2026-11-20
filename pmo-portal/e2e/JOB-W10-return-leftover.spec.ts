@@ -4,7 +4,7 @@
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers';
 import { makeItem, makeWarehouse, makeWorkItem, postReceive, runSuffix, userClient, SEED_PROJECT_ID, SEED_PROJECT_NAME } from './support/stockFixture';
-import { chooseItem, label } from './support/jobStock';
+import { label } from './support/jobStock';
 
 test.setTimeout(180_000);
 
@@ -22,7 +22,11 @@ test('JOB-W10 returning 4 leftover units puts them back in the warehouse', async
   await page.goto('/stock/new/return');
   await page.getByLabel(/^Warehouse/).selectOption({ label: label(site) });
   await page.getByLabel(/^Project/).selectOption({ label: SEED_PROJECT_NAME });
-  await page.getByLabel(/^Issue to return/).selectOption({ index: 1 }).catch(async () => { await chooseItem(page, item.code); });
+  // The picker lists every posted issue on the shared seed project; cite this run's own issue, never a position.
+  const source = page.getByLabel(/^Issue to return/);
+  const own = source.locator('option', { hasText: item.code });
+  await expect(own).toHaveCount(1, { timeout: 15_000 });
+  await source.selectOption(await own.getAttribute('value') ?? '');
   await page.getByLabel(/^Quantity/).fill('4');
   await page.getByRole('button', { name: 'Post return' }).click();
   await expect(page).toHaveURL(/\/stock\/documents\/[0-9a-f-]{36}$/, { timeout: 20_000 });
