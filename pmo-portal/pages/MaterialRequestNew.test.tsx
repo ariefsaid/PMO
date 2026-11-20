@@ -6,6 +6,7 @@ import { ToastProvider } from '@/src/components/ui';
 
 const h = vi.hoisted(() => ({
   tz: 'Asia/Jakarta',
+  warehouses: [{ id: 'wh1', code: 'S1', name: 'Site one', kind: 'site', archived_at: null, project_id: 'p1' }] as unknown[],
   saveDraft: { mutateAsync: vi.fn().mockResolvedValue('r1'), isPending: false },
   submit: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
 }));
@@ -21,6 +22,7 @@ vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ da
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [{ id: 'w1', title: 'Slab', wo_number: 'WO-1', status: 'Issued' }], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useStock', () => ({
   useStockItems: () => ({ data: [{ id: 'i1', code: 'CEM', name: 'Cement', unit_id: 'u1', archived_at: null }, { id: 'i2', code: 'BRK', name: 'Brick', unit_id: 'u2', archived_at: null }], isPending: false, isError: false, refetch: vi.fn() }),
+  useStockWarehouses: () => ({ data: h.warehouses }),
   useStockUnits: () => ({ data: [{ id: 'u1', code: 'BAG', whole_only: false }, { id: 'u2', code: 'PCS', whole_only: true }] }),
 }));
 vi.mock('@/src/hooks/useOrgFxContext', () => ({ useOrgFxContext: () => ({ data: { currency: 'IDR', timezone: h.tz }, isPending: false }) }));
@@ -115,6 +117,36 @@ describe('raise a material request', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
       expect(await screen.findByText(/already on another line/)).toBeInTheDocument();
       expect(h.saveDraft.mutateAsync).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('#2608 the delivery location', () => {
+    const single = [{ id: 'wh1', code: 'S1', name: 'Site one', kind: 'site', archived_at: null, project_id: 'p1' }];
+    afterEach(() => { h.warehouses = single; });
+    const open = async () => {
+      render(<MemoryRouter><ToastProvider><MaterialRequestNewPage /></ToastProvider></MemoryRouter>);
+      await pick(/^project/i, 'Site Alpha');
+      await pick(/^work order/i, 'WO-1 · Slab');
+      await userEvent.selectOptions(screen.getByLabelText(/^item/i), 'i1');
+      await userEvent.type(screen.getByLabelText(/^quantity/i), '2');
+    };
+    it('one location is left for the server to pick: no question is asked', async () => {
+      h.saveDraft.mutateAsync.mockClear();
+      await open();
+      expect(screen.queryByLabelText(/deliver to/i)).not.toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+      expect(h.saveDraft.mutateAsync.mock.calls[0][0].header.toWarehouseId).toBeNull();
+    });
+    it('a yard and a staging area: the requester must choose, and the choice is sent', async () => {
+      h.saveDraft.mutateAsync.mockClear();
+      h.warehouses = [{ id: 'y1', code: 'Y1', name: 'Yard', kind: 'yard', archived_at: null, project_id: 'p1' }, { id: 'g1', code: 'G1', name: 'Staging', kind: 'staging', archived_at: null, project_id: 'p1' }];
+      await open();
+      await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+      expect(await screen.findByText(/several locations/)).toBeInTheDocument();
+      expect(h.saveDraft.mutateAsync).not.toHaveBeenCalled();
+      await userEvent.selectOptions(screen.getByLabelText(/deliver to/i), 'g1');
+      await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+      expect(h.saveDraft.mutateAsync.mock.calls[0][0].header.toWarehouseId).toBe('g1');
     });
   });
 

@@ -9,7 +9,7 @@ import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { addDays } from '@/src/lib/reports/months';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
-import { useStockItems, useStockUnits } from '@/src/hooks/useStock';
+import { useStockItems, useStockUnits, useStockWarehouses } from '@/src/hooks/useStock';
 import { useLinePlans, useMaterialRequest, useMaterialRequestMutations } from '@/src/hooks/useMaterialRequests';
 import { draftLineErrors, linePlanStatus } from '@/src/lib/repositories/materialRequests';
 import { isPositiveDecimal, isWholeQuantity, normalizeDecimal } from '@/src/lib/stockFormat';
@@ -35,6 +35,7 @@ const MaterialRequestNewPage: React.FC = () => {
   const { data: projects } = useProjectPickerOptions();
   const { data: items, isPending: itemsPending, isError: itemsError, refetch: refetchItems } = useStockItems();
   const { data: units } = useStockUnits();
+  const { data: warehouses } = useStockWarehouses();
   const wholeByUnit = useMemo(() => new Map((units ?? []).map((u) => [u.id, u.whole_only])), [units]);
   const m = useMaterialRequestMutations();
 
@@ -45,6 +46,7 @@ const MaterialRequestNewPage: React.FC = () => {
   const orgToday = useOrgToday(orgTz);
   const [pickedNeededBy, setNeededBy] = useState<string | null>(null);
   const neededBy = pickedNeededBy ?? (orgTz ? addDays(orgToday, 1) : '');
+  const [toWarehouseId, setToWarehouseId] = useState('');
   const [note, setNote] = useState('');
   const [lines, setLines] = useState<FormLine[]>([newLine()]);
   const [seeded, setSeeded] = useState(false);
@@ -56,11 +58,15 @@ const MaterialRequestNewPage: React.FC = () => {
   const req = existing.data;
   if (requestId && req && !seeded) {
     setSeeded(true);
-    setProjectId(req.projectId); setWorkOrderId(req.workOrderId); setNeededBy(req.neededBy); setNote(req.note ?? '');
+    setProjectId(req.projectId); setWorkOrderId(req.workOrderId); setNeededBy(req.neededBy); setNote(req.note ?? ''); setToWarehouseId(req.toWarehouseId ?? '');
     setLines(req.lines.map((l) => ({ key: l.id, itemId: l.itemId, quantity: String(l.quantity), reason: l.overPlanReason ?? '' })));
   }
 
   const workOrders = useProjectWorkOrders(projectId);
+  // Where the delivery goes: one location is picked by the server; with several the requester must choose (#2608).
+  const locations = useMemo(() => (warehouses ?? []).filter((w) => ['site', 'yard', 'staging'].includes(w.kind) && !w.archived_at && w.project_id === projectId)
+    .map((w) => ({ value: w.id, label: `${w.code} · ${w.name}` })), [warehouses, projectId]);
+  const destination = locations.length > 1 ? (locations.some((o) => o.value === toWarehouseId) ? toWarehouseId : '') : '';
   const itemIds = lines.map((l) => l.itemId).filter(Boolean);
   const plans = useLinePlans(workOrderId || undefined, itemIds, requestId);
   const planOf = (itemId: string) => plans.data?.find((p) => p.itemId === itemId);
@@ -85,7 +91,7 @@ const MaterialRequestNewPage: React.FC = () => {
     if (isPositiveDecimal(v) && unitId && wholeByUnit.get(unitId) && !isWholeQuantity(v)) return 'wholeOnly';
     return undefined;
   });
-  const complete = extraErrors.every((e) => !e) && Boolean(workOrderId) && Boolean(neededBy) && lines.every((l) => l.itemId) && planReady && Object.keys(errors).length === 0;
+  const complete = extraErrors.every((e) => !e) && Boolean(workOrderId) && (locations.length <= 1 || Boolean(destination)) && Boolean(neededBy) && lines.every((l) => l.itemId) && planReady && Object.keys(errors).length === 0;
 
   const patch = (key: string, p: Partial<FormLine>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...p } : l)));
 
@@ -95,7 +101,7 @@ const MaterialRequestNewPage: React.FC = () => {
     try {
       const id = await m.saveDraft.mutateAsync({
         id: requestId ?? null,
-        header: { workOrderId, neededBy, toWarehouseId: null, note: note.trim() || null },
+        header: { workOrderId, neededBy, toWarehouseId: destination || null, note: note.trim() || null },
         lines: lines.map((l) => ({ itemId: l.itemId, quantity: quantityOf(l.quantity), overPlanReason: l.reason.trim() || null })),
         clientRequestId: requestId ? undefined : clientRequestId,
       });
@@ -126,6 +132,14 @@ const MaterialRequestNewPage: React.FC = () => {
           statusOverride={workOrders.isPending && projectId ? 'loading' : workOrders.isError ? 'error' : undefined} onRetry={() => void workOrders.refetch()}
           selectedOption={woOptions.find((o) => o.value === workOrderId) ?? null} loadOptions={() => Promise.resolve(woOptions)}
           onChange={(v) => setWorkOrderId(v)} />
+        {projectId && locations.length > 1 && (
+          <SelectField label={t('form.destination', 'Deliver to')} required value={destination} onChange={setToWarehouseId} fullWidth
+            options={[{ value: '', label: t('form.chooseDestination', 'Choose a location') }, ...locations]}
+            error={touched && !destination ? t('form.destinationRequired', 'This project has several locations. Choose where the material goes.') : undefined} />
+        )}
+        {projectId && warehouses && locations.length === 0 && (
+          <p role="status" className="text-control text-warning-foreground">{t('form.noDestination', 'This project has no site, yard or staging location yet. The stock keeper must add one before this can be delivered.')}</p>
+        )}
         <DateField label={t('form.neededBy', 'Needed by')} required value={neededBy} onChange={setNeededBy} min={orgTz ? orgToday : undefined} fullWidth
           error={touched && !neededBy ? t('form.neededByRequired', 'Choose the date you need it.') : undefined} />
 
