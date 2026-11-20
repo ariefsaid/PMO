@@ -69,6 +69,26 @@ export async function listSectionRollup(workOrderId: string): Promise<SectionRol
   });
 }
 
+export interface SectionProgressRow {
+  /** null = the unsectioned remainder. */
+  sectionId: string | null;
+  workOrderLineId: string;
+  unit: string;
+  /** Validated daily-report quantity as an exact scale-three string. */
+  quantity: string;
+}
+
+/** Validated daily-report quantities per section and contract item (FR-WOS-016). Empty until a report is validated: absent, not zero. */
+export async function listSectionProgress(workOrderId: string): Promise<SectionProgressRow[]> {
+  const { data, error } = await supabase.rpc('work_order_section_progress', { p_work_order_id: workOrderId });
+  if (error) throw new AppError(error.message, error.code);
+  return (data ?? []).map((r) => {
+    const n = Number(r.quantity);
+    if (!Number.isFinite(n)) throw new AppError('Section progress: unreadable quantity', MALFORMED);
+    return { sectionId: r.section_id, workOrderLineId: r.work_order_line_id, unit: r.unit, quantity: n.toFixed(3) };
+  });
+}
+
 export async function getReadinessCounts(workOrderId: string): Promise<ReadinessCounts | null> {
   const { data, error } = await supabase.from('work_order_section_readiness')
     .select('live_sections, not_ready, ready, blocked, all_ready').eq('work_order_id', workOrderId).maybeSingle();

@@ -8,10 +8,10 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useTerms } from '@/src/lib/i18n/terms';
 import { useOrgProfilesLoader } from '@/src/hooks/useOrgProfilesLoader';
 import {
-  useArchiveSection, useDeleteSection, useSetSectionReadiness, useWorkOrderSectionReadiness, useWorkOrderSectionRollup,
+  useArchiveSection, useDeleteSection, useSetSectionReadiness, useWorkOrderSectionReadiness, useWorkOrderSectionRollup, useWorkOrderSectionProgress,
 } from '@/src/hooks/useWorkOrderSections';
 import { READINESS_VALUES, type Readiness, type SectionRollupRow } from '@/src/lib/repositories/workOrderSections';
-import { readinessRollup } from '@/src/lib/workOrderSections';
+import { quantitiesByUnit, readinessRollup } from '@/src/lib/workOrderSections';
 import { sectionRefusal } from '@/src/lib/workOrderSectionRefusal';
 import { formatExactMoney } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
@@ -42,6 +42,7 @@ export const SectionsSection: React.FC<Props> = ({ workOrder }) => {
   const userId = useAuth().currentUser?.id ?? null;
   const roll = useWorkOrderSectionRollup(workOrder.id);
   const counts = useWorkOrderSectionReadiness(workOrder.id);
+  const progress = useWorkOrderSectionProgress(workOrder.id);
   const setReadiness = useSetSectionReadiness(workOrder.id);
   const archive = useArchiveSection(workOrder.id);
   const remove = useDeleteSection(workOrder.id);
@@ -62,6 +63,9 @@ export const SectionsSection: React.FC<Props> = ({ workOrder }) => {
     return () => { live = false; };
   }, [loadProfiles]);
 
+  const validated = useMemo(() => {
+    try { return quantitiesByUnit(progress.data ?? []); } catch { return new Map<string | null, { unit: string; quantity: string }[]>(); }
+  }, [progress.data]);
   const viewOnly = realRole !== effectiveRole;
   const base = useMemo(() => ({ currentUserId: userId, record: { viewOnly, status: workOrder.status } }), [userId, viewOnly, workOrder.status]);
   const canAdd = may('create', 'workOrderSection', base);
@@ -114,6 +118,10 @@ export const SectionsSection: React.FC<Props> = ({ workOrder }) => {
 
   const figures = (r: SectionRollupRow) => {
     const parts: React.ReactNode[] = [];
+    const done = validated.get(r.sectionId);
+    if (done && done.length > 0) {
+      parts.push(<span key="v" className="tabular-nums">{t('validated', 'Validated: {{amounts}}', { amounts: done.map((d) => `${d.quantity} ${d.unit}`).join(', ') })}</span>);
+    }
     if (r.tasksTotal > 0) parts.push(<span key="t">{t('tasks', '{{done}} of {{total}} tasks done', { done: r.tasksDone, total: r.tasksTotal })}</span>);
     if (r.crewsToday > 0) parts.push(<span key="c">{t('crews', '{{count}} crews today', { count: r.crewsToday })}</span>);
     return parts;

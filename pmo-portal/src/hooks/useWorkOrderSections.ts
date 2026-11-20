@@ -12,6 +12,16 @@ export function useWorkOrderSectionRollup(workOrderId: string | undefined) {
   });
 }
 
+/** Validated daily-report quantities per section (FR-WOS-016). */
+export function useWorkOrderSectionProgress(workOrderId: string | undefined) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({
+    queryKey: ['work-order-sections', orgId, workOrderId, 'progress'],
+    queryFn: () => repo.progress(workOrderId as string),
+    enabled: Boolean(orgId) && Boolean(workOrderId),
+  });
+}
+
 /** The readiness roll-up (counts per readiness over live sections). */
 export function useWorkOrderSectionReadiness(workOrderId: string | undefined) {
   const orgId = useAuth().currentUser?.org_id;

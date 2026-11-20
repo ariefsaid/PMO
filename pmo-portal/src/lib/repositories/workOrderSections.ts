@@ -6,12 +6,13 @@ import * as sections from '@/src/lib/db/workOrderSections';
 import { setWorkOrderPlan, type PlanChange } from '@/src/lib/db/workOrderFinance';
 import { wrap } from './repositoryErrors';
 
-export type { SectionRollupRow, SectionInput, Readiness, ReadinessEvent } from '@/src/lib/db/workOrderSections';
+export type { SectionRollupRow, SectionProgressRow, SectionInput, Readiness, ReadinessEvent } from '@/src/lib/db/workOrderSections';
 export { READINESS_VALUES } from '@/src/lib/db/workOrderSections';
 export type { PlanChange };
 
 export const workOrderSectionRepository = {
   rollup: (workOrderId: string) => wrap(() => sections.listSectionRollup(workOrderId)),
+  progress: (workOrderId: string) => wrap(() => sections.listSectionProgress(workOrderId)),
   readiness: (workOrderId: string) => wrap(() => sections.getReadinessCounts(workOrderId)),
   events: (sectionId: string) => wrap(() => sections.listReadinessEvents(sectionId)),
   create: (workOrderId: string, input: sections.SectionInput) => wrap(() => sections.createSection(workOrderId, input)),

@@ -71,6 +71,28 @@ export function rollupBySection(rows: readonly SectionFigure[], scale = 2): Meas
   return { sections, remainder: fromUnits(remainder, scale), total: fromUnits(total, scale), empty: !any };
 }
 
+export interface UnitQuantity { unit: string; quantity: string }
+
+/**
+ * Validated daily-report quantity per section, summed by unit (a quantity of metres and one of cubic metres never add).
+ * The key is the section id, or `null` for the unsectioned remainder. Exact decimals; a malformed figure throws.
+ */
+export function quantitiesByUnit(rows: readonly { sectionId: string | null; unit: string; quantity: string }[], scale = 3): Map<string | null, UnitQuantity[]> {
+  const sums = new Map<string | null, Map<string, bigint>>();
+  for (const r of rows) {
+    const units = toUnits(r.quantity, scale);
+    if (units === null) throw new Error(`quantitiesByUnit: unreadable quantity "${r.quantity}"`);
+    const perUnit = sums.get(r.sectionId) ?? new Map<string, bigint>();
+    perUnit.set(r.unit, (perUnit.get(r.unit) ?? 0n) + units);
+    sums.set(r.sectionId, perUnit);
+  }
+  const out = new Map<string | null, UnitQuantity[]>();
+  for (const [key, perUnit] of sums) {
+    out.set(key, [...perUnit].sort(([a], [b]) => a.localeCompare(b)).map(([unit, units]) => ({ unit, quantity: fromUnits(units, scale) })));
+  }
+  return out;
+}
+
 /** The readiness counts as the server's `work_order_section_readiness` view returns them (live sections only). */
 export interface ReadinessCounts {
   live_sections: number;

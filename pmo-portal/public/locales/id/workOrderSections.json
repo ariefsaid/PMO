@@ -88,6 +88,7 @@
   "summary": "{{ready}} dari {{live}} siap",
   "summaryAll": "Semua {{live}} siap",
   "summaryBlocked": "{{ready}} dari {{live}} siap · {{blocked}} terhambat",
+  "validated": "Tervalidasi: {{amounts}}",
   "tasks": "{{done}} dari {{total}} tugas selesai",
   "unknownUser": "Seseorang"
 }

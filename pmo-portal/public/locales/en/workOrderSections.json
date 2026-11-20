@@ -88,6 +88,7 @@
   "summary": "{{ready}} of {{live}} ready",
   "summaryAll": "All {{live}} ready",
   "summaryBlocked": "{{ready}} of {{live}} ready · {{blocked}} blocked",
+  "validated": "Validated: {{amounts}}",
   "tasks": "{{done}} of {{total}} tasks done",
   "unknownUser": "Someone"
 }

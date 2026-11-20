@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { allocationFits, allocationHeadroom, fromUnits, readinessRollup, rollupBySection, toUnits } from '../workOrderSections';
+import { allocationFits, allocationHeadroom, fromUnits, quantitiesByUnit, readinessRollup, rollupBySection, toUnits } from '../workOrderSections';
 
 describe('rollupBySection (AC-WOS-002: the roll-up invariant)', () => {
   it('direct budget: A 400.00 + B 350.00 + remainder 250.00 = 1,000.00 exactly', () => {
@@ -74,6 +74,20 @@ describe('readinessRollup (AC-WOS-014: the render of the server counts)', () => 
   it('not ready and not blocked is in progress, and never trusts a stale all_ready flag', () => {
     expect(readinessRollup({ live_sections: 2, ready: 1, not_ready: 1, blocked: 0, all_ready: false }).state).toBe('in_progress');
     expect(readinessRollup({ live_sections: 2, ready: 1, not_ready: 1, blocked: 0, all_ready: true }).allReady).toBe(false);
+  });
+});
+
+describe('quantitiesByUnit (FR-WOS-016)', () => {
+  it('sums per section and unit exactly, keeping the remainder under null', () => {
+    const out = quantitiesByUnit([
+      { sectionId: 'a', unit: 'm', quantity: '0.100' }, { sectionId: 'a', unit: 'm', quantity: '0.200' },
+      { sectionId: 'a', unit: 'm2', quantity: '3.000' }, { sectionId: null, unit: 'm', quantity: '1.000' },
+    ]);
+    expect(out.get('a')).toEqual([{ unit: 'm', quantity: '0.300' }, { unit: 'm2', quantity: '3.000' }]);
+    expect(out.get(null)).toEqual([{ unit: 'm', quantity: '1.000' }]);
+  });
+  it('a malformed quantity throws rather than counting as zero', () => {
+    expect(() => quantitiesByUnit([{ sectionId: 'a', unit: 'm', quantity: 'x' }])).toThrow();
   });
 });
 

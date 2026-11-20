@@ -13568,6 +13568,10 @@ export type Database = {
           tasks_total: number; tasks_done: number; crews_today: number
         }[]
       }
+      work_order_section_progress: {
+        Args: { p_work_order_id: string }
+        Returns: { section_id: string | null; work_order_line_id: string; unit: string; quantity: number | string }[]
+      }
       set_work_order_plan: { Args: { p_project_id: string; p_work_order_id: string; p_changes: Json }; Returns: number }
       set_shared_cost_split: { Args: { p_project_id: string; p_split: Json }; Returns: number }
       clear_shared_cost_split: { Args: { p_project_id: string }; Returns: number }

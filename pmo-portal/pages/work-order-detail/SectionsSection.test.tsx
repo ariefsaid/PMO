@@ -16,6 +16,7 @@ const h = vi.hoisted(() => ({
   role: 'Project Manager' as string, userId: 'u-pm',
   roll: { data: undefined, isPending: false, isError: false, isSuccess: true, refetch: vi.fn() } as Record<string, unknown>,
   counts: { data: null } as Record<string, unknown>,
+  progress: { data: [] as unknown[] } as Record<string, unknown>,
   check: { data: [] as unknown[], isPending: false, isError: false } as Record<string, unknown>,
   setReadiness: vi.fn(), archive: vi.fn().mockResolvedValue(undefined), remove: vi.fn().mockResolvedValue(undefined),
 }));
@@ -25,6 +26,7 @@ vi.mock('@/src/hooks/useOrgProfilesLoader', () => ({ useOrgProfilesLoader: () =>
 vi.mock('@/src/hooks/useWorkOrderSections', () => ({
   useWorkOrderSectionRollup: () => h.roll,
   useWorkOrderSectionReadiness: () => h.counts,
+  useWorkOrderSectionProgress: () => h.progress,
   useSetSectionReadiness: () => ({ mutate: h.setReadiness, isPending: false }),
   useArchiveSection: () => ({ mutateAsync: h.archive, isPending: false }),
   useDeleteSection: () => ({ mutateAsync: h.remove, isPending: false }),
@@ -64,7 +66,7 @@ const ok = (rows: SectionRollupRow[]) => ({ data: rows, isPending: false, isErro
 beforeEach(() => {
   setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
   h.role = 'Project Manager'; h.userId = 'u-pm';
-  h.roll = ok([]); h.counts = { data: null }; h.check = { data: [], isPending: false, isError: false };
+  h.roll = ok([]); h.counts = { data: null }; h.progress = { data: [] }; h.check = { data: [], isPending: false, isError: false };
   h.setReadiness.mockReset();
 });
 
@@ -106,6 +108,19 @@ describe('SectionsSection (#2576)', () => {
     const rest = screen.getByTestId('wo-section-remainder');
     expect(rest.textContent).toContain('Not in a section');
     expect(screen.getByTestId('wo-section-plan-remainder').textContent).toMatch(/250/);
+  });
+
+  it('FR-WOS-016 shows each section\'s validated daily quantity by unit, and none where no report is validated', async () => {
+    h.roll = ok([row({}), row({ sectionId: 's2', code: 'B', name: 'South block' }), remainder]);
+    h.progress = { data: [
+      { sectionId: 's1', workOrderLineId: 'l1', unit: 'm', quantity: '10.000' },
+      { sectionId: 's1', workOrderLineId: 'l2', unit: 'm', quantity: '0.500' },
+      { sectionId: null, workOrderLineId: 'l1', unit: 'm', quantity: '2.500' },
+    ] };
+    await mount();
+    expect(within(screen.getByTestId('wo-section-A')).getByText('Validated: 10.500 m')).toBeInTheDocument();
+    expect(within(screen.getByTestId('wo-section-remainder')).getByText('Validated: 2.500 m')).toBeInTheDocument();
+    expect(within(screen.getByTestId('wo-section-B')).queryByText(/Validated/)).not.toBeInTheDocument();
   });
 
   it('AC-WOS-014 summarises the server\'s readiness counts, and says nothing with no live section', async () => {
