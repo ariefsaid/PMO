@@ -60,9 +60,9 @@ test('AC-WPVA-016 the work-order page plan-vs-actual matches the project tab row
     const row = page.getByTestId('wo-pva-row-' + workOrderId);
     await expect(row).toBeVisible();
     const tab = {
-      direct: await row.getByTestId('wo-pva-direct').innerText(),
-      allocated: await row.getByTestId('wo-pva-allocated').innerText(),
-      result: await row.getByTestId('wo-pva-result').innerText(),
+      direct: (await row.getByTestId('wo-pva-direct').textContent()) ?? '',
+      allocated: (await row.getByTestId('wo-pva-allocated').textContent()) ?? '',
+      result: (await row.getByTestId('wo-pva-result').textContent()) ?? '',
     };
     await page.getByTestId('wo-page-link-' + workOrderId).click();
 
