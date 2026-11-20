@@ -2,6 +2,7 @@ import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import { toStorageAppError } from '@/src/lib/storageError';
 import { fetchAllRowsByKeyset } from '@/src/lib/pagedRead';
+import type { Tables } from '@/src/lib/supabase/database.types';
 import type { ToolReportKind, ToolResolution } from '@/src/lib/crewToolQuantity';
 
 /**
@@ -15,19 +16,12 @@ import type { ToolReportKind, ToolResolution } from '@/src/lib/crewToolQuantity'
 
 export const CREW_TOOL_FILES_BUCKET = 'crew-tool-files';
 
-export interface ToolLineRow {
-  id: string;
-  crew_id: string;
-  name: string;
-  code: string | null;
-  serial: string | null;
-  held_qty: number;
-  note: string | null;
-  archived_at: string | null;
+/** A live line with its open damaged and lost sums (the view narrows nothing: its columns are nullable only by construction). */
+export type ToolLineRow = Pick<Tables<'crew_tool_lines'>, 'id' | 'crew_id' | 'name' | 'code' | 'serial' | 'held_qty' | 'note' | 'archived_at'> & {
   damaged_qty: number;
   lost_qty: number;
   usable_qty: number;
-}
+};
 
 export interface ToolLineInput {
   crew_id: string;

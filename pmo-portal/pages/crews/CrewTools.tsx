@@ -292,8 +292,8 @@ export const CrewTools: React.FC = () => {
   const canCloseReport = (r: ToolReportRow) => may('close', 'crewTool', { currentUserId: currentUser?.id, record: { assignee_id: r.assignee_id, viewOnly } });
   const today = localToday();
   const nameOf = (id: string | null) => (id ? users.data?.find((u) => u.id === id)?.full_name ?? '—' : '—');
-  const lineRows = lines.data ?? [];
-  const reportRows = reports.data ?? [];
+  const lineRows = useMemo(() => lines.data ?? [], [lines.data]);
+  const reportRows = useMemo(() => reports.data ?? [], [reports.data]);
   const overdue = useMemo(() => new Set(summariseLine(0, reportRows.map(asReport), today).overdueIds), [reportRows, today]);
 
   const archive = () => {
