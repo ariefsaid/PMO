@@ -187,6 +187,7 @@
   /* Motion tokens (DESIGN.md motion). Exits run ~20% shorter than their entrance. */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --motion-press: 100ms;
+  --motion-hover: 120ms;
   --motion-dialog-in: 150ms;
   --motion-dialog-out: 120ms;
   --motion-sheet-in: 220ms;
@@ -340,6 +341,9 @@
    bg-success/12) are load-bearing and v4 generates them automatically via
    color-mix() from these bare colors. */
 @theme inline {
+  /* Every Tailwind `transition-*` utility settles on the house hover duration and curve. */
+  --default-transition-duration: var(--motion-hover);
+  --default-transition-timing-function: var(--ease-out);
   --color-background: hsl(var(--background));
   --color-surface-table-head: hsl(var(--surface-table-head));
   --color-foreground: hsl(var(--foreground));
@@ -656,9 +660,9 @@
 /* ---------- Confirm dialog entrance (scale+fade; scrim crossfade) ----------
    Both are auto-disabled by the global prefers-reduced-motion rule above
    (animation-duration → 0), degrading the dialog to an instant crossfade. */
-.confirm-anim { animation: confirmIn var(--motion-dialog-in) ease-out; }
+.confirm-anim { animation: confirmIn var(--motion-dialog-in) var(--ease-out); }
 @keyframes confirmIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: none; } }
-.confirm-scrim-anim { animation: confirmScrimIn var(--motion-dialog-in) ease-out; }
+.confirm-scrim-anim { animation: confirmScrimIn var(--motion-dialog-in) var(--ease-out); }
 @keyframes confirmScrimIn { from { opacity: 0; } to { opacity: 1; } }
 
 /* Mobile bottom-sheet entrance — slide up from the bottom edge.
@@ -681,9 +685,9 @@
 /* ---------- Exits (#1970): ~20% shorter than the entrance, same transform/opacity only.
    Base UI dialogs wait for [data-ending-style]; hand-rolled overlays use [data-closing]
    (useExitPresence). Pointer events off so a closing overlay never eats a click. */
-.confirm-anim[data-ending-style], .confirm-anim[data-closing] { animation: confirmOut var(--motion-dialog-out) ease-in forwards; }
-.confirm-scrim-anim[data-ending-style], .confirm-scrim-anim[data-closing] { animation: confirmScrimOut var(--motion-dialog-out) ease-in forwards; }
-.confirm-sheet-anim[data-ending-style] { animation: confirmSheetOut var(--motion-sheet-out) ease-in forwards; }
+.confirm-anim[data-ending-style], .confirm-anim[data-closing] { animation: confirmOut var(--motion-dialog-out) var(--ease-out) forwards; }
+.confirm-scrim-anim[data-ending-style], .confirm-scrim-anim[data-closing] { animation: confirmScrimOut var(--motion-dialog-out) var(--ease-out) forwards; }
+.confirm-sheet-anim[data-ending-style] { animation: confirmSheetOut var(--motion-sheet-out) var(--ease-out) forwards; }
 [data-closing] { pointer-events: none; }
 @keyframes confirmOut { to { opacity: 0; transform: scale(0.95); } }
 @keyframes confirmScrimOut { to { opacity: 0; } }
@@ -701,7 +705,7 @@
 /* ---------- Vendored Base UI popups (shadcn popover/menus, cascader, event calendar): one
    interruptible transition driven by data-starting-style / data-ending-style, growing from the
    trigger via --transform-origin. Keep the surface solid from its first frame (#2497); exits run
-   about 20% shorter. data-instant (keyboard open) skips it. (#2128 tokens are not on this branch.) */
+   about 20% shorter. data-instant (keyboard open) skips it. */
 .popup-anim {
   transform-origin: var(--transform-origin);
   transition: transform var(--motion-menu-in) var(--ease-out);
@@ -1005,7 +1009,7 @@ details > summary:not(.list-none)::before {
   border-right: 1.5px solid currentColor;
   border-bottom: 1.5px solid currentColor;
   transform: rotate(-45deg);
-  transition: transform 120ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform var(--ds-ease);
 }
 details[open] > summary:not(.list-none)::before { transform: rotate(45deg); }
 @media (prefers-reduced-motion: reduce) { details > summary:not(.list-none)::before { transition: none; } }

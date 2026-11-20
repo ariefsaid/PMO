@@ -4,6 +4,12 @@ import React, { useEffect, useState } from 'react';
  * Crossfades its child when `swapKey` changes (#1970): old and new overlap (scale + blur +
  * opacity), no blank gap. No animation on first mount; reduced motion disables it in index.css.
  */
+/** The icon-swap duration comes from the `--motion-icon-swap` token, so the overlap never outlives the CSS. */
+const iconSwapMs = (): number => {
+  if (typeof document === 'undefined') return 180;
+  return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--motion-icon-swap')) || 180;
+};
+
 export const Crossfade: React.FC<{ swapKey: string; children: React.ReactNode }> = ({ swapKey, children }) => {
   const [shown, setShown] = useState({ key: swapKey, node: children });
   const [leaving, setLeaving] = useState<React.ReactNode>(null);
@@ -15,7 +21,7 @@ export const Crossfade: React.FC<{ swapKey: string; children: React.ReactNode }>
   }
   useEffect(() => {
     if (!leaving) return;
-    const timer = setTimeout(() => setLeaving(null), 200);
+    const timer = setTimeout(() => setLeaving(null), iconSwapMs());
     return () => clearTimeout(timer);
   }, [leaving]);
 
