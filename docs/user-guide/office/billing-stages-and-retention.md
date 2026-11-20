@@ -92,7 +92,7 @@ measured and billed, and what is left.
 | *Enter the client's document number.* | A client-side stage needs the client's own reference. |
 | *This stage is already completed.* | Completed stages are locked, as is a withdrawn claim's whole stage plan. |
 | *Only an issued or approved document can be attached.* / *The document has no file.* / *The document must be one of this project's documents.* | Pick a different document: issued or approved, with a file, belonging to this project. |
-| Raising the invoice is refused with *billing-stages-incomplete* | Every stage must be complete first. The stages section shows which one is open. |
+| *Complete every billing stage of this claim before raising its invoice.* (shown in place of **Raise invoice**) | Every stage must be complete first. The stages section shows which one is open. |
 | *The scheduled releases exceed the retention held.* | Schedule a smaller amount; the total of scheduled and released cannot pass the claim's retention. |
 | *Approve the claim invoice before recording a release.* | The claim's invoice must be submitted (not a draft, not cancelled) before a release can be recorded. |
 | *Use a release date from the invoice date through today.* | Correct the release date. |
@@ -197,7 +197,7 @@ dikerjakan, diukur, dan ditagih, serta sisanya.
 | *Masukkan nomor dokumen klien.* | Tahap di sistem klien membutuhkan referensi milik klien. |
 | *Tahap ini sudah selesai.* | Tahap yang selesai terkunci, demikian juga seluruh rencana tahap klaim yang ditarik. |
 | *Hanya dokumen yang diterbitkan atau disetujui yang dapat dilampirkan.* / *Dokumen ini belum memiliki berkas.* / *Dokumen harus milik proyek ini.* | Pilih dokumen lain: diterbitkan atau disetujui, punya berkas, milik proyek ini. |
-| Penerbitan faktur ditolak dengan *billing-stages-incomplete* | Semua tahap harus selesai dulu. Bagian tahap menunjukkan mana yang masih terbuka. |
+| *Selesaikan semua tahap penagihan klaim ini sebelum menerbitkan invoice-nya.* (tampil menggantikan **Terbitkan invoice**) | Semua tahap harus selesai dulu. Bagian tahap menunjukkan mana yang masih terbuka. |
 | *Pelepasan terjadwal melebihi retensi yang ditahan.* | Jadwalkan jumlah lebih kecil; total terjadwal dan terlepas tidak boleh melewati retensi klaim. |
 | *Setujui faktur tagihan sebelum mencatat pelepasan.* | Faktur klaim harus sudah diajukan (bukan draf, bukan dibatalkan) sebelum pelepasan dapat dicatat. |
 | *Gunakan tanggal pelepasan dari tanggal faktur hingga hari ini.* | Perbaiki tanggal pelepasan. |
