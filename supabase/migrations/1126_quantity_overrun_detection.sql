@@ -12,7 +12,7 @@
 create table public.quantity_forecasts (
   id          uuid primary key default gen_random_uuid(),
   org_id      uuid not null references public.organizations(id) default '00000000-0000-0000-0000-000000000001',
-  boq_item_id uuid not null references public.boq_items(id),
+  boq_item_id uuid not null references public.boq_items(id) on delete cascade,
   quantity    numeric(14,3) not null check (quantity > 0 and quantity < 'Infinity'::numeric),
   note        text check (note is null or char_length(note) <= 500),
   created_by  uuid references public.profiles(id) default auth.uid(),
@@ -29,9 +29,13 @@ create policy quantity_forecasts_select on public.quantity_forecasts for select
 revoke all on public.quantity_forecasts from public, anon, authenticated;
 grant select on public.quantity_forecasts to authenticated;
 
+-- Append-only for every role; the one exception is the cascade that removes a contract line itself.
 create function public.refuse_quantity_forecast_change() returns trigger
-  language plpgsql set search_path = public, pg_temp as $$
+  language plpgsql security definer set search_path = public, pg_temp as $$
 begin
+  if tg_op = 'DELETE' and not exists (select 1 from public.boq_items b where b.id = old.boq_item_id) then
+    return old;
+  end if;
   raise exception 'forecast quantities are append-only' using errcode = '42501';
 end; $$;
 revoke all on function public.refuse_quantity_forecast_change() from public, anon, authenticated;

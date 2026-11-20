@@ -155,7 +155,8 @@ begin
       if not found then
         raise exception 'the work order no longer allocates this contract line' using errcode = 'P0001';
       end if;
-      v_value_delta := v_value_delta + round(v_delta * l.rate, 2);
+      -- each value is rounded once, so the changes add up to current minus baseline (the version history's rule)
+      v_value_delta := v_value_delta + round(l.requested_quantity * l.rate, 2) - round(l.base_quantity * l.rate, 2);
     end loop;
     -- ⚑ OD-QCR-10: only a Draft work order's value can still rise. An Issued one is frozen; its screen says so.
     if v_wo.status = 'Draft' and v_value_delta <> 0 then

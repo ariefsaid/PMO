@@ -105,7 +105,7 @@ create index quantity_change_request_lines_item_idx on public.quantity_change_re
 create table public.quantity_change_request_events (
   id          uuid primary key default gen_random_uuid(),
   org_id      uuid not null references public.organizations(id) default '00000000-0000-0000-0000-000000000001',
-  request_id  uuid not null references public.quantity_change_requests(id),
+  request_id  uuid not null references public.quantity_change_requests(id) on delete cascade,
   action      text not null,
   from_status text,
   to_status   text,
@@ -135,8 +135,12 @@ do $$ declare t text; begin
 end $$;
 
 -- Events are history: nobody updates or removes one.
-create function public.refuse_qcr_event_change() returns trigger language plpgsql set search_path = public, pg_temp as $$
+create function public.refuse_qcr_event_change() returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
 begin
+  -- the one exception: the cascade that removes the request itself (nothing in the application deletes a request)
+  if tg_op = 'DELETE' and not exists (select 1 from public.quantity_change_requests r where r.id = old.request_id) then
+    return old;
+  end if;
   raise exception 'change request history is append-only' using errcode = '42501';
 end; $$;
 revoke all on function public.refuse_qcr_event_change() from public, anon, authenticated;
@@ -454,7 +458,7 @@ begin
   perform public.qcr_log(p_request_id, 'submitted', 'draft', 'pending_approval');
   -- Tell everyone who could approve it (never the people it is separated from).
   for r in select p.id from public.profiles p
-            where p.org_id = v_org and p.role in ('Admin','Executive','Finance') and p.status = 'active'
+            where p.org_id = v_org and p.role in ('Admin','Executive','Finance') and public.is_active_member(p.id)
               and p.id <> v_req.author_id and p.id <> v_uid and p.id <> all (v_req.editor_ids) loop
     perform public.notify_workflow_user(v_org, r.id, 'Quantity change request awaiting approval',
       'A quantity change request has been submitted for your approval.', 'info', 'quantity_change_request', p_request_id, 'Quantity change request');

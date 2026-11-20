@@ -72,7 +72,7 @@ begin
   end;
   return query select v_reason is null, v_reason,
     exists (select 1 from public.profiles p
-             where p.org_id = v_req.org_id and p.status = 'active' and p.role in ('Admin','Executive','Finance')
+             where p.org_id = v_req.org_id and public.is_active_member(p.id) and p.role in ('Admin','Executive','Finance')
                and p.id <> v_req.author_id and p.id <> all (v_req.editor_ids)
                and p.id is distinct from v_req.submitted_by);
 end; $$;
