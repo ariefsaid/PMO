@@ -1,8 +1,26 @@
 # Work in Hand and Backlog Implementation Plan (#2575)
 
+## Built on defaults (owner to confirm)
+
+Built to the spec's recommended defaults; none is a ruling. Each is one place to change.
+
+- OD-WIH-1 Billed to date = invoiced work (Submitted, Unpaid, Paid; net of tax plus down-payment recovery), read only from `sales_invoice_work_billed`. Billed to date runs through the end of the as-of month, as the management pack's invoiced to date does.
+- OD-WIH-2 Billing window = the last 6 complete months (`WINDOW_MONTHS` in `pmo-portal/src/lib/workInHand.ts`); months counted run from the first billing month inside the window.
+- OD-WIH-3 A zero rate shows "No billing rate" and ranks after every row with a rate. A row with Left to bill 0 shows 0.0 months and ranks after open work with a rate, before rows with no rate.
+- OD-WIH-4 Default order is Left to bill descending; months of backlog is the alternate order (a toggle on the screen).
+- OD-WIH-5 Access: Admin, Executive, Finance (database function and route). Project Manager is refused.
+- OD-WIH-6 Work in hand = the Contract on hand set (`Won, Pending KoM`, `Ongoing Project`, `On Hold`, `Close Out`, not archived) plus `Issued` work orders of those contracts; the two levels are shown in their own rows and never added.
+- OD-WIH-7 Months of backlog derives from Left to bill (invoice basis), not Remaining work.
+- OQ-WIH-1 The screen follows whatever `contract_value` holds.
+- OQ-WIH-2 A work order with no billing yet does not borrow its contract's rate: it shows "No billing rate".
+- OQ-WIH-3 Bahasa Indonesia wording is the spec's default ("Sisa tagihan", "Bulan backlog", with "invoice" for invoice per the id catalogue rule); to confirm.
+- OQ-WIH-4 Not changed: contract value stays readable through the existing project reads; the role gate is a presentation gate only.
+
+Build notes: migration number is 1060 (assigned range 1060-1064); the screen lives at `pmo-portal/pages/finance/WorkInHand.tsx` beside the other finance pages (the plan named `pages/WorkInHand.tsx`); the route sits behind the `revenue` module switch as well as `can('view','finance')`; the entry is a link on the Finance hub, not a new rail item. Work orders whose contract is not ranked (no value, incomplete) are listed at the top level of their currency table.
+
 > Fresh Orca worker per slice. Spec: `docs/specs/work-in-hand-backlog.spec.md`. Read-only money path; no posting, no SoD change. Starts after sign-off of OD-WIH-1..6 and the owner's layout sketch-glance (scheduled after the December go-live). Builds on `sales_invoice_work_billed` (0498), `work_order_billing` (0337), `get_project_billing` (0921), `org_current_month` (0245) and the work-order record page (#2518).
 
-## Migration (number assigned by the Director; not numbered here)
+## Migration (1060)
 One migration, additive: a `security invoker`, `stable` function `get_work_in_hand(p_as_of date default null)` returning one `jsonb` value. No table, column or grant change.
 - Gate first: `is_active_member()` and `auth_role() in ('Admin','Executive','Finance')`, else raise `42501` (same shape as `get_project_finances`, 0498).
 - As-of = `coalesce(p_as_of, org_current_month-aware local date)` from `organizations.default_timezone`; the window is the 6 complete months before the as-of month.
@@ -11,7 +29,7 @@ One migration, additive: a `security invoker`, `stable` function `get_work_in_ha
 - Work orders: `Issued` only, value as `work_order_billing.order_net`, and `figures_complete` taken from that view rather than re-derived. A closing value exists only on a Closed work order, so no work-in-hand row carries one.
 - Bounds: 500 contracts, 3,000 work orders, `truncated` flag.
 - `revoke all ... from public, anon; grant execute ... to authenticated`. RLS-initplan rule: any policy wrapper uses `(select helper())` (none added).
-- **Rollback:** `supabase/migrations/rollback/<number>_work_in_hand_down.sql` = `drop function if exists public.get_work_in_hand(date);`.
+- **Rollback:** `supabase/migrations/rollback/1060_work_in_hand_down.sql` = `drop function if exists public.get_work_in_hand(date);`.
 - ADR candidate: none expected; if the owner rules a different billed definition (OD-WIH-1), record it in an ADR amending ADR-0077 decision 9 because every billing reader shares it.
 
 ## Slice 1: pure derivation (Orca)
