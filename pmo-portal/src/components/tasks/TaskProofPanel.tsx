@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/src/components/ui';
 import { useTaskProofs, useTaskProofMutations } from '@/src/hooks/useTaskProofs';
 import { proofRefusal, PROOF_ALLOWED_MIME, PROOF_MAX_COUNT } from '@/src/lib/db/taskProofs';
+import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { TaskStatus } from '@/src/lib/db/tasks';
 
@@ -67,7 +68,13 @@ export const TaskProofPanel: React.FC<TaskProofPanelProps> = ({
       <ul className="flex flex-col gap-1">
         {proofs.map((p) => (
           <li key={p.id} className="flex items-center gap-2 text-sm">
-            <span className="min-w-0 flex-1 truncate">{p.file_name ?? p.file_path.split('/').pop()}</span>
+            <button type="button" className="min-w-0 flex-1 truncate text-left underline" onClick={() => {
+              const tab = window.open('', '_blank');
+              if (!tab) return;
+              tab.opener = null;
+              void repositories.taskProof.url(p.file_path).then((url) => { tab.location.href = url; })
+                .catch((err: unknown) => { tab.close(); setMessage(classifyMutationError(err, undefined, { suppressCapture: true }).detail); });
+            }}>{p.file_name ?? p.file_path.split('/').pop()}</button>
             {canAttach && !locked && (
               <Button type="button" variant="ghost" size="sm" disabled={remove.isPending}
                 onClick={() => remove.mutate(p.id, {

@@ -2,7 +2,7 @@
 -- AC-TWOP-001..006, 011, 012 (count). Fixtures are written as the owner role; assertions run as the actor.
 -- ⚑ Row-changing assertions COUNT ROWS where an RLS-denied write is a silent no-op.
 begin;
-select plan(21);
+select plan(24);
 
 insert into organizations (id, name) values
   ('09910000-0000-0000-0000-00000000000a','TWOP Org A'),
@@ -22,8 +22,8 @@ insert into work_orders (id, org_id, project_id, title, status, order_value, tax
   ('09910000-0000-0000-0000-000000000401','09910000-0000-0000-0000-00000000000a','09910000-0000-0000-0000-0000000000d1','WO of P','Issued',100,'exclusive',0),
   ('09910000-0000-0000-0000-000000000402','09910000-0000-0000-0000-00000000000a','09910000-0000-0000-0000-0000000000d2','WO of Q','Issued',100,'exclusive',0);
 set local session_replication_role = replica;
-insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount, cancelled_at) values
-  ('09910000-0000-0000-0000-000000000403','09910000-0000-0000-0000-00000000000a','09910000-0000-0000-0000-0000000000d1','WO cancelled','Cancelled',0,'exclusive',0,now());
+insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount, cancelled_at, currency) values
+  ('09910000-0000-0000-0000-000000000403','09910000-0000-0000-0000-00000000000a','09910000-0000-0000-0000-0000000000d1','WO cancelled','Cancelled',0,'exclusive',0,now(),'USD');
 set local session_replication_role = origin;
 -- 101 free task (assignee Eng); 102 proof-required task (assignee Eng); 103 project-less; 104 Done+required+1 proof; 105 linked to WO of P
 insert into tasks (id, org_id, project_id, name, status, assignee_id, created_by) values
@@ -62,6 +62,11 @@ select throws_ok($$insert into tasks (org_id, project_id, name, proof_required, 
 select throws_ok($$update tasks set status = 'Done' where id = '09910000-0000-0000-0000-000000000102'$$,
   '23514', 'proof of completion is required before this task can be Done', 'AC-TWOP-004 assignee: Done refused without proof');
 
+select throws_ok($$insert into task_proofs (task_id, file_path) values ('09910000-0000-0000-0000-000000000102','missing')$$,
+  '23514', 'proof object not found', 'AC-TWOP-004 missing object cannot count as proof');
+reset role;
+insert into storage.objects (bucket_id, name) values ('task-proofs','09910000-0000-0000-0000-00000000000a/09910000-0000-0000-0000-000000000102/09910000-0000-0000-0000-000000000501/site.jpg');
+set local role authenticated;
 select lives_ok($$insert into task_proofs (id, task_id, file_path, file_name) values ('09910000-0000-0000-0000-000000000501','09910000-0000-0000-0000-000000000102','09910000-0000-0000-0000-00000000000a/09910000-0000-0000-0000-000000000102/09910000-0000-0000-0000-000000000501/site.jpg','site.jpg')$$,
   'AC-TWOP-004 the assignee adds a proof');
 select lives_ok($$update tasks set status = 'Done' where id = '09910000-0000-0000-0000-000000000102'$$,
@@ -69,8 +74,10 @@ select lives_ok($$update tasks set status = 'Done' where id = '09910000-0000-000
 select throws_ok($$update task_proofs set archived_at = now() where id = '09910000-0000-0000-0000-000000000501'$$,
   '23514', 'proof of a completed task cannot be removed; reopen the task first', 'AC-TWOP-005 proof of a Done proof-required task cannot be removed');
 select lives_ok($$update tasks set status = 'In Progress' where id = '09910000-0000-0000-0000-000000000102'$$, 'AC-TWOP-005 reopening is allowed');
-select is((with u as (update task_proofs set archived_at = now() where id = '09910000-0000-0000-0000-000000000501' returning 1) select count(*)::int from u), 1,
-  'AC-TWOP-005 once reopened the proof can be removed');
+select lives_ok($$update task_proofs set archived_at = now() where id = '09910000-0000-0000-0000-000000000501'$$, 'AC-TWOP-005 once reopened the proof can be removed');
+
+select throws_ok($$update task_proofs set archived_at = null where id = '09910000-0000-0000-0000-000000000501'$$,
+  '23514', 'removed proof cannot be restored', 'AC-TWOP-012 archived proof cannot be restored around the cap');
 
 -- PM: Done guard covers the structure policy too (AC-TWOP-004)
 set local request.jwt.claims = '{"sub":"09910000-0000-0000-0000-0000000000f1","role":"authenticated"}';
@@ -81,8 +88,10 @@ select throws_ok($$update tasks set status = 'Done', proof_required = true where
 
 -- ── Cap (AC-TWOP-012) ─────────────────────────────────────────────────────────────────────────────
 reset role;
-insert into task_proofs (task_id, file_path) select '09910000-0000-0000-0000-000000000105', 'p'||g from generate_series(1,10) g;
-select throws_ok($$insert into task_proofs (task_id, file_path) values ('09910000-0000-0000-0000-000000000105','p11')$$,
+insert into storage.objects (bucket_id, name)
+select 'task-proofs', '09910000-0000-0000-0000-00000000000a/09910000-0000-0000-0000-000000000105/' || ('09910000-0000-0000-0000-' || lpad(g::text,12,'0')) || '/p' from generate_series(1,11) g;
+insert into task_proofs (id, task_id, file_path) select ('09910000-0000-0000-0000-' || lpad(g::text,12,'0'))::uuid, '09910000-0000-0000-0000-000000000105', '09910000-0000-0000-0000-00000000000a/09910000-0000-0000-0000-000000000105/' || ('09910000-0000-0000-0000-' || lpad(g::text,12,'0')) || '/p' from generate_series(1,10) g;
+select throws_ok($$insert into task_proofs (id, task_id, file_path) values ('09910000-0000-0000-0000-000000000011','09910000-0000-0000-0000-000000000105','09910000-0000-0000-0000-00000000000a/09910000-0000-0000-0000-000000000105/09910000-0000-0000-0000-000000000011/p')$$,
   '23514', 'a task holds at most 10 proof attachments', 'AC-TWOP-012 the 11th proof is refused');
 
 -- ── Tenancy (AC-TWOP-006) ─────────────────────────────────────────────────────────────────────────
@@ -93,5 +102,6 @@ select throws_ok($$insert into task_proofs (task_id, file_path) values ('0991000
   '42501', null, 'AC-TWOP-006 another org cannot add a proof to a task');
 select is((select count(*)::int from storage.objects where bucket_id = 'task-proofs'), 0, 'AC-TWOP-006 another org reads no proof objects');
 
+select ok((select count(*) > 0 from storage.objects where bucket_id = 'task-proofs') = false, 'AC-TWOP-006 another org cannot see populated objects');
 select * from finish();
 rollback;

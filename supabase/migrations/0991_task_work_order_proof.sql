@@ -99,6 +99,7 @@ create policy task_proofs_update on public.task_proofs for update
 -- No client delete; the only client-writable column on update is archived_at.
 revoke delete on public.task_proofs from authenticated, anon;
 revoke update on public.task_proofs from authenticated, anon;
+grant select, insert on public.task_proofs to authenticated;
 grant update (archived_at) on public.task_proofs to authenticated;
 
 -- org stamp from the parent task; a client-sent org other than the task's is refused by the policy.
@@ -112,6 +113,11 @@ begin
   end if;
   if new.org_id is null or new.org_id = '00000000-0000-0000-0000-000000000001'::uuid then
     new.org_id := v_org;
+  end if;
+  -- The file must exist. Only for the caller's own org, so a probe of another org's paths falls through to RLS (42501).
+  if new.org_id = auth_org_id()
+     and not exists (select 1 from storage.objects o where o.bucket_id = 'task-proofs' and o.name = new.file_path) then
+    raise exception 'proof object not found' using errcode = '23514';
   end if;
   perform pg_advisory_xact_lock(hashtextextended(new.task_id::text, 0));
   select count(*) into v_live from public.task_proofs p where p.task_id = new.task_id and p.archived_at is null;
@@ -129,7 +135,12 @@ create function public.task_proofs_guard_remove() returns trigger
   language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_status text; v_req boolean;
 begin
+  if old.archived_at is not null and new.archived_at is null then
+    raise exception 'removed proof cannot be restored' using errcode = '23514';
+  end if;
   if new.archived_at is not null and old.archived_at is null then
+    -- Same per-task lock as the Done guard: whichever commits second re-reads the other's result.
+    perform pg_advisory_xact_lock(hashtextextended(new.task_id::text, 0));
     select t.status::text, t.proof_required into v_status, v_req from public.tasks t where t.id = new.task_id;
     if v_status = 'Done' and v_req then
       raise exception 'proof of a completed task cannot be removed; reopen the task first' using errcode = '23514';
@@ -164,6 +175,10 @@ create trigger task_proofs_audit after insert or update of archived_at on public
 create function public.guard_task_done_needs_proof() returns trigger
   language plpgsql security definer set search_path = public, pg_temp as $$
 begin
+  -- Lock in its own statement so the check below takes a fresh snapshot and sees a just-committed removal.
+  if new.status = 'Done' and new.proof_required and (tg_op = 'INSERT' or old.status is distinct from 'Done') then
+    perform pg_advisory_xact_lock(hashtextextended(new.id::text, 0));
+  end if;
   if new.status = 'Done' and new.proof_required
      and (tg_op = 'INSERT' or old.status is distinct from 'Done')
      and not exists (select 1 from public.task_proofs p where p.task_id = new.id and p.archived_at is null) then

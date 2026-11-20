@@ -8,8 +8,9 @@ const h = vi.hoisted(() => ({
   list: vi.fn(),
   add: vi.fn(),
   remove: vi.fn(),
+  url: vi.fn(),
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { taskProof: { list: h.list, add: h.add, remove: h.remove } } }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { taskProof: { list: h.list, add: h.add, remove: h.remove, url: h.url } } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -54,6 +55,20 @@ describe('AC-TWOP-008 Done is disabled with the reason until proof is attached',
 
     fireEvent.click(screen.getByRole('button', { name: 'proof.markDone' }));
     expect(onMarkDone).toHaveBeenCalledOnce();
+  });
+
+  it('opens an attachment through a signed URL', async () => {
+    h.proofs = [{ id: 'p1', file_name: 'site.jpg', file_path: 'o/t1/p1/site.jpg' }];
+    h.url.mockResolvedValue('https://example.test/proof');
+    const tab = { opener: window, location: { href: '' }, close: vi.fn() };
+    const open = vi.spyOn(window, 'open').mockImplementation(() => tab as unknown as Window);
+    renderPanel();
+    fireEvent.click(await screen.findByRole('button', { name: 'site.jpg' }));
+    expect(open).toHaveBeenCalledWith('', '_blank');
+    await waitFor(() => expect(tab.location.href).toBe('https://example.test/proof'));
+    expect(tab.opener).toBeNull();
+    expect(h.url).toHaveBeenCalledWith('o/t1/p1/site.jpg');
+    open.mockRestore();
   });
 
   it('the photo input asks the phone for its camera', async () => {

@@ -32,7 +32,7 @@ interface TaskRecordDrawerProps {
   openTask: (task: TaskWithRefs) => void;
   onClose: () => void;
   nestedOpen: boolean;
-  /** #2531: proof-of-completion affordances; the panel shows only for a proof-required task. */
+  /** #2531: proof-of-completion affordances; the panel supports both required and optional attachments. */
   proof?: { canAttach: boolean; canSetStatus: boolean; onMarkDone: (task: TaskWithRefs) => Promise<void> | void };
 }
 
@@ -92,11 +92,11 @@ const TaskRecordDrawer: React.FC<TaskRecordDrawerProps> = ({
           <dt className="text-muted-foreground">{t('projectDetail.tasks.form.dependsOnLegend', 'Depends on')}</dt><dd className="min-w-0 break-words">{task.dependencies.length ? task.dependencies.map((dependency) => allTasks.find((candidate) => candidate.id === dependency.depends_on_id)?.name ?? dependency.depends_on_id).join(', ') : t('projectDetail.tasks.drawer.noDependencies', 'No dependencies are linked.')}</dd>
         </dl>
       </section>
-      {task.proof_required && !externallyOwned && (
+      {!externallyOwned && (
         <TaskProofPanel
           taskId={task.id}
           status={task.status}
-          proofRequired
+          proofRequired={task.proof_required ?? false}
           canAttach={proof?.canAttach ?? false}
           canSetStatus={proof?.canSetStatus ?? false}
           onMarkDone={() => proof?.onMarkDone(task)}

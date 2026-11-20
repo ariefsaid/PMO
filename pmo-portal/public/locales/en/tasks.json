@@ -47,5 +47,10 @@
     "loadFailed": "Tasks could not be loaded.",
     "unassigned": "Unassigned",
     "noDue": "No due date"
+  },
+  "workOrderFilter": {
+    "label": "Filter by work order",
+    "all": "All work orders",
+    "none": "No work order"
   }
 }

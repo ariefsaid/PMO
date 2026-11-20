@@ -158,6 +158,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
   const [showArchived, setShowArchived] = useState(false);
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all');
   const [assigneeFilter, setAssigneeFilter] = useState('all');
+  const [workOrderFilter, setWorkOrderFilter] = useState('all');
   const [searchText, setSearchText] = useState('');
   const integrationsRef = useRef<HTMLDivElement>(null);
 
@@ -247,12 +248,13 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
   const filteredTasks = useMemo(() => {
     const query = deferredSearchText.trim().toLocaleLowerCase();
     return scopedTasks.filter((task) => {
+      if (workOrderFilter === 'none' ? task.work_order_id != null : workOrderFilter !== 'all' && task.work_order_id !== workOrderFilter) return false;
       if (statusFilter !== 'all' && task.status !== statusFilter) return false;
       if (assigneeFilter === 'unassigned' ? task.assignee_id != null : assigneeFilter !== 'all' && task.assignee_id !== assigneeFilter) return false;
       if (!query) return true;
       return task.name.toLocaleLowerCase().includes(query) || task.id.toLocaleLowerCase().includes(query);
     });
-  }, [assigneeFilter, deferredSearchText, scopedTasks, statusFilter]);
+  }, [assigneeFilter, deferredSearchText, scopedTasks, statusFilter, workOrderFilter]);
   const selectedTaskId = searchParams.get('open');
   const selectedTask = selectedTaskId ? all.find((task) => task.id === selectedTaskId) ?? null : null;
 
@@ -472,6 +474,9 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         onNewTask={() => setFormTarget({ task: null })}
         scope={scope}
         setTaskScope={setTaskScope}
+        workOrderFilter={workOrderFilter}
+        onWorkOrderFilter={(value) => { setWorkOrderFilter(value); clearSelection(); }}
+        workOrderOptions={(workOrders ?? []).map((w) => ({ value: w.id, label: w.wo_number ? `${w.wo_number} · ${w.title}` : w.title }))}
         statusFilter={statusFilter}
         onStatusFilter={(value) => { setStatusFilter(value); clearSelection(); }}
         assigneeFilter={assigneeFilter}

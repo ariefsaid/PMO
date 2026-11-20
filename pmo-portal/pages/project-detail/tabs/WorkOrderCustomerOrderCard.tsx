@@ -26,6 +26,7 @@ import { deriveWorkOrderBillingState, type WorkOrderBillingState } from '@/src/l
 import { statusLabel } from '@/src/lib/status/statusMap';
 import { summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
 import WorkOrderAcceptances from '../WorkOrderAcceptances';
+import { WorkOrderOpenTasks } from '@/src/components/tasks/WorkOrderOpenTasks';
 import { WorkOrderCostVariations } from '../WorkOrderCostVariations';
 import { MoneyFigure, type InvoiceWithWorkOrder, type OrderLineView } from './workOrdersTabFigures';
 
@@ -430,6 +431,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
           </details>
         )}
       </div>
+      <WorkOrderOpenTasks workOrderId={row.id} />
     </article>
   );
 };

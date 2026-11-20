@@ -190,6 +190,7 @@
     {"table":"subcontract_acceptance_lines","has_org":false,"pk":"acceptance_id","columns":"acceptance_id,boq_item_id,quantity","b_read":"parent-org-only","by_id":"n/a: parent acceptance carries org_id; blind read covers parent-scoped visibility"},
     {"table":"subcontract_acceptances","has_org":true,"pk":"id","columns":"id,org_id,project_id,po_id,acceptance_date,status,prepared_by,prepared_at,confirmed_by,confirmed_at,confirm_basis,withdrawn_at,note,document_id","b_read":"own-org-only","by_id":"applicable"},
     {"table":"task_dependencies","has_org":true,"pk":"task_id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"task_proofs","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"task_reminders","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"tasks","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"timesheet_entries","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
@@ -749,7 +750,8 @@
     "agent-attachments",
     "expense-receipts",
     "procurement-files",
-    "project-documents"
+    "project-documents",
+    "task-proofs"
   ],
   "rpcs": [
     {"name":"capture_history_apply","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0866_erp_purchase_capture.sql:191"]},

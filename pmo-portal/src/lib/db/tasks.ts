@@ -493,6 +493,8 @@ export async function removeDependency(taskId: string, dependsOnId: string): Pro
  * migration". RLS already scopes to the org; the assignee filter is a client-side WHERE.
  */
 export interface MyTask {
+  work_order_id?: string | null;
+  work_order_name?: string | null;
   id: string;
   name: string;
   status: TaskStatus;
@@ -531,7 +533,7 @@ export interface MyTask {
 export async function listMyTasks(userId: string): Promise<MyTask[]> {
   const data = await fetchAllPages((from, to) => supabase
     .from('tasks')
-    .select('id, name, status, assignee_id, project_id, meeting_id, start_date, end_date, priority, archived_at, project:projects!tasks_project_id_fkey(name, short_name)')
+    .select('id, name, status, assignee_id, project_id, meeting_id, work_order_id, start_date, end_date, priority, archived_at, work_order:work_orders!tasks_work_order_id_fkey(wo_number,title), project:projects!tasks_project_id_fkey(name, short_name)')
     .eq('assignee_id', userId)
     .is('tombstoned_at', null)
     .order('created_at', { ascending: true })
@@ -545,6 +547,8 @@ export async function listMyTasks(userId: string): Promise<MyTask[]> {
     assignee_id: string | null;
     project_id: string | null;
     meeting_id: string | null;
+    work_order_id: string | null;
+    work_order: { wo_number: string | null; title: string } | null;
     start_date: string | null;
     end_date: string | null;
     priority: TaskPriority | null;
@@ -557,6 +561,8 @@ export async function listMyTasks(userId: string): Promise<MyTask[]> {
     assignee_id: t.assignee_id,
     project_id: t.project_id,
     meeting_id: t.meeting_id,
+    work_order_id: t.work_order_id,
+    work_order_name: t.work_order ? (t.work_order.wo_number ? `${t.work_order.wo_number} · ${t.work_order.title}` : t.work_order.title) : null,
     // ⚑ NOT `?? '—'`. A project-less task has no project NAME either, and collapsing that to a dash
     // would make it indistinguishable from a project whose name failed to load — the UI needs to
     // tell them apart to decide between a link and a plain heading (FR-FCT-041).

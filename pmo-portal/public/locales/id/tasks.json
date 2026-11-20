@@ -47,5 +47,10 @@
     "loadFailed": "Tugas tidak dapat dimuat.",
     "unassigned": "Belum ditugaskan",
     "noDue": "Tanpa tenggat"
+  },
+  "workOrderFilter": {
+    "label": "Filter berdasarkan perintah kerja",
+    "all": "Semua perintah kerja",
+    "none": "Tanpa perintah kerja"
   }
 }
