@@ -277,8 +277,14 @@ select plan(7);
 -- member's JWT that re-asserts active membership, the Admin role and that both users belong to the caller's org before
 -- it moves credit; proven by supabase/tests/0907_credit_allocations.test.sql and
 -- scripts/credit-allocation-race.test.mjs (AC-ALLOC-001..013).
+-- ⚑ AMENDED BY 1018 (#2525): `approve_bill_match_exception`, `record_bill_match_lines`, `record_receipt_match_lines` and
+-- `set_three_way_match_settings` join the retained set (+4, count 194 on dev's 190). SECURITY DEFINER writers under a
+-- member's JWT: each re-asserts active membership, a role threshold and the caller's org; the exception approval also
+-- enforces approver ≠ the bill's author and ≠ the person who recorded its match lines, failing closed when the author is
+-- not recorded. Proven by supabase/tests/three_way_match.test.sql and three_way_match_mutation.test.sql. `get_bill_match`
+-- is a read-only definer and is not listed.
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
--- The union of the dev and work-order finance RPC inventories contains 182 retained names.
+-- The union of the dev and work-order finance RPC inventories contains 194 retained names.
 insert into client_callable_rpc_names (proname) values
   ('set_document_warning_days'), -- 0972: active Admin, scoped to caller org; document_expiry pgTAP
   ('accept_connect_proposals'),
@@ -290,6 +296,10 @@ insert into client_callable_rpc_names (proname) values
   ('assign_sales_invoice_project'),
   ('admin_set_user_status'),
   ('admin_move_credit_allocation'),  -- ⚑ AMENDED BY 0907 (#564)
+  ('approve_bill_match_exception'),  -- ⚑ AMENDED BY 1018 (#2525)
+  ('record_bill_match_lines'),  -- ⚑ AMENDED BY 1018 (#2525)
+  ('record_receipt_match_lines'),  -- ⚑ AMENDED BY 1018 (#2525)
+  ('set_three_way_match_settings'),  -- ⚑ AMENDED BY 1018 (#2525)
   ('approve_procurement_amount'),
   ('archive_budget_version_with_cancel_intent'),
   ('get_budget_archive_targets'),
@@ -491,8 +501,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  190,
-  'AC-ACL-002 all 190 retained client-callable RPC names still have a public function');
+  194,
+  'AC-ACL-002 all 194 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -501,8 +511,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  190,
-  'AC-ACL-003 all 190 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  194,
+  'AC-ACL-003 all 194 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

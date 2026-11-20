@@ -107,6 +107,10 @@ Service/O&M). Defined in `docs/roadmap-spines.md`.
 
 **Void (vendor bill)** — in an organisation with no ERP, an Admin or Finance user marks a mistyped PMO-native subcontract bill as voided, with a reason. Soft: the bill and its lines stay, it stops counting against the PO and the purchase's payments, and it can never be paid or un-voided. The person who captured the bill cannot void it unless they are the organisation's only active member. Distinct from an ERP cancel, which comes from the ERP (#1671).
 
+**Three-way match** — an organisation switches it on (Admin) with a quantity and an amount tolerance in percent. From then, each PMO-native bill on a goods purchase is checked line by line against the purchase's ordered items (the order) and what its goods receipts received: the quantity billed so far may not pass what was received or ordered beyond the quantity tolerance, the billed rate may not pass the order rate beyond the amount tolerance, and the bill's pre-tax amount must agree with its lines. A bill that fails, or states no lines, is **held**: nothing on its purchase moves to payment. Subcontract bills (capped by acceptance), ERP-mirrored bills, bills recorded before the switch and organisations whose ERP owns purchasing are not matched (#2525).
+
+**Match exception** — the release of a held bill: an Admin or Finance user approves it with a reason, and the purchase may be paid again. Never the person who recorded the bill or its match lines; refused when the bill's author is not recorded. Permanent, and it freezes the bill's lines (#2525).
+
 **Procurement payment** — a dated payment record under a procurement case, optionally linked to a vendor invoice, with an amount and status.
 
 **Procurement item** — a named quantity and rate on a procurement case, with a calculated or recorded amount.
@@ -428,7 +432,7 @@ procurement line (`procurement_items` is free text) and not a BoQ line.
 
 **Stock document** — one recorded movement event with a system-assigned number: **Receive**, **Transfer**, **Issue**,
 **Return**, **Adjustment**, **Count**. Posted documents are immutable; a mistake is corrected by a later document, never
-an edit. Distinct from the **Goods Receipt** procurement record, which stays header-only.
+an edit. Distinct from the **Goods Receipt** procurement record, whose only lines are the quantities a three-way match reads.
 
 **Stock ledger entry** — one signed quantity-and-value line per item and warehouse written when a document posts.
 Append-only. The ledger is the trace.
