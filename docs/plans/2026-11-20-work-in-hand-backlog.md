@@ -37,7 +37,7 @@ One migration, additive: a `security invoker`, `stable` function `get_work_in_ha
 |---|---|---|
 | AC-WIH-001..008 | Unit | `pmo-portal/src/lib/workInHand.test.ts` |
 | AC-WIH-009..015 | pgTAP | `supabase/tests/work_in_hand.test.sql` |
-| AC-WIH-016 | pgTAP (flag) + Unit (render) | `supabase/tests/work_in_hand.test.sql`, `pmo-portal/pages/WorkInHand.test.tsx` |
+| AC-WIH-016 | pgTAP (owner) | `supabase/tests/work_in_hand.test.sql`; also referenced: Unit render in `pmo-portal/pages/WorkInHand.test.tsx` |
 | AC-WIH-017 | E2E | `pmo-portal/e2e/AC-WIH-017-work-in-hand-ranking.spec.ts` |
 
 ## Glossary and docs

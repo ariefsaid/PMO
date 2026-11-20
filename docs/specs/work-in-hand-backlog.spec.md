@@ -85,7 +85,7 @@ Hand calculation (test fixture): contract value 1,200,000 (exclusive); as-of 202
 | AC-WIH-013 | Given a caller whose role is not Admin, Executive or Finance (including Project Manager, Viewer and Field roles), or an offboarded account, when the read is called, then it is refused with insufficient privilege and returns no row. | pgTAP |
 | AC-WIH-014 | Given a caller in another organisation, when the read runs, then none of the first organisation's contracts or work orders appear. | pgTAP |
 | AC-WIH-015 | Given a contract with value 0, when the read runs, then it appears in the "no value set" list and in no ranking or total. | pgTAP |
-| AC-WIH-016 | Given more than the row bounds, when the read runs, then the flag `truncated` is true and the screen reports it. | pgTAP (flag) + Unit (render) |
+| AC-WIH-016 | Given more than the row bounds, when the read runs, then the flag `truncated` is true and the screen reports it. | pgTAP (owner: server sets the flag); also referenced: Unit (render) |
 | AC-WIH-017 | Given a Finance user, when they open the screen, then ranked contracts show with their work orders beneath, switching the order re-sorts, and a row opens its page. | E2E (one journey, owner-sketch-approved layout) |
 
 Mutation check (Director-reviewed, though read-only): in the migration, remove the role gate and AC-WIH-013 must go red; change the status filter to include Draft invoices and AC-WIH-009 must go red; restore.
