@@ -21,6 +21,8 @@ function makeTask(overrides: Partial<TaskWithRefs>): TaskWithRefs {
     created_at: '2026-01-01T00:00:00Z',
     created_by: null,
     tombstoned_at: null,
+    work_order_id: null,
+    proof_required: false,
     meeting_id: null,
     source_updated_at: null,
     description: null,

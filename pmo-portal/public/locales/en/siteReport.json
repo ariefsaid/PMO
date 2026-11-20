@@ -1,0 +1,136 @@
+{
+  "actions": {
+    "correct": "Correct",
+    "label": "Report actions",
+    "return": "Return",
+    "save": "Save draft",
+    "submit": "Submit",
+    "validate": "Validate"
+  },
+  "consumables": {
+    "add": "Add consumable",
+    "item": "Stock item",
+    "pickItem": "Choose an item",
+    "quantity": "Quantity",
+    "title": "Consumables used"
+  },
+  "correct": {
+    "confirm": "Start correction",
+    "label": "Reason for the correction",
+    "title": "Correct this report"
+  },
+  "detail": {
+    "correction": "Correction: {{reason}}",
+    "error": "Couldn't load this report",
+    "needsPhoto": "A photo of the paper form is needed to validate",
+    "notFound": "Report not found",
+    "subject": "site report",
+    "superseded": "Replaced by a correction",
+    "title": "Site report",
+    "version": "Version {{n}}"
+  },
+  "equipment": {
+    "add": "Add usage",
+    "none": "No equipment usage on this work order and date",
+    "title": "Equipment hours",
+    "unit": {
+      "days": "days",
+      "hours": "hours"
+    }
+  },
+  "form": {
+    "minutes": "1 to 1440 minutes",
+    "positive": "More than 0, up to 3 decimals",
+    "remove": "Remove",
+    "required": "Required"
+  },
+  "history": {
+    "corrected": "Correction started",
+    "created": "Created",
+    "returned": "Returned",
+    "submitted": "Submitted",
+    "superseded": "Replaced by a correction",
+    "title": "History",
+    "validated": "Validated"
+  },
+  "hours": {
+    "addIdle": "Add idle time",
+    "end": "End",
+    "idleMinutes": "Idle minutes",
+    "idleReason": "Reason",
+    "pickReason": "Choose a reason",
+    "pickWeather": "Not recorded",
+    "start": "Start",
+    "title": "Hours and weather",
+    "total": "Total",
+    "weather": "Weather",
+    "weatherNote": "Weather note"
+  },
+  "list": {
+    "allStatuses": "All statuses",
+    "empty": "No site reports yet",
+    "error": "Couldn't load reports",
+    "next": "Next",
+    "pages": "Pages",
+    "previous": "Previous",
+    "status": "Status",
+    "title": "Reports"
+  },
+  "nav": "Site reports",
+  "new": {
+    "create": "Start report",
+    "date": "Work date",
+    "exists": "A report exists for this date",
+    "pickProject": "Choose a project",
+    "pickWorkOrder": "Choose a work order",
+    "project": "Project",
+    "workOrder": "Work order"
+  },
+  "newReport": "New report",
+  "note": {
+    "title": "Note"
+  },
+  "people": {
+    "title": "People hours"
+  },
+  "photos": {
+    "addForm": "Photo of paper form",
+    "addOther": "Other photo",
+    "file": "Photo file",
+    "none": "No photos yet",
+    "paperForm": "Paper form",
+    "retry": "Retry",
+    "title": "Photos"
+  },
+  "progress": {
+    "add": "Add progress",
+    "item": "Contract item",
+    "noRate": "No rate",
+    "none": "No progress recorded",
+    "pickItem": "Choose an item",
+    "quantity": "Quantity",
+    "stage": "Sub-stage",
+    "title": "Progress",
+    "unrated_one": "{{count}} line without a rate",
+    "unrated_other": "{{count}} lines without a rate"
+  },
+  "queue": {
+    "due_one": "Due {{count}} day",
+    "due_other": "Due {{count}} days",
+    "noValidator": "Waiting for a validator",
+    "title": "To validate",
+    "unrated_one": "{{count}} without rate",
+    "unrated_other": "{{count}} without rate"
+  },
+  "revenue": {
+    "day": "Day revenue",
+    "toDate": "Validated to date"
+  },
+  "title": "Site reports",
+  "toast": {
+    "returned": "Report returned",
+    "saved": "Draft saved",
+    "submitted": "Sent for validation",
+    "validated": "Report validated"
+  }
+}

@@ -189,7 +189,8 @@
       "Invoice": "Invoice supplier",
       "Payment": "Pembayaran"
     },
-    "groupRef": "Ref. grup"
+    "groupRef": "Ref. grup",
+    "workOrder": "Work Order / SPK"
   },
   "files": {
     "heading": "Lampiran",

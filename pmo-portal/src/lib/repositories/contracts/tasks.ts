@@ -3,7 +3,9 @@ import type { TaskRow, TaskDueRow, CalendarTask, TaskWithRefs, TaskInput, TaskPa
 
 export interface TaskRepository {
   /** Per-project tasks with assignee + dependency edges. */
-  list(projectId: string): Promise<TaskWithRefs[]>;
+  list(projectId: string, opts?: { workOrderId?: string | 'none' }): Promise<TaskWithRefs[]>;
+  /** #2531: the open (not Done, not archived) tasks of one work order, with assignee and due date. */
+  listOpenByWorkOrder(workOrderId: string): Promise<TaskWithRefs[]>;
   /** Status + due date of live tasks across projects, one batched read (dashboard overdue counts). */
   listDueRows(projectIds: readonly string[]): Promise<TaskDueRow[]>;
   /** Dated live tasks due in [from, to), org-wide or one project — the calendar views (one read). */

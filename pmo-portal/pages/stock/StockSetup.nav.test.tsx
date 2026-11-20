@@ -14,6 +14,8 @@ const { master, profile, project, reports, odoo } = vi.hoisted(() => ({
   reports: { onHand: vi.fn() },
   odoo: { getConnection: vi.fn() },
 }));
+vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ isOwnershipCacheSynced: () => true, routeDomainWrite: () => 'pmo', subscribeOwnershipCache: () => () => {} }));
+vi.mock('@/src/lib/repositories/stockSiteWork', () => ({ stockSiteWorkRepository: { tags: { list: async () => [] } } }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { master, reports }, profile, project, odoo } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Admin', effectiveRole: 'Admin' }) }));

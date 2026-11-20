@@ -1,5 +1,5 @@
 /** People, operator, usage, views and org-settings contracts. */
-import type { OrgVendorTaxAccounts, OrgWithholdingAccounts, ProjectClassificationOptions, OrgLifecycleState, OrgLocaleDefaultsRow } from '@/src/lib/db/orgs';
+import type { OrgFiscalYearSetting, OrgVendorTaxAccounts, OrgWithholdingAccounts, ProjectClassificationOptions, OrgLifecycleState, OrgLocaleDefaultsRow } from '@/src/lib/db/orgs';
 import type { SpendApproverRow } from '@/src/lib/db/spendApprovers';
 import type { ProcurementGates } from '@/src/lib/db/orgs';
 import type { ProfileRow } from '@/src/lib/db/profiles';
@@ -120,6 +120,10 @@ export interface OrgSettingsRepository {
   getTaxDefault(): Promise<TaxTreatment | null>;
   /** Admin-only: change the org's pre-selection. Does not touch a single existing row. */
   setTaxDefault(value: TaxTreatment): Promise<void>;
+  /** #2329: who keeps the fiscal calendar, and PMO's fiscal-year start month when PMO does (every member reads). */
+  getFiscalYearSetting(): Promise<OrgFiscalYearSetting>;
+  /** #2329, Admin-only (server): set or clear the fiscal-year start month; refused where an accounting system is read. */
+  setFiscalYearStartMonth(month: number | null): Promise<void>;
   /** #803: the org's spend approvers (senior set + project approvers); every active member reads. */
   listSpendApprovers(): Promise<SpendApproverRow[]>;
   /** #803, Admin-only (RLS): name an approver — `projectId` null = the overhead/over-budget set. */

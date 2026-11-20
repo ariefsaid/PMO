@@ -1,8 +1,16 @@
 # Spec: Daily site report per work order (#1522)
 
-**Status:** proposed; owner decisions below need sign-off before build. Revised 2026-11-20 for the contractor field-operations map (#2516). Supersedes the 2026-11-02 draft (offline-first). IDs `FR-DSR-###`, `NFR-DSR-###`, `AC-DSR-###`. Plan: `docs/plans/2026-11-20-daily-site-report.md`. Executor: Orca worker; the validation gate and revenue figure are money-adjacent, so those slices are Director-dispatched and ship alone.
+**Status:** accepted by the Director, including the defaults below (2026-11-20). Revised 2026-11-20 for the contractor field-operations map (#2516). Supersedes the 2026-11-02 draft (offline-first). IDs `FR-DSR-###`, `NFR-DSR-###`, `AC-DSR-###`. Plan: `docs/plans/2026-11-20-daily-site-report.md`. Executor: Orca worker; the validation gate and revenue figure are money-adjacent, so those slices are Director-dispatched and ship alone.
 
 **Assumes landed first:** #2517 (work order and discipline on every cost line) and #2520 (per-contract unit-rate catalogue with location-variant rates). Names below ("work-order cost-line attribution", "rate catalogue") are the contracts those tickets ship; reconcile to their final column and function names before build.
+
+## Reconciled names (Slice 0, 2026-11-20)
+
+- **Work-order attribution (#2517, 0951):** `work_order_id` + `discipline_id` on `equipment_usage_entries`, `timesheet_entries`, `stock_documents` and the procurement tables; the report reads equipment hours by `(project_id, work_order_id, work_date)`.
+- **Rate catalogue (#2520, 0955):** `rate_catalogue_items` / `rate_catalogue_variants` (the **work location**) / `rate_catalogue_rates` (append-only, `effective_from`) / `rate_catalogue_stage_weights`. A contract item is a `work_order_lines` row whose `boq_items` line carries `catalogue_item_id` + `catalogue_variant_id`.
+- **Rate for a progress line** (`dsr_line_rate`, 1005): the catalogue rate in force on the work date at the report's location (else the line's priced location, else the project default). A **sub-stage** is a stage in the catalogue's stage weights; its rate is the item rate x the stage's weight share (resolves OD-DSR-1). A line priced by hand (no catalogue item) uses its contract rate (`boq_items.rate` > 0) and has no stages. Otherwise "no rate".
+- **Roles until #902 adds field-controller and QS:** enter/submit = Admin, Engineer, or the project's PM; validate/return/correct = Admin, Finance (QS stand-in), or the project's PM; revenue reads = the rate catalogue's readers (Admin, Finance, Executive, the project's PM).
+- Migrations `1040_daily_site_reports.sql`, `1041_daily_site_report_rpcs.sql`.
 
 ## Job story
 
@@ -84,7 +92,7 @@ When a field controller finishes a day on a work order, I want to enter what was
 | No eligible validator | Shows "waiting for a validator" in the queue |
 | Photo upload fails | Draft kept; photo shows retry |
 
-## Owner decisions (recommended defaults, not rulings)
+## Director-accepted defaults
 
 | ID | Decision and default | If wrong, what breaks |
 |---|---|---|
@@ -98,7 +106,7 @@ When a field controller finishes a day on a work order, I want to enter what was
 
 ## Delivery checklist
 
-- [ ] Owner signs OD-DSR-1..7; reconcile #2517/#2520 names.
+- [x] Director accepts OD-DSR-1..7 defaults; reconcile #2517/#2520 names.
 - [ ] Migrations in the number range the Director assigns at build; reversible, with rollback.
 - [ ] Server slice (tables, RPCs, pgTAP, mutation check on SoD) ships alone; screen slice follows.
 - [ ] One E2E journey, `scripts/ux-proof.sh` on touched routes, 320px render review.

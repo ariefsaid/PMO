@@ -124,7 +124,8 @@
         "withdrawLabel": "Withdraw draft BAST of {{date}}",
         "confirmDelivery": "Confirm draft BAST",
         "finalConfirmed": "Final confirmed",
-        "confirmed": "Confirmed"
+        "confirmed": "Confirmed",
+        "openWorkOrder": "Open work order"
       },
       "closing": {
         "closedAt": "Closed at {{amount}} (excl. PPN)",

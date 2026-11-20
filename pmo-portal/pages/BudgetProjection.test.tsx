@@ -19,12 +19,13 @@ import { buildBudgetProjectionCsv } from '@/src/lib/budget/budgetProjectionExpor
 import enProjectTabs from '../public/locales/en/projectTabs.json';
 import idProjectTabs from '../public/locales/id/projectTabs.json';
 
-const { fetchMock, comparisonMock, upsertEtcMock, yearsMock, calendarMock, phasingMock, summaryMock, distributionMock } = vi.hoisted(() => ({
+const { fetchMock, comparisonMock, upsertEtcMock, yearsMock, calendarMock, pmoCalendarMock, phasingMock, summaryMock, distributionMock } = vi.hoisted(() => ({
   fetchMock: vi.fn(),
   comparisonMock: vi.fn(),
   upsertEtcMock: vi.fn(),
   yearsMock: vi.fn(),
   calendarMock: vi.fn(),
+  pmoCalendarMock: vi.fn(),
   phasingMock: vi.fn(),
   summaryMock: vi.fn(),
   distributionMock: vi.fn(),
@@ -36,6 +37,7 @@ vi.mock('@/src/lib/repositories/budgetProjection', () => ({
   upsertBudgetProjectionEtc: upsertEtcMock,
   listBudgetFiscalYears: yearsMock,
   fetchProjectFiscalCalendar: calendarMock,
+  fetchPmoFiscalCalendar: pmoCalendarMock,
   fetchActiveBudgetCategoryPhasing: phasingMock,
   fetchFirstSpendingYear: summaryMock,
 }));
@@ -152,6 +154,9 @@ beforeEach(async () => {
     status: 'resolved', project: { start: '2025-04-01', end: '2026-03-31' },
     years: [{ name: ERP_FISCAL_YEAR, start: '2025-04-01', end: '2026-03-31' }],
   });
+  // No PMO calendar unless a test sets one (#2329): the organization has not set its fiscal year.
+  pmoCalendarMock.mockReset();
+  pmoCalendarMock.mockImplementation(async () => ({ status: 'unresolved', project: { start: null, end: null } }));
   fetchMock.mockResolvedValue([ROW]);
   comparisonMock.mockImplementation(async (projectId: string, fiscalYear: string | null) => {
     const readProjection = fetchMock.getMockImplementation();
@@ -1451,5 +1456,92 @@ describe('BudgetProjection — no accounting system (#2325)', () => {
     const view = screen.getByTestId('budget-forecast-view');
     expect(await within(view).findByText('The current project fiscal calendar is unavailable.')).toBeInTheDocument();
     expect(within(view).getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+});
+
+describe('BudgetProjection — PMO fiscal calendar (#2329)', () => {
+  const PMO_YEARS = [
+    { name: '2025-2026', start: '2025-04-01', end: '2026-03-31' },
+    { name: '2026-2027', start: '2026-04-01', end: '2027-03-31' },
+  ];
+  const comparisonRow = (recorded: number | null, recordedAsOf: string | null) => ({
+    category: 'Labor', budgetTotal: 5000, recorded, recordedAsOf, mapped: true, hasLedger: recorded !== null && recorded > 0,
+    remaining: recorded === null ? null : 5000 - recorded, percentUsed: recorded === null ? null : recorded / 5000,
+  });
+
+  it('AC-FCAL-011 with a PMO calendar the Budget tab offers its fiscal years and shows recorded spending per year', async () => {
+    pmoCalendarMock.mockResolvedValue({
+      status: 'resolved', project: { start: TWO_YEAR_PROJECT.projectStartDate, end: TWO_YEAR_PROJECT.projectEndDate }, years: PMO_YEARS,
+    });
+    yearsMock.mockResolvedValue([{ fiscalYear: '2025-2026', hasActiveBudget: true }, { fiscalYear: '2026-2027', hasActiveBudget: true }]);
+    phasingMock.mockResolvedValue(phasing({ Labor: ['2025-2026', '2026-2027'] }));
+    comparisonMock.mockImplementation(async (_projectId: string, fiscalYear: string | null) =>
+      [fiscalYear === '2025-2026' ? comparisonRow(1000, '2026-03-31T00:00:00.000Z')
+        : fiscalYear === '2026-2027' ? comparisonRow(400, '2026-04-01T00:00:00.000Z')
+          : comparisonRow(1400, '2026-04-01T00:00:00.000Z')]);
+    renderForecast({ ...TWO_YEAR_PROJECT, ledgerBasis: 'pmo' });
+    expect(await rowFor('Labor')).toHaveTextContent('$1,400');
+    expect(pmoCalendarMock).toHaveBeenCalledWith('proj-1');
+    expect(calendarMock).not.toHaveBeenCalled();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), JSON.stringify({ kind: 'year', year: '2025-2026' }));
+    await waitFor(() => expect(comparisonMock).toHaveBeenCalledWith('proj-1', '2025-2026'));
+    expect(await rowFor('Labor')).toHaveTextContent('$1,000');
+    expect(screen.queryByText(/not split by year/)).not.toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), JSON.stringify({ kind: 'year', year: '2026-2027' }));
+    await waitFor(() => expect(within(screen.getByRole('row', { name: /Labor/ })).getByText('$400')).toBeInTheDocument());
+  });
+
+  it('AC-FCAL-011 a single-year project with a PMO calendar opens on its fiscal year', async () => {
+    pmoCalendarMock.mockResolvedValue({ status: 'resolved', project: { start: '2025-04-01', end: '2026-03-31' }, years: [PMO_YEARS[0]] });
+    yearsMock.mockResolvedValue([{ fiscalYear: '2025-2026', hasActiveBudget: true }]);
+    phasingMock.mockResolvedValue(phasing({ Labor: ['2025-2026'] }));
+    comparisonMock.mockResolvedValue([comparisonRow(1000, '2026-03-31T00:00:00.000Z')]);
+    renderForecast({ ledgerBasis: 'pmo' });
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue(JSON.stringify({ kind: 'year', year: '2025-2026' })));
+    expect(await rowFor('Labor')).toHaveTextContent('$1,000');
+  });
+
+  it('AC-FCAL-012 with no PMO calendar the Budget tab opens on All years and a year says spending is not split', async () => {
+    yearsMock.mockResolvedValue([{ fiscalYear: 'FY-2027', hasActiveBudget: true }]);
+    phasingMock.mockResolvedValue(phasing({ Labor: ['FY-2027'] }));
+    comparisonMock.mockImplementation(async (_projectId: string, fiscalYear: string | null) =>
+      [fiscalYear ? comparisonRow(null, null) : comparisonRow(1400, '2026-04-01T00:00:00.000Z')]);
+    renderForecast({ ...TWO_YEAR_PROJECT, ledgerBasis: 'pmo' });
+    await rowFor('Labor');
+    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue(JSON.stringify({ kind: 'all' }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), JSON.stringify({ kind: 'year', year: 'FY-2027' }));
+    expect(await screen.findByTestId('forecast-incomplete')).toHaveTextContent('Labor: Spending is not split by year yet. See All years.');
+  });
+
+  it('AC-FCAL-013 a budget year that is not a fiscal year of the PMO calendar says spending cannot be placed in it', async () => {
+    pmoCalendarMock.mockResolvedValue({
+      status: 'resolved', project: { start: TWO_YEAR_PROJECT.projectStartDate, end: TWO_YEAR_PROJECT.projectEndDate }, years: PMO_YEARS,
+    });
+    yearsMock.mockResolvedValue([{ fiscalYear: 'FY26', hasActiveBudget: true }]);
+    phasingMock.mockResolvedValue(phasing({ Labor: ['FY26'] }));
+    comparisonMock.mockImplementation(async (_projectId: string, fiscalYear: string | null) =>
+      [fiscalYear === 'FY26' ? comparisonRow(null, null) : comparisonRow(1400, '2026-04-01T00:00:00.000Z')]);
+    renderForecast({ ...TWO_YEAR_PROJECT, ledgerBasis: 'pmo' });
+    await rowFor('Labor');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), JSON.stringify({ kind: 'year', year: 'FY26' }));
+    expect(await screen.findByTestId('forecast-incomplete')).toHaveTextContent(
+      'Labor: FY26 is not a fiscal year of your calendar, so spending cannot be placed in it.');
+  });
+
+  it('AC-FCAL-013 Bahasa: the not-a-fiscal-year reason is translated', async () => {
+    await financeTestI18n.changeLanguage('id');
+    pmoCalendarMock.mockResolvedValue({
+      status: 'resolved', project: { start: TWO_YEAR_PROJECT.projectStartDate, end: TWO_YEAR_PROJECT.projectEndDate }, years: PMO_YEARS,
+    });
+    yearsMock.mockResolvedValue([{ fiscalYear: 'FY26', hasActiveBudget: true }]);
+    phasingMock.mockResolvedValue(phasing({ Labor: ['FY26'] }));
+    comparisonMock.mockImplementation(async (_projectId: string, fiscalYear: string | null) =>
+      [fiscalYear === 'FY26' ? comparisonRow(null, null) : comparisonRow(1400, '2026-04-01T00:00:00.000Z')]);
+    renderForecast({ ...TWO_YEAR_PROJECT, ledgerBasis: 'pmo' });
+    const select = await screen.findByRole('combobox', { name: /tahun fiskal/i });
+    await waitFor(() => expect(within(screen.getByTestId('budget-forecast-view')).queryByText(/memuat/i)).not.toBeInTheDocument());
+    await userEvent.selectOptions(select, JSON.stringify({ kind: 'year', year: 'FY26' }));
+    expect(await screen.findByTestId('forecast-incomplete')).toHaveTextContent(
+      'FY26 bukan tahun fiskal dalam kalender Anda, sehingga pengeluaran tidak dapat ditempatkan di dalamnya.');
   });
 });

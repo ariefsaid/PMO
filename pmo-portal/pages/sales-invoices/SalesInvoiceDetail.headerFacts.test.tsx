@@ -5,6 +5,8 @@ import { MemoryRouter } from 'react-router';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 
+const orderState = vi.hoisted(() => ({ visible: true }));
+vi.mock('@/src/hooks/useWorkOrderRecord', () => ({ useWorkOrder: () => ({ data: orderState.visible ? { id: 'wo1', wo_number: 'WO-1', title: 'Install' } : null }) }));
 vi.mock('./SalesInvoiceEvidence', () => ({ SalesInvoiceEvidenceSection: () => null }));
 vi.mock('@/src/hooks/useRevenue', () => ({
   useSalesInvoiceEvidence: () => ({ data: { lines: [] }, isPending: false, isError: false, refetch: vi.fn() }),
@@ -30,7 +32,7 @@ const target: SalesInvoiceRow = {
   efaktur_number: null, efaktur_date: null, native_lines: null,
 };
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); orderState.visible = true; });
 
 it('links the project in header facts and keeps Project and Invoice date facts once', () => {
   render(
@@ -211,4 +213,15 @@ it('an unpaid invoice keeps the "Ready to send" prompt with its handoff download
   expect(screen.getByText('Ready to send')).toBeInTheDocument();
   expect(screen.getByText('Download the PDF and send it to your client yourself.')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Download approved PDF' })).toBeInTheDocument();
+});
+
+it('AC-WORP-004 opens the readable work order named by an invoice', () => {
+  render(<FinanceI18nTestProvider><MemoryRouter><SalesInvoiceDetail viewTarget={{ ...target, work_order_id: 'wo1' }} projectName="Northwind" isPending={false} isError={false} data={[target]} organizationToday="2026-10-16" onBack={vi.fn()} refetch={vi.fn()} recordPrimaryAction={null} invoiceDisplayLabel={() => 'INV'} may={(() => false) as never} pdfDownload={{ download: vi.fn(), inFlightIds: new Set<string>() } as never} dialogs={null} /></MemoryRouter></FinanceI18nTestProvider>);
+  expect(screen.getByRole('link', { name: 'WO-1' })).toHaveAttribute('href', '/work-orders/wo1');
+});
+
+it('does not expose an unreadable work order on the invoice', () => {
+  orderState.visible = false;
+  render(<FinanceI18nTestProvider><MemoryRouter><SalesInvoiceDetail viewTarget={{ ...target, work_order_id: 'wo1' }} projectName="Northwind" isPending={false} isError={false} data={[target]} organizationToday="2026-10-16" onBack={vi.fn()} refetch={vi.fn()} recordPrimaryAction={null} invoiceDisplayLabel={() => 'INV'} may={(() => false) as never} pdfDownload={{ download: vi.fn(), inFlightIds: new Set<string>() } as never} dialogs={null} /></MemoryRouter></FinanceI18nTestProvider>);
+  expect(screen.queryByRole('link', { name: 'WO-1' })).not.toBeInTheDocument();
 });

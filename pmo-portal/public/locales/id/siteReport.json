@@ -1,0 +1,136 @@
+{
+  "actions": {
+    "correct": "Koreksi",
+    "label": "Tindakan laporan",
+    "return": "Kembalikan",
+    "save": "Simpan draf",
+    "submit": "Kirim",
+    "validate": "Validasi"
+  },
+  "consumables": {
+    "add": "Tambah bahan habis pakai",
+    "item": "Barang stok",
+    "pickItem": "Pilih barang",
+    "quantity": "Jumlah",
+    "title": "Bahan habis pakai"
+  },
+  "correct": {
+    "confirm": "Mulai koreksi",
+    "label": "Alasan koreksi",
+    "title": "Koreksi laporan ini"
+  },
+  "detail": {
+    "correction": "Koreksi: {{reason}}",
+    "error": "Laporan ini tidak dapat dimuat",
+    "needsPhoto": "Foto formulir kertas diperlukan untuk validasi",
+    "notFound": "Laporan tidak ditemukan",
+    "subject": "laporan lapangan",
+    "superseded": "Diganti oleh koreksi",
+    "title": "Laporan lapangan",
+    "version": "Versi {{n}}"
+  },
+  "equipment": {
+    "add": "Tambah pemakaian",
+    "none": "Belum ada pemakaian alat pada perintah kerja dan tanggal ini",
+    "title": "Jam alat",
+    "unit": {
+      "days": "hari",
+      "hours": "jam"
+    }
+  },
+  "form": {
+    "minutes": "1 sampai 1440 menit",
+    "positive": "Lebih dari 0, paling banyak 3 desimal",
+    "remove": "Hapus",
+    "required": "Wajib diisi"
+  },
+  "history": {
+    "corrected": "Koreksi dimulai",
+    "created": "Dibuat",
+    "returned": "Dikembalikan",
+    "submitted": "Dikirim",
+    "superseded": "Diganti oleh koreksi",
+    "title": "Riwayat",
+    "validated": "Divalidasi"
+  },
+  "hours": {
+    "addIdle": "Tambah waktu menganggur",
+    "end": "Selesai",
+    "idleMinutes": "Menit menganggur",
+    "idleReason": "Alasan",
+    "pickReason": "Pilih alasan",
+    "pickWeather": "Tidak dicatat",
+    "start": "Mulai",
+    "title": "Jam kerja dan cuaca",
+    "total": "Total",
+    "weather": "Cuaca",
+    "weatherNote": "Catatan cuaca"
+  },
+  "list": {
+    "allStatuses": "Semua status",
+    "empty": "Belum ada laporan lapangan",
+    "error": "Laporan tidak dapat dimuat",
+    "next": "Berikutnya",
+    "pages": "Halaman",
+    "previous": "Sebelumnya",
+    "status": "Status",
+    "title": "Laporan"
+  },
+  "nav": "Laporan lapangan",
+  "new": {
+    "create": "Mulai laporan",
+    "date": "Tanggal kerja",
+    "exists": "Sudah ada laporan untuk tanggal ini",
+    "pickProject": "Pilih proyek",
+    "pickWorkOrder": "Pilih perintah kerja",
+    "project": "Proyek",
+    "workOrder": "Perintah kerja"
+  },
+  "newReport": "Laporan baru",
+  "note": {
+    "title": "Catatan"
+  },
+  "people": {
+    "title": "Jam orang"
+  },
+  "photos": {
+    "addForm": "Foto formulir kertas",
+    "addOther": "Foto lain",
+    "file": "Berkas foto",
+    "none": "Belum ada foto",
+    "paperForm": "Formulir kertas",
+    "retry": "Coba lagi",
+    "title": "Foto"
+  },
+  "progress": {
+    "add": "Tambah progres",
+    "item": "Item kontrak",
+    "noRate": "Tanpa tarif",
+    "none": "Belum ada progres",
+    "pickItem": "Pilih item",
+    "quantity": "Jumlah",
+    "stage": "Sub-tahap",
+    "title": "Progres",
+    "unrated_one": "{{count}} baris tanpa tarif",
+    "unrated_other": "{{count}} baris tanpa tarif"
+  },
+  "queue": {
+    "due_one": "Terlambat {{count}} hari",
+    "due_other": "Terlambat {{count}} hari",
+    "noValidator": "Menunggu validator",
+    "title": "Perlu divalidasi",
+    "unrated_one": "{{count}} tanpa tarif",
+    "unrated_other": "{{count}} tanpa tarif"
+  },
+  "revenue": {
+    "day": "Pendapatan hari ini",
+    "toDate": "Tervalidasi sampai kini"
+  },
+  "title": "Laporan lapangan",
+  "toast": {
+    "returned": "Laporan dikembalikan",
+    "saved": "Draf disimpan",
+    "submitted": "Dikirim untuk validasi",
+    "validated": "Laporan divalidasi"
+  }
+}

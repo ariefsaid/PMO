@@ -206,7 +206,7 @@ const ProcurementPage: React.FC = () => {
     if (await refreshReferences()) setImportKind(kind);
   };
   const importDescriptor = useMemo(() => makeProcurementImportDescriptor(importRefs.projects, importRefs.suppliers, userId ?? ''), [importRefs, userId]);
-  const cycleProjectLookup = useMemo(() => makeRefLookup(importRefs.projects, 'Project'), [importRefs.projects]);
+  const cycleProjectLookup = useMemo(() => makeRefLookup(importRefs.projects, 'Project', true), [importRefs.projects]);
   const cycleSupplierLookup = useMemo(() => makeRefLookup(importRefs.suppliers, 'Supplier'), [importRefs.suppliers]);
 
   const { workingSet, setWorkingSet } = useListWorkingSet('procurement', { sessionView: readProcurementView() });

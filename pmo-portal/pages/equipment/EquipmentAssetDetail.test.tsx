@@ -28,10 +28,16 @@ vi.mock('@/src/hooks/useEquipment', () => ({
   useSaveCosting: () => ({ mutateAsync: h.save, isPending: false }),
   useEndCosting: () => ({ mutateAsync: h.end, isPending: false }),
 }));
+vi.mock('./ExpiryDocumentsCard', () => ({ ExpiryDocumentsCard: () => null })); // #2542: the documents card has its own test
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({ data: [{ id: 'pj1', name: 'EQU P1', short_name: null, currency: 'IDR' }, { id: 'pj2', name: 'EQU P2', short_name: null, currency: 'IDR' }] }),
 }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role as Role, effectiveRole: (h.viewAs ?? h.role) as Role }) }));
+vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useEquipmentAvailability', () => ({
+  useRentalTerms: () => ({ mutateAsync: vi.fn() }), useRentalTermHistory: () => ({ data: [] }),
+  useEquipmentOwnership: () => ({ mutateAsync: vi.fn() }), useChangeRentalRate: () => ({ mutateAsync: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR' }));
 
 import EquipmentAssetDetail from './EquipmentAssetDetail';
@@ -66,6 +72,11 @@ describe('/equipment/assets/:assetId (AC-EQU-001 FE reference, FR-EQU-044/071)',
     h.preview = vi.fn().mockResolvedValue([{ project_id: 'pj1', month: '2026-10-01', category: 'Equipment', basis: 'actual_cost', amount: 600, driver_total: 8, entry_count: 3 }]);
     h.save = vi.fn().mockResolvedValue({ setting_key: 'sk1', version: 3, changed: true });
     h.end = vi.fn().mockResolvedValue(undefined);
+  });
+
+  it('offers rental terms on the selected asset to Finance', () => {
+    renderPage();
+    expect(screen.getByRole('heading', { name: 'Rental terms' })).toBeInTheDocument();
   });
 
   it('#2088: the usage window and Stop costing use the organization day, not the UTC day', async () => {

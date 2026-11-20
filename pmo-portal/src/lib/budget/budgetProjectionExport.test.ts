@@ -1,10 +1,24 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import type { BudgetComparisonRow, BudgetProjectionCellRow } from '@/src/lib/repositories/budgetProjection';
+import { setOrgTerms } from '@/src/lib/i18n/orgTerms';
 import { buildBudgetProjectionCsv } from './budgetProjectionExport';
 
 const options = { budgetCurrency: 'USD', projectCurrency: 'USD', categoryLabel: (category: string) => category };
 
 describe('buildBudgetProjectionCsv (AC-013/015)', () => {
+  afterEach(() => setOrgTerms({}));
+  it('renames the app label in a CSV but preserves a user-entered category', () => {
+    setOrgTerms({ en: { project: { singular: 'job', plural: 'jobs' } } });
+    const row: BudgetComparisonRow = { category: 'Labor', budgetTotal: 100, recorded: 0, recordedAsOf: null, mapped: true, hasLedger: true, remaining: 100, percentUsed: 0 };
+    const csv = buildBudgetProjectionCsv({ scope: { kind: 'all' }, rows: [row] }, { ...options, locale: 'en', categoryLabel: () => 'Project Phoenix' });
+    expect(csv).toContain('All years (job to date)');
+    expect(csv).toContain('Project Phoenix');
+  });
+  it('uses the already translated app label in the export', () => {
+    const row: BudgetComparisonRow = { category: 'Labor', budgetTotal: 1, recorded: 0, recordedAsOf: null, mapped: true, hasLedger: true, remaining: 1, percentUsed: 0 };
+    const csv = buildBudgetProjectionCsv({ scope: { kind: 'all' }, rows: [row] }, { ...options, allYearsLabel: 'Semua tahun hingga kini' });
+    expect(csv).toContain('Semua tahun hingga kini');
+  });
   it('exports the all-years comparison without yearly forecast columns and keeps unknown values blank', () => {
     const rows: BudgetComparisonRow[] = [
       { category: 'Labor', budgetTotal: 100, recorded: 0, recordedAsOf: '2026-01-01T00:00:00Z', mapped: true, hasLedger: true, remaining: 100, percentUsed: 0 },

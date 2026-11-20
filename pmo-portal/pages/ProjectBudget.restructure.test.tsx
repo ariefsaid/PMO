@@ -732,7 +732,8 @@ describe('#2325 the spend-versus-budget comparison without an accounting system'
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: 'Forecast' }));
     const figures = await screen.findByTestId('budget-forecast-view');
-    const recorded = within(figures).getByText('Recorded to date', { selector: 'dt' }).parentElement!;
+    // #2329: the view resolves the PMO fiscal years first ("Loading fiscal years"), then shows the figures.
+    const recorded = (await within(figures).findByText('Recorded to date', { selector: 'dt' })).parentElement!;
     expect(recorded).toHaveTextContent('$1,000');
     expect(within(figures).getByText('Remaining', { selector: 'dt' }).parentElement).toHaveTextContent('$4,000');
     expect(within(figures).getByText('% recorded', { selector: 'dt' }).parentElement).toHaveTextContent('20%');
