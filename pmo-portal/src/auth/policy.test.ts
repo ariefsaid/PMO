@@ -683,6 +683,10 @@ it('AC-TAG-001 project classification option administration is Admin-only', () =
   expect(allowedRoles('manage', 'orgProjectClassification')).toEqual(['Admin']);
 });
 
+it('AC-WCA-017 the cost discipline list is kept by an Admin only (0950 RLS is the authority)', () => {
+  for (const action of ['create', 'edit', 'archive'] as const) expect(allowedRoles(action, 'costDiscipline')).toEqual(['Admin']);
+});
+
 it('AC-CAT-014 cost attribution rules are managed by Finance and Admin only (RPCs are the authority)', () => {
   expect(allowedRoles('manage', 'costAttribution')).toEqual(['Admin', 'Finance']);
   expect(can('manage', 'costAttribution', { realRole: null })).toBe(false);
