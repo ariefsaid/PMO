@@ -1,6 +1,6 @@
 begin;
 select plan(8);
-create extension if not exists dblink;
+create extension if not exists dblink with schema extensions;
 select dblink_connect('atomic_a', format('dbname=%s user=%s password=postgres host=%s port=%s',current_database(),current_user,coalesce(host(inet_server_addr()),'supabase_db_pmo-portal'),coalesce(inet_server_port(),5432)));
 select dblink_connect('atomic_b', format('dbname=%s user=%s password=postgres host=%s port=%s',current_database(),current_user,coalesce(host(inet_server_addr()),'supabase_db_pmo-portal'),coalesce(inet_server_port(),5432)));
 select dblink_exec('atomic_a', $$

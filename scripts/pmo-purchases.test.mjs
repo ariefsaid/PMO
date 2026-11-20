@@ -408,3 +408,48 @@ test('AC-018 undo-record-only --attach sends the attachment request so only that
   await runUndoRecordOnly(api, purchase, 'Wrong project', { dryRun: true });
   assert.deepEqual(calls[1], { name: 'undo_captured_purchase', body: { p_procurement_id: purchase, p_reason: 'Wrong project', p_dry_run: true } });
 });
+
+// ---- #2321 purchases undo-import ----
+test('AC-CLUI-002 undo-import previews unless confirmed: the call carries p_dry_run true by default, false only with confirm', async () => {
+  const { runUndoImport } = await import('./lib/pmo-purchases.mjs');
+  const calls = [];
+  const api = { rpc: async (name, body) => { calls.push({ name, body }); return { outcome: 'undo', dry_run: body.p_dry_run, erp_write: false }; } };
+  const preview = await runUndoImport(api, 'H-1', 'Wrong project', { confirm: false });
+  const applied = await runUndoImport(api, 'H-1', 'Wrong project', { confirm: true });
+  assert.equal(calls[0].name, 'undo_imported_purchase');
+  assert.deepEqual(calls[0].body, { p_import_key: 'H-1', p_reason: 'Wrong project', p_dry_run: true });
+  assert.deepEqual(calls[1].body, { p_import_key: 'H-1', p_reason: 'Wrong project', p_dry_run: false });
+  assert.equal(preview.dry_run, true);
+  assert.equal(applied.dry_run, false);
+});
+
+test('AC-CLUI-003 undo-import passes a refusal through and never retries a write', async () => {
+  const { runUndoImport } = await import('./lib/pmo-purchases.mjs');
+  let n = 0;
+  const api = { rpc: async () => { n++; return { outcome: 'refused', reason: 'has_later_records', blocked_by: ['payments'] }; } };
+  const out = await runUndoImport(api, 'H-1', 'Wrong vendor', { confirm: true });
+  assert.equal(n, 1);
+  assert.equal(out.outcome, 'refused');
+  assert.deepEqual(out.blocked_by, ['payments']);
+});
+
+test('AC-CLUI-001 undo-import arguments: a key (at most 120 characters) and a reason are required', async () => {
+  const { validateUndoImport } = await import('./lib/pmo-purchases.mjs');
+  assert.equal(validateUndoImport('H-1', 'why'), null);
+  assert.match(validateUndoImport('', 'why'), /import key/);
+  assert.match(validateUndoImport(undefined, 'why'), /import key/);
+  assert.match(validateUndoImport('x'.repeat(121), 'why'), /import key/);
+  assert.match(validateUndoImport('H-1', '  '), /--reason/);
+  assert.match(validateUndoImport('H-1', undefined), /--reason/);
+});
+
+test('AC-CLUI-004 the undo RPC is in the CLI guard tier of the latest guard migration', () => {
+  const dir = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'supabase', 'migrations');
+  const latest = fs.readdirSync(dir).filter((f) => f.endsWith('.sql')).sort()
+    .filter((f) => /function public\.api_client_request_guard\(\)/.test(fs.readFileSync(path.join(dir, f), 'utf8'))).pop();
+  const sql = fs.readFileSync(path.join(dir, latest), 'utf8');
+  const m = sql.match(/history_undo_rpcs\s+constant\s+text\[\]\s*:=\s*array\[([^\]]*)\]/);
+  assert.ok(m, `history_undo_rpcs is declared in ${latest}`);
+  assert.deepEqual([...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]), ['undo_imported_purchase']);
+  assert.match(sql, /target = any \(history_undo_rpcs\)[\s\S]{0,200}auth_role\(\) = 'Admin'/);
+});

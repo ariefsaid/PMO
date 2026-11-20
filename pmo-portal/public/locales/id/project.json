@@ -639,8 +639,8 @@
       "cashIncompleteShort": "Kas diterima (kwitansi belum dialokasikan ke invoice)",
       "cashInvalidShort": "Kas diterima (pembacaan kwitansi belum diverifikasi)",
       "cashUnmatchedShort": "Kas diterima (belum ada penerimaan yang dicocokkan)",
-      "settlementCurrencyOut": "Ditagihkan, dibayar, dan % ditagihkan tidak ditampilkan karena invoice tidak semuanya dalam mata uang proyek.",
-      "invoicedAndPaid": "Ditagihkan, dibayar, dan % ditagihkan"
+      "settlementCurrencyOut": "Ditagihkan dan dibayar tidak ditampilkan karena invoice tidak semuanya dalam mata uang proyek.",
+      "invoicedAndPaid": "Ditagihkan dan dibayar"
     },
     "cost": {
       "colCategory": "Kategori",
@@ -1133,8 +1133,7 @@
         "noDependencies": "Tidak ada dependensi yang ditautkan.",
         "subtasks": "Subtugas",
         "noSubtasks": "Belum ada subtugas.",
-        "history": "Riwayat",
-        "workOrder": "Perintah kerja"
+        "history": "Riwayat"
       },
       "noMilestone": "Tanpa fase",
       "drawerMoreActions": "Tindakan tugas lainnya",

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Funnel, type FunnelStage } from '@/src/components/ui';
-import { formatCurrency } from '@/src/lib/format';
+import { formatMoneyLines, formatTableMoney } from '@/src/lib/format';
 import { type OpenFunnelStage, type SalesColumn } from '../../components/salesPipeline';
 import type { FunnelProjection } from './pipelineFunnelModel';
 
@@ -19,6 +19,9 @@ export interface PipelineFunnelProps {
   taxBasis?: string;
 }
 
+// Whole units, but never a non-zero amount drawn as zero (screen-rules "Numbers").
+const money = (amount: number, currency: string) => formatTableMoney(amount, currency) ?? '';
+
 export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
   projection,
   selectedIndex,
@@ -30,29 +33,37 @@ export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
   const { t } = useTranslation();
   const { stageProjections, openColumns } = projection;
 
-  const mixedReason = t('sales:pipeline.mixedCurrency', 'Mixed currencies');
-  const unknownTotal = (
-    <span title={mixedReason}>
-      —<span className="sr-only"> {mixedReason}</span>
+  const unavailableReason = t('sales:funnel.unavailable', 'Not available');
+  const unavailableTotal = (
+    <span title={unavailableReason}>
+      —<span className="sr-only"> {unavailableReason}</span>
     </span>
   );
 
   const funnelStages: FunnelStage[] = stageProjections.map((p) => {
     // An empty stage is a money row too: it reads its zero in the band's own currency, never the
-    // bare count "0" that read like a deal count among the amounts beside it.
-    const empty = p.stage?.count === 0 || !p.stage;
+    // bare count "0" that read like a deal count among the amounts beside it. A stage the aggregate
+    // does not report is the opposite case: unknown, never a zero.
+    const empty = p.stage?.count === 0;
+    // A stage holding two currencies reads one line per currency (the organisation's first), never a sum.
+    const perCurrency = formatMoneyLines(
+      p.byCurrency.map((c) => ({ currency: c.currency, amount: c.total })), p.stageCurrency, 'table',
+    ).lines;
+    const value = p.unavailable
+      ? unavailableTotal
+      : empty
+        ? money(0, p.stageCurrency)
+        : p.mixedStage
+          ? <>{perCurrency.map((line) => <div key={line}>{line}</div>)}</>
+          : money(p.totalValue, p.stageCurrency);
     return {
       name: stageLabel(p.col),
       dotColor: p.col.dotColor,
-      value: empty
-        ? formatCurrency(0, p.stageCurrency)
-        : p.mixedStage
-          ? unknownTotal
-          : formatCurrency(p.totalValue, p.stageCurrency),
-      weighted: empty || p.mixedStage
+      value,
+      weighted: p.unavailable || empty || p.mixedStage
         ? undefined
         : t('sales.funnel.weighted', '{{value}} weighted', {
-            value: formatCurrency(p.weightedValue, p.stageCurrency),
+            value: money(p.weightedValue, p.stageCurrency),
           }),
       barPct: p.barPct,
     };

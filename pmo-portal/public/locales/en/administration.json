@@ -356,7 +356,7 @@
       "retryFailed": "We could not send it again. Try again in a moment.",
       "unnamed": "A record",
       "addPeople": "Add these people in the ERP. It asks for a birth date and gender, which PMO does not hold.",
-      "accountantTask": "Ask your accountant to add a direct-cost account for: {{categories}}",
+      "accountantTask": "A direct-cost account is missing for: {{categories}}. Your operator will add it.",
       "refusal": {
         "unknown": "We could not send this record. Check it in the ERP, then try again.",
         "noun": {
@@ -657,6 +657,25 @@
       "whoNow": "Who can approve now",
       "helpRule": "With nobody listed, {{roles}} can approve another person's case."
     },
+    "siteReportLists": {
+          "title": "Site report lists",
+          "helper": "The choices offered on a site report. Archiving hides a choice from new reports; reports that already use it keep it.",
+          "idle": "Idle reasons",
+          "weather": "Weather conditions",
+          "add": "Add",
+          "addLabel": "New {{list}} entry",
+          "rename": "Rename",
+          "renameFor": "Name for {{name}}",
+          "save": "Save",
+          "cancel": "Cancel",
+          "archive": "Archive",
+          "restore": "Restore",
+          "archived": "Archived",
+          "empty": "Nothing listed yet",
+          "loadError": "Couldn't load the list",
+          "saved": "List saved",
+          "duplicate": "That name is already in the list"
+    },
     "fiscalYear": {
       "title": "Fiscal year",
       "label": "Fiscal year starts in",
@@ -811,7 +830,6 @@
     "daysLoadError": "Couldn't load the warning days",
     "adminOnly": "Only an Admin can change this.",
     "daysInvalid": "Enter 1 to 5 whole numbers of days, from 1 to 365, separated by commas.",
-    "daysSaved": "Warning days saved",
     "daysLabel": "Warn this many days before expiry",
     "daysHelp": "Up to 5 values, for example 30, 14, 7.",
     "daysSave": "Save warning days"

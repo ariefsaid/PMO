@@ -186,7 +186,7 @@ export function ErpSetupChecklist(
             )
             : t(
               'integrations.erpSetup.domainFailed',
-              'Could not employ this domain. Check ERP read permissions and try again.',
+              'Could not employ this domain. Your operator will fix the integration role; then try again.',
             ),
         );
       } finally {

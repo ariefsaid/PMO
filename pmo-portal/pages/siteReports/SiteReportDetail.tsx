@@ -62,7 +62,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
   const mayCorrect = report.status === 'validated' && !report.superseded_at && can('revise', 'dailySiteReport', ctx);
   const seeRevenue = can('view', 'dailySiteReportRevenue', ctx);
 
-  const lookups = useDsrLookups(report.work_order_id, report.work_date);
+  const lookups = useDsrLookups(report.work_order_id, report.id);
   const stock = useQuery({ queryKey: ['daily-site-reports', 'stock-items'], queryFn: () => repositories.stock.master.listItems(false), enabled: editable || detail.consumables.length > 0 });
   const revenue = useDailySiteReportRevenue(report.id, seeRevenue);
   const woRevenue = useWorkOrderValidatedRevenue(report.work_order_id, seeRevenue);
@@ -122,7 +122,8 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
   ];
 
   const total = workingMinutes(form.startTime, form.endTime);
-  const peopleHours = (lookups.people.data ?? []).reduce((s, r) => s + r.hours, 0);
+  const peopleHours = lookups.hours.data?.peopleHours ?? '0';
+  const equipmentHours = lookups.hours.data?.equipment ?? [];
   const lastReturn = [...detail.events].reverse().find((e) => e.action === 'returned');
 
   return (
@@ -258,11 +259,11 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
 
         <RecordSection title={t('equipment.title', 'Equipment hours')} data-testid="dsr-equipment"
           actions={editable ? <Link to="/equipment" className="text-primary-text hover:underline">{t('equipment.add', 'Add usage')}</Link> : undefined}>
-          {(lookups.equipment.data ?? []).length === 0 ? (
+          {equipmentHours.length === 0 ? (
             <p className="text-muted-foreground">{t('equipment.none', 'No equipment usage on this work order and date')}</p>
           ) : (
             <ul className="divide-y divide-border">
-              {(lookups.equipment.data ?? []).map((e) => (
+              {equipmentHours.map((e) => (
                 <li key={e.id} className="flex min-h-11 items-center justify-between gap-3 py-2">
                   <span className="text-foreground">{e.asset_name}</span>
                   <span className="tabular-nums text-foreground">{e.quantity} {t(`equipment.unit.${e.unit}`, e.unit)}</span>

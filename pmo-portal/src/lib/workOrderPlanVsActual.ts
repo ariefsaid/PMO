@@ -257,8 +257,8 @@ export function rollupProject(input: RollupInput): ProjectRollup {
   };
 
   const hourFigures = (woLines: CostAmountLine[]) => {
-    const equip = woLines.filter((l) => l.source === 'equipment_usage');
-    // The database marks a timesheet line of a week that is not Approved as not-posted (1115); it is pending, never actual.
+    // Draft/Submitted equipment usage and non-Approved timesheet weeks are not actual hours.
+    const equip = woLines.filter((l) => l.source === 'equipment_usage' && l.reason !== 'not-posted');
     const timesheet = woLines.filter((l) => l.source === 'timesheet_entry');
     const crew = timesheet.filter((l) => l.reason !== 'not-posted');
     return {

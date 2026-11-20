@@ -1,6 +1,6 @@
 -- #2195 B1 round 5: a payment step on a placed purchase is eligible like any captured invoice, defeats the undo once it exists, and an undo and a
 -- payment enqueue racing for one placed purchase have exactly one winner. The race part commits its fixtures in a second session and removes them.
-create extension if not exists dblink;  -- outside the transaction: the cleanup after the rollback still needs it
+create extension if not exists dblink with schema extensions;  -- outside the transaction: the cleanup after the rollback still needs it
 begin;
 select plan(14);
 insert into organizations(id,name,default_currency) values ('21951006-0000-0000-0000-000000000001','Evidence org','USD');

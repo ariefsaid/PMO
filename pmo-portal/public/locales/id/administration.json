@@ -356,7 +356,7 @@
       "retryFailed": "Kami tidak dapat mengirim ulang. Coba lagi sebentar lagi.",
       "unnamed": "Sebuah data",
       "addPeople": "Tambahkan orang-orang ini di ERP. ERP meminta tanggal lahir dan jenis kelamin, yang tidak dimiliki PMO.",
-      "accountantTask": "Minta akuntan Anda menambahkan akun biaya langsung untuk: {{categories}}",
+      "accountantTask": "Akun biaya langsung belum ada untuk: {{categories}}. Operator akan menambahkannya.",
       "refusal": {
         "unknown": "Kami tidak dapat mengirim data ini. Periksa di ERP, lalu coba lagi.",
         "noun": {
@@ -657,6 +657,25 @@
       "whoNow": "Yang dapat menyetujui sekarang",
       "helpRule": "Jika tidak ada yang terdaftar, {{roles}} dapat menyetujui kasus orang lain."
     },
+    "siteReportLists": {
+          "title": "Daftar laporan lapangan",
+          "helper": "Pilihan yang tersedia pada laporan lapangan. Mengarsipkan menyembunyikan pilihan dari laporan baru; laporan yang sudah memakainya tetap menyimpannya.",
+          "idle": "Alasan menganggur",
+          "weather": "Kondisi cuaca",
+          "add": "Tambah",
+          "addLabel": "Entri {{list}} baru",
+          "rename": "Ubah nama",
+          "renameFor": "Nama untuk {{name}}",
+          "save": "Simpan",
+          "cancel": "Batal",
+          "archive": "Arsipkan",
+          "restore": "Pulihkan",
+          "archived": "Diarsipkan",
+          "empty": "Belum ada isi",
+          "loadError": "Daftar tidak dapat dimuat",
+          "saved": "Daftar disimpan",
+          "duplicate": "Nama itu sudah ada dalam daftar"
+    },
     "fiscalYear": {
       "title": "Tahun fiskal",
       "label": "Tahun fiskal dimulai pada",
@@ -811,7 +830,6 @@
     "daysLoadError": "Hari peringatan tidak dapat dimuat",
     "adminOnly": "Hanya Admin yang dapat mengubah ini.",
     "daysInvalid": "Isi 1 sampai 5 bilangan bulat hari, dari 1 sampai 365, dipisahkan koma.",
-    "daysSaved": "Hari peringatan disimpan",
     "daysLabel": "Ingatkan sekian hari sebelum kedaluwarsa",
     "daysHelp": "Sampai 5 nilai, misalnya 30, 14, 7.",
     "daysSave": "Simpan hari peringatan"

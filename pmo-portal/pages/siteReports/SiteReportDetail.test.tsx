@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
   detail: null as unknown,
   revenue: [] as unknown[],
   equipment: [] as unknown[],
+  peopleHours: '8',
   userId: 'eng',
   realRole: 'Engineer',
   pm: 'pm',
@@ -28,7 +29,7 @@ vi.mock('@/src/hooks/useDailySiteReports', () => ({
   useDsrLookups: () => ({
     idle: { data: [{ id: 'ir1', label: 'Weather' }] }, weather: { data: [{ id: 'wx1', label: 'Rain' }] },
     items: { data: [{ id: 'l1', boq_item_id: 'b1', item_code: 'W-1', description: 'Weld', unit: 'm' }, { id: 'l2', boq_item_id: 'b2', item_code: 'X-9', description: 'Unpriced', unit: 'ea' }] },
-    equipment: { data: h.equipment }, people: { data: [{ id: 't1', hours: 8 }] },
+    hours: { data: { peopleHours: h.peopleHours, equipment: h.equipment } },
   }),
   useDailySiteReportMutations: () => h.m,
 }));
@@ -68,7 +69,7 @@ const renderPage = () => render(
 );
 
 beforeEach(() => {
-  h.userId = 'eng'; h.realRole = 'Engineer'; h.pm = 'pm'; h.equipment = [];
+  h.userId = 'eng'; h.realRole = 'Engineer'; h.pm = 'pm'; h.equipment = []; h.peopleHours = '8';
   h.revenue = [{ line_id: 'pl1', rate: 5, rate_source: 'catalogue', amount: 50, frozen: false }, { line_id: 'pl2', rate: null, rate_source: null, amount: null, frozen: false }];
   Object.values(h.m).forEach((x) => x.mutateAsync.mockReset());
 });
@@ -137,6 +138,13 @@ describe('site report record', () => {
     expect(within(block).getByText('Excavator 2')).toBeInTheDocument();
     expect(within(block).getByText(/6.5/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Submit' })).toBeNull();
+  });
+
+  it('#2619 people hours show the figure the hours read returns for the whole crew', () => {
+    h.detail = make('validated', { validated_by: 'fin', validated_at: '2026-03-11T09:00:00Z' });
+    h.peopleHours = '42.5';
+    renderPage();
+    expect(within(screen.getByTestId('dsr-equipment')).getByText('42.5')).toBeInTheDocument();
   });
 
   it('a validated report offers Correct to a validator, not to its field author', () => {

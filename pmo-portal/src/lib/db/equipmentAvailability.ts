@@ -62,6 +62,12 @@ export interface EquipmentProofState { asset_id: string; proven: boolean }
 export async function listEquipmentProofs(assetIds: string[], date: string): Promise<EquipmentProofState[]> {
   return ((await call('list_equipment_proofs', { p_asset_ids: assetIds, p_on: date })) ?? []) as EquipmentProofState[];
 }
+export type RentedAssetInput = Omit<RentalTermInput, 'asset_id'> & { code: string; name: string; default_unit: 'hours' | 'days' };
+export async function createRentedAsset(input: RentedAssetInput): Promise<string> {
+  return (await call('create_rented_equipment_asset', { p_code: input.code, p_name: input.name, p_unit: input.default_unit,
+    p_vendor: input.vendor_id, p_rate: input.rate, p_basis: input.basis, p_currency: input.currency,
+    p_from: input.rented_from, p_to: input.rented_to ?? null })) as string;
+}
 export async function setStatusBulk(date: string, items: { asset_id: string; status: EquipmentStatus; note?: string }[]): Promise<number> {
   return (await call('set_equipment_status_bulk', { p_date: date, p_items: items })) as number;
 }

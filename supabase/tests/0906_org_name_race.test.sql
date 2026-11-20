@@ -20,7 +20,7 @@
 -- error) turns the AC-ORG-029 message assertion red with "duplicate key value violates unique constraint".
 begin;
 select plan(5);
-create extension if not exists dblink;
+create extension if not exists dblink with schema extensions;
 
 select dblink_connect('org_race_setup', format('dbname=%s user=%s password=postgres host=%s port=%s',
   current_database(), current_user, coalesce(host(inet_server_addr()), 'supabase_db_pmo-portal'),
