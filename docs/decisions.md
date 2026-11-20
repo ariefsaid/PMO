@@ -3791,3 +3791,7 @@ Amends DD-APR-2 and ADR-0075 §3 (migration 1016). `spend_approval_route` judges
 - **No senior set:** the senior outcome (any reason) falls to the project's named approvers, never to everyone; the flat matrix applies only when the project has none either; nobody eligible among them leaves it to an Admin.
 - **Shape:** the figures are read once per list by the two list RPCs and per call by `spend_approval_route`; one display-only logic function takes them and decides who may see them from the caller's real rank. All SECURITY INVOKER. Every decision, notification and eligibility check calls `spend_approval_route`.
 - Known ceiling (ERP): a bill posted after the last ledger snapshot leaves open orders at once and reaches recorded spending at the next snapshot. Spending with no budget category counts in the project test only.
+
+## DD-WPVA-1 — Work-order financial attribution (2026-11-20)
+
+For #2519, project and contract totals use the existing project-finance basis; work orders divide that total without guessing document attribution. Shared costs use positive direct-cost weights, or a valid custom split; if neither exists they remain unassigned. Allocate cents by largest remainder, preserving the sign of a negative pool. Discipline figures cover planned and actual costs, with revenue and profit at work-order, project and contract levels. The detailed attribution, billing and rounding rules are in [the plan-versus-actual spec](specs/work-order-plan-vs-actual.spec.md); the discipline plan editor and work-order page integration follow separately.

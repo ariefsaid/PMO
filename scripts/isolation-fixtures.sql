@@ -143,6 +143,13 @@ insert into public.incident_files (id, org_id, incident_id, kind, file_path, sto
 select 'a6120000-0000-4000-8000-000000000f91', i.org_id, i.id, 'at_raise', o.name, o.id
 from public.incident_reports i join storage.objects o on o.id = 'a6120000-0000-4000-8000-000000000f92'
 where i.org_id = 'a6120000-0000-4000-8000-00000000000a' order by i.id limit 1;
+-- #2519: a plan figure and a shared-cost split row on the isolation work order.
+insert into public.work_order_plan_lines (id, org_id, project_id, work_order_id, kind, value)
+select 'a6120000-0000-4000-8000-0000000000d6', w.org_id, w.project_id, w.id, 'direct_budget', 1
+from public.work_orders w where w.id = 'a6120000-0000-4000-8000-0000000000d2';
+insert into public.project_shared_cost_splits (org_id, project_id, work_order_id, percent)
+select w.org_id, w.project_id, w.id, 100
+from public.work_orders w where w.id = 'a6120000-0000-4000-8000-0000000000d2';
 select 'ISO-COPY-SKIPPED ' || tbl || ': ' || why from _iso_skipped order by tbl;
 \endif
 
