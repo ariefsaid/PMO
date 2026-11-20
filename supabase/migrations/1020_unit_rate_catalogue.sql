@@ -1,9 +1,9 @@
--- 0955_unit_rate_catalogue.sql — #2520: per-contract unit-rate catalogue.
+-- 1020_unit_rate_catalogue.sql — #2520: per-contract unit-rate catalogue.
 -- Sits BESIDE contract_rate_lines (0515, labour hour/day versions) and boq_items (0250, priced contract lines):
 -- those answer "what do we charge per hour" and "what is this line worth"; this answers "what does each catalogue
 -- item cost at each location variant, as of a date". A BOQ line copies the rate it was priced at (boq_items.rate
 -- stays the single money column), so amending the catalogue never moves a line already priced.
--- Reversal: rollback/0955_unit_rate_catalogue_down.sql.
+-- Reversal: rollback/1020_unit_rate_catalogue_down.sql.
 
 create table public.rate_catalogue_variants (
   id uuid primary key default gen_random_uuid(),

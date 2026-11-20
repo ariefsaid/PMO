@@ -1,4 +1,4 @@
--- 0955_unit_rate_catalogue_down.sql — reverses 0955. Refuses while a contract line is priced from the catalogue.
+-- 1020_unit_rate_catalogue_down.sql — reverses 0955. Refuses while a contract line is priced from the catalogue.
 do $$ begin
   if exists (select 1 from public.boq_items where catalogue_item_id is not null) then
     raise exception 'contract lines priced from the catalogue exist; clear their catalogue link before rolling back 0955; rollback refused' using errcode = 'P0001';
