@@ -229,7 +229,7 @@ const login = path.basename(authFile).replace(/\.json$/, '');
 const blockReads = process.env.UX_PROOF_BLOCK_READS === '1';
 const state = blockReads ? 'reads-failing' : 'default';
 const layoutBaselinePath = path.join(ROOT, 'docs/ux/layout-baseline.json');
-const { budget, layoutBaseline } = loadProofSettings({ root: ROOT, rulesOnly, fsApi: fs });
+const { budget, layoutBaseline, routePaths } = loadProofSettings({ root: ROOT, rulesOnly, fsApi: fs });
 const reusedTools = rulesOnly ? null : await loadReusedChecks();
 const layoutFound = {};
 const unsettled = [];
@@ -324,7 +324,7 @@ try {
         await page.screenshot({ path: path.join(output, `${stem}.png`), fullPage: true });
         if (theme === 'light') {
           if (layout) metrics.layout = layout;
-          const key = baselineKey(budget, route, width, login);
+          const key = baselineKey(budget, route, width, login, routePaths);
           measurements.push({ route, width, login, ...metrics });
           console.log(`${route} | ${width} | ${metrics.chartCount} | ${metrics.minFontPx} | ${metrics.pctCharsUnder14.toFixed(2)} | ${metrics.distinctFontSizes.join(', ')} | ${metrics.smallInputCount} | ${metrics.smallTargetCount} | ${metrics.horizontalOverflow} | ${metrics.wordCount}`);
           const oldTargetBaseline = budget.targets[key];

@@ -780,7 +780,7 @@ jobs:
         working-directory: pmo-portal
         run: |
           npm run check:ux-proof
-          cd .. && node --test scripts/ux-proof.test.mjs
+          cd .. && node --test scripts/ux-proof.test.mjs scripts/ux-proof-settings.test.mjs
       - name: Capture full Chromium inventory
         if: matrix.shard == 1
         continue-on-error: true
