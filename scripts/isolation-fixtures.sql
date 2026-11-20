@@ -152,6 +152,13 @@ insert into public.dsr_photos (id, org_id, report_id, kind, file_path)
 values ('a6120000-0000-4000-8000-0000000000c7', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000c3', 'other', 'iso/none/none/none.jpg');
 insert into public.dsr_events (id, org_id, report_id, action)
 values ('a6120000-0000-4000-8000-0000000000c8', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000c3', 'created');
+-- #2519: a plan figure and a shared-cost split row on the isolation work order.
+insert into public.work_order_plan_lines (id, org_id, project_id, work_order_id, kind, value)
+select 'a6120000-0000-4000-8000-0000000000d6', w.org_id, w.project_id, w.id, 'direct_budget', 1
+from public.work_orders w where w.id = 'a6120000-0000-4000-8000-0000000000d2';
+insert into public.project_shared_cost_splits (org_id, project_id, work_order_id, percent)
+select w.org_id, w.project_id, w.id, 100
+from public.work_orders w where w.id = 'a6120000-0000-4000-8000-0000000000d2';
 select 'ISO-COPY-SKIPPED ' || tbl || ': ' || why from _iso_skipped order by tbl;
 \endif
 

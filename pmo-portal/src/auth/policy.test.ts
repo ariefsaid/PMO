@@ -688,6 +688,13 @@ it('AC-CAT-014 cost attribution rules are managed by Finance and Admin only (RPC
   expect(can('manage', 'costAttribution', { realRole: null })).toBe(false);
 });
 
+it('AC-WPVA-001/015 work-order plan figures: four money roles; the shared-cost split: Admin, Executive, Finance only', () => {
+  expect(allowedRoles('manage', 'workOrderPlan')).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);
+  expect(allowedRoles('view', 'workOrderPlan')).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);
+  expect(allowedRoles('manage', 'sharedCostSplit')).toEqual(['Admin', 'Executive', 'Finance']);
+  expect(can('manage', 'sharedCostSplit', { realRole: 'Project Manager' })).toBe(false);
+});
+
 describe('can() — JISDOR FX maintenance authority', () => {
   it('AC-FX-009/010 Finance and Admin may view/upload; only Admin may manually create/edit', () => {
     expect(allowedRoles('view', 'fxRate')).toEqual(['Admin', 'Finance']);

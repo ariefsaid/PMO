@@ -1,6 +1,6 @@
 # Jobs-to-Be-Done map — the Lens-D oracle (role × job)
 
-**Status:** v0.2 (2026-11-16: §6 jobs by function added; §2 screen rows are the June seed and predate Stock, billing claims, expenses and site cash). First written 2026-06-14. The **oracle** that **Lens D — Product / Intent** grades every
+**Status:** v0.3 (2026-11-20: §6 gains the contractor field-operations jobs, map #2516; v0.2, 2026-11-16: §6 jobs by function added; §2 screen rows are the June seed and predate Stock, billing claims, expenses and site cash). First written 2026-06-14. The **oracle** that **Lens D — Product / Intent** grades every
 screen against. Living foundation artifact: each new feature adds/updates its role's job stories during
 intake (the grill captures the job story *before* spec). Owner-refinable — the seed below is grounded in
 the app's real roles (`src/auth/policy.ts`) and real primary screens (`App.tsx` routes); sharpen the
@@ -222,6 +222,75 @@ administrator → Admin.
 - **ADM-5** Keep company details, numbering, currencies and exchange rates right.
 - **ADM-6** See what the organisation's plan includes and switch modules on or off.
 - **ADM-7** Find out who changed a record and when.
+
+### Contractor field operations under an umbrella contract (map #2516)
+
+A contractor holds **one umbrella contract** with a client and runs that client's **work orders (call-offs)**
+under it. Some material is client-supplied, work is measured against contract items, labour is by crew, and
+equipment is part owned, part rented. Nothing here is one client's process: it is a day for any
+contract-based contractor. The jobs below are walked exactly as §6's note describes — as that login, phone and
+desktop, English and Bahasa — and map **#2516** carries the tickets.
+
+**Status markers (as at 2026-11-20, `dev`):** **walkable** = the job finishes end to end today ·
+**partly** = a way exists but the named piece is missing · **waiting** = the ticket that delivers it is open.
+Roles follow §1: project manager → Project Manager · site/field controller and storekeeper → Engineer ·
+equipment manager → Project Manager or Engineer · finance → Finance · HR/admin → Admin · approvers → whichever
+level holds the decision (Project Manager, Finance, Executive).
+
+#### Project manager
+- **CF-PM-1** When I open one work order, I want its scope and progress, what it has cost, what is billed and accepted, its documents and its open issues on one page, so I can run it without hopping between the project's tabs and modals. — *Where:* `/work-orders/:id` · *Tickets:* #2518 (page), #2521 (issues on it), #2531 (open tasks on it) · *Today:* **waiting** — a work order still lives in modals on the project's Work Orders tab.
+- **CF-PM-2** When a cost is entered, I want to say which work order and discipline it was spent on, so each work order's cost is right without disturbing the project totals I already trust. — *Where:* the cost's own form — `/timesheets`, `/procurement/:id` capture, `/stock/new/*`, `/equipment` · *Tickets:* #2517 · *Today:* **walkable**.
+- **CF-PM-3** When work orders are under way, I want each one's planned budget beside what it actually cost and earned — per work order, per discipline and rolled up to the project — so I can see which ones make or lose money while there is still time to act. — *Where:* `/work-orders/:id` plan versus actual, project roll-up · *Tickets:* #2519, #2570 · *Today:* **waiting**.
+- **CF-PM-4** When I take on a work order, I want to set its plan — direct and indirect budget, equipment hours, crews, revenue — so the actuals have something to be compared against. — *Where:* `/work-orders/:id` plan · *Tickets:* #2519 · *Today:* **waiting**.
+- **CF-PM-5** When measured work moves toward an invoice, I want each billing stage with its checklist, attachments and age, so the invoice goes out complete and before the client's cut-off. — *Where:* project → Billing (claim stage plan, per-item reconciliation) · *Tickets:* #2522 · *Today:* **partly** — a progress claim and an invoice raised from it are walkable; the staged checklist and the per-item reconciliation are not.
+- **CF-PM-6** When a task belongs to a work order, I want it on that work order and unable to close without its photo or document, so "done" on site means there is evidence. — *Where:* `/my-tasks`, `/work-orders/:id`, `/incidents/:id` (issue → task) · *Tickets:* #2531, #2521 · *Today:* **waiting** — tasks and incidents exist, but a task cannot name a work order and an issue carries no photo, assignee or due time.
+
+#### Site / field controller
+- **CF-FC-1** When I finish a day on a work order, I want to enter what was done, who and what worked, what held us up and a photo of the paper form from my phone, so the day is validated the next day and its revenue is known without retyping. — *Where:* Daily site report (new phone screen) · *Tickets:* #1522 · *Today:* **waiting**.
+- **CF-FC-2** When my crew works a day, I want to tick its roster once, so each person's hours per work order exist without anyone retyping them into a timesheet. — *Where:* `/crews` roster tick · *Tickets:* #2528 · *Today:* **waiting**.
+- **CF-FC-3** When something goes wrong on site, I want to raise it with a photo, name who must fix it and by when, be told when it is late and close it with proof, so site problems do not vanish into messages. — *Where:* `/incidents`, `/incidents/:id` · *Tickets:* #2521 · *Today:* **partly** — an incident can be raised and closed; the work order, assignee, due time, photo and escalation are missing.
+- **CF-FC-4** When the site needs material for a work order, I want to request items, quantities and a needed-by date and have the right people approve in order, so stock moves to the work order without chasing approvals by message. — *Where:* `/material-requests`, `/material-requests/:id` · *Tickets:* #2524, #2571 · *Today:* **waiting**.
+- **CF-FC-5** When plant or equipment worked today, I want to log its hours against the work order, so the cost lands on the right line. — *Where:* `/equipment` · *Tickets:* #2517 · *Today:* **walkable**.
+- **CF-FC-6** When I have worked a week, I want to fill and submit my hours against the work order from my phone, so my approver has the week. — *Where:* `/timesheets` · *Tickets:* #2517 (attribution); the rest ships before the map · *Today:* **walkable**.
+
+#### Storekeeper
+- **CF-SK-1** When a delivery arrives at the yard, I want to receive it into the yard or staging location and keep the delivery note with the document, so stock and its paper agree. — *Where:* `/stock/new/receive`, `/stock/documents/:id` · *Tickets:* #2523 · *Today:* **partly** — receive works; yard/staging locations and attachments do not exist yet.
+- **CF-SK-2** When material moves warehouse → yard → work order, I want its picking slip or delivery note to travel with it, so the work order carries the right cost on issue. — *Where:* `/stock/new/transfer`, `/stock/new/issue` · *Tickets:* #2523 · *Today:* **partly** — transfer and issue work; the paperwork and the work-order destination on a yard transfer do not.
+- **CF-SK-3** When a client supplies material free of charge, I want it held at zero cost and to see what each work order holds, so I never bill it and never lose it. — *Where:* `/stock`, `/stock/ledger` · *Tickets:* #2523 · *Today:* **waiting**.
+- **CF-SK-4** When someone asks what happened to an item, I want its ledger, so I can answer from movements instead of memory. — *Where:* `/stock/ledger` · *Tickets:* none — shipped before the map · *Today:* **walkable**.
+- **CF-SK-5** When stock is at or below its reorder level, I want to see it and act on a restock request. — *Where:* `/stock/reorder` · *Tickets:* none — shipped before the map · *Today:* **walkable**.
+- **CF-SK-6** When I count the store, I want to record the difference, so the ledger matches what is on the shelf. — *Where:* `/stock/new/count`, `/stock/documents/:id/edit` · *Tickets:* none — shipped before the map · *Today:* **walkable**.
+
+#### Equipment manager
+- **CF-EQ-1** When a machine is down or away, I want to mark its status each day with proof from my phone, so a broken machine is escalated and planned work does not assume it. — *Where:* `/equipment/availability` · *Tickets:* #2526 · *Today:* **waiting**.
+- **CF-EQ-2** When I plan the week, I want each machine's availability and utilisation by day, week and month, so I can promise work against machines that exist. — *Where:* `/equipment/availability` · *Tickets:* #2526 · *Today:* **waiting**.
+- **CF-EQ-3** When a rented machine stands idle, I want the downtime recorded and deducted when its invoice is checked, so we do not pay for time we did not have. — *Where:* `/equipment/availability` and the vendor bill · *Tickets:* #2526 · *Today:* **waiting**.
+- **CF-EQ-4** When equipment works or stands by, I want its hours on the asset and the work order, so cost and use are right. — *Where:* `/equipment` · *Tickets:* #2517 · *Today:* **walkable**.
+- **CF-EQ-5** When a certificate or operator licence nears expiry, I want a warning with enough lead time, so no machine or operator works on an expired document. — *Where:* `/equipment/expiring`, `/equipment/assets/:assetId` · *Tickets:* #2527, #2542 · *Today:* **partly** — the list and the 30/14/7-day warnings run; a certificate cannot yet be added or renewed in the app, and the list has only been seen empty.
+
+#### Finance
+- **CF-FIN-1** When a contract starts, I want its priced items in a catalogue — a rate per location variant, effective-dated, importable from a sheet — so every bill-of-quantities line is priced from one source. — *Where:* project → Billing → rate catalogue · *Tickets:* #2520 · *Today:* **waiting**.
+- **CF-FIN-2** When a contract line is priced, I want the location's rate in force on the chosen date copied onto it, so a later amendment never rewrites history. — *Where:* contract-line (BOQ) form in project → Billing · *Tickets:* #2520 · *Today:* **waiting**.
+- **CF-FIN-3** When work is measured and billed, I want the stages, their documents, the retention and the per-item reconciliation on one screen, so I can raise the invoice and answer the client from the same place. — *Where:* project → Billing (claim staging, reconciliation) · *Tickets:* #2522 · *Today:* **partly** — a claim and an invoice from it are walkable; stages, retention per item and reconciliation are not.
+- **CF-FIN-4** When a vendor bill arrives, I want it held until it matches the order and the receipt, with any exception approved with a reason by someone other than the person who entered it, so we never pay for goods we did not get. — *Where:* `/finance/payables` and the vendor-bill record · *Tickets:* #2525 · *Today:* **waiting** — #2525 puts the gate and the SoD in the database; the bill and exception screen follows that slice.
+- **CF-FIN-5** When a site's expense claim or cash plan is approved, I want to reimburse the claim or top up the site and see what each site holds, so field spending keeps moving. — *Where:* `/expenses`, `/imprest` · *Tickets:* none — shipped before the map · *Today:* **walkable**.
+- **CF-FIN-6** When the month closes, I want each work order's plan against actual and its margin after shared cost, so I can tell which work orders carry the contract. — *Where:* `/work-orders/:id`, project roll-up · *Tickets:* #2519, #2570 · *Today:* **waiting**.
+
+#### HR / admin
+- **CF-HR-1** When a badge, medical check or permit is about to lapse, I want the warning to reach the right people in time, so nobody works on an expired document. — *Where:* `/equipment/expiring` · *Tickets:* #2527, #2542 · *Today:* **partly** — the list and warnings run; documents can only be added elsewhere until #2542.
+- **CF-HR-2** When I take someone on or renew a document, I want to add or edit it on the person's record with its attachment, so the warnings follow the real date. — *Where:* `/equipment/people/:personId` (new), `/equipment/assets/:assetId` · *Tickets:* #2542 · *Today:* **waiting**.
+- **CF-HR-3** When I staff a work order, I want crews with people placed in them and a roster per work order, so attendance has names to record against. — *Where:* `/crews` · *Tickets:* #2528 · *Today:* **waiting**.
+- **CF-HR-4** When I set up a contract or site, I want Excel templates for rates, stock items, equipment, people and crews, with a file of the rows that failed, so I can load the master data without retyping. — *Where:* `/master-data/:kind`, project → Billing import · *Tickets:* #2530 (after #2520, #2526, #2528) · *Today:* **waiting**.
+- **CF-HR-5** When the organisation calls a work order or client-supplied stock something else, I want to rename it once and have every screen, export and notification use our word in both languages. — *Where:* `/administration/terminology` · *Tickets:* #2529 · *Today:* **waiting**.
+- **CF-HR-6** When someone joins or leaves, I want to add the person, give the role and remove access. — *Where:* `/administration` · *Tickets:* none — shipped before the map · *Today:* **walkable**.
+
+#### Approvers
+- **CF-AP-1** When a material request reaches me, I want to see it against the plan and approve it in its order — with a stand-in named while I am away — so material moves without messages. — *Where:* `/approvals`, `/material-requests/:id` · *Tickets:* #2524 · *Today:* **waiting**.
+- **CF-AP-2** When I cannot approve, I want to send it back with a reason the requester sees. — *Where:* `/approvals`, `/material-requests/:id` · *Tickets:* #2524 (already the rule for purchases and claims) · *Today:* **partly** — return-with-reason works on today's approvals; material requests do not exist yet.
+- **CF-AP-3** When a vendor bill does not match its order or receipt, I want to approve the exception with a reason, being someone other than the person who entered it, so the hold is deliberate and on record. — *Where:* `/finance/payables` and the vendor-bill record · *Tickets:* #2525 · *Today:* **waiting** — the rule and the SoD ship in the database first; the exception panel follows.
+- **CF-AP-4** When a crew's day is recorded, I want to approve those hours as the timesheet, so approved hours exist per person and work order. — *Where:* `/timesheets` · *Tickets:* #2528 · *Today:* **partly** — timesheet approval works; crew-recorded hours do not exist yet.
+- **CF-AP-5** When a field controller submits a daily report, I want to validate it — never my own — so the day's revenue counts only once checked. — *Where:* Daily site report queue · *Tickets:* #1522 · *Today:* **waiting**.
+- **CF-AP-6** When things wait for my decision, I want one inbox where I can preview and approve or reject without drilling in. — *Where:* `/approvals` · *Tickets:* none — shipped before the map · *Today:* **walkable**.
 
 ---
 

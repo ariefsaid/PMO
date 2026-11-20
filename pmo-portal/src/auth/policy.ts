@@ -101,6 +101,8 @@ export type Entity =
   | 'orgAccounting'
   | 'orgFeedback'
   | 'costAttribution'
+  | 'workOrderPlan'
+  | 'sharedCostSplit'
   | 'vendorTaxDefault'
   | 'orgProjectNumbering'
   | 'orgProjectClassification'
@@ -206,6 +208,8 @@ const TAX_SETUP: Role[] = ['Admin', 'Finance'];
 const IMPREST_SETUP: Role[] = ['Admin', 'Finance'];
 /** #1271: who may save / end / preview cost attribution rules — mirrors the 0376 RPC gate. */
 const COST_ATTRIBUTION_WRITE: Role[] = ['Admin', 'Finance'];
+// #2519: work-order money — plan figures and margin read by the roles that read project margin (0997/0999).
+const WORK_ORDER_MONEY: Role[] = ['Admin', 'Executive', 'Finance', 'Project Manager'];
 /** #1519: who may approve equipment usage — mirrors equipment_can_approve (PM only on projects they manage). */
 const EQUIPMENT_APPROVE: Role[] = ['Admin', 'Executive', 'Finance', 'Project Manager'];
 /** #1519: who may set what an hour is worth — mirrors save/end/preview_equipment_costing (Admin, Finance). */
@@ -775,6 +779,10 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   // #1271: cost attribution rules — mirrors save/end/preview_cost_attribution (0376: active Admin or Finance).
   // UX ONLY — the RPCs are the authority (ADR-0016).
   costAttribution: { manage: allow(COST_ATTRIBUTION_WRITE) },
+  // #2519 plan vs actual per work order. UX ONLY — work_order_plan_lines RLS (0997), set/clear_shared_cost_split (0998)
+  // and work_order_cost_amounts (0999) are the authority (ADR-0016).
+  workOrderPlan: { view: allow(WORK_ORDER_MONEY), manage: allow(WORK_ORDER_MONEY) },
+  sharedCostSplit: { manage: allow(['Admin', 'Executive', 'Finance']) },
   /**
    * Equipment usage and allocation (#1519, migrations 0447/0460/0471). UX ONLY — transition_equipment_usage,
    * save_equipment_costing and the reads are the authority (ADR-0016); the FE may be stricter, never looser.

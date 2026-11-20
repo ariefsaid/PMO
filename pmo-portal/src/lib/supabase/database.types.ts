@@ -1979,6 +1979,63 @@ export type Database = {
         }
         Relationships: []
       }
+      work_order_plan_lines: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          discipline_id: string | null
+          id: string
+          kind: string
+          note: string | null
+          org_id: string
+          project_id: string
+          updated_at: string
+          updated_by: string | null
+          value: number
+          work_order_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          discipline_id?: string | null
+          id?: string
+          kind: string
+          note?: string | null
+          org_id?: string
+          project_id: string
+          updated_at?: string
+          updated_by?: string | null
+          value: number
+          work_order_id: string
+        }
+        Update: {
+          note?: string | null
+          value?: number
+        }
+        Relationships: []
+      }
+      project_shared_cost_splits: {
+        Row: {
+          org_id: string
+          percent: number
+          project_id: string
+          saved_at: string
+          saved_by: string | null
+          work_order_id: string
+        }
+        Insert: {
+          org_id?: string
+          percent: number
+          project_id: string
+          saved_at?: string
+          saved_by?: string | null
+          work_order_id: string
+        }
+        Update: {
+          percent?: number
+        }
+        Relationships: []
+      }
       credit_reservations: {
         Row: {
           amount: number
@@ -11805,6 +11862,27 @@ export type Database = {
       }
     }
     Functions: {
+      set_work_order_plan: { Args: { p_project_id: string; p_work_order_id: string; p_changes: Json }; Returns: number }
+      set_shared_cost_split: { Args: { p_project_id: string; p_split: Json }; Returns: number }
+      clear_shared_cost_split: { Args: { p_project_id: string }; Returns: number }
+      work_order_cost_amounts: {
+        Args: { p_project_id: string }
+        Returns: {
+          amount: string | null
+          currency: string | null
+          discipline_id: string | null
+          occurred_on: string | null
+          person_id: string | null
+          project_id: string
+          quantity: number | null
+          quantity_unit: string | null
+          reason: string
+          record_id: string
+          reference: string | null
+          source: string
+          work_order_id: string | null
+        }[]
+      }
       set_cost_attribution: {
         Args: {
           p_discipline_id: string | null
