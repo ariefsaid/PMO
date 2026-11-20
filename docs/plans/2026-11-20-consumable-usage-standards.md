@@ -1,5 +1,29 @@
 # Consumable Usage Standards Implementation Plan (#2577)
 
+## Built on defaults (owner to confirm)
+
+Built on the spec's recommended defaults; none of these is a ruling.
+- OD-CUS-1: a standard matches by work unit (case/trim-insensitive) with an optional contract-line code prefix (`boq_items.item_code`); no per-line or per-discipline standard.
+- OD-CUS-2: plan figure precedence is consumable plan line, then BoQ allowance, then 0.
+- OD-CUS-3: over plan warns and requires a reason (the existing `MRQ_OVER_PLAN_REASON` in `mrq_submit`, unchanged); nothing blocks.
+- OD-CUS-4: standards carry a margin % (default 0) applied in the plan.
+- OD-CUS-5: standards are managed at stock master-data rank (>= 20); plans are generated and adjusted under the BoQ allowance project rule (Admin/Executive/Finance on any project, a Project Manager on their own).
+- OD-CUS-6: plans are snapshots, regenerated only on request, with an out-of-date flag; no ADR written (owner has not confirmed).
+- OQ-CUS-1: work unit is free text matched case-insensitively and trimmed; a standard that matches no live line shows "No lines" on the standards screen.
+- OQ-CUS-2: standards are not effective-dated; history is in record history.
+- OQ-CUS-3: standards apply to the allocated quantity (`work_order_lines.quantity`), not executed quantity.
+
+Decisions the builder made where the spec was silent (also owner to confirm):
+- Migration numbers are 1075 (standards + record history), 1076 (plan lines, functions, match counts), 1077 (plan-figure precedence, ships alone); rollbacks under `supabase/migrations/rollback/`.
+- An empty plan (a regeneration that matches nothing and keeps no adjusted line) leaves no row, so it cannot be flagged out of date; the "no standard" list is always live. The fingerprint is stored per plan line (as the plan says) rather than in a header table.
+- Adjusting or adding a plan line on a Closed or Cancelled work order is refused, the same as generation (FR-CUS-006 names generation only).
+- `p_adjusted_qty = null` on `cus_adjust_plan_line` reverts a line to its generated figure (and removes a hand-added line); not in the spec, needed so an adjustment can be undone without regenerating.
+- "Matches now" on the standards screen (FR-CUS-004) counts the lines a standard's own rule matches in Draft/Issued work orders (`cus_standard_match_counts`, invoker + RLS); a longer-prefix standard of the same item may still win a line at generation.
+- The plan screen also lists items already requested on the work order that have no plan line, with their figure and source (`allowance` or `none`), so "No plan" is visible where it matters.
+- The consumable plan section is mounted on `/work-orders/:id` for organisations with the stock module on; the standards screen is `/stock/usage-standards`, reached from the stock section tabs for every role (read-only for those who cannot write).
+- `cus_get_plan` returns quantities as decimal strings so the screen never meets a float.
+- The 0178 retained-RPC allow-list and its two counts (224 to 226) gained `cus_generate_plan` and `cus_adjust_plan_line`; the isolation denominator gained the two tables and seven definers.
+
 > Fresh Orca worker per slice; slice 3 (the plan-figure change) Director-dispatched, ships alone. Spec: `docs/specs/consumable-usage-standards.spec.md` (sign OD-CUS-1..6, answer OQ-CUS-1..3 first). Reuse, don't re-invent: `work_order_lines` (0337), `boq_items` (0250), `stock_items`/`stock_units` (0412), `boq_material_allowances` and its project rule `may_record_project_progress` (0417), `mrq_plan_quantity`/`mrq_plan_for`/`mrq_submit` (1001), `record_history` (0260), the import wizard descriptors (#2530).
 
 ## Design summary
