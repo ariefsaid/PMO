@@ -91,5 +91,8 @@
     "viewByStage": "Per tahap",
     "weightedForecast": "Proyeksi tertimbang",
     "weightedNote": "Nilai × peluang menang"
+  },
+  "funnel": {
+    "unavailable": "Tidak tersedia"
   }
 }
