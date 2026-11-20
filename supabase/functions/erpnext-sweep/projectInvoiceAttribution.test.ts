@@ -83,12 +83,12 @@ Deno.test('AC-PFIN-001/002 Sales Invoice adoption stores its resolved project af
   const originalFetch = globalThis.fetch;
   (Deno.env as unknown as { get: (key: string) => string | undefined }).get = (key) =>
     ({ PROJECT_FINANCE_KEY: 'synthetic-key', PROJECT_FINANCE_SECRET: 'synthetic-secret' } as Record<string, string>)[key];
-  globalThis.fetch = (async (input) => {
+  globalThis.fetch = ((input: Request | URL | string) => {
     const url = new URL(String(input instanceof Request ? input.url : input));
     const data = url.pathname.endsWith('/Sales%20Invoice') || url.pathname.endsWith('/Sales Invoice')
       ? [{ name: 'SINV-ATTR-1', modified: '2026-10-10 09:00:00', docstatus: 1, company: 'Example Company', project: 'ERP-A', grand_total: '125.00', outstanding_amount: '25.00', currency: 'USD' }]
       : [];
-    return new Response(JSON.stringify({ data }), { status: 200, headers: { 'content-type': 'application/json' } });
+    return Promise.resolve(new Response(JSON.stringify({ data }), { status: 200, headers: { 'content-type': 'application/json' } }));
   }) as typeof fetch;
   try {
     const result = await sweepOrgDoctypesLive(db.client, {
@@ -109,6 +109,38 @@ Deno.test('AC-PFIN-001/002 Sales Invoice adoption stores its resolved project af
   }
 });
 
+Deno.test('AC-TERM-007 unassigned invoice notification keeps its identifier in a parameter', async () => {
+  const db = contactDb({
+    external_org_bindings: [{ org_id: ORG, external_tier: 'erpnext', activated_at: '2026-10-01', config: { project_map: {} } }],
+    projects: [], profiles: [{ id: 'finance-user', org_id: ORG, status: 'active', role: 'Finance' }], notifications: [],
+  });
+  const originalEnv = Deno.env.get;
+  const originalFetch = globalThis.fetch;
+  (Deno.env as unknown as { get: (key: string) => string | undefined }).get = (key) =>
+    ({ PROJECT_FINANCE_KEY: 'synthetic-key', PROJECT_FINANCE_SECRET: 'synthetic-secret' } as Record<string, string>)[key];
+  globalThis.fetch = ((input: Request | URL | string) => {
+    const url = new URL(String(input instanceof Request ? input.url : input));
+    const data = url.pathname.endsWith('/Sales%20Invoice') || url.pathname.endsWith('/Sales Invoice')
+      ? [{ name: 'Project Phoenix', modified: '2026-10-10 09:00:00', docstatus: 1, company: 'Example Company', grand_total: '125.00', outstanding_amount: '25.00', currency: 'USD' }]
+      : [];
+    return Promise.resolve(new Response(JSON.stringify({ data }), { status: 200, headers: { 'content-type': 'application/json' } }));
+  }) as typeof fetch;
+  try {
+    const result = await sweepOrgDoctypesLive(db.client, {
+      orgId: ORG, siteUrl: 'https://erp.example.test', secretRef: 'project-finance', company: 'Example Company',
+      config: { project_map: {} }, ownedDomains: ['revenue'], versionMajor: 15,
+    });
+    assert(!result.error, `Sales Invoice adoption succeeds: ${result.error}`);
+    const notification = db.writes.find((write) => write.table === 'notifications' && write.op === 'insert');
+    const payload = notification?.row as unknown as Array<{ message_key?: string; message_params?: { invoice?: string } }> | undefined;
+    assert(payload?.[0]?.message_key === 'unassignedInvoice', 'app message key is stored');
+    assert(payload?.[0]?.message_params?.invoice === 'Project Phoenix', 'user-supplied identifier remains an unchanged parameter');
+  } finally {
+    globalThis.fetch = originalFetch;
+    (Deno.env as unknown as { get: unknown }).get = originalEnv;
+  }
+});
+
 Deno.test('AC-PFIN-003 refresh updates provenance and NULL-fills without changing an existing PMO assignment', async () => {
   const db = contactDb({
     external_org_bindings: [{ org_id: ORG, external_tier: 'erpnext', activated_at: '2026-10-01', config: { project_map: { [P1]: 'ERP-A' } } }],
@@ -117,20 +149,20 @@ Deno.test('AC-PFIN-003 refresh updates provenance and NULL-fills without changin
     external_refs: [{ org_id: ORG, domain: 'revenue', pmo_record_id: 'invoice-1', external_record_id: 'SINV-REFRESH' }],
   });
   const rpcCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
-  (db.client as unknown as { rpc: (name: string, args: Record<string, unknown>) => Promise<unknown> }).rpc = async (name, args) => {
+  (db.client as unknown as { rpc: (name: string, args: Record<string, unknown>) => Promise<unknown> }).rpc = (name, args) => {
     rpcCalls.push({ name, args });
-    return { data: false, error: null };
+    return Promise.resolve({ data: false, error: null });
   };
   const originalEnv = Deno.env.get;
   const originalFetch = globalThis.fetch;
   (Deno.env as unknown as { get: (key: string) => string | undefined }).get = (key) =>
     ({ PROJECT_FINANCE_KEY: 'synthetic-key', PROJECT_FINANCE_SECRET: 'synthetic-secret' } as Record<string, string>)[key];
-  globalThis.fetch = (async (input) => {
+  globalThis.fetch = ((input: Request | URL | string) => {
     const url = new URL(String(input instanceof Request ? input.url : input));
     const data = url.pathname.endsWith('/Sales%20Invoice') || url.pathname.endsWith('/Sales Invoice')
       ? [{ name: 'SINV-REFRESH', modified: '2026-10-10 09:00:00', docstatus: 1, company: 'Example Company', project: 'ERP-A', grand_total: '125.00', outstanding_amount: '25.00', currency: 'USD' }]
       : [];
-    return new Response(JSON.stringify({ data }), { status: 200, headers: { 'content-type': 'application/json' } });
+    return Promise.resolve(new Response(JSON.stringify({ data }), { status: 200, headers: { 'content-type': 'application/json' } }));
   }) as typeof fetch;
   try {
     const result = await sweepOrgDoctypesLive(db.client, {

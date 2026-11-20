@@ -458,6 +458,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/administration/cost-attribution', element: <AdministrationPage /> },
   { path: '/administration/usage', element: <AdministrationPage /> },
   { path: '/administration/features', element: <AdministrationPage /> },
+  { path: '/administration/terminology', element: <AdministrationPage /> },
   // Keep malformed/deprecated Administration section links inside the Administration shell so
   // they can be replaced with Users instead of falling through to the global 404 route.
   { path: '/administration/:section', element: <AdministrationPage /> },

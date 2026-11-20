@@ -1,0 +1,9 @@
+{
+  "budgetArchiveWarning": "ERPNext may still be enforcing a budget for this project after this archive. Cancel the listed ERPNext Budget documents, or activate a new PMO budget.",
+  "budgetCancellationHeld": "A replacement budget is on hold: an earlier ERPNext budget cancellation for the project still needs a person, or the person who activated this version cannot be identified. Resolve the previous version's budget in ERPNext — the replacement then pushes automatically.",
+  "budgetRetryAuthorization": "A replacement budget is on hold: the person recorded as having activated the version is no longer allowed to push budgets to ERPNext. The cancellation itself is fine. An Admin or Finance user should retry the push from the project's Budget tab.",
+  "budgetPushFailed": "PMO could not push the activated budget to ERPNext ({{reason}}) — ERPNext is still enforcing the previous budget (or none) for this project.",
+  "unassignedInvoiceTitle": "Invoice needs a project",
+  "unassignedInvoice": "Sales Invoice {{invoice}}{{amount}} arrived from ERPNext without a project and is in the Unassigned bucket. Assign it to a project.",
+  "literal": "{{body}}"
+}

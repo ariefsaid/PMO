@@ -29,7 +29,7 @@ export function projectsToolbar({ model, exportColumns, t, canViewMoney, moreOpe
       rows={filtered}
       disabled={exportDisabled}
       columns={exportColumns}
-      entity="Projects"
+      entity={t('projects.title', 'Projects')}
       label={t('projects.export', 'Export')}
       onExport={() => setMoreOpen(false)}
     />,
@@ -148,7 +148,7 @@ export function projectsToolbar({ model, exportColumns, t, canViewMoney, moreOpe
       panelClassName="mt-1 shadow-md"
     >
       <div className="flex flex-col items-stretch gap-2">
-        <ExportButton rows={filtered} disabled={exportDisabled} columns={exportColumns} entity="Projects" label={t('projects.export', 'Export')} onExport={() => setMoreOpen(false)} />
+        <ExportButton rows={filtered} disabled={exportDisabled} columns={exportColumns} entity={t('projects.title', 'Projects')} label={t('projects.export', 'Export')} onExport={() => setMoreOpen(false)} />
         <ImportButton entity="project" descriptor={importDescriptor} onImported={() => void refetch()} label={t('projects.import', 'Import')} />
         <ImportButton entity="budgetLine" label={t('projects.importBudgets', 'Import budgets')} descriptor={budgetImportDescriptor} onImported={() => void refetch()} />
       </div>

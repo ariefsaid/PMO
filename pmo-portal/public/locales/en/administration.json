@@ -637,5 +637,16 @@
     "noIdentity": "the ERP record carries no name, employee number or work email, so there is nothing to confirm it against.",
     "noMatch": "no PMO user is matched to it yet.",
     "confirm": "Confirm"
+  },
+  "terminology": {
+    "default": "Default",
+    "intro": "Rename these terms to match how your organisation talks. The new wording replaces the default everywhere it is shown, in each language.",
+    "plural": "Plural",
+    "reset": "Reset",
+    "resetDone": "Back to the default wording",
+    "save": "Save",
+    "saved": "Terminology saved",
+    "singular": "Singular",
+    "nav": "Terminology"
   }
 }
