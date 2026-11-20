@@ -1459,7 +1459,9 @@ async function readUploadTarget(ctx, documentId) {
 /**
  * Store the object, then record it on the entry (the app's order: prepareUpload, then confirmUpload), then remove the
  * replaced object. The path comes from the row the server returned. A record step that fails or lands on no row removes
- * the object just stored (best effort, as the app does), so a rerun is not blocked by it.
+ * the object just stored (best effort, as the app does), so a rerun is not blocked by it. When the record step's reply
+ * is lost (no HTTP answer, or a 5xx), the entry is read back first: if it names the new path the object is kept and the
+ * upload reported complete; if the read-back also fails the object is kept and the command exits non-zero (#2337).
  */
 async function storeDocumentFile(ctx, documentId, upload, known) {
   const doc = known ?? (await readUploadTarget(ctx, documentId));
@@ -1469,12 +1471,30 @@ async function storeDocumentFile(ctx, documentId, upload, known) {
     raw: upload.bytes,
   });
   const removeStored = () => authed(ctx, 'DELETE', `/storage/v1/object/${DOCUMENT_BUCKET}`, { body: { prefixes: [target] } }).then(() => true, () => false);
+  let confirmedByReadBack = false;
   let updated;
   try {
     updated = await authed(ctx, 'PATCH', `/rest/v1/project_documents?id=eq.${doc.id}`, { headers: { prefer: 'return=representation' }, body: { file_path: target, source: 'upload' } });
   } catch (e) {
-    await removeStored();
-    throw e;
+    // A refusal (4xx) means the record did not commit. A dropped connection or a 5xx may have lost the reply of a record
+    // step that did commit, and removing the object then would leave the entry naming a file that is gone (#2337).
+    if (e instanceof CliError && e.status !== undefined && e.status < 500) {
+      await removeStored();
+      throw e;
+    }
+    let named;
+    try {
+      named = (await readUploadTarget(ctx, doc.id)).file_path;
+    } catch {
+      throw new CliError(`The record step's reply was lost and the entry could not be read back, so it is not known whether the entry names the new file. The file is kept at ${target}. Check the entry in the app, then run the upload again.`, { code: 'document_upload_unconfirmed' });
+    }
+    if (named !== target) {
+      await removeStored();
+      throw e;
+    }
+    // The record step committed: keep the object, and finish as a success below.
+    updated = [{ id: doc.id }];
+    confirmedByReadBack = true;
   }
   if (!Array.isArray(updated) || updated.length !== 1) {
     const where = (await removeStored()) ? 'the stored file was removed' : `the file is still stored at ${target}`;
@@ -1488,7 +1508,7 @@ async function storeDocumentFile(ctx, documentId, upload, known) {
       // non-fatal, as in the app: the entry already points at the new file
     }
   }
-  return { path: target, bytes: upload.bytes.length, replaced };
+  return { path: target, bytes: upload.bytes.length, replaced, ...(confirmedByReadBack ? { note: 'The record step reply was lost; the entry was read back and names the new file, so the upload is complete.' } : {}) };
 }
 
 async function m365(ctx, positionals) {
