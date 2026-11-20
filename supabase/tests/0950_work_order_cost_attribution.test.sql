@@ -211,10 +211,19 @@ select pg_temp.act_as('25170000-0000-0000-0000-0000000000a5');
 select throws_ok($$ select public.set_cost_attribution('stock_document', array['25170000-0000-0000-0000-000000000811']::uuid[], null, null) $$,
   '42501', 'you cannot change the work order or discipline of this record', 'AC-WCA-008 an Engineer cannot change another person''s stock document');
 
+-- AC-WORP-002: the page reads an accessible order, but foreign and random IDs are indistinguishable.
+select is((select count(*)::int from public.work_orders where id = '25170000-0000-0000-0000-000000000401'), 1,
+  'AC-WORP-002 control: a caller reads an order in their org');
 -- AC-WCA-007: org B reads nothing of org A and changes nothing.
 select pg_temp.act_as('25170000-0000-0000-0000-0000000000b1');
 select throws_ok($$ select public.set_cost_attribution('timesheet_entry', array['25170000-0000-0000-0000-000000000711']::uuid[], null, null) $$,
   'P0002', 'record not found', 'AC-WCA-007 another org''s record reads as absent');
+select is((select count(*)::int from public.work_orders where id = '25170000-0000-0000-0000-000000000401'), 0,
+  'AC-WORP-002 a foreign order is unreadable');
+select is((select count(*)::int from public.work_orders where id = '25170000-0000-0000-0000-000000000499'), 0,
+  'AC-WORP-002 a random order is equally unreadable');
+select ok(has_table_privilege('authenticated', 'public.work_orders', 'SELECT'),
+  'AC-WORP-002 authenticated can reach the RLS-protected table');
 select is((select count(*)::int from public.work_order_cost_lines where org_id = '25170000-0000-0000-0000-00000000000a'), 0,
   'AC-WCA-007 another org reads none of org A''s cost lines');
 select throws_ok($$ select public.set_cost_attribution('purchase_request', array['25170000-0000-0000-0000-000000000619']::uuid[],

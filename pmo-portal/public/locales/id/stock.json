@@ -327,7 +327,8 @@
         "sentTitle": "Terkirim ke Odoo",
         "sentBody": "Menunggu jawaban Odoo. Buka dokumen untuk melihat posisinya."
       }
-    }
+    },
+    "workOrder": "Work Order / SPK"
   },
   "ledger": {
     "title": "Buku stok",

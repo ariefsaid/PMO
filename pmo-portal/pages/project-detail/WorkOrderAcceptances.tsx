@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, ListState, StatusPill } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
@@ -77,6 +78,7 @@ const WorkOrderAcceptances: React.FC<WorkOrderAcceptancesProps> = ({
               <li key={a.id} data-testid={`bast-${a.id}`} className="flex flex-col gap-1 rounded-md border border-border p-2.5">
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   <span className="tabular font-semibold">{formatDay(a.acceptance_date)}</span>
+                  <Link className="underline" to={`/work-orders/${workOrder.id}`}>{t('projectTabs:contractQuantities.workOrders.acceptances.openWorkOrder', 'Open work order')}</Link>
                   <StatusPill variant="neutral">
                     {a.is_final ? t('projectTabs:contractQuantities.workOrders.acceptances.final', 'Final') : t('projectTabs:contractQuantities.workOrders.acceptances.stage', 'Stage')}
                   </StatusPill>
