@@ -86,13 +86,3 @@ export function prefillBillLines(lines: readonly SubcontractPositionLineInput[])
 /**
  * FR-SCA-051: states the cap in words at zero; returns null when payable > 0.
  */
-export function capMessage(line: CapMessageInput): string | null {
-  const payable = line.payable != null ? line.payable : payableOf({
-    poQty: line.poQty,
-    verified: line.verified,
-    billed: line.billed ?? 0,
-  });
-  if (payable > 0) return null;
-  const billed = line.billed ?? 0;
-  return `${line.itemCode}: nothing payable — ${line.verified} verified, ${line.poQty} on the PO, ${billed} already billed`;
-}

@@ -7,13 +7,6 @@ export const AGING_BUCKETS: readonly AgingBucket[] = ['notDue', 'd1_30', 'd31_60
 const daysPastDue = (due: string, today: string) => Math.floor((Date.parse(today) - Date.parse(due)) / 86_400_000);
 
 /** Paid/unpaid from ERP's own `outstanding_amount` (ADR-0048) — never recomputed from payments. */
-export function paymentState(r: ErpPurchaseRow, today: string): PaymentState | null {
-  if (r.doctype !== 'Purchase Invoice' || r.outstanding === null) return null;
-  if (r.isReturn) return 'return';
-  if (r.outstanding <= 0) return 'paid';
-  if (r.dueDate && daysPastDue(r.dueDate, today) > 0) return 'overdue';
-  return r.grandTotal !== null && r.outstanding < r.grandTotal ? 'partly-paid' : 'unpaid';
-}
 
 export function agingBucket(dueDate: string | null, today: string): AgingBucket {
   const d = dueDate ? daysPastDue(dueDate, today) : 0;

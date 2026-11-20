@@ -13,11 +13,6 @@ export function stageForStatus(status: string): ProcurementStage {
   return 'Request';
 }
 
-export function stageLabelForStatus(status: string): ProcurementStage | 'Invoiced, not paid' | 'Paid' {
-  if (status === 'Vendor Invoiced') return 'Invoiced, not paid';
-  if (status === 'Paid') return 'Paid';
-  return stageForStatus(status);
-}
 
 type DateRow = { date?: string | null; created_at?: string | null; receipt_date?: string | null; invoice_date?: string | null };
 type LinkedDocument = { doctype: string; docDate?: string | null };

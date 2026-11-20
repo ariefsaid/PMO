@@ -1,13 +1,12 @@
 import React from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, Icon, LifecycleStepper, RecordActionZone, TaxBasisLabel } from '@/src/components/ui';
+import { Button, ConfirmDialog, Icon, RecordActionZone, TaxBasisLabel } from '@/src/components/ui';
 import { DateField } from '@/src/components/ui/DateField';
 import { LostReasonFields } from '@/components/project-status/LostReasonFields';
 import { lostReasonLabel, lostReasonValid } from '@/src/lib/lostReasons';
 import { formatCurrency, formatDecisionDateNumeric } from '@/src/lib/format';
-import { formatPercent, dealJourneySteps, weightedValue } from '../../components/salesPipeline';
-import StageHistory from '../project-detail/StageHistory';
-import { useStageJourneyStepLabel, type DealActions } from './useDealActions';
+import { formatPercent, weightedValue } from '../../components/salesPipeline';
+import type { DealActions } from './useDealActions';
 import { FIGURE_LINE_CLASS } from '@/src/components/ui/FigureContent';
 
 type Fig = { key: string; label: string; value: React.ReactNode; sub?: React.ReactNode };
@@ -90,18 +89,6 @@ export const DealFigures: React.FC<{ d: DealActions; className?: string }> = ({ 
       </dl>
       {isLost && d.project.lost_note && <p data-testid="lost-note" className="mt-2 text-control text-muted-foreground">{d.project.lost_note}</p>}
     </>
-  );
-};
-
-export const DealJourney: React.FC<{ d: DealActions; history?: boolean }> = ({ d, history = true }) => {
-  const { t } = useTranslation('project');
-  const stepLabel = useStageJourneyStepLabel();
-  return (
-    <section className="min-w-0 space-y-3">
-      <h2 className="text-sm font-semibold text-foreground">{t('projectDetail.pipeline.journeyHeading', 'Project journey')}</h2>
-      <LifecycleStepper variant="bar" steps={dealJourneySteps(d.status as never, stepLabel)} aria-label={t('projectDetail.pipeline.journeyAriaLabel', 'Project stage journey')} className="[&_span]:text-control" />
-      {history && <StageHistory projectId={d.project.id} />}
-    </section>
   );
 };
 

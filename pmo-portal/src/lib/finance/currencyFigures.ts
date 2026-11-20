@@ -1,6 +1,6 @@
-import { formatCurrency, formatShortMoney } from '@/src/lib/format';
+import { formatCurrency } from '@/src/lib/format';
 import { formatCurrencyWithCode } from '@/src/lib/finance/format';
-import { moneyFigure, type MoneyFigure } from '@/src/lib/dashboardMoney';
+import type { MoneyFigure } from '@/src/lib/dashboardMoney';
 
 /**
  * #1459 — the one lead-currency + other-currencies figure rule. It existed three times (the Finance
@@ -26,20 +26,6 @@ export interface CurrencyLead {
 }
 
 /** The figure-tile reading: one lead amount plus one short line per other currency. */
-export function currencyLead(values: CurrencyCents, preferred?: string | null): CurrencyLead {
-  const [primary, ...rest] = currencyEntries(values, preferred);
-  return {
-    lead: primary ? moneyFigure(primary[1] / 100, primary[0], '') : null,
-    others: rest
-      .filter(([, cents]) => cents !== 0)
-      .map(([currency, cents]) => ({
-        value: Math.abs(cents) < 100_000
-          ? formatCurrencyWithCode(cents / 100, currency)
-          : formatShortMoney(cents / 100, currency, { code: true }),
-        exactValue: formatCurrencyWithCode(cents / 100, currency),
-      })),
-  };
-}
 
 /** The running-text reading: the lead as an exact amount with its symbol, the rest with their ISO code. */
 export function currencyLines(values: CurrencyCents, preferred?: string | null): string[] {

@@ -22,7 +22,6 @@ import {
   selectLeftToBillTotals,
 } from '@/src/lib/reports/managementPack';
 import type { PaidPaymentFact } from '@/src/lib/db/revenue';
-import type { UnbilledWorkOrderTotal } from '@/src/lib/db/workOrderBilling';
 import { selectOverdueInvoices, selectSupplierInvoices } from './useNeedsYou';
 import { withLinkedDocuments } from '@/src/lib/procurement/procurementMoney';
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
@@ -196,10 +195,6 @@ export function selectCollectedByMonth(payments: PaidPaymentFact[] | undefined, 
   return months;
 }
 
-export function selectUnbilledTotals(totals: UnbilledWorkOrderTotal[] | undefined) {
-  if (!totals) return undefined;
-  return totals.map(({ currency, remaining }) => ({ currency, amount: remaining }));
-}
 
 /** Known currencies as one short figure plus its exact twin; an unknown currency is named only in the
  *  exact text (hover / screen reader), never as a "CUR —" value. Null when no currency is known. */

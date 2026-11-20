@@ -30,7 +30,7 @@ describe('non-text marks use their own neutral token (#2418)', () => {
     const files = [
       'pages/Administration.tsx', 'pages/sales/DealParts.tsx', 'pages/expenses/AdvanceAgingCard.tsx',
       'pages/project-detail/ProjectBlocks.tsx', 'src/components/procurement/DecisionSupportPanel.tsx',
-      'src/components/ui/Switch.tsx', 'src/components/ui/HoursBar.tsx', 'src/components/ui/ProgressBar.tsx',
+      'src/components/ui/Switch.tsx', 'src/components/ui/ProgressBar.tsx',
       'src/components/dashboard/hub/company/SalesFunnel.tsx', 'src/components/procurement/ProcurementBlock.tsx',
       'components/ProjectKanbanBoard.tsx', 'components/salesPipeline.ts', 'components/ProcurementBoard.tsx',
       'src/components/ui/Kanban.tsx', 'src/components/reui/gantt/gantt-view.tsx',

@@ -1045,9 +1045,6 @@ export function formatWeekday(d: Date): string {
 }
 
 /** "Jun 14, 2026" — Date-input twin of formatDate(iso) (same parts, local zone; shares its formatter). */
-export function formatFullDate(d: Date): string {
-  return dateFormatter().format(d);
-}
 
 /** "Jun 14, 2026, 03:45 PM" — last-sync style (hour '2-digit' is zero-padded). */
 export function formatDateTime(d: Date): string {
