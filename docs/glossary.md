@@ -739,3 +739,5 @@ submission; distinct from general project risk or everything assigned to them.
 UI vocabulary keeps **Supplier** rather than vendor, **Purchase** for a procurement case,
 and **Phase** for a milestone. **Actual** and **Recorded spending** name the same spending position;
 **Cash received** and **Settlement** name different quantities and must stay distinct.
+
+**Tracker reading** — one figure from a machine's tracker for one unit and calendar day: engine hours and an optional place label, matched to an equipment asset by its tracker unit identifier. Held apart from usage entries; it never counts in any cost or total until a person proposes it as a Draft usage entry and a different person approves it (#2582).
