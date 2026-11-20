@@ -99,21 +99,19 @@ const QuantityChanges: React.FC = () => {
         )}
       </RecordSection>
 
-      <section aria-labelledby="qcr-list" className="space-y-3">
-        <h2 id="qcr-list" className="text-base font-semibold text-foreground">{t('quantityChanges:list.title', 'Requests')}</h2>
+      <RecordSection title={t('quantityChanges:list.title', 'Requests')} data-testid="qcr-requests">
         {list.isPending ? (
           <ListState variant="loading" rows={4} />
         ) : list.isError ? (
           <ListState variant="error" title={t('quantityChanges:list.error', "Couldn't load requests")} onRetry={() => void list.refetch()} />
         ) : list.data.rows.length === 0 ? (
-          <ListState variant="empty" icon="reports" title={t('quantityChanges:list.empty', 'No quantity change requests yet')}
-            action={mayRaise ? { label: t('quantityChanges:newRequest', 'New request'), onClick: () => setRaiseOpen(true) } : undefined} />
+          <p className="text-muted-foreground">{t('quantityChanges:list.empty', 'No quantity change requests yet')}</p>
         ) : (
           <>
-            <ul className="panel-card divide-y divide-border" data-testid="qcr-list">
+            <ul className="divide-y divide-border" data-testid="qcr-list">
               {list.data.rows.map((r) => (
                 <li key={r.id}>
-                  <Link to={`/quantity-changes/${r.id}`} className="flex min-h-11 flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 hover:bg-surface-hover">
+                  <Link to={`/quantity-changes/${r.id}`} className="flex min-h-11 flex-wrap items-center gap-x-4 gap-y-1 py-2 hover:bg-surface-hover">
                     <span className="tabular-nums text-foreground">{formatDay(r.created_at)}</span>
                     <span className="min-w-0 flex-1 truncate font-medium text-foreground">{r.work_order_label}</span>
                     <span className="text-muted-foreground">{t('quantityChanges:list.line', { count: r.line_count, defaultValue: '{{count}} lines' })}</span>
@@ -124,14 +122,14 @@ const QuantityChanges: React.FC = () => {
               ))}
             </ul>
             {(page > 0 || list.data.hasMore) && (
-              <nav className="flex items-center justify-end gap-2" aria-label={t('quantityChanges:list.pages', 'Pages')}>
+              <nav className="mt-3 flex items-center justify-end gap-2" aria-label={t('quantityChanges:list.pages', 'Pages')}>
                 <Button variant="ghost" disabled={page === 0} onClick={() => setParam('page', String(page - 1))}>{t('quantityChanges:list.previous', 'Previous')}</Button>
                 <Button variant="ghost" disabled={!list.data.hasMore} onClick={() => setParam('page', String(page + 1))}>{t('quantityChanges:list.next', 'Next')}</Button>
               </nav>
             )}
           </>
         )}
-      </section>
+      </RecordSection>
 
       {mayLimit && <LimitSection />}
       {raiseOpen && <RaiseQuantityChangeDialog presetProjectId={projectId || undefined} onClose={() => setRaiseOpen(false)} onCreated={(id) => navigate(`/quantity-changes/${id}`)} />}
