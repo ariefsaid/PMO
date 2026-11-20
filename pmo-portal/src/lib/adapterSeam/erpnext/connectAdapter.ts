@@ -1,3 +1,4 @@
+import { AppError } from '../../appError.ts';
 import { AdapterError } from '../contract.ts';
 import type { CensusDomain, ConnectAdapter, MasterKind, NormalisedMaster, PmoMaster } from '../connect/types.ts';
 import { createDoc, erpnextRequest, ErpError, getDoc, listDocsByFilters, withCommitDeadline, withProbeBudget, type ErpClientDeps } from './client.ts';
@@ -147,9 +148,11 @@ async function sendAccount(client: ErpClientDeps, company: string, record: PmoMa
     if (err instanceof ErpError && err.status === 417 && /can not be a ledger/.test(err.message)) throw new AdapterError('commit-rejected', NOT_A_GROUP);
     const existing = duplicateAccountName(err);
     if (existing === null) throw err;
-    return usableAccount(withProbeBudget(client), company, existing, name);
+    try { return await usableAccount(withProbeBudget(client), company, existing, name); }
+    catch { throw new AppError('Account requires reconciliation', 'command-held'); }
   }
-  return usableAccount(withProbeBudget(client), company, created, name);
+  try { return await usableAccount(withProbeBudget(client), company, created, name); }
+  catch { throw new AppError('Account requires reconciliation', 'command-held'); }
 }
 
 /** The ERP document a send of this record would find, or null. Two documents answer to one record: refused as ambiguous. */

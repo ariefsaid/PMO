@@ -94,6 +94,7 @@ function routes(o: Opts) {
       return code ? jsonResponse({ code, message: 'duplicate key value violates unique constraint', details: '' }, { status: 409 }) : jsonResponse('p_parent' in (c.bodyJson as Record<string, unknown>) ? (o.accountResultApplied ?? true) : null);
     }),
     supabaseRpc('record_connect_send_held', () => jsonResponse(null)),
+    supabaseRpc('record_connect_account_unresolved', () => jsonResponse(null)),
     supabaseSelect('external_command_outbox', (c) => {
       const row = outbox.find((x) => x.domain === f(c, 'domain') && x.pmo_record_id === f(c, 'pmo_record_id') && x.idempotency_key === f(c, 'idempotency_key'));
       return row ? one(row) : none();
@@ -668,6 +669,21 @@ describe('#1599 ECX-4 drainConnectSends: direct-cost accounts', () => {
     assertEquals([result.rejected, result.held], [1, 0]);
   });
 
+  it('AC-ECX-030 an unusable account after create remains held for reconciliation', async () => {
+    let created = false;
+    const { calls, outbox, result } = await tick({ claimed: [P.account], tables: chart(), erpAnswer: (c) => {
+      if (isAccountPost(c)) { created = true; return undefined; }
+      if (created && c.method === 'GET' && decodeURIComponent(c.url.pathname).includes('/Account/Site materials - TC')) {
+        return jsonResponse({ data: { name: 'Site materials - TC', company: 'Test Co', root_type: 'Expense', is_group: 0, disabled: 1 } });
+      }
+      return undefined;
+    } });
+    assertEquals(erpPosts(calls).length, 1);
+    assertEquals(outbox.map((row) => row.state), ['held']);
+    assertEquals(rpcCall(calls, 'record_connect_send_held').length, 1);
+    assertEquals([result.held, result.rejected], [1, 0]);
+  });
+
   it('AC-ECX-030 a parent group turned off after the chart was mirrored is refused before the create, in plain words, and nothing is created', async () => {
     const off = { ...P.account, snapshot: { accountName: 'Site materials', parentAccount: 'Old Site Costs - TC' } };
     const { calls, tables } = await tick({ claimed: [off], tables: chart() });
@@ -744,19 +760,19 @@ describe('#1599 ECX-4 drainConnectSends: direct-cost accounts', () => {
     ]);
   });
 
-  it('AC-ECX-030 a replayed account answer is read back from the ERP: a turned-off or posting account, or one under another name, is refused and never linked; a matching usable account is linked', async () => {
+  it('AC-ECX-030 an unusable confirmed account remains unresolved; a matching usable account is linked', async () => {
     const replayed = { id: 'ob-0', domain: 'accounts', pmo_record_id: 'Materials', idempotency_key: 'seed:account:Materials:["site materials","direct expenses - tc"]', state: 'confirmed', external_record_id: 'Site materials - TC', canonical: null, claim_generation: 1, payload_digest: null };
     const withAccount = (extra: Record<string, unknown>) => {
       const tables = chart();
       tables.Account.push({ name: 'Site materials - TC', account_name: 'Site materials', parent_account: 'Direct Expenses - TC', company: 'Test Co', root_type: 'Expense', is_group: 0, disabled: 0, ...extra });
       return tables;
     };
-    const REFUSED = 'The ERP account with this name cannot be used for direct costs. Ask again with a different account name.';
     const run = (extra: Record<string, unknown>) => tick({ claimed: [P.account], tables: withAccount(extra), outbox: [{ ...replayed }] });
     for (const [label, extra] of [['turned off', { disabled: 1 }], ['a group', { is_group: 1 }], ['another company', { company: 'Other Co' }], ['another name', { account_name: 'Cement' }]] as const) {
       const { calls, result } = await run(extra);
-      assertEquals(results(calls).map((r) => [r.p_external_id ?? null, r.p_rejection]), [[null, REFUSED]], label);
-      assertEquals([result.sent, result.rejected], [0, 1], label);
+      assertEquals(results(calls), [], label);
+      assertEquals(rpcCall(calls, 'record_connect_account_unresolved').map(body), [{ p_org_id: ORG, p_id: 'prop-acct' }], label);
+      assertEquals([result.sent, result.held], [0, 1], label);
       assertEquals(erpPosts(calls).length, 0, label);
     }
     const ok = await run({});

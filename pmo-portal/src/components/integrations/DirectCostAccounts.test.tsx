@@ -68,6 +68,7 @@ describe('AC-ECX-030 DirectCostAccounts', () => {
     await within(dialog).findByText(/Equipment: PMO could not ask/);
     expect(within(dialog).queryByText(/nothing was saved/i)).toBeNull();
     expect(within(dialog).getByText('Requests accepted: Labor.')).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Create accounts' })).toBeEnabled());
     fireEvent.click(within(dialog).getByRole('button', { name: 'Create accounts' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(repo.requestAccountSend.mock.calls.map(([, request]) => request.category)).toEqual(['Labor', 'Equipment', 'Equipment']);
@@ -237,15 +238,47 @@ describe('AC-ECX-030 DirectCostAccounts', () => {
     });
     await act(async () => { fireEvent.click(screen.getByText('Refresh status')); });
     await waitFor(() => expect(repo.listConnectProposals).toHaveBeenCalledWith('erpnext', 'account', 'send', 'next-page', 'sending'));
-    expect(within(dialog).getByLabelText(/^Account name for Labor/)).toBeDisabled();
+    expect(within(dialog).getByLabelText(/^Account name for Labor/)).toBeEnabled();
+    expect(within(dialog).getByRole('button', { name: 'Create accounts' })).toBeDisabled();
     await act(async () => { releasePage(); });
     await waitFor(() => expect(screen.getByTestId('reconciliation')).toHaveTextContent('settled'));
     expect(within(dialog).getByLabelText(/^Account name for Labor/)).toBeDisabled();
   });
 
-  it.each(['sending', 'held'] as const)('AC-ECX-030 refreshes an open correction when another session has a %s request', async (otherState) => {
+  it('AC-ECX-030 keeps a correction focused during a pending refresh while submission waits', async () => {
+    function RefreshStatus() {
+      const pending = useIsFetching({ queryKey: ['integrations', 'connect-status', 'erpnext'] });
+      return <span data-testid='status-pending'>{pending}</span>;
+    }
+    repo.listConnectProposals.mockImplementation(async (...args: unknown[]) => ({
+      proposals: (args[4] ?? 'open') === 'open' ? [{ id: 'send-1', kind: 'account', outcome: 'review', state: 'open', reason: 'rejected', pmo_ids: ['Labor'], snapshot: {} }] : [], nextAfterId: null,
+    }));
+    wrapWithRole('Finance', <><DirectCostAccounts categories={['Labor']} /><RefreshStatus /></>);
+    let dialog = await openDialog();
+    fireEvent.change(await within(dialog).findByLabelText(/^Expense group/), { target: { value: 'Direct Expenses - EC' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create accounts' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    dialog = await openDialog();
+    const name = within(dialog).getByLabelText(/^Account name for Labor/);
+    await waitFor(() => expect(name).toBeEnabled());
+    fireEvent.change(within(dialog).getByLabelText(/^Expense group/), { target: { value: 'Direct Expenses - EC' } });
+    let release!: () => void;
+    repo.getConnectStatus.mockImplementationOnce(() => new Promise((resolve) => { release = () => resolve({ waitingForSend: 0 }); }));
+    name.focus();
+    await waitFor(() => expect(screen.getByTestId('status-pending')).toHaveTextContent('1'), { timeout: 15000 });
+    expect(name).toBeEnabled();
+    expect(name).toHaveFocus();
+    fireEvent.change(name, { target: { value: 'Corrected name' } });
+    expect(within(dialog).getByRole('button', { name: 'Create accounts' })).toBeDisabled();
+    await act(async () => { release(); });
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Create accounts' })).toBeEnabled());
+    expect(name).toHaveValue('Corrected name');
+    expect(name).toHaveFocus();
+  }, 20000);
+
+  it.each(['sending', 'held', 'unresolved'] as const)('AC-ECX-030 refreshes an open correction when another session has a %s request', async (otherState) => {
     let phase: 'sending-a' | 'rejected-a' | 'sending-b' = 'sending-a';
-    repo.getConnectStatus.mockImplementation(async () => ({ waitingForSend: phase === 'rejected-a' || (phase === 'sending-b' && otherState === 'held') ? 0 : 1 }));
+    repo.getConnectStatus.mockImplementation(async () => ({ waitingForSend: phase === 'rejected-a' || (phase === 'sending-b' && otherState !== 'sending') ? 0 : 1 }));
     repo.requestAccountSend.mockImplementation(async () => {
       if (phase === 'rejected-a') { phase = 'sending-b'; return { id: 'send-2' }; }
       return { id: 'send-1' };
@@ -254,7 +287,7 @@ describe('AC-ECX-030 DirectCostAccounts', () => {
       const state = args[4] ?? 'open';
       const outcome = args[2];
       const rejected = { id: 'send-1', kind: 'account', outcome: 'review', state: 'open', reason: 'rejected', reason_text: 'Rejected', pmo_ids: ['Labor'], snapshot: {} };
-      const outstanding = { id: 'send-2', kind: 'account', outcome: otherState === 'sending' ? 'send' : 'review', state: otherState === 'sending' ? 'sending' : 'open', reason: otherState === 'sending' ? null : 'held', pmo_ids: ['Labor'], snapshot: {} };
+      const outstanding = { id: 'send-2', kind: 'account', outcome: otherState === 'sending' ? 'send' : 'review', state: otherState === 'sending' ? 'sending' : 'open', reason: otherState === 'sending' ? null : otherState, pmo_ids: ['Labor'], snapshot: {} };
       return { proposals: [
         ...(outcome === 'review' && state === 'open' && phase !== 'sending-a' ? [rejected] : []),
         ...(phase === 'sending-b' && state === outstanding.state && outcome === outstanding.outcome ? [outstanding] : []),

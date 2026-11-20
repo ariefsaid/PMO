@@ -437,6 +437,7 @@ insert into client_callable_rpc_names (proname) values
   ('reserve_credits'),
   ('retry_connect_send'),
   ('request_account_send'),  -- ⚑ AMENDED BY 0975 (#1599)
+  ('dispose_account_reconciliation'),  -- 1058: Admin and org checked in the writer
   ('save_timesheet_week'),
   ('send_task_reminders'),
   ('select_procurement_quote'),
@@ -507,7 +508,7 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  195,
+  196,
   'AC-ACL-002 all 195 retained client-callable RPC names still have a public function');
 
 select is(
@@ -517,7 +518,7 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  195,
+  196,
   'AC-ACL-003 all 195 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function

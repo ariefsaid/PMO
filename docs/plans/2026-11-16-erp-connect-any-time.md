@@ -222,6 +222,8 @@ p_parent_account text)`; on success the sweep writes `budget_category_account_ma
 **ECX4-T6 — UI.** Replace `accountantTask` copy with "No direct-cost account for: {{categories}}. Create them under:
 [group picker] [Create]"; RTL test first in `ErpSetupChecklist.test.tsx` (created in ECX3-T6). Drop allowlist entry. V-unit, V-type, V-guards.
 
+An account request whose reconciliation is unresolved keeps its category reserved until the account is linked or an Admin records a reasoned, audited absence disposition. Disposition requires the original outbox to be terminal and unclaimable and any claim window to have elapsed; a recorded ERP identity requires authoritative linking.
+
 ### ECX-5 — Fiscal year kept ahead from PMO (M-8)
 
 **ECX5-T0 — bed discovery (done 2026-11-16, §10).** Create is `POST /api/resource/Fiscal Year {year, year_start_date,

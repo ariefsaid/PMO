@@ -78,6 +78,14 @@ describe('ECA3-T11 ErpSendStates', () => {
     expect(screen.queryByRole('button', { name: /send it again/i })).toBeNull();
   });
 
+  it('AC-ECX-030 shows an unresolved account for administrator attention', async () => {
+    answer(0, [proposal({ id: 'a1', kind: 'account', reason: 'unresolved' as ConnectProposal['reason'], snapshot: { accountName: 'Materials' }, reason_text: 'PMO could not confirm this account. Contact your administrator.' })]);
+    renderIt();
+    expect(await screen.findByText('Materials')).toBeTruthy();
+    expect(screen.getByText(/could not confirm whether the account was created/i)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /send it again/i })).toBeNull();
+  });
+
   it('AC-ECX-030 Finance can read an account hold even when the all-kinds list is forbidden', async () => {
     repo.getConnectStatus.mockResolvedValue(status(0));
     repo.listConnectProposals.mockImplementation(async (_tier, kind, outcome) => {

@@ -33,7 +33,6 @@ export const CONNECT_SEND_REJECTION_TEXT = {
   accountIncomplete: 'Give the account a name and choose the expense group it goes under, then ask again.',
   unsendable: (kind: string) => { const noun = NOUN[kind] ?? 'record'; return `This ERP cannot be sent ${/^[aeiou]/.test(noun) ? 'an' : 'a'} ${noun} from PMO yet.`; },
   /** #1599: clients never work in the ERP, so an account send PMO cannot finish is the Operator's task, and Finance is told so. */
-  accountMismatch: 'The ERP account with this name cannot be used for direct costs. Ask again with a different account name.',
   accountContactAdmin: 'PMO could not create the account. Contact your administrator.',
   ambiguous: (kind: string) => `Two ERP records match this ${NOUN[kind] ?? 'record'}. Link the right one by hand.`,
   linked: 'This record is already linked to another ERP record.',
@@ -226,7 +225,12 @@ export async function drainSends(sc: SupabaseClient, org: { orgId: string; bindi
         const done = await sendMasterOnce({ money }, sender, kind, master);
         let accountParent: string | undefined;
         if (kind === 'account') {
-          if (!conn.accountReadBack || !conn.accountGroup || !(await conn.accountReadBack(done.externalRecordId, master.name))) { await reject(c, CONNECT_SEND_REJECTION_TEXT.accountMismatch); continue; }
+          if (!conn.accountReadBack || !conn.accountGroup || !(await conn.accountReadBack(done.externalRecordId, master.name))) {
+            await check(sc.rpc('record_connect_account_unresolved', { p_org_id: org.orgId, p_id: c.id }), 'account reconciliation');
+            out.held += 1;
+            await operatorTask(c, ACCOUNT_OPERATOR_TASK.unconfirmed);
+            continue;
+          }
           const parent = await conn.accountGroup(done.externalRecordId);
           if (!parent) throw new Error('Account parent unavailable');
           accountParent = parent;
@@ -258,7 +262,7 @@ export async function drainSends(sc: SupabaseClient, org: { orgId: string; bindi
       const msg = err instanceof Error ? err.message : String(err);
       out.error = [out.error, `${c.kind}:${msg}`].filter(Boolean).join('; ');
       // I1: a link clash (the ERP record belongs to another PMO record) can never succeed by trying again: it ends as a decision in plain words.
-      if (/\b23505\b/.test(msg)) {
+      if (c.kind !== 'account' && /\b23505\b/.test(msg)) {
         try { await reject(c, CONNECT_SEND_REJECTION_TEXT.linked); } catch { out.pending += 1; }
       } else await countFailure(c);
     }

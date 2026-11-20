@@ -865,3 +865,5 @@ which moves the organisation's own stock.
 **Tracker reading** — one figure from a machine's tracker for one unit and calendar day: engine hours and an optional place label, matched to an equipment asset by its tracker unit identifier. Held apart from usage entries; it never counts in any cost or total until a person proposes it as a Draft usage entry and a different person approves it (#2582).
 
 **Direct-cost account** — an active posting account under an expense group in the connected company's chart, linked to a budget category for its costs. Admin or Finance may request a leaf account under an existing group from PMO; the group and the rest of the chart remain under the accountant's control.
+
+**Unresolved account reconciliation** — an account request awaiting an authoritative link or an audited administrator disposition after its outcome could not be settled. A disposition records the administrator's reason and attestation and is available only once the original outbox is terminal and unclaimable.

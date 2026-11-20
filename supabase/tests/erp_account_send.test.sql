@@ -3,7 +3,7 @@
 -- expense group of the bound company; the queued send and the resulting map row are org-scoped. Also the DB half of AC-ECX-030: the
 -- drain's result links the category to the created account once, and a category that has its account is never sent again.
 begin;
-select plan(71);
+select plan(99);
 
 insert into organizations (id, name) values
  ('a9110000-0000-0000-0000-000000000001','Accounts A'),
@@ -113,7 +113,7 @@ select results_eq($$select outcome, reason, state from erp_connect_proposals whe
   'a refused account send waits as a decision in plain words');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"a9110000-0000-0000-0000-0000000000f1","role":"authenticated"}';
-select lives_ok($$select public.request_account_send('erpnext','Labor','Direct Expenses - EC','Site labour')$$, 'Finance asks again after a refusal');
+select lives_ok($$select public.request_account_send('erpnext','Labor','Direct Expenses - EC','Corrected labour')$$, 'Finance asks again after a refusal');
 reset role;
 select results_eq($$select outcome, state from erp_connect_proposals where kind = 'account' and pmo_ids[1] = 'Labor' order by state$$,
   $$values ('review'::text, 'dismissed'::text), ('send'::text, 'sending'::text)$$, 'asking again dismisses the refusal and queues one fresh send');
@@ -124,7 +124,7 @@ insert into erp_connect_proposals (org_id, binding_id, external_tier, kind, outc
 select 'a9110000-0000-0000-0000-000000000001', b.id, 'erpnext', v.kind, 'send', 'send|' || v.pmo || '|[]|a911', array[v.pmo], '{}', '{}', 'sending',
        'a9110000-0000-0000-0000-0000000000f1', now()
   from external_org_bindings b,
-       (values ('account','Equipment'), ('account','Subcontractors'), ('account','Overheads'), ('party','a911-party'), ('party','a911-party-2')) v(kind, pmo)
+       (values ('account','Equipment'), ('account','Subcontractors'), ('account','Overheads'), ('account','a911-account-2'), ('party','a911-party'), ('party','a911-party-2')) v(kind, pmo)
  where b.org_id = 'a9110000-0000-0000-0000-000000000001' and b.external_tier = 'erpnext';
 set local role service_role;
 set local request.jwt.claims = '{"role":"service_role"}';
@@ -158,7 +158,7 @@ select is((select count(*)::int from budget_category_account_map where org_id = 
 select public.record_connect_send_held('a9110000-0000-0000-0000-000000000001', (select id from erp_connect_proposals where pmo_ids[1] = 'Overheads'));
 select public.record_connect_send_held('a9110000-0000-0000-0000-000000000001', (select id from erp_connect_proposals where pmo_ids[1] = 'a911-party'));
 select results_eq($$select reason, reason_text from erp_connect_proposals where pmo_ids[1] = 'Overheads'$$,
-  $$values ('held'::text, 'PMO could not confirm whether the account was created. Contact your administrator.'::text)$$, 'AC-ECX-030 an undecided account send directs Finance to contact the administrator');
+  $$values ('unresolved'::text, 'PMO could not confirm this account. Contact your administrator.'::text)$$, 'AC-ECX-030 an undecided account send directs Finance to contact the administrator');
 select is((select reason_text from erp_connect_proposals where pmo_ids[1] = 'a911-party'),
   'We could not confirm whether the ERP created this record. Look for it in the ERP by name and tax id; if it is not there, send it again.', 'a held party send keeps its own wording');
 -- A dismissed unresolved account must still fence a different-name request and its distinct outbox key.
@@ -182,9 +182,9 @@ reset role;
 delete from erp_connect_proposals where pmo_ids[1] = 'Overheads' and id <> current_setting('a911.held')::uuid;
 set local role service_role;
 -- the last try: five failures end an account send with the same sentence; a party keeps its own
-update erp_connect_proposals set outcome = 'send', reason = null, reason_text = null, state = 'sending', send_failures = 4 where pmo_ids[1] in ('Overheads', 'a911-party-2');
-select is(public.record_connect_send_failure('a9110000-0000-0000-0000-000000000001', (select id from erp_connect_proposals where pmo_ids[1] = 'Overheads')), true, 'the fifth failure ends the account send');
-select is((select reason_text from erp_connect_proposals where pmo_ids[1] = 'Overheads'), 'PMO could not create the account. Contact your administrator.',
+update erp_connect_proposals set outcome = 'send', reason = null, reason_text = null, state = 'sending', send_failures = 4 where pmo_ids[1] in ('a911-account-2', 'a911-party-2');
+select is(public.record_connect_send_failure('a9110000-0000-0000-0000-000000000001', (select id from erp_connect_proposals where pmo_ids[1] = 'a911-account-2')), true, 'the fifth failure ends the account send');
+select is((select reason_text from erp_connect_proposals where pmo_ids[1] = 'a911-account-2'), 'PMO could not confirm this account. Contact your administrator.',
   'AC-ECX-030 an account send that failed on every try directs Finance to contact the administrator');
 select is(public.record_connect_send_failure('a9110000-0000-0000-0000-000000000001', (select id from erp_connect_proposals where pmo_ids[1] = 'a911-party-2')), true, 'the fifth failure ends the party send');
 select is((select reason_text from erp_connect_proposals where pmo_ids[1] = 'a911-party-2'), 'We could not finish sending this record. Check it in the ERP, then try again.', 'a party send that failed on every try keeps its own wording');
@@ -239,6 +239,113 @@ select results_eq($$select erp_account, is_push_target from budget_category_acco
  $$values ('Manually chosen - EC'::text, true)$$, 'a competing push target is never overwritten');
 select results_eq($$select outcome, state from erp_connect_proposals where kind='account' and pmo_ids[1]='Special expenses'$$,
  $$values ('review'::text, 'open'::text)$$, 'a conflicting result remains operator-visible instead of reporting a link');
+
+-- Five reconciliation attempts after the outbox confirms the account.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a9110000-0000-0000-0000-0000000000f2","role":"authenticated"}';
+select set_config('a911.unresolved', public.request_account_send('erpnext','Labor','Direct Expenses - EB','Original labor')::text, true);
+reset role;
+insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, external_record_id)
+values ('a9110000-0000-0000-0000-000000000002', 'accounts', 'Labor', 'seed:account:Labor:original', 'erpnext', 'create', 'confirmed', 'Original labor - EB');
+set local role service_role;
+select public.record_connect_send_failure('a9110000-0000-0000-0000-000000000002', current_setting('a911.unresolved')::uuid) from generate_series(1,5);
+reset role;
+select results_eq($$select outcome, reason, state, send_failures from erp_connect_proposals where id = current_setting('a911.unresolved')::uuid$$,
+ $$values ('review'::text, 'unresolved'::text, 'open'::text, 5)$$, 'AC-ECX-030 five post-send reconciliation failures leave an unresolved request');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a9110000-0000-0000-0000-0000000000f2","role":"authenticated"}';
+select throws_ok($$select public.request_account_send('erpnext','Labor','Direct Expenses - EB','Different labor')$$,
+ 'P0001', null, 'AC-ECX-030 a different name cannot bypass the unresolved category fence');
+select throws_ok($$select public.decide_connect_review(current_setting('a911.unresolved')::uuid, '{"action":"send","pmoId":"Labor"}'::jsonb)$$,
+ 'P0001', null, 'the generic review action cannot resend the unresolved request');
+select lives_ok($$select public.decide_connect_review(current_setting('a911.unresolved')::uuid, '{"action":"dismiss"}'::jsonb)$$,
+ 'dismissing the review keeps the unresolved category fenced');
+reset role;
+select is((select count(*)::int from erp_connect_proposals where org_id = 'a9110000-0000-0000-0000-000000000002' and kind = 'account' and pmo_ids[1] = 'Labor'), 1, 'the original proposal remains the only request');
+select results_eq($$select state, external_record_id from external_command_outbox where org_id = 'a9110000-0000-0000-0000-000000000002' and domain = 'accounts' and pmo_record_id = 'Labor'$$,
+ $$values ('confirmed'::text, 'Original labor - EB'::text)$$, 'the original outbox remains intact');
+set local role service_role;
+select is((select count(*)::int from public.claim_connect_sends('a9110000-0000-0000-0000-000000000002','erpnext',50) where kind = 'account' and pmo_ids[1] = 'Labor'), 0, 'the drain claims no replacement');
+reset role;
+
+-- An authoritative readback may finish the original unresolved request.
+set local role service_role;
+select is(public.record_connect_send_result('a9110000-0000-0000-0000-000000000002', current_setting('a911.unresolved')::uuid,
+ 'Original labor - EB', null, 'Direct Expenses - EB'), true, 'AC-ECX-030 authoritative linking resolves the original request');
+reset role;
+select is((select erp_account from budget_category_account_map where org_id = 'a9110000-0000-0000-0000-000000000002' and category = 'Labor' and is_push_target),
+ 'Original labor - EB', 'the original account is the push target');
+
+insert into auth.users (id,email) values ('a9110000-0000-0000-0000-0000000000a2','a911-admin-b@example.com');
+insert into profiles (id,org_id,full_name,email,role,status) values ('a9110000-0000-0000-0000-0000000000a2','a9110000-0000-0000-0000-000000000002','Admin B','a911-admin-b@example.com','Admin','active');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a9110000-0000-0000-0000-0000000000f2","role":"authenticated"}';
+select set_config('a911.disposition', public.request_account_send('erpnext','Equipment','Direct Expenses - EB','Equipment original')::text, true);
+reset role;
+insert into external_command_outbox (org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state,claimed_at)
+ values ('a9110000-0000-0000-0000-000000000002','accounts','Equipment','seed:account:Equipment:original','erpnext','create','pending',now()-interval '10 minutes');
+select set_config('a911.outbox', (select id::text from external_command_outbox where idempotency_key = 'seed:account:Equipment:original'), true);
+set local role service_role;
+select public.record_connect_account_unresolved('a9110000-0000-0000-0000-000000000002',current_setting('a911.disposition')::uuid);
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a9110000-0000-0000-0000-0000000000f2","role":"authenticated"}';
+select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence', true)$$, '42501', null, 'Finance cannot release an unresolved account');
+set local request.jwt.claims = '{"sub":"a9110000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence', true)$$, 'P0002', null, 'an Admin from another organisation cannot release the request');
+set local request.jwt.claims = '{"sub":"a9110000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, ' ', true)$$, '22023', null, 'a meaningful reason is required');
+select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence', false)$$, '22023', null, 'an explicit absence attestation is required');
+reset role;
+update external_command_outbox set state = 'pending' where idempotency_key = 'seed:account:Equipment:original';
+set local role authenticated;
+select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence', true)$$, 'P0001', null, 'a pending outbox prevents disposition');
+reset role;
+update external_command_outbox set state = 'committing' where idempotency_key = 'seed:account:Equipment:original';
+set local role authenticated;
+select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence', true)$$, 'P0001', null, 'a committing outbox prevents disposition');
+reset role;
+update external_command_outbox set state = 'quarantined' where idempotency_key = 'seed:account:Equipment:original';
+set local role authenticated;
+select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence', true)$$, 'P0001', null, 'a quarantined outbox prevents disposition');
+reset role;
+update external_command_outbox set state = 'failed' where idempotency_key = 'seed:account:Equipment:original';
+set local role authenticated;
+select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence', true)$$, 'P0001', null, 'a retryable failed outbox prevents disposition');
+reset role;
+update external_command_outbox set state = 'committed', external_record_id = 'Equipment - EB' where idempotency_key = 'seed:account:Equipment:original';
+set local role authenticated;
+select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence', true)$$, 'P0001', null, 'a committed account requires linking');
+reset role;
+update external_command_outbox set state = 'confirmed', external_record_id = 'Equipment - EB' where idempotency_key = 'seed:account:Equipment:original';
+set local role authenticated;
+select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence', true)$$, 'P0001', null, 'a confirmed account requires linking');
+reset role;
+update external_command_outbox set state = 'held', external_record_id = 'Equipment - EB' where idempotency_key = 'seed:account:Equipment:original';
+set local role authenticated;
+select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence', true)$$, 'P0001', null, 'any recorded external id requires linking');
+reset role;
+update external_command_outbox set state = 'held', external_record_id = null, claimed_at = now() where idempotency_key = 'seed:account:Equipment:original';
+set local role authenticated;
+select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence', true)$$, 'P0001', null, 'a recent claim prevents disposition');
+reset role;
+update external_command_outbox set claimed_at = now() - interval '10 minutes' where idempotency_key = 'seed:account:Equipment:original';
+update erp_connect_proposals set send_claimed_at = now() where id = current_setting('a911.disposition')::uuid;
+set local role authenticated;
+select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence', true)$$, 'P0001', null, 'a recent drain claim prevents disposition');
+reset role;
+update erp_connect_proposals set send_claimed_at = now() - interval '10 minutes' where id = current_setting('a911.disposition')::uuid;
+set local role authenticated;
+select throws_ok($$select public.release_outbox_hold(current_setting('a911.outbox')::uuid, 'Generic retry', 'accounts')$$,
+ 'P0001', null, 'generic outbox retry cannot release an unresolved account');
+select lives_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence in the connected company', true)$$, 'an Admin may dispose of a terminal and unclaimable request with an attestation');
+select throws_ok($$select public.release_outbox_hold(current_setting('a911.outbox')::uuid, 'Generic retry', 'accounts')$$,
+ 'P0001', null, 'generic outbox retry cannot revive a disposed request');
+select lives_ok($$select public.request_account_send('erpnext','Equipment','Direct Expenses - EB','Corrected equipment')$$, 'only the disposed category is released');
+set local request.jwt.claims = '{"sub":"a9110000-0000-0000-0000-0000000000f1","role":"authenticated"}';
+select throws_ok($$select public.request_account_send('erpnext','Overheads','Direct Expenses - EC','Different account')$$, 'P0001', null, 'another unresolved category remains fenced after disposition');
+reset role;
+select is((select count(*)::int from audit_events where action = 'integration.account_reconciliation_disposition' and entity_id = current_setting('a911.disposition')::uuid), 1, 'the disposition is audited');
 
 select * from finish();
 rollback;

@@ -54,9 +54,9 @@ export function DirectCostAccounts({ categories, tier = 'erpnext' }: { categorie
             || page.proposals.some((p) => !p || (typeof p.id !== 'string' || !p.id) || p.kind !== 'account'
               || p.state !== state || p.outcome !== outcome
               || (state === 'sending' && p.reason !== null)
-              || (p.reason !== null && !['ambiguous', 'tax-conflict', 'rejected', 'held'].includes(p.reason))
+              || (p.reason !== null && !['ambiguous', 'tax-conflict', 'rejected', 'held', 'unresolved'].includes(p.reason))
               || !Array.isArray(p.pmo_ids) || p.pmo_ids.some((id) => typeof id !== 'string' || !id)
-              || ((p.state === 'sending' || p.reason === 'held' || p.reason === 'rejected') && p.pmo_ids.length === 0))
+              || ((p.state === 'sending' || p.reason === 'held' || p.reason === 'unresolved' || p.reason === 'rejected') && p.pmo_ids.length === 0))
             || (page.nextAfterId !== null && (typeof page.nextAfterId !== 'string' || !page.nextAfterId || seen.has(page.nextAfterId)))) {
             throw new Error('Incomplete account request list');
           }
@@ -72,10 +72,12 @@ export function DirectCostAccounts({ categories, tier = 'erpnext' }: { categorie
     retry: false,
   });
   const completeReviews = status.isSuccess && !status.isFetching && reviews.isSuccess && !reviews.isFetching && !reviews.isPlaceholderData;
-  const rows = completeReviews ? reviews.data : [];
+  // Preserve the last complete view while a background refresh is in flight, so typing can continue.
+  const rows = status.isSuccess && reviews.isSuccess ? reviews.data : [];
+  const editableView = status.isSuccess && reviews.isSuccess;
   const rejected = rows.filter((p) => p.reason === 'rejected');
-  const outstanding = new Set(rows.filter((p) => p.state === 'sending' || (p.reason === 'held' && (p.state === 'open' || p.state === 'dismissed'))).flatMap((p) => p.pmo_ids));
-  const accepted = Object.keys(acceptedRequests).filter((category) => !completeReviews || outstanding.has(category) || !rejected.some((p) => p.id === acceptedRequests[category] && p.pmo_ids.includes(category)));
+  const outstanding = new Set(rows.filter((p) => p.state === 'sending' || ((p.reason === 'held' || p.reason === 'unresolved') && (p.state === 'open' || p.state === 'dismissed'))).flatMap((p) => p.pmo_ids));
+  const accepted = Object.keys(acceptedRequests).filter((category) => !editableView || outstanding.has(category) || !rejected.some((p) => p.id === acceptedRequests[category] && p.pmo_ids.includes(category)));
   const labels = categories.map((category) => [category, budgetCategoryLabel(category, t)] as const);
   const start = () => {
     if (Object.keys(acceptedRequests).length > 0) void qc.invalidateQueries({ queryKey: ['integrations', 'connect-status', tier] });
@@ -129,7 +131,7 @@ export function DirectCostAccounts({ categories, tier = 'erpnext' }: { categorie
           onClose={() => setOpen(false)}
           loading={busy}
           dirty={group !== ''}
-          submitDisabled={!complete || busy || labels.every(([category]) => accepted.includes(category))}
+          submitDisabled={!complete || busy || (Object.keys(acceptedRequests).length > 0 && !completeReviews) || labels.every(([category]) => accepted.includes(category))}
         >
           {errors.length > 0 && (
             <div role='alert' className='mb-4 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3 py-3 text-control text-destructive-text'>

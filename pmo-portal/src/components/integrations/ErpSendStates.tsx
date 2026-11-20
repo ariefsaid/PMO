@@ -125,7 +125,7 @@ export function ErpSendStates({ enabled, tier = 'erpnext' }: { enabled: boolean;
     : text === ACCOUNT_UNUSABLE_TEXT ? t('administration:integrations.accounts.unusable', ACCOUNT_UNUSABLE_TEXT)
       : english && !text.includes('your administrator has been told') ? text : t('administration:integrations.accounts.failedDetails', 'PMO could not complete this account request. Check the details or contact your administrator.');
   const refused = [...new Map([...(reviews.data?.proposals ?? []), ...(accountReviews.data?.proposals ?? [])]
-    .filter((p) => (p.reason === 'rejected' || p.reason === 'held') && p.reason_text)
+    .filter((p) => (p.reason === 'rejected' || p.reason === 'held' || p.reason === 'unresolved') && p.reason_text)
     .map((p) => [p.id, p])).values()];
   const toAdd = people.data?.proposals ?? [];
   if (waiting === 0 && refused.length === 0 && toAdd.length === 0) return null;
@@ -144,7 +144,7 @@ export function ErpSendStates({ enabled, tier = 'erpnext' }: { enabled: boolean;
             <li key={p.id} className='min-w-0'>
               <span className='break-words font-medium'>{(p.kind === 'account' ? p.snapshot.accountName ?? p.snapshot.name ?? p.pmo_ids.join(', ') : p.snapshot.name) || t('administration:integrations.send.unnamed', 'A record')}</span>{' '}
               <StatusPill variant='warn'>{t('administration:integrations.send.needsDecision', 'Needs a decision')}</StatusPill>
-              <p className='mt-1 break-words text-muted-foreground'>{p.kind === 'account' ? accountMessage(p.reason_text ?? '', p.reason === 'held') : refusalText(p.reason_text ?? '')}</p>
+              <p className='mt-1 break-words text-muted-foreground'>{p.kind === 'account' ? accountMessage(p.reason_text ?? '', (p.reason === 'held' || p.reason === 'unresolved')) : refusalText(p.reason_text ?? '')}</p>
               {p.kind !== 'account' && !english && erpWords(p.reason_text ?? '') && (
                 <p lang='en' data-erp-reason className='mt-1 break-words text-muted-foreground'>{t('administration:integrations.send.refusal.erpReason', 'ERP: {{reason}}', { reason: erpWords(p.reason_text ?? ''), interpolation: { escapeValue: false } })}</p>
               )}

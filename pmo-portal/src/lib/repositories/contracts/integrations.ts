@@ -158,7 +158,7 @@ export interface ConnectProposal {
   outcome: 'link' | 'bring-in' | 'send' | 'review';
   pmo_ids: string[];
   external_ids: string[];
-  reason: 'ambiguous' | 'tax-conflict' | 'rejected' | 'held' | null;
+  reason: 'ambiguous' | 'tax-conflict' | 'rejected' | 'held' | 'unresolved' | null;
   reason_text: string | null;
   snapshot: { name?: string; code?: string; employeeName?: string; accountName?: string; itemName?: string; item_name?: string };
   state: 'open' | 'sending' | 'applied' | 'dismissed';
