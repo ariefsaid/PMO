@@ -4,7 +4,7 @@ export const NAVIGATION_ORDER = [
   '/sales', '/companies', '/contacts',
   '/projects', '/procurement', '/stock', '/equipment', '/companies?type=Vendor', '/incidents', '/meetings', '/calendar',
   '/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/journals',
-  '/timesheets', '/expenses', '/imprest', '/my-tasks', '/views',
+  '/timesheets', '/expenses', '/imprest', '/material-requests', '/my-tasks', '/views',
   '/administration',
 ] as const;
 

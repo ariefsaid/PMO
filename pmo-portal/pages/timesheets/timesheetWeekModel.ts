@@ -107,3 +107,24 @@ export function planCopyLastWeekRows(
     }));
   return { rows: [...currentRows, ...additions], addedCount: additions.length };
 }
+
+export type WeekSaveState = 'reconciling' | 'saving' | 'invalid' | 'failed' | 'unsaved' | 'saved' | 'idle';
+
+/**
+ * The ONE status the week shows (#2559). `failed`/`saved` mean "this very edit buffer" failed or
+ * just saved (the caller compares buffer identity), so a later edit or another week falls back to
+ * the derived states. `saved` outranks `unsaved` only for a just-saved buffer, which stays dirty
+ * against the server until the week refetch lands.
+ */
+export function weekSaveState(s: {
+  reconciling: boolean; saving: boolean; invalid: boolean; failed: boolean;
+  saved: boolean; dirty: boolean; hasEntries: boolean;
+}): WeekSaveState {
+  if (s.reconciling) return 'reconciling';
+  if (s.saving) return 'saving';
+  if (s.invalid) return 'invalid';
+  if (s.failed) return 'failed';
+  if (s.saved) return 'saved';
+  if (s.dirty) return 'unsaved';
+  return s.hasEntries ? 'saved' : 'idle';
+}

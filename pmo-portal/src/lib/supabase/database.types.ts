@@ -277,6 +277,75 @@ export type Database = {
           },
         ]
       }
+      approval_chain_steps: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          only_over_plan: boolean
+          org_id: string
+          position: number
+          role: Database["public"]["Enums"]["user_role"]
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          only_over_plan?: boolean
+          org_id?: string
+          position: number
+          role: Database["public"]["Enums"]["user_role"]
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          only_over_plan?: boolean
+          org_id?: string
+          position?: number
+          role?: Database["public"]["Enums"]["user_role"]
+        }
+        Relationships: []
+      }
+      approval_stand_ins: {
+        Row: {
+          created_at: string
+          created_by: string
+          delegator_id: string
+          ends_on: string
+          id: string
+          org_id: string
+          revoked_at: string | null
+          revoked_by: string | null
+          stand_in_id: string
+          starts_on: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          delegator_id: string
+          ends_on: string
+          id?: string
+          org_id?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          stand_in_id: string
+          starts_on: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          delegator_id?: string
+          ends_on?: string
+          id?: string
+          org_id?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          stand_in_id?: string
+          starts_on?: string
+        }
+        Relationships: []
+      }
       contract_rate_assignees: {
         Row: {
           created_at: string
@@ -2219,6 +2288,63 @@ export type Database = {
           id?: string
           name?: string
           org_id?: string
+        }
+        Relationships: []
+      }
+      work_order_plan_lines: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          discipline_id: string | null
+          id: string
+          kind: string
+          note: string | null
+          org_id: string
+          project_id: string
+          updated_at: string
+          updated_by: string | null
+          value: number
+          work_order_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          discipline_id?: string | null
+          id?: string
+          kind: string
+          note?: string | null
+          org_id?: string
+          project_id: string
+          updated_at?: string
+          updated_by?: string | null
+          value: number
+          work_order_id: string
+        }
+        Update: {
+          note?: string | null
+          value?: number
+        }
+        Relationships: []
+      }
+      project_shared_cost_splits: {
+        Row: {
+          org_id: string
+          percent: number
+          project_id: string
+          saved_at: string
+          saved_by: string | null
+          work_order_id: string
+        }
+        Insert: {
+          org_id?: string
+          percent: number
+          project_id: string
+          saved_at?: string
+          saved_by?: string | null
+          work_order_id: string
+        }
+        Update: {
+          percent?: number
         }
         Relationships: []
       }
@@ -5534,6 +5660,219 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      material_request_events: {
+        Row: {
+          acted_for: string | null
+          action: string
+          actor_id: string | null
+          client_request_id: string | null
+          created_at: string
+          from_status: string | null
+          id: string
+          org_id: string
+          reason: string | null
+          request_id: string
+          step_position: number | null
+          to_status: string
+        }
+        Insert: {
+          acted_for?: string | null
+          action: string
+          actor_id?: string | null
+          client_request_id?: string | null
+          created_at?: string
+          from_status?: string | null
+          id?: string
+          org_id?: string
+          reason?: string | null
+          request_id: string
+          step_position?: number | null
+          to_status: string
+        }
+        Update: {
+          acted_for?: string | null
+          action?: string
+          actor_id?: string | null
+          client_request_id?: string | null
+          created_at?: string
+          from_status?: string | null
+          id?: string
+          org_id?: string
+          reason?: string | null
+          request_id?: string
+          step_position?: number | null
+          to_status?: string
+        }
+        Relationships: []
+      }
+      material_request_lines: {
+        Row: {
+          id: string
+          item_id: string
+          line_no: number
+          org_id: string
+          over_plan_reason: string | null
+          plan_qty: number | null
+          prior_qty: number | null
+          quantity: number
+          request_id: string
+        }
+        Insert: {
+          id?: string
+          item_id: string
+          line_no: number
+          org_id?: string
+          over_plan_reason?: string | null
+          plan_qty?: number | null
+          prior_qty?: number | null
+          quantity: number
+          request_id: string
+        }
+        Update: {
+          id?: string
+          item_id?: string
+          line_no?: number
+          org_id?: string
+          over_plan_reason?: string | null
+          plan_qty?: number | null
+          prior_qty?: number | null
+          quantity?: number
+          request_id?: string
+        }
+        Relationships: []
+      }
+      material_request_settings: {
+        Row: {
+          cutoff_time: string | null
+          org_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          cutoff_time?: string | null
+          org_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          cutoff_time?: string | null
+          org_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      material_request_steps: {
+        Row: {
+          acted_for: string | null
+          decided_at: string | null
+          decided_by: string | null
+          id: string
+          label: string
+          org_id: string
+          position: number
+          reason: string | null
+          request_id: string
+          role: Database["public"]["Enums"]["user_role"]
+          round: number
+          status: string
+        }
+        Insert: {
+          acted_for?: string | null
+          decided_at?: string | null
+          decided_by?: string | null
+          id?: string
+          label: string
+          org_id?: string
+          position: number
+          reason?: string | null
+          request_id: string
+          role: Database["public"]["Enums"]["user_role"]
+          round: number
+          status?: string
+        }
+        Update: {
+          acted_for?: string | null
+          decided_at?: string | null
+          decided_by?: string | null
+          id?: string
+          label?: string
+          org_id?: string
+          position?: number
+          reason?: string | null
+          request_id?: string
+          role?: Database["public"]["Enums"]["user_role"]
+          round?: number
+          status?: string
+        }
+        Relationships: []
+      }
+      material_requests: {
+        Row: {
+          client_request_id: string | null
+          created_at: string
+          created_by: string
+          decided_at: string | null
+          id: string
+          needed_by: string
+          note: string | null
+          number: string
+          org_id: string
+          project_id: string
+          round: number
+          status: string
+          submit_request_id: string | null
+          submitted_at: string | null
+          to_warehouse_id: string | null
+          transfer_cancelled: boolean
+          transfer_document_id: string | null
+          updated_at: string
+          work_order_id: string
+        }
+        Insert: {
+          client_request_id?: string | null
+          created_at?: string
+          created_by: string
+          decided_at?: string | null
+          id?: string
+          needed_by: string
+          note?: string | null
+          number: string
+          org_id?: string
+          project_id: string
+          round?: number
+          status?: string
+          submit_request_id?: string | null
+          submitted_at?: string | null
+          to_warehouse_id?: string | null
+          transfer_cancelled?: boolean
+          transfer_document_id?: string | null
+          updated_at?: string
+          work_order_id: string
+        }
+        Update: {
+          client_request_id?: string | null
+          created_at?: string
+          created_by?: string
+          decided_at?: string | null
+          id?: string
+          needed_by?: string
+          note?: string | null
+          number?: string
+          org_id?: string
+          project_id?: string
+          round?: number
+          status?: string
+          submit_request_id?: string | null
+          submitted_at?: string | null
+          to_warehouse_id?: string | null
+          transfer_cancelled?: boolean
+          transfer_document_id?: string | null
+          updated_at?: string
+          work_order_id?: string
+        }
+        Relationships: []
       }
       meeting_access_grants: {
         Row: {
@@ -12202,6 +12541,27 @@ export type Database = {
       }
     }
     Functions: {
+      set_work_order_plan: { Args: { p_project_id: string; p_work_order_id: string; p_changes: Json }; Returns: number }
+      set_shared_cost_split: { Args: { p_project_id: string; p_split: Json }; Returns: number }
+      clear_shared_cost_split: { Args: { p_project_id: string }; Returns: number }
+      work_order_cost_amounts: {
+        Args: { p_project_id: string }
+        Returns: {
+          amount: string | null
+          currency: string | null
+          discipline_id: string | null
+          occurred_on: string | null
+          person_id: string | null
+          project_id: string
+          quantity: number | null
+          quantity_unit: string | null
+          reason: string
+          record_id: string
+          reference: string | null
+          source: string
+          work_order_id: string | null
+        }[]
+      }
       set_cost_attribution: {
         Args: {
           p_discipline_id: string | null
@@ -12210,6 +12570,45 @@ export type Database = {
           p_work_order_id: string | null
         }
         Returns: number
+      }
+      mrq_cancel: { Args: { p_reason?: string; p_request_id: string }; Returns: undefined }
+      mrq_decide_step: {
+        Args: {
+          p_decision: string
+          p_reason?: string | null
+          p_request_id: string
+          p_source_warehouse_id?: string | null
+          p_step_position: number
+        }
+        Returns: undefined
+      }
+      mrq_plan_for: {
+        Args: { p_exclude_request?: string; p_item_ids: string[]; p_work_order_id: string }
+        Returns: { item_id: string; plan_qty: number; prior_qty: number }[]
+      }
+      mrq_retry_transfer: { Args: { p_request_id: string; p_source_warehouse_id: string }; Returns: string }
+      mrq_revoke_stand_in: { Args: { p_id: string }; Returns: undefined }
+      mrq_save_draft: {
+        Args: { p_client_request_id?: string; p_header: Json; p_lines: Json; p_request_id: string | null }
+        Returns: string
+      }
+      mrq_set_chain: { Args: { p_steps: Json }; Returns: undefined }
+      mrq_set_cutoff: { Args: { p_cutoff: string | null }; Returns: undefined }
+      mrq_set_stand_in: {
+        Args: { p_delegator_id: string; p_ends_on: string; p_stand_in_id: string; p_starts_on: string }
+        Returns: string
+      }
+      mrq_submit: { Args: { p_client_request_id?: string; p_request_id: string }; Returns: undefined }
+      mrq_waiting_for_me: {
+        Args: never
+        Returns: {
+          acting_for: string | null
+          label: string
+          request_id: string
+          role: Database["public"]["Enums"]["user_role"]
+          step_position: number
+          submitted_at: string
+        }[]
       }
       accept_equipment_asset_matches: { Args: { p_pairs: Json }; Returns: Json }
       accept_invoice_pairs: { Args: { p_pairs: Json }; Returns: number }

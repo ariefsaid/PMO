@@ -57,6 +57,7 @@ import {
   WorkOrderPoDrawer,
 } from './WorkOrdersDrawers';
 import WorkOrdersModals from './WorkOrdersModals';
+import WorkOrderPlanVsActual from '../WorkOrderPlanVsActual';
 
 /**
  * The work-order surface for one project (#566) — the client's inbound POs and the drawdown they
@@ -891,6 +892,9 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         onAcknowledgedIssue={runAcknowledgedIssue}
         onCloseOverCommit={() => setOverCommit(null)}
       />
+
+      {/* #2519: plan vs actual and profit per work order — renders nothing for a role that cannot read work-order money. */}
+      <WorkOrderPlanVsActual projectId={projectId} />
     </div>
   );
 };
