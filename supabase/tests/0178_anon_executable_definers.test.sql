@@ -289,7 +289,7 @@ select plan(7);
 -- not recorded. Proven by supabase/tests/three_way_match.test.sql and three_way_match_mutation.test.sql. `get_bill_match`
 -- is a read-only definer and is not listed.
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
--- 204 retained names (union of dev, work-order finance and billing-stage RPC inventories).
+-- Retained names: union of every merged branch's inventory; the AC-ACL-002/003 counts are counted from this list.
 insert into client_callable_rpc_names (proname) values
   ('set_document_warning_days'), -- 0972: active Admin, scoped to caller org; document_expiry pgTAP
   ('accept_connect_proposals'),
@@ -341,6 +341,7 @@ insert into client_callable_rpc_names (proname) values
   ('confirm_subcontract_acceptance'),
   ('confirm_work_order_acceptance'),
   ('consent_budget_occupant_replace'),
+  ('create_task_from_incident'), -- #2521: manager and organization gated; 0979 pgTAP
   ('create_native_sales_invoice'),
   ('create_native_tm_invoice'),  -- ⚑ AMENDED BY 0704 (#1817)
   ('create_native_progress_claim_invoice'),  -- ⚑ AMENDED BY 0924
@@ -524,8 +525,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  212,
-  'AC-ACL-002 all 212 retained client-callable RPC names still have a public function');
+  213,
+  'AC-ACL-002 all 213 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -534,8 +535,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  212,
-  'AC-ACL-003 all 212 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  213,
+  'AC-ACL-003 all 213 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

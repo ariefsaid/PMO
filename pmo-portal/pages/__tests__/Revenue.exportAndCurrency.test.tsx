@@ -62,7 +62,12 @@ vi.mock('@/src/hooks/useIncidents', () => ({
   useIncidentsPage: () => ({ list: { data: { rows: hoisted.incidents, total: hoisted.incidents.length }, isPending: false, isError: false, refetch: vi.fn() }, allTotal: hoisted.incidents.length }),
   useIncidentsExportAll: () => ({ mutateAsync: vi.fn(async () => hoisted.incidents), isPending: false }),
   useIncidentMutations: () => ({ create: { mutateAsync: vi.fn() }, update: { mutateAsync: vi.fn() }, transition: { mutateAsync: vi.fn() }, remove: { mutateAsync: vi.fn() } }),
+  useAssigneeOptions: () => ({ data: [] }),
+  useIncidentEvidenceMutations: () => ({ upload: { mutateAsync: vi.fn(), isPending: false }, makeTask: { mutateAsync: vi.fn(), isPending: false } }),
+  useIncidentFiles: () => ({ data: [] }),
 }));
+vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [] }) }));
+
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useClientCompanyOptions: () => ({ data: [] }),
   useInvoiceProjectOptions: () => ({ data: [] }),

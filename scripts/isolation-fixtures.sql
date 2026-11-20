@@ -7,6 +7,7 @@
 \set ON_ERROR_STOP on
 select :'action' = 'up' as is_up \gset
 begin;
+set local storage.allow_delete_query = 'true';
 set local session_replication_role = replica;  -- FK triggers off: whole orgs are written and removed in one step
 -- ENABLE-ALWAYS triggers (append-only guards) still fire in replica mode; switch them off for this transaction only.
 create temp table _iso_always on commit drop as
@@ -23,6 +24,7 @@ do $$ declare t record; begin
     execute format('delete from public.%I where org_id in (%L, %L)', t.relname,
                    'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-00000000000b');
   end loop;
+  delete from storage.objects where id = 'a6120000-0000-4000-8000-000000000f92';
   delete from public.organizations where id in ('a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-00000000000b');
   delete from auth.refresh_tokens where user_id = 'a6120000-0000-4000-8000-0000000000b1';  -- B's sign-in leaves these behind
   delete from auth.sessions where user_id = 'a6120000-0000-4000-8000-0000000000b1';
@@ -249,6 +251,15 @@ from public.work_orders w where w.id = 'a6120000-0000-4000-8000-0000000000d2';
 insert into public.project_shared_cost_splits (org_id, project_id, work_order_id, percent)
 select w.org_id, w.project_id, w.id, 100
 from public.work_orders w where w.id = 'a6120000-0000-4000-8000-0000000000d2';
+-- Give the new evidence table an A row so the cross-organization probes exercise it.
+insert into storage.objects (id, bucket_id, name)
+select 'a6120000-0000-4000-8000-000000000f92', 'incident-files',
+       org_id::text || '/' || id::text || '/a6120000-0000-4000-8000-000000000f91/photo.jpg'
+from public.incident_reports where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1;
+insert into public.incident_files (id, org_id, incident_id, kind, file_path, storage_object_id)
+select 'a6120000-0000-4000-8000-000000000f91', i.org_id, i.id, 'at_raise', o.name, o.id
+from public.incident_reports i join storage.objects o on o.id = 'a6120000-0000-4000-8000-000000000f92'
+where i.org_id = 'a6120000-0000-4000-8000-00000000000a' order by i.id limit 1;
 select 'ISO-COPY-SKIPPED ' || tbl || ': ' || why from _iso_skipped order by tbl;
 \endif
 

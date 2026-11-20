@@ -221,6 +221,16 @@ reporting manager.
 
 **Spend approver** — a user designated to approve spending for a project.
 
+**Issue (site)** — a problem raised on site (#2521): an incident record that also names the person in
+charge, what must be done, a due time, optionally a work order of its project, and photo evidence.
+One record serves safety incidents and site issues; the UI says *issue* for site work and *incident*
+for safety events. High and Critical issues close only with a close photo.
+
+**Escalation** — the once-only step when an open issue passes its due time: the database marks it
+escalated, tells the person in charge and the project manager (Admins when the project has none),
+and writes an audit row. Moving the due time forward clears it, so a later miss escalates again.
+*Overdue* (the badge and filter) is computed from the due time alone and does not wait for the job.
+
 **Supplier** — the party a purchase is bought from. Kept in English in Bahasa (like Timesheet and
 Dasbor), not translated as "Pemasok" (owner, 16 Nov).
 

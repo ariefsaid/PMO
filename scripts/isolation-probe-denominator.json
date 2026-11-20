@@ -116,6 +116,7 @@
     {"table":"imprest_plans","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"imprest_posting_erp_mirror","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"imprest_replenishments","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"incident_files","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"incident_reports","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"incoming_payment_allocations","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"incoming_payments","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
@@ -257,6 +258,9 @@
     "cancel_retention_release(uuid)",
     "run_document_expiry_warnings(date)",
     "set_document_warning_days(integer[])",
+    "escalate_overdue_incidents(uuid)",
+    "create_task_from_incident(uuid)",
+    "can_add_incident_evidence(uuid)",
     "_erp_ack_statement_dirty_dates(uuid,text,bigint)",
     "_erp_statement_change_context(uuid,uuid,uuid,timestamp with time zone)",
     "_erp_statement_change_lease_check(uuid,uuid)",
@@ -847,6 +851,7 @@
   "buckets": [
     "agent-attachments",
     "expense-receipts",
+    "incident-files",
     "procurement-files",
     "project-documents",
     "site-report-photos"
