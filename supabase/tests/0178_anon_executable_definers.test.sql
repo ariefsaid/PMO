@@ -299,6 +299,10 @@ select plan(7);
 -- re-asserts the caller's org, active membership and a role gate (Admin/PM/Finance, Admin/Finance, status roles or Admin) in its
 -- body; proven by supabase/tests/equipment_availability*.test.sql and equipment_rental_check.test.sql. `end_equipment_rental_term`
 -- has no client caller, so 1032 revokes its authenticated grant and it is deliberately NOT listed.
+-- ⚑ AMENDED BY 1093 (#2579): `create_document_category`, `rename_document_category`, `set_document_category_roles`, `archive_document_category`, `restore_document_category`,
+-- `reorder_document_categories` and `refile_document_lineage` join the retained set (+7, count 231 = 224 + 7, counted from the list). SECURITY DEFINER writers under a
+-- member's JWT: each re-asserts active membership and (all but the re-file) the Admin role, and takes the org from the caller; the re-file needs a write role and edit
+-- rights on every revision. Proven by supabase/tests/1090_document_category_visibility.test.sql. The helper `assert_document_category_admin` and the seed functions are revoked from clients.
 -- ⚑ AMENDED BY 1030 (#2523): `archive_stock_document_file` joins the retained set (+1, count 224 = 217 + 7, counted from the list).
 -- SECURITY DEFINER writer under a member's JWT (stockSiteWork.ts); re-asserts active membership, the caller's org and
 -- stock_can_attach; proven by the 1030 stock document files pgTAP.
@@ -312,6 +316,13 @@ insert into client_callable_rpc_names (proname) values
   ('set_equipment_working_hours'),  -- ⚑ AMENDED BY 1032 (#2526)
   ('equipment_rental_check'),  -- ⚑ AMENDED BY 1034 (#2526)
   ('archive_stock_document_file'),  -- ⚑ AMENDED BY 1030 (#2523)
+  ('create_document_category'),  -- ⚑ AMENDED BY 1093 (#2579)
+  ('rename_document_category'),
+  ('set_document_category_roles'),
+  ('archive_document_category'),
+  ('restore_document_category'),
+  ('reorder_document_categories'),
+  ('refile_document_lineage'),
   ('set_document_warning_days'), -- 0972: active Admin, scoped to caller org; document_expiry pgTAP
   ('accept_connect_proposals'),
   ('accept_equipment_asset_matches'),  -- ⚑ AMENDED BY 0854 (#1511)
@@ -550,8 +561,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  224,
-  'AC-ACL-002 all 224 retained client-callable RPC names still have a public function');
+  231,
+  'AC-ACL-002 all 231 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -560,8 +571,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  224,
-  'AC-ACL-003 all 224 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  231,
+  'AC-ACL-003 all 231 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

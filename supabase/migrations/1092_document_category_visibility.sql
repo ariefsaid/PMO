@@ -14,23 +14,33 @@ $$;
 revoke all on function public.document_category_visible(uuid, uuid) from public, anon;
 grant execute on function public.document_category_visible(uuid, uuid) to authenticated, service_role;
 
-create policy project_documents_category_visible on public.project_documents as restrictive for all to authenticated
-  using ((select public.auth_role()) = 'Admin'
-         or exists (select 1 from public.document_category_roles r
-                     where r.category_id = project_documents.category_id and r.org_id = project_documents.org_id
-                       and r.role = (select public.auth_role())))
-  with check ((select public.auth_role()) = 'Admin'
-         or exists (select 1 from public.document_category_roles r
-                     where r.category_id = project_documents.category_id and r.org_id = project_documents.org_id
-                       and r.role = (select public.auth_role())));
-
--- The file follows its register row: the subquery runs under the caller's own RLS, so the row policy above supplies the category
--- rule. The key is {org_id}/{project_id}/{document_id}/{filename}; the org segment is pinned so a key cannot borrow another
+-- The file follows its register row: the object predicate's subquery runs under the caller's own RLS, so the row policy supplies the
+-- category rule. The key is {org_id}/{project_id}/{document_id}/{filename}; the org segment is pinned so a key cannot borrow another
 -- organisation's document id. A signed link is only created for an object the caller can select, so it needs no second rule.
-create policy storage_project_documents_category_visible on storage.objects as restrictive for all to authenticated
-  using (bucket_id <> 'project-documents'
+-- One predicate, restated per command: the repository's policy-shape guard (0825) refuses a new FOR ALL policy.
+do $$
+declare
+  c text;
+  pred_row constant text := $p$(select public.auth_role()) = 'Admin'
+         or exists (select 1 from public.document_category_roles r
+                     where r.category_id = project_documents.category_id and r.org_id = project_documents.org_id
+                       and r.role = (select public.auth_role()))$p$;
+  pred_obj constant text := $p$bucket_id <> 'project-documents'
          or exists (select 1 from public.project_documents pd
-                     where pd.id::text = split_part(objects.name, '/', 3) and pd.org_id::text = split_part(objects.name, '/', 1)))
-  with check (bucket_id <> 'project-documents'
-         or exists (select 1 from public.project_documents pd
-                     where pd.id::text = split_part(objects.name, '/', 3) and pd.org_id::text = split_part(objects.name, '/', 1)));
+                     where pd.id::text = split_part(objects.name, '/', 3) and pd.org_id::text = split_part(objects.name, '/', 1))$p$;
+begin
+  foreach c in array array['select', 'delete'] loop
+    execute format('create policy %I on public.project_documents as restrictive for %s to authenticated using (%s)',
+                   'project_documents_category_visible_' || c, c, pred_row);
+    execute format('create policy %I on storage.objects as restrictive for %s to authenticated using (%s)',
+                   'storage_project_documents_category_visible_' || c, c, pred_obj);
+  end loop;
+  execute format('create policy %I on public.project_documents as restrictive for insert to authenticated with check (%s)',
+                 'project_documents_category_visible_insert', pred_row);
+  execute format('create policy %I on storage.objects as restrictive for insert to authenticated with check (%s)',
+                 'storage_project_documents_category_visible_insert', pred_obj);
+  execute format('create policy %I on public.project_documents as restrictive for update to authenticated using (%s) with check (%s)',
+                 'project_documents_category_visible_update', pred_row, pred_row);
+  execute format('create policy %I on storage.objects as restrictive for update to authenticated using (%s) with check (%s)',
+                 'storage_project_documents_category_visible_update', pred_obj, pred_obj);
+end $$;

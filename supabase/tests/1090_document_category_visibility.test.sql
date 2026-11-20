@@ -209,10 +209,10 @@ select throws_ok($$insert into project_documents (project_id, title, category, p
   'AC-DCV-013 a revision naming another category is refused with a field error');
 select is((select count(*)::int from project_documents where title = 'Sneaky'), 0, 'AC-DCV-013 and no row is written');
 set local request.jwt.claims = '{"sub":"02579000-0000-0000-0000-0000000000a5","role":"authenticated"}';
-select throws_ok($$insert into project_documents (project_id, title, parent_document_id) values ('02579000-0000-0000-0000-000000000020', 'Peek', '02579000-0000-0000-0000-000000000032')$$, 'P0002', null,
-  'FR-DCV-009 a revision of a document the caller cannot see is refused as not found');
+select throws_ok($$insert into project_documents (project_id, title, parent_document_id) values ('02579000-0000-0000-0000-000000000020', 'Peek', '02579000-0000-0000-0000-000000000032')$$, '23503', null,
+  'FR-DCV-009 a revision of a document the caller cannot see is refused as a missing parent');
 set local request.jwt.claims = '{"sub":"02579000-0000-0000-0000-0000000000a3","role":"authenticated"}';
-select throws_ok($$insert into project_documents (project_id, title, parent_document_id) values ('02579000-0000-0000-0000-000000000020', 'Peek', '02579000-0000-0000-0000-000000000032')$$, 'P0002', null,
+select throws_ok($$insert into project_documents (project_id, title, parent_document_id) values ('02579000-0000-0000-0000-000000000020', 'Peek', '02579000-0000-0000-0000-000000000032')$$, '23503', null,
   'FR-DCV-009 a Project Manager cannot raise a revision of a document hidden from them');
 set local request.jwt.claims = '{"sub":"02579000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select lives_ok($$insert into project_documents (id, project_id, title, parent_document_id) values ('02579000-0000-0000-0000-000000000042', '02579000-0000-0000-0000-000000000020', 'Invoice rev C', '02579000-0000-0000-0000-000000000041')$$,

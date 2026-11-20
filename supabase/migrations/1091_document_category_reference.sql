@@ -72,7 +72,9 @@ begin
     select d.category_id into v_parent from public.project_documents d
      where d.id = new.parent_document_id and d.org_id = new.org_id;
     if v_parent is null then
-      raise exception 'document not found' using errcode = 'P0002';
+      -- no such parent in this organisation, or one the caller cannot read: the same refusal the parent foreign key gives
+      raise exception 'insert or update on table "project_documents" violates foreign key constraint "project_documents_parent_org_project_fkey"'
+        using errcode = '23503';
     end if;
     if v_id is not null and (new.category_id is not null or btrim(coalesce(new.category, '')) <> '') and v_id is distinct from v_parent then
       raise exception 'A revision keeps the category of the document it revises' using errcode = '23514', detail = 'category-revision-mismatch';

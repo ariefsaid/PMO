@@ -22,6 +22,7 @@ declare
   v_id   uuid;
   v_roles public.user_role[];
 begin
+  perform public.assert_is_active_member();
   if v_name = '' or length(v_name) > 120 then
     raise exception 'Enter a category name' using errcode = '22023', detail = 'category-name';
   end if;
@@ -48,6 +49,7 @@ declare
   v_name text := btrim(coalesce(p_name, ''));
   v_cat  public.document_categories%rowtype;
 begin
+  perform public.assert_is_active_member();
   select * into v_cat from public.document_categories where id = p_id and org_id = v_org for update;
   if not found then raise exception 'category not found' using errcode = 'P0002'; end if;
   if v_cat.is_system then raise exception 'A system category cannot be renamed' using errcode = '42501', detail = 'category-system'; end if;
@@ -73,6 +75,7 @@ declare
   v_old public.user_role[];
   v_new public.user_role[];
 begin
+  perform public.assert_is_active_member();
   perform 1 from public.document_categories where id = p_id and org_id = v_org for update;
   if not found then raise exception 'category not found' using errcode = 'P0002'; end if;
   if p_roles is null or not ('Admin'::public.user_role = any (p_roles)) then
@@ -93,6 +96,7 @@ declare
   v_org uuid := public.assert_document_category_admin();
   v_cat public.document_categories%rowtype;
 begin
+  perform public.assert_is_active_member();
   select * into v_cat from public.document_categories where id = p_id and org_id = v_org for update;
   if not found then raise exception 'category not found' using errcode = 'P0002'; end if;
   if v_cat.is_system then raise exception 'A system category cannot be archived' using errcode = '42501', detail = 'category-system'; end if;
@@ -107,6 +111,7 @@ declare
   v_org uuid := public.assert_document_category_admin();
   v_cat public.document_categories%rowtype;
 begin
+  perform public.assert_is_active_member();
   select * into v_cat from public.document_categories where id = p_id and org_id = v_org for update;
   if not found then raise exception 'category not found' using errcode = 'P0002'; end if;
   if v_cat.archived_at is null then return; end if;
@@ -124,6 +129,7 @@ declare
   v_org uuid := public.assert_document_category_admin();
   v_i   int;
 begin
+  perform public.assert_is_active_member();
   if p_ids is null then return; end if;
   if (select count(*) from public.document_categories where org_id = v_org and id = any (p_ids)) <> cardinality(p_ids) then
     raise exception 'category not found' using errcode = 'P0002';
