@@ -4,7 +4,7 @@
 -- amount due now is its outstanding balance less that figure; an invoice with no claim holds none; the read is RLS-scoped.
 begin;
 create extension if not exists pgtap;
-select plan(8);
+select plan(9);
 
 insert into organizations (id, name, default_currency) values
   ('26250000-0000-0000-0000-00000000000a', 'Due Now Org',   'IDR'),
@@ -24,12 +24,18 @@ insert into progress_claims (id, org_id, project_id, kind, currency, gross_amoun
   ('26250000-0000-0000-0000-000000000c01', '26250000-0000-0000-0000-00000000000a', '26250000-0000-0000-0000-0000000000d1',
    'progress', 'IDR', 1000000, 0, 5, 50000.05, '26250000-0000-0000-0000-0000000000a1');
 insert into sales_invoices (id, org_id, project_id, si_number, invoice_date, status, amount, currency, tax_treatment, tax_amount, erp_outstanding_amount) values
-  -- the claim's invoice (id = claim id), paid net of retention plus a little: 60,000.05 still outstanding
-  ('26250000-0000-0000-0000-000000000c01', '26250000-0000-0000-0000-00000000000a', '26250000-0000-0000-0000-0000000000d1',
-   'SI-DUE-1', '2026-09-01', 'Unpaid', 1000000, 'IDR', 'exclusive', 0, 60000.05),
+  -- The ERP copy carries the ledger balance read by receivables; its PMO pair below carries the claim id.
+  ('26250000-0000-0000-0000-000000000c03', '26250000-0000-0000-0000-00000000000a', '26250000-0000-0000-0000-0000000000d1',
+   'SI-DUE-1-ERP', '2026-09-01', 'Unpaid', 1000000, 'IDR', 'exclusive', 0, 60000.05),
   -- an invoice with no claim
   ('26250000-0000-0000-0000-000000000c02', '26250000-0000-0000-0000-00000000000a', '26250000-0000-0000-0000-0000000000d1',
    'SI-DUE-2', '2026-09-01', 'Unpaid', 500, 'IDR', 'exclusive', 0, 500);
+insert into sales_invoices (id, org_id, project_id, si_number, invoice_date, status, amount, currency, tax_treatment, tax_amount, erp_outstanding_amount,
+                            paired_erp_invoice_id, paired_at, paired_by, paired_filled) values
+  -- The PMO claim invoice (id = claim id) is paired to the ERP copy that owns its receivable balance.
+  ('26250000-0000-0000-0000-000000000c01', '26250000-0000-0000-0000-00000000000a', '26250000-0000-0000-0000-0000000000d1',
+   'SI-DUE-1', '2026-09-01', 'Unpaid', 1000000, 'IDR', 'exclusive', 0, 0,
+   '26250000-0000-0000-0000-000000000c03', '2026-10-01 00:00:00+00', '26250000-0000-0000-0000-0000000000a1', '{}'::jsonb);
 insert into retention_releases (id, org_id, claim_id, project_id, amount, due_on, released_on, created_by, released_by) values
   -- scheduled, not released: still held
   ('26250000-0000-0000-0000-000000000e01', '26250000-0000-0000-0000-00000000000a', '26250000-0000-0000-0000-000000000c01',
@@ -46,8 +52,10 @@ set local role authenticated;
 select pg_temp.act_as('26250000-0000-0000-0000-0000000000a1');
 select is(pg_temp.held('26250000-0000-0000-0000-000000000c01'), 50000.05::numeric,
   'AC-RET-005 a claim invoice carries the retention still held (a scheduled release is still held), exact to the cent');
-select is((select s.erp_outstanding_amount - public.retention_held(s) from public.sales_invoices s where s.id = '26250000-0000-0000-0000-000000000c01'),
-  10000.00::numeric, 'AC-RET-005 due now = outstanding 60,000.05 less retention held 50,000.05');
+select is(pg_temp.held('26250000-0000-0000-0000-000000000c03'), 50000.05::numeric,
+  'AC-RET-005 a paired ERP invoice carries its PMO claim retention');
+select is((select s.erp_outstanding_amount - public.retention_held(s) from public.sales_invoices s where s.id = '26250000-0000-0000-0000-000000000c03'),
+  10000.00::numeric, 'AC-RET-005 a paired ERP invoice is due for outstanding less retention held');
 select is(pg_temp.held('26250000-0000-0000-0000-000000000c02'), 0.00::numeric, 'AC-RET-005 an invoice with no claim holds no retention');
 
 -- A recorded release reduces what is held (written as the table owner, as release_retention would leave it).
