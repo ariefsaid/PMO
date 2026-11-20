@@ -40,6 +40,7 @@ When a site needs material for a work order, I want to request items and quantit
 - FR-MRQ-021 The pinned person shall be an active member of the organisation who holds the step's role (a project is visible to every active member, so nothing further is checked). The server refuses any other approver, a position the chain does not have, and a caller who is neither an Admin nor the project's manager.
 - FR-MRQ-022 The pin is read at decision time and applies only while the chain step at that position still has the pinned role; every other rule (order, not the author, not two steps of one request, stand-in window) still holds. A stand-in acts only for the pinned person.
 - FR-MRQ-023 The queue "waiting for me" shall list a pinned step only for the pinned person and their stand-ins. The pin is set per project on the project screen, in English and Bahasa Indonesia.
+- FR-MRQ-024 While a pinned person is not an active member or no longer holds the pinned role, the pin shall not bind its step: the step follows its role rule (and stand-ins for role holders) and appears in those holders' queues, and the project's setting screen flags the pin as needing attention until an Admin or the project's manager re-points or clears it. The pin row is kept.
 
 **Access, lists, audit**
 - FR-MRQ-016 Actions (create, submit, approve-step, manage chain, manage stand-in, view) shall be registered in the role matrix (#902); `can()` gates UI; RLS/RPC enforce. A field controller may create and submit for work orders in their scope.
@@ -76,6 +77,8 @@ When a site needs material for a work order, I want to request items and quantit
 | AC-MRQ-018 | Given a pinned step, when another holder of the role decides it, then refused and absent from their queue; the pinned person and their stand-in may (both identities stored); a stand-in for someone else may not (mutation check: ignore the pin, test goes red). | pgTAP |
 | AC-MRQ-019 | Given a user in another organisation, when they pin or read pins, then refused and nothing visible. | pgTAP |
 | AC-MRQ-020 | Given a pin is cleared, when the step opens, then any holder of the role may decide it again. | pgTAP + Unit |
+| AC-MRQ-021 | Given a pinned step whose person is deactivated or lost the step role, when a role holder (or a stand-in for one) looks at their queue and decides, then the step is theirs (mutation check: drop the liveness test, go red). | pgTAP |
+| AC-MRQ-022 | Given such a stuck pin, then the row is kept, the setting screen shows it as needing attention, and re-pointing it to a live person binds again. | pgTAP + Unit |
 
 ## Errors
 | Condition | Result |

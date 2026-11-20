@@ -37,6 +37,8 @@ export function ProjectApprovalPins({ projectId, managerId }: { projectId: strin
   // Nothing to pin until the Admin has set a chain. Everyone else sees the pins read-only.
   if (steps.length === 0) return null;
   const pinFor = (position: number, role: string) => pins.data?.find((p) => p.position === position && p.role === role)?.approverId ?? '';
+  // #2605: a pin whose person is gone, deactivated or no longer holds the step's role no longer binds the step.
+  const isStuck = (approverId: string, role: string) => { const u = users.data?.find((x) => x.id === approverId); return !u || u.status !== 'active' || u.role !== role; };
   const nameOf = (id: string) => users.data?.find((u) => u.id === id)?.full_name ?? '—';
 
   const save = async (position: number, approverId: string) => {
@@ -57,6 +59,12 @@ export function ProjectApprovalPins({ projectId, managerId }: { projectId: strin
           const saved = pinFor(s.position, s.role);
           const value = pending[s.position] ?? saved;
           const role = labels.role[s.role] ?? s.role;
+          const stuck = saved !== '' && isStuck(saved, s.role);
+          const stuckNote = stuck && (
+            <p role="status" className="text-sm text-warning-foreground">
+              {t('projectDetail.approvalPins.stuck', '{{name}} can no longer decide this step. Anyone with the role can until you choose someone else.', { name: nameOf(saved) })}
+            </p>
+          );
           const stepName = t('projectDetail.approvalPins.step', 'Step {{n}}: {{label}}', { n: s.position, label: s.label });
           return (
             <li key={s.id} className="space-y-1.5">
@@ -64,7 +72,8 @@ export function ProjectApprovalPins({ projectId, managerId }: { projectId: strin
                 <>
                   <SelectField label={stepName} value={value} fullWidth onChange={(v) => setPending((p) => ({ ...p, [s.position]: v }))}
                     options={[{ value: '', label: t('projectDetail.approvalPins.anyone', 'Anyone with the role') },
-                      ...(users.data ?? []).filter((u) => u.role === s.role && u.status === 'active').map((u) => ({ value: u.id, label: u.full_name }))]} />
+                      ...(users.data ?? []).filter((u) => (u.role === s.role && u.status === 'active') || u.id === saved).map((u) => ({ value: u.id, label: u.full_name }))]} />
+                  {stuckNote}
                   {value !== saved && <Button size="sm" variant="outline" loading={m.setStepPin.isPending} onClick={() => void save(s.position, value)}>{t('projectDetail.approvalPins.save', 'Save')}</Button>}
                 </>
               ) : (
@@ -73,6 +82,7 @@ export function ProjectApprovalPins({ projectId, managerId }: { projectId: strin
                   {saved ? t('projectDetail.approvalPins.pinnedTo', 'Pinned to {{name}}', { name: nameOf(saved) }) : t('projectDetail.approvalPins.unpinned', 'Any {{role}}', { role })}
                 </p>
               )}
+              {!canManage && stuckNote}
             </li>
           );
         })}

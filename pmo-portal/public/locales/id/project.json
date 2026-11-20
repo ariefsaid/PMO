@@ -1133,6 +1133,7 @@
       "saved": "Penetapan disimpan",
       "step": "Langkah {{n}}: {{label}}",
       "loadFailed": "Langkah persetujuan tidak dapat dimuat",
+      "stuck": "{{name}} tidak dapat lagi memutuskan langkah ini. Siapa pun dengan peran ini dapat memutuskannya sampai Anda memilih orang lain.",
       "retry": "Coba lagi"
     }
   },
