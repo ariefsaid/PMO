@@ -481,8 +481,6 @@
       "secretLabel": "Client secret",
       "secretSaved": "Saved",
       "secretMissing": "Not saved",
-      "checkedLabel": "Last checked",
-      "checkedNever": "Not recorded",
       "usingPlatform": "Your organization uses the platform-provided app.",
       "none": "No Microsoft app is set up yet.",
       "edit": "Edit app",
@@ -509,7 +507,20 @@
       "cancel": "Cancel",
       "changeTitle": "Change the Microsoft app?",
       "changeDescription": "Everyone in your organization will need to reconnect Microsoft 365.",
-      "changeConfirm": "Save and reconnect everyone"
+      "changeConfirm": "Save and reconnect everyone",
+      "manage": "Manage",
+      "setUp": "Set up",
+      "hide": "Hide",
+      "statusConnected": "Connected, {{age}}",
+      "statusNoCheck": "Connected, check not recorded",
+      "statusNoSecret": "Not connected, secret missing",
+      "statusPlatform": "Connected, platform app",
+      "statusNone": "Not set up",
+      "approvalHelp": "Organization approval is only needed if Microsoft asks for it. Each person then connects their own account.",
+      "statusUnreadable": "Settings unavailable",
+      "checkedLabel": "Last checked",
+      "checkedNever": "Not recorded",
+      "checkedToday": "today"
     }
   },
   "invoicePairs": {

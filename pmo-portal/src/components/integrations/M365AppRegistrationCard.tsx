@@ -23,6 +23,11 @@ import type { M365OrgAppInfo, M365OrgAppInput } from '@/src/lib/m365/connectClie
  * The client secret is WRITE-ONLY: the server returns only `secretSet`, the field always starts
  * empty, and the typed value lives only in the open form's state — the form unmounts after a save.
  * Errors render from the stable wire code (the shared M365 copy table), never the server message.
+ *
+ * Closed by default (#2260 owner ruling): the standing card is one status line — usable or not, and
+ * how old Microsoft's last check is (#2260) — plus one action. The field labels, the redirect URIs
+ * and their help are the setup detail, so they sit behind that action's disclosure. The screen has a
+ * word ceiling; an always-open card spent it on help nobody reads twice.
  */
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -43,19 +48,21 @@ export const M365AppRegistrationCard: React.FC = () => {
   const may = usePermission();
   const canManage = may('manage', 'integration');
   const { query, save, clear } = useM365OrgApp(canManage);
+  // The setup fields and their help sit behind a disclosure, closed by default: the standing card is
+  // ONE status line and ONE action (#2260 owner ruling). The screen's word budget is a ceiling, so the
+  // closed state carries no description and no field labels.
+  const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
 
-  // One left edge per surface (#2260 render pass): a leading icon pushed the heading 22px in, so the
-  // heading and the sentence under it started at two different x positions.
   const heading = (
     <h2 className="text-group font-semibold text-foreground">{t('integrations.m365App.heading', 'Microsoft 365 app')}</h2>
   );
 
   if (!canManage) {
     return (
-      <Card className="mb-2.5 p-4" data-testid="m365-app-registration">
+      <Card className="mb-1 p-4" data-testid="m365-app-registration">
         {heading}
         <p className="mt-2.5 text-sm text-muted-foreground">{t('integrations.m365App.readOnly', 'Your administrator manages this app.')}</p>
       </Card>
@@ -64,6 +71,29 @@ export const M365AppRegistrationCard: React.FC = () => {
 
   const info = query.data;
   const ownApp = info?.source === 'org';
+
+  // One sentence an Admin can read at a glance: is the app usable, and how old the last check is
+  // (a client secret expires). No separator glyph — the word budget counts whitespace tokens, and this
+  // page's budget is a hard ceiling (owner ruling #2260): heading + status + action is the whole card.
+  const readFailed = query.isError || !info;
+  // A check inside the last day reads as "today": the relative formatter's own wording ("about 1 hour
+  // ago") is the widest the status line gets, and the page's word ceiling is a hard one.
+  const age = !info?.validatedAt
+    ? null
+    : Date.now() - Date.parse(info.validatedAt) < 86_400_000
+      ? t('integrations.m365App.checkedToday', 'today')
+      : formatRelativeTime(info.validatedAt);
+  const status = readFailed
+    ? t('integrations.m365App.statusUnreadable', 'Settings unavailable')
+    : ownApp
+      ? info.secretSet
+        ? info.validatedAt
+          ? t('integrations.m365App.statusConnected', 'Connected, {{age}}', { age })
+          : t('integrations.m365App.statusNoCheck', 'Connected, check not recorded')
+        : t('integrations.m365App.statusNoSecret', 'Not connected, secret missing')
+      : info.source === 'deployment'
+        ? t('integrations.m365App.statusPlatform', 'Connected, platform app')
+        : t('integrations.m365App.statusNone', 'Not set up');
 
   async function confirmRemove() {
     setRemoveError(null);
@@ -76,66 +106,97 @@ export const M365AppRegistrationCard: React.FC = () => {
     }
   }
 
-  return (
-    <Card className="mb-2.5 p-4" data-testid="m365-app-registration">
-      {heading}
-      <p className="mt-2.5 text-sm text-muted-foreground">
-        {t('integrations.m365App.description', 'The app your organization registered in Microsoft Entra. Microsoft checks it before it is saved.')}
-      </p>
+  // ONE action, always in the same place: read failed -> retry; otherwise it opens the setup detail.
+  const action = readFailed
+    ? { label: t('integrations.m365App.retry', 'Try again'), onClick: () => void query.refetch(), detached: false }
+    : {
+        label: open
+          ? t('integrations.m365App.hide', 'Hide')
+          : ownApp
+            ? t('integrations.m365App.manage', 'Manage')
+            : t('integrations.m365App.setUp', 'Set up'),
+        onClick: () => setOpen((was) => !was),
+        detached: true,
+      };
+  const toggle = (
+    <Button variant="outline" size="sm" onClick={action.onClick}
+      aria-expanded={action.detached ? open : undefined}
+      aria-controls={action.detached ? 'm365-app-details' : undefined}
+      data-testid="m365-app-toggle">
+      {action.label}
+    </Button>
+  );
 
-      <div className="mt-3 min-w-0">
+  return (
+    <Card className="mb-1 p-4" data-testid="m365-app-registration">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        {heading}
+        {!query.isPending && toggle}
+      </div>
+
+      <div className="mt-2.5 min-w-0">
         {query.isPending ? (
           <div data-testid="m365-app-loading"><ListState variant="loading" rows={2} /></div>
-        ) : query.isError || !info ? (
-          <ListState
-            variant="error"
-            title={t('integrations.m365App.readFailed', "The app settings couldn't be read")}
-            sub={failureReason(t, query.error)}
-            onRetry={() => void query.refetch()}
-            retryLabel={t('integrations.m365App.retry', 'Try again')}
-          />
         ) : (
           <>
-            {ownApp ? (
-              <dl className="grid grid-cols-1 gap-x-4 gap-y-1 text-control sm:grid-cols-[max-content_1fr]">
-                <dt className="text-muted-foreground">{t('integrations.m365App.tenantLabel', 'Directory (tenant) ID')}</dt>
-                <dd className="break-all font-mono text-foreground">{info.tenantId}</dd>
-                <dt className="text-muted-foreground">{t('integrations.m365App.clientLabel', 'Application (client) ID')}</dt>
-                <dd className="break-all font-mono text-foreground">{info.clientId}</dd>
-                <dt className="text-muted-foreground">{t('integrations.m365App.secretLabel', 'Client secret')}</dt>
-                <dd className="text-foreground">{info.secretSet ? t('integrations.m365App.secretSaved', 'Saved') : t('integrations.m365App.secretMissing', 'Not saved')}</dd>
-                {/* #2260: a client secret expires, so the Admin needs to see how old the last check is. */}
-                <dt className="text-muted-foreground">{t('integrations.m365App.checkedLabel', 'Last checked')}</dt>
-                <dd className="text-foreground" data-testid="m365-app-checked">
-                  {info.validatedAt
-                    ? formatRelativeTime(info.validatedAt)
-                    : t('integrations.m365App.checkedNever', 'Not recorded')}
-                </dd>
-              </dl>
-            ) : (
-              <p className="text-control text-muted-foreground">
-                {info.source === 'deployment'
-                  ? t('integrations.m365App.usingPlatform', 'Your organization uses the platform-provided app.')
-                  : t('integrations.m365App.none', 'No Microsoft app is set up yet.')}
-              </p>
+            <p className="text-control text-muted-foreground" data-testid="m365-app-status">{status}</p>
+            {readFailed && (
+              // The reason stays available to assistive tech without costing the screen a line.
+              <p className="sr-only" data-testid="m365-app-status-reason">{failureReason(t, query.error)}</p>
             )}
 
-            <CallbackUrls urls={info.callbackUrls} />
+            {info && open && (
+              <div id="m365-app-details" data-testid="m365-app-details">
+                <p className="mt-3 text-sm text-muted-foreground">
+                  {t('integrations.m365App.description', 'The app your organization registered in Microsoft Entra. Microsoft checks it before it is saved.')}
+                </p>
+                {/* Setup help from the approval card (#2260): the page may not gain words, so the guidance
+                    an Admin needs once — the order of the three steps — lives here, one click away. */}
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {t('integrations.m365App.approvalHelp', 'Organization approval is only needed if Microsoft asks for it. Each person then connects their own account.')}
+                </p>
 
-            {editing ? (
-              <AppForm info={info} saving={save.isPending} onCancel={() => setEditing(false)} onSave={async (input) => {
-                await save.mutateAsync(input);
-                setEditing(false);
-              }} />
-            ) : (
-              <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
-                  {ownApp ? t('integrations.m365App.edit', 'Edit app') : t('integrations.m365App.useOwn', 'Use our own app registration')}
-                </Button>
-                {ownApp && (
-                  <Button variant="ghost" size="sm" onClick={() => { setRemoveError(null); setRemoveOpen(true); }}>
-                    {t('integrations.m365App.remove', 'Remove our app registration')}
-                  </Button>
+                {ownApp ? (
+                  <dl className="mt-3 grid grid-cols-1 gap-x-4 gap-y-1 text-control sm:grid-cols-[max-content_1fr]">
+                    <dt className="text-muted-foreground">{t('integrations.m365App.tenantLabel', 'Directory (tenant) ID')}</dt>
+                    <dd className="break-all font-mono text-foreground">{info.tenantId}</dd>
+                    <dt className="text-muted-foreground">{t('integrations.m365App.clientLabel', 'Application (client) ID')}</dt>
+                    <dd className="break-all font-mono text-foreground">{info.clientId}</dd>
+                    <dt className="text-muted-foreground">{t('integrations.m365App.secretLabel', 'Client secret')}</dt>
+                    <dd className="text-foreground">{info.secretSet ? t('integrations.m365App.secretSaved', 'Saved') : t('integrations.m365App.secretMissing', 'Not saved')}</dd>
+                    <dt className="text-muted-foreground">{t('integrations.m365App.checkedLabel', 'Last checked')}</dt>
+                    <dd className="text-foreground" data-testid="m365-app-checked">
+                      {info.validatedAt
+                        ? formatRelativeTime(info.validatedAt)
+                        : t('integrations.m365App.checkedNever', 'Not recorded')}
+                    </dd>
+                  </dl>
+                ) : (
+                  <p className="mt-3 text-control text-muted-foreground">
+                    {info.source === 'deployment'
+                      ? t('integrations.m365App.usingPlatform', 'Your organization uses the platform-provided app.')
+                      : t('integrations.m365App.none', 'No Microsoft app is set up yet.')}
+                  </p>
+                )}
+
+                {ownApp && <CallbackUrls urls={info.callbackUrls} />}
+
+                {editing ? (
+                  <AppForm info={info} saving={save.isPending} onCancel={() => setEditing(false)} onSave={async (input) => {
+                    await save.mutateAsync(input);
+                    setEditing(false);
+                  }} />
+                ) : (
+                  <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+                      {ownApp ? t('integrations.m365App.edit', 'Edit app') : t('integrations.m365App.useOwn', 'Use our own app registration')}
+                    </Button>
+                    {ownApp && (
+                      <Button variant="ghost" size="sm" onClick={() => { setRemoveError(null); setRemoveOpen(true); }}>
+                        {t('integrations.m365App.remove', 'Remove our app registration')}
+                      </Button>
+                    )}
+                  </div>
                 )}
               </div>
             )}

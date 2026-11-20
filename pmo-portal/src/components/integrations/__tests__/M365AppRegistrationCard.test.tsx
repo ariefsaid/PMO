@@ -50,7 +50,13 @@ beforeEach(() => {
   mock.clear.mockResolvedValue(undefined);
 });
 
+async function openDetails() {
+  await userEvent.click(await screen.findByTestId('m365-app-toggle'));
+  return screen.getByTestId('m365-app-details');
+}
+
 async function openForm(name: RegExp) {
+  await openDetails();
   await userEvent.click(await screen.findByRole('button', { name }));
   return screen.getByTestId('m365-app-form');
 }
@@ -68,26 +74,53 @@ describe('AC-M365SS-017 — the role gate', () => {
 });
 
 describe('AC-M365SS-017 — read states', () => {
+  it('AC-M365AV-003: the standing card is one status line and one action, with the setup detail closed', async () => {
+    view();
+    // The one status line: usable, and how old Microsoft's last check is.
+    expect(await screen.findByTestId('m365-app-status')).toHaveTextContent(/^Connected, /);
+    const card = screen.getByTestId('m365-app-registration');
+    // The one action opens the detail; no field, label or help text is on the standing card.
+    const toggle = within(card).getByTestId('m365-app-toggle');
+    expect(toggle).toHaveTextContent('Manage');
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(within(card).queryByTestId('m365-app-details')).not.toBeInTheDocument();
+    expect(within(card).queryByText('Directory (tenant) ID')).not.toBeInTheDocument();
+    expect(within(card).queryByText(/redirect URI/i)).not.toBeInTheDocument();
+    expect(within(card).queryByText(/organization approval is only needed/i)).not.toBeInTheDocument();
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    const details = within(card).getByTestId('m365-app-details');
+    expect(details).toHaveTextContent(TENANT);
+    // Setup help that used to sit on the approval card, one card up, now opens here (#2260).
+    expect(details).toHaveTextContent(/organization approval is only needed/i);
+    await userEvent.click(toggle);
+    expect(within(card).queryByTestId('m365-app-details')).not.toBeInTheDocument();
+  });
+
   it('AC-M365SS-017: shows a loading state while the app is read', () => {
     mock.get.mockReturnValue(new Promise(() => {}));
     view();
     expect(screen.getByTestId('m365-app-loading')).toBeInTheDocument();
   });
 
-  it('AC-M365SS-017: a failed read is an error with retry, never "not set up"', async () => {
+  it('AC-M365SS-017: a failed read is a status line with one retry, never "not set up"', async () => {
     mock.get.mockRejectedValueOnce(new AppError(describeM365Error('INTERNAL_ERROR'), 'INTERNAL_ERROR'));
     view();
-    expect(await screen.findByText("The app settings couldn't be read")).toBeInTheDocument();
-    expect(screen.queryByText(/platform-provided app/)).not.toBeInTheDocument();
+    expect(await screen.findByTestId('m365-app-status')).toHaveTextContent('Settings unavailable');
+    // The reason is still available to assistive tech (the standing card spends no line on it).
+    expect(screen.getByTestId('m365-app-status-reason')).toHaveTextContent(describeM365Error('INTERNAL_ERROR'));
+    expect(screen.queryByText(/platform app/)).not.toBeInTheDocument();
     mock.get.mockResolvedValueOnce(orgInfo);
     await userEvent.click(screen.getByRole('button', { name: /try again/i }));
-    expect(await screen.findByText(TENANT)).toBeInTheDocument();
+    expect(await screen.findByTestId('m365-app-status')).toHaveTextContent(/^Connected, /);
   });
 
   it('AC-M365SS-017: with the platform app, says so and offers to use our own registration', async () => {
     mock.get.mockResolvedValue(deploymentInfo);
     view();
-    expect(await screen.findByText('Your organization uses the platform-provided app.')).toBeInTheDocument();
+    expect(await screen.findByText('Connected, platform app')).toBeInTheDocument();
+    await openDetails();
+    expect(screen.getByText('Your organization uses the platform-provided app.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Use our own app registration' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Remove our app registration' })).not.toBeInTheDocument();
   });
@@ -95,35 +128,49 @@ describe('AC-M365SS-017 — read states', () => {
   it('AC-M365SS-017: with no app at all, says none is set up', async () => {
     mock.get.mockResolvedValue(noneInfo);
     view();
-    expect(await screen.findByText('No Microsoft app is set up yet.')).toBeInTheDocument();
+    expect(await screen.findByText('Not set up')).toBeInTheDocument();
+    await openDetails();
+    expect(screen.getByText('No Microsoft app is set up yet.')).toBeInTheDocument();
   });
 
   it('AC-M365SS-017: a saved app shows its ids and only that a secret is set', async () => {
     view();
-    expect(await screen.findByText(TENANT)).toBeInTheDocument();
-    expect(screen.getByText(CLIENT)).toBeInTheDocument();
-    expect(screen.getByText('Saved')).toBeInTheDocument();
+    const details = await openDetails();
+    expect(within(details).getByText(TENANT)).toBeInTheDocument();
+    expect(within(details).getByText(CLIENT)).toBeInTheDocument();
+    expect(within(details).getByText('Saved')).toBeInTheDocument();
   });
 
   it('AC-M365AV-003: a saved app shows how old the last check with Microsoft is', async () => {
     mock.get.mockResolvedValue({ ...orgInfo, validatedAt: new Date(Date.now() - 3 * 86_400_000).toISOString() });
     view();
-    expect(await screen.findByText('Last checked')).toBeInTheDocument();
-    expect(screen.getByText('3 days ago')).toBeInTheDocument();
+    expect(await screen.findByTestId('m365-app-status')).toHaveTextContent('Connected, 3 days ago');
+  });
+
+  it('AC-M365AV-003: a check inside the last day reads as today, not a long relative phrase', async () => {
+    mock.get.mockResolvedValue({ ...orgInfo, validatedAt: new Date(Date.now() - 3_600_000).toISOString() });
+    view();
+    expect(await screen.findByTestId('m365-app-status')).toHaveTextContent('Connected, today');
   });
 
   it('AC-M365AV-003: an app with no recorded check says so rather than showing a blank or a fake time', async () => {
     mock.get.mockResolvedValue({ ...orgInfo, validatedAt: null });
     view();
-    expect(await screen.findByText('Last checked')).toBeInTheDocument();
-    expect(screen.getByText('Not recorded')).toBeInTheDocument();
+    expect(await screen.findByTestId('m365-app-status')).toHaveTextContent('Connected, check not recorded');
     expect(screen.queryByText('—')).not.toBeInTheDocument();
+  });
+
+  it('AC-M365SS-017: an app whose secret is gone says it is not connected', async () => {
+    mock.get.mockResolvedValue({ ...orgInfo, secretSet: false });
+    view();
+    expect(await screen.findByTestId('m365-app-status')).toHaveTextContent('Not connected, secret missing');
   });
 
   it('AC-M365SS-017: both callback URLs from org_app_info render with a working copy button', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
     view();
+    await openDetails();
     expect(await screen.findByText(callbackUrls.connect)).toBeInTheDocument();
     expect(screen.getByText(callbackUrls.signIn)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Copy the connection redirect URI' }));
@@ -244,6 +291,7 @@ describe('AC-M365SS-017 — saving and errors', () => {
 describe('AC-M365SS-017 — removing the registration', () => {
   it('AC-M365SS-017: remove asks first, warns about reconnecting, then clears', async () => {
     view();
+    await openDetails();
     await userEvent.click(await screen.findByRole('button', { name: 'Remove our app registration' }));
     const dialog = await screen.findByRole('alertdialog');
     expect(within(dialog).getByText(/Everyone in your organization will need to reconnect Microsoft 365/)).toBeInTheDocument();
@@ -257,6 +305,7 @@ describe('AC-M365SS-017 — removing the registration', () => {
   it('AC-M365SS-017: a failed remove keeps the dialog open with the reason', async () => {
     mock.clear.mockRejectedValue(new AppError(describeM365Error('FORBIDDEN'), 'FORBIDDEN'));
     view();
+    await openDetails();
     await userEvent.click(await screen.findByRole('button', { name: 'Remove our app registration' }));
     const dialog = await screen.findByRole('alertdialog');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Remove registration' }));

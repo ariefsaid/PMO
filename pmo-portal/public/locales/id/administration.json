@@ -481,8 +481,6 @@
       "secretLabel": "Rahasia klien",
       "secretSaved": "Tersimpan",
       "secretMissing": "Belum disimpan",
-      "checkedLabel": "Terakhir diperiksa",
-      "checkedNever": "Belum tercatat",
       "usingPlatform": "Organisasi Anda memakai aplikasi yang disediakan platform.",
       "none": "Belum ada aplikasi Microsoft yang diatur.",
       "edit": "Ubah aplikasi",
@@ -509,7 +507,20 @@
       "cancel": "Batal",
       "changeTitle": "Ganti aplikasi Microsoft?",
       "changeDescription": "Semua orang di organisasi Anda perlu menghubungkan ulang Microsoft 365.",
-      "changeConfirm": "Simpan dan hubungkan ulang semua"
+      "changeConfirm": "Simpan dan hubungkan ulang semua",
+      "manage": "Kelola",
+      "setUp": "Atur",
+      "hide": "Sembunyikan",
+      "statusConnected": "Terhubung, {{age}}",
+      "statusNoCheck": "Terhubung, pemeriksaan belum tercatat",
+      "statusNoSecret": "Belum terhubung, rahasia belum ada",
+      "statusPlatform": "Terhubung, aplikasi platform",
+      "statusNone": "Belum diatur",
+      "approvalHelp": "Persetujuan organisasi hanya diperlukan jika Microsoft memintanya. Setiap orang lalu menghubungkan akunnya sendiri.",
+      "statusUnreadable": "Pengaturan tidak tersedia",
+      "checkedLabel": "Terakhir diperiksa",
+      "checkedNever": "Belum tercatat",
+      "checkedToday": "hari ini"
     }
   },
   "invoicePairs": {
