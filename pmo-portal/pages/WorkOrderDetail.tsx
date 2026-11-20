@@ -10,6 +10,7 @@ import { useWorkOrderAcceptances } from '@/src/hooks/useWorkOrderAcceptances';
 import { useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
 import { useDocuments } from '@/src/hooks/useDocuments';
 import { useCostDisciplines, useWorkOrderCostLines, useWorkOrderCostMoney, useWorkOrderCostLinks, useWorkOrderTimesheetLabels } from '@/src/hooks/useWorkOrderCosts';
+import { useProjectPlanVsActual } from '@/src/hooks/useWorkOrderPlanVsActual';
 import { useWorkOrder, useWorkOrderAllocations, useWorkOrderClaimDocuments } from '@/src/hooks/useWorkOrderRecord';
 import { deriveScopeProgress } from '@/src/lib/workOrderProgress';
 import { buildCostView } from '@/src/lib/workOrderCostView';
@@ -17,6 +18,7 @@ import { formatCurrency } from '@/src/lib/format';
 import { ScopeSection } from './work-order-detail/ScopeSection';
 import { CostSection } from './work-order-detail/CostSection';
 import { BillingSection } from './work-order-detail/BillingSection';
+import { PlanVsActualSection } from './work-order-detail/PlanVsActualSection';
 import { DocumentsSection } from './work-order-detail/DocumentsSection';
 
 /**
@@ -45,6 +47,8 @@ const WorkOrderDetail: React.FC = () => {
   const links = useWorkOrderCostLinks(wo.data ? id ?? null : null, flatLines);
   const money = useWorkOrderCostMoney(wo.data ? id ?? null : null, flatLines);
   const disciplines = useCostDisciplines(Boolean(wo.data));
+  const canPlanView = may('view', 'workOrderPlan');
+  const pva = useProjectPlanVsActual(projectId, canPlanView && Boolean(wo.data));
 
   const backLabel = t('back', 'Work orders');
   const goBack = () => navigate(projectId ? `/projects/${projectId}/work-orders` : '/projects');
@@ -91,6 +95,7 @@ const WorkOrderDetail: React.FC = () => {
           onRetry={() => { void allocations.refetch(); void boq.refetch(); void bastList.refetch(); }} />
         <CostSection labels={labels.data ?? {}} links={links.data ?? {}} groups={groups} disciplines={disciplines.data ?? []} isPending={costLines.isPending} isError={costLines.isError || money.isError || disciplines.isError || links.isError || labels.isError}
           onRetry={() => { void costLines.refetch(); void money.refetch(); void disciplines.refetch(); void links.refetch(); void labels.refetch(); }} moneyPending={money.isPending && flatLines.length > 0} />
+        {canPlanView && <PlanVsActualSection workOrderId={row.id} query={pva} disciplines={disciplines.data ?? []} />}
         <BillingSection billing={canBilling ? { row: billingRow, isPending: billing.isPending, isError: billing.isError, onRetry: () => void billing.refetch() } : null}
           acceptances={acceptances} acceptancesPending={bastList.isPending} acceptancesError={bastList.isError} onRetryAcceptances={() => void bastList.refetch()} />
         <DocumentsSection documents={documents} isPending={docs.isPending || bastList.isPending || claimDocs.isPending} isError={docs.isError || bastList.isError || claimDocs.isError} onRetry={() => { void docs.refetch(); void bastList.refetch(); void claimDocs.refetch(); }} />
