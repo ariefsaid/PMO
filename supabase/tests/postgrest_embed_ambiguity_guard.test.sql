@@ -171,6 +171,10 @@ select set_eq(
             ('stock_documents -> profiles'),
             ('stock_documents -> stock_warehouses'),
             ('stock_ledger -> stock_document_lines'),
+            -- 1030 (#2523): stock_document_files carries uploaded_by and archived_by -> profiles. CHECKED BEFORE ADDING: no DAL,
+            -- repository, edge function or e2e code embeds profiles from it (stockSiteWork.ts reads select('*')), so nothing broke.
+            -- Whatever ships first MUST qualify it with !constraint_name.
+            ('stock_document_files -> profiles'),
             -- 0422 (#1515 S1): imprest_floats, imprest_replenishments, imprest_plans and imprest_float_changes each
             -- carry custodian/author/decider person columns -> profiles. The custodian FK stays (integrity). CHECKED
             -- BEFORE ADDING: no DAL, repository or edge-function code reads these tables (only database.types.ts

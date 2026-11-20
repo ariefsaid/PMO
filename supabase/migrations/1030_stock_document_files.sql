@@ -6,7 +6,7 @@
 --   §2 the private bucket stock-documents, path {org}/{document}/{file_id}/{filename}, with the same rules.
 --   §3 stock_post_core gains the paper-required check (a transfer of a zero-cost item whose tag requires paper).
 -- The posting itself stays immutable: the document row is never touched by an attachment.
--- ── REVERSE (rollback/1030_stock_document_files_down.sql): restore 0413's stock_post_core; drop policies, bucket policies, table.
+-- ── REVERSE (rollback/1030_stock_document_files_down.sql): restore 0413's stock_post_core; drop policies, stock_doc_readable, bucket policies, table.
 
 -- §1 ---------------------------------------------------------------------------------------------------
 create table public.stock_document_files (
@@ -134,11 +134,20 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
   values ('stock-documents', 'stock-documents', false, 5242880,
           array['application/pdf', 'image/png', 'image/jpeg', 'image/webp'])
   on conflict (id) do nothing;
+-- Definer: the bucket policies below run for every caller touching storage.objects, including roles with no grant on
+-- stock_documents; reading the table inline would raise 42501 for unrelated objects. Same rule as the document's own read policy.
+create or replace function public.stock_doc_readable(p_document text, p_draft_only boolean default false) returns boolean
+  language sql stable security definer set search_path = public as $$
+  select public.is_active_member() and exists (
+    select 1 from public.stock_documents d
+     where d.id::text = p_document and d.org_id = public.auth_org_id() and (not p_draft_only or d.status = 'Draft')) $$;
+revoke all on function public.stock_doc_readable(text, boolean) from public, anon;
+grant execute on function public.stock_doc_readable(text, boolean) to authenticated;
 create policy storage_stock_documents_read on storage.objects for select
   using (bucket_id = 'stock-documents' and (select auth.uid()) is not null
          and split_part(name, '/', 1) = (select public.auth_org_id())::text
          and array_length(string_to_array(name, '/'), 1) = 4
-         and exists (select 1 from public.stock_documents d where d.id::text = split_part(name, '/', 2) and d.org_id = (select public.auth_org_id())));
+         and public.stock_doc_readable(split_part(name, '/', 2)));
 create policy storage_stock_documents_insert on storage.objects for insert
   with check (bucket_id = 'stock-documents' and (select auth.uid()) is not null
          and split_part(name, '/', 1) = (select public.auth_org_id())::text
@@ -148,7 +157,7 @@ create policy storage_stock_documents_delete on storage.objects for delete
   using (bucket_id = 'stock-documents' and (select auth.uid()) is not null
          and split_part(name, '/', 1) = (select public.auth_org_id())::text
          and array_length(string_to_array(name, '/'), 1) = 4
-         and exists (select 1 from public.stock_documents d where d.id::text = split_part(name, '/', 2) and d.status = 'Draft')
+         and public.stock_doc_readable(split_part(name, '/', 2), true)
          and public.stock_can_attach(split_part(name, '/', 2)::uuid));
 
 -- §3 stock_post_core: 0413's body plus the paper-required check ---------------------------------------------
