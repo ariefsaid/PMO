@@ -1,4 +1,4 @@
-// @e2e-isolation: self-isolated — own project, work order, contract line, allowance and stock item (a unique code; stock rows are append-only and stay); the request chain is set by this journey as AC-MRQ-015 does.
+// @e2e-isolation: self-isolated — own project, work order, delivery location, contract line, allowance and stock item (a unique code; stock rows are append-only and stay); the request chain is set by this journey as AC-MRQ-015 does.
 // JOB-PC24 (material person): a request above the plan carries a reason and goes first to the plan-check step. Plan 100, request 120.
 import { test, expect, type Page } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -10,7 +10,7 @@ test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
 test.setTimeout(180_000);
 
 let admin: SupabaseClient;
-let projectId = ''; let woIds: string[] = []; let boqId = ''; let requestId = '';
+let projectId = ''; let woIds: string[] = []; let boqId = ''; let requestId = ''; let siteId = '';
 test.afterEach(async () => {
   if (!admin) return;
   if (requestId) await admin.from('material_requests').delete().eq('id', requestId); // steps, lines and events cascade or stay as history
@@ -19,9 +19,10 @@ test.afterEach(async () => {
     ['work_order_lines', 'work_order_id', woIds],
     ['boq_items', 'id', boqId ? [boqId] : []],
     ['work_orders', 'id', woIds],
+    ['stock_warehouses', 'id', siteId ? [siteId] : []],
     ['projects', 'id', projectId ? [projectId] : []],
   ]).catch(() => undefined); // request history may pin the work order; the unique run name keeps reruns clean
-  projectId = ''; woIds = []; boqId = ''; requestId = '';
+  projectId = ''; woIds = []; boqId = ''; requestId = ''; siteId = '';
 });
 
 async function pick(page: Page, label: RegExp, option: string) {
@@ -34,6 +35,12 @@ test('JOB-PC24 a request of 120 against a plan of 100 asks for a reason and wait
   const sfx = runSuffix();
   const fx = await projectWithWorkOrders(admin, `JOBPC24-${sfx}`, ['Concrete']);
   projectId = fx.projectId; woIds = fx.workOrders.map((w) => w.id);
+  siteId = need('site location', await admin.from('stock_warehouses').insert({
+    code: `E2E-PC24-SITE-${sfx}`,
+    name: `E2E site ${sfx}`,
+    kind: 'site',
+    project_id: projectId,
+  }).select('id').single()).id;
   const wo = fx.workOrders[0];
   const adminUser = await userClient('admin@acme.test');
   const item = await makeItem(adminUser, sfx, 'P');
