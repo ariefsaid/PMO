@@ -330,6 +330,16 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Discipline** — an entry in the organisation's own list of trades or engineering disciplines (for example civil, mechanical, electrical) that a cost can name; kept by an Admin and archived rather than deleted.
 
+**Direct cost** (of a work order) — the counted cost records that name the work order, in its own currency: vendor bills pre-tax, posted stock issues and returns at stock-ledger value, and approved equipment usage at a hire rate. Purchase requests, orders and receipts are commitments and never add to it; hours with no rate are carried as hours (#2519).
+
+**Shared cost** — counted cost records of a project that name no work order; split over the project's work orders by their share of direct cost unless Finance saves a custom split, and shown as "Not assigned" when there is no work order to carry it (#2519).
+
+**Direct margin** — a work order's billed work revenue (excluding tax) less its direct cost. **Result after shared cost** is the direct margin less the work order's share of shared cost (#2519).
+
+**Plan figure** — a planned amount for a work order (optionally per discipline): direct budget or indirect budget in the work order's currency, or equipment hours or crew hours. It never changes an actual, a project total or a budget version (#2519).
+
+**Shared-cost split** — a project's saved percentage per live work order (up to 4 decimals, summing to exactly 100) used instead of the default split; it goes stale when a work order is added or cancelled, and the default applies until it is saved again (#2519).
+
 **Work order line** — an allocation of a positive quantity of one project contract line (bill-of-quantities item) to a work order, so one contract line can be ordered across several work orders.
 
 **Work order acceptance** — a BAST (acceptance record) for a work order, in Draft, Confirmed or Withdrawn status; a stage acceptance is cumulative evidence, and a confirmed final acceptance closes the work order at its accepted value.

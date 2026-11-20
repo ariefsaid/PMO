@@ -3780,3 +3780,7 @@ Amends OD-W5-4 and ADR-0034 §5. The panel's figure was budget − open orders �
 - A payment now refreshes the budget positions as well as committed and reserved spend, so spending cannot lag behind open orders.
 - **Approval routing is untouched.** Who approves is decided in SQL from its own sums; it never reads this figure, which stays advisory (OD-W5-4). No migration, no routing code.
 - **Known ceiling (ERP, same as the project Budget tab):** a ledger cost not linked to its order is counted as both actual and open order: conservative. A held cost posted to an account not mapped to the project is in neither. Both come from ADR-0093's mapping; this slice adds no new double count or omission.
+
+## DD-WPVA-1 — Work-order financial attribution (2026-11-20)
+
+For #2519, project and contract totals use the existing project-finance basis; work orders divide that total without guessing document attribution. Shared costs use positive direct-cost weights, or a valid custom split; if neither exists they remain unassigned. Allocate cents by largest remainder, preserving the sign of a negative pool. Discipline figures cover planned and actual costs, with revenue and profit at work-order, project and contract levels. The detailed attribution, billing and rounding rules are in [the plan-versus-actual spec](specs/work-order-plan-vs-actual.spec.md); the discipline plan editor and work-order page integration follow separately.

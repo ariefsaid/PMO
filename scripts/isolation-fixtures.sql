@@ -96,6 +96,27 @@ values ('a6120000-0000-4000-8000-0000000000e2', 'a6120000-0000-4000-8000-0000000
 insert into public.journal_entry_authors (journal_id, profile_id, org_id)
 select 'a6120000-0000-4000-8000-0000000000e1', p.id, 'a6120000-0000-4000-8000-00000000000a'
   from public.profiles p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
+-- The seed org has no expiry registry rows; give A a complete person/document chain for by-id probes.
+insert into public.people (id, org_id, code, name)
+values ('a6120000-0000-4000-8000-0000000000f1', 'a6120000-0000-4000-8000-00000000000a', 'iso-person', 'Isolation proof person');
+insert into public.document_types (id, org_id, name, applies_to)
+values ('a6120000-0000-4000-8000-0000000000f2', 'a6120000-0000-4000-8000-00000000000a', 'Isolation proof document', 'person');
+insert into public.expiry_documents (id, org_id, subject_kind, person_id, type_id, expires_on)
+values ('a6120000-0000-4000-8000-0000000000f3', 'a6120000-0000-4000-8000-00000000000a', 'person',
+        'a6120000-0000-4000-8000-0000000000f1', 'a6120000-0000-4000-8000-0000000000f2', current_date + 30);
+-- Cover the previously unseeded equipment chain too: read-mode deliberately skips updates,
+-- so its ceiling also requires by-id reads on existing tables.
+insert into public.equipment_assets (id, org_id, code, name)
+values ('a6120000-0000-4000-8000-0000000000f4', 'a6120000-0000-4000-8000-00000000000a', 'iso-asset', 'Isolation proof asset');
+insert into public.equipment_costing_settings (id, org_id, asset_id, setting_key, version, basis, effective_from)
+values ('a6120000-0000-4000-8000-0000000000f5', 'a6120000-0000-4000-8000-00000000000a',
+        'a6120000-0000-4000-8000-0000000000f4', 'a6120000-0000-4000-8000-0000000000f6', 1, 'none', current_date);
+insert into public.equipment_usage_entries (id, org_id, asset_id, project_id, work_date, quantity, unit, author_id)
+select 'a6120000-0000-4000-8000-0000000000f7', 'a6120000-0000-4000-8000-00000000000a',
+       'a6120000-0000-4000-8000-0000000000f4', p.id, current_date, 1, 'hours', u.id
+  from public.projects p cross join public.profiles u
+  where p.org_id = 'a6120000-0000-4000-8000-00000000000a' and u.org_id = p.org_id
+  order by p.id, u.id limit 1;
 -- Provide disposable rows even when the seed contains no work orders or disciplines.
 insert into public.cost_disciplines (id, org_id, code, name)
 values ('a6120000-0000-4000-8000-0000000000d1', 'a6120000-0000-4000-8000-00000000000a', 'iso', 'Isolation discipline');
@@ -111,6 +132,13 @@ insert into public.work_order_acceptances (id, org_id, project_id, work_order_id
 select 'a6120000-0000-4000-8000-0000000000d5', w.org_id, w.project_id, w.id, current_date, p.id
 from public.work_orders w join lateral (select id from public.profiles where org_id = w.org_id order by id limit 1) p on true
 where w.id = 'a6120000-0000-4000-8000-0000000000d2';
+-- #2519: a plan figure and a shared-cost split row on the isolation work order.
+insert into public.work_order_plan_lines (id, org_id, project_id, work_order_id, kind, value)
+select 'a6120000-0000-4000-8000-0000000000d6', w.org_id, w.project_id, w.id, 'direct_budget', 1
+from public.work_orders w where w.id = 'a6120000-0000-4000-8000-0000000000d2';
+insert into public.project_shared_cost_splits (org_id, project_id, work_order_id, percent)
+select w.org_id, w.project_id, w.id, 100
+from public.work_orders w where w.id = 'a6120000-0000-4000-8000-0000000000d2';
 select 'ISO-COPY-SKIPPED ' || tbl || ': ' || why from _iso_skipped order by tbl;
 \endif
 
