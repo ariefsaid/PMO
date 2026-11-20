@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import userEvent from '@testing-library/user-event';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -25,6 +25,11 @@ vi.mock('@/src/hooks/useWorkOrderPlanVsActual', () => ({ useProjectPlanVsActual:
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canBilling }));
 
 import WorkOrderDetail from './WorkOrderDetail';
+
+const CurrentLocation: React.FC = () => {
+  const { pathname, search } = useLocation();
+  return <output data-testid="current-location">{pathname}{search}</output>;
+};
 
 const WO = { id: 'w1', project_id: 'p1', wo_number: 'WO-0007', title: 'Pump install', status: 'Issued', currency: 'IDR', order_value: 1500000, client_po_number: 'PO-9' };
 const ln = (source: string, id: string, disciplineId: string | null) => ({ source, recordId: id, projectId: 'p1', workOrderId: 'w1', disciplineId, occurredOn: '2026-02-01', reference: id, quantity: null, quantityUnit: null });
@@ -234,6 +239,19 @@ describe('WorkOrderDetail', () => {
     expect(list.getByText('Sari Dewi')).toBeInTheDocument();
     expect(list.getByText('Unassigned')).toBeInTheDocument();
     expect(list.getByText('No due date')).toBeInTheDocument();
+  });
+
+  it('FR-WORP-025 lets the user open a task from the work order', async () => {
+    h.tasks = q([{ id: 't1', project_id: 'p1', name: 'Torque the bolts', assignee: null, end_date: null }]);
+    render(<MemoryRouter initialEntries={['/work-orders/w1']}><Routes>
+      <Route path="/work-orders/:id" element={<WorkOrderDetail />} />
+      <Route path="/projects/:projectId/tasks" element={<><p>Project tasks route</p><CurrentLocation /></>} />
+    </Routes></MemoryRouter>);
+
+    await userEvent.setup().click(screen.getByRole('link', { name: 'Torque the bolts' }));
+
+    expect(await screen.findByText('Project tasks route')).toBeInTheDocument();
+    expect(screen.getByTestId('current-location')).toHaveTextContent('/projects/p1/tasks?open=t1');
   });
 
   it('shows an empty state for each section', () => {
