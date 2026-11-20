@@ -86,6 +86,8 @@
       "none": "Tidak ada catatan terkait",
       "hint": "Tugas menampilkan status catatan ini dan menutup sendiri saat catatan selesai.",
       "locked": "Tugas yang memerlukan bukti penyelesaian tidak dapat mengikuti catatan."
-    }
+    },
+    "unlink": "Berhenti mengikuti catatan ini",
+    "unlinked": "Berhenti mengikuti catatan."
   }
 }

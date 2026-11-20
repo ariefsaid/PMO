@@ -34,6 +34,8 @@ interface TaskRecordDrawerProps {
   onClose: () => void;
   nestedOpen: boolean;
   /** #2531: proof-of-completion affordances; the panel supports both required and optional attachments. */
+  /** #2587: clear the record link; present only when `can('link', 'task')` holds for this task. */
+  onUnlink?: (task: TaskWithRefs) => Promise<void> | void;
   proof?: { canAttach: boolean; canSetStatus: boolean; onMarkDone: (task: TaskWithRefs) => Promise<void> | void };
 }
 
@@ -53,6 +55,7 @@ const TaskRecordDrawer: React.FC<TaskRecordDrawerProps> = ({
   openTask,
   onClose,
   nestedOpen,
+  onUnlink,
   proof,
 }) => {
   const { t } = useTranslation('project');
@@ -93,7 +96,12 @@ const TaskRecordDrawer: React.FC<TaskRecordDrawerProps> = ({
           <dt className="text-muted-foreground">{t('projectDetail.tasks.form.priority', 'Priority')}</dt><dd>{task.priority ?? t('projectDetail.tasks.noPriority', 'No priority')}</dd>
           {recordLinkOf(task) && <>
             <dt className="text-muted-foreground">{tTasks('linkedRecord.region', 'Linked record')}</dt>
-            <dd className="min-w-0 break-words"><TaskLinkedRecord task={task} /></dd>
+            <dd className="min-w-0 break-words space-y-1">
+              <TaskLinkedRecord task={task} />
+              {onUnlink && task.status !== 'Done' && (
+                <Button size="sm" variant="ghost" onClick={() => void onUnlink(task)}>{tTasks('linkedRecord.unlink', 'Stop following this record')}</Button>
+              )}
+            </dd>
           </>}
           <dt className="text-muted-foreground">{t('projectDetail.tasks.form.dependsOnLegend', 'Depends on')}</dt><dd className="min-w-0 break-words">{task.dependencies.length ? task.dependencies.map((dependency) => allTasks.find((candidate) => candidate.id === dependency.depends_on_id)?.name ?? dependency.depends_on_id).join(', ') : t('projectDetail.tasks.drawer.noDependencies', 'No dependencies are linked.')}</dd>
         </dl>

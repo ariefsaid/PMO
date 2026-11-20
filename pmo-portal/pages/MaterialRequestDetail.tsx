@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { FollowUpTaskButton } from '@/src/components/tasks/FollowUpTaskButton';
 import { Button, ConfirmDialog, ListState, ReasonDialog, RecordHeader, RecordSection, RecordStack, SelectField, useToast } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
@@ -75,6 +76,7 @@ const MaterialRequestDetailPage: React.FC = () => {
           ...(canWithdraw ? [{ key: 'withdraw', label: t('detail.withdraw', 'Withdraw request'), onSelect: () => setDialog({ kind: 'withdraw' }) }] : []),
         ]} menuLabel={t('detail.moreActions', 'More actions')}>
         {req.note && <p>{req.note}</p>}
+        <div><FollowUpTaskButton type="material_request" recordId={req.id} projectId={req.projectId} defaultName={req.number} finished={['fulfilled', 'rejected', 'cancelled'].includes(req.status)} /></div>
       </RecordHeader>
 
       <RecordStack>

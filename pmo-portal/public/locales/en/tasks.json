@@ -86,6 +86,8 @@
       "none": "No linked record",
       "hint": "The task shows this record's status and closes itself when the record is finished.",
       "locked": "A task that requires proof of completion cannot follow a record."
-    }
+    },
+    "unlink": "Stop following this record",
+    "unlinked": "Stopped following the record."
   }
 }
