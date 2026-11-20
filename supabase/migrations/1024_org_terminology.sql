@@ -1,8 +1,8 @@
--- 0975_org_terminology.sql — an organisation renames PMO's fixed set of terms (#2529, map #2516).
+-- 1024_org_terminology.sql — an organisation renames PMO's fixed set of terms (#2529, map #2516).
 -- One row per (org, term, language): the display name in singular and plural. Absence = the
 -- shipped default. Read: every active member (the labels render on every screen). Write: Admin only,
 -- enforced by RLS. org_id is stamped by trigger, never sent by the client.
--- Reversal: supabase/migrations/rollback/0975_org_terminology_down.sql
+-- Reversal: supabase/migrations/rollback/1024_org_terminology_down.sql
 
 create table public.org_terminology (
   org_id     uuid not null default public.auth_org_id() references public.organizations(id) on delete cascade,

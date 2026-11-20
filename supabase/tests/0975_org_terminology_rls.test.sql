@@ -1,4 +1,4 @@
--- 0975_org_terminology_rls.test.sql
+-- 1024_org_terminology_rls.test.sql
 -- AC-TERM-001 [pgTAP]: org_terminology — every member reads their own org's overrides; only an
 -- Admin writes; a cross-org Admin cannot read or write another org's rows.
 begin;

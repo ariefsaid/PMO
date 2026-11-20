@@ -11,7 +11,7 @@ An org Admin renames a fixed set of PMO terms; every string shown through the i1
 - **FR-TERM-006** The repository shall fail CI when UI source hard-codes an overridable term outside `t()`, with a shrink-only baseline for existing hits.
 
 ## Acceptance criteria
-- **AC-TERM-001** (pgTAP, `0975_org_terminology_rls.test.sql`) Given an org-A Admin, Engineer and a cross-org Admin, When each reads/writes, Then only the Admin writes, members read own-org rows, the other org sees nothing, and only the five terms are accepted.
+- **AC-TERM-001** (pgTAP, `1024_org_terminology_rls.test.sql`) Given an org-A Admin, Engineer and a cross-org Admin, When each reads/writes, Then only the Admin writes, members read own-org rows, the other org sees nothing, and only the five terms are accepted.
 - **AC-TERM-002** (unit, `orgTerms.test.ts`) Given an override, When text with the shipped wording is rewritten, Then singular/plural/case are right in both languages and partial words are untouched.
 - **AC-TERM-003** (unit, `orgTerms.i18next.test.ts`) Given overrides in both languages, When `t()` runs, Then output uses each language's override.
 - **AC-TERM-004** (unit, `AdministrationTerminology.test.tsx`) Given the settings screen, When the Admin edits and saves or resets a row, Then the save/reset call carries the term, language and wording.

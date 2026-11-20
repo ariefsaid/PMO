@@ -308,7 +308,7 @@ Totals: 15 ACs, 15 covered, 0 missing: none
 
 | AC | Intended layer (per spec) | Test found on branch |
 |---|---|---|
-| AC-TERM-001 | pgTAP, `0975_org_terminology_rls.test.sql` | pgTAP: `supabase/tests/0975_org_terminology_rls.test.sql` |
+| AC-TERM-001 | pgTAP, `1024_org_terminology_rls.test.sql` | pgTAP: `supabase/tests/1024_org_terminology_rls.test.sql` |
 | AC-TERM-002 | unit, `orgTerms.test.ts` | vitest: `pmo-portal/src/lib/i18n/orgTerms.test.ts` |
 | AC-TERM-003 | unit, `orgTerms.i18next.test.ts` | vitest: `pmo-portal/src/lib/i18n/orgTerms.i18next.test.ts` |
 | AC-TERM-004 | unit, `AdministrationTerminology.test.tsx` | vitest: `pmo-portal/pages/AdministrationTerminology.test.tsx` |
