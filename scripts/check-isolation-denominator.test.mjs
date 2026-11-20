@@ -15,7 +15,7 @@ import { spawnSync } from 'node:child_process';
 import { unionDenominatorFragments, DENOMINATOR_PATH, compareDenominators, formatEntry, preserveTableExpectations, readDenominator, validateDenominator, validateProbeInputs } from './check-isolation-denominator.mjs';
 
 test('site report isolation probe selects only authenticated progress columns', () => {
-  const denominator = readDenominator(path.resolve('scripts/isolation-probe-denominator.json'));
+  const denominator = readDenominator(DENOMINATOR_PATH);
   assert.equal(denominator.tables.find((entry) => entry.table === 'dsr_progress_lines')?.columns,
     'id,org_id,report_id,position,work_order_line_id,sub_stage,quantity,unit,frozen_at');
 });
