@@ -55,6 +55,7 @@ interface Opts {
   accountResultApplied?: boolean;
   /** I1: what `record_connect_send_failure` answers (true: this was the fifth, the send ended). */
   failureEnds?: boolean;
+  eventFails?: boolean;
   /** M7: the accepting Admin no longer holds the role. */
   actorGone?: boolean;
   /** I3: every ERP read answers with a server error. */
@@ -124,7 +125,7 @@ function routes(o: Opts) {
     supabaseRpc('confirm_outbox', (c) => { outbox.find((x) => x.id === (c.bodyJson as { p_id: string }).p_id)!.state = 'confirmed'; return jsonResponse(1); }),
     supabaseRpc('mark_outbox_held', (c) => { outbox.find((x) => x.id === (c.bodyJson as { p_id: string }).p_id)!.state = 'held'; return jsonResponse(1); }),
     // #1599: an Operator task (the operator alert sink) and the note a linked account send leaves
-    { label: 'error-events-insert', method: 'POST', pathname: '/rest/v1/error_events', response: () => jsonResponse(null, { status: 201 }) },
+    { label: 'error-events-insert', method: 'POST', pathname: '/rest/v1/error_events', response: () => o.eventFails ? jsonResponse({ message: 'event failed' }, { status: 500 }) : jsonResponse(null, { status: 201 }) },
     { label: 'proposal-note', method: 'PATCH', pathname: '/rest/v1/erp_connect_proposals', response: () => jsonResponse(null, { status: 204 }) },
     { label: 'erp', host: ERP, pathname: /^\/api\//, response: (c: FetchCall) => {
       const answer = o.erpAnswer?.(c);
@@ -555,7 +556,7 @@ const chart = () => ({
 const operatorTasks = (calls: FetchCall[]) => calls.filter((c) => c.method === 'POST' && c.url.pathname === '/rest/v1/error_events').map(body);
 const notes = (calls: FetchCall[]) => calls.filter((c) => c.method === 'PATCH' && c.url.pathname === '/rest/v1/erp_connect_proposals')
   .map((c): Record<string, unknown> => ({ ...body(c), id: c.url.searchParams.get('id'), org: c.url.searchParams.get('org_id'), state: c.url.searchParams.get('state') }));
-const ADMIN_TOLD = 'PMO could not create the account; your administrator has been told.';
+const ADMIN_TOLD = 'PMO could not create the account. Contact your administrator.';
 /** A permission refusal as each bed version answers it (403 PermissionError, wording differs). */
 const FORBIDDEN = {
   v15: () => new Response(JSON.stringify({ exc_type: 'PermissionError', _error_message: 'No permission for Account',
@@ -711,6 +712,18 @@ describe('#1599 ECX-4 drainConnectSends: direct-cost accounts', () => {
     const h = await tick({ claimed: [P.account], tables: chart(), outbox: [held] });
     assertEquals(rpcCall(h.calls, 'record_connect_send_held').map(body), [{ p_org_id: ORG, p_id: 'prop-acct' }]);
     assertEquals(operatorTasks(h.calls).map((t) => [t.error_code, t.context_id]), [['ERP_ACCOUNT_SEND_UNCONFIRMED', 'prop-acct']]);
+  });
+
+  it('AC-ECX-030 event insertion failure preserves permission refusal, final failure and hold without claiming notification', async () => {
+    const denied = await tick({ claimed: [P.account], tables: chart(), eventFails: true, erpAnswer: (c) => isAccountPost(c) ? FORBIDDEN.v16() : undefined });
+    assertEquals(denied.result.rejected, 1);
+    assertEquals(results(denied.calls)[0].p_rejection, 'PMO could not create the account. Contact your administrator.');
+    const final = await tick({ claimed: [P.account], tables: chart(), resultError: { 'prop-acct': '57014' }, failureEnds: true, eventFails: true });
+    assertEquals(final.result.rejected, 1);
+    const held = { id: 'ob-0', domain: 'accounts', pmo_record_id: 'Materials', idempotency_key: 'seed:account:Materials:["site materials","direct expenses - tc"]', state: 'held', external_record_id: null, canonical: null, claim_generation: 1, payload_digest: null };
+    const uncertain = await tick({ claimed: [P.account], tables: chart(), outbox: [held], eventFails: true });
+    assertEquals(uncertain.result.held, 1);
+    assertEquals(rpcCall(uncertain.calls, 'record_connect_send_held').length, 1);
   });
 
   it('AC-ECX-030 a replayed account answer is read back from the ERP: a turned-off or posting account, or one under another name, is refused and never linked; a matching usable account is linked', async () => {

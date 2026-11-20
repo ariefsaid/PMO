@@ -11,7 +11,7 @@ const repo = vi.hoisted(() => ({
     { erpName: 'Direct Expenses - EC', accountName: 'Direct Expenses', parentAccount: 'Expenses - EC' },
     { erpName: 'Indirect Expenses - EC', accountName: 'Indirect Expenses', parentAccount: 'Expenses - EC' },
   ]),
-  requestAccountSend: vi.fn(async () => ({ id: 'send-1' })),
+  requestAccountSend: vi.fn(async (_tier: string, _request: { category: string; parentAccount: string; accountName: string }) => ({ id: 'send-1' })),
   listConnectProposals: vi.fn(async (..._args: unknown[]) => ({ proposals: [] as Array<Record<string, unknown>>, nextAfterId: null as string | null })),
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations: repo } }));
@@ -45,6 +45,46 @@ describe('AC-ECX-030 DirectCostAccounts', () => {
       ['erpnext', { category: 'Equipment', parentAccount: 'Indirect Expenses - EC', accountName: 'Equipment' }],
     ]);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('AC-ECX-030 retries only the category that failed after a partial acceptance', async () => {
+    repo.requestAccountSend.mockResolvedValueOnce({ id: 'accepted' }).mockRejectedValueOnce(new Error('temporary'));
+    show('Finance');
+    const dialog = await openDialog();
+    fireEvent.change(await within(dialog).findByLabelText(/^Expense group/), { target: { value: 'Direct Expenses - EC' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create accounts' }));
+    await within(dialog).findByText(/Equipment: PMO could not ask/);
+    expect(within(dialog).queryByText(/nothing was saved/i)).toBeNull();
+    expect(within(dialog).getByText('Requests accepted: Labor.')).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create accounts' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(repo.requestAccountSend.mock.calls.map(([, request]) => request.category)).toEqual(['Labor', 'Equipment', 'Equipment']);
+  });
+
+  it('AC-ECX-030 preserves the accepted account name when reopening a partial request', async () => {
+    repo.requestAccountSend.mockResolvedValueOnce({ id: 'accepted' }).mockRejectedValueOnce(new Error('temporary'));
+    show('Finance');
+    let dialog = await openDialog();
+    fireEvent.change(await within(dialog).findByLabelText(/^Expense group/), { target: { value: 'Direct Expenses - EC' } });
+    fireEvent.change(within(dialog).getByLabelText(/^Account name for Labor/), { target: { value: 'Site labour' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create accounts' }));
+    await within(dialog).findByText(/Equipment: PMO could not ask/);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    // A dirty form asks for confirmation before closing.
+    const discard = screen.queryByRole('button', { name: /discard/i });
+    if (discard) fireEvent.click(discard);
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    dialog = await openDialog();
+    expect(within(dialog).getByLabelText(/^Account name for Labor/)).toHaveValue('Site labour');
+  });
+
+  it('AC-ECX-030 group read failure offers a retry that loads groups', async () => {
+    repo.listAccountSendGroups.mockRejectedValueOnce(new Error('offline'));
+    show('Finance', ['Labor']);
+    const dialog = await openDialog();
+    expect(await within(dialog).findByText('Could not load expense groups. Try again.')).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(within(dialog).getByLabelText(/^Expense group/)).toBeEnabled());
   });
 
   it('AC-ECX-030 nothing is asked until a group is chosen and every name is filled in', async () => {

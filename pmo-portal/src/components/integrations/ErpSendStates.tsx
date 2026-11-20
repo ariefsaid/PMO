@@ -121,9 +121,9 @@ export function ErpSendStates({ enabled, tier = 'erpnext' }: { enabled: boolean;
     return r?.id === 'refused' ? r.reason : null;
   };
   const accountMessage = (text: string, held: boolean) => held
-    ? t('administration:integrations.accounts.held', 'PMO could not confirm whether the account was created; your administrator has been told.')
+    ? t('administration:integrations.accounts.held', 'PMO could not confirm whether the account was created. Contact your administrator.')
     : text === ACCOUNT_UNUSABLE_TEXT ? t('administration:integrations.accounts.unusable', ACCOUNT_UNUSABLE_TEXT)
-      : english ? text : t('administration:integrations.accounts.failedDetails', 'PMO could not complete this account request. Check the details or contact your administrator.');
+      : english && !text.includes('your administrator has been told') ? text : t('administration:integrations.accounts.failedDetails', 'PMO could not complete this account request. Check the details or contact your administrator.');
   const refused = [...new Map([...(reviews.data?.proposals ?? []), ...(accountReviews.data?.proposals ?? [])]
     .filter((p) => (p.reason === 'rejected' || p.reason === 'held') && p.reason_text)
     .map((p) => [p.id, p])).values()];
@@ -142,7 +142,7 @@ export function ErpSendStates({ enabled, tier = 'erpnext' }: { enabled: boolean;
         <ul className='mt-2 space-y-2'>
           {refused.map((p) => (
             <li key={p.id} className='min-w-0'>
-              <span className='break-words font-medium'>{p.snapshot.name ?? t('administration:integrations.send.unnamed', 'A record')}</span>{' '}
+              <span className='break-words font-medium'>{(p.kind === 'account' ? p.snapshot.accountName ?? p.snapshot.name ?? p.pmo_ids.join(', ') : p.snapshot.name) || t('administration:integrations.send.unnamed', 'A record')}</span>{' '}
               <StatusPill variant='warn'>{t('administration:integrations.send.needsDecision', 'Needs a decision')}</StatusPill>
               <p className='mt-1 break-words text-muted-foreground'>{p.kind === 'account' ? accountMessage(p.reason_text ?? '', p.reason === 'held') : refusalText(p.reason_text ?? '')}</p>
               {p.kind !== 'account' && !english && erpWords(p.reason_text ?? '') && (

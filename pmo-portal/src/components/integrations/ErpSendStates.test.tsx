@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import i18n from 'i18next';
 import idAdministration from '../../../public/locales/id/administration.json';
+import enAdministration from '../../../public/locales/en/administration.json';
 import type { ConnectProposal, ConnectStatus } from '@/src/lib/repositories/contracts/integrations';
 
 const repo = vi.hoisted(() => ({
@@ -27,7 +28,7 @@ function answer(waiting: number, review: ConnectProposal[] = [], sends: ConnectP
 const renderIt = () => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ErpSendStates enabled /></QueryClientProvider>,
 );
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+afterEach(async () => { cleanup(); vi.clearAllMocks(); await i18n.changeLanguage('en'); });
 
 describe('ECA3-T11 ErpSendStates', () => {
   it('NFR-ECA-004 an accepted send shows "Sending to the ERP" until the ERP confirms; a rejection returns as "Needs a decision" with the reason', async () => {
@@ -39,6 +40,22 @@ describe('ECA3-T11 ErpSendStates', () => {
     expect(screen.getByText('Needs a decision')).toBeTruthy();
     expect(screen.getByText('The ERP refused this item: Value missing')).toBeTruthy();
     expect(screen.queryByText(/done|complete|sent/i)).toBeNull();   // a waiting row is never reported as finished
+  });
+
+  it.each(['en', 'id'])('AC-ECX-030 identifies each account and gives truthful guidance in %s', async (language) => {
+    i18n.addResourceBundle('en', 'administration', enAdministration, true, true);
+    i18n.addResourceBundle('id', 'administration', idAdministration, true, true);
+    await i18n.changeLanguage(language);
+    answer(0, [
+      proposal({ id: 'a1', kind: 'account', reason: 'held', snapshot: { accountName: 'Site materials' }, reason_text: 'PMO could not confirm whether the account was created; your administrator has been told.' }),
+      proposal({ id: 'a2', kind: 'account', reason: 'rejected', snapshot: { accountName: 'Site labour' }, reason_text: 'PMO could not create the account; your administrator has been told.' }),
+    ]);
+    renderIt();
+    expect(await screen.findByText('Site materials')).toBeTruthy();
+    expect(screen.getByText('Site labour')).toBeTruthy();
+    expect(screen.queryByText(/administrator has been told|administrator Anda telah diberi tahu/i)).toBeNull();
+    expect(screen.getAllByText(language === 'en' ? /contact your administrator/i : /hubungi administrator/i)).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: /send it again|kirim lagi/i })).toBeNull();
   });
 
   it('AC-ECX-030 an account the ERP holds but PMO cannot use as a direct-cost account is refused in words that do not send the person to the ERP', async () => {
@@ -57,7 +74,7 @@ describe('ECA3-T11 ErpSendStates', () => {
   it('AC-ECX-030 an unconfirmed account waits for the administrator without an unsafe retry', async () => {
     answer(0, [proposal({ id: 'a1', kind: 'account', reason: 'held', snapshot: { name: 'Materials' }, reason_text: 'PMO could not confirm whether the account was created; your administrator has been told.' })]);
     renderIt();
-    expect(await screen.findByText('PMO could not confirm whether the account was created; your administrator has been told.')).toBeTruthy();
+    expect(await screen.findByText('PMO could not confirm whether the account was created. Contact your administrator.')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /send it again/i })).toBeNull();
   });
 
@@ -69,7 +86,7 @@ describe('ECA3-T11 ErpSendStates', () => {
     });
     renderIt();
     expect(await screen.findByText('Materials')).toBeTruthy();
-    expect(screen.getByText('PMO could not confirm whether the account was created; your administrator has been told.')).toBeTruthy();
+    expect(screen.getByText('PMO could not confirm whether the account was created. Contact your administrator.')).toBeTruthy();
   });
 
   it('AC-ECX-030 a completed send refreshes the different-parent notice without a page reload', async () => {
@@ -199,7 +216,7 @@ describe('#2429 ERP send refusals read in Bahasa', () => {
     await i18n.changeLanguage('id');
     answer(0, [proposal({ id: 'a1', kind: 'account', reason: 'held', snapshot: { name: 'Materials' }, reason_text: 'PMO could not confirm whether the account was created; your administrator has been told.' })]);
     renderIt();
-    expect(await screen.findByText('PMO belum dapat memastikan akun telah dibuat; administrator Anda telah diberi tahu.')).toBeTruthy();
+    expect(await screen.findByText('PMO belum dapat memastikan akun telah dibuat. Hubungi administrator Anda.')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /kirim lagi|send it again/i })).toBeNull();
   });
 

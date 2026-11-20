@@ -94,6 +94,16 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     }
   });
 
+  it('AC-ECX-030 account review does not claim an administrator was notified', async () => {
+    mockIntegrationsRepo.getConnectStatus.mockResolvedValue(readyStatus([{ kind: 'account', pmo_count: 1, erp_count: 0, linked_count: 0, inactive_erp_count: 0, scenario: 'S-D', accepted_at: null }]));
+    mockIntegrationsRepo.listConnectProposals.mockResolvedValue({ proposals: [{ id: 'account-review', kind: 'account', outcome: 'review', reason: 'held', pmo_ids: ['Materials'], external_ids: [], reason_text: 'PMO could not confirm whether the account was created; your administrator has been told.', snapshot: { accountName: 'Site materials' }, state: 'open' }], nextAfterId: null });
+    renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
+    fireEvent.click(within(await screen.findByTestId('connect-kind-account')).getByRole('button', { name: 'Review list' }));
+    expect(await screen.findByText(/Site materials/)).toBeInTheDocument();
+    expect(screen.getByText(/Contact your administrator/)).toBeInTheDocument();
+    expect(screen.queryByText(/administrator has been told/)).toBeNull();
+  });
+
   it('AC-ECA-003 accept all applies 35 rows after one confirm stating the counts and leaves 2 review rows open', async () => {
     const partyProposals: ConnectProposal[] = [
       ...Array.from({ length: 30 }, (_, i) => ({

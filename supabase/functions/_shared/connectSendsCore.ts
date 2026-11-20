@@ -34,7 +34,7 @@ export const CONNECT_SEND_REJECTION_TEXT = {
   unsendable: (kind: string) => { const noun = NOUN[kind] ?? 'record'; return `This ERP cannot be sent ${/^[aeiou]/.test(noun) ? 'an' : 'a'} ${noun} from PMO yet.`; },
   /** #1599: clients never work in the ERP, so an account send PMO cannot finish is the Operator's task, and Finance is told so. */
   accountMismatch: 'The ERP account with this name cannot be used for direct costs. Ask again with a different account name.',
-  accountAdminTold: 'PMO could not create the account; your administrator has been told.',
+  accountContactAdmin: 'PMO could not create the account. Contact your administrator.',
   ambiguous: (kind: string) => `Two ERP records match this ${NOUN[kind] ?? 'record'}. Link the right one by hand.`,
   linked: 'This record is already linked to another ERP record.',
   stuck: 'We could not finish sending this record. Check it in the ERP, then try again.',
@@ -159,7 +159,7 @@ export async function drainSends(sc: SupabaseClient, org: { orgId: string; bindi
   const operatorTask = (c: Claimed, code: string) =>
     recordErrorEvent(sc as unknown as ErrorEventSupabaseLike, { fn: `${t.tier}-sweep`, errorCode: code, contextId: c.id, orgId: org.orgId });
   const rejectAccount = async (c: Claimed, code: string) => {
-    await reject(c, CONNECT_SEND_REJECTION_TEXT.accountAdminTold);
+    await reject(c, CONNECT_SEND_REJECTION_TEXT.accountContactAdmin);
     await operatorTask(c, code);
   };
   // Anything unknown is counted and ends as a review row after five ticks (I1 of 0494); until then a later tick looks again

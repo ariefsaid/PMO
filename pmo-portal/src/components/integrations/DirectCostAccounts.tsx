@@ -21,6 +21,7 @@ export function DirectCostAccounts({ categories, tier = 'erpnext' }: { categorie
   const [group, setGroup] = useState('');
   const [names, setNames] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [accepted, setAccepted] = useState<string[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const groups = useQuery({
     queryKey: ['integrations', 'account-send-groups', tier],
@@ -31,7 +32,7 @@ export function DirectCostAccounts({ categories, tier = 'erpnext' }: { categorie
   const labels = categories.map((category) => [category, budgetCategoryLabel(category, t)] as const);
   const start = () => {
     setGroup('');
-    setNames(Object.fromEntries(labels));
+    setNames((current) => Object.fromEntries(labels.map(([category, label]) => [category, accepted.includes(category) ? current[category] ?? label : label])));
     setErrors([]);
     setOpen(true);
   };
@@ -41,11 +42,13 @@ export function DirectCostAccounts({ categories, tier = 'erpnext' }: { categorie
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setBusy(true);
+    setErrors([]);
     const failed: string[] = [];
     // one request per category: a refusal for one never holds back the others
-    for (const [category, label] of labels) {
+    for (const [category, label] of labels.filter(([category]) => !accepted.includes(category))) {
       try {
         await repositories.integrations.requestAccountSend(tier, { category, parentAccount: group, accountName: (names[category] ?? '').trim() });
+        setAccepted((current) => [...current, category]);
       } catch (err) {
         failed.push(`${label}: ${reasonOf(err)}`);
       }
@@ -55,7 +58,7 @@ export function DirectCostAccounts({ categories, tier = 'erpnext' }: { categorie
     if (failed.length === 0) setOpen(false);
     else setErrors(failed);
   };
-  const complete = group !== '' && labels.every(([category]) => (names[category] ?? '').trim() !== '');
+  const complete = group !== '' && labels.every(([category]) => accepted.includes(category) || (names[category] ?? '').trim() !== '');
   const noGroups = groups.isSuccess && groups.data.length === 0;
   return (
     <div className='mt-1'>
@@ -79,11 +82,22 @@ export function DirectCostAccounts({ categories, tier = 'erpnext' }: { categorie
           loading={busy}
           dirty={group !== ''}
           submitDisabled={!complete || busy}
-          submitError={errors.length ? { headline: errors.join(' ') } : null}
         >
+          {errors.length > 0 && (
+            <div role='alert' className='mb-4 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3 py-3 text-control text-destructive-text'>
+              {accepted.length > 0 && <p>{t('administration:integrations.accounts.accepted', 'Requests accepted: {{categories}}.', { categories: labels.filter(([category]) => accepted.includes(category)).map(([, label]) => label).join(', ') })}</p>}
+              <p>{errors.join(' ')}</p>
+            </div>
+          )}
           <p className='mb-3 text-sm text-muted-foreground'>
             {t('administration:integrations.accounts.help', 'PMO creates one account for each category under the group you choose, then links it to the category.')}
           </p>
+          {groups.isError && (
+            <div role='alert' className='mb-3 text-sm'>
+              <p>{t('administration:integrations.accounts.groupsError', 'Could not load expense groups. Try again.')}</p>
+              <Button type='button' variant='outline' size='sm' onClick={() => void groups.refetch()}>{t('administration:integrations.accounts.groupsRetry', 'Retry')}</Button>
+            </div>
+          )}
           {noGroups && (
             <p className='mb-3 text-sm text-foreground' role='status'>
               {t('administration:integrations.accounts.noGroups', 'PMO has not read the expense groups yet. Try again after the next update.')}
@@ -107,6 +121,7 @@ export function DirectCostAccounts({ categories, tier = 'erpnext' }: { categorie
                 label={t('administration:integrations.accounts.name', 'Account name for {{category}}', { category: label })}
                 value={names[category] ?? ''}
                 onChange={(value) => setNames((current) => ({ ...current, [category]: value }))}
+                disabled={accepted.includes(category)}
                 maxLength={140}
                 required
                 fullWidth
