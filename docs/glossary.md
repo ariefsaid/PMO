@@ -41,6 +41,12 @@ file is issued, content changes require a new revision: PMO prevents changes to 
 while a linked file can change at Microsoft and PMO detects that change (see **Content drift**).
 (One-source rule decided 2026-06-12; linking decided 2026-07-29.)
 
+**Document category** — an organisation-owned label on every register document that also decides which roles may see it. Seven system categories are seeded (Drawing, Specification, Report, Transmittal, Submittal, Certificate, Other); organisations add their own.
+
+**Viewer roles** — the roles allowed to see documents of one category, files included. A role not listed sees no trace of those documents; Admin is always listed.
+
+**System category** — a seeded document category that cannot be renamed, archived or deleted; `Other` is the fallback when a document is filed without a recognised category.
+
 **Content drift** — a linked document file's currently observed content differs from the
 content baseline recorded when it was issued. Each verification compares against that same
 issue-time baseline, not the result of the previous check. The result is **Changed**,
