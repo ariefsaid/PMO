@@ -1,7 +1,7 @@
 // #2526 — equipment availability and utilisation. Pure and exact: every figure is
 // derived from integers (BigInt) and rounded half-up only for display. Mirrors the SQL read model
 // (`equipment_metrics`, migration 0986); docs/specs/equipment-availability.spec.md.
-import { parseExactCents } from './exactDecimal';
+import { formatExactCents, parseExactCents } from './exactDecimal';
 
 export type EquipmentStatus = 'ready' | 'standby' | 'broken' | 'at_vendor' | 'waiting_parts';
 export const DOWN_STATUSES: readonly EquipmentStatus[] = ['broken', 'at_vendor', 'waiting_parts'];
@@ -123,5 +123,76 @@ export function computeEquipmentMetrics(input: MetricsInput): EquipmentMetrics {
       for (const r of days) (groups.get(key(r.date)) ?? groups.set(key(r.date), []).get(key(r.date))!).push(r);
       return [...groups.entries()].map(([start, rows]) => ({ start, ...figures(rows) }));
     },
+  };
+}
+
+export function daysInMonthOf(iso: string): number {
+  const [y, m] = iso.split('-').map(Number);
+  return new Date(Date.UTC(y, m, 0)).getUTCDate();
+}
+
+// ── rental invoice check (FR-EAV-014..017) ────────────────────────────────────────────────────────
+export interface DownDay { date: string; proven: boolean }
+export interface RentalInput {
+  from: string;
+  to: string;
+  rate: string;
+  basis: 'day' | 'month';
+  currency: string;
+  downDays: DownDay[];
+  invoiceAmount?: string | null;
+  includeUnproven?: { reason: string } | null;
+}
+export interface RentalCheck {
+  currency: string;
+  rentalAmount: string;
+  deduction: string;
+  expectedAmount: string;
+  /** invoice - expected; null when no invoice amount was entered. */
+  difference: string | null;
+  deductedDays: string[];
+  unprovenDays: string[];
+  includedUnprovenReason: string | null;
+}
+
+/** Exact rate x days. Each cent is divided into 377580 units, divisible by every calendar month length. */
+function dayAmountUnits(rateCents: bigint, basis: 'day' | 'month', date: string): bigint {
+  const scaled = rateCents * 377_580n;
+  return basis === 'day' ? scaled : scaled / BigInt(daysInMonthOf(date));
+}
+const unitsToCents = (units: bigint): bigint => (units + 188_790n) / 377_580n;
+
+export function rentalDeduction(input: RentalInput): RentalCheck {
+  const rate = parseExactCents(input.rate);
+  if (rate === null || rate < 0n) throw new Error('invalid rate');
+  const reason = input.includeUnproven?.reason?.trim() ?? '';
+  if (input.includeUnproven && !reason) throw new Error('including unproven downtime needs a reason');
+
+  let rentalUnits = 0n;
+  for (let t = toUtc(input.from); t <= toUtc(input.to); t += MS) rentalUnits += dayAmountUnits(rate, input.basis, fromUtc(t));
+  const seen = new Set<string>();
+  let deductUnits = 0n;
+  const deducted: string[] = [], unproven: string[] = [];
+  for (const d of [...input.downDays].sort((a, b) => a.date.localeCompare(b.date))) {
+    if (d.date < input.from || d.date > input.to || seen.has(d.date)) continue;
+    seen.add(d.date);
+    if (!d.proven) unproven.push(d.date);
+    if (d.proven || reason) { deductUnits += dayAmountUnits(rate, input.basis, d.date); deducted.push(d.date); }
+  }
+  if (deductUnits > rentalUnits) deductUnits = rentalUnits; // FR-EAV-017
+  const rentalC = unitsToCents(rentalUnits);
+  const deductC = unitsToCents(deductUnits) > rentalC ? rentalC : unitsToCents(deductUnits);
+  const expectedC = rentalC - deductC;
+  const inv = input.invoiceAmount != null && input.invoiceAmount !== '' ? parseExactCents(input.invoiceAmount) : null;
+  if (input.invoiceAmount != null && input.invoiceAmount !== '' && inv === null) throw new Error('invalid invoice amount');
+  return {
+    currency: input.currency,
+    rentalAmount: formatExactCents(rentalC),
+    deduction: formatExactCents(deductC),
+    expectedAmount: formatExactCents(expectedC),
+    difference: inv === null ? null : formatExactCents(inv - expectedC),
+    deductedDays: deducted,
+    unprovenDays: unproven,
+    includedUnprovenReason: reason || null,
   };
 }

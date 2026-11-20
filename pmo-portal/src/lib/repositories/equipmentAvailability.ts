@@ -3,6 +3,8 @@ import * as dal from '@/src/lib/db/equipmentAvailability';
 import { wrap } from './repositoryErrors';
 
 export interface EquipmentAvailabilityRepository {
+  rentalCheck: typeof dal.rentalCheck;
+  proofUrl: typeof dal.proofUrl;
   listStatusDays: typeof dal.listStatusDays;
   listLatestStatusDays: typeof dal.listLatestStatusDays;
   listEquipmentProofs: typeof dal.listEquipmentProofs;
@@ -20,6 +22,8 @@ export interface EquipmentAvailabilityRepository {
 }
 
 export const equipmentAvailabilityRepository: EquipmentAvailabilityRepository = {
+  rentalCheck: (a, f, t, i, r) => wrap(() => dal.rentalCheck(a, f, t, i, r)),
+  proofUrl: (path) => wrap(() => dal.proofUrl(path)),
   listStatusDays: (from, to, ids) => wrap(() => dal.listStatusDays(from, to, ids)),
   listLatestStatusDays: (ids, asOf) => wrap(() => dal.listLatestStatusDays(ids, asOf)),
   listEquipmentProofs: (ids, date) => wrap(() => dal.listEquipmentProofs(ids, date)),
