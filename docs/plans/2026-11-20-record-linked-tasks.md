@@ -36,12 +36,12 @@
 |---|---|---|
 | AC-RLT-001, 002, 006, 008, 009 | `supabase/tests/<n>_record_linked_tasks.test.sql` | pgTAP |
 | AC-RLT-003, 004, 005, 010, 011, 013 | same | pgTAP |
-| AC-RLT-007 | same + `pmo-portal/src/lib/db/tasks.test.ts` | pgTAP + Unit |
+| AC-RLT-007 | pgTAP (owner), same file as above; also referenced: Unit render in `pmo-portal/src/lib/db/tasks.test.ts` | pgTAP |
 | AC-RLT-012 | pgTAP, lands with the second of #2531 or #2587 | pgTAP |
 | AC-RLT-014, 015, 016 | task row, record-page and policy unit tests | Unit |
 | AC-RLT-017 | `pmo-portal/e2e/AC-RLT-017-claim-paid-closes-task.spec.ts` | E2E |
 
-## Glossary (add to `docs/glossary.md` in the same PR)
+## Glossary (added to `docs/glossary.md` with the spec)
 **Record-linked task** (a task tied to one purchase, expense claim or material request, showing its live status); **End state** (a status after which a record cannot continue, per type); **System close** (the database setting a linked task `Done` when the record ends); **Open task** (not Done, archived or tombstoned).
 
 ## Final gate

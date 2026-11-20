@@ -83,7 +83,7 @@ When I hand someone a follow-up on a purchase, a request or a claim, I want the 
 | AC-RLT-004 | Given tasks linked to an expense claim, when it moves `Submitted`, `Approved`, `Rejected`, a purchase `Rejected`, and a material request `approved`, then no task changes. | pgTAP |
 | AC-RLT-005 | Given a Finance user who may not edit the task, when they mark the claim `Paid`, then the task closes; given any client that sets a session value or calls the close function directly, then no task changes. | pgTAP (with mutation check) |
 | AC-RLT-006 | Given a record already `Paid`, when a link to it is set, then refused. | pgTAP |
-| AC-RLT-007 | Given a user who sees the task but cannot read the claim, when the live-status read runs, then it returns the type and "cannot view" and no number, status or amount; given a claimant, then the full status. | pgTAP (read function) + Unit (render) |
+| AC-RLT-007 | Given a user who sees the task but cannot read the claim, when the live-status read runs, then it returns the type and "cannot view" and no number, status or amount; given a claimant, then the full status. | pgTAP (owner: read function); also referenced: Unit (render) |
 | AC-RLT-008 | Given a user in another organisation, when they link, read or are closed through a link, then refused, nothing returned, and a record id of another organisation is never accepted. | pgTAP |
 | AC-RLT-009 | Given a task with two record columns set, when saved, then refused. | pgTAP |
 | AC-RLT-010 | Given a system close, when history is read, then it shows the status change with a system actor and the reason; a person's close shows the person and no reason. | pgTAP |

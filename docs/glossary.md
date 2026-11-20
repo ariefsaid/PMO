@@ -681,6 +681,18 @@ or the previous version is accepted.
 rows plus "Row in your file" and "Reason", so they can be fixed and uploaded again. Rows that already existed are on their
 own "Already there" sheet.
 
+### Record-linked tasks (#2587)
+
+**Record-linked task** — a task tied to one purchase, expense claim or material request, showing that record's live status.
+A person who cannot read the record sees only its type and "cannot view".
+
+**End state** — a status after which a record cannot continue, per record type (for example Paid or Cancelled for a
+purchase). Reaching it closes the linked task.
+
+**System close** — the database setting a linked task to Done when its record reaches an end state, with no person acting.
+
+**Open task** — a task that is not Done, archived or tombstoned.
+
 ## Purchase history & figure language
 
 The purchase-history terms below describe the intended model; their presence does not assert that
