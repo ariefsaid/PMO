@@ -280,6 +280,19 @@ describe('ECA setup verbs — list and status', () => {
     ]);
   });
 
+  it('AC-ECX-030 returns truthful legacy held and exhausted account reasons when operator notification failed', async () => {
+    const rows = [
+      { id: 'held', kind: 'account', outcome: 'review', reason: 'held', reason_text: 'PMO could not confirm whether the account was created; your administrator has been told.', pmo_ids: ['Labor'], external_ids: [], snapshot: {}, state: 'open' },
+      { id: 'exhausted', kind: 'account', outcome: 'review', reason: 'rejected', reason_text: 'PMO could not create the account; your administrator has been told.', pmo_ids: ['Equipment'], external_ids: [], snapshot: {}, state: 'open' },
+    ];
+    const r = await call({ setupAction: 'list-proposals', kind: 'account', outcome: 'review' }, { role: 'Finance', extra: [supabaseSelect('erp_connect_proposals', () => jsonResponse(rows))] });
+    assertEquals(r.res.status, 200);
+    assertEquals((r.json.proposals as Array<{ reason_text: string }>).map((p) => p.reason_text), [
+      'PMO could not confirm whether the account was created. Contact your administrator.',
+      'PMO could not create the account. Contact your administrator.',
+    ]);
+  });
+
   it('FR-ECA-012 Finance lists account rows only', async () => {
     const r = await call({ setupAction: 'list-proposals', kind: 'party' }, { role: 'Finance' });
     assertEquals(r.res.status, 403);

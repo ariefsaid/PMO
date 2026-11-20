@@ -5,12 +5,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { AppError } from '@/src/lib/appError';
+import { useQueryClient } from '@tanstack/react-query';
 
 const repo = vi.hoisted(() => ({
   listAccountSendGroups: vi.fn(async () => [
     { erpName: 'Direct Expenses - EC', accountName: 'Direct Expenses', parentAccount: 'Expenses - EC' },
     { erpName: 'Indirect Expenses - EC', accountName: 'Indirect Expenses', parentAccount: 'Expenses - EC' },
   ]),
+  getConnectStatus: vi.fn(async () => ({ waitingForSend: 1 })),
   requestAccountSend: vi.fn(async (_tier: string, _request: { category: string; parentAccount: string; accountName: string }) => ({ id: 'send-1' })),
   listConnectProposals: vi.fn(async (..._args: unknown[]) => ({ proposals: [] as Array<Record<string, unknown>>, nextAfterId: null as string | null })),
 }));
@@ -25,7 +27,11 @@ const openDialog = async () => {
   return screen.findByRole('dialog');
 };
 
-beforeEach(() => { repo.listAccountSendGroups.mockClear(); repo.requestAccountSend.mockClear(); });
+beforeEach(() => {
+  repo.listAccountSendGroups.mockClear();
+  repo.requestAccountSend.mockClear();
+  repo.listConnectProposals.mockReset().mockResolvedValue({ proposals: [], nextAfterId: null });
+});
 
 describe('AC-ECX-030 DirectCostAccounts', () => {
   it('AC-ECX-030 Finance creates the missing accounts under the group they pick, one request per category, names trimmed', async () => {
@@ -76,6 +82,73 @@ describe('AC-ECX-030 DirectCostAccounts', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     dialog = await openDialog();
     expect(within(dialog).getByLabelText(/^Account name for Labor/)).toHaveValue('Site labour');
+  });
+
+  it.each([0, 1])('AC-ECX-030 allows a corrected request after rejection with %i sends still waiting', async (remaining) => {
+    function SweepFinished() {
+      const qc = useQueryClient();
+      return <button onClick={() => qc.setQueryData(['integrations', 'connect-status', 'erpnext'], { waitingForSend: remaining })}>Sweep finished</button>;
+    }
+    repo.listConnectProposals.mockImplementation(async () => ({ proposals: [], nextAfterId: null }));
+    wrapWithRole('Finance', <><DirectCostAccounts categories={['Labor']} /><SweepFinished /></>);
+    let dialog = await openDialog();
+    fireEvent.change(await within(dialog).findByLabelText(/^Expense group/), { target: { value: 'Direct Expenses - EC' } });
+    fireEvent.change(within(dialog).getByLabelText(/^Account name for Labor/), { target: { value: 'Unsuitable account' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create accounts' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(repo.listConnectProposals).toHaveBeenCalled());
+    repo.listConnectProposals.mockImplementation(async () => ({ proposals: [{ id: 'send-1', kind: 'account', outcome: 'review', state: 'open', reason: 'rejected', pmo_ids: ['Labor'], snapshot: { accountName: 'Unsuitable account' } }], nextAfterId: null }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sweep finished' }));
+    dialog = await openDialog();
+    const name = within(dialog).getByLabelText(/^Account name for Labor/);
+    await waitFor(() => expect(name).toBeEnabled());
+    fireEvent.change(name, { target: { value: 'Corrected account' } });
+    fireEvent.change(await within(dialog).findByLabelText(/^Expense group/), { target: { value: 'Direct Expenses - EC' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create accounts' }));
+    await waitFor(() => expect(repo.requestAccountSend).toHaveBeenCalledTimes(2));
+    expect(repo.requestAccountSend.mock.calls[1][1]).toEqual({ category: 'Labor', parentAccount: 'Direct Expenses - EC', accountName: 'Corrected account' });
+  });
+
+  it('AC-ECX-030 finds a rejection on a later page of account reviews', async () => {
+    repo.listConnectProposals.mockImplementation(async (...args: unknown[]) => args[3] === null
+      ? { proposals: [], nextAfterId: 'next-page' }
+      : { proposals: [{ id: 'send-1', kind: 'account', outcome: 'review', state: 'open', reason: 'rejected', pmo_ids: ['Labor'], snapshot: {} }], nextAfterId: null });
+    show('Finance', ['Labor']);
+    let dialog = await openDialog();
+    fireEvent.change(await within(dialog).findByLabelText(/^Expense group/), { target: { value: 'Direct Expenses - EC' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create accounts' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(repo.listConnectProposals).toHaveBeenCalledWith('erpnext', 'account', 'review', 'next-page'));
+    dialog = await openDialog();
+    await waitFor(() => expect(within(dialog).getByLabelText(/^Account name for Labor/)).toBeEnabled());
+  });
+
+  it('AC-ECX-030 permits correction even if a rejected review was dismissed', async () => {
+    repo.listConnectProposals.mockImplementation(async (...args: unknown[]) => ({
+      proposals: args[4] === 'dismissed' ? [{ id: 'send-1', kind: 'account', outcome: 'review', state: 'dismissed', reason: 'rejected', pmo_ids: ['Labor'], snapshot: {} }] : [],
+      nextAfterId: null,
+    }));
+    show('Finance', ['Labor']);
+    let dialog = await openDialog();
+    fireEvent.change(await within(dialog).findByLabelText(/^Expense group/), { target: { value: 'Direct Expenses - EC' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create accounts' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    dialog = await openDialog();
+    await waitFor(() => expect(within(dialog).getByLabelText(/^Account name for Labor/)).toBeEnabled());
+  });
+
+  it('AC-ECX-030 keeps an unconfirmed held request locked to prevent another request', async () => {
+    repo.listConnectProposals.mockImplementation(async () => ({ proposals: [{ id: 'send-1', kind: 'account', outcome: 'review', state: 'open', reason: 'held', pmo_ids: ['Labor'], snapshot: {} }], nextAfterId: null }));
+    show('Finance', ['Labor']);
+    let dialog = await openDialog();
+    fireEvent.change(await within(dialog).findByLabelText(/^Expense group/), { target: { value: 'Direct Expenses - EC' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create accounts' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(repo.listConnectProposals).toHaveBeenCalled());
+    dialog = await openDialog();
+    expect(within(dialog).getByLabelText(/^Account name for Labor/)).toBeDisabled();
+    expect(within(dialog).getByRole('button', { name: 'Create accounts' })).toBeDisabled();
+    expect(repo.requestAccountSend).toHaveBeenCalledTimes(1);
   });
 
   it('AC-ECX-030 group read failure offers a retry that loads groups', async () => {

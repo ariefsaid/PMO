@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { CanWrite } from '@/src/auth/usePermission';
 import { AppError } from '@/src/lib/appError';
 import { repositories } from '@/src/lib/repositories';
-import type { ConnectTier } from '@/src/lib/repositories/types';
+import type { ConnectProposal, ConnectTier } from '@/src/lib/repositories/types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { Button, EntityFormModal, FormGrid, SelectField, TextField } from '@/src/components/ui';
 import { useAccountLinkNotes } from './useAccountLinkNotes';
@@ -21,7 +21,7 @@ export function DirectCostAccounts({ categories, tier = 'erpnext' }: { categorie
   const [group, setGroup] = useState('');
   const [names, setNames] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-  const [accepted, setAccepted] = useState<string[]>([]);
+  const [acceptedRequests, setAcceptedRequests] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<string[]>([]);
   const groups = useQuery({
     queryKey: ['integrations', 'account-send-groups', tier],
@@ -29,8 +29,38 @@ export function DirectCostAccounts({ categories, tier = 'erpnext' }: { categorie
     enabled: open,
     retry: false,
   });
+  // Share the setup screen's sweep status; each status refresh also refreshes actual review rows.
+  const status = useQuery({
+    queryKey: ['integrations', 'connect-status', tier],
+    queryFn: () => repositories.integrations.getConnectStatus(tier),
+    enabled: Object.keys(acceptedRequests).length > 0,
+    retry: false,
+  });
+  const reviews = useQuery({
+    queryKey: ['integrations', 'account-request-reviews', tier, status.dataUpdatedAt],
+    queryFn: async () => {
+      const rows: ConnectProposal[] = [];
+      for (const state of ['open', 'dismissed'] as const) {
+        let afterId: string | null = null;
+        do {
+          const page: { proposals: ConnectProposal[]; nextAfterId: string | null } = state === 'open'
+            ? await repositories.integrations.listConnectProposals(tier, 'account', 'review', afterId)
+            : await repositories.integrations.listConnectProposals(tier, 'account', 'review', afterId, state);
+          rows.push(...page.proposals);
+          afterId = page.nextAfterId;
+        } while (afterId);
+      }
+      return rows;
+    },
+    enabled: Object.keys(acceptedRequests).length > 0 && status.isSuccess,
+    placeholderData: (previous) => previous,
+    retry: false,
+  });
+  const rejected = new Set((reviews.data ?? []).filter((p) => p.reason === 'rejected').map((p) => p.id));
+  const accepted = Object.keys(acceptedRequests).filter((category) => !rejected.has(acceptedRequests[category]));
   const labels = categories.map((category) => [category, budgetCategoryLabel(category, t)] as const);
   const start = () => {
+    if (Object.keys(acceptedRequests).length > 0) void qc.invalidateQueries({ queryKey: ['integrations', 'connect-status', tier] });
     setGroup('');
     setNames((current) => Object.fromEntries(labels.map(([category, label]) => [category, accepted.includes(category) ? current[category] ?? label : label])));
     setErrors([]);
@@ -47,8 +77,8 @@ export function DirectCostAccounts({ categories, tier = 'erpnext' }: { categorie
     // one request per category: a refusal for one never holds back the others
     for (const [category, label] of labels.filter(([category]) => !accepted.includes(category))) {
       try {
-        await repositories.integrations.requestAccountSend(tier, { category, parentAccount: group, accountName: (names[category] ?? '').trim() });
-        setAccepted((current) => [...current, category]);
+        const request = await repositories.integrations.requestAccountSend(tier, { category, parentAccount: group, accountName: (names[category] ?? '').trim() });
+        setAcceptedRequests((current) => ({ ...current, [category]: request.id }));
       } catch (err) {
         failed.push(`${label}: ${reasonOf(err)}`);
       }
@@ -81,7 +111,7 @@ export function DirectCostAccounts({ categories, tier = 'erpnext' }: { categorie
           onClose={() => setOpen(false)}
           loading={busy}
           dirty={group !== ''}
-          submitDisabled={!complete || busy}
+          submitDisabled={!complete || busy || labels.every(([category]) => accepted.includes(category))}
         >
           {errors.length > 0 && (
             <div role='alert' className='mb-4 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3 py-3 text-control text-destructive-text'>

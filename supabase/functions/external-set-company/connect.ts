@@ -151,6 +151,12 @@ async function listProposals(ctx: ConnectCtx, tier: string, body: Record<string,
   const { data, error } = await q;
   if (error) throw new AppError('The request could not be completed', 'INTERNAL');
   const proposals = await proposalNames(ctx.serviceClient, ctx.orgId, (data ?? []) as Proposal[]);
+  // Older account reviews asserted a best-effort notification had succeeded. It may not have.
+  for (const proposal of proposals) {
+    if (proposal.kind === 'account' && typeof proposal.reason_text === 'string') {
+      proposal.reason_text = proposal.reason_text.replace('; your administrator has been told.', '. Contact your administrator.');
+    }
+  }
   if (state === 'applied' && ctx.role === 'Admin' && proposals.length > 0) {
     const ids = proposals.filter((p) => p.outcome === 'link').map((p) => p.id);
     const unlinkable = new Set(await rpc<string[]>(ctx.callerClient, 'list_unlinkable_connect_matches', { p_ids: ids }));

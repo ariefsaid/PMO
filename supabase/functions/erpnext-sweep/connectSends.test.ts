@@ -6,6 +6,7 @@ import { afterAll, describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 import { createClient } from '@supabase/supabase-js';
 import { CONNECT_SENDS_PER_TICK, drainConnectSends } from './connectSends.ts';
+import { handleConnectAction } from '../external-set-company/connect.ts';
 import {
   installEdgeEnv, jsonResponse, rpcCall, supabaseRpc, supabaseSelect, withFetchMock, type FetchCall, type MockRoute,
 } from '../_shared/testing/edgeTestKit.ts';
@@ -724,6 +725,23 @@ describe('#1599 ECX-4 drainConnectSends: direct-cost accounts', () => {
     const uncertain = await tick({ claimed: [P.account], tables: chart(), outbox: [held], eventFails: true });
     assertEquals(uncertain.result.held, 1);
     assertEquals(rpcCall(uncertain.calls, 'record_connect_send_held').length, 1);
+    // Simulate pre-fix stored rows after the failed event writes and exercise the real proposal reader.
+    // The pgTAP contract separately exercises the actual SQL writers for newly persisted text.
+    assertEquals(operatorTasks(final.calls).length, 1);
+    assertEquals(operatorTasks(uncertain.calls).length, 1);
+    const legacyRows = [
+      { id: 'held', kind: 'account', outcome: 'review', reason: 'held', reason_text: 'PMO could not confirm whether the account was created; your administrator has been told.', pmo_ids: ['Materials'], external_ids: [], snapshot: {}, state: 'open' },
+      { id: 'exhausted', kind: 'account', outcome: 'review', reason: 'rejected', reason_text: 'PMO could not create the account; your administrator has been told.', pmo_ids: ['Labor'], external_ids: [], snapshot: {}, state: 'open' },
+    ];
+    const sc = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+    const read = await withFetchMock([supabaseSelect('erp_connect_proposals', () => jsonResponse(legacyRows))], async () => await handleConnectAction({
+      serviceClient: sc, callerClient: sc, orgId: ORG, userId: 'finance-1', role: 'Finance',
+      body: { tier: 'erpnext', setupAction: 'list-proposals', kind: 'account', outcome: 'review' },
+    })) as { proposals: Array<{ reason_text: string }> };
+    assertEquals(read.proposals.map((p) => p.reason_text), [
+      'PMO could not confirm whether the account was created. Contact your administrator.',
+      'PMO could not create the account. Contact your administrator.',
+    ]);
   });
 
   it('AC-ECX-030 a replayed account answer is read back from the ERP: a turned-off or posting account, or one under another name, is refused and never linked; a matching usable account is linked', async () => {

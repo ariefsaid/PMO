@@ -150,22 +150,22 @@ select results_eq($$select outcome, state, reason_text from erp_connect_proposal
 select is((select erp_account from budget_category_account_map where org_id = 'a9110000-0000-0000-0000-000000000001' and category = 'Equipment'), 'Equipment - EC', 'AC-ECX-030 the linked account is the category''s map row');
 -- a permission refusal: the one sentence for Finance, a decision row, no map row
 select public.record_connect_send_result('a9110000-0000-0000-0000-000000000001', (select id from erp_connect_proposals where pmo_ids[1] = 'Subcontractors'), null,
-  'PMO could not create the account; your administrator has been told.');
+  'PMO could not create the account. Contact your administrator.');
 select results_eq($$select outcome, reason, state, reason_text from erp_connect_proposals where pmo_ids[1] = 'Subcontractors'$$,
-  $$values ('review'::text, 'rejected'::text, 'open'::text, 'PMO could not create the account; your administrator has been told.'::text)$$, 'AC-ECX-030 a refused account send stores the plain sentence as a decision');
+  $$values ('review'::text, 'rejected'::text, 'open'::text, 'PMO could not create the account. Contact your administrator.'::text)$$, 'AC-ECX-030 a refused account send stores the plain sentence as a decision');
 select is((select count(*)::int from budget_category_account_map where org_id = 'a9110000-0000-0000-0000-000000000001' and category = 'Subcontractors'), 0, 'AC-ECX-030 a refused account send maps nothing');
 -- undecided (held): the account text names no ERP step; a party keeps its own
 select public.record_connect_send_held('a9110000-0000-0000-0000-000000000001', (select id from erp_connect_proposals where pmo_ids[1] = 'Overheads'));
 select public.record_connect_send_held('a9110000-0000-0000-0000-000000000001', (select id from erp_connect_proposals where pmo_ids[1] = 'a911-party'));
 select results_eq($$select reason, reason_text from erp_connect_proposals where pmo_ids[1] = 'Overheads'$$,
-  $$values ('held'::text, 'PMO could not confirm whether the account was created; your administrator has been told.'::text)$$, 'AC-ECX-030 an undecided account send tells Finance the administrator has been told, never to look in the ERP');
+  $$values ('held'::text, 'PMO could not confirm whether the account was created. Contact your administrator.'::text)$$, 'AC-ECX-030 an undecided account send directs Finance to contact the administrator');
 select is((select reason_text from erp_connect_proposals where pmo_ids[1] = 'a911-party'),
   'We could not confirm whether the ERP created this record. Look for it in the ERP by name and tax id; if it is not there, send it again.', 'a held party send keeps its own wording');
 -- the last try: five failures end an account send with the same sentence; a party keeps its own
 update erp_connect_proposals set outcome = 'send', reason = null, reason_text = null, state = 'sending', send_failures = 4 where pmo_ids[1] in ('Overheads', 'a911-party-2');
 select is(public.record_connect_send_failure('a9110000-0000-0000-0000-000000000001', (select id from erp_connect_proposals where pmo_ids[1] = 'Overheads')), true, 'the fifth failure ends the account send');
-select is((select reason_text from erp_connect_proposals where pmo_ids[1] = 'Overheads'), 'PMO could not create the account; your administrator has been told.',
-  'AC-ECX-030 an account send that failed on every try tells Finance the administrator has been told');
+select is((select reason_text from erp_connect_proposals where pmo_ids[1] = 'Overheads'), 'PMO could not create the account. Contact your administrator.',
+  'AC-ECX-030 an account send that failed on every try directs Finance to contact the administrator');
 select is(public.record_connect_send_failure('a9110000-0000-0000-0000-000000000001', (select id from erp_connect_proposals where pmo_ids[1] = 'a911-party-2')), true, 'the fifth failure ends the party send');
 select is((select reason_text from erp_connect_proposals where pmo_ids[1] = 'a911-party-2'), 'We could not finish sending this record. Check it in the ERP, then try again.', 'a party send that failed on every try keeps its own wording');
 reset role;

@@ -3,7 +3,7 @@
 -- never creates a group, a tax or anything of the fiscal structure. The request queues one `account` send for the shipped send drain
 -- (0494): the sweep creates the account through the money outbox under a key naming the category, the requested name and the group, reads it back, and the result writer
 -- links it in `budget_category_account_map` through `apply_connect_link` (0880). An account send that ends undecided or after its last
--- try tells Finance that the administrator has been told, never to look in the ERP. Reversal: rollback/0975_erp_account_send_down.sql.
+-- try asks Finance to contact the administrator, never to look in the ERP. Reversal: rollback/0975_erp_account_send_down.sql.
 
 -- The expense groups an account may go under: groups of the bound company under the expense root, from the mirrored chart.
 create or replace function public.account_send_groups(p_tier text) returns table (erp_name text, account_name text, parent_account text)
@@ -111,7 +111,7 @@ begin
   if p.send_failures < 5 then return false; end if;
   -- #1599: clients never work in the ERP; an account send that ends here is the Operator's task (the drain raises it)
   perform public.record_connect_send_result(p_org_id, p_id, null, case when p.kind = 'account'
-    then 'PMO could not create the account; your administrator has been told.'
+    then 'PMO could not create the account. Contact your administrator.'
     else 'We could not finish sending this record. Check it in the ERP, then try again.' end);
   return true;
 end $$;
@@ -127,12 +127,21 @@ begin
      set outcome = 'review', reason = 'held', state = 'open', run_id = null,
          -- #1599: clients never work in the ERP; an undecided account send is the Operator's task (the drain raises it)
          reason_text = case when p.kind = 'account'
-           then 'PMO could not confirm whether the account was created; your administrator has been told.'
+           then 'PMO could not confirm whether the account was created. Contact your administrator.'
            else 'We could not confirm whether the ERP created this record. Look for it in the ERP by name and tax id; if it is not there, send it again.' end,
          identity = 'review|' || to_jsonb(p.pmo_ids)::text || '|' || to_jsonb(p.external_ids)::text || '|send:' || p.id::text
    where id = p.id;
   perform public.settle_connect_run(p.org_id, p.external_tier);
 end $$;
+
+-- Correct historical account reasons for direct table consumers as well as the proposal API.
+update public.erp_connect_proposals
+   set reason_text = replace(reason_text, '; your administrator has been told.', '. Contact your administrator.')
+ where kind = 'account'
+   and reason_text in (
+     'PMO could not create the account; your administrator has been told.',
+     'PMO could not confirm whether the account was created; your administrator has been told.'
+   );
 
 revoke all on function public.request_account_send(text, text, text, text), public.account_send_groups(text) from public, anon;
 grant execute on function public.request_account_send(text, text, text, text), public.account_send_groups(text) to authenticated;   -- Admin/Finance, re-asserted in each body
