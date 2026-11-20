@@ -2,6 +2,20 @@
 
 **Status:** proposed; owner decisions below need sign-off before build. IDs `FR-RLT-###`, `NFR-RLT-###`, `AC-RLT-###`, `OD-RLT-#`. Plan: `docs/plans/2026-11-20-record-linked-tasks.md`. Executor: Director-dispatched Orca worker (Opus builder): it adds a trigger path that changes task status and a read that must respect another table's row security, so it gets the three reviewers and the security-auditor. Map #2516; after the 15 Dec go-live (Feb-Mar). No money movement and no change to any record's own lifecycle: the task only reads the record's status.
 
+## Review 20 Nov
+
+Read against `0001`, `0034`, `0075`, `0093`, `0199`, `0206`, `0247`, `0260`, `1000`/`1001` on `dev`.
+- **A system close has an actor.** `record_change_capture` (`0260`) writes `auth.uid()` first, so a close made inside a person's write is attributed to that person; `actor_id` is null only when a service-role sync writes. FR-RLT-015 and AC-RLT-010 said "no human actor"; the closing reason is the marker of a system close, not a blank actor.
+- **The close is legitimate because the record is finished, not because of a session value.** `enforce_assignee_status_only` (`0206`) refuses a status change by someone who may not edit the task, so it gains exactly one exception: a linked task may move to `Done` (with `completed_at` and the close columns) while its record is already in an end state. Nothing else becomes forgeable, and the close function stays non-executable by clients.
+- **Archiving does not release a record for delete** — the foreign key blocks while any task row still names it; only clearing the link does (FR-RLT-005).
+- **The refusal names the existing task**, so it comes from a pre-insert guard; the partial unique index is the concurrency backstop and a bare `23505` is mapped to the same wording (FR-RLT-006).
+- **The close columns cannot be left client-writable.** `authenticated` holds table-level INSERT/UPDATE on `tasks` (`0075`), so a column revoke cannot subtract; the guard must refuse `closed_by_*` outside the close path (FR-RLT-020).
+- **The close never blocks the record's own write.** A task in an externally-owned domain (`task_domain_externally_owned`, `0199`) is skipped, and a status outside the enumerated end states is not an end state — both added, with AC-RLT-018.
+- **"Record deleted after linking" removed** from the Errors table: the FK makes it impossible; only hidden-from-the-caller can happen.
+- Plan traceability updated for AC-RLT-018.
+
+Open owner decisions: OD-RLT-1 (is `Rejected` an end state), OD-RLT-2 (the three v1 types), OD-RLT-3 (no auto-reopen), OQ-RLT-1..3.
+
 ## Job story
 
 When I hand someone a follow-up on a purchase, a request or a claim, I want the task to show that record's live status and close itself when the record reaches its end, so that nobody keeps chasing something already finished, and nobody opens a second task for the same thing.
@@ -34,13 +48,13 @@ When I hand someone a follow-up on a purchase, a request or a claim, I want the 
 
 **Linking**
 - FR-RLT-001 The system shall let a task carry at most one record link, to a purchase, an expense claim or advance, or a material request, through its own nullable FK column (ownership: same-organisation check as `0206`).
-- FR-RLT-002 When a link is set or changed, the system shall require that the caller can read the record, and that the record is in the task's organisation and, when both name a project, the same project. Otherwise refuse with a message that does not say whether the record exists.
+- FR-RLT-002 When a link is set or changed, the system shall require that the caller can read the record, and that the record is in the task's organisation and, when both name a project, the same project. Otherwise refuse with a message that does not say whether the record exists. The check runs with the caller's rights (so an unreadable or foreign record simply is not found — one message for both, and no second copy of three row-security policies); the service-role path sees what it sees, as `0206`'s does.
 - FR-RLT-003 If the record is already in an end state when a link is set, the system shall refuse the link.
 - FR-RLT-004 The creator may set the link on their own task; Admin, Executive, Project Manager and Finance may set or clear it on any task; the assignee may not change it. `can()` mirrors this; the database enforces it.
-- FR-RLT-005 A link shall FK-block hard delete of the record while any task names it ("in use", `23503`); clearing the link or archiving the task releases it.
+- FR-RLT-005 A link shall FK-block hard delete of the record while any task names it — open, Done, archived or tombstoned ("in use", `23503`); only clearing the link releases it, because archiving leaves the row that names the record.
 
 **One open task per link**
-- FR-RLT-006 The system shall refuse a second open task for the same record link, whoever creates it and through whichever path (form, agent, import). The refusal names the existing task.
+- FR-RLT-006 The system shall refuse a second open task for the same record link, whoever creates it and through whichever path (form, agent, import). The refusal names the existing task, from a pre-insert guard; a partial unique index on each link column (`where status <> 'Done' and archived_at is null and tombstoned_at is null`) is the concurrency backstop, and a bare `23505` from it is mapped to the same wording.
 - FR-RLT-007 A task that is `Done`, archived or tombstoned shall not count; a new task may then be created for the same record.
 - FR-RLT-008 The create-from-record action shall open the existing task when one is open, rather than offering a second.
 
@@ -51,9 +65,9 @@ When I hand someone a follow-up on a purchase, a request or a claim, I want the 
 
 **Auto-close**
 - FR-RLT-012 When a linked record's status changes to an end state, the system shall, in the same transaction, set every open task linked to it to `Done` and stamp `completed_at` as any other Done does.
-- FR-RLT-013 The close shall be done by the database (an after-update trigger on each linked table), not by the browser or a scheduled sweep, and shall fire for every writer of the record: a user, a record RPC, or a service-role sync.
-- FR-RLT-014 The close shall succeed whoever changed the record, including a user who may not edit the task, and shall not be reproducible by a client setting a session value or calling a function directly.
-- FR-RLT-015 The system shall record on the task why it closed (record type and end state) and when, and the close shall appear in the task's record history with no human actor (system). A task closed by a person shows no such reason.
+- FR-RLT-013 The close shall be done by the database (an after-update trigger on each linked table), not by the browser or a scheduled sweep, and shall fire for every writer of the record: a user, a record RPC, or a service-role sync. A task the close cannot legitimately change — a task in an externally-owned domain (`task_domain_externally_owned`, `0199`), where a local close would fight the sync — shall be skipped, and the close shall never raise into the record's transaction: the record's own write always succeeds.
+- FR-RLT-014 The close shall succeed whoever changed the record, including a user who may not edit the task: `enforce_assignee_status_only` gains exactly one exception, that a linked task may move to `Done` — `status`, `completed_at` and the close columns only — while its linked record is in an end state, which is server truth a caller cannot fake. It shall not be reproducible by a client setting a session value, and the close function is not executable by a client at all.
+- FR-RLT-015 The system shall record on the task why it closed (record type and end state) and when, and the close shall appear in the task's record history attributed to whoever moved the record — `record_change_capture` names the JWT caller, and only a service-role sync (no caller) reads as "system" — with the stored closing reason marking it a system close. A task closed by a person shows no such reason.
 - FR-RLT-016 A status change that is not to an end state shall not touch the task. Moving between end states, or an update that does not change status, shall not re-close or alter a `Done` task.
 - FR-RLT-017 A system close shall count as an ordinary `Done` for rollups, My Tasks and reminders. It shall not bypass any rule that still applies to a person closing the task (see FR-RLT-019).
 
@@ -64,14 +78,14 @@ When I hand someone a follow-up on a purchase, a request or a claim, I want the 
 - FR-RLT-019 A task that requires proof before Done (`task-work-order-proof.spec.md`, FR-TWOP-010) shall not also carry a record link, and the reverse; whichever ships second adds the exclusion.
 
 **Access and tenancy**
-- FR-RLT-020 The link columns are `org_id`-scoped through the task; no client sends `org_id`. Registering link and close columns for record history (`record_history_config`) is part of the change.
+- FR-RLT-020 The link columns are `org_id`-scoped through the task; no client sends `org_id`. Registering link and close columns for record history (`record_history_config`) is part of the change; `tasks` carries table-level INSERT/UPDATE for `authenticated` (`0075`), so a column revoke cannot subtract and the guard must refuse a change to `closed_by_*` outside the close path, or a client could forge a system close.
 - FR-RLT-021 Link actions are registered in the role matrix and gated by `can()` on the real JWT role; row security and the trigger are the authority.
 
 ## Non-functional requirements
 - NFR-RLT-001 The live status for a page of tasks is one query for the page (batch read by task ids), indexed on the link columns; no per-row request.
 - NFR-RLT-002 The close touches only open tasks of that record through the partial index; a record update that does not change status costs no task read.
 - NFR-RLT-003 Phone-usable; `DESIGN.md` tokens; English and Bahasa Indonesia; status labels reuse the record's own translated labels.
-- NFR-RLT-004 No new table in v1 and no new client write grant beyond the three columns.
+- NFR-RLT-004 No new table in v1 and no new client write grant: the link columns ride the existing table-level grant, which is exactly why the guard must refuse the close columns.
 
 ## Acceptance criteria and owning layer
 
@@ -86,7 +100,7 @@ When I hand someone a follow-up on a purchase, a request or a claim, I want the 
 | AC-RLT-007 | Given a user who sees the task but cannot read the claim, when the live-status read runs, then it returns the type and "cannot view" and no number, status or amount; given a claimant, then the full status. | pgTAP (owner: read function); also referenced: Unit (render) |
 | AC-RLT-008 | Given a user in another organisation, when they link, read or are closed through a link, then refused, nothing returned, and a record id of another organisation is never accepted. | pgTAP |
 | AC-RLT-009 | Given a task with two record columns set, when saved, then refused. | pgTAP |
-| AC-RLT-010 | Given a system close, when history is read, then it shows the status change with a system actor and the reason; a person's close shows the person and no reason. | pgTAP |
+| AC-RLT-010 | Given a system close, when history is read, then it shows the status change with the actor who moved the record (a service-role sync: no actor), the closing reason and the record type; a person's close shows the person and no such reason. | pgTAP |
 | AC-RLT-011 | Given a record that leaves an end state (where the machine allows), when read, then the task stays `Done` and a new task for the link is accepted. | pgTAP |
 | AC-RLT-012 | Given a proof-required task, when a link is set (and the reverse), then refused. Landed with whichever of #2531 or this ships second. | pgTAP |
 | AC-RLT-013 | Given a hard delete of a record with an open or Done linked task, then blocked "in use"; after the link is cleared it succeeds. | pgTAP |
@@ -94,6 +108,7 @@ When I hand someone a follow-up on a purchase, a request or a claim, I want the 
 | AC-RLT-015 | Given the create-from-record action with an open task already present, when pressed, then it opens that task and offers no second; given none, it prefills the link. | Unit |
 | AC-RLT-016 | Given a task-writing role, an engineer and a viewer, when the link control renders, then `can()` shows it to the first two for their own scope only and hides it from the viewer. | Unit |
 | AC-RLT-017 | Given an expense claim with a linked task, when Finance pays the claim, then the task shows `Done` with the closing reason in My Tasks for its assignee. | E2E (one journey) |
+| AC-RLT-018 | Given a task in an externally-owned task domain, when its linked record reaches an end state, then the record's update succeeds and the task is unchanged (the close is skipped, never raised). | pgTAP |
 
 Hand check for AC-RLT-003: three records and three tasks, one per type; move expense claim `Draft -> Submitted -> Approved -> Paid`; after the third move that task alone is `Done`, the other two stay open.
 
@@ -105,7 +120,9 @@ Hand check for AC-RLT-003: three records and three tasks, one per type; move exp
 | Record already in an end state at link time | Refused: "this record is already finished" |
 | Two link columns set | Field error |
 | Hard delete of a linked record | `23503`, shown as "in use" |
-| Record deleted or hidden after linking | Task shows "linked record you cannot view"; never an error |
+| Record hidden from the caller after linking (a linked record cannot be deleted — the FK holds) | Task shows "linked record you cannot view"; never an error |
+| Status the close does not list as an end state | Treated as not an end state; the task stays open, never closes by default |
+| Close cannot apply (externally-owned task domain) | Skipped; the record's write still succeeds |
 
 ## Owner decisions (recommended defaults, not rulings)
 | ID | Decision and default | If wrong, what breaks |
@@ -119,6 +136,6 @@ Hand check for AC-RLT-003: three records and three tasks, one per type; move exp
 
 ## Delivery checklist
 - [ ] Owner signs OD-RLT-1..3, answers OQ-RLT-1..3.
-- [ ] Migration and pgTAP first (AC-RLT-001..013), then data access, then screens.
+- [ ] Migration and pgTAP first (AC-RLT-001..011, 013, 018; AC-RLT-012 with #2531), then data access, then screens.
 - [ ] Glossary: record-linked task, end state, system close, open task.
 - [ ] ADR candidate recorded in the plan; no ADR file until the owner signs.
