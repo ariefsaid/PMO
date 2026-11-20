@@ -245,8 +245,8 @@ export async function dropBenchRun(suffix: string, company?: string): Promise<vo
           const submitted = Number(row.docstatus) === 1;
           if (submitted) await benchCancelQuiet(doctype, name);
           let problem = await benchDeleteQuiet(doctype, name);
-          if (problem && submitted) {
-            // A cancelled document still holds its own (reversed) ledger rows, and they LINK to it: clear them.
+          if (problem && Number(row.docstatus) !== 0) {
+            // Both documents cancelled by the test and those cancelled here retain linked ledger rows.
             await clearVoucherLedger(name);
             problem = await benchDeleteQuiet(doctype, name);
           }

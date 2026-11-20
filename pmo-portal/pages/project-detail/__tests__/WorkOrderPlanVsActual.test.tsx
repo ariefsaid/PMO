@@ -88,6 +88,22 @@ describe('WorkOrderPlanVsActual', () => {
     expect(summary.textContent).toMatch(/1/);
   });
 
+  it('AC-WPVA-017 crew hours count approved weeks only and say how many hours are not yet approved', () => {
+    setData({ workOrders: [wo('A', 'WO-1')],
+      plans: [{ id: 'p', workOrderId: 'A', disciplineId: null, kind: 'crew_hours', value: '5.00', note: null }],
+      lines: [
+        line({ workOrderId: 'A', source: 'timesheet_entry', reason: 'no-rate', amount: null, quantity: 4, quantityUnit: 'hours', personId: 'u1' }),
+        line({ workOrderId: 'A', source: 'timesheet_entry', reason: 'not-posted', amount: null, quantity: 6, quantityUnit: 'hours', personId: 'u2' }),
+      ] });
+    render(<WorkOrderPlanVsActual projectId="p1" />);
+    const summary = screen.getByTestId('wo-pva-project-hours');
+    expect(summary.textContent).toMatch(/Crew hours4/);
+    expect(summary.textContent).toMatch(/6 h on timesheets not yet approved are not counted/);
+    fireEvent.click(within(screen.getByTestId('wo-pva-row-A')).getAllByRole('button')[0]);
+    expect(screen.queryByText(/Over plan by/)).not.toBeInTheDocument();
+    expect(screen.getAllByText(/6 h on timesheets not yet approved are not counted/).length).toBe(2);
+  });
+
   it('states project direct-cost overspend in words', () => {
     setData({ workOrders: [wo('A', 'WO-1')], lines: [line({ workOrderId: 'A', amount: '60.00' })],
       plans: [{ id: 'p', workOrderId: 'A', disciplineId: null, kind: 'direct_budget', value: '50.00', note: null }] });

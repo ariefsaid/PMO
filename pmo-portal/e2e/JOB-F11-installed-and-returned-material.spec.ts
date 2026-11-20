@@ -34,7 +34,11 @@ test('JOB-F11 50 issued and 10 returned leaves 10 in the warehouse and 40 used',
   await page.goto('/stock/new/return');
   await page.getByLabel(/^Warehouse/).selectOption({ label: whLabel(site) });
   await page.getByLabel(/^Project/).selectOption({ label: SEED_PROJECT_NAME });
-  await page.getByLabel(/^Issue to return/).selectOption({ index: 1 });
+  // The seed project collects other journeys' issues too: pick the issue line of this run's item.
+  const issueSelect = page.getByLabel(/^Issue to return/);
+  const ownIssue = issueSelect.locator('option', { hasText: item.code });
+  await expect(ownIssue).toHaveCount(1);
+  await issueSelect.selectOption((await ownIssue.getAttribute('value')) ?? '');
   await page.getByLabel(/^Quantity/).fill('10');
   await page.getByRole('button', { name: 'Post return' }).click();
   await expect(page).toHaveURL(/\/stock\/documents\/[0-9a-f-]{36}$/, { timeout: 20_000 });

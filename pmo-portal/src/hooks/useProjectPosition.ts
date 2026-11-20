@@ -14,7 +14,7 @@ import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { useSalesInvoices } from '@/src/hooks/useRevenue';
 import { useTasks } from '@/src/hooks/useTasks';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
-import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
+import { clientInvoiceDueNowCents, clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import { budgetLinesByCategory } from '@/src/lib/budget/budgetModel';
 import { useProjectBudgetPositions } from '@/src/hooks/useProjectBudgetPositions';
 import { projectBudgetUsedPercent } from '@/src/lib/projectFinances';
@@ -121,11 +121,13 @@ export function useOverdueReceivables(project: ProjectWithRefs, enabled = true) 
       .map((inv) => ({ inv, age: clientInvoiceOverdueDays(inv, orgToday) }))
       .filter((x): x is { inv: typeof x.inv; age: number } => x.age !== null);
     if (!overdue.length) return null;
-    const balanceKnown = overdue.every((x) => x.inv.erp_outstanding_amount !== null);
+    // #2625: the overdue balance is what is due now; the retention still held is not overdue.
+    const dueNow = overdue.map((x) => clientInvoiceDueNowCents(x.inv));
+    const balanceKnown = dueNow.every((cents) => cents !== null);
     return {
       count: overdue.length,
       oldest: Math.max(...overdue.map((x) => x.age)),
-      balance: balanceKnown ? overdue.reduce((sum, x) => sum + Number(x.inv.erp_outstanding_amount ?? 0), 0) : null,
+      balance: balanceKnown ? dueNow.reduce<number>((sum, cents) => sum + (cents ?? 0), 0) / 100 : null,
       // The org-wide invoice list already filters by project + overdue (oldest first): the chase surface.
       to: `/finance/receivables?project=${project.id}&overdue=true`,
     };

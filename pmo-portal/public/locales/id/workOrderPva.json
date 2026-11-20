@@ -100,6 +100,7 @@
   "splitStale": "Pembagian yang disimpan sudah usang: ada perintah kerja yang ditambah atau dibatalkan. Pembagian bawaan dipakai sampai ada yang menyimpannya lagi.",
   "title": "Rencana vs aktual",
   "uncosted": "{{hours}} jam tanpa tarif dan tidak masuk biaya.",
+  "pendingCrewHours": "{{hours}} jam pada timesheet yang belum disetujui tidak dihitung.",
   "underPlan": "Sisa {{amount}}",
   "underPlanHours": "Sisa {{hours}} jam",
   "unknown": "Tidak diketahui",

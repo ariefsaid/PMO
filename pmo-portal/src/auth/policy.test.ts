@@ -683,6 +683,15 @@ it('AC-TAG-001 project classification option administration is Admin-only', () =
   expect(allowedRoles('manage', 'orgProjectClassification')).toEqual(['Admin']);
 });
 
+it('AC-TWM-015 a bill\'s match is read by Admin, Executive, Project Manager and Finance; only Admin and Finance approve an exception', () => {
+  expect(allowedRoles('view', 'billMatch')).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);
+  expect(allowedRoles('approve', 'billMatch')).toEqual(['Admin', 'Finance']);
+});
+
+it('AC-WCA-017 the cost discipline list is kept by an Admin only (0950 RLS is the authority)', () => {
+  for (const action of ['create', 'edit', 'archive'] as const) expect(allowedRoles(action, 'costDiscipline')).toEqual(['Admin']);
+});
+
 it('AC-CAT-014 cost attribution rules are managed by Finance and Admin only (RPCs are the authority)', () => {
   expect(allowedRoles('manage', 'costAttribution')).toEqual(['Admin', 'Finance']);
   expect(can('manage', 'costAttribution', { realRole: null })).toBe(false);

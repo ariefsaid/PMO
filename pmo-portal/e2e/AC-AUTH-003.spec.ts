@@ -22,7 +22,7 @@ test('AC-AUTH-003 UIP-011: PM password login lands on dashboard and opens a flag
   await expect(page.getByTestId('pm-projects')).toBeVisible();
 
   const sidebar = page.getByRole('navigation', { name: /primary navigation/i });
-  await expect(sidebar.getByRole('link', { name: 'Projects' })).toBeVisible();
+  await expect(sidebar.getByRole('link', { name: 'Projects', exact: true })).toBeVisible();
   await expect(sidebar.getByRole('link', { name: 'Sales Pipeline' })).toBeVisible();
   await expect(sidebar.getByRole('link', { name: 'Procurement' })).toBeVisible();
   await expect(sidebar.getByRole('link', { name: 'Timesheets' })).toBeVisible();

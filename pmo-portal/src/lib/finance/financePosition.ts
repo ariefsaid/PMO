@@ -1,6 +1,6 @@
 import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import { clientInvoiceOverdueDays, deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
+import { clientInvoiceDueNowCents, clientInvoiceOverdueDays, deriveArDueDate, overdueAgeDays, retentionHeldCents } from '@/src/lib/repositories/revenueDisplay';
 import { knownUnappliedCash } from '@/src/lib/revenue/receiptAllocation';
 import { isOpenClientInvoiceStatus } from '@/src/lib/revenue/clientInvoiceStatus';
 import { toCents } from '@/src/lib/moneyCents';
@@ -53,7 +53,10 @@ export interface FinancePosition {
   /** Known unpaid balances only; `payablesUnknownCount` counts the rest. */
   payablesTotals: CurrencyTotals;
   payablesUnknownCount: number;
+  /** Due-now balances by age (#2625): the retention still held is not aged, it is `receivablesRetentionHeld`. */
   receivablesAgeing: Record<string, AgeingBuckets>;
+  /** Retention still held on open invoices, in cents, per currency: owed but not due until released (ADR-0105). */
+  receivablesRetentionHeld?: CurrencyTotals;
   receivablesNoDueDateCounts?: Record<string, number>;
   payablesAgeing: Record<string, PayablesAgeingBuckets>;
 }
@@ -128,6 +131,7 @@ export function buildFinancePosition(input: FinancePositionInput): FinancePositi
   const overdueTotals: CurrencyTotals = {};
   const receivablesAgeing: Record<string, AgeingBuckets> = {};
   const receivablesNoDueDateCounts: Record<string, number> = {};
+  const receivablesRetentionHeld: CurrencyTotals = {};
   let overdueUnknownCount = 0;
   let receivablesUnknownCount = 0;
 
@@ -142,27 +146,28 @@ export function buildFinancePosition(input: FinancePositionInput): FinancePositi
       invoice.received_date,
     );
     const age = overdueAgeDays(dueDate, today);
+    // #2625: only the due-now part of a balance is aged; the retention still held is its own figure.
+    const dueNow = clientInvoiceDueNowCents(invoice);
+    const held = retentionHeldCents(invoice);
 
-    if (outstanding != null && Number.isFinite(outstanding)) {
+    if (dueNow !== null) {
       const buckets = receivablesAgeing[invoice.currency] ??= { notDue: 0, noDueDate: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 };
       const bucket = dueDate === null ? ageingBucket(null, 'receivables') : ageingBucket(age ?? 0, 'receivables');
-      buckets[bucket] += toCents(outstanding);
+      buckets[bucket] += dueNow;
+      if (held) add(receivablesRetentionHeld, invoice.currency, held);
       if (dueDate === null) receivablesNoDueDateCounts[invoice.currency] = (receivablesNoDueDateCounts[invoice.currency] ?? 0) + 1;
     }
 
     // #1457: the overdue decision is the one shared rule (status + derived due date + org day).
     const overdueDays = clientInvoiceOverdueDays(invoice, today);
     if (overdueDays === null) continue;
-    if (outstanding == null || !Number.isFinite(outstanding)) {
+    if (dueNow === null) {
       overdueUnknownCount += 1;
     } else {
-      add(overdueTotals, invoice.currency, toCents(outstanding));
+      add(overdueTotals, invoice.currency, dueNow);
     }
-    overdue.push({
-      invoice,
-      daysOverdue: overdueDays,
-      outstanding: outstanding == null || !Number.isFinite(outstanding) ? null : toCents(outstanding),
-    });
+    // The overdue amount is what is due now: the retention still held is never overdue.
+    overdue.push({ invoice, daysOverdue: overdueDays, outstanding: dueNow });
   }
   overdue.sort((a, b) => b.daysOverdue - a.daysOverdue);
 
@@ -226,6 +231,7 @@ export function buildFinancePosition(input: FinancePositionInput): FinancePositi
     payablesTotals,
     payablesUnknownCount,
     receivablesAgeing,
+    receivablesRetentionHeld,
     receivablesNoDueDateCounts,
     payablesAgeing,
   };
