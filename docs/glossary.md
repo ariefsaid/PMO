@@ -736,6 +736,16 @@ behind them; distinct from instructions or an explanation of the page.
 **Waits on you** — work requiring the current person's action, such as a decision or a returned
 submission; distinct from general project risk or everything assigned to them.
 
+### Third-party inspections (#2580)
+
+**Third-party inspection** (*inspeksi pihak ketiga*) — one external test or inspection of a work order (or later one of its
+sections), tracked from request through purchase, invitation, execution and report. Its cost is never entered on it: it
+is read from the linked purchase, already attributed to the work order.
+
+**Inspection prerequisite** — a required inspection that must be complete (reported with a passing or conditional result,
+or waived with a reason) before a readiness check or billing stage may pass. This feature exposes the read; the billing
+and readiness tickets own the block.
+
 UI vocabulary keeps **Supplier** rather than vendor, **Purchase** for a procurement case,
 and **Phase** for a milestone. **Actual** and **Recorded spending** name the same spending position;
 **Cash received** and **Settlement** name different quantities and must stay distinct.
