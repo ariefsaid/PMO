@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap;
 -- #2588 opening balances at go-live (docs/specs/opening-balances.spec.md, AC-OPB-001..009).
-select plan(67);
+select plan(80);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25880000-0000-0000-0000-000000000001', 'OPB Org',   'USD', 'UTC'),
@@ -24,19 +24,34 @@ insert into boq_items (id, org_id, project_id, item_code, description, unit, qua
   ('25880000-0000-0000-0000-0000000000e1', '25880000-0000-0000-0000-000000000001', '25880000-0000-0000-0000-0000000000c1', 'L1', 'Line one',   'm', 20, 1000),
   ('25880000-0000-0000-0000-0000000000e2', '25880000-0000-0000-0000-000000000001', '25880000-0000-0000-0000-0000000000c1', 'L2', 'Line two',   'm', 20, 500),
   ('25880000-0000-0000-0000-0000000000e3', '25880000-0000-0000-0000-000000000001', '25880000-0000-0000-0000-0000000000c1', 'L3', 'Line three', 'm', 20, 100),
-  ('25880000-0000-0000-0000-0000000000e4', '25880000-0000-0000-0000-000000000001', '25880000-0000-0000-0000-0000000000c1', 'L4', 'Line four',  'm', 20, 100);
+  ('25880000-0000-0000-0000-0000000000e4', '25880000-0000-0000-0000-000000000001', '25880000-0000-0000-0000-0000000000c1', 'L4', 'Line four',  'm', 20, 100),
+  ('25880000-0000-0000-0000-0000000000e5', '25880000-0000-0000-0000-000000000001', '25880000-0000-0000-0000-0000000000c1', 'L5', 'Line five',  'm', 20, 100),
+  ('25880000-0000-0000-0000-0000000000e6', '25880000-0000-0000-0000-000000000001', '25880000-0000-0000-0000-0000000000c1', 'L6', 'Line six',   'm', 20, 100);
 -- WO A running (opening + later claim), WO B running (opening then reversed), WO C closed, WO D draft, WO E has real activity.
 insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount, currency) values
   ('25880000-0000-0000-0000-000000000031', '25880000-0000-0000-0000-000000000001', '25880000-0000-0000-0000-0000000000c1', 'OPB WO A', 'Issued', 20000, 'exclusive', 0, 'USD'),
   ('25880000-0000-0000-0000-000000000032', '25880000-0000-0000-0000-000000000001', '25880000-0000-0000-0000-0000000000c1', 'OPB WO B', 'Issued', 10000, 'exclusive', 0, 'USD'),
   ('25880000-0000-0000-0000-000000000033', '25880000-0000-0000-0000-000000000001', '25880000-0000-0000-0000-0000000000c1', 'OPB WO C', 'Closed', 2000,  'exclusive', 0, 'USD'),
   ('25880000-0000-0000-0000-000000000034', '25880000-0000-0000-0000-000000000001', '25880000-0000-0000-0000-0000000000c1', 'OPB WO D', 'Draft',  2000,  'exclusive', 0, 'USD'),
-  ('25880000-0000-0000-0000-000000000035', '25880000-0000-0000-0000-000000000001', '25880000-0000-0000-0000-0000000000c1', 'OPB WO E', 'Issued', 2000,  'exclusive', 0, 'USD');
+  ('25880000-0000-0000-0000-000000000035', '25880000-0000-0000-0000-000000000001', '25880000-0000-0000-0000-0000000000c1', 'OPB WO E', 'Issued', 2000,  'exclusive', 0, 'USD'),
+  ('25880000-0000-0000-0000-000000000036', '25880000-0000-0000-0000-000000000001', '25880000-0000-0000-0000-0000000000c1', 'OPB WO F', 'Issued', 2000,  'exclusive', 0, 'USD'),
+  ('25880000-0000-0000-0000-000000000037', '25880000-0000-0000-0000-000000000001', '25880000-0000-0000-0000-0000000000c1', 'OPB WO G', 'Issued', 2000,  'exclusive', 0, 'USD');
 insert into work_order_lines (org_id, work_order_id, boq_item_id, quantity) values
   ('25880000-0000-0000-0000-000000000001', '25880000-0000-0000-0000-000000000031', '25880000-0000-0000-0000-0000000000e1', 20),
   ('25880000-0000-0000-0000-000000000001', '25880000-0000-0000-0000-000000000031', '25880000-0000-0000-0000-0000000000e2', 20),
   ('25880000-0000-0000-0000-000000000001', '25880000-0000-0000-0000-000000000032', '25880000-0000-0000-0000-0000000000e3', 20),
-  ('25880000-0000-0000-0000-000000000001', '25880000-0000-0000-0000-000000000035', '25880000-0000-0000-0000-0000000000e4', 20);
+  ('25880000-0000-0000-0000-000000000001', '25880000-0000-0000-0000-000000000035', '25880000-0000-0000-0000-0000000000e4', 20),
+  ('25880000-0000-0000-0000-000000000001', '25880000-0000-0000-0000-000000000036', '25880000-0000-0000-0000-0000000000e5', 20),
+  ('25880000-0000-0000-0000-000000000001', '25880000-0000-0000-0000-000000000037', '25880000-0000-0000-0000-0000000000e6', 20);
+-- Org 2: one running work order, for the all-reversed go-live date rule (Q-1).
+insert into projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount, currency) values
+  ('25880000-0000-0000-0000-0000000000c2', '25880000-0000-0000-0000-000000000002', 'OPB Other Project', 'Ongoing Project', 1000, 'exclusive', 0, 'USD');
+insert into boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate) values
+  ('25880000-0000-0000-0000-0000000000e9', '25880000-0000-0000-0000-000000000002', '25880000-0000-0000-0000-0000000000c2', 'X1', 'Other line', 'm', 10, 100);
+insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount, currency) values
+  ('25880000-0000-0000-0000-000000000039', '25880000-0000-0000-0000-000000000002', '25880000-0000-0000-0000-0000000000c2', 'OPB X WO', 'Issued', 1000, 'exclusive', 0, 'USD');
+insert into work_order_lines (org_id, work_order_id, boq_item_id, quantity) values
+  ('25880000-0000-0000-0000-000000000002', '25880000-0000-0000-0000-000000000039', '25880000-0000-0000-0000-0000000000e9', 10);
 insert into stock_units (id, org_id, code, name, whole_only) values
   ('25880000-0000-0000-0000-0000000000d1', '25880000-0000-0000-0000-000000000001', 'pc', 'Piece', true);
 insert into stock_items (id, org_id, code, name, unit_id) values
@@ -123,6 +138,21 @@ select pg_temp.as_user('25880000-0000-0000-0000-0000000000a1');
 select throws_ok($$select public.load_work_order_opening('25880000-0000-0000-0000-000000000035', current_setting('opb.golive')::date,
   '[{"boq_item_id":"25880000-0000-0000-0000-0000000000e4","certified_quantity":1,"claimed_quantity":0}]')$$,
   'P0001', 'an opening balance is loaded before the work order''s first real transaction', 'AC-OPB-005 a work order with real activity takes no opening');
+reset role;
+select pg_temp.as_user('25880000-0000-0000-0000-0000000000a3');
+select lives_ok($$select public.prepare_work_order_acceptance('25880000-0000-0000-0000-000000000036', current_date, false,
+  '[{"boq_item_id":"25880000-0000-0000-0000-0000000000e5","quantity":1}]'::jsonb)$$, 'fixture: a draft acceptance on work order F');
+reset role;
+select lives_ok($$insert into sales_invoices (id, org_id, project_id, work_order_id, amount, tax_treatment, tax_amount, currency, status) values
+  ('25880000-0000-0000-0000-000000000061', '25880000-0000-0000-0000-000000000001', '25880000-0000-0000-0000-0000000000c1', '25880000-0000-0000-0000-000000000037', 100, 'exclusive', 0, 'USD', 'Unpaid')$$,
+  'fixture: an invoice on work order G');
+select pg_temp.as_user('25880000-0000-0000-0000-0000000000a1');
+select throws_ok($$select public.load_work_order_opening('25880000-0000-0000-0000-000000000036', current_setting('opb.golive')::date,
+  '[{"boq_item_id":"25880000-0000-0000-0000-0000000000e5","certified_quantity":1,"claimed_quantity":0}]')$$,
+  'P0001', 'an opening balance is loaded before the work order''s first real transaction', 'AC-OPB-005 a work order with an acceptance takes no opening');
+select throws_ok($$select public.load_work_order_opening('25880000-0000-0000-0000-000000000037', current_setting('opb.golive')::date,
+  '[{"boq_item_id":"25880000-0000-0000-0000-0000000000e6","certified_quantity":1,"claimed_quantity":0}]')$$,
+  'P0001', 'an opening balance is loaded before the work order''s first real transaction', 'AC-OPB-005 a work order with an invoice takes no opening');
 
 -- AC-OPB-007 reversal before activity (WO B) -------------------------------------------------------------------------
 select lives_ok($$select set_config('opb.b', public.load_work_order_opening('25880000-0000-0000-0000-000000000032', current_setting('opb.golive')::date,
@@ -138,6 +168,9 @@ select is((select invoiced::text || '/' || remaining::text from work_order_billi
 select ok((select reversed_at is not null and reversed_by = '25880000-0000-0000-0000-0000000000a1' from opening_balances where id = current_setting('opb.b')::uuid), 'AC-OPB-007 the opening row records who reversed it');
 select is((select count(*)::int from audit_events where action = 'opening_balance.reverse' and entity_id = current_setting('opb.b')::uuid), 1, 'AC-OPB-007 the reversal is audited');
 select throws_ok($$select public.reverse_opening_balance(current_setting('opb.b')::uuid)$$, 'P0001', null, 'AC-OPB-007 a reversed opening cannot be reversed again');
+select throws_ok($$select public.load_work_order_opening('25880000-0000-0000-0000-000000000032', current_date - 4,
+  '[{"boq_item_id":"25880000-0000-0000-0000-0000000000e3","certified_quantity":1,"claimed_quantity":0}]')$$,
+  '23514', null, 'FR-OPB-002 after one reversal the go-live date stays fixed while another opening is live');
 
 -- AC-OPB-004 / 007 after the first real transaction on WO A ----------------------------------------------------------
 reset role;
@@ -188,7 +221,12 @@ select is((select qty_on_hand::text || '/' || value_on_hand::text from stock_bal
 select is((select count(*)::int from stock_ledger l join opening_balances o on o.stock_document_id = l.document_id where o.id = current_setting('opb.r')::uuid and l.kind = 'opening_reversal'), 1,
   'AC-OPB-007 the reversal is ledger rows marked opening_reversal');
 select pg_temp.as_user('25880000-0000-0000-0000-0000000000a1');
-select lives_ok($$select public.create_stock_document(jsonb_build_object('kind','transfer','warehouse_id','25880000-0000-0000-0000-000000002001','to_warehouse_id','25880000-0000-0000-0000-000000002003'),
+select lives_ok($$select set_config('opb.r2', public.load_stock_opening('25880000-0000-0000-0000-000000002003', current_setting('opb.golive')::date,
+  '[{"item_id":"25880000-0000-0000-0000-000000001002","counted_quantity":6,"unit_cost":3}]')::text, true)$$, 'FR-OPB-008 a location whose opening was reversed takes a corrected opening');
+reset role;
+select is((select qty_on_hand::text || '/' || value_on_hand::text from stock_balances where warehouse_id = '25880000-0000-0000-0000-000000002003'), '6.000/18.00', 'FR-OPB-008 the corrected opening counts once');
+select pg_temp.as_user('25880000-0000-0000-0000-0000000000a1');
+select lives_ok($$select public.create_stock_document(jsonb_build_object('kind','transfer','warehouse_id','25880000-0000-0000-0000-000000002001','to_warehouse_id','25880000-0000-0000-0000-000000002002'),
   '[{"item_id":"25880000-0000-0000-0000-000000001001","quantity":1}]'::jsonb, true)$$, 'fixture: a real transfer out of location CEN');
 select throws_ok($$select public.reverse_opening_balance(current_setting('opb.s')::uuid)$$,
   'P0001', 'an opening balance can be reversed only before the first real transaction', 'AC-OPB-007 a stock opening with a movement since cannot be reversed');
@@ -198,7 +236,7 @@ select is((select certified_value::text || '/' || claimed_value::text from publi
   '5000.00/3000.00', 'AC-OPB-009 the report gives certified and claimed value per work order');
 select is((select stock_quantity::text || '/' || stock_value::text from public.opening_balance_report() where id = current_setting('opb.s')::uuid),
   '10.000/50.00', 'AC-OPB-009 the report gives counted quantity and value per location');
-select is((select count(*)::int from public.opening_balance_report()), 2, 'AC-OPB-009 the report lists only live openings');
+select is((select count(*)::int from public.opening_balance_report()), 3, 'AC-OPB-009 the report lists only live openings');
 reset role;
 select pg_temp.as_user('25880000-0000-0000-0000-0000000000a2');
 select throws_ok($$select * from public.opening_balance_report()$$, '42501', null, 'AC-OPB-009 the report is for an Admin');
@@ -209,9 +247,22 @@ select pg_temp.as_user('25880000-0000-0000-0000-0000000000b1');
 select throws_ok($$select public.load_work_order_opening('25880000-0000-0000-0000-000000000032', current_setting('opb.golive')::date,
   '[{"boq_item_id":"25880000-0000-0000-0000-0000000000e3","certified_quantity":1,"claimed_quantity":0}]')$$, 'P0002', null, 'AC-OPB-008 another organisation''s Admin cannot load onto this work order');
 select is((select count(*)::int from opening_balances), 0, 'AC-OPB-008 another organisation reads none of these openings');
+select throws_ok($$select public.reverse_opening_balance(current_setting('opb.a')::uuid)$$, 'P0002', null, 'AC-OPB-008 another organisation''s Admin cannot reverse these openings');
+select is((select count(*)::int from public.opening_balance_report()), 0, 'AC-OPB-008 another organisation''s report lists none of these openings');
+select lives_ok($$select set_config('opb.x', public.load_work_order_opening('25880000-0000-0000-0000-000000000039', current_setting('opb.golive')::date,
+  '[{"boq_item_id":"25880000-0000-0000-0000-0000000000e9","certified_quantity":1,"claimed_quantity":0}]')::text, true)$$, 'fixture: org 2 loads one opening');
+select lives_ok($$select public.reverse_opening_balance(current_setting('opb.x')::uuid)$$, 'fixture: org 2 reverses its only opening');
+select lives_ok($$select public.load_work_order_opening('25880000-0000-0000-0000-000000000039', current_date - 5,
+  '[{"boq_item_id":"25880000-0000-0000-0000-0000000000e9","certified_quantity":1,"claimed_quantity":0}]')$$, 'FR-OPB-002 once every opening is reversed, the next load may set a new go-live date');
 reset role;
 select pg_temp.as_user('25880000-0000-0000-0000-0000000000a4');
 select is((select count(*)::int from opening_balances), 0, 'AC-OPB-008 an Engineer reads no opening money');
+reset role;
+
+-- M-3: a stock reversal refuses once an ERP owns inventory, as a load does.
+insert into external_domain_ownership (org_id, external_tier, domain) values ('25880000-0000-0000-0000-000000000001', 'odoo', 'inventory');
+select pg_temp.as_user('25880000-0000-0000-0000-0000000000a1');
+select throws_like($$select public.reverse_opening_balance(current_setting('opb.r2')::uuid)$$, 'STK_OWNED_BY_ERP%', 'FR-OPB-006 a stock opening is not reversed once an ERP owns inventory');
 reset role;
 
 -- 1047: the CLI's active-Admin rpc tier admits the four opening RPCs (POST only, Admin only) -------------------------

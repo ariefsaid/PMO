@@ -173,6 +173,8 @@ drop function if exists public.load_stock_opening(uuid, date, jsonb, text);
 drop function if exists public.load_work_order_opening(uuid, date, jsonb, text);
 drop function if exists public.opening_work_order_has_activity(uuid, uuid);
 drop function if exists public.opening_assert_load(uuid, date);
+drop function if exists public.opening_location_has_movement(uuid, uuid, uuid);
+drop index if exists public.stock_ledger_org_warehouse_idx;
 drop table if exists public.opening_balance_lines;
 drop table if exists public.opening_balances;
 

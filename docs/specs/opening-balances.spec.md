@@ -19,12 +19,18 @@ location holds, so progress, billing and stock continue from the right point ins
 ## Rules
 
 - **FR-OPB-001** Only an active Admin loads or reverses an opening balance.
-- **FR-OPB-002** Every opening entry of an organisation carries one date, the go-live date. It is never in the future.
+- **FR-OPB-002** Every live opening of an organisation carries one date, the go-live date, set by its first load. It is
+  never in the future. Once every opening of the organisation is reversed, the next load may set a new date. Loads of one
+  organisation run one at a time, so the rule holds when two Admins load together.
 - **FR-OPB-003** A work-order opening is refused unless the work order is Issued and has no acceptance (other than
   withdrawn), no live progress claim and no invoice. A location's stock opening is refused once the location has any
   stock movement. One live opening per work order and per location.
 - **FR-OPB-004** The certified part is a Confirmed acceptance whose basis is `opening`, dated at go-live. Acceptances are
-  cumulative, so the next real acceptance supersedes it and nothing counts twice.
+  cumulative, so the next real acceptance supersedes it and nothing counts twice. **Accepted exception to the
+  second-person rule:** an ordinary acceptance is prepared by one person and confirmed by another; the opening acceptance
+  is prepared and confirmed in one call by the loading Admin. It is accepted because it records work certified before
+  go-live (outside PMO), only an Admin can make it, it is audited, and it is possible only before the work order's first
+  real transaction.
 - **FR-OPB-005** The claimed part counts as already invoiced work on the work order (remaining to invoice, the
   invoice cap) and as claimed and billed quantity per contract line (project billing, billing reconciliation). It
   never becomes a claim or an invoice, so nothing is sent to an ERP.
@@ -34,6 +40,9 @@ location holds, so progress, billing and stock continue from the right point ins
 - **FR-OPB-008** An Admin may reverse an opening while nothing real has happened since: for a work order, no other
   live acceptance, claim or invoice; for a location, no later stock movement. Reversal removes the opening
   acceptance, stops the claimed part counting, and writes `opening_reversal` ledger rows that return the balance to zero.
+  A reversed opening and its reversal are not movement: the work order or location takes a corrected opening. A stock
+  reversal follows the same stock rules as a load (stock module on, inventory not owned by an ERP). A work-order reversal
+  and an acceptance being prepared on the same work order run one after the other.
 - **FR-OPB-009** Opening money is readable by the roles that read claims (not Engineers).
 
 ## Acceptance (owner layer: pgTAP, `supabase/tests/opening_balances.test.sql`)

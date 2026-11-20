@@ -35,6 +35,8 @@ create unique index opening_balances_live_warehouse on public.opening_balances (
 create index opening_balances_org_idx on public.opening_balances (org_id, as_of);
 create index opening_balances_acceptance_idx on public.opening_balances (acceptance_id) where acceptance_id is not null;
 create index opening_balances_stock_document_idx on public.opening_balances (stock_document_id) where stock_document_id is not null;
+-- The "has this location moved?" reads (opening_location_has_movement) lead on the location.
+create index stock_ledger_org_warehouse_idx on public.stock_ledger (org_id, warehouse_id, document_id);
 
 create table public.opening_balance_lines (
   opening_id         uuid not null references public.opening_balances(id),
@@ -102,13 +104,16 @@ create or replace function public.stock_doc_prefix(p_kind text) returns text lan
 -- The generic RPCs refuse the kind (stock_validate_payload knows only the six movement kinds); load_stock_opening posts it.
 
 -- §4 shared rules -------------------------------------------------------------------------------------------------
--- FR-OPB-001 + FR-OPB-002: an active Admin, one go-live date per organisation, never in the future.
+-- FR-OPB-001 + FR-OPB-002: an active Admin, one go-live date per organisation, never in the future. The date is the one
+-- every live opening carries; once every opening of the organisation is reversed, the next load may set a new one. Loads
+-- of one organisation queue on a transaction lock, so two loads cannot each see no opening and set two dates.
 create or replace function public.opening_assert_load(p_org uuid, p_as_of date) returns void
-  language plpgsql stable security definer set search_path = public as $$
+  language plpgsql volatile security definer set search_path = public as $$
 begin
   perform public.assert_is_active_member();
   if public.auth_role() is distinct from 'Admin' then                                                   -- mut:admin
     raise exception 'only an Admin loads or reverses an opening balance' using errcode = '42501'; end if;
+  perform pg_advisory_xact_lock(hashtextextended('opening_balance:' || p_org::text, 0));                 -- mut:org_lock
   if p_as_of is null or p_as_of > public.stock_org_today(p_org) then
     raise exception 'the go-live date is required and cannot be in the future' using errcode = '23514'; end if;
   if exists (select 1 from public.opening_balances o where o.org_id = p_org and o.reversed_at is null and o.as_of <> p_as_of) then   -- mut:one_date
@@ -120,10 +125,19 @@ end $$;
 -- progress claim, any billing record other than the given opening.
 create or replace function public.opening_work_order_has_activity(p_wo uuid, p_opening uuid) returns boolean
   language sql stable security definer set search_path = public as $$
-  select exists (select 1 from public.work_order_acceptances a where a.work_order_id = p_wo and a.status <> 'Withdrawn'
-                   and a.id is distinct from (select o.acceptance_id from public.opening_balances o where o.id = p_opening))
-      or exists (select 1 from public.progress_claims pc where pc.work_order_id = p_wo and pc.withdrawn_at is null)
-      or exists (select 1 from public.work_order_billing_lines l where l.work_order_id = p_wo and l.record_id is distinct from p_opening) $$;
+  select exists (select 1 from public.work_order_acceptances a where a.work_order_id = p_wo and a.status <> 'Withdrawn' and a.id is distinct from (select o.acceptance_id from public.opening_balances o where o.id = p_opening))  -- mut:act_acceptance
+      or exists (select 1 from public.progress_claims pc where pc.work_order_id = p_wo and pc.withdrawn_at is null)                -- mut:act_claim
+      or exists (select 1 from public.work_order_billing_lines l where l.work_order_id = p_wo and l.record_id is distinct from p_opening)  -- mut:act_invoice
+  $$;
+
+-- "Real movement" at a location: any ledger row other than the given opening's, leaving out the rows of reversed openings
+-- (an opening and its reversal net to zero, so a corrected opening may follow).
+create or replace function public.opening_location_has_movement(p_org uuid, p_warehouse uuid, p_opening_document uuid) returns boolean
+  language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.stock_ledger s where s.org_id = p_org and s.warehouse_id = p_warehouse
+                   and s.document_id is distinct from p_opening_document
+                   and not exists (select 1 from public.opening_balances r where r.stock_document_id = s.document_id and r.reversed_at is not null)  -- mut:reversed_reload
+                ) $$;
 
 -- §5 the load and reversal RPCs -------------------------------------------------------------------------------------
 create or replace function public.load_work_order_opening(p_work_order_id uuid, p_as_of date, p_lines jsonb, p_note text default null)
@@ -191,7 +205,7 @@ begin
     raise exception 'STK_INVALID: an item appears once per location' using errcode = 'P0001'; end if;
   if exists (select 1 from public.opening_balances o where o.warehouse_id = p_warehouse_id and o.reversed_at is null) then
     raise exception 'this location already has an opening balance' using errcode = 'P0001'; end if;
-  if exists (select 1 from public.stock_ledger s where s.warehouse_id = p_warehouse_id) then                  -- mut:stock_activity
+  if public.opening_location_has_movement(v_org, p_warehouse_id, null) then                                -- mut:stock_activity
     raise exception 'an opening balance is loaded before the location''s first stock movement' using errcode = 'P0001'; end if;
 
   insert into public.stock_documents (org_id, number, kind, warehouse_id, note, occurred_on, created_by)
@@ -223,8 +237,14 @@ begin
     raise exception 'only an Admin loads or reverses an opening balance' using errcode = '42501'; end if;
   select * into o from public.opening_balances x where x.id = p_id and x.org_id = v_org;
   if not found then raise exception 'opening balance not found' using errcode = 'P0002'; end if;
-  if o.kind = 'work_order' then perform public.lock_work_order_billing(o.work_order_id);
-  else perform 1 from public.stock_warehouses w where w.id = o.warehouse_id for update; end if;
+  if o.kind = 'work_order' then
+    perform public.lock_work_order_billing(o.work_order_id);
+    perform 1 from public.work_orders w where w.id = o.work_order_id for update;                        -- mut:wo_row_lock (acceptance prepare takes this row)
+  else
+    perform public.assert_feature_on(v_org, 'stock');
+    perform public.stock_assert_standalone(v_org);
+    perform 1 from public.stock_warehouses w where w.id = o.warehouse_id for update;
+  end if;
   select * into o from public.opening_balances x where x.id = p_id for update;
   if o.reversed_at is not null then raise exception 'this opening balance was already reversed' using errcode = 'P0001'; end if;
 
@@ -239,7 +259,7 @@ begin
     perform set_config('pmo.reverse_opening', '', true);
   else
     select * into v_doc from public.stock_documents d where d.id = o.stock_document_id;
-    if exists (select 1 from public.stock_ledger s where s.warehouse_id = o.warehouse_id and s.document_id <> o.stock_document_id) then   -- mut:stock_reverse
+    if public.opening_location_has_movement(v_org, o.warehouse_id, o.stock_document_id) then           -- mut:stock_reverse
       raise exception 'an opening balance can be reversed only before the first real transaction' using errcode = 'P0001'; end if;
     perform public.stock_lock_for_document(v_doc);
     v_doc.kind := 'opening_reversal';                                                                    -- the ledger rows' kind, not the document's
@@ -277,7 +297,8 @@ begin
    order by o.kind, coalesce(w.wo_number, w.title, h.code);
 end $$;
 
-revoke all on function public.opening_assert_load(uuid, date), public.opening_work_order_has_activity(uuid, uuid) from public, anon, authenticated, service_role;
+revoke all on function public.opening_assert_load(uuid, date), public.opening_work_order_has_activity(uuid, uuid),
+  public.opening_location_has_movement(uuid, uuid, uuid) from public, anon, authenticated, service_role;
 revoke all on function public.load_work_order_opening(uuid, date, jsonb, text), public.load_stock_opening(uuid, date, jsonb, text),
   public.reverse_opening_balance(uuid), public.opening_balance_report() from public, anon;
 grant execute on function public.load_work_order_opening(uuid, date, jsonb, text), public.load_stock_opening(uuid, date, jsonb, text),
