@@ -6,9 +6,6 @@ import { parseErpSendRefusal } from '@/src/lib/integrations/erpSendRefusal';
 import { Button, StatusPill } from '@/src/components/ui';
 import type { ConnectTier } from '@/src/lib/repositories/types';
 
-/** The sentence the send drain stores when the ERP account answering a request cannot hold direct costs (`accountMismatch` in connectSendsCore.ts). */
-const ACCOUNT_UNUSABLE_TEXT = 'The ERP account with this name cannot be used for direct costs. Ask again with a different account name.';
-
 const POLL_MS = 10_000;
 
 /**
@@ -122,8 +119,7 @@ export function ErpSendStates({ enabled, tier = 'erpnext' }: { enabled: boolean;
   };
   const accountMessage = (text: string, held: boolean) => held
     ? t('administration:integrations.accounts.held', 'PMO could not confirm whether the account was created. Contact your administrator.')
-    : text === ACCOUNT_UNUSABLE_TEXT ? t('administration:integrations.accounts.unusable', ACCOUNT_UNUSABLE_TEXT)
-      : english && !text.includes('your administrator has been told') ? text : t('administration:integrations.accounts.failedDetails', 'PMO could not complete this account request. Check the details or contact your administrator.');
+    : english && !text.includes('your administrator has been told') ? text : t('administration:integrations.accounts.failedDetails', 'PMO could not complete this account request. Check the details or contact your administrator.');
   const refused = [...new Map([...(reviews.data?.proposals ?? []), ...(accountReviews.data?.proposals ?? [])]
     .filter((p) => (p.reason === 'rejected' || p.reason === 'held' || p.reason === 'unresolved') && p.reason_text)
     .map((p) => [p.id, p])).values()];

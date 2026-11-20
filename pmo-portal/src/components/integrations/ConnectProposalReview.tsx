@@ -747,11 +747,9 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
                       )}
                       <p className='text-control text-muted-foreground'>
                         {actionName(proposal)}
-                        {proposal.outcome === 'review' && proposal.reason_text ? ` · ${proposal.kind === 'account' && proposal.reason === 'held'
+                        {proposal.outcome === 'review' && proposal.reason_text ? ` · ${proposal.kind === 'account' && (proposal.reason === 'held' || proposal.reason === 'unresolved')
                           ? t('administration:integrations.accounts.held', 'PMO could not confirm whether the account was created. Contact your administrator.')
-                          : proposal.kind === 'account' && proposal.reason === 'unresolved'
-                            ? t('administration:integrations.accounts.failedDetails', 'PMO could not complete this account request. Check the details or contact your administrator.')
-                            : proposal.reason_text}` : ''}
+                          : proposal.reason_text}` : ''}
                       </p>
                     </div>
                   </div>

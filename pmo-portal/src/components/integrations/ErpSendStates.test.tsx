@@ -58,10 +58,11 @@ describe('ECA3-T11 ErpSendStates', () => {
     expect(screen.queryByRole('button', { name: /send it again|kirim lagi/i })).toBeNull();
   });
 
-  it('AC-ECX-030 an account the ERP holds but PMO cannot use as a direct-cost account is refused in words that do not send the person to the ERP', async () => {
-    answer(0, [proposal({ id: 'r3', kind: 'account', reason: 'rejected', snapshot: { name: 'Site materials' }, reason_text: 'The ERP account with this name cannot be used for direct costs. Ask again with a different account name.' })]);
+  it('AC-ECX-030 an account the ERP holds but PMO cannot use as a direct-cost account shows the sentence the send drain stores', async () => {
+    const stored = 'The ERP already has an account named Site materials that cannot hold direct costs. Choose another name.';
+    answer(0, [proposal({ id: 'r3', kind: 'account', reason: 'rejected', snapshot: { name: 'Site materials' }, reason_text: stored })]);
     renderIt();
-    expect(await screen.findByText('The ERP account with this name cannot be used for direct costs. Ask again with a different account name.')).toBeTruthy();
+    expect(await screen.findByText(stored)).toBeTruthy();
   });
 
   it('a send the ERP could not confirm is a decision with its plain reason, not a success', async () => {
