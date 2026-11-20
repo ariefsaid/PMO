@@ -1,10 +1,10 @@
--- 0987_equipment_rental_check.sql — #2526 slice 4: the rental invoice check. MONEY: a deduction taken off a vendor's bill.
+-- 1034_equipment_rental_check.sql — #2526 slice 4: the rental invoice check. MONEY: a deduction taken off a vendor's bill.
 -- Spec FR-EAV-014..017, AC-EAV-008..010; proven by supabase/tests/equipment_rental_check.test.sql (mutation-checked: removing
 -- the proven filter turns AC-EAV-009 red). It reads and compares; it never posts, pays or edits a bill (FR-EAV-015).
 -- Exact arithmetic: each day's charge is kept as integer 1/377580ths of a cent, summed, then rounded half up to
 -- cents once — the same steps as rentalDeduction() in pmo-portal/src/lib/equipmentMetrics.ts, so the two agree digit for digit.
 -- A monthly rate is divided by the calendar days of that day's own month (OQ-EAV-1 default).
--- Reverse: rollback/0987_equipment_rental_check_down.sql
+-- Reverse: rollback/1034_equipment_rental_check_down.sql
 
 create table public.equipment_rental_checks (
   id              uuid primary key default gen_random_uuid(),
