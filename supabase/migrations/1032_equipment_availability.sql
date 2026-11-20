@@ -1,9 +1,9 @@
--- 0985_equipment_availability.sql — #2526 slice 2a: ownership + rental terms, daily status with history, downtime
+-- 1032_equipment_availability.sql — #2526 slice 2a: ownership + rental terms, daily status with history, downtime
 -- proof, the org working-hours setting. Spec: docs/specs/equipment-availability.spec.md; plan
 -- docs/plans/2026-11-20-equipment-availability.md. Proven by supabase/tests/equipment_status.test.sql.
 -- Reads/derivations are 0986 (metrics, downtime runs, escalation); the rental invoice check is 0987 (money, ships alone).
 -- Writes are RPC-only (no INSERT/UPDATE grant) so the date rules, role gates and history cannot be bypassed.
--- Reverse: rollback/0985_equipment_availability_down.sql
+-- Reverse: rollback/1032_equipment_availability_down.sql
 
 -- ── asset ownership and in-service date. Written only by set_equipment_ownership (not in the 0447 column grants). ──
 alter table public.equipment_assets

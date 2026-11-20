@@ -14,7 +14,7 @@ drop function if exists public.equipment_rental_day_rates(uuid, uuid, date, date
 drop table if exists public.equipment_rental_checks;
 SQL
 cat "$root/supabase/migrations/rollback/0986_equipment_availability_reads_down.sql" >> "$test_sql"
-cat "$root/supabase/migrations/rollback/0985_equipment_availability_down.sql" >> "$test_sql"
+cat "$root/supabase/migrations/rollback/1032_equipment_availability_down.sql" >> "$test_sql"
 cat >> "$test_sql" <<'SQL'
 select ok(exists(select 1 from storage.buckets where id = 'equipment-proof'), 'rollback preserves the private evidence bucket');
 select ok(exists(select 1 from storage.objects where bucket_id = 'equipment-proof' and name = 'rollback-test/evidence.jpg'), 'rollback preserves evidence objects for Storage API handling');

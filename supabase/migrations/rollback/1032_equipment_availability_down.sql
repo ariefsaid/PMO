@@ -1,4 +1,4 @@
--- 0985_equipment_availability_down.sql — reverse of 0985 (#2526), reverse dependency order. Loses status, rental and proof rows.
+-- 1032_equipment_availability_down.sql — reverse of 0985 (#2526), reverse dependency order. Loses status, rental and proof rows.
 drop policy if exists storage_objects_equipment_proof_write on storage.objects;
 drop policy if exists storage_objects_equipment_proof_read  on storage.objects;
 -- Keep the private bucket and its objects: object removal belongs to the Storage API, not SQL.
