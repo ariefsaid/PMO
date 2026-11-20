@@ -9,8 +9,8 @@
 -- remainder ("Not in a section"). With no section there are no rows at all (AC-WOS-001: the work order reads as before).
 -- Every figure is an exact sum grouped by section_id over the same records the work-order total sums, so
 -- sum(sections) + remainder = the work-order total by construction (the roll-up invariant, AC-WOS-002).
--- Progress is what the section owns: tasks (Done of total) and today's crews. Daily-report quantities are absent
--- until their link ships; a measure that does not exist is never zero-filled.
+-- Progress is what the section owns: tasks (Done of total) and today's crews; validated daily-report quantities come
+-- from work_order_section_progress below (a measure that does not exist is never zero-filled).
 --
 -- work_order_section_readiness: per work order, counts of LIVE sections per readiness and "all ready" (at least one live
 -- section and every live section ready). A work order with no live section has no row.
@@ -74,3 +74,21 @@ create view public.work_order_section_readiness with (security_invoker = true) a
 revoke all on public.work_order_section_readiness from public, anon, authenticated;
 grant select on public.work_order_section_readiness to authenticated;
 grant all on public.work_order_section_readiness to service_role;
+
+-- Validated daily-report quantities per section and contract item (FR-WOS-016, #1522). Only the current validated
+-- version of each report counts (a superseded or archived report never does), the same rule as the shipped validated
+-- revenue read. One row per (section or null remainder) x contract item; a work order with no validated report has no
+-- rows (the measure is absent, never zero-filled). Security INVOKER: the caller's own RLS and column grants apply.
+-- sum(sections) + remainder is the work-order total per contract item by construction (FR-WOS-017).
+create function public.work_order_section_progress(p_work_order_id uuid)
+  returns table (section_id uuid, work_order_line_id uuid, unit text, quantity numeric)
+  language sql stable security invoker set search_path = public, pg_temp as $$
+  select l.section_id, l.work_order_line_id, l.unit, sum(l.quantity)
+    from public.dsr_progress_lines l
+    join public.daily_site_reports d on d.id = l.report_id
+   where l.work_order_id = p_work_order_id and d.status = 'validated' and d.superseded_at is null and d.archived_at is null
+   group by l.section_id, l.work_order_line_id, l.unit
+   order by (l.section_id is null), l.section_id, l.work_order_line_id
+$$;
+revoke all on function public.work_order_section_progress(uuid) from public, anon;
+grant execute on function public.work_order_section_progress(uuid) to authenticated;
