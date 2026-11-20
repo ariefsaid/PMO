@@ -13754,7 +13754,7 @@ export type Database = {
         Returns: undefined
       }
       report_crew_tool: {
-        Args: { p_id: string; p_kind: string; p_line: string; p_note?: string; p_photos?: Json; p_qty: number }
+        Args: { p_id: string; p_kind: string; p_line: string; p_note: string | null; p_photos: Json; p_qty: number }
         Returns: string
       }
       correct_crew_tool_report: {

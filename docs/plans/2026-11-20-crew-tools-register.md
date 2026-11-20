@@ -13,6 +13,7 @@ Built on the spec's recommended default for every open decision; each is reversi
 - OQ-CTR-2: the task is linked to the crew's rostered project when exactly one work order roster covers the report date, else no project.
 - OQ-CTR-3: no tool value or replacement cost is recorded.
 - OQ-CTR-4: all active members may see the register (the crew master's read rule).
+- Deviations from the written plan, each smaller than it reads: the client-generated report id is the idempotency key and the photo path's report segment, so there is no separate `client_key` column; the coordinator setting is written by `set_crew_tool_settings` (the table grants select only) so one-row-per-organisation upserts are server-side; the crew's tools screen is a fourth tab (`?view=tools`) of the Crews page rather than a new route; a line cannot be archived, moved or shrunk below its open reports (`CTR_LINE_OPEN_REPORTS`, `CTR_QTY`), and a task's generic assignment notice is skipped for the tool task's INSERT so the coordinator gets one notification (1083).
 - Migration numbers used: 1080 lines, 1081 reports/files/settings/task link, 1082 RPCs and summary view, 1083 task-assignment notification hand-off. The migration table above (A to C) maps onto these.
 
 ## Design summary

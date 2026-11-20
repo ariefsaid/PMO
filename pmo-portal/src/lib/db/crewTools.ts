@@ -186,7 +186,7 @@ export async function reportTool(input: ReportToolInput): Promise<string> {
     photos.push({ path, title: file.name.slice(0, 200) });
   }
   const { data, error } = await supabase.rpc('report_crew_tool', {
-    p_id: input.reportId, p_line: input.lineId, p_kind: input.kind, p_qty: input.qty, p_note: input.note ?? undefined, p_photos: photos,
+    p_id: input.reportId, p_line: input.lineId, p_kind: input.kind, p_qty: input.qty, p_note: input.note, p_photos: photos,
   });
   fail(error);
   return data as string;
