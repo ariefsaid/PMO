@@ -7,6 +7,7 @@ import { ToastProvider } from '@/src/components/ui';
 const h = vi.hoisted(() => ({
   tz: 'Asia/Jakarta',
   warehouses: [{ id: 'wh1', code: 'S1', name: 'Site one', kind: 'site', archived_at: null, project_id: 'p1' }] as unknown[],
+  warehouseQuery: { isPending: false, isError: false, refetch: vi.fn() },
   saveDraft: { mutateAsync: vi.fn().mockResolvedValue('r1'), isPending: false },
   submit: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
 }));
@@ -22,7 +23,7 @@ vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ da
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [{ id: 'w1', title: 'Slab', wo_number: 'WO-1', status: 'Issued' }], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useStock', () => ({
   useStockItems: () => ({ data: [{ id: 'i1', code: 'CEM', name: 'Cement', unit_id: 'u1', archived_at: null }, { id: 'i2', code: 'BRK', name: 'Brick', unit_id: 'u2', archived_at: null }], isPending: false, isError: false, refetch: vi.fn() }),
-  useStockWarehouses: () => ({ data: h.warehouses }),
+  useStockWarehouses: () => ({ data: h.warehouses, ...h.warehouseQuery }),
   useStockUnits: () => ({ data: [{ id: 'u1', code: 'BAG', whole_only: false }, { id: 'u2', code: 'PCS', whole_only: true }] }),
 }));
 vi.mock('@/src/hooks/useOrgFxContext', () => ({ useOrgFxContext: () => ({ data: { currency: 'IDR', timezone: h.tz }, isPending: false }) }));
@@ -122,7 +123,10 @@ describe('raise a material request', () => {
 
   describe('#2608 the delivery location', () => {
     const single = [{ id: 'wh1', code: 'S1', name: 'Site one', kind: 'site', archived_at: null, project_id: 'p1' }];
-    afterEach(() => { h.warehouses = single; });
+    afterEach(() => {
+      h.warehouses = single;
+      h.warehouseQuery = { isPending: false, isError: false, refetch: vi.fn() };
+    });
     const open = async () => {
       render(<MemoryRouter><ToastProvider><MaterialRequestNewPage /></ToastProvider></MemoryRouter>);
       await pick(/^project/i, 'Site Alpha');
@@ -147,6 +151,39 @@ describe('raise a material request', () => {
       await userEvent.selectOptions(screen.getByLabelText(/deliver to/i), 'g1');
       await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
       expect(h.saveDraft.mutateAsync.mock.calls[0][0].header.toWarehouseId).toBe('g1');
+    });
+
+    it('does not send while warehouse destinations are still loading', async () => {
+      h.warehouseQuery = { isPending: true, isError: false, refetch: vi.fn() };
+      h.saveDraft.mutateAsync.mockClear();
+      h.submit.mutateAsync.mockClear();
+      await open();
+      expect(screen.getByTestId('liststate-loading')).toHaveAttribute('aria-busy', 'true');
+      expect(screen.getByRole('button', { name: 'Send for approval' })).toBeDisabled();
+      expect(h.saveDraft.mutateAsync).not.toHaveBeenCalled();
+      expect(h.submit.mutateAsync).not.toHaveBeenCalled();
+    });
+
+    it('shows a warehouse load error and does not send without knowing the destinations', async () => {
+      h.warehouseQuery = { isPending: false, isError: true, refetch: vi.fn() };
+      h.saveDraft.mutateAsync.mockClear();
+      h.submit.mutateAsync.mockClear();
+      await open();
+      expect(screen.getByText("Couldn't load delivery locations")).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Send for approval' })).toBeDisabled();
+      expect(h.saveDraft.mutateAsync).not.toHaveBeenCalled();
+      expect(h.submit.mutateAsync).not.toHaveBeenCalled();
+    });
+
+    it('does not send when the loaded project has no delivery location', async () => {
+      h.warehouses = [];
+      h.saveDraft.mutateAsync.mockClear();
+      h.submit.mutateAsync.mockClear();
+      await open();
+      expect(screen.getByText(/no site, yard or staging location yet/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Send for approval' })).toBeDisabled();
+      expect(h.saveDraft.mutateAsync).not.toHaveBeenCalled();
+      expect(h.submit.mutateAsync).not.toHaveBeenCalled();
     });
   });
 

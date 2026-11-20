@@ -23,4 +23,3 @@ create or replace function public.mrq_prior_quantity(p_work_order_id uuid, p_ite
                  where d.id = r.transfer_document_id and d.status = 'Posted'
               )), 0)
 $$;
-

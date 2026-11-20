@@ -6,7 +6,7 @@ import { BackBar } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { useMaterialRequest, useMaterialRequestMutations, useWaitingForMe } from '@/src/hooks/useMaterialRequests';
-import { useStockItems, useStockWarehouses } from '@/src/hooks/useStock';
+import { useStockItems, useStockKeepers, useStockWarehouses } from '@/src/hooks/useStock';
 import { formatDay } from '@/src/lib/format';
 import { RequestStatusPill, RequestWorkOrder, StepStatusPill } from './materialRequests/shared';
 import { useLabels, useRefusalText, useUserNames } from './materialRequests/useMaterialRequestText';
@@ -28,6 +28,7 @@ const MaterialRequestDetailPage: React.FC = () => {
   const waiting = useWaitingForMe();
   const { data: items } = useStockItems(true);
   const { data: warehouses } = useStockWarehouses();
+  const { data: keepers } = useStockKeepers();
   const m = useMaterialRequestMutations();
   const [dialog, setDialog] = useState<Dialog>(null);
   const [source, setSource] = useState('');
@@ -48,9 +49,14 @@ const MaterialRequestDetailPage: React.FC = () => {
   const canWithdraw = may('withdraw', 'materialRequest', ctx);
   const needsSource = open?.position === last;
   const itemName = (id: string) => { const i = items?.find((x) => x.id === id); return i ? `${i.code} · ${i.name}` : '—'; };
-  const sourceOptions = (warehouses ?? []).filter((w) => w.kind === 'central' && !w.archived_at).map((w) => ({ value: w.id, label: `${w.code} · ${w.name}` }));
-  // The RPC refuses the author (same SoD line as the approval), so the affordance is hidden from them too.
-  const canRetryTransfer = req.status === 'approved' && (!req.transferDocumentId || req.transferCancelled) && req.createdBy !== currentUser?.id;
+  const sourceWarehouses = (warehouses ?? []).filter((w) => w.kind === 'central' && !w.archived_at);
+  const sourceOptions = sourceWarehouses.map((w) => ({ value: w.id, label: `${w.code} · ${w.name}` }));
+  const retrySourceOptions = sourceWarehouses
+    .filter((w) => may('create', 'stockDocument', { record: { isKeeper: keepers?.some((k) => k.warehouse_id === w.id && k.user_id === currentUser?.id) ?? false } }))
+    .map((w) => ({ value: w.id, label: `${w.code} · ${w.name}` }));
+  // The retry RPC refuses both the author and anyone who is not a source-warehouse keeper or Admin.
+  const canRetryTransfer = req.status === 'approved' && (!req.transferDocumentId || req.transferCancelled) &&
+    req.createdBy !== currentUser?.id && retrySourceOptions.length > 0;
   const noApprover = req.status === 'pending' && !open;
 
   const close = () => { setDialog(null); setDialogError(null); };
@@ -151,7 +157,7 @@ const MaterialRequestDetailPage: React.FC = () => {
         onCancel={close} onConfirm={() => void run(() => m.cancel.mutateAsync({ id: req.id }), t('detail.withdrawn', 'Request withdrawn'))} />
       <ConfirmDialog open={dialog?.kind === 'retry'} title={t('detail.retry', 'Create the transfer again')} confirmLabel={t('detail.retry', 'Create the transfer again')}
         description={<SelectField label={t('detail.source', 'Warehouse the material leaves from')} required value={source} onChange={setSource} fullWidth
-          options={[{ value: '', label: t('detail.chooseSource', 'Choose a warehouse') }, ...sourceOptions]} />}
+          options={[{ value: '', label: t('detail.chooseSource', 'Choose a warehouse') }, ...retrySourceOptions]} />}
         confirmDisabled={!source} loading={m.retryTransfer.isPending} error={dialogError} onCancel={close}
         onConfirm={() => void run(() => m.retryTransfer.mutateAsync({ id: req.id, sourceWarehouseId: source }), t('detail.retried', 'Transfer draft created'))} />
     </div>

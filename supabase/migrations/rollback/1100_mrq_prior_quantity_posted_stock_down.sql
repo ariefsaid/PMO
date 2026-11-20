@@ -7,4 +7,3 @@ create or replace function public.mrq_prior_quantity(p_work_order_id uuid, p_ite
    where r.work_order_id = p_work_order_id and l.item_id = p_item_id and r.id <> p_exclude_request
      and r.status in ('pending','approved','fulfilled')
 $$;
-

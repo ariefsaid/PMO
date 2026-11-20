@@ -35,7 +35,8 @@ const MaterialRequestNewPage: React.FC = () => {
   const { data: projects } = useProjectPickerOptions();
   const { data: items, isPending: itemsPending, isError: itemsError, refetch: refetchItems } = useStockItems();
   const { data: units } = useStockUnits();
-  const { data: warehouses } = useStockWarehouses();
+  const { data: warehouses, isPending: warehousesPending, isError: warehousesError, refetch: refetchWarehouses } = useStockWarehouses();
+  const warehousesReady = !warehousesPending && !warehousesError && warehouses !== undefined;
   const wholeByUnit = useMemo(() => new Map((units ?? []).map((u) => [u.id, u.whole_only])), [units]);
   const m = useMaterialRequestMutations();
 
@@ -64,8 +65,8 @@ const MaterialRequestNewPage: React.FC = () => {
 
   const workOrders = useProjectWorkOrders(projectId);
   // Where the delivery goes: one location is picked by the server; with several the requester must choose (#2608).
-  const locations = useMemo(() => (warehouses ?? []).filter((w) => ['site', 'yard', 'staging'].includes(w.kind) && !w.archived_at && w.project_id === projectId)
-    .map((w) => ({ value: w.id, label: `${w.code} · ${w.name}` })), [warehouses, projectId]);
+  const locations = useMemo(() => (warehousesReady ? warehouses : []).filter((w) => ['site', 'yard', 'staging'].includes(w.kind) && !w.archived_at && w.project_id === projectId)
+    .map((w) => ({ value: w.id, label: `${w.code} · ${w.name}` })), [warehouses, warehousesReady, projectId]);
   const destination = locations.length > 1 ? (locations.some((o) => o.value === toWarehouseId) ? toWarehouseId : '') : '';
   const itemIds = lines.map((l) => l.itemId).filter(Boolean);
   const plans = useLinePlans(workOrderId || undefined, itemIds, requestId);
@@ -91,7 +92,7 @@ const MaterialRequestNewPage: React.FC = () => {
     if (isPositiveDecimal(v) && unitId && wholeByUnit.get(unitId) && !isWholeQuantity(v)) return 'wholeOnly';
     return undefined;
   });
-  const complete = extraErrors.every((e) => !e) && Boolean(workOrderId) && (locations.length <= 1 || Boolean(destination)) && Boolean(neededBy) && lines.every((l) => l.itemId) && planReady && Object.keys(errors).length === 0;
+  const complete = warehousesReady && locations.length > 0 && extraErrors.every((e) => !e) && Boolean(workOrderId) && (locations.length === 1 || Boolean(destination)) && Boolean(neededBy) && lines.every((l) => l.itemId) && planReady && Object.keys(errors).length === 0;
 
   const patch = (key: string, p: Partial<FormLine>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...p } : l)));
 
@@ -132,12 +133,14 @@ const MaterialRequestNewPage: React.FC = () => {
           statusOverride={workOrders.isPending && projectId ? 'loading' : workOrders.isError ? 'error' : undefined} onRetry={() => void workOrders.refetch()}
           selectedOption={woOptions.find((o) => o.value === workOrderId) ?? null} loadOptions={() => Promise.resolve(woOptions)}
           onChange={(v) => setWorkOrderId(v)} />
-        {projectId && locations.length > 1 && (
+        {projectId && warehousesPending && <ListState variant="loading" rows={1} />}
+        {projectId && warehousesError && <ListState variant="error" title={t('form.warehousesError', "Couldn't load delivery locations")} onRetry={() => void refetchWarehouses()} />}
+        {projectId && warehousesReady && locations.length > 1 && (
           <SelectField label={t('form.destination', 'Deliver to')} required value={destination} onChange={setToWarehouseId} fullWidth
             options={[{ value: '', label: t('form.chooseDestination', 'Choose a location') }, ...locations]}
             error={touched && !destination ? t('form.destinationRequired', 'This project has several locations. Choose where the material goes.') : undefined} />
         )}
-        {projectId && warehouses && locations.length === 0 && (
+        {projectId && warehousesReady && locations.length === 0 && (
           <p role="status" className="text-control text-warning-foreground">{t('form.noDestination', 'This project has no site, yard or staging location yet. The stock keeper must add one before this can be delivered.')}</p>
         )}
         <DateField label={t('form.neededBy', 'Needed by')} required value={neededBy} onChange={setNeededBy} min={orgTz ? orgToday : undefined} fullWidth
@@ -185,7 +188,7 @@ const MaterialRequestNewPage: React.FC = () => {
         <TextArea label={t('form.note', 'Note (optional)')} rows={2} value={note} onChange={setNote} />
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
           <Button variant="outline" disabled={busy} onClick={() => void save(false)}>{t('form.saveDraft', 'Save draft')}</Button>
-          <Button variant="primary" loading={busy} disabled={!complete && touched} onClick={() => void save(true)}>{t('form.submit', 'Send for approval')}</Button>
+          <Button variant="primary" loading={busy} disabled={!warehousesReady || locations.length === 0 || (!complete && touched)} onClick={() => void save(true)}>{t('form.submit', 'Send for approval')}</Button>
         </div>
       </div>
     </div>
