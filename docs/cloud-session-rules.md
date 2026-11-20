@@ -22,6 +22,7 @@ Every cloud Claude session started for this repo follows these rules. Its brief 
 - Skills: run `scripts/vendor-skills.sh`, then read `.claude/skills/<name>/SKILL.md` for `feature-forge` (spec), `tdd`, and `restructure` (any new or changed screen).
 - Spec → `docs/specs/<slug>.spec.md` (EARS requirements, Given/When/Then `AC-###`). Plan → `docs/plans/2026-11-20-<slug>.md` (exact paths, owning test layer per AC). ADR only for an architectural or irreversible choice. New domain terms → `docs/glossary.md`.
 - Build test-first. Patterns: repository seam (ADR-0017), `can()` gates (ADR-0016), server-enforced SoD and destructive deletes (ADR-0019), soft-archive (ADR-0018), shared form primitives, `DESIGN.md` tokens, English and Bahasa Indonesia strings.
+- RLS policies wrap each caller-context helper in `(select helper())` so it runs once per query (`supabase/tests/0646_rls_initplan.test.sql` fails on a bare call).
 - Migrations: only numbers in your assigned range; RLS on every new table; `org_id` stamped by default/trigger, never from the client; every migration reversible (`supabase/migrations/rollback/`).
 - Money, SoD or approval logic: enforce in the database (security-definer RPC or restrictive policy) with a pgTAP proof, then mutation-check it (break the rule, the test must go red, restore).
 
