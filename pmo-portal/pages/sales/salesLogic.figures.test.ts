@@ -4,7 +4,7 @@ import { projectFunnelModel } from '../sales-pipeline/pipelineFunnelModel';
 import { pipelineFigures } from './salesLogic';
 import type { SalesModel } from './useSalesModel';
 
-const norm = (lines: string[]) => lines.map((l) => l.replace(/[  ]/g, ' '));
+const norm = (lines: string[]) => lines.map((l) => l.replace(/[\u00a0\u202f]/g, ' '));
 const stage = (status: string, count: number, total_value: number, weighted_value: number | null) =>
   ({ status, count, total_value, weighted_value, win_probability: 0.5 }) as unknown as PipelineStage;
 const deal = (status: string, currency: string, contract_value: number, go = 0.5) =>

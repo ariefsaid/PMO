@@ -10,7 +10,7 @@ const stage = (status: string, count: number, total_value: number, weighted_valu
 const deal = (status: string, currency: string, contract_value: number): PipelineProject =>
   ({ id: `${status}-${currency}-${contract_value}`, name: 'Deal', status, currency, contract_value, win_probability: 0.5 }) as unknown as PipelineProject;
 
-const norm = (s: string | null | undefined) => (s ?? '').replace(/[  ]/g, ' ');
+const norm = (s: string | null | undefined) => (s ?? '').replace(/[\u00a0\u202f]/g, ' ');
 
 function renderFunnel(stages: PipelineStage[], projects: PipelineProject[]) {
   const projection = projectFunnelModel(stages, projects, 'USD');
