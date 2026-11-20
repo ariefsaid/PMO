@@ -1,4 +1,4 @@
--- 0961_retention.test.sql — retention held on a progress claim and released later (#1572).
+-- 1022_retention.test.sql — retention held on a progress claim and released later (#1572).
 -- AC-RET-001..003 (docs/specs/billing-stages.spec.md), ADR-0105. Ids: 09610000-… (synthetic).
 -- Users: b1 fin1 (claims), b2 fin2 (raises), b3 admin (approves), b4 pm, b8 foreign admin.
 begin;

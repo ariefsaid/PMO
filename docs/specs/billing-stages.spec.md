@@ -164,5 +164,5 @@ how much of each invoice the client is still holding back as retention.
 | AC-BST-010, AC-BST-011 | `pmo-portal/src/lib/billingStages.test.ts` (unit) |
 | AC-BST-020 | `supabase/tests/0962_billing_reconciliation.test.sql` (pgTAP) |
 | AC-RET-004 | `pmo-portal/e2e/AC-RET-004-billing-reconciliation-retention.spec.ts` (e2e) |
-| AC-RET-001..003 | `supabase/tests/0961_retention.test.sql` (pgTAP) |
+| AC-RET-001..003 | `supabase/tests/1022_retention.test.sql` (pgTAP) |
 | AC-TRACE-001 | `supabase/tests/0962_billing_reconciliation.test.sql` (pgTAP, the full trace) · `pmo-portal/pages/project-detail/tabs/__tests__/ClaimBillingStages.test.tsx` (render) |

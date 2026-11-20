@@ -133,9 +133,9 @@ Totals: 14 ACs, 14 covered, 0 missing: none
 | AC-BST-010 | (unstated) | vitest: `pmo-portal/src/lib/billingStages.test.ts` |
 | AC-BST-011 | (unstated) | vitest: `pmo-portal/src/lib/billingStages.test.ts` |
 | AC-BST-020 | (unstated) | vitest: `pmo-portal/src/lib/db/billingStages.test.ts`; pgTAP: `supabase/tests/0962_billing_reconciliation.test.sql` |
-| AC-RET-001 | (unstated) | pgTAP: `supabase/tests/0565_log_table_retention_purges.test.sql`; pgTAP: `supabase/tests/0961_retention.test.sql` |
-| AC-RET-002 | (unstated) | vitest: `pmo-portal/src/lib/db/billingStages.test.ts`; pgTAP: `supabase/tests/0961_retention.test.sql` |
-| AC-RET-003 | (unstated) | vitest: `pmo-portal/src/auth/policy.billingStages.test.ts`; pgTAP: `supabase/tests/0961_retention.test.sql` |
+| AC-RET-001 | (unstated) | pgTAP: `supabase/tests/0565_log_table_retention_purges.test.sql`; pgTAP: `supabase/tests/1022_retention.test.sql` |
+| AC-RET-002 | (unstated) | vitest: `pmo-portal/src/lib/db/billingStages.test.ts`; pgTAP: `supabase/tests/1022_retention.test.sql` |
+| AC-RET-003 | (unstated) | vitest: `pmo-portal/src/auth/policy.billingStages.test.ts`; pgTAP: `supabase/tests/1022_retention.test.sql` |
 | AC-RET-004 | (unstated) | e2e: `pmo-portal/e2e/AC-RET-004-billing-reconciliation-retention.spec.ts` |
 | AC-TRACE-001 | (unstated) | vitest: `pmo-portal/pages/project-detail/tabs/__tests__/ClaimBillingStages.test.tsx`; vitest: `pmo-portal/src/lib/db/billingStages.test.ts`; pgTAP: `supabase/tests/0962_billing_reconciliation.test.sql` |
 

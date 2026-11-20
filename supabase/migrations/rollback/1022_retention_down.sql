@@ -1,4 +1,4 @@
--- 0961_retention_down.sql — reverses 0961. Refuses while retention exists: a claim holding retention or any release row (dropping
+-- 1022_retention_down.sql — reverses 0961. Refuses while retention exists: a claim holding retention or any release row (dropping
 -- the columns would lose what the client still holds back).
 do $$ begin
   if exists (select 1 from public.progress_claims where retention_amount > 0) or exists (select 1 from public.retention_releases) then

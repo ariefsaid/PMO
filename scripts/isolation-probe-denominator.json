@@ -879,7 +879,7 @@
     "task-proofs"
   ],
   "rpcs": [
-    {"class":"write","expect_denial":[{"http":403,"sqlstate":"42501"},{"http":500,"sqlstate":"P0002"}],"name":"set_project_billing_terms","source":["supabase/migrations/0961_retention.sql:62","supabase/migrations/0961_retention.sql:65"]},
+    {"class":"write","expect_denial":[{"http":403,"sqlstate":"42501"},{"http":500,"sqlstate":"P0002"}],"name":"set_project_billing_terms","source":["supabase/migrations/1022_retention.sql:62","supabase/migrations/1022_retention.sql:65"]},
     {"name":"capture_history_apply","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0866_erp_purchase_capture.sql:191"]},
     {"name":"capture_history_apply_internal","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0866_erp_purchase_capture.sql:191"]},
     {"name":"assign_capture_invoices","class":"read","expect_denial":[{"http":403,"sqlstate":"42501"}],"shape":"own-org-no-foreign-ids","source":["supabase/migrations/0882_capture_invoice_assignment.sql:617","supabase/migrations/0882_capture_invoice_assignment.sql:626"]},
