@@ -289,7 +289,7 @@ select plan(7);
 -- not recorded. Proven by supabase/tests/three_way_match.test.sql and three_way_match_mutation.test.sql. `get_bill_match`
 -- is a read-only definer and is not listed.
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
--- Integration union (#2516 rehearsal): dev's 179 names plus the retained writers of the merged feature branches (+26, counted from the list below) = 205.
+-- Integration union (#2516 rehearsal): dev's 179 names plus the retained writers of the merged feature branches (+29, counted from the list below) = 208.
 insert into client_callable_rpc_names (proname) values
   ('set_document_warning_days'), -- 0972: active Admin, scoped to caller org; document_expiry pgTAP
   ('accept_connect_proposals'),
@@ -470,6 +470,9 @@ insert into client_callable_rpc_names (proname) values
   ('mrq_submit'),
   ('mrq_decide_step'),
   ('mrq_cancel'),
+  ('attendance_record'),
+  ('attendance_generate_timesheet'),
+  ('attendance_decide_week'),
   ('set_stock_reorder_level'),
   ('set_stock_warehouse_keeper'),
   ('set_subcontract_po_lines'),
@@ -517,8 +520,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  205,
-  'AC-ACL-002 all 205 retained client-callable RPC names still have a public function');
+  208,
+  'AC-ACL-002 all 208 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -527,8 +530,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  205,
-  'AC-ACL-003 all 205 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  208,
+  'AC-ACL-003 all 208 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

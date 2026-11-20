@@ -1,0 +1,70 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
+import type { Role } from '@/src/auth/AuthContext';
+import { ToastProvider } from '@/src/components/ui';
+
+const h = vi.hoisted(() => ({
+  role: 'Project Manager' as string,
+  roster: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() },
+  placements: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
+  rosterArgs: [] as unknown[],
+}));
+vi.mock('@/src/hooks/useCrews', () => ({
+  useWorkOrderRoster: (wo: string | null, date: string | null) => { h.rosterArgs.push([wo, date]); return h.roster; },
+  useWorkOrderCrews: () => h.placements,
+  useCrews: () => ({ data: [{ id: 'c1', code: 'CR-1', name: 'Crew one' }], isPending: false, isError: false }),
+  useCrewWorkOrders: () => ({ data: [{ id: 'wo1', wo_number: 'WO-1', title: 'Pipe rack' }], isLoading: false, isError: false, refetch: vi.fn() }),
+  useCrewMutations: () => ({ roster: { mutateAsync: vi.fn() }, endRoster: { mutateAsync: vi.fn() } }),
+}));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role as Role, effectiveRole: h.role as Role }) }));
+
+import { WorkOrderRoster } from './WorkOrderRoster';
+
+const renderAt = (url: string) => render(<MemoryRouter initialEntries={[url]}><ToastProvider><WorkOrderRoster /></ToastProvider></MemoryRouter>);
+
+describe('work-order roster for a date (#2528)', () => {
+  beforeEach(() => {
+    h.rosterArgs = [];
+    h.roster = {
+      data: [{
+        crew_id: 'c1', crew_code: 'CR-1', crew_name: 'Crew one', field_controller_id: null,
+        members: [
+          { worker_id: 'w1', display_name: 'Ana', kind: 'own', has_login: true, standard_role_id: 'r1' },
+          { worker_id: 'w2', display_name: 'Budi', kind: 'vendor', has_login: false, standard_role_id: 'r2' },
+        ],
+        roles: [
+          { standard_role_id: 'r1', name: 'Foreman', headcount: 1, placed: 1, shortfall: 0 },
+          { standard_role_id: 'r2', name: 'Welder', headcount: 3, placed: 1, shortfall: 2 },
+        ],
+        shortfall: 2,
+      }],
+      isPending: false, isError: false, refetch: vi.fn(),
+    };
+  });
+
+  it('AC-CRW-004 the roster for a date shows each crew\'s members and its role shortfall', () => {
+    renderAt('/crews?view=roster&wo=wo1&date=2026-11-05');
+    expect(h.rosterArgs).toContainEqual(['wo1', '2026-11-05']);
+    const crew = screen.getByRole('region', { name: /Crew one/ });
+    expect(within(crew).getByText('Ana')).toBeInTheDocument();
+    expect(within(crew).getByText('Budi')).toBeInTheDocument();
+    const welder = within(crew).getByRole('row', { name: /Welder/ });
+    expect(within(welder).getByText('1 of 3')).toBeInTheDocument();
+    expect(within(welder).getByText('2 short')).toBeInTheDocument();
+    expect(within(within(crew).getByRole('row', { name: /Foreman/ })).queryByText(/short/)).toBeNull();
+    expect(within(crew).getByText('2 short in total')).toBeInTheDocument();
+  });
+
+  it('AC-CRW-004 with no crew rostered that day it says so and offers to roster one', () => {
+    h.roster = { ...h.roster, data: [] };
+    renderAt('/crews?view=roster&wo=wo1&date=2026-11-05');
+    expect(screen.getByText('No crew serves this work order that day')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Roster a crew' }).length).toBeGreaterThan(0);
+  });
+
+  it('asks for a work order first', () => {
+    renderAt('/crews?view=roster');
+    expect(screen.getByText('Choose a work order to see who serves it')).toBeInTheDocument();
+  });
+});

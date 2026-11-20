@@ -108,6 +108,7 @@ const EquipmentAvailabilityPage = lazyWithPreload(() => import('./pages/equipmen
 const EquipmentAssetsPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAssets'));
 const ExpiringDocumentsPage = lazyWithPreload(() => import('./pages/equipment/ExpiringDocuments'));
 const EquipmentAssetDetailPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAssetDetail'));
+const CrewsPage = lazyWithPreload(() => import('./pages/crews/Crews'));
 const ApprovalsPage = lazyWithPreload(() => import('./pages/Approvals'));
 const CompaniesPage = lazyWithPreload(() => import('./pages/Companies'));
 const MasterDataPage = lazyWithPreload(() => import('./pages/MasterData'));
@@ -253,6 +254,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/equipment/expiring', chunks: [ExpiringDocumentsPage], namespaces: ['equipment'] },
   { path: '/equipment/availability', chunks: [EquipmentAvailabilityPage], namespaces: ['equipment'] },
   { path: '/equipment/assets/:assetId', chunks: [EquipmentAssetDetailPage], namespaces: ['equipment'] },
+  { path: '/crews', chunks: [CrewsPage], namespaces: ['crews'] },
   { path: '/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
   { path: '/administration/:section', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement'] },
   { path: '/administration', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement'] },
@@ -468,6 +470,8 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/equipment/expiring', element: <ExpiringDocumentsPage /> },
   { path: '/equipment/availability', element: <EquipmentAvailabilityPage /> },
   { path: '/equipment/assets/:assetId', element: <EquipmentAssetDetailPage /> },
+  // #2528: crews, the roster per work order and the daily attendance tick.
+  { path: '/crews', element: <CrewsPage /> },
   { path: '/reports', element: <FinanceLegacyRedirect to="/finance/reports" /> },
   { path: '/administration', element: <AdministrationEntryRedirect /> },
   { path: '/administration/users', element: <AdministrationPage /> },

@@ -111,6 +111,9 @@ select set_eq(
             -- 0337: work_order_acceptances carries prepared_by and confirmed_by -> profiles. No DAL code embeds
             -- profiles from it; whatever ships first MUST qualify it with !constraint_name.
             ('work_order_acceptances -> profiles'),
+            -- 0989 (#2528): attendance_days carries recorded_by and approved_by -> profiles. No DAL code embeds profiles
+            -- from it; whatever ships first MUST qualify it with !constraint_name.
+            ('attendance_days -> profiles'),
             -- 0447 (#1519): equipment_usage_entries carries author_id and approver_id -> profiles. No DAL code embeds
             -- profiles from it yet; whatever ships first MUST qualify it with !constraint_name.
             ('equipment_usage_entries -> profiles'),
