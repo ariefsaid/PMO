@@ -20,8 +20,15 @@ The guides use the app's default terms:
 
 Your organisation may have renamed some of these words (for example, calling work orders "service
 orders"). An administrator can change these names once for everyone under **Administration →
-Terminology**; the renamed word then replaces the default everywhere in the app, in both languages.
+Terminology** (see [Terminology](office/terminology.md)); the renamed word then replaces the default everywhere in the app, in both languages.
 This guide keeps the default wording.
+
+## Roles
+
+The app has five roles: **Admin**, **Executive**, **Project Manager**, **Finance** and
+**Engineer**. Each guide page lists the roles that can do the job. When a screen says an
+action is restricted for your role, the database enforces it — the guide only describes what
+you can actually do.
 
 ## Guides
 
@@ -40,6 +47,22 @@ This guide keeps the default wording.
 | [Site stock and transfers](stock/site-stock-and-transfers.md) | Receive stock, move it to a site or yard, issue it to a work order, and see what a work order holds |
 | [Equipment daily status](equipment/equipment-daily-status.md) | Mark each machine's condition each day, with proof for downtime |
 | [Tasks per work order](tasks/tasks-per-work-order.md) | Create tasks on a work order, require proof of completion, and mark them done |
+
+### Office and finance
+
+| Page | Job |
+|---|---|
+| [Work orders](office/work-orders.md) | Recording client orders and following one order's page |
+| [Unit-rate catalogue](office/unit-rate-catalogue.md) | Keeping priced work items and pricing contract lines from them |
+| [Plan vs actual](office/plan-vs-actual.md) | Planned budget against real cost, and splitting shared cost |
+| [Billing stages and retention](office/billing-stages-and-retention.md) | The steps a progress claim passes before its invoice, and money the client holds back |
+| [Three-way match](office/three-way-match.md) | Vendor bills checked against order and receipt before payment |
+| [Approval routing](office/approval-routing.md) | Who approves purchase requests, and naming those approvers |
+| [Equipment rental and downtime](office/equipment-rental-and-downtime.md) | Daily machine status, availability figures, and checking a rental invoice |
+| [Document expiry](office/document-expiry.md) | Permits and certificates with expiry dates and warnings |
+| [People register](office/people-register.md) | The list of people who hold documents, app user or not |
+| [Terminology](office/terminology.md) | Renaming PMO's terms to your organisation's words |
+| [Fiscal calendar](office/fiscal-calendar.md) | The month your financial year starts, for spending-per-year views |
 
 ### Related reading
 
