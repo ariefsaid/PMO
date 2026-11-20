@@ -781,7 +781,7 @@ that material.
 
 **Supply-risk status** — a supplier's state as a source of supply: Active, At risk or Inactive, set by a person (Admin or Finance) with a reason and audited; it never changes by itself and blocks nothing.
 
-**Payables age** — whole calendar days from a supplier invoice's date to the organisation's today, for an unpaid invoice; with an ERP connected, the ERP's own aging buckets are used instead. It only suggests a supply-risk status.
+**Payables age** — whole calendar days from a *procurement case's earliest* supplier-invoice date to the organisation's today, for the case's unpaid balance (the payables figure is per case, one age per case); when the organisation's procurement domain is externally owned, the ERP's own aging buckets are used instead. It only suggests a supply-risk status.
 
 **Exposed work order** — a Draft or Issued work order that has at least one open purchase order (Issued or Acknowledged) from a given supplier; it is warned when that supplier is At risk or Inactive.
 
