@@ -344,18 +344,18 @@ Totals: 14 ACs, 10 covered, 4 missing: AC-IMT-008, AC-IMT-010, AC-IMT-013, AC-IM
 
 | AC | Intended layer (per spec) | Test found on branch |
 |---|---|---|
-| AC-TWOP-001 | pgTAP | pgTAP: `supabase/tests/0991_task_work_order_proof.test.sql` |
-| AC-TWOP-002 | pgTAP | pgTAP: `supabase/tests/0991_task_work_order_proof.test.sql` |
-| AC-TWOP-003 | pgTAP | pgTAP: `supabase/tests/0991_task_work_order_proof.test.sql` |
-| AC-TWOP-004 | pgTAP (mutation-check: remove the trigger check → red) | pgTAP: `supabase/tests/0991_task_work_order_proof.test.sql` |
-| AC-TWOP-005 | pgTAP | pgTAP: `supabase/tests/0991_task_work_order_proof.test.sql` |
-| AC-TWOP-006 | pgTAP | pgTAP: `supabase/tests/0991_task_work_order_proof.test.sql` |
+| AC-TWOP-001 | pgTAP | pgTAP: `supabase/tests/1038_task_work_order_proof.test.sql` |
+| AC-TWOP-002 | pgTAP | pgTAP: `supabase/tests/1038_task_work_order_proof.test.sql` |
+| AC-TWOP-003 | pgTAP | pgTAP: `supabase/tests/1038_task_work_order_proof.test.sql` |
+| AC-TWOP-004 | pgTAP (mutation-check: remove the trigger check → red) | pgTAP: `supabase/tests/1038_task_work_order_proof.test.sql` |
+| AC-TWOP-005 | pgTAP | pgTAP: `supabase/tests/1038_task_work_order_proof.test.sql` |
+| AC-TWOP-006 | pgTAP | pgTAP: `supabase/tests/1038_task_work_order_proof.test.sql` |
 | AC-TWOP-007 | Unit (repository + page) | vitest: `pmo-portal/src/lib/db/tasks.workOrder.test.ts` |
 | AC-TWOP-008 | Unit (RTL) | vitest: `pmo-portal/src/components/tasks/TaskProofPanel.test.tsx` |
 | AC-TWOP-009 | Unit | vitest: `pmo-portal/src/components/tasks/WorkOrderOpenTasks.test.tsx`; vitest: `pmo-portal/src/lib/db/tasks.workOrder.test.ts` |
 | AC-TWOP-010 | E2E (one journey) | e2e: `pmo-portal/e2e/AC-TWOP-010-proof-before-done.spec.ts` |
-| AC-TWOP-011 | pgTAP | pgTAP: `supabase/tests/0991_task_work_order_proof.test.sql` |
-| AC-TWOP-012 | Unit + pgTAP (count) | vitest: `pmo-portal/src/lib/db/taskProofs.test.ts`; vitest: `pmo-portal/src/lib/db/taskProofs.ts`; pgTAP: `supabase/tests/0991_task_work_order_proof.test.sql` |
+| AC-TWOP-011 | pgTAP | pgTAP: `supabase/tests/1038_task_work_order_proof.test.sql` |
+| AC-TWOP-012 | Unit + pgTAP (count) | vitest: `pmo-portal/src/lib/db/taskProofs.test.ts`; vitest: `pmo-portal/src/lib/db/taskProofs.ts`; pgTAP: `supabase/tests/1038_task_work_order_proof.test.sql` |
 
 Totals: 12 ACs, 12 covered, 0 missing: none
 

@@ -1,4 +1,4 @@
--- 0991_task_work_order_proof.test.sql — #2531. Migration under test: 0991_task_work_order_proof.sql.
+-- 1038_task_work_order_proof.test.sql — #2531. Migration under test: 1038_task_work_order_proof.sql.
 -- AC-TWOP-001..006, 011, 012 (count). Fixtures are written as the owner role; assertions run as the actor.
 -- ⚑ Row-changing assertions COUNT ROWS where an RLS-denied write is a silent no-op.
 begin;

@@ -1,6 +1,6 @@
--- 0991_task_work_order_proof.sql — #2531: a task may belong to a work order and may require proof of completion.
+-- 1038_task_work_order_proof.sql — #2531: a task may belong to a work order and may require proof of completion.
 -- Spec docs/specs/task-work-order-proof.spec.md (FR-TWOP-001..016); plan docs/plans/2026-11-20-task-work-order-proof.md.
--- Proven by supabase/tests/0991_task_work_order_proof.test.sql. Not a money path.
+-- Proven by supabase/tests/1038_task_work_order_proof.test.sql. Not a money path.
 --   §1 tasks.work_order_id + tasks.proof_required.
 --   §2 check_task_work_order: the link rule (own project and org, no project-less link, no new link to a Cancelled WO,
 --      no project move while linked, structure roles only may set either column on insert).
@@ -9,7 +9,7 @@
 --   §3 task_proofs + RLS + org stamp + count cap + append-only on a Done proof-required task + audit rows.
 --   §4 guard_task_done_needs_proof: the database refuses Done with no live proof, whichever policy admitted the write.
 --   §5 private bucket task-proofs + storage policies (read = the task read rule; write = assignee or structure role).
--- ── REVERSE: supabase/migrations/rollback/0991_task_work_order_proof_down.sql ──────────────────────────────
+-- ── REVERSE: supabase/migrations/rollback/1038_task_work_order_proof_down.sql ──────────────────────────────
 
 -- ── §1 columns ────────────────────────────────────────────────────────────────────────────────────────────
 alter table public.tasks
