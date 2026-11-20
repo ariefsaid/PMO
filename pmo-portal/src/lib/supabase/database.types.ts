@@ -346,6 +346,39 @@ export type Database = {
         }
         Relationships: []
       }
+      approval_step_pins: {
+        Row: {
+          approver_id: string
+          created_at: string
+          created_by: string
+          id: string
+          org_id: string
+          position: number
+          project_id: string
+          role: Database["public"]["Enums"]["user_role"]
+        }
+        Insert: {
+          approver_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          org_id?: string
+          position: number
+          project_id: string
+          role: Database["public"]["Enums"]["user_role"]
+        }
+        Update: {
+          approver_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          org_id?: string
+          position?: number
+          project_id?: string
+          role?: Database["public"]["Enums"]["user_role"]
+        }
+        Relationships: []
+      }
       contract_rate_assignees: {
         Row: {
           created_at: string
@@ -13514,6 +13547,7 @@ export type Database = {
         Args: { p_delegator_id: string; p_ends_on: string; p_stand_in_id: string; p_starts_on: string }
         Returns: string
       }
+      mrq_set_step_pin: { Args: { p_approver_id: string; p_position: number; p_project_id: string }; Returns: undefined }
       mrq_submit: { Args: { p_client_request_id?: string; p_request_id: string }; Returns: undefined }
       mrq_waiting_for_me: {
         Args: never

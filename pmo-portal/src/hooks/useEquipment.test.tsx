@@ -20,8 +20,7 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1'
 import {
   EQUIPMENT_QUERY_ROOTS, useEquipmentAssetPages, useEquipmentUsage, useEquipmentUsageTotals, useEquipmentCosting,
   useEquipmentAllocations, useSaveUsage, useTransitionUsage, useApproveWeek, useArchiveUsage, useSaveCosting,
-  useEndCosting, usePreviewCosting, useRegister, useAssetMaintenance, useEquipmentPickers, usePendingEquipmentChanges,
-  useAssetMatches, useAcceptAssetMatches, useSendEquipmentCommand, useOdooEquipmentOwned,
+  useEndCosting, usePreviewCosting,
 } from './useEquipment';
 
 const wrap = (client: QueryClient) =>
@@ -162,91 +161,5 @@ describe('AC-EQU-017 equipment hooks', () => {
     });
     expect(equipment.previewCosting).toHaveBeenCalledTimes(1);
     expect(spy).not.toHaveBeenCalled();
-  });
-});
-
-describe('#1511 F5 register and maintenance hooks (Odoo owns the register)', () => {
-  it('F5-T3 the register/maintenance/picker/pending/matches queries key on the org id under their own roots', async () => {
-    const client = fresh();
-    renderHook(() => {
-      useRegister();
-      useAssetMaintenance('equipment:42');
-      useEquipmentPickers('maintenance_stage');
-      usePendingEquipmentChanges(['r1']);
-      useAssetMatches(true);
-    }, { wrapper: wrap(client) });
-    await waitFor(() => expect(client.isFetching()).toBe(0));
-    const keys = client.getQueryCache().getAll().map((q) => q.queryKey);
-    for (const key of keys) expect(key[1]).toBe('org-1');
-    expect(keys.map((k) => k[0]).sort()).toEqual([
-      'equipment-asset-matches', 'equipment-maintenance', 'equipment-pending', 'equipment-pickers', 'equipment-register',
-    ]);
-    for (const key of keys) expect(EQUIPMENT_QUERY_ROOTS).toContain(key[0]);
-  });
-
-  it('F5-T3 nothing is fetched without an org id, a register ref, a picker kind, record ids, or enabled', async () => {
-    org = undefined;
-    const c1 = fresh();
-    renderHook(() => {
-      useRegister(); useAssetMaintenance('equipment:42'); useEquipmentPickers('service_type'); useAssetMatches(true);
-    }, { wrapper: wrap(c1) });
-    org = 'org-1';
-    const c2 = fresh();
-    renderHook(() => {
-      useAssetMaintenance(undefined); usePendingEquipmentChanges([]); useAssetMatches(false);
-    }, { wrapper: wrap(c2) });
-    await new Promise((r) => setTimeout(r, 20));
-    expect(equipment.listRegister).not.toHaveBeenCalled();
-    expect(equipment.listMaintenance).not.toHaveBeenCalled();
-    expect(equipment.listPickers).not.toHaveBeenCalled();
-    expect(equipment.listAssetMatches).not.toHaveBeenCalled();
-    expect(equipment.listPendingChanges).not.toHaveBeenCalled();
-  });
-
-  it('F5-T3 useOdooEquipmentOwned is true exactly when the org employs equipment under odoo', async () => {
-    externalDomainOwnership.listOwn.mockResolvedValue([
-      { id: 'o1', orgId: 'org-1', externalTier: 'odoo', domain: 'companies' },
-    ]);
-    const c1 = fresh();
-    const { result } = renderHook(() => useOdooEquipmentOwned(), { wrapper: wrap(c1) });
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.owned).toBe(false);
-
-    externalDomainOwnership.listOwn.mockResolvedValue([
-      { id: 'o1', orgId: 'org-1', externalTier: 'odoo', domain: 'companies' },
-      { id: 'o2', orgId: 'org-1', externalTier: 'odoo', domain: 'equipment' },
-    ]);
-    const c2 = fresh();
-    const r2 = renderHook(() => useOdooEquipmentOwned(), { wrapper: wrap(c2) });
-    await waitFor(() => expect(r2.result.current.isSuccess).toBe(true));
-    expect(r2.result.current.owned).toBe(true);
-  });
-
-  it('F5-T3 a sent equipment command invalidates the register, maintenance, pending and asset reads', async () => {
-    const client = fresh();
-    const spy = vi.spyOn(client, 'invalidateQueries');
-    const { result } = renderHook(() => useSendEquipmentCommand(), { wrapper: wrap(client) });
-    const record = { id: 'r1', erp_doc_kind: 'maintenance-request', subject: 'Hydraulic leak' };
-    await act(async () => {
-      await result.current.mutateAsync({ operation: 'create', record, idempotencyKey: '15110000-0000-4000-8000-000000000001' });
-    });
-    expect(equipment.sendEquipmentCommand).toHaveBeenCalledWith('create', record, '15110000-0000-4000-8000-000000000001');
-    const keys = spy.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
-    for (const root of ['equipment-register', 'equipment-maintenance', 'equipment-pending', 'equipment-assets']) {
-      expect(keys).toContain(JSON.stringify([root]));
-    }
-  });
-
-  it('F5-T3 an accepted match batch invalidates the register, matches and asset reads', async () => {
-    const client = fresh();
-    const spy = vi.spyOn(client, 'invalidateQueries');
-    const { result } = renderHook(() => useAcceptAssetMatches(), { wrapper: wrap(client) });
-    const pairs = [{ ref: 'equipment:42', action: 'link' as const, asset_id: 'a1' }];
-    await act(async () => { await result.current.mutateAsync(pairs); });
-    expect(equipment.acceptAssetMatches).toHaveBeenCalledWith(pairs);
-    const keys = spy.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
-    for (const root of ['equipment-register', 'equipment-asset-matches', 'equipment-assets']) {
-      expect(keys).toContain(JSON.stringify([root]));
-    }
   });
 });

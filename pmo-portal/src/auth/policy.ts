@@ -129,6 +129,7 @@ export type Entity =
   | 'materialRequest'
   | 'approvalChain'
   | 'standIn'
+  | 'approvalStepPin'
   | 'materialAllowance'
   | 'reorderLevel'
   | 'subcontractLines'
@@ -140,6 +141,7 @@ export type Entity =
   | 'equipmentAvailability'
   | 'equipmentRegister'
   | 'expiryDocument'
+  | 'documentType'
   | 'person'
   | 'maintenance'
   | 'tmRate'
@@ -410,6 +412,13 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     manage: (role, ctx) =>
       has(ALL, role) && ctx.record?.viewOnly !== true &&
       (role === 'Admin' || (!!ctx.currentUserId && ctx.record?.delegator_id === ctx.currentUserId)),
+  },
+  /** Pinning an approval step to a named person on a project (#2598, mrq_set_step_pin): an Admin or the project's own manager. */
+  approvalStepPin: {
+    view: allow(ALL),
+    manage: (role, ctx) =>
+      has(ALL, role) && ctx.record?.viewOnly !== true &&
+      (role === 'Admin' || (!!ctx.currentUserId && ctx.record?.project_manager_id === ctx.currentUserId)),
   },
   /**
    * Work-order allocations of contract lines (ADR-0091, migration 0337). Mirrors the allocation table's RLS:
@@ -924,6 +933,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     edit: expiryDocumentWrite,
     archive: expiryDocumentWrite,
   },
+  /** Document types and warning days (#2614). UX ONLY: document_types RLS and column grants (0970) and set_document_warning_days (0972) are Admin-only. View-as is view-only. */
+  documentType: { manage: allowUnlessViewOnly(ADMIN) },
   /**
    * The People register (#2542 follow-up, migration 1008). UX ONLY — RLS (0970 people_* policies) and the column grants are the
    * authority (ADR-0016). The crews policy change grants basic reads to members and create/edit to Admin and Project Manager; archive remains Admin-only. View-as is view-only.

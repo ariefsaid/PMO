@@ -81,12 +81,18 @@ export function mutate(def, c) {
   if (out === def) throw new Error(`${c.id}: mutation changed nothing`);
   return out;
 }
-export function runProof(ids = []) {
+// A case mutates a function (`fn`) or a view (`view`, re-created security_invoker like every money view here).
+const definition = (c) => {
+  if (!c.view) return sql(`select pg_get_functiondef('${c.fn}'::regprocedure)`).stdout;
+  const q = sql(`select pg_get_viewdef('${c.view}'::regclass)`).stdout.trim().replace(/;$/, '');
+  return q && `create or replace view ${c.view} with (security_invoker = true) as\n${q};\n`;
+};
+export function runProof(ids = [], cases = CASES) {
   if (!process.env.PMO_DB_LOCK_HELD) throw new Error('run under scripts/with-db-lock.sh');
   const results = [];
-  for (const c of CASES.filter((x) => !ids.length || ids.includes(x.id))) {
-    const orig = sql(`select pg_get_functiondef('${c.fn}'::regprocedure)`).stdout;
-    if (!orig) throw new Error(`${c.id}: function ${c.fn} not found`);
+  for (const c of cases.filter((x) => !ids.length || ids.includes(x.id))) {
+    const orig = definition(c);
+    if (!orig) throw new Error(`${c.id}: ${c.fn ?? c.view} not found`);
     const mutated = mutate(orig, c);
     let red;
     try {

@@ -1,4 +1,4 @@
-import type { StatusVariant, LifecycleStep } from '@/src/components/ui';
+import type { StatusVariant } from '@/src/components/ui';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
@@ -63,19 +63,6 @@ const STATUS_TO_STAGE: Record<string, number> = {
   Paid: 5,
 };
 
-/**
- * Statuses whose canonical user-facing label (AC-IXD-PROC-001) IS the honest name
- * of the stage NODE they currently occupy — so when they are the active step, the
- * current node renames to that status label instead of the generic stage name.
- *
- * `Quote Selected` qualifies: it sits on the VQ node (PROC-003) and "Quote
- * Selected" is the honest sub-state of that node. `Approved` does NOT qualify: it
- * occupies the VQ node only because approval ADVANCED the bar to the next action
- * — the VQ node must stay labelled "Vendor Quote", never "Approved" (that would
- * mislabel the node for a request that has no quote yet).
- */
-const STATUS_RENAMES_CURRENT_NODE = new Set<string>(['Quote Selected']);
-
 // ---------------------------------------------------------------------------
 // AC-IXD-PROC-001 — ONE canonical user-facing label per state (IxD #13).
 // The badge, the success toast, and the button verb that reaches a state all
@@ -98,29 +85,6 @@ export const STATUS_LABEL: Record<string, string> = {
   Rejected: 'Rejected',
   Cancelled: 'Cancelled',
 };
-
-/** The imperative verb shown on the button that transitions TO a state. */
-const STATUS_VERB: Record<string, string> = {
-  Requested: 'Submit Request',
-  Approved: 'Approve',
-  Rejected: 'Reject',
-  Draft: 'Rework (Back to Draft)',
-  'Vendor Quoted': 'Request supplier quotes',
-  'Quote Selected': 'Select Quote',
-  Ordered: 'Generate Purchase Order',
-  Received: 'Confirm Receipt',
-  'Vendor Invoiced': 'Record supplier invoice',
-  Paid: 'Mark as Paid',
-  Cancelled: 'Cancel procurement',
-};
-
-/**
- * The button verb that moves a request TO `to`. Names the same canonical state
- * the resulting badge + toast will show (AC-IXD-PROC-001).
- */
-export function transitionVerb(to: ProcurementStatus): string {
-  return STATUS_VERB[to as string] ?? (to as string);
-}
 
 /**
  * The state noun used in a success toast after a transition — the SAME canonical
@@ -269,90 +233,5 @@ export interface DocRefs {
   vi_number?: string | null;
 }
 
-/**
- * Builds the six-step lifecycle for the LifecycleStepper (node + inline variants).
- * Stages before the current index are `done`, the current is `current`, later are
- * `upcoming`. A Paid procurement marks the whole track done + the final node `paid`;
- * a terminal off-track procurement (Rejected/Cancelled) marks PR `current` and the
- * rest `skipped` (the lifecycle was abandoned). Doc refs decorate reached nodes.
- * Approval is a gate (no node) — it advances an `Approved` request to PR=done,
- * VQ=current (visible on the bar; see the module header).
- */
-export function lifecycleSteps(status: ProcurementStatus, refs?: DocRefs): LifecycleStep[] {
-  const idx = stageIndexForStatus(status);
-  const s = status as string;
-  // Aligned to PR_STAGES: PR · VQ · PO · GR · VI · Paid.
-  const refByStage: (string | null | undefined)[] = [
-    refs?.pr_number,
-    refs?.vq_number,
-    refs?.po_number,
-    refs?.gr_number,
-    refs?.vi_number,
-    undefined, // Paid node carries no minted doc ref
-  ];
-
-  if (s === 'Paid') {
-    return PR_STAGES.map((st, i) => ({
-      label: st.full,
-      state: i === PR_STAGES.length - 1 ? 'paid' : 'done',
-      ref: refByStage[i] ?? undefined,
-    }));
-  }
-
-  if (TERMINAL_OFF_TRACK.has(s)) {
-    return PR_STAGES.map((st, i) => ({
-      label: st.full,
-      state: i === 0 ? 'current' : 'skipped',
-      ref: i === 0 ? (refByStage[0] ?? undefined) : undefined,
-    }));
-  }
-
-  return PR_STAGES.map((st, i) => {
-    const state: LifecycleStep['state'] = i < idx ? 'done' : i === idx ? 'current' : 'upcoming';
-    // PROC-001: the ACTIVE node names the SAME canonical state the badge + toast show — BUT only
-    // when that status canonically belongs to this node. 'Quote Selected' does (PROC-003: it is the
-    // honest sub-state of the VQ node → the current node reads "Quote Selected"). 'Approved' does
-    // NOT — it occupies the VQ node only because the approval gate advanced the bar, so the node
-    // must stay "Vendor Quote" (never "Approved" for a request with no quote yet).
-    const label =
-      state === 'current' && STATUS_RENAMES_CURRENT_NODE.has(s) ? stageLabelForStatus(status) : st.full;
-    return {
-      label,
-      state,
-      ref: i <= idx ? (refByStage[i] ?? undefined) : undefined,
-    };
-  });
-}
-
 /** Which of the five document steps have a record on the purchase (PR · quote · PO · receipt · invoice). */
 export type StepRecords = Record<'pr' | 'vq' | 'po' | 'gr' | 'vi', boolean>;
-
-/**
- * Flexible-entry progress bar (ADR-0093): a purchase may start at any step, so the bar shows only the steps that
- * actually have a record, the current step, and the single next step — never an earlier step once a later document
- * exists. A Rejected/Cancelled track (`skipped` steps) is returned unchanged.
- */
-export function visibleLifecycleSteps(steps: LifecycleStep[], records: StepRecords): LifecycleStep[] {
-  if (steps.some((s) => s.state === 'skipped')) return steps;
-  let nextShown = false;
-  return steps.filter((s, i) => {
-    if (s.state === 'current' || s.state === 'paid') return true;
-    if (s.state === 'done') return records[PR_STAGES[i].key as keyof StepRecords] === true;
-    if (nextShown) return false;
-    nextShown = true;
-    return true;
-  });
-}
-
-/**
- * Navigates to the procurement's detail route (AC-NAV-006). With the workspace
- * tab layer removed, the row drill is a plain react-router navigate; the URL is
- * the single source of truth and the top-bar breadcrumb derives from it.
- * Mirrors `openOpportunity`.
- */
-export function openPR(
-  navigate: (path: string) => void,
-  pr: { id: string },
-): void {
-  navigate(`/procurement/${pr.id}`);
-}

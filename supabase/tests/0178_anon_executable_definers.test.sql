@@ -307,6 +307,7 @@ select plan(8);
 -- stock_can_attach; proven by the 1030 stock document files pgTAP.
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
 -- Retained names: union of every merged branch's inventory; the AC-ACL-002/003 counts are counted from this list.
+-- ⚑ AMENDED BY 1045 (#2598): `mrq_set_step_pin` joins the retained set.
 insert into client_callable_rpc_names (proname) values
   ('set_equipment_ownership'),  -- ⚑ AMENDED BY 1032 (#2526)
   ('save_equipment_rental_term'),  -- ⚑ AMENDED BY 1032 (#2526)
@@ -428,6 +429,9 @@ insert into client_callable_rpc_names (proname) values
   ('admin_change_domain_ownership'),
   ('admin_set_feedback_surveys'),
   ('list_budget_fiscal_years'),
+  ('load_stock_opening'),  -- ⚑ AMENDED BY 1046 (#2588): the three opening-balance writers; each is Admin-only and org-scoped (opening_balances.test.sql)
+  ('load_work_order_opening'),
+  ('reverse_opening_balance'),
   ('list_tm_claim_source_details'),  -- ⚑ AMENDED BY 0588 (#1514 D1)
   ('operator_agent_run_stats'),
   ('operator_create_org'),
@@ -496,6 +500,7 @@ insert into client_callable_rpc_names (proname) values
   ('mrq_submit'),
   ('mrq_decide_step'),
   ('mrq_cancel'),
+  ('mrq_set_step_pin'),  -- ⚑ AMENDED BY 1045 (#2598): Admin or the project's manager pins a step to a named approver (mrq_step_pin.test.sql)
   ('dsr_save_draft'),
   ('dsr_submit'),
   ('dsr_validate'),
@@ -554,8 +559,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  225,
-  'AC-ACL-002 all 224 retained client-callable RPC names still have a public function');
+  229,
+  'AC-ACL-002 all 229 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -564,8 +569,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  225,
-  'AC-ACL-003 all 224 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  229,
+  'AC-ACL-003 all 229 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
