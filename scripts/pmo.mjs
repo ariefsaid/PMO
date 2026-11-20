@@ -61,7 +61,7 @@ import { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS, AttributionFileError, ex
 import { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS, EquipmentFileError, EquipmentUsageError, explainError as explainEquipmentError, formatAllocations, previewSettings, readSettings, setSettings, validateUsageList } from './lib/pmo-equipment.mjs';
 import { RECEIPT_STATUSES, isReceiptDate, parseLineFlags, receiptCommand, receiptHint, receiptLineTierRefusal } from './lib/pmo-receipts.mjs';
 import { captureHistory, runCaptureAssignments, sourceSettingsNote, MAX_ASSIGN_ROWS } from './lib/pmo-capture.mjs';
-import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runAttachJournals, readJournalPages, runLink, runSetAside, setAsideRowsFromCsv, validateJournalRows, validateLinkRows, validateSetAsideRows, validateRecordOnlyGroups, runRecordOnly, runUndoRecordOnly, validateHistoryRows, runImportHistory } from './lib/pmo-purchases.mjs';
+import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runAttachJournals, readJournalPages, runLink, runSetAside, setAsideRowsFromCsv, validateJournalRows, validateLinkRows, validateSetAsideRows, validateRecordOnlyGroups, runRecordOnly, runUndoRecordOnly, validateHistoryRows, runImportHistory, validateUndoImport, runUndoImport } from './lib/pmo-purchases.mjs';
 import { TmOutcomeUnknown, assembleClaim, claimSources, deselectSources, explainWriteError, prepareSignoff, setAssignees, setRates, withdrawClaim, writerRefusal } from './lib/pmo-tm-write.mjs';
 import { TM_READ_RPCS, TmQueryError, explainError as explainTmError, formatClaims, formatPreview as formatTmPreview, formatRateCard, listClaims, previewClaim, readRateCard } from './lib/pmo-tm.mjs';
 import { OPERATOR_ORG_RPCS, classifyOrgReadiness, orgAdd } from './lib/pmo-org.mjs';
@@ -841,6 +841,7 @@ ${BID_USAGE}
   pmo purchases pay-captured <purchase-uuid> --invoice-document <uuid> --amount <decimal> --date <YYYY-MM-DD> --intent <uuid> [--confirm]
   pmo purchases capture-report (--all | --project <uuid>)
   pmo purchases import-history <history.json|-> [--dry-run]   (Admin; PMO-native history, no ERP)
+  pmo purchases undo-import <import-key> --reason <text> [--confirm]   (Admin; takes back one imported purchase; previews unless --confirm)
   pmo purchases record-only <history.json|-> [--dry-run] | undo-record-only <purchase> [--attach <request>] --reason <text> [--dry-run]
   pmo purchases journals --project <id>   (the project's accounting-system journal cost lines)
   pmo purchases attach-journals <file.json | -> [--dry-run]   (Admin, Executive, Project Manager, Finance; rows of
@@ -1730,6 +1731,21 @@ async function purchases(ctx, positionals, flags) {
     const report = await runImportHistory(api, rows, { dryRun: Boolean(flags['dry-run']) });
     return report.error ? new Reported(report, report.denied ? 2 : 1) : report.counts.refused && !flags['dry-run'] ? new Reported(report, 1) : report;
   }
+  if (sub === 'undo-import') {
+    const bad = validateUndoImport(arg, flags.reason);
+    if (bad) throw usage(bad);
+    const api = { rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }) };
+    // A preview unless --confirm; --dry-run is accepted and always previews.
+    let result;
+    try {
+      result = await runUndoImport(api, arg, flags.reason, { confirm: Boolean(flags.confirm) && !flags['dry-run'] });
+    } catch (error) {
+      // A definite refusal (not an Admin): nothing was changed. Exit 2, as for import-history.
+      if (error?.status === 403 || error?.code === '42501') throw new CliError(error.message ?? 'Only an active Admin can undo an imported purchase.', { exit: 2, code: 'forbidden' });
+      throw error;
+    }
+    return result?.outcome === 'refused' ? new Reported(result, 1) : result;
+  }
   if (sub === 'undo-record-only') {
     if (!UUID.test(String(arg ?? '')) || typeof flags.reason !== 'string' || !flags.reason.trim()) throw usage('purchases undo-record-only needs a purchase UUID and --reason');
     if (flags.attach !== undefined && !UUID.test(String(flags.attach))) throw usage('purchases undo-record-only --attach needs the request_id (a UUID) of the order-family row that attached the invoices');
@@ -1746,7 +1762,7 @@ async function purchases(ctx, positionals, flags) {
       body: { p_procurement_id: body.procurement_id, p_record_kind: body.record_kind ?? null, p_record_id: body.record_id ?? null, p_item: body.item },
     });
   }
-  throw usage(`Unknown purchases command '${sub ?? ''}'. Use orphans, link, set-aside, journals, attach-journals, record-only, import-history, receive or link-file.`);
+  throw usage(`Unknown purchases command '${sub ?? ''}'. Use orphans, link, set-aside, journals, attach-journals, record-only, import-history, undo-import, receive or link-file.`);
 }
 
 /**
