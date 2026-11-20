@@ -1,0 +1,22 @@
+-- Reverses 1126_quantity_overrun_detection.sql.
+drop function if exists public.record_quantity_forecast(uuid, numeric, text);
+drop trigger if exists boq_items_zz_qcr_quantity on public.boq_items;
+drop trigger if exists quantity_forecasts_qcr_ins on public.quantity_forecasts;
+drop trigger if exists daily_site_reports_qcr_validated on public.daily_site_reports;
+drop trigger if exists work_order_acceptances_qcr_confirm on public.work_order_acceptances;
+drop trigger if exists progress_claim_lines_qcr_ins on public.progress_claim_lines;
+drop trigger if exists progress_assessment_quantities_qcr_del on public.progress_assessment_quantities;
+drop trigger if exists progress_assessment_quantities_qcr_upd on public.progress_assessment_quantities;
+drop trigger if exists progress_assessment_quantities_qcr_ins on public.progress_assessment_quantities;
+drop function if exists public.qcr_hook_contract_quantity();
+drop function if exists public.qcr_hook_forecast();
+drop function if exists public.qcr_hook_daily_report();
+drop function if exists public.qcr_hook_acceptance();
+drop function if exists public.qcr_hook_claim_lines();
+drop function if exists public.qcr_hook_assessment_del();
+drop function if exists public.qcr_hook_assessment_ins();
+drop function if exists public.qcr_evaluate_items(uuid[]);
+drop table if exists public.quantity_overrun_notices;
+drop function if exists public.qcr_figures(uuid[]);
+drop table if exists public.quantity_forecasts;
+drop function if exists public.refuse_quantity_forecast_change();
