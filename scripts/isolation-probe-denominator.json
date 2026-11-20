@@ -261,6 +261,7 @@
   ],
   "definer_functions": [
     "add_equipment_downtime_proof(uuid,date,text,text)",
+    "close_tasks_for_record(text,uuid,text)",
     "change_equipment_rental_rate(uuid,date,numeric)",
     "dsr_photo_stored(text)",
     "end_equipment_rental_term(uuid,date)",
