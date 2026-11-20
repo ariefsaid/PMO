@@ -56,6 +56,8 @@ export interface AwaitingWeekRow {
   work_date: string;
   hours: number | null;
   overtime_hours: number | null;
+  /** The work order these hours belong to (a week can span several). */
+  work_order_title: string | null;
 }
 
 function fail(error: { message: string; code?: string } | null): void {
@@ -113,10 +115,12 @@ export async function decideAttendanceWeek(
 
 /** Days submitted for approval and not yet decided (people with no login), oldest first. */
 export async function listAwaitingAttendance(): Promise<AwaitingWeekRow[]> {
-  const rows = await fetchAllRowsByKeyset<AwaitingWeekRow & { id: string }>(async (afterId, limit) => {
+  type Raw = { id: string; worker_id: string; work_date: string; hours: number | null; overtime_hours: number | null;
+    work_orders: { title: string } | null };
+  const rows = await fetchAllRowsByKeyset<Raw>(async (afterId, limit) => {
     let q = supabase
       .from('attendance_days')
-      .select('id, worker_id, work_date, hours, overtime_hours')
+      .select('id, worker_id, work_date, hours, overtime_hours, work_orders(title)')
       .not('submitted_at', 'is', null)
       .is('locked_at', null)
       .order('id', { ascending: true });
@@ -124,7 +128,8 @@ export async function listAwaitingAttendance(): Promise<AwaitingWeekRow[]> {
     return q.limit(limit);
   });
   return rows
-    .map(({ worker_id, work_date, hours, overtime_hours }) => ({ worker_id, work_date, hours, overtime_hours }))
+    .map(({ worker_id, work_date, hours, overtime_hours, work_orders }) => (
+      { worker_id, work_date, hours, overtime_hours, work_order_title: work_orders?.title ?? null }))
     .sort((a, b) => a.work_date.localeCompare(b.work_date) || a.worker_id.localeCompare(b.worker_id));
 }
 

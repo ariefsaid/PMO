@@ -143,12 +143,13 @@ describe('attendance tick screen (#2528)', () => {
   it('AC-CRW-012 a supervisor approves a no-login week waiting for approval', async () => {
     h.role = 'Project Manager';
     h.uid = 'pm1';
-    h.awaiting = { data: [{ worker_id: 'v1', work_date: '2026-11-17', hours: 8, overtime_hours: null },
-      { worker_id: 'v1', work_date: '2026-11-18', hours: 8, overtime_hours: 1 }], isPending: false, isError: false, refetch: vi.fn() };
+    h.awaiting = { data: [{ worker_id: 'v1', work_date: '2026-11-17', hours: 8, overtime_hours: null, work_order_title: 'Bridge repair' },
+      { worker_id: 'v1', work_date: '2026-11-18', hours: 8, overtime_hours: 1, work_order_title: 'Bridge repair' }], isPending: false, isError: false, refetch: vi.fn() };
     const user = userEvent.setup();
     renderAt();
     const row = screen.getByRole('row', { name: /Vendor One/ });
     expect(within(row).getByText('17 hours')).toBeInTheDocument();
+    expect(within(row).getByText('Bridge repair')).toBeInTheDocument();
     await user.click(within(row).getByRole('button', { name: 'Approve' }));
     await waitFor(() => expect(h.decide).toHaveBeenCalledWith({ workerId: 'v1', weekStart: '2026-11-16', decision: 'approve', reason: null }));
   });

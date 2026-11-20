@@ -152,7 +152,7 @@ const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: string; 
   );
 };
 
-interface AwaitingWeek { workerId: string; weekStart: string; hours: number; days: number }
+interface AwaitingWeek { workerId: string; weekStart: string; hours: number; days: number; orders: string[] }
 
 /** Weeks of people with no login waiting for a supervisor (FR-CRW-016). */
 const AwaitingApproval: React.FC = () => {
@@ -168,9 +168,10 @@ const AwaitingApproval: React.FC = () => {
     for (const r of awaiting.data ?? []) {
       const weekStart = isoWeekStart(r.work_date);
       const key = `${r.worker_id}:${weekStart}`;
-      const w = byKey.get(key) ?? { workerId: r.worker_id, weekStart, hours: 0, days: 0 };
+      const w = byKey.get(key) ?? { workerId: r.worker_id, weekStart, hours: 0, days: 0, orders: [] };
       w.hours += Number(r.hours ?? 0) + Number(r.overtime_hours ?? 0);
       w.days += 1;
+      if (r.work_order_title && !w.orders.includes(r.work_order_title)) w.orders.push(r.work_order_title);
       byKey.set(key, w);
     }
     return [...byKey.values()].sort((a, b) => a.weekStart.localeCompare(b.weekStart));
@@ -194,6 +195,9 @@ const AwaitingApproval: React.FC = () => {
             {weeks.map((w) => (
               <tr key={`${w.workerId}:${w.weekStart}`} aria-label={nameOf(w.workerId)} className="border-t border-border first:border-t-0">
                 <th scope="row" className="py-2 text-left font-normal text-foreground">{nameOf(w.workerId)}</th>
+                <td className="py-2">
+                  <ul className="m-0 list-none p-0">{w.orders.map((title) => <li key={title}>{title}</li>)}</ul>
+                </td>
                 <td className="py-2 text-muted-foreground">{t('crews:weekOf', 'Week of {{date}}', { date: formatDay(w.weekStart) })}</td>
                 <td className="py-2 tabular-nums">{t('crews:hoursTotal', '{{hours}} hours', { hours: formatNumberMax2(w.hours) })}</td>
                 <td className="py-2 text-right">
