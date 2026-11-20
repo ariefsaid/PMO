@@ -3,7 +3,7 @@
 An org Admin renames a fixed set of PMO terms; every string shown through the i18n layer follows.
 
 ## Requirements (EARS)
-- **FR-TERM-001** The system shall let an Admin set, per language (English, Bahasa Indonesia), a singular and plural display name for each of: work order, project, client-supplied stock, purchase request, discipline.
+- **FR-TERM-001** The system shall let an Admin set, per language (English, Bahasa Indonesia), a singular and plural display name for each of: work order, project, client-supplied stock, purchase request, material request, discipline.
 - **FR-TERM-002** While an org has an override for a term and language, catalogue wording rendered through i18next in that language shall show the override in place of the shipped wording, preserving the case shape (lower, Capitalised, Title Case, UPPER), while user-entered values remain unchanged.
 - **FR-TERM-003** The system shall apply the same rewrite to exports and notifications that build text through i18next, and expose `withOrgTerms` for text built outside it.
 - **FR-TERM-004** Where a term is not in the fixed set, it shall stay in code and not be overridable.

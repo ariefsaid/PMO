@@ -1,6 +1,6 @@
 /** Organisation terminology (#2529): rewrite shipped app copy using the active org's terms. */
 
-export const TERM_KEYS = ['workOrder', 'project', 'clientSuppliedStock', 'purchaseRequest', 'discipline'] as const;
+export const TERM_KEYS = ['workOrder', 'project', 'clientSuppliedStock', 'purchaseRequest', 'materialRequest', 'discipline'] as const;
 export type TermKey = (typeof TERM_KEYS)[number];
 export const TERM_LOCALES = ['en', 'id'] as const;
 export type TermLocale = (typeof TERM_LOCALES)[number];
@@ -19,6 +19,7 @@ export const SHIPPED_FORMS: Record<TermLocale, Record<TermKey, { singular: strin
     project: { singular: ['project'], plural: ['projects'] },
     clientSuppliedStock: { singular: ['client-supplied stock'], plural: ['client-supplied stock'] },
     purchaseRequest: { singular: ['purchase request'], plural: ['purchase requests'] },
+    materialRequest: { singular: ['material request'], plural: ['material requests'] },
     discipline: { singular: ['discipline'], plural: ['disciplines'] },
   },
   id: {
@@ -26,6 +27,7 @@ export const SHIPPED_FORMS: Record<TermLocale, Record<TermKey, { singular: strin
     project: { singular: ['proyek', 'proyeknya', 'antarproyek'], plural: ['proyek', 'proyeknya', 'antarproyek'] },
     clientSuppliedStock: { singular: ['stok titipan klien'], plural: ['stok titipan klien'] },
     purchaseRequest: { singular: ['permintaan pembelian'], plural: ['permintaan pembelian'] },
+    materialRequest: { singular: ['permintaan material'], plural: ['permintaan material'] },
     discipline: { singular: ['disiplin'], plural: ['disiplin'] },
   },
 };

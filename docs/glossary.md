@@ -675,8 +675,8 @@ left blank, editable and unique among live people. Archiving hides a person and 
 
 ### Terminology and imports (#2529, #2530)
 
-**Term override** (*istilah*) — an org Admin's replacement display name (singular and plural, per language) for one of five
-fixed terms: work order, project, client-supplied stock, purchase request, discipline. It changes the wording shown, never
+**Term override** (*istilah*) — an org Admin's replacement display name (singular and plural, per language) for one of six
+fixed terms: work order, project, client-supplied stock, purchase request, material request, discipline. It changes the wording shown, never
 the data or the code identifier. Generic terms are not overridable.
 
 **Import template** — a spreadsheet a person downloads from an import screen: the field labels as headers, one example row,
@@ -753,5 +753,5 @@ one **work order** of its own project, so a work order lists its open tasks.
 
 ## Organisation terminology
 **Term override** — an org Admin's replacement display name (singular and plural, per language) for one of
-five fixed terms: work order, project, client-supplied stock, purchase request, discipline. It changes the
+six fixed terms: work order, project, client-supplied stock, purchase request, material request, discipline. It changes the
 wording shown, never the data or the code identifier. Generic terms are not overridable.

@@ -6,7 +6,7 @@
 
 create table public.org_terminology (
   org_id     uuid not null default public.auth_org_id() references public.organizations(id) on delete cascade,
-  term_key   text not null check (term_key in ('workOrder','project','clientSuppliedStock','purchaseRequest','discipline')),
+  term_key   text not null check (term_key in ('workOrder','project','clientSuppliedStock','purchaseRequest','materialRequest','discipline')),
   locale     text not null check (locale in ('en','id')),
   singular   text not null check (char_length(btrim(singular)) between 1 and 60),
   plural     text not null check (char_length(btrim(plural)) between 1 and 60),

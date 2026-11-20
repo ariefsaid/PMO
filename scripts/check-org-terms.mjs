@@ -2,7 +2,7 @@
 /**
  * Guard: an overridable PMO term is never hard-coded in UI source (#2529).
  *
- * An org Admin renames work order / project / client-supplied stock / purchase request / discipline.
+ * An org Admin renames work order / project / client-supplied stock / purchase request / material request / discipline.
  * The rename reaches a screen only through i18n (`t()`), whose terminology adapter rewrites the
  * shipped wording. A word typed straight into JSX text, a user-facing attribute or a label-like
  * property bypasses that and keeps the old name for every org.
@@ -35,6 +35,7 @@ export const TERM_PATTERNS = {
   project: /\bprojects?\b/i,
   clientSuppliedStock: /\bclient-supplied stock\b/i,
   purchaseRequest: /\bpurchase requests?\b/i,
+  materialRequest: /\bmaterial requests?\b/i,
   discipline: /\bdisciplines?\b/i,
 };
 const ATTRS = new Set(['title', 'label', 'placeholder', 'aria-label', 'alt', 'description', 'sub', 'heading', 'aria-description', 'aria-valuetext', 'helperText', 'emptyTitle', 'emptyMessage', 'ariaLabel', 'ariaDescription', 'tooltip', 'caption', 'subtitle']);
