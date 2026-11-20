@@ -67,5 +67,74 @@
     "issuesEmpty": "No issues name this work order.",
     "tasksEmpty": "No open tasks name this work order."
   },
-  "openPage": "Open page"
+  "openPage": "Open page",
+  "inspections": {
+    "title": "Third-party inspections",
+    "error": "Couldn't load the inspections",
+    "empty": "No third-party inspections on this work order yet.",
+    "request": "Request inspection",
+    "create": "Request",
+    "dismiss": "Close",
+    "titleField": "What is being tested",
+    "kind": "Test kind",
+    "plannedField": "Planned date",
+    "requiredLegend": "Required before",
+    "estimateField": "Estimate (planning figure)",
+    "currencyField": "Currency",
+    "estimateInvalid": "An estimate needs a valid amount and a 3-letter currency.",
+    "gate": {
+      "readiness": "readiness",
+      "billing": "billing"
+    },
+    "status": {
+      "requested": "Requested",
+      "purchase_raised": "Purchase raised",
+      "invited": "Invited",
+      "executed": "Executed",
+      "reported": "Reported",
+      "cancelled": "Cancelled"
+    },
+    "result": {
+      "pending": "Pending",
+      "pass": "Pass",
+      "fail": "Fail",
+      "conditional": "Conditional"
+    },
+    "waived": "Waived",
+    "overdue": "Overdue",
+    "blocks": "Required, not yet complete",
+    "complete": "Complete",
+    "planned": "Planned {{date}}",
+    "requiredFor": "Required for {{gates}}",
+    "waiverReason": "Waiver reason: {{reason}}",
+    "cancelReason": "Cancelled: {{reason}}",
+    "noCostYet": "Purchase raised, no cost yet",
+    "cost": "{{committed}} committed, {{billed}} billed",
+    "noPurchase": "No purchase",
+    "estimate": "Estimate {{amount}} (a planning figure, not a cost)",
+    "files": "Report files",
+    "raisePurchase": "Raise purchase",
+    "invitedOn": "Invitation date",
+    "invitedWho": "Who was invited",
+    "invitedHow": "How",
+    "recordInvitation": "Record invitation",
+    "executedOn": "Execution date",
+    "recordExecution": "Record execution",
+    "fileInput": "Report file",
+    "attach": "Attach report",
+    "resultLabel": "Result",
+    "chooseResult": "Choose a result",
+    "markReported": "Mark reported",
+    "waive": "Waive",
+    "cancel": "Cancel inspection",
+    "waiveTitle": "Waive this inspection",
+    "cancelTitle": "Cancel this inspection",
+    "reasonLabel": "Reason",
+    "billingOpen": "Billing is waiting on {{count}} required inspection(s)",
+    "fileRefused": {
+      "count": "An inspection holds at most 10 report files.",
+      "size": "That file is larger than 15 MB.",
+      "type": "That file type cannot be attached."
+    }
+  }
 }

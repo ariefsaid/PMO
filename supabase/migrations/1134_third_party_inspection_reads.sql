@@ -2,7 +2,8 @@
 -- Spec FR-TPI-008/016/018. Proven by supabase/tests/1134_third_party_inspection_reads.test.sql.
 --   tpi_costs(work_order)                  committed + billed per inspection per currency, from the LINKED case's records already
 --                                          attributed to the work order (work_order_cost_lines, 0951). Server-side fence: a caller outside
---                                          Admin/Executive/Finance/Project Manager gets the rows with NULL amounts. Writes nothing.
+--                                          Admin/Executive/Finance/Project Manager gets the rows with NULL amounts (the planning estimate
+--                                          included: it is a figure, shown beside the real cost, never added to it). Writes nothing.
 --   work_order_inspection_prerequisites()  the blocking inspections + one `complete` boolean, for #2522 / #2576 to call (a read only).
 --   run_tpi_overdue_sweep(date)            one notice per recipient per inspection, from stored dates, through public.notifications.
 -- ── REVERSE (rollback/1134_third_party_inspection_reads_down.sql): unschedule 'tpi-overdue', drop the three functions and tpi_is_complete.
@@ -15,7 +16,7 @@ $$;
 grant execute on function public.tpi_is_complete(text, text, timestamptz) to authenticated;
 
 create function public.tpi_costs(p_work_order_id uuid)
-  returns table(inspection_id uuid, currency text, committed numeric, billed numeric)
+  returns table(inspection_id uuid, currency text, committed numeric, billed numeric, estimate numeric, estimate_currency text)
   language plpgsql stable security definer set search_path = public, pg_temp as $$
 declare v_org uuid := public.auth_org_id(); v_money boolean;
 begin
@@ -25,14 +26,14 @@ begin
   end if;
   v_money := public.auth_role() in ('Admin','Executive','Finance','Project Manager');
   if not v_money then
-    return query select i.id, null::text, null::numeric, null::numeric
+    return query select i.id, null::text, null::numeric, null::numeric, null::numeric, null::text
                    from public.third_party_inspections i where i.work_order_id = p_work_order_id and i.org_id = v_org
                   order by i.created_at, i.id;
     return;
   end if;
   return query
   with insp as (
-    select i.id, i.work_order_id, i.procurement_id, i.created_at from public.third_party_inspections i
+    select i.id, i.work_order_id, i.procurement_id, i.created_at, i.estimate, i.estimate_currency from public.third_party_inspections i
      where i.work_order_id = p_work_order_id and i.org_id = v_org and i.status <> 'cancelled'
   ), committed as (
     select i.id as iid, po.currency, sum(po.amount) as amt
@@ -56,7 +57,7 @@ begin
     select coalesce(c.iid, b.iid) as iid, coalesce(c.currency, b.currency) as cur, c.amt as c_amt, b.amt as b_amt
       from committed c full join billed b on b.iid = c.iid and b.currency is not distinct from c.currency
   )
-  select i.id, m.cur, m.c_amt, m.b_amt
+  select i.id, m.cur, m.c_amt, m.b_amt, i.estimate, i.estimate_currency
     from insp i left join merged m on m.iid = i.id
    order by i.created_at, i.id, m.cur;
 end $$;

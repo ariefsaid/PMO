@@ -5,7 +5,7 @@
 -- Every denial asserts the errcode AND the message. Fixtures are written as the table owner.
 begin;
 create extension if not exists pgtap;
-select plan(23);
+select plan(25);
 
 create function pg_temp.as_user(u uuid) returns void language plpgsql as $$
 begin
@@ -74,6 +74,12 @@ reset role; select pg_temp.as_user('25800000-0000-0000-0000-0000000000a4');
 select is((select jsonb_agg(jsonb_build_array(inspection_id, currency, committed, billed) order by inspection_id) from tpi_costs('25800000-0000-0000-0000-000000000401')),
   '[["25800000-0000-0000-0000-000000000a01",null,null,null],["25800000-0000-0000-0000-000000000a02",null,null,null],["25800000-0000-0000-0000-000000000a03",null,null,null],["25800000-0000-0000-0000-000000000a05",null,null,null],["25800000-0000-0000-0000-000000000a06",null,null,null]]'::jsonb,
   'AC-TPI-001: an Engineer receives the inspections with no amounts (the server fence, not the screen)');
+reset role; select pg_temp.as_user('25800000-0000-0000-0000-0000000000a3');
+select is((select estimate::text || ' ' || estimate_currency from tpi_costs('25800000-0000-0000-0000-000000000401') where inspection_id = '25800000-0000-0000-0000-000000000a03'), '500.00 EUR',
+  'FR-TPI-008: a money role reads C''s planning estimate, labelled with its own currency (never added to any figure)');
+reset role; select pg_temp.as_user('25800000-0000-0000-0000-0000000000a4');
+select is((select count(*) from tpi_costs('25800000-0000-0000-0000-000000000401') where estimate is not null or estimate_currency is not null), 0::bigint,
+  'FR-TPI-008: an Engineer receives no estimate either');
 reset role; select pg_temp.as_user('25800000-0000-0000-0000-0000000000a7');
 select is((select sum(committed)::text from tpi_costs('25800000-0000-0000-0000-000000000401')), '3500.00', 'FR-TPI-008: an Executive reads the amounts');
 reset role; select pg_temp.as_user('25800000-0000-0000-0000-0000000000a6');

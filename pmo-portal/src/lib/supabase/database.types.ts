@@ -11807,6 +11807,75 @@ export type Database = {
         }
         Relationships: []
       }
+      third_party_inspection_files: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          file_path: string
+          id: string
+          inspection_id: string
+          org_id: string
+          storage_object_id: string
+          title: string | null
+          uploaded_by_id: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          file_path: string
+          id?: string
+          inspection_id: string
+          org_id?: string
+          storage_object_id?: string
+          title?: string | null
+          uploaded_by_id?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+        }
+        Relationships: []
+      }
+      third_party_inspections: {
+        Row: {
+          cancel_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          created_at: string
+          created_by: string | null
+          executed_by: string | null
+          executed_on: string | null
+          id: string
+          invited_by: string | null
+          invited_how: string | null
+          invited_on: string | null
+          invited_who: string | null
+          note: string | null
+          org_id: string
+          overdue_notified_at: string | null
+          planned_date: string
+          procurement_id: string | null
+          project_id: string
+          purchase_raised_at: string | null
+          purchase_raised_by: string | null
+          reported_at: string | null
+          reported_by: string | null
+          required_for: string[]
+          result: string
+          section_id: string | null
+          status: string
+          test_kind: string | null
+          title: string
+          updated_at: string
+          vendor_id: string | null
+          waived_at: string | null
+          waived_by: string | null
+          waiver_reason: string | null
+          work_order_id: string
+        }
+        Insert: never
+        Update: never
+        Relationships: []
+      }
       tasks: {
         Row: {
           archived_at: string | null
@@ -14198,6 +14267,45 @@ export type Database = {
       }
       withdraw_tm_signoff: { Args: { p_claim: string }; Returns: undefined }
       tm_claim_fingerprint: { Args: { p_claim: string }; Returns: string }
+      tpi_cancel: { Args: { p_id: string; p_reason: string }; Returns: undefined }
+      tpi_costs: {
+        Args: { p_work_order_id: string }
+        Returns: {
+          billed: number | null
+          committed: number | null
+          currency: string | null
+          estimate: number | null
+          estimate_currency: string | null
+          inspection_id: string
+        }[]
+      }
+      tpi_create: {
+        Args: {
+          p_estimate: number | null
+          p_estimate_currency: string | null
+          p_note: string | null
+          p_planned_date: string
+          p_required_for: string[]
+          p_section_id?: string | null
+          p_test_kind: string | null
+          p_title: string
+          p_vendor_id: string | null
+          p_work_order_id: string
+        }
+        Returns: string
+      }
+      tpi_raise_purchase: { Args: { p_id: string; p_procurement_id?: string | null; p_title?: string | null }; Returns: string }
+      tpi_record_execution: { Args: { p_executed_on: string; p_id: string }; Returns: undefined }
+      tpi_record_invitation: {
+        Args: { p_id: string; p_invited_how: string | null; p_invited_on: string; p_invited_who: string | null }
+        Returns: undefined
+      }
+      tpi_record_report: { Args: { p_id: string; p_result: string }; Returns: undefined }
+      tpi_waive: { Args: { p_id: string; p_reason: string }; Returns: undefined }
+      work_order_inspection_prerequisites: {
+        Args: { p_gate: string; p_section_id: string | null; p_work_order_id: string }
+        Returns: Json
+      }
       update_procurement_header: { Args: { p_id: string; p_patch: Json }; Returns: boolean }
       procurement_item_values_editable: { Args: { p_case: string }; Returns: boolean }
       budget_version_read: {

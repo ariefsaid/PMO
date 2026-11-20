@@ -67,5 +67,74 @@
     "issuesEmpty": "Tidak ada masalah yang menyebut perintah kerja ini.",
     "tasksEmpty": "Tidak ada tugas terbuka yang menyebut perintah kerja ini."
   },
-  "openPage": "Buka halaman"
+  "openPage": "Buka halaman",
+  "inspections": {
+    "title": "Inspeksi pihak ketiga",
+    "error": "Inspeksi tidak dapat dimuat",
+    "empty": "Belum ada inspeksi pihak ketiga pada Work Order ini.",
+    "request": "Ajukan inspeksi",
+    "create": "Ajukan",
+    "dismiss": "Tutup",
+    "titleField": "Apa yang diuji",
+    "kind": "Jenis pengujian",
+    "plannedField": "Tanggal rencana",
+    "requiredLegend": "Wajib sebelum",
+    "estimateField": "Perkiraan (angka perencanaan)",
+    "currencyField": "Mata uang",
+    "estimateInvalid": "Perkiraan memerlukan jumlah yang valid dan mata uang 3 huruf.",
+    "gate": {
+      "readiness": "kesiapan",
+      "billing": "penagihan"
+    },
+    "status": {
+      "requested": "Diajukan",
+      "purchase_raised": "Pembelian dibuat",
+      "invited": "Diundang",
+      "executed": "Dilaksanakan",
+      "reported": "Dilaporkan",
+      "cancelled": "Dibatalkan"
+    },
+    "result": {
+      "pending": "Menunggu",
+      "pass": "Lulus",
+      "fail": "Gagal",
+      "conditional": "Bersyarat"
+    },
+    "waived": "Dibebaskan",
+    "overdue": "Terlambat",
+    "blocks": "Wajib, belum selesai",
+    "complete": "Selesai",
+    "planned": "Rencana {{date}}",
+    "requiredFor": "Wajib untuk {{gates}}",
+    "waiverReason": "Alasan pembebasan: {{reason}}",
+    "cancelReason": "Dibatalkan: {{reason}}",
+    "noCostYet": "Pembelian dibuat, belum ada biaya",
+    "cost": "{{committed}} dikomitmenkan, {{billed}} ditagih",
+    "noPurchase": "Belum ada pembelian",
+    "estimate": "Perkiraan {{amount}} (angka perencanaan, bukan biaya)",
+    "files": "Berkas laporan",
+    "raisePurchase": "Buat pembelian",
+    "invitedOn": "Tanggal undangan",
+    "invitedWho": "Siapa yang diundang",
+    "invitedHow": "Cara",
+    "recordInvitation": "Catat undangan",
+    "executedOn": "Tanggal pelaksanaan",
+    "recordExecution": "Catat pelaksanaan",
+    "fileInput": "Berkas laporan",
+    "attach": "Lampirkan laporan",
+    "resultLabel": "Hasil",
+    "chooseResult": "Pilih hasil",
+    "markReported": "Tandai dilaporkan",
+    "waive": "Bebaskan",
+    "cancel": "Batalkan inspeksi",
+    "waiveTitle": "Bebaskan inspeksi ini",
+    "cancelTitle": "Batalkan inspeksi ini",
+    "reasonLabel": "Alasan",
+    "billingOpen": "Penagihan menunggu {{count}} inspeksi yang wajib",
+    "fileRefused": {
+      "count": "Satu inspeksi menampung paling banyak 10 berkas laporan.",
+      "size": "Berkas itu lebih besar dari 15 MB.",
+      "type": "Jenis berkas itu tidak dapat dilampirkan."
+    }
+  }
 }

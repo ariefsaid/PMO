@@ -257,7 +257,9 @@
     {"table":"work_order_crews","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"work_order_lines","has_org":true,"pk":"id","columns":"id,org_id,work_order_id,boq_item_id,quantity,created_at","b_read":"own-org-only","by_id":"applicable"},
     {"table":"work_order_plan_lines","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"work_orders","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
+    {"table":"work_orders","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"third_party_inspections","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"third_party_inspection_files","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
   ],
   "definer_functions": [
     "add_equipment_downtime_proof(uuid,date,text,text)",
@@ -858,7 +860,18 @@
     "work_order_validated_revenue(uuid)",
     "worker_off_rotation(uuid,date)",
     "write_connect_census(uuid,text,jsonb)",
-    "write_stock_erp_mirror(uuid,uuid,integer,integer,text,text,text,text,numeric,numeric,text,timestamp with time zone,timestamp with time zone,text)"
+    "write_stock_erp_mirror(uuid,uuid,integer,integer,text,text,text,text,numeric,numeric,text,timestamp with time zone,timestamp with time zone,text)",
+    "can_add_inspection_file(uuid)",
+    "run_tpi_overdue_sweep(date)",
+    "tpi_cancel(uuid,text)",
+    "tpi_costs(uuid)",
+    "tpi_create(uuid,text,text,date,uuid,numeric,text,text,text[],uuid)",
+    "tpi_load_for_update(uuid)",
+    "tpi_raise_purchase(uuid,uuid,text)",
+    "tpi_record_execution(uuid,date)",
+    "tpi_record_invitation(uuid,date,text,text)",
+    "tpi_record_report(uuid,text)",
+    "tpi_waive(uuid,text)"
   ],
   "edge_functions": [
     "adapter-dispatch",
@@ -902,7 +915,8 @@
     "project-documents",
     "site-report-photos",
     "stock-documents",
-    "task-proofs"
+    "task-proofs",
+    "inspection-reports"
   ],
   "rpcs": [
     {"class":"write","expect_denial":[{"http":403,"sqlstate":"42501"},{"http":500,"sqlstate":"P0002"}],"name":"set_project_billing_terms","source":["supabase/migrations/1022_retention.sql:62","supabase/migrations/1022_retention.sql:65"]},

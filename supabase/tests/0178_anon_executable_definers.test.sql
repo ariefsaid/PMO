@@ -484,6 +484,13 @@ insert into client_callable_rpc_names (proname) values
   ('set_sales_invoice_efaktur'),
   ('set_sales_invoice_received_date'),
   ('set_cost_attribution'),
+  ('tpi_create'),  -- ⚑ AMENDED BY 1131 (#2580): the third-party inspection writers; each re-asserts active membership, org and role, and guard_tpi_transition enforces the state rules (1130_third_party_inspections.test.sql)
+  ('tpi_record_invitation'),
+  ('tpi_record_execution'),
+  ('tpi_record_report'),
+  ('tpi_waive'),
+  ('tpi_cancel'),
+  ('tpi_raise_purchase'),  -- 1133: money path; procurement's own rules pass through (1133_third_party_inspection_purchase.test.sql)
   ('mrq_set_chain'),  -- ⚑ AMENDED BY 1001 (#2524): the eight material-request writers; mrq_decide_step locks the request row and enforces SoD (mrq_approval.test.sql)
   ('mrq_set_cutoff'),
   ('mrq_set_stand_in'),
