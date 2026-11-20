@@ -1,4 +1,4 @@
-import type { StatusVariant, LifecycleStep } from '@/src/components/ui';
+import type { StatusVariant } from '@/src/components/ui';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
@@ -63,19 +63,6 @@ const STATUS_TO_STAGE: Record<string, number> = {
   Paid: 5,
 };
 
-/**
- * Statuses whose canonical user-facing label (AC-IXD-PROC-001) IS the honest name
- * of the stage NODE they currently occupy — so when they are the active step, the
- * current node renames to that status label instead of the generic stage name.
- *
- * `Quote Selected` qualifies: it sits on the VQ node (PROC-003) and "Quote
- * Selected" is the honest sub-state of that node. `Approved` does NOT qualify: it
- * occupies the VQ node only because approval ADVANCED the bar to the next action
- * — the VQ node must stay labelled "Vendor Quote", never "Approved" (that would
- * mislabel the node for a request that has no quote yet).
- */
-const STATUS_RENAMES_CURRENT_NODE = new Set<string>(['Quote Selected']);
-
 // ---------------------------------------------------------------------------
 // AC-IXD-PROC-001 — ONE canonical user-facing label per state (IxD #13).
 // The badge, the success toast, and the button verb that reaches a state all
@@ -98,26 +85,6 @@ export const STATUS_LABEL: Record<string, string> = {
   Rejected: 'Rejected',
   Cancelled: 'Cancelled',
 };
-
-/** The imperative verb shown on the button that transitions TO a state. */
-const STATUS_VERB: Record<string, string> = {
-  Requested: 'Submit Request',
-  Approved: 'Approve',
-  Rejected: 'Reject',
-  Draft: 'Rework (Back to Draft)',
-  'Vendor Quoted': 'Request supplier quotes',
-  'Quote Selected': 'Select Quote',
-  Ordered: 'Generate Purchase Order',
-  Received: 'Confirm Receipt',
-  'Vendor Invoiced': 'Record supplier invoice',
-  Paid: 'Mark as Paid',
-  Cancelled: 'Cancel procurement',
-};
-
-/**
- * The button verb that moves a request TO `to`. Names the same canonical state
- * the resulting badge + toast will show (AC-IXD-PROC-001).
- */
 
 /**
  * The state noun used in a success toast after a transition — the SAME canonical
@@ -266,28 +233,5 @@ export interface DocRefs {
   vi_number?: string | null;
 }
 
-/**
- * Builds the six-step lifecycle for the LifecycleStepper (node + inline variants).
- * Stages before the current index are `done`, the current is `current`, later are
- * `upcoming`. A Paid procurement marks the whole track done + the final node `paid`;
- * a terminal off-track procurement (Rejected/Cancelled) marks PR `current` and the
- * rest `skipped` (the lifecycle was abandoned). Doc refs decorate reached nodes.
- * Approval is a gate (no node) — it advances an `Approved` request to PR=done,
- * VQ=current (visible on the bar; see the module header).
- */
-
 /** Which of the five document steps have a record on the purchase (PR · quote · PO · receipt · invoice). */
 export type StepRecords = Record<'pr' | 'vq' | 'po' | 'gr' | 'vi', boolean>;
-
-/**
- * Flexible-entry progress bar (ADR-0093): a purchase may start at any step, so the bar shows only the steps that
- * actually have a record, the current step, and the single next step — never an earlier step once a later document
- * exists. A Rejected/Cancelled track (`skipped` steps) is returned unchanged.
- */
-
-/**
- * Navigates to the procurement's detail route (AC-NAV-006). With the workspace
- * tab layer removed, the row drill is a plain react-router navigate; the URL is
- * the single source of truth and the top-bar breadcrumb derives from it.
- * Mirrors `openOpportunity`.
- */
