@@ -1,4 +1,6 @@
 import React from 'react';
+import { Link } from 'react-router';
+import { useWorkOrder } from '@/src/hooks/useWorkOrderRecord';
 import { useTranslation } from 'react-i18next';
 import { Button, Icon, LifecycleStepper, ListState, ProjectNameLink, RecordHeader, RecordStack, StatusPill } from '@/src/components/ui';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
@@ -15,6 +17,13 @@ import { SalesInvoiceApprovalPreview } from '@/pages/approvals/SalesInvoiceAppro
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import { SalesInvoiceEvidenceSection } from './SalesInvoiceEvidence';
 import { cn } from '@/src/components/ui/cn';
+
+function WorkOrderReference({ id }: { id: string }) {
+  const { t } = useTranslation('finance');
+  const order = useWorkOrder(id);
+  if (!order.data) return null;
+  return <span className="mt-1 block">{t('workOrderReference', 'Work order')} · <Link className="underline" to={`/work-orders/${order.data.id}`}>{order.data.wo_number ?? order.data.title}</Link></span>;
+}
 
 /** Who raised a PMO-native invoice (the assignable-profiles read is shared with the approvals preview). */
 function RaisedBy({ userId }: { userId: string | null | undefined }) {
@@ -91,6 +100,7 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, organ
                 : <StatusPill variant={salesInvoiceStatusVariant(viewTarget.status)}>{statusLabel('salesInvoice', viewTarget.status, t)}</StatusPill>}
               meta={<>
                 {viewTarget.customer_name ?? '—'}
+                {viewTarget.work_order_id && <WorkOrderReference id={viewTarget.work_order_id} />}
                 {viewTarget.paired_erp_invoice_id && (
                   <span className="mt-1 block text-foreground">
                     {t('finance:receivables.pairedCountedOnce', 'Counted once with the ERP invoice {{number}}.', { number: viewTarget.paired_erp_number ?? '—' })}

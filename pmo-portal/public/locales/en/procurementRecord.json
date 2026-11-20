@@ -189,7 +189,8 @@
       "Invoice": "Supplier invoice",
       "Payment": "Payment"
     },
-    "groupRef": "Group ref"
+    "groupRef": "Group ref",
+    "workOrder": "Work order"
   },
   "files": {
     "heading": "Attachments",

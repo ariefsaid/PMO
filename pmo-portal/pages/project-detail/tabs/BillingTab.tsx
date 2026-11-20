@@ -519,7 +519,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           {fact.allocations.map((allocation) => {
             const order = workOrders.data?.find((candidate) => candidate.id === allocation.workOrderId);
             return <li key={allocation.workOrderId} className="flex flex-wrap items-center justify-between gap-2 py-2">
-              <span>{order?.wo_number ?? order?.title ?? allocation.workOrderId}</span>
+              <span>{order ? <Link className="underline" to={`/work-orders/${order.id}`}>{order.wo_number ?? order.title}</Link> : allocation.workOrderId}</span>
               <Tooltip content={t('projectDetail.cascade.source.lineOrdered', 'Source: quantity allocated to this work order.')}><span className="cursor-help tabular">{quantityText(item, allocation.quantity)}</span></Tooltip>
             </li>;
           })}
