@@ -24,5 +24,5 @@ export async function parseWorkbook(buf: ArrayBuffer, maxRows: number = MAX_IMPO
   if (rows.length > maxRows) {
     throw new ImportParseError('too_many_rows', `Too many rows: ${rows.length}. Import at most ${maxRows} rows at a time.`);
   }
-  return { headers, rows };
+  return { headers, rows, templateMarker: grid.marker ?? null };
 }

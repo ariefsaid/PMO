@@ -3,7 +3,15 @@
     "contractLines": "baris kontrak",
     "contractLine": "baris kontrak",
     "rateCatalogue": "item katalog",
-    "rateCatalogueItem": "item katalog"
+    "rateCatalogueItem": "item katalog",
+    "stockItems": "barang stok",
+    "stockItem": "barang stok",
+    "stockLocations": "lokasi stok",
+    "stockLocation": "lokasi stok",
+    "equipment": "peralatan",
+    "equipmentOne": "aset peralatan",
+    "people": "orang",
+    "person": "orang"
   },
   "wizard": {
     "title": "Impor {{entity}}",
@@ -66,7 +74,10 @@
     "alreadyImported": "Sudah diimpor.",
     "notCreated": "Tidak dibuat",
     "downloadFailed": "Unduh baris yang tidak diimpor",
-    "reasonColumn": "Alasan tidak diimpor"
+    "reasonColumn": "Alasan tidak diimpor",
+    "failedSheet": "Tidak diimpor",
+    "alreadyThereSheet": "Sudah ada",
+    "rowInFile": "Baris di berkas Anda"
   },
   "paste": {
     "label": "Atau tempel baris yang disalin dari spreadsheet",
@@ -134,6 +145,99 @@
       "stagesFormat": "Bobot tahap harus berbentuk Fabrikasi=10; Pengelasan=80.",
       "stagesSum": "Bobot tahap harus berjumlah 100.",
       "duplicate": "Kode item ini muncul dua kali di lembar."
+    }
+  },
+  "template": {
+    "download": "Unduh templat",
+    "sheet": "Templat",
+    "notes": "Catatan",
+    "field": "Kolom",
+    "required": "Wajib",
+    "optional": "Opsional",
+    "meaning": "Arti",
+    "accepted": "Nilai yang diterima",
+    "rowCap": "Maksimal {{max}} baris per berkas."
+  },
+  "existing": {
+    "unavailable": "Tidak dapat memeriksa data yang sudah ada.",
+    "nothingNew": "Semua baris sudah ada."
+  },
+  "stockItem": {
+    "code": "Kode item",
+    "name": "Nama",
+    "description": "Deskripsi",
+    "unit": "Satuan",
+    "leadTimeDays": "Waktu tunggu (hari)",
+    "codeHint": "Kode Anda sendiri untuk item. Setiap kode dipakai sekali.",
+    "unitHint": "Kode satuan ukuran yang sudah ada.",
+    "alreadyThere": "Kode item ini sudah ada.",
+    "error": {
+      "code": "Kode item wajib diisi.",
+      "codeLong": "Kode item terlalu panjang.",
+      "name": "Nama wajib diisi.",
+      "nameLong": "Nama terlalu panjang.",
+      "lead": "Waktu tunggu harus berupa bilangan bulat hari."
+    }
+  },
+  "stockLocation": {
+    "code": "Kode lokasi",
+    "name": "Nama",
+    "kind": "Jenis",
+    "project": "Proyek",
+    "projectHint": "Wajib untuk site, yard, dan staging; kosongkan untuk central.",
+    "alreadyThere": "Kode lokasi ini sudah ada.",
+    "error": {
+      "code": "Kode lokasi wajib diisi.",
+      "codeLong": "Kode lokasi terlalu panjang.",
+      "name": "Nama wajib diisi.",
+      "nameLong": "Nama terlalu panjang.",
+      "kind": "Jenis harus central, site, yard, atau staging.",
+      "projectNeeded": "Jenis lokasi ini memerlukan proyek.",
+      "projectNotAllowed": "Lokasi central tidak memiliki proyek."
+    }
+  },
+  "equipment": {
+    "code": "Kode aset",
+    "name": "Nama",
+    "unit": "Satuan bawaan",
+    "ownership": "Kepemilikan",
+    "vendor": "Pemasok",
+    "rate": "Tarif sewa",
+    "basis": "Dasar tarif",
+    "currency": "Mata uang",
+    "rentedFrom": "Mulai sewa",
+    "rentedTo": "Akhir sewa",
+    "vendorHint": "Wajib bila disewa: nama pemasok yang sudah ada.",
+    "alreadyThere": "Kode aset ini sudah ada.",
+    "error": {
+      "code": "Kode aset wajib diisi.",
+      "codeLong": "Kode aset terlalu panjang.",
+      "name": "Nama wajib diisi.",
+      "nameLong": "Nama terlalu panjang.",
+      "unit": "Satuan bawaan harus hours atau days.",
+      "ownership": "Kepemilikan harus owned atau rented.",
+      "rate": "Tarif sewa harus berupa angka 0 atau lebih.",
+      "basis": "Dasar tarif harus day atau month.",
+      "currency": "Mata uang bukan yang dipakai organisasi.",
+      "date": "Tanggal ditulis tahun-bulan-hari, mis. 2026-01-31.",
+      "vendorNeeded": "Pemasok wajib untuk aset sewaan.",
+      "rateNeeded": "Tarif sewa wajib untuk aset sewaan.",
+      "basisNeeded": "Dasar tarif wajib untuk aset sewaan.",
+      "currencyNeeded": "Mata uang wajib untuk aset sewaan.",
+      "startNeeded": "Mulai sewa wajib untuk aset sewaan.",
+      "endBefore": "Akhir sewa sebelum mulai sewa."
+    }
+  },
+  "people": {
+    "code": "Kode karyawan",
+    "name": "Nama tampilan",
+    "codeHint": "Kode Anda sendiri untuk orang tersebut. Setiap kode dipakai sekali.",
+    "alreadyThere": "Kode karyawan ini sudah ada.",
+    "error": {
+      "code": "Kode karyawan wajib diisi.",
+      "codeLong": "Kode karyawan terlalu panjang.",
+      "name": "Nama tampilan wajib diisi.",
+      "nameLong": "Nama tampilan terlalu panjang."
     }
   }
 }

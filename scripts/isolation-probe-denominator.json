@@ -245,6 +245,7 @@
     "attendance_generate_timesheet(uuid,date)",
     "attendance_record(uuid,date,text,jsonb)",
     "crew_can_manage()",
+    "create_rented_equipment_asset(text,text,text,uuid,numeric,text,text,date,date)",
     "run_document_expiry_warnings(date)",
     "set_document_warning_days(integer[])",
     "escalate_overdue_incidents(uuid)",

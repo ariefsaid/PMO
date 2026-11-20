@@ -289,8 +289,20 @@ select plan(7);
 -- not recorded. Proven by supabase/tests/three_way_match.test.sql and three_way_match_mutation.test.sql. `get_bill_match`
 -- is a read-only definer and is not listed.
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
--- Integration union (#2516 rehearsal): dev's 179 names plus the retained writers of the merged feature branches (+29, counted from the list below) = 208.
+-- Integration union (#2516 rehearsal): dev's 179 names plus the retained writers of the merged feature branches (+41, counted from the list below, incl. the equipment and rate-catalogue writers the 2530 branch lists) = 220.
 insert into client_callable_rpc_names (proname) values
+  ('create_rented_equipment_asset'), -- atomic import; equipment_import_atomic pgTAP
+  ('add_equipment_downtime_proof'), -- merged dependency RPC
+  ('archive_stock_document_file'), -- merged dependency RPC
+  ('change_equipment_rental_rate'), -- merged dependency RPC
+  ('end_equipment_rental_term'), -- merged dependency RPC
+  ('equipment_rental_check'), -- merged dependency RPC
+  ('rate_catalogue_add_variants'), -- merged dependency RPC
+  ('rate_catalogue_set_default_variant'), -- merged dependency RPC
+  ('rate_catalogue_upsert_item'), -- merged dependency RPC
+  ('save_equipment_rental_term'), -- merged dependency RPC
+  ('set_equipment_ownership'), -- merged dependency RPC
+  ('set_equipment_working_hours'), -- merged dependency RPC
   ('set_document_warning_days'), -- 0972: active Admin, scoped to caller org; document_expiry pgTAP
   ('accept_connect_proposals'),
   ('accept_equipment_asset_matches'),  -- ⚑ AMENDED BY 0854 (#1511)
@@ -520,8 +532,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  208,
-  'AC-ACL-002 all 208 retained client-callable RPC names still have a public function');
+  220,
+  'AC-ACL-002 all 220 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -530,8 +542,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  208,
-  'AC-ACL-003 all 208 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  220,
+  'AC-ACL-003 all 220 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

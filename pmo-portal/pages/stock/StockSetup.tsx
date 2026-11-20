@@ -7,6 +7,9 @@ import {
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { ImportButton } from '@/src/components/import';
+import { makeStockItemImportDescriptor, makeStockLocationImportDescriptor } from '@/src/lib/import';
+import { repositories } from '@/src/lib/repositories';
 import { Link } from 'react-router';
 import { useOdooConnection } from '@/src/hooks/useOdoo';
 import { useProjectIdentity } from '@/src/hooks/useProjects';
@@ -175,17 +178,31 @@ const StockSetup: React.FC = () => {
   }
 
   const newLabel = tab === 'units' ? t('setup.actions.newUnit') : tab === 'items' ? t('setup.actions.newItem') : t('setup.actions.newWarehouse');
+  const itemImport = useMemo(
+    () => makeStockItemImportDescriptor((allUnits.data ?? []).map((u) => ({ id: u.id, code: u.code })), async () => (await repositories.stock.master.listItems(true)).map((i) => i.code), t),
+    [allUnits.data, t],
+  );
+  const locationImport = useMemo(
+    () => makeStockLocationImportDescriptor((projects.data ?? []).map((p) => ({ id: p.id, name: p.name })), async () => (await repositories.stock.master.listWarehouses(true)).map((w) => w.code), t),
+    [projects.data, t],
+  );
   const emptyKey = tab === 'units' ? 'emptyUnits' : tab === 'items' ? 'emptyItems' : 'emptyWarehouses';
 
   return (
     <ListPage
       title={t('setup.title')}
       count={state === undefined ? rows.length : undefined}
-      primaryAction={canCreate && (tab !== 'items' || !tagsEnabled || itemTags.isSuccess) && (
-        <Button variant="primary" onClick={() => setForm({ tab, row: null })}>
-          <Icon name="plus" />
-          {newLabel}
-        </Button>
+      primaryAction={canCreate && (
+        <>
+          {tab === 'items' && <ImportButton entity="stockItem" descriptor={itemImport} onImported={() => void items.refetch()} />}
+          {tab === 'warehouses' && <ImportButton entity="warehouse" descriptor={locationImport} onImported={() => void warehouses.refetch()} />}
+          {(tab !== 'items' || !tagsEnabled || itemTags.isSuccess) && (
+            <Button variant="primary" onClick={() => setForm({ tab, row: null })}>
+              <Icon name="plus" />
+              {newLabel}
+            </Button>
+          )}
+        </>
       )}
     >
       <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
