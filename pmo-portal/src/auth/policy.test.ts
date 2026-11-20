@@ -1185,6 +1185,7 @@ describe('#2528 crews, roster and attendance (UX gate; RLS + attendance RPCs are
   it('AC-CRW-014 every role reads crews; only delivery roles manage them, never in view-as', () => {
     expect(allowedRoles('view', 'crew')).toEqual(ALL_ROLES);
     expect(allowedRoles('manage', 'crew')).toEqual(['Admin', 'Executive', 'Project Manager']);
+    expect(allowedRoles('create', 'crew')).toEqual(['Admin', 'Executive', 'Project Manager']); // AC-CIM-011: the import buttons
     expect(can('manage', 'crew', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
   });
   it('AC-CRW-014 a delivery role, or the crew\'s own field controller, records attendance', () => {

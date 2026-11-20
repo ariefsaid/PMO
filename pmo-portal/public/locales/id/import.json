@@ -3,7 +3,11 @@
     "contractLines": "baris kontrak",
     "contractLine": "baris kontrak",
     "rateCatalogue": "item katalog",
-    "rateCatalogueItem": "item katalog"
+    "rateCatalogueItem": "item katalog",
+    "crews": "kru",
+    "crew": "kru",
+    "crewMembers": "anggota kru",
+    "crewMember": "anggota kru"
   },
   "wizard": {
     "title": "Impor {{entity}}",
@@ -66,7 +70,10 @@
     "alreadyImported": "Sudah diimpor.",
     "notCreated": "Tidak dibuat",
     "downloadFailed": "Unduh baris yang tidak diimpor",
-    "reasonColumn": "Alasan tidak diimpor"
+    "reasonColumn": "Alasan tidak diimpor",
+    "failedSheet": "Tidak diimpor",
+    "alreadyThereSheet": "Sudah ada",
+    "rowInFile": "Baris di berkas Anda"
   },
   "paste": {
     "label": "Atau tempel baris yang disalin dari spreadsheet",
@@ -134,6 +141,71 @@
       "stagesFormat": "Bobot tahap harus berbentuk Fabrikasi=10; Pengelasan=80.",
       "stagesSum": "Bobot tahap harus berjumlah 100.",
       "duplicate": "Kode item ini muncul dua kali di lembar."
+    }
+  },
+  "template": {
+    "download": "Unduh templat",
+    "sheet": "Templat",
+    "notes": "Catatan",
+    "field": "Kolom",
+    "required": "Wajib",
+    "optional": "Opsional",
+    "meaning": "Arti",
+    "accepted": "Nilai yang diterima",
+    "rowCap": "Maksimal {{max}} baris per berkas."
+  },
+  "existing": {
+    "unavailable": "Tidak dapat memeriksa data yang sudah ada.",
+    "nothingNew": "Semua baris sudah ada."
+  },
+  "crewImport": {
+    "code": "Kode kru",
+    "name": "Nama",
+    "kind": "Jenis kru",
+    "vendor": "Perusahaan supplier",
+    "discipline": "Disiplin",
+    "controller": "Pengawas lapangan",
+    "roles": "Peran standar",
+    "codeHint": "Kode Anda sendiri untuk kru. Setiap kru aktif punya kode sendiri.",
+    "kindHint": "own atau vendor. Kosong berarti own.",
+    "vendorHint": "Wajib untuk kru supplier: nama perusahaan yang sudah ada.",
+    "controllerHint": "Nama pengguna yang sudah ada.",
+    "rolesHint": "Opsional. Nama peran dan jumlahnya, mis. Welder=2; Fitter=3.",
+    "alreadyThere": "Kru aktif dengan kode ini sudah ada.",
+    "error": {
+      "code": "Kode kru wajib diisi.",
+      "codeLong": "Kode kru terlalu panjang.",
+      "name": "Nama wajib diisi.",
+      "nameLong": "Nama terlalu panjang.",
+      "kind": "Jenis kru harus own atau vendor.",
+      "rolesHeadcount": "Jumlah tiap peran harus bilangan bulat 1 sampai 500.",
+      "rolesLong": "Nama peran terlalu panjang (maksimal 60 karakter).",
+      "rolesRepeat": "Nama peran tertulis dua kali.",
+      "rolesFormat": "Peran standar harus berbentuk Welder=2; Fitter=3.",
+      "vendorNeeded": "Kru supplier perlu perusahaan suppliernya.",
+      "vendorNotAllowed": "Kru staf sendiri tidak punya perusahaan supplier.",
+      "repeat": "Kode kru ini sudah muncul di baris {n}."
+    }
+  },
+  "crewMemberImport": {
+    "crew": "Kode kru",
+    "worker": "Orang",
+    "role": "Peran",
+    "from": "Dari",
+    "to": "Sampai",
+    "crewHint": "Kode kru aktif.",
+    "workerHint": "Kode atau nama orang, seperti di daftar orang.",
+    "roleHint": "Opsional. Salah satu peran standar kru.",
+    "toHint": "Opsional. Kosongkan bila tanpa tanggal akhir.",
+    "alreadyThere": "Orang ini sudah ditempatkan di kru ini sejak tanggal ini.",
+    "error": {
+      "date": "Tanggal ditulis tahun-bulan-hari, mis. 2026-01-31.",
+      "required": "Wajib diisi.",
+      "fromNeeded": "Tanggal Dari wajib diisi.",
+      "role": "Ini bukan salah satu peran standar kru.",
+      "endBefore": "Sampai lebih awal dari Dari.",
+      "overlapInFile": "Orang ini sudah ditempatkan pada tanggal yang tumpang tindih di baris {n}.",
+      "overlap": "Tanggal ini tumpang tindih dengan penempatan lain orang ini. Akhiri penempatan itu dahulu."
     }
   }
 }

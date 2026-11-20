@@ -38,6 +38,17 @@ beforeEach(() => {
 });
 
 describe('#2528 crews DAL', () => {
+  it('AC-CIM-010 import reads: worker refs carry the code, roles and placements span every crew, org_id is never filtered', async () => {
+    h.result.value = { data: [{ id: 'w1', name: 'Sari', code: 'E-1' }], error: null };
+    expect(await crews.listCrewWorkerRefs()).toEqual([{ id: 'w1', name: 'Sari', code: 'E-1' }]);
+    h.result.value = { data: [{ id: 'r1', crew_id: 'c1', name: 'Welder' }], error: null };
+    expect(await crews.listAllStandardRoles()).toEqual([{ id: 'r1', crew_id: 'c1', name: 'Welder' }]);
+    h.result.value = { data: [{ id: 'm1', crew_id: 'c1', worker_id: 'w1', valid_from: '2026-01-01' }], error: null };
+    expect(await crews.listAllCrewMembers()).toHaveLength(1);
+    expect(h.calls.from).toEqual(['people_directory', 'crew_standard_roles', 'crew_members']);
+    expect(JSON.stringify(h.calls.eq)).not.toContain('org_id');
+  });
+
   it('AC-CRW-001 creates a crew and its standard roles atomically, never sending org_id', async () => {
     h.result.value = { data: { id: 'c1', code: 'CR-1' }, error: null };
     await crews.createCrew({ code: 'CR-1', name: 'Crew', kind: 'own', discipline_id: null, field_controller_id: 'u1', vendor_company_id: null },

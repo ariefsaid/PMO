@@ -55,6 +55,8 @@
   "hours": "Hours",
   "hoursFor": "Hours for {{name}}",
   "hoursTotal": "{{hours}} hours",
+  "importCrews": "Import crews",
+  "importMembers": "Import crew members",
   "kind": "Crew type",
   "kindOwn": "Own staff",
   "kindVendor": "Vendor crew",

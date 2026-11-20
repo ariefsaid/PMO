@@ -27,3 +27,6 @@ export {
 } from './budgetDescriptor';
 export { makeRateCatalogueImportDescriptor, RATE_CATALOGUE_MAX_ROWS } from './rateCatalogueDescriptor';
 export { makeContractLineImportDescriptor, type ContractLineImportInput } from './contractLineDescriptor';
+export { makeCrewImportDescriptor, makeCrewMemberImportDescriptor, type CrewImportInput } from './crewDescriptor';
+export { buildTemplateWorkbook } from './templateFile';
+export { buildFailedRowsWorkbook } from './failedRowsFile';

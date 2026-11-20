@@ -193,6 +193,35 @@ export async function listCrewWorkers(): Promise<CrewWorkerRow[]> {
   return rows.sort((a, b) => a.display_name.localeCompare(b.display_name) || a.id.localeCompare(b.id));
 }
 
+export interface CrewWorkerRef { id: string; name: string; code: string }
+
+/** Live people with their code, so an import can name a person by code or by name (#2551). */
+export async function listCrewWorkerRefs(): Promise<CrewWorkerRef[]> {
+  return fetchAllRowsByKeyset<CrewWorkerRef>(async (afterId, limit) => {
+    let q = supabase.from('people_directory').select('id, name, code').is('archived_at', null).order('id', { ascending: true });
+    if (afterId !== null) q = q.gt('id', afterId);
+    return q.limit(limit) as unknown as Page<CrewWorkerRef>;
+  });
+}
+
+/** Every standard role of every live crew of the organisation (#2551: the members import names a role per crew). */
+export async function listAllStandardRoles(): Promise<Pick<CrewStandardRoleRow, 'id' | 'crew_id' | 'name'>[]> {
+  return fetchAllRowsByKeyset(async (afterId, limit) => {
+    let q = supabase.from('crew_standard_roles').select('id, crew_id, name').order('id', { ascending: true });
+    if (afterId !== null) q = q.gt('id', afterId);
+    return q.limit(limit);
+  });
+}
+
+/** Every placement, for the members import's already-there check (#2551). */
+export async function listAllCrewMembers(): Promise<Pick<CrewMemberRow, 'id' | 'crew_id' | 'worker_id' | 'valid_from'>[]> {
+  return fetchAllRowsByKeyset(async (afterId, limit) => {
+    let q = supabase.from('crew_members').select('id, crew_id, worker_id, valid_from').order('id', { ascending: true });
+    if (afterId !== null) q = q.gt('id', afterId);
+    return q.limit(limit);
+  });
+}
+
 export async function createCrewWorker(input: CrewWorkerInput): Promise<CrewWorkerRow> {
   const { display_name, ...person } = input;
   const { data, error } = await supabase.from('people').insert({ ...person, name: display_name }).select('id, display_name:name, archived_at').single();

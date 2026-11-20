@@ -8,7 +8,7 @@ import { wrap } from './repositoryErrors';
 
 export type {
   CrewRow, CrewStandardRoleRow, CrewWorkerRow, CrewMemberRow, WorkOrderCrewRow, RosterCrew, RosterMember, RosterRole,
-  WorkOrderOption, CrewInput, StandardRoleInput, CrewWorkerInput, PlacementInput, RosterInput, CrewKind,
+  WorkOrderOption, CrewInput, StandardRoleInput, CrewWorkerInput, PlacementInput, RosterInput, CrewKind, CrewWorkerRef,
 } from '@/src/lib/db/crews';
 export type {
   AttendanceRowInput, AttendanceDayRow, AttendanceSource, AttendanceStatus, GenerateWeekResult, AwaitingWeekRow,
@@ -21,6 +21,9 @@ export const crewRepository = {
   update: (id: string, patch: Partial<crews.CrewInput> & { archived_at?: string | null }) => wrap(() => crews.updateCrew(id, patch)),
   roles: (crewId: string) => wrap(() => crews.listStandardRoles(crewId)),
   workers: () => wrap(() => crews.listCrewWorkers()),
+  workerRefs: () => wrap(() => crews.listCrewWorkerRefs()),
+  allRoles: () => wrap(() => crews.listAllStandardRoles()),
+  allMembers: () => wrap(() => crews.listAllCrewMembers()),
   createWorker: (input: crews.CrewWorkerInput) => wrap(() => crews.createCrewWorker(input)),
   placeNewWorker: (person: crews.CrewWorkerInput, placement: Omit<crews.PlacementInput, 'worker_id'>) =>
     wrap(() => crews.placeNewCrewWorker(person, placement)),
