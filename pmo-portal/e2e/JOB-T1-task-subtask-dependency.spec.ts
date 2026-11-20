@@ -29,7 +29,7 @@ test('JOB-T1 a project manager adds a task, a subtask with another assignee, and
   const after = `After ${uniq()}`;
   await signIn(page, 'pm@acme.test');
   await page.goto(`/projects/${projectId}/tasks`);
-  await expect(page.getByRole('tablist', { name: 'Task view', exact: true })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole('button', { name: /new task/i }).first()).toBeVisible({ timeout: 20_000 });
 
   await newTask(page, parent);
   await newTask(page, child, { parent: new RegExp(parent), assignee: /Tomas Beck/ });

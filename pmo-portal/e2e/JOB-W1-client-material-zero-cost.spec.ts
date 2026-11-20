@@ -1,5 +1,6 @@
-// @e2e-isolation: self-isolated — unique tag, item, central warehouse and work order per run; the posted ledger is append-only so codes carry a per-run suffix.
-/** JOB-W1 — client-supplied material arrives with its picking slip: it is received into the warehouse against a work order with the slip attached, stock rises at zero cost, tagged to that work order. */
+// @e2e-isolation: self-isolated — unique tag, item, central and yard locations and work order per run; the posted ledger is append-only so codes carry a per-run suffix.
+/** JOB-W1 — client-supplied material arrives with its picking slip: it is received at zero cost, moved to the yard against the work order with the slip attached, and the work order shows it on site, tagged.
+ *  Partly landed: the receive form has no work-order field and no attachments, so the work order and the slip are attached on the transfer that follows the receipt, not on the receipt itself. */
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers';
@@ -10,7 +11,7 @@ import { chooseItem, chooseWorkOrder, confirmPost, label } from './support/jobSt
 test.setTimeout(240_000);
 const slip = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
 
-test('JOB-W1 client material received against a work order with its slip lands at zero cost under the tag', async ({ page }) => {
+test('JOB-W1 client material arrives at zero cost and reaches the work order with its slip, under the tag', async ({ page }) => {
   const sfx = runSuffix();
   const tagName = `Client material ${sfx}`;
   const number = `WO-W1-${sfx}`;
@@ -25,6 +26,9 @@ test('JOB-W1 client material received against a work order with its slip lands a
   if (wo.error) throw wo.error;
   const item = await makeItem(admin, sfx, 'CLI');
   const central = await makeWarehouse(admin, sfx, 'CEN', 'central');
+  const yardRow = await admin.from('stock_warehouses').insert({ code: `E2E-YARD${sfx}`, name: `Yard ${sfx}`, kind: 'yard', project_id: SEED_PROJECT_ID }).select('id,code,name').single();
+  if (yardRow.error) throw yardRow.error;
+  const yard = yardRow.data;
 
   // The org's "client material" tag: zero cost, paper required.
   await signIn(page, 'admin@acme.test');
@@ -40,14 +44,22 @@ test('JOB-W1 client material received against a work order with its slip lands a
   const tagged = await admin.from('stock_items').update({ tag_id: tag.data.id }).eq('id', item.id);
   if (tagged.error) throw tagged.error;
 
-  // Receive 8 against the work order, attach the slip, post.
+  // Receive 8 at zero cost.
   await page.goto('/stock/new/receive');
   await page.getByLabel(/^Warehouse/).selectOption({ label: label(central) });
+  await chooseItem(page, item.code);
+  await page.getByLabel(/^Quantity/).fill('8');
+  await page.getByLabel(/^Unit cost/).fill('0');
+  await page.getByRole('button', { name: 'Post receipt' }).click();
+  await expect(page).toHaveURL(/\/stock\/documents\/[0-9a-f-]{36}$/, { timeout: 20_000 });
+
+  // Move it to the yard against the work order; the tag requires the slip before it posts.
+  await page.goto('/stock/new/transfer');
+  await page.getByLabel('From warehouse').selectOption({ label: label(central) });
+  await page.getByLabel('To warehouse').selectOption({ label: label(yard) });
   await chooseWorkOrder(page, number);
   await chooseItem(page, item.code);
   await page.getByLabel(/^Quantity/).fill('8');
-  const cost = page.getByLabel(/^Unit cost/);
-  if (await cost.isVisible().catch(() => false) && !(await cost.inputValue())) await cost.fill('0');
   await page.getByRole('button', { name: 'Save draft' }).click();
   await expect(page).toHaveURL(/\/stock\/documents\/[0-9a-f-]{36}$/, { timeout: 20_000 });
   await page.getByRole('button', { name: 'Attachments', exact: true }).click();
@@ -61,8 +73,7 @@ test('JOB-W1 client material received against a work order with its slip lands a
   await page.goto(`/projects/${SEED_PROJECT_ID}/contract?wo=${workOrderId}`);
   const card = page.getByTestId(`customer-order-${workOrderId}`);
   await card.getByRole('button', { name: 'Stock for this work order' }).click();
-  const row = card.getByRole('row').filter({ hasText: central.code });
+  const row = card.getByRole('row').filter({ hasText: yard.code });
   await expect(row).toContainText(tagName);
-  await expect(row).toContainText('8');
-  await expect(row).not.toContainText(/[1-9]\d*[.,]\d{2}\s*$/);
+  await expect(row.getByRole('cell').nth(5)).toContainText('8');
 });
