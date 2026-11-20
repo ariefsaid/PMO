@@ -39,6 +39,15 @@ vi.mock('@/pages/project-detail/WorkOrderPlanVsActual', () => ({
   default: ({ projectId }: { projectId: string }) => createElement('div', { 'data-testid': 'wo-plan-vs-actual-stub', 'data-project': projectId }),
 }));
 
+// #2622: the purchase ledger reads the organisation's three-way match and each bill's match, which the procurement page
+// suites (ProcurementDetails.*) do not provide a query client for. Default: the match is off. ProcurementLedger.threeWayMatch
+// and BillMatchDrawer tests mock it with their own states.
+vi.mock('@/src/hooks/useThreeWayMatch', () => ({
+  useThreeWayMatchOn: () => ({ on: false, query: { data: null, isPending: false, isError: false } }),
+  useBillMatches: (ids: readonly string[]) => ids.map(() => ({ data: undefined, isPending: false, isError: false, refetch: () => Promise.resolve() })),
+  useApproveBillMatchException: () => ({ mutateAsync: () => Promise.reject(new Error('not mocked')), isPending: false }),
+}));
+
 // The Odoo section reads its own queries (connection, companies, ownership) that the Integrations view suites do not
 // provide. Its parts have their own suites; the view suites need only know it is mounted.
 vi.mock('@/src/components/integrations/odoo/OdooIntegrationSection', () => ({

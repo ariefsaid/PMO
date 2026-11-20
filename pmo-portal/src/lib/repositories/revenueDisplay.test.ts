@@ -287,6 +287,10 @@ describe('AC-RET-005 retention held is not due now (#2625, ADR-0105 §4)', () =>
     expect(clientInvoiceDueNowCents({ erp_outstanding_amount: 100, retention_held: 0 })).toBe(10_000);
     expect(clientInvoiceDueNowCents({ erp_outstanding_amount: 100 })).toBe(10_000);
   });
+  it('a balance read as numeric text counts the same as a number', () => {
+    expect(clientInvoiceDueNowCents({ erp_outstanding_amount: '60000.05' as unknown as number, retention_held: '50000.05' as unknown as number })).toBe(1_000_000);
+    expect(clientInvoiceDueNowCents({ erp_outstanding_amount: '' as unknown as number })).toBeNull();
+  });
   it('an unknown balance has no due-now figure (never a guessed one)', () => {
     expect(clientInvoiceDueNowCents({ erp_outstanding_amount: null, retention_held: 5 })).toBeNull();
     expect(retentionHeldCents({ erp_outstanding_amount: null, retention_held: 5 })).toBeNull();

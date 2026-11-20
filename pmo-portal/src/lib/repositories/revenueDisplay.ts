@@ -32,8 +32,11 @@ export interface ClientInvoiceBalanceInput {
   retention_held?: number | null;
 }
 
-const balanceCents = (value: number | null | undefined): number | null =>
-  typeof value === 'number' && Number.isFinite(value) ? Math.round(value * 100) : null;
+/** A numeric balance arrives as a JSON number or as numeric text (PostgREST numeric); anything else is unknown. */
+const balanceCents = (value: number | string | null | undefined): number | null => {
+  const n = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
+  return Number.isFinite(n) ? Math.round(n * 100) : null;
+};
 
 /**
  * #2625 (ADR-0105 §4) — the retention still held on an invoice, in cents, capped at the balance; null when the balance is
