@@ -3,7 +3,7 @@
 -- expense group of the bound company; the queued send and the resulting map row are org-scoped. Also the DB half of AC-ECX-030: the
 -- drain's result links the category to the created account once, and a category that has its account is never sent again.
 begin;
-select plan(132);
+select plan(139);
 
 insert into organizations (id, name) values
  ('a9110000-0000-0000-0000-000000000001','Accounts A'),
@@ -284,9 +284,10 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"a9110000-0000-0000-0000-0000000000f2","role":"authenticated"}';
 select set_config('a911.disposition', public.request_account_send('erpnext','Equipment','Direct Expenses - EB','Equipment original')::text, true);
 reset role;
-insert into external_command_outbox (org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state,claimed_at)
- values ('a9110000-0000-0000-0000-000000000002','accounts','Equipment','seed:account:Equipment:original','erpnext','create','pending',now()-interval '10 minutes');
-select set_config('a911.outbox', (select id::text from external_command_outbox where idempotency_key = 'seed:account:Equipment:original'), true);
+-- the key is the production one (accountSendKey: category, then the normalised name and parent), at a spent attempt budget
+insert into external_command_outbox (org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state,claimed_at,attempt_count)
+ values ('a9110000-0000-0000-0000-000000000002','accounts','Equipment','seed:account:Equipment:["equipment original","direct expenses - eb"]','erpnext','create','pending',now()-interval '10 minutes',public.outbox_max_auto_attempts());
+select set_config('a911.outbox', (select id::text from external_command_outbox where idempotency_key = 'seed:account:Equipment:["equipment original","direct expenses - eb"]'), true);
 set local role service_role;
 select public.record_connect_account_unresolved('a9110000-0000-0000-0000-000000000002',current_setting('a911.disposition')::uuid);
 reset role;
@@ -316,39 +317,39 @@ select is((select count(*)::int from public.list_account_reconciliation() where 
 select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, ' ', true)$$, '22023', null, 'a meaningful reason is required');
 select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence', false)$$, '22023', null, 'an explicit absence attestation is required');
 reset role;
-update external_command_outbox set state = 'pending' where idempotency_key = 'seed:account:Equipment:original';
+update external_command_outbox set state = 'pending' where idempotency_key = 'seed:account:Equipment:["equipment original","direct expenses - eb"]';
 set local role authenticated;
 select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence', true)$$, 'P0001', null, 'a pending outbox prevents disposition');
 reset role;
-update external_command_outbox set state = 'committing' where idempotency_key = 'seed:account:Equipment:original';
+update external_command_outbox set state = 'committing' where idempotency_key = 'seed:account:Equipment:["equipment original","direct expenses - eb"]';
 set local role authenticated;
 select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence', true)$$, 'P0001', null, 'a committing outbox prevents disposition');
 reset role;
-update external_command_outbox set state = 'quarantined' where idempotency_key = 'seed:account:Equipment:original';
+update external_command_outbox set state = 'quarantined' where idempotency_key = 'seed:account:Equipment:["equipment original","direct expenses - eb"]';
 set local role authenticated;
 select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence', true)$$, 'P0001', null, 'a quarantined outbox prevents disposition');
 reset role;
-update external_command_outbox set state = 'failed' where idempotency_key = 'seed:account:Equipment:original';
+update external_command_outbox set state = 'failed' where idempotency_key = 'seed:account:Equipment:["equipment original","direct expenses - eb"]';
 set local role authenticated;
 select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence', true)$$, 'P0001', null, 'a retryable failed outbox prevents disposition');
 reset role;
-update external_command_outbox set state = 'committed', external_record_id = 'Equipment - EB' where idempotency_key = 'seed:account:Equipment:original';
+update external_command_outbox set state = 'committed', external_record_id = 'Equipment - EB' where idempotency_key = 'seed:account:Equipment:["equipment original","direct expenses - eb"]';
 set local role authenticated;
 select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence', true)$$, 'P0001', null, 'a committed account requires linking');
 reset role;
-update external_command_outbox set state = 'confirmed', external_record_id = 'Equipment - EB' where idempotency_key = 'seed:account:Equipment:original';
+update external_command_outbox set state = 'confirmed', external_record_id = 'Equipment - EB' where idempotency_key = 'seed:account:Equipment:["equipment original","direct expenses - eb"]';
 set local role authenticated;
 select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence', true)$$, 'P0001', null, 'a confirmed account requires linking');
 reset role;
-update external_command_outbox set state = 'held', external_record_id = 'Equipment - EB' where idempotency_key = 'seed:account:Equipment:original';
+update external_command_outbox set state = 'held', external_record_id = 'Equipment - EB' where idempotency_key = 'seed:account:Equipment:["equipment original","direct expenses - eb"]';
 set local role authenticated;
 select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence', true)$$, 'P0001', null, 'any recorded external id requires linking');
 reset role;
-update external_command_outbox set state = 'held', external_record_id = null, claimed_at = now() where idempotency_key = 'seed:account:Equipment:original';
+update external_command_outbox set state = 'held', external_record_id = null, claimed_at = now() where idempotency_key = 'seed:account:Equipment:["equipment original","direct expenses - eb"]';
 set local role authenticated;
 select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence', true)$$, 'P0001', null, 'a recent claim prevents disposition');
 reset role;
-update external_command_outbox set claimed_at = now() - interval '10 minutes' where idempotency_key = 'seed:account:Equipment:original';
+update external_command_outbox set claimed_at = now() - interval '10 minutes' where idempotency_key = 'seed:account:Equipment:["equipment original","direct expenses - eb"]';
 update erp_connect_proposals set send_claimed_at = now() where id = current_setting('a911.disposition')::uuid;
 set local role authenticated;
 select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence', true)$$, 'P0001', null, 'a recent drain claim prevents disposition');
@@ -357,29 +358,53 @@ update erp_connect_proposals set send_claimed_at = now() - interval '10 minutes'
 set local role authenticated;
 select throws_ok($$select public.release_outbox_hold(current_setting('a911.outbox')::uuid, 'Generic retry', 'accounts')$$,
  'P0001', null, 'generic outbox retry cannot release an unresolved account');
+-- the hold trigger's handshake: the flag must name THIS category's unresolved proposal, and it admits only held -> failed
+reset role;
+select set_config('pmo.account_disposition', current_setting('a911.rejected'), true);
+select throws_ok($$update external_command_outbox set state = 'failed' where idempotency_key = 'seed:account:Equipment:["equipment original","direct expenses - eb"]'$$,
+ 'P0001', 'Account outbox hold requires reconciliation', 'a flag naming another proposal cannot fail a held account row');
+select set_config('pmo.account_disposition', current_setting('a911.disposition'), true);
+select throws_ok($$update external_command_outbox set state = 'pending' where idempotency_key = 'seed:account:Equipment:["equipment original","direct expenses - eb"]'$$,
+ 'P0001', 'Account outbox hold requires reconciliation', 'the matching flag cannot release a held account row to pending');
+select throws_ok($$update external_command_outbox set state = 'committing' where idempotency_key = 'seed:account:Equipment:["equipment original","direct expenses - eb"]'$$,
+ 'P0001', 'Account outbox hold requires reconciliation', 'the matching flag cannot move a held account row to committing');
+select throws_ok($$update external_command_outbox set state = 'confirmed' where idempotency_key = 'seed:account:Equipment:["equipment original","direct expenses - eb"]'$$,
+ 'P0001', 'Account outbox hold requires reconciliation', 'the matching flag cannot move a held account row to confirmed');
+select set_config('pmo.account_disposition', '', true);
+select is((select state from external_command_outbox where idempotency_key = 'seed:account:Equipment:["equipment original","direct expenses - eb"]'), 'held', 'the refused moves left the account row held');
+set local role authenticated;
 select lives_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence in the connected company', true)$$, 'an Admin may dispose of a terminal and unclaimable request with an attestation');
 select is((select count(*)::int from public.list_account_reconciliation() where id = current_setting('a911.disposition')::uuid), 0, 'disposed requests are excluded');
 select throws_ok($$select public.release_outbox_hold(current_setting('a911.outbox')::uuid, 'Generic retry', 'accounts')$$,
  'P0001', null, 'generic outbox retry cannot revive a disposed request');
-select lives_ok($$select public.request_account_send('erpnext','Equipment','Direct Expenses - EB','Corrected equipment')$$, 'only the disposed category is released');
--- The retry is usable end to end: the disposed hold is terminal, the new send is queued and claimed, and a later unresolved attempt is fenced again.
+-- the same request again (same name and parent, so the same production key) reuses the disposed row, which now carries a usable budget
 reset role;
-select is((select state from external_command_outbox where idempotency_key = 'seed:account:Equipment:original'), 'failed', 'disposition terminalizes the original held outbox row');
+select is((select state || ':' || attempt_count from external_command_outbox where idempotency_key = 'seed:account:Equipment:["equipment original","direct expenses - eb"]'), 'failed:0', 'disposition terminalizes the original and restores its attempt budget');
 select throws_ok($$update external_command_outbox set state = 'failed' where org_id = 'a9110000-0000-0000-0000-000000000001' and idempotency_key like 'seed:account:Overheads%'$$,
  'P0001', 'Account outbox hold requires reconciliation', 'an undisposed account hold still cannot be moved by a direct update');
 set local role service_role;
-select lives_ok($$insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state)
- values ('a9110000-0000-0000-0000-000000000002','accounts','Equipment','seed:account:Equipment:retry','erpnext','create','pending')$$, 'the new request queues its own outbox row');
-select lives_ok($$select public.claim_outbox_for_commit((select id from external_command_outbox where idempotency_key = 'seed:account:Equipment:retry'))$$, 'the drain claims the new outbox row');
-select public.record_connect_send_failure('a9110000-0000-0000-0000-000000000002', (select id from erp_connect_proposals where pmo_ids[1] = 'Equipment' and state = 'sending')) from generate_series(1,5);
+select is((select count(*)::int from public.claim_connect_sends('a9110000-0000-0000-0000-000000000002', 'erpnext', 50) where id = current_setting('a911.disposition')::uuid), 0, 'the disposed request is not driven again before it is asked for');
 reset role;
-select results_eq($$select reason, state, account_disposed_at from erp_connect_proposals where pmo_ids[1] = 'Equipment' and snapshot->>'accountName' = 'Corrected equipment'$$,
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a9110000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select set_config('a911.retry', public.request_account_send('erpnext','Equipment','Direct Expenses - EB','Equipment original')::text, true);
+reset role;
+select results_eq($$select state, outcome from erp_connect_proposals where id = current_setting('a911.retry')::uuid$$, $$values ('sending'::text, 'send'::text)$$, 'asking for the same account again queues a send');
+reset role;
+set local role service_role;
+select throws_ok($$insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state)
+ values ('a9110000-0000-0000-0000-000000000002','accounts','Equipment','seed:account:Equipment:["equipment original","direct expenses - eb"]','erpnext','create','pending')$$, '23505', null, 'the drain finds the earlier row under the same key, never a second one');
+select lives_ok($$select public.claim_outbox_for_commit((select id from external_command_outbox where idempotency_key = 'seed:account:Equipment:["equipment original","direct expenses - eb"]'))$$, 'the drain claims the disposed row');
+select is((select state || ':' || attempt_count from external_command_outbox where idempotency_key = 'seed:account:Equipment:["equipment original","direct expenses - eb"]'), 'committing:1', 'the retry starts from a fresh budget');
+select public.record_connect_send_failure('a9110000-0000-0000-0000-000000000002', current_setting('a911.retry')::uuid) from generate_series(1,5);
+reset role;
+select results_eq($$select reason, state, account_disposed_at from erp_connect_proposals where id = current_setting('a911.retry')::uuid$$,
  $$values ('unresolved'::text, 'open'::text, null::timestamptz)$$, 'the new attempt is unresolved and not hidden by the earlier disposition');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"a9110000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select throws_ok($$select public.request_account_send('erpnext','Equipment','Direct Expenses - EB','Another equipment name')$$, 'P0001', 'An account for this category is already on its way to the ERP', 'the unresolved retry fences a different-name request');
 reset role;
-select is((select count(*)::int from external_command_outbox where org_id = 'a9110000-0000-0000-0000-000000000002' and domain = 'accounts' and pmo_record_id = 'Equipment'), 2, 'both outbox rows remain after the refused request');
+select is((select count(*)::int from external_command_outbox where org_id = 'a9110000-0000-0000-0000-000000000002' and domain = 'accounts' and pmo_record_id = 'Equipment'), 1, 'the one outbox row remains after the refused request');
 select is((select count(*)::int from erp_connect_proposals where pmo_ids[1] = 'Equipment' and snapshot->>'accountName' = 'Another equipment name'), 0, 'the refused request queued nothing');
 -- A request that re-enters a row still carrying an earlier disposition marker clears it, so the new attempt is listed and fenced.
 insert into erp_connect_proposals (org_id, binding_id, external_tier, kind, outcome, reason, identity, pmo_ids, external_ids, snapshot, state, account_disposed_at)

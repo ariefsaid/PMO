@@ -80,10 +80,11 @@ begin
   end if;
   update public.erp_connect_proposals set account_disposed_at = now() where id = p.id and org_id = v_org;
   -- the disposition ends the held outbox row, so the corrected request can be queued and claimed; the guard trigger admits this one move
-  -- (the retry budget is spent, so no sweep retries it)
+  -- (the row ends terminal: the sweep skips every seed: send and the drain claims only a proposal in 'sending', so nothing drives it before the
+  -- explicit retry; the attempt budget is restored here, in the audited step, so that retry starts fresh)
   perform set_config('pmo.account_disposition', p.id::text, true);
   update public.external_command_outbox set state = 'failed', last_error = 'account_reconciliation_disposed',
-         attempt_count = greatest(attempt_count, public.outbox_max_auto_attempts())
+         attempt_count = 0
    where org_id = v_org and external_tier = p.external_tier and domain = 'accounts' and pmo_record_id = p.pmo_ids[1] and state = 'held';
   perform set_config('pmo.account_disposition', '', true);
   perform public.log_audit('integration.account_reconciliation_disposition', v_org, v_actor, p.id,
