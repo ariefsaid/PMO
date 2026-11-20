@@ -1,4 +1,4 @@
--- 0982_stock_site_work_locations_tags.sql — #2523 (spec docs/specs/stock-site-work.spec.md; plan docs/plans/2026-11-20-stock-site-work.md).
+-- 1029_stock_site_work_locations_tags.sql — #2523 (spec docs/specs/stock-site-work.spec.md; plan docs/plans/2026-11-20-stock-site-work.md).
 -- Proven by supabase/tests/stock_site_work.test.sql.
 --   §1 stock_warehouses.kind also allows 'yard' and 'staging' (FR-SSW-001..003); the #2517 work-order rule treats them like 'site'.
 --   §2 stock_tags (an org names its own tags; one may be "zero cost"), stock_items.tag_id (FR-SSW-010/011).
@@ -7,7 +7,7 @@
 --   §4 an item's tag is frozen once it has movements (FR-SSW-014).
 -- Nothing here writes the ledger.
 --
--- ── REVERSE (also supabase/migrations/rollback/0982_stock_site_work_locations_tags_down.sql) ──────────
+-- ── REVERSE (also supabase/migrations/rollback/1029_stock_site_work_locations_tags_down.sql) ──────────
 --   drop triggers/functions of §3, §4; alter table stock_items drop column tag_id; drop table stock_tags;
 --   restore the kind check to ('central','site'); restore 0951's check_cost_attribution.
 
