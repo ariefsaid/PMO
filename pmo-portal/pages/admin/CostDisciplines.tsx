@@ -17,7 +17,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 type FormTarget = { mode: 'create' } | { mode: 'edit'; row: CostDiscipline };
 
 export default function CostDisciplines() {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'workOrderCost']);
   const may = usePermission();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -29,8 +29,8 @@ export default function CostDisciplines() {
   const canArchive = may('archive', 'costDiscipline');
 
   const refusals = {
-    '23505': t('costDisciplines.duplicateCode', 'Another live discipline already uses this code.'),
-    '42501': t('costDisciplines.adminOnly', 'Only an Admin can change the discipline list.'),
+    '23505': t('workOrderCost:disciplines.duplicateCode', 'Another live discipline already uses this code.'),
+    '42501': t('workOrderCost:disciplines.adminOnly', 'Only an Admin can change the discipline list.'),
   };
   // Every cached discipline list (keyed by org, useCostDisciplines) refreshes: the pickers drop an archived one.
   const invalidate = () => qc.invalidateQueries({ queryKey: ['cost-disciplines'] });
@@ -43,14 +43,14 @@ export default function CostDisciplines() {
   });
   const archive = useMutation({ mutationFn: (id: string) => workOrderCostRepository.archiveDiscipline(id), onSuccess: invalidate });
 
-  const title = t('costDisciplines.title', 'Cost disciplines');
+  const title = t('workOrderCost:disciplines.title', 'Cost disciplines');
   const rows = query.data ?? [];
 
   const runArchive = async () => {
     if (!archiveFor) return;
     try {
       await archive.mutateAsync(archiveFor.id);
-      toast(t('costDisciplines.archived', 'Discipline archived'), archiveFor.name, 'success');
+      toast(t('workOrderCost:disciplines.archived', 'Discipline archived'), archiveFor.name, 'success');
       setArchiveFor(null);
     } catch (error) {
       const { headline, detail } = classifyMutationError(error, refusals);
@@ -61,24 +61,24 @@ export default function CostDisciplines() {
   return <section aria-label={title} className="max-w-2xl space-y-4">
     <div className="flex items-center justify-between gap-3">
       <h3 className="text-base font-semibold">{title}</h3>
-      {canCreate && rows.length > 0 && <Button variant="outline" size="sm" onClick={() => setForm({ mode: 'create' })}>{t('costDisciplines.add', 'Add discipline')}</Button>}
+      {canCreate && rows.length > 0 && <Button variant="outline" size="sm" onClick={() => setForm({ mode: 'create' })}>{t('workOrderCost:disciplines.add', 'Add discipline')}</Button>}
     </div>
     {query.isError ? (
-      <ListState variant="error" title={t('costDisciplines.loadError', "Couldn't load the disciplines")} retryLabel={t('admin.retry', 'Retry')} onRetry={() => void query.refetch()} />
+      <ListState variant="error" title={t('workOrderCost:disciplines.loadError', "Couldn't load the disciplines")} retryLabel={t('admin.retry', 'Retry')} onRetry={() => void query.refetch()} />
     ) : !query.data ? (
       <ListState variant="loading" rows={2} />
     ) : rows.length === 0 ? (
       <div className="flex flex-wrap items-center gap-3 text-sm">
-        <span className="text-muted-foreground">{t('costDisciplines.empty', 'No disciplines yet')}</span>
-        {canCreate && <Button variant="outline" size="sm" onClick={() => setForm({ mode: 'create' })}>{t('costDisciplines.add', 'Add discipline')}</Button>}
+        <span className="text-muted-foreground">{t('workOrderCost:disciplines.empty', 'No disciplines yet')}</span>
+        {canCreate && <Button variant="outline" size="sm" onClick={() => setForm({ mode: 'create' })}>{t('workOrderCost:disciplines.add', 'Add discipline')}</Button>}
       </div>
     ) : (
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-muted-foreground">
-            <th scope="col" className="py-2 pr-4 font-normal">{t('costDisciplines.code', 'Code')}</th>
-            <th scope="col" className="py-2 pr-4 font-normal">{t('costDisciplines.name', 'Name')}</th>
-            {(canEdit || canArchive) && <th scope="col" className="py-2 font-normal"><span className="sr-only">{t('costDisciplines.actions', 'Actions')}</span></th>}
+            <th scope="col" className="py-2 pr-4 font-normal">{t('workOrderCost:disciplines.code', 'Code')}</th>
+            <th scope="col" className="py-2 pr-4 font-normal">{t('workOrderCost:disciplines.name', 'Name')}</th>
+            {(canEdit || canArchive) && <th scope="col" className="py-2 font-normal"><span className="sr-only">{t('workOrderCost:disciplines.actions', 'Actions')}</span></th>}
           </tr>
         </thead>
         <tbody>
@@ -88,8 +88,8 @@ export default function CostDisciplines() {
               <td className="py-2 pr-4">{row.name}</td>
               {(canEdit || canArchive) && <td className="py-2 text-right">
                 <div className="flex justify-end gap-1.5">
-                  {canEdit && <Button variant="ghost" size="sm" aria-label={t('costDisciplines.editLabel', 'Edit {{name}}', { name: row.name })} onClick={() => setForm({ mode: 'edit', row })}>{t('costDisciplines.edit', 'Edit')}</Button>}
-                  {canArchive && <Button variant="ghost" size="sm" aria-label={t('costDisciplines.archiveLabel', 'Archive {{name}}', { name: row.name })} onClick={() => setArchiveFor(row)}>{t('costDisciplines.archive', 'Archive')}</Button>}
+                  {canEdit && <Button variant="ghost" size="sm" aria-label={t('workOrderCost:disciplines.editLabel', 'Edit {{name}}', { name: row.name })} onClick={() => setForm({ mode: 'edit', row })}>{t('workOrderCost:disciplines.edit', 'Edit')}</Button>}
+                  {canArchive && <Button variant="ghost" size="sm" aria-label={t('workOrderCost:disciplines.archiveLabel', 'Archive {{name}}', { name: row.name })} onClick={() => setArchiveFor(row)}>{t('workOrderCost:disciplines.archive', 'Archive')}</Button>}
                 </div>
               </td>}
             </tr>
@@ -97,18 +97,18 @@ export default function CostDisciplines() {
         </tbody>
       </table>
     )}
-    {!canCreate && <p className="text-sm text-muted-foreground">{t('costDisciplines.adminOnly', 'Only an Admin can change the discipline list.')}</p>}
+    {!canCreate && <p className="text-sm text-muted-foreground">{t('workOrderCost:disciplines.adminOnly', 'Only an Admin can change the discipline list.')}</p>}
     {form && <DisciplineForm target={form} pending={save.isPending} refusals={refusals}
       onClose={() => setForm(null)}
       onSave={async (input) => {
         await save.mutateAsync({ target: form, input });
-        toast(t('costDisciplines.saved', 'Discipline saved'), input.name, 'success');
+        toast(t('workOrderCost:disciplines.saved', 'Discipline saved'), input.name, 'success');
         setForm(null);
       }} />}
     <ConfirmDialog open={Boolean(archiveFor)} tone="default"
-      title={t('costDisciplines.confirmArchiveTitle', 'Archive {{name}}?', { name: archiveFor?.name ?? '' })}
-      description={t('costDisciplines.confirmArchiveDescription', 'It leaves the discipline pickers. Cost lines that already name it keep it.')}
-      confirmLabel={t('costDisciplines.confirmArchive', 'Archive discipline')}
+      title={t('workOrderCost:disciplines.confirmArchiveTitle', 'Archive {{name}}?', { name: archiveFor?.name ?? '' })}
+      description={t('workOrderCost:disciplines.confirmArchiveDescription', 'It leaves the discipline pickers. Cost lines that already name it keep it.')}
+      confirmLabel={t('workOrderCost:disciplines.confirmArchive', 'Archive discipline')}
       loading={archive.isPending} onConfirm={() => void runArchive()} onCancel={() => setArchiveFor(null)} />
   </section>;
 }
@@ -120,19 +120,19 @@ const DisciplineForm: React.FC<{
   onClose: () => void;
   onSave: (input: CostDisciplineInput) => Promise<void>;
 }> = ({ target, pending, refusals, onClose, onSave }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'workOrderCost']);
   const initial = target.mode === 'edit' ? target.row : { code: '', name: '' };
   const [code, setCode] = useState(initial.code);
   const [name, setName] = useState(initial.name);
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
   const input = { code: code.trim(), name: name.trim() };
-  const codeError = input.code.length > DISCIPLINE_CODE_MAX ? t('costDisciplines.tooLong', 'Use {{max}} characters or fewer.', { max: DISCIPLINE_CODE_MAX }) : undefined;
-  const nameError = input.name.length > DISCIPLINE_NAME_MAX ? t('costDisciplines.tooLong', 'Use {{max}} characters or fewer.', { max: DISCIPLINE_NAME_MAX }) : undefined;
+  const codeError = input.code.length > DISCIPLINE_CODE_MAX ? t('workOrderCost:disciplines.tooLong', 'Use {{max}} characters or fewer.', { max: DISCIPLINE_CODE_MAX }) : undefined;
+  const nameError = input.name.length > DISCIPLINE_NAME_MAX ? t('workOrderCost:disciplines.tooLong', 'Use {{max}} characters or fewer.', { max: DISCIPLINE_NAME_MAX }) : undefined;
   const unchanged = target.mode === 'edit' && input.code === target.row.code && input.name === target.row.name;
   const invalid = !input.code || !input.name || Boolean(codeError || nameError) || unchanged;
-  const submitLabel = target.mode === 'create' ? t('costDisciplines.add', 'Add discipline') : t('costDisciplines.save', 'Save discipline');
+  const submitLabel = target.mode === 'create' ? t('workOrderCost:disciplines.add', 'Add discipline') : t('workOrderCost:disciplines.save', 'Save discipline');
   return <EntityFormModal open
-    title={target.mode === 'create' ? t('costDisciplines.addTitle', 'Add a discipline') : t('costDisciplines.editTitle', 'Edit discipline')}
+    title={target.mode === 'create' ? t('workOrderCost:disciplines.addTitle', 'Add a discipline') : t('workOrderCost:disciplines.editTitle', 'Edit discipline')}
     submitLabel={submitLabel} submitDisabled={invalid || pending} loading={pending}
     dirty={input.code !== initial.code || input.name !== initial.name} submitError={submitError}
     onClose={onClose}
@@ -143,8 +143,8 @@ const DisciplineForm: React.FC<{
       onSave(input).catch((error: unknown) => setSubmitError(classifyMutationError(error, refusals)));
     }}>
     <FormGrid>
-      <TextField id="cost-discipline-code" label={t('costDisciplines.code', 'Code')} value={code} onChange={setCode} required error={codeError} autoComplete="off" />
-      <TextField id="cost-discipline-name" label={t('costDisciplines.name', 'Name')} value={name} onChange={setName} required error={nameError} autoComplete="off" />
+      <TextField id="cost-discipline-code" label={t('workOrderCost:disciplines.code', 'Code')} value={code} onChange={setCode} required error={codeError} autoComplete="off" />
+      <TextField id="cost-discipline-name" label={t('workOrderCost:disciplines.name', 'Name')} value={name} onChange={setName} required error={nameError} autoComplete="off" />
     </FormGrid>
   </EntityFormModal>;
 };

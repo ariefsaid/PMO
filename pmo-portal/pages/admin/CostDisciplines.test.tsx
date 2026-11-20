@@ -125,7 +125,7 @@ describe('AC-WCA-017 cost disciplines (Admin settings)', () => {
   it('the strings are translated — Bahasa Indonesia has every key', async () => {
     const { readFileSync } = await import('node:fs');
     const { join } = await import('node:path');
-    const read = (lng: string) => JSON.parse(readFileSync(join(process.cwd(), `public/locales/${lng}/common.json`), 'utf8')).costDisciplines as Record<string, unknown>;
+    const read = (lng: string) => JSON.parse(readFileSync(join(process.cwd(), `public/locales/${lng}/workOrderCost.json`), 'utf8')).disciplines as Record<string, unknown>;
     expect(Object.keys(read('id')).sort()).toEqual(Object.keys(read('en')).sort());
     expect(read('id').title).toBe('Disiplin biaya');
   });
