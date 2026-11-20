@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
+import { DocumentViewerContext, type DocumentViewerApi } from '@/src/components/documents';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { formatNumberMax2 } from '@/src/lib/format';
 import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
@@ -140,8 +141,9 @@ beforeEach(() => {
     .map((name) => [name, { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false }]));
 });
 
-function renderTab(clientId: string | null = 'c1', initialEntry = '/', mode: 'full' | 'contract-tools' | 'contract-time-materials' = 'full') {
-  render(<MemoryRouter initialEntries={[initialEntry]}><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId={clientId} projectManagerId="pm-1" mode={mode} /><RouteSearch /></ToastProvider></MemoryRouter>);
+function renderTab(clientId: string | null = 'c1', initialEntry = '/', mode: 'full' | 'contract-tools' | 'contract-time-materials' = 'full', open?: DocumentViewerApi['open']) {
+  const content = <><BillingTab projectId="p1" currency="IDR" clientId={clientId} projectManagerId="pm-1" mode={mode} /><RouteSearch /></>;
+  render(<MemoryRouter initialEntries={[initialEntry]}><ToastProvider>{open ? <DocumentViewerContext.Provider value={{ open, close: vi.fn() }}>{content}</DocumentViewerContext.Provider> : content}</ToastProvider></MemoryRouter>);
   return userEvent.setup();
 }
 
@@ -182,6 +184,26 @@ async function renderTabLocalized(lng: 'en' | 'id') {
 }
 
 describe('BillingTab', () => {
+  it('document-preview AC-016 shows a billing evidence title that opens the shared viewer', async () => {
+    const open = vi.fn<DocumentViewerApi['open']>();
+    const user = renderTab('c1', '/', 'full', open);
+    await user.click(screen.getAllByRole('button', { name: /Open Progress claim from/ })[1]);
+    const drawer = within(screen.getByRole('dialog'));
+    await user.click(drawer.getByRole('button', { name: 'Preview Progress report' }));
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(open.mock.calls[0][0].key).toBe('project-document:doc-1');
+  });
+
+  it('document-preview AC-017 never shows a raw id for unreadable billing evidence', async () => {
+    h.docs = [];
+    const user = renderTab();
+    await user.click(screen.getAllByRole('button', { name: /Open Progress claim from/ })[1]);
+    const drawer = within(screen.getByRole('dialog'));
+    expect(drawer.getByText('Document not available')).toBeInTheDocument();
+    expect(drawer.queryByText('doc-1')).toBeNull();
+    expect(drawer.queryByRole('button', { name: /Preview/ })).toBeNull();
+  });
+
   it('C21 keeps the eligible row invoice action secondary while New claim remains the primary action', async () => {
     h.routeReady = false;
     const user = renderTab();
@@ -346,8 +368,7 @@ describe('BillingTab', () => {
     await user.click(opens[1]);
     const drawer = screen.getByRole('dialog');
     // The register title is the label, and the row opens THAT document in the register.
-    expect(within(drawer).getByRole('link', { name: 'Progress report' }))
-      .toHaveAttribute('href', '/projects/p1/documents?open=doc-1');
+    expect(within(drawer).getByRole('button', { name: 'Preview Progress report' })).toBeInTheDocument();
     expect(within(drawer).getByText('rev A')).toBeInTheDocument();
     const evidenceStatus = within(drawer).getByText('Issued');
     expect(evidenceStatus).toBeInTheDocument();
@@ -361,7 +382,7 @@ describe('BillingTab', () => {
     const opens = screen.getAllByRole('button', { name: /Buka klaim Progres/ });
     await user.click(opens[1]);
     const drawer = screen.getByRole('dialog');
-    expect(within(drawer).getByRole('link', { name: 'Progress report' })).toBeInTheDocument();
+    expect(within(drawer).getByRole('button', { name: 'Preview Progress report' })).toBeInTheDocument();
     expect(within(drawer).getByText('Diterbitkan')).toBeInTheDocument();
     expect(within(drawer).queryByText('Issued')).toBeNull();
   });

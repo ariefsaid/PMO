@@ -71,7 +71,7 @@
           "confirm": "Tarik BAST",
           "title": "Tarik draft BAST ini?"
         },
-        "document": "BAST bertanda tangan: {{title}}",
+        "documentLabel": "BAST bertanda tangan:",
         "edit": "Ubah",
         "editLabel": "Ubah draft BAST tanggal {{date}}",
         "empty": "Belum ada BAST",

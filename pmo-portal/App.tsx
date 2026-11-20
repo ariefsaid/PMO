@@ -859,7 +859,8 @@ export const ShellChrome: React.FC = () => {
         items={paletteItems}
         onClose={() => setPaletteOpen(false)}
         returnFocusTo={paletteTriggerRef.current}
-        loading={recordSearch.isPending}
+        loading={recordSearch.nothingAnswered}
+        loadingMore={recordSearch.isPending && !recordSearch.nothingAnswered}
         error={recordSearch.isError}
         onRetry={recordSearch.refetch}
         onAskAi={
