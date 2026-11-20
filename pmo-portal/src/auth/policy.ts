@@ -121,6 +121,9 @@ export type Entity =
   | 'stockUnit'
   | 'warehouse'
   | 'stockDocument'
+  | 'materialRequest'
+  | 'approvalChain'
+  | 'standIn'
   | 'materialAllowance'
   | 'reorderLevel'
   | 'subcontractLines'
@@ -338,6 +341,34 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
         : ctx.record?.isKeeper === true || role === 'Admin'),
     withdraw: (role, ctx) =>
       ctx.record?.viewOnly !== true && ctx.record?.status === 'Draft' && (role === 'Admin' || (!!ctx.currentUserId && ctx.record?.created_by === ctx.currentUserId)),
+  },
+  /**
+   * Material requests (#2524, migrations 1000/1001). Every member raises one (FR-MRQ-016: the field role is a job, not a
+   * system role); only the author edits/submits a draft or withdraws while undecided. `decide` is offered only for a
+   * step in the caller's "waiting for me" queue (`inMyQueue`, which already applies role, stand-in window and
+   * one-step-per-person) and never to the author. UX only: mrq_decide_step is the authority.
+   */
+  materialRequest: {
+    view: allow(ALL),
+    create: allowUnlessViewOnly(ALL),
+    edit: (role, ctx) =>
+      has(ALL, role) && ctx.record?.viewOnly !== true && ctx.record?.status === 'draft' &&
+      !!ctx.currentUserId && ctx.record?.created_by === ctx.currentUserId,
+    withdraw: (role, ctx) =>
+      has(ALL, role) && ctx.record?.viewOnly !== true && (ctx.record?.status === 'draft' || ctx.record?.status === 'pending') &&
+      !!ctx.currentUserId && ctx.record?.created_by === ctx.currentUserId,
+    decide: (role, ctx) =>
+      has(ALL, role) && ctx.record?.viewOnly !== true && ctx.record?.inMyQueue === true &&
+      !!ctx.currentUserId && ctx.record?.created_by !== ctx.currentUserId,
+  },
+  /** The org's approval chain and daily cut-off (FR-MRQ-005/014): Admin only, mirroring mrq_set_chain / mrq_set_cutoff. */
+  approvalChain: { view: allow(ALL), manage: allowUnlessViewOnly(ADMIN) },
+  /** Stand-ins (FR-MRQ-009): the person away names their own; an Admin names anyone's (mrq_set_stand_in). */
+  standIn: {
+    view: allow(ALL),
+    manage: (role, ctx) =>
+      has(ALL, role) && ctx.record?.viewOnly !== true &&
+      (role === 'Admin' || (!!ctx.currentUserId && ctx.record?.delegator_id === ctx.currentUserId)),
   },
   /**
    * Work-order allocations of contract lines (ADR-0091, migration 0337). Mirrors the allocation table's RLS:

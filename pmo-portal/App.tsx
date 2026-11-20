@@ -99,6 +99,10 @@ const TimesheetsPage = lazyWithPreload(() => import('./pages/Timesheets'));
 const ImprestFloatsPage = lazyWithPreload(() => import('./pages/ImprestFloats'));
 const WorkOrderDetailPage = lazyWithPreload(() => import('./pages/WorkOrderDetail'));
 const ImprestFloatDetailPage = lazyWithPreload(() => import('./pages/ImprestFloatDetail'));
+const MaterialRequestsPage = lazyWithPreload(() => import('./pages/MaterialRequests'));
+const MaterialRequestNewPage = lazyWithPreload(() => import('./pages/MaterialRequestNew'));
+const MaterialRequestDetailPage = lazyWithPreload(() => import('./pages/MaterialRequestDetail'));
+const MaterialRequestSettingsPage = lazyWithPreload(() => import('./pages/MaterialRequestSettings'));
 const EquipmentUsagePage = lazyWithPreload(() => import('./pages/equipment/EquipmentUsage'));
 const EquipmentAssetsPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAssets'));
 const ExpiringDocumentsPage = lazyWithPreload(() => import('./pages/equipment/ExpiringDocuments'));
@@ -236,6 +240,11 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/expenses/new', chunks: [ExpenseClaimNewPage], namespaces: ['expenseClaims', 'imprest'] },
   { path: '/expenses/:claimId', chunks: [ExpenseClaimDetailPage], namespaces: ['imprest'] },
   { path: '/work-orders/:id', chunks: [WorkOrderDetailPage], namespaces: ['workOrders', 'workOrderCost', 'status'] },
+  { path: '/material-requests/settings', chunks: [MaterialRequestSettingsPage], namespaces: ['materialRequests'] },
+  { path: '/material-requests/new', chunks: [MaterialRequestNewPage], namespaces: ['materialRequests'] },
+  { path: '/material-requests/:requestId/edit', chunks: [MaterialRequestNewPage], namespaces: ['materialRequests'] },
+  { path: '/material-requests/:requestId', chunks: [MaterialRequestDetailPage], namespaces: ['materialRequests', 'stock'] },
+  { path: '/material-requests', chunks: [MaterialRequestsPage], namespaces: ['materialRequests'] },
   { path: '/imprest', chunks: [ImprestFloatsPage], namespaces: ['imprest'] },
   { path: '/imprest/:floatId', chunks: [ImprestFloatDetailPage], namespaces: ['imprest'] },
   { path: '/equipment', chunks: [EquipmentUsagePage], namespaces: ['equipment'] },
@@ -444,6 +453,11 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/expenses/new', element: <ExpenseClaimNewPage /> },
   { path: '/expenses/:claimId', element: <ExpenseClaimDetailPage /> },
   { path: '/work-orders/:id', element: <WorkOrderDetailPage /> },
+  { path: '/material-requests', element: <MaterialRequestsPage /> },
+  { path: '/material-requests/new', element: <MaterialRequestNewPage /> },
+  { path: '/material-requests/settings', element: <MaterialRequestSettingsPage /> },
+  { path: '/material-requests/:requestId/edit', element: <MaterialRequestNewPage /> },
+  { path: '/material-requests/:requestId', element: <MaterialRequestDetailPage /> },
   { path: '/imprest', element: gated('imprest', <ImprestFloatsPage />) },
   { path: '/imprest/:floatId', element: gated('imprest', <ImprestFloatDetailPage />) },
   // #1519: equipment usage grid, asset reference and per-asset costing.
