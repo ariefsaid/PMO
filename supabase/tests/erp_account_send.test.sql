@@ -3,7 +3,7 @@
 -- expense group of the bound company; the queued send and the resulting map row are org-scoped. Also the DB half of AC-ECX-030: the
 -- drain's result links the category to the created account once, and a category that has its account is never sent again.
 begin;
-select plan(121);
+select plan(132);
 
 insert into organizations (id, name) values
  ('a9110000-0000-0000-0000-000000000001','Accounts A'),
@@ -362,6 +362,41 @@ select is((select count(*)::int from public.list_account_reconciliation() where 
 select throws_ok($$select public.release_outbox_hold(current_setting('a911.outbox')::uuid, 'Generic retry', 'accounts')$$,
  'P0001', null, 'generic outbox retry cannot revive a disposed request');
 select lives_ok($$select public.request_account_send('erpnext','Equipment','Direct Expenses - EB','Corrected equipment')$$, 'only the disposed category is released');
+-- The retry is usable end to end: the disposed hold is terminal, the new send is queued and claimed, and a later unresolved attempt is fenced again.
+reset role;
+select is((select state from external_command_outbox where idempotency_key = 'seed:account:Equipment:original'), 'failed', 'disposition terminalizes the original held outbox row');
+select throws_ok($$update external_command_outbox set state = 'failed' where org_id = 'a9110000-0000-0000-0000-000000000001' and idempotency_key like 'seed:account:Overheads%'$$,
+ 'P0001', 'Account outbox hold requires reconciliation', 'an undisposed account hold still cannot be moved by a direct update');
+set local role service_role;
+select lives_ok($$insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state)
+ values ('a9110000-0000-0000-0000-000000000002','accounts','Equipment','seed:account:Equipment:retry','erpnext','create','pending')$$, 'the new request queues its own outbox row');
+select lives_ok($$select public.claim_outbox_for_commit((select id from external_command_outbox where idempotency_key = 'seed:account:Equipment:retry'))$$, 'the drain claims the new outbox row');
+select public.record_connect_send_failure('a9110000-0000-0000-0000-000000000002', (select id from erp_connect_proposals where pmo_ids[1] = 'Equipment' and state = 'sending')) from generate_series(1,5);
+reset role;
+select results_eq($$select reason, state, account_disposed_at from erp_connect_proposals where pmo_ids[1] = 'Equipment' and snapshot->>'accountName' = 'Corrected equipment'$$,
+ $$values ('unresolved'::text, 'open'::text, null::timestamptz)$$, 'the new attempt is unresolved and not hidden by the earlier disposition');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a9110000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select throws_ok($$select public.request_account_send('erpnext','Equipment','Direct Expenses - EB','Another equipment name')$$, 'P0001', 'An account for this category is already on its way to the ERP', 'the unresolved retry fences a different-name request');
+reset role;
+select is((select count(*)::int from external_command_outbox where org_id = 'a9110000-0000-0000-0000-000000000002' and domain = 'accounts' and pmo_record_id = 'Equipment'), 2, 'both outbox rows remain after the refused request');
+select is((select count(*)::int from erp_connect_proposals where pmo_ids[1] = 'Equipment' and snapshot->>'accountName' = 'Another equipment name'), 0, 'the refused request queued nothing');
+-- A request that re-enters a row still carrying an earlier disposition marker clears it, so the new attempt is listed and fenced.
+insert into erp_connect_proposals (org_id, binding_id, external_tier, kind, outcome, reason, identity, pmo_ids, external_ids, snapshot, state, account_disposed_at)
+select 'a9110000-0000-0000-0000-000000000002', id, 'erpnext', 'account', 'review', 'rejected', 'send|["Materials"]|[]|account-request', array['Materials'], '{}', '{}', 'dismissed', now() - interval '1 hour'
+  from external_org_bindings where org_id = 'a9110000-0000-0000-0000-000000000002' and external_tier = 'erpnext';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a9110000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select set_config('a911.stale', public.request_account_send('erpnext','Materials','Direct Expenses - EB','Site materials')::text, true);
+reset role;
+select is((select account_disposed_at from erp_connect_proposals where id = current_setting('a911.stale')::uuid), null::timestamptz, 'a new request clears the stale disposition marker');
+set local role service_role;
+select public.record_connect_account_unresolved('a9110000-0000-0000-0000-000000000002', current_setting('a911.stale')::uuid);
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a9110000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select is((select count(*)::int from public.list_account_reconciliation() where id = current_setting('a911.stale')::uuid), 1, 'the new unresolved attempt is listed');
+select throws_ok($$select public.request_account_send('erpnext','Materials','Direct Expenses - EB','Other materials')$$, 'P0001', 'An account for this category is already on its way to the ERP', 'the new unresolved attempt fences a different-name request');
 set local request.jwt.claims = '{"sub":"a9110000-0000-0000-0000-0000000000f1","role":"authenticated"}';
 select throws_ok($$select public.request_account_send('erpnext','Overheads','Direct Expenses - EC','Different account')$$, 'P0001', null, 'another unresolved category remains fenced after disposition');
 reset role;
