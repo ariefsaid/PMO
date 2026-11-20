@@ -32,4 +32,6 @@ test('JOB-BQ5 an item reconciles scope, progress and claimed quantity, with visi
   await expect(cells.nth(0)).toHaveText('10');
   await expect(cells.nth(1)).toHaveText('6');
   await expect(cells.nth(2)).toHaveText('12');
+  await page.getByRole('button', { name: /edit contract lines/i }).click();
+  await expect(page.getByTestId(`boq-remaining-${fx.boqId}`)).toContainText('Over-claimed');
 });

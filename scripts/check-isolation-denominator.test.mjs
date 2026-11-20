@@ -460,7 +460,7 @@ test('validateDenominator rejects a table entry with an empty pk', () => {
 });
 
 test('guarded invoice unpair is included in the isolation denominator', () => {
-  const manifest = readDenominator(path.resolve('scripts/isolation-probe-denominator.json'));
+  const manifest = readDenominator(DENOMINATOR_PATH);
   assert.ok(manifest.definer_functions.includes('compare_and_unpair_invoice(uuid,uuid,timestamp with time zone,integer,timestamp with time zone)'));
 });
 
