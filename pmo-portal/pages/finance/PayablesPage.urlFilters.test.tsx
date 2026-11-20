@@ -152,7 +152,7 @@ describe('R2 — payables search lives in the URL', () => {
     const user = userEvent.setup();
     renderPage('/finance/payables?q=inspection');
 
-    await user.click(screen.getByRole('button', { name: 'Open supplier invoice for Sinar Supplier' }));
+    await user.click(screen.getByRole('link', { name: 'Open supplier invoice for Sinar Supplier' }));
     expect(screen.getByRole('button', { name: 'Back to Payables' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Back to Payables' }));
 
@@ -201,7 +201,7 @@ describe('R2 — payables search lives in the URL', () => {
     renderPage('/finance/payables?q=inspection');
 
     await user.click(screen.getByRole('button', { name: 'Overdue only · 1' }));
-    await user.click(screen.getByRole('button', { name: 'Open supplier invoice for Sinar Supplier' }));
+    await user.click(screen.getByRole('link', { name: 'Open supplier invoice for Sinar Supplier' }));
     await user.click(screen.getByRole('button', { name: 'Back to Payables' }));
 
     const params = new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search') ?? '');

@@ -758,6 +758,56 @@
     "waitingDays_other": "Menunggu {{count}} hari",
     "waitingOnYou": "menunggu keputusan Anda"
   },
+  "threeWayMatch": {
+    "title": "Pencocokan tiga arah · {{bill}}",
+    "approve": "Setujui pengecualian",
+    "loadError": "Pencocokan tagihan ini tidak dapat dimuat",
+    "heldLine": "Pembayaran pada pembelian ini ditahan sampai tagihan ini cocok atau pengecualian disetujui.",
+    "notApplicableLine": "Tagihan ini di luar pencocokan tiga arah.",
+    "reasons": "Alasan ditahan",
+    "tolerances": "Toleransi: kuantitas {{qty}}% · jumlah {{amount}}%",
+    "exceptionLine": "Pengecualian disetujui {{date}}: {{reason}}",
+    "confirmTitle": "Setujui pengecualian untuk {{bill}}?",
+    "confirmDescription": "Pembayaran pada pembelian ini lalu dapat dilanjutkan. Persetujuan ini permanen dan dicatat dengan alasan Anda. Anda tidak dapat menyetujui tagihan yang Anda catat atau yang barisnya Anda catat.",
+    "reasonLabel": "Alasan",
+    "review": "Tinjau pencocokan",
+    "menu": "Pencocokan tiga arah",
+    "heldNotice": "{{bill}} ditahan oleh pencocokan tiga arah, sehingga pembayaran menunggu.",
+    "paymentHeld": {
+      "title": "Pembayaran ditahan oleh pencocokan tiga arah",
+      "detail": "Sebuah tagihan pada pembelian ini tidak cocok dengan pesanan dan penerimaannya. Buka pencocokan tiga arah tagihan itu untuk melihat alasannya, catat penerimaan yang kurang, atau minta Keuangan menyetujui pengecualian."
+    },
+    "status": {
+      "held": "Ditahan",
+      "matched": "Cocok",
+      "exceptionApproved": "Pengecualian disetujui",
+      "notApplicable": "Tidak dicocokkan"
+    },
+    "reason": {
+      "noLines": "Belum ada baris pencocokan",
+      "amountMismatch": "Jumlah tagihan berbeda dari barisnya",
+      "notOnOrder": "Tidak ada di pesanan",
+      "overReceived": "Ditagih melebihi yang diterima",
+      "overOrdered": "Ditagih melebihi yang dipesan",
+      "priceVariance": "Tarif di atas tarif pesanan"
+    },
+    "refusal": {
+      "ownBill": "Anda mencatat tagihan ini atau barisnya. Admin atau pengguna Keuangan lain yang menyetujui pengecualiannya.",
+      "authorUnknown": "Pencatat tagihan ini tidak terekam, sehingga pengecualian tidak dapat disetujui.",
+      "alreadyApproved": "Pengecualian untuk tagihan ini sudah disetujui.",
+      "notHeld": "Tagihan ini tidak ditahan, jadi tidak ada yang perlu disetujui.",
+      "reason": "Berikan alasan hingga 1.000 karakter.",
+      "role": "Hanya Admin atau pengguna Keuangan yang menyetujui pengecualian."
+    },
+    "col": {
+      "item": "Item",
+      "ordered": "Dipesan",
+      "received": "Diterima",
+      "billedToDate": "Ditagih s.d. kini",
+      "orderRate": "Tarif pesanan",
+      "billRate": "Tarif tagihan"
+    }
+  },
   "voidBill": {
     "action": "Batalkan tagihan",
     "title": "Batalkan tagihan ini?",

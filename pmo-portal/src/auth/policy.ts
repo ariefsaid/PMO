@@ -108,6 +108,8 @@ export type Entity =
   | 'vendorTaxDefault'
   | 'orgProjectNumbering'
   | 'orgProjectClassification'
+  | 'costDiscipline'
+  | 'billMatch'
   | 'employeeLink'
   | 'pushHold'
   | 'odooHeldCommand'
@@ -128,6 +130,7 @@ export type Entity =
   | 'materialRequest'
   | 'approvalChain'
   | 'standIn'
+  | 'approvalStepPin'
   | 'materialAllowance'
   | 'reorderLevel'
   | 'subcontractLines'
@@ -141,6 +144,7 @@ export type Entity =
   | 'equipmentAvailability'
   | 'equipmentRegister'
   | 'expiryDocument'
+  | 'documentType'
   | 'person'
   | 'maintenance'
   | 'tmRate'
@@ -414,6 +418,13 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     manage: (role, ctx) =>
       has(ALL, role) && ctx.record?.viewOnly !== true &&
       (role === 'Admin' || (!!ctx.currentUserId && ctx.record?.delegator_id === ctx.currentUserId)),
+  },
+  /** Pinning an approval step to a named person on a project (#2598, mrq_set_step_pin): an Admin or the project's own manager. */
+  approvalStepPin: {
+    view: allow(ALL),
+    manage: (role, ctx) =>
+      has(ALL, role) && ctx.record?.viewOnly !== true &&
+      (role === 'Admin' || (!!ctx.currentUserId && ctx.record?.project_manager_id === ctx.currentUserId)),
   },
   /**
    * Work-order allocations of contract lines (ADR-0091, migration 0337). Mirrors the allocation table's RLS:
@@ -833,6 +844,11 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   // tax posture is an accounting judgement, the same class as the budget→ERP account map (0137).
   // UX ONLY — RLS is the enforcement authority (ADR-0016), and the FE may be stricter, never looser.
   orgProjectClassification: { manage: allow(ADMIN) },
+  // #2623 (FR-WCA-011): the organisation's cost disciplines. Mirrors 0950's RLS (insert/update/delete: active Admin). UX ONLY.
+  costDiscipline: { create: allow(ADMIN), edit: allow(ADMIN), archive: allow(ADMIN) },
+  // #2622 (1018): a bill's three-way match. get_bill_match reads for Admin/Executive/PM/Finance; approve_bill_match_exception
+  // is Admin/Finance, never the bill's author nor its lines' recorder (SoD in the RPC). UX ONLY.
+  billMatch: { view: allow(WORK_ORDER_MONEY), approve: allow(['Admin', 'Finance']) },
   orgAccounting: {
     manage: allow(ADMIN),
   },
@@ -923,6 +939,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     edit: expiryDocumentWrite,
     archive: expiryDocumentWrite,
   },
+  /** Document types and warning days (#2614). UX ONLY: document_types RLS and column grants (0970) and set_document_warning_days (0972) are Admin-only. View-as is view-only. */
+  documentType: { manage: allowUnlessViewOnly(ADMIN) },
   /**
    * The People register (#2542 follow-up, migration 1008). UX ONLY — RLS (0970 people_* policies) and the column grants are the
    * authority (ADR-0016). The crews policy change grants basic reads to members and create/edit to Admin and Project Manager; archive remains Admin-only. View-as is view-only.

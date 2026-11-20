@@ -543,7 +543,7 @@ describe('company home — finance (one question: what must I collect, pay and i
     expect(names[0]).toContain('$1,000');
     expect(names[0]).toContain('118 days overdue');
     expect(names[1]).toContain('Client B');
-    fireEvent.click(within(card).getByRole('button', { name: 'Open overdue invoice for Client A' }));
+    fireEvent.click(within(card).getByRole('link', { name: 'Open overdue invoice for Client A' }));
     expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?overdue=true');
   });
 
@@ -604,7 +604,7 @@ describe('company home — finance (one question: what must I collect, pay and i
     expect(screen.queryByRole('columnheader', { name: 'Supplier' })).not.toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Invoice age' })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Due state' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Open Supplier invoice 42' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Open Supplier invoice 42' }));
     expect(screen.getByTestId('location')).toHaveTextContent('/procurement/procurement-1');
   });
 

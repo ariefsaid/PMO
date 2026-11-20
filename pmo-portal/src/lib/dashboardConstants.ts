@@ -13,15 +13,12 @@ export const STALE_BID_THRESHOLD_DAYS = 90;
 
 /**
  * A project is "at-risk" when its actual spend reaches or exceeds this fraction of
- * its budget. Mirrors the `projects_at_risk` RPC rule already in PMDashboard and
- * BvACard — centralized here so every consumer agrees (Wave-5 Cluster-2 PR-A).
+ * its budget. Mirrors the `projects_at_risk` RPC rule already in PMDashboard —
+ * centralized here so every consumer agrees (Wave-5 Cluster-2 PR-A).
  */
 export const AT_RISK_THRESHOLD = 0.9;
 
 /** A risk result is meaningful only when every active-delivery project has a usable basis. */
-export function riskCheckableFor(activeDeliveryProjects: number, uncheckedProjects: number): boolean {
-  return activeDeliveryProjects > 0 && uncheckedProjects === 0;
-}
 
 export interface MoneyRiskInput {
   status: string;

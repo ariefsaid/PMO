@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { externalDomainOwnershipKey } from '@/src/hooks/approvalsQueryKeys';
@@ -244,9 +245,9 @@ export function ErpSetupChecklist(
                 {t('ui.listState.retry', 'Retry')}
               </Button>
             </div>
-            <a className={actionLink} href='/administration/accounting#budget-account-map'>
+            <Link className={actionLink} to='/administration/accounting#budget-account-map'>
               {t('uxs07.operatorHandoff', 'Open accounting setup')}
-            </a>
+            </Link>
           </div>
         )
         : setup.data && (
@@ -259,9 +260,9 @@ export function ErpSetupChecklist(
                   <Button variant='outline' size='sm' onClick={() => void setup.refetch()}>
                     {t('uxs07.retryCheck', 'Check setup again')}
                   </Button>
-                  <a className={actionLink} href='/administration/accounting#budget-account-map'>
+                  <Link className={actionLink} to='/administration/accounting#budget-account-map'>
                     {t('uxs07.operatorHandoff', 'Open accounting setup')}
-                  </a>
+                  </Link>
                 </div>
               </div>
             )}
@@ -368,12 +369,12 @@ export function ErpSetupChecklist(
                     )}
                   </p>
                 </div>
-                <a
+                <Link
                   className={actionLink}
-                  href='/administration/accounting#budget-account-map'
+                  to='/administration/accounting#budget-account-map'
                 >
                   {t('uxs08.budgetAction', 'Review budget account setup')}
-                </a>
+                </Link>
               </li>
               <ErpSendStates enabled={Boolean(orgId)} />
               <li id='erp-setup-employee-links' hidden={!incomplete?.employees} className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
@@ -387,12 +388,12 @@ export function ErpSetupChecklist(
                       : null}
                   </p>
                 </div>
-                <a className={actionLink} href='/approvals'>
+                <Link className={actionLink} to='/approvals'>
                   {t(
                     'integrations.erpSetup.reviewEmployees',
                     'Review employee links',
                   )}
-                </a>
+                </Link>
               </li>
               <li id='erp-setup-project-links' hidden={!incomplete?.projects} className='py-3'>
                 <p className='font-medium'>
@@ -421,9 +422,9 @@ export function ErpSetupChecklist(
               >
                 {t('administration:integrations.connect.matchRecords', 'Match records')}
               </Button>
-              <a className={actionLink} href='/companies'>
+              <Link className={actionLink} to='/companies'>
                 {t('integrations.erpSetup.reviewParties', 'Review companies')}
-              </a>
+              </Link>
               <Button
                 variant='ghost'
                 size='sm'

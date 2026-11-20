@@ -112,7 +112,7 @@ describe('Finance attention floor controls', () => {
       drafts: { canApprove: [], awaitingOther: [{ id: 'draft-2' } as never], all: [{ id: 'draft-2' } as never] },
     };
     mount(position);
-    fireEvent.click(screen.getByRole('button', { name: 'Review' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Review' }));
     expect(route()).toBe('/finance/receivables?todo=second');
   });
 

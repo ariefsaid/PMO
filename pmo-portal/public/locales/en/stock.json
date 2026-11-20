@@ -145,7 +145,8 @@
     "issue": "Issue to project",
     "return": "Return from project",
     "adjustment": "Adjustment",
-    "count": "Stock count"
+    "count": "Stock count",
+    "opening": "Opening balance"
   },
   "empty": {
     "noStock": "No stock yet",

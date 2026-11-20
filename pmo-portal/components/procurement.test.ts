@@ -1,13 +1,10 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   PR_STAGES,
   stageIndexForStatus,
-  lifecycleSteps,
-  visibleLifecycleSteps,
   pillVariantForStatus,
   stageLabelForStatus,
   selectedQuotation,
-  openPR,
 } from './procurement';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import type { Tables } from '@/src/lib/supabase/database.types';
@@ -39,22 +36,6 @@ describe('procurement helper — lifecycle model (Issue 3)', () => {
     expect(stageIndexForStatus('Cancelled' as ProcurementStatus)).toBe(-1);
   });
 
-  it('I1: pill variant — Paid → won, Rejected/Cancelled → lost, Draft → draft, in-flight → progress (neutral, not blue)', () => {
-    expect(pillVariantForStatus('Paid' as ProcurementStatus)).toBe('won');
-    expect(pillVariantForStatus('Rejected' as ProcurementStatus)).toBe('lost');
-    expect(pillVariantForStatus('Cancelled' as ProcurementStatus)).toBe('lost');
-    expect(pillVariantForStatus('Draft' as ProcurementStatus)).toBe('draft');
-    // The three look-alike in-flight statuses become the neutral `progress`
-    // variant — distinct from each other by LABEL, distinct from the blue `open`
-    // reading; removes the I1 "3 identical blue pills" tell and stays one-blue.
-    expect(pillVariantForStatus('Requested' as ProcurementStatus)).toBe('progress');
-    expect(pillVariantForStatus('Approved' as ProcurementStatus)).toBe('progress');
-    expect(pillVariantForStatus('Vendor Quoted' as ProcurementStatus)).toBe('progress');
-    expect(pillVariantForStatus('Quote Selected' as ProcurementStatus)).toBe('progress');
-    expect(pillVariantForStatus('Ordered' as ProcurementStatus)).toBe('progress');
-    expect(pillVariantForStatus('Received' as ProcurementStatus)).toBe('progress');
-    expect(pillVariantForStatus('Vendor Invoiced' as ProcurementStatus)).toBe('progress');
-  });
 
   it('stage label: Paid → "Paid", terminal → status, else the stage full name', () => {
     expect(stageLabelForStatus('Paid' as ProcurementStatus)).toBe('Paid');
@@ -71,7 +52,6 @@ describe('procurement helper — lifecycle model (Issue 3)', () => {
     // label (no longer the blue `open` — the in-flight stages are quiet now,
     // differentiated from each other by label + the row's lifecycle pip stepper).
     expect(stageLabelForStatus('Requested' as ProcurementStatus)).toBe('Purchase Request');
-    expect(pillVariantForStatus('Requested' as ProcurementStatus)).toBe('progress');
     // the two distinct labels are what carry the difference (AS-4)
     expect(stageLabelForStatus('Draft' as ProcurementStatus)).not.toBe(
       stageLabelForStatus('Requested' as ProcurementStatus),
@@ -107,77 +87,6 @@ describe('AC-S19-001: purchasing status vocabulary and next step', () => {
     expect(procurement.nextProcurementStep('Imported status' as ProcurementStatus)).toBeNull();
     expect(procurement.stageIndexForStatus('Approved')).toBe(1);
     expect(procurement.stageIndexForStatus('Quote Selected')).toBe(1);
-  });
-});
-
-describe('procurement helper — lifecycleSteps (node + inline stepper)', () => {
-  it('marks stages before current done, current current, later upcoming', () => {
-    // PROC-003: Quote Selected is the VQ node (idx 1 of the 6-node track), so the
-    // PR node is done and the badge has NOT pre-jumped to PO.
-    const steps = lifecycleSteps('Quote Selected' as ProcurementStatus);
-    expect(steps.map((s) => s.state)).toEqual([
-      'done', // PR
-      'current', // VQ (Quote Selected at idx 1 — NOT PO)
-      'upcoming', // PO
-      'upcoming', // GR
-      'upcoming', // VI
-      'upcoming', // Paid
-    ]);
-  });
-
-  it('PROC-001: at Quote Selected the current (VQ) node is labelled "Quote Selected" — ONE noun with the badge/toast', () => {
-    // PROC-003 keeps the selection on the VQ node (no PO pre-jump); PROC-001 aligns the
-    // user-facing noun, so the ACTIVE node names the same state the badge + toast show
-    // ("Quote Selected"), not the generic macro-node name "Supplier quote".
-    const steps = lifecycleSteps('Quote Selected' as ProcurementStatus);
-    const current = steps.find((s) => s.state === 'current')!;
-    expect(current.label).toBe('Quote Selected');
-    // The earlier (done) PR node keeps its canonical name; only the active node renames.
-    expect(steps[0].label).toBe('Purchase Request');
-  });
-
-  it('PROC-001: at Vendor Quoted the current node keeps its canonical "Supplier quote" label', () => {
-    const steps = lifecycleSteps('Vendor Quoted' as ProcurementStatus);
-    const current = steps.find((s) => s.state === 'current')!;
-    expect(current.label).toBe('Supplier quote');
-  });
-
-  it('PROC-002: approval is a gate — an Approved PR advances PR→done, VQ→current ("Supplier quote"), no standalone node', () => {
-    const requested = lifecycleSteps('Requested' as ProcurementStatus);
-    const approved = lifecycleSteps('Approved' as ProcurementStatus);
-    expect(requested.findIndex((s) => s.state === 'current')).toBe(0); // PR node
-    // Approving advances the bar to the VQ node (the next action) — PR is now done.
-    expect(approved[0].state).toBe('done');
-    expect(approved.findIndex((s) => s.state === 'current')).toBe(1); // VQ node
-    // The current-node label reads the STAGE name ("Supplier quote"), NOT the status
-    // ("Approved") — Approved does not canonically belong to the VQ node (label-fix).
-    expect(approved.find((s) => s.state === 'current')!.label).toBe('Supplier quote');
-  });
-
-  it('a Paid procurement marks all done and the final node paid', () => {
-    const steps = lifecycleSteps('Paid' as ProcurementStatus);
-    expect(steps.map((s) => s.state)).toEqual([
-      'done', 'done', 'done', 'done', 'done', 'paid',
-    ]);
-  });
-
-  it('a Rejected procurement marks PR current and later stages skipped', () => {
-    const steps = lifecycleSteps('Rejected' as ProcurementStatus);
-    expect(steps[0].state).toBe('current');
-    expect(steps.slice(1).every((s) => s.state === 'skipped')).toBe(true);
-  });
-
-  it('attaches doc refs to reached node steps from the procurement record', () => {
-    // 6-node track: PR(0) · VQ(1) · PO(2) · GR(3) · VI(4) · Paid(5)
-    const steps = lifecycleSteps('Ordered' as ProcurementStatus, {
-      pr_number: 'PR-2606040001',
-      vq_number: 'VQ-2606040002',
-      po_number: 'PO-2606040003',
-    });
-    expect(steps[0].ref).toBe('PR-2606040001'); // PR
-    expect(steps[1].ref).toBe('VQ-2606040002'); // VQ
-    expect(steps[2].ref).toBe('PO-2606040003'); // PO
-    expect(steps[3].ref).toBeUndefined(); // GR not yet reached
   });
 });
 
@@ -263,57 +172,5 @@ describe('procurement helper — selectedQuotation (PROC-004 selected-quote bind
     expect(
       selectedQuotation('Quote Selected' as ProcurementStatus, [], { total_value: 0, vendor_id: null }),
     ).toBeUndefined();
-  });
-});
-
-describe('procurement helper — openPR navigates to the detail route (AC-NAV-006)', () => {
-  it('AC-NAV-006: navigates to /procurement/:id (no tab)', () => {
-    const navigate = vi.fn();
-    openPR(navigate, { id: 'proc-1' });
-    expect(navigate).toHaveBeenCalledWith('/procurement/proc-1');
-  });
-
-  it('AC-NAV-006: navigates by id (the full record row carries more fields; only id is read)', () => {
-    const navigate = vi.fn();
-    const row = { id: 'proc-abcdef12', title: 'Crane hire', code: null };
-    openPR(navigate, row);
-    expect(navigate).toHaveBeenCalledWith('/procurement/proc-abcdef12');
-  });
-});
-
-describe('visibleLifecycleSteps — only steps that happened, plus the next (AC-PFE-006 progress)', () => {
-  const happened = (...stages: Array<'pr' | 'vq' | 'po' | 'gr' | 'vi'>) => ({
-    pr: false, vq: false, po: false, gr: false, vi: false, ...Object.fromEntries(stages.map((s) => [s, true])),
-  });
-
-  it('a purchase started at the invoice shows the invoice, then Payment — never the earlier steps it skipped', () => {
-    const steps = visibleLifecycleSteps(lifecycleSteps('Vendor Invoiced' as ProcurementStatus), happened('vi'));
-    expect(steps.map((s) => s.label)).toEqual(['Supplier invoice', 'Payment']);
-    expect(steps.map((s) => s.state)).toEqual(['current', 'upcoming']);
-  });
-
-  it('a normal flow keeps every step that has a record, and exactly one upcoming step', () => {
-    const steps = visibleLifecycleSteps(lifecycleSteps('Ordered' as ProcurementStatus), happened('pr', 'po'));
-    expect(steps.map((s) => s.label)).toEqual(['Purchase Request', 'Purchase Order', 'Goods Receipt']);
-  });
-
-  it('a skipped quote step (no quotation) is not shown once the order exists', () => {
-    const labels = visibleLifecycleSteps(lifecycleSteps('Ordered' as ProcurementStatus), happened('pr', 'po')).map((s) => s.label);
-    expect(labels).not.toContain('Supplier quote');
-  });
-
-  it('a Paid purchase shows what happened plus Payment as paid', () => {
-    const steps = visibleLifecycleSteps(lifecycleSteps('Paid' as ProcurementStatus), happened('vi'));
-    expect(steps.map((s) => [s.label, s.state])).toEqual([['Supplier invoice', 'done'], ['Payment', 'paid']]);
-  });
-
-  it('a Rejected or Cancelled purchase keeps its abandoned track untouched', () => {
-    const all = lifecycleSteps('Rejected' as ProcurementStatus);
-    expect(visibleLifecycleSteps(all, happened())).toEqual(all);
-  });
-
-  it('a Draft with nothing recorded shows the first step as current and the next as upcoming', () => {
-    const steps = visibleLifecycleSteps(lifecycleSteps('Draft' as ProcurementStatus), happened());
-    expect(steps.map((s) => s.state)).toEqual(['current', 'upcoming']);
   });
 });

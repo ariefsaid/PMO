@@ -13,7 +13,7 @@ test('AC-TM-018 phone: a toast does not cover the navigation drawer header', asy
   await signIn(page, 'admin@acme.test');
   await page.goto('/projects');
   await page.waitForLoadState('networkidle');
-  await page.getByTestId('projects-table-container').getByRole('button', { name: 'Innovate Corp HQ Fit-Out', exact: true }).click();
+  await page.getByTestId('projects-table-container').getByRole('link', { name: 'Innovate Corp HQ Fit-Out', exact: true }).click();
   await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+$/i, { timeout: 15_000 });
   await waitForFonts(page);
 

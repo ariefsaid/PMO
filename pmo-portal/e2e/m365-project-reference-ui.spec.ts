@@ -77,7 +77,7 @@ test('AC-M365DOC-011/040/058: a PM adds a project document from a OneDrive folde
   await row.getByRole('button', { name: `View ${title}`, exact: true }).click();
   const details = page.getByRole('dialog', { name: title });
   await expect(details.getByText('Folder reference: contents are not issued or approved')).toBeVisible();
-  await expect(details.getByRole('button', { name: /Open folder in SharePoint/ })).toBeEnabled();
+  await expect(details.getByRole('link', { name: /Open folder in SharePoint/ })).toBeEnabled();
 
   // Reference-only: no Issue / Approve affordance in the row menu. The drawer is modal; Escape dismisses it.
   await page.keyboard.press('Escape');
