@@ -260,6 +260,15 @@ insert into public.incident_files (id, org_id, incident_id, kind, file_path, sto
 select 'a6120000-0000-4000-8000-000000000f91', i.org_id, i.id, 'at_raise', o.name, o.id
 from public.incident_reports i join storage.objects o on o.id = 'a6120000-0000-4000-8000-000000000f92'
 where i.org_id = 'a6120000-0000-4000-8000-00000000000a' order by i.id limit 1;
+-- Disposable rate catalogue rows (variant, item, rate, stage weight) so its by-id reads and writes are probed, not skipped.
+insert into public.rate_catalogue_variants (id, org_id, project_id, name)
+select 'a6120000-0000-4000-8000-0000000000e1', w.org_id, w.project_id, 'iso' from public.work_orders w where w.id = 'a6120000-0000-4000-8000-0000000000d2';
+insert into public.rate_catalogue_items (id, org_id, project_id, item_code, description, unit)
+select 'a6120000-0000-4000-8000-0000000000e2', w.org_id, w.project_id, 'iso', 'Isolation catalogue item', 'each' from public.work_orders w where w.id = 'a6120000-0000-4000-8000-0000000000d2';
+insert into public.rate_catalogue_rates (id, org_id, item_id, variant_id, rate, effective_from)
+values ('a6120000-0000-4000-8000-0000000000e3', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000e2', 'a6120000-0000-4000-8000-0000000000e1', 1, current_date);
+insert into public.rate_catalogue_stage_weights (id, org_id, item_id, effective_from, position, stage, weight_pct)
+values ('a6120000-0000-4000-8000-0000000000e4', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000e2', current_date, 1, 'iso', 100);
 select 'ISO-COPY-SKIPPED ' || tbl || ': ' || why from _iso_skipped order by tbl;
 \endif
 

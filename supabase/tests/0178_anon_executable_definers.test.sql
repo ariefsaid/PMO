@@ -274,6 +274,7 @@ select plan(7);
 -- the caller's org, the employment of `equipment` under Odoo and each row's org before it writes; proven by
 -- supabase/tests/odoo_equipment_adoption.test.sql (AC-OFM-021). `list_equipment_asset_matches` is SECURITY INVOKER and
 -- `record_odoo_asset_created` is service-role only, so neither is listed.
+-- ⚑ AMENDED BY 0955 (#2520): `rate_catalogue_add_variants`, `rate_catalogue_set_default_variant` and `rate_catalogue_upsert_item` join the retained set (+3). SECURITY DEFINER writers called under a member's JWT; each re-asserts org, active membership and role through rate_catalogue_writer_check, proven by supabase/tests/rate_catalogue.test.sql.
 -- ⚑ AMENDED BY 0885 (#1671): `void_subcontract_bill` joins the retained set (+1, count 169 on dev's 168, re-derived by
 -- hand from the list). SECURITY DEFINER writer under a member's JWT: it re-asserts active membership, the Admin/Finance
 -- role, the caller's org, no ERP, and author ≠ voider unless the sole active member. Proven by
@@ -436,6 +437,9 @@ insert into client_callable_rpc_names (proname) values
   ('request_journal_reversal'),   -- 0887 (#895)
   ('set_desk_journal'),           -- 0887 (#895)
   ('unapply_native_allocation'),         -- 0731 (#1415)
+  ('rate_catalogue_add_variants'),          -- 0955 (#2520)
+  ('rate_catalogue_set_default_variant'),  -- 0955 (#2520)
+  ('rate_catalogue_upsert_item'),          -- 0955 (#2520)
   ('recategorise_budget_lines'),
   ('redate_stage_entry'),
   ('release_credits'),
@@ -467,9 +471,6 @@ insert into client_callable_rpc_names (proname) values
   ('mrq_submit'),
   ('mrq_decide_step'),
   ('mrq_cancel'),
-  ('rate_catalogue_add_variants'), -- 0955: rate-catalogue writers, active-role gated
-  ('rate_catalogue_set_default_variant'),
-  ('rate_catalogue_upsert_item'),
   ('dsr_save_draft'),
   ('dsr_submit'),
   ('dsr_validate'),
