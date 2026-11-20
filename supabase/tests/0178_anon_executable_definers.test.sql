@@ -433,6 +433,14 @@ insert into client_callable_rpc_names (proname) values
   ('set_sales_invoice_efaktur'),
   ('set_sales_invoice_received_date'),
   ('set_cost_attribution'),
+  ('mrq_set_chain'),  -- ⚑ AMENDED BY 1001 (#2524): the eight material-request writers; mrq_decide_step locks the request row and enforces SoD (mrq_approval.test.sql)
+  ('mrq_set_cutoff'),
+  ('mrq_set_stand_in'),
+  ('mrq_revoke_stand_in'),
+  ('mrq_save_draft'),
+  ('mrq_submit'),
+  ('mrq_decide_step'),
+  ('mrq_cancel'),
   ('set_shared_cost_split'),
   ('set_work_order_plan'),
   ('clear_shared_cost_split'),
@@ -483,8 +491,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  182,
-  'AC-ACL-002 all 182 retained client-callable RPC names still have a public function');
+  190,
+  'AC-ACL-002 all 190 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -493,8 +501,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  182,
-  'AC-ACL-003 all 182 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  190,
+  'AC-ACL-003 all 190 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
