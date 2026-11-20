@@ -1,4 +1,4 @@
-# ADR-0103 — Retention is held on the receivable, not as an invoice line
+# ADR-0105 — Retention is held on the receivable, not as an invoice line
 
 - **Status:** Accepted (#1572, built with #2522). Owner may overrule OD-RET-1 (the base).
 - **Date:** 2026-11-19

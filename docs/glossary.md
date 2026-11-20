@@ -401,7 +401,7 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Measured quantity** — quantity on progress claims that are not withdrawn and whose invoice, if any, is not cancelled. **Billed quantity** — quantity on progress claims with an invoice that is not cancelled. Per bill-of-quantities item the reconciliation reads unbilled, partly billed, fully billed or surplus.
 
-**Retention** — the share of a progress claim the client holds back until a later event; stamped on the claim at creation from the project's percentage, held on the receivable (never an invoice line), and released through scheduled then recorded **retention releases** (ADR-0103).
+**Retention** — the share of a progress claim the client holds back until a later event; stamped on the claim at creation from the project's percentage, held on the receivable (never an invoice line), and released through scheduled then recorded **retention releases** (ADR-0105).
 
 **Sales invoice** — a customer-facing invoice associated with a project and optionally a work order, carrying amount, currency, status and tax details.
 

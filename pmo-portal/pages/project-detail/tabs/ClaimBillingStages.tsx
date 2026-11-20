@@ -18,7 +18,7 @@ import type { ClaimBillingStage } from '@/src/lib/db/billingStages';
  * A progress claim's billing stages (#2522): each stage in order with its age, its document checklist and — for a step done
  * in the client's own system — the client's document number. The current stage is recorded here; the database decides
  * (order, required documents, dates, who may record) and refuses an invoice while any stage is open (FR-BST-020).
- * Also shows the project's next monthly invoice deadline and the retention the claim holds (ADR-0103).
+ * Also shows the project's next monthly invoice deadline and the retention the claim holds (ADR-0105).
  */
 export interface ClaimBillingStagesProps {
   claimId: string;

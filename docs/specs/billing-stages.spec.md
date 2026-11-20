@@ -2,7 +2,7 @@
 
 Map: #2516. Money path (ships alone). Builds on progress billing (0250, `progress-billing.spec.md`), work-order
 quantities and acceptances (0337, 0441), the native progress-claim invoice (0924) and the left-to-bill derivation
-(`left-to-bill-one-derivation.spec.md`). Decision record: ADR-0103 (retention held on the receivable, not as an
+(`left-to-bill-one-derivation.spec.md`). Decision record: ADR-0105 (retention held on the receivable, not as an
 invoice line).
 
 ## Job story
@@ -88,7 +88,7 @@ how much of each invoice the client is still holding back as retention.
   decimals, capped at the claim's net (gross less down-payment recovery). Other claim kinds hold none. Neither
   shall change afterwards.
 - **FR-RET-003** (ubiquitous) The invoice built from a claim shall not change: retention is not an invoice line and
-  VAT stays on the full value (ADR-0103).
+  VAT stays on the full value (ADR-0105).
 - **FR-RET-010** (event-driven) When Finance or an Admin schedules a release, the database shall refuse it unless
   the claim is a live progress claim with retention and the scheduled plus released total stays within the claim's
   retention.
@@ -153,7 +153,7 @@ how much of each invoice the client is still holding back as retention.
 - **OD-BST-2** The invoice itself is the terminal step and is not a stage row; "invoice" in a list is redundant.
 - **OD-BST-3** Stages are recorded by Finance, Admin and Project Manager; the list and retention by Finance/Admin.
 - **OD-RET-1** Retention base is the claim's gross progress value before tax (VAT on full value per DD-PBL-11),
-  capped at the net after down-payment recovery. ADR-0103.
+  capped at the net after down-payment recovery. ADR-0105.
 - **OD-RET-2** Daily progress entries do not exist yet; "progress" reads the latest monthly assessment quantity.
 
 ## Traceability
