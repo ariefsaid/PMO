@@ -119,4 +119,18 @@ describe('material request detail', () => {
     renderPage();
     expect(screen.getByText(/No approver is available/)).toBeInTheDocument();
   });
+
+  it('#2607 offers the transfer retry after the delivery draft was cancelled, not to the author', () => {
+    const approved = { status: 'approved', transferDocumentId: 'doc-9', transferCancelled: true, steps: [step(1, 'approved'), step(2, 'approved'), step(3, 'approved')] };
+    h.req = { data: request(approved), isPending: false, isError: false, refetch: vi.fn() };
+    renderPage();
+    expect(screen.getByRole('button', { name: 'Create the transfer again' })).toBeInTheDocument();
+  });
+
+  it('#2607 hides the transfer retry from the author', () => {
+    h.userId = 'u-author';
+    h.req = { data: request({ status: 'approved', transferDocumentId: 'doc-9', transferCancelled: true, steps: [step(1, 'approved'), step(2, 'approved'), step(3, 'approved')] }), isPending: false, isError: false, refetch: vi.fn() };
+    renderPage();
+    expect(screen.queryByRole('button', { name: 'Create the transfer again' })).not.toBeInTheDocument();
+  });
 });

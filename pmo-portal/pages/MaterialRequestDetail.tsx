@@ -49,6 +49,8 @@ const MaterialRequestDetailPage: React.FC = () => {
   const needsSource = open?.position === last;
   const itemName = (id: string) => { const i = items?.find((x) => x.id === id); return i ? `${i.code} · ${i.name}` : '—'; };
   const sourceOptions = (warehouses ?? []).filter((w) => w.kind === 'central' && !w.archived_at).map((w) => ({ value: w.id, label: `${w.code} · ${w.name}` }));
+  // The RPC refuses the author (same SoD line as the approval), so the affordance is hidden from them too.
+  const canRetryTransfer = req.status === 'approved' && (!req.transferDocumentId || req.transferCancelled) && req.createdBy !== currentUser?.id;
   const noApprover = req.status === 'pending' && !open;
 
   const close = () => { setDialog(null); setDialogError(null); };
@@ -87,9 +89,9 @@ const MaterialRequestDetailPage: React.FC = () => {
             {req.transferCancelled && <p role="status" className="text-warning-foreground">{t('detail.transferCancelled', 'The transfer was cancelled. The request is still approved.')}</p>}
           </RecordSection>
         )}
-        {req.status === 'approved' && !req.transferDocumentId && (
+        {canRetryTransfer && (
           <RecordSection title={t('detail.transfer', 'Delivery')}>
-            <p role="alert">{t('detail.noTransfer', 'Approved, but the transfer draft could not be created.')}</p>
+            {!req.transferDocumentId && <p role="alert">{t('detail.noTransfer', 'Approved, but the transfer draft could not be created.')}</p>}
             <Button variant="outline" onClick={() => setDialog({ kind: 'retry' })}>{t('detail.retry', 'Create the transfer again')}</Button>
           </RecordSection>
         )}
