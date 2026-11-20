@@ -13,6 +13,7 @@ import { formatCurrency, formatDay, formatNumberExact, formatTableMoney } from '
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
 import type { WorkOrderAcceptanceWithLines } from '@/src/lib/db/workOrderAcceptances';
 import type { ProgressClaimWithInvoice } from '@/src/lib/db/progressBilling';
+import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import { claimNet } from '@/src/lib/progressBilling';
 import { statusLabel } from '@/src/lib/status/statusMap';
 import { invoiceBalanceFigures, QuantityFigure, type InvoiceWithWorkOrder, type OrderLineView, basisNote } from './workOrdersTabFigures';
@@ -160,8 +161,8 @@ export const WorkOrderClaimDrawer: React.FC<{
   canRaise?: boolean;
   currency: string;
   projectId: string;
-  /** The project register, when the caller has it: the evidence rows label each document by title. */
-  documents?: ReadonlyArray<{ id: string; title: string | null }>;
+  /** The caller's RLS-readable project register rows, used to open linked evidence in the viewer. */
+  documents?: ReadonlyArray<ProjectDocumentRow>;
   onClose: () => void;
   onRaise: (claim: ProgressClaimWithInvoice) => void;
   onAttachEvidence: (claimId: string) => void;
@@ -191,7 +192,7 @@ export const WorkOrderClaimDrawer: React.FC<{
       </h3>
       {(claim.evidence ?? []).length === 0
         ? <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.billing.claims.noEvidence', 'No evidence attached yet.')}</p>
-        : <ClaimEvidenceList evidence={claim.evidence ?? []} projectId={projectId} documents={documents} />}
+        : <ClaimEvidenceList evidence={claim.evidence ?? []} documents={documents} />}
     </section>
   </Drawer>;
 };

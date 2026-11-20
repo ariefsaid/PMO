@@ -22,8 +22,12 @@ export const RECORD_GROUP_CAP = 8;
 export interface RecordSearch {
   /** Flat searchable index of every cached record, as palette rows. */
   records: PaletteItem[];
-  /** True while any cached list is still fetching (palette shows skeletons). */
+  /** True while any enabled source is still fetching. */
   isPending: boolean;
+  /** Every viewer-allowed source is still in flight; no records are ready yet. */
+  nothingAnswered: boolean;
+  /** Viewer-allowed sources that are still fetching. */
+  pendingSources: string[];
   /** True when any cached list query failed (palette shows the retry note). */
   isError: boolean;
   /** Re-run the failed list queries (wired to the palette's error retry). */
@@ -212,18 +216,27 @@ export function useRecordSearch(
     mayViewContacts,
   ]);
 
+  const sourceStates: Array<[string, boolean, boolean]> = [
+    ['projects', true, projects.isPending],
+    ['procurements', mayViewProcurement, procurements.isPending],
+    ['pipeline', mayViewPipeline, pipeline.isPending],
+    ['companies', mayViewCompanies, companies.isPending],
+    ['contacts', mayViewContacts, contacts.isPending],
+    ['incidents', incidentsEnabled, incidents.isPending],
+  ];
+  const enabledSourceCount = sourceStates.filter(([, enabledForViewer]) => enabledForViewer).length;
+  const pendingSources = sourceStates
+    .filter(([, enabledForViewer, isPending]) => enabledForViewer && isPending)
+    .map(([source]) => source);
+
   return {
     records,
     // A disabled query idles with status "pending" in TanStack, so the aggregate covers only the
     // sources this viewer actually has enabled — a denied source's in-flight/failed state never
     // surfaces as palette skeletons or a failure it cannot resolve.
-    isPending:
-      projects.isPending ||
-      (mayViewProcurement && procurements.isPending) ||
-      (mayViewPipeline && pipeline.isPending) ||
-      (mayViewCompanies && companies.isPending) ||
-      (mayViewContacts && contacts.isPending) ||
-      (incidentsEnabled && incidents.isPending),
+    isPending: pendingSources.length > 0,
+    nothingAnswered: pendingSources.length > 0 && pendingSources.length === enabledSourceCount,
+    pendingSources,
     isError:
       projects.isError ||
       (mayViewProcurement && procurements.isError) ||
