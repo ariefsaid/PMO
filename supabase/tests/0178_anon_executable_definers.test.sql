@@ -406,5 +406,12 @@ select ok(not has_function_privilege('anon','public.record_erp_statement_nightly
   and not has_function_privilege('authenticated','public._erp_statement_nightly_due_at(date,text)','EXECUTE'),
   'AC-NS-004 nightly surfaces add no anonymous or authenticated execute');
 
+-- 1026 (#2260) adds one service-only read: the organization's Microsoft app values minus the secret.
+-- It is not a client-callable RPC, so it stays out of the retained set; pinned explicitly here so a
+-- future accidental grant to a client role is named by this file (AC-M365AV-001).
+select ok(not has_function_privilege('anon','public.m365_org_app_status(uuid)','EXECUTE')
+  and not has_function_privilege('authenticated','public.m365_org_app_status(uuid)','EXECUTE'),
+  'AC-M365AV-001 the organization app status read adds no anonymous or authenticated execute');
+
 select * from finish();
 rollback;

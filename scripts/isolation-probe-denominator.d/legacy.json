@@ -580,6 +580,7 @@
     "m365_issue_document(uuid,uuid,text,text,text,text,text,text)",
     "m365_membership_state(uuid)",
     "m365_org_app_resolve(uuid)",
+    "m365_org_app_status(uuid)",
     "m365_pkce_sweep_tick()",
     "m365_record_folder_created(uuid,text,uuid,text,text)",
     "m365_record_folder_default_matches(text,text,timestamp with time zone)",
