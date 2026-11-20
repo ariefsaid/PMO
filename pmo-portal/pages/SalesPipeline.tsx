@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { AccessDenied, FigureHiddenLine, FigureScope, ListPage, ListState, useFigureReport, type HiddenFigure } from '@/src/components/ui';
 import { FigureContent } from '@/src/components/ui/FigureContent';
-import { formatTableMoney, formatTileMoney } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import { SalesKanbanBoardTaxBasisContext } from '../components/salesKanbanBoardTaxBasis';
 import { PipelineFunnel } from './sales-pipeline/PipelineFunnel';
@@ -11,37 +10,41 @@ import {
   SalesScope, SalesSearch, SalesViewToggle,
 } from './sales/SalesParts';
 import { useSalesModel } from './sales/useSalesModel';
-import { openValueTotal } from './sales/salesLogic';
+import { pipelineFigures, type FigureLines } from './sales/salesLogic';
 
-const PipelineFigures: React.FC<{ total: number | null; weighted: number; currency: string; openCount: number; mixed: string; t: ReturnType<typeof useSalesModel>['t'] }> = ({ total, weighted, currency, openCount, mixed, t }) => {
-  const hidden: HiddenFigure[] = total === null ? [
-    { label: t('sales:options.weightedForecast', 'Weighted forecast'), reason: mixed },
-    { label: t('sales:options.openValue', 'Open value'), reason: mixed },
-  ] : [];
-  const scoped = useFigureReport(hidden);
-  if (total === null && scoped) return null;
-  const value = total === null ? mixed : '';
+/** One headline figure: the first line is the figure (short, exact on hover); other currencies sit under it. */
+export const FigureLinesView: React.FC<{ figures: FigureLines; testId?: string }> = ({ figures, testId }) => (
+  <span data-testid={testId} className="inline-flex flex-col">
+    {figures.lines.map((line, i) => (
+      <span key={line} className={i === 0 ? undefined : 'text-control font-normal text-muted-foreground'}>
+        <FigureContent value={line} exactValue={figures.exact[i] ?? undefined} />
+      </span>
+    ))}
+  </span>
+);
+
+const PipelineFigures: React.FC<{ figures: ReturnType<typeof pipelineFigures>; openCount: number; unavailable: string; t: ReturnType<typeof useSalesModel>['t'] }> = ({ figures, openCount, unavailable, t }) => {
+  const hidden: HiddenFigure[] = figures.weighted === null
+    ? [{ label: t('sales:options.weightedForecast', 'Weighted forecast'), reason: unavailable }]
+    : [];
+  useFigureReport(hidden);
   return (
     <dl className="grid min-w-0 grid-cols-2 gap-x-3">
-      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-        <dt className="text-control font-medium text-muted-foreground">{t('sales:options.weightedForecast', 'Weighted forecast')}</dt>
-        <dd className="text-group font-semibold tabular">{total === null ? value : (
-          // T5: short on the tile, exact on hover and for screen readers (the home "Contract on
-          // hand" contract, AC-701) — one figure mechanism, not a second money formatter.
-          <span data-testid="pipeline-weighted-total">
-            <FigureContent value={formatTileMoney(weighted, currency)} exactValue={formatTableMoney(weighted, currency) ?? undefined} />
-          </span>
-        )}</dd>
-      </div>
+      {figures.weighted !== null && (
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+          <dt className="text-control font-medium text-muted-foreground">{t('sales:options.weightedForecast', 'Weighted forecast')}</dt>
+          {/* T5: short on the tile, exact on hover and for screen readers (the home "Contract on hand"
+              contract, AC-701) — one figure mechanism, not a second money formatter. */}
+          <dd className="text-group font-semibold tabular"><FigureLinesView figures={figures.weighted} testId="pipeline-weighted-total" /></dd>
+        </div>
+      )}
       <div data-testid="pipeline-open-value" className="flex min-w-0 flex-wrap items-baseline gap-x-2">
         <dt className="text-control font-medium text-muted-foreground">{t('sales:options.openValue', 'Open value')}</dt>
-        <dd data-testid="pipeline-open-value-figure" className="text-group font-semibold tabular">{total === null ? value : formatTileMoney(total, currency)}</dd>
+        <dd data-testid="pipeline-open-value-figure" className="text-group font-semibold tabular"><FigureLinesView figures={figures.open} /></dd>
         {/* Keep the population caption beside its open-value figure when the tile has room. */}
-        {total !== null && (
-          <dd data-testid="pipeline-open-count" className="text-control text-muted-foreground">
-            {t('sales:options.openCountShort', '{{n}} projects', { n: openCount })}
-          </dd>
-        )}
+        <dd data-testid="pipeline-open-count" className="text-control text-muted-foreground">
+          {t('sales:options.openCountShort', '{{n}} projects', { n: openCount })}
+        </dd>
       </div>
     </dl>
   );
@@ -61,16 +64,15 @@ const SalesPipeline: React.FC = () => {
       />
     );
   }
-  const total = openValueTotal(m);
-  const cur = m.funnel.effectiveCurrency;
+  const pf = pipelineFigures(m);
   const ready = m.state === undefined;
-  const mixed = t('sales:pipeline.mixedCurrency', 'Mixed currencies');
+  const unavailable = t('sales:funnel.unavailable', 'Not available');
   // The band sums open projects, so its summary condition also governs desktop card labels.
   const summarizesOpenExclusiveTaxBasis = canSummarizeExclusiveTaxBasis(m.openProjects);
   const boardCaption = summarizesOpenExclusiveTaxBasis
     ? t('sales:boardBasisAndChanceCaption', 'Amounts excl. PPN · % = chance to win')
     : t('sales:boardChanceCaption', '% = chance to win');
-  const figures = <PipelineFigures total={total} weighted={m.funnel.totalWeighted} currency={cur} openCount={m.openProjects.length} mixed={mixed} t={t} />;
+  const figures = <PipelineFigures figures={pf} openCount={m.openProjects.length} unavailable={unavailable} t={t} />;
   return (
     <FigureScope>
     <ListPage

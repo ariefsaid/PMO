@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { WorkOrderCostLine } from './workOrderCosts';
 const fetchRows = vi.hoisted(() => vi.fn());
-vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: (table: string) => ({ select: () => ({ in: (_column: string, ids: string[]) => { const result = fetchRows(table, ids); result.limit = () => result; return result; } }) }) } }));
+const fetchRpc = vi.hoisted(() => vi.fn());
+vi.mock('@/src/lib/supabase/client', () => ({ supabase: {
+  from: (table: string) => ({ select: () => ({ in: (_column: string, ids: string[]) => { const result = fetchRows(table, ids); result.limit = () => result; return result; } }) }),
+  rpc: (name: string, args: unknown) => fetchRpc(name, args),
+} }));
 import { listWorkOrderCostMoney, listWorkOrderCostLinks, listWorkOrderTimesheetLabels } from './workOrderCostMoney';
 const line = (source: WorkOrderCostLine['source'], recordId: string): WorkOrderCostLine => ({ source, recordId, projectId: 'p', workOrderId: 'w', disciplineId: null, occurredOn: null, reference: null, quantity: null, quantityUnit: null });
 describe('work order money reads', () => {
@@ -31,5 +35,23 @@ describe('work order money reads', () => {
     const result = await listWorkOrderCostMoney([line('vendor_bill', 'bill')]);
     expect(fetchRows).toHaveBeenCalledWith('procurement_invoices', ['bill']);
     expect(result.vendor_bill).toEqual({ bill: { amount: 123.45, currency: 'USD' } });
+  });
+  it('reads hire-costed equipment through the rounded project cost read and keeps this work order’s entries', async () => {
+    fetchRpc.mockResolvedValue({ data: [
+      { source: 'equipment_usage', record_id: 'usage1', work_order_id: 'w', amount: '300.00', currency: 'USD' },
+      { source: 'equipment_usage', record_id: 'usage2', work_order_id: 'other', amount: '75.00', currency: 'USD' },
+    ], error: null });
+
+    const result = await listWorkOrderCostMoney([line('equipment_usage', 'usage1')]);
+
+    expect(fetchRpc).toHaveBeenCalledWith('work_order_cost_amounts', { p_project_id: 'p' });
+    expect(result.equipment_usage).toEqual({ usage1: { amount: 300, currency: 'USD' } });
+  });
+  it('keeps equipment quantities visible but marks money restricted for roles that cannot read charges', async () => {
+    fetchRpc.mockResolvedValue({ data: null, error: { code: '42501', message: 'not authorized' } });
+
+    const result = await listWorkOrderCostMoney([line('equipment_usage', 'usage1')]);
+
+    expect(result.equipment_usage).toBeNull();
   });
 });

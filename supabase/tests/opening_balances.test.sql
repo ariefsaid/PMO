@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap;
 -- #2588 opening balances at go-live (docs/specs/opening-balances.spec.md, AC-OPB-001..009).
-select plan(83);
+select plan(84);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25880000-0000-0000-0000-000000000001', 'OPB Org',   'USD', 'UTC'),
@@ -274,10 +274,18 @@ select pg_temp.as_user('25880000-0000-0000-0000-0000000000a1');
 select throws_like($$select public.reverse_opening_balance(current_setting('opb.r2')::uuid)$$, 'STK_OWNED_BY_ERP%', 'FR-OPB-006 a stock opening is not reversed once an ERP owns inventory');
 reset role;
 
--- 1047: the CLI's active-Admin rpc tier admits the four opening RPCs (POST only, Admin only) -------------------------
+-- The final CLI guard migration (1141) must retain every opening-balance RPC added by 1047. ---------------------------
 create function pg_temp.req(p_sub text, p_method text, p_path text) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_sub, 'role', 'authenticated', 'client_id', 'pmo-cli')::text, true),
          set_config('request.method', p_method, true), set_config('request.path', p_path, true), set_config('request.headers', '{}', true) $$;
+create function pg_temp.assert_opening_rpc_guard() returns void language plpgsql as $$
+declare v_rpc text;
+begin
+  foreach v_rpc in array array['load_work_order_opening', 'load_stock_opening', 'reverse_opening_balance', 'opening_balance_report'] loop
+    perform pg_temp.req('25880000-0000-0000-0000-0000000000a1', 'POST', '/rpc/' || v_rpc);
+    perform public.api_client_request_guard();
+  end loop;
+end $$;
 set local role authenticated;
 select pg_temp.req('25880000-0000-0000-0000-0000000000a1', 'POST', '/rpc/load_work_order_opening');
 select lives_ok('select public.api_client_request_guard()', 'AC-OPB-001 the CLI admits an active Admin to load_work_order_opening');
@@ -287,6 +295,7 @@ select pg_temp.req('25880000-0000-0000-0000-0000000000a1', 'POST', '/rpc/reverse
 select lives_ok('select public.api_client_request_guard()', 'AC-OPB-001 the CLI admits an active Admin to reverse_opening_balance');
 select pg_temp.req('25880000-0000-0000-0000-0000000000a1', 'POST', '/rpc/opening_balance_report');
 select lives_ok('select public.api_client_request_guard()', 'AC-OPB-009 the CLI admits an active Admin to opening_balance_report');
+select lives_ok('select pg_temp.assert_opening_rpc_guard()', 'AC-OPB-001 all four opening-balance RPCs remain allowed after the undo-import CLI guard migration');
 select pg_temp.req('25880000-0000-0000-0000-0000000000a2', 'POST', '/rpc/load_work_order_opening');
 select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-OPB-001 the CLI refuses Finance');
 select pg_temp.req('25880000-0000-0000-0000-0000000000a1', 'GET', '/rpc/load_work_order_opening');
