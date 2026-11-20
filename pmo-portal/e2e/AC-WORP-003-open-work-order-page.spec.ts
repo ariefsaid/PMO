@@ -54,7 +54,7 @@ test('AC-WORP-003 a project work-order row opens the work-order page', async ({ 
     await expect(page).toHaveURL((url) => url.pathname === '/work-orders/' + workOrderId);
     await expect(page.getByRole('heading', { level: 1 })).toContainText(number);
     await expect(page.getByText(title)).toBeVisible();
-    await expect(page.getByText('Page project ' + suffix)).toBeVisible();
+    await expect(page.getByTestId('record-header').getByRole('link', { name: 'Page project ' + suffix })).toBeVisible();
   } catch (e) {
     failure = e;
   } finally {
