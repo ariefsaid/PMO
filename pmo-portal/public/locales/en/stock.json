@@ -653,12 +653,13 @@
       "item": "Item",
       "location": "Location",
       "received": "Received",
-      "movedOut": "Moved on",
+      "movedOut": "Moved to another location",
       "issued": "Issued",
       "onSite": "On site",
       "value": "Value",
       "unassigned": "Not assigned to a work order",
-      "noValue": "—"
+      "noValue": "—",
+      "zeroCost": "Client-supplied, no cost"
     }
   }
 }

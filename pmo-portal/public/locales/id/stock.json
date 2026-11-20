@@ -653,12 +653,13 @@
       "item": "Barang",
       "location": "Lokasi",
       "received": "Diterima",
-      "movedOut": "Dipindahkan",
+      "movedOut": "Dipindahkan ke lokasi lain",
       "issued": "Dikeluarkan",
       "onSite": "Di lokasi",
       "value": "Nilai",
       "unassigned": "Tidak terkait perintah kerja",
-      "noValue": "—"
+      "noValue": "—",
+      "zeroCost": "Dari klien, tanpa biaya"
     }
   }
 }

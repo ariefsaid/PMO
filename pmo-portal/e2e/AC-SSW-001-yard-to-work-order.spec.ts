@@ -164,7 +164,7 @@ test('AC-SSW-001 a keeper moves client stock through a yard and staging to a wor
   await card.getByRole('button', { name: 'Stock for this work order' }).click();
   const row = card.getByRole('row').filter({ hasText: staging.code });
   await expect(row).toContainText(tagName);
-  await expect(row.getByRole('cell').nth(4)).toHaveText('3');
+  await expect(row.getByRole('cell').nth(4)).toContainText('3');
   await expect(row.getByRole('cell').nth(5)).toContainText('1');
   await captures(page, 'work-order-stock-balance', row);
   await captures(page, 'work-order-stock-values', row.getByRole('cell').nth(5));

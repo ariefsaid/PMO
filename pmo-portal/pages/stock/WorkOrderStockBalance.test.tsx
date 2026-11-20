@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react';
 const h = vi.hoisted(() => ({ data: [] as unknown[], isLoading: false, isError: false, ownership: 'pmo', synced: true }));
 vi.mock('@/src/hooks/useStockSiteWork', () => ({ useWorkOrderStockBalance: () => ({ data: h.data, isLoading: h.isLoading, isError: h.isError, refetch: vi.fn() }) }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: () => h.ownership, isOwnershipCacheSynced: () => h.synced, subscribeOwnershipCache: () => () => {} }));
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
+vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k: string) => k, i18n: { language: 'en' } }) }));
 
 import { WorkOrderStockBalance } from './WorkOrderStockBalance';
 
@@ -70,6 +70,20 @@ describe('WorkOrderStockBalance', () => {
     render(<WorkOrderStockBalance workOrderId="wo1" currency="USD" />);
     expect(screen.getByText('$20.00')).toBeTruthy();
     expect(screen.getByText('$8.00')).toBeTruthy();
+  });
+
+  it('shows client-supplied zero-cost rows as such, not a bare $0.00', () => {
+    h.data = [row({ zeroCost: true, onSiteValue: '0.00', issuedValue: '0.00' })];
+    render(<WorkOrderStockBalance workOrderId="wo1" currency="USD" />);
+    expect(screen.getAllByText('siteWork.balance.zeroCost').length).toBeGreaterThan(0);
+    expect(screen.queryByText('$0.00')).toBeNull();
+  });
+
+  it('shows the on-site quantity next to the unit, and one panel heading only', () => {
+    h.data = [row({ onSiteQty: '3', unitCode: 'pc' })];
+    render(<WorkOrderStockBalance workOrderId="wo1" currency="IDR" />);
+    expect(screen.getAllByText((_, el) => el?.textContent === '3 pc' && el.tagName === 'SPAN').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('heading', { name: 'siteWork.balance.title' })).toBeNull();
   });
 
   it('FR-SSW-031 has no value column when the server sent no value', () => {
