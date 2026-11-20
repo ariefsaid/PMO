@@ -12,6 +12,7 @@ import { GateNotice, ListState, PageHeader } from '@/src/components/ui';
 import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 import AdminUsers from './AdminUsers';
 import People from './admin/People';
+import DocumentTypes from './admin/DocumentTypes';
 import AdministrationCredits from './AdministrationCredits';
 import { AdministrationUsage } from './AdministrationUsage';
 import AdministrationFeatures from './AdministrationFeatures';
@@ -246,6 +247,7 @@ const SelectedAdministrationPanel: React.FC<{
         <div data-testid="administration-panel-people" className="min-w-0">
           <SectionName name={label('people')} />
           <People />
+          <DocumentTypes />
         </div>
       );
     case 'integrations':
