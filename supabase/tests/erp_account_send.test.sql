@@ -3,7 +3,7 @@
 -- expense group of the bound company; the queued send and the resulting map row are org-scoped. Also the DB half of AC-ECX-030: the
 -- drain's result links the category to the created account once, and a category that has its account is never sent again.
 begin;
-select plan(115);
+select plan(121);
 
 insert into organizations (id, name) values
  ('a9110000-0000-0000-0000-000000000001','Accounts A'),
@@ -374,6 +374,18 @@ select set_config('request.method', 'POST', true), set_config('request.path', '/
 select lives_ok('select public.api_client_request_guard()', 'active Admin CLI can list requests');
 select set_config('request.path', '/rpc/dispose_account_reconciliation', true);
 select lives_ok('select public.api_client_request_guard()', 'active Admin CLI can dispose requests');
+select set_config('request.path', '/rpc/recategorise_budget_lines', true);
+select lives_ok('select public.api_client_request_guard()', 'the effective guard still admits recategorise_budget_lines to an active Admin CLI');
+select set_config('request.path', '/rpc/load_work_order_opening', true);
+select lives_ok('select public.api_client_request_guard()', 'the effective guard still admits load_work_order_opening to an active Admin CLI');
+select set_config('request.path', '/rpc/load_stock_opening', true);
+select lives_ok('select public.api_client_request_guard()', 'the effective guard still admits load_stock_opening to an active Admin CLI');
+select set_config('request.path', '/rpc/reverse_opening_balance', true);
+select lives_ok('select public.api_client_request_guard()', 'the effective guard still admits reverse_opening_balance to an active Admin CLI');
+select set_config('request.path', '/rpc/opening_balance_report', true);
+select lives_ok('select public.api_client_request_guard()', 'the effective guard still admits opening_balance_report to an active Admin CLI');
+select set_config('request.path', '/rpc/undo_imported_purchase', true);
+select lives_ok('select public.api_client_request_guard()', 'the effective guard still admits undo_imported_purchase to an active Admin CLI');
 select set_config('request.jwt.claims', '{"sub":"a9110000-0000-0000-0000-0000000000f2","role":"authenticated","client_id":"pmo-cli"}', true);
 select throws_ok('select public.api_client_request_guard()', '42501', null, 'Finance CLI cannot dispose requests');
 select set_config('request.path', '/rpc/list_account_reconciliation', true);

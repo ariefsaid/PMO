@@ -1,4 +1,4 @@
--- Restore the preceding request guard and remove the listing RPC.
+-- Restore the 1141 request guard (undo-import + opening balances) and remove the listing RPC.
 create or replace function public.api_client_request_guard()
   returns void
   language plpgsql
@@ -67,6 +67,8 @@ declare
     'operator_create_org_with_setup'];  -- 0894
   -- PURCHASE-HISTORY IMPORT TIER (`pmo purchases import-history`, #1855) — active Admin, as the RPC's own check; keep in step with scripts/lib/pmo-purchases.mjs.  -- 0899
   history_import_rpcs constant text[] := array['import_purchase_history'];  -- 0899
+  -- PURCHASE-HISTORY UNDO TIER (`pmo purchases undo-import`, #2321) — active Admin, as the RPC's own check; keep in step with scripts/lib/pmo-purchases.mjs.  -- 1141
+  history_undo_rpcs constant text[] := array['undo_imported_purchase'];  -- 1141
   -- ACTIVE-ADMIN CORRECTION TIER (`pmo correct contract-line|budget-line`, #1858) — PATCH on these two tables only, one row per request;  -- 0899
   -- the columns a token may change are fixed by the api_client_restrict_patch_columns() trigger on each table. Keep in step with scripts/lib/pmo-correct.mjs.  -- 0899
   correction_patch_tables constant text[] := array['boq_items', 'budget_line_items'];  -- 0899
@@ -205,6 +207,11 @@ begin
         return;  -- 0899
       end if;  -- 0899
     end if;  -- 0899
+    if method = 'POST' and target = any (history_undo_rpcs) then  -- 1141
+      if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false) then  -- 1141
+        return;  -- 1141
+      end if;  -- 1141
+    end if;  -- 1141
     if method = 'POST' and target = any (admin_cli_rpcs) then  -- 0366
       if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false) then  -- 0366
         return;  -- 0366
