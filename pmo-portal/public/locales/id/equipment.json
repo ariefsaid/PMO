@@ -54,6 +54,7 @@
     "unitLine": "Dicatat dalam {{unit}}"
   },
   "availability": {
+    "amountInvalid": "Masukkan jumlah sebagai angka dengan paling banyak 2 desimal",
     "noProof": "Belum ada bukti",
     "views": "Tampilan ketersediaan",
     "otherAssetActions": "Tindakan aset lainnya",

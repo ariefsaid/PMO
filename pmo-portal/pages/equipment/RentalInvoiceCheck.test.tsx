@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -10,6 +10,7 @@ vi.mock('@/src/hooks/useEquipmentAvailability', () => ({ useRentalCheck: () => (
   mutateAsync: h.mutate, reset: h.reset, isPending: false,
 }) }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { equipmentAvailability: { proofUrl: h.proofUrl } } }));
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import RentalInvoiceCheck from './RentalInvoiceCheck';
 
 beforeEach(() => { vi.clearAllMocks(); h.unproven = false; h.proofUrl.mockResolvedValue('https://example.test/proof'); h.mutate.mockResolvedValue(undefined); });
@@ -61,4 +62,35 @@ describe('rental invoice check', () => {
     expect(screen.getByRole('button', { name: 'Check invoice' })).toBeDisabled();
   });
 
+
+  describe('#2618 invoice amount is read in the viewer\'s number convention', () => {
+    const run = async (typed: string) => {
+      renderCheck();
+      await userEvent.selectOptions(screen.getByLabelText('Rented machine'), 'a');
+      await userEvent.type(screen.getByLabelText('Vendor invoice amount'), typed);
+      await userEvent.click(screen.getByRole('button', { name: 'Check invoice' }));
+    };
+    afterEach(() => resetActiveLocale());
+    it('Bahasa: 15.000 is sent as 15000', async () => {
+      setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'UTC' });
+      await run('15.000');
+      expect(h.mutate).toHaveBeenCalledWith(expect.objectContaining({ invoice: '15000' }));
+    });
+    it('Bahasa: 1.500.000,50 is sent as 1500000.5', async () => {
+      setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'UTC' });
+      await run('1.500.000,50');
+      expect(h.mutate).toHaveBeenCalledWith(expect.objectContaining({ invoice: '1500000.5' }));
+    });
+    it('English: 12,500.75 is sent as 12500.75', async () => {
+      setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+      await run('12,500.75');
+      expect(h.mutate).toHaveBeenCalledWith(expect.objectContaining({ invoice: '12500.75' }));
+    });
+    it('a malformed amount is refused with a message, nothing is sent', async () => {
+      setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+      await run('1.234');
+      expect(await screen.findByRole('alert')).toHaveTextContent('at most 2 decimals');
+      expect(h.mutate).not.toHaveBeenCalled();
+    });
+  });
 });
