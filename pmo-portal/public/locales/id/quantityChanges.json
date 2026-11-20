@@ -135,7 +135,6 @@
     "status": "Status",
     "title": "Permintaan"
   },
-  "nav": "Perubahan kuantitas",
   "newRequest": "Permintaan baru",
   "over": {
     "contract": "Kontrak",
@@ -201,6 +200,7 @@
     "withdrawn": "Ditarik"
   },
   "workOrder": {
+    "all": "Semua permintaan perubahan kuantitas dan baris kontrak yang melebihi kuantitas",
     "count": "Permintaan",
     "empty": "Belum ada permintaan perubahan kuantitas pada perintah kerja ini",
     "overLines": "{{count}} baris kontrak melebihi kuantitasnya",

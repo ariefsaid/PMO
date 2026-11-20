@@ -135,7 +135,6 @@
     "status": "Status",
     "title": "Requests"
   },
-  "nav": "Quantity changes",
   "newRequest": "New request",
   "over": {
     "contract": "Contract",
@@ -201,6 +200,7 @@
     "withdrawn": "Withdrawn"
   },
   "workOrder": {
+    "all": "All quantity change requests and over-contract lines",
     "count": "Requests",
     "empty": "No quantity change requests on this work order",
     "overLines": "{{count}} contract lines over their quantity",

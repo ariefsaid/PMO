@@ -166,9 +166,6 @@ export const MODULES: ModuleDef[] = [
   // #1522: daily site reports — every role reads; entry and validation gate inside the pages.
   { module: 'site-reports', icon: 'reports', label: 'Site reports', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'siteReport:nav', path: '/site-reports', detail: { pattern: '/site-reports/:reportId', param: 'reportId' } },
-  // #2578: quantity change requests — author and approver roles read; actions gate inside the pages.
-  { module: 'quantity-changes', icon: 'reports', label: 'Quantity changes', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
-    labelKey: 'quantityChanges:nav', path: '/quantity-changes', detail: { pattern: '/quantity-changes/:requestId', param: 'requestId' } },
   // #2528: Crews — every role reads; the tick and the manage actions gate inside the page.
   { module: 'crews', icon: 'user', label: 'Crews', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'crews:nav.crews', path: '/crews' },

@@ -32,6 +32,7 @@ export const QuantityChangesSection: React.FC<{ workOrderId: string; projectId: 
           {reached ? ` · ${t('raise.limitReached', 'This work order has reached its request limit')}` : ''}
         </p>
       )}
+      <p><Link to={`/quantity-changes?project=${projectId}`} className="text-primary-text hover:underline" data-testid="wo-qcr-all">{t('workOrder.all', 'All quantity change requests and over-contract lines')}</Link></p>
       {overCount > 0 && <p className="text-foreground">{t('workOrder.overLines', { defaultValue: '{{count}} contract lines over their quantity', count: overCount })}</p>}
       {list.isPending ? <ListState variant="loading" rows={1} /> : list.isError ? (
         <ListState variant="error" title={t('list.error', "Couldn't load requests")} onRetry={() => void list.refetch()} />
