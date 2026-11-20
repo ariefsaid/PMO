@@ -74,6 +74,8 @@ export const ALL_ITEMS: NavItem[] = [
   { to: '/stock', text: 'Stock', icon: 'inbox', group: 'Delivery', feature: 'stock', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // #1519: every member logs equipment usage; the Assets and approvals views gate by role inside the page.
   { to: '/equipment', text: 'Equipment', icon: 'equipment', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  // #1522: every member reads site reports; entry and validation gate by role inside the pages.
+  { to: '/site-reports', text: 'Site reports', icon: 'reports', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // Without CRM, PM and Finance keep their supplier doorway in the Delivery group.
   { to: '/companies?type=Vendor', text: 'Suppliers', icon: 'companies', group: 'Delivery', unlessFeature: 'crm', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Incidents is visible to EVERY role — any member may file an incident (rbac-visibility.md §A/§G).
@@ -339,6 +341,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
     '/imprest': t('imprest:nav.siteCash', 'Site cash'),
     '/material-requests': t('materialRequests:nav.materialRequests', 'Material requests'),
     '/equipment': t('equipment:nav.equipment', 'Equipment'),
+    '/site-reports': t('siteReport:nav', 'Site reports'),
     '/finance': t('financeHub:nav.finance', 'Finance'),
     '/finance/receivables': t('financeHub:hub.receivables', 'Receivables'),
     '/finance/payables': t('financeHub:hub.payables', 'Payables'),

@@ -19,6 +19,7 @@ import { companyCollectionsRepository } from './companyCollections';
 import { recordHistoryRepository } from './recordHistory';
 import { projectStageRepository } from './projectStages';
 import { rateCatalogueRepository } from './rateCatalogue';
+import { dailySiteReportRepository } from './dailySiteReports';
 import { vendorWithholdingSlipsRepository } from './vendorWithholdingSlips';
 import { fxRatesRepository } from './fxRates';
 import { financialStatementsRepository } from './financialStatements';
@@ -124,6 +125,7 @@ export const repositories: Repositories = {
   progressBilling: progressBillingRepository,
   rateCatalogue: rateCatalogueRepository,
   billingStages: billingStagesRepository,
+  dailySiteReport: dailySiteReportRepository,
   stock: stockRepository,
   workOrderAcceptance: workOrderAcceptanceRepository,
   procurementFiles: procurementFilesRepository,

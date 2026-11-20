@@ -78,6 +78,8 @@ export type Entity =
   | 'workOrder'
   | 'boqItem'
   | 'rateCatalogue'
+  | 'dailySiteReport'
+  | 'dailySiteReportRevenue'
   | 'progressClaim'
   | 'billingStage'
   | 'workOrderLine'
@@ -223,6 +225,10 @@ const EQUIPMENT_REGISTER_WRITE: Role[] = ['Admin', 'Project Manager'];
 const TM_RATE_WRITE: Role[] = ['Admin', 'Finance'];
 /** #1514: who may confirm a client sign-off — mirrors confirm_tm_signoff (0517: Admin, Finance, never the preparer). */
 const TM_CONFIRM: Role[] = ['Admin', 'Finance'];
+// #1522 daily site report (1005): enter = dsr_may_enter, validate = dsr_may_validate, revenue = dsr_may_see_revenue.
+const DSR_ENTER: Role[] = ['Admin', 'Engineer'];
+const DSR_VALIDATE: Role[] = ['Admin', 'Finance'];
+const DSR_REVENUE: Role[] = ['Admin', 'Finance', 'Executive'];
 
 const has = (set: Role[], role: Role | null): boolean => role != null && set.includes(role);
 
@@ -244,6 +250,8 @@ const allow = (set: Role[]): Predicate => (role) => has(set, role);
 const allowUnlessViewOnly = (set: Role[]): Predicate => (role, ctx) => has(set, role) && ctx.record?.viewOnly !== true;
 
 /** Stock master data (#1512, 0412): mirrors the RLS - rank >= 20 writes, Admin deletes. UX only; RLS is the authority. */
+const isOwnProjectPm: Predicate = (role, ctx) =>
+  role === 'Project Manager' && !!ctx.currentUserId && ctx.record?.project_manager_id === ctx.currentUserId;
 const stockMaster = () => ({
   view: allow(ALL),
   create: allowUnlessViewOnly(MASTER_DATA),
@@ -311,6 +319,22 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   },
   /** Bill of quantities (#766) — mirrors 0250's boq_items policies: the work-order writer set. */
   rateCatalogue: { view: allow(MASTER_DATA), create: allowUnlessViewOnly(REVENUE_WRITE) },
+  /**
+   * Daily site report (#1522, 1005). UX ONLY — dsr_save_draft/dsr_submit/dsr_validate/dsr_return/dsr_correct and
+   * dsr_report_revenue are the authority (ADR-0016). Until #902 adds the field-controller and QS roles, the field role
+   * is Engineer and the QS is Finance. A PM acts only on a project they manage (`record.project_manager_id`).
+   *   create  ← enter and submit;  approve ← validate or return, never the author (SoD, ADR-0019);
+   *   revise  ← start a correction of a validated report;  dailySiteReportRevenue.view ← rates and revenue.
+   */
+  dailySiteReport: {
+    view: allow(ALL),
+    create: (role, ctx) => ctx.record?.viewOnly !== true && (has(DSR_ENTER, role) || isOwnProjectPm(role, ctx)),
+    approve: (role, ctx) =>
+      ctx.record?.viewOnly !== true && !!ctx.currentUserId && ctx.record?.author_id !== ctx.currentUserId &&
+      (has(DSR_VALIDATE, role) || isOwnProjectPm(role, ctx)),
+    revise: (role, ctx) => ctx.record?.viewOnly !== true && (has(DSR_VALIDATE, role) || isOwnProjectPm(role, ctx)),
+  },
+  dailySiteReportRevenue: { view: (role, ctx) => has(DSR_REVENUE, role) || isOwnProjectPm(role, ctx) },
   boqItem: {
     view: allow(MASTER_DATA),
     create: allow(MASTER_DATA),

@@ -222,6 +222,26 @@ where w.id = 'a6120000-0000-4000-8000-0000000000d2';
 insert into public.project_progress_entries (id, org_id, project_id, month, pct_complete)
 select 'a6120000-0000-4000-8000-0000000000b5', org_id, project_id, date '2001-01-01', 0
 from public.work_orders where id = 'a6120000-0000-4000-8000-0000000000d2';
+-- Site report chain for A (the seed org has no reports): a draft report on the disposable work order, one row per child table.
+insert into public.dsr_idle_reasons (id, org_id, label)
+values ('a6120000-0000-4000-8000-0000000000c1', 'a6120000-0000-4000-8000-00000000000a', 'iso-idle-reason') on conflict do nothing;
+insert into public.dsr_weather_conditions (id, org_id, label)
+values ('a6120000-0000-4000-8000-0000000000c2', 'a6120000-0000-4000-8000-00000000000a', 'iso-weather') on conflict do nothing;
+insert into public.daily_site_reports (id, org_id, project_id, work_order_id, work_date, author_id)
+select 'a6120000-0000-4000-8000-0000000000c3', w.org_id, w.project_id, w.id, current_date,
+       (select id from public.profiles where org_id = w.org_id order by id limit 1)
+  from public.work_orders w where w.id = 'a6120000-0000-4000-8000-0000000000d2';
+insert into public.dsr_progress_lines (id, org_id, report_id, position, work_order_line_id, quantity, unit)
+values ('a6120000-0000-4000-8000-0000000000c4', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000c3', 1, 'a6120000-0000-4000-8000-0000000000d4', 1, 'each');
+insert into public.dsr_idle_periods (id, org_id, report_id, position, minutes, reason_id)
+values ('a6120000-0000-4000-8000-0000000000c5', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000c3', 1, 10, 'a6120000-0000-4000-8000-0000000000c1');
+insert into public.dsr_consumables (id, org_id, report_id, position, stock_item_id, quantity, unit)
+select 'a6120000-0000-4000-8000-0000000000c6', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000c3', 1, i.id, 1, 'each'
+  from public.stock_items i where i.org_id = 'a6120000-0000-4000-8000-00000000000a' order by i.id limit 1;
+insert into public.dsr_photos (id, org_id, report_id, kind, file_path)
+values ('a6120000-0000-4000-8000-0000000000c7', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000c3', 'other', 'iso/none/none/none.jpg');
+insert into public.dsr_events (id, org_id, report_id, action)
+values ('a6120000-0000-4000-8000-0000000000c8', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000c3', 'created');
 -- #2519: a plan figure and a shared-cost split row on the isolation work order.
 insert into public.work_order_plan_lines (id, org_id, project_id, work_order_id, kind, value)
 select 'a6120000-0000-4000-8000-0000000000d6', w.org_id, w.project_id, w.id, 'direct_budget', 1

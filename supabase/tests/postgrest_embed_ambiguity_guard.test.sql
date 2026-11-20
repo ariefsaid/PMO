@@ -49,6 +49,9 @@ select set_eq(
             -- Checked before adding: no DAL, repository, edge fn or e2e spec embeds profiles from
             -- it (only database.types.ts mentions the table), so no unqualified embed exists.
             ('contract_rate_assignees -> profiles'),
+            -- 1004 (#1522): daily_site_reports carries author_id AND validated_by, both -> profiles. New
+            -- table: the DAL (src/lib/db/dailySiteReports.ts) embeds no profiles; names resolve by id.
+            ('daily_site_reports -> profiles'),
             ('credits -> profiles'),
             -- 0882 (#2195): erp_capture_invoice_assignments carries actor_id, undone_by and the two
             -- prior_mark_* columns, all -> profiles. Checked before adding: no DAL, repository,

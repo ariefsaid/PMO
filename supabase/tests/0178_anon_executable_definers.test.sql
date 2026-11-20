@@ -466,6 +466,14 @@ insert into client_callable_rpc_names (proname) values
   ('mrq_submit'),
   ('mrq_decide_step'),
   ('mrq_cancel'),
+  ('rate_catalogue_add_variants'), -- 0955: rate-catalogue writers, active-role gated
+  ('rate_catalogue_set_default_variant'),
+  ('rate_catalogue_upsert_item'),
+  ('dsr_save_draft'),
+  ('dsr_submit'),
+  ('dsr_validate'),
+  ('dsr_return'),
+  ('dsr_correct'),
   ('set_shared_cost_split'),
   ('set_work_order_plan'),
   ('clear_shared_cost_split'),
@@ -516,8 +524,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  204,
-  'AC-ACL-002 all 204 retained client-callable RPC names still have a public function');
+  212,
+  'AC-ACL-002 all 212 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -526,8 +534,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  204,
-  'AC-ACL-003 all 204 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  212,
+  'AC-ACL-003 all 212 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

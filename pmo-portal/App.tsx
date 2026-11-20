@@ -107,6 +107,8 @@ const EquipmentUsagePage = lazyWithPreload(() => import('./pages/equipment/Equip
 const EquipmentAssetsPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAssets'));
 const ExpiringDocumentsPage = lazyWithPreload(() => import('./pages/equipment/ExpiringDocuments'));
 const EquipmentAssetDetailPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAssetDetail'));
+const SiteReportsPage = lazyWithPreload(() => import('./pages/siteReports/SiteReports'));
+const SiteReportDetailPage = lazyWithPreload(() => import('./pages/siteReports/SiteReportDetail'));
 const ApprovalsPage = lazyWithPreload(() => import('./pages/Approvals'));
 const CompaniesPage = lazyWithPreload(() => import('./pages/Companies'));
 const MasterDataPage = lazyWithPreload(() => import('./pages/MasterData'));
@@ -251,6 +253,8 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/equipment/assets', chunks: [EquipmentAssetsPage], namespaces: ['equipment'] },
   { path: '/equipment/expiring', chunks: [ExpiringDocumentsPage], namespaces: ['equipment'] },
   { path: '/equipment/assets/:assetId', chunks: [EquipmentAssetDetailPage], namespaces: ['equipment'] },
+  { path: '/site-reports', chunks: [SiteReportsPage], namespaces: ['siteReport'] },
+  { path: '/site-reports/:reportId', chunks: [SiteReportDetailPage], namespaces: ['siteReport'] },
   { path: '/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
   { path: '/administration/:section', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement'] },
   { path: '/administration', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement'] },
@@ -465,6 +469,9 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/equipment/assets', element: <EquipmentAssetsPage /> },
   { path: '/equipment/expiring', element: <ExpiringDocumentsPage /> },
   { path: '/equipment/assets/:assetId', element: <EquipmentAssetDetailPage /> },
+  // #1522: daily site reports per work order and the QS validation queue.
+  { path: '/site-reports', element: <SiteReportsPage /> },
+  { path: '/site-reports/:reportId', element: <SiteReportDetailPage /> },
   { path: '/reports', element: <FinanceLegacyRedirect to="/finance/reports" /> },
   { path: '/administration', element: <AdministrationEntryRedirect /> },
   { path: '/administration/users', element: <AdministrationPage /> },
