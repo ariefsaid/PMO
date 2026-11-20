@@ -143,17 +143,17 @@ create or replace function public.stock_doc_readable(p_document text, p_draft_on
      where d.id::text = p_document and d.org_id = public.auth_org_id() and (not p_draft_only or d.status = 'Draft')) $$;
 revoke all on function public.stock_doc_readable(text, boolean) from public, anon;
 grant execute on function public.stock_doc_readable(text, boolean) to authenticated;
-create policy storage_stock_documents_read on storage.objects for select
+create policy storage_stock_documents_read on storage.objects for select to authenticated
   using (bucket_id = 'stock-documents' and (select auth.uid()) is not null
          and split_part(name, '/', 1) = (select public.auth_org_id())::text
          and array_length(string_to_array(name, '/'), 1) = 4
          and public.stock_doc_readable(split_part(name, '/', 2)));
-create policy storage_stock_documents_insert on storage.objects for insert
+create policy storage_stock_documents_insert on storage.objects for insert to authenticated
   with check (bucket_id = 'stock-documents' and (select auth.uid()) is not null
          and split_part(name, '/', 1) = (select public.auth_org_id())::text
          and array_length(string_to_array(name, '/'), 1) = 4
          and public.stock_can_attach(split_part(name, '/', 2)::uuid));
-create policy storage_stock_documents_delete on storage.objects for delete
+create policy storage_stock_documents_delete on storage.objects for delete to authenticated
   using (bucket_id = 'stock-documents' and (select auth.uid()) is not null
          and split_part(name, '/', 1) = (select public.auth_org_id())::text
          and array_length(string_to_array(name, '/'), 1) = 4

@@ -6,6 +6,7 @@ drop function if exists public.guard_stock_file_object();
 drop policy if exists storage_stock_documents_read on storage.objects;
 drop policy if exists storage_stock_documents_insert on storage.objects;
 drop policy if exists storage_stock_documents_delete on storage.objects;
+drop function if exists public.stock_doc_readable(text, boolean);
 delete from storage.buckets where id = 'stock-documents';
 drop trigger if exists stock_document_files_audit on public.stock_document_files;
 drop function if exists public.audit_stock_file_add();
