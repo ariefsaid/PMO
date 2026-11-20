@@ -18,3 +18,18 @@ begin
 end $$;
 revoke all on function public.people_assign_code() from public, anon, authenticated;
 create trigger people_z_code_trg before insert on public.people for each row execute function public.people_assign_code();
+
+-- AC-PPL-003: Admin and Project Manager add and edit (1035's people policies); only an Admin archives or restores.
+-- A trigger, because the update policy and the archived_at column grant are shared by both roles.
+create or replace function public.people_archive_admin_only() returns trigger
+language plpgsql set search_path = public, pg_temp as $$
+begin
+  if new.archived_at is distinct from old.archived_at
+     and current_user = 'authenticated' and coalesce(public.auth_role()::text, '') <> 'Admin' then
+    raise exception 'only an Admin archives a person' using errcode = '42501';
+  end if;
+  return new;
+end $$;
+revoke all on function public.people_archive_admin_only() from public, anon, authenticated;
+create trigger people_archive_admin_only_trg before update of archived_at on public.people
+  for each row execute function public.people_archive_admin_only();

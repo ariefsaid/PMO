@@ -1,7 +1,7 @@
 -- people_register.test.sql — 1008 (#2542 follow-up). Owns AC-PPL-001..004: code generation, uniqueness, write roles, second-org isolation.
 begin;
 create extension if not exists pgtap;
-select plan(25);
+select plan(26);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25420000-0000-0000-0000-00000000000a', 'PPL Org',   'IDR', 'UTC'),
@@ -70,7 +70,8 @@ select throws_ok($$update people set profile_id = '25420000-0000-0000-0000-00000
 -- AC-PPL-003 write roles
 select pg_temp.act_as('25420000-0000-0000-0000-0000000000a2');
 select is((select count(*)::int from people where org_id = '25420000-0000-0000-0000-00000000000a'), 10, 'AC-PPL-003 a Project Manager reads the register');
-select throws_ok($$insert into people (name) values ('By PM')$$, '42501', null, 'AC-PPL-003 a Project Manager cannot add a person');
+select lives_ok($$insert into people (name) values ('By PM')$$, 'AC-PPL-003 a Project Manager can add a person (the crews policy owns this contract)');
+select throws_ok($$update people set archived_at = now() where name = 'By PM'$$, '42501', null, 'AC-PPL-003 a Project Manager cannot archive a person');
 select pg_temp.act_as('25420000-0000-0000-0000-0000000000a3');
 select throws_ok($$insert into people (name) values ('By Finance')$$, '42501', null, 'AC-PPL-003 Finance cannot add a person');
 update people set archived_at = now() where id = '25420000-0000-0000-0000-0000000000e1';
