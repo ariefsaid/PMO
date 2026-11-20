@@ -254,7 +254,8 @@ export function rollupProject(input: RollupInput): ProjectRollup {
   };
 
   const hourFigures = (woLines: CostAmountLine[]) => {
-    const equip = woLines.filter((l) => l.source === 'equipment_usage');
+    // The read marks Draft and Submitted equipment rows as `not-posted`; only Approved usage counts as actual hours.
+    const equip = woLines.filter((l) => l.source === 'equipment_usage' && l.reason !== 'not-posted');
     const crew = woLines.filter((l) => l.source === 'timesheet_entry');
     return {
       equipmentHours: sumHours(equip.filter((l) => l.quantityUnit === 'hours').map((l) => l.quantity ?? 0)),
