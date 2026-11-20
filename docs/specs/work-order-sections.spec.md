@@ -8,12 +8,13 @@ Read against `0193`, `0337`, `0417`, `0951`, `0997`, `1000`/`1001` on `dev`; #25
 - **The plan-line write path was missing.** Plan figures are written by `set_work_order_plan(project, work_order, changes)` (`0997`), a security-invoker RPC, and the column grants are `insert (project_id, work_order_id, discipline_id, kind, value, note)` / `update (value, note)`. A section column needs the RPC extended **and** the grants widened, or AC-WOS-012 (move a figure between sections) is refused by the grant.
 - **The work-order material plan already exists, derived.** Nothing stores a work-order material quantity: `mrq_plan_quantity` derives it from `boq_material_allowances` (`0417`, per BoQ line) prorated by `work_order_lines` (`0337`). FR-WOS-013 now says so, so no second plan store gets invented.
 - **The composite-FK shape is spelled out** — parent `unique (id, work_order_id)`, child `(section_id, work_order_id)`, MATCH SIMPLE so a null section is always valid — matching the plan.
-- **"Section" is defined against what already exists:** not a discipline (the org-wide cost list), not a work-order line (a contract quantity); it carries no value.
+- **"Section" is defined against what already exists:** not a discipline (the org-wide cost list), not a work-order line (a contract quantity); it carries no value. The word also collides with `work-order-record-page.spec.md`, which calls its page panels "sections" (FR-WORP-020..027) — those get renamed to panels when this ships, so `terms.section` means one thing.
 - **AC-WOS-001 contradicted FR-WOS-021** (a work order with no sections still shows the empty block to someone who may add one). It now asserts unchanged reads plus the two page cases.
 - **AC-WOS-014 moved to pgTAP (owner).** FR-WOS-017 says the roll-up comes from the server read, so readiness counts cannot be owned by a client unit test.
 - **AC-WOS-017 now tests what it claims.** #2528's roster already refuses a crew on two work orders in a day, so a same-day second section is refused by that shipped rule, not by a new section rule.
 - **Missing refusals added:** an archived section on a new or moved record, an allocation on an archived section, a foreman who is not an active member; and AC-WOS-006 now covers `draft` requests as well as `pending`.
 - **Generic wording:** the "(fronts)" gloss is gone; an organisation's own word comes only through the terminology seam.
+- **Name collision recorded:** the work-order record page already calls its layout panels "sections" (`work-order-record-page.spec.md`, FR-WORP-020..027); renaming those to panels is part of this feature, so `terms.section` has one meaning.
 
 Open owner decisions: OD-WOS-1 (unsectioned records stay legal), OD-WOS-2 (foreman is a user, not a vendor worker), OD-WOS-5 (readiness gates nothing), OD-WOS-6 (allocation optional, the work-order check always applies), OQ-WOS-1 (crew placed on a section vs chosen per day), OQ-WOS-2 (no single percent).
 
@@ -42,7 +43,7 @@ When a work order covers several places or scopes, I want to split it into secti
 
 ## Definitions (used by the acceptance criteria)
 
-- **Section**: a place or scope of one work order — not a discipline (the organisation-wide cost list from #2517) and not a work-order line (a contract quantity, `0337`). It carries no value, invoice, acceptance or status of its own.
+- **Section**: a place or scope of one work order — not a discipline (the organisation-wide cost list from #2517) and not a work-order line (a contract quantity, `0337`). It carries no value, invoice, acceptance or status of its own. It is also not the record page's layout regions, which `work-order-record-page.spec.md` unfortunately calls "sections" (FR-WORP-020..027); those are panels, and renaming them is part of shipping this feature so the i18n key `terms.section` means only the business entity.
 - **Sectioned record**: a plan line, material request, task, crew roster placement or daily-report progress line whose `section_id` is set. **Unsectioned remainder**: the same record kinds on the work order with `section_id` null.
 - **Roll-up** of a quantity Q for a work order = sum of Q over every section + the unsectioned remainder. Because every record keeps its `work_order_id`, the work-order total is the sum of *all* records on the work order, so the roll-up equals it by construction. This is the **roll-up invariant**: for every work order and every measure, `sum(sections) + remainder = work-order total` exactly (exact decimals, no rounding in between).
 - **Readiness** (held, not computed): one of `not_ready`, `ready`, `blocked`, with an optional note, who set it and when. A section is created `not_ready`.
