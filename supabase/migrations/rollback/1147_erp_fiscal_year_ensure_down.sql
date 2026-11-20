@@ -1,5 +1,5 @@
 -- rollback/1147_erp_fiscal_year_ensure_down.sql
--- Refuse to drop while intents have post_started_at and an outbox row not confirmed.
+-- Refuse to drop while any fiscal-year intent is unresolved.
 -- Otherwise drop fiscal_year config, RPCs, and intent table.
 
 do $$
@@ -7,9 +7,12 @@ begin
   if exists (
     select 1
       from public.erp_fiscal_year_intents i
-      join public.external_command_outbox o on o.id = i.post_outbox_id
-     where i.post_started_at is not null
-       and o.state <> 'confirmed'
+      left join public.external_command_outbox o on o.id = i.post_outbox_id
+      left join public.external_org_bindings b on b.id = i.binding_id and b.org_id = i.org_id
+     where i.post_outbox_id is null or o.id is null or o.state <> 'confirmed'
+        or o.canonical->'status'->>'state' in ('needs-operator', 'refused')
+        or (b.config->'fiscal_year'->>'state' = 'needs-operator'
+            and b.config->'fiscal_year'->>'intentId' = i.id::text)
   ) then
     raise exception 'refusing to roll back while unresolved fiscal year intents exist' using errcode = 'P0001';
   end if;

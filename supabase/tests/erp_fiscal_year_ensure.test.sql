@@ -1,6 +1,6 @@
 -- #1599 ECX-5: erp_fiscal_year_ensure pgTAP test suite
 begin;
-select plan(44);
+select plan(49);
 
 -- 1. Table schema and RLS
 select has_table('public', 'erp_fiscal_year_intents', 'erp_fiscal_year_intents table exists');
@@ -272,6 +272,9 @@ select is(
   'config.fiscal_year.state is ready'
 );
 
+-- A confirmed outbox is settled before a later independent observation.
+update external_command_outbox set state = 'confirmed' where id = 'f5010000-0000-0000-0000-0000000000c1';
+
 -- 7. Functional tests for record_fiscal_year_observation
 select is(
   public.record_fiscal_year_observation(
@@ -318,6 +321,35 @@ select is(
   false,
   'unresolved held intent blocks overwriting with not-due observation'
 );
+
+
+-- A confirmed transport record does not resolve an intent-backed operator outcome.
+update external_command_outbox set state = 'confirmed' where id = 'f5010000-0000-0000-0000-0000000000c1';
+update external_org_bindings set config = jsonb_set(config, '{fiscal_year}', jsonb_build_object('state','needs-operator','reason','held','intentId',(select id::text from t_prep),'company','Acme Co')) where id = 'f5010000-0000-0000-0000-0000000000b1';
+select is(public.record_fiscal_year_observation(
+  'f5010000-0000-0000-0000-000000000001', 'f5010000-0000-0000-0000-0000000000b1',
+  'Acme Co', 'https://erp.example.test', '2026-01-01 00:00:00+00', '2026-11-23 00:00:00+00',
+  '{"state":"ready","company":"Acme Co","current":"2026","next":"2027"}'::jsonb), false,
+  'intent-backed operator status remains unresolved even if outbox is confirmed');
+
+-- The outbox also retains the unresolved result if the binding observation was not published.
+update external_command_outbox set canonical = '{"status":{"state":"needs-operator","reason":"held"}}'::jsonb where id = 'f5010000-0000-0000-0000-0000000000c1';
+update external_org_bindings set config = jsonb_set(config, '{fiscal_year}', '{"state":"needs-operator","reason":"missing-role","company":"Acme Co"}'::jsonb) where id = 'f5010000-0000-0000-0000-0000000000b1';
+select is(public.record_fiscal_year_observation(
+  'f5010000-0000-0000-0000-000000000001', 'f5010000-0000-0000-0000-0000000000b1',
+  'Acme Co', 'https://erp.example.test', '2026-01-01 00:00:00+00', '2026-11-23 00:00:00+00',
+  '{"state":"ready","company":"Acme Co","current":"2026","next":"2027"}'::jsonb), false,
+  'confirmed outbox with held canonical status remains unresolved');
+
+-- A discovery-only setting can recover without an intent.
+update external_org_bindings set config = jsonb_set(config, '{fiscal_year}', '{"state":"needs-operator","reason":"missing-role","company":"Acme Co"}'::jsonb) where id = 'f5010000-0000-0000-0000-0000000000b2';
+select is(public.record_fiscal_year_observation(
+  'f5010000-0000-0000-0000-000000000002', 'f5010000-0000-0000-0000-0000000000b2',
+  'Acme Co', 'https://erp-b.example.test', '2026-01-01 00:00:00+00', '2026-11-22 00:00:00+00',
+  '{"state":"ready","company":"Acme Co","current":"2026","next":"2027"}'::jsonb), true,
+  'pre-intent operator status can be replaced by ready');
+select is((select config->'fiscal_year'->>'state' from external_org_bindings where id = 'f5010000-0000-0000-0000-0000000000b2'), 'ready', 'recovered state persists');
+select ok((select post_started_at is not null and post_outbox_id = 'f5010000-0000-0000-0000-0000000000c1'::uuid and post_generation = 1 from erp_fiscal_year_intents where id = (select id from t_prep)), 'held reservation remains unchanged');
 
 select * from finish();
 rollback;

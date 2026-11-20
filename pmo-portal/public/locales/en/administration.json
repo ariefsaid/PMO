@@ -490,12 +490,14 @@
     },
     "fiscalYear": {
       "label": "Next fiscal year",
-      "missingRole": "Operator task: the integration user needs the role that creates fiscal years. We do this at onboarding; nothing is needed from you.",
-      "noCurrentYear": "Operator task: the ERP has no fiscal year for today, so PMO cannot tell when the next one starts. We do this at onboarding; nothing is needed from you.",
-      "disabledYear": "Operator task: a disabled fiscal year with these dates exists ({{year}}). PMO does not switch it back on; we will resolve it, nothing is needed from you.",
-      "held": "Operator task: we could not confirm the next fiscal year. We will resolve it; nothing is needed from you.",
-      "refused": "Operator task: PMO could not create the next fiscal year ({{reason}}). We will resolve it; nothing is needed from you.",
-      "refusedNoReason": "Operator task: PMO could not create the next fiscal year. We will resolve it; nothing is needed from you."
+      "missingRole": "Ask your Admin to grant the integration user Read and Create permissions on the Fiscal Year document type in ERPNext. PMO checks again on the next sync.",
+      "noCurrentYear": "Ask your Admin to add or enable a Fiscal Year covering today in ERPNext and assign it to the linked company. PMO checks again on the next sync.",
+      "disabledYear": "Ask your Admin to review the disabled Fiscal Year {{year}} in ERPNext and enable it only if it is the intended period. PMO checks again on the next sync.",
+      "held": "Operator attention is needed because PMO could not confirm the next fiscal year.",
+      "refused": "Operator attention is needed because PMO could not create the next fiscal year.",
+      "refusedNoReason": "Operator attention is needed because PMO could not create the next fiscal year.",
+      "ambiguousOverlap": "Ask your Admin to correct Fiscal Year date ranges and company assignments in ERPNext so one enabled year applies. PMO checks again on the next sync.",
+      "reviewSettings": "Ask your Admin to review Fiscal Year settings in ERPNext for the linked company. PMO checks again on the next sync."
     },
     "m365App": {
       "heading": "Microsoft 365 app",

@@ -26,10 +26,9 @@ export function missingAccountCategories(setup: ErpSetupReadiness): string[] {
   return requiredBudgetCategories(setup).filter((category) => !setup.budgetMappedCategories.includes(category));
 }
 
-/** #1599 ECX-5: the fiscal-year line, when the next year needs the Operator. Never a client step, so it is not counted by
- *  `getErpSetupIncompleteness` (it raises no "Finish setup"). */
+/** #1599 ECX-5: guidance for the fiscal-year check, outside the initial setup completion count. */
 export function fiscalYearOperatorTask(setup: ErpSetupReadiness):
-  | { kind: 'missing-role' | 'no-current-year' }
+  | { kind: 'missing-role' | 'no-current-year' | 'ambiguous-overlap' | 'review-settings' }
   | { kind: 'disabled-year'; year: string }
   | { kind: 'held'; intentId: string }
   | { kind: 'refused'; reason: string | null }

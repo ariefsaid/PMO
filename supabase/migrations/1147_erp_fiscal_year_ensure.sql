@@ -302,15 +302,16 @@ begin
     select exists (
       select 1
         from public.erp_fiscal_year_intents i
-        join public.external_command_outbox o on o.id = i.post_outbox_id
+        left join public.external_command_outbox o on o.id = i.post_outbox_id
        where i.org_id = p_org_id
          and i.binding_id = p_binding_id
-         and i.company = p_company
-         and i.post_started_at is not null
-         and o.state in ('held', 'quarantined', 'failed')
+         and (i.post_outbox_id is null or o.id is null or o.state <> 'confirmed'
+           or o.canonical->'status'->>'state' in ('needs-operator', 'refused')
+           or (v_binding.config->'fiscal_year'->>'state' = 'needs-operator'
+               and v_binding.config->'fiscal_year'->>'intentId' = i.id::text))
     ) into v_unresolved_exists;
 
-    if v_unresolved_exists or coalesce(v_binding.config->'fiscal_year'->>'state', '') in ('held', 'needs-operator', 'operator') then
+    if v_unresolved_exists then
       return false;
     end if;
   end if;

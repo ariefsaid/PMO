@@ -34,6 +34,9 @@ function world(
   opts: {
     denyCreate?: boolean;
     denyRead?: boolean;
+    post500?: boolean;
+    failEventOnce?: boolean;
+    rejectObservation?: boolean;
     initialConfig?: Record<string, unknown>;
     initialIntents?: Array<Record<string, unknown>>;
     initialOutbox?: Array<Record<string, unknown>>;
@@ -43,6 +46,7 @@ function world(
   if (opts.denyCreate) fake.denyCreate();
   if (opts.denyRead) fake.denyRead();
   const settled: string[] = [];
+  let eventAttempts = 0;
   let company = COMPANY;
   const binding = {
     config: {
@@ -62,10 +66,13 @@ function world(
       label: 'intents-rest',
       pathname: '/rest/v1/erp_fiscal_year_intents',
       response: (call: FetchCall) => {
-        if (call.method === 'GET') return jsonResponse(intents);
-        return jsonResponse([]);
+        const id = call.url.searchParams.get('id')?.replace(/^eq\./, '');
+        const rows = intents.filter(i => !id || i.id === id);
+        if (call.method === 'PATCH') rows.forEach(i => Object.assign(i, call.bodyJson));
+        return jsonResponse(rows);
       },
     },
+    { label: 'error-events', pathname: '/rest/v1/error_events', response: () => { eventAttempts++; return opts.failEventOnce && eventAttempts === 1 ? jsonResponse({ code: 'FAIL' }, { status: 500 }) : jsonResponse(null, { status: 201 }); } },
     {
       label: 'outbox-rest',
       pathname: '/rest/v1/external_command_outbox',
@@ -164,13 +171,14 @@ function world(
     supabaseRpc('begin_fiscal_year_post', (call: FetchCall) => {
       const body = call.bodyJson as { p_intent_id?: string };
       const intent = intents.find((i) => !body?.p_intent_id || i.id === body.p_intent_id) ?? intents[intents.length - 1];
-      if (intent) intent.post_started_at = new Date().toISOString();
+      if (intent) { intent.post_started_at = new Date().toISOString(); intent.post_outbox_id = (call.bodyJson as {p_outbox_id: string}).p_outbox_id; }
       return jsonResponse(true);
     }),
     supabaseRpc('record_fiscal_year_observation', (call: FetchCall) => {
       const body = call.bodyJson as { p_status: Record<string, unknown> };
+      if (opts.rejectObservation) return jsonResponse(false);
       binding.config = { ...binding.config, fiscal_year: body.p_status };
-      return jsonResponse(null);
+      return jsonResponse(true);
     }),
     supabaseRpc('record_fiscal_year_status', (call: FetchCall) => {
       const body = call.bodyJson as { p_status: Record<string, unknown> };
@@ -187,7 +195,7 @@ function world(
       host: HOST,
       pathname: /^\/api\/resource\/Fiscal%20Year/,
       response: (call: FetchCall) =>
-        fake.fetchImpl(call.url.toString(), {
+        opts.post500 && call.method === 'POST' ? jsonResponse({exc_type: 'TypeError', message: 'internal'}, {status: 500}) : fake.fetchImpl(call.url.toString(), {
           method: call.method,
           ...(call.bodyText ? { body: call.bodyText } : {}),
         }),
@@ -242,6 +250,7 @@ function world(
   return {
     fake,
     binding,
+    intents,
     routes,
     tick,
     settled,
@@ -282,6 +291,43 @@ describe('AC-ECX-040 the sweep keeps the ERP one fiscal year ahead', () => {
     assertEquals(w.binding.config.default_payable_account, 'Creditors - ECX');
   });
 
+  it('never emits an operator alert for discovery-only statuses', async () => {
+    const cases = [
+      world([], {}),
+      world([CAL_2026], { denyRead: true }),
+      world([CAL_2026, { name: '2027', start: '2027-01-01', end: '2027-12-31', companies: [], disabled: true }]),
+      world([CAL_2026, { ...CAL_2026, name: 'overlap' }]),
+    ];
+    for (const w of cases) {
+      await withFetchMock(w.routes, async ({ calls }) => {
+        await w.tick(DEC_1);
+        assertEquals(calls.filter(c => c.url.pathname === '/rest/v1/error_events').length, 0);
+        assertEquals(w.intents.length, 0);
+      });
+    }
+  });
+
+  it('does not report a discovery observation when the database refuses it', async () => {
+    const w = world([], { rejectObservation: true });
+    await withFetchMock(w.routes, async () => {
+      const result = await w.tick(DEC_1);
+      assert(result.perOrg[0].errors.some(e => e.includes('status-write-failed')));
+      assertEquals(w.binding.config.fiscal_year, undefined);
+    });
+  });
+
+  it('rechecks a corrected discovery setting on the same day', async () => {
+    const w = world([]);
+    await withFetchMock(w.routes, async () => {
+      await w.tick(DEC_1);
+      assertEquals((w.binding.config.fiscal_year as { reason: string }).reason, 'no-current-year');
+      w.fake.seed(CAL_2026);
+      w.fake.seed({ name: '2027', start: '2027-01-01', end: '2027-12-31', companies: [] });
+      await w.tick(DEC_1 + 3_600_000);
+      assertEquals((w.binding.config.fiscal_year as { state: string }).state, 'ready');
+    });
+  });
+
   it('AC-ECX-040 a second sweep on the same day makes no ERP call', async () => {
     const w = world([CAL_2026]);
     await withFetchMock(w.routes, async ({ calls }) => {
@@ -307,6 +353,49 @@ describe('AC-ECX-040 the sweep keeps the ERP one fiscal year ahead', () => {
     });
   });
 
+  it('holds an HTTP 500 as unconfirmed and never sends a second create', async () => {
+    const w = world([CAL_2026], { post500: true });
+    await withFetchMock(w.routes, async ({ calls }) => {
+      const first = await w.tick(DEC_1);
+      assert(first.perOrg[0].errors.some(e => e.includes('HTTP 500')));
+      await w.tick(DEC_1 + 3_600_000);
+      assertEquals(calls.filter(c => c.method === 'POST' && c.url.pathname === '/api/resource/Fiscal%20Year').length, 1);
+      assertEquals(calls.filter(c => c.url.pathname === '/rest/v1/error_events').map(c => (c.bodyJson as {error_code:string}).error_code), ['ERP_FISCAL_YEAR_UNCONFIRMED']);
+      assertEquals((w.binding.config.fiscal_year as {reason:string}).reason, 'held');
+    });
+  });
+
+  it('retries a failed alert on the next tick and deduplicates after success', async () => {
+    const w = world([CAL_2026], { denyCreate: true, failEventOnce: true });
+    await withFetchMock(w.routes, async ({ calls }) => {
+      await w.tick(DEC_1);
+      assertEquals(w.intents[0].operator_alerted_at ?? null, null);
+      await w.tick(DEC_1 + 3_600_000);
+      assert(typeof w.intents[0].operator_alerted_at === 'string');
+      await w.tick(DEC_1 + 7_200_000);
+      assertEquals(calls.filter(c => c.url.pathname === '/rest/v1/error_events').length, 2);
+      assertEquals(w.fake.writes().length, 1);
+    });
+  });
+
+  it('stamps only the alerted intent', async () => {
+    const other = { id: '00000000-0000-0000-0000-000000000199', org_id: 'other-org', operator_alerted_at: null };
+    const w = world([CAL_2026], { denyCreate: true, initialIntents: [other] });
+    await withFetchMock(w.routes, async () => { await w.tick(DEC_1); });
+    assertEquals(w.intents[0].operator_alerted_at, null);
+    assert(typeof w.intents[1].operator_alerted_at === 'string');
+  });
+
+  it('alerts once for an intent-backed create refusal', async () => {
+    const w = world([CAL_2026], { denyCreate: true });
+    await withFetchMock(w.routes, async ({ calls }) => {
+      await w.tick(DEC_1);
+      const events = calls.filter(c => c.url.pathname === '/rest/v1/error_events' && c.method === 'POST');
+      assertEquals(events.length, 1);
+      assertEquals(events[0].bodyJson, { fn: 'erpnext-sweep', error_code: 'ERP_FISCAL_YEAR_FORBIDDEN', context_id: '00000000-0000-0000-0000-000000000101', org_id: 'org-a' });
+    });
+  });
+
   it('AC-ECX-040 a permission refusal is stored as an Operator task, not as a sweep error and not skipped', async () => {
     const w = world([CAL_2026], { denyCreate: true });
     await withFetchMock(w.routes, async () => {
@@ -316,36 +405,31 @@ describe('AC-ECX-040 the sweep keeps the ERP one fiscal year ahead', () => {
       state: 'needs-operator',
       checked_on: '2026-12-01',
       company: COMPANY,
-      reason: 'missing-role',
+      reason: 'held',
+      intentId: '00000000-0000-0000-0000-000000000101',
+      alertCode: 'ERP_FISCAL_YEAR_FORBIDDEN',
     });
     assertEquals(w.fake.years().map((y) => y.name), ['2026']);
   });
 
-  it("AC-ECX-040 a refusal is stored in the ERP's plain words, with no markup", async () => {
-    const w = world([
-      { ...CAL_2026, companies: [COMPANY] },
-      { name: 'Other 2027', start: '2027-01-01', end: '2027-12-31', companies: ['Other Co'] },
-    ]);
-    await withFetchMock(w.routes, async () => {
-      await w.tick(DEC_1);
-    });
-    const status = w.binding.config.fiscal_year as { state: string; message: string };
-    assertEquals(status.state, 'refused');
-    assert(/already set in Fiscal Year Other 2027/.test(status.message), status.message);
-    assert(!/[<>]/.test(status.message));
+  it('an unproven ERP rejection is held without exposing ERP text', async () => {
+    const w = world([{ ...CAL_2026, companies: [COMPANY] }, { name: 'Other 2027', start: '2027-01-01', end: '2027-12-31', companies: ['Other Co'] }]);
+    await withFetchMock(w.routes, async () => { await w.tick(DEC_1); });
+    const status = w.binding.config.fiscal_year as { state: string; reason: string; message?: string };
+    assertEquals(status.state, 'needs-operator');
+    assertEquals(status.reason, 'held');
+    assertEquals(status.message, undefined);
   });
 
-  it('AC-ECX-040 an unreachable ERP stores nothing and is reported, so a later tick retries', async () => {
+  it('an uncertain transport outcome remains held with no second POST', async () => {
     const w = world([CAL_2026]);
     w.fake.failNextWrite('transport');
     await withFetchMock(w.routes, async () => {
-      const r = await w.tick(DEC_1);
-      assertEquals(r.perOrg[0].errors.length, 1);
-      assert(r.perOrg[0].errors[0].startsWith('fiscal-year:'));
-      // the next hourly run tries again and succeeds
-      assertEquals((await w.tick(DEC_1 + 3_600_000)).perOrg[0].errors, []);
+      await w.tick(DEC_1);
+      await w.tick(DEC_1 + 3_600_000);
     });
-    assertEquals((w.binding.config.fiscal_year as { state: string }).state, 'ready');
+    assertEquals((w.binding.config.fiscal_year as { reason: string }).reason, 'held');
+    assertEquals(w.fake.writes().length, 1);
   });
 
   it('AC-ECX-040 a fiscal-year error never marks the hourly run failed: the run is stamped done, not retried every few minutes', async () => {
@@ -358,13 +442,14 @@ describe('AC-ECX-040 the sweep keeps the ERP one fiscal year ahead', () => {
     assertEquals(w.settled, ['done']);
   });
 
-  it('AC-ECX-040 a 403 on the lookup is stored as the Operator task, the run is not failed, and it is not retried until the next day', async () => {
+  it('AC-ECX-040 a 403 on lookup is retried on the next eligible same-day sync', async () => {
     const w = world([CAL_2026], { denyRead: true });
     await withFetchMock(w.routes, async ({ calls }) => {
       assertEquals((await w.tick(DEC_1)).perOrg[0].errors, []);
       const before = calls.length;
       assertEquals((await w.tick(DEC_1 + 3_600_000)).perOrg[0].errors, []);
-      assertEquals(calls.length, before);
+      assert(calls.length > before);
+      assertEquals(calls.filter(c => c.url.pathname === '/rest/v1/error_events').length, 0);
       await w.tick(DEC_1 + 86_400_000);
       assert(calls.length > before, 'the next daily pass checks again');
     });
@@ -377,19 +462,11 @@ describe('AC-ECX-040 the sweep keeps the ERP one fiscal year ahead', () => {
     assertEquals(w.settled, ['done', 'done', 'done']);
   });
 
-  it('AC-ECX-040 an ERP refusal is stored and not retried the same day; the run is not failed', async () => {
-    const w = world([
-      { ...CAL_2026, companies: [COMPANY] },
-      { name: 'ECX 2027 b', start: '2027-03-01', end: '2028-02-29', companies: [COMPANY] },
-    ]);
-    await withFetchMock(w.routes, async () => {
-      assertEquals((await w.tick(DEC_1)).perOrg[0].errors, []);
-      assertEquals((await w.tick(DEC_1 + 3_600_000)).perOrg[0].errors, []);
-    });
+  it('an ambiguous create outcome is held and never posted twice', async () => {
+    const w = world([{ ...CAL_2026, companies: [COMPANY] }, { name: 'ECX 2027 b', start: '2027-03-01', end: '2028-02-29', companies: [COMPANY] }]);
+    await withFetchMock(w.routes, async () => { await w.tick(DEC_1); await w.tick(DEC_1 + 3_600_000); });
     assertEquals(w.fake.writes().length, 1);
-    const status = w.binding.config.fiscal_year as { state: string; message: string };
-    assertEquals(status.state, 'refused');
-    assert(/overlapping with ECX 2027 b/.test(status.message), status.message);
+    assertEquals((w.binding.config.fiscal_year as {reason:string}).reason, 'held');
     assertEquals(w.settled, ['done', 'done']);
   });
 
@@ -404,7 +481,7 @@ describe('AC-ECX-040 the sweep keeps the ERP one fiscal year ahead', () => {
     await withFetchMock(w.routes, async () => {
       assertEquals((await w.tick(DEC_1)).perOrg[0].errors, []);
     });
-    assertEquals((w.binding.config.fiscal_year as { state: string }).state, 'refused');
+    assertEquals((w.binding.config.fiscal_year as { reason: string }).reason, 'review-settings');
     assertEquals(w.settled, ['done']);
   });
 
@@ -419,7 +496,9 @@ describe('AC-ECX-040 the sweep keeps the ERP one fiscal year ahead', () => {
       state: 'needs-operator',
       checked_on: '2026-12-01',
       company: 'Other Co',
-      reason: 'missing-role',
+      reason: 'held',
+      intentId: '00000000-0000-0000-0000-000000000102',
+      alertCode: 'ERP_FISCAL_YEAR_FORBIDDEN',
     });
     assertEquals(
       w.fake.writes().map((x) => (x.companies as Array<{ company: string }>)[0].company),

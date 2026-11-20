@@ -10,6 +10,7 @@ import {
   type FiscalYearIntent,
 } from '../../../pmo-portal/src/lib/adapterSeam/connect/fiscalYearOutbox.ts';
 import { erpReason } from '../_shared/erpReason.ts';
+import { recordErrorEvent } from '../_shared/errorEvent.ts';
 import type { OrgBinding } from './sweepShared.ts';
 
 export const FISCAL_YEAR_CONFIG_KEY = 'fiscal_year';
@@ -18,10 +19,17 @@ export const FISCAL_YEAR_CONFIG_KEY = 'fiscal_year';
 export type FiscalYearStatus =
   | { state: 'ready'; checked_on: string; company: string; current: string; next: string }
   | { state: 'not-due'; checked_on: string; company: string; current: string }
-  | { state: 'needs-operator'; checked_on: string; company: string; reason: 'missing-role' | 'no-current-year' }
+  | { state: 'needs-operator'; checked_on: string; company: string; reason: 'missing-role' | 'no-current-year' | 'ambiguous-overlap' | 'review-settings' }
   | { state: 'needs-operator'; checked_on: string; company: string; reason: 'disabled-year'; year: string }
   | { state: 'needs-operator'; checked_on: string; company: string; reason: 'held'; intentId: string }
   | { state: 'refused'; checked_on: string; company: string; message: string | null };
+
+async function alertFiscalIntent(serviceClient: SupabaseClient, orgId: string, intentId: string, errorCode: string): Promise<void> {
+  const { data, error } = await serviceClient.from('erp_fiscal_year_intents').select('operator_alerted_at').eq('org_id', orgId).eq('id', intentId).maybeSingle();
+  if (error || !data || data.operator_alerted_at) return;
+  const result = await recordErrorEvent({ from: () => ({ insert: async (row) => await serviceClient.from('error_events').insert(row) }) }, { fn: 'erpnext-sweep', errorCode, contextId: intentId, orgId });
+  if (result.ok) await serviceClient.from('erp_fiscal_year_intents').update({ operator_alerted_at: new Date().toISOString() }).eq('org_id', orgId).eq('id', intentId).is('operator_alerted_at', null);
+}
 
 /** The UTC calendar day of `nowMs`. */
 export function utcDay(nowMs: number): string {
@@ -46,9 +54,9 @@ export async function ensureOrgFiscalYearLive(
   const activatedAt = org.activatedAt ?? '2026-01-01T00:00:00Z';
 
   // Step 1: Skip if same UTC day and unchanged binding/company (unless held intent needs driving)
-  const prior = org.config?.[FISCAL_YEAR_CONFIG_KEY] as { checked_on?: unknown; company?: unknown; state?: string; reason?: string } | undefined;
-  const isHeld = prior?.state === 'needs-operator' && prior?.reason === 'held';
-  if (prior?.checked_on === today && prior.company === company && !isHeld) {
+  const prior = org.config?.[FISCAL_YEAR_CONFIG_KEY] as { checked_on?: unknown; company?: unknown; state?: string; reason?: string; intentId?: string; alertCode?: string } | undefined;
+  const isHeld = prior?.company === company && prior?.state === 'needs-operator' && prior?.reason === 'held';
+  if (prior?.checked_on === today && prior.company === company && (prior.state === 'ready' || prior.state === 'not-due')) {
     return {};
   }
 
@@ -58,12 +66,14 @@ export async function ensureOrgFiscalYearLive(
   }
 
   // Step 2: Drive unsettled/held fiscal intent rows even when daily observation exists
-  if (isHeld) {
+  if (isHeld && prior?.intentId) {
+    await alertFiscalIntent(serviceClient, org.orgId, prior.intentId, prior.alertCode === 'ERP_FISCAL_YEAR_FORBIDDEN' ? prior.alertCode : 'ERP_FISCAL_YEAR_UNCONFIRMED');
     const { data: unsettledIntents } = await serviceClient
       .from('erp_fiscal_year_intents')
       .select('*')
       .eq('org_id', org.orgId)
       .eq('binding_id', bindingId)
+      .eq('id', prior.intentId)
       .order('created_at', { ascending: false });
 
     if (unsettledIntents && unsettledIntents.length > 0) {
@@ -77,13 +87,14 @@ export async function ensureOrgFiscalYearLive(
           .eq('pmo_record_id', latestIntent.id);
 
         const outboxState = outboxRows?.[0]?.state;
-        if (outboxState === 'held') {
+        if (outboxState === 'held' || outboxState === 'confirmed') {
           const status: FiscalYearStatus = {
             state: 'needs-operator',
             checked_on: today,
             company,
             reason: 'held',
             intentId: latestIntent.id,
+            ...(prior.alertCode ? { alertCode: prior.alertCode } : {}),
           };
           await serviceClient.rpc('record_fiscal_year_observation', {
             p_org_id: org.orgId,
@@ -129,7 +140,7 @@ export async function ensureOrgFiscalYearLive(
       company,
       current: discovery.current,
     };
-    const { error } = await serviceClient.rpc('record_fiscal_year_observation', {
+    const { data, error } = await serviceClient.rpc('record_fiscal_year_observation', {
       p_org_id: org.orgId,
       p_binding_id: bindingId,
       p_company: company,
@@ -138,7 +149,7 @@ export async function ensureOrgFiscalYearLive(
       p_checked_at: new Date().toISOString(),
       p_status: status,
     });
-    if (error) return { error: `status-write-failed:${error.code ?? 'unknown'}` };
+    if (error || data !== true) return { error: `status-write-failed:${error?.code ?? 'rejected'}` };
     org.config = { ...(org.config ?? {}), [FISCAL_YEAR_CONFIG_KEY]: status };
     return { checked: true };
   }
@@ -151,7 +162,7 @@ export async function ensureOrgFiscalYearLive(
       current: discovery.current,
       next: discovery.next,
     };
-    const { error } = await serviceClient.rpc('record_fiscal_year_observation', {
+    const { data, error } = await serviceClient.rpc('record_fiscal_year_observation', {
       p_org_id: org.orgId,
       p_binding_id: bindingId,
       p_company: company,
@@ -160,27 +171,17 @@ export async function ensureOrgFiscalYearLive(
       p_checked_at: new Date().toISOString(),
       p_status: status,
     });
-    if (error) return { error: `status-write-failed:${error.code ?? 'unknown'}` };
+    if (error || data !== true) return { error: `status-write-failed:${error?.code ?? 'rejected'}` };
     org.config = { ...(org.config ?? {}), [FISCAL_YEAR_CONFIG_KEY]: status };
     return { checked: true };
   }
 
   if (discovery.state === 'operator') {
-    const status: FiscalYearStatus = discovery.message
-      ? {
-          state: 'refused',
-          checked_on: today,
-          company,
-          message: discovery.message.replace(/<[^>]*>/g, ''),
-        }
-      : ({
-          state: 'needs-operator',
-          checked_on: today,
-          company,
-          reason: discovery.reason,
-          ...(discovery.year ? { year: discovery.year } : {}),
-        } as FiscalYearStatus);
-    const { error } = await serviceClient.rpc('record_fiscal_year_observation', {
+    const status = {
+      state: 'needs-operator', checked_on: today, company, reason: discovery.message ? 'review-settings' : discovery.reason,
+      ...(discovery.year ? { year: discovery.year } : {}),
+    } as FiscalYearStatus;
+    const { data, error } = await serviceClient.rpc('record_fiscal_year_observation', {
       p_org_id: org.orgId,
       p_binding_id: bindingId,
       p_company: company,
@@ -189,7 +190,7 @@ export async function ensureOrgFiscalYearLive(
       p_checked_at: new Date().toISOString(),
       p_status: status,
     });
-    if (error) return { error: `status-write-failed:${error.code ?? 'unknown'}` };
+    if (error || data !== true) return { error: `status-write-failed:${error?.code ?? 'rejected'}` };
     org.config = { ...(org.config ?? {}), [FISCAL_YEAR_CONFIG_KEY]: status };
     return { checked: true };
   }
@@ -241,6 +242,7 @@ export async function ensureOrgFiscalYearLive(
       next: res.externalRecordId,
     };
     org.config = { ...(org.config ?? {}), [FISCAL_YEAR_CONFIG_KEY]: status };
+    if (status.state === 'needs-operator' && status.reason === 'held') await alertFiscalIntent(serviceClient, org.orgId, intent.id, 'ERP_FISCAL_YEAR_FORBIDDEN');
     return { checked: true };
   } catch (err) {
     console.error('[ensureOrgFiscalYearLive] ensureFiscalYearViaOutbox threw:', err);
@@ -252,7 +254,7 @@ export async function ensureOrgFiscalYearLive(
       reason.includes('network down') ||
       errMsg.includes('network down') ||
       errMsg.includes('external-unreachable');
-    if (isUnreachable) {
+    if (isUnreachable && !reason.includes('fiscal year post unconfirmed')) {
       return { error: reason };
     }
     const status: FiscalYearStatus = {
@@ -262,6 +264,7 @@ export async function ensureOrgFiscalYearLive(
       reason: 'held',
       intentId: intent.id,
     };
+    await alertFiscalIntent(serviceClient, org.orgId, intent.id, 'ERP_FISCAL_YEAR_UNCONFIRMED');
     await serviceClient.rpc('record_fiscal_year_observation', {
       p_org_id: org.orgId,
       p_binding_id: bindingId,

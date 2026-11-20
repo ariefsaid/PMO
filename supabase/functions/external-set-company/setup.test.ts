@@ -228,8 +228,12 @@ Deno.test("AC-ECX-040 readiness maps all fiscal year states and handles malforme
       expected: null,
     },
     {
+      stored: { state: "needs-operator", reason: "ambiguous-overlap", company: "Example Company" },
+      expected: { state: "needs-operator", reason: "ambiguous-overlap" },
+    },
+    {
       stored: { state: "needs-operator", reason: "unknown-reason", company: "Example Company" },
-      expected: { state: "needs-operator", reason: "missing-role" },
+      expected: { state: "needs-operator", reason: "review-settings" },
     },
     {
       stored: { state: "unknown-state", company: "Example Company" },

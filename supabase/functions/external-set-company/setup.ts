@@ -206,7 +206,7 @@ const REVIEWABLE_PROJECT_STATUSES = new Set([
 export function fiscalYearReadiness(stored: unknown, company: string):
   | { state: "ready"; next: string }
   | { state: "not-due" }
-  | { state: "needs-operator"; reason: "missing-role" | "no-current-year" }
+  | { state: "needs-operator"; reason: "missing-role" | "no-current-year" | "ambiguous-overlap" | "review-settings" }
   | { state: "needs-operator"; reason: "disabled-year"; year: string }
   | { state: "needs-operator"; reason: "held"; intentId: string }
   | { state: "refused"; message: string | null }
@@ -217,10 +217,10 @@ export function fiscalYearReadiness(stored: unknown, company: string):
   if (s.state === "ready" && typeof s.next === "string" && s.next) return { state: "ready", next: s.next };
   if (s.state === "not-due") return { state: "not-due" };
   if (s.state === "needs-operator") {
-    if (s.reason === "missing-role" || s.reason === "no-current-year") return { state: "needs-operator", reason: s.reason };
+    if (s.reason === "missing-role" || s.reason === "no-current-year" || s.reason === "ambiguous-overlap" || s.reason === "review-settings") return { state: "needs-operator", reason: s.reason };
     if (s.reason === "disabled-year" && typeof s.year === "string") return { state: "needs-operator", reason: "disabled-year", year: s.year };
     if (s.reason === "held") return { state: "needs-operator", reason: "held", intentId: typeof s.intentId === "string" ? s.intentId : "" };
-    return { state: "needs-operator", reason: "missing-role" };
+    return { state: "needs-operator", reason: "review-settings" };
   }
   if (s.state === "refused") {
     return { state: "refused", message: typeof s.message === "string" ? erpReason({ message: s.message }) : null };

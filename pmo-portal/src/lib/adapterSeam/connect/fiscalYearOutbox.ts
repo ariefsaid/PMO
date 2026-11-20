@@ -6,7 +6,6 @@ import type { Adapter, AdapterCommand, CommandResult } from '../contract.ts';
 import { dispatchMoneyWrite, type DispatchMoneyOutboxDeps } from '../dispatch.ts';
 import { AppError } from '../../appError.ts';
 import { createDoc, ErpError, type ErpClientDeps } from '../erpnext/client.ts';
-import { erpReason } from '../erpnext/erpReason.ts';
 import { readYearsIntersecting } from '../erpnext/fiscalYear.ts';
 import { coversCompany } from '../fiscalYearEnsure.ts';
 import { createDbMoneyOutboxDeps } from '../../../../../supabase/functions/adapter-dispatch/moneyOutboxDeps.ts';
@@ -123,64 +122,25 @@ export function fiscalYearOutboxAdapter(
       }
 
       if (!adoptedYear) {
-        if (postError instanceof ErpError) {
-          if (postError.status === 403) {
-            const statusPayload = {
-              state: 'needs-operator',
-              checked_on: intent.checked_on ?? new Date().toISOString().slice(0, 10),
-              company: intent.company,
-              reason: 'missing-role',
-            };
-            await deps.serviceClient.rpc('record_fiscal_year_observation', {
-              p_org_id: intent.org_id,
-              p_binding_id: intent.binding_id,
-              p_company: intent.company,
-              p_site_url: intent.site_url,
-              p_activated_at: intent.activated_at,
-              p_checked_at: new Date().toISOString(),
-              p_status: statusPayload,
-            });
-            return {
-              externalRecordId: '',
-              canonical: {
-                id: intent.id,
-                status: statusPayload,
-              },
-            };
-          }
-          if (postError.code !== 'external-unreachable') {
-            const rawMessage = erpReason(postError) ?? postError.message;
-            const message = rawMessage.replace(/<[^>]*>/g, '');
-            const statusPayload = {
-              state: 'refused',
-              checked_on: intent.checked_on ?? new Date().toISOString().slice(0, 10),
-              company: intent.company,
-              message,
-            };
-            await deps.serviceClient.rpc('record_fiscal_year_observation', {
-              p_org_id: intent.org_id,
-              p_binding_id: intent.binding_id,
-              p_company: intent.company,
-              p_site_url: intent.site_url,
-              p_activated_at: intent.activated_at,
-              p_checked_at: new Date().toISOString(),
-              p_status: statusPayload,
-            });
-            return {
-              externalRecordId: '',
-              canonical: {
-                id: intent.id,
-                status: statusPayload,
-              },
-            };
-          }
+        if (postError instanceof ErpError && postError.status === 403) {
+          const statusPayload = {
+            state: 'needs-operator',
+            checked_on: intent.checked_on ?? new Date().toISOString().slice(0, 10),
+            company: intent.company,
+            reason: 'held',
+            intentId: intent.id,
+            alertCode: 'ERP_FISCAL_YEAR_FORBIDDEN',
+          };
+          await deps.serviceClient.rpc('record_fiscal_year_observation', {
+            p_org_id: intent.org_id, p_binding_id: intent.binding_id, p_company: intent.company,
+            p_site_url: intent.site_url, p_activated_at: intent.activated_at,
+            p_checked_at: new Date().toISOString(), p_status: statusPayload,
+          });
+          return { externalRecordId: '', canonical: { id: intent.id, status: statusPayload } };
         }
-        const isTransport =
-          postError instanceof TypeError ||
-          (postError instanceof ErpError && postError.code === 'external-unreachable') ||
-          String((postError as Error)?.message ?? '').includes('network down');
-        const prefix = isTransport ? 'external-unreachable: ' : '';
-        throw new AppError(`${prefix}fiscal year post unconfirmed in ERP`, 'command-held');
+        // An unanswered or ambiguous response cannot prove the POST failed.
+        const status = postError instanceof ErpError && postError.status >= 100 && postError.status <= 599 ? ` (HTTP ${postError.status})` : '';
+        throw new AppError(`fiscal year post unconfirmed in ERP${status}`, 'command-held');
       }
 
       const statusPayload = {

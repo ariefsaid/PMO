@@ -393,22 +393,24 @@ export function ErpSetupChecklist(
                   )}
                 </Link>
               </li>
-              {/* #1599 ECX-5: an Operator task, never a client step: plain words, no action. */}
+              {/* #1599 ECX-5: guidance for the last fiscal-year check. */}
               <li id='erp-setup-fiscal-year' hidden={!fiscalYearTask} className='py-3'>
                 <p className='font-medium'>{t('administration:integrations.fiscalYear.label', 'Next fiscal year')}</p>
                 <p className='mt-1 break-words text-muted-foreground'>
                   {fiscalYearTask?.kind === 'missing-role'
-                    ? t('administration:integrations.fiscalYear.missingRole', 'Operator task: the integration user needs the role that creates fiscal years. We do this at onboarding; nothing is needed from you.')
+                    ? t('administration:integrations.fiscalYear.missingRole', 'Ask your Admin to grant the integration user Read and Create permissions on the Fiscal Year document type in ERPNext. PMO checks again on the next sync.')
                     : fiscalYearTask?.kind === 'no-current-year'
-                    ? t('administration:integrations.fiscalYear.noCurrentYear', 'Operator task: the ERP has no fiscal year for today, so PMO cannot tell when the next one starts. We do this at onboarding; nothing is needed from you.')
+                    ? t('administration:integrations.fiscalYear.noCurrentYear', 'Ask your Admin to add or enable a Fiscal Year covering today in ERPNext and assign it to the linked company. PMO checks again on the next sync.')
                     : fiscalYearTask?.kind === 'disabled-year'
-                    ? t('administration:integrations.fiscalYear.disabledYear', 'Operator task: a disabled fiscal year with these dates exists ({{year}}). PMO does not switch it back on; we will resolve it, nothing is needed from you.', { year: fiscalYearTask.year })
+                    ? t('administration:integrations.fiscalYear.disabledYear', 'Ask your Admin to review the disabled Fiscal Year {{year}} in ERPNext and enable it only if it is the intended period. PMO checks again on the next sync.', { year: fiscalYearTask.year })
+                    : fiscalYearTask?.kind === 'ambiguous-overlap'
+                    ? t('administration:integrations.fiscalYear.ambiguousOverlap', 'Ask your Admin to correct Fiscal Year date ranges and company assignments in ERPNext so one enabled year applies. PMO checks again on the next sync.')
+                    : fiscalYearTask?.kind === 'review-settings'
+                    ? t('administration:integrations.fiscalYear.reviewSettings', 'Ask your Admin to review Fiscal Year settings in ERPNext for the linked company. PMO checks again on the next sync.')
                     : fiscalYearTask?.kind === 'held'
-                    ? t('administration:integrations.fiscalYear.held', 'Operator task: we could not confirm the next fiscal year. We will resolve it; nothing is needed from you.')
-                    : fiscalYearTask?.kind === 'refused' && fiscalYearTask.reason
-                    ? t('administration:integrations.fiscalYear.refused', 'Operator task: PMO could not create the next fiscal year ({{reason}}). We will resolve it; nothing is needed from you.', { reason: fiscalYearTask.reason })
+                    ? t('administration:integrations.fiscalYear.held', 'Operator attention is needed because PMO could not confirm the next fiscal year.')
                     : fiscalYearTask?.kind === 'refused'
-                    ? t('administration:integrations.fiscalYear.refusedNoReason', 'Operator task: PMO could not create the next fiscal year. We will resolve it; nothing is needed from you.')
+                    ? t('administration:integrations.fiscalYear.refusedNoReason', 'Operator attention is needed because PMO could not create the next fiscal year.')
                     : null}
                 </p>
               </li>

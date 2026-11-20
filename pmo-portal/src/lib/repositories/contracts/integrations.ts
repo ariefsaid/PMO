@@ -140,7 +140,7 @@ export interface ErpSetupReadiness {
 export type ErpFiscalYearReadiness =
   | { state: 'ready'; next: string }
   | { state: 'not-due' }
-  | { state: 'needs-operator'; reason: 'missing-role' | 'no-current-year' }
+  | { state: 'needs-operator'; reason: 'missing-role' | 'no-current-year' | 'ambiguous-overlap' | 'review-settings' }
   | { state: 'needs-operator'; reason: 'disabled-year'; year: string }
   | { state: 'needs-operator'; reason: 'held'; intentId: string }
   | { state: 'refused'; message: string | null };
