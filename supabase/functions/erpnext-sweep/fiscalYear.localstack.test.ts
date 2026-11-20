@@ -226,15 +226,15 @@ describe({
       .eq('domain', 'fiscal_year_setup');
     assertEquals(outboxRows?.[0]?.state, 'held');
 
-    // Observation recorded as needs-operator held
+    // Unreachable ERP stores nothing in org.config.fiscal_year so next tick retries cleanly
     const { data: bindingRow } = await supabase
       .from('external_org_bindings')
       .select('config')
       .eq('id', BINDING_ID)
       .single();
-    const fy = (bindingRow?.config as Record<string, unknown>).fiscal_year as Record<string, unknown>;
-    assertEquals(fy.state, 'needs-operator');
-    assertEquals(fy.reason, 'held');
+    const config = bindingRow?.config as Record<string, unknown>;
+    assertEquals(config.fiscal_year, undefined);
+    assertEquals(config.sibling_key, 'preserved_value');
   });
 
   it('generation loss and changed company do not publish status', async () => {
