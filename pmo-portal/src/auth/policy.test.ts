@@ -1200,3 +1200,26 @@ describe('#2528 crews, roster and attendance (UX gate; RLS + attendance RPCs are
     expect(can('approve', 'attendance', { realRole: 'Project Manager', currentUserId: 'u1', record: { recorder_ids: ['u2'] } })).toBe(true);
   });
 });
+
+describe('#2581 crew tools register (UX gate; RLS and the crew-tool RPCs are the authority)', () => {
+  it('FR-CTR-016 every role reads; delivery roles manage lines; Admin and PM configure the coordinator', () => {
+    expect(allowedRoles('view', 'crewTool')).toEqual(ALL_ROLES);
+    expect(allowedRoles('manage', 'crewTool')).toEqual(['Admin', 'Executive', 'Project Manager']);
+    expect(allowedRoles('configure', 'crewTool')).toEqual(['Admin', 'Project Manager']);
+    expect(can('manage', 'crewTool', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+  });
+  it('FR-CTR-016 AC-CTR-008 a field controller reports for their own crew only and never edits or closes', () => {
+    expect(allowedRoles('report', 'crewTool')).toEqual(['Admin', 'Executive', 'Project Manager']);
+    expect(can('report', 'crewTool', { realRole: 'Engineer', currentUserId: 'u1', record: { field_controller_id: 'u1' } })).toBe(true);
+    expect(can('report', 'crewTool', { realRole: 'Engineer', currentUserId: 'u1', record: { field_controller_id: 'u2' } })).toBe(false);
+    expect(can('report', 'crewTool', { realRole: 'Engineer', currentUserId: 'u1', record: { field_controller_id: 'u1', viewOnly: true } })).toBe(false);
+    expect(can('manage', 'crewTool', { realRole: 'Engineer', currentUserId: 'u1', record: { field_controller_id: 'u1' } })).toBe(false);
+    expect(can('close', 'crewTool', { realRole: 'Engineer', currentUserId: 'u1', record: { field_controller_id: 'u1', assignee_id: 'u9' } })).toBe(false);
+  });
+  it('FR-CTR-016 the task assignee or a crew manager closes a report', () => {
+    expect(can('close', 'crewTool', { realRole: 'Engineer', currentUserId: 'u1', record: { assignee_id: 'u1' } })).toBe(true);
+    expect(can('close', 'crewTool', { realRole: 'Engineer', currentUserId: 'u1', record: { assignee_id: 'u2' } })).toBe(false);
+    expect(can('close', 'crewTool', { realRole: 'Project Manager', currentUserId: 'u1', record: { assignee_id: 'u2' } })).toBe(true);
+    expect(can('close', 'crewTool', { realRole: 'Engineer', currentUserId: 'u1', record: { assignee_id: 'u1', viewOnly: true } })).toBe(false);
+  });
+});

@@ -259,7 +259,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/equipment/assets/:assetId', chunks: [EquipmentAssetDetailPage], namespaces: ['equipment'] },
   { path: '/site-reports', chunks: [SiteReportsPage], namespaces: ['siteReport'] },
   { path: '/site-reports/:reportId', chunks: [SiteReportDetailPage], namespaces: ['siteReport'] },
-  { path: '/crews', chunks: [CrewsPage], namespaces: ['crews'] },
+  { path: '/crews', chunks: [CrewsPage], namespaces: ['crews', 'crewTools'] },
   { path: '/equipment/people/:personId', chunks: [PersonDetailPage], namespaces: ['equipment'] },
   { path: '/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
   { path: '/administration/:section', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement'] },

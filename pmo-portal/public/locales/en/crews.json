@@ -124,7 +124,8 @@
   "tabs": {
     "attendance": "Attendance",
     "crews": "Crews",
-    "roster": "Roster"
+    "roster": "Roster",
+    "tools": "Tools"
   },
   "tabsLabel": "Crew views",
   "tickErrors": {

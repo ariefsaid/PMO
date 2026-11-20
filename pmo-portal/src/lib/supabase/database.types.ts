@@ -2661,6 +2661,261 @@ export type Database = {
           },
         ]
       }
+      crew_tool_lines: {
+        Row: {
+          archived_at: string | null
+          code: string | null
+          created_at: string
+          created_by: string | null
+          crew_id: string
+          held_qty: number
+          id: string
+          name: string
+          note: string | null
+          org_id: string
+          serial: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          code?: string | null
+          created_at?: string
+          created_by?: string | null
+          crew_id: string
+          held_qty: number
+          id?: string
+          name: string
+          note?: string | null
+          org_id?: string
+          serial?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          code?: string | null
+          created_at?: string
+          created_by?: string | null
+          crew_id?: string
+          held_qty?: number
+          id?: string
+          name?: string
+          note?: string | null
+          org_id?: string
+          serial?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crew_tool_lines_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crew_tool_lines_crew_id_fkey"
+            columns: ["crew_id"]
+            isOneToOne: false
+            referencedRelation: "crews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crew_tool_lines_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crew_tool_reports: {
+        Row: {
+          closed_at: string | null
+          closed_by: string | null
+          created_at: string
+          due_on: string
+          id: string
+          kind: string
+          line_id: string
+          note: string | null
+          org_id: string
+          qty: number
+          reported_by: string | null
+          reported_on: string
+          resolution: string | null
+          status: string
+          task_id: string | null
+        }
+        Insert: {
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          due_on: string
+          id: string
+          kind: string
+          line_id: string
+          note?: string | null
+          org_id?: string
+          qty: number
+          reported_by?: string | null
+          reported_on: string
+          resolution?: string | null
+          status?: string
+          task_id?: string | null
+        }
+        Update: {
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          due_on?: string
+          id?: string
+          kind?: string
+          line_id?: string
+          note?: string | null
+          org_id?: string
+          qty?: number
+          reported_by?: string | null
+          reported_on?: string
+          resolution?: string | null
+          status?: string
+          task_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crew_tool_reports_closed_by_fkey"
+            columns: ["closed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crew_tool_reports_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "crew_tool_lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crew_tool_reports_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crew_tool_reports_reported_by_fkey"
+            columns: ["reported_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crew_tool_reports_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crew_tool_report_files: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          file_path: string
+          id: string
+          org_id: string
+          report_id: string
+          title: string | null
+          uploaded_by_id: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          file_path: string
+          id?: string
+          org_id?: string
+          report_id: string
+          title?: string | null
+          uploaded_by_id?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          file_path?: string
+          id?: string
+          org_id?: string
+          report_id?: string
+          title?: string | null
+          uploaded_by_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crew_tool_report_files_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crew_tool_report_files_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "crew_tool_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crew_tool_report_files_uploaded_by_id_fkey"
+            columns: ["uploaded_by_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      org_crew_tool_settings: {
+        Row: {
+          coordinator_id: string | null
+          org_id: string
+          task_due_days: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          coordinator_id?: string | null
+          org_id?: string
+          task_due_days?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          coordinator_id?: string | null
+          org_id?: string
+          task_due_days?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_crew_tool_settings_coordinator_id_fkey"
+            columns: ["coordinator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_crew_tool_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_crew_tool_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crews: {
         Row: {
           archived_at: string | null
@@ -11814,6 +12069,7 @@ export type Database = {
           completed_at: string | null
           created_at: string
           created_by: string | null
+          crew_tool_report_id: string | null
           description: string | null
           end_date: string | null
           id: string
@@ -11837,6 +12093,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
+          crew_tool_report_id?: string | null
           description?: string | null
           end_date?: string | null
           id?: string
@@ -11860,6 +12117,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
+          crew_tool_report_id?: string | null
           description?: string | null
           end_date?: string | null
           id?: string
@@ -11878,6 +12136,13 @@ export type Database = {
           proof_required?: boolean
         }
         Relationships: [
+          {
+            foreignKeyName: "tasks_crew_tool_report_id_fkey"
+            columns: ["crew_tool_report_id"]
+            isOneToOne: false
+            referencedRelation: "crew_tool_reports"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "tasks_assignee_id_fkey"
             columns: ["assignee_id"]
@@ -13121,6 +13386,22 @@ export type Database = {
           },
         ]
       }
+      crew_tool_line_summary: {
+        Row: {
+          archived_at: string | null
+          code: string | null
+          crew_id: string | null
+          damaged_qty: number | null
+          held_qty: number | null
+          id: string | null
+          lost_qty: number | null
+          name: string | null
+          note: string | null
+          serial: string | null
+          usable_qty: number | null
+        }
+        Relationships: []
+      }
       people_directory: {
         Row: { id: string | null; name: string | null; code: string | null; job_title: string | null; archived_at: string | null }
         Relationships: []
@@ -13471,6 +13752,34 @@ export type Database = {
       place_new_crew_worker: {
         Args: { p_person: Json; p_placement: Json }
         Returns: undefined
+      }
+      report_crew_tool: {
+        Args: { p_id: string; p_kind: string; p_line: string; p_note?: string; p_photos?: Json; p_qty: number }
+        Returns: string
+      }
+      correct_crew_tool_report: {
+        Args: { p_kind: string; p_qty: number; p_reason: string; p_report: string }
+        Returns: undefined
+      }
+      close_crew_tool_report: {
+        Args: { p_report: string; p_resolution: string }
+        Returns: undefined
+      }
+      set_crew_tool_settings: {
+        Args: { p_coordinator: string | null; p_due_days: number }
+        Returns: undefined
+      }
+      crew_tool_can_report: {
+        Args: { p_line: string }
+        Returns: boolean
+      }
+      crew_tool_is_reporter: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      crew_tool_photo_stored: {
+        Args: { p_path: string }
+        Returns: boolean
       }
       create_crew_with_roles: {
         Args: { p_crew: Json; p_roles: Json }

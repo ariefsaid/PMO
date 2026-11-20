@@ -26,6 +26,7 @@ function makeTask(
     tombstoned_at: null,
     work_order_id: null,
     proof_required: false,
+    crew_tool_report_id: null,
     meeting_id: null,
     source_updated_at: null,
     description: null,

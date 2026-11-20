@@ -124,7 +124,8 @@
   "tabs": {
     "attendance": "Kehadiran",
     "crews": "Kru",
-    "roster": "Jadwal kru"
+    "roster": "Jadwal kru",
+    "tools": "Alat"
   },
   "tabsLabel": "Tampilan kru",
   "tickErrors": {
