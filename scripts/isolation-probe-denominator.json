@@ -257,6 +257,8 @@
     {"table":"work_order_crews","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"work_order_lines","has_org":true,"pk":"id","columns":"id,org_id,work_order_id,boq_item_id,quantity,created_at","b_read":"own-org-only","by_id":"applicable"},
     {"table":"work_order_plan_lines","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"work_order_section_readiness_events","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"work_order_sections","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"work_orders","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
   ],
   "definer_functions": [
@@ -857,6 +859,7 @@
     "work_order_issue_eligibility(uuid[])",
     "work_order_validated_revenue(uuid)",
     "worker_off_rotation(uuid,date)",
+    "wos_archive_blockers(uuid)",
     "write_connect_census(uuid,text,jsonb)",
     "write_stock_erp_mirror(uuid,uuid,integer,integer,text,text,text,text,numeric,numeric,text,timestamp with time zone,timestamp with time zone,text)"
   ],
