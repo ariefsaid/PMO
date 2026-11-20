@@ -80,21 +80,21 @@ alter table public.task_proofs force  row level security;
 
 -- Read = the task's own read rule (tasks_select is org-wide for active members).
 create policy task_proofs_select on public.task_proofs for select
-  using (org_id = auth_org_id() and public.is_active_member()
-    and exists (select 1 from public.tasks t where t.id = task_proofs.task_id and t.org_id = auth_org_id()));
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
+    and exists (select 1 from public.tasks t where t.id = task_proofs.task_id and t.org_id = (select public.auth_org_id())));
 
 -- Add / remove (remove = soft-archive, ADR-0018): the assignee and the structure roles, never on an externally-owned task.
 create policy task_proofs_insert on public.task_proofs for insert
-  with check (org_id = auth_org_id() and public.is_active_member()
-    and exists (select 1 from public.tasks t where t.id = task_proofs.task_id and t.org_id = auth_org_id()
-      and (auth_role() in ('Admin','Executive','Project Manager') or t.assignee_id = (select auth.uid()))
+  with check (org_id = (select public.auth_org_id()) and (select public.is_active_member())
+    and exists (select 1 from public.tasks t where t.id = task_proofs.task_id and t.org_id = (select public.auth_org_id())
+      and ((select public.auth_role()) in ('Admin','Executive','Project Manager') or t.assignee_id = (select auth.uid()))
       and not public.task_domain_externally_owned(t.project_id)));
 create policy task_proofs_update on public.task_proofs for update
-  using (org_id = auth_org_id() and public.is_active_member()
-    and exists (select 1 from public.tasks t where t.id = task_proofs.task_id and t.org_id = auth_org_id()
-      and (auth_role() in ('Admin','Executive','Project Manager') or t.assignee_id = (select auth.uid()))
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
+    and exists (select 1 from public.tasks t where t.id = task_proofs.task_id and t.org_id = (select public.auth_org_id())
+      and ((select public.auth_role()) in ('Admin','Executive','Project Manager') or t.assignee_id = (select auth.uid()))
       and not public.task_domain_externally_owned(t.project_id)))
-  with check (org_id = auth_org_id() and public.is_active_member());
+  with check (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
 
 -- No client delete; the only client-writable column on update is archived_at.
 revoke delete on public.task_proofs from authenticated, anon;
@@ -202,16 +202,16 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 
 -- Path {org}/{task_id}/{proof_id}/{filename}: 4 segments.
 create policy storage_objects_task_proof_read on storage.objects for select
-  using (bucket_id = 'task-proofs' and auth.uid() is not null and public.is_active_member()
-    and split_part(name, '/', 1) = auth_org_id()::text
+  using (bucket_id = 'task-proofs' and (select auth.uid()) is not null and (select public.is_active_member())
+    and split_part(name, '/', 1) = (select public.auth_org_id())::text
     and array_length(string_to_array(name, '/'), 1) = 4
     and exists (select 1 from public.tasks t
-      where t.id::text = split_part(name, '/', 2) and t.org_id = auth_org_id()));
+      where t.id::text = split_part(name, '/', 2) and t.org_id = (select public.auth_org_id())));
 create policy storage_objects_task_proof_write on storage.objects for insert
-  with check (bucket_id = 'task-proofs' and auth.uid() is not null and public.is_active_member()
-    and split_part(name, '/', 1) = auth_org_id()::text
+  with check (bucket_id = 'task-proofs' and (select auth.uid()) is not null and (select public.is_active_member())
+    and split_part(name, '/', 1) = (select public.auth_org_id())::text
     and array_length(string_to_array(name, '/'), 1) = 4
     and exists (select 1 from public.tasks t
-      where t.id::text = split_part(name, '/', 2) and t.org_id = auth_org_id()
-        and (auth_role() in ('Admin','Executive','Project Manager') or t.assignee_id = (select auth.uid()))
+      where t.id::text = split_part(name, '/', 2) and t.org_id = (select public.auth_org_id())
+        and ((select public.auth_role()) in ('Admin','Executive','Project Manager') or t.assignee_id = (select auth.uid()))
         and not public.task_domain_externally_owned(t.project_id)));

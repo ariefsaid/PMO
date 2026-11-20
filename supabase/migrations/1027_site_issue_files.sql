@@ -124,15 +124,15 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 
 create policy storage_objects_incident_file_read on storage.objects for select
   using (
-    bucket_id = 'incident-files' and auth.uid() is not null
-    and split_part(name, '/', 1) = auth_org_id()::text
+    bucket_id = 'incident-files' and (select auth.uid()) is not null
+    and split_part(name, '/', 1) = (select public.auth_org_id())::text
     and array_length(string_to_array(name, '/'), 1) = 4
     and exists (select 1 from public.incident_reports i
-                 where i.id::text = split_part(name, '/', 2) and i.org_id = auth_org_id()));
+                 where i.id::text = split_part(name, '/', 2) and i.org_id = (select public.auth_org_id())));
 create policy storage_objects_incident_file_write on storage.objects for insert
   with check (
-    bucket_id = 'incident-files' and auth.uid() is not null
-    and split_part(name, '/', 1) = auth_org_id()::text
+    bucket_id = 'incident-files' and (select auth.uid()) is not null
+    and split_part(name, '/', 1) = (select public.auth_org_id())::text
     and array_length(string_to_array(name, '/'), 1) = 4
     and public.can_add_incident_evidence(nullif(split_part(name, '/', 2), '')::uuid));
 

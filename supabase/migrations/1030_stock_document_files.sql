@@ -41,12 +41,12 @@ grant execute on function public.stock_can_attach(uuid) to authenticated;
 alter table public.stock_document_files enable row level security;
 alter table public.stock_document_files force row level security;
 create policy stock_document_files_select on public.stock_document_files for select
-  using (org_id = public.auth_org_id() and public.is_active_member()
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
          and exists (select 1 from public.stock_documents d where d.id = document_id));         -- the document's own read rule
 create policy stock_document_files_insert on public.stock_document_files for insert
-  with check (org_id = public.auth_org_id() and public.is_active_member() and public.stock_can_attach(document_id));
+  with check (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and public.stock_can_attach(document_id));
 create policy stock_document_files_delete on public.stock_document_files for delete
-  using (org_id = public.auth_org_id() and public.is_active_member() and public.stock_can_attach(document_id));
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and public.stock_can_attach(document_id));
 revoke all on public.stock_document_files from authenticated, anon;
 grant select on public.stock_document_files to authenticated;
 grant insert (id, document_id, file_path, label) on public.stock_document_files to authenticated;
@@ -135,18 +135,18 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
           array['application/pdf', 'image/png', 'image/jpeg', 'image/webp'])
   on conflict (id) do nothing;
 create policy storage_stock_documents_read on storage.objects for select
-  using (bucket_id = 'stock-documents' and auth.uid() is not null
-         and split_part(name, '/', 1) = public.auth_org_id()::text
+  using (bucket_id = 'stock-documents' and (select auth.uid()) is not null
+         and split_part(name, '/', 1) = (select public.auth_org_id())::text
          and array_length(string_to_array(name, '/'), 1) = 4
-         and exists (select 1 from public.stock_documents d where d.id::text = split_part(name, '/', 2) and d.org_id = public.auth_org_id()));
+         and exists (select 1 from public.stock_documents d where d.id::text = split_part(name, '/', 2) and d.org_id = (select public.auth_org_id())));
 create policy storage_stock_documents_insert on storage.objects for insert
-  with check (bucket_id = 'stock-documents' and auth.uid() is not null
-         and split_part(name, '/', 1) = public.auth_org_id()::text
+  with check (bucket_id = 'stock-documents' and (select auth.uid()) is not null
+         and split_part(name, '/', 1) = (select public.auth_org_id())::text
          and array_length(string_to_array(name, '/'), 1) = 4
          and public.stock_can_attach(split_part(name, '/', 2)::uuid));
 create policy storage_stock_documents_delete on storage.objects for delete
-  using (bucket_id = 'stock-documents' and auth.uid() is not null
-         and split_part(name, '/', 1) = public.auth_org_id()::text
+  using (bucket_id = 'stock-documents' and (select auth.uid()) is not null
+         and split_part(name, '/', 1) = (select public.auth_org_id())::text
          and array_length(string_to_array(name, '/'), 1) = 4
          and exists (select 1 from public.stock_documents d where d.id::text = split_part(name, '/', 2) and d.status = 'Draft')
          and public.stock_can_attach(split_part(name, '/', 2)::uuid));

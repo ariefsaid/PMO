@@ -107,12 +107,12 @@ create trigger stock_items_zz_check_tag before insert or update of tag_id on pub
 alter table public.stock_tags enable row level security;
 alter table public.stock_tags force row level security;
 -- Every policy names is_active_member() literally (0203). Read: any member; write: Admin only (rank >= 50), soft-archive only.
-create policy stock_tags_select on public.stock_tags for select using (org_id = public.auth_org_id() and public.is_active_member());
+create policy stock_tags_select on public.stock_tags for select using (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
 create policy stock_tags_insert on public.stock_tags for insert
-  with check (org_id = public.auth_org_id() and public.is_active_member() and public.stock_admin());
+  with check (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and public.stock_admin());
 create policy stock_tags_update on public.stock_tags for update
-  using (org_id = public.auth_org_id() and public.is_active_member() and public.stock_admin())
-  with check (org_id = public.auth_org_id() and public.is_active_member() and public.stock_admin());
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and public.stock_admin())
+  with check (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and public.stock_admin());
 revoke all on public.stock_tags from authenticated, anon;
 grant select on public.stock_tags to authenticated;                                  -- no delete: archive only
 grant insert (id, name, zero_cost, paper_required) on public.stock_tags to authenticated;

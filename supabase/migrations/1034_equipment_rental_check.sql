@@ -22,7 +22,7 @@ create table public.equipment_rental_checks (
 create index equipment_rental_checks_asset on public.equipment_rental_checks (org_id, asset_id, created_at desc);
 alter table public.equipment_rental_checks enable row level security;  alter table public.equipment_rental_checks force row level security;
 create policy equipment_rental_checks_select on public.equipment_rental_checks for select
-  using (org_id = public.auth_org_id() and public.is_active_member() and public.auth_role() in ('Admin','Finance'));
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and (select public.auth_role()) in ('Admin','Finance'));
 revoke all on public.equipment_rental_checks from public, anon, authenticated;
 grant select on public.equipment_rental_checks to authenticated;
 grant all on public.equipment_rental_checks to service_role;

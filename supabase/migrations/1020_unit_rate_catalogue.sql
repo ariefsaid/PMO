@@ -73,20 +73,20 @@ end $$;
 
 -- Read: same audience as contract_rate_lines (0515). Every table carries org_id; the item/variant ones also project_id.
 create policy rate_catalogue_variants_select on public.rate_catalogue_variants for select
-  using (org_id = public.auth_org_id() and public.is_active_member() and (
-    public.auth_role() in ('Admin','Finance','Executive')
-    or (public.auth_role() = 'Project Manager' and exists (select 1 from public.projects p
-         where p.id = rate_catalogue_variants.project_id and p.org_id = rate_catalogue_variants.org_id and p.project_manager_id = auth.uid()))));
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and (
+    (select public.auth_role()) in ('Admin','Finance','Executive')
+    or ((select public.auth_role()) = 'Project Manager' and exists (select 1 from public.projects p
+         where p.id = rate_catalogue_variants.project_id and p.org_id = rate_catalogue_variants.org_id and p.project_manager_id = (select auth.uid())))));
 create policy rate_catalogue_items_select on public.rate_catalogue_items for select
-  using (org_id = public.auth_org_id() and public.is_active_member() and (
-    public.auth_role() in ('Admin','Finance','Executive')
-    or (public.auth_role() = 'Project Manager' and exists (select 1 from public.projects p
-         where p.id = rate_catalogue_items.project_id and p.org_id = rate_catalogue_items.org_id and p.project_manager_id = auth.uid()))));
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and (
+    (select public.auth_role()) in ('Admin','Finance','Executive')
+    or ((select public.auth_role()) = 'Project Manager' and exists (select 1 from public.projects p
+         where p.id = rate_catalogue_items.project_id and p.org_id = rate_catalogue_items.org_id and p.project_manager_id = (select auth.uid())))));
 create policy rate_catalogue_rates_select on public.rate_catalogue_rates for select
-  using (org_id = public.auth_org_id() and public.is_active_member() and exists (
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and exists (
     select 1 from public.rate_catalogue_items i where i.id = rate_catalogue_rates.item_id));
 create policy rate_catalogue_stage_weights_select on public.rate_catalogue_stage_weights for select
-  using (org_id = public.auth_org_id() and public.is_active_member() and exists (
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and exists (
     select 1 from public.rate_catalogue_items i where i.id = rate_catalogue_stage_weights.item_id));
 
 -- The BOQ line remembers where its rate came from. The rate itself is the existing boq_items.rate.

@@ -128,15 +128,15 @@ alter table public.equipment_downtime_proofs enable row level security;  alter t
 alter table public.equipment_escalation_log enable row level security;   alter table public.equipment_escalation_log force row level security;
 
 create policy equipment_status_days_select on public.equipment_status_days for select
-  using (org_id = public.auth_org_id() and public.is_active_member());
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
 create policy equipment_status_history_select on public.equipment_status_history for select
-  using (org_id = public.auth_org_id() and public.is_active_member());
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
 create policy equipment_downtime_proofs_select on public.equipment_downtime_proofs for select
-  using (org_id = public.auth_org_id() and public.is_active_member());
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
 -- rates are money: the approval audience reads them (matches EQUIPMENT_APPROVE on the client)
 create policy equipment_rental_terms_select on public.equipment_rental_terms for select
-  using (org_id = public.auth_org_id() and public.is_active_member()
-         and public.auth_role() in ('Admin','Finance','Executive','Project Manager'));
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
+         and (select public.auth_role()) in ('Admin','Finance','Executive','Project Manager'));
 -- the escalation log has no client policy: read only by the definer jobs
 
 revoke all on public.equipment_rental_terms, public.equipment_status_days, public.equipment_status_history,
@@ -320,18 +320,18 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
   values ('equipment-proof', 'equipment-proof', false, 5242880, array['application/pdf', 'image/png', 'image/jpeg', 'image/webp'])
   on conflict (id) do nothing;
 create policy storage_objects_equipment_proof_read on storage.objects for select to authenticated
-  using (bucket_id = 'equipment-proof' and auth.uid() is not null
-         and split_part(name, '/', 1) = public.auth_org_id()::text
+  using (bucket_id = 'equipment-proof' and (select auth.uid()) is not null
+         and split_part(name, '/', 1) = (select public.auth_org_id())::text
          and array_length(string_to_array(name, '/'), 1) = 4
          and exists (select 1 from public.equipment_downtime_proofs p where p.id::text = split_part(name, '/', 3)));
 create policy storage_objects_equipment_proof_write on storage.objects for insert to authenticated
-  with check (bucket_id = 'equipment-proof' and auth.uid() is not null
-         and split_part(name, '/', 1) = public.auth_org_id()::text
+  with check (bucket_id = 'equipment-proof' and (select auth.uid()) is not null
+         and split_part(name, '/', 1) = (select public.auth_org_id())::text
          and array_length(string_to_array(name, '/'), 1) = 4
-         and public.is_active_member()
-         and public.auth_role() in ('Admin','Project Manager','Engineer')
+         and (select public.is_active_member())
+         and (select public.auth_role()) in ('Admin','Project Manager','Engineer')
          and exists (select 1 from public.equipment_downtime_proofs p
-                      where p.id::text = split_part(name, '/', 3) and p.org_id = public.auth_org_id() and p.file_path = name));
+                      where p.id::text = split_part(name, '/', 3) and p.org_id = (select public.auth_org_id()) and p.file_path = name));
 
 -- ── working hours (OQ-EAV-2) ──
 create function public.set_equipment_working_hours(p_hours numeric) returns void
