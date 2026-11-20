@@ -234,7 +234,8 @@ reporting manager.
 **Issue (site)** — a problem raised on site (#2521): an incident record that also names the person in
 charge, what must be done, a due time, optionally a work order of its project, and photo evidence.
 One record serves safety incidents and site issues; the UI says *issue* for site work and *incident*
-for safety events. High and Critical issues close only with a close photo.
+for safety events. High and Critical issues close only with a **close proof** (a photo or document
+attached at close).
 
 **Escalation** — the once-only step when an open issue passes its due time: the database marks it
 escalated, tells the person in charge and the project manager (Admins when the project has none),
@@ -371,7 +372,7 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Cost attribution** — the optional work order and discipline a cost record names (purchase request, purchase order, goods receipt, vendor bill, timesheet line, stock movement, equipment usage); a cost with neither is a project-level cost. The work order must be on the cost's own project (ADR-0104).
 
-**Discipline** — an entry in the organisation's own list of trades or engineering disciplines (for example civil, mechanical, electrical) that a cost can name; kept by an Admin and archived rather than deleted.
+**Discipline** — an entry in the organisation's own list of trades or engineering disciplines (for example civil, mechanical, electrical) that a cost can name. The Admin keeps the list on the **Cost disciplines** screen (*disiplin biaya*) and archives rather than deletes (#2623).
 
 **Direct cost** (of a work order) — the counted cost records that name the work order, in its own currency: vendor bills pre-tax, posted stock issues and returns at stock-ledger value, and approved equipment usage at a hire rate. Purchase requests, orders and receipts are commitments and never add to it; hours with no rate are carried as hours (#2519).
 
@@ -528,7 +529,8 @@ the project's actuals. (#2282.)
 
 **Material request** — a request for stock items and quantities for one work order, with a needed-by date. Draft,
 Pending (waiting for approval), Approved, Rejected, Cancelled or Fulfilled. An approved request becomes a stock
-**Transfer** draft to the work order's site; a keeper posts it, which marks the request Fulfilled. Not a purchase
+**Transfer** draft to one of the work order's project's stock locations (its site, a yard or a staging location,
+named when the project has several); a keeper posts it, which marks the request Fulfilled. Not a purchase
 request: it moves stock the organisation already holds.
 
 **Planned quantity (material request)** — the material allowances of the contract lines a work order carries, in
@@ -542,6 +544,17 @@ steps are decided in order. The requester never decides a step, and one person d
 **Stand-in** — a person named, for a date range, to decide approval steps on behalf of someone away. Only that
 person's own role counts (one hop), never on a request the stand-in or the person away raised; both names are kept on
 the decision.
+
+**Pinned approver** — a project's choice that one approval-chain step is decided by a named person: on requests for
+that project's work orders, only that person, or their in-window stand-in, may decide the step; every other chain
+rule (order, not the author, one step per person) still holds. The pinned person must be an active member holding
+the step's role; an Admin or the project's manager sets the pin on the project screen, and a step with no pin stays
+role-level (#2598).
+
+**Pin needing attention** — a pinned approver whose person is no longer an active member or no longer holds the
+step's role: the pin stops binding, the step falls back to its role rule (and stand-ins for role holders), and the
+project's setting screen flags the pin as needing attention until an Admin or the project's manager re-points or
+clears it; the pin row is kept (#2605).
 
 **Cut-off (material request)** — an optional time of day after which a request needed by the next day is refused;
 later dates are not affected. Checked on the server clock in the organisation's time zone.
@@ -570,6 +583,10 @@ it is saved again.
 
 **Plan figure** — a planned amount for a work order, optionally per discipline: direct budget or indirect budget in the
 work order's currency, or equipment hours or crew hours. It never changes an actual, a project total or a budget version.
+
+**Actual crew hours** — the crew hours a work order's plan versus actual counts: hours on **Approved** timesheet weeks
+naming the work order; hours on a Draft, Submitted or Rejected week are named apart as not yet approved and never
+counted. Crew size is the count of distinct people with approved hours (#2626).
 
 ### Unit-rate catalogue (#2520)
 
@@ -619,7 +636,7 @@ until a release is recorded (#2625, ADR-0105 §4).
 **Issue (site)** (*isu*) — a problem raised on site: an incident record that also names the person in charge, what must
 be done, a due time, optionally a work order of its project, and photo evidence. One record serves safety incidents and
 site issues; the UI says *issue* for site work and *incident* for safety events. High and Critical issues close only with
-a close photo.
+a **close proof** (a photo or document attached at close).
 
 **Escalation** (*dieskalasi*) — the once-only step when an open issue passes its due time: the database marks it
 escalated, tells the person in charge and the project manager (Admins when the project has none), and writes an audit
@@ -649,7 +666,8 @@ is 0 at every step.
 
 **Material request** (*permintaan material*) — a request for stock items and quantities for one work order, with a
 needed-by date: Draft, Pending, Approved, Rejected, Cancelled or Fulfilled. An approved request becomes a stock
-**Transfer** draft to the work order's site; a keeper posts it, which marks the request Fulfilled. Not a purchase request:
+**Transfer** draft to one of the work order's project's stock locations (its site, a yard or a staging location,
+named when the project has several); a keeper posts it, which marks the request Fulfilled. Not a purchase request:
 it moves stock the organisation already holds.
 
 **Planned quantity (material request)** — the material allowances of the contract lines a work order carries, in
@@ -835,7 +853,9 @@ that material.
 
 **Supply-risk status** — a supplier's state as a source of supply: Active, At risk or Inactive, set by a person (Admin or Finance) with a reason and audited; it never changes by itself and blocks nothing.
 
-**Payables age** — whole calendar days from a *procurement case's earliest* supplier-invoice date to the organisation's today, for the case's unpaid balance (the payables figure is per case, one age per case); when the organisation's procurement domain is externally owned, the ERP's own aging buckets are used instead. It only suggests a supply-risk status.
+**Unpaid supplier total** — what the organisation still owes a supplier: per procurement case, its bills less its payments — or the outstanding amounts of its linked ERP invoices when the case has no PMO bill — with a missing amount meaning unknown, never zero, and a voided bill counting nothing (#2600). The payables screen, the procurement list and the supply-risk suggestion all read this one figure.
+
+**Payables age** — whole calendar days from a *procurement case's earliest* supplier-invoice date — voided bills skipped (#2600) — to the organisation's today, for the case's unpaid balance (the payables figure is per case, one age per case); when the organisation's procurement domain is externally owned, the ERP's own aging buckets are used instead. It only suggests a supply-risk status.
 
 **Exposed work order** — a Draft or Issued work order that has at least one open purchase order (Issued or Acknowledged) from a given supplier; it is warned when that supplier is At risk or Inactive.
 
@@ -893,6 +913,9 @@ behind them; distinct from instructions or an explanation of the page.
 
 **Waits on you** — work requiring the current person's action, such as a decision or a returned
 submission; distinct from general project risk or everything assigned to them.
+
+**Row link** — how a list row opens its record: a real link to the record's own page, not a button, so it opens in a
+new tab like any link and the list stays in place (#2077).
 
 ### Third-party inspections (#2580)
 
