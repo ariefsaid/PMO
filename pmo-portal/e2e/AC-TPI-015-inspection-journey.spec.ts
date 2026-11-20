@@ -52,7 +52,7 @@ test('AC-TPI-015 request, purchase, invitation, execution and report show the in
     // request the test, required before billing
     await page.getByRole('button', { name: 'Request inspection' }).click();
     await page.getByLabel('What is being tested').fill(testName);
-    await page.getByLabel('billing').check();
+    await page.getByRole('checkbox', { name: 'billing' }).click();
     await page.getByRole('button', { name: 'Request', exact: true }).click();
     const card = page.getByTestId('wo-inspections').getByRole('listitem').filter({ hasText: testName });
     await expect(card.getByTestId('inspection-status')).toHaveText('Requested');
