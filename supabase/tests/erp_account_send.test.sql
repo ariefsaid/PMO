@@ -3,7 +3,7 @@
 -- expense group of the bound company; the queued send and the resulting map row are org-scoped. Also the DB half of AC-ECX-030: the
 -- drain's result links the category to the created account once, and a category that has its account is never sent again.
 begin;
-select plan(113);
+select plan(115);
 
 insert into organizations (id, name) values
  ('a9110000-0000-0000-0000-000000000001','Accounts A'),
@@ -290,6 +290,16 @@ select set_config('a911.outbox', (select id::text from external_command_outbox w
 set local role service_role;
 select public.record_connect_account_unresolved('a9110000-0000-0000-0000-000000000002',current_setting('a911.disposition')::uuid);
 reset role;
+-- A refused send is a legitimate open account review in the same organisation.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a9110000-0000-0000-0000-0000000000f2","role":"authenticated"}';
+select set_config('a911.rejected', public.request_account_send('erpnext','Subcontractors','Direct Expenses - EB','Rejected account')::text, true);
+set local role service_role;
+select public.record_connect_send_result('a9110000-0000-0000-0000-000000000002', current_setting('a911.rejected')::uuid, null, 'The account was refused');
+reset role;
+select results_eq($$select org_id, kind, reason, state, account_disposed_at from erp_connect_proposals where id = current_setting('a911.rejected')::uuid$$,
+ $$values ('a9110000-0000-0000-0000-000000000002'::uuid, 'account'::text, 'rejected'::text, 'open'::text, null::timestamptz)$$,
+ 'a rejected account review is open and undisposed in the owning organisation');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"a9110000-0000-0000-0000-0000000000f2","role":"authenticated"}';
 select throws_ok($$select * from public.list_account_reconciliation()$$, '42501', null, 'Finance cannot list account requests');
@@ -300,6 +310,7 @@ select throws_ok($$select public.dispose_account_reconciliation(current_setting(
 set local request.jwt.claims = '{"sub":"a9110000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select results_eq($$select id, category, account_name, state from public.list_account_reconciliation() where id = current_setting('a911.disposition')::uuid$$,
  $$select current_setting('a911.disposition')::uuid, 'Equipment'::text, 'Equipment original'::text, 'open'::text$$, 'the owning Admin sees the identifying fields');
+select is((select count(*)::int from public.list_account_reconciliation() where id = current_setting('a911.rejected')::uuid), 0, 'rejected account reviews are excluded');
 select is((select array_agg(k order by k) from (select jsonb_object_keys(to_jsonb(r)) k from public.list_account_reconciliation() r where id = current_setting('a911.disposition')::uuid) x), array['account_name','category','id','state']::text[], 'the list returns only selection fields');
 select is((select count(*)::int from public.list_account_reconciliation() where id = current_setting('a911.unresolved')::uuid), 0, 'resolved requests are excluded');
 select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, ' ', true)$$, '22023', null, 'a meaningful reason is required');
