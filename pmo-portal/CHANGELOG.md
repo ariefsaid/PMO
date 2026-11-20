@@ -10,6 +10,37 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.43.0](https://github.com/ariefsaid/PMO/compare/v0.42.0...v0.43.0) (2026-11-20)
+
+
+### Features
+
+* **erp:** reconcile direct cost account requests by category ([#1599](https://github.com/ariefsaid/PMO/issues/1599)) ([4ab3ba8](https://github.com/ariefsaid/PMO/commit/4ab3ba8a864dc569fc3c6fb4f8200204ebffe308))
+* Microsoft app setup card shows when values were last checked ([04b78c6](https://github.com/ariefsaid/PMO/commit/04b78c63ee405b5a79cffae9fd4b6d6e1fb341e9))
+* **motion:** one set of motion tokens ([#2128](https://github.com/ariefsaid/PMO/issues/2128)) ([32cecc2](https://github.com/ariefsaid/PMO/commit/32cecc2b209b41d9946c63aea504144395997c84))
+
+
+### Bug Fixes
+
+* address round two proof findings ([7a15cc0](https://github.com/ariefsaid/PMO/commit/7a15cc0d3e1f80ace7c5596f8f4d56b065c1b9e5))
+* align project row links in tests and peel newer migrations in 2195 rollback test ([6d98292](https://github.com/ariefsaid/PMO/commit/6d98292f42064bd528c4b947ad3297543a3620fb))
+* **dashboard:** update row click targets from button to link in ExecutiveDashboard tests ([1e137fe](https://github.com/ariefsaid/PMO/commit/1e137feafe5bc3113dd66083bd57f15e825fbb13))
+* **erp:** drop dead unusable-account branch; unresolved account reads as could-not-confirm in review list ([#1599](https://github.com/ariefsaid/PMO/issues/1599)) ([04153de](https://github.com/ariefsaid/PMO/commit/04153de04c36e18a9e2947adc09d4f9dc8b0bb82))
+* **erp:** read the stored unusable-account sentence in Bahasa on both ECX4 surfaces ([#1599](https://github.com/ariefsaid/PMO/issues/1599)) ([83772b4](https://github.com/ariefsaid/PMO/commit/83772b482a8fb77cdf3e461b8907e146a44bac5b))
+* **erp:** reconcile direct cost account modal errors and contract tests ([f732c79](https://github.com/ariefsaid/PMO/commit/f732c79dee3e48179d0538f29eac16867f2c1bf1))
+* **erp:** refuse known-unusable duplicate accounts in plain words, hold only unreadable ones ([#1599](https://github.com/ariefsaid/PMO/issues/1599)) ([139d7ae](https://github.com/ariefsaid/PMO/commit/139d7aeda741296143855b0be92e4a714ec58ba1))
+* **finance:** voided supplier bills no longer count as unpaid ([#2600](https://github.com/ariefsaid/PMO/issues/2600)) ([8c55b4b](https://github.com/ariefsaid/PMO/commit/8c55b4b8f9693f7023d8df0f69c4900a9c560135))
+* **i18n:** align work order English keys ([7f7535a](https://github.com/ariefsaid/PMO/commit/7f7535ac9701a2752827621d7a94ad758d4bfcb4))
+* **material-requests:** guard destinations and retry permission ([a442ccc](https://github.com/ariefsaid/PMO/commit/a442ccc2b22a80e584162cafa54b0278374b477e))
+* money fixes from the testing round ([c4a5c7e](https://github.com/ariefsaid/PMO/commit/c4a5c7e0e2618f0e9dccb67a1282dffec29824a8))
+* **opening-balances:** active member gate and stock wording ([af61ef3](https://github.com/ariefsaid/PMO/commit/af61ef30827d3fb2587f7d06f5c29e5d891b22da))
+* release prep (isolation probe pk types, screen-check route ids, e2e preflight, job journeys) ([e7d706b](https://github.com/ariefsaid/PMO/commit/e7d706bd280b19387a0bf3159d64e81f43dfe883))
+* retain document type administration ([a366a74](https://github.com/ariefsaid/PMO/commit/a366a74278f47042d3bbda46e82c116b97a03d23))
+* retain work-order issue filter ([#2521](https://github.com/ariefsaid/PMO/issues/2521)) ([7ace8d7](https://github.com/ariefsaid/PMO/commit/7ace8d7215612e7cea36652a3a4797d9ab999ce6))
+* stock ledger wraps long project codes instead of clipping ([202f107](https://github.com/ariefsaid/PMO/commit/202f107545464d30d044d086126775a172a9f832))
+* stock ledger wraps long project codes instead of clipping ([73c3c15](https://github.com/ariefsaid/PMO/commit/73c3c15a68067111c71cb1139f12345d786ebd28))
+* **test:** wrap ErpSetupChecklist in router, update project link selectors, peel opening balances in contract quantities rollback test ([e66ae9a](https://github.com/ariefsaid/PMO/commit/e66ae9a8725fbcf9442ea3a533bd37bd0b08f561))
+
 ## [0.42.0](https://github.com/ariefsaid/PMO/compare/v0.41.2...v0.42.0) (2026-11-20)
 
 
