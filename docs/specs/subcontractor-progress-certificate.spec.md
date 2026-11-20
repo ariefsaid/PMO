@@ -102,9 +102,9 @@ Gross 538.30. Backcharge 38.30 ("rework"). Net **500.00**. Excluded and listed: 
 
 | ID | Given / When / Then | Layer |
 |---|---|---|
-| AC-SPC-001 | Given the hand-calculation month, when the draft is derived, then lines are A 400.00, B 105.00, C 33.30, gross 538.30; D, the own-crew line, the unvalidated and superseded lines are listed excluded with their reasons. | Unit (pure derive function) + pgTAP (server derive) |
-| AC-SPC-002 | Given the backcharge of 38.30, when totals are read, then net is exactly 500.00 and the same figure is stored at submit. | Unit + pgTAP |
-| AC-SPC-003 | Given measured 0.1 + 0.2 style quantities (3.333 x 9.99), when computed, then no float error and the line equals `round(q x r, 2)` as the shipped bill line does. | Unit |
+| AC-SPC-001 | Given the hand-calculation month, when the draft is derived, then lines are A 400.00, B 105.00, C 33.30, gross 538.30; D, the own-crew line, the unvalidated and superseded lines are listed excluded with their reasons. | pgTAP (owner: server derive); also referenced: Unit (pure derive function) |
+| AC-SPC-002 | Given the backcharge of 38.30, when totals are read, then net is exactly 500.00 and the same figure is stored at submit. | pgTAP (owner: server derive); also referenced: Unit (pure derive function) |
+| AC-SPC-003 | Given a measured quantity of 3.333 at a rate of 9.99, when the line is derived, then its amount is exactly 33.30 (round(q x r, 2), the shipped bill-line rule) with no floating-point error. | Unit |
 | AC-SPC-004 | Given a rate card change from the next month, when last month's certificate is derived, then the earlier rate is used; given an `effective_from` that is not a month start, or an overlapping window, then refused. | pgTAP |
 | AC-SPC-005 | Given a card rate above the PO line rate or in another currency, when derived, then the item is unrated with that reason and contributes 0. | pgTAP |
 | AC-SPC-006 | Given a certificate submitted by A, when A approves it, then refused; when another Finance or Admin approves, then `approved`. A sole-member organisation cannot approve. | pgTAP (+ mutation check) |

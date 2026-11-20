@@ -681,6 +681,26 @@ or the previous version is accepted.
 rows plus "Row in your file" and "Reason", so they can be fixed and uploaded again. Rows that already existed are on their
 own "Already there" sheet.
 
+### Subcontractor progress certificates (#2584)
+
+**Subcontractor progress certificate** (*sertifikat kemajuan subkontraktor*) — a monthly calculation and approval record
+drawn from validated daily-report quantities of a subcontractor's crews, priced at the subcontractor's rate card, less
+backcharges. Once approved it becomes one vendor bill through the subcontract capture function; it never posts or pays by
+itself.
+
+**Measured line** — one certificate line: a contract item on a work order, the validated quantity measured in the month
+and its rate, with amount equal to the quantity times the rate rounded to 2 decimals. Lines that cannot be certified are
+listed as excluded, with the reason.
+
+**Rate card (subcontractor)** — the versioned rates agreed with one subcontractor per contract item, each with a start
+month. It is cost-side data, separate from the client-side contract rates.
+
+**Backcharge** — an amount the subcontractor owes back (for example for damage or material we supplied), recorded on a
+certificate and deducted from its gross.
+
+**Net certified amount** — the certificate's gross measured amount less backcharges; the figure stored at submit and
+captured as the vendor bill.
+
 ## Purchase history & figure language
 
 The purchase-history terms below describe the intended model; their presence does not assert that

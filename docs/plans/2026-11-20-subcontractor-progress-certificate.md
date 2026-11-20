@@ -44,8 +44,8 @@
 ## Traceability
 | AC | Owning layer | File |
 |---|---|---|
-| AC-SPC-001 | Unit + pgTAP | `subcontractCertificate.test.ts`, `subcontract_certificate_derive.test.sql` |
-| AC-SPC-002, 003 | Unit (+ pgTAP for 002) | `subcontractCertificate.test.ts` |
+| AC-SPC-001, 002 | pgTAP (owner) | `subcontract_certificate_derive.test.sql`; also referenced: Unit in `subcontractCertificate.test.ts` |
+| AC-SPC-003 | Unit | `subcontractCertificate.test.ts` |
 | AC-SPC-004 | pgTAP | `subcontractor_rate_card.test.sql` |
 | AC-SPC-005 | pgTAP | `subcontract_certificate_derive.test.sql` |
 | AC-SPC-006, 007, 009, 010, 011, 013, 014, 015, 016 | pgTAP | `subcontract_certificate_money.test.sql` |
