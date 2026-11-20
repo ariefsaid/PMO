@@ -119,7 +119,8 @@ export function DirectCostAccounts({ categories, tier = 'erpnext' }: { categorie
       setErrors(failed);
       if (newlyAccepted === 0 && accepted.length === 0) {
         const classified = classifyMutationError(lastError);
-        setSubmitError({ headline: classified.headline, detail: classified.detail });
+        // the per-category reasons below carry the detail; the banner adds only the standard headline
+        setSubmitError({ headline: classified.headline });
       }
     }
   };

@@ -77,7 +77,13 @@ describe('AC-ECX-030 ERPNext account send, against the bed fixtures', () => {
     expect(e.seen.filter((r) => r.method === 'POST')).toHaveLength(1);
   });
 
-  it('a 409 duplicate whose account cannot be used remains held for reconciliation', async () => {
+  it('a 409 duplicate whose account cannot be read back stays held for reconciliation: the outcome is not established', async () => {
+    const e = erp({ lookup: recorded('lookup (absent)'), create: recorded('create duplicate different case'),
+      doc: { 'probe direct cost a - EPC': { status: 500, response: { exc_type: 'ServerError' } }, [GROUP]: groupDoc() } });
+    await expect(send(e.adapter, 'probe direct cost a')).rejects.toMatchObject({ code: 'command-held', message: 'Account requires reconciliation' });
+  });
+
+  it('a 409 duplicate whose account is known unusable is refused in plain words, never held', async () => {
     const group = asDoc('is_group=1 create');
     const otherCompany = { status: 200, response: { data: { ...docOf('create full (accept)'), company: 'Other Co' } } };
     const asset = { status: 200, response: { data: { ...docOf('create full (accept)'), root_type: 'Asset' } } };
@@ -85,7 +91,7 @@ describe('AC-ECX-030 ERPNext account send, against the bed fixtures', () => {
     for (const existing of [group, otherCompany, asset, disabled]) {
       const e = erp({ lookup: recorded('lookup (absent)'), create: recorded('create duplicate different case'), doc: { 'probe direct cost a - EPC': existing, [GROUP]: groupDoc() } });
       await expect(send(e.adapter, 'probe direct cost a')).rejects.toMatchObject({
-        code: 'command-held', message: 'Account requires reconciliation',
+        code: 'commit-rejected', message: expect.stringMatching(/already has an account named probe direct cost a that cannot hold direct costs/),
       });
     }
   });

@@ -385,6 +385,21 @@ describe('AC-ECX-030 DirectCostAccounts', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
+  it('AC-ECX-030 when every request fails, the standard save-failed alert shows, the plain reason is said once per category, and nothing is saved', async () => {
+    const reason = 'Choose an expense group of the connected company';
+    repo.requestAccountSend.mockRejectedValue(new AppError(reason, 'BAD_REQUEST'));
+    show('Finance');
+    const dialog = await openDialog();
+    fireEvent.change(await within(dialog).findByLabelText(/^Expense group/), { target: { value: 'Direct Expenses - EC' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create accounts' }));
+    const saveError = await within(dialog).findByTestId('entity-modal-save-error');
+    expect(saveError).toHaveTextContent(/Nothing was saved/);
+    expect(repo.requestAccountSend).toHaveBeenCalledTimes(2);
+    // per-category result kept; the reason text is not repeated in the save-failed banner
+    expect(within(dialog).getByText(`Labor: ${reason} Equipment: ${reason}`)).toBeInTheDocument();
+    expect(within(saveError).queryByText(reason)).toBeNull();
+  });
+
   it('AC-ECX-030 with no expense group read yet, it says so and cannot submit', async () => {
     repo.listAccountSendGroups.mockResolvedValueOnce([]);
     show('Finance', ['Labor']);

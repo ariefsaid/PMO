@@ -149,7 +149,11 @@ async function sendAccount(client: ErpClientDeps, company: string, record: PmoMa
     const existing = duplicateAccountName(err);
     if (existing === null) throw err;
     try { return await usableAccount(withProbeBudget(client), company, existing, name); }
-    catch { throw new AppError('Account requires reconciliation', 'command-held'); }
+    catch (readErr) {
+      // a known unusable account is refused in plain words; only an unreadable one (outcome not established) is held
+      if (readErr instanceof AdapterError && readErr.code === 'commit-rejected') throw readErr;
+      throw new AppError('Account requires reconciliation', 'command-held');
+    }
   }
   try { return await usableAccount(withProbeBudget(client), company, created, name); }
   catch { throw new AppError('Account requires reconciliation', 'command-held'); }
