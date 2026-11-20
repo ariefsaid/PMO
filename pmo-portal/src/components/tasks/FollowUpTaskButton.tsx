@@ -3,10 +3,10 @@
  * makes a task that follows the record. When an open task already follows it, the action opens that task instead and
  * never offers a second. The database refuses a second one anyway (migration 1070); this is the explanation.
  */
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { QueryClientContext, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, EntityFormModal, TextField, buttonClasses } from '@/src/components/ui';
 import { useOptionalToast } from '@/src/components/ui/Toast';
 import { useAuth } from '@/src/auth/useAuth';
@@ -34,7 +34,7 @@ interface Props {
   finished?: boolean;
 }
 
-export const FollowUpTaskButton: React.FC<Props> = ({ type, recordId, projectId = null, defaultName, finished = false }) => {
+const FollowUpTask: React.FC<Props> = ({ type, recordId, projectId = null, defaultName, finished = false }) => {
   const { t } = useTranslation('tasks');
   const may = usePermission();
   const toast = useOptionalToast()?.toast;
@@ -113,4 +113,10 @@ export const FollowUpTaskButton: React.FC<Props> = ({ type, recordId, projectId 
       )}
     </>
   );
+};
+
+/** Renders nothing outside a data provider (a record page shown without one has no follow-up to offer). */
+export const FollowUpTaskButton: React.FC<Props> = (props) => {
+  const client = useContext(QueryClientContext);
+  return client ? <FollowUpTask {...props} /> : null;
 };

@@ -92,6 +92,12 @@ describe('useMyTasks excludes tombstoned rows (C5c)', () => {
         priority: null,
         archived_at: null,
         work_order_name: null, // #2531: a task with no work order maps to null
+        // #2587: an ordinary task carries no record link and no closing reason.
+        procurement_id: null,
+        expense_claim_id: null,
+        material_request_id: null,
+        closed_by_record_type: null,
+        closed_by_record_status: null,
       },
     ]);
   });

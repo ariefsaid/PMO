@@ -81,6 +81,8 @@ vi.mock('@/src/lib/db/tasks', () => ({
   removeDependency: vi.fn(),
   archiveTask: vi.fn(),
   unarchiveTask: vi.fn(),
+  taskLinkedRecords: vi.fn(),
+  findOpenTaskForRecord: vi.fn(),
 }));
 vi.mock('@/src/lib/db/procurements', () => ({ listProcurements: vi.fn() }));
 vi.mock('@/src/lib/db/procurementLifecycle', () => ({
@@ -343,9 +345,10 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // 0206 — the meeting detail lists its minuted tasks). 'listByAssignee' added with 2d97e91d5
       // (My Tasks projection). 'listDueRows' added with #1741 (one batched read for the PM dashboard
       // overdue count). 'listByIds' added with #2106 (the minutes' action items in one read instead of
-      // one per block). This list is an exhaustive API-seam contract (ADR-0017) — extending
+      // one per block). 'findOpenForRecord' and 'linkedRecords' added deliberately with #2587 (record-linked tasks:
+      // create-from-record opens the open task, and one batched read gives a page its linked status). This list is an exhaustive API-seam contract (ADR-0017) — extending
       // the repository surface must be an explicit change here, never an accident.
-      ['addDependency', 'archive', 'create', 'delete', 'get', 'list', 'listByIds', 'listByAssignee', 'listByMeeting', 'listCalendar', 'listDueRows', 'listOpenByWorkOrder', 'removeDependency', 'unarchive', 'update', 'updateStatus'].sort(),
+      ['addDependency', 'archive', 'create', 'delete', 'findOpenForRecord', 'get', 'linkedRecords', 'list', 'listByIds', 'listByAssignee', 'listByMeeting', 'listCalendar', 'listDueRows', 'listOpenByWorkOrder', 'removeDependency', 'unarchive', 'update', 'updateStatus'].sort(),
     );
     expect(Object.keys(repositories.meeting).sort()).toEqual(
       // #526 (OD-MTG-1/2): grants are add/revoke ONLY — no update method on purpose (a grant is
@@ -744,6 +747,12 @@ describe('delegation — methods pass args through and return the DAL result', (
 
     await repositories.task.removeDependency('t2', 't1');
     expect(tasksDal.removeDependency).toHaveBeenCalledWith('t2', 't1');
+
+    // #2587: the record-link reads delegate to the DAL.
+    await repositories.task.linkedRecords(['t1']);
+    expect(tasksDal.taskLinkedRecords).toHaveBeenCalledWith(['t1']);
+    await repositories.task.findOpenForRecord('expense_claim', 'c1');
+    expect(tasksDal.findOpenTaskForRecord).toHaveBeenCalledWith('expense_claim', 'c1');
   });
 
   it('AC-TASK-005: task.updateStatus normalizes a 42501 RLS denial to AppError preserving the code', async () => {
