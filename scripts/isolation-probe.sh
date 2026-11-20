@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# Cross-org probes use the reviewed expectations in isolation-probe-denominator.json.
+# Cross-org probes use the reviewed expectations in the isolation-probe-denominator.d/ fragments (unioned).
 # Writes require a dedicated disposable tenant A; never use a client org.
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DENOMINATOR="$SCRIPT_DIR/isolation-probe-denominator.json"
 for name in BASE ANON SERVICE JWT_B A_ORG B_ORG A_ROWS_JSON; do
   [ -n "${!name:-}" ] || { echo "isolation-probe: required input missing: $name" >&2; exit 2; }
 done
@@ -11,6 +10,8 @@ node "$SCRIPT_DIR/check-isolation-denominator.mjs" --validate-inputs || exit $?
 [ "$A_ORG" != "$B_ORG" ] || { echo 'isolation-probe: tenant A and B must differ' >&2; exit 2; }
 _work=$(mktemp -d "${TMPDIR:-/tmp}/isolation-probe.XXXXXX") || exit 2
 trap 'rm -rf "$_work"' EXIT
+DENOMINATOR="$_work/denominator.json"
+node "$SCRIPT_DIR/check-isolation-denominator.mjs" --emit "$DENOMINATOR" || exit 2
 jq '.tables' "$DENOMINATOR" > "$_work/tables"
 TABLES_JSON="$_work/tables"
 BODY="$_work/body"

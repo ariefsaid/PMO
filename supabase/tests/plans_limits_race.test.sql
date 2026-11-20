@@ -1,6 +1,6 @@
 -- AC-PLN-009 / AC-PLN-010 [pgTAP] — simultaneous writers consume the final seat/project slot once.
 -- The fixture rows are committed through dblink so each writer sees the same starting state.
-create extension if not exists dblink;
+create extension if not exists dblink with schema extensions;
 
 select dblink_connect('s5_setup', format(
   'dbname=%s user=%s password=postgres host=%s port=%s application_name=s5_limits_setup',

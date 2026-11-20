@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# #2277 order-family rollback proof. Run under scripts/with-db-lock.sh. Records the replaced functions (and the request guard) in a database
-# reset to the migration before 0903, resets to head, then runs the down in a rolled-back transaction and compares. Ends with the database at head.
+# #2277 order-family rollback proof. Run under scripts/with-db-lock.sh. Records the replaced functions before 0903, resets to head,
+# then runs the down in a rolled-back transaction and compares both the restored functions and the request guard at the rollback starting point.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PATH="/opt/homebrew/opt/libpq/bin:$PATH"
@@ -46,10 +46,9 @@ query="select '''' || p.oid::regprocedure::text || ''',''' || md5(pg_get_functio
 supabase db reset --no-seed --version "$prev" >/dev/null 2>&1
 psql "$db_url" -Atc "$query" | sed 's/^/(/; s/$/)/' > "$hashes"
 [ "$(wc -l < "$hashes")" -eq 5 ] || { echo "expected 5 recorded functions"; exit 1; }
-guard="$(psql "$db_url" -Atc "select md5(pg_get_functiondef('public.api_client_request_guard()'::regprocedure))")"
 paste -sd, "$hashes" > "$hashes.csv" && mv "$hashes.csv" "$hashes"
 supabase db reset >/dev/null 2>&1
-python3 - "$test_file" "$hashes" "$guard" <<'PY'
+python3 - "$test_file" "$hashes" <<'PY'
 from pathlib import Path
 import sys
 text = Path('scripts/2195-order-family-rollback.test.sql').read_text()
@@ -63,7 +62,7 @@ for p in sorted(Path('supabase/migrations/rollback').glob('*_down.sql'), reverse
         downs.append(p.read_text())
 if downs:
     text = text.replace('begin;\n', 'begin;\n' + '\n'.join(downs) + '\n', 1)
-text = text.replace('@DOWN@', down).replace('@HASHES@', Path(sys.argv[2]).read_text().strip()).replace('@GUARD@', sys.argv[3])
+text = text.replace('@DOWN@', down).replace('@HASHES@', Path(sys.argv[2]).read_text().strip())
 Path(sys.argv[1]).write_text(text)
 PY
 supabase test db "$test_file"

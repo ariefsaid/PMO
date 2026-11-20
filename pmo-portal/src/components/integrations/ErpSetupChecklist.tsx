@@ -185,7 +185,7 @@ export function ErpSetupChecklist(
             )
             : t(
               'integrations.erpSetup.domainFailed',
-              'Could not employ this domain. Check ERP read permissions and try again.',
+              'Could not employ this domain. Your operator will fix the integration role; then try again.',
             ),
         );
       } finally {
@@ -306,7 +306,7 @@ export function ErpSetupChecklist(
                   </p>
                   {((missing) => missing.length > 0 && (
                     <p className='mt-1 break-words text-muted-foreground'>
-                      {t('administration:integrations.send.accountantTask', 'Ask your accountant to add a direct-cost account for: {{categories}}', {
+                      {t('administration:integrations.send.accountantTask', 'A direct-cost account is missing for: {{categories}}. Your operator will add it.', {
                         categories: missing.map((category) => budgetCategoryLabel(category, t)).join(', '),
                       })}
                     </p>

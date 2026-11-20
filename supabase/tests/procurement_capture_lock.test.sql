@@ -4,7 +4,7 @@
 -- password=postgres is the Supabase LOCAL default; this file only runs under `supabase test db`.
 begin;
 select plan(4);
-create extension if not exists dblink;
+create extension if not exists dblink with schema extensions;
 select dblink_connect('cap_lock', format('dbname=%s user=%s password=postgres host=%s port=%s', current_database(), current_user, coalesce(host(inet_server_addr()), 'supabase_db_pmo-portal'), coalesce(inet_server_port(), 5432)));
 -- session-level: every second-session statement errors instead of waiting forever if the lock is ever removed
 select dblink_exec('cap_lock', $$set lock_timeout = '5s'$$);
