@@ -14,18 +14,20 @@ const db = serviceClient('AC-IMT-014');
 const run = `IMT14-${Date.now().toString(36)}`;
 const variant = `Loc ${run}`;
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+let projectId = '';
 
 test.afterEach(async () => {
-  const projects = await db.from('projects').select('id').eq('org_id', ORG_ID);
-  const ids = (projects.data ?? []).map((p) => p.id as string);
-  const items = await db.from('rate_catalogue_items').select('id').in('project_id', ids).like('item_code', `${run}%`);
+  if (!projectId) return;
+  const items = await db.from('rate_catalogue_items').select('id').eq('project_id', projectId).like('item_code', `${run}%`);
   const itemIds = (items.data ?? []).map((i) => i.id as string);
   if (itemIds.length) {
     await db.from('rate_catalogue_stage_weights').delete().in('item_id', itemIds);
     await db.from('rate_catalogue_rates').delete().in('item_id', itemIds);
     await db.from('rate_catalogue_items').delete().in('id', itemIds);
   }
-  await db.from('rate_catalogue_variants').delete().eq('name', variant);
+  await db.from('rate_catalogue_variants').delete().eq('project_id', projectId);
+  await db.from('projects').delete().eq('id', projectId);
+  projectId = '';
 });
 
 const sheetOf = async (path: string) => {
@@ -42,9 +44,17 @@ const fileOf = async (rows: string[][]) => {
 };
 
 test('AC-IMT-014 a rate file with one bad row imports the good row, returns the bad one with its reason, and imports once fixed', async ({ page }) => {
-  const project = await db.from('projects').select('id').eq('org_id', ORG_ID).is('archived_at', null).order('created_at').limit(1).single();
+  const project = await db.from('projects').insert({
+    org_id: ORG_ID,
+    name: `AC-IMT-014 ${run}`,
+    status: 'Ongoing Project',
+    currency: 'USD',
+  }).select('id').single();
+  expect(project.error).toBeNull();
+  expect(project.data?.id).toBeTruthy();
+  projectId = project.data!.id;
   await signIn(page, 'admin@acme.test');
-  await page.goto(`/projects/${project.data?.id}/billing`);
+  await page.goto(`/projects/${projectId}/billing`);
   await page.getByRole('button', { name: /^rate catalogue$/i }).click();
   const drawer = page.getByRole('dialog', { name: /rate catalogue/i });
   await drawer.getByLabel(/new location/i).fill(variant);
