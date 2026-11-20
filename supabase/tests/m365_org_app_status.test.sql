@@ -1,6 +1,6 @@
 -- #2260: the service-only read of an organization's own Microsoft 365 app WITHOUT its secret, plus the
 -- moment Microsoft last accepted those values (client secrets expire, so the Admin has to be able to see
--- how old the last check is). Migration 1026; the table itself is 0817's, and its API-role lockdown is
+-- how old the last check is). Migration 1122; the table itself is 0817's, and its API-role lockdown is
 -- unchanged — this read is the ONLY new surface.
 -- AC-M365AV-001: the read returns tenant id, client id, the stored validation time and whether a secret is
 -- stored — never the secret or its Vault reference — for one org only, and no API role may call it.

@@ -1,4 +1,4 @@
--- 1026_m365_org_app_status.sql — #2260: read an organization's own Microsoft 365 app WITHOUT its secret,
+-- 1122_m365_org_app_status.sql — #2260: read an organization's own Microsoft 365 app WITHOUT its secret,
 -- with the moment Microsoft last accepted those values.
 --
 -- The values are already recorded: 0817's m365_org_apps stamps validated_at on every validated save, but
@@ -7,7 +7,7 @@
 -- stored — never the secret or its Vault reference. The table keeps its 0817 lockdown (forced RLS, no
 -- policy, no grant to any API role).
 --
--- Reverse: rollback/1026_m365_org_app_status_down.sql
+-- Reverse: rollback/1122_m365_org_app_status_down.sql
 create function public.m365_org_app_status(p_org_id uuid)
 returns table(tenant_id text, client_id text, validated_at timestamptz, secret_set boolean)
 language plpgsql stable security definer set search_path = public, vault as $$
