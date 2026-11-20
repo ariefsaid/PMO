@@ -3,7 +3,7 @@
 -- Every denial asserts the errcode AND the message, so a different gate moving in front cannot pass it.
 begin;
 create extension if not exists pgtap;
-select plan(8);
+select plan(7);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('26050000-0000-0000-0000-00000000000a', 'Pin Org',       'IDR', 'Asia/Jakarta'),
