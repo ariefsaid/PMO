@@ -247,8 +247,7 @@ export async function setRate(input: SetRateInput): Promise<string> {
 /** Subcontract purchases that have an issued PO, for the "new certificate" picker. */
 export async function listSubcontractPos(): Promise<SubcontractPoOption[]> {
   const { data, error } = await supabase.from('purchase_orders')
-    
-    .select('id, po_number, work_order_id, currency, procurements!inner(title, project_id, vendor_id, is_subcontract)')
+    .select('id, po_number, work_order_id, currency, procurements!purchase_orders_procurement_id_fkey!inner(title, project_id, vendor_id, is_subcontract)')
     .eq('procurements.is_subcontract', true).order('created_at', { ascending: false }).limit(200);
   if (error) throwRpc(error);
   type Raw = { id: string; po_number: string | null; work_order_id: string | null; currency: string; procurements: { title: string; project_id: string | null; vendor_id: string | null } | Array<{ title: string; project_id: string | null; vendor_id: string | null }> };

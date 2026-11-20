@@ -180,10 +180,22 @@ select throws_ok($$ select cancel_subcontract_certificate(pg_temp.cid('mar'), 'o
 -- AC-SPC-011 payable is gross less the backcharge (500.00) and a payment above it is refused.
 select throws_ok($$ select create_payment('25840000-0000-0000-0000-0000000000f1', current_setting('spc.inv')::uuid, 'PAY-1', 'Scheduled', current_date, 538.30) $$,
   '23514', null, 'AC-SPC-011 a payment of the gross 538.30 is refused: the payable is 500.00');
+
+-- A payment for a voided bill on the purchase (non-ERP voided bill) is ignored by the payable ceiling:
+reset role;
+alter table payments disable trigger payments_zz_voided_bill;
+insert into payments (id, org_id, procurement_id, invoice_id, currency, amount, status)
+values ('25840000-0000-0000-0000-0000000000e9', '25840000-0000-0000-0000-00000000000a',
+        '25840000-0000-0000-0000-0000000000f1', current_setting('spc.blk')::uuid, 'USD', 200.00, 'Scheduled');
+alter table payments enable trigger payments_zz_voided_bill;
+set local role authenticated; select pg_temp.act_as(pg_temp.u('a2'));
+
 select lives_ok($$ select create_payment('25840000-0000-0000-0000-0000000000f1', current_setting('spc.inv')::uuid, 'PAY-1', 'Scheduled', current_date, 500.00) $$,
   'AC-SPC-011 a payment of the payable 500.00 is accepted');
 select throws_ok($$ select create_payment('25840000-0000-0000-0000-0000000000f1', current_setting('spc.inv')::uuid, 'PAY-2', 'Scheduled', current_date, 0.01) $$,
   '23514', null, 'AC-SPC-011 and one cent more is refused');
+reset role;
+delete from payments where id = '25840000-0000-0000-0000-0000000000e9';
 -- AC-SPC-016 the work-order cost read: paid, the bill's cost is the net figure.
 reset role;
 update payments set status = 'Paid' where procurement_id = '25840000-0000-0000-0000-0000000000f1';

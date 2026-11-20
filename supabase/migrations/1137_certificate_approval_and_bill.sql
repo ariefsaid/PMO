@@ -49,18 +49,32 @@ create function public.guard_payment_net_of_deduction() returns trigger
   language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_cur text; v_payable numeric; v_paid numeric;
 begin
-  if new.amount is null or coalesce(new.erp_docstatus, 1) = 2 or new.erp_cancelled_at is not null then return new; end if;
+  if new.amount is null
+     or coalesce(new.erp_docstatus, 1) = 2
+     or new.erp_cancelled_at is not null
+     or coalesce(new.status, '') in ('Cancelled', 'Void')
+     or (new.invoice_id is not null and exists (
+           select 1 from public.procurement_invoices vi
+            where vi.id = new.invoice_id
+              and (vi.voided_at is not null or coalesce(vi.erp_docstatus, 1) = 2 or vi.erp_cancelled_at is not null)))
+  then
+    return new;
+  end if;
   if not exists (select 1 from public.procurement_invoices i where i.procurement_id = new.procurement_id and i.deduction_amount > 0
-                  and coalesce(i.erp_docstatus, 1) <> 2 and i.erp_cancelled_at is null) then return new; end if;
+                  and i.voided_at is null and coalesce(i.erp_docstatus, 1) <> 2 and i.erp_cancelled_at is null) then
+    return new;
+  end if;
   perform 1 from public.procurements where id = new.procurement_id for update;
   select currency into v_cur from public.procurements where id = new.procurement_id;
   select coalesce(sum(i.amount + case when i.tax_treatment = 'exclusive' then i.tax_amount else 0 end - i.deduction_amount), 0) into v_payable
     from public.procurement_invoices i
    where i.procurement_id = new.procurement_id and i.amount is not null and coalesce(i.currency, v_cur) = v_cur
-     and coalesce(i.erp_docstatus, 1) <> 2 and i.erp_cancelled_at is null;
+     and i.voided_at is null and coalesce(i.erp_docstatus, 1) <> 2 and i.erp_cancelled_at is null;
   select coalesce(sum(p.amount), 0) into v_paid from public.payments p
    where p.procurement_id = new.procurement_id and p.id is distinct from new.id and coalesce(p.currency, v_cur) = v_cur
-     and coalesce(p.erp_docstatus, 1) <> 2 and p.erp_cancelled_at is null;
+     and coalesce(p.erp_docstatus, 1) <> 2 and p.erp_cancelled_at is null
+     and coalesce(p.status, '') not in ('Cancelled', 'Void')
+     and not exists (select 1 from public.procurement_invoices vi where vi.id = p.invoice_id and (vi.voided_at is not null or coalesce(vi.erp_docstatus, 1) = 2 or vi.erp_cancelled_at is not null));
   if coalesce(new.currency, v_cur) = v_cur and v_paid + new.amount > v_payable then
     raise exception 'payments cannot exceed the payable net of backcharges (%)', v_payable using errcode = '23514', detail = 'payable-net-of-deduction';
   end if;
