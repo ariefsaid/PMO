@@ -281,8 +281,8 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     );
   });
 
-  it('orgSettings exposes its expected methods (OD-TAX-1 0207; #762 withholding; #803 spend approvers 0243)', () => {
-    expect(Object.keys(repositories.orgSettings).sort()).toEqual(['addSpendApprover', 'getDefaultCurrency', 'getLifecycleState', 'getLocaleDefaults', 'getProjectClassificationOptions', 'getDownPaymentItem', 'getProcurementGates', 'getProjectNumberPattern', 'getProjectNumberTimezone', 'getTaxDefault', 'getVendorTaxAccounts', 'getWithholdingAccounts', 'listSpendApprovers', 'removeSpendApprover', 'setProjectClassificationOptions', 'setDownPaymentItem', 'setProcurementGates', 'setProjectNumberPattern', 'setTaxDefault', 'setVendorTaxAccounts', 'setWithholdingAccounts'].sort());
+  it('orgSettings exposes its expected methods (OD-TAX-1 0207; #762 withholding; #803 spend approvers 0243; #2329 fiscal year 1018)', () => {
+    expect(Object.keys(repositories.orgSettings).sort()).toEqual(['addSpendApprover', 'getDefaultCurrency', 'getFiscalYearSetting', 'setFiscalYearStartMonth', 'getLifecycleState', 'getLocaleDefaults', 'getProjectClassificationOptions', 'getDownPaymentItem', 'getProcurementGates', 'getProjectNumberPattern', 'getProjectNumberTimezone', 'getTaxDefault', 'getVendorTaxAccounts', 'getWithholdingAccounts', 'listSpendApprovers', 'removeSpendApprover', 'setProjectClassificationOptions', 'setDownPaymentItem', 'setProcurementGates', 'setProjectNumberPattern', 'setTaxDefault', 'setVendorTaxAccounts', 'setWithholdingAccounts'].sort());
   });
 
   it('procurementFiles exposes its expected methods', () => {
