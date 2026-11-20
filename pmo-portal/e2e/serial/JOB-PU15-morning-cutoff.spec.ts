@@ -4,6 +4,7 @@ import { test, expect } from '@playwright/test';
 import { signIn, pickComboboxOption } from '../helpers';
 import { mrqSetup, sendForApproval } from '../support/mrqJobFixture';
 import { SEED_PROJECT_NAME, userClient } from '../support/stockFixture';
+import { inDays } from '../support/jobJourney';
 
 test.setTimeout(150_000);
 
@@ -25,7 +26,8 @@ test('JOB-PU15 a request for tomorrow sent after the cut-off is refused with the
   await expect(page.getByText(/closed at 00:00/i)).toBeVisible({ timeout: 15_000 });
   await expect(page).toHaveURL(/\/material-requests\/(new|[0-9a-f-]{36}\/edit)/);
 
-  const dayAfter = new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 10);
+  // Counted from the org's calendar day: between 17:00 and 24:00 UTC the runner's UTC date is a day behind Jakarta's.
+  const dayAfter = inDays(2);
   const neededBy = page.getByLabel(/needed by/i);
   await neededBy.fill(dayAfter);
   await neededBy.blur();
