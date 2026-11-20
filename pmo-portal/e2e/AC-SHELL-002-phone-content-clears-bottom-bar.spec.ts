@@ -65,7 +65,7 @@ test.describe('AC-SHELL-002 phone content clears the bottom bar', () => {
   test('AC-SHELL-002 record screen (project Budget tab): no text under the bar at the end of the page', async ({ page }) => {
     await page.goto('/projects');
     await page.waitForLoadState('networkidle');
-    await page.getByTestId('projects-table-container').getByRole('button', { name: 'Innovate Corp HQ Fit-Out', exact: true }).click();
+    await page.getByTestId('projects-table-container').getByRole('link', { name: 'Innovate Corp HQ Fit-Out', exact: true }).click();
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+$/i, { timeout: 15_000 });
     const base = new URL(page.url()).pathname.replace(/\/$/, '').split('/').slice(0, 3).join('/');
     await page.goto(`${base}/budget`);
@@ -78,7 +78,7 @@ test.describe('AC-SHELL-002 phone content clears the bottom bar', () => {
     test(`AC-SHELL-002 project ${tab || 'overview'} tab: no text under the bottom bars`, async ({ page }) => {
       await page.goto('/projects');
       await page.waitForLoadState('networkidle');
-      await page.getByTestId('projects-table-container').getByRole('button', { name: 'Innovate Corp HQ Fit-Out', exact: true }).click();
+      await page.getByTestId('projects-table-container').getByRole('link', { name: 'Innovate Corp HQ Fit-Out', exact: true }).click();
       await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+$/i, { timeout: 15_000 });
       const base = new URL(page.url()).pathname.replace(/\/$/, '');
       await page.goto(`${base}${tab}`);
