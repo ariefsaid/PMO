@@ -36,6 +36,7 @@ test('JOB-PC24 a request of 120 against a plan of 100 asks for a reason and wait
   projectId = fx.projectId; woIds = fx.workOrders.map((w) => w.id);
   const wo = fx.workOrders[0];
   const adminUser = await userClient('admin@acme.test');
+  ok('site location', await admin.from('stock_warehouses').insert({ code: `E2E-S${sfx}`, name: `E2E site ${sfx}`, kind: 'site', project_id: projectId, org_id: ORG_ID })); // a request needs a delivery location on its project
   const item = await makeItem(adminUser, sfx, 'P');
   boqId = need('line', await admin.from('boq_items').insert({ org_id: ORG_ID, project_id: projectId, item_code: 'CONC', description: 'Concrete', unit: 'm3', quantity: 100, rate: 10 }).select('id').single()).id;
   ok('allocation', await admin.from('work_order_lines').insert({ org_id: ORG_ID, work_order_id: wo.id, boq_item_id: boqId, quantity: 100 }));

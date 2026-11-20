@@ -36,7 +36,7 @@ test('JOB-PC18 an issue logged on a work order with a screenshot shows the attac
   await expect(dialog.getByText('whatsapp-proof.png')).toBeVisible();
   await dialog.getByRole('button', { name: /^file incident$/i }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 20_000 });
-  await page.getByRole('button', { name: new RegExp(`open ${type}`, 'i') }).click();
+  await page.getByRole('link', { name: new RegExp(`open ${type}`, 'i') }).click();
   await expect(page.getByTestId('incident-evidence').getByText('whatsapp-proof.png')).toBeVisible({ timeout: 20_000 });
   const issueUrl = page.url();
 
