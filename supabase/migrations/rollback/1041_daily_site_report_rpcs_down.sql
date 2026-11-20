@@ -1,4 +1,4 @@
--- Reverses 1005_daily_site_report_rpcs.sql.
+-- Reverses 1041_daily_site_report_rpcs.sql.
 drop trigger if exists organizations_dsr_default_lists on public.organizations;
 drop policy if exists storage_objects_site_report_photo_write on storage.objects;
 drop policy if exists storage_objects_site_report_photo_read on storage.objects;

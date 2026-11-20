@@ -10,7 +10,7 @@
 - **Rate catalogue (#2520, 0955):** `rate_catalogue_items` / `rate_catalogue_variants` (the **work location**) / `rate_catalogue_rates` (append-only, `effective_from`) / `rate_catalogue_stage_weights`. A contract item is a `work_order_lines` row whose `boq_items` line carries `catalogue_item_id` + `catalogue_variant_id`.
 - **Rate for a progress line** (`dsr_line_rate`, 1005): the catalogue rate in force on the work date at the report's location (else the line's priced location, else the project default). A **sub-stage** is a stage in the catalogue's stage weights; its rate is the item rate x the stage's weight share (resolves OD-DSR-1). A line priced by hand (no catalogue item) uses its contract rate (`boq_items.rate` > 0) and has no stages. Otherwise "no rate".
 - **Roles until #902 adds field-controller and QS:** enter/submit = Admin, Engineer, or the project's PM; validate/return/correct = Admin, Finance (QS stand-in), or the project's PM; revenue reads = the rate catalogue's readers (Admin, Finance, Executive, the project's PM).
-- Migrations `1040_daily_site_reports.sql`, `1005_daily_site_report_rpcs.sql`.
+- Migrations `1040_daily_site_reports.sql`, `1041_daily_site_report_rpcs.sql`.
 
 ## Job story
 

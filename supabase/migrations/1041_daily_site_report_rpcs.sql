@@ -1,4 +1,4 @@
--- 1005_daily_site_report_rpcs.sql — #1522: the daily site report's writers and money reads.
+-- 1041_daily_site_report_rpcs.sql — #1522: the daily site report's writers and money reads.
 -- Spec: docs/specs/daily-site-report.spec.md (FR-DSR-009..019). Proven by supabase/tests/dsr_report.test.sql.
 --   dsr_save_draft   create (idempotent on client_request_id) or edit a draft/returned report and its lines
 --   dsr_submit       draft|returned -> submitted
@@ -8,7 +8,7 @@
 --   dsr_report_revenue / work_order_validated_revenue / dsr_validation_queue — money reads, rate-reader roles only
 -- Role mapping until the field-controller and QS roles exist (#902): enter = Admin, Engineer, or the project's PM;
 -- validate = Admin, Finance, or the project's PM. Revenue reads = the rate catalogue's readers (0955).
--- Reversal: rollback/1005_daily_site_report_rpcs_down.sql.
+-- Reversal: rollback/1041_daily_site_report_rpcs_down.sql.
 
 -- ── who may do what ─────────────────────────────────────────────────────────────────────────────────
 create function public.dsr_may_enter(p_project uuid) returns boolean
