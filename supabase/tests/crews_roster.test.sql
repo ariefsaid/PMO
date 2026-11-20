@@ -5,7 +5,7 @@
 -- AC-CRW-014 another organisation, or a role without permission, reads nothing and changes nothing.
 begin;
 create extension if not exists pgtap;
-select plan(37);
+select plan(42);
 select fk_ok('public', 'crew_members', 'worker_id', 'public', 'people', 'id', 'crew membership uses the workforce register');
 
 insert into organizations (id, name, default_currency) values
@@ -152,6 +152,29 @@ select is((select shortfall from work_order_roster('25280000-0000-0000-0000-0000
   'AC-CRW-004 the crew is flagged two short');
 select is((select count(*)::int from work_order_roster('25280000-0000-0000-0000-000000000401', '2026-11-12')), 0,
   'AC-CRW-004 after the roster ends the crew no longer shows on W');
+
+-- AC-CRW-002 / JOB-F6: day-placement handover. A worker's home placement ends the day a host crew's placement starts;
+-- the newer placement wins that day on the roster. Longer cross-crew overlaps and same-crew overlaps stay refused.
+insert into people (id, kind, name) values ('25280000-0000-0000-0000-000000000f04', 'own', 'Worker Four'), ('25280000-0000-0000-0000-000000000f05', 'own', 'Worker Five');
+insert into work_order_crews (work_order_id, crew_id, valid_from, valid_to) values
+  ('25280000-0000-0000-0000-000000000402', '25280000-0000-0000-0000-000000000c02', '2026-11-01', '2026-11-10');
+insert into crew_members (crew_id, worker_id, valid_from, valid_to) values ('25280000-0000-0000-0000-000000000c01', '25280000-0000-0000-0000-000000000f04', '2026-11-08', '2026-11-09');
+select lives_ok($$ insert into crew_members (crew_id, worker_id, valid_from)
+                   values ('25280000-0000-0000-0000-000000000c02', '25280000-0000-0000-0000-000000000f04', '2026-11-09') $$,
+  'AC-CRW-002 ending in crew A on the 9th and starting in crew B on the 9th is accepted');
+select is((select count(*)::int from work_order_roster('25280000-0000-0000-0000-000000000402', '2026-11-09') r,
+                  jsonb_array_elements(r.members) m where m->>'worker_id' = '25280000-0000-0000-0000-000000000f04'), 1,
+  'AC-CRW-002 the host crew''s work order roster lists the worker that day');
+select is((select count(*)::int from work_order_roster('25280000-0000-0000-0000-000000000401', '2026-11-09') r,
+                  jsonb_array_elements(r.members) m where m->>'worker_id' = '25280000-0000-0000-0000-000000000f04'), 0,
+  'AC-CRW-002 the home crew''s work order roster no longer lists the worker that day');
+insert into crew_members (crew_id, worker_id, valid_from, valid_to) values ('25280000-0000-0000-0000-000000000c01', '25280000-0000-0000-0000-000000000f05', '2026-11-08', '2026-11-12');
+select throws_ok($$ insert into crew_members (crew_id, worker_id, valid_from)
+                    values ('25280000-0000-0000-0000-000000000c02', '25280000-0000-0000-0000-000000000f05', '2026-11-10') $$,
+  '23P01', null, 'AC-CRW-002 a longer cross-crew overlap is still refused');
+select throws_ok($$ insert into crew_members (crew_id, worker_id, valid_from, valid_to)
+                    values ('25280000-0000-0000-0000-000000000c02', '25280000-0000-0000-0000-000000000f04', '2026-11-09', '2026-11-09') $$,
+  '23P01', null, 'AC-CRW-002 an overlap inside the same crew is still refused');
 
 -- AC-CRW-014: an Engineer reads but cannot manage.
 select pg_temp.act_as('25280000-0000-0000-0000-0000000000a4');

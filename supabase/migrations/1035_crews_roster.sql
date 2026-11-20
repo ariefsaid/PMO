@@ -85,9 +85,14 @@ create table public.crew_members (
   version          integer not null default 1,
   created_at       timestamptz not null default now(),
   constraint crew_members_range check (valid_to is null or valid_to >= valid_from),
-  -- AC-CRW-002: a person is in at most one crew on any day (inclusive ranges, open end = forever).
+  -- AC-CRW-002: a person is in one crew on any day. Day-placement handover: a placement's last day yields to a
+  -- placement in another crew starting that day (the newer one wins the day, JOB-F6), so the range is [from, to)
+  -- (min one day); any longer cross-crew overlap, or two open placements, is still refused.
   constraint crew_members_no_overlap exclude using gist (
-    worker_id with =, daterange(valid_from, coalesce(valid_to, 'infinity'::date), '[]') with &&)
+    worker_id with =, daterange(valid_from, greatest(coalesce(valid_to, 'infinity'::date), valid_from + 1), '[)') with &&),
+  -- the same crew never double-books a person (inclusive, as before).
+  constraint crew_members_no_same_crew_overlap exclude using gist (
+    worker_id with =, crew_id with =, daterange(valid_from, coalesce(valid_to, 'infinity'::date), '[]') with &&)
 );
 create index crew_members_crew_dates_idx on public.crew_members (crew_id, valid_from, valid_to);
 create index crew_members_worker_dates_idx on public.crew_members (worker_id, valid_from, valid_to);
@@ -295,6 +300,9 @@ create function public.work_order_roster(p_work_order_id uuid, p_date date)
       from public.crew_members m join public.people_directory w on w.id = m.worker_id
      where m.crew_id in (select id from rostered)
        and p_date between m.valid_from and coalesce(m.valid_to, 'infinity'::date)
+       and not exists (select 1 from public.crew_members n   -- a newer placement covering the day wins (host crew)
+                        where n.worker_id = m.worker_id and n.id <> m.id and n.valid_from > m.valid_from
+                          and p_date between n.valid_from and coalesce(n.valid_to, 'infinity'::date))
   ), role_counts as (
     select s.crew_id, s.id, s.name, s.headcount, s.sort_order,
            (select count(*)::int from placed p where p.crew_id = s.crew_id and p.standard_role_id = s.id) as placed

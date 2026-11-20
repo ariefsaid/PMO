@@ -73,6 +73,9 @@ create or replace function public.work_order_roster(p_work_order_id uuid, p_date
       from public.crew_members m join public.people_directory w on w.id = m.worker_id
      where m.crew_id in (select id from rostered)
        and p_date between m.valid_from and coalesce(m.valid_to, 'infinity'::date)
+       and not exists (select 1 from public.crew_members n   -- a newer placement covering the day wins (host crew)
+                        where n.worker_id = m.worker_id and n.id <> m.id and n.valid_from > m.valid_from
+                          and p_date between n.valid_from and coalesce(n.valid_to, 'infinity'::date))
   ), role_counts as (
     select s.crew_id, s.id, s.name, s.headcount, s.sort_order,
            (select count(*)::int from placed p where p.crew_id = s.crew_id and p.standard_role_id = s.id) as placed
@@ -334,6 +337,9 @@ begin
       join public.work_order_crews ro on ro.crew_id = m.crew_id and ro.work_order_id = p_work_order_id
      where m.worker_id = r.worker_id and w.org_id = v_org
        and p_work_date between m.valid_from and coalesce(m.valid_to, 'infinity'::date)
+       and not exists (select 1 from public.crew_members n   -- the newer (host-crew) placement wins the day
+                        where n.worker_id = m.worker_id and n.id <> m.id and n.valid_from > m.valid_from
+                          and p_work_date between n.valid_from and coalesce(n.valid_to, 'infinity'::date))
        and p_work_date between ro.valid_from and coalesce(ro.valid_to, 'infinity'::date);
     if v_crew is null then
       raise exception 'ATT_NOT_ROSTERED: this person is not in a crew rostered on this work order that day'
