@@ -1,5 +1,23 @@
 # Record-Linked Tasks Implementation Plan (#2587)
 
+## Built on defaults (owner to confirm)
+
+Built to the spec's recommended defaults; each is one line to change.
+- **OD-RLT-1** Purchase end states are `Paid` and `Cancelled` only; `Rejected` is not an end state (the requester can rework it). Single list: `record_status_is_end()` in migration 1070.
+- **OD-RLT-2** v1 types: purchase, expense claim or advance, material request. Progress claims and time-and-material claims are later.
+- **OD-RLT-3** A record leaving an end state does not reopen its task; a new task for the record is allowed.
+- **OQ-RLT-1** "Claim" means expense claims only. No billing claims in v1.
+- **OQ-RLT-2** No notification when the system closes a task (the close is in My tasks and the task's history).
+- **OQ-RLT-3** A closed task keeps its link and closing reason visible (read-only history).
+
+Built as migrations **1070** (columns, checks, indexes, link guard, column pin, history registry) and **1071** (close function, record triggers, read function); rollbacks in `supabase/migrations/rollback/`. Test file: `supabase/tests/1070_record_linked_tasks.test.sql` (AC-RLT-012 is built here because #2531 shipped first: a check constraint refuses link plus proof-required either way).
+
+Deviations from the plan text, with the reason:
+- The system close is recognised by two things, not one: the linked record is itself in an end state (server truth) for the Done exception in `enforce_assignee_status_only`, and the close columns (`closed_by_*`) are writable only when `current_user` is the owner of the close function (no client role, no session value), so a client cannot forge a system close even as Admin.
+- Record history: `closed_by_record_type` is captured too (AC-RLT-010 needs the record type); `closed_by_record_at` is omitted.
+- Entry point for linking in the UI is the record page (create-from-record) and a "Stop following" control in the task drawer. A free record picker inside the task form is not built in this slice.
+- `materialRequest` joined the shared status map (`status` namespace) so a linked task reads the request's status in the request's own words.
+
 > Fresh Orca worker per slice; Opus builder, Director-dispatched (it adds a trigger path that changes task status). Spec: `docs/specs/record-linked-tasks.spec.md`. Sign OD-RLT-1..3 first. Read `0206_tasks_meeting_parent.sql` (the link-target pattern and the guard body), `0146_project_task_ownership.sql`, `0247_expense_claims.sql`, `1000_material_requests.sql`, `0260_record_change_history.sql`, and `docs/plans/2026-11-20-task-work-order-proof.md` (the other Done guard) before starting.
 
 ## Migration (number assigned by the Director; rollback file `supabase/migrations/rollback/<n>_record_linked_tasks_down.sql`)
