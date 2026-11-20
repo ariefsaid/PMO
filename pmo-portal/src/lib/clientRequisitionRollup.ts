@@ -117,3 +117,14 @@ export function rollupClientRequisitions(lines: CsrLine[], events: CsrEvent[]): 
     items: [...itemAcc.values()].map((t) => ({ itemId: t.itemId, itemName: t.itemName, unit: t.unit, ...figures(t.acc) })),
   };
 }
+
+/**
+ * The events the rollup sums: reservations and releases from the event log, collected quantity from the pickup rows
+ * (the same sources `csr_work_order_rollup` reads), so a pickup is counted once whatever else the log holds.
+ */
+export function rollupEvents(events: CsrEvent[], pickups: Array<{ lineId: string; quantity: string }>): CsrEvent[] {
+  return [
+    ...events.filter((e) => e.kind !== 'pickup'),
+    ...pickups.map((p): CsrEvent => ({ lineId: p.lineId, kind: 'pickup', quantity: p.quantity })),
+  ];
+}

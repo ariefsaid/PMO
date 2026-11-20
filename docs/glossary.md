@@ -661,6 +661,21 @@ on the decision.
 day is refused, with the earliest accepted date given; later dates are not affected. Checked on the server clock, not the
 browser's.
 
+### Client material requisitions (#2585)
+
+**Client material requisition** (*permintaan material klien*) - a request to the client to release material the organisation
+does not own, for one work order. Draft, Open (sent) or Cancelled. Different from a material request, which moves the
+organisation's own stock under an approval chain. Only quantities are tracked; no requisition holds an amount of money.
+
+**Take-off** (*take-off*) - the quantity of an item a work order needs, as typed or imported per requisition line.
+
+**Reservation (client material)** (*reservasi*) - the client's confirmation that a quantity is set aside, recorded with the
+client's own reference. Append-only; the client withdrawing part of it is a **release**. Reserved = reservations minus releases.
+
+**Pickup (client material)** (*pengambilan*) - the physical collection of reserved material. It posts one stock receipt at
+no cost into a site, yard or staging location of the work order's project, and cannot exceed what is still to collect.
+Still to collect = reserved minus collected; awaiting reservation = requested minus reserved, never below zero.
+
 ### Three-way match (#2525)
 
 **Three-way match** — an organisation switches it on (Admin) with a quantity and an amount tolerance in percent. From then,

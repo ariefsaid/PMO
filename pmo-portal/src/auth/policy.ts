@@ -53,7 +53,12 @@ export type Action =
   | 'revise'
   | 'link'
   | 'void'
-  | 'approve';
+  | 'approve'
+  | 'send'
+  | 'cancel'
+  | 'recordReservation'
+  | 'recordRelease'
+  | 'recordPickup';
 
 export type Entity =
   | 'project'
@@ -125,6 +130,7 @@ export type Entity =
   | 'warehouse'
   | 'stockDocument'
   | 'materialRequest'
+  | 'clientRequisition'
   | 'approvalChain'
   | 'standIn'
   | 'materialAllowance'
@@ -274,6 +280,10 @@ const stockMaster = () => ({
   delete: allowUnlessViewOnly(ADMIN),
 });
 
+const clientRequisitionAuthor: Predicate = (role, ctx) =>
+  has(ALL, role) && ctx.record?.viewOnly !== true &&
+  (role === 'Admin' || (!!ctx.currentUserId && ctx.record?.created_by === ctx.currentUserId));
+
 const allowanceWriter: Predicate = (role, ctx) =>
   ctx.record?.viewOnly !== true &&
   (has(MONEY_AUTHORITY, role) || (role === 'Project Manager' && !!ctx.currentUserId && ctx.record?.project_manager_id === ctx.currentUserId));
@@ -399,6 +409,25 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     decide: (role, ctx) =>
       has(ALL, role) && ctx.record?.viewOnly !== true && ctx.record?.inMyQueue === true &&
       !!ctx.currentUserId && ctx.record?.created_by !== ctx.currentUserId,
+  },
+  /**
+   * Client material requisitions (#2585, migrations 1086/1087; spec docs/specs/client-material-requisitions.spec.md).
+   * Mirrors the csr_* RPCs: every member raises one; the author (or an Admin) edits, sends and cancels it (cancel not once
+   * a pickup is posted, `record.hasPickup`); Project Manager and above record the client's reservation or release on an
+   * open requisition; the keeper of the receiving location (`record.isKeeper`, supplied by the screen) or an Admin records
+   * a pickup. View-as sessions are view-only. UX only: the RPCs are the authority.
+   */
+  clientRequisition: {
+    view: allow(ALL),
+    create: allowUnlessViewOnly(ALL),
+    edit: (role, ctx) => clientRequisitionAuthor(role, ctx) && ctx.record?.status === 'draft',
+    send: (role, ctx) => clientRequisitionAuthor(role, ctx) && ctx.record?.status === 'draft',
+    cancel: (role, ctx) =>
+      clientRequisitionAuthor(role, ctx) && (ctx.record?.status === 'draft' || ctx.record?.status === 'open') && ctx.record?.hasPickup !== true,
+    recordReservation: (role, ctx) => has(MASTER_DATA, role) && ctx.record?.viewOnly !== true && ctx.record?.status === 'open',
+    recordRelease: (role, ctx) => has(MASTER_DATA, role) && ctx.record?.viewOnly !== true && ctx.record?.status === 'open',
+    recordPickup: (role, ctx) =>
+      has(ALL, role) && ctx.record?.viewOnly !== true && ctx.record?.status === 'open' && (ctx.record?.isKeeper === true || role === 'Admin'),
   },
   /** The org's approval chain and daily cut-off (FR-MRQ-005/014): Admin only, mirroring mrq_set_chain / mrq_set_cutoff. */
   approvalChain: { view: allow(ALL), manage: allowUnlessViewOnly(ADMIN) },

@@ -302,6 +302,10 @@ select plan(7);
 -- ⚑ AMENDED BY 1030 (#2523): `archive_stock_document_file` joins the retained set (+1, count 224 = 217 + 7, counted from the list).
 -- SECURITY DEFINER writer under a member's JWT (stockSiteWork.ts); re-asserts active membership, the caller's org and
 -- stock_can_attach; proven by the 1030 stock document files pgTAP.
+-- ⚑ AMENDED BY 1087 (#2585): `csr_create`, `csr_update_draft`, `csr_send`, `csr_cancel`, `csr_record_reservation`, `csr_record_release`
+-- and `csr_record_pickup` join the retained set (+7, count 231 = 224 + 7, counted from the list). SECURITY DEFINER writers under a member's
+-- JWT (clientRequisitions.ts); each re-asserts active membership, the caller's org and its role gate (author or Admin; Project Manager or
+-- above; the receiving location's keeper or Admin); proven by supabase/tests/csr_requisition.test.sql and csr_pickup.test.sql.
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
 -- Retained names: union of every merged branch's inventory; the AC-ACL-002/003 counts are counted from this list.
 insert into client_callable_rpc_names (proname) values
@@ -492,6 +496,13 @@ insert into client_callable_rpc_names (proname) values
   ('mrq_submit'),
   ('mrq_decide_step'),
   ('mrq_cancel'),
+  ('csr_create'),  -- ⚑ AMENDED BY 1087 (#2585): the seven client-requisition writers; csr_record_pickup posts a zero-cost receipt through create_stock_document (csr_pickup.test.sql)
+  ('csr_update_draft'),
+  ('csr_send'),
+  ('csr_cancel'),
+  ('csr_record_reservation'),
+  ('csr_record_release'),
+  ('csr_record_pickup'),
   ('dsr_save_draft'),
   ('dsr_submit'),
   ('dsr_validate'),
@@ -550,8 +561,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  224,
-  'AC-ACL-002 all 224 retained client-callable RPC names still have a public function');
+  231,
+  'AC-ACL-002 all 231 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -560,8 +571,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  224,
-  'AC-ACL-003 all 224 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  231,
+  'AC-ACL-003 all 231 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

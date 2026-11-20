@@ -2240,6 +2240,198 @@ export type Database = {
           },
         ]
       }
+      client_requisition_events: {
+        Row: {
+          client_reference: string | null
+          client_request_id: string | null
+          created_at: string
+          event_on: string | null
+          id: string
+          kind: string
+          line_id: string | null
+          org_id: string
+          pickup_id: string | null
+          quantity: number | null
+          reason: string | null
+          recorded_by: string | null
+          requisition_id: string
+          seq: number
+        }
+        Insert: {
+          client_reference?: string | null
+          client_request_id?: string | null
+          created_at?: string
+          event_on?: string | null
+          id?: string
+          kind: string
+          line_id?: string | null
+          org_id?: string
+          pickup_id?: string | null
+          quantity?: number | null
+          reason?: string | null
+          recorded_by?: string | null
+          requisition_id: string
+          seq?: number
+        }
+        Update: {
+          client_reference?: string | null
+          client_request_id?: string | null
+          created_at?: string
+          event_on?: string | null
+          id?: string
+          kind?: string
+          line_id?: string | null
+          org_id?: string
+          pickup_id?: string | null
+          quantity?: number | null
+          reason?: string | null
+          recorded_by?: string | null
+          requisition_id?: string
+          seq?: number
+        }
+        Relationships: []
+      }
+      client_requisition_lines: {
+        Row: {
+          id: string
+          line_no: number
+          org_id: string
+          requested_quantity: number
+          requisition_id: string
+          stock_item_id: string
+          takeoff_quantity: number
+          unit_code: string
+          work_order_line_id: string | null
+        }
+        Insert: {
+          id?: string
+          line_no: number
+          org_id?: string
+          requested_quantity: number
+          requisition_id: string
+          stock_item_id: string
+          takeoff_quantity: number
+          unit_code: string
+          work_order_line_id?: string | null
+        }
+        Update: {
+          id?: string
+          line_no?: number
+          org_id?: string
+          requested_quantity?: number
+          requisition_id?: string
+          stock_item_id?: string
+          takeoff_quantity?: number
+          unit_code?: string
+          work_order_line_id?: string | null
+        }
+        Relationships: []
+      }
+      client_requisition_pickups: {
+        Row: {
+          client_request_id: string | null
+          collector: string | null
+          created_at: string
+          id: string
+          line_id: string
+          org_id: string
+          paper_reference: string | null
+          picked_up_on: string
+          quantity: number
+          recorded_by: string
+          requisition_id: string
+          stock_document_id: string
+          warehouse_id: string
+        }
+        Insert: {
+          client_request_id?: string | null
+          collector?: string | null
+          created_at?: string
+          id?: string
+          line_id: string
+          org_id?: string
+          paper_reference?: string | null
+          picked_up_on: string
+          quantity: number
+          recorded_by: string
+          requisition_id: string
+          stock_document_id: string
+          warehouse_id: string
+        }
+        Update: {
+          client_request_id?: string | null
+          collector?: string | null
+          created_at?: string
+          id?: string
+          line_id?: string
+          org_id?: string
+          paper_reference?: string | null
+          picked_up_on?: string
+          quantity?: number
+          recorded_by?: string
+          requisition_id?: string
+          stock_document_id?: string
+          warehouse_id?: string
+        }
+        Relationships: []
+      }
+      client_requisitions: {
+        Row: {
+          cancelled_at: string | null
+          cancelled_by: string | null
+          client_reference: string | null
+          client_request_id: string | null
+          created_at: string
+          created_by: string
+          id: string
+          number: string
+          org_id: string
+          project_id: string
+          send_request_id: string | null
+          sent_at: string | null
+          sent_by: string | null
+          status: string
+          updated_at: string
+          work_order_id: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          client_reference?: string | null
+          client_request_id?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          number: string
+          org_id?: string
+          project_id: string
+          send_request_id?: string | null
+          sent_at?: string | null
+          sent_by?: string | null
+          status?: string
+          updated_at?: string
+          work_order_id: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          client_reference?: string | null
+          client_request_id?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          number?: string
+          org_id?: string
+          project_id?: string
+          send_request_id?: string | null
+          sent_at?: string | null
+          sent_by?: string | null
+          status?: string
+          updated_at?: string
+          work_order_id?: string
+        }
+        Relationships: []
+      }
       companies: {
         Row: {
           archived_at: string | null
@@ -13522,6 +13714,56 @@ export type Database = {
           role: Database["public"]["Enums"]["user_role"]
           step_position: number
           submitted_at: string
+        }[]
+      }
+      csr_cancel: { Args: { p_reason?: string; p_requisition_id: string }; Returns: undefined }
+      csr_create: { Args: { p_client_request_id?: string; p_header: Json; p_lines: Json }; Returns: string }
+      csr_record_pickup: {
+        Args: {
+          p_client_request_id?: string
+          p_collector?: string
+          p_line_id: string
+          p_paper_reference?: string
+          p_picked_up_on?: string
+          p_quantity: number
+          p_warehouse_id: string
+        }
+        Returns: string
+      }
+      csr_record_release: {
+        Args: { p_client_request_id?: string; p_line_id: string; p_quantity: number; p_reason: string }
+        Returns: string
+      }
+      csr_record_reservation: {
+        Args: {
+          p_client_reference: string
+          p_client_request_id?: string
+          p_line_id: string
+          p_note?: string
+          p_quantity: number
+          p_reserved_on?: string
+        }
+        Returns: string
+      }
+      csr_send: { Args: { p_client_request_id?: string; p_requisition_id: string }; Returns: undefined }
+      csr_update_draft: { Args: { p_header: Json; p_lines: Json; p_requisition_id: string }; Returns: undefined }
+      csr_work_order_rollup: {
+        Args: { p_work_order_id: string }
+        Returns: {
+          awaiting_reservation: number
+          collected: number
+          item_code: string
+          item_name: string
+          line_id: string
+          requested_quantity: number
+          requisition_id: string
+          requisition_number: string
+          requisition_status: string
+          reserved: number
+          still_to_collect: number
+          stock_item_id: string
+          takeoff_quantity: number
+          unit_code: string
         }[]
       }
       accept_equipment_asset_matches: { Args: { p_pairs: Json }; Returns: Json }

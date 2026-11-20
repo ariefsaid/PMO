@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   rollupClientRequisitions,
+  rollupEvents,
   type CsrLine,
   type CsrEvent,
 } from '../clientRequisitionRollup';
@@ -89,5 +90,14 @@ describe('item awaiting reservation', () => {
     const b: CsrLine = { ...line, id: 'b', requestedQuantity: '10', takeoffQuantity: '10' };
     const r = rollupClientRequisitions([a, b], [{ lineId: 'a', kind: 'reserved', quantity: '15' }]);
     expect(r.items[0].awaitingReservation).toBe('10');
+  });
+});
+
+describe('rollupEvents', () => {
+  it('AC-CSR-001 collected comes from the pickup rows, once, whatever pickup events the log also holds', () => {
+    const merged = rollupEvents(events, [{ lineId: 'l1', quantity: '50' }]);
+    expect(merged.filter((e) => e.kind === 'pickup')).toHaveLength(1);
+    const r = rollupClientRequisitions([line], merged);
+    expect(r.lines[0]).toMatchObject({ reserved: '70', collected: '50', stillToCollect: '20', awaitingReservation: '30' });
   });
 });
