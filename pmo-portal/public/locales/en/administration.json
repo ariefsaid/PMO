@@ -356,7 +356,7 @@
       "retryFailed": "We could not send it again. Try again in a moment.",
       "unnamed": "A record",
       "addPeople": "Add these people in the ERP. It asks for a birth date and gender, which PMO does not hold.",
-      "accountantTask": "Ask your accountant to add a direct-cost account for: {{categories}}",
+      "accountantTask": "A direct-cost account is missing for: {{categories}}. Your operator will add it.",
       "refusal": {
         "unknown": "We could not send this record. Check it in the ERP, then try again.",
         "noun": {

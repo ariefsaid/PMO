@@ -356,7 +356,7 @@
       "retryFailed": "Kami tidak dapat mengirim ulang. Coba lagi sebentar lagi.",
       "unnamed": "Sebuah data",
       "addPeople": "Tambahkan orang-orang ini di ERP. ERP meminta tanggal lahir dan jenis kelamin, yang tidak dimiliki PMO.",
-      "accountantTask": "Minta akuntan Anda menambahkan akun biaya langsung untuk: {{categories}}",
+      "accountantTask": "Akun biaya langsung belum ada untuk: {{categories}}. Operator akan menambahkannya.",
       "refusal": {
         "unknown": "Kami tidak dapat mengirim data ini. Periksa di ERP, lalu coba lagi.",
         "noun": {
