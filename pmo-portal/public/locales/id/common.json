@@ -1352,15 +1352,6 @@
       "summary": "{{label}}, {{total}} {{noun}}, terbanyak pada {{status}}."
     },
     "delivery": {},
-    "engineer": {
-      "noHours": "Belum ada jam kerja minggu ini",
-      "entriesEmptySub": "Jam yang Anda catat akan muncul di sini.",
-      "noNote": "Tidak ada catatan",
-      "unknownProject": "Tidak diketahui",
-      "hoursShort": "{{hours}} jam",
-      "hoursSpoken": "{{hours}} {{unit}}",
-      "hoursUnit": "jam"
-    },
     "snapshots": {
       "unavailable": "Belum ada snapshot akuntansi yang disinkronkan.",
       "guidance": "Minta administrator menyinkronkan data akuntansi."

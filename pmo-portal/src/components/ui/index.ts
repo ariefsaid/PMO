@@ -13,7 +13,7 @@ export { Switch, type SwitchProps } from './Switch';
 export { TaxBasisLabel, type TaxBasisLabelProps } from './TaxBasisLabel';
 export { RecordReference, type RecordReferenceProps } from './RecordReference';
 export { StatusPill, Badge, type StatusVariant, type StatusPillProps, type BadgeProps } from './StatusPill';
-export { Card, CardHead, CardPad, CardFoot, type CardProps, type CardHeadingLevel } from './Card';
+export { Card, CardHead, CardPad, type CardProps, type CardHeadingLevel } from './Card';
 export { KPITile, KPIRow, type KPIRowProps, type KPITileProps, type KPITone, type KPIDelta } from './KPITile';
 export { LateText, type LateTextProps } from './LateText';
 export { isMostUrgentLateRow } from './lateTextRows';
@@ -82,12 +82,10 @@ export { ApprovalRow, type ApprovalRowProps } from './ApprovalRow';
 export { ProjectNameLink, type ProjectNameLinkProps } from './ProjectNameLink';
 export { CompanyNameLink, type CompanyNameLinkProps } from './CompanyNameLink';
 export { ContactNameLink, type ContactNameLinkProps } from './ContactNameLink';
-export { HoursBar, type HoursBarProps } from './HoursBar';
 export { RecordActionZone, type RecordActionZoneProps } from './RecordActionZone';
 export { MobileActionBar } from './MobileActionBar';
 export { MobileDecisionBar, type MobileDecisionAction, type MobileDecisionBarProps } from './MobileDecisionBar';
 export { MobileActionStrip, type MobileActionStripProps } from './MobileActionStrip';
-export { EntryList, type EntryListProps } from './EntryList';
 
 // --- CRUD form primitives (Phase 1, crud-components §2) ---
 export {

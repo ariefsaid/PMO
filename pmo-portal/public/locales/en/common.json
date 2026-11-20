@@ -1352,15 +1352,6 @@
       "summary": "{{label}}, {{total}} {{noun}}, most in {{status}}."
     },
     "delivery": {},
-    "engineer": {
-      "noHours": "No hours logged this week",
-      "entriesEmptySub": "Hours you log will show up here.",
-      "noNote": "No note",
-      "unknownProject": "Unknown",
-      "hoursShort": "{{hours}}h",
-      "hoursSpoken": "{{hours}} {{unit}}",
-      "hoursUnit": "hours"
-    },
     "snapshots": {
       "unavailable": "No accounting snapshot has been synced yet.",
       "guidance": "Ask your administrator to sync accounting data."
