@@ -24,6 +24,15 @@
  * withheld button with no route out is a dead end (the C-3 lesson, applied to error copy).
  */
 
+import i18next from 'i18next';
+import { applyOrgTerms, getOrgTerms } from '@/src/lib/i18n/orgTerms';
+
+const translateCopy = (text: string): string => {
+  const locale = i18next.resolvedLanguage ?? i18next.language ?? 'en';
+  const terms = getOrgTerms();
+  return locale.startsWith('id') ? applyOrgTerms(text, 'en', { en: terms.id }) : applyOrgTerms(text, 'en', terms);
+};
+
 export interface PushErrorCopy {
   /** The classified code, for logic/tests. `null` when nothing was recorded. */
   code: string | null;
@@ -427,10 +436,10 @@ export function describePushError(raw: string | null | undefined): PushErrorCopy
   if (entry) {
     return {
       code,
-      message: account ? `${entry.message} Account: ${account}.` : entry.message,
+      message: account ? `${translateCopy(entry.message)} Account: ${account}.` : translateCopy(entry.message),
       retryable: entry.retryable,
       transport: entry.transport ?? false,
-      remedy: entry.remedy ?? null,
+      remedy: entry.remedy ? translateCopy(entry.remedy) : null,
       ...(entry.severity ? { severity: entry.severity } : {}),
     };
   }

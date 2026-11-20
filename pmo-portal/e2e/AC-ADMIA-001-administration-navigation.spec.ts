@@ -28,6 +28,7 @@ const ADMIN = 'admin@acme.test';
 
 const ORGANIZATION_SECTIONS = [
   { name: 'Users', url: '/administration/users', testid: 'administration-panel-users', heading: 'Users' },
+  { name: 'People', url: '/administration/people', testid: 'administration-panel-people', heading: 'People' },
   {
     name: 'Organization integrations',
     url: '/administration/integrations',
@@ -50,6 +51,8 @@ const ORGANIZATION_SECTIONS = [
 const EXPECTED_ORGANIZATION_LINKS = [
   ...ORGANIZATION_SECTIONS.map(({ name }) => name),
   'Your plan',
+  // #2529 deliberately adds the org terminology settings.
+  'Terminology',
   'Cost attribution',
 ];
 

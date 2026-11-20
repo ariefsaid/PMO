@@ -1,6 +1,6 @@
 # Spec: Material requests against a work order (#2524)
 
-**Status:** proposed; owner decisions below need sign-off before build. IDs `FR-MRQ-###`, `NFR-MRQ-###`, `AC-MRQ-###`. Plan: `docs/plans/2026-11-20-material-requests.md`. Executor: Director-dispatched (approval order, stand-in and stock transfer are SoD and stock paths; ships alone). Map #2516; blocked by #2517 (work order on every cost line) and #2523 (read for its stock-to-work-order contract before build).
+**Status:** accepted (Director rulings 2026-11-20). IDs `FR-MRQ-###`, `NFR-MRQ-###`, `AC-MRQ-###`. Plan: `docs/plans/2026-11-20-material-requests.md`. Executor: Director-dispatched (approval order, stand-in and stock transfer are SoD and stock paths; ships alone). Map #2516; blocked by #2517 (work order on every cost line) and #2523 (read for its stock-to-work-order contract before build).
 
 ## Job story
 
@@ -16,7 +16,7 @@ When a site needs material for a work order, I want to request items and quantit
 
 **Request**
 - FR-MRQ-001 The system shall let an authorized user create a request for one work order with one or more lines (stock item, quantity, unit) and a needed-by date.
-- FR-MRQ-002 Each line shall show planned quantity, quantity already requested/transferred, and the new total. When the new total exceeds plan, the line shall require a reason (1 to 500 characters); the server rejects an over-plan line without one.
+- FR-MRQ-002 Each line shall show planned quantity, quantity already requested/transferred, and the new total. When the new total exceeds plan, the line shall require a reason (1 to 500 characters); the server rejects an over-plan line without one. In the material-request server slice, prior quantity is the quantity on pending, approved and fulfilled material requests. Once site stock (#2523) lands, prior quantity shall be posted stock movements on the work order plus pending or approved requests not yet fulfilled; fulfilled requests are represented by their movements and shall not be counted again.
 - FR-MRQ-003 The request shall hold a status: `draft`, `pending`, `approved`, `rejected`, `cancelled`, `fulfilled`. Items, quantities and the needed-by date are editable only in `draft` or after a return (FR-MRQ-012).
 - FR-MRQ-004 Create and submit shall be idempotent on a client-generated `client_request_id`.
 
@@ -24,7 +24,7 @@ When a site needs material for a work order, I want to request items and quantit
 - FR-MRQ-005 The system shall let an Admin define, per organisation, an **ordered approval chain** of steps, each naming a role and a purpose label (e.g. engineer: plan vs requested; construction: billable change; material coordinator: stock). A step may be marked "only when over plan" (OD-MRQ-2).
 - FR-MRQ-006 When a request is submitted, the system shall snapshot the applicable steps onto it; later chain edits do not change in-flight requests.
 - FR-MRQ-007 The system shall present a step to users who hold its role and have access to the work order's project; steps are taken **in order**; step n+1 opens only after step n is approved.
-- FR-MRQ-008 Each step decision shall be `approve` or `return`/`reject` with a reason for the latter; the decider's identity and time are stored. A user shall not decide a step on a request they created, and shall not decide two steps of the same request (server-enforced SoD).
+- FR-MRQ-008 Each step decision shall be `approve` or `return`/`reject` with a reason for the latter; the decider's identity and time are stored. A user shall not decide a step on a request they created, and shall not decide two different steps of the same request across its rounds (server-enforced SoD). After a return, the same person may decide the same step again; a step is the same only when its position, role and label all match the earlier snapshot. A renamed, reordered or otherwise changed step counts as different, so the restriction errs strict after chain edits.
 - FR-MRQ-009 A user may name a **stand-in** for a date range; the stand-in must be an active same-organisation user and may act on steps of the delegator's role in that range. A stand-in is not recorded as the delegator; both identities are stored. A stand-in cannot be the request's author and chains of stand-ins are not followed (one hop).
 - FR-MRQ-010 A step's decider may be a stand-in only if the delegation was active at decision time, checked server-side.
 - FR-MRQ-011 When the final step is approved, the system shall in one transaction mark the request `approved` and create a stock transfer draft carrying the request's lines, the work order (as project/work-order reference via #2517) and a link to the request; the delivery document is that transfer's printable document. If creation fails, the request stays at the last step and the error is shown.
@@ -34,6 +34,9 @@ When a site needs material for a work order, I want to request items and quantit
 **Cut-off**
 - FR-MRQ-014 Where the organisation sets a **daily cut-off time** (time of day in project-local time, optional), a request needed-by the next calendar day shall be accepted only when submitted before the cut-off; otherwise it shall be refused with the earliest accepted date. A request for later dates is unaffected. With no cut-off set, nothing is refused.
 - FR-MRQ-015 Cut-off is evaluated server-side at submission using server time and the project's time zone; the client display is advisory.
+
+- FR-MRQ-020 (#2571) When a new request form opens, the system shall default the needed-by date to the day after today in the organisation's calendar (the organisation time zone), and the earliest pickable date shall be today in that calendar, never the browser's or UTC's date.
+- FR-MRQ-021 (#2571) The daily cut-off control shall be shown only to roles allowed to change it (the Admin role, matching the database rule); other roles shall not see it.
 
 **Access, lists, audit**
 - FR-MRQ-016 Actions (create, submit, approve-step, manage chain, manage stand-in, view) shall be registered in the role matrix (#902); `can()` gates UI; RLS/RPC enforce. A field controller may create and submit for work orders in their scope.
@@ -65,6 +68,8 @@ When a site needs material for a work order, I want to request items and quantit
 | AC-MRQ-013 | Given pending requests across roles, when an approver opens "waiting for me", then only their open steps (and those they stand in for) appear. | Unit + pgTAP |
 | AC-MRQ-014 | Given a user in another organisation, when they read or act, then refused. | pgTAP |
 | AC-MRQ-015 | Given a field controller on a phone, when they raise an over-plan request and three approvers act in order, then a transfer draft with its delivery document is reachable from the request. | E2E (one journey) |
+| AC-MRQ-020 | Given a non-Admin and an Admin, when each opens the approval settings, then only the Admin sees the cut-off control and its save button. | Unit |
+| AC-MRQ-021 | Given 23:30 UTC on the 20th and an organisation in UTC+7, when a new request opens, then needed-by defaults to the 22nd (and to the 21st for a UTC-8 organisation), and the saved draft carries that date. | Unit |
 
 ## Errors
 | Condition | Result |
@@ -75,7 +80,7 @@ When a site needs material for a work order, I want to request items and quantit
 | Transfer creation fails | Request stays pending at last step; error shown; retry |
 | No user holds the open step's role | Queue shows "no approver"; Admin can reassign role holders, not approve |
 
-## Owner decisions (recommended defaults, not rulings)
+## Owner decisions (accepted 2026-11-20)
 | ID | Decision and default | If wrong, what breaks |
 |---|---|---|
 | OD-MRQ-1 | Chain is organisation-wide, ordered; per-project override is out of scope. | Different projects needing different chains cannot be modelled. |
@@ -84,10 +89,12 @@ When a site needs material for a work order, I want to request items and quantit
 | OD-MRQ-4 | Stand-in: one hop, date-ranged, set by the delegator or an Admin. | Open-ended or chained delegation lets approval drift to unreviewed people. |
 | OD-MRQ-5 | Approved request creates a transfer **draft**; the keeper posts. | Auto-post changes stock and valuation unchecked. |
 | OD-MRQ-6 | Cut-off applies to next-day needed-by only, one time for the organisation. | Per-project or per-category cut-offs are not covered. |
-| OQ-MRQ-1 | What is "plan" for a material (BoQ material line, budget line, or a work-order material list)? Confirm with #2523/#2517. | Over-plan test compares to the wrong number. |
-| OQ-MRQ-2 | Which warehouse is the source of the transfer: chosen on the request, or by the coordinator at the last step? Default: coordinator picks at the stock step. | Wrong source warehouse on the delivery document. |
+| OQ-MRQ-1 | **Answered:** plan = the work order's allocated contract (BoQ) material quantity. | Over-plan test compares to the wrong number. |
+| OQ-MRQ-2 | **Accepted:** coordinator picks the source warehouse at the stock step. | Wrong source warehouse on the delivery document. |
+
+**Build check (OQ-MRQ-1 vs migrations 1000-1001):** `mrq_plan_quantity` takes the BoQ material allowance per BoQ line, prorated by the work order's share of that BoQ line's quantity, not the raw BoQ quantity. No allowance means plan 0, so any request is over plan. Matches the answer in spirit (allocated share of the contract quantity); the spec does not yet say the proration or the zero-plan rule.
 
 ## Delivery checklist
-- [ ] Owner signs OD-MRQ-1..6; answer OQ-MRQ-1..2; read #2523.
+- [x] Owner signs OD-MRQ-1..6; answer OQ-MRQ-1..2; read #2523.
 - [ ] Server slice with pgTAP and mutation checks ships alone; UI slice follows.
 - [ ] Glossary: material request, approval chain, stand-in, cut-off.

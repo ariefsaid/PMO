@@ -26,6 +26,7 @@ const { listState, profilesState, mutations } = vi.hoisted(() => ({
   },
 }));
 
+vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [{ id: 'wo1', wo_number: 'WO-1', title: 'Order' }] }) }));
 vi.mock('@/src/hooks/useTasks', () => ({
   useTasks: () => listState,
   useAssignableProfiles: () => profilesState,
@@ -41,6 +42,7 @@ vi.mock('@/src/hooks/useMilestones', () => ({
   }),
 }));
 vi.mock('@/src/components/comments/CommentsSection', () => ({ CommentsSection: () => <div>Task comments</div> }));
+vi.mock('@/src/components/tasks/TaskProofPanel', () => ({ TaskProofPanel: ({ proofRequired }: { proofRequired: boolean }) => <div>{proofRequired ? 'Required proof' : 'Optional proof'}</div> }));
 vi.mock('@/src/components/history/RecordHistory', () => ({ RecordHistory: () => <div>Task history</div> }));
 
 let realRole: Role = 'Project Manager';
@@ -111,6 +113,23 @@ beforeEach(() => {
 });
 
 describe('TasksTab — row click opens the shared task drawer (AC-1402)', () => {
+  it('AC-TWOP-007 filters project tasks by work order and none', async () => {
+    listState.data = [{ ...seed[0], work_order_id: 'wo1' }, { ...seed[0], id: 't2', name: 'Unlinked task', work_order_id: null }];
+    renderTab();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Filter by work order' }), 'wo1');
+    expect(screen.getByText('Survey the site')).toBeInTheDocument();
+    expect(screen.queryByText('Unlinked task')).not.toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Filter by work order' }), 'none');
+    expect(screen.getByText('Unlinked task')).toBeInTheDocument();
+    expect(screen.queryByText('Survey the site')).not.toBeInTheDocument();
+  });
+
+  it('offers optional attachments on a task that does not require proof', async () => {
+    renderTab('Project Manager');
+    await userEvent.click(screen.getByText('Survey the site').closest('tr')!);
+    expect(await screen.findByText('Optional proof')).toBeInTheDocument();
+  });
+
   it('AC-1402: clicking a task row opens the shared drawer with details, comments, history and full record link', async () => {
     renderTab('Project Manager');
     await userEvent.click(screen.getByText('Survey the site').closest('tr')!);

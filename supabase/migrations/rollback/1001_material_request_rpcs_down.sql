@@ -1,0 +1,21 @@
+-- Reverses 1001_material_request_rpcs.sql. Run before 1000's rollback. Loses no business rows.
+drop trigger if exists zz_material_request_transfer_status on public.stock_documents;
+drop function if exists public.mrq_on_transfer_status();
+drop function if exists public.mrq_plan_for(uuid, uuid[], uuid);
+drop function if exists public.mrq_waiting_for_me();
+drop function if exists public.mrq_cancel(uuid, text);
+drop function if exists public.mrq_retry_transfer(uuid, uuid);
+drop function if exists public.mrq_decide_step(uuid, integer, text, text, uuid);
+drop function if exists public.mrq_submit(uuid, uuid);
+drop function if exists public.mrq_save_draft(uuid, jsonb, jsonb, uuid);
+drop function if exists public.mrq_revoke_stand_in(uuid);
+drop function if exists public.mrq_set_stand_in(uuid, uuid, date, date);
+drop function if exists public.mrq_set_cutoff(time);
+drop function if exists public.mrq_set_chain(jsonb);
+drop function if exists public.mrq_create_transfer_core(uuid, uuid);
+drop function if exists public.mrq_validate_lines(uuid, jsonb);
+drop function if exists public.mrq_log(public.material_requests, text, text, text, integer, uuid, uuid, text);
+drop function if exists public.mrq_step_authority(uuid, uuid, public.user_role, uuid);
+drop function if exists public.mrq_cutoff_earliest(time, text, date, timestamptz);
+drop function if exists public.mrq_prior_quantity(uuid, uuid, uuid);
+drop function if exists public.mrq_plan_quantity(uuid, uuid);

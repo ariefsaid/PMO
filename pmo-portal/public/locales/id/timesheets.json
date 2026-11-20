@@ -27,7 +27,8 @@
   "discardWeek": {
     "title": "Buang perubahan yang belum disimpan?",
     "description": "Jam minggu ini yang belum disimpan akan dibuang.",
-    "confirm": "Buang perubahan"
+    "confirm": "Buang perubahan",
+    "descriptionInvalid": "Sebagian jam tidak valid dan tidak dapat disimpan. Pindah ke minggu lain membuang semua yang Anda ketik di minggu ini."
   },
   "discardHours": {
     "title": "Buang jam yang belum disimpan?",
@@ -54,5 +55,10 @@
   },
   "footer": {
     "fixHoursToSubmit": "Perbaiki jam yang ditandai merah untuk mengajukan"
+  },
+  "saveState": {
+    "saving": "Menyimpan…",
+    "invalid": "Perbaiki jam yang ditandai merah agar bisa disimpan",
+    "failed": "Gagal menyimpan. Jam Anda tetap ada: coba lagi."
   }
 }

@@ -79,7 +79,6 @@
     "retryCheck": "Check setup again",
     "operatorHandoff": "Open accounting setup",
     "noDomains": "No connected information is currently updating from ERPNext",
-    "m365ApprovalDescription": "Only if Microsoft asks for organization approval.",
     "organizationScope": "Personal connections: "
   },
   "uxs14": {
@@ -2079,9 +2078,8 @@
       "note": "Approval for this procurement is routed to {{names}}: {{why}}",
       "nameJoiner": " or ",
       "why": {
-        "projectApprover": "they are the approver set for this project.",
         "withinBudget": "it is within the project's {{category}} budget.",
-        "exceedsLine": "it would take the project's {{category}} budget over its limit.",
+        "exceedsLine": "it would take the project's {{category}} budget over its limit, counting what is already spent.",
         "noProject": "it is overhead spend, not charged to a project.",
         "noCategory": "it has no budget category, so it cannot be checked against the project budget.",
         "noActiveBudget": "the project has no active budget.",
@@ -3586,7 +3584,6 @@
     },
     "m365OrgApproval": {
       "heading": "Microsoft 365",
-      "badge": "Organization approval",
       "approve": "Approve in Microsoft 365",
       "approving": "Opening Microsoft 365…",
       "errorFallback": "Could not start Microsoft 365 organization approval."

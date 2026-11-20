@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ListPage, ListState, DataTable, StatusPill, ConfirmDialog, EntityFormModal, TextField, TextArea, SelectField, FormGrid,
@@ -13,6 +13,9 @@ import { useProjectIdentity } from '@/src/hooks/useProjects';
 import {
   useStockUnits, useStockItems, useStockWarehouses, useStockKeepers, useStockKeeperCandidates, useStockMasterMutations, useStockOnHand,
 } from '@/src/hooks/useStock';
+import { useStockTags } from '@/src/hooks/useStockSiteWork';
+import { StockTagsPanel } from './StockTagsPanel';
+import { isOwnershipCacheSynced, routeDomainWrite, subscribeOwnershipCache } from '@/src/lib/adapterSeam/ownershipCache';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { parseStockError } from '@/src/lib/stockErrors';
 import { useUrlFilters } from '@/src/components/ui/useUrlFilters';
@@ -53,6 +56,9 @@ const StockSetup: React.FC = () => {
   const showArchived = filters.archived === 'true';
   const setTab = (next: Tab) => setFilter('tab', next === 'units' ? '' : next);
   const setShowArchived = (next: boolean) => setFilter('archived', next ? 'true' : '');
+  const ownership = useSyncExternalStore(subscribeOwnershipCache, () => isOwnershipCacheSynced() ? routeDomainWrite('inventory') : 'unknown');
+  const tagsEnabled = ownership === 'pmo';
+  const [tagsOpen, setTagsOpen] = useState(false);
   const [form, setForm] = useState<{ tab: Tab; row: StockUnitRow | StockItemRow | StockWarehouseRow | null } | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<{ tab: Tab; id: string; archived: boolean } | null>(null);
   const [keepersFor, setKeepersFor] = useState<StockWarehouseRow | null>(null);
@@ -60,6 +66,7 @@ const StockSetup: React.FC = () => {
   const units = useStockUnits(showArchived);
   const allUnits = useStockUnits(true);
   const items = useStockItems(showArchived);
+  const itemTags = useStockTags(true, tab === 'items' && tagsEnabled);
   const warehouses = useStockWarehouses(showArchived);
   const keepers = useStockKeepers();
   const people = useStockKeeperCandidates();
@@ -75,6 +82,7 @@ const StockSetup: React.FC = () => {
   const canKeepers = may('manage', 'warehouse', ctx);
 
   const unitName = useMemo(() => new Map((allUnits.data ?? []).map((u) => [u.id, u.name])), [allUnits.data]);
+  const tagName = useMemo(() => new Map((itemTags.data ?? []).map((tag) => [tag.id, tag.name])), [itemTags.data]);
   const projectName = useMemo(() => new Map((projects.data ?? []).map((p) => [p.id, p.name])), [projects.data]);
   const personName = useMemo(() => new Map((people.data ?? []).map((p) => [p.id, p.full_name ?? ''])), [people.data]);
   const onHandByItem = useMemo(() => {
@@ -91,7 +99,7 @@ const StockSetup: React.FC = () => {
   const query = tab === 'units' ? units : tab === 'items' ? items : warehouses;
   const rows = (query.data ?? []) as Array<StockUnitRow | StockItemRow | StockWarehouseRow>;
   // A tab's cells read lookups too (unit names, keepers, people, projects): any failed lookup is an error, never a blank or a zero.
-  const needed = tab === 'items' ? [query, allUnits, onHand] : tab === 'warehouses' ? [query, keepers, people, projects] : [query];
+  const needed = tab === 'items' ? [query, allUnits, onHand, ...(tagsEnabled ? [itemTags] : [])] : tab === 'warehouses' ? [query, keepers, people, projects] : [query];
   const state: 'loading' | 'empty' | 'error' | undefined = needed.some((q) => q.isError) ? 'error' : needed.some((q) => q.isPending) ? 'loading' : rows.length === 0 ? 'empty' : undefined;
 
   const archivedPill = (r: { archived_at: string | null }) =>
@@ -113,6 +121,7 @@ const StockSetup: React.FC = () => {
     if (tab === 'items') {
       return [
         code,
+        ...(tagsEnabled ? [{ key: 'tag', header: t('setup.form.item.tag'), cell: (r: StockUnitRow | StockItemRow | StockWarehouseRow) => <span>{tagName.get((r as StockItemRow).tag_id ?? '') ?? '–'}</span> }] : []),
         { key: 'unit', header: t('setup.columns.unit'), cell: (r) => <span className={dim(r)}>{unitName.get((r as StockItemRow).unit_id) ?? ''}</span> },
         { key: 'onHand', header: t('setup.columns.onHand', 'On hand'), align: 'num', cell: (r) => <span className={`tabular-nums ${dim(r)}`}>{formatQuantity(onHandByItem.get(r.id) ?? '0', getNumberLocale())}</span>, exportValue: (r) => onHandByItem.get(r.id) ?? '0' },
         { key: 'lead', header: t('setup.columns.leadTime'), align: 'num', cell: (r) => { const d = (r as StockItemRow).lead_time_days; return <span className={`tabular-nums ${dim(r)}`}>{d === null ? '–' : `${d} ${t('setup.leadTimeDays')}`}</span>; } },
@@ -144,7 +153,7 @@ const StockSetup: React.FC = () => {
       status,
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [t, tab, unitName, projectName, personName, keepers.data, canKeepers, onHandByItem]);
+  }, [t, tab, tagsEnabled, unitName, tagName, projectName, personName, keepers.data, canKeepers, onHandByItem]);
 
   const rowMenu = (r: StockUnitRow | StockItemRow | StockWarehouseRow): RowMenuItem[] => {
     const out: RowMenuItem[] = [];
@@ -172,7 +181,7 @@ const StockSetup: React.FC = () => {
     <ListPage
       title={t('setup.title')}
       count={state === undefined ? rows.length : undefined}
-      primaryAction={canCreate && (
+      primaryAction={canCreate && (tab !== 'items' || !tagsEnabled || itemTags.isSuccess) && (
         <Button variant="primary" onClick={() => setForm({ tab, row: null })}>
           <Icon name="plus" />
           {newLabel}
@@ -190,6 +199,10 @@ const StockSetup: React.FC = () => {
         )}
       </div>
       <StockTabs />
+      {canKeepers && ownership === 'external' && <p className="my-3 text-sm text-muted-foreground">{t('siteWork.tags.connectedUnavailable')}</p>}
+      {canKeepers && tagsEnabled && <div className="my-3"><Button variant="outline" aria-expanded={tagsOpen} onClick={() => setTagsOpen(!tagsOpen)}>{t('siteWork.tags.manage')}</Button>
+        {tagsOpen && <StockTagsPanel />}
+      </div>}
       <div className="mb-4 flex flex-col items-stretch border-b border-border sm:flex-row sm:items-center">
         <Tabs<Tab>
           className="mb-0 w-full min-w-0 border-b-0 sm:w-auto sm:flex-1 [&>[role=tab]:first-child]:pl-0"
@@ -239,6 +252,7 @@ const StockSetup: React.FC = () => {
 
       {form && (
         <MasterFormModal
+          tagsEnabled={tagsEnabled}
           which={form.tab}
           row={form.row}
           units={(units.data ?? []).filter((u) => !u.archived_at)}
@@ -299,6 +313,7 @@ const StockSetup: React.FC = () => {
 // ── Create / edit modal (one per entity, shared shell) ─────────────────────────────────────────────
 
 interface FormProps {
+  tagsEnabled: boolean;
   which: Tab;
   row: StockUnitRow | StockItemRow | StockWarehouseRow | null;
   units: StockUnitRow[];
@@ -306,11 +321,13 @@ interface FormProps {
   onClose: () => void;
   onDone: (isEdit: boolean) => void;
 }
-interface Values { code: string; name: string; wholeOnly: boolean; description: string; unitId: string; leadTime: string; kind: 'central' | 'site'; projectId: string }
+interface Values { code: string; name: string; wholeOnly: boolean; description: string; unitId: string; leadTime: string; kind: 'central' | 'site' | 'yard' | 'staging'; projectId: string; tagId: string }
 
-const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, onClose, onDone }) => {
+const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, tagsEnabled, onClose, onDone }) => {
   const { t } = useTranslation('stock');
   const m = useStockMasterMutations();
+  const tagQuery = useStockTags(true, which === 'items' && tagsEnabled);
+  const tags = (tagQuery.data ?? []).filter((tag) => !tag.archived_at || tag.id === (row as StockItemRow | null)?.tag_id);
   const errorCopy = useErrorCopy();
   const isEdit = !!row;
   const k = which === 'units' ? 'unit' : which === 'items' ? 'item' : 'warehouse';
@@ -332,7 +349,7 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, onC
     initialValues: {
       code: row ? (row as { code: string }).code : '', name: row ? (row as { name: string }).name : '',
       wholeOnly: unitRow?.whole_only ?? false, description: itemRow?.description ?? '', unitId: itemRow?.unit_id ?? '',
-      leadTime: itemRow?.lead_time_days == null ? '' : String(itemRow.lead_time_days), kind: (whRow?.kind as Values['kind'] | undefined) ?? 'site', projectId: whRow?.project_id ?? '',
+      leadTime: itemRow?.lead_time_days == null ? '' : String(itemRow.lead_time_days), kind: (whRow?.kind as Values['kind'] | undefined) ?? 'site', projectId: whRow?.project_id ?? '', tagId: itemRow?.tag_id ?? '',
     },
     validate,
     idPrefix: `stock-${k}-form`,
@@ -347,6 +364,7 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, onC
   const description = form.fieldProps('description');
   const kind = form.fieldProps('kind');
   const projectId = form.fieldProps('projectId');
+  const tagId = form.fieldProps('tagId');
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -356,7 +374,7 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, onC
           const input: StockUnitInput = { code: v.code, name: v.name, wholeOnly: v.wholeOnly };
           if (row) await m.updateUnit.mutateAsync({ id: row.id, input }); else await m.createUnit.mutateAsync(input);
         } else if (which === 'items') {
-          const input: StockItemInput = { code: v.code, name: v.name, description: v.description || null, unitId: v.unitId, leadTimeDays: v.leadTime.trim() ? Number(v.leadTime) : null };
+          const input: StockItemInput = { code: v.code, name: v.name, description: v.description || null, unitId: v.unitId, leadTimeDays: v.leadTime.trim() ? Number(v.leadTime) : null, ...(tagsEnabled ? { tagId: v.tagId || null } : {}) };
           if (row) await m.updateItem.mutateAsync({ id: row.id, input }); else await m.createItem.mutateAsync(input);
         } else {
           const input: StockWarehouseInput = { code: v.code, name: v.name, kind: v.kind, projectId: v.projectId || null };
@@ -382,7 +400,7 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, onC
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty}
-      submitDisabled={!form.isComplete}
+      submitDisabled={!form.isComplete || (which === 'items' && tagsEnabled && !tagQuery.isSuccess)}
       errorSummary={summary.length ? summary : undefined}
       submitError={saveError}
     >
@@ -403,13 +421,15 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, onC
             <SelectField id={unitId.id} label={t('setup.form.item.unit')} required value={unitId.value} onChange={unitId.onChange} onBlur={unitId.onBlur} error={unitId.error}
               placeholder={t('setup.form.item.unitPlaceholder')} options={units.map((u) => ({ value: u.id, label: `${u.name} (${u.code})` }))} />
             <TextField id={leadTime.id} label={t('setup.form.item.leadTime')} helper={t('setup.form.item.leadTimeHelp')} value={leadTime.value} onChange={leadTime.onChange} onBlur={leadTime.onBlur} error={leadTime.error} inputMode="numeric" />
+            {tagsEnabled && <SelectField id={tagId.id} label={t('setup.form.item.tag')} helper={t('setup.form.item.tagHelp')} value={tagId.value} onChange={tagId.onChange} onBlur={tagId.onBlur}
+              placeholder={t('setup.form.item.noTag')} options={tags.map((g) => ({ value: g.id, label: g.name }))} />}
             <TextArea id={description.id} label={t('setup.form.item.description')} value={description.value} onChange={description.onChange} onBlur={description.onBlur} fullWidth />
           </>
         )}
         {which === 'warehouses' && (
           <>
-            <SelectField id={kind.id} label={t('setup.form.warehouse.kind')} required value={kind.value} onChange={(v) => kind.onChange(v as 'central' | 'site')} onBlur={kind.onBlur}
-              options={[{ value: 'central', label: t('setup.kinds.central') }, { value: 'site', label: t('setup.kinds.site') }]} />
+            <SelectField id={kind.id} label={t('setup.form.warehouse.kind')} required value={kind.value} onChange={(v) => kind.onChange(v as Values['kind'])} onBlur={kind.onBlur}
+              options={(['central', 'site', 'yard', 'staging'] as const).map((k2) => ({ value: k2, label: t(`setup.kinds.${k2}`) }))} />
             <SelectField id={projectId.id} label={t('setup.form.warehouse.project')} helper={t('setup.form.warehouse.projectHelp')} value={projectId.value} onChange={projectId.onChange} onBlur={projectId.onBlur}
               placeholder={t('setup.form.warehouse.noProject')} options={projects.map((p) => ({ value: p.id, label: p.name }))} />
           </>

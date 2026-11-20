@@ -22,16 +22,25 @@ const KIND_ICON_TONE: Record<ToastKind, string> = {
 
 const isUrgentKind = (kind: ToastKind) => kind === 'warning' || kind === 'error';
 
+/**
+ * #2502 — a notice may be painted over a control, but it never takes that control from the person.
+ * The card and the stack that holds it are pointer-transparent, so every pixel except the notice's
+ * own buttons hit-tests through to the page underneath (a row's status control, a table's row
+ * actions, a docked action bar). The dismiss button re-enables the pointer for itself only.
+ */
+const NOTICE_PASS_THROUGH: React.CSSProperties = { pointerEvents: 'none' };
+
 /** Emit + style come from the library surface; every class is a DESIGN.md token. */
+
 const TOAST_CLASSNAMES: ToastClassnames = {
-  toast: 'pointer-events-auto flex w-[min(360px,calc(100vw-2.5rem))] items-start gap-2 rounded-overlay border border-border bg-card py-3 pl-3 pr-11 max-[639px]:w-full text-control text-foreground shadow-[var(--shadow-lg)] [&_svg]:size-4 [&_svg]:shrink-0',
+  toast: 'flex w-[min(360px,calc(100vw-2.5rem))] items-start gap-2 rounded-overlay border border-border bg-card py-3 pl-3 pr-11 max-[639px]:w-full text-control text-foreground shadow-[var(--shadow-lg)] [&_svg]:size-4 [&_svg]:shrink-0',
   content: 'min-w-0 flex-1',
   title: 'font-semibold',
   description: 'text-muted-foreground',
   // Inside the toast, top-right, on every width. Sonner's own stylesheet places the button on the
   // top-left corner and half outside; `!` wins over that library rule. No positioning code.
   closeButton:
-    '!absolute !left-auto !right-2 !top-2 z-10 flex size-[var(--control-height-sm)] !translate-x-0 !translate-y-0 items-center justify-center rounded-md !border-0 !bg-transparent text-muted-foreground hover:!bg-surface-hover hover:text-foreground active:!bg-surface-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+    '!pointer-events-auto !absolute !left-auto !right-2 !top-2 z-10 flex size-[var(--control-height-sm)] !translate-x-0 !translate-y-0 items-center justify-center rounded-md !border-0 !bg-transparent text-muted-foreground hover:!bg-surface-hover hover:text-foreground active:!bg-surface-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
   success: 'save-pulse',
 };
 
@@ -60,12 +69,13 @@ interface ActiveNotice {
 }
 
 /**
- * Toasts on Sonner (stacking, swipe-away, pause on hover/focus, alt+T hotkey,
- * reduced-motion off) styled purely with DESIGN.md tokens. This module keeps the
- * app's call API (`toast(title, sub?, kind?)`, `dismiss`, `clear`) and owns the two
- * persistent announcement regions: the polite `role="status"` region mirrors the
- * newest routine toast, the assertive `role="alert"` region mirrors the newest
- * warning/error — remedies stay announced until they leave.
+ * Toasts on Sonner (stacking, alt+T hotkey to lift/pin and Escape to release, reduced-motion off)
+ * styled purely with DESIGN.md tokens. A notice is pointer-transparent (only its dismiss button is
+ * clickable), so it never takes the pointer from the control it is painted over (#2502). This
+ * module keeps the app's call API (`toast(title, sub?, kind?)`, `dismiss`, `clear`) and owns the
+ * two persistent announcement regions: the polite `role="status"` region mirrors the newest
+ * routine toast, the assertive `role="alert"` region mirrors the newest warning/error — remedies
+ * stay announced until they leave.
  *
  * The `[data-toast-container]` seam is placement state only: an open `aria-modal`
  * overlay moves the stack to the safe top edge; a side drawer additionally tucks it
@@ -259,9 +269,16 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         visibleToasts={4}
         theme="light"
         // Sonner defaults to a 999999999 stack; menus/popovers sit at 1010 and must stay above it.
-        style={{ zIndex: 1000 } as React.CSSProperties}
+        // Pass-through (#2502): the stack box itself (including the gaps between notices) never
+        // takes the pointer either — its only hit target is a notice's own button.
+        style={{ zIndex: 1000, ...NOTICE_PASS_THROUGH } as React.CSSProperties}
         closeButton
-        toastOptions={{ unstyled: true, classNames: TOAST_CLASSNAMES, closeButtonAriaLabel: t('toast.dismiss', 'Dismiss notification') }}
+        toastOptions={{
+          unstyled: true,
+          classNames: TOAST_CLASSNAMES,
+          closeButtonAriaLabel: t('toast.dismiss', 'Dismiss notification'),
+          style: NOTICE_PASS_THROUGH,
+        }}
         icons={TOAST_ICONS}
       />
       </div>

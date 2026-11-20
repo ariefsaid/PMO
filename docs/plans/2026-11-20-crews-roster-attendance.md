@@ -24,3 +24,32 @@
 
 ## Final gate
 `npm run check:guards`, `npm run typecheck`, `npx eslint --max-warnings=0 <touched>`, touched vitest, pgTAP and e2e files.
+
+## Build record (feat/2528-crews-roster)
+
+Migrations 0988 (crews, people, membership, roster, `work_order_roster`), 0989 (attendance record, rotation seam,
+`attendance_record`, group photo), 0990 (`attendance_generate_timesheet`, `attendance_decide_week`, the approval SoD and
+lock triggers on `timesheets`, the `attendance_day` arm of `work_order_cost_lines`). Each has a rollback file.
+
+| AC | Owning test |
+|---|---|
+| AC-CRW-001..003, 014 | `supabase/tests/crews_roster.test.sql` |
+| AC-CRW-004 | `supabase/tests/crews_roster.test.sql` + `pmo-portal/pages/crews/WorkOrderRoster.test.tsx` |
+| AC-CRW-005 | `pmo-portal/src/lib/attendanceTick.test.ts`, `pmo-portal/pages/crews/AttendanceTick.test.tsx` (+ server half in `attendance_days.test.sql`) |
+| AC-CRW-006..008, 013 | `supabase/tests/attendance_days.test.sql` |
+| AC-CRW-009..012 | `supabase/tests/attendance_timesheet.test.sql` |
+| AC-CRW-015 | `pmo-portal/e2e/AC-CRW-015-crew-day-to-approved-hours.spec.ts` |
+
+Mutation checks run on `attendance_timesheet.test.sql`: recorder may approve (AC-CRW-010 red, tests 8-12); approval
+does not lock (AC-CRW-010/011 red); lock guard removed (AC-CRW-011 red); no-login recorder may approve (red). Each
+restored to green.
+
+Deviations from the plan text:
+- **People:** crew membership references the shared `people` workforce register from #2527. Active members can read basic person fields through the scoped directory; the base register retains its narrower reads, while Admin and Project Manager can create and edit people. Expiry-document access remains separately restricted.
+- **Rotation:** #1516's rotation is not shipped; `crew_worker_rotation_off` is the seam, read only through
+  `worker_off_rotation` and the roster read.
+- **Approval RPC:** `transition_timesheet` is extended by triggers on `timesheets` (SoD before Approved; lock after;
+  unlock on re-open), not rewritten, so every path to Approved carries the recorder rule.
+- **Phone method:** `attendance_record` accepts `phone_check_in` only from the person's own login (the #1517 seam); no
+  location is stored and no geofencing is built (OQ-CRW-1, #2535).
+- **Screens:** one route `/crews` with three views (`?view=crews|roster|attendance`) under `pmo-portal/pages/crews/`.

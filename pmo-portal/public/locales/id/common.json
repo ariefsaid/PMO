@@ -79,7 +79,6 @@
     "retryCheck": "Periksa penyiapan lagi",
     "operatorHandoff": "Buka penyiapan akuntansi",
     "noDomains": "Belum ada informasi yang diperbarui dari ERPNext",
-    "m365ApprovalDescription": "Hanya jika Microsoft meminta persetujuan organisasi.",
     "organizationScope": "Koneksi pribadi: "
   },
   "uxs14": {
@@ -2074,9 +2073,8 @@
       "note": "Persetujuan pengadaan ini diarahkan ke {{names}}: {{why}}",
       "nameJoiner": " atau ",
       "why": {
-        "projectApprover": "mereka adalah penyetuju yang ditetapkan untuk proyek ini.",
         "withinBudget": "pengadaan ini masih dalam anggaran {{category}} proyek.",
-        "exceedsLine": "pengadaan ini akan melampaui batas anggaran {{category}} proyek.",
+        "exceedsLine": "pengadaan ini akan melampaui batas anggaran {{category}} proyek, termasuk yang sudah dibelanjakan.",
         "noProject": "ini pengeluaran overhead, tidak dibebankan ke proyek.",
         "noCategory": "kategori anggarannya belum diisi, jadi tidak dapat dicek terhadap anggaran proyek.",
         "noActiveBudget": "proyek belum memiliki anggaran aktif.",
@@ -3586,7 +3584,6 @@
     },
     "m365OrgApproval": {
       "heading": "Microsoft 365",
-      "badge": "Persetujuan organisasi",
       "approve": "Setujui di Microsoft 365",
       "approving": "Membuka Microsoft 365…",
       "errorFallback": "Tidak dapat memulai persetujuan organisasi Microsoft 365."

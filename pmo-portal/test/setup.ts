@@ -25,12 +25,31 @@ vi.mock('@/src/components/m365/BudgetDocumentLinks', () => ({
 vi.mock('@/src/components/integrations/M365DefaultLibraryCard', () => ({
   M365DefaultLibraryCard: () => createElement('div', { 'data-testid': 'm365-default-library-stub' }),
 }));
+// The org Microsoft app card (#1017) reads its own query; its suite un-mocks it.
+vi.mock('@/src/components/integrations/M365AppRegistrationCard', () => ({
+  M365AppRegistrationCard: () => createElement('div', { 'data-testid': 'm365-app-registration-stub' }),
+}));
 
 // #2517: the work-order / discipline pickers read their own queries (work orders, disciplines) and auth, which the
 // page suites (timesheets, procurement, stock, equipment) do not provide. CostAttributionFields.test.tsx unmocks and
 // proves them; the page suites need only know they are mounted.
 vi.mock('@/src/components/workOrders/CostAttributionFields', () => ({
   CostAttributionFields: ({ idPrefix }: { idPrefix?: string }) => createElement('div', { 'data-testid': 'cost-attribution-stub', 'data-prefix': idPrefix }),
+}));
+
+// #2519: the plan-vs-actual card reads its own queries (work-order money, disciplines) and auth, which the contract-area
+// suites (WorkOrdersTab.*) do not provide. WorkOrderPlanVsActual.test.tsx unmocks and proves it.
+vi.mock('@/pages/project-detail/WorkOrderPlanVsActual', () => ({
+  default: ({ projectId }: { projectId: string }) => createElement('div', { 'data-testid': 'wo-plan-vs-actual-stub', 'data-project': projectId }),
+}));
+
+// #2622: the purchase ledger reads the organisation's three-way match and each bill's match, which the procurement page
+// suites (ProcurementDetails.*) do not provide a query client for. Default: the match is off. ProcurementLedger.threeWayMatch
+// and BillMatchDrawer tests mock it with their own states.
+vi.mock('@/src/hooks/useThreeWayMatch', () => ({
+  useThreeWayMatchOn: () => ({ on: false, query: { data: null, isPending: false, isError: false } }),
+  useBillMatches: (ids: readonly string[]) => ids.map(() => ({ data: undefined, isPending: false, isError: false, refetch: () => Promise.resolve() })),
+  useApproveBillMatchException: () => ({ mutateAsync: () => Promise.reject(new Error('not mocked')), isPending: false }),
 }));
 
 // The Odoo section reads its own queries (connection, companies, ownership) that the Integrations view suites do not

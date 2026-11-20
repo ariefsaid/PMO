@@ -55,6 +55,21 @@ beforeEach(() => {
 });
 
 describe('MyTasks page — component states (B-1, AC-W2-IXD-002)', () => {
+  it('AC-TWOP-007 filters my tasks by work order and none', async () => {
+    tasksState.isPending = false;
+    tasksState.data = [
+      { id: 'a', name: 'Linked task', status: 'To Do', project_id: 'p1', project_name: 'Project', work_order_id: 'wo1', work_order_name: 'WO-1', end_date: null },
+      { id: 'b', name: 'Unlinked task', status: 'To Do', project_id: 'p1', project_name: 'Project', work_order_id: null, work_order_name: null, end_date: null },
+    ];
+    renderMyTasks();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Filter by work order' }), 'wo1');
+    expect(screen.getByText('Linked task')).toBeInTheDocument();
+    expect(screen.queryByText('Unlinked task')).not.toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Filter by work order' }), 'none');
+    expect(screen.getByText('Unlinked task')).toBeInTheDocument();
+    expect(screen.queryByText('Linked task')).not.toBeInTheDocument();
+  });
+
   it('AC-W2-IXD-002: loading state renders a skeleton', () => {
     tasksState.isPending = true;
     tasksState.data = null;

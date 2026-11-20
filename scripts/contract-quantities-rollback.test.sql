@@ -3,6 +3,8 @@
 begin;
 create extension if not exists pgtap;
 select plan(5);
+-- Later migrations that reference 0337's tables are reverted first (newest first), as a real rollback would.
+-- @DEPENDENTS_DOWN@
 -- @0337_DOWN@
 select ok(exists(select 1 from information_schema.columns where table_schema='public' and table_name='boq_items' and column_name='work_order_id'),'AC-CQ-003 rollback restores the legacy link');
 insert into organizations(id,name) values ('33580000-0000-0000-0000-000000000001','CQ Rollback Org');

@@ -1,3 +1,4 @@
+import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { Avatar } from '@/src/components/ui/Avatar';
 import { useDomainOwnershipMode } from '@/src/hooks/useDomainOwnershipMode';
 import { useProcurementItemEligibility } from '@/src/hooks/useProcurementItemEligibility';
@@ -103,6 +104,24 @@ const RunOnMount: React.FC<{ run: () => void }> = ({ run }) => {
   return null;
 };
 
+
+type TimelineWithOrdersProps = React.ComponentProps<typeof ProcurementTimeline>;
+const TimelineWithOrders: React.FC<TimelineWithOrdersProps> = (props) => {
+  const p = props.procurement;
+  const records = [...(p.purchase_requests ?? []), ...(p.purchase_orders ?? []), ...(p.receipts ?? []), ...(p.invoices ?? [])];
+  const hasAttribution = records.some((record) => Boolean(record.work_order_id));
+  return hasAttribution && p.project_id ? <TimelineWithReadableOrders {...props} records={records} projectId={p.project_id} /> : <ProcurementTimeline {...props} />;
+};
+const TimelineWithReadableOrders: React.FC<TimelineWithOrdersProps & { records: Array<{ id: string; work_order_id: string | null }>; projectId: string }> = ({ records, projectId, ...props }) => {
+  const orders = useProjectWorkOrders(projectId);
+  const ordersById = new Map((orders.data ?? []).map((order) => [order.id, order]));
+  const workOrderLinks: Record<string, { id: string; label: string }> = {};
+  for (const record of records) {
+    const order = record.work_order_id ? ordersById.get(record.work_order_id) : undefined;
+    if (order) workOrderLinks[record.id] = { id: order.id, label: order.wo_number ?? order.title };
+  }
+  return <ProcurementTimeline {...props} workOrderLinks={workOrderLinks} />;
+};
 
 const ProcurementDetails: React.FC = () => {
   const { t } = useTranslation();
@@ -358,7 +377,7 @@ const ProcurementDetails: React.FC = () => {
   const routeAllows = mayDecideRoutedApproval(p.approvalRoute, currentUser?.id, realRole === 'Admin');
   const routeNote =
     p.approvalRoute && !routeAllows && !isRequester
-      ? approvalRouteNote(p.approvalRoute, p.budget_category, t, realRole)
+      ? approvalRouteNote(p.approvalRoute, p.budget_category, t)
       : null;
   const hasValue = purchaseHasValue(p);
   const actions = sortActions(allowedActions(p.status, role, isRequester, isApprover, t, routeAllows, (p.payments?.length ?? 0) > 0, hasValue));
@@ -779,7 +798,7 @@ const ProcurementDetails: React.FC = () => {
         className="pt-4 md:pt-6"
       >
         {tab === 'timeline' && <RecordStack>
-          <ProcurementTimeline procurement={p} ledgerRows={ledgerRows} linkedDocuments={linkedDocs} isEngineer={isEngineer} canWriteFiles={canManageFiles} uploadedById={currentUserId} onFullHistory={() => setHistoryOpen((open) => !open)} />
+          <TimelineWithOrders focusedRecordId={location.hash.startsWith("#cost-") ? location.hash.slice(6) : undefined} procurement={p} ledgerRows={ledgerRows} linkedDocuments={linkedDocs} isEngineer={isEngineer} canWriteFiles={canManageFiles} uploadedById={currentUserId} onFullHistory={() => setHistoryOpen((open) => !open)} />
           {historyOpen && <RecordSection data-testid="procurement-full-history" title={t('procurementRecord:timeline.fullHistory', 'Full history')} actions={<Button variant="outline" size="sm" onClick={() => setHistoryOpen(false)}>{t('procurementRecord:close', 'Close')}</Button>}><RecordHistory entityType="procurement" entityId={p.id} includeChildren /></RecordSection>}
         </RecordStack>}
 
@@ -829,7 +848,7 @@ const ProcurementDetails: React.FC = () => {
               vendorId={p.vendor_id}
               itemsNet={itemsNetTotal(p.items)}
               gates={gates}
-            /> : <ProcurementTimeline procurement={p} ledgerRows={ledgerRows} linkedDocuments={linkedDocs} isEngineer canWriteFiles={canManageFiles} uploadedById={currentUserId} onFullHistory={() => { setHistoryOpen(true); setTab('timeline'); }} />}
+            /> : <TimelineWithOrders focusedRecordId={location.hash.startsWith("#cost-") ? location.hash.slice(6) : undefined} procurement={p} ledgerRows={ledgerRows} linkedDocuments={linkedDocs} isEngineer canWriteFiles={canManageFiles} uploadedById={currentUserId} onFullHistory={() => { setHistoryOpen(true); setTab('timeline'); }} />}
             {vendorPickerOpen && canSetVendor && (
               <div role="dialog" aria-label={t('bupot.setVendor', 'Set supplier')} className="panel-card flex flex-wrap items-end gap-3 p-[var(--panel-inset)]">
                 <Combobox

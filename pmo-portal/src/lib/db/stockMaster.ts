@@ -7,8 +7,8 @@ export type StockItemRow = Tables<'stock_items'>;
 export type StockWarehouseRow = Tables<'stock_warehouses'>;
 export type StockKeeperRow = Tables<'stock_warehouse_keepers'>;
 export interface StockUnitInput { code: string; name: string; wholeOnly: boolean }
-export interface StockItemInput { code: string; name: string; description: string | null; unitId: string; leadTimeDays: number | null }
-export interface StockWarehouseInput { code: string; name: string; kind: 'central' | 'site'; projectId: string | null }
+export interface StockItemInput { code: string; name: string; description: string | null; unitId: string; leadTimeDays: number | null; tagId?: string | null }
+export interface StockWarehouseInput { code: string; name: string; kind: 'central' | 'site' | 'yard' | 'staging'; projectId: string | null }
 
 const PAGE = 500;                 // below PostgREST max_rows (1000); a 1,203-row list is three pages, never truncated
 const MAX_PAGES = 40;             // 20,000 rows; beyond that the call throws instead of silently truncating
@@ -57,6 +57,7 @@ export async function updateStockUnit(id: string, i: StockUnitInput): Promise<vo
 export async function createStockItem(i: StockItemInput): Promise<StockItemRow> {
   const { data, error } = await supabase.from('stock_items').insert({
     code: i.code.trim(), name: i.name.trim(), description: i.description?.trim() || null, unit_id: i.unitId, lead_time_days: i.leadTimeDays,
+    ...(i.tagId !== undefined ? { tag_id: i.tagId } : {}),
   }).select('*').single();
   if (error) throw toAppError(error);
   return data;
@@ -64,6 +65,7 @@ export async function createStockItem(i: StockItemInput): Promise<StockItemRow> 
 export async function updateStockItem(id: string, i: StockItemInput): Promise<void> {
   const { data, error } = await supabase.from('stock_items').update({
     code: i.code.trim(), name: i.name.trim(), description: i.description?.trim() || null, unit_id: i.unitId, lead_time_days: i.leadTimeDays,
+    ...(i.tagId !== undefined ? { tag_id: i.tagId } : {}),
   }).eq('id', id).select('id');
   if (error) throw toAppError(error);
   assertWriteLanded(data, 'You cannot change this item.');

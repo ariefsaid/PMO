@@ -54,6 +54,7 @@ describe('place-name coherence (R2-NAMES-FIX)', () => {
       { path: '/stock/ledger', expected: 'Ledger' },
       { path: '/stock/reorder', expected: 'Reorder' },
       { path: '/equipment/assets', expected: 'Assets' },
+      { path: '/equipment/availability', expected: 'Availability' },
     ] as const;
 
     for (const { path, expected } of fixedChildRoutes) {

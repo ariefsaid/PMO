@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   Button,
@@ -24,9 +25,11 @@ import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import type { ProjectBillingSummary } from '@/src/lib/progressBilling';
 import { deriveWorkOrderBillingState, type WorkOrderBillingState } from '@/src/lib/workOrderBilling';
 import { statusLabel } from '@/src/lib/status/statusMap';
-import { summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
+import { outstandingIn, settlementIn, sumOutstanding, summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
 import WorkOrderAcceptances from '../WorkOrderAcceptances';
+import { WorkOrderOpenTasks } from '@/src/components/tasks/WorkOrderOpenTasks';
 import { WorkOrderCostVariations } from '../WorkOrderCostVariations';
+import { WorkOrderStockBalance } from '../../stock/WorkOrderStockBalance';
 import { MoneyFigure, type InvoiceWithWorkOrder, type OrderLineView } from './workOrdersTabFigures';
 
 /** The billing/invoice figure reads the card's incompleteness states surface. */
@@ -122,6 +125,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
   linesRead,
 }) => {
   const { t } = useTranslation('project');
+  useTranslation('stock');
   const may = usePermission();
   const billingStateLabels: Record<Exclude<WorkOrderBillingState, 'not-billable'>, string> = {
     incomplete: t('common:projectDetail.workOrders.billing.status.incomplete', "Can't total"),
@@ -142,6 +146,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
     'partly-invoiced': 'progress',
   };
 
+  const [stockOpen, setStockOpen] = useState(false);
   const orderAllocations = contractAllocationsByWo.get(row.id) ?? [];
   const rawLines = allocationsByWo.get(row.id) ?? [];
   const hasOrderLines = orderAllocations.length > 0 || rawLines.length > 0;
@@ -153,9 +158,15 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
   const orderInvoices = invoicesByWo.get(row.id) ?? [];
   // NFR-BWO-005: no figures until BOTH the invoices and the order billing are read — a pending or failed
   // billing read must not look like an order with nothing invoiced.
-  const settlement = invoiceReadReady && !billingRead.isPending && !billingRead.isError ? summarizeInvoiceSettlement(orderInvoices) : null;
-  // SUB-C: invoiced / paid / unpaid appear once something has been invoiced.
-  const hasInvoiced = (settlement?.invoiced ?? 0) > 0;
+  // #2204: the order's invoices settle only within the order currency, on the gross basis; another currency reads unknown.
+  const settlementReady = invoiceReadReady && !billingRead.isPending && !billingRead.isError;
+  const orderSettlement = settlementReady ? summarizeInvoiceSettlement(orderInvoices) : null;
+  const orderCurrency = row.currency || currency;
+  const settlement = orderSettlement ? settlementIn(orderSettlement, orderCurrency) : null;
+  const settlementMixed = orderSettlement !== null && settlement === null;
+  const mixedCurrencyReason = t('projectDetail.workOrders.billing.mixedCurrency', 'Invoices on this order are in more than one currency, so they are not added up.');
+  // SUB-C: invoiced / paid / unpaid appear once something has been invoiced; all three read including tax.
+  const hasInvoiced = settlementMixed || (settlement?.gross ?? 0) > 0;
   const canPrepare = canPrepareForOrder(row);
   const canConfirm = Boolean(pendingBast) && row.status === 'Issued' && may('confirm', 'workOrderAcceptance', {
     currentUserId,
@@ -165,20 +176,21 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
   const canTransition = may('transition', 'workOrder');
   const raiseOrderInvoice = orderInvoiceAction(row);
   const canRaiseOrderInvoice = raiseOrderInvoice !== null;
-  const orderFiguresComplete = Boolean(settlement)
-    && settlement?.invoiced !== null
-    && settlement?.balancesKnown
+  const orderFiguresComplete = settlement !== null
+    && settlement.gross !== null
+    && settlement.settled !== null
+    && settlement.balancesKnown
     && billingRow?.figuresComplete !== false;
-  const orderFiguresMissing = canViewBilling && !orderFiguresComplete;
+  // A mixed-currency order says why on its own figures, so the generic "incomplete" line is not repeated.
+  const orderFiguresMissing = canViewBilling && !orderFiguresComplete && !settlementMixed;
   const billingState = billingRow ? deriveWorkOrderBillingState(row.status, billingRow) : null;
   const workOrderStatusTone: StatusVariant = row.status === 'Closed' ? 'won' : row.status === 'Cancelled' ? 'lost' : 'progress';
   const latestConfirmedBast = bastList.find((acceptance) => acceptance.status === 'Confirmed');
-  const orderOverdue = orderInvoices.reduce((sum, invoice) => {
-    // #1457: the one shared overdue rule (status + derived due date + org day) decides each row.
-    if (clientInvoiceOverdueDays(invoice, orgDay) === null) return sum;
-    const balance = invoice.erp_outstanding_amount;
-    return balance === null ? sum : sum + Math.max(0, balance);
-  }, 0);
+  // #1457: the one shared overdue rule (status + derived due date + org day) decides each row;
+  // #2204: balances add up only within the order currency, otherwise the overdue figure is unknown.
+  const overdueSum = sumOutstanding(orderInvoices.filter((invoice) => clientInvoiceOverdueDays(invoice, orgDay) !== null));
+  const orderOverdue = outstandingIn(overdueSum, orderCurrency);
+  const orderOverdueUnknown = overdueSum.denomination !== 'none' && orderOverdue === null;
   const canEditLines = !lineReadsPending && !lineReadsFailed && may('create', 'workOrderLine', { record: { status: row.status } });
   const orderActions: RowMenuItem[] = [
     ...(canPrepare ? [{ label: t('projectDetail.workOrders.action.recordDelivery', 'Record delivery'), onClick: () => setBastFor({ row, draft: null }) }] : []),
@@ -237,6 +249,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
             </button>
           </h3>
           <span className="min-w-0 break-words text-sm text-foreground">{row.title}</span>
+          <Link to={`/work-orders/${row.id}`} data-testid={`wo-page-link-${row.id}`} className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground">{t('workOrders:openPage', 'Open page')}</Link>
           <StatusPill variant={workOrderStatusTone}>{statusLabel('workOrder', row.status, t)}</StatusPill>
           {canViewBilling && billingState && billingState !== 'not-billable' && <StatusPill variant={billingStateTones[billingState]}>
             {billingStateLabels[billingState]}
@@ -279,12 +292,16 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
               })}
             </dd>
           </div>}
-          {hasInvoiced && settlement?.invoiced !== null && settlement?.invoiced !== undefined && billingRow?.figuresComplete !== false && <MoneyFigure label={t('common:projectDetail.workOrders.billing.invoiced', 'Invoiced')} value={formatNumberWhole(settlement.invoiced)} detail={settlement.balancesKnown
-            ? t('common:projectDetail.workOrders.billing.lineInvoiced', 'Invoiced {{invoiced}} · paid {{paid}}', { invoiced: formatNumberWhole(settlement.invoiced), paid: formatNumberWhole(settlement.paid) })
-            : t('projectDetail.cascade.source.invoiced', 'Source: non-draft, non-cancelled invoice amounts.')} />}
-          {hasInvoiced && settlement?.balancesKnown && billingRow?.figuresComplete !== false && <MoneyFigure label={t('common:projectDetail.workOrders.billing.paid', 'Paid')} value={formatNumberWhole(settlement.paid)} detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount less the accounting balance outstanding.')} />}
-          {hasInvoiced && settlement?.unpaid !== null && settlement?.unpaid !== undefined && billingRow?.figuresComplete !== false && <MoneyFigure label={t('projectDetail.cascade.unpaid', 'Unpaid')} value={formatNumberWhole(settlement.unpaid)} detail={t('projectDetail.cascade.source.invoiceUnpaid', 'Source: accounting balance outstanding for this invoice.')} destructive={settlement.unpaid > 0} />}
+          {hasInvoiced && (settlementMixed || billingRow?.figuresComplete !== false) && (settlementMixed || settlement?.gross != null) && <MoneyFigure label={t('common:projectDetail.workOrders.billing.invoiced', 'Invoiced')} value={settlement?.gross != null ? formatNumberWhole(settlement.gross) : '—'} detail={settlementMixed
+            ? mixedCurrencyReason
+            : settlement?.balancesKnown && settlement.gross != null && settlement.settled != null
+              ? t('common:projectDetail.workOrders.billing.lineInvoiced', 'Invoiced {{invoiced}} · paid {{paid}}', { invoiced: formatNumberWhole(settlement.gross), paid: formatNumberWhole(settlement.settled) })
+              : t('projectDetail.cascade.source.invoiced', 'Source: non-draft, non-cancelled invoice amounts.')} />}
+          {hasInvoiced && (settlementMixed || billingRow?.figuresComplete !== false) && (settlementMixed || (settlement?.balancesKnown && settlement.settled != null)) && <MoneyFigure label={t('common:projectDetail.workOrders.billing.paid', 'Paid')} value={settlement?.settled != null ? formatNumberWhole(settlement.settled) : '—'} detail={settlementMixed ? mixedCurrencyReason : t('projectDetail.cascade.source.paid', 'Source: invoice amount including tax, less the accounting balance outstanding.')} />}
+          {hasInvoiced && (settlementMixed || billingRow?.figuresComplete !== false) && (settlementMixed || settlement?.outstanding != null) && <MoneyFigure label={t('projectDetail.cascade.unpaid', 'Unpaid')} value={settlement?.outstanding != null ? formatNumberWhole(settlement.outstanding) : '—'} detail={settlementMixed ? mixedCurrencyReason : t('projectDetail.cascade.source.invoiceUnpaid', 'Source: accounting balance outstanding for this invoice.')} destructive={(settlement?.outstanding ?? 0) > 0} />}
         </dl>}
+
+        {canViewBilling && settlementMixed && <p className="text-sm text-muted-foreground" role="note">{mixedCurrencyReason}</p>}
 
         {orderFiguresMissing && <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground" role={invoicesRead.isError || billingRead.isError ? 'alert' : 'status'}>
           <span>{invoicesRead.isError || billingRead.isError
@@ -313,10 +330,12 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
           </ul>}
         </div>}
 
-        {canViewBilling && orderOverdue > 0 && <Tooltip content={t('projectDetail.cascade.source.overdue', 'Sum of positive outstanding balances on invoices past their due date.')}>
-          <span className="inline-flex w-fit cursor-help items-center gap-2 text-sm text-warning-foreground tabular-nums">
+        {canViewBilling && ((orderOverdue ?? 0) > 0 || orderOverdueUnknown) && <Tooltip content={orderOverdueUnknown
+          ? t('projectDetail.cascade.source.overdueUnknown', 'Unknown: overdue invoices are in more than one currency, so their balances are not added up.')
+          : t('projectDetail.cascade.source.overdue', 'Sum of positive outstanding balances on invoices past their due date.')}>
+          <span data-testid={`wo-overdue-${row.id}`} className="inline-flex w-fit cursor-help items-center gap-2 text-sm text-warning-foreground tabular-nums">
             <StatusPill variant="overdue">{t('projectDetail.cascade.overdue', 'Overdue')}</StatusPill>
-            <strong>{formatNumberWhole(orderOverdue)}</strong>
+            <strong>{orderOverdue === null ? '—' : formatNumberWhole(orderOverdue)}</strong>
           </span>
         </Tooltip>}
       </header>
@@ -382,6 +401,13 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
         <WorkOrderCostVariations workOrderId={row.id} currency={currency} />
       </div>
 
+      <div className="mt-3 border-t border-border pt-3">
+        <Button variant="ghost" size="sm" aria-expanded={stockOpen} onClick={() => setStockOpen(!stockOpen)}>
+          {t('stock:siteWork.balance.open', 'Stock for this work order')}
+        </Button>
+        {stockOpen && <WorkOrderStockBalance workOrderId={row.id} currency={currency} />}
+      </div>
+
       <div className="mt-4 flex flex-col gap-3">
         {linesRead.isError && <ListState variant="error" title={t('projectTabs:contractQuantities.workOrders.contractLines.loadError', 'Couldn’t load the contract lines')} onRetry={() => void linesRead.refetch()} />}
         {acceptancesRead.isError && <ListState variant="error" title={t('projectTabs:contractQuantities.workOrders.acceptances.error', 'Couldn’t load the BASTs')} onRetry={() => void acceptancesRead.refetch()} />}
@@ -430,6 +456,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
           </details>
         )}
       </div>
+      <WorkOrderOpenTasks workOrderId={row.id} />
     </article>
   );
 };

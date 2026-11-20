@@ -91,7 +91,7 @@ export function CostAttributionFields({ projectId, value, onChange, disabled, co
         searchPlaceholder={t('workOrderCost:searchDisciplines', 'Search disciplines…')}
         noun={t('workOrderCost:disciplineNoun', 'discipline')}
         nounPlural={t('workOrderCost:disciplineNounPlural', 'disciplines')}
-        emptyMessage={t('workOrderCost:noDisciplines', 'Your organisation has no disciplines yet. An Admin adds them.')}
+        emptyMessage={t('workOrderCost:noDisciplines', 'Your organisation has no disciplines yet. An Admin adds them in Administration, Project setup.')}
         disabled={disabled}
         compact={compact}
       />)}

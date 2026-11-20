@@ -12,6 +12,7 @@ import {
   updateTaskMilestone,
 } from '@/src/lib/db/milestones';
 import {
+  listWorkOrderClaimDocuments,
   listProjectWorkOrders,
   getWorkOrder,
   createWorkOrder,
@@ -67,6 +68,7 @@ export const milestoneRepository: MilestoneRepository = {
  * transition authority. Collapsing any pair here would hide a control behind a convenience.
  */
 export const workOrderRepository: WorkOrderRepository = {
+  claimDocuments: (id) => wrap(() => listWorkOrderClaimDocuments(id)),
   list: (projectId) => wrap(() => listProjectWorkOrders(projectId)),
   get: (id) => wrap(() => getWorkOrder(id)),
   create: (projectId, input) => wrap(() => createWorkOrder(projectId, input)),

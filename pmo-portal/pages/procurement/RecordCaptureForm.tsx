@@ -1,3 +1,4 @@
+import { threeWayMatchHeldMessage } from './threeWayMatchError';
 import { useVendorInvoiceCapture } from './useVendorInvoiceCapture';
 import { PaymentCaptureFields } from './PaymentCaptureFields';
 import { VendorInvoiceCaptureFields } from './VendorInvoiceCaptureFields';
@@ -429,7 +430,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
             ),
           }
         : null;
-      const { headline, detail } = odooActionError(err, odooProcurement, t) ?? paymentConflict ?? classifyMutationError(err);
+      const { headline, detail } = odooActionError(err, odooProcurement, t) ?? paymentConflict ?? threeWayMatchHeldMessage(err, t) ?? classifyMutationError(err);
       setCaptureError({ headline, detail });
       toast(headline, detail, 'warning');
     } finally {

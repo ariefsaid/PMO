@@ -162,6 +162,10 @@ vi.mock('@/src/lib/db/incidents', () => ({
   updateIncident: vi.fn(),
   transitionIncident: vi.fn(),
   deleteIncident: vi.fn(),
+  listIncidentFiles: vi.fn(),
+  uploadIncidentFile: vi.fn(),
+  getIncidentFileUrl: vi.fn(),
+  createTaskFromIncident: vi.fn(),
 }));
 vi.mock('@/src/lib/db/milestones', () => ({
   listMilestones: vi.fn(),
@@ -223,6 +227,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // body-edit are ordinary table writes; `order_value`, `tax_treatment`, `tax_amount`, `status`
       // and every witness column are absent from UPDATE, which is what forces the MONEY and
       // 'expenseClaim' + 'expenseReceipts' from #775 (migration 0247); 'expensePostings' from #775 phase B (0270).
+      // 'rateCatalogue' from #2520 (0955); 'dailySiteReport' from #1522 (1004/1005).
       // LIFECYCLE moves through set_work_order_value / transition_work_order. Believing the insert
       // path impossible invites "fixing" a non-insertable column with a TABLE-level grant — the
       // silent no-op trap 0193 §5 exists to prevent.
@@ -230,11 +235,12 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // 'imprest' from site cash (#1515 S4+S5).
       // 'journal' from manual journals (#895): the draft, second-approver and reversal RPCs.
       // 'equipment' from equipment usage and allocation (#1519 S5, plan S5.2): assets, usage, costing and allocations.
+      // 'equipmentAvailability' from equipment availability, ownership and rental downtime (#2526, migrations 0985-0986).
       // 'stock' from inventory master data (#1512 S1, migration 0412); S2a+ add documents and reports to it.
       // 'subcontracts' from subcontract acceptance, caps and variations (#1513 S6).
       // 'projectStage' from stage history (#1638).
       // 'timeAndMaterials' from time-and-materials claims (#1514 T7): rate card, assembly, sign-off and the reads.
-      ['agentAttachment', 'agentRun', 'budget', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'dashboard', 'document', 'equipment', 'erpJournalLines', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'journal', 'integrations', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'notification', 'odoo', 'odooLedger', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'projectMoney', 'projectOverview', 'projectStage', 'recordHistory', 'reports', 'revenue', 'stock', 'subcontracts', 'task', 'timeAndMaterials', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder', 'workOrderAcceptance'].sort(),
+      ['agentAttachment', 'agentRun', 'billingStages', 'budget', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'dailySiteReport', 'dashboard', 'document', 'documentExpiry', 'equipment', 'equipmentAvailability', 'erpJournalLines', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'journal', 'integrations', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'notification', 'odoo', 'odooLedger', 'operator', 'orgFeature', 'orgSettings', 'people', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'projectMoney', 'projectOverview', 'projectStage', 'rateCatalogue', 'recordHistory', 'reports', 'revenue', 'stock', 'subcontracts', 'task', 'taskProof', 'timeAndMaterials', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder', 'workOrderAcceptance'].sort(),
     );
   });
 
@@ -281,8 +287,8 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     );
   });
 
-  it('orgSettings exposes its expected methods (OD-TAX-1 0207; #762 withholding; #803 spend approvers 0243)', () => {
-    expect(Object.keys(repositories.orgSettings).sort()).toEqual(['addSpendApprover', 'getDefaultCurrency', 'getLifecycleState', 'getLocaleDefaults', 'getProjectClassificationOptions', 'getDownPaymentItem', 'getProcurementGates', 'getProjectNumberPattern', 'getProjectNumberTimezone', 'getTaxDefault', 'getVendorTaxAccounts', 'getWithholdingAccounts', 'listSpendApprovers', 'removeSpendApprover', 'setProjectClassificationOptions', 'setDownPaymentItem', 'setProcurementGates', 'setProjectNumberPattern', 'setTaxDefault', 'setVendorTaxAccounts', 'setWithholdingAccounts'].sort());
+  it('orgSettings exposes its expected methods (OD-TAX-1 0207; #762 withholding; #803 spend approvers 0243; #2329 fiscal year 1018)', () => {
+    expect(Object.keys(repositories.orgSettings).sort()).toEqual(['addSpendApprover', 'getDefaultCurrency', 'getFiscalYearSetting', 'setFiscalYearStartMonth', 'getLifecycleState', 'getLocaleDefaults', 'getProjectClassificationOptions', 'getDownPaymentItem', 'getProcurementGates', 'getProjectNumberPattern', 'getProjectNumberTimezone', 'getTaxDefault', 'getVendorTaxAccounts', 'getWithholdingAccounts', 'listSpendApprovers', 'removeSpendApprover', 'setProjectClassificationOptions', 'setDownPaymentItem', 'setProcurementGates', 'setProjectNumberPattern', 'setTaxDefault', 'setVendorTaxAccounts', 'setWithholdingAccounts'].sort());
   });
 
   it('procurementFiles exposes its expected methods', () => {
@@ -339,7 +345,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // overdue count). 'listByIds' added with #2106 (the minutes' action items in one read instead of
       // one per block). This list is an exhaustive API-seam contract (ADR-0017) — extending
       // the repository surface must be an explicit change here, never an accident.
-      ['addDependency', 'archive', 'create', 'delete', 'get', 'list', 'listByIds', 'listByAssignee', 'listByMeeting', 'listCalendar', 'listDueRows', 'removeDependency', 'unarchive', 'update', 'updateStatus'].sort(),
+      ['addDependency', 'archive', 'create', 'delete', 'get', 'list', 'listByIds', 'listByAssignee', 'listByMeeting', 'listCalendar', 'listDueRows', 'listOpenByWorkOrder', 'removeDependency', 'unarchive', 'update', 'updateStatus'].sort(),
     );
     expect(Object.keys(repositories.meeting).sort()).toEqual(
       // #526 (OD-MTG-1/2): grants are add/revoke ONLY — no update method on purpose (a grant is
@@ -395,7 +401,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'getActivationMode', 'getDistribution', 'importLine', 'listArchiveLiveTargets', 'listArchiveTargets', 'listDocumentLinks', 'listLegacyArchiveLiveTargets', 'listOrgDrafts', 'listVersions', 'precheckActivation', 'removeDocumentLink', 'resubmitVersion', 'returnVersion', 'saveDistribution', 'switchDraftMode', 'updateLineItem'].sort(),
     );
     expect(Object.keys(repositories.incident).sort()).toEqual(
-      ['count', 'create', 'delete', 'get', 'list', 'listPage', 'transition', 'update'].sort(),
+      ['count', 'create', 'createTask', 'delete', 'fileUrl', 'get', 'list', 'listFiles', 'listPage', 'transition', 'update', 'uploadFile'].sort(),
     );
     expect(Object.keys(repositories.comment).sort()).toEqual(['archive', 'create', 'list']);
   });
@@ -1086,7 +1092,7 @@ describe('delegation — methods pass args through and return the DAL result', (
     expect(incidentsDal.updateIncident).toHaveBeenCalledWith('i1', input);
 
     await repositories.incident.transition('i1', 'Investigating' as never);
-    expect(incidentsDal.transitionIncident).toHaveBeenCalledWith('i1', 'Investigating');
+    expect(incidentsDal.transitionIncident).toHaveBeenCalledWith('i1', 'Investigating', undefined);
 
     await repositories.incident.delete('i1');
     expect(incidentsDal.deleteIncident).toHaveBeenCalledWith('i1');

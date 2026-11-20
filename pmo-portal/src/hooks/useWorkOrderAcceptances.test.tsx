@@ -30,6 +30,14 @@ const keys = (spy: ReturnType<typeof setup>['spy']) => spy.mock.calls.map(([filt
 beforeEach(() => { vi.clearAllMocks(); auth.orgId = 'org-1'; });
 
 describe('contract-quantity read hooks', () => {
+  it('invalidates reconciliation when an order allocation changes', async () => {
+    const { client, wrapper } = setup();
+    const key = ['billing-reconciliation', 'org-1', 'p1', 'wo-1'];
+    client.setQueryData(key, [{ scopeQty: 1 }]);
+    const { result } = renderHook(() => useWorkOrderAcceptanceMutations('p1'), { wrapper });
+    await act(async () => { await result.current.createLine.mutateAsync({ workOrderId: 'wo-1', boqItemId: 'b1', quantity: 2 }); });
+    expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+  });
   it('AC-CQ-015 acceptances are one project query under an org-scoped key', async () => {
     const { client, wrapper } = setup();
     const { result } = renderHook(() => useWorkOrderAcceptances('p1'), { wrapper });

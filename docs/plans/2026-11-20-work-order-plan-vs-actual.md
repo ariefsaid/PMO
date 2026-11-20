@@ -28,3 +28,22 @@ Migrations: next free numbers in the range the Director assigns at dispatch (aft
 
 ## Gates and review
 Standard local final gate (CLAUDE.md), pgTAP files touched, mutation checks quoted. Reviewers: spec, code-quality, security-auditor (RLS on the two tables, role gates). Owner decides the open questions before dispatch.
+
+## Build record (feat/2519-plan-vs-actual, migrations 0997–0999)
+
+The review aligned the cost and billing basis to the decisions recorded in the spec:
+
+| Open question | Taken for v1 | Where |
+|---|---|---|
+| Q1 money seam | One role-gated `work_order_cost_amounts(project)` read uses the existing project-finance actuals as its cost authority. | 0999 |
+| Q2 cost basis | Paid PMO purchases plus the asset-month equipment charge, or the existing ERP ledger basis. Bill-linked payments follow their documents; unmatched amounts remain unassigned. Other billed work is shown separately in project revenue. | 0999 |
+| Q3 contract | The contract and project roll-ups are the same under the one-contract-per-project model; Other revenue is stated separately. | pure module |
+| Q4 shared pool | An unlinked paid purchase remains unassigned; unlinked ERP actuals use only a valid custom split. Equipment project cost follows the default allocation. | 0999, pure module |
+| Q5 indirect budget | Free-standing plan figure, compared to allocated shared cost. | 0997 |
+| Q6 crew plan | Hours. | 0997 |
+| Q7 currency | Per currency, never blended. A custom split applies only while every work order uses one currency. | pure module |
+| Q8 margin readers | Admin, Executive, Finance, PM. | 0997/0999, `can('view','workOrderPlan')` |
+
+Deviations from the plan and spec, for review:
+- **Work-order page (FR-WPVA-040, AC-WPVA-016).** #2518's page doesn't exist on this base yet, so the figures sit in the project's contract area for now: each work order has a basis row you can open, and a discipline roll-up follows. The page section and the E2E journey `AC-WPVA-016` landed in #2570 (`docs/plans/2026-11-20-wo-page-plan-vs-actual.md`).
+- Plan editing in the UI is per whole work order. Per-discipline plan figures are visible and their editor is a follow-up.

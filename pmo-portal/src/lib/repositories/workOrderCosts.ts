@@ -5,6 +5,10 @@
  */
 import {
   listCostDisciplines,
+  createCostDiscipline,
+  updateCostDiscipline,
+  archiveCostDiscipline,
+  type CostDisciplineInput,
   setCostAttribution,
   listWorkOrderCostLines,
   groupCostLinesBySource,
@@ -14,9 +18,11 @@ import {
   type CostSource,
   type WorkOrderCostLine,
 } from '@/src/lib/db/workOrderCosts';
+import { listWorkOrderCostMoney, listWorkOrderCostLinks, listWorkOrderTimesheetLabels } from '@/src/lib/db/workOrderCostMoney';
 import { wrap } from './repositoryErrors';
 
-export type { CostAttribution, CostDiscipline, CostSource, WorkOrderCostLine };
+export type { CostAttribution, CostDiscipline, CostDisciplineInput, CostSource, WorkOrderCostLine };
+export { DISCIPLINE_CODE_MAX, DISCIPLINE_NAME_MAX } from '@/src/lib/db/workOrderCosts';
 export { NO_ATTRIBUTION, hasAttribution, COST_SOURCES } from '@/src/lib/db/workOrderCosts';
 
 /**
@@ -36,6 +42,10 @@ export class AttributionRefusedError extends Error {
 
 export const workOrderCostRepository = {
   disciplines: (): Promise<CostDiscipline[]> => wrap(() => listCostDisciplines()),
+  /** #2623: the Admin-kept list (RLS is the authority: Admin only, 0950). */
+  createDiscipline: (input: CostDisciplineInput): Promise<string> => wrap(() => createCostDiscipline(input)),
+  updateDiscipline: (id: string, input: CostDisciplineInput): Promise<void> => wrap(() => updateCostDiscipline(id, input)),
+  archiveDiscipline: (id: string): Promise<void> => wrap(() => archiveCostDiscipline(id)),
   setAttribution: (source: CostSource, ids: string[], attribution: CostAttribution): Promise<number> =>
     wrap(() => setCostAttribution(source, ids, attribution)),
   /**
@@ -56,6 +66,10 @@ export const workOrderCostRepository = {
     try { await wrap(() => setCostAttribution(source, [id], attribution)); } catch (err) { throw new AttributionRefusedError(err, id); }
   },
   costLines: (workOrderId: string): Promise<WorkOrderCostLine[]> => wrap(() => listWorkOrderCostLines(workOrderId)),
+  /** Per-source money behind the lines (#2518); `null` for a source the caller cannot read. */
+  costLinks: (lines: WorkOrderCostLine[]) => wrap(() => listWorkOrderCostLinks(lines)),
+  timesheetLabels: (lines: WorkOrderCostLine[]) => wrap(() => listWorkOrderTimesheetLabels(lines)),
+  costMoney: (lines: WorkOrderCostLine[]) => wrap(() => listWorkOrderCostMoney(lines)),
   /** One work order's cost lines, grouped by source — the foundation #2518/#2519/#2523 read. */
   costLinesBySource: async (workOrderId: string) => groupCostLinesBySource(await wrap(() => listWorkOrderCostLines(workOrderId))),
 };

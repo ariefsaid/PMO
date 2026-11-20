@@ -38,6 +38,7 @@ vi.mock('@/src/lib/db/notifications', () => ({
 }));
 
 import { NotificationBell } from '../NotificationBell';
+import { BahasaProvider } from '@/test/bahasa';
 
 function row(overrides: Record<string, unknown> = {}) {
   return {
@@ -69,6 +70,13 @@ beforeEach(() => {
 });
 
 describe('NotificationBell', () => {
+  it('shows an overdue issue notification in the reader’s language', async () => {
+    listNotifications.mockResolvedValue([row({ title: 'Issue is overdue', metadata: { entity: { type: 'incident', id: 'i1' } } })]);
+    render(<BahasaProvider><MemoryRouter><NotificationBell /></MemoryRouter></BahasaProvider>);
+    await userEvent.click(await screen.findByRole('button', { name: /notifikasi/i }));
+    expect(await screen.findByText('Insiden melewati tenggat')).toBeInTheDocument();
+  });
+
   it('AC-AAN-032 the badge reflects the unread count and the accessible name includes it', async () => {
     listUnreadCount.mockResolvedValue(3);
     renderBell();
@@ -104,6 +112,13 @@ describe('NotificationBell', () => {
     const bell = await screen.findByRole('button', { name: /notifications.*0 unread/i });
     expect(bell).toBeInTheDocument();
     expect(screen.queryByText('0')).not.toBeInTheDocument();
+  });
+
+  it('renders a new structured notification from the app template', async () => {
+    listNotifications.mockResolvedValue([row({ body: 'stored fallback', message_key: 'budgetArchiveWarning', message_params: {} })]);
+    renderBell();
+    await userEvent.click(await screen.findByRole('button', { name: /notifications.*0 unread/i }));
+    expect(await screen.findByText(/ERPNext may still be enforcing a budget/)).toBeInTheDocument();
   });
 
   it('AC-AAN-033 opening the bell lists notifications most-recent-first as a semantic list', async () => {
@@ -207,6 +222,15 @@ describe('NotificationBell', () => {
 
     await waitFor(() => expect(markNotificationRead).toHaveBeenCalledWith('n1'));
     expect(mockNavigate).toHaveBeenCalledWith('/procurement/pc-42');
+  });
+
+  it('opens the expiry list from an expiry notification', async () => {
+    listUnreadCount.mockResolvedValue(1);
+    listNotifications.mockResolvedValue([row({ id: 'n1', title: 'Permit expiring', metadata: { entity: { type: 'expiry_document', id: 'd1' } } })]);
+    renderBell();
+    await userEvent.click(await screen.findByRole('button', { name: /notifications/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /permit expiring/i }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/equipment/expiring'));
   });
 
   it('AC-WFN-001 selecting a timesheet or task hand-off navigates to its queue page', async () => {

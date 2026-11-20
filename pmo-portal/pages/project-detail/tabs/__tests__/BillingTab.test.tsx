@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
+import { DocumentViewerContext, type DocumentViewerApi } from '@/src/components/documents';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { formatNumberMax2 } from '@/src/lib/format';
 import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
@@ -68,6 +69,12 @@ vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useProjectWorkOrderLines: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs, ...h.docsState }) }));
+// #2522: the claim drawer's billing stages; a claim with no stage plan renders nothing.
+vi.mock('@/src/hooks/useBillingStages', () => ({
+  useBillingReconciliation: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useClaimBillingTrace: () => ({ data: { stages: [], retention: null, deadline: null }, isPending: false, isError: false, refetch: vi.fn() }),
+  useBillingStageMutations: () => ({ attachDocument: { mutateAsync: vi.fn(), isPending: false }, completeStage: { mutateAsync: vi.fn(), isPending: false } }),
+}));
 vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useEquipment', () => ({ useEquipmentAssetPages: () => ({ data: { pages: [{ rows: [] }] }, isPending: false, isError: false, hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn(), refetch: vi.fn(), total: 0 }) }));
 vi.mock('@/src/hooks/useTimeAndMaterials', () => ({
@@ -134,8 +141,9 @@ beforeEach(() => {
     .map((name) => [name, { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false }]));
 });
 
-function renderTab(clientId: string | null = 'c1', initialEntry = '/', mode: 'full' | 'contract-tools' | 'contract-time-materials' = 'full') {
-  render(<MemoryRouter initialEntries={[initialEntry]}><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId={clientId} projectManagerId="pm-1" mode={mode} /><RouteSearch /></ToastProvider></MemoryRouter>);
+function renderTab(clientId: string | null = 'c1', initialEntry = '/', mode: 'full' | 'contract-tools' | 'contract-time-materials' = 'full', open?: DocumentViewerApi['open']) {
+  const content = <><BillingTab projectId="p1" currency="IDR" clientId={clientId} projectManagerId="pm-1" mode={mode} /><RouteSearch /></>;
+  render(<MemoryRouter initialEntries={[initialEntry]}><ToastProvider>{open ? <DocumentViewerContext.Provider value={{ open, close: vi.fn() }}>{content}</DocumentViewerContext.Provider> : content}</ToastProvider></MemoryRouter>);
   return userEvent.setup();
 }
 
@@ -176,6 +184,26 @@ async function renderTabLocalized(lng: 'en' | 'id') {
 }
 
 describe('BillingTab', () => {
+  it('document-preview AC-016 shows a billing evidence title that opens the shared viewer', async () => {
+    const open = vi.fn<DocumentViewerApi['open']>();
+    const user = renderTab('c1', '/', 'full', open);
+    await user.click(screen.getAllByRole('button', { name: /Open Progress claim from/ })[1]);
+    const drawer = within(screen.getByRole('dialog'));
+    await user.click(drawer.getByRole('button', { name: 'Preview Progress report' }));
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(open.mock.calls[0][0].key).toBe('project-document:doc-1');
+  });
+
+  it('document-preview AC-017 never shows a raw id for unreadable billing evidence', async () => {
+    h.docs = [];
+    const user = renderTab();
+    await user.click(screen.getAllByRole('button', { name: /Open Progress claim from/ })[1]);
+    const drawer = within(screen.getByRole('dialog'));
+    expect(drawer.getByText('Document not available')).toBeInTheDocument();
+    expect(drawer.queryByText('doc-1')).toBeNull();
+    expect(drawer.queryByRole('button', { name: /Preview/ })).toBeNull();
+  });
+
   it('C21 keeps the eligible row invoice action secondary while New claim remains the primary action', async () => {
     h.routeReady = false;
     const user = renderTab();
@@ -200,28 +228,37 @@ describe('BillingTab', () => {
     expect(screen.getByText('ACC-SINV-1 · Belum dibayar')).toBeInTheDocument();
   });
 
-  it('AC-1402 counts only fully-paid invoices when any submitted invoice balance is unknown', () => {
+  const settles = (status: string, amount: number, erp_outstanding_amount: number | null) => ({
+    status, amount, erp_outstanding_amount, currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 0,
+  });
+
+  // Changed field (#2204, FR-SET-006): dev read `paid` 2,000 here (fully-Paid invoices only). Callers showed Paid only
+  // when every balance was known, so 2,000 was never rendered; the rule now states settled as unknown.
+  it('AC-1402 AC-SET-004 #2204 counts no partial or status-based paid amount when any submitted invoice balance is unknown', () => {
     const invoices = [
-      { status: 'Unpaid', amount: 10_000.01, erp_outstanding_amount: 4_000.01 },
-      { status: 'Paid', amount: 2_000, erp_outstanding_amount: 0 },
-      { status: 'Unpaid', amount: 5_000, erp_outstanding_amount: null },
-      { status: 'Draft', amount: 500, erp_outstanding_amount: null },
-      { status: 'Cancelled', amount: 900, erp_outstanding_amount: 0 },
-    ] as const;
+      settles('Unpaid', 10_000.01, 4_000.01),
+      settles('Paid', 2_000, 0),
+      settles('Unpaid', 5_000, null),
+      settles('Draft', 500, null),
+      settles('Cancelled', 900, 0),
+    ];
 
     expect(summarizeInvoiceSettlement(invoices)).toEqual({
-      invoiced: 17_000.01,
-      paid: 2_000,
-      unpaid: null,
+      denomination: 'single',
+      currency: 'IDR',
+      documentTotal: 17_000.01,
+      gross: 17_000.01,
+      outstanding: null,
+      settled: null,
       balancesKnown: false,
     });
   });
 
-  it('AC-1402 adds partial payments only when every invoice balance is known', () => {
+  it('AC-1402 #2204 adds partial payments only when every invoice balance is known', () => {
     expect(summarizeInvoiceSettlement([
-      { status: 'Unpaid', amount: 10_000.01, erp_outstanding_amount: 4_000.01 },
-      { status: 'Paid', amount: 2_000, erp_outstanding_amount: 0 },
-    ])).toEqual({ invoiced: 12_000.01, paid: 8_000, unpaid: 4_000.01, balancesKnown: true });
+      settles('Unpaid', 10_000.01, 4_000.01),
+      settles('Paid', 2_000, 0),
+    ])).toEqual({ denomination: 'single', currency: 'IDR', documentTotal: 12_000.01, gross: 12_000.01, settled: 8_000, outstanding: 4_000.01, balancesKnown: true });
   });
 
   it('AC-PB-008 the summary shows contract, billed, assessed, the gap, DP held, not yet billed and not submitted, net of tax', () => {
@@ -331,8 +368,7 @@ describe('BillingTab', () => {
     await user.click(opens[1]);
     const drawer = screen.getByRole('dialog');
     // The register title is the label, and the row opens THAT document in the register.
-    expect(within(drawer).getByRole('link', { name: 'Progress report' }))
-      .toHaveAttribute('href', '/projects/p1/documents?open=doc-1');
+    expect(within(drawer).getByRole('button', { name: 'Preview Progress report' })).toBeInTheDocument();
     expect(within(drawer).getByText('rev A')).toBeInTheDocument();
     const evidenceStatus = within(drawer).getByText('Issued');
     expect(evidenceStatus).toBeInTheDocument();
@@ -346,7 +382,7 @@ describe('BillingTab', () => {
     const opens = screen.getAllByRole('button', { name: /Buka klaim Progres/ });
     await user.click(opens[1]);
     const drawer = screen.getByRole('dialog');
-    expect(within(drawer).getByRole('link', { name: 'Progress report' })).toBeInTheDocument();
+    expect(within(drawer).getByRole('button', { name: 'Preview Progress report' })).toBeInTheDocument();
     expect(within(drawer).getByText('Diterbitkan')).toBeInTheDocument();
     expect(within(drawer).queryByText('Issued')).toBeNull();
   });
@@ -516,6 +552,43 @@ describe('BillingTab', () => {
     const toast = await findToastAnnouncement('alert', 'Tagihan ini telah ditarik. Invoice-nya tidak dapat diterbitkan.');
     expect(toast).toHaveTextContent('Tagihan ini telah ditarik. Invoice-nya tidak dapat diterbitkan.');
     expect(toast).not.toHaveTextContent('Update failed');
+  });
+
+  describe('#2624 a progress claim with an open billing stage (FR-BST-020)', () => {
+    const STAGE_MSG = 'Complete every billing stage of this claim before raising its invoice.';
+    it('AC-BST-005 UI: the claim offers no Raise invoice and names the open stage as the reason, never the withdrawn message', async () => {
+      h.claims = [claim('k2', { evidence: [{ id: 'ev-1', document_id: 'doc-1', document_status: 'Issued', document_revision: 'A' }], open_stage_count: 1 })];
+      const user = renderTab();
+      const actions = within(screen.getByTestId('claim-actions-k2'));
+      expect(actions.queryByRole('button', { name: 'Raise invoice' })).not.toBeInTheDocument();
+      expect(actions.getByText(STAGE_MSG)).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: /Open Progress claim from/ }));
+      const drawer = within(screen.getByRole('dialog'));
+      expect(drawer.queryByRole('button', { name: 'Raise invoice' })).not.toBeInTheDocument();
+      expect(drawer.getByText(STAGE_MSG)).toBeInTheDocument();
+      expect(drawer.queryByText(/withdrawn/i)).not.toBeInTheDocument();
+      expect(actions.queryByText(/withdrawn/i)).not.toBeInTheDocument();
+    });
+    it('AC-BST-005 UI: once every stage is complete the claim offers Raise invoice again', () => {
+      h.claims = [claim('k2', { evidence: [{ id: 'ev-1', document_id: 'doc-1', document_status: 'Issued', document_revision: 'A' }], open_stage_count: 0 })];
+      renderTab();
+      expect(within(screen.getByTestId('claim-actions-k2')).getByRole('button', { name: 'Raise invoice' })).toBeInTheDocument();
+    });
+    it('AC-BST-005 UI: a billing-stages-incomplete refusal toasts the stage reason, never "withdrawn"', async () => {
+      const { AppError } = await import('@/src/lib/appError');
+      h.m.raiseInvoice.mutateAsync.mockRejectedValue(new AppError('complete every billing stage', 'billing-stages-incomplete'));
+      const user = renderTab();
+      await user.click(within(screen.getByTestId('claim-actions-k2')).getByRole('button', { name: 'Raise invoice' }));
+      await user.click(screen.getByRole('button', { name: 'Create ERP invoice' }));
+      const toast = await findToastAnnouncement('alert', STAGE_MSG);
+      expect(toast).toHaveTextContent(STAGE_MSG);
+      expect(toast).not.toHaveTextContent('withdrawn');
+    });
+    it('AC-BST-005 UI: the stage reason is localized — Bahasa (id)', async () => {
+      h.claims = [claim('k2', { evidence: [{ id: 'ev-1', document_id: 'doc-1', document_status: 'Issued', document_revision: 'A' }], open_stage_count: 2 })];
+      await renderTabLocalized('id');
+      expect(within(screen.getByTestId('claim-actions-k2')).getByText('Selesaikan semua tahap penagihan klaim ini sebelum menerbitkan invoice-nya.')).toBeInTheDocument();
+    });
   });
 
   it('keeps evidence unavailable while documents load and offers retry after failure', async () => {

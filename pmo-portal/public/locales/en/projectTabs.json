@@ -71,7 +71,7 @@
           "confirm": "Withdraw BAST",
           "title": "Withdraw this BAST draft?"
         },
-        "document": "Signed BAST: {{title}}",
+        "documentLabel": "Signed BAST:",
         "edit": "Edit",
         "editLabel": "Edit draft BAST of {{date}}",
         "empty": "No BASTs yet",
@@ -124,7 +124,8 @@
         "withdrawLabel": "Withdraw draft BAST of {{date}}",
         "confirmDelivery": "Confirm draft BAST",
         "finalConfirmed": "Final confirmed",
-        "confirmed": "Confirmed"
+        "confirmed": "Confirmed",
+        "openWorkOrder": "Open work order"
       },
       "closing": {
         "closedAt": "Closed at {{amount}} (excl. PPN)",

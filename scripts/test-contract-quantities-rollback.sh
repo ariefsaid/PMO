@@ -10,6 +10,9 @@ from pathlib import Path
 import sys
 out=Path(sys.argv[1])
 text=Path('scripts/contract-quantities-rollback.test.sql').read_text()
+# 1040's dsr_progress_lines references work_order_lines; 1041 holds the functions over 1040's tables.
+dependents=['supabase/migrations/rollback/1041_daily_site_report_rpcs_down.sql', 'supabase/migrations/rollback/1040_daily_site_reports_down.sql']
+text=text.replace('-- @DEPENDENTS_DOWN@', '\n'.join(Path(p).read_text() for p in dependents))
 for marker, source in [
     ('-- @0337_DOWN@', 'supabase/migrations/rollback/0337_contract_quantities_down.sql'),
     ('-- @0337_UP@', 'supabase/migrations/0337_contract_quantities.sql'),
