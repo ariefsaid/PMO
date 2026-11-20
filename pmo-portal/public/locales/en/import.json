@@ -7,7 +7,9 @@
     "crews": "crews",
     "crew": "crew",
     "crewMembers": "crew members",
-    "crewMember": "crew member"
+    "crewMember": "crew member",
+    "clientTakeoff": "take-off lines",
+    "clientTakeoffLine": "take-off line"
   },
   "wizard": {
     "title": "Import {{entity}}",
@@ -206,6 +208,20 @@
       "endBefore": "To is before From.",
       "overlapInFile": "This person is already placed on overlapping dates in row {n}.",
       "overlap": "These dates overlap another placement of this person. End that one first."
+    }
+  },
+  "clientTakeoff": {
+    "itemCode": "Item code",
+    "takeoff": "Take-off quantity",
+    "requested": "Requested quantity",
+    "itemHint": "The code of a client-supplied item.",
+    "requestedHint": "Optional. Blank means the take-off quantity.",
+    "error": {
+      "quantity": "Enter a quantity above 0 with at most 3 decimal places.",
+      "itemRequired": "Item code is required.",
+      "itemUnknown": "Item code not found among the client-supplied items.",
+      "whole": "This item is counted in whole units.",
+      "repeat": "This item already appears in row {n}."
     }
   }
 }

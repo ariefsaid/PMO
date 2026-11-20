@@ -169,6 +169,7 @@
       "open": "Terbuka"
     },
     "stillToCollect": "Belum diambil",
-    "title": "Material klien"
+    "title": "Material klien",
+    "importTakeoff": "Impor take-off"
   }
 }

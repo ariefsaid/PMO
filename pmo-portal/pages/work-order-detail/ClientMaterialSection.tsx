@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ImportButton } from '@/src/components/import';
+import { makeClientTakeoffImportDescriptor } from '@/src/lib/import';
 import { Button, ConfirmDialog, ListState, RecordSection, StatusPill, type StatusVariant } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
@@ -46,6 +48,7 @@ const Figure: React.FC<{ label: string; value: string; testId?: string }> = ({ l
  */
 export const ClientMaterialSection: React.FC<Props> = ({ workOrderId, projectId, workOrderStatus, allocationOptions }) => {
   const { t } = useTranslation('workOrders');
+  const { t: tAll } = useTranslation();
   const may = usePermission();
   const userId = useAuth().currentUser?.id;
   const { realRole, effectiveRole } = useEffectiveRole();
@@ -88,6 +91,12 @@ export const ClientMaterialSection: React.FC<Props> = ({ workOrderId, projectId,
     .filter((w) => isAdmin || myKept.has(w.id))
     .map((w) => ({ value: w.id, label: `${w.code} · ${w.name}` }));
 
+  const takeoffDescriptor = useMemo(() => makeClientTakeoffImportDescriptor({
+    workOrderId,
+    items: (items.data ?? []).filter((i) => i.tag_id && zeroCostTagIds.has(i.tag_id))
+      .map((i) => ({ id: i.id, code: i.code, name: i.name, wholeOnly: (units.data ?? []).find((u) => u.id === i.unit_id)?.whole_only === true })),
+  }, tAll), [workOrderId, items.data, units.data, zeroCostTagIds, tAll]);
+
   const woOpen = workOrderStatus === 'Draft' || workOrderStatus === 'Issued';
   const canCreate = woOpen && may('create', 'clientRequisition', { record: { viewOnly } });
 
@@ -100,7 +109,10 @@ export const ClientMaterialSection: React.FC<Props> = ({ workOrderId, projectId,
     s === 'draft' ? t('clientMaterial.status.draft', 'Draft') : s === 'open' ? t('clientMaterial.status.open', 'Open') : t('clientMaterial.status.cancelled', 'Cancelled');
 
   const newButton = canCreate ? (
-    <Button size="sm" variant="primary" onClick={() => setDialog({ kind: 'new' })}>{t('clientMaterial.newRequisition', 'New requisition')}</Button>
+    <>
+      <ImportButton entity="clientRequisition" descriptor={takeoffDescriptor} onImported={() => void q.refetch()} label={t('clientMaterial.importTakeoff', 'Import take-off')} />
+      <Button size="sm" variant="primary" onClick={() => setDialog({ kind: 'new' })}>{t('clientMaterial.newRequisition', 'New requisition')}</Button>
+    </>
   ) : undefined;
 
   if (q.isPending) return <RecordSection title={title}><ListState variant="loading" rows={3} /></RecordSection>;

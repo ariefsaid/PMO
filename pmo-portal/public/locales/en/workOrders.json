@@ -169,6 +169,7 @@
       "collector": "Collected by",
       "paper": "Delivery paper reference",
       "zeroValue": "The material is received into stock at no cost."
-    }
+    },
+    "importTakeoff": "Import take-off"
   }
 }

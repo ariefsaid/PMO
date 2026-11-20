@@ -7,7 +7,9 @@
     "crews": "kru",
     "crew": "kru",
     "crewMembers": "anggota kru",
-    "crewMember": "anggota kru"
+    "crewMember": "anggota kru",
+    "clientTakeoff": "baris take-off",
+    "clientTakeoffLine": "baris take-off"
   },
   "wizard": {
     "title": "Impor {{entity}}",
@@ -206,6 +208,20 @@
       "endBefore": "Sampai lebih awal dari Dari.",
       "overlapInFile": "Orang ini sudah ditempatkan pada tanggal yang tumpang tindih di baris {n}.",
       "overlap": "Tanggal ini tumpang tindih dengan penempatan lain orang ini. Akhiri penempatan itu dahulu."
+    }
+  },
+  "clientTakeoff": {
+    "itemCode": "Kode item",
+    "takeoff": "Kuantitas take-off",
+    "requested": "Kuantitas diminta",
+    "itemHint": "Kode item pasokan klien.",
+    "requestedHint": "Opsional. Kosong berarti sebesar kuantitas take-off.",
+    "error": {
+      "quantity": "Masukkan kuantitas di atas 0 dengan paling banyak 3 angka desimal.",
+      "itemRequired": "Kode item wajib diisi.",
+      "itemUnknown": "Kode item tidak ditemukan di antara item pasokan klien.",
+      "whole": "Item ini dihitung dalam satuan utuh.",
+      "repeat": "Item ini sudah muncul di baris {n}."
     }
   }
 }
