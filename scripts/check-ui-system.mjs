@@ -30,6 +30,8 @@ export const ALLOW = {
 };
 
 const STRUCTURAL_ALLOW = [
+  { path: 'pmo-portal/src/components/tasks/TaskProofPanel.tsx', rule: 'button-default', count: 1, reason: 'Mark done is the single filled action; Add photo, Add document and Remove are outline or ghost.' },
+  { path: 'pmo-portal/src/components/tasks/TaskProofPanel.tsx', rule: 'raw-control', count: 2, reason: 'Visually hidden file inputs (camera and document) opened by their buttons; there is no shared file-picker primitive for a hidden capture input.' },
   { path: 'pmo-portal/pages/AdministrationExchangeRates.tsx', rule: 'button-default', count: 1, reason: 'Upload rates is the filled create action; the peer action is explicitly outline.' },
   { path: 'pmo-portal/pages/admin/CostAttribution.tsx', rule: 'button-default', count: 1, reason: 'Add rule is the single filled create action for this list.' },
   { path: 'pmo-portal/pages/admin/OrgProjectClassificationOptions.tsx', rule: 'button-default', count: 1, reason: 'Save options is the form submit action; the view has no competing filled action.' },

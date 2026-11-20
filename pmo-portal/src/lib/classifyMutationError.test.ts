@@ -269,3 +269,17 @@ describe('#577: an app-authored 42501 reaches the user with its own remedy', () 
     }
   });
 });
+
+describe('#2531 task proof / work-order rules surface their own sentence', () => {
+  it('23514 with an authored task message shows that message, not the generic check copy', () => {
+    const msg = 'proof of completion is required before this task can be Done';
+    const out = classifyMutationError(Object.assign(new Error(msg), { code: '23514' }), undefined, { suppressCapture: true });
+    expect(out.headline).toBe('A task rule applies');
+    expect(out.detail).toBe(msg);
+  });
+  it('an unrelated 23514 keeps the generic copy', () => {
+    const out = classifyMutationError(Object.assign(new Error('violates check constraint "x"'), { code: '23514' }), undefined, { suppressCapture: true });
+    expect(out.headline).not.toBe('A task rule applies');
+    expect(out.detail).not.toContain('violates check');
+  });
+});
