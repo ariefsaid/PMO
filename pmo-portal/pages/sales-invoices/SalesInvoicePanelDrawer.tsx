@@ -26,6 +26,8 @@ const SalesInvoicePanelDrawer: React.FC<{
   panelPrimary: { label: string; onClick: () => void } | null;
   invoiceStatus: (inv: SalesInvoiceRow) => { label: string; variant: StatusVariant };
   projectLabelOf: (inv: SalesInvoiceRow) => string | null | undefined;
+  projectManagerNameOf: (inv: SalesInvoiceRow) => string;
+  deliveryLabelOf: (inv: SalesInvoiceRow) => string;
   rowMenu: (inv: SalesInvoiceRow) => RowMenuItem[];
   odoo: boolean;
   onClose: () => void;
@@ -39,6 +41,8 @@ const SalesInvoicePanelDrawer: React.FC<{
   panelPrimary,
   invoiceStatus,
   projectLabelOf,
+  projectManagerNameOf,
+  deliveryLabelOf,
   rowMenu,
   odoo,
   onClose,
@@ -81,6 +85,8 @@ const SalesInvoicePanelDrawer: React.FC<{
               {due && field('due', t('finance:receivables.dueDate', 'Due date'), formatDay(due))}
               {panelInvoice.invoice_date && field('invoiceDate', t('finance:receivables.invoiceDate', 'Invoice date'), formatDay(panelInvoice.invoice_date))}
               {panelInvoice.erp_payment_terms_days != null && field('terms', t('finance:receivables.paymentTerms', 'Terms'), t('finance:receivables.paymentTermsDays', '{{count}} days', { count: panelInvoice.erp_payment_terms_days }))}
+              {field('projectManager', t('finance:receivables.projectManager', 'Project manager'), projectManagerNameOf(panelInvoice))}
+              {field('delivery', t('finance:receivables.delivery', 'Delivery'), deliveryLabelOf(panelInvoice))}
               {panelInvoice.efaktur_number && field('efaktur', t('finance:receivables.eFaktur', 'e-Faktur'), `${panelInvoice.efaktur_number}${panelInvoice.efaktur_date ? ` · ${formatDay(panelInvoice.efaktur_date)}` : ''}`)}
             </dl>
             {outstandingUnknown && <p className="mt-3 text-control text-muted-foreground">{t('finance:receivables.outstandingUnknown', 'The outstanding balance is not known yet: the accounting system has not reported it for this invoice.')}</p>}
