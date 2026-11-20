@@ -98,6 +98,7 @@ export function calendarAgeDays(date: string | null | undefined, today: string |
 /** Earliest supplier invoice date; creation and recorded-state timestamps are not invoice age. */
 export function supplierInvoiceDate(procurement: Pick<ProcurementWithRefs, 'procurement_invoices'>): string | null {
   return (procurement.procurement_invoices ?? [])
+    .filter((invoice) => !invoice.voided_at)
     .map((invoice) => invoice.invoice_date)
     .filter((date): date is string => Boolean(date))
     .sort()[0] ?? null;
