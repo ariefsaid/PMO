@@ -10,7 +10,9 @@ cut-off.
 
 **Retention** is the share of a progress claim the client holds back until a later event
 (handover, end of the defects period). PMO holds it on the receivable: the invoice and its VAT
-stay at full value; the amount due now is the invoice less the retention still held. A
+stay at full value; the amount **due now** is what is still outstanding on the invoice less the
+retention still held. The retention is its own figure until a release is recorded: it counts in
+what the client owes you, but it is never aged or overdue. A
 **retention release** is a scheduled, then recorded, payment-due event for part or all of a
 claim's retention.
 
@@ -76,6 +78,10 @@ measured and billed, and what is left.
   *Current*, or *Waiting* — its age, and its documents as links.
 - *Retention held: ⟨amount⟩ (⟨pct⟩%)* and *Scheduled total (including released): ⟨scheduled⟩ ·
   Released: ⟨released⟩* sit above the release list.
+- On **Receivables**, *Owed to you* still includes retention; *Retention held, not due until
+  released: ⟨amount⟩* sits under the balances by age, which (with **Overdue**) count only what is
+  due now. An invoice whose remaining balance is only its retention is not overdue. The invoice's
+  detail shows **Retention held** and **Due now** beside **Outstanding**.
 - The **Billing reconciliation** table lists, per contract item: **Scope**, **Progress**,
   **Measured**, **Billed**, **Billed amount**, **Unbilled**, **Surplus**, and a **Status** of
   *Unbilled*, *Partly billed*, *Fully billed* or *Surplus*. Items shared by several work
@@ -111,8 +117,10 @@ tiap langkah menunggu — agar faktur keluar lengkap dan sebelum batas waktu bul
 
 **Retensi** adalah porsi klaim progres yang ditahan klien sampai peristiwa berikutnya
 (serah terima, akhir masa pemeliharaan). PMO menahannya pada piutang: faktur dan PPN-nya tetap
-bernilai penuh; jumlah yang jatuh tempo sekarang adalah faktur dikurangi retensi yang masih
-ditahan. **Pelepasan retensi** adalah peristiwa jatuh tempo pembayaran yang dijadwalkan, lalu
+bernilai penuh; jumlah yang **jatuh tempo sekarang** adalah sisa tagihan faktur dikurangi retensi
+yang masih ditahan. Retensi menjadi angkanya sendiri sampai pelepasan dicatat: ia termasuk dalam
+yang terutang kepada Anda, tetapi tidak pernah diumurkan atau dianggap lewat jatuh tempo.
+**Pelepasan retensi** adalah peristiwa jatuh tempo pembayaran yang dijadwalkan, lalu
 dicatat, untuk sebagian atau seluruh retensi klaim.
 
 Tabel **rekonsiliasi penagihan** melengkapinya: per item bill of quantities, apa yang
@@ -179,6 +187,11 @@ dikerjakan, diukur, dan ditagih, serta sisanya.
   *Berjalan*, atau *Menunggu* — usianya, dan dokumennya sebagai tautan.
 - *Retensi ditahan: ⟨jumlah⟩ (⟨pct⟩%)* dan *Total terjadwal (termasuk yang dilepas):
   ⟨terjadwal⟩ · Dilepas: ⟨terlepas⟩* berada di atas daftar pelepasan.
+- Di **Piutang**, *Piutang kepada Anda* tetap termasuk retensi; *Retensi ditahan, belum jatuh
+  tempo sampai dilepas: ⟨jumlah⟩* berada di bawah saldo menurut umur, yang (bersama **Terlambat**)
+  hanya menghitung yang jatuh tempo sekarang. Faktur yang sisa tagihannya hanya
+  retensinya tidak terlambat. Detail faktur menampilkan **Retensi ditahan** dan **Jatuh
+  tempo sekarang** di samping **Terutang**.
 - Tabel **Rekonsiliasi penagihan** memuat, per item kontrak: **Lingkup**, **Progres**,
   **Terukur**, **Ditagih**, **Jumlah ditagih**, **Belum ditagih**, **Kelebihan**, dan
   **Status** berupa *Belum ditagih*, *Ditagih sebagian*, *Ditagih penuh*, atau *Kelebihan*.

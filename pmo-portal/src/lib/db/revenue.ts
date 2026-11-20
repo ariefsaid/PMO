@@ -45,6 +45,8 @@ export interface SalesInvoiceRow {
   tax_base_numerator?: number;
   tax_base_denominator?: number;
   erp_outstanding_amount: number | null;
+  /** #2625: the claim's retention still held on this invoice (the 1116 computed read; 0 when none). Owed, not due now. */
+  retention_held?: number;
   status: 'Draft' | 'Submitted' | 'Unpaid' | 'Paid' | 'Cancelled';
   erp_docstatus: number | null;
   erp_modified: string | null;
@@ -191,8 +193,15 @@ function throwWrite(error: PostgrestErrorLike): never {
  * append-only AUTHOR SET (0113) that the submit SoD is really enforced on — the affordance must
  * consult the same oracle as the RPC, or it offers a "Submit" that 403s (round-6 re-audit NIT 1).
  */
+// #2625: `retention_held` is the 1116 computed read (the claim's retention still held on this invoice; 0 when none).
 const SALES_INVOICE_SELECT =
-  '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name,short_name), sales_invoice_authors(user_id), project:projects!sales_invoices_project_id_fkey(subject_to_vat,receipt_withholding_article)';
+  '*, retention_held, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name,short_name), sales_invoice_authors(user_id), project:projects!sales_invoices_project_id_fkey(subject_to_vat,receipt_withholding_article)';
+
+/** The 1116 computed read: a numeric (JSON number or text); anything unreadable is no retention, never NaN. */
+function retentionHeld(value: unknown): number {
+  const n = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : 0;
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
 
 /** One joined SI row → the flat `SalesInvoiceRow` (payment terms + author set + customer name flattened). */
 function toSalesInvoiceRow(row: Record<string, unknown>): SalesInvoiceRow {
@@ -209,6 +218,7 @@ function toSalesInvoiceRow(row: Record<string, unknown>): SalesInvoiceRow {
     received_date: (row.received_date as string | null | undefined) ?? null,
     efaktur_number: (row.efaktur_number as string | null | undefined) ?? null,
     efaktur_date: (row.efaktur_date as string | null | undefined) ?? null,
+    retention_held: retentionHeld(row.retention_held),
   } as unknown as SalesInvoiceRow;
 }
 
@@ -244,14 +254,14 @@ export async function getOverdueInvoiceCount(today: string): Promise<number> {
   const rows = await fetchAllPages<Record<string, unknown>>((from, to) =>
     supabase
       .from('sales_invoices')
-      .select('id,status,invoice_date,erp_due_date,received_date,companies!sales_invoices_customer_id_fkey(erp_payment_terms_days)')
+      .select('id,status,invoice_date,erp_due_date,received_date,erp_outstanding_amount,retention_held,companies!sales_invoices_customer_id_fkey(erp_payment_terms_days)')
       .in('status', [...OPEN_CLIENT_INVOICE_STATUSES])
       .is('paired_erp_invoice_id', null)
       .order('id', { ascending: true })
       .range(from, to) as unknown as PromiseLike<PageResult<Record<string, unknown>>>,
   );
   return rows.filter((raw) => {
-    const row = raw as { status: string; invoice_date: string | null; erp_due_date: string | null; received_date: string | null; companies: { erp_payment_terms_days: number | null } | null };
+    const row = raw as { status: string; invoice_date: string | null; erp_due_date: string | null; received_date: string | null; erp_outstanding_amount: number | null; retention_held: number | null; companies: { erp_payment_terms_days: number | null } | null };
     // #1457: the one shared overdue rule decides; the SQL above narrows to the same open set.
     return clientInvoiceOverdueDays({
       status: row.status,
@@ -259,19 +269,21 @@ export async function getOverdueInvoiceCount(today: string): Promise<number> {
       erp_payment_terms_days: row.companies?.erp_payment_terms_days,
       erp_due_date: row.erp_due_date,
       received_date: row.received_date,
+      erp_outstanding_amount: row.erp_outstanding_amount,
+      retention_held: retentionHeld(row.retention_held),
     }, today) !== null;
   }).length;
 }
 
 /** What the dashboard's overdue tile reads from an open client invoice; nothing else leaves the database. */
-export type OverdueInvoiceFact = Pick<SalesInvoiceRow, 'id' | 'status' | 'currency' | 'invoice_date' | 'erp_due_date' | 'received_date' | 'erp_outstanding_amount' | 'erp_payment_terms_days'>;
+export type OverdueInvoiceFact = Pick<SalesInvoiceRow, 'id' | 'status' | 'currency' | 'invoice_date' | 'erp_due_date' | 'received_date' | 'erp_outstanding_amount' | 'erp_payment_terms_days' | 'retention_held'>;
 
 /** Open (Submitted/Unpaid) client invoices as narrow facts: the rows `selectOverdueInvoices` keeps from the full list, without the authors/customer-name joins. */
 export async function listOverdueInvoiceFacts(): Promise<OverdueInvoiceFact[]> {
   const rows = await fetchAllPages<Record<string, unknown>>((from, to) =>
     supabase
       .from('sales_invoices')
-      .select('id,status,currency,invoice_date,erp_due_date,received_date,erp_outstanding_amount,companies!sales_invoices_customer_id_fkey(erp_payment_terms_days)')
+      .select('id,status,currency,invoice_date,erp_due_date,received_date,erp_outstanding_amount,retention_held,companies!sales_invoices_customer_id_fkey(erp_payment_terms_days)')
       .in('status', [...OPEN_CLIENT_INVOICE_STATUSES])
       .is('paired_erp_invoice_id', null)
       .order('id', { ascending: true })
@@ -282,6 +294,7 @@ export async function listOverdueInvoiceFacts(): Promise<OverdueInvoiceFact[]> {
     erp_payment_terms_days: (row.companies as { erp_payment_terms_days: number | null } | null)?.erp_payment_terms_days ?? null,
     erp_due_date: (row.erp_due_date as string | null | undefined) ?? null,
     received_date: (row.received_date as string | null | undefined) ?? null,
+    retention_held: retentionHeld(row.retention_held),
   }) as unknown as OverdueInvoiceFact);
 }
 

@@ -99,6 +99,11 @@ how much of each invoice the client is still holding back as retention.
   scheduled one may be cancelled.
 - **FR-RET-020** (ubiquitous) Per claim the database shall report retention, scheduled, released and held
   (retention less released).
+- **FR-RET-021** (ubiquitous) Every receivable read shall carry the retention still held on a claim's invoice
+  (`retention_held`, migration 1116), and the receivable views shall show the amount **due now** as the outstanding
+  balance less that retention (never below zero), with the retention as its own figure until a release is recorded.
+  Ageing and overdue shall count only the due-now part: a balance that is only retention held is not overdue (#2625,
+  ADR-0105 §4). "Owed" keeps the whole outstanding balance.
 
 ## Non-functional
 - **NFR-BST-001** Every new table carries `org_id` stamped by the server, RLS on, select for active members in the
@@ -144,6 +149,10 @@ how much of each invoice the client is still holding back as retention.
 - **AC-RET-003** Given a Project Manager, When they schedule or release retention or change the project's retention
   percentage, Then it is refused (42501).
 - **AC-RET-004** Given a project with measured work and an approved claim invoice, When Finance views the reconciliation and schedules, cancels and records a retention release with proof, Then the quantities and billed amount agree with the claim and the recorded release and proof are visible.
+- **AC-RET-005** Given a claim invoice of 1,000,000 with 50,000 retention held, When the client pays 950,000, Then
+  due now is 0, the 50,000 shows as retention held, and the invoice is not overdue; When the client has paid 500,000
+  instead, Then due now is 450,000 and only that amount ages and is overdue; When a 20,000 release is recorded, Then
+  retention held is 30,000.
 - **AC-TRACE-001** Given one work order, When it is traced (progress → claim → each stage with its documents →
   invoice → retention), Then every stage has its documents attached, the invoice is raised and the reconciliation
   agrees with the claim and invoice.
@@ -165,4 +174,5 @@ how much of each invoice the client is still holding back as retention.
 | AC-BST-020 | `supabase/tests/1023_billing_reconciliation.test.sql` (pgTAP) |
 | AC-RET-004 | `pmo-portal/e2e/AC-RET-004-billing-reconciliation-retention.spec.ts` (e2e) |
 | AC-RET-001..003 | `supabase/tests/1022_retention.test.sql` (pgTAP) |
+| AC-RET-005 | `supabase/tests/1116_sales_invoice_retention_held.test.sql` (pgTAP, the read) · `pmo-portal/src/lib/repositories/revenueDisplay.test.ts` (unit, the due-now rule) · `pmo-portal/src/lib/finance/financePosition.test.ts` (ageing/overdue) |
 | AC-TRACE-001 | `supabase/tests/1023_billing_reconciliation.test.sql` (pgTAP, the full trace) · `pmo-portal/pages/project-detail/tabs/__tests__/ClaimBillingStages.test.tsx` (render) |

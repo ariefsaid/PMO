@@ -19,7 +19,7 @@ import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import type { ApprovalPopulationEntry } from '@/src/lib/selectors/approvals';
 import { useApprovalPopulation } from '@/src/hooks/useApprovalPopulation';
 import { claimsAwaitingViewer } from '@/src/lib/expenses/expenseRules';
-import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
+import { clientInvoiceDueNowCents, clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import { getExecutiveDashboard, getFinanceBudgetReview, getPMDashboardProjects } from '@/src/lib/db/dashboard';
 import { listTimesheetsAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 import { formatTileMoney } from '@/src/lib/format';
@@ -231,9 +231,10 @@ export function selectOverdueInvoices(rows: OverdueInvoiceFact[] | undefined, or
   let oldestDays: number | null = null;
   for (const { invoice, days } of overdueRows) {
     oldestDays = Math.max(oldestDays ?? 0, days);
-    const amount = invoice.erp_outstanding_amount;
-    if (amount === null || !Number.isFinite(amount)) unknownBalances += 1;
-    else totals.set(invoice.currency, (totals.get(invoice.currency) ?? 0) + amount);
+    // #2625: what is overdue is the due-now part; the retention still held is not.
+    const dueNow = clientInvoiceDueNowCents(invoice);
+    if (dueNow === null) unknownBalances += 1;
+    else totals.set(invoice.currency, (totals.get(invoice.currency) ?? 0) + dueNow / 100);
   }
   return { count: overdueRows.length, knownTotals: [...totals].map(([currency, amount]) => ({ currency, amount })), unknownBalances, oldestDays };
 }

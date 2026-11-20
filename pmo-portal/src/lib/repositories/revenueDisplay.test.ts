@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { clientInvoiceOverdueDays, deriveArDueDate, overdueAgeDays } from './revenueDisplay';
+import { clientInvoiceDueNowCents, clientInvoiceOverdueDays, deriveArDueDate, overdueAgeDays, retentionHeldCents } from './revenueDisplay';
 
 /**
  * AC-SAR-051 — deriveArDueDate matrix (OWNS AC-SAR-051).
@@ -261,5 +261,35 @@ describe('clientInvoiceOverdueDays — #1457 the one overdue rule', () => {
     expect(clientInvoiceOverdueDays(invoice({ invoice_date: '2026-01-01', erp_due_date: '2026-01-31' }), '2026-02-03')).toBe(3);
     // Due 2025-12-28, org day 2026-01-02 → 5 days over the year end.
     expect(clientInvoiceOverdueDays(invoice({ invoice_date: '2025-11-28', erp_payment_terms_days: 30, erp_due_date: '2025-12-28' }), '2026-01-02')).toBe(5);
+  });
+});
+
+describe('AC-RET-005 retention held is not due now (#2625, ADR-0105 §4)', () => {
+  const open = { status: 'Unpaid', invoice_date: '2026-09-01', erp_payment_terms_days: 0, erp_due_date: '2026-09-01', received_date: null };
+  it('due now is the outstanding balance less the retention still held, in exact cents', () => {
+    expect(clientInvoiceDueNowCents({ erp_outstanding_amount: 1_110_000.1, retention_held: 50_000.05 })).toBe(106_000_005);
+    expect(clientInvoiceDueNowCents({ erp_outstanding_amount: 0.3, retention_held: 0.1 })).toBe(20);
+    expect(retentionHeldCents({ erp_outstanding_amount: 1_110_000.1, retention_held: 50_000.05 })).toBe(5_000_005);
+  });
+  it('a balance that is only retention is due now 0 and is never overdue', () => {
+    const paidNetOfRetention = { ...open, erp_outstanding_amount: 50_000, retention_held: 50_000 };
+    expect(clientInvoiceDueNowCents(paidNetOfRetention)).toBe(0);
+    expect(retentionHeldCents(paidNetOfRetention)).toBe(5_000_000);
+    expect(clientInvoiceOverdueDays(paidNetOfRetention, '2026-10-01')).toBeNull();
+  });
+  it('retention beyond the balance never makes due now negative; the held figure is capped at the balance', () => {
+    const r = { erp_outstanding_amount: 30_000, retention_held: 50_000 };
+    expect(clientInvoiceDueNowCents(r)).toBe(0);
+    expect(retentionHeldCents(r)).toBe(3_000_000);
+  });
+  it('an invoice with a balance beyond its retention is still overdue; no retention changes nothing', () => {
+    expect(clientInvoiceOverdueDays({ ...open, erp_outstanding_amount: 60_000, retention_held: 50_000 }, '2026-10-01')).toBe(30);
+    expect(clientInvoiceDueNowCents({ erp_outstanding_amount: 100, retention_held: 0 })).toBe(10_000);
+    expect(clientInvoiceDueNowCents({ erp_outstanding_amount: 100 })).toBe(10_000);
+  });
+  it('an unknown balance has no due-now figure (never a guessed one)', () => {
+    expect(clientInvoiceDueNowCents({ erp_outstanding_amount: null, retention_held: 5 })).toBeNull();
+    expect(retentionHeldCents({ erp_outstanding_amount: null, retention_held: 5 })).toBeNull();
+    expect(clientInvoiceOverdueDays({ ...open, erp_outstanding_amount: null, retention_held: 5 }, '2026-10-01')).toBe(30);
   });
 });

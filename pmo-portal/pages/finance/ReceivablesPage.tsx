@@ -11,7 +11,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
 import { groupUnknownOverdueReceivablesByAge, type CurrencyTotals, type FinancePosition } from '@/src/lib/finance/financePosition';
-import { formatDay, formatTileMoney } from '@/src/lib/format';
+import { formatCurrency, formatDay, formatTileMoney } from '@/src/lib/format';
 import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { isOpenClientInvoiceStatus } from '@/src/lib/revenue/clientInvoiceStatus';
 import SalesInvoices from '@/pages/SalesInvoices';
@@ -55,6 +55,10 @@ function owedTotals(position: FinancePosition): CurrencyTotals {
   for (const [currency, buckets] of Object.entries(position.receivablesAgeing)) {
     totals[currency] = Object.values(buckets).reduce((sum, cents) => sum + cents, 0);
   }
+  // #2625: the ages hold what is due now; the retention still held is owed too, so it stays in the owed figure.
+  for (const [currency, cents] of Object.entries(position.receivablesRetentionHeld ?? {})) {
+    totals[currency] = (totals[currency] ?? 0) + cents;
+  }
   return totals;
 }
 
@@ -83,6 +87,11 @@ export default function ReceivablesPage() {
   const canCreateInvoice = may('create', 'salesInvoice');
   const canCreatePayment = may('create', 'incomingPayment');
   const owed = useMemo(() => owedTotals(position), [position]);
+  // ADR-0105: retention still held is its own figure until a release is recorded; it is never aged or overdue.
+  const retentionHeld = Object.entries(position.receivablesRetentionHeld ?? {})
+    .filter(([, cents]) => cents > 0)
+    .sort(([a], [b]) => (a === orgCurrency ? -1 : b === orgCurrency ? 1 : a.localeCompare(b)))
+    .map(([currency, cents]) => formatCurrency(cents / 100, currency));
   const openInvoices = useMemo(() => invoices.filter((invoice) => isOpenClientInvoiceStatus(invoice.status) && (invoice.erp_outstanding_amount == null || invoice.erp_outstanding_amount > 0)), [invoices]);
   const owedUnknown = position.receivablesUnknownCount;
   const receivablesUnknownAgeing = groupUnknownOverdueReceivablesByAge(position.overdue);
@@ -221,6 +230,9 @@ export default function ReceivablesPage() {
           className="mb-5"
         />}
         {!receivablesPending && !receivablesError && <AgeingStrip kind="receivables" values={position.receivablesAgeing} unknownCounts={receivablesUnknownAgeing.counts} noDueDateCounts={position.receivablesNoDueDateCounts} unknownTotal={unknownBalancesWithoutAge} />}
+        {!receivablesPending && !receivablesError && retentionHeld.length > 0 && <p className="-mt-3 mb-5 text-sm text-muted-foreground" data-testid="receivables-retention-held">
+          {t('finance:receivables.retentionHeld', 'Retention held, not due until released: {{amount}}', { amount: retentionHeld.join(' · ') })}
+        </p>}
       </div>
 
       <section aria-label={t('finance:area.viewInvoicesOrPayments', 'Receivables list')} className="order-3 min-w-0 sm:order-5">

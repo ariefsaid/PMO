@@ -606,6 +606,9 @@ unbilled, partly billed, fully billed or surplus.
 **Retention** (*retensi*) — the share of a progress claim the client holds back until a later event; stamped on the claim
 at creation from the project's percentage and held on the receivable, never as an invoice line (ADR-0103).
 **Retention release** — a scheduled, then recorded, payment-due event for part or all of a claim's retention.
+**Due now** (*jatuh tempo sekarang*) — what is outstanding on a client invoice less the retention still held on it
+(never below zero). Ageing and overdue count only this; the retention held stays in what is owed, as its own figure,
+until a release is recorded (#2625, ADR-0105 §4).
 
 ### Site issues and task proof (#2521, #2531)
 
