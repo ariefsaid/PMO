@@ -19,7 +19,6 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 import {
-  useCreateProcurement,
   useCreateProcurementWithItems,
   useProcurementCrudMutations,
 } from './useProcurementCrud';
@@ -39,25 +38,6 @@ beforeEach(() => {
   repo.updateItem.mockResolvedValue(undefined);
   repo.deleteItem.mockResolvedValue(undefined);
   repo.selectQuote.mockResolvedValue(undefined);
-});
-
-describe('AC-PROC-001 useCreateProcurement', () => {
-  it('AC-PROC-001: stamps the requester from the auth context (currentUser.id) and invalidates the list', async () => {
-    const { qc, Wrapper } = makeWrapper();
-    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
-    const { result } = renderHook(() => useCreateProcurement(), { wrapper: Wrapper });
-
-    let created: { id: string } | undefined;
-    await act(async () => {
-      created = await result.current.mutateAsync({ title: 'T', projectId: 'p1', vendorId: null });
-    });
-
-    // The hook supplies the requester id from the auth context — the form never sends it.
-    expect(repo.create).toHaveBeenCalledWith({ title: 'T', projectId: 'p1', vendorId: null }, 'u1');
-    expect(created?.id).toBe('pr-new');
-    const calls = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]));
-    expect(calls.some((c) => c.includes('"procurements"'))).toBe(true);
-  });
 });
 
 describe('atomic procurement creation hook', () => {

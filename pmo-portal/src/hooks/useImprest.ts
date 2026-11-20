@@ -62,14 +62,6 @@ export function useImprestPostingStates(floatId: string | undefined) {
     enabled: Boolean(orgId) && Boolean(floatId),
   });
 }
-export function useImprestPlanUsage(floatId: string | undefined, month: string | undefined) {
-  const orgId = useOrgId();
-  return useQuery({
-    queryKey: ['imprest-plan-usage', orgId, floatId, month],
-    queryFn: () => repositories.imprest.getPlanUsage(floatId as string, month as string),
-    enabled: Boolean(orgId) && Boolean(floatId) && Boolean(month),
-  });
-}
 export function useImprestPlans(floatId: string | undefined) {
   const orgId = useOrgId();
   return useQuery({
