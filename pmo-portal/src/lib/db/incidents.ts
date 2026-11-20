@@ -61,8 +61,9 @@ function throwWrite(error: PostgrestErrorLike): never {
 /** The register's status filter + type/location search, shared by the page read and the full read. */
 function withFilters<Q extends { eq: (c: string, v: string) => Q; or: (f: string) => Q; neq: (c: string, v: string) => Q; lt: (c: string, v: string) => Q }>(
   query: Q,
-  params?: { status?: IncidentStatus; search?: string; overdue?: boolean; projectId?: string },
+  params?: { status?: IncidentStatus; search?: string; overdue?: boolean; projectId?: string; workOrderId?: string },
 ): Q {
+  if (params?.workOrderId) query = query.eq('work_order_id', params.workOrderId);
   if (params?.status) query = query.eq('status', params.status);
   if (params?.projectId) query = query.eq('project_id', params.projectId);
   // Overdue = not Closed and past its due time, computed here from due_at (FR-SIL-022), not from the escalation job.
@@ -80,7 +81,7 @@ function withFilters<Q extends { eq: (c: string, v: string) => Q; or: (f: string
  * incident_date descending (newest first) for a stable, scannable register. Throws an
  * `AppError` (code preserved) on failure.
  */
-export async function listIncidents(params?: { status?: IncidentStatus; search?: string; overdue?: boolean; projectId?: string }): Promise<IncidentRow[]> {
+export async function listIncidents(params?: { status?: IncidentStatus; search?: string; overdue?: boolean; projectId?: string; workOrderId?: string }): Promise<IncidentRow[]> {
   return fetchAllPages((from, to) => {
     const query = withFilters(supabase.from('incident_reports').select('*'), params);
     return query.order('incident_date', { ascending: false }).order('id', { ascending: true }).range(from, to);
