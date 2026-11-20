@@ -88,11 +88,11 @@ select throws_ok($$select public.load_stock_opening('25880000-0000-0000-0000-000
   '42501', null, 'AC-OPB-001 Finance cannot load a stock opening');
 select pg_temp.as_user('25880000-0000-0000-0000-0000000000a9');
 select throws_ok($$select public.load_work_order_opening('25880000-0000-0000-0000-000000000031', current_setting('opb.golive')::date, current_setting('opb.wo_a_lines')::jsonb)$$,
-  '42501', 'account is disabled or unconfirmed', 'AC-OPB-001 disabled Admin cannot load a work-order opening');
+  '42501', 'your account is not an active member of this organisation, so it cannot write — an offboarded or suspended account is refused even while its session token is still valid', 'AC-OPB-001 disabled Admin cannot load a work-order opening');
 select throws_ok($$select public.load_stock_opening('25880000-0000-0000-0000-000000002001', current_setting('opb.golive')::date, '[{"item_id":"25880000-0000-0000-0000-000000001001","counted_quantity":1,"unit_cost":1}]')$$,
-  '42501', 'account is disabled or unconfirmed', 'AC-OPB-001 disabled Admin cannot load a stock opening');
+  '42501', 'your account is not an active member of this organisation, so it cannot write — an offboarded or suspended account is refused even while its session token is still valid', 'AC-OPB-001 disabled Admin cannot load a stock opening');
 select throws_ok($$select public.reverse_opening_balance('25880000-0000-0000-0000-000000000001')$$,
-  '42501', 'account is disabled or unconfirmed', 'AC-OPB-001 disabled Admin cannot reverse an opening');
+  '42501', 'your account is not an active member of this organisation, so it cannot write — an offboarded or suspended account is refused even while its session token is still valid', 'AC-OPB-001 disabled Admin cannot reverse an opening');
 reset role;
 select pg_temp.as_user('25880000-0000-0000-0000-0000000000a1');
 select throws_ok($$select public.load_work_order_opening('25880000-0000-0000-0000-000000000033', current_setting('opb.golive')::date, '[]')$$,
