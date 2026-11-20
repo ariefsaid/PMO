@@ -289,7 +289,7 @@ create or replace view public.work_order_cost_lines with (security_invoker = tru
     from public.equipment_usage_entries u
    where u.archived_at is null
   union all
-  -- 0990 (#2528, FR-CRW-016): approved hours of people with no login live on the attendance record itself. A login's
+  -- 1037 (#2528, FR-CRW-016): approved hours of people with no login live on the attendance record itself. A login's
   -- hours reach cost through its timesheet line above, so a row linked to a timesheet line is never counted here.
   select 'attendance_day', a.id, a.org_id, a.project_id, a.work_order_id, c.discipline_id,
          a.work_date, null, a.hours + coalesce(a.overtime_hours, 0), 'hours'

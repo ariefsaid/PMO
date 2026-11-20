@@ -1,6 +1,6 @@
 -- 1040_daily_site_reports.sql — #1522: daily site report per work order (tables, RLS, photo bucket).
 -- Spec: docs/specs/daily-site-report.spec.md. Plan: docs/plans/2026-11-20-daily-site-report.md.
--- Every write goes through the security-definer RPCs in 1005: these tables grant authenticated SELECT only
+-- Every write goes through the security-definer RPCs in 1041: these tables grant authenticated SELECT only
 -- (plus the photo rows, written under RLS while the report is still editable). org_id is stamped by
 -- stamp_org_id / the RPCs, never sent by the client.
 -- Proven by supabase/tests/dsr_report.test.sql.
@@ -194,7 +194,7 @@ create policy dsr_photos_select on public.dsr_photos for select
   using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
          and exists (select 1 from public.daily_site_reports r where r.id = dsr_photos.report_id));
 
--- Money columns stay behind dsr_report_revenue (1005): a field role reads quantities, not rates.
+-- Money columns stay behind dsr_report_revenue (1041): a field role reads quantities, not rates.
 revoke select on public.dsr_progress_lines from authenticated;
 grant select (id, org_id, report_id, position, work_order_line_id, sub_stage, quantity, unit, frozen_at)
   on public.dsr_progress_lines to authenticated;

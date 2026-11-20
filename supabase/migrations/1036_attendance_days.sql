@@ -8,9 +8,9 @@
 -- location data is stored (NFR-CRW-003).
 --
 -- ── REVERSE (also supabase/migrations/rollback/1036_attendance_days_down.sql) ──────────────────────────────────
---   reverse 0990 first; drop function attendance_record, attendance_can_record, worker_off_rotation; the storage
+--   reverse 1037 first; drop function attendance_record, attendance_can_record, worker_off_rotation; the storage
 --   policies and (once empty) the bucket; tables attendance_photos, attendance_days, crew_worker_rotation_off; the
---   guard function; the two organizations columns; restore the 0988 work_order_roster.
+--   guard function; the two organizations columns; restore the 1035 work_order_roster.
 
 -- ── §1 organisation settings (OD-CRW-5, OQ-CRW-2) ────────────────────────────────────────────────────────────
 alter table public.organizations
@@ -194,7 +194,7 @@ revoke all on function public.guard_attendance_day() from public, anon, authenti
 create trigger zz_attendance_days_guard before insert or update or delete on public.attendance_days
   for each row execute function public.guard_attendance_day();
 
--- The timesheet line generated from this record (0990 writes it). Here so the lock guard can name it.
+-- The timesheet line generated from this record (1037 writes it). Here so the lock guard can name it.
 alter table public.attendance_days
   add column timesheet_entry_id uuid unique references public.timesheet_entries(id) on delete set null;
 
@@ -206,7 +206,7 @@ create policy attendance_days_select on public.attendance_days for select
          and ((select public.auth_role()) in ('Admin', 'Executive', 'Project Manager', 'Finance')
               or exists (select 1 from public.crews c where c.id = attendance_days.crew_id and c.field_controller_id = (select auth.uid()))
               or exists (select 1 from public.people w where w.id = attendance_days.worker_id and w.profile_id = (select auth.uid()))));
--- Writes only through the security-definer RPCs below and in 0990.
+-- Writes only through the security-definer RPCs below and in 1037.
 revoke all on public.attendance_days from public, anon, authenticated;
 grant select on public.attendance_days to authenticated;
 grant all on public.attendance_days to service_role;

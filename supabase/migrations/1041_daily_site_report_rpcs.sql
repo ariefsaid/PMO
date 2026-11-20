@@ -7,7 +7,7 @@
 --   dsr_correct      a validated report -> a new draft version that supersedes it once validated
 --   dsr_report_revenue / work_order_validated_revenue / dsr_validation_queue — money reads, rate-reader roles only
 -- Role mapping until the field-controller and QS roles exist (#902): enter = Admin, Engineer, or the project's PM;
--- validate = Admin, Finance, or the project's PM. Revenue reads = the rate catalogue's readers (0955).
+-- validate = Admin, Finance, or the project's PM. Revenue reads = the rate catalogue's readers (1020).
 -- Reversal: rollback/1041_daily_site_report_rpcs_down.sql.
 
 -- ── who may do what ─────────────────────────────────────────────────────────────────────────────────
@@ -29,7 +29,7 @@ language sql stable security definer set search_path = public, pg_temp as $$
             or (public.auth_role() = 'Project Manager' and p.project_manager_id = auth.uid()))), false)
 $$;
 
--- Same audience that may read the project's rate catalogue (0955 select policies).
+-- Same audience that may read the project's rate catalogue (1020 select policies).
 create function public.dsr_may_see_revenue(p_project uuid) returns boolean
 language sql stable security definer set search_path = public, pg_temp as $$
   select coalesce(public.is_active_member() and exists (

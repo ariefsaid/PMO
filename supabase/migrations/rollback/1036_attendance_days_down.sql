@@ -1,4 +1,4 @@
--- 1036_attendance_days_down.sql — reverse 0989. Reverse 0990 first.
+-- 1036_attendance_days_down.sql — reverse 1036. Reverse 1037 first.
 drop function if exists public.attendance_record(uuid, date, text, jsonb);
 drop policy if exists storage_objects_attendance_photo_write on storage.objects;
 drop policy if exists storage_objects_attendance_photo_read on storage.objects;
@@ -9,7 +9,7 @@ drop table if exists public.attendance_days;
 drop function if exists public.guard_attendance_day();
 drop function if exists public.attendance_can_record(uuid);
 drop function if exists public.worker_off_rotation(uuid, date);
--- restore the 0988 roster read (no off_rotation) before its table goes
+-- restore the 1035 roster read (no off_rotation) before its table goes
 create or replace function public.work_order_roster(p_work_order_id uuid, p_date date)
   returns table (crew_id uuid, crew_code text, crew_name text, field_controller_id uuid,
                  members jsonb, roles jsonb, shortfall integer)

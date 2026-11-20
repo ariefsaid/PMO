@@ -59,7 +59,7 @@
 -- (AC-VWH-021/022). `create_procurement_invoice` / `capture_vendor_invoice` changed signature only (proname
 -- unchanged). THE COUNT IS RE-DERIVED BY HAND from the list below.
 --
--- ⚑ AMENDED BY 0290 (#1008): `assign_sales_invoice_project` joins the retained set (+1, count 70).
+-- ⚑ AMENDED BY 0290 (#1042): `assign_sales_invoice_project` joins the retained set (+1, count 70).
 -- It is a SECURITY DEFINER PMO-attribution writer called under authenticated JWT and asserts active
 -- membership, role, org/project/invoice scope, and billing context; paired with 0290 assignment pgTAP.
 -- `fill_sales_invoice_project` is service-role-only and deliberately NOT retained.
@@ -124,11 +124,11 @@
 -- ⚑ AMENDED BY 0731 (#1415): `record_native_on_account_receipt`, `apply_native_receipt` and `unapply_native_allocation` join (+3). Finance/Admin-gated
 -- SECURITY DEFINER writers under a member's JWT (membership, role, org re-asserted; anon/PUBLIC revoked), proven by 0731_payment_allocation_*.test.sql.
 -- ⚑ AMENDED BY 0765 (#1507 S6): `switch_odoo_ledger_basis` joins (+1). Active-Admin writer under a member's JWT; anon/PUBLIC revoked; proved by odoo_ledger_basis.test.sql.
--- Current retained set: 189 names after 0960/0961 (+10), 0951/0972 (+2), 0924 (+1), 0887 (#895, +6), 0885 (#1671, +1), 0910 (+1), 0907 (#564, +1), 0858 (+2), #1507 S6, #1505, #1813, #1514 D1, #1472 S6B, 0731 (+3), 0704 (#1817, +1), 0792 (#1413, +2) and 0854 (#1511 F3, +1), including #1462's archive inventory read; 0685 adds request_financial_statement_refresh (Refresh now).
+-- Current retained set: 189 names after 1021/1022 (+10), 0951/0972 (+2), 0924 (+1), 0887 (#895, +6), 0885 (#1671, +1), 0910 (+1), 0907 (#564, +1), 0858 (+2), #1507 S6, #1505, #1813, #1514 D1, #1472 S6B, 0731 (+3), 0704 (#1817, +1), 0792 (#1413, +2) and 0854 (#1511 F3, +1), including #1462's archive inventory read; 0685 adds request_financial_statement_refresh (Refresh now).
 -- ⚑ AMENDED BY 0910 (#1599 ECX-3): `request_company_defaults` joins the retained set (+1). A SECURITY DEFINER writer under a
 -- member's JWT: it re-asserts active membership, org and Admin/Finance and checks every choice against the mirrors; proven by
 -- supabase/tests/erp_company_defaults.test.sql. The other 0910 functions are service-role-only or internal.
--- ⚑ AMENDED BY 0960/0961 (#2522, #1572): `set_billing_stage_template`, `set_project_invoice_deadline`, `attach_billing_stage_document`,
+-- ⚑ AMENDED BY 1021/1022 (#2522, #1572): `set_billing_stage_template`, `set_project_invoice_deadline`, `attach_billing_stage_document`,
 -- `note_billing_stage`, `complete_billing_stage`, `set_project_retention`, `schedule_retention_release`, `release_retention` and
 -- `cancel_retention_release`, and `set_project_billing_terms` join (+10). SECURITY DEFINER writers under a member's JWT: each re-asserts active membership, role
 -- (Admin/Finance, or Project Manager for stage recording) and the caller's org; proved by supabase/tests/1021_billing_stages.test.sql
@@ -278,7 +278,7 @@ select plan(7);
 -- the caller's org, the employment of `equipment` under Odoo and each row's org before it writes; proven by
 -- supabase/tests/odoo_equipment_adoption.test.sql (AC-OFM-021). `list_equipment_asset_matches` is SECURITY INVOKER and
 -- `record_odoo_asset_created` is service-role only, so neither is listed.
--- ⚑ AMENDED BY 0955 (#2520): `rate_catalogue_add_variants`, `rate_catalogue_set_default_variant` and `rate_catalogue_upsert_item` join the retained set (+3). SECURITY DEFINER writers called under a member's JWT; each re-asserts org, active membership and role through rate_catalogue_writer_check, proven by supabase/tests/rate_catalogue.test.sql.
+-- ⚑ AMENDED BY 1020 (#2520): `rate_catalogue_add_variants`, `rate_catalogue_set_default_variant` and `rate_catalogue_upsert_item` join the retained set (+3). SECURITY DEFINER writers called under a member's JWT; each re-asserts org, active membership and role through rate_catalogue_writer_check, proven by supabase/tests/rate_catalogue.test.sql.
 -- ⚑ AMENDED BY 0885 (#1671): `void_subcontract_bill` joins the retained set (+1, count 169 on dev's 168, re-derived by
 -- hand from the list). SECURITY DEFINER writer under a member's JWT: it re-asserts active membership, the Admin/Finance
 -- role, the caller's org, no ERP, and author ≠ voider unless the sole active member. Proven by
@@ -317,16 +317,16 @@ insert into client_callable_rpc_names (proname) values
   ('approve_equipment_usage_week'),
   ('archive_equipment_usage'),
   ('attach_claim_evidence'),
-  ('attach_billing_stage_document'),  -- ⚑ AMENDED BY 0960 (#2522)
-  ('note_billing_stage'),  -- ⚑ AMENDED BY 0960
-  ('complete_billing_stage'),  -- ⚑ AMENDED BY 0960
-  ('set_billing_stage_template'),  -- ⚑ AMENDED BY 0960
-  ('set_project_invoice_deadline'),  -- ⚑ AMENDED BY 0960
-  ('set_project_retention'),  -- ⚑ AMENDED BY 0961 (#1572)
+  ('attach_billing_stage_document'),  -- ⚑ AMENDED BY 1021 (#2522)
+  ('note_billing_stage'),  -- ⚑ AMENDED BY 1021
+  ('complete_billing_stage'),  -- ⚑ AMENDED BY 1021
+  ('set_billing_stage_template'),  -- ⚑ AMENDED BY 1021
+  ('set_project_invoice_deadline'),  -- ⚑ AMENDED BY 1021
+  ('set_project_retention'),  -- ⚑ AMENDED BY 1022 (#1572)
   ('set_project_billing_terms'),  -- Atomic project terms (#2522)
-  ('schedule_retention_release'),  -- ⚑ AMENDED BY 0961
-  ('release_retention'),  -- ⚑ AMENDED BY 0961
-  ('cancel_retention_release'),  -- ⚑ AMENDED BY 0961
+  ('schedule_retention_release'),  -- ⚑ AMENDED BY 1022
+  ('release_retention'),  -- ⚑ AMENDED BY 1022
+  ('cancel_retention_release'),  -- ⚑ AMENDED BY 1022
   ('create_record_only_journal_purchase'), -- 0858: active Admin and org scoped; 2195 pgTAP
   ('undo_captured_purchase'), -- 0858: active Admin and org scoped; 2195 pgTAP
   ('attach_erp_journal_lines'),  -- 0687: Admin/Exec/PM/Finance, org from the session; 0687 pgTAP
@@ -346,7 +346,7 @@ insert into client_callable_rpc_names (proname) values
   ('confirm_subcontract_acceptance'),
   ('confirm_work_order_acceptance'),
   ('consent_budget_occupant_replace'),
-  ('create_task_from_incident'), -- #2521: manager and organization gated; 0979 pgTAP
+  ('create_task_from_incident'), -- #2521: manager and organization gated; 1026 pgTAP
   ('create_native_sales_invoice'),
   ('create_native_tm_invoice'),  -- ⚑ AMENDED BY 0704 (#1817)
   ('create_native_progress_claim_invoice'),  -- ⚑ AMENDED BY 0924
@@ -441,9 +441,9 @@ insert into client_callable_rpc_names (proname) values
   ('request_journal_reversal'),   -- 0887 (#895)
   ('set_desk_journal'),           -- 0887 (#895)
   ('unapply_native_allocation'),         -- 0731 (#1415)
-  ('rate_catalogue_add_variants'),          -- 0955 (#2520)
-  ('rate_catalogue_set_default_variant'),  -- 0955 (#2520)
-  ('rate_catalogue_upsert_item'),          -- 0955 (#2520)
+  ('rate_catalogue_add_variants'),          -- 1020 (#2520)
+  ('rate_catalogue_set_default_variant'),  -- 1020 (#2520)
+  ('rate_catalogue_upsert_item'),          -- 1020 (#2520)
   ('recategorise_budget_lines'),
   ('redate_stage_entry'),
   ('release_credits'),

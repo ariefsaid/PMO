@@ -1,4 +1,4 @@
--- 1038_task_work_order_proof_down.sql — reverse of 0991 (reverse order; storage objects must be emptied first).
+-- 1038_task_work_order_proof_down.sql — reverse of 1038 (reverse order; storage objects must be emptied first).
 drop policy if exists storage_objects_task_proof_write on storage.objects;
 drop policy if exists storage_objects_task_proof_read  on storage.objects;
 delete from storage.buckets where id = 'task-proofs';

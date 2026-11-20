@@ -1,4 +1,4 @@
--- 1029_stock_site_work_locations_tags_down.sql — reverse 0982 (yard/staging rows must be removed or re-kinded first).
+-- 1029_stock_site_work_locations_tags_down.sql — reverse 1029 (yard/staging rows must be removed or re-kinded first).
 drop trigger if exists stock_tags_audit on public.stock_tags;
 drop function if exists public.audit_stock_tag();
 drop trigger if exists stock_items_guard_tag on public.stock_items;

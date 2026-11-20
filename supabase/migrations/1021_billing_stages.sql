@@ -364,4 +364,4 @@ create trigger sales_invoices_zz_billing_stages before insert on public.sales_in
   for each row execute function public.assert_claim_billing_stages_complete();
 
 comment on table public.claim_billing_stages is
-  'A progress claim''s billing stages, copied from the project''s list at claim creation (0960). Written only by complete_billing_stage / note_billing_stage.';
+  'A progress claim''s billing stages, copied from the project''s list at claim creation (1021). Written only by complete_billing_stage / note_billing_stage.';

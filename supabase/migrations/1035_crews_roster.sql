@@ -7,7 +7,7 @@
 -- Expiry-document access policies are unchanged.
 --
 -- ── REVERSE (also supabase/migrations/rollback/1035_crews_roster_down.sql) ──────────────────────────────────────
---   reverse 0990 and 0989 first; then drop function work_order_roster, the tables (reverse order), the guard functions.
+--   reverse 1037 and 1036 first; then drop function work_order_roster, the tables (reverse order), the guard functions.
 
 create extension if not exists btree_gist with schema extensions;
 

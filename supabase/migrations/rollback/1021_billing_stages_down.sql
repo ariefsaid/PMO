@@ -1,8 +1,8 @@
--- 1021_billing_stages_down.sql — reverses 0960. Refuses while any claim has a stage plan (dropping it would remove the record of
+-- 1021_billing_stages_down.sql — reverses 1021. Refuses while any claim has a stage plan (dropping it would remove the record of
 -- how each claim reached its invoice, and the gate that held it). Project stage lists alone are dropped.
 do $$ begin
   if exists (select 1 from public.claim_billing_stages) then
-    raise exception 'claims carry billing stage plans; 0960 cannot be rolled back' using errcode = 'P0001';
+    raise exception 'claims carry billing stage plans; 1021 cannot be rolled back' using errcode = 'P0001';
   end if;
 end $$;
 drop trigger if exists sales_invoices_zz_billing_stages on public.sales_invoices;

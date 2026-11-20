@@ -1,4 +1,4 @@
--- 1026_site_issue_log_columns_down.sql — reverse 0979 (#2521). Drops the issue columns; incident rows themselves stay.
+-- 1026_site_issue_log_columns_down.sql — reverse 1026 (#2521). Drops the issue columns; incident rows themselves stay.
 drop policy if exists incident_reports_update_assignee on public.incident_reports;
 drop trigger if exists incident_reports_zz_issue_guard on public.incident_reports;
 drop function if exists public.guard_incident_issue_fields();

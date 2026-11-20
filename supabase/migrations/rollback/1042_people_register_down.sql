@@ -1,3 +1,3 @@
--- Reverse of 1008. The job_title column belongs to 1035_crews_roster and is left in place.
+-- Reverse of 1042. The job_title column belongs to 1035_crews_roster and is left in place.
 drop trigger if exists people_z_code_trg on public.people;
 drop function if exists public.people_assign_code();

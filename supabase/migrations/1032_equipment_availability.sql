@@ -1,7 +1,7 @@
 -- 1032_equipment_availability.sql — #2526 slice 2a: ownership + rental terms, daily status with history, downtime
 -- proof, the org working-hours setting. Spec: docs/specs/equipment-availability.spec.md; plan
 -- docs/plans/2026-11-20-equipment-availability.md. Proven by supabase/tests/equipment_status.test.sql.
--- Reads/derivations are 0986 (metrics, downtime runs, escalation); the rental invoice check is 0987 (money, ships alone).
+-- Reads/derivations are 1033 (metrics, downtime runs, escalation); the rental invoice check is 1034 (money, ships alone).
 -- Writes are RPC-only (no INSERT/UPDATE grant) so the date rules, role gates and history cannot be bypassed.
 -- Reverse: rollback/1032_equipment_availability_down.sql
 
@@ -369,5 +369,5 @@ begin
    where n.nspname = 'public'
      and p.proname in ('equipment_set_status_core','equipment_can_set_status','equipment_can_edit_terms','equipment_rental_terms_no_overlap','equipment_status_record_history')
      and (p.prosecdef and p.proname not in ('equipment_status_record_history') or has_function_privilege('authenticated', p.oid, 'execute'));
-  if v_bad is not null then raise exception '0985: internal helper is a definer or client-executable: %', v_bad; end if;
+  if v_bad is not null then raise exception '1032: internal helper is a definer or client-executable: %', v_bad; end if;
 end $$;
