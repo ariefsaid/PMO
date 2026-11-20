@@ -243,7 +243,9 @@ export function readDenominator(filePath) {
 // Tables whose primary key is an integer rather than a uuid (#2636). The probe's A-row id must
 // match the table's REAL pk type: a positive integer for these, a uuid everywhere else. Keep in
 // step with the denominator — today only stock_ledger (seq bigint identity, 0413_stock_posting_engine.sql).
-const INTEGER_PK_TABLES = new Set(['stock_ledger']);
+// Exported: fixture generators (and the probe driver) must derive id shapes from this map, not
+// assume uuid.
+export const INTEGER_PK_TABLES = new Set(['stock_ledger']);
 
 export function validateProbeInputs(env = process.env) {
   const d = readDenominator(DENOMINATOR_PATH);
