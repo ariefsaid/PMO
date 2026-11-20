@@ -47,7 +47,6 @@ create trigger crew_standard_roles_stamp_org_id before insert on public.crew_sta
 
 -- ── §2 people (FR-CRW-004) ───────────────────────────────────────────────────────────────────────────────────
 alter table public.people
-  alter column code set default gen_random_uuid()::text,
   add column kind text not null default 'own' check (kind in ('own', 'vendor')),
   add column id_reference text check (id_reference is null or char_length(btrim(id_reference)) between 1 and 60),
   add column vendor_company_id uuid references public.companies(id),

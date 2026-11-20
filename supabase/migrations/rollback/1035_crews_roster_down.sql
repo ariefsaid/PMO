@@ -15,7 +15,6 @@ create policy people_update on public.people for update using (
   with check (org_id = (select public.auth_org_id()));
 revoke insert (id) on public.people from authenticated;
 alter table public.people drop constraint people_vendor_no_login, drop column kind, drop column id_reference, drop column vendor_company_id, drop column job_title;
-alter table public.people alter column code drop default;
 drop table if exists public.crew_standard_roles;
 drop table if exists public.crews;
 drop function if exists public.crew_can_manage();
