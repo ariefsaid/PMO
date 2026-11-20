@@ -98,7 +98,7 @@ Hand calculation for one line: take-off 100, requested 100. Reservations 60 and 
 | Release below collected | Refused with the collected quantity |
 | Pickup above still to collect | Refused with the remaining quantity |
 | Item not zero-cost tagged | Refused: "This item is not client-supplied" |
-| Cost sent with a pickup | Ignored never; refused |
+| Cost sent with a pickup | Refused: "Client-supplied material has no cost" |
 | Not a keeper of the receiving location | Refused (existing stock keeper message) |
 | Inventory owned by a connected ERP | Refused with the existing ownership message |
 | Work order Closed or Cancelled | Refused with reason |
