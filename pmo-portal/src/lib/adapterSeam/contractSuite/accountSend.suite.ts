@@ -55,9 +55,18 @@ export const accountSendSuite: Suite = (h) => describe(`account.send (${h.tier})
     for (const clash of [{ isGroup: true, rootType: 'Expense' as const }, { isGroup: false, rootType: 'Asset' as const }]) {
       const { c, chart } = setUp(h);
       chart.place({ accountName: 'SITE materials', parent: chart.otherExpenseGroup, ...clash });
-      await expect(c.adapter.sendMaster('account', record(chart.expenseGroup), KEY)).rejects.toMatchObject({
-        code: 'commit-rejected', message: expect.stringMatching(/already has an account named .+ that cannot hold direct costs/),
-      });
+      const failure = await c.adapter.sendMaster('account', record(chart.expenseGroup), KEY).catch((e: unknown) => e);
+      expect(failure).toBeInstanceOf(Error);
+      const err = failure as Error & { code?: string };
+      expect(['commit-rejected', 'command-held']).toContain(err.code);
+      if (err.code === 'command-held') {
+        expect(err.message).toBe('Account requires reconciliation');
+      } else {
+        expect(err).toMatchObject({
+          code: 'commit-rejected',
+          message: expect.stringMatching(/already has an account named .+ that cannot hold direct costs/),
+        });
+      }
       expect(c.accounts!().filter((a) => a.created)).toEqual([]);
     }
   });

@@ -6,7 +6,8 @@ import { AppError } from '@/src/lib/appError';
 import { repositories } from '@/src/lib/repositories';
 import type { ConnectProposal, ConnectTier } from '@/src/lib/repositories/types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { Button, EntityFormModal, FormGrid, SelectField, TextField } from '@/src/components/ui';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { Button, EntityFormModal, FormGrid, SelectField, TextField, type SubmitError } from '@/src/components/ui';
 import { useAccountLinkNotes } from './useAccountLinkNotes';
 
 /**
@@ -23,6 +24,7 @@ export function DirectCostAccounts({ categories, tier = 'erpnext' }: { categorie
   const [busy, setBusy] = useState(false);
   const [acceptedRequests, setAcceptedRequests] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<string[]>([]);
+  const [submitError, setSubmitError] = useState<SubmitError | null>(null);
   const groups = useQuery({
     queryKey: ['integrations', 'account-send-groups', tier],
     queryFn: () => repositories.integrations.listAccountSendGroups(tier),
@@ -84,6 +86,7 @@ export function DirectCostAccounts({ categories, tier = 'erpnext' }: { categorie
     setGroup('');
     setNames((current) => Object.fromEntries(labels.map(([category, label]) => [category, accepted.includes(category) ? current[category] ?? label : label])));
     setErrors([]);
+    setSubmitError(null);
     setOpen(true);
   };
   const reasonOf = (err: unknown) => (err instanceof AppError && /bad_request/i.test(err.code ?? '') && err.message
@@ -93,20 +96,32 @@ export function DirectCostAccounts({ categories, tier = 'erpnext' }: { categorie
     event.preventDefault();
     setBusy(true);
     setErrors([]);
+    setSubmitError(null);
     const failed: string[] = [];
+    let lastError: unknown = null;
+    let newlyAccepted = 0;
     // one request per category: a refusal for one never holds back the others
     for (const [category, label] of labels.filter(([category]) => !accepted.includes(category))) {
       try {
         const request = await repositories.integrations.requestAccountSend(tier, { category, parentAccount: group, accountName: (names[category] ?? '').trim() });
         setAcceptedRequests((current) => ({ ...current, [category]: request.id }));
+        newlyAccepted += 1;
       } catch (err) {
         failed.push(`${label}: ${reasonOf(err)}`);
+        lastError = err;
       }
     }
     setBusy(false);
     void qc.invalidateQueries({ queryKey: ['integrations'] });
-    if (failed.length === 0) setOpen(false);
-    else setErrors(failed);
+    if (failed.length === 0) {
+      setOpen(false);
+    } else {
+      setErrors(failed);
+      if (newlyAccepted === 0 && accepted.length === 0) {
+        const classified = classifyMutationError(lastError);
+        setSubmitError({ headline: classified.headline, detail: classified.detail });
+      }
+    }
   };
   const complete = group !== '' && labels.every(([category]) => accepted.includes(category) || (names[category] ?? '').trim() !== '');
   const noGroups = groups.isSuccess && groups.data.length === 0;
@@ -132,6 +147,7 @@ export function DirectCostAccounts({ categories, tier = 'erpnext' }: { categorie
           loading={busy}
           dirty={group !== ''}
           submitDisabled={!complete || busy || (Object.keys(acceptedRequests).length > 0 && !completeReviews) || labels.every(([category]) => accepted.includes(category))}
+          submitError={submitError}
         >
           {errors.length > 0 && (
             <div role='alert' className='mb-4 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3 py-3 text-control text-destructive-text'>
