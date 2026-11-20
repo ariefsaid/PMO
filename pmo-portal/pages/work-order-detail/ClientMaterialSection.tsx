@@ -55,9 +55,14 @@ export const ClientMaterialSection: React.FC<Props> = ({ workOrderId, projectId,
   const viewOnly = realRole !== effectiveRole;                  // view-as is view-only (ADR-0016)
   const q = useWorkOrderClientMaterial(workOrderId);
   const m = useClientRequisitionMutations();
-  const items = useStockItems();
-  const units = useStockUnits();
   const tags = useStockTags();
+  const zeroCostTagIds = useMemo(() => (tags.data ?? []).filter((tg) => tg.zero_cost).map((tg) => tg.id), [tags.data]);
+  const zeroCostTagSet = useMemo(() => new Set(zeroCostTagIds), [zeroCostTagIds]);
+  const items = useStockItems(
+    { tagIds: zeroCostTagIds, limit: 1000 },
+    { enabled: Boolean(tags.data) && zeroCostTagIds.length > 0 },
+  );
+  const units = useStockUnits();
   const warehouses = useStockWarehouses();
   const keepers = useStockKeepers();
   const [dialog, setDialog] = useState<Dialog | null>(null);
@@ -71,11 +76,10 @@ export const ClientMaterialSection: React.FC<Props> = ({ workOrderId, projectId,
   const figuresByLine = useMemo(() => new Map(rollupClientRequisitions(data?.lines ?? [], sums).lines.map((f) => [f.lineId, f])), [data?.lines, sums]);
 
   // Items offered on the form: only those whose tag is zero-cost (the organisation names the tag; the rule is the flag).
-  const zeroCostTagIds = useMemo(() => new Set((tags.data ?? []).filter((tg) => tg.zero_cost).map((tg) => tg.id)), [tags.data]);
   const unitCode = useMemo(() => new Map((units.data ?? []).map((u) => [u.id, u.code])), [units.data]);
   const formItems = useMemo(
-    () => (items.data ?? []).filter((i) => i.tag_id && zeroCostTagIds.has(i.tag_id)).map((i) => ({ id: i.id, code: i.code, name: i.name, unit: unitCode.get(i.unit_id) ?? '' })),
-    [items.data, zeroCostTagIds, unitCode],
+    () => (items.data ?? []).filter((i) => i.tag_id && zeroCostTagSet.has(i.tag_id)).map((i) => ({ id: i.id, code: i.code, name: i.name, unit: unitCode.get(i.unit_id) ?? '' })),
+    [items.data, zeroCostTagSet, unitCode],
   );
 
   // Receiving locations: site, yard and staging locations of this project; a keeper offers the ones they keep, an Admin all.
@@ -93,9 +97,9 @@ export const ClientMaterialSection: React.FC<Props> = ({ workOrderId, projectId,
 
   const takeoffDescriptor = useMemo(() => makeClientTakeoffImportDescriptor({
     workOrderId,
-    items: (items.data ?? []).filter((i) => i.tag_id && zeroCostTagIds.has(i.tag_id))
+    items: (items.data ?? []).filter((i) => i.tag_id && zeroCostTagSet.has(i.tag_id))
       .map((i) => ({ id: i.id, code: i.code, name: i.name, wholeOnly: (units.data ?? []).find((u) => u.id === i.unit_id)?.whole_only === true })),
-  }, tAll), [workOrderId, items.data, units.data, zeroCostTagIds, tAll]);
+  }, tAll), [workOrderId, items.data, units.data, zeroCostTagSet, tAll]);
 
   const woOpen = workOrderStatus === 'Draft' || workOrderStatus === 'Issued';
   const canCreate = woOpen && may('create', 'clientRequisition', { record: { viewOnly } });

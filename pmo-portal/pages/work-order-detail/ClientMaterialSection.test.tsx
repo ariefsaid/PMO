@@ -12,7 +12,7 @@ import { can } from '@/src/auth/policy';
  */
 const h = vi.hoisted(() => ({
   role: 'Project Manager' as string, realRole: 'Project Manager' as string, userId: 'u-pm',
-  query: null as unknown, mutations: null as unknown,
+  query: null as unknown, mutations: null as unknown, stockItemsArgs: [] as unknown[],
 }));
 vi.mock('@/src/auth/usePermission', () => ({
   usePermission: () => (a: never, e: never, ctx?: object) => can(a, e, { realRole: h.role as never, ...ctx }),
@@ -24,7 +24,10 @@ vi.mock('@/src/hooks/useClientRequisitions', () => ({
 }));
 const ok = (data: unknown) => ({ data, isPending: false, isError: false, refetch: vi.fn() });
 vi.mock('@/src/hooks/useStock', () => ({
-  useStockItems: () => ok([{ id: 'i1', code: 'CEM', name: 'Cement', unit_id: 'un1', tag_id: 't1' }, { id: 'i2', code: 'STL', name: 'Steel', unit_id: 'un1', tag_id: 't2' }]),
+  useStockItems: (...args: unknown[]) => {
+    h.stockItemsArgs.push(args);
+    return ok([{ id: 'i1', code: 'CEM', name: 'Cement', unit_id: 'un1', tag_id: 't1' }, { id: 'i2', code: 'STL', name: 'Steel', unit_id: 'un1', tag_id: 't2' }]);
+  },
   useStockUnits: () => ok([{ id: 'un1', code: 'BAG' }]),
   useStockWarehouses: () => ok([{ id: 'w1', code: 'S1', name: 'Site', kind: 'site', project_id: 'p1' }, { id: 'w2', code: 'C', name: 'Central', kind: 'central', project_id: null }]),
   useStockKeepers: () => ok([{ user_id: 'u-keeper', warehouse_id: 'w1' }]),
@@ -49,9 +52,17 @@ beforeEach(async () => {
   h.role = 'Project Manager'; h.realRole = 'Project Manager'; h.userId = 'u-pm';
   h.query = ok(HAND);
   h.mutations = { create: mut(), updateDraft: mut(), send: mut(), cancel: mut(), recordReservation: mut(), recordRelease: mut(), recordPickup: mut() };
+  h.stockItemsArgs.length = 0;
 });
 
 describe('ClientMaterialSection', () => {
+  it('bounds the stock items query to zero-cost tags with a page limit', () => {
+    renderIt();
+    expect(h.stockItemsArgs.length).toBeGreaterThan(0);
+    const [filters, opts] = h.stockItemsArgs[0] as [{ tagIds?: string[]; limit?: number }, { enabled?: boolean }?];
+    expect(filters).toEqual({ tagIds: ['t1'], limit: 1000 });
+    expect(opts?.enabled).toBe(true);
+  });
   it('AC-CSR-001 shows reserved 70, collected 50, still to collect 20 and awaiting reservation 30 for the hand calculation', () => {
     renderIt();
     const t = screen.getByTestId('csr-total-i1-BAG');

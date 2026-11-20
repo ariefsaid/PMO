@@ -1,7 +1,7 @@
 /** Stock repository contract (#1512 S1). */
 import type { CostAttribution } from '@/src/lib/db/workOrderCosts';
 import type {
-  StockItemInput, StockItemRow, StockKeeperRow, StockUnitInput, StockUnitRow, StockWarehouseInput, StockWarehouseRow,
+  StockItemFilters, StockItemInput, StockItemRow, StockKeeperRow, StockUnitInput, StockUnitRow, StockWarehouseInput, StockWarehouseRow,
 } from '@/src/lib/db/stockMaster';
 import type {
   IssuableWorkItem, IssueLineRow, StockDocumentDetail, StockErpState, StockDocumentFilters, StockDocumentInput, StockDocumentListRow, StockLineCost,
@@ -13,7 +13,7 @@ import type { BelowReorderRow, ReorderSuggestion } from '@/src/lib/db/stockReord
 /** Stock master data (#1512 S1): units, items, warehouses and keepers.  */
 export interface StockMasterRepository {
   listUnits(includeArchived?: boolean): Promise<StockUnitRow[]>;
-  listItems(includeArchived?: boolean): Promise<StockItemRow[]>;
+  listItems(filters?: boolean | StockItemFilters): Promise<StockItemRow[]>;
   listWarehouses(includeArchived?: boolean): Promise<StockWarehouseRow[]>;
   listKeepers(): Promise<StockKeeperRow[]>;
   createUnit(input: StockUnitInput): Promise<StockUnitRow>;

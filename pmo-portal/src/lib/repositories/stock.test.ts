@@ -11,10 +11,14 @@ import { AppError } from '@/src/lib/appError';
 beforeEach(() => vi.clearAllMocks());
 
 describe('stock repository (master data)', () => {
-  it('FR-STK-001 listItems delegates to the DAL with the archived flag', async () => {
+  it('FR-STK-001 listItems delegates to the DAL with the archived flag or filters', async () => {
     vi.mocked(dal.listStockItems).mockResolvedValue([{ id: 'i1' }] as never);
     expect(await repositories.stock.master.listItems(true)).toEqual([{ id: 'i1' }]);
     expect(dal.listStockItems).toHaveBeenCalledWith(true);
+
+    const f = { tagIds: ['t1'], limit: 1000 };
+    expect(await repositories.stock.master.listItems(f)).toEqual([{ id: 'i1' }]);
+    expect(dal.listStockItems).toHaveBeenCalledWith(f);
   });
 
   it('FR-STK-004 setKeeper delegates the exact assignment', async () => {
