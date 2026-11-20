@@ -20,16 +20,17 @@ export const WorkOrderStockBalance: React.FC<{ workOrderId: string; currency: st
   const rows = q.data ?? [];
   const showValue = rows.some((r) => r.onSiteValue !== undefined);
   const loc = getNumberLocale();
-  const qty = (v: string, unit: string) => <span className="whitespace-nowrap tabular-nums">{formatQuantity(v, loc)} <span className="text-muted-foreground">{unit}</span></span>;
+  // Unit shown once, beside the on-site figure; the other columns are bare numbers in the same unit.
+  const qty = (v: string, unit?: string) => <span className="whitespace-nowrap tabular-nums">{formatQuantity(v, loc)}{unit ? <> <span className="text-muted-foreground">{unit}</span></> : null}</span>;
   // A zero-cost (client-supplied) row says so instead of a bare zero that reads as missing data.
   const money = (r: WorkOrderStockRow, v: string | undefined) => v === undefined ? t('siteWork.balance.noValue')
     : r.zeroCost ? t('siteWork.balance.zeroCost') : <span className="whitespace-nowrap tabular-nums">{formatStockValue(v, currency, loc)}</span>;
   const columns: Column<WorkOrderStockRow>[] = [
     { key: 'item', header: t('siteWork.balance.item'), kind: 'primary', cell: (r) => r.itemName, secondaryCell: (r) => r.tagName ?? null, primaryTitle: (r) => r.itemName },
     { key: 'location', header: t('siteWork.balance.location'), cell: (r) => r.warehouseCode },
-    { key: 'received', header: t('siteWork.balance.received'), align: 'num', cell: (r) => qty(r.receivedQty, r.unitCode) },
-    { key: 'movedOut', header: t('siteWork.balance.movedOut'), align: 'num', cell: (r) => qty(r.movedOutQty, r.unitCode) },
-    { key: 'issued', header: t('siteWork.balance.issued'), align: 'num', cell: (r) => qty(r.issuedQty, r.unitCode) },
+    { key: 'received', header: t('siteWork.balance.received'), align: 'num', cell: (r) => qty(r.receivedQty) },
+    { key: 'movedOut', header: t('siteWork.balance.movedOut'), align: 'num', cell: (r) => qty(r.movedOutQty) },
+    { key: 'issued', header: t('siteWork.balance.issued'), align: 'num', cell: (r) => qty(r.issuedQty) },
     { key: 'onSite', header: t('siteWork.balance.onSite'), align: 'num', cell: (r) => <span className="font-semibold">{qty(r.onSiteQty, r.unitCode)}</span> },
     ...(showValue ? [
       { key: 'issuedValue', header: t('siteWork.balance.issuedValue'), align: 'num' as const, cell: (r: WorkOrderStockRow) => money(r, r.issuedValue) },
@@ -45,7 +46,7 @@ export const WorkOrderStockBalance: React.FC<{ workOrderId: string; currency: st
       </div>
       <dl className="grid grid-cols-[1fr_auto] gap-x-3 text-control text-muted-foreground">
         {([['received', r.receivedQty], ['movedOut', r.movedOutQty], ['issued', r.issuedQty]] as const).map(([k, v]) => (
-          <React.Fragment key={k}><dt>{t(`siteWork.balance.${k}`)}</dt><dd className="text-right">{qty(v, r.unitCode)}</dd></React.Fragment>
+          <React.Fragment key={k}><dt>{t(`siteWork.balance.${k}`)}</dt><dd className="text-right">{qty(v)}</dd></React.Fragment>
         ))}
         {showValue && <><dt>{t('siteWork.balance.issuedValue')}</dt><dd className="text-right">{money(r, r.issuedValue)}</dd><dt>{t('siteWork.balance.value')}</dt><dd className="text-right">{money(r, r.onSiteValue)}</dd></>}
       </dl>
