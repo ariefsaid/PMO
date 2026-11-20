@@ -162,6 +162,7 @@
     {"table":"project_milestones","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"project_number_counters","has_org":true,"pk":"org_id","columns":"*","b_read":"none","by_id":"applicable"},
     {"table":"project_progress_entries","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"project_shared_cost_splits","has_org":true,"pk":"project_id","columns":"*","b_read":"own-org-only","by_id":"n/a: pk is (project_id, work_order_id), not a row uuid; the blind read covers own-org-only"},
     {"table":"project_stage_entries","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"projects","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"purchase_history_imports","has_org":true,"pk":"org_id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
@@ -208,6 +209,7 @@
     {"table":"work_order_acceptance_lines","has_org":false,"pk":"acceptance_id","columns":"acceptance_id,boq_item_id,quantity","b_read":"parent-org-only","by_id":"n/a: parent acceptance carries org_id; blind read covers parent-scoped visibility"},
     {"table":"work_order_acceptances","has_org":true,"pk":"id","columns":"id,org_id,project_id,work_order_id,acceptance_date,is_final,status,prepared_by,prepared_at,confirmed_by,confirmed_at,confirm_basis,withdrawn_at,note,document_id","b_read":"own-org-only","by_id":"applicable"},
     {"table":"work_order_lines","has_org":true,"pk":"id","columns":"id,org_id,work_order_id,boq_item_id,quantity,created_at","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"work_order_plan_lines","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"work_orders","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
   ],
   "definer_functions": [
@@ -248,6 +250,7 @@
     "apply_native_receipt(uuid,jsonb,uuid)",
     "apply_odoo_ledger_page(uuid,jsonb,text)",
     "apply_odoo_stock_cost_page(uuid,jsonb,text)",
+    "clear_shared_cost_split(uuid)",
     "finish_odoo_stock_cost_census(uuid,timestamp with time zone,integer)",
     "mark_odoo_stock_cost_census_seen(uuid,timestamp with time zone,text[])",
     "mark_odoo_stock_cost_double_counts(uuid,bigint[])",
@@ -646,6 +649,7 @@
     "set_sales_invoice_billing_kind(uuid,text)",
     "set_sales_invoice_efaktur(uuid,text,date)",
     "set_sales_invoice_received_date(uuid,date)",
+    "set_shared_cost_split(uuid,jsonb)",
     "set_stock_reorder_level(uuid,uuid,numeric,numeric)",
     "set_stock_warehouse_keeper(uuid,uuid,boolean)",
     "set_subcontract_po_lines(uuid,jsonb)",
@@ -716,6 +720,7 @@
     "withdraw_subcontract_acceptance(uuid)",
     "withdraw_tm_signoff(uuid)",
     "withdraw_work_order_acceptance(uuid)",
+    "work_order_cost_amounts(uuid)",
     "work_order_issue_eligibility(uuid[])",
     "write_connect_census(uuid,text,jsonb)",
     "write_stock_erp_mirror(uuid,uuid,integer,integer,text,text,text,text,numeric,numeric,text,timestamp with time zone,timestamp with time zone,text)"
