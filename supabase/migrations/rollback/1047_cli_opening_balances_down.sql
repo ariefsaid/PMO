@@ -1,4 +1,4 @@
--- Down for 1046 (#2321): restores api_client_request_guard() to its 0899 body, verbatim.
+-- 1047_cli_opening_balances_down.sql — restores the 0899 api_client_request_guard() (admin tier without the opening RPCs).
 create or replace function public.api_client_request_guard()
   returns void
   language plpgsql

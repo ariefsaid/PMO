@@ -7,7 +7,7 @@
 -- Refused (nothing deleted) once anything outside the import exists: any row in a table that references the purchase or one of its documents (even one that would cascade) other than the
 -- import's own tables (found from the catalog, so a table added later refuses by default), a document count or status that differs from
 -- what the import created, a status change made after the import, or a queued ERP command for the purchase.
--- Rollback: rollback/1045_undo_imported_purchase_down.sql
+-- Rollback: rollback/1140_undo_imported_purchase_down.sql
 create function public.undo_imported_purchase(p_import_key text, p_reason text, p_dry_run boolean default true)
 returns jsonb language plpgsql security definer set search_path = public, pg_catalog as $$
 declare

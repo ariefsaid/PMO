@@ -1,5 +1,5 @@
--- 1047_projects_collection_set_based.sql — #2480: the Projects list's two batch reads are one pass each.
--- Rollback: migrations/rollback/1047_projects_collection_set_based_down.sql
+-- 1142_projects_collection_set_based.sql — #2480: the Projects list's two batch reads are one pass each.
+-- Rollback: migrations/rollback/1142_projects_collection_set_based_down.sql
 --
 -- MEASURED DEFECT (local stack, 500-project seed: scripts/perf/large-org-seed.sql, 308 live rows on the
 -- active partition). The list page issues one 500-id money collection and one 500-id delivery summary.

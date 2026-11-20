@@ -270,29 +270,6 @@ export function summarizeBudgetComparison(
   };
 }
 
-/** One category as the Forecast panel holds it (numbers off the repository seam). */
-export interface SummaryRow {
-  category: string;
-  pmoBudgetAmount: number | null;
-  /** `true` when a null budget is a KNOWN absence ("the Active version has no line here") = budgeted 0. */
-  budgetKnownAbsent: boolean;
-  actualsToDate: number | null;
-  pmoEtc: number;
-}
-
-export interface ProjectionSummary {
-  /** Each figure is `null` (never 0) while any category it depends on is unknown. */
-  budget: number | null;
-  recorded: number | null;
-  costToFinish: number;
-  finalCost: number | null;
-  /** Budget − forecast final cost; negative = forecast overrun. */
-  remaining: number | null;
-  /** Categories whose budget / recorded spending is unknown — the visible reason for a `null` above. */
-  unknownBudget: string[];
-  unknownRecorded: string[];
-}
-
 export interface BudgetProjectionYearOption {
   fiscalYear: string;
   /** The Active version has an approved amount recorded for this client-defined year. */

@@ -55,6 +55,14 @@ import sys
 text = Path('scripts/2195-order-family-rollback.test.sql').read_text()
 down = Path('supabase/migrations/rollback/0903_capture_order_family_down.sql').read_text()
 if '$down$' in down: raise SystemExit('down file contains the proof delimiter')
+# Peel any newer migrations in the transaction that modified api_client_request_guard after 0903
+downs = []
+for p in sorted(Path('supabase/migrations/rollback').glob('*_down.sql'), reverse=True):
+    num = p.name.split('_')[0]
+    if num > '0903' and 'api_client_request_guard' in p.read_text():
+        downs.append(p.read_text())
+if downs:
+    text = text.replace('begin;\n', 'begin;\n' + '\n'.join(downs) + '\n', 1)
 text = text.replace('@DOWN@', down).replace('@HASHES@', Path(sys.argv[2]).read_text().strip()).replace('@GUARD@', sys.argv[3])
 Path(sys.argv[1]).write_text(text)
 PY

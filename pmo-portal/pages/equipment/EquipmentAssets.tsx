@@ -122,6 +122,7 @@ const EquipmentAssetsPage: React.FC = () => {
             {t('equipment:assets.truncated', 'Showing the first {{count}} assets. Archive the ones you no longer use.', { count: LIST_LIMIT })}</p>}
           <DataTable<EquipmentAssetRow> rows={rows} columns={columns} rowKey={(a) => a.id} tableId="equipment-assets-table"
             onActivate={(a) => navigate(`/equipment/assets/${a.id}`)}
+            rowHref={(a) => `/equipment/assets/${a.id}`}
             rowLabel={(a) => t('equipment:assets.rowLabel', 'Open {{name}}', { name: a.name })}
             rowMenu={(a) => [
               ...(may('edit', 'equipmentAsset', writeCtx) ? [{ label: t('equipment:assets.archive', 'Archive'), onClick: () => setPending({ kind: 'archive', asset: a }) }] : []),

@@ -211,6 +211,18 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/projects?filter=on-hand');
   });
 
+  it('AC-2077 dashboard figure help opens without following the linked figure', () => {
+    h.dash = { ...base };
+    renderExec();
+    const figure = within(figures()).getByRole('link', { name: /Contract on hand · excl\. tax/ });
+    expect(figure).toHaveAttribute('href', '/projects?filter=on-hand');
+
+    fireEvent.click(screen.getByRole('button', { name: 'About Dashboard' }));
+
+    expect(screen.getByTestId('figure-help-list')).toHaveTextContent('Sum of contract values for delivery work');
+    expect(screen.getByTestId('location')).toHaveTextContent('/');
+  });
+
   it('AC-IXD-DASH-W5-C2A: the caption counts every on-hand state the figure sums (ongoing, on hold, close-out, won pending kickoff), never leads', () => {
     h.dash = { ...base, active_projects: 1, projects_by_status: [
       { status: 'Ongoing Project', count: 1 }, { status: 'Close Out', count: 2 }, { status: 'On Hold', count: 1 }, { status: 'Won, Pending KoM', count: 1 }, { status: 'Leads', count: 9 },

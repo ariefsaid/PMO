@@ -1,4 +1,4 @@
--- Reverses 1047 (#2480): both batch reads go back to one per-project call per id.
+-- Reverses 1142 (#2480): both batch reads go back to one per-project call per id.
 -- The 0700 body of get_projects_money_collection and the 0396 body of get_projects_delivery, verbatim.
 -- Reversing restores the measured 9.9 s / 2.0 s list reads on a 500-project organisation.
 

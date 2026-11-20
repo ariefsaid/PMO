@@ -23,7 +23,7 @@ member's JWT claims, so the batch RPCs pass their active-member gate) · `script
 
 ### SQL (EXPLAIN ANALYZE, psql, warm stack)
 
-| Read | Before (ms) | After — 1047 (ms) |
+| Read | Before (ms) | After — 1142 (ms) |
 |---|---|---|
 | Projects list page: full row + client/end_client/PM joins, active partition, 1,000-row page | 1.6 | 1.2 |
 | Picker page 1 (active statuses, live, ordered by `id`, 1,000 rows) | 0.5 | 0.3 |
@@ -36,7 +36,7 @@ member's JWT claims, so the batch RPCs pass their active-member gate) · `script
 
 ### End to end (`scripts/perf/large-org-measure.mjs`, dev server)
 
-| Screen | Before | After — 1047 |
+| Screen | Before | After — 1142 |
 |---|---|---|
 | `/projects` — first row on screen | 6,770 ms | 3,134 ms |
 | `/projects` — settled (money/progress columns in) | **7,876 ms** | **4,136 ms** |
@@ -60,7 +60,7 @@ Both page-load batch reads looped over the project ids and called a per-project 
   subqueries. 500 projects → **9.9 s**.
 - `get_projects_delivery` (0396 body): per project it called `project_pmo_commitment_position`. 500 → **2.0 s**.
 
-Migration **1047** (`supabase/migrations/1047_projects_collection_set_based.sql`) makes each one pass, reusing the
+Migration **1142** (`supabase/migrations/1142_projects_collection_set_based.sql`) makes each one pass, reusing the
 set-based forms that already exist for the same figures:
 
 - ERP Actuals come from `project_mapped_actuals_all(null)` (0376, extended by 0497) — the org-wide form of the
@@ -85,8 +85,8 @@ Proof:
 - Touched suites all pass unchanged: `0299`, `0700`, `0069`, `0075`, `project_commitment_currency`, `0770`,
   `0145`, `0308`, `0311`, `0651`, `equipment_project_actuals`, `cost_attribution`.
 
-Red → green: on the pre-1047 schema the updated `0493` fails exactly its three new call-count assertions
-(tests 11–13 of 21); after 1047 the same file passes, and the 14-file run is **402 tests, all pass**.
+Red → green: on the pre-1142 schema the updated `0493` fails exactly its three new call-count assertions
+(tests 11–13 of 21); after 1142 the same file passes, and the 14-file run is **402 tests, all pass**.
 
 ## Index decision
 

@@ -129,8 +129,10 @@ export const STAGE_ADMIN_RPCS = Object.freeze(['redate_stage_entry']);
  * Admin's OAuth token, POST only; each RPC still re-checks role, membership and org itself.
  * recategorise_budget_lines: move Draft Special-expenses budget lines to Travel & accommodation or Vehicle,
  * e.g. `pmo rpc recategorise_budget_lines '{"p_line_ids":["…"],"p_category":"Vehicle"}'`.
+ * load_work_order_opening, load_stock_opening, reverse_opening_balance, opening_balance_report: go-live opening
+ * balances (#2588, migrations 1046/1047; docs/specs/opening-balances.spec.md).
  */
-export const ADMIN_RPCS = Object.freeze(['recategorise_budget_lines']);
+export const ADMIN_RPCS = Object.freeze(['recategorise_budget_lines', 'load_work_order_opening', 'load_stock_opening', 'reverse_opening_balance', 'opening_balance_report']);
 
 /** The cost attribution tiers (#1271, migration 0376), used only by `pmo attribution`: preview/save/end for active Admin/Finance, list also for Executive/PM. */
 export { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS };

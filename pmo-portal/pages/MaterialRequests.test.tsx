@@ -15,6 +15,8 @@ vi.mock('@/src/hooks/useMaterialRequests', () => ({
   useWaitingForMe: () => ({ data: h.waiting, isPending: false, isError: false, refetch: vi.fn() }),
   useMaterialRequests: () => ({ data: { rows: [row('r1', 'MRQ-0001'), row('r2', 'MRQ-0002')], nextCursor: null }, isPending: false, isError: false, refetch: vi.fn() }),
 }));
+vi.mock('@/src/hooks/useWorkOrderRecord', () => ({ useWorkOrder: () => ({ data: { id: 'w', wo_number: 'WO-0042', title: 'Slab pour' } }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: [{ id: 'p', name: 'Harbour Road', short_name: null, code: null }] }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Engineer', effectiveRole: 'Engineer' }) }));
 
 import MaterialRequestsPage from './MaterialRequests';
@@ -34,6 +36,13 @@ describe('material requests list', () => {
     h.waiting = [{ requestId: 'r99', stepPosition: 1, role: 'Finance', label: 'Stock', actingFor: null, submittedAt: '2026-11-01T08:00:00Z' }];
     renderPage();
     expect(screen.getByRole('table')).toHaveTextContent('MRQ-0099');
+  });
+
+  it('#2609 shows the work order, linked, and the project on each waiting row', () => {
+    h.waiting = [{ requestId: 'r2', stepPosition: 2, role: 'Finance', label: 'Billable change', actingFor: null, submittedAt: '2026-11-19T08:00:00Z' }];
+    renderPage();
+    expect(screen.getByRole('link', { name: 'WO-0042 · Slab pour' })).toHaveAttribute('href', '/work-orders/w');
+    expect(screen.getByRole('table')).toHaveTextContent('Harbour Road');
   });
 
   it('empty queue says nothing is waiting', () => {

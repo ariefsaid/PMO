@@ -1,5 +1,7 @@
--- 1046 (#2321): the command line may call `undo_imported_purchase` as an active Admin (the function checks Admin itself).
--- Body of the api_client_request_guard() from 0899 copied verbatim; the only additions are the lines marked 1046.
+-- 1047_cli_opening_balances.sql — #2588: the four opening-balance RPCs (1046) join the guard's active-Admin `pmo rpc` tier, so
+-- an Admin loads go-live balances from the command line. Each RPC still checks role, membership and organisation itself.
+-- Body of the api_client_request_guard() from 0899 copied verbatim; the only change is the admin_cli_rpcs line marked 1047.
+-- Reversal: rollback/1047_cli_opening_balances_down.sql (re-applies the 0899 body).
 create or replace function public.api_client_request_guard()
   returns void
   language plpgsql
@@ -24,7 +26,8 @@ declare
   -- ADMIN/FINANCE TIER (`pmo purchases set-aside`, #1319 AC-13)  -- 0364
   set_aside_rpcs constant text[] := array['mark_erp_purchase_documents'];  -- 0364
   -- ACTIVE-ADMIN `pmo rpc` TIER (#1326) — keep in step with scripts/pmo.mjs ADMIN_RPCS.  -- 0366
-  admin_cli_rpcs constant text[] := array['recategorise_budget_lines'];  -- 0366
+  admin_cli_rpcs constant text[] := array['recategorise_budget_lines',  -- 0366
+    'load_work_order_opening', 'load_stock_opening', 'reverse_opening_balance', 'opening_balance_report'];  -- 1047
   -- OPERATOR READ TIER (`pmo get/documents/m365`, #1270) — keep in step with scripts/pmo.mjs.  -- 0367
   operator_read_tables constant text[] := array['budget_versions', 'budget_line_items', 'budget_category_account_map', 'erp_gl_entry_mirror', 'project_documents', 'org_m365_document_settings', 'm365_record_folder_sweeps',  -- 0367
     'contract_rate_lines', 'contract_rate_assignees'];  -- 0518
@@ -67,8 +70,6 @@ declare
     'operator_create_org_with_setup'];  -- 0894
   -- PURCHASE-HISTORY IMPORT TIER (`pmo purchases import-history`, #1855) — active Admin, as the RPC's own check; keep in step with scripts/lib/pmo-purchases.mjs.  -- 0899
   history_import_rpcs constant text[] := array['import_purchase_history'];  -- 0899
-  -- PURCHASE-HISTORY UNDO TIER (`pmo purchases undo-import`, #2321) — active Admin, as the RPC's own check; keep in step with scripts/lib/pmo-purchases.mjs.  -- 1046
-  history_undo_rpcs constant text[] := array['undo_imported_purchase'];  -- 1046
   -- ACTIVE-ADMIN CORRECTION TIER (`pmo correct contract-line|budget-line`, #1858) — PATCH on these two tables only, one row per request;  -- 0899
   -- the columns a token may change are fixed by the api_client_restrict_patch_columns() trigger on each table. Keep in step with scripts/lib/pmo-correct.mjs.  -- 0899
   correction_patch_tables constant text[] := array['boq_items', 'budget_line_items'];  -- 0899
@@ -207,11 +208,6 @@ begin
         return;  -- 0899
       end if;  -- 0899
     end if;  -- 0899
-    if method = 'POST' and target = any (history_undo_rpcs) then  -- 1046
-      if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false) then  -- 1046
-        return;  -- 1046
-      end if;  -- 1046
-    end if;  -- 1046
     if method = 'POST' and target = any (admin_cli_rpcs) then  -- 0366
       if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false) then  -- 0366
         return;  -- 0366

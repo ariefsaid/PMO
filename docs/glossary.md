@@ -389,6 +389,8 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Work order acceptance line** — the quantity accepted for one contract line on a work order acceptance; the latest confirmed quantity, not a sum, is what has been accepted to date.
 
+**Opening balance** — where a running work order or a stock location stood at go-live, loaded once by an Admin and dated at the organisation's one go-live date (#2588). A work order's opening is a confirmed acceptance marked `opening` (certified quantity) plus the quantity and value claimed before go-live, which counts as already invoiced; a location's opening is a posted stock document of kind `opening` (counted quantity at unit cost). It is not new activity, it counts once, and an Admin can reverse it only before the first real transaction. Finished work orders carry none.
+
 **Progress assessment quantity** — the quantity completed to date for a bill-of-quantities item in a project progress entry.
 
 **Progress claim** — a project billing claim, optionally associated with a work order, for progress or a down payment, recording gross value and any down-payment recovery.
