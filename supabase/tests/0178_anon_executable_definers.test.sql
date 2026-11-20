@@ -282,7 +282,7 @@ select plan(7);
 -- it moves credit; proven by supabase/tests/0907_credit_allocations.test.sql and
 -- scripts/credit-allocation-race.test.mjs (AC-ALLOC-001..013).
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
--- The union of the dev, work-order finance and fiscal-calendar RPC inventories contains 183 retained names.
+-- The union of the dev, work-order finance and fiscal-calendar RPC inventories contains the retained names (the count assertions below are authoritative).
 -- 1018's set_org_fiscal_year_start_month is the one added by the fiscal calendar.
 insert into client_callable_rpc_names (proname) values
   ('set_document_warning_days'), -- 0972: active Admin, scoped to caller org; document_expiry pgTAP
