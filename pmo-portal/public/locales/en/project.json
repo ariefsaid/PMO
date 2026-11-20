@@ -244,6 +244,7 @@
         },
         "errors": {
           "claimWithdrawn": "This claim was withdrawn. Its invoice can't be raised.",
+          "stagesIncomplete": "Complete every billing stage of this claim before raising its invoice.",
           "alreadyInvoiced": "This claim already has an invoice.",
           "erpRaiseInFlight": "An invoice for this claim is still being raised in the ERP. Wait for it to finish.",
           "noClient": "This project has no client to invoice. Set the client on the project first.",

@@ -211,6 +211,10 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const canAssess = may('edit', 'projectProgress', { currentUserId: currentUser?.id, record: { project_manager_id: projectManagerId } });
   const liveDownPayment = claimRows.some((c) => c.kind === 'down_payment' && !c.withdrawn_at && c.invoice?.status !== 'Cancelled');
 
+  // FR-BST-020: a claim with an open billing stage cannot be invoiced (the database refuses); say so instead of offering it.
+  const stagesOpen = (claim: { open_stage_count?: number }) => (claim.open_stage_count ?? 0) > 0;
+  const stagesOpenReason = t('projectDetail.billing.claims.errors.stagesIncomplete', 'Complete every billing stage of this claim before raising its invoice.');
+
   const fail = (err: unknown, headlineOverrides?: Record<string, string>) => {
     const { headline, detail } = classifyMutationError(err, headlineOverrides);
     toast(headline, detail, 'warning');
@@ -260,6 +264,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       // InvoiceWorkOrderModal).
       fail(err, {
         '55000': t('projectDetail.billing.claims.errors.claimWithdrawn', "This claim was withdrawn. Its invoice can't be raised."),
+        'billing-stages-incomplete': stagesOpenReason,
         'claim-already-invoiced': t('projectDetail.billing.claims.errors.alreadyInvoiced', 'This claim already has an invoice.'),
         'no-client': t('projectDetail.billing.claims.errors.noClient', 'This project has no client to invoice. Set the client on the project first.'),
         'claim-total-mismatch': t('projectDetail.billing.claims.errors.totalMismatch', "This claim's lines do not add up to its total. Withdraw it and assemble it again."),
@@ -431,7 +436,9 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
               {t('projectDetail.billing.claims.attachEvidence', 'Attach evidence')}
             </Button>
           )}
-          {open && canBill && (c.evidence.length > 0 ? (
+          {open && canBill && (stagesOpen(c) ? (
+            <span className="text-sm text-muted-foreground">{stagesOpenReason}</span>
+          ) : c.evidence.length > 0 ? (
             <Button variant="outline" size="sm" onClick={() => setRaiseFor({ claim: c, idempotencyKey: crypto.randomUUID() })}>
               {t('projectDetail.billing.claims.raise', 'Raise invoice')}
             </Button>
@@ -597,7 +604,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
             const open = !claim.withdrawn_at && !claim.invoice;
             return [
               ...(open && canBill ? [{ label: t('projectDetail.billing.claims.attachEvidence', 'Attach evidence'), onClick: () => setEvidenceFor(claim.id) }] : []),
-              ...(open && canBill && claim.evidence.length > 0 ? [{ label: t('projectDetail.billing.claims.raise', 'Raise invoice'), onClick: () => setRaiseFor({ claim, idempotencyKey: crypto.randomUUID() }) }] : []),
+              ...(open && canBill && claim.evidence.length > 0 && !stagesOpen(claim) ? [{ label: t('projectDetail.billing.claims.raise', 'Raise invoice'), onClick: () => setRaiseFor({ claim, idempotencyKey: crypto.randomUUID() }) }] : []),
               ...(open && canBill ? [{ label: t('projectDetail.billing.claims.withdraw', 'Withdraw'), danger: true, onClick: () => setWithdrawFor(claim) }] : []),
             ];
           }}
@@ -618,7 +625,9 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       : claimDetailFor.invoice?.status ?? t('projectDetail.billing.claims.notRaised', 'Not raised')}</StatusPill>}
     onClose={() => closeRecord(claimDetailFor.id, 'billingClaim')}
     headerActions={<div className="flex flex-wrap items-center gap-2">
-      {!claimDetailFor.withdrawn_at && !claimDetailFor.invoice && canBill && (claimDetailFor.evidence.length > 0
+      {!claimDetailFor.withdrawn_at && !claimDetailFor.invoice && canBill && (stagesOpen(claimDetailFor)
+        ? <span className="text-sm text-muted-foreground">{stagesOpenReason}</span>
+        : claimDetailFor.evidence.length > 0
         ? <Button variant="primary" size="sm" onClick={() => { closeRecord(claimDetailFor.id, 'billingClaim'); setRaiseFor({ claim: claimDetailFor, idempotencyKey: crypto.randomUUID() }); }}>{t('projectDetail.billing.claims.raise', 'Raise invoice')}</Button>
         : <Button variant="outline" size="sm" onClick={() => { closeRecord(claimDetailFor.id, 'billingClaim'); setEvidenceFor(claimDetailFor.id); }}>{t('projectDetail.billing.claims.attachEvidence', 'Attach evidence')}</Button>)}
       <Link className={buttonClasses('outline', 'sm')} to={`/projects/${encodeURIComponent(projectId)}/billing`} onClick={() => closeRecord(claimDetailFor.id, 'billingClaim')}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>
@@ -647,11 +656,11 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     }}
     canCreateInvoice={(claimId) => {
       const claim = claimRows.find((row) => row.id === claimId);
-      return (canBill || canBillNative) && Boolean(claim && !claim.withdrawn_at && !claim.invoice && claim.evidence.length > 0);
+      return (canBill || canBillNative) && Boolean(claim && !claim.withdrawn_at && !claim.invoice && claim.evidence.length > 0 && !stagesOpen(claim));
     }}
     onCreateInvoice={(claimId) => {
       const claim = claimRows.find((row) => row.id === claimId);
-      if ((canBill || canBillNative) && claim && !claim.withdrawn_at && !claim.invoice && claim.evidence.length > 0) {
+      if ((canBill || canBillNative) && claim && !claim.withdrawn_at && !claim.invoice && claim.evidence.length > 0 && !stagesOpen(claim)) {
         setRaiseFor({ claim, idempotencyKey: crypto.randomUUID() });
       }
     }} />;

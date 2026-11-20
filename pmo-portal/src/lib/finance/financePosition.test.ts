@@ -281,4 +281,21 @@ describe('ageing buckets (#1459: one bucket rule for receivables and payables)',
     expect(ageingBucket(61, 'payables')).toBe('d61_90');
     expect(ageingBucket(120, 'payables')).toBe('over90');
   });
+
+  it('AC-RET-005 keeps retention held out of overdue and ageing, as its own figure (#2625)', () => {
+    const position = calculate([
+      // paid net of 5% retention: only the retention is left, and it is not due yet
+      invoice('net-of-retention', '2026-09-01', { amount: 1_000_000, erp_outstanding_amount: 50_000, retention_held: 50_000 }),
+      // half paid: 450,000 is due now and overdue, 50,000 is retention
+      invoice('half-paid', '2026-09-01', { amount: 1_000_000, erp_outstanding_amount: 500_000, retention_held: 50_000 }),
+      // no retention: unchanged
+      invoice('plain', '2026-10-01', { erp_outstanding_amount: 100 }),
+    ]);
+    expect(position.overdue.map((o) => [o.invoice.id, o.outstanding])).toEqual([['half-paid', 45_000_000], ['plain', 10_000]]);
+    expect(position.overdueTotals).toEqual({ IDR: 45_010_000 });
+    expect(position.receivablesRetentionHeld).toEqual({ IDR: 10_000_000 });
+    const ageing = position.receivablesAgeing.IDR;
+    expect(ageing.d31_60).toBe(45_000_000);
+    expect(Object.values(ageing).reduce((t, v) => t + v, 0) + (position.receivablesRetentionHeld?.IDR ?? 0)).toBe(55_010_000);
+  });
 });

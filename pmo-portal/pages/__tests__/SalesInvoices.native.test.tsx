@@ -948,6 +948,22 @@ describe('Receivables list restructure fixes (2026-10-28 rulings audit)', () => 
     expect(within(drawer).getAllByText(/outstanding balance is not known yet/)).toHaveLength(1);
   });
 
+  it('AC-RET-005 the drawer shows the retention still held and what is due now (outstanding less retention) (#2625)', () => {
+    h.invoices.data = [nativeInvoice({ status: 'Unpaid', received_date: '2026-10-12', erp_outstanding_amount: 610_000, erp_payment_terms_days: 30, retention_held: 50_000 })];
+    renderPage('/finance/receivables?open=si-n1', true);
+    const drawer = screen.getByRole('dialog');
+    expect((within(drawer).getByText('Retention held').parentElement as HTMLElement)).toHaveTextContent(/IDR\s?50,000/);
+    expect((within(drawer).getByText('Due now').parentElement as HTMLElement)).toHaveTextContent(/IDR\s?560,000/);
+  });
+
+  it('AC-RET-005 an invoice with no retention shows no due-now split', () => {
+    h.invoices.data = [nativeInvoice({ status: 'Unpaid', received_date: '2026-10-12', erp_outstanding_amount: 610_000, erp_payment_terms_days: 30 })];
+    renderPage('/finance/receivables?open=si-n1', true);
+    const drawer = screen.getByRole('dialog');
+    expect(within(drawer).queryByText('Retention held')).not.toBeInTheDocument();
+    expect(within(drawer).queryByText('Due now')).not.toBeInTheDocument();
+  });
+
   it('C5: the drawer shows the outstanding balance in whole units, never cents', () => {
     h.invoices.data = [nativeInvoice({ status: 'Unpaid', received_date: '2026-10-12', erp_outstanding_amount: 610_000, erp_payment_terms_days: 30 })];
     renderPage('/finance/receivables?open=si-n1', true);
