@@ -283,6 +283,11 @@ select plan(9);
 -- hand from the list). SECURITY DEFINER writer under a member's JWT: it re-asserts active membership, the Admin/Finance
 -- role, the caller's org, no ERP, and author ≠ voider unless the sole active member. Proven by
 -- supabase/tests/subcontract_bill_void.test.sql.
+-- ⚑ AMENDED BY 0975 (#1599 ECX-4): `request_account_send` joins the retained set (+1, count 195 on dev's 194, re-derived by hand from the
+-- list). SECURITY DEFINER writer called through external-set-company under the member's own JWT; it re-asserts active
+-- membership, the Admin/Finance role, the caller's org, an activated ERPNext binding with a company, the budget category and a
+-- mirrored expense group of that company before it queues one send (audited). Proven by supabase/tests/erp_account_send.test.sql
+-- (AC-ECX-031). `account_send_groups` writes nothing, so the sweep does not name it.
 -- ⚑ AMENDED BY 0907 (#564): `admin_move_credit_allocation` joins the retained set (+1). SECURITY DEFINER writer under a
 -- member's JWT that re-asserts active membership, the Admin role and that both users belong to the caller's org before
 -- it moves credit; proven by supabase/tests/0907_credit_allocations.test.sql and

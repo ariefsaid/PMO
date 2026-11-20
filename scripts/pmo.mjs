@@ -12,6 +12,8 @@
  *   pmo create <table> <json | @file | ->
  *   pmo update <table> --filter col=op.value [...] <json | @file | ->
  *   pmo rpc <name> [<json | @file | ->]
+ *   pmo rpc list_account_reconciliation
+ *   pmo rpc dispose_account_reconciliation '{"p_id":"<id>","p_reason":"<reason>","p_absent":true}'
  *   pmo load <file.json | -> [--dry-run]   (active Admin only — #796)
  *   pmo correct project|contract-line|budget-line … --set <field>=<value> [--dry-run]   (active Admin only — #1858)
  *   pmo stages <project> | stage-date <project> <stage> <YYYY-MM-DD> (active Admin — #1835)
@@ -132,7 +134,7 @@ export const STAGE_ADMIN_RPCS = Object.freeze(['redate_stage_entry']);
  * load_work_order_opening, load_stock_opening, reverse_opening_balance, opening_balance_report: go-live opening
  * balances (#2588, migrations 1046/1047; docs/specs/opening-balances.spec.md).
  */
-export const ADMIN_RPCS = Object.freeze(['recategorise_budget_lines', 'load_work_order_opening', 'load_stock_opening', 'reverse_opening_balance', 'opening_balance_report']);
+export const ADMIN_RPCS = Object.freeze(['recategorise_budget_lines', 'list_account_reconciliation', 'dispose_account_reconciliation', 'load_work_order_opening', 'load_stock_opening', 'reverse_opening_balance', 'opening_balance_report']);
 
 /** The cost attribution tiers (#1271, migration 0376), used only by `pmo attribution`: preview/save/end for active Admin/Finance, list also for Executive/PM. */
 export { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS };
@@ -821,6 +823,8 @@ const USAGE = `usage:
   pmo create <table> <json | @file | ->
   pmo update <table> --filter col=op.value [...] <json | @file | ->
   pmo rpc <name> [<json | @file | ->]
+  pmo rpc list_account_reconciliation
+  pmo rpc dispose_account_reconciliation '{"p_id":"<id>","p_reason":"<reason>","p_absent":true}'
   pmo load <file.json | -> [--dry-run]   (active Admin: companies, projects, draft budgets, contract lines)
   pmo correct project (--code <code> | --name <name> --client <legal name>) --set <field>=<value> ... [--dry-run]
                                                     (active Admin: fix a loaded project header field; the preview shows before → after)
