@@ -55,6 +55,8 @@
   "hours": "Jam",
   "hoursFor": "Jam untuk {{name}}",
   "hoursTotal": "{{hours}} jam",
+  "importCrews": "Impor kru",
+  "importMembers": "Impor anggota kru",
   "kind": "Jenis kru",
   "kindOwn": "Staf sendiri",
   "kindVendor": "Kru supplier",

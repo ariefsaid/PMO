@@ -8,6 +8,10 @@ import { overlayBackdropClassName, overlayBackdropStyle } from '@/src/components
 import { acquireBackgroundInert } from '@/src/components/ui/backgroundInert';
 import type { ImportDescriptor, ImportField } from '@/src/lib/import';
 import { MAX_IMPORT_ROWS, rowToCells } from '@/src/lib/import';
+import { exportFilename } from '@/src/lib/export';
+import { buildFailedRowsWorkbook } from '@/src/lib/import/failedRowsFile';
+import { buildTemplateWorkbook } from '@/src/lib/import/templateFile';
+import { triggerBlobDownload } from '@/src/lib/download';
 import { useImportWizard, type WizardStep } from './useImportWizard';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import type { TFunction } from 'i18next';
@@ -33,6 +37,28 @@ type PendingImportExit = { kind: 'close' | 'leave'; run: () => void };
 // "Import budgets" and being met with "Import companies" is unmissable.
 // #1278 round A item 4: every string below reads its catalogue key (`import` namespace, fetched when
 // the wizard mounts), so Bahasa Indonesia reads Bahasa. The defaults are the English catalogue text.
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+/** The failed-rows file (#2530): built in the browser from the file the person uploaded and the result on screen. */
+async function downloadFailedRows(
+  parsed: { headers: string[]; rows: string[][] },
+  failed: { index: number; reason: string }[],
+  skipped: number[],
+  entity: string,
+  t: TFunction,
+): Promise<void> {
+  const buf = await buildFailedRowsWorkbook({
+    headers: parsed.headers, rows: parsed.rows, failed, skipped,
+    labels: {
+      sheet: t('import:result.failedSheet', 'Not imported'),
+      alreadyThere: t('import:result.alreadyThereSheet', 'Already there'),
+      rowInFile: t('import:result.rowInFile', 'Row in your file'),
+      reason: t('import:result.reasonColumn', 'Why not imported'),
+    },
+  });
+  triggerBlobDownload(new Blob([buf], { type: XLSX_MIME }), exportFilename(`${entity}-not-imported`));
+}
+
 const stepTitle = (step: Exclude<WizardStep, 'upload'>, t: TFunction, someNotImported: boolean): string => {
   // LITERAL keys per step — the i18n completeness gate scans for them.
   if (step === 'mapping') return t('import:wizard.step.mapping', 'Match columns');
@@ -42,8 +68,8 @@ const stepTitle = (step: Exclude<WizardStep, 'upload'>, t: TFunction, someNotImp
   return t('import:wizard.step.result', 'Import complete');
 };
 
-const stepSubtitle = (step: WizardStep, t: TFunction): string => {
-  if (step === 'upload') return t('import:wizard.subtitle.upload', 'Upload an .xlsx file (up to {{max}} rows).', { max: MAX_IMPORT_ROWS });
+const stepSubtitle = (step: WizardStep, t: TFunction, maxRows: number): string => {
+  if (step === 'upload') return t('import:wizard.subtitle.upload', 'Upload an .xlsx file (up to {{max}} rows).', { max: maxRows });
   if (step === 'mapping') return t('import:wizard.subtitle.mapping', 'Confirm which column maps to each field.');
   if (step === 'preview') return t('import:wizard.subtitle.preview', 'Invalid rows are skipped. Only valid rows are imported.');
   if (step === 'committing') return t('import:wizard.subtitle.committing', 'Creating one record per valid row.');
@@ -145,7 +171,7 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
                     : stepTitle(wiz.step, t, someNotImported)}
                 </Dialog.Title>
                 <Dialog.Description render={<p />} id={subId} className="mt-px text-control text-muted-foreground">
-                  {stepSubtitle(wiz.step, t)}
+                  {stepSubtitle(wiz.step, t, descriptor.maxRows ?? MAX_IMPORT_ROWS)}
                 </Dialog.Description>
               </div>
               <Button
@@ -161,7 +187,7 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
 
             {/* Body */}
             <div className="min-h-0 flex-1 overflow-y-auto px-[var(--space-content-inset)] py-4">
-              {wiz.step === 'upload' && <UploadStep wiz={wiz} />}
+              {wiz.step === 'upload' && <UploadStep wiz={wiz} descriptor={descriptor} maxRows={descriptor.maxRows ?? MAX_IMPORT_ROWS} />}
               {wiz.step === 'mapping' && <MappingStep wiz={wiz} descriptor={descriptor} />}
               {wiz.step === 'preview' && <PreviewStep wiz={wiz} descriptor={descriptor} />}
               {wiz.step === 'committing' && <CommittingStep wiz={wiz} />}
@@ -173,6 +199,17 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
               {(wiz.step === 'mapping' || wiz.step === 'preview') && (
                 <Button variant="ghost" size="sm" onClick={wiz.back}>
                   {t('import:wizard.back', 'Back')}
+                </Button>
+              )}
+              {wiz.step === 'preview' && wiz.counts.invalid > 0 && wiz.parsed && (
+                <Button variant="outline" size="sm" onClick={() => {
+                  const rejected = wiz.validation.filter((v) => !v.valid && !v.already).map((v) => ({
+                    index: v.index,
+                    reason: descriptor.fields.flatMap((field) => v.errors[field.key] ? [v.errors[field.key] as string] : []).join(' '),
+                  }));
+                  void downloadFailedRows(wiz.parsed!, rejected, wiz.validation.filter((v) => v.already).map((v) => v.index), descriptor.entity, t);
+                }}>
+                  {t('import:result.downloadFailed', 'Download rows not imported')}
                 </Button>
               )}
               <div className="ml-auto flex items-center gap-2">
@@ -239,7 +276,7 @@ const NOTHING_NEW_ID = 'import-nothing-new';
 /** Every row the sheet could import is already on the target: the button is disabled, and this says why. */
 const nothingNew = <Input,>(wiz: Wiz<Input>) => wiz.existingStatus === 'ready' && wiz.counts.valid === 0 && wiz.alreadyCount > 0;
 
-function UploadStep<Input>({ wiz }: { wiz: Wiz<Input> }) {
+function UploadStep<Input>({ wiz, descriptor, maxRows }: { wiz: Wiz<Input>; descriptor: ImportDescriptor<Input>; maxRows: number }) {
   const inputId = useId();
   const { t } = useTranslation('import');
   const [pasted, setPasted] = React.useState('');
@@ -252,7 +289,7 @@ function UploadStep<Input>({ wiz }: { wiz: Wiz<Input> }) {
         <Icon name="upload" className="size-6 text-muted-foreground" />
         <span className="text-control font-semibold text-foreground">{t('import:upload.chooseFile', 'Choose an .xlsx file')}</span>
         <span className="text-control text-muted-foreground">
-          {t('import:upload.headersNote', 'The first row must be column headers. Up to {{max}} rows.', { max: MAX_IMPORT_ROWS })}
+          {t('import:upload.headersNote', 'The first row must be column headers. Up to {{max}} rows.', { max: maxRows })}
         </span>
         <FileInput
           id={inputId}
@@ -267,6 +304,29 @@ function UploadStep<Input>({ wiz }: { wiz: Wiz<Input> }) {
           }}
         />
       </label>
+      {descriptor.template && (
+        <div>
+          <Button
+            variant="outline"
+            size="sm"
+            data-testid="import-download-template"
+            onClick={() => {
+              void buildTemplateWorkbook(descriptor, {
+                sheet: t('import:template.sheet', 'Template'),
+                notes: t('import:template.notes', 'Notes'),
+                field: t('import:template.field', 'Field'),
+                required: t('import:template.required', 'Required'),
+                optional: t('import:template.optional', 'Optional'),
+                meaning: t('import:template.meaning', 'Meaning'),
+                accepted: t('import:template.accepted', 'Accepted values'),
+                rowCap: t('import:template.rowCap', 'Up to {{max}} rows per file.'),
+              }).then((buf) => triggerBlobDownload(new Blob([buf], { type: XLSX_MIME }), exportFilename(`${descriptor.entity}-template`)));
+            }}
+          >
+            {t('import:template.download', 'Download template')}
+          </Button>
+        </div>
+      )}
       <TextArea
         label={t('import:paste.label', 'Or paste rows copied from a spreadsheet')}
         helper={t('import:paste.helper', 'Include the header row. Columns separated by tabs, as copied from a sheet.')}
@@ -547,6 +607,26 @@ function ResultStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: I
         {skippedCount > 0 && <>, {t('import:result.skipped', '{{n}} skipped because already imported', { n: skippedCount })}</>}
         {r.failed.length > 0 && <>, {t('import:result.failed', '{{n}} failed', { n: r.failed.length })}</>}.
       </p>
+      {notImported.some((f) => f.tone !== 'skipped') && wiz.parsed && (
+        <div>
+          <Button
+            type="button"
+            variant="outline"
+            data-testid="import-download-failed"
+            onClick={() => {
+              void downloadFailedRows(
+                wiz.parsed!,
+                notImported.filter((f) => f.tone !== 'skipped'),
+                notImported.filter((f) => f.tone === 'skipped').map((f) => f.index),
+                descriptor.entity,
+                t,
+              );
+            }}
+          >
+            {t('import:result.downloadFailed', 'Download rows not imported')}
+          </Button>
+        </div>
+      )}
       {notImported.length > 0 && (
         <ul aria-label={t('import:result.listName', 'Rows not imported')} className="flex flex-col gap-1.5 text-control">
           {notImported.map((f) => {

@@ -6,6 +6,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { CrewList } from './CrewList';
 import { WorkOrderRoster } from './WorkOrderRoster';
 import { AttendanceTick } from './AttendanceTick';
+import { CrewImports } from './CrewImports';
 
 type View = 'crews' | 'roster' | 'attendance';
 
@@ -29,6 +30,7 @@ const CrewsPage: React.FC = () => {
   return (
     <ListPage
       title={t('crews:title', 'Crews')}
+      importAction={view === 'crews' ? <CrewImports /> : undefined}
       primaryAction={canManage
         ? <Button variant="primary" onClick={() => { setFilter('view', ''); setCreating(true); }}><Icon name="plus" />{t('crews:new', 'New crew')}</Button>
         : undefined}

@@ -26,3 +26,6 @@ export {
   type BudgetImportInput,
 } from './budgetDescriptor';
 export { makeContractLineImportDescriptor, type ContractLineImportInput } from './contractLineDescriptor';
+export { makeCrewImportDescriptor, makeCrewMemberImportDescriptor, type CrewImportInput } from './crewDescriptor';
+export { buildTemplateWorkbook } from './templateFile';
+export { buildFailedRowsWorkbook } from './failedRowsFile';

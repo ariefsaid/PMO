@@ -129,6 +129,18 @@ describe('ImportWizard', () => {
     expect(create).not.toHaveBeenCalled();
   });
 
+  it('AC-RC-8 allows downloading rejected rows when the entire sheet is invalid', async () => {
+    (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue({
+      headers: ['Company name', 'Type'], rows: [['', 'Partner']],
+    });
+    const user = userEvent.setup();
+    render(<ImportWizard descriptor={descriptor} onClose={vi.fn()} />);
+    await user.upload(screen.getByLabelText(/choose an \.xlsx file/i), file());
+    await user.click(await screen.findByRole('button', { name: /^next$/i }));
+    expect(await screen.findByRole('button', { name: /download rows not imported/i })).toBeEnabled();
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it('a wide descriptor previews every column with each row error in plain words under its Status, and imports only the valid row', async () => {
     const user = userEvent.setup();
     const wide: ImportDescriptor<Co> = {
