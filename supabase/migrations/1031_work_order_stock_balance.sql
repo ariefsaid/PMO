@@ -1,4 +1,4 @@
--- 0984_work_order_stock_balance.sql — #2523: stock per work order (FR-SSW-030..033), spec docs/specs/stock-site-work.spec.md.
+-- 1031_work_order_stock_balance.sql — #2523: stock per work order (FR-SSW-030..033), spec docs/specs/stock-site-work.spec.md.
 -- Proven by supabase/tests/stock_site_work.test.sql (AC-SSW-009).
 -- Derived ONLY from stock_ledger rows joined to their document: nothing is stored per work order (FR-SSW-032).
 -- Scope: all ledger movements at project locations, plus project issues and returns from any location.
