@@ -32,5 +32,5 @@ test('JOB-W3 a named stand-in approves the step and the history shows who they s
   // The request has moved on to the stock step, and the history names the person they stood in for.
   await expect(page.getByTestId('mrq-chain').getByText('Approved')).toHaveCount(1);
   await expect(page.getByText('Waiting for approval').first()).toBeVisible();
-  await expect(page.getByText(/for Diego Salvatierra/)).toBeVisible();
+  await expect(page.getByText(/for Diego Salvatierra/).first()).toBeVisible();
 });
