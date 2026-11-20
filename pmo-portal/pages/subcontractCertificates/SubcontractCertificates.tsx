@@ -11,33 +11,12 @@ import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useCertificateMutations, useCertificates, useRateLines, useSubcontractPos } from '@/src/hooks/useSubcontractCertificates';
 import { repositories } from '@/src/lib/repositories';
 import { useQuery } from '@tanstack/react-query';
-import { formatCurrency, formatMonthYearShort } from '@/src/lib/format';
-import { certificateErrorMessage, type CertificateErrorKey } from '@/src/lib/subcontracts/certificateErrors';
+import { formatCurrencyCents, formatMonthYearShort } from '@/src/lib/format';
+import { useCertificateErrorText } from './useCertificateErrorText';
 import type { CertificateRow, CertificateStatus, RateLineRow } from '@/src/lib/db/subcontractCertificates';
-import { STATUSES, STATUS_VARIANT, monthStart } from './certificateUi';
+import { STATUSES, STATUS_DEFAULT, STATUS_VARIANT, monthStart } from './certificateUi';
 
 type View = 'certificates' | 'rates';
-
-export function useCertificateErrorText() {
-  const { t } = useTranslation('subcontractCertificates');
-  return (err: unknown) => certificateErrorMessage(err, (key: CertificateErrorKey) => t(`subcontractCertificates:errors.${key}`, errorDefaults[key]));
-}
-
-const errorDefaults: Record<CertificateErrorKey, string> = {
-  needsDifferentApprover: 'A certificate needs a different approver than the person who prepared and submitted it.',
-  overCap: 'This is more than the signed acceptance and the purchase order allow.',
-  alreadyCertified: 'Some of this work or backcharge is already in another live certificate.',
-  alreadyBilled: 'This certificate is already submitted or billed.',
-  netNegative: 'The backcharges are more than the certified work, so the net would be negative.',
-  unrated: 'Some measured work has no usable rate. Rate it or set it aside first.',
-  empty: 'Nothing measured and rated to certify in this period.',
-  notAllowed: 'You are not allowed to do this.',
-  periodExists: 'A certificate already exists for this purchase order and month.',
-  rateWindow: 'This rate window overlaps another rate line for the same vendor and item.',
-  rateMonthStart: 'A rate takes effect on the first day of a month and ends on the last day of a month.',
-  erpDeduction: 'This organisation records bills in its ERP; a certificate with backcharges waits for the ERP route.',
-  other: 'Not saved.',
-};
 
 /** New certificate: a subcontract purchase order and a calendar month. The server derives everything else. */
 const NewCertificateModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
@@ -135,10 +114,10 @@ const CertificateList: React.FC<{ onNew: () => void; canPrepare: boolean }> = ({
       <Link className="text-primary-text hover:underline" to={`/subcontract-certificates/${r.id}`}>{formatMonthYearShort(r.period_start)}</Link>) },
     { key: 'vendor', header: t('subcontractCertificates:col.vendor', 'Subcontractor'), cell: (r) => vendorName.get(r.vendor_company_id) ?? '—' },
     { key: 'status', header: t('subcontractCertificates:col.status', 'Status'), cell: (r) => (
-      <StatusPill variant={STATUS_VARIANT[r.status]}>{t(`subcontractCertificates:status.${r.status}`, r.status)}</StatusPill>) },
-    { key: 'gross', header: t('subcontractCertificates:col.gross', 'Certified'), align: 'num', kind: 'money', cell: (r) => (r.gross === null ? '—' : formatCurrency(r.gross, r.currency, { precision: 'minor' })) },
-    { key: 'backcharge', header: t('subcontractCertificates:col.backcharge', 'Backcharges'), align: 'num', kind: 'money', cell: (r) => (r.backcharge_total === null ? '—' : formatCurrency(r.backcharge_total, r.currency, { precision: 'minor' })) },
-    { key: 'net', header: t('subcontractCertificates:col.net', 'Payable'), align: 'num', kind: 'money', cell: (r) => (r.net === null ? '—' : formatCurrency(r.net, r.currency, { precision: 'minor' })) },
+      <StatusPill variant={STATUS_VARIANT[r.status]}>{t(`subcontractCertificates:status.${r.status}`, STATUS_DEFAULT[r.status])}</StatusPill>) },
+    { key: 'gross', header: t('subcontractCertificates:col.gross', 'Certified'), align: 'num', kind: 'money', cell: (r) => (r.gross === null ? '—' : formatCurrencyCents(r.gross, r.currency)) },
+    { key: 'backcharge', header: t('subcontractCertificates:col.backcharge', 'Backcharges'), align: 'num', kind: 'money', cell: (r) => (r.backcharge_total === null ? '—' : formatCurrencyCents(r.backcharge_total, r.currency)) },
+    { key: 'net', header: t('subcontractCertificates:col.net', 'Payable'), align: 'num', kind: 'money', cell: (r) => (r.net === null ? '—' : formatCurrencyCents(r.net, r.currency)) },
   ];
   if (query.isPending) return <ListState variant="loading" rows={5} />;
   if (query.isError) return <ListState variant="error" title={t('subcontractCertificates:error', "Couldn't load certificates")} onRetry={() => void query.refetch()} />;
@@ -147,7 +126,7 @@ const CertificateList: React.FC<{ onNew: () => void; canPrepare: boolean }> = ({
     <div>
       <div className="mb-3 max-w-xs">
         <SelectField label={t('subcontractCertificates:filter.status', 'Status')} value={status} onChange={(v) => { setOffset(0); setFilter('status', v); }}
-          options={[{ value: '', label: t('subcontractCertificates:filter.all', 'All') }, ...STATUSES.map((s) => ({ value: s, label: t(`subcontractCertificates:status.${s}`, s) }))]} />
+          options={[{ value: '', label: t('subcontractCertificates:filter.all', 'All') }, ...STATUSES.map((s) => ({ value: s, label: t(`subcontractCertificates:status.${s}`, STATUS_DEFAULT[s]) }))]} />
       </div>
       {rows.length === 0 ? (
         <ListState variant="empty" icon="reports" title={t('subcontractCertificates:empty', 'No certificates yet')}
@@ -171,7 +150,7 @@ const RateCard: React.FC<{ canManage: boolean; onNew: () => void }> = ({ canMana
   const columns: Column<RateLineRow>[] = [
     { key: 'vendor', header: t('subcontractCertificates:col.vendor', 'Subcontractor'), rowHeader: true, cell: (r) => vendorName.get(r.vendor_company_id) ?? '—' },
     { key: 'item', header: t('subcontractCertificates:item', 'Contract item'), cell: (r) => r.boq_item_id.slice(0, 8) },
-    { key: 'rate', header: t('subcontractCertificates:rate', 'Rate'), align: 'num', kind: 'money', cell: (r) => `${formatCurrency(r.rate, r.currency, { precision: 'minor' })} / ${r.unit}` },
+    { key: 'rate', header: t('subcontractCertificates:rate', 'Rate'), align: 'num', kind: 'money', cell: (r) => `${formatCurrencyCents(r.rate, r.currency)} / ${r.unit}` },
     { key: 'from', header: t('subcontractCertificates:effectiveFrom', 'From month'), cell: (r) => formatMonthYearShort(r.effective_from) },
     { key: 'to', header: t('subcontractCertificates:effectiveTo', 'Until'), cell: (r) => (r.effective_to ? formatMonthYearShort(r.effective_to) : t('subcontractCertificates:open', 'Open')) },
   ];

@@ -20,3 +20,11 @@ export const EXCLUDED_REASONS: ExcludedReason[] = [
 export function monthStart(value: string): string | null {
   return /^\d{4}-(0[1-9]|1[0-2])$/.test(value) ? `${value}-01` : null;
 }
+
+/** English defaults for the dynamic keys (the catalogue holds the translations). */
+export const STATUS_DEFAULT: Record<CertificateStatus, string> = {
+  draft: 'Draft', submitted: 'Submitted', returned: 'Returned', approved: 'Approved', billed: 'Billed', cancelled: 'Cancelled',
+};
+export const BACKCHARGE_REASON_DEFAULT: Record<string, string> = {
+  rework: 'Rework', damaged: 'Damage', safety: 'Safety', materials_supplied: 'Materials supplied', other: 'Other',
+};

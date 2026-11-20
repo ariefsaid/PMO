@@ -12,10 +12,10 @@ import { can } from '@/src/auth/policy';
 import { useProject } from '@/src/hooks/useProjects';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useCertificateMutations, useCertificateView, useOpenBackcharges } from '@/src/hooks/useSubcontractCertificates';
-import { formatCurrency, formatDay, formatMonthYearShort } from '@/src/lib/format';
+import { formatCurrencyCents, formatDay, formatMonthYearShort } from '@/src/lib/format';
 import type { CertificateView, ExcludedSource, MeasuredDay } from '@/src/lib/db/subcontractCertificates';
-import { REASON_CODES, STATUS_VARIANT } from './certificateUi';
-import { useCertificateErrorText } from './SubcontractCertificates';
+import { BACKCHARGE_REASON_DEFAULT, REASON_CODES, STATUS_DEFAULT, STATUS_VARIANT } from './certificateUi';
+import { useCertificateErrorText } from './useCertificateErrorText';
 
 type Dialog = 'return' | 'cancel' | 'bill' | 'backcharge' | { setAside: MeasuredDay } | null;
 
@@ -67,7 +67,7 @@ const CertificateRecord: React.FC<{ view: CertificateView }> = ({ view }) => {
   const mayBill = c.status === 'approved' && can('bill', 'subcontractCertificate', ctx);
   const sameApprover = c.status === 'submitted' && (realRole === 'Admin' || realRole === 'Finance') && (userId === c.prepared_by || userId === c.submitted_by);
   const vendor = (vendors.data ?? []).find((v) => v.value === c.vendor_company_id)?.label ?? '—';
-  const money = (v: number | null | undefined) => (v === null || v === undefined ? '—' : formatCurrency(v, c.currency, { precision: 'minor' }));
+  const money = (v: number | null | undefined) => (v === null || v === undefined ? '—' : formatCurrencyCents(v, c.currency));
   const itemCode = useMemo(() => new Map(d.lines.map((l) => [l.boq_item_id, l.item_code])), [d.lines]);
 
   const run = async (work: () => Promise<unknown>, success: string) => {
@@ -126,7 +126,7 @@ const CertificateRecord: React.FC<{ view: CertificateView }> = ({ view }) => {
       <RecordHeader
         panelInset
         name={`${vendor} · ${formatMonthYearShort(c.period_start)}`}
-        status={<span data-testid="spc-status" data-status={c.status}><StatusPill variant={STATUS_VARIANT[c.status]}>{t(`subcontractCertificates:status.${c.status}`, c.status)}</StatusPill></span>}
+        status={<span data-testid="spc-status" data-status={c.status}><StatusPill variant={STATUS_VARIANT[c.status]}>{t(`subcontractCertificates:status.${c.status}`, STATUS_DEFAULT[c.status])}</StatusPill></span>}
         meta={project ? <Link to={`/projects/${project.id}`} className="text-primary-text hover:underline">{project.name}</Link> : undefined}
         stats={[
           { label: t('subcontractCertificates:stat.gross', 'Certified work'), value: <span data-testid="spc-gross">{money(d.gross)}</span> },
@@ -135,10 +135,10 @@ const CertificateRecord: React.FC<{ view: CertificateView }> = ({ view }) => {
         ]}
         actions={(
           <div className="flex flex-wrap gap-2 print:hidden">
-            {editable && <Button onClick={() => void run(() => m.submit.mutateAsync(c.id), t('subcontractCertificates:toast.submitted', 'Submitted for approval'))} loading={m.submit.isPending}>{t('subcontractCertificates:actions.submit', 'Submit')}</Button>}
-            {mayApprove && <Button onClick={() => void run(() => m.approve.mutateAsync(c.id), t('subcontractCertificates:toast.approved', 'Approved'))} loading={m.approve.isPending}>{t('subcontractCertificates:actions.approve', 'Approve')}</Button>}
+            {editable && <Button variant="primary" onClick={() => void run(() => m.submit.mutateAsync(c.id), t('subcontractCertificates:toast.submitted', 'Submitted for approval'))} loading={m.submit.isPending}>{t('subcontractCertificates:actions.submit', 'Submit')}</Button>}
+            {mayApprove && <Button variant="primary" onClick={() => void run(() => m.approve.mutateAsync(c.id), t('subcontractCertificates:toast.approved', 'Approved'))} loading={m.approve.isPending}>{t('subcontractCertificates:actions.approve', 'Approve')}</Button>}
             {mayReturn && <Button variant="outline" onClick={() => { setDialogError(null); setDialog('return'); }}>{t('subcontractCertificates:actions.return', 'Return')}</Button>}
-            {mayBill && <Button onClick={() => { setDialogError(null); setDialog('bill'); }}>{t('subcontractCertificates:actions.bill', 'Create bill')}</Button>}
+            {mayBill && <Button variant="primary" onClick={() => { setDialogError(null); setDialog('bill'); }}>{t('subcontractCertificates:actions.bill', 'Create bill')}</Button>}
             {c.status === 'billed' && c.invoice_id && <Link className="inline-flex items-center rounded-md border px-3 py-1.5 text-sm" to={`/procurement/${c.procurement_id}/ledger`}>{t('subcontractCertificates:actions.openBill', 'Open bill')}</Link>}
             {mayPrepare && c.status !== 'cancelled' && c.status !== 'billed' && <Button variant="outline" onClick={() => void run(() => m.prepareAcceptance.mutateAsync(c.id), t('subcontractCertificates:toast.acceptance', 'Draft acceptance prepared'))}>{t('subcontractCertificates:actions.acceptance', 'Prepare acceptance')}</Button>}
             {mayPrepare && c.status !== 'cancelled' && c.status !== 'billed' && <Button variant="outline" onClick={() => { setDialogError(null); setDialog('cancel'); }}>{t('subcontractCertificates:actions.cancel', 'Cancel certificate')}</Button>}
@@ -171,7 +171,7 @@ const CertificateRecord: React.FC<{ view: CertificateView }> = ({ view }) => {
           <ul className="divide-y">
             {d.backcharges.map((b) => (
               <li key={b.id} className="flex items-center justify-between gap-3 py-2 text-sm">
-                <span>{t(`subcontractCertificates:backchargeReason.${b.reason_code}`, b.reason_code)}{b.reason_text ? ` · ${b.reason_text}` : ''}</span>
+                <span>{t(`subcontractCertificates:backchargeReason.${b.reason_code}`, BACKCHARGE_REASON_DEFAULT[b.reason_code] ?? b.reason_code)}{b.reason_text ? ` · ${b.reason_text}` : ''}</span>
                 <span className="flex items-center gap-3"><span className="tabular">{money(b.amount)}</span>
                   {editable && <Button size="sm" variant="ghost" onClick={() => void run(() => m.setBackcharge.mutateAsync({ certificateId: c.id, backchargeId: b.id, include: false }), t('subcontractCertificates:toast.removed', 'Backcharge removed'))}>{t('subcontractCertificates:remove', 'Remove')}</Button>}
                 </span>
@@ -182,7 +182,7 @@ const CertificateRecord: React.FC<{ view: CertificateView }> = ({ view }) => {
             <div className="mt-3 flex items-end gap-2 print:hidden">
               <SelectField label={t('subcontractCertificates:includeBackcharge', 'Include a recorded backcharge')} value={include} onChange={setInclude}
                 options={[{ value: '', label: t('subcontractCertificates:chooseBackcharge', 'Choose one') },
-                  ...freeBackcharges.map((b) => ({ value: b.id, label: `${t(`subcontractCertificates:backchargeReason.${b.reason_code}`, b.reason_code)} · ${money(b.amount)}` }))]} />
+                  ...freeBackcharges.map((b) => ({ value: b.id, label: `${t(`subcontractCertificates:backchargeReason.${b.reason_code}`, BACKCHARGE_REASON_DEFAULT[b.reason_code] ?? b.reason_code)} · ${money(b.amount)}` }))]} />
               <Button variant="outline" disabled={!include} onClick={() => void run(() => m.setBackcharge.mutateAsync({ certificateId: c.id, backchargeId: include, include: true }), t('subcontractCertificates:toast.included', 'Backcharge included')).then((ok) => { if (ok) setInclude(''); })}>{t('subcontractCertificates:include', 'Include')}</Button>
             </div>
           )}
@@ -253,7 +253,7 @@ const BackchargeModal: React.FC<{ certificateId: string; vendorId: string; proje
       <FormGrid>
         <TextField label={t('subcontractCertificates:amount', { defaultValue: 'Amount ({{currency}})', currency })} required inputMode="decimal" value={amount} onChange={setAmount} />
         <SelectField label={t('subcontractCertificates:reasonLabel', 'Reason')} value={code} onChange={setCode}
-          options={REASON_CODES.map((r) => ({ value: r, label: t(`subcontractCertificates:backchargeReason.${r}`, r) }))} />
+          options={REASON_CODES.map((r) => ({ value: r, label: t(`subcontractCertificates:backchargeReason.${r}`, BACKCHARGE_REASON_DEFAULT[r] ?? r) }))} />
         <TextField label={t('subcontractCertificates:note', 'Note')} value={text} onChange={setText} />
       </FormGrid>
     </EntityFormModal>
