@@ -1,3 +1,4 @@
+import type { TaskProofRepository } from './taskProofs';
 /**
  * Typed repository interfaces — the API seam (ADR-0017).
  *
@@ -131,6 +132,7 @@ export interface Repositories {
   timesheet: TimesheetRepository;
   budget: BudgetRepository;
   task: TaskRepository;
+  taskProof: TaskProofRepository;
   incident: IncidentRepository;
   comment: CommentRepository;
   milestone: MilestoneRepository;

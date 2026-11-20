@@ -9,6 +9,7 @@ import type { InvoiceWithWorkOrder } from './workOrdersTabFigures';
 
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => false }));
 // Their own reads are not this card's invoice/billing reads; stubbed so the cache can only hold the card's.
+vi.mock('@/src/components/tasks/WorkOrderOpenTasks', () => ({ WorkOrderOpenTasks: ({ workOrderId }: { workOrderId: string }) => <div>Open tasks for {workOrderId}</div> }));
 vi.mock('../WorkOrderAcceptances', () => ({ default: () => null }));
 vi.mock('../WorkOrderCostVariations', () => ({ WorkOrderCostVariations: () => null }));
 
@@ -41,6 +42,11 @@ const mount = (ui: React.ReactElement) => {
 };
 
 describe('AC-NBR-009 customer-order card reads come from its parent', () => {
+  it('AC-TWOP-009 shows open tasks for this work order', () => {
+    mount(card());
+    expect(screen.getByText('Open tasks for wo1')).toBeInTheDocument();
+  });
+
   it('shows the settlement figures from the parent data and starts no query of its own', () => {
     const client = mount(card());
     expect(screen.getByTestId('wo-still-wo1')).toHaveTextContent('600');

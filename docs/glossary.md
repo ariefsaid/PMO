@@ -514,6 +514,11 @@ UI vocabulary keeps **Supplier** rather than vendor, **Purchase** for a procurem
 and **Phase** for a milestone. **Actual** and **Recorded spending** name the same spending position;
 **Cash received** and **Settlement** name different quantities and must stay distinct.
 
+**Proof of completion** (#2531): one or more photo or document attachments on a task, held in a private bucket. A task
+flagged "proof required" cannot be set Done until at least one live proof exists; the database refuses it for every
+role. Once a proof-required task is Done its proof can no longer be removed; reopen the task first. A task may also name
+one **work order** of its own project, so a work order lists its open tasks.
+
 ## Organisation terminology
 **Term override** — an org Admin's replacement display name (singular and plural, per language) for one of
 five fixed terms: work order, project, client-supplied stock, purchase request, discipline. It changes the

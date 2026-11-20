@@ -15,5 +15,42 @@
     "pushFailedAria": "pengiriman gagal",
     "pushFailedAriaWithReason": "pengiriman gagal: {{reason}}",
     "pushFailedTitle": "Pengiriman ke sistem eksternal gagal"
+  },
+  "proof": {
+    "title": "Bukti penyelesaian",
+    "attached_one": "{{count}} bukti terlampir.",
+    "attached_other": "{{count}} bukti terlampir.",
+    "missing": "Bukti wajib: tambahkan foto atau dokumen sebelum tugas ini dapat Selesai.",
+    "optional": "Tugas ini tidak memerlukan bukti.",
+    "loading": "Memuat bukti…",
+    "loadFailed": "Bukti tidak dapat dimuat.",
+    "remove": "Hapus",
+    "addPhoto": "Tambah foto",
+    "addDocument": "Tambah dokumen",
+    "photoInput": "Ambil atau pilih foto",
+    "documentInput": "Pilih dokumen",
+    "markDone": "Tandai selesai",
+    "doneBlocked": "Tambahkan foto atau dokumen terlebih dahulu; tugas ini tidak dapat Selesai tanpa bukti.",
+    "required": "Wajibkan bukti penyelesaian",
+    "workOrder": "Perintah kerja",
+    "noWorkOrder": "Tanpa perintah kerja",
+    "refused": {
+      "count": "Satu tugas memuat paling banyak 10 lampiran bukti.",
+      "size": "Berkas itu lebih besar dari 15 MB.",
+      "type": "Jenis berkas tidak diizinkan. Gunakan foto, PDF, atau dokumen Office."
+    }
+  },
+  "workOrderTasks": {
+    "title": "Tugas terbuka",
+    "empty": "Tidak ada tugas terbuka pada perintah kerja ini.",
+    "loading": "Memuat tugas…",
+    "loadFailed": "Tugas tidak dapat dimuat.",
+    "unassigned": "Belum ditugaskan",
+    "noDue": "Tanpa tenggat"
+  },
+  "workOrderFilter": {
+    "label": "Filter berdasarkan perintah kerja",
+    "all": "Semua perintah kerja",
+    "none": "Tanpa perintah kerja"
   }
 }
