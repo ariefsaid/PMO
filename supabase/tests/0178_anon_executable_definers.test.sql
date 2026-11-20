@@ -59,6 +59,11 @@
 -- (AC-VWH-021/022). `create_procurement_invoice` / `capture_vendor_invoice` changed signature only (proname
 -- unchanged). THE COUNT IS RE-DERIVED BY HAND from the list below.
 --
+-- ⚑ AMENDED BY 1067 (#2583): `set_vendor_supply_status` joins the retained set (+1). A SECURITY DEFINER writer called
+-- through PostgREST under a member's JWT; its body re-asserts active membership, the Admin/Finance role, the caller's org,
+-- the vendor type and the reason rule, and is audited; anon/PUBLIC are revoked. Paired in
+-- supabase/tests/vendor_supply_risk.test.sql (AC-VSR-006..009). THE COUNT IS RE-DERIVED BY HAND from the list below.
+--
 -- ⚑ AMENDED BY 0290 (#1042): `assign_sales_invoice_project` joins the retained set (+1, count 70).
 -- It is a SECURITY DEFINER PMO-attribution writer called under authenticated JWT and asserts active
 -- membership, role, org/project/invoice scope, and billing context; paired with 0290 assignment pgTAP.
@@ -508,6 +513,7 @@ insert into client_callable_rpc_names (proname) values
   ('set_subcontract_po_lines'),
   ('set_imprest_procurement_limit'),
   ('set_vendor_tax_defaults'),
+  ('set_vendor_supply_status'),
   ('set_work_order_value'),
   ('start_procurement_import_run'),
   ('submit_sales_invoice'),
