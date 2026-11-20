@@ -886,7 +886,8 @@
     "qcr_update_draft(uuid,jsonb,text)",
     "qcr_withdraw(uuid,text)",
     "qcr_work_order_budget(uuid)",
-    "record_quantity_forecast(uuid,numeric,text)"
+    "record_quantity_forecast(uuid,numeric,text)",
+    "qcr_file_object_access(text)"
   ],
   "edge_functions": [
     "adapter-dispatch",

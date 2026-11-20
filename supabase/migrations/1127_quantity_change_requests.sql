@@ -197,7 +197,8 @@ create policy quantity_change_request_files_select on public.quantity_change_req
   using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
          and (select public.auth_role()) in ('Admin','Executive','Project Manager','Finance'));
 create policy quantity_change_request_files_insert on public.quantity_change_request_files for insert
-  with check (org_id = (select public.auth_org_id()) and (select public.can_add_qcr_file(request_id, kind)));
+  with check (org_id = (select public.auth_org_id()) and (select public.is_active_member())
+              and (select public.can_add_qcr_file(request_id, kind)));
 create policy quantity_change_request_files_update on public.quantity_change_request_files for update
   using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
          and (select public.auth_role()) in ('Admin','Executive','Project Manager','Finance'))
@@ -250,19 +251,29 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
   values ('quantity-change-files', 'quantity-change-files', false, 15728640,
           array['image/jpeg','image/png','image/webp','image/heic','application/pdf'])
   on conflict (id) do nothing;
+-- The storage policies call a definer helper instead of reading the request table: a policy is planned for EVERY role that selects
+-- from storage.objects, and a direct reference would demand table privileges that anon (rightly) does not hold.
+create function public.qcr_file_object_access(p_name text) returns boolean
+  language sql stable security definer set search_path = public, pg_temp as $$
+  select exists (select 1 from public.quantity_change_requests r
+                  where r.id::text = split_part(p_name, '/', 2) and r.org_id = public.auth_org_id()
+                    and split_part(p_name, '/', 1) = r.org_id::text
+                    and public.is_active_member()
+                    and public.auth_role() in ('Admin','Executive','Project Manager','Finance'))
+$$;
+-- anon needs EXECUTE only because the policy is planned for it too; for anon the answer is always false (no organisation, no member).
+revoke all on function public.qcr_file_object_access(text) from public;
+grant execute on function public.qcr_file_object_access(text) to anon, authenticated;
 create policy storage_objects_qcr_file_read on storage.objects for select
   using (bucket_id = 'quantity-change-files' and (select auth.uid()) is not null
     and split_part(name, '/', 1) = (select public.auth_org_id())::text
     and array_length(string_to_array(name, '/'), 1) = 4
-    and exists (select 1 from public.quantity_change_requests r
-                 where r.id::text = split_part(name, '/', 2) and r.org_id = (select public.auth_org_id())));
+    and (select public.qcr_file_object_access(name)));
 create policy storage_objects_qcr_file_write on storage.objects for insert
   with check (bucket_id = 'quantity-change-files' and (select auth.uid()) is not null
     and split_part(name, '/', 1) = (select public.auth_org_id())::text
     and array_length(string_to_array(name, '/'), 1) = 4
-    and exists (select 1 from public.quantity_change_requests r
-                 where r.id::text = split_part(name, '/', 2) and r.org_id = (select public.auth_org_id())
-                   and (select public.auth_role()) in ('Admin','Executive','Project Manager','Finance')));
+    and (select public.qcr_file_object_access(name)));
 create policy storage_objects_qcr_orphan_delete on storage.objects for delete
   using (bucket_id = 'quantity-change-files' and (select public.is_active_member())
     and owner_id = (select auth.uid())::text

@@ -78,6 +78,11 @@ select set_eq(
             ('journal_entries -> profiles'),
             -- 0970: people has profile_id and manager_id; the expiry DAL uses an RPC, not a profiles embed.
             ('people -> profiles'),
+            -- 1127 (#2578): quantity_change_requests carries author_id, submitted_by, approved_by, returned_by, withdrawn_by,
+            -- sent_by and decided_by, all -> profiles. Checked before adding: the only embeds of profiles from it
+            -- (pmo-portal/src/lib/db/quantityChanges.ts) are qualified with !quantity_change_requests_author_id_fkey and
+            -- !quantity_change_requests_approved_by_fkey. Any future embed must name its constraint.
+            ('quantity_change_requests -> profiles'),
             ('platform_operators -> profiles'),
             ('procurements -> profiles'),
             ('projects -> profiles'),
