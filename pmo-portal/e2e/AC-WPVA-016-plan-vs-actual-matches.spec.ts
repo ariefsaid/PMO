@@ -59,10 +59,13 @@ test('AC-WPVA-016 the work-order page plan-vs-actual matches the project tab row
     await page.goto('/projects/' + projectId + '/contract');
     const row = page.getByTestId('wo-pva-row-' + workOrderId);
     await expect(row).toBeVisible();
+    // The amount is each cell's first line; a variance note may follow it (the page also notes shared cost against its plan).
+    const amountOf = async (testId: string) => (await row.getByTestId(testId).innerText()).split('\n')[0].trim();
+    const sameAmount = (amount: string) => new RegExp('^' + amount.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\d.,])');
     const tab = {
-      direct: (await row.getByTestId('wo-pva-direct').textContent()) ?? '',
-      allocated: (await row.getByTestId('wo-pva-allocated').textContent()) ?? '',
-      result: (await row.getByTestId('wo-pva-result').textContent()) ?? '',
+      direct: sameAmount(await amountOf('wo-pva-direct')),
+      allocated: sameAmount(await amountOf('wo-pva-allocated')),
+      result: sameAmount(await amountOf('wo-pva-result')),
     };
     await page.getByTestId('wo-page-link-' + workOrderId).click();
 
