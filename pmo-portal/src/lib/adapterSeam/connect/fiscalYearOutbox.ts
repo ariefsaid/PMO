@@ -118,7 +118,7 @@ export function fiscalYearOutboxAdapter(
           intent.target_start,
           intent.target_end,
         );
-      } catch (_probeErr) {
+      } catch {
         // probe failed
       }
 
