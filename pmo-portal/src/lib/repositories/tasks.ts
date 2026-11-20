@@ -1,6 +1,7 @@
 /** Task repository implementation (ADR-0017 seam). */
 import {
   listTasks,
+  listOpenTasksByWorkOrder,
   listTaskDueRows,
   listCalendarTasks,
   listTasksByMeeting,
@@ -20,7 +21,8 @@ import { wrap } from './repositoryErrors';
 import type { TaskRepository } from './contracts/tasks';
 
 export const taskRepository: TaskRepository = {
-  list: (projectId) => wrap(() => listTasks(projectId)),
+  list: (projectId, opts) => wrap(() => (opts ? listTasks(projectId, opts) : listTasks(projectId))),
+  listOpenByWorkOrder: (workOrderId) => wrap(() => listOpenTasksByWorkOrder(workOrderId)),
   listDueRows: (projectIds) => wrap(() => listTaskDueRows(projectIds)),
   listCalendar: (opts) => wrap(() => listCalendarTasks(opts)),
   listByMeeting: (meetingId) => wrap(() => listTasksByMeeting(meetingId)),

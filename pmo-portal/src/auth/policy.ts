@@ -77,7 +77,11 @@ export type Entity =
   | 'milestone'
   | 'workOrder'
   | 'boqItem'
+  | 'rateCatalogue'
+  | 'dailySiteReport'
+  | 'dailySiteReportRevenue'
   | 'progressClaim'
+  | 'billingStage'
   | 'workOrderLine'
   | 'workOrderAcceptance'
   | 'expenseClaim'
@@ -132,11 +136,16 @@ export type Entity =
   | 'equipmentAsset'
   | 'equipmentUsage'
   | 'equipmentCosting'
+  | 'equipmentAvailability'
   | 'equipmentRegister'
+  | 'expiryDocument'
+  | 'person'
   | 'maintenance'
   | 'tmRate'
   | 'tmClaim'
-  | 'tmSignoff';
+  | 'tmSignoff'
+  | 'crew'
+  | 'attendance';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -216,12 +225,20 @@ const EQUIPMENT_APPROVE: Role[] = ['Admin', 'Executive', 'Finance', 'Project Man
 /** #1519: who may set what an hour is worth — mirrors save/end/preview_equipment_costing (Admin, Finance). */
 const EQUIPMENT_COSTING_WRITE: Role[] = ['Admin', 'Finance'];
 /** #1511 F5: who may change the Odoo-backed register — mirrors D7 (the asset rule; dispatch narrows per command). */
+/** #2526: set daily status + attach proof (the field role and managers) — mirrors equipment_can_set_status (0985). */
+const EQUIPMENT_STATUS_WRITE: Role[] = ['Admin', 'Project Manager', 'Engineer'];
+/** #2526: rental terms and the invoice check are money — mirrors equipment_can_edit_terms / equipment_rental_check. */
+const EQUIPMENT_RENTAL_MONEY: Role[] = ['Admin', 'Finance'];
 const EQUIPMENT_REGISTER_WRITE: Role[] = ['Admin', 'Project Manager'];
 /** #1514: who may set the CLIENT contract rate and assign people to it — mirrors save/end_contract_rate_line
  *  and set/end_contract_rate_assignee (0515: Admin, Finance). Cost and revenue are separate settings, never shared. */
 const TM_RATE_WRITE: Role[] = ['Admin', 'Finance'];
 /** #1514: who may confirm a client sign-off — mirrors confirm_tm_signoff (0517: Admin, Finance, never the preparer). */
 const TM_CONFIRM: Role[] = ['Admin', 'Finance'];
+// #1522 daily site report (1005): enter = dsr_may_enter, validate = dsr_may_validate, revenue = dsr_may_see_revenue.
+const DSR_ENTER: Role[] = ['Admin', 'Engineer'];
+const DSR_VALIDATE: Role[] = ['Admin', 'Finance'];
+const DSR_REVENUE: Role[] = ['Admin', 'Finance', 'Executive'];
 
 const has = (set: Role[], role: Role | null): boolean => role != null && set.includes(role);
 
@@ -240,9 +257,16 @@ type Predicate = (role: Role | null, ctx: PolicyContext) => boolean;
 
 const allow = (set: Role[]): Predicate => (role) => has(set, role);
 /** Like `allow`, but a view-as (impersonation) session is view-only. */
+const expiryDocumentWrite: Predicate = (role, ctx) => {
+  const kind = ctx.record?.kind;
+  if (ctx.record?.viewOnly === true) return false;
+  return role === 'Admin' ? kind === 'person' || kind === 'equipment' : role === 'Project Manager' && kind === 'equipment';
+};
 const allowUnlessViewOnly = (set: Role[]): Predicate => (role, ctx) => has(set, role) && ctx.record?.viewOnly !== true;
 
 /** Stock master data (#1512, 0412): mirrors the RLS - rank >= 20 writes, Admin deletes. UX only; RLS is the authority. */
+const isOwnProjectPm: Predicate = (role, ctx) =>
+  role === 'Project Manager' && !!ctx.currentUserId && ctx.record?.project_manager_id === ctx.currentUserId;
 const stockMaster = () => ({
   view: allow(ALL),
   create: allowUnlessViewOnly(MASTER_DATA),
@@ -309,6 +333,23 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     transition: allow(MASTER_DATA),
   },
   /** Bill of quantities (#766) — mirrors 0250's boq_items policies: the work-order writer set. */
+  rateCatalogue: { view: allow(MASTER_DATA), create: allowUnlessViewOnly(REVENUE_WRITE) },
+  /**
+   * Daily site report (#1522, 1005). UX ONLY — dsr_save_draft/dsr_submit/dsr_validate/dsr_return/dsr_correct and
+   * dsr_report_revenue are the authority (ADR-0016). Until #902 adds the field-controller and QS roles, the field role
+   * is Engineer and the QS is Finance. A PM acts only on a project they manage (`record.project_manager_id`).
+   *   create  ← enter and submit;  approve ← validate or return, never the author (SoD, ADR-0019);
+   *   revise  ← start a correction of a validated report;  dailySiteReportRevenue.view ← rates and revenue.
+   */
+  dailySiteReport: {
+    view: allow(ALL),
+    create: (role, ctx) => ctx.record?.viewOnly !== true && (has(DSR_ENTER, role) || isOwnProjectPm(role, ctx)),
+    approve: (role, ctx) =>
+      ctx.record?.viewOnly !== true && !!ctx.currentUserId && ctx.record?.author_id !== ctx.currentUserId &&
+      (has(DSR_VALIDATE, role) || isOwnProjectPm(role, ctx)),
+    revise: (role, ctx) => ctx.record?.viewOnly !== true && (has(DSR_VALIDATE, role) || isOwnProjectPm(role, ctx)),
+  },
+  dailySiteReportRevenue: { view: (role, ctx) => has(DSR_REVENUE, role) || isOwnProjectPm(role, ctx) },
   boqItem: {
     view: allow(MASTER_DATA),
     create: allow(MASTER_DATA),
@@ -417,6 +458,16 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     view: allow(MASTER_DATA),
     create: allow(REVENUE_WRITE),
     transition: allow(REVENUE_WRITE),
+  },
+  /**
+   * Billing stages and retention (#2522, #1572; 0960/0961). transition = record a stage and attach its documents
+   * (lock_billing_stage_claim: Admin, Finance, Project Manager); edit = the stage list, the invoice deadline, retention
+   * and its releases (Finance/Admin). The database is the authority.
+   */
+  billingStage: {
+    view: allow(MASTER_DATA),
+    transition: allow(['Admin', 'Finance', 'Project Manager']),
+    edit: allow(CONFIRM_BAST),
   },
   /**
    * Expense claims and cash advances (#775, migration 0247). Mirrors the server:
@@ -825,6 +876,35 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   },
   equipmentCosting: { manage: allowUnlessViewOnly(EQUIPMENT_COSTING_WRITE), view: allow(EQUIPMENT_APPROVE) },
   /**
+   * Equipment availability, ownership and rental downtime (#2526, migrations 0985-0986). UX ONLY — the RPCs
+   * (`set_equipment_status`, `save_equipment_rental_term`, `equipment_metrics`) are the authority.
+   *   view   ← every active member reads status (the bulk screen); metrics need the approval audience (`equipment_metrics`).
+   *   create ← set status / attach proof: Admin, PM, Engineer (the field controller). Not Finance or Executive.
+   *   manage ← rental terms: Admin, Finance. A field controller never edits rates.
+     */
+  equipmentAvailability: {
+    view: allow(ALL),
+    create: allowUnlessViewOnly(EQUIPMENT_STATUS_WRITE),
+    manage: allowUnlessViewOnly(EQUIPMENT_RENTAL_MONEY),
+    approve: allowUnlessViewOnly(EQUIPMENT_RENTAL_MONEY),
+  },
+  /**
+   * Crews, roster and daily attendance (#2528, migrations 0988-0990). UX ONLY — RLS, `crew_can_manage`,
+   * `attendance_can_record`, `attendance_record` and `attendance_decide_week` are the authority (ADR-0016).
+   *   crew        ← every active member reads the master and roster; `crew_can_manage` (Admin, Executive, PM) writes;
+   *               `create` gates the import buttons (#2551) and equals `manage`.
+   *   attendance  ← create = a crew manager, or the field controller of the crew (`record.field_controller_id`);
+   *                 approve (a no-login week) = a crew manager who recorded none of it (`record.recorder_ids`, the SoD
+   *                 mirror of 0990). A login's week is approved on the timesheet, whose own gate applies.
+   */
+  crew: { view: allow(ALL), create: allowUnlessViewOnly(DELIVERY), manage: allowUnlessViewOnly(DELIVERY) },
+  attendance: {
+    create: (role, ctx) => ctx.record?.viewOnly !== true && (
+      has(DELIVERY, role) || (!!ctx.currentUserId && ctx.record?.field_controller_id === ctx.currentUserId)),
+    approve: (role, ctx) => ctx.record?.viewOnly !== true && has(DELIVERY, role) && !(
+      !!ctx.currentUserId && Array.isArray(ctx.record?.recorder_ids) && (ctx.record.recorder_ids as unknown[]).includes(ctx.currentUserId)),
+  },
+  /**
    * The Odoo fleet and maintenance register (#1511 F5). UX ONLY — the `adapter-dispatch` `equipment` domain's role
    * gates and 0797's RPC/RLS are the authority (ADR-0016); the FE may be stricter, never looser.
    *   equipmentRegister ← register writes need Admin or Project Manager (D7, the shipped asset rule).
@@ -834,6 +914,26 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     view: allow(ALL),
     create: allowUnlessViewOnly(EQUIPMENT_REGISTER_WRITE),
     edit: allowUnlessViewOnly(EQUIPMENT_REGISTER_WRITE),
+  },
+  /**
+   * Expiring documents on people and equipment (#2542, migration 0970 RLS). UX ONLY — RLS and the column grants are the
+   * authority (ADR-0016): Admin writes any document, a Project Manager equipment documents only. `record.kind` is the subject.
+   */
+  expiryDocument: {
+    view: allow(ALL),
+    create: expiryDocumentWrite,
+    edit: expiryDocumentWrite,
+    archive: expiryDocumentWrite,
+  },
+  /**
+   * The People register (#2542 follow-up, migration 1008). UX ONLY — RLS (0970 people_* policies) and the column grants are the
+   * authority (ADR-0016). The crews policy change grants basic reads to members and create/edit to Admin and Project Manager; archive remains Admin-only. View-as is view-only.
+   */
+  person: {
+    view: allow(ALL),
+    create: allowUnlessViewOnly(['Admin', 'Project Manager']),
+    edit: allowUnlessViewOnly(['Admin', 'Project Manager']),
+    archive: allowUnlessViewOnly(ADMIN),
   },
   maintenance: {
     view: allow(ALL),

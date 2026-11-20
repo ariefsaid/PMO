@@ -53,6 +53,9 @@ describe('AC-EAS-015 the read-only Integrations view renders both states with no
     expect(screen.getByTestId('integrations-connect-cards')).toBeInTheDocument();
     // AC-M365DOC-055: the org default-library card is mounted on the admin surface (its own suite covers behavior).
     expect(within(screen.getByTestId('integrations-connect-cards')).getByTestId('m365-default-library-stub')).toBeInTheDocument();
+    // AC-M365SS-017: the org Microsoft app card (#1017) is mounted first in the M365 step order.
+    const appCard = within(screen.getByTestId('integrations-connect-cards')).getByTestId('m365-app-registration-stub');
+    expect(appCard.compareDocumentPosition(screen.getByTestId('m365-default-library-stub')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByText('ClickUp')).toBeInTheDocument();
     expect(screen.getByText('ERPNext')).toBeInTheDocument();
     expect(screen.getAllByText('Not connected')).toHaveLength(2);

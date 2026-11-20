@@ -12,6 +12,7 @@ const { budget } = vi.hoisted(() => ({
 vi.mock('@/src/lib/repositories', () => ({ repositories: { budget } }));
 
 import { makeBudgetImportDescriptor, computeBudgetLineImportKey, BUDGET_CATEGORIES } from '../budgetDescriptor';
+import { setOrgTerms } from '@/src/lib/i18n/orgTerms';
 import { IMPORT_SKIPPED } from '../types';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
@@ -253,6 +254,16 @@ describe('makeBudgetImportDescriptor', () => {
     const { item } = budget.importLine.mock.calls[0][0];
     expect(item.fiscal_year).toBeNull();
   });
+});
+
+it('renames the app prefix in a conflict without changing the imported project name', async () => {
+  setOrgTerms({ en: { project: { singular: 'job', plural: 'jobs' } } });
+  try {
+    const d = makeBudgetImportDescriptor([{ id: 'prj-1', name: 'Project Phoenix' }], 'batch-1');
+    budget.findImportTargetDraft.mockResolvedValue({ id: 'ver-existing' });
+    budget.importLine.mockResolvedValue({ outcome: 'conflict', line_id: 'line-old' });
+    await expect(d.create(d.toInput(cells({ projectId: 'Project Phoenix', importKey: 'fp:old' })))).rejects.toThrow('Import identity for job Project Phoenix is ambiguous');
+  } finally { setOrgTerms({}); }
 });
 
 it('uses the transactional import result and reports an ambiguous row', async () => {

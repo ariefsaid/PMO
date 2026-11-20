@@ -6,7 +6,7 @@ import { Link, useSearchParams } from 'react-router';
 import type { Column } from '@/src/components/ui';
 import { Button, DataTable, Drawer, Icon, ListState, NumberField, ProgressBar, SelectField, StatusPill, Tooltip } from '@/src/components/ui';
 import type { ActiveBudgetCategoryPhasing, BudgetComparisonRow, BudgetProjectionCellRow } from '@/src/lib/repositories/budgetProjection';
-import { fetchActiveBudgetCategoryPhasing, fetchBudgetComparison, fetchBudgetProjection, fetchProjectFiscalCalendar, listBudgetFiscalYears } from '@/src/lib/repositories/budgetProjection';
+import { fetchActiveBudgetCategoryPhasing, fetchBudgetComparison, fetchBudgetProjection, fetchPmoFiscalCalendar, fetchProjectFiscalCalendar, listBudgetFiscalYears } from '@/src/lib/repositories/budgetProjection';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import {
   deriveBudgetComparisonForecast,
@@ -40,7 +40,7 @@ interface BudgetProjectionProps {
   canEdit: boolean;
   committedByCategory: Record<string, number | null>;
   canReadCommitments: boolean;
-  /** `pmo` = no accounting system read: recorded is PMO's own paid purchases, and spending is not split by year. */
+  /** `pmo` = no accounting system read: recorded is PMO's own paid purchases, split by year by PMO's fiscal calendar when set (#2329). */
   ledgerBasis?: 'erp' | 'pmo' | null;
   onAdjustInDraft: () => void;
   onExport: (payload: BudgetProjectionExport) => void;
@@ -77,9 +77,10 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
   const identity = JSON.stringify([orgId, projectId, budgetVersionId, projectStartDate, projectEndDate]);
   const mismatchedCalendarRefresh = useRef<string | null>(null);
   const calendarQuery = useQuery<BudgetProjectFiscalCalendar>({
-    queryKey: ['budget-project-calendar', orgId, projectId, budgetVersionId, projectStartDate, projectEndDate],
-    queryFn: () => fetchProjectFiscalCalendar(projectId),
-    enabled: !pmoBasis && Boolean(orgId && projectId && budgetVersionId), // no accounting system: there is no ERP calendar to read
+    queryKey: ['budget-project-calendar', pmoBasis ? 'pmo' : 'erp', orgId, projectId, budgetVersionId, projectStartDate, projectEndDate],
+    // No accounting system: PMO's own fiscal calendar (#2329), never the ERP read; an accounting system keeps its own.
+    queryFn: () => pmoBasis ? fetchPmoFiscalCalendar(projectId) : fetchProjectFiscalCalendar(projectId),
+    enabled: Boolean(orgId && projectId && budgetVersionId),
     staleTime: 5 * 60_000,
     retry: false,
   });
@@ -125,14 +126,19 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
     approvedBudgetYears,
   ), [approvedBudgetYears, currentCalendarYears, distributionQuery.data, wholeProjectMode, yearsQuery.data]);
   const currentYearNames = new Set(currentCalendarYears ?? []);
+  // A usable PMO calendar splits paid spending by its fiscal years; a budget year it does not name cannot hold spending.
+  const pmoCalendar = pmoBasis && currentCalendarYears !== null;
+  const pmoYearReason = (year: string | null) => pmoCalendar
+    ? t('projectDetail.budget.recordedNotFiscalYear', '{{year}} is not a fiscal year of your calendar, so spending cannot be placed in it.', { year: year ?? '' })
+    : t('projectDetail.budget.recordedNoYearSplit', 'Spending is not split by year yet. See All years.');
   const currentYearOptions = years.filter((year) => currentYearNames.has(year.fiscalYear));
   const activeSelection = selection?.identity === identity ? selection.scope : null;
   const scope = activeSelection?.kind === 'all'
     ? activeSelection
     : activeSelection?.kind === 'year' && years.some((year) => year.fiscalYear === activeSelection.year)
       ? activeSelection
-      : pmoBasis && yearsReady
-        ? { kind: 'all' as const }  // no accounting system: spending is not split by year, so open on All years
+      : pmoBasis && yearsReady && calendarUnusable
+        ? { kind: 'all' as const }  // no accounting system and no PMO calendar: spending is not split by year, so open on All years
       : calendarMatches && yearsReady
         ? chooseDefaultBudgetProjectionScope(currentYearOptions, new Set())
         : calendarUnusable && yearsReady
@@ -141,6 +147,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
   const allYears = scope?.kind === 'all';
   const fiscalYear = scope?.kind === 'year' ? scope.year : null;
   const scopeKey = scope ? scopeToken(scope) : 'unresolved';
+  const pmoYearText = pmoYearReason(fiscalYear);
   const comparisonQuery = useQuery({
     queryKey: ['budget-comparison', orgId, projectId, budgetVersionId, scopeKey],
     queryFn: () => fetchBudgetComparison(projectId, fiscalYear),
@@ -214,7 +221,11 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
   const incompleteRows = interpretation?.rows.filter((item) => item.incomplete) ?? [];
   const reasonText = (reason: NonNullable<typeof interpretation>['rows'][number]['reason']): string | null => {
     if (!reason) return null;
-    if (pmoBasis && (reason.kind === 'no-ledger' || reason.kind === 'no-account')) return t('projectDetail.budget.recordedNoYearSplit', 'Spending is not split by year yet. See All years.');
+    if (pmoBasis && (reason.kind === 'no-ledger' || reason.kind === 'no-account')) {
+      return pmoCalendar && fiscalYear !== null && currentYearNames.has(fiscalYear)
+        ? t('projectDetail.budget.recordedUnknown', 'Recorded spending is unavailable')
+        : pmoYearReason(fiscalYear);
+    }
     switch (reason.kind) {
       case 'no-ledger': return t('projectDetail.budget.reasonNoLedger', 'No ledger reading is available for this fiscal year.');
       case 'no-account': return t('projectDetail.budget.reasonNoAccount', 'No accounting ledger account is mapped for this category.');
@@ -258,10 +269,12 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
       header: t('projectDetail.budget.spentAndCommitted', 'Spent + committed'),
       kind: 'money',
       align: 'num',
-      cell: (row) => <Tooltip content={row.actualsAsOf
+      cell: (row) => <Tooltip content={row.actualsAsOf && pmoBasis
+        ? t('projectDetail.budget.forecastActualsSourcePmo', 'Paid purchases before tax and internal equipment charges in this fiscal year, latest payment {{date}}. Commitments are project-wide and not included in the fiscal-year final-cost formula.', { date: formatDay(row.actualsAsOf) })
+        : row.actualsAsOf
         ? t('projectDetail.budget.forecastActualsSource', 'ERP ledger through {{date}}. Commitments are project-wide because their source does not assign a fiscal year; they are shown separately and are not included in the fiscal-year final-cost formula.', { date: row.actualsAsOf })
         : pmoBasis
-          ? t('projectDetail.budget.recordedNoYearSplit', 'Spending is not split by year yet. See All years.')
+          ? pmoYearText
           : t('projectDetail.budget.forecastActualsUnknown', 'ERP ledger spending is not available for this project and fiscal year. Commitments, when available, are project-wide and not fiscal-year-attributed.')}
       ><span tabIndex={0} className="inline-flex flex-col items-end"><span>{moneyText(row.actualsToDate, currency)}</span><span className="text-sm font-normal text-muted-foreground">{t('projectDetail.budget.projectCommitmentsShort', 'Committed · project-wide')}: {canReadCommitments ? moneyText(committedByCategory[row.category] ?? 0, currency) : '—'}</span></span></Tooltip>,
     },
@@ -288,7 +301,9 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
       header: t('projectDetail.budget.forecastFinal', 'Forecast final'),
       kind: 'money',
       align: 'num',
-      cell: (row) => <Tooltip content={t('projectDetail.budget.forecastFinalFormula', 'Calculated as ERP spending to date plus cost to finish.')}><span tabIndex={0}>{moneyText(row.projectedFinalCost, currency)}</span></Tooltip>,
+      cell: (row) => <Tooltip content={pmoBasis
+        ? t('projectDetail.budget.forecastFinalFormulaPmo', 'Calculated as paid spending to date plus cost to finish.')
+        : t('projectDetail.budget.forecastFinalFormula', 'Calculated as ERP spending to date plus cost to finish.')}><span tabIndex={0}>{moneyText(row.projectedFinalCost, currency)}</span></Tooltip>,
     },
     {
       key: 'remaining',
@@ -314,7 +329,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
           <Tooltip content={t('projectDetail.budget.forecastUtilizationFormula', 'Forecast final divided by fiscal-year budget.')}><span tabIndex={0}><ProgressBar compact value={Math.round(utilizationPct(row)!)} showValue aria-label={`${budgetCategoryLabel(row.category, t)} ${t('projectDetail.budget.forecastUtilization', 'forecast utilization')}`} /></span></Tooltip>
         </span>,
     },
-  ], [budgetCurrency, canReadCommitments, committedByCategory, currency, editing, etcDraft, etcErrors, changeDraft, pmoBasis, t]);
+  ], [budgetCurrency, canReadCommitments, committedByCategory, currency, editing, etcDraft, etcErrors, changeDraft, pmoBasis, pmoYearText, t]);
 
   const comparisonColumns: Column<BudgetComparisonRow>[] = useMemo(() => [
     {
@@ -411,7 +426,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
     return `${year.fiscalYear} · ${t(`projectDetail.budget.${source}`, fallback)}`;
   };
   const fiscalYearOptions = [
-    ...(!scope ? [{ value: 'unresolved', label: (!pmoBasis && (calendarIsPending || calendarIsFetching)) || yearsQuery.isPending ? t('projectDetail.budget.scopeLoading', 'Loading fiscal years') : t('projectDetail.budget.scopeUnresolved', 'Current fiscal years unavailable'), disabled: true }] : []),
+    ...(!scope ? [{ value: 'unresolved', label: calendarIsPending || calendarIsFetching || yearsQuery.isPending ? t('projectDetail.budget.scopeLoading', 'Loading fiscal years') : t('projectDetail.budget.scopeUnresolved', 'Current fiscal years unavailable'), disabled: true }] : []),
     { value: scopeToken(allYearsScope), label: t('projectDetail.budget.allYearsProjectToDate', 'All years (project to date)') },
     ...years.map((year) => ({ value: scopeToken({ kind: 'year' as const, year: year.fiscalYear }), label: fiscalYearLabel(year) })),
   ];

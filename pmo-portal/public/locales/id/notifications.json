@@ -1,0 +1,9 @@
+{
+  "budgetArchiveWarning": "ERPNext mungkin masih menerapkan anggaran untuk proyek ini setelah arsip. Batalkan dokumen anggaran ERPNext yang tercantum, atau aktifkan anggaran PMO baru.",
+  "budgetCancellationHeld": "Anggaran pengganti ditahan: pembatalan anggaran ERPNext sebelumnya untuk proyek ini masih memerlukan tindakan, atau orang yang mengaktifkan versi ini tidak dapat dikenali. Selesaikan anggaran versi sebelumnya di ERPNext — anggaran pengganti kemudian dikirim otomatis.",
+  "budgetRetryAuthorization": "Anggaran pengganti ditahan: orang yang tercatat mengaktifkan versi ini tidak lagi berwenang mengirim anggaran ke ERPNext. Pembatalannya tidak bermasalah. Admin atau Finance harus mencoba lagi dari tab Anggaran proyek.",
+  "budgetPushFailed": "PMO tidak dapat mengirim anggaran aktif ke ERPNext ({{reason}}) — ERPNext masih menerapkan anggaran sebelumnya (atau tidak ada anggaran) untuk proyek ini.",
+  "unassignedInvoiceTitle": "Invoice memerlukan proyek",
+  "unassignedInvoice": "Invoice penjualan {{invoice}}{{amount}} tiba dari ERPNext tanpa proyek dan berada dalam daftar belum ditetapkan. Tetapkan invoice ke proyek.",
+  "literal": "{{body}}"
+}

@@ -141,7 +141,7 @@ function expectedModeSnapshot(request: BudgetModeSwitchRequest, projectId: strin
 }
 
 const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => {
-  const { t } = useTranslation('finance');
+  const { t, i18n } = useTranslation('finance');
   const { toast } = useToast();
   const can = usePermission();
   const { realRole } = useEffectiveRole();
@@ -1133,6 +1133,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           </> : versions.length === 0 ? null : <ListState variant="empty" title={t('projectDetail.budget.noActiveBudget', 'No active budget')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} />
         ) : activeVersion ? <><AttributedSpendingNote projectId={projectId} /><BudgetProjection projectId={projectId} orgId={currentUser?.org_id} budgetVersionId={activeVersion.id} projectStartDate={project.start_date ?? null} projectEndDate={project.end_date ?? null} budgetMode={activeVersion.budget_mode} approvedBudgetYears={approvedBudgetYears} currency={project.currency} budgetCurrency={activeBudgetCurrency} canEdit={canWrite} committedByCategory={Object.fromEntries(summaryRows.map((row) => [row.category, canSeeCommitments ? row.committed : null]))} canReadCommitments={canSeeCommitments} ledgerBasis={position.ledgerBasis} onAdjustInDraft={adjustInDraft} onExport={(payload: BudgetProjectionExport) => {
           const csv = buildBudgetProjectionCsv(payload, {
+            locale: i18n.resolvedLanguage ?? i18n.language,
+            allYearsLabel: t('projectDetail.budget.allYearsProjectToDate', 'All years (project to date)'),
             budgetCurrency: activeBudgetCurrency,
             projectCurrency: project.currency,
             categoryLabel: (category) => budgetCategoryLabel(category, t),

@@ -1,5 +1,6 @@
 import i18next, { type BackendModule, type ReadCallback, type i18n as I18nInstance } from 'i18next';
 import { initReactI18next } from 'react-i18next';
+import { applyOrgTerms, getOrgTerms, type TermNumberHints } from './orgTerms';
 import { FALLBACK_LOCALE, isUsableLocaleTag } from '@/src/lib/locale/resolveLocale';
 
 /**
@@ -12,7 +13,7 @@ import { FALLBACK_LOCALE, isUsableLocaleTag } from '@/src/lib/locale/resolveLoca
  */
 
 /** Feature namespaces. Each maps to `public/locales/<lng>/<ns>.json`. */
-export const NAMESPACES = ['common', 'auth', 'import', 'crm', 'sales', 'projectTabs', 'projects', 'finance', 'financeHub', 'dashboard', 'project', 'procurement', 'expenseClaims', 'meetingCreate', 'recordFolders', 'documentViewer', 'costAttribution', 'procurementRecord', 'procurementList', 'procurementCreate', 'assistantPanel', 'viewBuilder', 'profilePreferences', 'stock', 'imprest', 'equipment', 'timeAndMaterials', 'boardDrag', 'lostReason', 'administration', 'plans', 'tasks', 'calendar', 'meetings', 'timesheets', 'status', 'home', 'oauthConsent', 'legal', 'journals', 'incidents', 'workOrderCost', 'workOrderPva', 'materialRequests'] as const;
+export const NAMESPACES = ['common', 'auth', 'import', 'crm', 'sales', 'projectTabs', 'projects', 'finance', 'financeHub', 'dashboard', 'project', 'procurement', 'expenseClaims', 'meetingCreate', 'recordFolders', 'documentViewer', 'costAttribution', 'procurementRecord', 'procurementList', 'procurementCreate', 'assistantPanel', 'viewBuilder', 'profilePreferences', 'stock', 'imprest', 'equipment', 'timeAndMaterials', 'boardDrag', 'lostReason', 'administration', 'plans', 'tasks', 'calendar', 'meetings', 'timesheets', 'status', 'home', 'oauthConsent', 'legal', 'journals', 'incidents', 'workOrderCost', 'workOrderPva', 'materialRequests', 'workOrders', 'siteReport', 'crews', 'notifications'] as const;
 export const DEFAULT_NS = 'common';
 
 /**
@@ -31,6 +32,89 @@ export const DEFAULT_NS = 'common';
  * first data reads. A namespace nobody is looking at is pure latency.
  */
 export const BOOT_NAMESPACES: readonly string[] = [DEFAULT_NS];
+
+// Indonesian phrases whose English equivalent omits or paraphrases the term need an explicit number.
+const INDONESIAN_NUMBER_HINTS: Record<string, TermNumberHints> = {
+  'common:uxs03.pmoPurchasing': { purchaseRequest: 'plural' },
+  'dashboard:uxs03.pmoPurchasing': { purchaseRequest: 'plural' },
+  'dashboard:finance.spendingHelp': { project: 'plural' },
+  'common:projectDetail.workOrders.error.sub': { workOrder: 'plural' },
+  'common:projectDetail.header.archiveConfirm.body': { project: ['singular', 'plural'] },
+  'common:projects.confirm.archiveDescription': { project: ['singular', 'plural'] },
+  'common:uxs15.contextOptionsUnavailable': { project: 'plural' },
+  'dashboard:hub.pm.contractUnavailable': { project: 'plural' },
+  'finance:erpPurchases.aging.amountTooltip': { project: 'plural' },
+};
+
+let nextTermMarker = 0;
+
+/** User-provided strings must never be mistaken for an internal placeholder. */
+function containsTermMarker(value: unknown, marker: string): boolean {
+  const pending: unknown[] = [value];
+  const seen = new WeakSet<object>();
+  while (pending.length) {
+    const next = pending.pop();
+    if (typeof next === 'string') {
+      if (next.includes(marker)) return true;
+    } else if (next && typeof next === 'object' && !seen.has(next)) {
+      seen.add(next);
+      for (const child of Object.values(next)) pending.push(child);
+    }
+  }
+  return false;
+}
+
+/** Apply organisation terms to the catalogue template before interpolation inserts user data. */
+export const orgTermsPlugin = {
+  type: '3rdParty' as const,
+  init(instance: I18nInstance): void {
+    // i18next currently has no public pre-interpolation hook. Its translator is created before
+    // third-party init; the integration tests bind this adapter to that internal extension point.
+    const internal = instance as unknown as { translator: {
+      extendTranslation: (value: unknown, keys: unknown, options: { lng?: string; orgTermNumber?: 'singular' | 'plural' }, ...rest: unknown[]) => unknown;
+    } };
+    const translator = internal.translator;
+    const original = translator.extendTranslation;
+    translator.extendTranslation = function (value, keys, options, ...rest) {
+      const terms = getOrgTerms();
+      if (!terms.en && !terms.id) return original.call(this, value, keys, options, ...rest);
+      const replacements = new Map<string, string>();
+      const protect = (replacement: string) => {
+        let marker: string;
+        do {
+          marker = `\uE000${nextTermMarker++}\uE001`;
+        } while (containsTermMarker(value, marker) || containsTermMarker(options, marker) || containsTermMarker(terms, marker));
+        replacements.set(marker, replacement);
+        return marker;
+      };
+      const resolved = rest[0] as { res?: unknown; usedLng?: string; usedNS?: string; exactUsedKey?: string } | undefined;
+      if (typeof value === 'string' && resolved?.res === value) {
+        const locale = resolved.usedLng ?? options?.lng ?? instance.language ?? FALLBACK_LOCALE;
+        const english = resolved?.usedNS && resolved.exactUsedKey
+          ? instance.getResource('en', resolved.usedNS, resolved.exactUsedKey) : undefined;
+        const cursor = {};
+        const hints = { ...INDONESIAN_NUMBER_HINTS[`${resolved.usedNS}:${resolved.exactUsedKey}`], ...(options?.orgTermNumber ? { workOrder: options.orgTermNumber } : {}) };
+        // Preserve i18next interpolation tokens and nested translation references verbatim.
+        const workOrderForms = typeof english === 'string' ? [...english.matchAll(/\bwork orders?\b/gi)].map((m) => m[0].toLowerCase()) : [];
+        let nestedWorkOrder = 0;
+        value = value.split(/(\{\{[^}]*\}\}|\$t\([^)]*\)|<[^>]*>)/g)
+          .map((part) => {
+            if (locale.startsWith('id') && part === '$t(common:terms.clientWorkOrder)') {
+              const reference = workOrderForms[nestedWorkOrder++] ?? workOrderForms[0];
+              const number = typeof hints.workOrder === 'string' ? hints.workOrder : reference === 'work orders' ? 'plural' : 'singular';
+              return `$t(common:terms.clientWorkOrder, {"orgTermNumber":"${number}"})`;
+            }
+            return /^(?:\{\{|\$t\(|<)/.test(part) ? part : applyOrgTerms(part, locale, terms, { englishReference: typeof english === 'string' ? english.replace(/<[^>]*>|\{\{[^}]*\}\}/g, '') : undefined, cursor, numberOverrides: hints, protect });
+          }).join('');
+      }
+      const result = original.call(this, value, keys, options, ...rest);
+      if (typeof result !== 'string') return result;
+      let rendered = result;
+      for (const [marker, replacement] of replacements) rendered = rendered.replaceAll(marker, replacement);
+      return rendered;
+    };
+  },
+};
 
 /**
  * FR-L10N-043 — lazy per-locale load. i18next requests only the ACTIVE language plus `fallbackLng`,
@@ -166,6 +250,7 @@ export function initI18n(locale: string = FALLBACK_LOCALE): Promise<I18nInstance
   if (!initPromise) {
     initPromise = i18next
       .use(catalogueBackend)
+      .use(orgTermsPlugin)
       .use(initReactI18next)
       .init(i18nInitOptions(locale))
       .then(() => i18next);

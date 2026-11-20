@@ -11,16 +11,21 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import i18next from 'i18next';
 import stockEn from '@/public/locales/en/stock.json';
 
-const { master, profile, project, reports } = vi.hoisted(() => ({
+const ownership = vi.hoisted(() => ({ mode: 'pmo' }));
+vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ isOwnershipCacheSynced: () => true, routeDomainWrite: () => ownership.mode, subscribeOwnershipCache: () => () => {} }));
+
+const { master, profile, project, reports, tags } = vi.hoisted(() => ({
   master: {
     listUnits: vi.fn(), listItems: vi.fn(), listWarehouses: vi.fn(), listKeepers: vi.fn(),
     createUnit: vi.fn(), updateUnit: vi.fn(), createItem: vi.fn(), updateItem: vi.fn(),
     createWarehouse: vi.fn(), updateWarehouse: vi.fn(), archive: vi.fn(), setKeeper: vi.fn(),
   },
+  tags: { list: vi.fn(), create: vi.fn(), update: vi.fn(), archive: vi.fn() },
   profile: { listOrgProfiles: vi.fn() },
   project: { listIdentity: vi.fn() },
   reports: { onHand: vi.fn() },
 }));
+vi.mock('@/src/lib/repositories/stockSiteWork', () => ({ stockSiteWorkRepository: { tags } }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { master, reports }, profile, project } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));
 
@@ -65,6 +70,9 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  ownership.mode = 'pmo';
+  tags.list.mockResolvedValue([]);
+  tags.create.mockResolvedValue({});
   master.listUnits.mockResolvedValue([unit]);
   master.listItems.mockResolvedValue([item]);
   master.listWarehouses.mockResolvedValue([wh]);
@@ -286,4 +294,82 @@ describe('StockSetup writes', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Archive' }));
     await waitFor(() => expect(master.archive).toHaveBeenCalledWith('stock_units', 'u1', true));
   });
+});
+
+it('lets an admin create an organisation-named zero-cost tag', async () => {
+  renderPage();
+  await userEvent.click(await screen.findByRole('button', { name: 'Manage stock tags' }));
+  await userEvent.type(screen.getByLabelText(/Tag name/), 'Client material');
+  await userEvent.click(screen.getByLabelText('Zero cost'));
+  await userEvent.click(screen.getByRole('button', { name: 'Add tag' }));
+  await waitFor(() => expect(tags.create).toHaveBeenCalledWith({ name: 'Client material', zeroCost: true, paperRequired: false }));
+});
+
+it('does not offer tag management to a project manager', async () => {
+  renderPage('Project Manager');
+  await screen.findByText('Bag');
+  expect(screen.queryByRole('button', { name: 'Manage stock tags' })).not.toBeInTheDocument();
+});
+
+it('shows the organisation tag on the stock item list', async () => {
+  tags.list.mockResolvedValue([{ id: 't1', name: 'Client material', zero_cost: true, paper_required: false, archived_at: null }]);
+  master.listItems.mockResolvedValue([{ ...item, tag_id: 't1' }]);
+  renderPage();
+  await userEvent.click(await screen.findByRole('tab', { name: 'Items' }));
+  expect(await screen.findByText('Client material')).toBeInTheDocument();
+});
+
+it('asks before archiving a stock tag', async () => {
+  tags.list.mockResolvedValue([{ id: 't1', name: 'Client material', zero_cost: true, paper_required: false, archived_at: null }]);
+  tags.archive.mockResolvedValue(undefined);
+  renderPage();
+  await userEvent.click(await screen.findByRole('button', { name: 'Manage stock tags' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Archive' }));
+  expect(tags.archive).not.toHaveBeenCalled();
+  await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Archive' }));
+  await waitFor(() => expect(tags.archive).toHaveBeenCalledWith('t1', true));
+});
+
+it('lets an admin rename a tag and require paper for it', async () => {
+  tags.list.mockResolvedValue([{ id: 't1', name: 'Client material', zero_cost: true, paper_required: false, archived_at: null }]);
+  tags.update.mockResolvedValue(undefined);
+  renderPage();
+  await userEvent.click(await screen.findByRole('button', { name: 'Manage stock tags' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+  const name = screen.getByLabelText(/Tag name/);
+  await userEvent.clear(name);
+  await userEvent.type(name, 'Owner supply');
+  await userEvent.click(screen.getByLabelText('Paper required'));
+  await userEvent.click(screen.getByRole('button', { name: 'Save tag' }));
+  await waitFor(() => expect(tags.update).toHaveBeenCalledWith('t1', { name: 'Owner supply', zeroCost: true, paperRequired: true }));
+});
+
+it('explains that stock tags are unavailable when inventory is connected', async () => {
+  ownership.mode = 'external';
+  renderPage();
+  await screen.findByText('Bag');
+  expect(screen.queryByRole('button', { name: 'Manage stock tags' })).not.toBeInTheDocument();
+  expect(screen.getByText('Stock tags are unavailable while inventory is connected.')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('tab', { name: 'Items' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'New item' }));
+  expect(screen.queryByLabelText(/Stock tag/)).not.toBeInTheDocument();
+});
+
+it('explains why a moved tag cannot change its cost rule', async () => {
+  tags.list.mockResolvedValue([{ id: 't1', name: 'Client material', zero_cost: true, paper_required: false, archived_at: null }]);
+  tags.update.mockRejectedValue({ message: 'STK_TAG_LOCKED: used by stock' });
+  renderPage();
+  await userEvent.click(await screen.findByRole('button', { name: 'Manage stock tags' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+  await userEvent.click(screen.getByLabelText('Zero cost'));
+  await userEvent.click(screen.getByRole('button', { name: 'Save tag' }));
+  expect(await screen.findByText('This tag cannot be changed after stock has moved.')).toBeInTheDocument();
+});
+
+it('does not let an item be created while its stock tags cannot load', async () => {
+  tags.list.mockRejectedValue(new Error('offline'));
+  renderPage();
+  await userEvent.click(await screen.findByRole('tab', { name: 'Items' }));
+  expect(await screen.findByText("Couldn't load stock setup")).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'New item' })).not.toBeInTheDocument();
 });

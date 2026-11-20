@@ -48,6 +48,7 @@ vi.mock('@/src/hooks/useFxOrgDay', () => ({
 
 import { ContractCascade } from '../ContractCascade';
 import { summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
+vi.mock('../tabs/BillingReconciliation', () => ({ BillingReconciliation: () => null }));
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
 import { ToastProvider } from '@/src/components/ui';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';

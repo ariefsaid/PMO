@@ -1,5 +1,5 @@
 -- 1120_mrq_stuck_pin.sql — #2605 a pinned approver who can no longer act must not leave the step stuck.
--- Spec docs/specs/material-requests.spec.md (FR-MRQ-024). Proven by supabase/tests/mrq_stuck_pin.test.sql.
+-- Spec docs/specs/material-requests.spec.md (FR-MRQ-026). Proven by supabase/tests/mrq_stuck_pin.test.sql.
 --
 -- A pin binds a step only while its person is an active member of the organisation who still holds the pin's role.
 -- Otherwise the pin is dead: mrq_pinned_to returns null, so the authority check, the decision and the queue all use the

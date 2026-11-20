@@ -79,7 +79,6 @@
     "retryCheck": "Check setup again",
     "operatorHandoff": "Open accounting setup",
     "noDomains": "No connected information is currently updating from ERPNext",
-    "m365ApprovalDescription": "Only if Microsoft asks for organization approval.",
     "organizationScope": "Personal connections: "
   },
   "uxs14": {
@@ -3585,7 +3584,6 @@
     },
     "m365OrgApproval": {
       "heading": "Microsoft 365",
-      "badge": "Organization approval",
       "approve": "Approve in Microsoft 365",
       "approving": "Opening Microsoft 365…",
       "errorFallback": "Could not start Microsoft 365 organization approval."

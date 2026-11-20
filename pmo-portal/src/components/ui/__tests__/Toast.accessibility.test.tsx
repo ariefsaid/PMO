@@ -113,18 +113,23 @@ describe('Toast accessibility and timing', () => {
     window.innerWidth = 1024;
   });
 
-  it('pauses the auto-dismiss timer while the toast is hovered', () => {
-    // Library pause semantics: hover holds the lifetime; keyboard users reach the close
-    // control within it and alt+T lifts the whole stack.
+  it('a pointer no longer holds a routine toast open, while alt+T still does for a keyboard reader', () => {
+    // #2502: the notice is pointer-transparent so a resting pointer cannot freeze it over the
+    // control it covers (the browser oracle is e2e/notice-never-blocks-the-control.spec.ts). The
+    // library's hover clock therefore never starts; the routine lifetime runs to its end.
     renderToast();
     show('Saved', undefined, 'success');
-    const toastEl = sonnerToasts()[0]!;
-    fireEvent.mouseEnter(toastEl);
+    act(() => vi.advanceTimersByTime(4_000));
+    act(() => vi.advanceTimersByTime(300));
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
+    expect(sonnerToasts()).toHaveLength(0);
+
+    // Reading time stays a keyboard affordance: alt+T lifts and pins the stack.
+    show('Saved', undefined, 'success');
+    fireEvent.keyDown(document, { key: 'T', code: 'KeyT', altKey: true });
     act(() => vi.advanceTimersByTime(6_000));
     expect(screen.getByRole('status')).toHaveTextContent('Saved');
-    fireEvent.mouseLeave(toastEl);
-    act(() => vi.advanceTimersByTime(300));
-    expect(screen.getByRole('status')).toHaveTextContent('Saved');
+    fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' });
     act(() => vi.advanceTimersByTime(4_300));
     expect(screen.getByRole('status')).toBeEmptyDOMElement();
     expect(sonnerToasts()).toHaveLength(0);

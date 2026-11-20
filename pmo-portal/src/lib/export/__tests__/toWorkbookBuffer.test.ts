@@ -32,6 +32,23 @@ describe('toWorkbookBuffer (unmocked exceljs serialization)', () => {
     expect(new Uint8Array(buf).length).toBeGreaterThan(0);
   });
 
+  it('exports when an organisation label contains Excel-forbidden sheet characters', async () => {
+    const buf = await toWorkbookBuffer({ sheetName: 'Jobs / Work [A]', header: ['Name'], body: [['Project Phoenix']] });
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(new Uint8Array(buf));
+    expect(workbook.worksheets[0].name).toBe('Jobs - Work -A-');
+    expect(workbook.worksheets[0].getCell('A2').value).toBe('Project Phoenix');
+  });
+
+  it('keeps reserved and apostrophe-bounded labels exportable', async () => {
+    for (const name of ['History', "'Jobs'", "'"]) {
+      const buf = await toWorkbookBuffer({ sheetName: name, header: ['Name'], body: [] });
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(new Uint8Array(buf));
+      expect(workbook.worksheets[0].name).toBeTruthy();
+    }
+  });
+
   it('AC-800-001: reads a date-only invoice back as the same day in an Asia/Jakarta export', async () => {
     const previousTimezone = process.env.TZ;
     process.env.TZ = 'Asia/Jakarta';

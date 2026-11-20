@@ -1,5 +1,5 @@
 -- mrq_stuck_pin.test.sql — #2605 a pin whose person can no longer act stops binding; the step falls back to its role rule.
--- Spec docs/specs/material-requests.spec.md (FR-MRQ-024, AC-MRQ-021..022). Migration under test: 1120_mrq_stuck_pin.sql.
+-- Spec docs/specs/material-requests.spec.md (FR-MRQ-026, AC-MRQ-023..024). Migration under test: 1120_mrq_stuck_pin.sql.
 -- Every denial asserts the errcode AND the message, so a different gate moving in front cannot pass it.
 begin;
 create extension if not exists pgtap;
@@ -89,11 +89,11 @@ reset role;
 update profiles set status = 'disabled' where id = '26050000-0000-0000-0000-0000000000a6';
 set local role authenticated;
 select pg_temp._as('26050000-0000-0000-0000-0000000000a5');
-select is((select count(*)::int from mrq_waiting_for_me()), 1, 'AC-MRQ-021 a deactivated pinned approver: the role holder sees the step in their queue');
+select is((select count(*)::int from mrq_waiting_for_me()), 1, 'AC-MRQ-023 a deactivated pinned approver: the role holder sees the step in their queue');
 select lives_ok($$ select public.mrq_decide_step((select v from t_ids where k = 'r1'), 3, 'approve', null, '26050000-0000-0000-0000-000000000801') $$,
-  'AC-MRQ-021 and the role holder decides it');
+  'AC-MRQ-023 and the role holder decides it');
 select is((select count(*)::int from approval_step_pins where project_id = '26050000-0000-0000-0000-0000000000d1'), 1,
-  'AC-MRQ-022 the pin row is kept so the setting screen can flag it');
+  'AC-MRQ-024 the pin row is kept so the setting screen can flag it');
 
 -- The pinned person loses the step role: same fallback; a stand-in for a role holder works too.
 reset role;
@@ -105,17 +105,17 @@ reset role;
 update profiles set role = 'Engineer' where id = '26050000-0000-0000-0000-0000000000a6';
 set local role authenticated;
 select pg_temp._as('26050000-0000-0000-0000-0000000000a6');
-select is((select count(*)::int from mrq_waiting_for_me()), 0, 'AC-MRQ-021 a pinned person who lost the role does not get the step');
+select is((select count(*)::int from mrq_waiting_for_me()), 0, 'AC-MRQ-023 a pinned person who lost the role does not get the step');
 select pg_temp._as('26050000-0000-0000-0000-0000000000a1');
 select public.mrq_set_stand_in('26050000-0000-0000-0000-0000000000a5', '26050000-0000-0000-0000-0000000000a7', current_date - 1, current_date + 1);
 select pg_temp._as('26050000-0000-0000-0000-0000000000a7');
 select lives_ok($$ select public.mrq_decide_step((select v from t_ids where k = 'r2'), 3, 'approve', null, '26050000-0000-0000-0000-000000000801') $$,
-  'AC-MRQ-021 with the pin dead, a stand-in for a Finance role holder decides the step');
+  'AC-MRQ-023 with the pin dead, a stand-in for a Finance role holder decides the step');
 
 -- Re-pointing the pin to a live person binds again.
 select pg_temp._as('26050000-0000-0000-0000-0000000000a1');
 select lives_ok($$ select public.mrq_set_step_pin('26050000-0000-0000-0000-0000000000d1', 3, '26050000-0000-0000-0000-0000000000a5') $$,
-  'AC-MRQ-022 an Admin re-points the stuck pin to a live Finance person');
+  'AC-MRQ-024 an Admin re-points the stuck pin to a live Finance person');
 
 select * from finish();
 rollback;

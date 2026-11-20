@@ -1,0 +1,51 @@
+/**
+ * repositories/crews.ts (#2528) — the seam over crews, roster and daily attendance (ADR-0017). Standalone module
+ * (same shape as `workOrderCosts.ts`): imported directly by its hooks. Errors keep their Postgres code via `wrap`.
+ */
+import * as crews from '@/src/lib/db/crews';
+import * as attendance from '@/src/lib/db/attendance';
+import { wrap } from './repositoryErrors';
+
+export type {
+  CrewRow, CrewStandardRoleRow, CrewWorkerRow, CrewMemberRow, WorkOrderCrewRow, RosterCrew, RosterMember, RosterRole,
+  WorkOrderOption, CrewInput, StandardRoleInput, CrewWorkerInput, PlacementInput, RosterInput, CrewKind, CrewWorkerRef,
+} from '@/src/lib/db/crews';
+export type {
+  AttendanceRowInput, AttendanceDayRow, AttendanceSource, AttendanceStatus, GenerateWeekResult, AwaitingWeekRow,
+} from '@/src/lib/db/attendance';
+export { STALE_VERSION_CODE } from '@/src/lib/db/crews';
+
+export const crewRepository = {
+  list: () => wrap(() => crews.listCrews()),
+  create: (input: crews.CrewInput, roles: crews.StandardRoleInput[]) => wrap(() => crews.createCrew(input, roles)),
+  update: (id: string, patch: Partial<crews.CrewInput> & { archived_at?: string | null }) => wrap(() => crews.updateCrew(id, patch)),
+  roles: (crewId: string) => wrap(() => crews.listStandardRoles(crewId)),
+  workers: () => wrap(() => crews.listCrewWorkers()),
+  workerRefs: () => wrap(() => crews.listCrewWorkerRefs()),
+  allRoles: () => wrap(() => crews.listAllStandardRoles()),
+  allMembers: () => wrap(() => crews.listAllCrewMembers()),
+  createWorker: (input: crews.CrewWorkerInput) => wrap(() => crews.createCrewWorker(input)),
+  placeNewWorker: (person: crews.CrewWorkerInput, placement: Omit<crews.PlacementInput, 'worker_id'>) =>
+    wrap(() => crews.placeNewCrewWorker(person, placement)),
+  members: (crewId: string) => wrap(() => crews.listCrewMembers(crewId)),
+  place: (input: crews.PlacementInput) => wrap(() => crews.placeCrewMember(input)),
+  correctPlacement: (id: string, version: number, patch: Pick<crews.PlacementInput, 'valid_from' | 'valid_to' | 'standard_role_id'>) =>
+    wrap(() => crews.correctCrewMember(id, version, patch)),
+  workOrderCrews: (workOrderId: string) => wrap(() => crews.listWorkOrderCrews(workOrderId)),
+  roster: (input: crews.RosterInput) => wrap(() => crews.rosterCrew(input)),
+  correctRoster: (id: string, version: number, patch: Pick<crews.RosterInput, 'valid_from' | 'valid_to'>) =>
+    wrap(() => crews.correctRoster(id, version, patch)),
+  rosterFor: (workOrderId: string, date: string) => wrap(() => crews.getWorkOrderRoster(workOrderId, date)),
+  openWorkOrders: () => wrap(() => crews.listOpenWorkOrders()),
+};
+
+export const attendanceRepository = {
+  record: (workOrderId: string, date: string, source: attendance.AttendanceSource, rows: attendance.AttendanceRowInput[]) =>
+    wrap(() => attendance.recordAttendance(workOrderId, date, source, rows)),
+  day: (workOrderId: string, date: string) => wrap(() => attendance.listAttendanceDay(workOrderId, date)),
+  generateWeek: (workerId: string, weekStart: string) => wrap(() => attendance.generateAttendanceWeek(workerId, weekStart)),
+  decideWeek: (workerId: string, weekStart: string, decision: 'approve' | 'reject', reason: string | null) =>
+    wrap(() => attendance.decideAttendanceWeek(workerId, weekStart, decision, reason)),
+  awaiting: () => wrap(() => attendance.listAwaitingAttendance()),
+  uploadPhoto: (input: Parameters<typeof attendance.uploadAttendancePhoto>[0]) => wrap(() => attendance.uploadAttendancePhoto(input)),
+};

@@ -37,6 +37,8 @@ import {
 } from '@/src/lib/db/orgFeatures';
 import { getOwnOrgPlan } from '@/src/lib/db/orgPlan';
 import {
+  getOrgFiscalYearSetting,
+  setOrgFiscalYearStartMonth,
   getOrgTaxDefault,
   getOrgDefaultCurrency,
   getOrgLocaleDefaults,
@@ -138,6 +140,8 @@ export const orgSettingsRepository: OrgSettingsRepository = {
   setProjectClassificationOptions: (options) => wrap(() => setOrgProjectClassificationOptions(options)),
   getTaxDefault: () => wrap(() => getOrgTaxDefault()),
   setTaxDefault: (value) => wrap(() => setOrgTaxDefault(value)),
+  getFiscalYearSetting: () => wrap(() => getOrgFiscalYearSetting()),
+  setFiscalYearStartMonth: (month) => wrap(() => setOrgFiscalYearStartMonth(month)),
   listSpendApprovers: () => wrap(() => listSpendApprovers()),
   addSpendApprover: (profileId, projectId) => wrap(() => addSpendApprover(profileId, projectId)),
   removeSpendApprover: (id) => wrap(() => removeSpendApprover(id)),

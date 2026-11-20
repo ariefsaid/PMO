@@ -15,11 +15,11 @@ function throwWrite(error: PostgrestErrorLike): never {
 }
 
 /** Columns the inbox list renders — explicit list, never `select('*')` (#843). */
-const NOTIFICATION_LIST_COLUMNS = 'id,title,body,severity,metadata,read_at,created_at';
+const NOTIFICATION_LIST_COLUMNS = 'id,title,body,severity,metadata,message_key,message_params,read_at,created_at';
 
 export type NotificationListItem = Pick<
   NotificationRow,
-  'id' | 'title' | 'body' | 'severity' | 'metadata' | 'read_at' | 'created_at'
+  'id' | 'title' | 'body' | 'severity' | 'metadata' | 'message_key' | 'message_params' | 'read_at' | 'created_at'
 >;
 
 /** Keyset position of the last row of a page: the order key `(created_at desc, id desc)`. */

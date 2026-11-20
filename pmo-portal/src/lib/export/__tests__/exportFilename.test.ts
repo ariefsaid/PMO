@@ -2,6 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { exportFilename } from '../exportFilename';
 
 describe('exportFilename', () => {
+  it('makes a safe filename when the configured label contains path characters', () => {
+    expect(exportFilename('Jobs / Work', new Date('2026-06-13T12:00:00'))).toBe('Jobs - Work_2026-06-13.xlsx');
+  });
+
   it('AC-EXP-004: builds <Entity>_<YYYY-MM-DD>.xlsx from an injected date', () => {
     expect(exportFilename('Companies', new Date('2026-06-14T09:00:00'))).toBe(
       'Companies_2026-06-14.xlsx',

@@ -35,6 +35,7 @@ function useCached<T>(key: readonly unknown[] | undefined, enabledByOrg: boolean
 function detailKeyFor(pathname: string, orgId: string | undefined, actorId: string | undefined, role: string | undefined) {
   const routes: [prefix: string, key: string][] = [
     ['/projects/', 'project'],
+    ['/work-orders/', 'work-order'],
     ['/procurement/', 'procurement'],
     ['/companies/', 'company'],
     ['/contacts/', 'contact'],
@@ -93,6 +94,8 @@ export function useCachedRecordLists(pathname: string): CachedRecordLists {
   const detailRoute = detailKeyFor(pathname, orgId, currentUser?.id, currentUser?.role);
   const detailPrefix = detailRoute?.prefix;
   const detail = useCached<Record<string, unknown> | null>(detailRoute?.key, has);
+  const woProjectId = detailPrefix === '/work-orders/' && typeof detail.data?.project_id === 'string' ? detail.data.project_id : undefined;
+  const woProject = useCached<ProjectWithRefs | null>(woProjectId ? ['project', orgId, woProjectId] : undefined, has);
 
   return useMemo(() => {
     const one = <T,>(list: T[] | undefined, match: boolean): T[] | undefined => {
@@ -101,7 +104,8 @@ export function useCachedRecordLists(pathname: string): CachedRecordLists {
     };
     const at = (prefix: string) => detailPrefix === prefix;
     const lists: CachedRecordLists['lists'] = {
-      projects: one(projects.data, at('/projects/')),
+      projects: woProject.data ? [...(one(projects.data, at('/projects/')) ?? []), woProject.data] : one(projects.data, at('/projects/')),
+      workOrders: one(undefined, at('/work-orders/')) as RecordLists['workOrders'],
       opportunities: [...(pipeline.data?.projects ?? []), ...(lostDeals.data ?? [])],
       procurements: one(procurements.data, at('/procurement/')),
       incidents: one(incidents.data, at('/incidents/')),
@@ -136,6 +140,7 @@ export function useCachedRecordLists(pathname: string): CachedRecordLists {
     detailPrefix,
     detail.data,
     detail.settled,
+    woProject.data,
     projects.data, projects.settled,
     procurements.data, procurements.settled,
     pipeline.data, pipeline.settled,

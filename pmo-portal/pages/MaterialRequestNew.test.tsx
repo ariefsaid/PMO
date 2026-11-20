@@ -1,10 +1,11 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 
 const h = vi.hoisted(() => ({
+  tz: 'Asia/Jakarta',
   saveDraft: { mutateAsync: vi.fn().mockResolvedValue('r1'), isPending: false },
   submit: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
 }));
@@ -22,6 +23,7 @@ vi.mock('@/src/hooks/useStock', () => ({
   useStockItems: () => ({ data: [{ id: 'i1', code: 'CEM', name: 'Cement', unit_id: 'u1', archived_at: null }], isPending: false, isError: false, refetch: vi.fn() }),
   useStockUnits: () => ({ data: [{ id: 'u1', code: 'BAG' }] }),
 }));
+vi.mock('@/src/hooks/useOrgFxContext', () => ({ useOrgFxContext: () => ({ data: { currency: 'IDR', timezone: h.tz }, isPending: false }) }));
 vi.mock('@/src/components/shell', () => ({ BackBar: () => null }));
 
 import MaterialRequestNewPage from './MaterialRequestNew';
@@ -69,5 +71,37 @@ describe('raise a material request', () => {
     await userEvent.type(screen.getByLabelText(/^quantity/i), '2');
     await userEvent.click(screen.getByRole('button', { name: 'Send for approval' }));
     expect(await screen.findByText(/closed at 12:00.*earliest date/)).toBeInTheDocument();
+  });
+
+  describe('AC-MRQ-022 default needed-by is tomorrow in the organisation calendar', () => {
+    afterEach(() => { vi.useRealTimers(); });
+    const shown = () => (screen.getByLabelText(/needed by/i) as HTMLInputElement).value;
+
+    it('23:30 UTC on the 20th is already the 21st in UTC+7, so the default is the 22nd (UTC would say the 21st)', () => {
+      vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-20T23:30:00Z') });
+      h.tz = 'Asia/Jakarta';
+      render(<MemoryRouter><ToastProvider><MaterialRequestNewPage /></ToastProvider></MemoryRouter>);
+      expect(shown()).toBe('22 Nov 2026');
+    });
+
+    it('23:30 UTC is still the 20th in UTC-8, so the default is the 21st', () => {
+      vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-20T23:30:00Z') });
+      h.tz = 'America/Los_Angeles';
+      render(<MemoryRouter><ToastProvider><MaterialRequestNewPage /></ToastProvider></MemoryRouter>);
+      expect(shown()).toBe('21 Nov 2026');
+    });
+
+    it('the saved draft carries the organisation-calendar date', async () => {
+      vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-20T23:30:00Z') });
+      h.tz = 'Asia/Jakarta';
+      h.saveDraft.mutateAsync.mockClear();
+      render(<MemoryRouter><ToastProvider><MaterialRequestNewPage /></ToastProvider></MemoryRouter>);
+      await pick(/^project/i, 'Site Alpha');
+      await pick(/^work order/i, 'WO-1 · Slab');
+      await userEvent.selectOptions(screen.getByLabelText(/^item/i), 'i1');
+      await userEvent.type(screen.getByLabelText(/^quantity/i), '2');
+      await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+      expect(h.saveDraft.mutateAsync.mock.calls[0][0].header.neededBy).toBe('2026-11-22');
+    });
   });
 });

@@ -2,6 +2,22 @@
 
 **Status:** proposed; owner decisions below need sign-off before build. IDs `FR-SPC-###`, `NFR-SPC-###`, `AC-SPC-###`. Plan: `docs/plans/2026-11-20-subcontractor-progress-certificate.md`. Executor: **Director-dispatched, one fresh Orca worker per slice, ships alone** (money, SoD, payable path). Map #2516 (after the go-live; Feb to Mar). Extends `docs/specs/subcontract-acceptance.spec.md` (#1513, shipped) and `docs/specs/daily-site-report.spec.md` (#1522, not yet shipped). It adds no second payables path: an approved certificate is captured as a vendor bill through the shipped subcontract capture function.
 
+## Review 20 Nov
+
+Read against `0449`, `0470`, `0472`, `0885`, `0951`, `0999`, `0337`, `0515` on `dev`; #1522 and #2528 are still spec-only.
+- **Column names fixed.** PO lines are `purchase_order_lines(po_id, revision, boq_item_id, quantity, rate, unit)`, joined to the purchase through `purchase_order_revisions(po_id, procurement_id, revision)`; the PO's currency is `purchase_orders.currency` and its vendor `procurements.vendor_id`.
+- **"Live certificate" defined** as `submitted`, `approved` or `billed`. Draft and returned certificates reserve nothing: a measured line is claimed at **submit**, and that is what AC-SPC-012 now races.
+- **The cost lands through the shipped seam.** FR-SPC-014 sets the bill's work order with `set_cost_attribution('vendor_bill', …)` (0951 §5), not a bare column write; the shipped rule trigger still decides whether the work order is allowed.
+- **The deduction is stated against the shipped bill rule.** The capture requires the pre-tax amount to equal the lines (FR-SCA-023), so a backcharge can never sit inside the amount: it is its own field and **payable** is the figure that falls (FR-SPC-015, OD-SPC-5).
+- **The approver population is named** from the shipped roles (capture allows Admin, Executive, Project Manager, Finance; approval here is narrower — Finance and Admin, Executive only by OD-SPC-9 — and the RPC enforces the narrower set).
+- **Refusals added** to the Errors table: a second submit, a PO revision that moved between submit and bill (`SC001` `line_not_on_po`), a purchase closed at bill time, a connected-ERP organisation with backcharges.
+- **AC-SPC-016 narrowed to the work-order cost read**; "project totals use the same net figure" moved to OD-SPC-5, where the reader inventory decides it.
+- **The void path is a hook, not a call.** Voiding a bill is the shipped `0885` routine, which knows nothing of certificates, so FR-SPC-017 now returns a `billed` certificate to `approved` through an after-update trigger on the bill — and a certificate problem can never block a void.
+- **Immutability unscrambled.** FR-SPC-013 said an approved certificate is immutable while FR-SPC-017 and the state machine let it be billed or cancelled. It is now the lines, rates, backcharges and totals that are immutable, with only those two status transitions permitted, and AC-SPC-007 matches.
+- **Generic wording:** the signed acceptance is named as the organisation's own document, not by one country's form name.
+
+Open owner decisions: OD-SPC-1 (crew on #1522 progress lines), OD-SPC-5 (the deduction, its ADR and reader inventory), OD-SPC-6 (retention), OD-SPC-9 (Executive as approver — and the fact that a one-person organisation can never bill a certificate under it), OQ-SPC-1 (calendar-month period). Nothing else here needs a decision, but Slice 3 cannot start before #1522 and #2528 ship with a crew on progress lines.
+
 ## Job story
 
 When a month ends and a subcontractor's crews have worked on our work orders, I want a certificate drawn up from the daily reports our quantity-surveyor already validated, priced at the subcontractor's agreed rates, with the backcharges we owe ourselves taken off, so that the vendor bill we pay is exactly what was measured, never more than the subcontract allows, and its cost lands on the right work order, without anyone retyping quantities into a spreadsheet.
@@ -9,11 +25,11 @@ When a month ends and a subcontractor's crews have worked on our work orders, I 
 ## Context and boundary
 
 Shipped on `dev` and relied on (verified by reading the files named):
-- **Subcontract purchase order with BoQ lines** (`supabase/migrations/0449_subcontract_po_lines.sql`): `procurements.is_subcontract`, `purchase_order_lines` (po, revision, `boq_item_id`, `quantity numeric(14,3)`, `rate numeric(14,2)`, unit), `purchase_order_revisions`, `po_effective_revision()`.
+- **Subcontract purchase order with BoQ lines** (`supabase/migrations/0449_subcontract_po_lines.sql`): `procurements.is_subcontract`, `purchase_order_lines` (`po_id`, `revision`, `boq_item_id`, `quantity numeric(14,3)`, `rate numeric(14,2)`, `unit`, plus a generated `amount`), `purchase_order_revisions` (`po_id`, `procurement_id`, `revision`), `po_effective_revision()`; the PO's `currency` and the purchase's `vendor_id`.
 - **Signed acceptance and the bill cap** (`0470_subcontract_acceptances.sql`, `0472_subcontract_bill_caps.sql`): `prepare_/confirm_/withdraw_subcontract_acceptance`, `subcontract_verified()`, `subcontract_bill_cap_violation()` (billed + requested <= least(verified, PO quantity), fails closed), `capture_subcontract_vendor_invoice()` (lines, rate no higher than the PO rate, amount equals the lines, advisory lock per PO), `procurement_invoice_lines` (primary key invoice + `boq_item_id`, so one line per item per bill), `subcontract_po_position()`, void in `0885_void_subcontract_bill.sql`.
 - **Work order on every cost** (#2517, `0951_work_order_cost_attribution.sql`): `procurement_invoices.work_order_id`, rule trigger `check_cost_attribution`, view `work_order_cost_lines`, plan versus actual (`0999_work_order_cost_amounts.sql`).
 - **Contract items** are `boq_items`; a work order's items are `work_order_lines` (`0337_contract_quantities.sql`). Vendors are `companies`.
-- **Rate-line versioning pattern** (`0515_contract_rates.sql`: version, `is_current`, effective window, `stamp_org_id`, FORCE RLS) is the model for the rate card; it holds client-side rates only and is not reused.
+- **Rate-line versioning pattern** (`0515_contract_rates.sql`: `contract_rate_lines`, version, `is_current`, effective window, `stamp_org_id`, FORCE RLS) is the model for the rate card; that table holds client-side **labour** rates per project only and is not reused.
 
 **Not shipped, dependencies (checked on `dev`: no migration or table exists):**
 - **#1522 daily site report** (spec only). A validated report with progress lines (work order, contract item, quantity, date) is the measured-work source. Its progress line names no performing party today; this spec needs an optional `crew_id` on each progress line (OD-SPC-1) and must be reconciled with that ticket before either builds.
@@ -22,7 +38,7 @@ Shipped on `dev` and relied on (verified by reading the files named):
 - **#2517** is shipped.
 
 Boundary:
-- A certificate is a **calculation and approval record**. It never posts, pays, or edits a bill by hand. Its only effect on payables is one call to the shipped capture function.
+- A certificate is a **calculation and approval record**. It never posts, pays, or edits a bill by hand. Its only effect on payables is one call to the shipped capture function, plus setting that bill's work order through the shipped attribution seam.
 - Measured quantity for payment is still gated by the shipped cap, which needs a confirmed signed acceptance. The certificate prepares that acceptance; it does not replace it (OD-SPC-4).
 - Retention, advance recovery and tax changes are not modelled by the shipped subcontract bill (SCA OQ-8 deferred them); see OD-SPC-6.
 - Standalone mode (no ERP) is built here. Pushing the deduction to a connected ERP is OD-SPC-5.
@@ -31,6 +47,7 @@ Boundary:
 
 - **Certificate**: one subcontract PO, one calendar month (period), one work order (the PO's `work_order_id`; OD-SPC-7).
 - **Period**: first to last calendar day inclusive, project-local dates, never browser time. At most one non-cancelled certificate per PO and period.
+- **Live certificate**: `submitted`, `approved` or `billed`. A `draft`, `returned` or `cancelled` certificate holds nothing: the claim on a measured line and on a backcharge is taken at **submit**, where it is refused if another live certificate already holds it.
 - **Measured line**: a progress line of a **validated, non-superseded** daily report where the report's work order is the certificate's, the work date is in the period, the line's crew is a `vendor` crew whose vendor is the PO's vendor, the contract item is on the PO's effective revision, and the line is in no other live certificate.
 - **Measured quantity** per contract item = sum of measured-line quantities, `numeric(14,3)`.
 - **Rate card line**: (vendor company, contract item, unit, rate `numeric(14,2)`, currency, `effective_from`, optional `effective_to`, version, `is_current`). `effective_from` is the first day of a month (OD-SPC-3), windows of one (vendor, item) do not overlap.
@@ -74,20 +91,20 @@ Gross 538.30. Backcharge 38.30 ("rework"). Net **500.00**. Excluded and listed: 
 - FR-SPC-009 The system shall let the preparer record a backcharge with amount, reason and optional proof, include or exclude it, and shall show gross, backcharges and net.
 
 **Acceptance bridge**
-- FR-SPC-010 The system shall let the preparer create, from a certificate, a **draft** subcontract acceptance whose cumulative verified quantity per item is the latest confirmed verified quantity plus the certificate's measured quantity, by calling the shipped `prepare_subcontract_acceptance`. Confirming it (signed Berita Acara, preparer ≠ confirmer) stays the shipped process.
+- FR-SPC-010 The system shall let the preparer create, from a certificate, a **draft** subcontract acceptance whose cumulative verified quantity per item is the latest confirmed verified quantity plus the certificate's measured quantity, by calling the shipped `prepare_subcontract_acceptance`. Confirming it (the signed acceptance document, by the organisation's own name for it, preparer ≠ confirmer) stays the shipped process.
 
 **Submit, approve, bill**
 - FR-SPC-011 When submitted, the system shall freeze the lines, rates, backcharges and totals as a snapshot with preparer and time.
 - FR-SPC-012 When a certificate is approved, the system shall refuse unless the approver is not the preparer, all lines pass the shipped cap check (`subcontract_bill_cap_violation`, fail closed), net >= 0, and no line is unrated. Approval shall be a security-definer RPC.
-- FR-SPC-013 An approved certificate shall be immutable (update and delete refused by the database, including by the function owner path).
-- FR-SPC-014 When an approved certificate is billed, the system shall call `capture_subcontract_vendor_invoice` with the frozen lines at the frozen rates, set `procurement_invoices.work_order_id` to the certificate's work order, store the invoice id on the certificate and move it to `billed`; it shall not insert into `procurement_invoice_lines` or any payment table itself.
-- FR-SPC-015 The bill's amount shall reflect the backcharges so that the payable equals the certificate's net (OD-SPC-5). The cap and the PO-rate check shall use gross quantities and rates as shipped.
+- FR-SPC-013 An approved certificate's lines, rates, backcharges and totals shall be immutable (update and delete refused by the database, including by the function owner path); its status may move only to `billed` or `cancelled` through those two RPCs.
+- FR-SPC-014 When an approved certificate is billed, the system shall call `capture_subcontract_vendor_invoice` with the frozen lines at the frozen rates, set the bill's work order through the shipped `set_cost_attribution('vendor_bill', …)` seam (its rule trigger still decides whether the work order is allowed), store the invoice id on the certificate and move it to `billed`; it shall not insert into `procurement_invoice_lines` or any payment table itself.
+- FR-SPC-015 A backcharge shall reduce the bill's **payable**, never its pre-tax amount: the shipped capture requires the amount to equal its lines (FR-SCA-023), so the deduction is its own stored field and the payment ceiling subtracts it, making the payable the certificate's net (OD-SPC-5). The cap and the PO-rate check shall use gross quantities and rates, as shipped.
 - FR-SPC-016 If bill capture is refused (cap, lock, closed purchase), the certificate shall stay `approved` and show the refusal reason; nothing shall be half-written.
-- FR-SPC-017 Cancelling a `submitted` or `approved` certificate before billing, or voiding its bill, shall release its measured lines and backcharges to be certified again.
+- FR-SPC-017 Cancelling a `submitted` or `approved` certificate before billing shall release its measured lines and backcharges to be certified again; voiding its bill (the shipped `0885` void) shall return it to `approved` and release them, done by an after-update trigger on the bill so the void never has to be called from the certificate — and so a certificate problem can never block a void.
 
 **Visibility and access**
 - FR-SPC-018 The system shall list certificates by project, vendor, PO, period and status, with stable order and bounded pagination (archive per ADR-0018), and show on the work order its certified cost by period.
-- FR-SPC-019 Actions (manage rate card, prepare, record backcharge, submit, approve, bill, view) shall be registered in the role matrix (#902) and gated by `can()`; RLS and the RPCs enforce. Preparers: Project Manager, Finance, Admin. Approvers: Finance, Admin (and Executive if the existing approval set includes it, OD-SPC-9).
+- FR-SPC-019 Actions (manage rate card, prepare, record backcharge, submit, approve, bill, view) shall be registered in the role matrix (#902) and gated by `can()`; RLS and the RPCs enforce. Preparers: Project Manager, Finance, Admin. Approvers: Finance and Admin, plus Executive only if OD-SPC-9 says so — the shipped capture allows Admin, Executive, Project Manager and Finance, and approval is deliberately narrower, which the approving RPC enforces.
 - FR-SPC-020 Every certificate, line, backcharge and rate row shall carry `org_id` stamped by default or trigger, never from the client, with RLS and FORCE RLS on every new table; children inherit tenancy from the parent.
 - FR-SPC-021 Every prepare, submit, return, approve, bill, cancel and backcharge change shall write an audit event with actor and time.
 
@@ -108,16 +125,16 @@ Gross 538.30. Backcharge 38.30 ("rework"). Net **500.00**. Excluded and listed: 
 | AC-SPC-004 | Given a rate card change from the next month, when last month's certificate is derived, then the earlier rate is used; given an `effective_from` that is not a month start, or an overlapping window, then refused. | pgTAP |
 | AC-SPC-005 | Given a card rate above the PO line rate or in another currency, when derived, then the item is unrated with that reason and contributes 0. | pgTAP |
 | AC-SPC-006 | Given a certificate submitted by A, when A approves it, then refused; when another Finance or Admin approves, then `approved`. A sole-member organisation cannot approve. | pgTAP (+ mutation check) |
-| AC-SPC-007 | Given an approved certificate, when anyone updates or deletes it, its lines, or its backcharges (including through a definer path), then refused. | pgTAP |
+| AC-SPC-007 | Given an approved certificate, when anyone updates its lines, rates, backcharges or totals, or deletes any of them (including through a definer path), then refused; only the bill and cancel transitions change it. | pgTAP |
 | AC-SPC-008 | Given a submitted snapshot, when a daily report is later corrected or the card rate changes, then the snapshot is unchanged; after return and resubmit it reflects them. | pgTAP |
 | AC-SPC-009 | Given measured A = 40 but verified 30 (no confirmed acceptance for 40), when approval is attempted, then refused naming item, verified, PO quantity, billed; after the prepared acceptance is confirmed for 40, approval succeeds. | pgTAP |
 | AC-SPC-010 | Given an approved certificate, when billed, then exactly one invoice exists with lines equal to the snapshot at the snapshot rates, `work_order_id` set to the certificate's, and the invoice id stored; a second bill call creates none. | pgTAP |
 | AC-SPC-011 | Given the billed certificate, when payable is read, then it is 500.00 (gross 538.30 less the backcharge 38.30) and a payment above it is refused. | pgTAP |
-| AC-SPC-012 | Given two concurrent certificates over the same measured lines, then exactly one claims each line; given two concurrent bills at the cap, exactly one succeeds. | pgTAP (concurrency) |
+| AC-SPC-012 | Given two concurrent submits — of the same certificate, or of two certificates that would claim the same measured line — then exactly one claim is taken and the other is refused; given two concurrent bills at the cap, exactly one succeeds. | pgTAP (concurrency) |
 | AC-SPC-013 | Given bill capture refused by the cap, then the certificate stays `approved` with the reason and no invoice or line rows exist. | pgTAP |
-| AC-SPC-014 | Given a cancelled certificate or a voided bill, then its measured lines and backcharges can be certified again and the PO position's billed quantity drops. | pgTAP |
+| AC-SPC-014 | Given a cancelled certificate, its measured lines and backcharges can be certified again and nothing was billed; given a voided bill, they can be certified again **and** the PO position's billed quantity drops. | pgTAP |
 | AC-SPC-015 | Given net would be negative (backcharges above gross), then approval is refused (OD-SPC-8). | pgTAP |
-| AC-SPC-016 | Given the billed certificate, when the work-order cost read is opened, then the bill shows on that work order with the net-based cost per OD-SPC-5, and project totals use the same figure. | pgTAP |
+| AC-SPC-016 | Given the billed certificate, when the work-order cost read is opened, then the bill shows on that work order with the net-based cost per OD-SPC-5 (project totals are decided by that decision, not by this AC). | pgTAP |
 | AC-SPC-017 | Given a user in another organisation, a role without permission, an Engineer or a field controller, when they read or write rates, certificates or backcharges, then refused or not found; a Project Manager sees rates only of their projects' vendors. | pgTAP |
 | AC-SPC-018 | Given the SoD line and the cap pre-check are each removed in turn, then AC-SPC-006 and AC-SPC-009 go red (mutation check, restored afterwards). | pgTAP (mutation) |
 | AC-SPC-019 | Given a certificate screen in each state (draft with exclusions, submitted, approved, billed, error, empty), then every figure, exclusion reason and the refusal wording render, in English and Bahasa Indonesia. | Unit/RTL |
@@ -131,6 +148,10 @@ Gross 538.30. Backcharge 38.30 ("rework"). Net **500.00**. Excluded and listed: 
 | Unrated item | Excluded and listed; approval needs none left unrated unless deselected |
 | Net below zero | Refused with the figures |
 | Another live certificate holds the line | "Already certified in <period>" with link |
+| Second submit of the same certificate | Refused, no second claim; the existing claim stands |
+| PO effective revision moved since submit | `SC001` (`line_not_on_po`) at bill time; the certificate stays `approved` |
+| Purchase closed (cancelled or rejected) at bill time | Refused by the shipped capture (`42501`); stays `approved` |
+| Connected-ERP organisation with backcharges | Refused until the ERP route carries the deduction (OD-SPC-5) |
 | Rate card overlap or non-month-start | Field error |
 | Read truncated or failed | Error state, no totals shown |
 
@@ -141,11 +162,11 @@ Gross 538.30. Backcharge 38.30 ("rework"). Net **500.00**. Excluded and listed: 
 | OD-SPC-2 | The rate card is a cost rate per (vendor, contract item), separate from the client rate catalogue (#2520) and the T&M card (`0515`). | Reusing the client rate would pay the vendor our selling price. |
 | OD-SPC-3 | Rate changes take effect on month starts, so one rate applies per item per certificate (the shipped bill allows one line per item). | Mid-month changes would need split bill lines; the shipped primary key forbids it. |
 | OD-SPC-4 | The certificate prepares, but does not replace, the signed acceptance; the shipped cap is the gate. | Skipping it pays for quantity nobody signed for, the exact thing #1513 prevents. |
-| OD-SPC-5 | Backcharges reduce the payable through one new non-tax deduction on the bill, honoured by the payment ceiling and the work-order cost; cost on the work order is net of backcharges. Tax withholding fields are not reused. ERP-connected organisations: deduction is held back until the ERP route (#1505) carries it; standalone only now. Needs an ADR. | Reusing the tax withholding field corrupts withholding slips; ignoring it overpays the vendor by the backcharge. |
+| OD-SPC-5 | Backcharges reduce the payable through one new non-tax deduction field on the bill (the amount must still equal its lines, FR-SCA-023), honoured by the payment ceiling and the work-order cost; cost on the work order is net of backcharges. Project totals follow only after the reader inventory says which of them read bills. Tax withholding fields are not reused. ERP-connected organisations: deduction is held back until the ERP route (#1505) carries it; standalone only now. Needs an ADR. | Reusing the tax withholding field corrupts withholding slips; ignoring it overpays the vendor by the backcharge; changing a shared reader on one path only makes the payable and the cost disagree. |
 | OD-SPC-6 | Retention is not in the shipped model; none in this slice. Owner to say whether a retention percentage per subcontract is wanted next. | A contract with retention would over-pay each month until built. |
 | OD-SPC-7 | One certificate covers one PO and one work order (the PO's). Lines from other work orders are listed excluded. | A PO spanning several work orders needs one certificate each, or a split bill. |
 | OD-SPC-8 | Net may not be negative; excess backcharge carries to the next certificate. | A negative bill is a credit note, which the shipped model lacks. |
-| OD-SPC-9 | Approver is Finance or Admin, never the preparer, with no sole-operator escape (as daily-report validation). | Self-approval of a payable is the money-path defect class. |
+| OD-SPC-9 | Approver is Finance or Admin, never the preparer, with no sole-operator escape (as daily-report validation). | Self-approval of a payable is the money-path defect class — but read the consequence: a one-person organisation can never bill a certificate, while the shipped acceptance still offers a `sole_operator` basis. If that is unacceptable, the escape needs a named, audited rule, not silence. |
 | OQ-SPC-1 | Is the certificate period always a calendar month? Default yes. | Four-week or contract-month periods need a configurable cycle. |
 | OQ-SPC-2 | Are backcharge reasons a fixed short list (rework, damaged, safety, materials supplied, other)? Default yes. | Reporting by cause is weak. |
 

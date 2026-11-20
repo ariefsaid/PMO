@@ -1,5 +1,6 @@
 import { Avatar } from '@/src/components/ui/Avatar';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { FigureHiddenLine, Icon, RecordSection, useFigureReport, useFigureScope, type HiddenFigure } from '@/src/components/ui';
 import { formatCurrency, formatDay } from '@/src/lib/format';
@@ -344,11 +345,14 @@ export interface ProcurementTimelineProps {
   canWriteFiles: boolean;
   uploadedById: string | null;
   onFullHistory: () => void;
+  focusedRecordId?: string;
+  workOrderLinks?: Record<string, { id: string; label: string }>;
 }
 
-export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procurement, ledgerRows, linkedDocuments, isEngineer, canWriteFiles, uploadedById, onFullHistory }) => {
+export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procurement, ledgerRows, linkedDocuments, isEngineer, canWriteFiles, uploadedById, onFullHistory, focusedRecordId, workOrderLinks = {} }) => {
   const { t } = useTranslation('procurementRecord');
   const [filter, setFilter] = useState<'all' | 'financial' | 'has-file'>('all');
+  useEffect(() => { if (focusedRecordId) document.getElementById(`cost-${focusedRecordId}`)?.scrollIntoView?.({ block: 'center' }); }, [focusedRecordId]);
   const entries = useMemo(() => {
     const raisedEntry: TimelineEntry = {
       id: `raised-${procurement.id}`,
@@ -425,8 +429,8 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
         {visible.length === 0 ? <p className="py-4 text-sm text-muted-foreground">{t('timeline.empty', 'No activity recorded yet.')}</p> : (
           <ol className="divide-y divide-border/70">
             {visible.map((entry) => (
-              <li key={entry.id} data-testid="procurement-timeline-row" className="py-2.5 first:pt-0 last:pb-0">
-                <details>
+              <li key={entry.id} id={entry.ledger ? `cost-${entry.ledger.recordId}` : undefined} data-testid="procurement-timeline-row" className="py-2.5 first:pt-0 last:pb-0">
+                <details open={Boolean(focusedRecordId && entry.ledger?.recordId === focusedRecordId) || undefined}>
                   <summary className="grid cursor-pointer list-none grid-cols-[20px_92px_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring max-[640px]:grid-cols-[20px_minmax(0,1fr)_auto]">
                     <span aria-hidden="true" className={`grid size-5 place-items-center rounded-full ${entry.source === 'accounting-system' ? 'bg-violet/10 text-status-violet-text' : entry.approval ? 'bg-success/10 text-success-text' : 'bg-secondary text-secondary-foreground'}`}>
                       <Icon name={entry.icon} className="size-3.5" />
@@ -453,6 +457,7 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
                   <div className="ml-[128px] mt-2 border-l border-border pl-3 text-sm text-muted-foreground max-[640px]:ml-8">
                     {entry.erp && <dl className="mb-2 grid grid-cols-2 gap-x-4 gap-y-1"><dt>{t('details.supplier', 'Supplier')}</dt><dd>{entry.erp.supplier ?? '—'}</dd><dt>{t('timeline.status', 'Status')}</dt><dd>{entry.erp.erpStatus ?? '—'}</dd><dt>{t('timeline.dueDate', 'Due date')}</dt><dd>{showDate(entry.erp.dueDate, t('timeline.dateMissing', 'Date not recorded'))}{entry.overdueDays ? ` · ${t('timeline.overdue', { defaultValue: 'Overdue {{days}} days', days: entry.overdueDays })}` : ''}</dd></dl>}
                     {entry.ledger && <>
+                      {workOrderLinks[entry.ledger.recordId] && <p>{t('timeline.workOrder', 'Work order')} · <Link className="underline" to={`/work-orders/${workOrderLinks[entry.ledger.recordId].id}`}>{workOrderLinks[entry.ledger.recordId].label}</Link></p>}
                       {entry.ledger.groupRef && <p>{t('timeline.groupRef', 'Group ref')} · {entry.ledger.groupRef}</p>}
                       {(() => {
                         const phase = phaseByType[entry.ledger.type];

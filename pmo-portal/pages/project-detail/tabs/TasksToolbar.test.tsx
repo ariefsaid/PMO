@@ -25,6 +25,7 @@ const baseProps = () => ({
   onNewTask: vi.fn(),
   scope: 'mine' as TaskScope,
   setTaskScope: vi.fn(),
+  workOrderFilter: 'all', onWorkOrderFilter: vi.fn(), workOrderOptions: [],
   statusFilter: 'all' as TaskStatus | 'all',
   onStatusFilter: vi.fn(),
   assigneeFilter: 'all',

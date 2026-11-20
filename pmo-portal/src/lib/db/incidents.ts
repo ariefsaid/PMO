@@ -2,6 +2,8 @@ import { fetchAllPages } from '@/src/lib/pagedRead';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables, TablesInsert, TablesUpdate } from '@/src/lib/supabase/database.types';
+import { sanitizeFilename } from '@/src/lib/storageKey';
+import { toStorageAppError } from '@/src/lib/storageError';
 
 export type IncidentRow = Tables<'incident_reports'>;
 export type IncidentSeverity = IncidentRow['severity']; // 'Low' | 'Medium' | 'High' | 'Critical'
@@ -26,7 +28,18 @@ export interface IncidentInput {
    * rejects a cross-org project_id (42501) — org_id itself is NEVER sent (RLS authority).
    */
   project_id?: string | null;
+  /** Site-issue fields (#2521). All optional; the database re-checks each (work order of the project, active assignee, future due time). */
+  work_order_id?: string | null;
+  assignee_id?: string | null;
+  action?: string;
+  /** ISO timestamp the fix is due. */
+  due_at?: string | null;
 }
+
+export type IncidentFileRow = Tables<'incident_files'>;
+export type IncidentFileKind = 'at_raise' | 'at_close';
+export const INCIDENT_FILES_BUCKET = 'incident-files';
+export const INCIDENT_FILE_MAX_BYTES = 15 * 1024 * 1024;
 
 /** Shape of a PostgREST/Postgres error we surface (only the fields we read). */
 interface PostgrestErrorLike {
@@ -47,11 +60,14 @@ function throwWrite(error: PostgrestErrorLike): never {
 const likeAny = (value: string) => `"%${value.replace(/[\\%_"]/g, '\\$&')}%"`;
 
 /** The register's status filter + type/location search, shared by the page read and the full read. */
-function withFilters<Q extends { eq: (c: string, v: string) => Q; or: (f: string) => Q }>(
+function withFilters<Q extends { eq: (c: string, v: string) => Q; or: (f: string) => Q; neq: (c: string, v: string) => Q; lt: (c: string, v: string) => Q }>(
   query: Q,
-  params?: { status?: IncidentStatus; search?: string },
+  params?: { status?: IncidentStatus; search?: string; overdue?: boolean; projectId?: string },
 ): Q {
   if (params?.status) query = query.eq('status', params.status);
+  if (params?.projectId) query = query.eq('project_id', params.projectId);
+  // Overdue = not Closed and past its due time, computed here from due_at (FR-SIL-022), not from the escalation job.
+  if (params?.overdue) query = query.neq('status', 'Closed').lt('due_at', new Date().toISOString());
   const term = params?.search?.trim();
   if (!term) return query;
   const pattern = likeAny(term);
@@ -65,7 +81,7 @@ function withFilters<Q extends { eq: (c: string, v: string) => Q; or: (f: string
  * incident_date descending (newest first) for a stable, scannable register. Throws an
  * `AppError` (code preserved) on failure.
  */
-export async function listIncidents(params?: { status?: IncidentStatus; search?: string }): Promise<IncidentRow[]> {
+export async function listIncidents(params?: { status?: IncidentStatus; search?: string; overdue?: boolean; projectId?: string }): Promise<IncidentRow[]> {
   return fetchAllPages((from, to) => {
     const query = withFilters(supabase.from('incident_reports').select('*'), params);
     return query.order('incident_date', { ascending: false }).order('id', { ascending: true }).range(from, to);
@@ -87,6 +103,8 @@ export async function listIncidentsPage(input: {
   pageSize: number;
   status?: IncidentStatus;
   search?: string;
+  overdue?: boolean;
+  projectId?: string;
 }): Promise<{ rows: IncidentRow[]; total: number }> {
   const from = Math.max(0, input.page - 1) * input.pageSize;
   const { data, error, count } = await withFilters(
@@ -148,6 +166,10 @@ export async function createIncident(input: IncidentInput): Promise<IncidentRow>
   if (input.description?.trim()) insert.description = input.description.trim();
   // Only sent when a project is chosen — omitting it leaves project_id NULL (unlinked).
   if (input.project_id) insert.project_id = input.project_id;
+  if (input.work_order_id) insert.work_order_id = input.work_order_id;
+  if (input.assignee_id) insert.assignee_id = input.assignee_id;
+  if (input.action?.trim()) insert.action = input.action.trim();
+  if (input.due_at) insert.due_at = input.due_at;
 
   const { data, error } = await supabase
     .from('incident_reports')
@@ -173,6 +195,10 @@ export async function updateIncident(id: string, input: IncidentInput): Promise<
     description: input.description?.trim() || null,
     // Written explicitly (NULL when cleared) so an edit can both set AND remove the project link.
     project_id: input.project_id ?? null,
+    work_order_id: input.work_order_id ?? null,
+    assignee_id: input.assignee_id ?? null,
+    action: input.action?.trim() || null,
+    due_at: input.due_at ?? null,
   };
   const { data, error } = await supabase
     .from('incident_reports')
@@ -190,10 +216,13 @@ export async function updateIncident(id: string, input: IncidentInput): Promise<
  * rejected as a `42501` `AppError` (#534: a `using` denial hides the row rather than erroring, so
  * this asserts `.select('id')` actually returned the row instead of trusting a null `error`).
  */
-export async function transitionIncident(id: string, status: IncidentStatus): Promise<void> {
+export async function transitionIncident(id: string, status: IncidentStatus, closeNote?: string): Promise<void> {
+  const patch: TablesUpdate<'incident_reports'> = { status };
+  // The close note rides with the closing write (closed_at / closed_by are the database's, never sent).
+  if (status === 'Closed' && closeNote?.trim()) patch.close_note = closeNote.trim();
   const { data, error } = await supabase
     .from('incident_reports')
-    .update({ status })
+    .update(patch)
     .eq('id', id)
     .select('id');
   if (error) throwWrite(error);
@@ -212,4 +241,59 @@ export async function deleteIncident(id: string): Promise<void> {
   const { data, error } = await supabase.from('incident_reports').delete().eq('id', id).select('id');
   if (error) throwWrite(error);
   assertWriteLanded(data, 'Incident not found or you do not have permission to delete it.');
+}
+
+/** The live attachments of an issue, oldest first (RLS: anyone who reads the issue reads them). */
+export async function listIncidentFiles(incidentId: string): Promise<IncidentFileRow[]> {
+  const { data, error } = await supabase
+    .from('incident_files')
+    .select('*')
+    .eq('incident_id', incidentId)
+    .is('archived_at', null)
+    .order('created_at', { ascending: true })
+    .limit(50); // bounded: the database allows at most 15 live files per issue
+  if (error) throwWrite(error);
+  return data ?? [];
+}
+
+/**
+ * Upload one photo/PDF for an issue: the object first ({org}/{incident}/{file_id}/{filename}), then the row that
+ * records it. A failed row insert removes the object so nothing is left orphaned. The org segment comes from the
+ * issue row (RLS-scoped), never from the client. The database caps a file at 15 MB, 10 raise files and 5 close files per issue.
+ */
+export async function uploadIncidentFile(input: {
+  incident: Pick<IncidentRow, 'id' | 'org_id'>;
+  kind: IncidentFileKind;
+  file: File;
+}): Promise<IncidentFileRow> {
+  const { incident, kind, file } = input;
+  if (file.size > INCIDENT_FILE_MAX_BYTES) throw new AppError('A file can be at most 15 MB.', 'FILE_TOO_LARGE');
+  const fileId = crypto.randomUUID();
+  const path = `${incident.org_id}/${incident.id}/${fileId}/${sanitizeFilename(file.name)}`;
+  const up = await supabase.storage.from(INCIDENT_FILES_BUCKET).upload(path, file, { contentType: file.type || undefined });
+  if (up.error) throw toStorageAppError(up.error);
+  const { data, error } = await supabase
+    .from('incident_files')
+    .insert({ id: fileId, incident_id: incident.id, kind, title: file.name, file_path: path })
+    .select()
+    .single();
+  if (error) {
+    await supabase.storage.from(INCIDENT_FILES_BUCKET).remove([path]);
+    throwWrite(error);
+  }
+  return data as IncidentFileRow;
+}
+
+/** A short-lived signed URL to view one attachment. */
+export async function getIncidentFileUrl(filePath: string): Promise<string> {
+  const { data, error } = await supabase.storage.from(INCIDENT_FILES_BUCKET).createSignedUrl(filePath, 300);
+  if (error) throw toStorageAppError(error);
+  return data.signedUrl;
+}
+
+/** Make a task from an issue (managers; one task per issue, refused a second time with the existing task's id in `detail`). */
+export async function createTaskFromIncident(incidentId: string): Promise<string> {
+  const { data, error } = await supabase.rpc('create_task_from_incident', { p_incident: incidentId });
+  if (error) throwWrite(error);
+  return data as string;
 }
