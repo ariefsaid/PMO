@@ -1200,5 +1200,29 @@
     "replace": "Replace",
     "downloadFor": "Download file for {{title}}",
     "download": "Download file"
+  },
+  "rateCatalogue": {
+    "title": "Rate catalogue",
+    "loading": "Loading rates…",
+    "loadError": "Could not load rates",
+    "retry": "Retry",
+    "newVariant": "New location",
+    "addVariant": "Add location",
+    "defaultVariant": "Default location",
+    "none": "None",
+    "import": "Import",
+    "saveError": "Could not save. Try again.",
+    "empty": "No catalogue items",
+    "item": "Item",
+    "location": "Location",
+    "rate": "Rate",
+    "effective": "Effective from",
+    "pickItem": "Catalogue item",
+    "chooseLocation": "Choose location",
+    "pricingDate": "Pricing date",
+    "unpricedReason": "No rate for this location on this date.",
+    "unpriced": "Unpriced",
+    "sourceUnavailable": "Location unavailable",
+    "noLocations": "No locations yet. Add a location."
   }
 }

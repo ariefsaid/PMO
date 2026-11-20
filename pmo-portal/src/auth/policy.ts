@@ -77,6 +77,7 @@ export type Entity =
   | 'milestone'
   | 'workOrder'
   | 'boqItem'
+  | 'rateCatalogue'
   | 'progressClaim'
   | 'workOrderLine'
   | 'workOrderAcceptance'
@@ -308,6 +309,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     transition: allow(MASTER_DATA),
   },
   /** Bill of quantities (#766) — mirrors 0250's boq_items policies: the work-order writer set. */
+  rateCatalogue: { view: allow(MASTER_DATA), create: allowUnlessViewOnly(REVENUE_WRITE) },
   boqItem: {
     view: allow(MASTER_DATA),
     create: allow(MASTER_DATA),

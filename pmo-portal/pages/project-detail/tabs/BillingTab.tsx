@@ -23,6 +23,7 @@ import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { ImportButton, ImportWizard } from '@/src/components/import';
 import { makeContractLineImportDescriptor } from '@/src/lib/import';
 import BoqItemFormModal from '../BoqItemFormModal';
+import RateCatalogue from '../RateCatalogue';
 import MaterialAllowanceModal from '../MaterialAllowanceModal';
 import ProgressAssessmentModal from '../ProgressAssessmentModal';
 import ProgressClaimModal from '../ProgressClaimModal';
@@ -33,6 +34,8 @@ import TimeAndMaterials from '../TimeAndMaterials';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
 import { useInvoiceTmClaimNative } from '@/src/hooks/useTimeAndMaterials';
 import { useRevenueRouteReady } from '@/src/hooks/useOwnershipCacheSync';
+import { repositories } from '@/src/lib/repositories';
+import type { PricingChoice } from '../RatePicker';
 
 /**
  * The project's Billing tab (#766). Three things on one page, kept visibly apart (DD-PBL-2):
@@ -106,6 +109,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const [claimFormOpen, setClaimFormOpen] = useState(false);
   const [assessOpen, setAssessOpen] = useState(false);
   const [contractLinesOpen, setContractLinesOpen] = useState(false);
+  const [catalogueOpen, setCatalogueOpen] = useState(false);
+  const [catalogueImportOpen, setCatalogueImportOpen] = useState(false);
   // One overlay at a time (#1278 round B): the import wizard needs the width of a dialog, so opening it from the
   // lines drawer closes the drawer first and reopens it, focus back on "Import lines", when the wizard closes.
   // The wizard is hosted here, not in the button, because the button unmounts with the drawer.
@@ -135,6 +140,15 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const boqRows = useMemo(() => boq.data ?? [], [boq.data]);
   const boqImportDescriptor = useMemo(() => makeContractLineImportDescriptor(projectId, t, currency), [projectId, t, currency]);
   const claimRows = useMemo(() => claims.data ?? [], [claims.data]);
+  const [catalogueLocations, setCatalogueLocations] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!boqRows.some((row) => row.catalogue_variant_id)) return;
+    let active = true;
+    void repositories.rateCatalogue.listVariants(projectId).then((variants) => {
+      if (active) setCatalogueLocations(Object.fromEntries(variants.map((variant) => [variant.id, variant.name])));
+    }).catch(() => { if (active) setCatalogueLocations({}); });
+    return () => { active = false; };
+  }, [boqRows, projectId]);
   const canViewMoney = may('view', 'salesInvoice');
   const openRecordId = searchParams.get('open');
   const openRecordType = searchParams.get('openType');
@@ -198,8 +212,10 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     toast(headline, detail, 'warning');
   };
 
-  const saveBoq = async (input: BoqItemInput) => {
-    if (boqFormFor) await mutations.updateBoq.mutateAsync({ id: boqFormFor.id, input });
+  const saveBoq = async (input: BoqItemInput, pricing?: PricingChoice) => {
+    if (pricing) {
+      await mutations.savePricedBoq.mutateAsync({ id: boqFormFor?.id ?? null, input, itemId: pricing.itemId, variantId: pricing.variantId, asOf: pricing.asOf });
+    } else if (boqFormFor) await mutations.updateBoq.mutateAsync({ id: boqFormFor.id, input: boqFormFor.catalogue_item_id ? { ...input, clearCatalogue: true } : input });
     else await mutations.createBoq.mutateAsync(input);
     toast(t('projectDetail.billing.boq.toast.saved', 'Bill of quantities line saved'), input.itemCode, 'success');
     setBoqFormFor(undefined);
@@ -297,7 +313,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     ...(canViewMoney ? [{ key: 'rate', header: t('projectDetail.billing.boq.column.rateWithCurrency', 'Rate ({{code}})', { code: currency }), align: 'num' as const, size: 176,
       // Round A items 1+7 (#1278): a unit rate shows its EXACT value (2.5 stays 2.5, a whole rate stays whole) —
       // never rounded to the currency's display decimals — and carries no currency symbol: the header names it once.
-      cell: (row: BoqItemRow) => <Tooltip content={t('projectDetail.billing.boq.rateSource', 'Source: the priced contract line rate.') }><span className="cursor-help tabular">{formatNumberExact(Number(row.rate))}</span></Tooltip> }] : []),
+      cell: (row: BoqItemRow) => <span className="tabular">{formatNumberExact(Number(row.rate))}{row.catalogue_priced_as_of && <span className="block text-sm text-muted-foreground">{catalogueLocations[row.catalogue_variant_id ?? ''] ?? t('rateCatalogue.sourceUnavailable', 'Location unavailable')} · {formatDay(row.catalogue_priced_as_of)}</span>}</span> }] : []),
     ...(hasLines ? [
       { key: 'ordered', header: t('projectTabs:contractQuantities.billing.boq.column.ordered', 'Ordered'), align: 'num' as const, cell: (row: BoqItemRow) => {
         const f = lineFactsById.get(row.id);
@@ -660,6 +676,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           <Button variant="outline" size="sm" onClick={() => setContractLinesOpen(true)}>
             {t('projectDetail.billing.boq.manage', 'Edit contract lines')}
           </Button>
+          {may('view', 'rateCatalogue') && <Button variant="outline" size="sm" onClick={() => setCatalogueOpen(true)}>{t('rateCatalogue.title', 'Rate catalogue')}</Button>}
           {canStartInvoice && <Link
             className={buttonClasses('outline', 'sm')}
             to={`/finance/receivables?create=1&project=${encodeURIComponent(projectId)}`}
@@ -668,6 +685,9 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           </Link>}
         </div>
         {raiseInvoiceDialog}
+        <Drawer open={catalogueOpen} nestedOpen={catalogueImportOpen} width="lg" title={t('rateCatalogue.title', 'Rate catalogue')} onClose={() => setCatalogueOpen(false)}>
+          {catalogueOpen && <RateCatalogue projectId={projectId} currency={currency} canWrite={may('create', 'rateCatalogue', { record: { viewOnly: realRole !== effectiveRole } })} onImportOpenChange={setCatalogueImportOpen} />}
+        </Drawer>
         <Drawer open={contractLinesOpen} nestedOpen={Boolean(boqDetailFor)} width="lg" title={t('projectDetail.billing.boq.title', 'Bill of quantities')}
           initialFocus={() => {
             if (!focusImportOnReopen.current) return true;
@@ -682,7 +702,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         {claimDetailDrawer}
         {allowanceFor && <MaterialAllowanceModal projectId={projectId} workItem={allowanceFor} onClose={() => setAllowanceFor(null)} />}
         {boqFormFor !== undefined && (
-          <BoqItemFormModal item={boqFormFor} currencySymbolPrefix={currencySymbol(currency)}
+          <BoqItemFormModal item={boqFormFor} projectId={realRole === effectiveRole ? projectId : undefined} today={orgToday} currency={currency} currencySymbolPrefix={currencySymbol(currency)}
             onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail} />
         )}
         {assessOpen && (
@@ -793,7 +813,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       {importOpen && <ImportWizard descriptor={boqImportDescriptor} onClose={closeImport} />}
       {allowanceFor && <MaterialAllowanceModal projectId={projectId} workItem={allowanceFor} onClose={() => setAllowanceFor(null)} />}
       {boqFormFor !== undefined && (
-        <BoqItemFormModal item={boqFormFor} currencySymbolPrefix={currencySymbol(currency)}
+        <BoqItemFormModal item={boqFormFor} projectId={realRole === effectiveRole ? projectId : undefined} today={orgToday} currency={currency} currencySymbolPrefix={currencySymbol(currency)}
           onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail} />
       )}
       {boqDetailDrawer}
