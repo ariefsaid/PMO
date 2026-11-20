@@ -23,13 +23,16 @@ import { fetchAllPages } from '@/src/lib/pagedRead';
 export type ProjectDocumentRow = Tables<'project_documents'>;
 export type DocStatus = ProjectDocumentRow['status'];
 
+/** The category a caller picked from the categories they may see (#2579). Wins over the name; org_id is never sent. */
+export interface DocumentCategoryRef {
+  category_id?: string;
+}
+
 /** The metadata fields a create/edit form supplies. org_id / author_id / status are NOT here. */
-export interface ProjectDocumentInput {
+export interface ProjectDocumentInput extends DocumentCategoryRef {
   code: string;
   /** The category's name. Sent only when `category_id` is absent (a caller that knows no id); the server resolves the name. */
   category: string;
-  /** The category the caller picked from the categories they may see (#2579). Wins over the name; org_id is never sent. */
-  category_id?: string;
   title: string;
   revision: string;
   doc_date: string;

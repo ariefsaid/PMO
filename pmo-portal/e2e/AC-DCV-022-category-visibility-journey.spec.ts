@@ -69,6 +69,8 @@ test('AC-DCV-022: a category visible to Finance and Executive keeps its document
   ]);
   await chooser.setFiles(PDF_FIXTURE);
   await expect(row.getByText('tiny-upload.pdf')).toBeVisible({ timeout: 15_000 });
+  await drawer.getByRole('button', { name: 'Close' }).click();
+  await expect(drawer).not.toBeVisible({ timeout: 10_000 });
   await row.getByLabel(`View ${title}`).click();
   const downloadPromise = finance.page.waitForEvent('download');
   await finance.page.getByRole('dialog', { name: title }).getByRole('button', { name: /^download$/i }).click();

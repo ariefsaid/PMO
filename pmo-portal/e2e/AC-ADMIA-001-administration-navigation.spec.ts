@@ -51,6 +51,7 @@ const ORGANIZATION_SECTIONS = [
 const EXPECTED_ORGANIZATION_LINKS = [
   ...ORGANIZATION_SECTIONS.map(({ name }) => name),
   'Your plan',
+  'Document categories', // #2579: an Admin-only destination, shown to this Admin
   'Cost attribution',
 ];
 
