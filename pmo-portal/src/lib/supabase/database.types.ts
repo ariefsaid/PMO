@@ -5812,6 +5812,7 @@ export type Database = {
           default_tax_treatment: string
           default_timezone: string
           down_payment_item: string | null
+          fiscal_year_start_month: number | null
           id: string
           input_vat_account: string | null
           lifecycle_state: string | null
@@ -5834,6 +5835,7 @@ export type Database = {
           default_tax_treatment?: string
           default_timezone?: string
           down_payment_item?: string | null
+          fiscal_year_start_month?: number | null
           id?: string
           input_vat_account?: string | null
           lifecycle_state?: string | null
@@ -5856,6 +5858,7 @@ export type Database = {
           default_tax_treatment?: string
           default_timezone?: string
           down_payment_item?: string | null
+          fiscal_year_start_month?: number | null
           id?: string
           input_vat_account?: string | null
           lifecycle_state?: string | null
@@ -13461,6 +13464,11 @@ export type Database = {
           draft: number
         }[]
       }
+      get_org_fiscal_year_setting: {
+        Args: never
+        Returns: { source: string; start_month: number | null }[]
+      }
+      get_pmo_fiscal_calendar: { Args: { p_project_id: string }; Returns: Json }
       get_project_finances: { Args: { p_project_id: string }; Returns: Json }
       get_projects_money_collection: {
         Args: { p_project_ids: string[] }
@@ -15006,6 +15014,10 @@ export type Database = {
       set_odoo_customer_advance_account: {
         Args: { p_account_ref: string; p_actor_id: string; p_org_id: string }
         Returns: undefined
+      }
+      set_org_fiscal_year_start_month: {
+        Args: { p_month: number | null }
+        Returns: number | null
       }
       set_procurement_gates: { Args: { p_gates: Json }; Returns: Json }
       set_procurement_invoice_efaktur: {

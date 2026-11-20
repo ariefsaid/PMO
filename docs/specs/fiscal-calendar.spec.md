@@ -59,8 +59,9 @@ so the Budget tab shows what we spent in each budget year instead of "Spending i
   the year scope's recorded figure unknown (0897 behaviour).
 - **FR-FCAL-008** The system shall serve each visible project's PMO fiscal calendar in the `BudgetProjectFiscalCalendar`
   shape: the consecutive fiscal years covering the project's dates.
-- **FR-FCAL-009** While the organization has a PMO calendar, the Budget tab shall open on the current fiscal year and
-  offer each fiscal year, exactly as it does with an accounting-system calendar.
+- **FR-FCAL-009** While the organization has a PMO calendar, the Budget tab shall offer each of the project's fiscal
+  years and choose its opening scope exactly as it does with an accounting-system calendar (a one-year project on that
+  year, otherwise All years).
 - **FR-FCAL-010** Where no PMO calendar is set, the Budget tab shall keep opening on All years with "Spending is not
   split by year yet" (0897 behaviour).
 - **FR-FCAL-011** When a selected budget year is not a fiscal year of the calendar, the Budget tab shall say spending
@@ -94,8 +95,8 @@ so the Budget tab shows what we spent in each budget year instead of "Spending i
 - **AC-FCAL-010** Given a project running 2026-06-01 to 2027-08-31 and an April start, when its PMO calendar is read,
   then it is resolved with `2026-2027` and `2027-2028`; with no end date it holds only the start year; with no start
   month it is not resolved; for another organization's project it returns nothing.
-- **AC-FCAL-011** Given a PMO calendar on the Budget tab, when it opens, then it opens on the current fiscal year and
-  the Spent column shows the year's recorded figure, not "Spending is not split by year yet".
+- **AC-FCAL-011** Given a PMO calendar on the Budget tab, when a fiscal year is chosen, then the Spent column shows that
+  year's recorded figure, not "Spending is not split by year yet"; a one-year project opens on its fiscal year.
 - **AC-FCAL-012** Given no PMO calendar, when the Budget tab opens, then it opens on All years and keeps the
   not-split message.
 - **AC-FCAL-013** Given a selected budget year that is not a fiscal year of the calendar, then the tab says spending
