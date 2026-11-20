@@ -273,7 +273,7 @@ async function composeViewHandlerInner(
     // point — composeSpec() has already resolved, meaning at least one modelClient.create()
     // call succeeded). tokensUsed → completion_tokens is a coarse proxy: composeSpec/
     // ComposeViewResponse does not surface a prompt/completion split (see
-    // docs/plans/2026-07-03-agent-usage-credits.md Open Question 2) — cost stays the
+    // agent-usage-credits plan (2026-07-03, in git history) Open Question 2) — cost stays the
     // FR-AUC-001-sanctioned default 0 when the provider does not report cost.
     await recordComposeUsage(deps, userId, profileOrgId, model, tokensUsed, providerCost ?? 0);
 

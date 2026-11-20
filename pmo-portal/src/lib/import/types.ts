@@ -18,6 +18,8 @@ export interface ImportField<Input> {
   key: keyof Input & string;
   /** Expected header label (auto-mapped by case/whitespace-insensitive match). */
   label: string;
+  /** The label is fixed app copy and may use organisation terminology. */
+  labelIsAppCopy?: boolean;
   required: boolean;
   /** Required / type / enum-membership check on the raw cell string. */
   validate: FieldValidate;
@@ -48,6 +50,8 @@ export interface ImportField<Input> {
 export interface ImportDescriptor<Input> {
   /** Display name + sheet-name match ("Companies"). */
   entity: string;
+  /** The entity is fixed app copy, separate from the stable import identifier. */
+  entityIsAppCopy?: boolean;
   /**
    * OPTIONAL entity word for the wizard's title and Import button, in the reader's language, already
    * lowercased the way the title reads it ("contract lines" → "Impor baris kontrak", #1278 round A item 4).
@@ -67,6 +71,8 @@ export interface ImportDescriptor<Input> {
    */
   wide?: boolean;
   fields: ImportField<Input>[];
+  /** OPTIONAL row cap for this entity's sheet; ABSENT → `MAX_IMPORT_ROWS`. A large reference list (the rate catalogue, #2520) sets it. */
+  maxRows?: number;
   /**
    * OPTIONAL cross-field row rule, run after every per-cell `validate` (#513).
    *
@@ -107,6 +113,16 @@ export interface ImportDescriptor<Input> {
     /** The disabled button's reason, when no row is left to import. */
     nothingNew: string;
   };
+  /**
+   * OPTIONAL downloadable template (#2530, FR-IMT-001): the wizard offers "Download template" when this is present.
+   * `version` goes into the file; an upload of the current or the previous version is accepted, any other is refused.
+   * `example` is one row keyed by field key; `lists` gives closed lists (field key → values) as dropdowns.
+   */
+  template?: {
+    version: number;
+    example: Record<string, string>;
+    lists?: Record<string, string[]>;
+  };
   /** Mapped cells → the entity's create `Input` (trims, casts; emits NO org_id). */
   toInput: (cells: Record<string, string>) => Input;
   /** The entity's existing create repository fn. RLS stamps org_id + gates the role. */
@@ -117,6 +133,8 @@ export interface ImportDescriptor<Input> {
 export interface ParsedSheet {
   headers: string[];
   rows: string[][];
+  /** The template marker stored in the workbook's properties, when the file came from a downloaded template. */
+  templateMarker?: string | null;
 }
 
 /** field.key → header column index (null = unmapped). */

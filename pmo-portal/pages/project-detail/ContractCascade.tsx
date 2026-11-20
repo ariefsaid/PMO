@@ -14,10 +14,10 @@ import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import { formatNumberMax2, formatTableMoney } from '@/src/lib/format';
 import { selectContractInvoiceFigure } from '@/src/lib/projectFinances';
+import { outstandingIn, settlementFromFinanceBuckets, settlementIn, sumOutstanding } from '@/src/lib/invoiceSettlement';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import ProjectDrawdown from './ProjectDrawdown';
-import { summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
 
 type InvoiceRowWithWorkOrder = SalesInvoiceRow & { work_order_id?: string | null };
 
@@ -68,7 +68,9 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
   const delivered = allocations.reduce((sum, allocation) => sum + (allocation.acceptedQuantity ?? 0) * (rate.get(allocation.boqItemId) ?? 0), 0);
   const notYetOrdered = items.reduce((sum, item) => sum + (facts.get(item.id)?.contractBalance ?? 0) * Number(item.rate), 0);
   const invoiceRows = (invoices.data ?? []) as InvoiceRowWithWorkOrder[];
-  const settlement = summarizeInvoiceSettlement(invoiceRows);
+  // #2204: Paid reads the server projection's per-currency bucket (gross basis); a second or other currency reads unknown.
+  const settlementReading = settlementFromFinanceBuckets(projectFinances.data?.invoices);
+  const settlement = settlementReading ? settlementIn(settlementReading, project.currency) : null;
   const contractInvoiceFigure = selectContractInvoiceFigure(projectFinances.data);
   const showSummary = !isCascadePending && !isCascadeError && canViewMoney && (hasReadingLayer || (
     invoices.isPending || invoices.isError || invoiceRows.length > 0 || Number(project.contract_value) > 0
@@ -82,7 +84,8 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
       ? t('projectDetail.cascade.signedContractExclusive', 'Signed contract · excluding tax')
       : t('projectDetail.cascade.signedContractBasisUnknown', 'Signed contract · tax basis unknown');
   const invoiceFiguresMissing = canViewMoney && (
-    invoices.isPending || invoices.isError || settlement.invoiced === null || (!settlement.balancesKnown && invoiceRows.some((invoice) => invoice.status === 'Paid'))
+    invoices.isPending || invoices.isError || (settlement !== null
+      && !settlement.balancesKnown && invoiceRows.some((invoice) => invoice.status === 'Paid'))
   );
   const orderBillingRows = orderBilling.data ?? [];
   const lineCanInvoice = allocations.reduce((sum, allocation) => {
@@ -175,12 +178,11 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
       action: undefined,
     },
   ];
-  // #1457: the one shared overdue rule (status + derived due date + org day) decides each row.
-  const overdue = invoiceRows.reduce((sum, invoice) => {
-    if (clientInvoiceOverdueDays(invoice, orgDay) === null) return sum;
-    const balance = invoice.erp_outstanding_amount;
-    return balance === null ? sum : sum + Math.max(0, balance);
-  }, 0);
+  // #1457: the one shared overdue rule (status + derived due date + org day) decides each row;
+  // #2204: balances add up only within the project currency, otherwise the overdue figure is unknown.
+  const overdueSum = sumOutstanding(invoiceRows.filter((invoice) => clientInvoiceOverdueDays(invoice, orgDay) !== null));
+  const overdue = outstandingIn(overdueSum, project.currency);
+  const overdueUnknown = overdueSum.denomination !== 'none' && overdue === null;
   const percent = (value: number | null) => contractValue > 0 && value !== null
     ? Math.max(0, Math.round(value / contractValue * 100))
     : null;
@@ -255,11 +257,16 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
               percentage={contractInvoiceFigure.percentage}
               detail={t('projectDetail.cascade.source.invoiced', 'Invoices under the signed contract, in the contract currency and tax basis. Shown as unknown when an invoice currency or tax basis differs from the contract. The percentage is of the signed contract value.')}
             />}
-            {canViewMoney && settlement.balancesKnown && !invoices.isPending && !invoices.isError && <>
-              <MoneyStep label={t('projectDetail.cascade.paid', 'Paid')} value={tableMoney(settlement.paid)} percentage={percent(settlement.paid)} detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount less the accounting balance outstanding.')} />
-            </>}
+            {canViewMoney && settlementReading !== null && !projectFinances.isPending && (settlement === null || settlement.balancesKnown) && <MoneyStep
+              label={t('projectDetail.cascade.paid', 'Paid')}
+              value={settlement?.settled == null ? '—' : tableMoney(settlement.settled)}
+              percentage={percent(settlement?.settled ?? null)}
+              caption={settlement?.gross == null ? undefined : t('projectDetail.cascade.paidOfInvoiced', 'of {{amount}} invoiced, including tax', { amount: tableMoney(settlement.gross), interpolation: { escapeValue: false } })}
+              detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount including tax, less the accounting balance outstanding.')}
+            />}
           </ol>
-          {(hasCustomerOrders || overdue > 0) && <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+          {canViewMoney && !projectFinances.isPending && settlementReading !== null && settlement === null && <p role="status" data-testid="contract-mixed-currency" className="mt-1 text-sm text-muted-foreground">{contractInvoiceFigure.amount === null ? t('projectDetail.cascade.mixedCurrencyNote', 'Invoiced and paid are left out because the invoices are not all in the project currency') : t('projectDetail.cascade.mixedCurrencyNotePaid', 'Paid is left out because the invoices are not all in the project currency')}</p>}
+          {(hasCustomerOrders || (overdue ?? 0) > 0 || overdueUnknown) && <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
             {hasCustomerOrders && (billableAmountUnavailable ? (
               <span className="text-sm text-muted-foreground" role={orderBilling.isError ? 'alert' : 'status'}>
                 {orderBilling.isError
@@ -274,10 +281,10 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
                 <strong className="font-semibold text-foreground">{tableMoney(canInvoice)}</strong>
               </span>
             </Tooltip>)}
-            {overdue > 0 && <Tooltip content={t('projectDetail.cascade.source.overdue', 'Sum of positive outstanding balances on invoices past their due date.')}>
-              <span className="inline-flex cursor-help items-center gap-2 text-warning-foreground tabular-nums">
+            {((overdue ?? 0) > 0 || overdueUnknown) && <Tooltip content={overdueUnknown ? t('projectDetail.cascade.source.overdueUnknown', 'Unknown: overdue invoices are in more than one currency, so their balances are not added up.') : t('projectDetail.cascade.source.overdue', 'Sum of positive outstanding balances on invoices past their due date.')}>
+              <span data-testid="contract-overdue" className="inline-flex cursor-help items-center gap-2 text-warning-foreground tabular-nums">
                 <StatusPill variant="overdue" wrap={false}>{t('projectDetail.cascade.overdue', 'Overdue')}</StatusPill>
-                <strong className="font-semibold">{tableMoney(overdue)}</strong>
+                <strong className="font-semibold">{overdue === null ? '—' : tableMoney(overdue)}</strong>
               </span>
             </Tooltip>}
           </div>}
@@ -443,11 +450,13 @@ const MoneyStep: React.FC<{ label: string; value: string; percentage?: number | 
       <div className="mt-1 block">
         <Tooltip content={detail}><span className="block w-fit cursor-help text-metric font-semibold tabular-nums text-foreground">{value}</span></Tooltip>
       </div>
-      {percentage != null && percentage >= 0 && <span className="mt-2 block w-full max-w-36">
-        <ProgressBar value={percentage} showValue compact aria-label={label} tone={percentage > 100 ? 'destructive' : 'neutral'} />
-      </span>}
-      {percentage != null && percentage < 0 && <span className="mt-2 block text-sm tabular-nums text-muted-foreground">{percentage}%</span>}
-      {caption && <span className="mt-1 block text-sm text-muted-foreground">{caption}</span>}
+      <div className={caption && percentage != null ? 'sm:flex sm:items-start sm:gap-2' : undefined}>
+        {percentage != null && percentage >= 0 && <span className={caption ? 'mt-2 block w-full max-w-36 sm:w-20 sm:shrink-0' : 'mt-2 block w-full max-w-36'}>
+          <ProgressBar value={percentage} showValue compact aria-label={label} tone={percentage > 100 ? 'destructive' : 'neutral'} />
+        </span>}
+        {percentage != null && percentage < 0 && <span className="mt-2 block text-sm tabular-nums text-muted-foreground">{percentage}%</span>}
+        {caption && <span className="mt-1 block text-sm text-muted-foreground">{caption}</span>}
+      </div>
     </li>
   );
 };

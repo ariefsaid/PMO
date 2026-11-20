@@ -54,6 +54,7 @@ vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: [], is
 vi.mock('@/src/hooks/useManagementPack', () => ({
   useRecordProjectProgress: () => ({ mutateAsync: h.recordProgress, isPending: false }),
 }));
+vi.mock('../tabs/BillingReconciliation', () => ({ BillingReconciliation: () => null }));
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
 
 function renderTab(over: { projectManagerId?: string | null; projectStatus?: string | null } = {}) {

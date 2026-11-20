@@ -110,13 +110,13 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   await page.getByLabel('Add a project').selectOption({ label: 'P003 · Acme Internal Platform' });
 
   // A new editable row should appear for Acme Internal Platform.
-  await expect(page.getByText(PROJECT_NAME, { exact: true })).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByTestId('tsgrid-mobile').getByText(PROJECT_NAME, { exact: true })).toBeVisible({ timeout: 5_000 });
 
   // ── Step 4: Enter hours across two projects ──────────────────────────────────
   await fillHourCell(page, PROJECT_NAME, 'Mon', '8');
   await fillHourCell(page, PROJECT_NAME, 'Tue', '6');
   await page.getByLabel('Add a project').selectOption({ label: 'P001 · Innovate Corp HQ Fit-Out' });
-  await expect(page.getByText('Innovate Corp HQ Fit-Out', { exact: true })).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByTestId('tsgrid-mobile').getByText('Innovate Corp HQ Fit-Out', { exact: true })).toBeVisible({ timeout: 5_000 });
   await fillHourCell(page, 'Innovate Corp HQ Fit-Out', 'Wed', '4');
 
   // Live total should reflect 18h before saving across both projects. While the week is editable on a
@@ -167,7 +167,7 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
 
   // Dialog closes and row is gone (FR-TSE-008 — deletion round-trips to DB).
   await expect(alertDialog).not.toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText(PROJECT_NAME, { exact: true })).not.toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('tsgrid-mobile').getByText(PROJECT_NAME, { exact: true })).not.toBeVisible({ timeout: 15_000 });
 
   // The other project's saved 4 hours remain after deleting this project row.
   await expect(liveWeekTotal).toContainText('4 hours this week');
@@ -181,7 +181,7 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   await page.getByLabel('Add a project').selectOption({ label: 'P003 · Acme Internal Platform' });
 
   // Wait for the new row to be stable before filling cells.
-  await expect(page.getByText(PROJECT_NAME, { exact: true })).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByTestId('tsgrid-mobile').getByText(PROJECT_NAME, { exact: true })).toBeVisible({ timeout: 5_000 });
 
   // Fill Monday, retain the other project's Tuesday hours, and submit without a Save-first step.
   await fillHourCell(page, PROJECT_NAME, 'Mon', '8');

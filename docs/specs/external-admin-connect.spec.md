@@ -6,7 +6,7 @@
 
 - **Date:** 2026-07-14
 - **Author:** eng-planner (Design+Plan phase, `docs/director-playbook.md` §2 step 3)
-- **Scope source:** `docs/plans/2026-07-13-clickup-admin-integration-flow.md` (THE SCOPE, framing D1–D5,
+- **Scope source:** `clickup-admin-integration-flow plan (2026-07-13, in git history)` (THE SCOPE, framing D1–D5,
   phased plan §5, security §6, §11 discussion outcome + #315 alignment)
 - **Locked owner decisions (binding — do not re-litigate):** `docs/decisions.md` **OD-INT-1..5**
 - **Depends-on ADRs:** ADR-0055 (external adapters/SoT), ADR-0016 (`can()` UX-only + RLS authority),

@@ -37,18 +37,20 @@ const ID_INCIDENTS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales
 const EN_LOST_REASON = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/lostReason.json'), 'utf8'));
 const ID_LOST_REASON = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/lostReason.json'), 'utf8'));
 
+const EN_ADMINISTRATION = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/administration.json'), 'utf8'));
+const ID_ADMINISTRATION = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/administration.json'), 'utf8'));
 
 function makeBahasaI18n(locale: 'en' | 'id') {
   const i18n = i18next.createInstance();
   void i18n.init({
     lng: locale,
     fallbackLng: 'en',
-    ns: ['common', 'dashboard', 'finance', 'procurement', 'recordFolders', 'assistantPanel', 'project', 'projects', 'sales', 'lostReason', 'status', 'incidents'],
+    ns: ['common', 'dashboard', 'finance', 'procurement', 'recordFolders', 'assistantPanel', 'project', 'projects', 'sales', 'lostReason', 'status', 'incidents', 'administration'],
     defaultNS: 'common',
     fallbackNS: 'common',
     resources: {
-      id: { common: ID, dashboard: ID_DASHBOARD, finance: ID_FINANCE, financeHub: ID_FINANCE_HUB, procurement: ID_PROCUREMENT, recordFolders: ID_RECORD_FOLDERS, assistantPanel: ID_ASSISTANT_PANEL, project: ID_PROJECT, projects: ID_PROJECTS, sales: ID_SALES, lostReason: ID_LOST_REASON, status: ID_STATUS, incidents: ID_INCIDENTS },
-      en: { common: EN, dashboard: EN_DASHBOARD, finance: EN_FINANCE, financeHub: EN_FINANCE_HUB, procurement: EN_PROCUREMENT, recordFolders: EN_RECORD_FOLDERS, assistantPanel: EN_ASSISTANT_PANEL, project: EN_PROJECT, projects: EN_PROJECTS, sales: EN_SALES, lostReason: EN_LOST_REASON, status: EN_STATUS, incidents: EN_INCIDENTS },
+      id: { common: ID, dashboard: ID_DASHBOARD, finance: ID_FINANCE, financeHub: ID_FINANCE_HUB, procurement: ID_PROCUREMENT, recordFolders: ID_RECORD_FOLDERS, assistantPanel: ID_ASSISTANT_PANEL, project: ID_PROJECT, projects: ID_PROJECTS, sales: ID_SALES, lostReason: ID_LOST_REASON, status: ID_STATUS, incidents: ID_INCIDENTS, administration: ID_ADMINISTRATION },
+      en: { common: EN, dashboard: EN_DASHBOARD, finance: EN_FINANCE, financeHub: EN_FINANCE_HUB, procurement: EN_PROCUREMENT, recordFolders: EN_RECORD_FOLDERS, assistantPanel: EN_ASSISTANT_PANEL, project: EN_PROJECT, projects: EN_PROJECTS, sales: EN_SALES, lostReason: EN_LOST_REASON, status: EN_STATUS, incidents: EN_INCIDENTS, administration: EN_ADMINISTRATION },
     },
     initImmediate: false,
     interpolation: { escapeValue: false },

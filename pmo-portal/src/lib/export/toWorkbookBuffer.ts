@@ -9,6 +9,7 @@
  * The header row is bold. No other styling (lean — plan §scope).
  */
 
+import { safeSheetName } from './safeExportLabel';
 import { cellType } from './cellType';
 import type { ExportTable } from './buildExportRows';
 
@@ -36,7 +37,7 @@ export async function toWorkbookBuffer({
 }: WorkbookInput): Promise<ArrayBuffer> {
   const ExcelJS = (await import('exceljs')).default;
   const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet(sheetName.slice(0, 31));
+  const ws = wb.addWorksheet(safeSheetName(sheetName));
 
   ws.addRow(header).font = { bold: true };
 

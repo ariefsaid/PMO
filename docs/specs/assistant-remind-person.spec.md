@@ -11,7 +11,7 @@ eval bar 9 of 10 = DD-AIN-9, re-affirmed for the reel journeys by OD-GRILL-20261
 prompt), ADR-0052 (eval harness), ADR-0051 (approval predicate), ADR-0039 (deputy + untrusted-output boundary),
 ADR-0016 (`can()` is UX only), ADR-0019 (server-enforced rules via security-definer RPC + pgTAP), ADR-0010 (test pyramid),
 ADR-0001 (`org_id` seam).
-**Plan:** `docs/plans/2026-11-01-assistant-remind-person.md`
+**Plan:** `assistant-remind-person plan (2026-11-01, in git history)`
 **Status:** Draft, 2026-11-01, reviewed 2026-11-01 (spec + security lens; fixes applied). Author: spec worker for the Director.
 **Lane:** auth-adjacent (a new cross-user write path through a SECURITY DEFINER RPC) → Director-dispatched, ships alone.
 Not a money path. Migration **0434** (Lane A range for #1639: 0434-0436).

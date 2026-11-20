@@ -272,6 +272,7 @@
     "src/lib/db/stockPosting.concurrent.integration.mjs",
     "src/lib/db/vendorWithholdingSlips.concurrent.integration.mjs",
     "src/lib/figures/identity.ts",
+    "src/lib/import/failedRows.ts",
     "src/lib/invite/inviteHandler.ts",
     "src/lib/m365/graphPkce.ts",
     "src/lib/m365/graphTokenCrypto.ts",

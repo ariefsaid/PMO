@@ -205,7 +205,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
     ...days.map((d, i): Column<TimesheetGridRow> => ({
       key: `day-${i}`,
       header: (
-        <span className={tint(d.weekend)} style={{ minHeight: 38 }}>
+        <span className={cn('flex flex-col items-center justify-center px-1', d.weekend && 'bg-secondary/60')} style={{ minHeight: 38 }}>
           {d.label}
           <span className="mt-0.5 block text-control font-normal tabular text-muted-foreground">{d.dateNum}</span>
         </span>

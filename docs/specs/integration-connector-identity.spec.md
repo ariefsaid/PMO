@@ -1,6 +1,6 @@
 # Readable organization connector identity — spec (#680)
 
-**Status:** proposed for the enterprise UX program, 2026-09-27. **Authority:** `docs/design/2026-09-26-enterprise-coherence-brief.md`, the existing organization integration card, and the org-scoped profile repository seam.
+**Status:** proposed for the enterprise UX program, 2026-09-27. **Authority:** `enterprise-coherence-brief doc (2026-09-26, in git history)`, the existing organization integration card, and the org-scoped profile repository seam.
 
 ## Job story and observed failure
 

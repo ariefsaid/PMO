@@ -3,7 +3,7 @@
 Issue #1637. Owner ruling **OD-GRILL-20261101 "Reel differences (#1593)"** (`docs/decisions.md:3618`): "build
 drag-and-drop on the Sales Pipeline board and the project Tasks board (same rules and confirms as the status menu;
 the menu stays for keyboard users)". Status: **Draft, 2026-11-01** (open questions below each carry a recommended
-default for owner sign-off). Plan: `docs/plans/2026-11-01-board-drag-drop.md`.
+default for owner sign-off). Plan: `board-drag-drop plan (2026-11-01, in git history)`.
 
 This ruling **supersedes OD-W3-4** (`docs/decisions.md:336-337`, "No drag-and-drop … stage change on the board; the
 detail page stays the single place to advance a deal"). The Director should add a one-line "superseded by

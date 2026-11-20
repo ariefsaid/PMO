@@ -413,6 +413,9 @@ export function measureLayout(N) {
   };
   const headingLike = (el) => {
     if (/^H[2-6]$/.test(el.tagName) || (el.getAttribute('role') === 'heading')) return true;
+    // A bordered/shadowed panel (a heading-only RecordSection) is a surface, not a bare heading: the gap
+    // between two adjacent panels is the section gap and is judged by the scale check, not the 12-16px heading rule.
+    if (isPanel(el)) return false;
     const h = el.querySelector('h2, h3, h4, h5, h6, [role="heading"]');
     return !!h && el.getBoundingClientRect().height <= 96 && !el.querySelector('table, input, select, textarea');
   };
@@ -607,4 +610,375 @@ export function layoutReport(layout, label, state = 'default') {
     if (ign.share > N.ignoreShare) add('ignoreMarker|share', `${where}: ignoreMarker data-layout-ignore covers ${Math.round(ign.share * 100)}% of main (max ${Math.round(N.ignoreShare * 100)}%)`);
   }
   return { failures: [...items.values()], fingerprints: [...items.keys()].sort(), items: Object.fromEntries(items), warnings };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Five fixed layout rules (owner, 16 Nov): each fails regardless of any baseline, because a screen compared with its
+// own baseline passes whatever defect it already had. `measureRules` runs IN THE PAGE (serialized by page.evaluate:
+// self-contained, no imports); `rulesReport` and `tabFrameFindings` are plain functions.
+//   R1 card inset      inside a card with a heading, every direct content block starts at the heading's left x (±1),
+//                      unless it is a table or media spanning the card edge to edge on BOTH sides, or a block that is
+//                      centred, or narrow and right-aligned
+//   R2 trailing tag    in a list / menu / picker option row, a trailing tag is one line (content height <= 1.5 x its
+//                      line height) and the tags of one list share a right edge (±1)
+//   R3 section frame   tab bars with the same labels sit at the same left x, top y and width (±1) across routes at one
+//                      viewport (`tabFrameFindings`, fed the `tabBars` of every route)
+//   R4 lone centring   one row or item in a container taller than twice its height and 64px starts within the
+//                      container's top padding (not centred in the room)
+//   R5 shared ends     stacked progress bars / tracks in one group share start x and end x (±1); right-aligned figures
+//                      in one group of rows (same table column) share their right x (±1)
+// Scope: `main`, plus every open dialog, listbox, menu and popover on the page (the opened states).
+// ---------------------------------------------------------------------------------------------
+export const RULE_NUMBERS = {
+  tolerance: 1,
+  tagLines: 1.5, // R2: a tag's content height may be at most this many line heights
+  loneRatio: 2, // R4: container height over item height
+  loneMinHeight: 64, // R4: shorter containers are bars, not panels
+  trackMaxHeight: 16,
+};
+
+export function measureRules(N) {
+  const main = document.querySelector('main');
+  const POPUP = '[role="dialog"], [role="listbox"], [role="menu"], [role="complementary"], [data-radix-popper-content-wrapper]';
+  const isVisible = (el) => {
+    const s = getComputedStyle(el);
+    if (s.display === 'none' || s.visibility !== 'visible' || Number(s.opacity) === 0) return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  };
+  const popups = [...document.querySelectorAll(POPUP)].filter((el) => isVisible(el) && !(main && main.contains(el) && !el.matches('[role="dialog"]')));
+  const roots = [...(main ? [main] : []), ...popups].filter((el, i, all) => !all.some((o, j) => j !== i && o !== el && o.contains(el)));
+  if (!roots.length) return { skipped: true, findings: [], tabBars: [] };
+  const all = [...new Set(roots.flatMap((r) => [r, ...r.querySelectorAll('*')]))];
+
+  const inFlow = (el) => { const p = getComputedStyle(el).position; return p !== 'fixed' && p !== 'absolute'; };
+  const flatKids = (el) => [...el.children].flatMap((c) => (getComputedStyle(c).display === 'contents' ? flatKids(c) : [c]));
+  const visibleKids = (el) => flatKids(el).filter((c) => isVisible(c) && inFlow(c) && !c.closest('.sr-only') && c.tagName !== 'SCRIPT' && c.tagName !== 'STYLE');
+  const short = (el, n = 36) => (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, n);
+  const stable = (c) => !/[:[\]/%.]/.test(c);
+  const desc = (el) => {
+    const cls = [...el.classList].filter(stable).slice(0, 2).map((c) => `.${c}`).join('');
+    const hook = el.getAttribute('data-testid') || el.getAttribute('aria-label') || el.getAttribute('role');
+    return `${el.tagName.toLowerCase()}${cls}${hook ? `[${hook.slice(0, 24)}]` : ''} "${short(el)}"`;
+  };
+  const box = (r) => ({ x: Math.round(r.left * 10) / 10, y: Math.round((r.top + scrollY) * 10) / 10, w: Math.round(r.width * 10) / 10, h: Math.round(r.height * 10) / 10 });
+  const hasFill = (el) => { const bg = getComputedStyle(el).backgroundColor; return bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent'; };
+  const hasBorder = (el) => { const s = getComputedStyle(el); return parseFloat(s.borderTopWidth) > 0 && s.borderTopStyle !== 'none'; };
+  const isPanel = (el) => {
+    if (/^(BUTTON|INPUT|SELECT|TEXTAREA|A|TH|TD|TR|LI|TABLE|SPAN|LABEL)$/.test(el.tagName) || el.getAttribute('role') === 'button') return false;
+    const s = getComputedStyle(el); const r = el.getBoundingClientRect();
+    if (r.width < 240 || r.height < 56) return false;
+    return (hasBorder(el) && parseFloat(s.borderTopLeftRadius) > 0) || (s.boxShadow !== 'none' && hasFill(el));
+  };
+  const isRowLayout = (el) => {
+    const s = getComputedStyle(el);
+    if (s.display.includes('flex')) return !s.flexDirection.startsWith('column');
+    if (s.display.includes('grid')) return s.gridTemplateColumns.split(' ').filter(Boolean).length > 1;
+    return false;
+  };
+  // Every painted text run: { node, el, left, top, right, bottom, lines } (all wrapped lines).
+  const textRuns = (root) => {
+    const runs = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    for (let node; (node = walker.nextNode());) {
+      if (!node.textContent.trim()) continue;
+      const el = node.parentElement;
+      if (!el || el.closest('.sr-only, script, style') || !isVisible(el)) continue;
+      const range = document.createRange(); range.selectNodeContents(node);
+      const rects = [...range.getClientRects()].filter((r) => r.width > 0 && r.height > 0);
+      if (!rects.length) continue;
+      runs.push({ node, el, left: Math.min(...rects.map((r) => r.left)), top: Math.min(...rects.map((r) => r.top)), right: Math.max(...rects.map((r) => r.right)), bottom: Math.max(...rects.map((r) => r.bottom)), lines: new Set(rects.map((r) => Math.round(r.top))).size });
+    }
+    return runs;
+  };
+  // Painted extent of a block: its text, media, controls, and any bordered or filled surface inside it (or itself).
+  const extentOf = (block, skip) => {
+    let left = Infinity; let right = -Infinity; let top = Infinity; let bottom = -Infinity;
+    const add = (r) => { left = Math.min(left, r.left); right = Math.max(right, r.right); top = Math.min(top, r.top); bottom = Math.max(bottom, r.bottom); };
+    for (const t of textRuns(block)) add(t);
+    for (const e of [block, ...block.querySelectorAll('*')]) {
+      if (e.closest('.sr-only') || !isVisible(e) || !inFlow(e)) continue;
+      const tag = e.tagName.toLowerCase();
+      if (tag !== 'svg' && e.closest('svg')) continue; // an svg is one painted box
+      if (/^(img|svg|canvas|video|input|select|textarea|button|progress|meter)$/.test(tag) || ((hasBorder(e) || hasFill(e)) && !(skip && skip(e)))) add(e.getBoundingClientRect());
+    }
+    return Number.isFinite(left) ? { left, right, top, bottom } : null;
+  };
+  const findings = [];
+  const unionRect = (src) => {
+    const list = (Array.isArray(src) ? src : [src]).map((e) => (e.getBoundingClientRect ? e.getBoundingClientRect() : e));
+    return { left: Math.min(...list.map((r) => r.left)), top: Math.min(...list.map((r) => r.top)), right: Math.max(...list.map((r) => r.right)), bottom: Math.max(...list.map((r) => r.bottom)), get width() { return this.right - this.left; }, get height() { return this.bottom - this.top; } };
+  };
+  const seen = new Set();
+  const push = (rule, el, numbers, rectSource, extra = {}) => seen.has(`${rule}|${desc(el)}|${JSON.stringify(numbers)}`) ? 0 : seen.add(`${rule}|${desc(el)}|${JSON.stringify(numbers)}`) && findings.push({ rule, el: desc(el), numbers, rect: box(unionRect(rectSource)), ...extra });
+
+  const stackedRects = (els) => { const rects = els.map((e) => e.getBoundingClientRect()); return rects.every((r, i) => rects.every((o, j) => i === j || r.bottom <= o.top + 1 || o.bottom <= r.top + 1)); };
+
+  // R1 card inset ------------------------------------------------------------------------------
+  const isHeading = (el) => /^H[1-6]$/.test(el.tagName) || el.getAttribute('role') === 'heading';
+  const headingOf = (card) => {
+    const kids = visibleKids(card);
+    for (const k of kids.slice(0, 2)) {
+      if (isHeading(k)) return { heading: k, wrap: null };
+      if (k.getBoundingClientRect().height <= 96 && visibleKids(k).length <= 5) {
+        const h = [...k.querySelectorAll('h1, h2, h3, h4, h5, h6, [role="heading"]')].find((x) => isVisible(x));
+        if (h) return { heading: h, wrap: k };
+      }
+      if (k === kids[0] && textRuns(k).length) break; // the first block is body text, not a heading
+    }
+    return null;
+  };
+  const cards = all.filter((el) => el !== main && isVisible(el) && !el.closest('table') && (isPanel(el) || el.tagName === 'SECTION' || el.tagName === 'ARTICLE' || el.getAttribute('role') === 'dialog') && !isRowLayout(el));
+  for (const card of cards) {
+    const found = headingOf(card);
+    if (!found) continue;
+    const { heading, wrap } = found;
+    const hExt = extentOf(heading);
+    if (!hExt) continue;
+    // an avatar or icon that leads the heading's row starts the row: the heading's edge is the mark's
+    const hr = heading.getBoundingClientRect();
+    for (let n = heading; n && n !== card; n = n.parentElement) {
+      for (let sib = n.previousElementSibling; sib; sib = sib.previousElementSibling) {
+        if (!isVisible(sib)) continue;
+        const r = sib.getBoundingClientRect();
+        const markish = r.width <= 64 && r.height <= 64 && textRuns(sib).every((t) => t.node.textContent.trim().length <= 3);
+        if (markish && r.bottom > hr.top && r.top < hr.bottom && r.right <= hExt.left + 1) hExt.left = Math.min(hExt.left, r.left);
+      }
+      if (n === (wrap || heading)) break;
+    }
+    const cr = card.getBoundingClientRect(); const cs = getComputedStyle(card);
+    const innerRight = cr.right - parseFloat(cs.borderRightWidth) - parseFloat(cs.paddingRight);
+    const innerLeft = cr.left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft);
+    if (Math.abs(hExt.left - innerLeft - (innerRight - hExt.right)) <= 4 && hExt.left - innerLeft > 8) continue; // a centred card has no left edge to share
+    const edgeLeft = cr.left + parseFloat(cs.borderLeftWidth); const edgeRight = cr.right - parseFloat(cs.borderRightWidth);
+    let past = false;
+    for (const block of visibleKids(card)) {
+      if (block === (wrap || heading)) { past = true; continue; }
+      if (!past) continue;
+      const band = (e) => { const r = e.getBoundingClientRect(); return r.left <= edgeLeft + N.tolerance && r.right >= edgeRight - N.tolerance; }; // a header or footer band runs edge to edge: it is a surface, not content
+      const ext = extentOf(block, band);
+      if (!ext) continue;
+      const tableEl = block.tagName === 'TABLE' ? block : block.querySelector('table');
+      const mediaOnly = /^(IMG|SVG|CANVAS|VIDEO|FIGURE)$/.test(block.tagName.toUpperCase());
+      if (tableEl || mediaOnly) {
+        const r = (tableEl ?? block).getBoundingClientRect(); // a table or media starts at its own box, not at the text in it
+        if (r.left <= edgeLeft + N.tolerance && r.right >= edgeRight - N.tolerance) continue; // full-bleed on both sides
+        ext.left = r.left;
+      }
+      const listEl = /^(UL|OL)$/.test(block.tagName) ? block : block.querySelector(':scope > ul, :scope > ol');
+      if (listEl && getComputedStyle(listEl).listStyleType !== 'none') ext.left = Math.min(ext.left, listEl.getBoundingClientRect().left); // a bullet hangs at the list's own edge
+      const freeLeft = ext.left - hExt.left; const freeRight = innerRight - ext.right;
+      if (Math.abs(freeLeft) <= N.tolerance) continue;
+      if (Math.abs(freeLeft - freeRight) <= 4 && freeLeft > 8) continue; // centred: R4's concern, not an edge
+      const br = block.getBoundingClientRect();
+      if (Math.abs((ext.left - br.left) - (br.right - ext.right)) <= 4 && ext.left - br.left > 8) continue; // content centred inside its own box
+      if (freeRight <= 4 && freeLeft > 24 && ext.right - ext.left <= 0.6 * (innerRight - hExt.left)) continue; // narrow, right-aligned
+      push('R1', block, { headingX: Math.round(hExt.left * 10) / 10, blockX: Math.round(ext.left * 10) / 10, delta: Math.round((ext.left - hExt.left) * 10) / 10 }, [card], { card: desc(card), heading: short(heading, 40) });
+    }
+  }
+
+  // R2 trailing tag ----------------------------------------------------------------------------
+  const ROW = '[role="option"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], [role="listitem"], li';
+  const rows = all.filter((el) => el.matches(ROW) && isVisible(el) && !el.closest('table'));
+  const isTag = (el, row) => {
+    if (el === row || !isVisible(el) || /^(BUTTON|INPUT|SELECT|TEXTAREA|A|SVG|svg)$/.test(el.tagName)) return false;
+    const r = el.getBoundingClientRect(); const rr = row.getBoundingClientRect();
+    const text = (el.textContent || '').trim();
+    if (!text || text.length > 40 || r.width > 0.5 * rr.width) return false;
+    const s = getComputedStyle(el);
+    if (!(hasFill(el) || hasBorder(el)) || parseFloat(s.borderTopLeftRadius) < 3) return false;
+    return !el.querySelector('input, select, textarea, button');
+  };
+  const lists = new Map();
+  for (const row of rows) {
+    const tags = [...row.querySelectorAll('*')].filter((e) => isTag(e, row));
+    const outer = tags.filter((e) => !tags.some((o) => o !== e && o.contains(e)));
+    const rr = row.getBoundingClientRect();
+    const trailing = outer.filter((e) => { const r = e.getBoundingClientRect(); return r.left + r.width / 2 > rr.left + rr.width / 2; }).sort((a, b) => b.getBoundingClientRect().right - a.getBoundingClientRect().right)[0];
+    // A trailing label that is not a pill (a muted code, type or date after the row's main label) is a tag too.
+    let host = row;
+    while (visibleKids(host).length === 1 && ![...host.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) host = visibleKids(host)[0];
+    const hostKids = visibleKids(host);
+    const last = hostKids.length >= 2 ? hostKids[hostKids.length - 1] : null;
+    const lastText = last ? (last.textContent || '').trim() : '';
+    const others = last ? hostKids.slice(0, -1).reduce((sum, k) => sum + k.getBoundingClientRect().width, 0) : 0;
+    // a secondary label: short, not interactive, in the row's right half, and no wider than what comes before it (a timeline's text after its date is content)
+    const label = last && lastText && lastText.length <= 24 && !last.matches('button, a, svg, input, select, textarea') && !last.querySelector('button, a, input, select, textarea') && last.getBoundingClientRect().left + last.getBoundingClientRect().width / 2 > rr.left + rr.width / 2 && last.getBoundingClientRect().width <= others + 24 ? last : null;
+    const tag = trailing && label ? (trailing.getBoundingClientRect().right >= label.getBoundingClientRect().right ? trailing : label) : trailing || label;
+    if (!tag) continue;
+    const key = row.closest('[role="listbox"], [role="menu"], ul, ol, [role="list"]') ?? row.parentElement;
+    if (!lists.has(key)) lists.set(key, []);
+    lists.get(key).push(tag);
+  }
+  for (const [list, tags] of lists) {
+    const wrapped = [];
+    for (const tag of tags) {
+      const s = getComputedStyle(tag); const r = tag.getBoundingClientRect();
+      const lh = s.lineHeight === 'normal' ? 1.2 * parseFloat(s.fontSize) : parseFloat(s.lineHeight);
+      const runs = textRuns(tag); // the tag's text block, not its box: a flex row can stretch the box past one line
+      const content = runs.length ? Math.max(...runs.map((t) => t.bottom)) - Math.min(...runs.map((t) => t.top)) : r.height;
+      const lines = Math.max(...runs.map((t) => t.lines), 1);
+      if (lines > 1 || content > N.tagLines * lh + 0.5) wrapped.push({ tag, lines, content, lh });
+    }
+    if (wrapped.length) { // one finding per list: the first tag that wraps, and how many do
+      const w = wrapped[0];
+      push('R2', w.tag, { check: 'one line', wrapped: wrapped.length, of: tags.length, lines: Math.max(...wrapped.map((x) => x.lines)), contentHeight: Math.round(w.content * 10) / 10, lineHeight: Math.round(w.lh * 10) / 10 }, [list], { list: desc(list) });
+    }
+    if (tags.length < 2 || !stackedRects(tags.map((t) => t.closest(ROW) ?? t))) continue; // a grid of items is not a column of rows
+    const rights = tags.map((t) => t.getBoundingClientRect().right);
+    const counts = new Map(); rights.forEach((x) => { const k = Math.round(x); counts.set(k, (counts.get(k) ?? 0) + 1); });
+    const mode = [...counts.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0][0];
+    const off = tags.filter((t, i) => Math.abs(rights[i] - mode) > N.tolerance);
+    if (off.length) push('R2', off[0], { check: 'shared right edge', edge: mode, rights: [...new Set(rights.map((x) => Math.round(x * 10) / 10))].slice(0, 6), tags: tags.length, off: off.length }, [list], { list: desc(list) });
+  }
+
+  // R3 tab bars (compared across routes by tabFrameFindings) ------------------------------------
+  const tabBars = [];
+  const barEls = new Set();
+  for (const el of all) {
+    if (el.getAttribute('role') === 'tablist' || (el.tagName === 'NAV' && el.querySelectorAll('a[href]').length >= 2)) barEls.add(el);
+    if (el.getAttribute('role') === 'tab' && el.parentElement) barEls.add(el.parentElement);
+  }
+  for (const el of barEls) {
+    if (!isVisible(el) || el.closest('[role="dialog"]')) continue;
+    const labels = [...el.querySelectorAll('[role="tab"], a[href], button')].filter((x) => isVisible(x)).map((x) => short(x, 24)).filter(Boolean);
+    if (labels.length < 2) continue;
+    const r = el.getBoundingClientRect();
+    tabBars.push({ labels: labels.join(' | '), x: Math.round(r.left * 10) / 10, y: Math.round((r.top + scrollY) * 10) / 10, w: Math.round(r.width * 10) / 10, h: Math.round(r.height * 10) / 10, el: desc(el).replace(/ ".*$/, '') });
+  }
+
+  // R4 lone centring ---------------------------------------------------------------------------
+  for (const el of all) {
+    if (roots.includes(el) || /^(TABLE|THEAD|TBODY|TR|TD|TH|UL|OL|SELECT|OPTION|BUTTON|INPUT|TEXTAREA|SVG|svg|HTML|BODY)$/.test(el.tagName) || el.closest('svg, table, .sr-only') || !isVisible(el)) continue;
+    const s = getComputedStyle(el);
+    if (s.position === 'fixed') continue;
+    const r = el.getBoundingClientRect();
+    if (r.height < N.loneMinHeight) continue;
+    const kids = visibleKids(el);
+    const ownText = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
+    let item = null;
+    if (kids.length === 1 && !ownText) item = kids[0].getBoundingClientRect();
+    else if (!kids.length && ownText) { const t = textRuns(el).filter((x) => x.el === el); if (t.length) item = { top: Math.min(...t.map((x) => x.top)), bottom: Math.max(...t.map((x) => x.bottom)), height: Math.max(...t.map((x) => x.bottom)) - Math.min(...t.map((x) => x.top)) }; }
+    if (!item || item.height <= 0 || r.height <= N.loneRatio * item.height) continue;
+    if (kids.length === 1 && kids[0].getAttribute('role') === 'dialog') continue;
+    const padTop = r.top + parseFloat(s.borderTopWidth) + parseFloat(s.paddingTop);
+    const above = item.top - padTop;
+    if (above > N.tolerance) push('R4', el, { containerHeight: Math.round(r.height), itemHeight: Math.round(item.height), freeAbove: Math.round(above), paddingTop: Math.round(parseFloat(s.paddingTop)) }, el, { item: kids.length === 1 ? desc(kids[0]) : short(el) });
+  }
+
+  // R5 shared ends ----------------------------------------------------------------------------
+  const tracks = all.filter((el) => {
+    if (!isVisible(el) || el.closest('svg')) return false;
+    if (el.matches('[role="progressbar"], [role="meter"], progress, meter')) return true;
+    const s = getComputedStyle(el); const r = el.getBoundingClientRect();
+    if (r.height > N.trackMaxHeight || r.height < 2 || r.width < 40 || s.overflow === 'visible' || !(parseFloat(s.borderTopLeftRadius) > 0)) return false;
+    return visibleKids(el).length === 1 && /%$/.test(visibleKids(el)[0].style.width || '');
+  }).filter((el, _i, list) => !list.some((o) => o !== el && o.contains(el)));
+  const rowSig = (k) => `${k.tagName}|${k.getAttribute('class') || ''}|${k.getAttribute('role') || ''}`;
+  // Stacked tracks form one group when they are direct siblings, or the first track of each row of one repeated row group.
+  const claimed = new Set();
+  const trackGroups = [];
+  for (const parent of all) {
+    const direct = tracks.filter((t) => t.parentElement === parent && !claimed.has(t));
+    if (direct.length >= 2) { direct.forEach((t) => claimed.add(t)); trackGroups.push(direct); }
+    const bySig = {};
+    for (const k of visibleKids(parent)) (bySig[rowSig(k)] ||= []).push(k);
+    for (const rows of Object.values(bySig)) {
+      const items = rows.length < 2 ? [] : rows.map((r) => tracks.find((t) => r.contains(t) && !claimed.has(t))).filter(Boolean);
+      if (items.length >= 2) { items.forEach((t) => claimed.add(t)); trackGroups.push(items); }
+    }
+  }
+  for (const group of trackGroups) {
+    if (!stackedRects(group)) continue;
+    const rects = group.map((t) => t.getBoundingClientRect());
+    for (const edge of ['left', 'right']) {
+      const xs = rects.map((r) => r[edge]);
+      const counts = new Map(); xs.forEach((x) => { const k = Math.round(x); counts.set(k, (counts.get(k) ?? 0) + 1); });
+      const mode = [...counts.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0][0];
+      const off = group.filter((t, i) => Math.abs(xs[i] - mode) > N.tolerance);
+      if (off.length) push('R5', off[0], { check: edge === 'left' ? 'track start' : 'track end', edge: mode, values: [...new Set(xs.map((x) => Math.round(x * 10) / 10))].slice(0, 6), tracks: group.length, off: off.length }, group);
+    }
+  }
+  const FIGURE = /^[-+(]?\s*(?:\p{Sc}|[A-Z]{3})\s*[-+]?\d[\d.,\s]*\)?$|^[-+(]?\d{1,3}(?:[,\s]\d{3})+(?:\.\d+)?\)?$|^[-+(]?\d+\.\d+\)?$|^[-+]?\d+(?:\.\d+)?\s*%$/u;
+  const isFigure = (t) => {
+    const text = t.node.textContent.trim();
+    if (text.length > 20 || !/\d/.test(text)) return false;
+    return FIGURE.test(text) || (/^[-+(]?[\d.,\s]+\)?$/.test(text) && getComputedStyle(t.el).fontVariantNumeric.includes('tabular-nums'));
+  };
+  for (const parent of all) {
+    if (/^(THEAD|SELECT|svg)$/.test(parent.tagName) || !isVisible(parent)) continue;
+    const kids = visibleKids(parent);
+    const groups = {};
+    for (const k of kids) (groups[rowSig(k)] ||= []).push(k);
+    for (const group of Object.values(groups)) {
+      if (group.length < 2 || group.some((row) => row.getBoundingClientRect().height > 160) || !stackedRects(group)) continue;
+      const byColumn = {};
+      for (const row of group) {
+        const rr = row.getBoundingClientRect(); const rs = getComputedStyle(row);
+        const rowRight = rr.right - parseFloat(rs.borderRightWidth) - parseFloat(rs.paddingRight);
+        let ordinal = 0;
+        for (const t of textRuns(row).filter(isFigure)) {
+          const align = getComputedStyle(t.el).textAlign;
+          const cell = t.el.closest('td, th, [role="cell"], [role="gridcell"]');
+          const er = t.el.getBoundingClientRect();
+          const flush = Math.abs(er.right - rowRight) <= 1 && er.width - (t.right - t.left) <= 2; // pushed to the row's end and shrink-wrapped
+          if (!(/^(right|end)$/.test(align) || flush)) continue;
+          const key = cell && cell.parentElement ? `cell${[...cell.parentElement.children].indexOf(cell)}` : `n${ordinal++}`;
+          (byColumn[key] ||= []).push({ row, t, right: cell ? Math.max(...textRuns(cell).map((x) => x.right)) : t.right }); // a unit after the figure ends the cell's text
+        }
+      }
+      for (const [key, items] of Object.entries(byColumn)) {
+        if (items.length < 2) continue;
+        const counts = new Map(); items.forEach(({ right }) => { const k = Math.round(right); counts.set(k, (counts.get(k) ?? 0) + 1); });
+        const mode = [...counts.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0][0];
+        const off = items.filter(({ right }) => Math.abs(right - mode) > N.tolerance);
+        if (off.length) push('R5', off[0].t.el, { check: 'figure right edge', column: key, edge: mode, values: [...new Set(items.map(({ right }) => Math.round(right * 10) / 10))].slice(0, 6), figures: items.length, off: off.length }, items.map((i) => i.row), { figure: off[0].t.node.textContent.trim() });
+      }
+    }
+  }
+  return { skipped: false, findings, tabBars };
+}
+
+const RULE_NAMES = { R1: 'cardInset', R2: 'trailingTag', R3: 'sectionFrame', R4: 'loneCentring', R5: 'sharedEnds' };
+const detail = (n) => Object.entries(n).map(([k, v]) => `${k}=${Array.isArray(v) ? `[${v.join(', ')}]` : v}`).join(' ');
+
+/** One line per finding: `route @viewport: R1 cardInset: element; numbers`. `label` is "route @width". */
+export function rulesReport(measured, label) {
+  const lines = (measured?.findings ?? []).map((f) => `${label}: ${f.rule} ${RULE_NAMES[f.rule]}${f.card ? ` in ${f.card}` : ''}${f.list ? ` in ${f.list}` : ''}${f.item ? ` (item ${f.item})` : ''}: ${f.el}; ${detail(f.numbers)}`);
+  return { findings: measured?.findings ?? [], failures: lines };
+}
+
+/**
+ * R3 across routes. `bars` = [{ route, width, role, labels, x, y, w, el }] from every measured route; routes that
+ * render the same tab labels at one viewport must agree on left x, top y and width (±1). The first route listed is
+ * the reference; each route that differs is one finding.
+ */
+export function tabFrameFindings(bars, tolerance = RULE_NUMBERS.tolerance) {
+  const out = [];
+  const groups = new Map();
+  for (const bar of bars) {
+    const key = `${bar.width}|${bar.labels.replace(/[\d$.,]+[MKB]?/g, '')}`; // a count or amount in a label is data, not a different tab bar
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(bar);
+  }
+  for (const [, group] of groups) {
+    const routes = new Set(group.map((b) => b.route));
+    if (routes.size < 2) continue;
+    const counts = new Map(); group.forEach((b) => { const k = `${Math.round(b.x)},${Math.round(b.y)},${Math.round(b.w)}`; counts.set(k, (counts.get(k) ?? 0) + 1); });
+    const [refKey] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+    const ref = group.find((b) => `${Math.round(b.x)},${Math.round(b.y)},${Math.round(b.w)}` === refKey);
+    for (const b of group) {
+      if (Math.abs(b.x - ref.x) <= tolerance && Math.abs(b.y - ref.y) <= tolerance && Math.abs(b.w - ref.w) <= tolerance) continue;
+      out.push({ rule: 'R3', route: b.route, width: b.width, role: b.role, el: b.el, labels: b.labels, numbers: { x: b.x, y: b.y, w: b.w, refX: ref.x, refY: ref.y, refW: ref.w, refRoute: ref.route }, message: `${b.route} @${b.width}: R3 sectionFrame: tab bar "${b.labels}" at x=${b.x} y=${b.y} w=${b.w}, but ${ref.route} has it at x=${ref.x} y=${ref.y} w=${ref.w}` });
+    }
+  }
+  return out;
+}
+
+/** Compare tab frames collected from each rendered route, preserving each route's viewport and login. */
+export function compareRuleFrames(routeMeasurements) {
+  const bars = routeMeasurements.flatMap(({ route, width, role, tabBars = [] }) =>
+    tabBars.map((bar) => ({ ...bar, route, width, role })),
+  );
+  return tabFrameFindings(bars);
 }

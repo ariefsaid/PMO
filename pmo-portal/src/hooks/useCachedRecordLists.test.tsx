@@ -67,6 +67,23 @@ describe('AC-OVERFETCH-001 shell breadcrumb reads the cache and never triggers a
     expect(qc.isFetching()).toBe(0);
   });
 
+  it('resolves the work order project from the existing project detail query', async () => {
+    const { qc, result } = setup('/work-orders/w1');
+    act(() => {
+      qc.setQueryData(['work-order', 'org-1', 'w1'], { id: 'w1', wo_number: 'WO-1', title: 'Install', project_id: 'p1' });
+      qc.setQueryData(['project', 'org-1', 'p1'], { id: 'p1', name: 'Harbour Fit-Out', short_name: 'Harbour' });
+    });
+    await waitFor(() => expect(result.current.lists.projects?.find((p) => p.id === 'p1')?.name).toBe('Harbour Fit-Out'));
+    expect(qc.isFetching()).toBe(0);
+  });
+  it('resolves a work order breadcrumb from the page query without an extra fetch', async () => {
+    const { qc, result } = setup('/work-orders/w1');
+    expect(result.current.resolved).toBe(false);
+    act(() => { qc.setQueryData(['work-order', 'org-1', 'w1'], { id: 'w1', wo_number: 'WO-1', title: 'Install' }); });
+    await waitFor(() => expect(result.current.resolved).toBe(true));
+    expect(recordLabelForPath('/work-orders/w1', result.current.lists)).toBe('WO-1');
+    expect(qc.isFetching()).toBe(0);
+  });
   it('UXS-038: resolves a cold expense detail from its own cached record query', async () => {
     const { qc, result } = setup('/expenses/claim-1');
     expect(result.current.resolved).toBe(false);

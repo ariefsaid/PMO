@@ -8,7 +8,7 @@
 > (`docs/specs/vendor-withholding.spec.md` §3), which recorded the gap and left it out of #876.
 > **Withholding:** the amount paid is net of withholding per DD-VWH-2/DD-VWH-3
 > (`docs/specs/vendor-withholding.spec.md` §2) — ERPNext's `outstanding_amount` already is the net
-> payable. **Plan:** `docs/plans/2026-10-08-vendor-payment-from-pmo.md`. **Migration slot:** 0276
+> payable. **Plan:** `vendor-payment-from-pmo plan (2026-10-08, in git history)`. **Migration slot:** 0276
 > (placeholder — renumber at merge; see the note below).
 
 ## 0. Job story

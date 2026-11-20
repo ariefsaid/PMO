@@ -2,13 +2,27 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { violations, layoutReport } from './ux-proof-metrics.mjs';
+import * as proofMetrics from './ux-proof-metrics.mjs';
+const { violations, layoutReport } = proofMetrics;
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCRIPT = path.join(ROOT, 'scripts/ux-proof.mjs');
+
+async function closedLoopbackPort(host) {
+  const server = net.createServer();
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, host, resolve);
+  });
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  return address.port;
+}
 
 test('rendered proof self-test checks its thresholds without an app', () => {
   const result = spawnSync(process.execPath, [SCRIPT, '--self-test'], { cwd: ROOT, encoding: 'utf8' });
@@ -119,19 +133,21 @@ test('#1862 ux-proof.sh does not fail the local port probe for a remote host', (
   assert.doesNotMatch(result.stderr, /nothing is listening/);
 });
 
-test('#1862 ux-proof.sh still fails fast when a local base has no listener', () => {
+test('#1862 ux-proof.sh still fails fast when a local base has no listener', async () => {
+  const port = await closedLoopbackPort('127.0.0.1');
   const result = spawnSync('bash', [path.join(ROOT, 'scripts/ux-proof.sh'), '/x'], {
     cwd: ROOT, encoding: 'utf8', timeout: 60000,
-    env: { ...process.env, SHOT_BASE: 'http://localhost:1', UX_PROOF_PORT: '' },
+    env: { ...process.env, SHOT_BASE: `http://127.0.0.1:${port}`, UX_PROOF_PORT: '' },
   });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /nothing is listening/);
 });
 
-test('#1862 ux-proof.sh treats a bracketed IPv6 loopback base as local and fails fast', () => {
+test('#1862 ux-proof.sh treats a bracketed IPv6 loopback base as local and fails fast', async () => {
+  const port = await closedLoopbackPort('::1');
   const result = spawnSync('bash', [path.join(ROOT, 'scripts/ux-proof.sh'), '/x'], {
     cwd: ROOT, encoding: 'utf8', timeout: 60000,
-    env: { ...process.env, SHOT_BASE: 'http://[::1]:1', UX_PROOF_PORT: '' },
+    env: { ...process.env, SHOT_BASE: `http://[::1]:${port}`, UX_PROOF_PORT: '' },
   });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /nothing is listening/);
@@ -147,6 +163,35 @@ test('#1862 ux-proof.sh does not treat a host merely containing a local name as 
 
 
 const emptyLayout = { leftEdges: [], gaps: [], columnsLevel: [], rowCentre: [], loneSection: [] };
+
+test('R3 aggregation compares tab frames gathered by the normal proof for every route', () => {
+  assert.equal(typeof proofMetrics.compareRuleFrames, 'function');
+  const bar = (route, x) => ({
+    route,
+    width: 1440,
+    role: 'exec',
+    tabBars: [{ labels: 'Overview | Budget', x, y: 120, w: 560, el: 'nav.tabs' }],
+  });
+  const findings = proofMetrics.compareRuleFrames([bar('/projects', 24), bar('/projects/1', 40)]);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].route, '/projects/1');
+  assert.equal(findings[0].rule, 'R3');
+});
+
+test('--rules-only does not read baseline or word-budget settings', async () => {
+  const { loadProofSettings } = await import('./ux-proof-settings.mjs');
+  const accesses = [];
+  const settings = loadProofSettings({
+    root: '/repo',
+    rulesOnly: true,
+    fsApi: {
+      existsSync: (file) => { accesses.push(`exists:${file}`); throw new Error('settings must not be read'); },
+      readFileSync: (file) => { accesses.push(`read:${file}`); throw new Error('settings must not be read'); },
+    },
+  });
+  assert.deepEqual(settings, { budget: { targets: {} }, layoutBaseline: {} });
+  assert.deepEqual(accesses, []);
+});
 
 test('layout failures name the route, state, width, elements and numbers', () => {
   const layout = {
@@ -300,4 +345,38 @@ test('control: a visually hidden select-all checkbox is not a leading mark, and 
 test('class centred control: a centred logo-and-name group at the top of a form page is not a left edge', () => {
   const logo = '<header style="display:flex;justify-content:center;margin-bottom:24px"><div style="display:inline-flex;align-items:center;gap:8px"><span style="width:32px;height:32px;border-radius:6px;background:#07f;color:#fff;display:flex;align-items:center;justify-content:center">P</span><span>Brand</span></div></header>';
   assert.deepEqual(layoutFixture(`<main style="padding:24px"><div style="max-width:384px;margin:0 auto">${logo}${lpanel('<p>Body</p>')}</div></main>`), []);
+});
+
+test('#2549 text baselines are keyed by route pattern: ids are normalised, exact keys still win', async () => {
+  const { routePattern, baselineKey } = await import('./ux-proof-settings.mjs');
+  const uuid = '3f2b8c1e-9d4a-4e7b-8a61-0c5d2e9f7a14';
+  assert.equal(routePattern(`/work-orders/${uuid}`), '/work-orders/:id');
+  assert.equal(routePattern(`/projects/${uuid}/tasks/${uuid.toUpperCase()}?tab=x`), '/projects/:id/tasks/:id?tab=x');
+  assert.equal(routePattern('/companies/new'), '/companies/new');
+  assert.equal(routePattern('/projects'), '/projects');
+  // a fixed route keeps its exact key (backward compatible with every existing baseline)
+  assert.equal(baselineKey({ '/projects@1440@exec': 44 }, '/projects', 1440, 'exec'), '/projects@1440@exec');
+  // a record route resolves to the pattern key, whichever id was visited
+  const budget = { '/work-orders/:id@1440@exec': 90 };
+  assert.equal(baselineKey(budget, `/work-orders/${uuid}`, 1440, 'exec'), '/work-orders/:id@1440@exec');
+  // a legacy exact-url key still wins when present
+  const legacy = { [`/work-orders/${uuid}@1440@exec`]: 80, '/work-orders/:id@1440@exec': 90 };
+  assert.equal(baselineKey(legacy, `/work-orders/${uuid}`, 1440, 'exec'), `/work-orders/${uuid}@1440@exec`);
+  // no baseline anywhere: new records are keyed by the pattern, so the next record page shares it
+  assert.equal(baselineKey({}, `/work-orders/${uuid}`, 390, 'exec'), '/work-orders/:id@390@exec');
+});
+
+test('#2549 existing record baselines also apply to another record id', async () => {
+  const { baselineKey } = await import('./ux-proof-settings.mjs');
+  const { readFileSync } = await import('node:fs');
+  const budget = JSON.parse(readFileSync(new URL('../docs/ux/word-budget.json', import.meta.url)));
+  const route = '/projects/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  const key = baselineKey(budget, route, 390, 'pm@acme.test');
+  assert.equal(budget[key], 133);
+  assert.notEqual(budget.targets[key], undefined);
+});
+
+test('#2549 keeps distinct query-driven views when normalising record ids', async () => {
+  const { routePattern } = await import('./ux-proof-settings.mjs');
+  assert.equal(routePattern('/projects/41000000-0000-0000-0000-000000000002/tasks?view=board&scope=all'), '/projects/:id/tasks?view=board&scope=all');
 });

@@ -6,7 +6,7 @@
 - **Author:** eng-planner (superpowers brainstorming + writing-plans; no-placeholder)
 - **Charter / DoD:** `docs/product-expectations.md` (Architecture / Existing-repo / Performance lenses), `docs/director-playbook.md` §5 (test pyramid, ADR-0010)
 - **Design source of truth:** `DESIGN.md` ("Quiet Control Surface" RIS tokens; light-only). The editable grid stays byte-for-byte on-token.
-- **House format reference:** `docs/plans/2026-06-07-confirm-mutations.md`.
+- **House format reference:** `confirm-mutations plan (2026-06-07, in git history)`.
 
 > **SECURITY-SENSITIVE WRITE FEATURE.** This issue adds a DB-write path *and* hardens an RLS WITH CHECK
 > hole (§1.2 of the spec, FR-TSE-018). The **security-auditor MUST review** the migration — specifically

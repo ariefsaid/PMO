@@ -9,7 +9,7 @@
 - **Depends-on ADRs (unchanged, controlling on conflict):** ADR-0045 (widget/ask-user/context contracts),
   ADR-0039 (untrusted-output boundary), ADR-0036 §2/§5 (deputy invariant + declarative-artifact rule),
   ADR-0044 (automations/notifications), ADR-0010 (test pyramid), ADR-0016/0017 (real-JWT + repository seam).
-- **Format model:** `docs/plans/2026-07-03-agent-transcript-contracts.md` (same shape / verify discipline).
+- **Format model:** `agent-transcript-contracts plan (2026-07-03, in git history)` (same shape / verify discipline).
 
 ## ✅ Progress (updated 2026-07-05 — handoff point)
 

@@ -115,6 +115,7 @@
     "invoiced": "Sudah ditagih · {{number}}"
   },
   "signoff": {
+    "documentLabel": "Sign-off bertanda tangan:",
     "prepared": "Persetujuan pelanggan disiapkan",
     "confirmed": "Persetujuan pelanggan dikonfirmasi",
     "withdrawn": "Persetujuan pelanggan ditarik",

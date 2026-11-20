@@ -109,7 +109,7 @@ select is((select count(*)::int from get_expense_claim_approval_routes(array['15
 -- a claimant cannot read the plan, so the read never flags an exception for them
 select pg_temp.act_as('15260000-0000-0000-0000-0000000000a6');
 select is((select route || '/' || is_exception::text from get_expense_claim_approval_routes(array['15260000-0000-0000-0000-000000000212']::uuid[])),
-  'project/false', 'AC-IMP-023 a claimant''s read flags nothing (the plan is not theirs to read)');
+  'org/false', 'AC-IMP-023 a claimant''s read flags no exception (the plan is not theirs to read) and routes to the org');
 
 -- a senior's own out-of-plan record never routes to the senior themselves (Exec is the plan approver, Exec2 the claimant)
 select pg_temp.act_as('15260000-0000-0000-0000-0000000000a1');

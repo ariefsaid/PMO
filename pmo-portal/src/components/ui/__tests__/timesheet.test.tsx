@@ -43,6 +43,12 @@ describe('TimesheetGrid', () => {
     expect(screen.getByTestId('tsgrid-grand-total')).toHaveTextContent('40');
   });
 
+  it('day header carries no negative-margin cell tint (it collapsed the header wrapper to ~7px and clipped the label)', () => {
+    render(<TimesheetGrid days={days} rows={rows} />);
+    const label = screen.getByText('Mon').closest('span')!;
+    expect(label.className).not.toMatch(/(^|\s)-m[xy]-/);
+  });
+
   it('marks weekend day headers and cells with a weekend class (visual distinction)', () => {
     render(<TimesheetGrid days={days} rows={rows} />);
     // Sat header cell is weekend

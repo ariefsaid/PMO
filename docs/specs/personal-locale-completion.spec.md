@@ -1,6 +1,6 @@
 # Personal locale completion — spec (#684)
 
-**Status:** proposed for the enterprise UX program, 2026-09-27. **Authority:** owner-settled issue #468 and `docs/decisions.md` DD-I18N-1/2/4; `docs/design/2026-09-26-enterprise-coherence-brief.md`. The existing profile columns, locale resolver, formatter seam, and Profile & preferences route are the starting point.
+**Status:** proposed for the enterprise UX program, 2026-09-27. **Authority:** owner-settled issue #468 and `docs/decisions.md` DD-I18N-1/2/4; `enterprise-coherence-brief doc (2026-09-26, in git history)`. The existing profile columns, locale resolver, formatter seam, and Profile & preferences route are the starting point.
 
 ## Job story and observed gap
 

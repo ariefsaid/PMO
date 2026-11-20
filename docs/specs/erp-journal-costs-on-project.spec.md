@@ -3,7 +3,7 @@
 - **Issue:** #1919 (owner P0/P1, 2026-11-05)
 - **Status:** Draft for owner sign-off
 - **IDs:** `FR-JEC-###`, `NFR-JEC-###`, `AC-JEC-###`
-- **Plan:** `docs/plans/2026-11-05-erp-journal-costs-on-project.md`
+- **Plan:** `erp-journal-costs-on-project plan (2026-11-05, in git history)`
 - **Builds on:** ERP purchase linking (`docs/specs/procurement-flexible-entry.spec.md`, migrations 0360/0361/0372,
   ADR-0093), the ledger mirror and actuals snapshot (0101, 0382), cost attribution (0376), PMO-posted journals
   (ADR-0078, ADR-0081, imprest postings 0425).

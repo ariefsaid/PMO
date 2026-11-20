@@ -1,6 +1,6 @@
 # List working set and record return — spec (#679)
 
-**Status:** proposed for the enterprise UX program, 2026-09-27. **Authority:** `DESIGN.md` Record-Open Rule and ListPage shell; `docs/design/2026-09-26-enterprise-coherence-brief.md`; `docs/decisions.md` OD-W5-C3-B and the shell navigation plan's AC-NAV-006/007.
+**Status:** proposed for the enterprise UX program, 2026-09-27. **Authority:** `DESIGN.md` Record-Open Rule and ListPage shell; `enterprise-coherence-brief doc (2026-09-26, in git history)`; `docs/decisions.md` OD-W5-C3-B and the shell navigation plan's AC-NAV-006/007.
 
 ## Job story and observed failure
 

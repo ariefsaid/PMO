@@ -1,6 +1,6 @@
 # RBAC Visibility Map — PMO Portal
 
-**Status:** Design-plan (Phase 0, step 2). The concrete UI projection of the plan's RBAC matrix + the locked owner/Director decisions. This is the spec for `can(action, entity, ctx)` (ADR-0016), for `<CanWrite>`, and for every per-role mockup (`docs/design-mockups/crud-project-detail-by-role.html`, etc.).
+**Status:** Design-plan (Phase 0, step 2). The concrete UI projection of the plan's RBAC matrix + the locked owner/Director decisions. This is the spec for `can(action, entity, ctx)` (ADR-0016), for `<CanWrite>`, and for every per-role mockup (`crud-project-detail-by-role (in git history)`, etc.).
 **Plan:** `docs/plans/2026-06-07-crud-rbac-program.md` (§RBAC matrix, §Owner/Director decisions).
 **Component patterns:** `docs/design/crud-components.md`.
 **Skills applied:** `impeccable shape`, `ui-ux-pro-max` (ERP role-based access conventions, `empty-nav-state`, `destructive-nav-separation`).
@@ -316,7 +316,7 @@ Executive can *open* Administration (existing `Rail` gate) but user-management i
 
 ## L. Per-role mockup checklist (what the by-role mockups must SHOW)
 
-The `docs/design-mockups/crud-*-by-role.html` set must render the *same screen for different roles* so the gate is visible before code. Minimum coverage:
+The by-role mockup set (removed from the tree 2026-11; in git history) must render the *same screen for different roles* so the gate is visible before code. Minimum coverage:
 
 - **Project detail by role:** Engineer (read-only: no Edit/Archive/Delete, contract_value static) · PM (Edit + Archive, contract_value editable pre-win / read-only on won) · Finance (read-only + contract_value editable on won) · Admin (all incl. Delete + impersonation banner).
 - **Procurement detail by role:** Engineer-requester (Submit + Cancel own, no Approve/Pay) · PM non-requester (Approve/Reject + sourcing) · Finance (Mark Invoiced/Paid, blocked if they approved → GateNotice) · Admin (all, SoD still binds).

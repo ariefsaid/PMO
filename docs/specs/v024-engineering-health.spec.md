@@ -14,7 +14,7 @@ One code PR per issue. No changes to money rules, permissions, schema, dependenc
 
 - `scripts/changed-lines-coverage.mjs` and its test file decide current coverage scoring. Its
   public `computeChangedLinesCoverage` return shape and exact-path matching remain compatible.
-- `docs/specs/test-hygiene.spec.md` and `docs/plans/2026-10-17-test-hygiene.md` are approved prior art;
+- `docs/specs/test-hygiene.spec.md` and `test-hygiene plan (2026-10-17, in git history)` are approved prior art;
   reuse their timing audit and fixture-preservation rules rather than reopen #1071.
 - `pmo-portal/e2e/AC-BUPOT-021-vendor-withholding-slip-visual.spec.ts` supplies the checked atomic,
   exact-fixture cleanup pattern accepted in #1104. Reuse that behavior for #1107.

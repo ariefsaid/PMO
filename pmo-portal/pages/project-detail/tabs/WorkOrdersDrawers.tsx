@@ -13,10 +13,13 @@ import { formatCurrency, formatDay, formatNumberExact, formatTableMoney } from '
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
 import type { WorkOrderAcceptanceWithLines } from '@/src/lib/db/workOrderAcceptances';
 import type { ProgressClaimWithInvoice } from '@/src/lib/db/progressBilling';
+import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import { claimNet } from '@/src/lib/progressBilling';
 import { statusLabel } from '@/src/lib/status/statusMap';
 import { invoiceBalanceFigures, QuantityFigure, type InvoiceWithWorkOrder, type OrderLineView, basisNote } from './workOrdersTabFigures';
 import { ClaimEvidenceList } from './ClaimEvidenceList';
+import { ClaimBillingStages } from './ClaimBillingStages';
+import { BillingReconciliation } from './BillingReconciliation';
 
 /** The delivery-selector drawer picks the work order a new BAST is recorded against. */
 export const DeliverySelectorDrawer: React.FC<{
@@ -126,6 +129,7 @@ export const WorkOrderPoDrawer: React.FC<{
       {canViewBilling && row.order_value !== null && <div><dt className="text-sm text-muted-foreground">{t('projectDetail.workOrders.orderValue', 'Order value')}</dt><dd className="mt-1 w-fit cursor-help font-semibold tabular-nums"><Tooltip content={t('projectDetail.workOrders.orderValueSource', 'Source: the customer order value set by an authorized reviewer.') }><span>{formatCurrency(Number(row.order_value), currency)} · {basisNote(row, t)}</span></Tooltip></dd></div>}
       {canViewBilling && row.closing_value !== null && <p className="text-sm font-semibold tabular-nums">{t('projectTabs:contractQuantities.workOrders.closing.closedAt', 'Closed at {{amount}} (excl. PPN)', { amount: formatCurrency(Number(row.closing_value), currency), interpolation: { escapeValue: false } })}</p>}
     </dl>
+    {canViewBilling && <BillingReconciliation projectId={projectId} workOrderId={row.id} currency={currency} />}
   </Drawer>;
 };
 
@@ -145,7 +149,7 @@ export const WorkOrderInvoiceDrawer: React.FC<{
     <dl className="grid grid-cols-2 gap-4 p-4 text-sm">
       {invoice.invoice_date && <QuantityFigure label={t('projectDetail.cascade.invoiceDate', 'Date')} value={formatDay(invoice.invoice_date)} />}
       {invoice.amount !== null && <QuantityFigure label={t('projectDetail.cascade.invoiceAmount', 'Amount')} value={formatCurrency(invoice.amount, invoiceCurrency)} detail={t('projectDetail.cascade.source.invoiceAmount', 'Source: invoice amount mirrored from accounting.') } />}
-      {figures.paid !== null && <QuantityFigure label={t('projectDetail.cascade.paid', 'Paid')} value={formatCurrency(figures.paid, invoiceCurrency)} detail={t('projectDetail.cascade.source.invoicePaid', 'Computed as invoice amount less accounting balance outstanding.') } />}
+      {figures.paid !== null && <QuantityFigure label={t('projectDetail.cascade.paid', 'Paid')} value={formatCurrency(figures.paid, invoiceCurrency)} detail={t('projectDetail.cascade.source.invoicePaid', 'Computed as invoice amount including tax, less accounting balance outstanding.') } />}
       {figures.unpaid !== null && <QuantityFigure label={t('projectDetail.cascade.unpaid', 'Unpaid')} value={formatCurrency(figures.unpaid, invoiceCurrency)} detail={t('projectDetail.cascade.source.invoiceUnpaid', 'Source: accounting balance outstanding for this invoice.') } />}
       {invoice.erp_due_date && <QuantityFigure label={t('projectDetail.cascade.invoiceDueDate', 'Due date')} value={formatDay(invoice.erp_due_date)} />}
     </dl>
@@ -160,12 +164,13 @@ export const WorkOrderClaimDrawer: React.FC<{
   canRaise?: boolean;
   currency: string;
   projectId: string;
-  /** The project register, when the caller has it: the evidence rows label each document by title. */
-  documents?: ReadonlyArray<{ id: string; title: string | null }>;
+  today?: string;
+  /** The caller's RLS-readable project register rows, used to open linked evidence in the viewer. */
+  documents?: ReadonlyArray<ProjectDocumentRow>;
   onClose: () => void;
   onRaise: (claim: ProgressClaimWithInvoice) => void;
   onAttachEvidence: (claimId: string) => void;
-}> = ({ claim, canBill, canRaise = true, currency, projectId, documents = [], onClose, onRaise, onAttachEvidence }) => {
+}> = ({ claim, canBill, canRaise = true, currency, projectId, today, documents = [], onClose, onRaise, onAttachEvidence }) => {
   const { t } = useTranslation('project');
   return <Drawer open width="lg" title={claim.kind === 'down_payment'
     ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment')
@@ -191,7 +196,9 @@ export const WorkOrderClaimDrawer: React.FC<{
       </h3>
       {(claim.evidence ?? []).length === 0
         ? <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.billing.claims.noEvidence', 'No evidence attached yet.')}</p>
-        : <ClaimEvidenceList evidence={claim.evidence ?? []} projectId={projectId} documents={documents} />}
+        : <ClaimEvidenceList evidence={claim.evidence ?? []} documents={documents} />}
     </section>
+    {claim.kind === 'progress' && <ClaimBillingStages claimId={claim.id} projectId={projectId} currency={currency}
+      invoiced={Boolean(claim.invoice)} withdrawn={Boolean(claim.withdrawn_at)} today={today} />}
   </Drawer>;
 };

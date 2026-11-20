@@ -9,6 +9,9 @@ export interface EditRow {
   code: string | null;
   hours: string[]; // 7 raw input strings, Monday-first; blank allowed
   note: string;
+  /** #2517: the row's work order and discipline, applied to every line of the row. Absent = not edited here. */
+  attribution?: { workOrderId: string | null; disciplineId: string | null };
+  originalAttribution?: { workOrderId: string | null; disciplineId: string | null };
 }
 
 /** An entry-write payload for the (timesheet_id, project_id, entry_date) upsert key. org_id NOT sent. */
@@ -18,6 +21,9 @@ export interface EntryUpsert {
   entry_date: string;
   hours: number;
   notes: string | null;
+  /** #2517: present only when the row carries an attribution (save_timesheet_week 0952 §3c). */
+  work_order_id?: string | null;
+  discipline_id?: string | null;
 }
 
 /** Live totals derived from edited (unsaved) grid state. */
@@ -106,17 +112,22 @@ export function saveToastForChangeCount(
 export function diffEntries(
   rows: EditRow[],
   weekDates: string[],
-  serverEntries: { id: string; project_id: string; entry_date: string; hours: number; notes?: string | null }[],
+  serverEntries: {
+    id: string; project_id: string; entry_date: string; hours: number; notes?: string | null;
+    work_order_id?: string | null; discipline_id?: string | null;
+  }[],
   timesheetId: string,
 ): EntryDiff {
   // Index server entries by "project_id|entry_date" for O(1) lookup. Carry the persisted note so a
   // note-only edit (hours unchanged) is detected and re-upserted instead of silently dropped.
-  const serverByCell = new Map<string, { id: string; hours: number; notes: string | null }>();
+  const serverByCell = new Map<string, { id: string; hours: number; notes: string | null; workOrderId: string | null; disciplineId: string | null }>();
   for (const e of serverEntries) {
     serverByCell.set(`${e.project_id}|${e.entry_date}`, {
       id: e.id,
       hours: e.hours,
       notes: e.notes ?? null,
+      workOrderId: e.work_order_id ?? null,
+      disciplineId: e.discipline_id ?? null,
     });
   }
 
@@ -134,8 +145,18 @@ export function diffEntries(
         // Upsert when no entry exists, hours changed, OR the row note differs from what's
         // persisted on this cell (a note-only edit on an existing entry — previously dropped).
         const noteChanged = existing ? (existing.notes ?? null) !== notes : false;
-        if (!existing || existing.hours !== value || noteChanged) {
-          upserts.push({ timesheet_id: timesheetId, project_id: r.project_id, entry_date: entryDate, hours: value, notes });
+        // #2517: a row whose work order / discipline differs from the line's re-saves that line too.
+        const a = r.attribution;
+        const original = r.originalAttribution;
+        const rowAttributionChanged = Boolean(a && (!original
+          || original.workOrderId !== a.workOrderId || original.disciplineId !== a.disciplineId));
+        const attributionChanged = Boolean(rowAttributionChanged && a && existing
+          && (existing.workOrderId !== a.workOrderId || existing.disciplineId !== a.disciplineId));
+        if (!existing || existing.hours !== value || noteChanged || attributionChanged) {
+          upserts.push({
+            timesheet_id: timesheetId, project_id: r.project_id, entry_date: entryDate, hours: value, notes,
+            ...(a && (!existing || rowAttributionChanged) ? { work_order_id: a.workOrderId, discipline_id: a.disciplineId } : {}),
+          });
         }
       } else if (existing) {
         // Cell zeroed/cleared and a server entry exists → delete it. (A note on a now-zero row

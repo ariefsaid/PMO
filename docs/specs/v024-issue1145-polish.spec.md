@@ -2,7 +2,7 @@
 
 Status: Director-approved bounded v0.24.0 scope; implementation evidence is tracked separately.
 Baseline: origin/dev at 25046f07047588dfd23d2f0eedf234307b5190fa, 2026-10-19.
-Companion: docs/plans/2026-10-19-v024-issue1145-polish.md.
+Companion: 2026-10-19-v024-issue1145-polish plan (in git history).
 
 ## Intent and source
 

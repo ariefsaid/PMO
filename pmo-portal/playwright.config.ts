@@ -106,7 +106,7 @@ export default defineConfig({
       // Without it the specs are vacuous: getAnalyticsConfig() disables analytics whenever
       // VITE_POSTHOG_KEY is not a valid phc_ key, which it never is in e2e — so "no request to
       // the PostHog host" / "no third-party request" would pass before any of this work existed.
-      // See docs/plans/2026-07-25-observability-analytics.md D6.
+      // See observability-analytics plan (2026-07-25, in git history) D6.
       name: 'consent',
       use: { ...devices['Desktop Chrome'], baseURL: consentUrl },
       testMatch: /AC-CON-(003|012)-.*\.spec\.ts|AC-VISUAL-CHECKBOX-001-.*\.spec\.ts/,

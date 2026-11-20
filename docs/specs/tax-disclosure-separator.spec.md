@@ -4,7 +4,7 @@ Status: self-contained extraction of the approved v0.24.0 polish scope, 2026-10-
 Issue: [Tax disclosure: retain presentation and future caller coverage observations](https://github.com/ariefsaid/PMO/issues/1157).
 Source contract: `v024-ris-polish.spec.md` FR-V24P-014 / AC-V24P-014 and `2026-10-19-v024-ris-polish.md` P08. This document carries their complete separator-only contract; execution does not require those umbrella files to be published.
 Deciding source baseline: `origin/dev` = `c599d87d849f37c3db6c22f71efa8bb0db2199f9` in the current primary checkout. The older planning checkout is not behavior evidence.
-Plan: `docs/plans/2026-10-19-tax-disclosure-separator.md`.
+Plan: `tax-disclosure-separator plan (2026-10-19, in git history)`.
 
 ## Job and observed outcome
 

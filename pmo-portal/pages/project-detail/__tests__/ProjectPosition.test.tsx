@@ -125,9 +125,14 @@ const budgetPosition = (overrides: Record<string, unknown> = {}) => ({
   consumptionVariance: '-10', riskEligible: true, atRisk: true, ...overrides,
 });
 
+// #2204: the server projection's per-currency invoice bucket the Money position reads.
+const usdBucket = (overrides: Record<string, unknown> = {}) => ({
+  currency: 'USD', invoice_count: 1, invoiced: '250.00', settled: '200.00', outstanding: '50.00',
+  missing_amount: 0, missing_outstanding: 0, tax_basis: 'inclusive', work_revenue: '250.00', missing_work: 0, ...overrides,
+});
 const invoice = (overrides: Record<string, unknown> = {}) => ({
   id: 'inv-1', status: 'Submitted', invoice_date: '2026-10-01', erp_due_date: '2026-10-20',
-  erp_payment_terms_days: 30, erp_outstanding_amount: '50', grand_total: '9999',
+  erp_payment_terms_days: 30, erp_outstanding_amount: '50', grand_total: '9999', tax_treatment: 'inclusive', tax_amount: 0,
   ...overrides,
 });
 
@@ -634,7 +639,12 @@ describe('contract billing block', () => {
 
     renderWithQueryClient(<MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>);
 
-    await userEvent.click(screen.getByText('Details', { exact: true }));
+    const details = screen.getByRole('button', { name: 'Details' });
+    expect(details).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('Project finances')).not.toBeInTheDocument();
+
+    await userEvent.click(details);
+    expect(details).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByText('Project finances')).toBeInTheDocument();
     expect(screen.getByText('2 invoices')).toBeInTheDocument();
     expect(screen.getByText(/Updated/)).toBeInTheDocument();
@@ -654,6 +664,10 @@ describe('contract billing block', () => {
     expect(currencySection.getByText('Billed-work revenue')).toBeInTheDocument();
     expect(currencySection.getByText('Mixed tax bases')).toBeInTheDocument();
     expect(screen.getByText('Remaining to invoice')).toBeInTheDocument();
+
+    await userEvent.click(details);
+    expect(details).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('Project finances')).not.toBeInTheDocument();
   });
 
   it('AC-UNB-001 shows the contract invoice position on a won project', async () => {
@@ -682,7 +696,7 @@ describe('contract billing block', () => {
     ] }] };
     state.invoices = [{ ...invoice(), currency: 'USD', amount: 250, erp_outstanding_amount: 50 }];
     state.finances = {
-      contract_invoiced: '250', remaining_to_invoice: '750', invoices: [],
+      contract_invoiced: '250', remaining_to_invoice: '750', invoices: [usdBucket()],
       cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '150' }], receipt_count: 1 },
       actuals: { currency: 'USD', total: '100.00', as_of: null, excludes_restricted_rows: false, categories: [] },
     };
@@ -699,12 +713,103 @@ describe('contract billing block', () => {
     expect(figure('Paid')).toHaveTextContent(/\$200.*20% of contract.*Received \$150/);
   });
 
+  it('AC-SET-001 #2204 Money position leaves Invoiced and Paid out when the projection has two currency buckets', async () => {
+    state.boqItems = [{ id: 'boq-1', quantity: 10, rate: 100 }];
+    state.billing = { contractLines: [] };
+    state.invoices = [
+      { ...invoice(), currency: 'USD', amount: 250, erp_outstanding_amount: 50 },
+      { ...invoice({ id: 'inv-2' }), currency: 'IDR', amount: 900_000, erp_outstanding_amount: 0 },
+    ];
+    state.finances = {
+      contract_invoiced: null, remaining_to_invoice: null,
+      invoices: [usdBucket(), usdBucket({ currency: 'IDR', invoiced: '900000.00', settled: '900000.00', outstanding: '0.00' })],
+      cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '150' }], receipt_count: 1 },
+      actuals: { currency: 'USD', total: '100.00', as_of: null, excludes_restricted_rows: false, categories: [] },
+    };
+
+    renderMoneyPosition();
+    const strip = screen.getByLabelText('Contract to payment');
+    expect(within(strip).queryByText('Invoiced')).not.toBeInTheDocument();
+    expect(within(strip).queryByText('Paid')).not.toBeInTheDocument();
+    expect(screen.queryByText('$250')).not.toBeInTheDocument();
+    await userEvent.click(within(screen.getByTestId('figures-hidden')).getByText('Why'));
+    expect(screen.getByText('Invoiced and paid are left out because the invoices are not all in the project currency.')).toBeInTheDocument();
+  });
+
+  it('AC-SET-004 #2204 an unknown invoice balance does not hide or invent receipt cash', () => {
+    state.invoices = [{ ...invoice(), currency: 'USD', amount: 250, erp_outstanding_amount: null }];
+    state.finances = {
+      contract_invoiced: '250', remaining_to_invoice: '750',
+      invoices: [usdBucket({ invoiced: '250.00', settled: null, outstanding: null, missing_outstanding: 1, tax_basis: 'inclusive' })],
+      cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '65' }], receipt_count: 1 },
+      actuals: { currency: 'USD', total: '100.00', as_of: null, excludes_restricted_rows: false, categories: [] },
+    };
+    renderMoneyPosition();
+    const strip = screen.getByLabelText('Contract to payment');
+    expect(within(strip).getByText('Invoiced').closest('div')).toHaveTextContent('$250');
+    expect(within(strip).queryByText('Paid')).not.toBeInTheDocument();
+    expect(screen.getByTestId('money-lead-cash')).toHaveTextContent('Received$65');
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('Paid');
+  });
+
+  it('AC-SET-002 #2204 Money position reads Invoiced and Paid on the gross basis for a tax-exclusive invoice', () => {
+    state.boqItems = [{ id: 'boq-1', quantity: 10, rate: 100 }];
+    state.billing = { contractLines: [] };
+    state.invoices = [{ ...invoice(), currency: 'USD', tax_treatment: 'exclusive', tax_amount: 25, amount: 250, erp_outstanding_amount: 275 }];
+    state.finances = {
+      contract_invoiced: '250', remaining_to_invoice: '750',
+      invoices: [usdBucket({ tax_basis: 'exclusive', invoiced: '250.00', settled: '0.00', outstanding: '275.00' })],
+      cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '0' }], receipt_count: 0 },
+      actuals: { currency: 'USD', total: '100.00', as_of: null, excludes_restricted_rows: false, categories: [] },
+    };
+
+    renderMoneyPosition();
+    const strip = screen.getByLabelText('Contract to payment');
+    expect(within(strip).getByText('Invoiced').closest('div')!).toHaveTextContent('$275');
+    const paidRow = within(strip).getByText('Paid').closest('div')!;
+    expect(paidRow).toHaveTextContent('$0');
+    expect(paidRow).not.toHaveTextContent('-');
+  });
+
+  it('AC-SET-005 #2204 a fully paid tax-exclusive invoice reads Paid equal to Invoiced, both including tax', () => {
+    state.boqItems = [];
+    state.billing = { contractLines: [] };
+    state.invoices = [{ ...invoice(), status: 'Paid', currency: 'USD', tax_treatment: 'exclusive', tax_amount: 110, amount: 1_000, erp_outstanding_amount: 0 }];
+    state.finances = {
+      contract_invoiced: '1000', remaining_to_invoice: '0',
+      invoices: [usdBucket({ tax_basis: 'exclusive', invoiced: '1000.00', settled: '1110.00', outstanding: '0.00' })],
+      cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '1110' }], receipt_count: 1 },
+      actuals: { currency: 'USD', total: '100.00', as_of: null, excludes_restricted_rows: false, categories: [] },
+    };
+
+    renderMoneyPosition(project({ contract_value: 1_000, tax_treatment: 'exclusive' }));
+    const strip = screen.getByLabelText('Contract to payment');
+    expect(within(strip).getByText('Invoiced').closest('div')!).toHaveTextContent('$1,110');
+    expect(within(strip).getByText('Paid').closest('div')!).toHaveTextContent('$1,110');
+    expect(within(strip).getByText('Invoiced').closest('div')).toHaveTextContent('111% of contract');
+  });
+
+  it('AC-SET-005 #2204 shows the Paid share when the contract value is on the same gross basis', () => {
+    state.boqItems = [];
+    state.billing = { contractLines: [] };
+    state.invoices = [{ ...invoice(), currency: 'USD', amount: 1_110, erp_outstanding_amount: 555 }];
+    state.finances = {
+      contract_invoiced: '1110', remaining_to_invoice: '0',
+      invoices: [usdBucket({ invoiced: '1110.00', settled: '555.00', outstanding: '555.00' })],
+      cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '555' }], receipt_count: 1 },
+      actuals: { currency: 'USD', total: '100.00', as_of: null, excludes_restricted_rows: false, categories: [] },
+    };
+
+    renderMoneyPosition(project({ contract_value: 1_110, tax_treatment: 'inclusive' }));
+    expect(screen.getByText('Paid').closest('div')).toHaveTextContent('50% of contract');
+  });
+
   it('explains settled invoice value that has no matched receipt and links to matching', () => {
     state.boqItems = [{ id: 'boq-1', quantity: 10, rate: 100 }];
     state.billing = { contractLines: [] };
     state.invoices = [{ ...invoice(), currency: 'USD', amount: 250, erp_outstanding_amount: 50 }];
     state.finances = {
-      contract_invoiced: '250', remaining_to_invoice: '750', invoices: [],
+      contract_invoiced: '250', remaining_to_invoice: '750', invoices: [usdBucket()],
       cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '150' }], receipt_count: 1 },
       actuals: { currency: 'USD', total: '100.00', as_of: null, excludes_restricted_rows: false, categories: [] },
     };
@@ -749,7 +854,8 @@ describe('contract billing block', () => {
     state.finances = {
       contract_invoiced: '100',
       remaining_to_invoice: null,
-      invoices: [{ currency: 'USD', missing_outstanding: 1, outstanding: null }],
+      // #2204: the bucket the Money position now reads states the invoice it counts (a tax-inclusive 100, balance unknown).
+      invoices: [usdBucket({ invoiced: '100.00', settled: null, missing_outstanding: 1, outstanding: null })],
       cash_received: { state: 'unknown', buckets: [] },
     };
 
@@ -763,8 +869,9 @@ describe('contract billing block', () => {
     expect(screen.queryByText('Outstanding', { exact: true })).not.toBeInTheDocument();
     const hidden = screen.getByTestId('figures-hidden');
     // The panel names its own figures it cannot compute yet, beside the ones it shows.
-    expect(hidden).toHaveTextContent('Not shown yet: Contract, In work orders, Delivered, Gross margin, Cash received · Why');
+    expect(hidden).toHaveTextContent('Not shown yet: Contract, In work orders, Delivered, Paid, Gross margin, Cash received · Why');
     await userEvent.click(within(hidden).getByText('Why'));
+    expect(screen.getByText('Paid is left out until every invoice balance is known.')).toBeInTheDocument();
     expect(screen.getByText('Receipt-backed cash is not available yet.')).toBeInTheDocument();
     expect(screen.getByText('Contract value is not recorded.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Match payments' })).toHaveAttribute('href', '/finance/receivables?view=payments');

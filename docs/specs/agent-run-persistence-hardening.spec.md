@@ -33,7 +33,7 @@ persist path and is referenced, not re-owned). One owning layer per AC (§5).
 
 ## 1. Context & problem
 
-The 2026-07-08 gap analysis (`/Users/ariefsaid/Coding/PMO/docs/spikes/2026-07-08-agent-native-gap-analysis.md`)
+The 2026-07-08 gap analysis (`/Users/ariefsaid/Coding/PMO/agent-native-gap-analysis spike (2026-07-08, in git history)`)
 found that we "didn't lack the primitives — we mis-keyed a lifecycle we already had the tables for." The
 **money-path bug** was not a missing capability: it was the run row being created on the wrong key. The FE
 adapter (`pmo-portal/src/lib/agent/runtime/pmoNativeRuntime.ts`) mints a `runId` client-side on every

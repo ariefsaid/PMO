@@ -16,6 +16,7 @@ export interface SalesInvoiceRow {
   id: string;
   org_id: string;
   project_id: string | null;
+  work_order_id?: string | null;
   erp_project: string | null;
   customer_id: string | null;
   /** #781 (AC-FIN-001): the customer's display name, resolved in the same read (never rendered as the opaque `customer_id`). Null when the relation is missing. */

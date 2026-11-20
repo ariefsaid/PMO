@@ -1,6 +1,6 @@
 # Kanban project title readability — spec (#685)
 
-**Status:** signed within the enterprise UX milestone, 2026-09-28. **Authority:** `docs/design/2026-09-26-enterprise-coherence-brief.md`, `DESIGN.md`, and the shared `ProjectCardShell` used by Sales and Projects boards.
+**Status:** signed within the enterprise UX milestone, 2026-09-28. **Authority:** `enterprise-coherence-brief doc (2026-09-26, in git history)`, `DESIGN.md`, and the shared `ProjectCardShell` used by Sales and Projects boards.
 
 ## Job and observed failure
 

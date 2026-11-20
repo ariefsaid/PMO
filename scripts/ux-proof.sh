@@ -14,12 +14,16 @@ if [ -n "${UX_PROOF_PORT:-}" ] && [ -z "${SHOT_BASE:-}" ]; then
   export SHOT_BASE="http://localhost:${UX_PROOF_PORT}"
 fi
 _base="${SHOT_BASE:-http://localhost:5173}"
-_auth="$(printf '%s' "$_base" | sed -n 's#^https\?://\([^/]*\).*#\1#p')"
+_auth="${_base#*://}"
+_auth="${_auth%%/*}"
 case "$_auth" in
   \[*\]*) _host="${_auth%%]*}"; _host="${_host#[}"; _rest="${_auth#*]}" ;;
   *) _host="${_auth%%:*}"; _rest="${_auth#"$_host"}" ;;
 esac
-_port="$(printf '%s' "$_rest" | sed -n 's#^:\([0-9][0-9]*\)$#\1#p')"
+case "$_rest" in
+  :[0-9]*) _port="${_rest#:}"; case "$_port" in *[!0-9]*) _port='' ;; esac ;;
+  *) _port='' ;;
+esac
 # only a local base is probed: a remote host is not ours to health-check from here.
 case "$_host" in localhost|127.0.0.1|::1) _local=1 ;; *) _local=0 ;; esac
 if [ "$_local" = 1 ] && [ -n "$_port" ] && ! node -e 'const s=require("net").connect(+process.argv[1],process.argv[2]);s.on("connect",()=>process.exit(0));s.on("error",()=>process.exit(1))' "$_port" "$_host" 2>/dev/null; then

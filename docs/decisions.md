@@ -315,7 +315,7 @@ One `projects` record; one `/projects/:id` detail page with a stage-adaptive len
 The no-op Board-pack CTA becomes a visibly-disabled "coming soon" affordance (no fake success); a real export lands with the Reports module.
 
 ## OD-W2 — UX-naturalness Wave 2 (RBAC view-gating + IxD) (LOCKED 2026-06-09, owner-decided)
-Plan: `docs/plans/2026-06-09-ux-naturalness-wave2.md`. Enforces ADR-0016 (`can()` FE gating; RLS stays the authority).
+Plan: `ux-naturalness-wave2 plan (2026-06-09, in git history)`. Enforces ADR-0016 (`can()` FE gating; RLS stays the authority).
 ### OD-W2-1 — Engineer procurement = own-scoped
 Engineer sees `/procurement` scoped to their OWN requests and may "Raise request"; no approve/edit/manage on others' PRs (rbac-visibility §A/§E + the existing RLS scoping).
 ### OD-W2-2 — Engineer approval = OFF at the FE for now; configurable role-access DEFERRED to a future admin-settings / config engine (the OD-PROC-6 bridge)
@@ -336,7 +336,7 @@ Entering the invoice details becomes part of the **Mark-Vendor-Invoiced** action
 ### OD-W3-4 — Inline pipeline stage-change = KEEP / DEFER (no change)
 No drag-and-drop / row-dropdown stage change on the board; the detail page (PipelineLens) stays the single place to advance a deal. DnD kanban is a sizeable build — revisit only if pipeline grooming becomes a real pain.
 
-## Wave 5 — Approval Experience (OD-W5-*, locked 2026-06-09; plan `docs/plans/2026-06-09-wave5-approval-experience.md`)
+## Wave 5 — Approval Experience (OD-W5-*, locked 2026-06-09; plan `wave5-approval-experience plan (2026-06-09, in git history)`)
 ### OD-W5-1 — Approvals inbox = PROMOTE the existing `/approvals` route
 One canonical role-aware inbox (NOT a new `/inbox`): lists everything awaiting the viewer's decision — procurement PRs (link to the decision screen) + timesheet weeks (embedded queue) — gated by `may('transition', entity)` (Engineer → no access; Finance → procurement; PM/Exec → both). UX-only; RLS is authority. Dashboard "Awaiting your approval" KPI-as-link routes here (N15). For timesheets, the later and more specific OD-TS-5 applies: a viewer of any role sees the timesheet section when they have eligible pending or correction records; Admin break-glass and Executive unmanaged fallback remain subject to separation of duties. The procurement and invoice gates are unchanged.
 ### OD-W5-2 — Approved stage = BOTH forward paths stay, skip-able (one VISUAL primary, both reachable)
@@ -348,7 +348,7 @@ The decision-support panel's "spent/remaining" uses the existing **OD-BUDGET-2 c
 ### OD-W5-5 — PO-commitment approval gate + cashflow = DEFERRED to their own feature track (NOT this IxD wave)
 Owner insight: the **PO/commitment** approval is the business-critical gate (actual order commitment vs budget AND cashflow), more so than the request approval. But (a) a *server-enforced PO-commitment approval gate* (a distinct authority signs off the PO before it's placed) is a new state-machine state + RPC + ADR, and (b) **no cashflow / cash-position data exists** in the system at all. BOTH are new features, NOT IxD. Decision: ship Cluster-1 IxD now (make the PO decision evidence-rich with the budget/committed data we already have), and spin the PO-commitment-approval gate + a cash-position data domain into a **separate spec/ADR feature track** (see backlog "Deferred feature track"). Cluster-1 IxD must NOT change the procurement state machine / RPCs.
 
-## Wave 5 — Cluster 2: Dashboard drill-through + finance-console (OD-W5-C2-*, Director-adopted 2026-06-10; plan `docs/plans/2026-06-10-wave5-dashboard-console.md`)
+## Wave 5 — Cluster 2: Dashboard drill-through + finance-console (OD-W5-C2-*, Director-adopted 2026-06-10; plan `wave5-dashboard-console plan (2026-06-10, in git history)`)
 Owner mandate "proceed until wave 5 & wave 4 completion" → Director adopts the design-architect's recommendations (all within the signed Wave-5 direction + the locked honest-dashboard rule):
 ### OD-W5-C2-A — "at-risk" = the existing `spent/budget ≥ 0.9` (one shared constant)
 Reuse the canonical threshold already in `get_executive_dashboard`/BvACard/PMDashboard. No schedule/aging signal (would need a data domain that doesn't exist). Pin it as one shared constant consumed by the at-risk filter + PM risk-sort.
@@ -364,7 +364,7 @@ Revenue-on-hand, Pipeline-forecast-margin, and the on-hand/contract-value tiles 
 ### OD-W5-C2-E — N17 variance ranking = HONEST-LABELLED FE-resort NOW + backend RPC tracked
 The `top_projects` RPC is `LIMIT 5 by contract_value`, so an FE variance re-sort only re-orders those 5 — the worst bleeder could be the 6th-largest and never fetched. Per the honest-dashboard rule we do NOT present it as "the most over-budget projects". Ship now: FE-resort the available set with an **honest label** ("Top contracts by variance" / scoped wording) so it's not misrepresented; track a backend `get_finance_budget_review()` (rank ALL projects by variance) as a follow-up feature. **Owner may override to fund the backend slice into this cluster** (flagged in the report + backlog).
 
-## Wave 5 — Cluster 3: Project/record detail legibility (OD-W5-C3-*, Director-adopted 2026-06-10; plan `docs/plans/2026-06-10-wave5-detail-legibility.md`)
+## Wave 5 — Cluster 3: Project/record detail legibility (OD-W5-C3-*, Director-adopted 2026-06-10; plan `wave5-detail-legibility plan (2026-06-10, in git history)`)
 Adopt the design-architect recommendations (within OD-W3-4 / OD-UX-1 / role-shaping):
 ### OD-W5-C3-A — D15 finance-chrome demotion = MOVE-BELOW (not hide), Engineer default tab = Tasks
 For delivery-forward roles (Engineer) the header finance StatTiles + contract-value SoD row MOVE into an Overview "Financial summary" card (reachable + labelled, read-only lock — never DELETED, RLS-permitted data stays visible), the header leads with delivery meta, and the default tab is Tasks. Finance-forward roles (Admin·Exec·Finance·PM — PM owns the budget) keep the finance-forward header unchanged. FE-only on `realRole`; FE never shows less than RLS forbids, just reprioritizes.
@@ -374,9 +374,9 @@ A persistent quiet "Back to Sales Pipeline" link in the Next-actions area + focu
 Stepper nodes show full words (Purchase Request / Vendor Quote / Purchase Order / Goods Receipt / Vendor Invoice / Paid); the mono acronym stays as the ref; `title`/`aria-label` per node. Pipeline "PQ" → "Pre-Qualification". Full word always visible (legible without hover).
 
 ## OD-W5-C6 — Cluster 6: D13 only; D11/D12 detail drawers DEFERRED (owner 2026-06-10)
-Cluster 6 plan (`docs/plans/2026-06-10-wave5-detail-drawers.md`) needed a NET-NEW quick-view Drawer primitive for D11/D12 (company/document detail + inline status). Owner chose: **skip the drawers, ship only D13, go straight to Wave 4 (mobile — the bigger flagged item).** D11/D12 (company + document quick-view drawer + inline status; the design-plan + the Drawer-primitive sketch are ready to pick up) are **deferred** to a later polish pass. **D13 DONE:** removed the dead disabled "Attach file (coming soon)" button on the Documents register (honest-affordance rule OD-W2-5) — the Storage deferral is signposted by the register subtitle copy, not a fake control. (The exec-dashboard Board-pack "coming soon" is a DIFFERENT, legitimate honest-disabled signpost with a future Reports route — unchanged.)
+Cluster 6 plan (`wave5-detail-drawers plan (2026-06-10, in git history)`) needed a NET-NEW quick-view Drawer primitive for D11/D12 (company/document detail + inline status). Owner chose: **skip the drawers, ship only D13, go straight to Wave 4 (mobile — the bigger flagged item).** D11/D12 (company + document quick-view drawer + inline status; the design-plan + the Drawer-primitive sketch are ready to pick up) are **deferred** to a later polish pass. **D13 DONE:** removed the dead disabled "Attach file (coming soon)" button on the Documents register (honest-affordance rule OD-W2-5) — the Storage deferral is signposted by the register subtitle copy, not a fake control. (The exec-dashboard Board-pack "coming soon" is a DIFFERENT, legitimate honest-disabled signpost with a future Reports route — unchanged.)
 
-## Wave 4 — Mobile responsiveness (OD-W4-*, Director-adopted 2026-06-10; plan `docs/plans/2026-06-10-wave4-mobile.md`)
+## Wave 4 — Mobile responsiveness (OD-W4-*, Director-adopted 2026-06-10; plan `wave4-mobile plan (2026-06-10, in git history)`)
 The app was MORE mobile-ready than "desktop-only" implied (rail→drawer ≤920px, `.touch-target` ≥44px utility, StatTiles scroll-snap, LifecycleStepper/Funnel/kanban overflow-x, TimesheetGrid sticky-col all already shipped). The ONE structural gap = the shared `DataTable` has no stacked-card reflow. Adopt the design-architect recommendations (standard mobile patterns, low-risk):
 ### OD-W4-1 — Shell mobile nav = KEEP the DRAWER (not bottom-nav)
 The grouped role-nav exceeds the 5-item bottom-nav ceiling; the rail→drawer at ≤920px already works. Harden it (focus-trap/Esc/close, safe-area) rather than replace.
@@ -846,7 +846,7 @@ for containers only). New tiers add rows, never new tables.
 The self-serve UI for connecting an external system (ClickUp P1, ERPNext P2/#315) to an org. The sync
 engines already exist (`adapter-dispatch`/`clickup-webhook`/`clickup-sweep`; `erpnext-onboard`/`erpnext-
 sweep`); this is the operator/admin **connection** layer on top. Full scope + phases + #315 alignment:
-`docs/plans/2026-07-13-clickup-admin-integration-flow.md`. Backlog: the "EXTERNAL-SYSTEM ADMIN-CONNECT"
+`clickup-admin-integration-flow plan (2026-07-13, in git history)`. Backlog: the "EXTERNAL-SYSTEM ADMIN-CONNECT"
 section. Depends on ADR-0055 (external adapters), ADR-0016/0019 (can()+RLS/RPC authority), ADR-0057
 (`verifyCallerJwt`). Sequenced **after #315 merges**.
 
@@ -1546,7 +1546,7 @@ reversibility correction.
 
 ## DD-FMT-1 — negative money renders `-$1,234.50`, not `$-1,234.50` (Director, 2026-08-19)
 
-Surfaced by the #477 review (`docs/reviews/2026-08-19-477-locale-drift-sweep.md`). The swept money
+Surfaced by the #477 review (`477-locale-drift-sweep review (2026-08-19, in git history)`). The swept money
 formatters disagreed with each other: `formatCurrencyCents`/`formatCurrencyFine` used `Intl`
 `style: 'currency'` and rendered `-$1,234.50`, while `formatCurrencyAuto` welded a `$` onto a plain
 number and rendered `$-1,234.5`. `RevenueByProject` renders **both on one screen** — KPI tiles and
@@ -2254,7 +2254,7 @@ no existing descriptor returns it, so every current importer's counts are unchan
 
 ## DD-PB-1 — the budget account-map gap is recorded, not fixed (Director, 2026-08-20)
 
-Surfaced by #479's Posture-B state-stamp audit (`docs/reviews/2026-08-20-posture-b-state-stamps.md`).
+Surfaced by #479's Posture-B state-stamp audit (`posture-b-state-stamps review (2026-08-20, in git history)`).
 
 **The gap.** The pushed budget `accounts[]` is built from `budget_category_account_map` (Admin-writable
 `FOR ALL`, `0137:129-133`) and the overspend `action_if_*` fields from binding config
@@ -2321,7 +2321,7 @@ Drained from the wayfinder owner frontier on [RIS goes live: first-client delive
 
 ### OD-XING-1 — the standalone → connected crossing is a connect-time choice, defaulting to "start at connect"; RIS's history is loaded straight into ERPNext
 
-`DD-XING-3` claimed the crossing needed no bespoke backfill. **It is falsified** (#523, evidence in `docs/reviews/2026-08-20-posture-b-state-stamps.md`): `erpnext-sweep/index.ts:1491-1494,1503,1511` refuses pre-binding hours *by design*, and `:1180-1182` writes no budget mirror row before dispatch — so "records whose mirror row is missing" does not select the set `DD-XING-3` means. **`DD-XING-3` is superseded by this entry.**
+`DD-XING-3` claimed the crossing needed no bespoke backfill. **It is falsified** (#523, evidence in `posture-b-state-stamps review (2026-08-20, in git history)`): `erpnext-sweep/index.ts:1491-1494,1503,1511` refuses pre-binding hours *by design*, and `:1180-1182` writes no budget mirror row before dispatch — so "records whose mirror row is missing" does not select the set `DD-XING-3` means. **`DD-XING-3` is superseded by this entry.**
 
 **The policy (owner):** the crossing is a **per-client choice at connect time**, from four options — (1) replay everything from the beginning · (2) push nothing pre-binding, the ERP starts at connect · (3) a summarised opening entry · (4) ask, i.e. the chooser itself. **Default is (2).** (1) and (3) remain available for a client who asks.
 
@@ -2974,7 +2974,7 @@ the first client on 2026-10-16.
 
 ## DD-UX-1..10 — declutter audit decisions (2026-10-16)
 
-From `docs/ux/2026-10-16-declutter-audit.md` § Owner decisions. 1 and 2 were agreed by the owner; 3–10 are
+From the 2026-10-16 declutter audit § Owner decisions (audit since deleted; the decisions live here). 1 and 2 were agreed by the owner; 3–10 are
 Director decisions within PRODUCT.md's principles.
 1. The dashboard spend bar is renamed "Spending vs contract" now. A budget-usage bar follows once budgets are active.
 2. Each project shows one money summary (contract, spent, billed, received), drilling into spending, forecast
@@ -3092,7 +3092,7 @@ advance-item mechanism (ADR-0077) holds: the down payment books to the liability
 line nets it with tax on the reduced base. Two requirements follow: ERP setup must turn on Selling Settings "Allow
 Negative rates for Items" (site-wide, off by default — the claim is refused at submit otherwise), and the invoice
 body must send tax rows explicitly (naming a taxes template alone yields none). Re-check on v16 before enabling.
-Evidence: `docs/reviews/2026-10-06-progress-billing-erp-spike.md`.
+Evidence: `progress-billing-erp-spike review (2026-10-06, in git history)`.
 
 **DD-PBL-13 (Director, 2026-10-06, #856) — every sales invoice and claim sends explicit tax rows, gated by the project's VAT flag (OD-TAX-4).**
 One helper (`resolveSalesTaxRows`) serves ordinary invoice creates and claim/down-payment invoices: rate and account come from
@@ -3139,7 +3139,7 @@ and writes the rows into the command before the outbox snapshot, so a sweep repl
 Edits and amends send none. Only the "Record vendor invoice" form offers the picker; the inline "Mark Vendor Invoiced" capture
 writes through the PMO-only atomic RPC and does not dispatch, so it is not offered there (asking and discarding is #505's defect).
 The sales side is unchanged: DD-PBL-13 (project VAT flag + default template) already sends explicit rows. Plan:
-`docs/plans/2026-10-06-purchase-tax-template.md`.
+`purchase-tax-template plan (2026-10-06, in git history)`.
 - **DD-VI-3a (Director, 2026-10-06, #520 review):** a template with any `Deduct` row or negative rate (withholding, e.g. PPh) is
   refused before any ERP write (`config-rejected`, "This template withholds tax (e.g. PPh), which PMO cannot record yet — choose a
   template without withholding."): the vendor-invoice mirror allows a negative tax only on a negative amount (0196), so the ERP
@@ -3199,7 +3199,7 @@ money header — FR-ENA-116's paid-detection, built (DD-VWH-5) · the ledger sho
 under a withholding bill, nothing else changes (DD-VWH-6) · the column default is a fact for PMO-native bills; the
 mirror always states the value (DD-VWH-7) · no cost, actual, commitment or budget figure is reduced by withholding;
 never map a PPh payable account into a budget category (DD-VWH-8) · sales symmetry: client withholding stays on the
-receipt, and a negative sales tax row is refused (DD-VWH-9). Plan: `docs/plans/2026-10-07-vendor-withholding.md`.
+receipt, and a negative sales tax row is refused (DD-VWH-9). Plan: `vendor-withholding plan (2026-10-07, in git history)`.
 
 **OD-VWH-1 (owner, 2026-10-07, #876)** — vendor tax is set up **in PMO**: each vendor company carries a default tax treatment (VAT rate; withholding type PPh 23 / PPh 4(2) and rate; or none). A vendor bill starts from that default and its tax amounts are **editable**, so the bill can capture exactly what the vendor's own invoice shows (including invoices made outside PMO and the ERP). For an ERP-connected org PMO sends those amounts to ERPNext as fixed tax rows, so no ERPNext tax template is required (templates stay optional). PMO never recomputes ERP-calculated figures, so PMO and the ERP cannot disagree by rounding.
 
@@ -3228,11 +3228,40 @@ receipt, and a negative sales tax row is refused (DD-VWH-9). Plan: `docs/plans/2
 
 Warning and error toasts persist until dismissed because they carry remedies a user must be able to
 read or copy. Info and success toasts auto-dismiss after `max(4 seconds, 60 ms × displayed characters)`,
-capped at 10 seconds. Hovering or keyboard-focusing a toast pauses its timer. Every toast has a visible,
+capped at 10 seconds. Keyboard-focusing a toast (alt+T lifts and pins the stack; Escape releases it)
+pauses its timer; a pointer no longer does — see DD-TOAST-2. Every toast has a visible,
 keyboard-reachable dismiss control. The provider keeps one polite `role="status"` region and one
 assertive `role="alert"` region mounted empty, then inserts each message into the appropriate region;
 creating the live region and populated text together is not reliable for screen-reader announcements.
 Existing toast callers remain compatible; `error` is added as a kind alongside info/success/warning.
+
+## DD-TOAST-2 — a notice never takes the control it covers (Director, 2026-11-20, #2502)
+
+Notice placement is unchanged (bottom-right on desktop, top-center on phone, the safe top edge over a
+dialog or below a drawer header). The new rule is about the **pointer, not the pixel**: the notice
+stack and every notice card are pointer-transparent, so a click anywhere but a notice's own buttons
+hit-tests through to whatever is underneath — a table's last visible row, a row's actions menu, a
+docked action bar. Only the dismiss control (and any future action button) receives the pointer.
+
+Why: at 1280 × 720 the bottom-right notice landed on the last visible row's status control and, because
+a resting pointer paused its clock, kept it for as long as the person needed that control. Placement
+cannot settle this in general — on a list screen every free-looking corner is a control — so the notice
+stops competing for the pointer instead. The alternative (a reserved strip that reflows the page) was
+rejected: it moves the row the person just used and reshapes every screen's scroll height for a notice
+that carries no action.
+
+Consequences, accepted:
+- A resting pointer can no longer freeze a notice's lifetime; routine notices run their DD-TOAST-1
+  clock (`max(4s, 60ms × characters)`, capped at 10s). Reading time stays a keyboard affordance
+  (alt+T pins, Escape releases).
+- Swipe-to-dismiss is gone (the card is not a pointer target); the dismiss button remains on every
+  notice at every width.
+- Notice text is not mouse-selectable. Warnings and errors persist until dismissed, so a remedy stays
+  on screen to be read; it is copied from the screen that raised it, not from the notice.
+
+Covered by `pmo-portal/e2e/notice-never-blocks-the-control.spec.ts` — the task list, the purchases list
+and a budget line, each at 1280 × 720 and 390 × 844, hit-testing the raised control while the notice
+shows — and the pointer contract in `pmo-portal/src/components/ui/__tests__/Toast.pointer.test.tsx`.
 
 ## DD-VOCAB-1 — users see "Phase", the model keeps "milestone" (Director, 2026-10-14, UXS-034)
 
@@ -3778,5 +3807,20 @@ Amends OD-W5-4 and ADR-0034 §5. The panel's figure was budget − open orders �
 - The old purchasing-only tile ("Not yet committed to purchases") is gone: two "left" figures on different bases is the confusion this removes. The record header line for an ordered purchase uses the same helper ("Left in budget X") and no longer counts the order twice.
 - Holding the panel until the reading and the purchasing ownership have loaded is accepted (the decision figure needs both, so it never flashes "not known").
 - A payment now refreshes the budget positions as well as committed and reserved spend, so spending cannot lag behind open orders.
-- **Approval routing is untouched.** Who approves is decided in SQL from its own sums; it never reads this figure, which stays advisory (OD-W5-4). No migration, no routing code.
+- **Approval routing** is decided in SQL (OD-APPROVER-BASIS), which reads this same project reading; the figure itself stays advisory (OD-W5-4).
 - **Known ceiling (ERP, same as the project Budget tab):** a ledger cost not linked to its order is counted as both actual and open order: conservative. A held cost posted to an account not mapped to the project is in neither. Both come from ADR-0093's mapping; this slice adds no new double count or omission.
+
+### OD-APPROVER-BASIS — who approves a spend is judged on recorded spending, open orders and reserved, then on the whole project budget (owner, 2026-11-16)
+Amends DD-APR-2 and ADR-0075 §3 (migration 1016). `spend_approval_route` judges a request on two tests, in this order, and both send it to the senior set:
+- **Line:** recorded spending on the line + open orders + reserved + approved claims not yet in recorded spending, plus the request, against the line budget (`exceeds_line`). Recorded spending is the Budget tab's by-category Actual (`project_finance_actuals`: the ledger actual with an accounting system, otherwise paid purchases before tax plus internal hire charges). Open orders are the order total less what recorded spending holds (`procurement_open_commitment`). Purchasing kept outside PMO does not change this: PMO's own order rows are counted. Each cost is counted once.
+- **Project:** project budget − recorded spending − open orders − reserved − the request, below zero (`exceeds_project`), read from `project_budget_positions` (the approval panel's reading; nothing derived twice).
+- **Reason order:** the role-free reasons, `spending_not_visible`, the unknowns (`spending_unknown`, `currency_mismatch`), `exceeds_line`, `exceeds_project`, `budget_changed`, `within_budget`.
+- **Below approval rank** (an Engineer submitting, a requester reading): spending is not read; the reason is `spending_not_visible`, no figures are returned, and the route names the project's approvers and the senior set together, so a submit notifies the person who will decide.
+- **Unknown spending** (no ledger reading, an unmapped category, an unusable amount) routes to the senior set.
+- **No senior set:** the senior outcome (any reason) falls to the project's named approvers, never to everyone; the flat matrix applies only when the project has none either; nobody eligible among them leaves it to an Admin.
+- **Shape:** the figures are read once per list by the two list RPCs and per call by `spend_approval_route`; one display-only logic function takes them and decides who may see them from the caller's real rank. All SECURITY INVOKER. Every decision, notification and eligibility check calls `spend_approval_route`.
+- Known ceiling (ERP): a bill posted after the last ledger snapshot leaves open orders at once and reaches recorded spending at the next snapshot. Spending with no budget category counts in the project test only.
+
+## DD-WPVA-1 — Work-order financial attribution (2026-11-20)
+
+For #2519, project and contract totals use the existing project-finance basis; work orders divide that total without guessing document attribution. Shared costs use positive direct-cost weights, or a valid custom split; if neither exists they remain unassigned. Allocate cents by largest remainder, preserving the sign of a negative pool. Discipline figures cover planned and actual costs, with revenue and profit at work-order, project and contract levels. The detailed attribution, billing and rounding rules are in [the plan-versus-actual spec](specs/work-order-plan-vs-actual.spec.md); the discipline plan editor and work-order page integration follow separately.

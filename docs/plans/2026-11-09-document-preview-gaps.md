@@ -1,7 +1,7 @@
 # Document preview: remaining gaps for #1406
 
 Issue: #1406 (preview files in the app, including SharePoint/OneDrive links). Spec:
-`docs/specs/document-preview.spec.md`. Prior build: #1474 (plan `docs/plans/2026-10-31-document-preview.md`,
+`docs/specs/document-preview.spec.md`. Prior build: #1474 (plan `document-preview plan (2026-10-31, in git history)`,
 shipped to `dev` in PR #1587). No migration.
 
 ## Verdict

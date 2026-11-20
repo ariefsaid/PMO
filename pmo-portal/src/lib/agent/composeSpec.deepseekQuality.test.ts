@@ -1,6 +1,6 @@
 /**
  * Quality-gate test on a hand-shaped deepseek/deepseek-v4-flash-realistic tool-forced
- * compose_view fixture (MC-OD-008 — see docs/plans/2026-07-03-agent-model-client.md §5
+ * compose_view fixture (MC-OD-008 — see agent-model-client plan (2026-07-03, in git history) §5
  * for live-run provenance status, recorded by the Director/Task 21).
  * AC-MC-022: structured-output validity on the first attempt (repairAttempts: 0).
  */
