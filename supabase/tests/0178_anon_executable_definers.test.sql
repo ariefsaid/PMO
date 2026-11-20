@@ -424,6 +424,9 @@ insert into client_callable_rpc_names (proname) values
   ('admin_change_domain_ownership'),
   ('admin_set_feedback_surveys'),
   ('list_budget_fiscal_years'),
+  ('load_stock_opening'),  -- ⚑ AMENDED BY 1046 (#2588): the three opening-balance writers; each is Admin-only and org-scoped (opening_balances.test.sql)
+  ('load_work_order_opening'),
+  ('reverse_opening_balance'),
   ('list_tm_claim_source_details'),  -- ⚑ AMENDED BY 0588 (#1514 D1)
   ('operator_agent_run_stats'),
   ('operator_create_org'),
@@ -550,8 +553,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  224,
-  'AC-ACL-002 all 224 retained client-callable RPC names still have a public function');
+  227,
+  'AC-ACL-002 all 227 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -560,8 +563,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  224,
-  'AC-ACL-003 all 224 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  227,
+  'AC-ACL-003 all 227 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

@@ -703,6 +703,25 @@ Not available here, by design: a project's code, client, currency, stage or stat
 
 **Common errors:** `no project / contract line / budget line` or `more than one`: the key matched zero or several records; fix the key and read the record first. `line-items can only change while the owning version is Draft`: the budget is Active or Archived, so its lines cannot change. `a lump-sum line must have quantity 1`: send `--set basis=lump_sum --set quantity=1` together. `No row was updated`: row-level security hid the record; check the role and organization with `whoami`. A server refusal is shown with its own message; do not retry with broader credentials. If the historical stage date is wrong, use the stage-date sequence in recipe 3.
 
+### 12. Opening balances at go-live
+
+**Goal:** at go-live, load where each running work order stands and what each stock location holds, so progress, billing and stock continue from there instead of from zero (#2588, `docs/specs/opening-balances.spec.md`).
+
+**Who:** an active Admin. **When:** after the projects, contract lines, work orders (Issued, with their lines allocated), stock items and locations are loaded, and **before** any real acceptance, claim, invoice or stock movement on that work order or location; the server refuses an opening once one exists. Finished (Closed or Cancelled) work orders carry no opening balance. Every opening uses the one go-live date (`p_as_of`); a different date is refused.
+
+```bash
+# Per running work order: per allocated contract line, the quantity certified (accepted) and the quantity already claimed.
+node scripts/pmo.mjs rpc load_work_order_opening '{"p_work_order_id":"<uuid>","p_as_of":"<go-live date>","p_note":"source sheet row 12","p_lines":[{"boq_item_id":"<uuid>","certified_quantity":4,"claimed_quantity":3}]}'
+# Per stock location: the counted quantity of each item and its unit cost (a cost is required above 0).
+node scripts/pmo.mjs rpc load_stock_opening '{"p_warehouse_id":"<uuid>","p_as_of":"<go-live date>","p_lines":[{"item_id":"<uuid>","counted_quantity":10,"unit_cost":5}]}'
+# Reconcile: one row per live opening (certified value, claimed value, stock quantity and value). Compare with the source totals.
+node scripts/pmo.mjs rpc opening_balance_report '{}'
+# Undo a wrong opening (only while nothing real has happened on it since), then load it again.
+node scripts/pmo.mjs rpc reverse_opening_balance '{"p_id":"<opening id>"}'
+```
+
+**What it writes:** the certified part becomes a confirmed acceptance marked `opening`, dated at go-live; the next real acceptance (cumulative) replaces it. The claimed value (claimed quantity × line rate) counts as already invoiced on the work order, so what is left to invoice and the next claim's cap start from it; it is never a claim or an invoice and nothing is sent to an accounting system. The stock part is an `Opening balance` stock document (number `OPN-…`) posted at go-live. Each load and reversal is in the audit trail. These calls have no `--dry-run`: run the report after each batch and reverse any row that does not match.
+
 ## Command scope and current constraints
 
 The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `pmo correct`, `pmo bid`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `purchases record-only`, `purchases undo-record-only`, `purchases import-history`, `purchases receive`, `purchases pay-captured`, `documents link`, `documents create`, `documents upload`, `accounts map set`, `attribution set`, every `tm` write (a preview unless `--apply`), and `org add` do support previews. No command deletes records.
