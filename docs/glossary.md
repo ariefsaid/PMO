@@ -947,7 +947,7 @@ The workforce register: anyone who holds expiring documents, whether or not they
 
 ## Organisation terminology
 **Term override** — an org Admin's replacement display name (singular and plural, per language) for one of
-five fixed terms: work order, project, client-supplied stock, purchase request, discipline. It changes the
+six fixed terms: work order, project, client-supplied stock, purchase request, discipline, material request. It changes the
 wording shown, never the data or the code identifier. Generic terms are not overridable.
 **Usage standard** — an organisation rule of how much of a consumable stock item one unit of planned work uses (for example welding rod per dia-inch), matched on the contract line's unit, with an optional code prefix and a waste margin (#2577).
 
