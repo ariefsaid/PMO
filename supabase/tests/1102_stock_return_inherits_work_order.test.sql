@@ -73,8 +73,8 @@ select set_config('mrqu.ret', public.create_stock_document(
     'source_line_id', (select id from stock_document_lines where document_id = current_setting('mrqu.iss')::uuid))), true)::text, true);
 select is((select work_order_id::text from stock_documents where id = current_setting('mrqu.ret')::uuid), '25400000-0000-0000-0000-000000001401',
   '#2612 the return took the work order of the issue it cites');
-select is((select sum((r->>'issued_qty')::numeric)::text from jsonb_array_elements(public.get_work_order_stock_balance('25400000-0000-0000-0000-000000001401', null)) r
-            where r->>'item_id' = '25400000-0000-0000-0000-000000001311'), '3.000',
+select is((select sum((r->>'issued_qty')::numeric) from jsonb_array_elements(public.get_work_order_stock_balance('25400000-0000-0000-0000-000000001401', null)) r
+            where r->>'item_id' = '25400000-0000-0000-0000-000000001311'), 3::numeric,
   '#2612 the work order''s issued quantity nets down by the return (5 - 2)');
 
 select * from finish();

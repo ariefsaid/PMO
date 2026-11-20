@@ -1,7 +1,7 @@
 -- 1101_mrq_destination_kinds.test.sql — #2608 the transfer destination is a site, yard or staging location.
 begin;
 create extension if not exists pgtap;
-select plan(8);
+select plan(10);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25400000-0000-0000-0000-00000000010a', 'MRQ UAT Org', 'IDR', 'Asia/Jakarta');
@@ -70,15 +70,19 @@ select throws_ok($$ select pg_temp._draft(3, 5, '25400000-0000-0000-0000-0000000
 insert into t_ids values ('stg', pg_temp._draft(3, 5, '25400000-0000-0000-0000-000000001814'));
 select lives_ok($$ select public.mrq_submit(v) from t_ids where k in ('y', 'many', 'none', 'stg') $$, 'the four requests are sent');
 select pg_temp._as('25400000-0000-0000-0000-0000000001a5');
-select is((select d.to_warehouse_id::text from (select public.mrq_decide_step((select v from t_ids where k = 'y'), 1, 'approve', null, '25400000-0000-0000-0000-000000001801')) x,
-            material_requests r join stock_documents d on d.id = r.transfer_document_id where r.id = (select v from t_ids where k = 'y')),
+select lives_ok($$ select public.mrq_decide_step((select v from t_ids where k = 'y'), 1, 'approve', null, '25400000-0000-0000-0000-000000001801') $$,
+  '#2608 the yard-only request is approved');
+select is((select d.to_warehouse_id::text from material_requests r join stock_documents d on d.id = r.transfer_document_id
+            where r.id = (select v from t_ids where k = 'y')),
   '25400000-0000-0000-0000-000000001812', '#2608 a yard-only project delivers to its yard');
 select throws_ok($$ select public.mrq_decide_step((select v from t_ids where k = 'many'), 1, 'approve', null, '25400000-0000-0000-0000-000000001801') $$, 'P0001',
   'MRQ_MANY_DESTINATIONS: the project has several locations; name the one this request goes to', '#2608 several locations and no choice names the problem');
 select throws_ok($$ select public.mrq_decide_step((select v from t_ids where k = 'none'), 1, 'approve', null, '25400000-0000-0000-0000-000000001801') $$, 'P0001',
   'MRQ_NO_DESTINATION: the work order''s project has no site, yard or staging location to deliver to', '#2608 a project with no location says so');
-select is((select d.to_warehouse_id::text from (select public.mrq_decide_step((select v from t_ids where k = 'stg'), 1, 'approve', null, '25400000-0000-0000-0000-000000001801')) x,
-            material_requests r join stock_documents d on d.id = r.transfer_document_id where r.id = (select v from t_ids where k = 'stg')),
+select lives_ok($$ select public.mrq_decide_step((select v from t_ids where k = 'stg'), 1, 'approve', null, '25400000-0000-0000-0000-000000001801') $$,
+  '#2608 the selected staging request is approved');
+select is((select d.to_warehouse_id::text from material_requests r join stock_documents d on d.id = r.transfer_document_id
+            where r.id = (select v from t_ids where k = 'stg')),
   '25400000-0000-0000-0000-000000001814', '#2608 a chosen staging location is honoured');
 
 select * from finish();
