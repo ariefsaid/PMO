@@ -162,6 +162,10 @@ vi.mock('@/src/lib/db/incidents', () => ({
   updateIncident: vi.fn(),
   transitionIncident: vi.fn(),
   deleteIncident: vi.fn(),
+  listIncidentFiles: vi.fn(),
+  uploadIncidentFile: vi.fn(),
+  getIncidentFileUrl: vi.fn(),
+  createTaskFromIncident: vi.fn(),
 }));
 vi.mock('@/src/lib/db/milestones', () => ({
   listMilestones: vi.fn(),
@@ -395,7 +399,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'getActivationMode', 'getDistribution', 'importLine', 'listArchiveLiveTargets', 'listArchiveTargets', 'listDocumentLinks', 'listLegacyArchiveLiveTargets', 'listOrgDrafts', 'listVersions', 'precheckActivation', 'removeDocumentLink', 'resubmitVersion', 'returnVersion', 'saveDistribution', 'switchDraftMode', 'updateLineItem'].sort(),
     );
     expect(Object.keys(repositories.incident).sort()).toEqual(
-      ['count', 'create', 'delete', 'get', 'list', 'listPage', 'transition', 'update'].sort(),
+      ['count', 'create', 'createTask', 'delete', 'fileUrl', 'get', 'list', 'listFiles', 'listPage', 'transition', 'update', 'uploadFile'].sort(),
     );
     expect(Object.keys(repositories.comment).sort()).toEqual(['archive', 'create', 'list']);
   });
@@ -1086,7 +1090,7 @@ describe('delegation — methods pass args through and return the DAL result', (
     expect(incidentsDal.updateIncident).toHaveBeenCalledWith('i1', input);
 
     await repositories.incident.transition('i1', 'Investigating' as never);
-    expect(incidentsDal.transitionIncident).toHaveBeenCalledWith('i1', 'Investigating');
+    expect(incidentsDal.transitionIncident).toHaveBeenCalledWith('i1', 'Investigating', undefined);
 
     await repositories.incident.delete('i1');
     expect(incidentsDal.deleteIncident).toHaveBeenCalledWith('i1');

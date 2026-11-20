@@ -116,7 +116,12 @@ vi.mock('@/src/hooks/useIncidents', () => ({
     transition: { mutateAsync: vi.fn(), isPending: false },
     remove: { mutateAsync: vi.fn(), isPending: false },
   }),
+  useAssigneeOptions: () => ({ data: [] }),
+  useIncidentEvidenceMutations: () => ({ upload: { mutateAsync: vi.fn(), isPending: false }, makeTask: { mutateAsync: vi.fn(), isPending: false } }),
+  useIncidentFiles: () => ({ data: [] }),
 }));
+vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [] }) }));
+
 
 // ── Page imports (after mocks) ───────────────────────────────────────────────
 import Projects from '../Projects';

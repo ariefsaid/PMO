@@ -278,7 +278,7 @@ select plan(7);
 -- it moves credit; proven by supabase/tests/0907_credit_allocations.test.sql and
 -- scripts/credit-allocation-race.test.mjs (AC-ALLOC-001..013).
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
--- The union of the dev and work-order finance RPC inventories contains 182 retained names.
+-- The union of the dev and work-order finance RPC inventories (182) plus the #2521 task hand-off writer contains 183 retained names.
 insert into client_callable_rpc_names (proname) values
   ('set_document_warning_days'), -- 0972: active Admin, scoped to caller org; document_expiry pgTAP
   ('accept_connect_proposals'),
@@ -316,6 +316,7 @@ insert into client_callable_rpc_names (proname) values
   ('confirm_subcontract_acceptance'),
   ('confirm_work_order_acceptance'),
   ('consent_budget_occupant_replace'),
+  ('create_task_from_incident'), -- #2521: manager and organization gated; 0979 pgTAP
   ('create_native_sales_invoice'),
   ('create_native_tm_invoice'),  -- ⚑ AMENDED BY 0704 (#1817)
   ('create_native_progress_claim_invoice'),  -- ⚑ AMENDED BY 0924
@@ -483,8 +484,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  182,
-  'AC-ACL-002 all 182 retained client-callable RPC names still have a public function');
+  183,
+  'AC-ACL-002 all 183 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -493,8 +494,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  182,
-  'AC-ACL-003 all 182 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  183,
+  'AC-ACL-003 all 183 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
