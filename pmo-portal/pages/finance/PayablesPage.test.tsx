@@ -420,7 +420,7 @@ describe('Payables page', () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(screen.getByRole('button', { name: /Open supplier invoice for Sinar Supplier/ }));
+    await user.click(screen.getByRole('link', { name: /Open supplier invoice for Sinar Supplier/ }));
     expect(screen.getByRole('status', { name: 'Current path' })).toHaveTextContent('/procurement/procurement-1');
     cleanup();
     renderPage();
@@ -509,7 +509,7 @@ describe('Payables page', () => {
 
     expect(screen.getByText('No supplier invoices waiting to be paid.')).toBeInTheDocument();
     expect(screen.getByText('To pay suppliers').parentElement?.parentElement).toHaveTextContent(/IDR\s*0/);
-    expect(screen.queryByRole('button', { name: /Open supplier invoice for/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Open supplier invoice for/ })).not.toBeInTheDocument();
   });
 
   it('SEC-RS-2 / C4: an unknown supplier balance is left out of its row and the total, counted, and explained once', () => {

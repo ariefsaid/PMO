@@ -173,6 +173,7 @@ const ImprestFloatsPage: React.FC = () => {
           ) : (
             <DataTable<FloatListRow> rows={rows} columns={columns} rowKey={(r) => r.id}
               onActivate={(r) => navigate(`/imprest/${r.id}`)}
+              rowHref={(r) => `/imprest/${r.id}`}
               rowLabel={(r) => t('imprest:list.rowLabel', 'Open {{project}}', { project: r.project?.name ?? '' })}
               tableId="imprest-floats-table"
               total={total}
