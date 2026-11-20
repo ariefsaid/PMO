@@ -1003,4 +1003,3 @@ which moves the organisation's own stock.
 ## Import templates (#2530)
 - **Import template** — a spreadsheet a person downloads from an import screen: the field labels as headers, one example row, dropdowns for closed lists and a Notes sheet saying what each column holds. It carries a version, and an upload of the current or the previous version is accepted.
 - **Failed-rows file** — the spreadsheet offered when an import ends with rows that did not go in: the original cells of those rows plus "Row in your file" and "Reason", so they can be fixed and uploaded again. Rows that already existed are on their own "Already there" sheet.
->>>>>>> origin/dev
