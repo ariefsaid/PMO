@@ -35,6 +35,8 @@ insert into stock_warehouses (id, org_id, code, name, kind, project_id) values
   ('25400000-0000-0000-0000-000000001812', '25400000-0000-0000-0000-00000000010a', 'U-Y2', 'Yard two', 'yard',    '25400000-0000-0000-0000-0000000001d2'),
   ('25400000-0000-0000-0000-000000001813', '25400000-0000-0000-0000-00000000010a', 'U-S3', 'Site three', 'site',  '25400000-0000-0000-0000-0000000001d3'),
   ('25400000-0000-0000-0000-000000001814', '25400000-0000-0000-0000-00000000010a', 'U-G3', 'Staging three', 'staging', '25400000-0000-0000-0000-0000000001d3');
+insert into stock_warehouse_keepers (org_id, warehouse_id, user_id) values
+  ('25400000-0000-0000-0000-00000000010a', '25400000-0000-0000-0000-000000001801', '25400000-0000-0000-0000-0000000001a5');
 
 create or replace function pg_temp._as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);

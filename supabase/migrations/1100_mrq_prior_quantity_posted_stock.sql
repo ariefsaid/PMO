@@ -17,6 +17,10 @@ create or replace function public.mrq_prior_quantity(p_work_order_id uuid, p_ite
              from public.material_request_lines ml
              join public.material_requests r on r.id = ml.request_id
             where r.work_order_id = p_work_order_id and ml.item_id = p_item_id and r.id <> p_exclude_request
-              and r.status in ('pending', 'approved')), 0)
+              and r.status in ('pending', 'approved')
+              and not exists (
+                select 1 from public.stock_documents d
+                 where d.id = r.transfer_document_id and d.status = 'Posted'
+              )), 0)
 $$;
 

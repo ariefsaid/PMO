@@ -7,15 +7,16 @@ create or replace function public.stock_returns_inherit_work_order() returns tri
   language plpgsql security definer set search_path = public, pg_temp as $$
 begin
   update public.stock_documents r
-     set work_order_id = x.wo
+     set work_order_id = x.wo, project_id = coalesce(r.project_id, x.project_id)
     from (
-      select rl.document_id, min(i.work_order_id::text)::uuid as wo
+      select rl.document_id, min(i.work_order_id::text)::uuid as wo, min(i.project_id::text)::uuid as project_id
         from public.stock_document_lines rl
         join public.stock_document_lines sl on sl.id = rl.source_line_id
         join public.stock_documents i on i.id = sl.document_id and i.kind = 'issue'
        where rl.document_id in (select distinct document_id from new_lines)
        group by rl.document_id
       having count(*) = count(i.work_order_id) and count(distinct i.work_order_id) = 1
+         and count(*) = count(i.project_id) and count(distinct i.project_id) = 1
     ) x
    where r.id = x.document_id and r.kind = 'return' and r.work_order_id is null and r.status = 'Draft';
   return null;

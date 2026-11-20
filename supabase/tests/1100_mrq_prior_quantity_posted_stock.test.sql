@@ -35,6 +35,8 @@ insert into stock_warehouses (id, org_id, code, name, kind, project_id) values
   ('25400000-0000-0000-0000-000000001812', '25400000-0000-0000-0000-00000000010a', 'U-Y2', 'Yard two', 'yard',    '25400000-0000-0000-0000-0000000001d2'),
   ('25400000-0000-0000-0000-000000001813', '25400000-0000-0000-0000-00000000010a', 'U-S3', 'Site three', 'site',  '25400000-0000-0000-0000-0000000001d3'),
   ('25400000-0000-0000-0000-000000001814', '25400000-0000-0000-0000-00000000010a', 'U-G3', 'Staging three', 'staging', '25400000-0000-0000-0000-0000000001d3');
+insert into stock_warehouse_keepers (org_id, warehouse_id, user_id) values
+  ('25400000-0000-0000-0000-00000000010a', '25400000-0000-0000-0000-000000001801', '25400000-0000-0000-0000-0000000001a5');
 
 create or replace function pg_temp._as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
@@ -47,8 +49,8 @@ create or replace function pg_temp._draft(p_n int, p_qty numeric, p_to uuid defa
     jsonb_build_array(jsonb_build_object('item_id', '25400000-0000-0000-0000-000000001311', 'quantity', p_qty, 'over_plan_reason', 'uat')),
     gen_random_uuid()) $$;
 grant execute on function pg_temp._draft(int, numeric, uuid) to authenticated;
-create or replace function pg_temp._prior(p_n int) returns text language sql as $$
-  select prior_qty::text from public.mrq_plan_for(('25400000-0000-0000-0000-00000000140' || p_n)::uuid, array['25400000-0000-0000-0000-000000001311']::uuid[]) $$;
+create or replace function pg_temp._prior(p_n int) returns numeric language sql as $$
+  select prior_qty from public.mrq_plan_for(('25400000-0000-0000-0000-00000000140' || p_n)::uuid, array['25400000-0000-0000-0000-000000001311']::uuid[]) $$;
 grant execute on function pg_temp._prior(int) to authenticated;
 create temp table t_ids (k text primary key, v uuid);
 grant all on t_ids to authenticated;
@@ -60,23 +62,23 @@ select lives_ok($$ select public.create_stock_document('{"kind":"receive","wareh
   '[{"item_id":"25400000-0000-0000-0000-000000001311","quantity":500,"unit_cost":10}]'::jsonb, true) $$, 'stock is received centrally');
 
 -- ── #2611 prior quantity = posted movements on the work order + pending/approved requests not yet fulfilled ─────────
-select is(pg_temp._prior(1), '0.000', '#2611 nothing moved and nothing requested: prior is 0');
+select is(pg_temp._prior(1), 0::numeric, '#2611 nothing moved and nothing requested: prior is 0');
 select lives_ok($$ select public.set_cost_attribution('stock_document', array[
   public.create_stock_document('{"kind":"transfer","warehouse_id":"25400000-0000-0000-0000-000000001801","to_warehouse_id":"25400000-0000-0000-0000-000000001811"}'::jsonb,
     '[{"item_id":"25400000-0000-0000-0000-000000001311","quantity":60}]'::jsonb, true)],
   '25400000-0000-0000-0000-000000001401', null) $$, 'the keeper posts 60 bags straight to the work order');
-select is(pg_temp._prior(1), '60.000', '#2611 the 60 posted bags count as already on the work order');
+select is(pg_temp._prior(1), 60::numeric, '#2611 the 60 posted bags count as already on the work order');
 select pg_temp._as('25400000-0000-0000-0000-0000000001a2');
 insert into t_ids values ('r1', pg_temp._draft(1, 10));
 select lives_ok($$ select public.mrq_submit((select v from t_ids where k = 'r1')) $$, 'a request for 10 more is sent');
-select is(pg_temp._prior(1), '70.000', '#2611 the pending request adds to the posted movement');
+select is(pg_temp._prior(1), 70::numeric, '#2611 the pending request adds to the posted movement');
 select pg_temp._as('25400000-0000-0000-0000-0000000001a5');
 select lives_ok($$ select public.mrq_decide_step((select v from t_ids where k = 'r1'), 1, 'approve', null, '25400000-0000-0000-0000-000000001801') $$,
   'Finance approves; the transfer draft is made');
 select pg_temp._as('25400000-0000-0000-0000-0000000001a1');
 select lives_ok($$ select public.post_stock_document((select transfer_document_id from material_requests where id = (select v from t_ids where k = 'r1'))) $$,
   'the keeper posts the request''s transfer');
-select is(pg_temp._prior(1), '70.000', '#2611 a fulfilled request is counted through its movement once, not twice');
+select is(pg_temp._prior(1), 70::numeric, '#2611 a fulfilled request is counted through its movement once, not twice');
 
 select * from finish();
 rollback;
