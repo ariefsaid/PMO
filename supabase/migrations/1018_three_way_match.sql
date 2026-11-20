@@ -1,4 +1,4 @@
--- 0965_three_way_match.sql — #2525: three-way match. A vendor bill is checked line by line against the purchase order
+-- 1018_three_way_match.sql — #2525: three-way match. A vendor bill is checked line by line against the purchase order
 -- (the purchase's ordered items) and the goods received before it can be paid. A mismatch holds the bill until an
 -- Admin or Finance user who neither recorded the bill nor its match lines approves the exception with a reason.
 -- Spec docs/specs/three-way-match.spec.md · Plan docs/plans/2026-11-20-three-way-match.md.
@@ -9,7 +9,7 @@
 -- (their bills already carry a hard quantity cap, 0472) and organisations whose purchasing an ERP owns are untouched.
 -- Nothing here writes to an ERP or changes any ERP posting.
 --
--- ── REVERSE (also rollback/0965_three_way_match_down.sql; refused while an approved exception exists) ──
+-- ── REVERSE (also rollback/1018_three_way_match_down.sql; refused while an approved exception exists) ──
 --   drop the three payment-gate triggers and their functions, the client RPCs, the evaluator, then the five tables.
 
 -- §1 Settings: one row per organisation, written only by set_three_way_match_settings (Admin).

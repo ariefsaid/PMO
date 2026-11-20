@@ -1,6 +1,6 @@
 -- #2525: three-way match — a vendor bill is checked against the order and the receipt before it can be paid
 -- (AC-TWM-001..012). Spec docs/specs/three-way-match.spec.md · Plan docs/plans/2026-11-20-three-way-match.md.
--- Migration under test: 0965_three_way_match.sql. The mutation check is three_way_match_mutation.test.sql.
+-- Migration under test: 1018_three_way_match.sql. The mutation check is three_way_match_mutation.test.sql.
 -- Orgs: A (match on, multi-member), B (match on, purchasing owned by an ERP), N (match never switched on).
 -- Bills are recorded through create_procurement_invoice so their create audit carries the real author.
 begin;

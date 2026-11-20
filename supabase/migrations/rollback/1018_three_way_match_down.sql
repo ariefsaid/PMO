@@ -1,4 +1,4 @@
--- Rollback of 0965_three_way_match.sql (#2525).
+-- Rollback of 1018_three_way_match.sql (#2525).
 -- Refused while an approved exception exists: dropping it would erase the record of who released a held bill and why.
 do $$ begin
   if exists (select 1 from public.bill_match_exceptions) then

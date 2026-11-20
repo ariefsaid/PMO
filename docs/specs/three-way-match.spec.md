@@ -1,6 +1,6 @@
 # Three-way match — vendor bill checked against order and receipt before payment (#2525)
 
-Status: draft for Director review · Map #2516 · Money path (ships alone) · Migration `0965_three_way_match.sql`
+Status: draft for Director review · Map #2516 · Money path (ships alone) · Migration `1018_three_way_match.sql`
 
 ## 1. Overview and user value
 
@@ -63,7 +63,7 @@ purchases already refuse a bill over the accepted quantity (`0472`, hard cap at 
   security-definer RPC), proven by pgTAP and an in-transaction mutation check of the shipped functions.
 - **NFR-TWM-003 Concurrency** — every line writer, the exception approval and the gate lock the purchase row first (the
   same order as `a0_payments_lock_procurement`); an organisation without the match never takes the gate's lock.
-- **NFR-TWM-004 Reversibility** — `rollback/0965_three_way_match_down.sql`, refused while an approved exception exists.
+- **NFR-TWM-004 Reversibility** — `rollback/1018_three_way_match_down.sql`, refused while an approved exception exists.
 - **NFR-TWM-005 No ERP change** — nothing writes to an ERP; ERP-owned purchasing behaves exactly as before.
 
 ## 5. Acceptance criteria (owning layer: pgTAP, `supabase/tests/three_way_match.test.sql` unless noted)

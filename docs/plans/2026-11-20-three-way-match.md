@@ -19,14 +19,14 @@ Spec: `docs/specs/three-way-match.spec.md`. Money path: ships alone. Migration r
 ## Tasks (each 2–5 min; red → green)
 
 1. Write `supabase/tests/three_way_match.test.sql` (AC-TWM-001..012) — red: functions missing.
-2. Write `supabase/migrations/0965_three_way_match.sql` §1–§5 (tables, RLS, grants) — table assertions go green.
+2. Write `supabase/migrations/1018_three_way_match.sql` §1–§5 (tables, RLS, grants) — table assertions go green.
 3. §6 evaluator + `purchase_match_on` / `purchase_has_held_bill` — AC-TWM-002..007 status assertions green.
 4. §7 gate triggers — AC-TWM-002/011 refusals green.
 5. §8–§11 writers and reader — AC-TWM-001/004/012 green.
 6. §12 exception RPC — AC-TWM-008/009 green.
 7. `supabase/tests/three_way_match_mutation.test.sql` (AC-TWM-013): rewrite the shipped SoD and over-received sites via
    `pg_get_functiondef` + `replace`; the refused actions go through.
-8. `supabase/migrations/rollback/0965_three_way_match_down.sql`.
+8. `supabase/migrations/rollback/1018_three_way_match_down.sql`.
 9. Allow-lists: `supabase/tests/0178_anon_executable_definers.test.sql` (+4 writers, 181);
    `scripts/isolation-probe-denominator.json` (+5 tables, +8 definers); `scripts/isolation-fixtures.sql` (one tenant-A
    row per new table so no probe skips).
